@@ -4,6 +4,7 @@ use crate::common::data::SerializationType;
 
 use super::subworker::SubworkerId;
 use crate::TaskId;
+use crate::messages::common::TaskFailInfo;
 
 #[derive(Deserialize, Debug)]
 pub(crate) struct RegisterSubworkerMessage {
@@ -57,10 +58,7 @@ pub struct TaskFinishedMsg {
 #[derive(Deserialize, Debug)]
 pub struct TaskFailedMsg {
     pub id: TaskId,
-    #[serde(with = "serde_bytes")]
-    pub exception: Vec<u8>,
-    #[serde(with = "serde_bytes")]
-    pub traceback: Vec<u8>,
+    pub info: TaskFailInfo,
 }
 
 #[derive(Deserialize, Debug)]

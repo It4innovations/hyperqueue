@@ -14,3 +14,4 @@ mod wrapped;
 pub mod error;
 #[macro_use]
 pub mod trace;
+pub mod setup;

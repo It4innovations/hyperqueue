@@ -31,10 +31,10 @@ use crate::server::worker::WorkerId;
 use crate::transfer::fetch::fetch_data;
 use crate::worker::reactor::start_local_download;
 use crate::worker::state::WorkerStateRef;
-use crate::worker::subworker::{start_subworkers, SubworkerPaths};
 use crate::worker::task::TaskRef;
 use futures::stream::FuturesUnordered;
 use crate::transfer::DataConnection;
+use std::path::PathBuf;
 
 async fn start_listener() -> crate::Result<(TcpListener, String)> {
     let address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
@@ -79,7 +79,8 @@ async fn connect_to_server(scheduler_address: &str) -> crate::Result<TcpStream> 
 pub async fn run_worker(
     scheduler_address: &str,
     ncpus: u32,
-    subworker_paths: SubworkerPaths,
+    work_dir: PathBuf,
+    log_dir: PathBuf,
 ) -> crate::Result<()> {
     let (listener, address) = start_listener().await?;
     let stream = connect_to_server(&scheduler_address).await?;
@@ -111,18 +112,21 @@ pub async fn run_worker(
                     address,
                     download_sender,
                     message.worker_addresses,
+                    message.subworker_definitions,
+                    work_dir,
+                    log_dir
                 )
             }
             None => panic!("Connection closed without receiving registration response"),
         }
     };
 
-    log::info!("Starting {} subworkers", ncpus);
+    /*log::info!("Starting {} subworkers", ncpus);
     let (subworkers, sw_processes) =
         start_subworkers(&state, subworker_paths, "python3", ncpus).await?;
     log::debug!("Subworkers started");
 
-    state.get_mut().set_subworkers(subworkers);
+    state.get_mut().set_subworkers(subworkers);*/
 
     tokio::select! {
         _ = worker_message_loop(state.clone(), reader) => {
@@ -134,9 +138,9 @@ pub async fn run_worker(
         _result = taskset.run_until(connection_initiator(listener, state.clone())) => {
             panic!("Taskset failed");
         }
-        idx = sw_processes => {
+        /*idx = sw_processes => {
             panic!("Subworker process {} failed", idx);
-        }
+        }*/
         _ = worker_data_downloader(state, download_reader) => {
             unreachable!()
         }
@@ -278,6 +282,9 @@ async fn worker_message_loop(
                     .worker_addresses
                     .insert(msg.worker_id, msg.address)
                     .is_none())
+            }
+            ToWorkerMessage::RegisterSubworker(sw_def) => {
+                state.subworker_definitions.insert(sw_def.id, sw_def);
             }
         }
     }

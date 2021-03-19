@@ -20,9 +20,9 @@ use crate::scheduler::protocol::NewFinishedTaskInfo;
 use crate::server::worker::WorkerId;
 use crate::TaskId;
 
+
 pub async fn gather(
     core_ref: &CoreRef,
-    _comm_ref: &CommSenderRef,
     task_ids: &[TaskId],
 ) -> crate::Result<Vec<(TaskId, BytesMut, SerializationType)>> {
     let mut worker_map: Map<WorkerId, Vec<TaskId>> = Default::default();

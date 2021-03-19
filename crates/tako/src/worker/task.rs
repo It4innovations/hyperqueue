@@ -2,17 +2,20 @@ use crate::common::WrappedRcRefCell;
 use crate::messages::worker::ComputeTaskMsg;
 use crate::worker::data::DataObjectRef;
 use crate::worker::subworker::SubworkerRef;
-use crate::{TaskId, PriorityValue};
+use crate::{TaskId, PriorityValue, TaskTypeId};
+use crate::messages::common::SubworkerKind;
+use crate::worker::taskenv::TaskEnv;
 
 pub enum TaskState {
     Waiting(u32),
-    Uploading(SubworkerRef, u32),
-    Running(SubworkerRef),
+    Uploading(TaskEnv, u32),
+    Running(TaskEnv),
     Removed,
 }
 
 pub struct Task {
     pub id: TaskId,
+    pub type_id: TaskTypeId,
     pub state: TaskState,
     pub priority: (PriorityValue, PriorityValue),
     pub deps: Vec<DataObjectRef>,
@@ -61,11 +64,6 @@ impl Task {
             _ => unreachable!(),
         }
     }
-
-    pub fn set_running(&mut self, subworker_ref: SubworkerRef) {
-        assert!(self.is_ready());
-        self.state = TaskState::Running(subworker_ref);
-    }
 }
 
 pub type TaskRef = WrappedRcRefCell<Task>;
@@ -74,6 +72,7 @@ impl TaskRef {
     pub fn new(message: ComputeTaskMsg) -> Self {
         TaskRef::wrap(Task {
             id: message.id,
+            type_id: message.type_id,
             spec: message.spec,
             priority: (message.user_priority, message.scheduler_priority),
             state: TaskState::Waiting(0),

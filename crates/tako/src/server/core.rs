@@ -1,20 +1,24 @@
 use crate::common::{IdCounter, Map, WrappedRcRefCell};
 use crate::{TaskId, WorkerId};
-use crate::server::gateway::Gateway;
 
 use crate::server::task::{Task, TaskRef, TaskRuntimeState};
 use crate::common::trace::trace_task_remove;
 use crate::server::worker::Worker;
+use crate::messages::common::SubworkerDefinition;
+use crate::common::error::DsError;
+use crate::messages::gateway::ServerInfo;
 
 #[derive(Default)]
 pub struct Core {
     tasks: Map<TaskId, TaskRef>,
     workers: Map<WorkerId, Worker>,
 
-    task_id_counter: IdCounter,
+    maximal_task_id: TaskId,
     worker_id_counter: IdCounter,
-
     scatter_counter: usize,
+    worker_listen_port: u16,
+
+    subworker_definitions: Vec<SubworkerDefinition>,
 }
 
 pub type CoreRef = WrappedRcRefCell<Core>;
@@ -32,8 +36,8 @@ impl Core {
     }
 
     #[inline]
-    pub fn new_task_id(&mut self) -> TaskId {
-        self.task_id_counter.next()
+    pub fn is_used_task_id(&self, task_id: TaskId) -> bool {
+        task_id <= self.maximal_task_id
     }
 
     #[inline]
@@ -43,10 +47,23 @@ impl Core {
         c
     }
 
-    #[inline]
-    pub fn gateway(&self) -> &dyn Gateway {
-        todo!()
-        //self.gateway.as_ref()
+    pub fn get_server_info(&self) -> ServerInfo {
+        ServerInfo {
+            worker_listen_port: self.worker_listen_port
+        }
+    }
+
+    pub fn set_worker_listen_port(&mut self, port: u16) {
+        self.worker_listen_port = port
+    }
+
+    pub fn get_subworker_definitions(&self) -> &Vec<SubworkerDefinition> {
+        &self.subworker_definitions
+    }
+
+    pub fn update_max_task_id(&mut self, task_id: TaskId) {
+        assert!(task_id >= self.maximal_task_id);
+        self.maximal_task_id = task_id;
     }
 
     pub fn new_worker(&mut self, worker: Worker) {
@@ -116,6 +133,17 @@ impl Core {
     #[inline]
     pub fn get_task_by_id(&self, id: TaskId) -> Option<&TaskRef> {
         self.tasks.get(&id)
+    }
+
+    pub fn add_subworker_definition(&mut self, subworker_def: SubworkerDefinition) -> crate::Result<()> {
+        if subworker_def.id == 0 {
+            return Err(DsError::GenericError("Subworker id 0 is reserved".into()));
+        }
+        if self.subworker_definitions.iter().any(|d| d.id == subworker_def.id) {
+            return Err(DsError::GenericError(format!("Subworker id {} is already reserved", subworker_def.id)));
+        }
+        self.subworker_definitions.push(subworker_def);
+        Ok(())
     }
 }
 

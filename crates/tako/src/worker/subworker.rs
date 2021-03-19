@@ -24,31 +24,18 @@ use crate::worker::messages::{
     ComputeTaskMsg, DownloadRequestMsg, FromSubworkerMessage, RegisterSubworkerResponse,
     RemoveDataMsg, ToSubworkerMessage, UploadMsg,
 };
-use crate::worker::state::WorkerStateRef;
+use crate::worker::state::{WorkerStateRef, WorkerState};
 use crate::worker::task::{Task, TaskRef, TaskState};
 
 use super::messages::RegisterSubworkerMessage;
 use crate::common::data::SerializationType;
-use crate::TaskId;
+use crate::{TaskId, TaskTypeId};
 use crate::worker::reactor::{start_task, try_assign_tasks};
 use smallvec::{smallvec, SmallVec};
-
-#[derive(Debug, Clone)]
-pub struct SubworkerPaths {
-    /// Used for storing trace/profiling/log information.
-    work_dir: PathBuf,
-    /// Used for local communication (unix socket).
-    local_dir: PathBuf,
-}
-
-impl SubworkerPaths {
-    pub fn new(work_dir: PathBuf, local_dir: PathBuf) -> Self {
-        Self {
-            work_dir,
-            local_dir,
-        }
-    }
-}
+use crate::worker::paths::WorkerPaths;
+use crate::messages::common::SubworkerDefinition;
+use bitflags::_core::ops::Sub;
+use crate::worker::taskenv::TaskEnv;
 
 pub(crate) type SubworkerId = u32;
 
@@ -185,10 +172,12 @@ fn subworker_download_finished(
                     match subscriber {
                         Subscriber::Task(task_ref) => {
                             let mut task = task_ref.get_mut();
-                            let start_task_at = match &mut task.state {
-                                TaskState::Uploading(target_sw_ref, ref mut w) => {
-                                    subworkers.push(target_sw_ref.clone());
-                                    target_sw_ref.get_mut().send_data(
+                            let start_env : Option<TaskEnv> = match &mut task.state {
+                                TaskState::Uploading(ref mut env, ref mut w) => {
+                                    if let Some(target_sw_ref) = env.get_subworker() {
+                                        subworkers.push(target_sw_ref.clone());
+                                    }
+                                    env.send_data(
                                         data_id,
                                         bytes.clone(),
                                         msg.serializer.clone(),
@@ -196,15 +185,15 @@ fn subworker_download_finished(
                                     assert!(*w > 0);
                                     *w -= 1;
                                     if *w == 0 {
-                                        Some(target_sw_ref.clone())
+                                        Some(std::mem::replace(env, TaskEnv::Empty))
                                     } else {
                                         None
                                     }
                                 }
                                 _ => unreachable!(),
                             };
-                            if let Some(target_sw_ref) = start_task_at {
-                                start_task(&target_sw_ref.get(), target_sw_ref.clone(), &mut task);
+                            if let Some(env) = start_env {
+                                start_task(&state, &mut task, &task_ref, env);
                             }
                         }
                         Subscriber::OneShot(shot) => {
@@ -244,13 +233,8 @@ fn subworker_task_finished(
         };
         state.free_subworkers.push(subworker_ref.clone());
         assert_eq!(task_ref.get().id, msg.id);
-        state.remove_task(task_ref, true);
 
-        let message = FromWorkerMessage::TaskFinished(TaskFinishedMsg {
-            id: msg.id,
-            size: msg.size,
-        });
-        state.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap());
+        state.finish_task(task_ref, msg.size);
 
         let subworkers: SmallVec<[SubworkerRef; 1]> = smallvec![subworker_ref.clone()];
         let data_ref = DataObjectRef::new(
@@ -277,14 +261,7 @@ fn subworker_task_fail(
         };
         state.free_subworkers.push(subworker_ref.clone());
         assert_eq!(task_ref.get().id, msg.id);
-        state.remove_task(task_ref, true);
-
-        let message = FromWorkerMessage::TaskFailed(TaskFailedMsg {
-            id: msg.id,
-            exception: msg.exception,
-            traceback: msg.traceback,
-        });
-        state.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap());
+        state.finish_task_failed(task_ref, msg.info);
     }
     try_assign_tasks(&mut state);
 }
@@ -318,7 +295,7 @@ async fn run_subworker_message_loop(
 
 async fn run_subworker(
     state_ref: WorkerStateRef,
-    paths: SubworkerPaths,
+    paths: WorkerPaths,
     python_program: String,
     subworker_id: SubworkerId,
     ready_shot: oneshot::Sender<SubworkerRef>,
@@ -335,7 +312,7 @@ async fn run_subworker(
         let log_stdout = File::create(&log_path)?;
         let log_stderr = log_stdout.try_clone()?;
 
-        let mut args = vec!["-m".to_string(), "rsds.subworker".to_string()];
+        let mut args = vec!["-m".to_string(), "tako.subworker".to_string()];
         let mut program = python_program;
 
         if let Ok(cmd) = std::env::var("RSDS_SUBWORKER_PREFIX") {
@@ -393,9 +370,58 @@ async fn run_subworker(
     //Ok(())
 }
 
-pub async fn start_subworkers(
+/*pub fn start_subworker(state: &mut WorkerState, type_id: TaskTypeId) -> crate::Result<SubworkerRef> {
+    todo!()
+}*/
+
+pub fn choose_subworker(state: &mut WorkerState, task: &Task) -> Option<SubworkerRef> {
+    if state.free_subworkers.is_empty() {
+        return None
+    }
+    unimplemented!();
+    let fsw = &state.free_subworkers;
+    let len = fsw.len();
+    if len == 1 || task.deps.is_empty() {
+        return Some(state.free_subworkers.pop().unwrap());
+    }
+    assert!(len > 0);
+    let mut costs = Vec::with_capacity(len);
+    costs.resize(len, u64::MAX);
+
+    if task.deps.len() <= 32 {
+        for dep in &task.deps {
+            let obj = dep.get();
+            for sw_ref in obj.get_placement().unwrap() {
+                if let Some(p) = fsw.iter().position(|sw| sw == sw_ref) {
+                    costs[p] -= obj.size;
+                }
+            }
+        }
+    } else {
+        for idx in (0..task.deps.len()).step_by(task.deps.len() / 16) {
+            let obj = task.deps[idx].get();
+            for sw_ref in obj.get_placement().unwrap() {
+                if let Some(p) = fsw.iter().position(|sw| sw == sw_ref) {
+                    costs[p] -= obj.size;
+                }
+            }
+        }
+    }
+
+    let pos: usize = costs
+        .iter()
+        .enumerate()
+        .min_by_key(|x| x.1)
+        .map(|x| x.0)
+        .unwrap();
+    Some(state.free_subworkers.remove(pos))
+}
+
+
+
+/*pub async fn start_subworkers(
     state: &WorkerStateRef,
-    paths: SubworkerPaths,
+    paths: WorkerPaths,
     python_program: &str,
     count: u32,
 ) -> Result<(Vec<SubworkerRef>, impl Future<Output = usize>), crate::Error> {
@@ -425,4 +451,4 @@ pub async fn start_subworkers(
             Ok((subworkers.into_iter().map(|sw| sw.unwrap()).collect(), all_processes.map(|(_, idx)| idx)))
         }
     }
-}
+}*/

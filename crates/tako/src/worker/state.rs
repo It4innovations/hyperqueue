@@ -7,9 +7,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::common::data::SerializationType;
 use crate::common::{Map, WrappedRcRefCell};
 use crate::TaskId;
-use crate::messages::worker::{
-    DataDownloadedMsg, FromWorkerMessage, StealResponse,
-};
+use crate::messages::worker::{DataDownloadedMsg, FromWorkerMessage, StealResponse, TaskFinishedMsg, TaskFailedMsg};
 use crate::{Priority, PriorityValue};
 use crate::server::worker::WorkerId;
 use crate::worker::data::{DataObjectRef, DataObjectState, LocalData, RemoteData, DataObject};
@@ -21,12 +19,15 @@ use rand::seq::SliceRandom;
 use rand::SeedableRng;
 use smallvec::{smallvec, SmallVec};
 use crate::transfer::DataConnection;
+use std::path::PathBuf;
+use crate::messages::common::{TaskFailInfo, SubworkerDefinition};
 
 pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
 
 pub struct WorkerState {
     pub sender: UnboundedSender<Bytes>,
     pub ncpus: u32,
+    pub free_cpus: u32,
     pub listen_address: String,
     pub subworkers: HashMap<SubworkerId, SubworkerRef>,
     pub free_subworkers: Vec<SubworkerRef>,
@@ -39,10 +40,17 @@ pub struct WorkerState {
     pub worker_addresses: Map<WorkerId, String>,
     pub worker_connections: Map<WorkerId, Vec<DataConnection>>,
     pub random: SmallRng,
+
+    pub self_ref: Option<WorkerStateRef>,
+
+    pub subworker_id_counter: SubworkerId,
+    pub subworker_definitions: Map<SubworkerId, SubworkerDefinition>,
+    pub work_dir: PathBuf,
+    pub log_dir: PathBuf,
 }
 
 impl WorkerState {
-    pub fn set_subworkers(&mut self, subworkers: Vec<SubworkerRef>) {
+    /*pub fn set_subworkers(&mut self, subworkers: Vec<SubworkerRef>) {
         assert!(self.subworkers.is_empty() && self.free_subworkers.is_empty());
         self.free_subworkers = subworkers.clone();
         self.subworkers = subworkers
@@ -52,6 +60,12 @@ impl WorkerState {
                 (id, s.clone())
             })
             .collect();
+    }*/
+
+    pub fn new_subworker_id(&mut self) -> SubworkerId {
+        let id = self.subworker_id_counter;
+        self.subworker_id_counter += 1;
+        id
     }
 
     pub fn add_data_object(&mut self, data_ref: DataObjectRef) {
@@ -322,6 +336,30 @@ impl WorkerState {
             }
         }
     }
+
+    pub fn self_ref(&self) -> WorkerStateRef {
+        self.self_ref.clone().unwrap()
+    }
+
+    pub fn finish_task(&mut self, task_ref: TaskRef, size: u64) {
+        let id = task_ref.get().id;
+        self.remove_task(task_ref, true);
+        let message = FromWorkerMessage::TaskFinished(TaskFinishedMsg {
+            id,
+            size,
+        });
+        self.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap());
+    }
+
+    pub fn finish_task_failed(&mut self, task_ref: TaskRef, info:    TaskFailInfo) {
+        let id = task_ref.get().id;
+        self.remove_task(task_ref, true);
+        let message = FromWorkerMessage::TaskFailed(TaskFailedMsg {
+            id,
+            info
+        });
+        self.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap());
+    }
 }
 
 impl WorkerStateRef {
@@ -332,14 +370,21 @@ impl WorkerStateRef {
         listen_address: String,
         download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, Priority)>,
         worker_addresses: Map<WorkerId, String>,
+        subworker_definitions: Vec<SubworkerDefinition>,
+        work_dir: PathBuf,
+        log_dir: PathBuf,
     ) -> Self {
-        Self::wrap(WorkerState {
+        let self_ref = Self::wrap(WorkerState {
             worker_id,
             worker_addresses,
             sender,
+            free_cpus: ncpus,
             ncpus,
             listen_address,
             download_sender,
+            work_dir,
+            log_dir,
+            subworker_definitions: subworker_definitions.into_iter().map(|x| (x.id, x)).collect(),
             tasks: Default::default(),
             subworkers: Default::default(),
             free_subworkers: Default::default(),
@@ -347,6 +392,10 @@ impl WorkerStateRef {
             data_objects: Default::default(),
             random: SmallRng::from_entropy(),
             worker_connections: Default::default(),
-        })
+            subworker_id_counter: 1, // 0 is reserved for "dummy" subworkers
+            self_ref: None,
+        });
+        self_ref.get_mut().self_ref = Some(self_ref.clone());
+        self_ref
     }
 }
