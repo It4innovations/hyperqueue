@@ -1,4 +1,4 @@
-use crate::TaskId;
+/*use crate::TaskId;
 use crate::server::task::ErrorInfo;
 
 pub trait Gateway {
@@ -12,3 +12,4 @@ pub trait Gateway {
         error_info: ErrorInfo,
     );
 }
+*/

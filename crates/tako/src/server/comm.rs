@@ -3,11 +3,12 @@ use crate::messages::worker::ToWorkerMessage;
 use crate::server::worker::WorkerId;
 
 use crate::common::{Map, WrappedRcRefCell};
-use crate::server::gateway::Gateway;
-use crate::server::task::ErrorInfo;
 use bytes::Bytes;
 use tokio::sync::mpsc::UnboundedSender;
 use crate::TaskId;
+use crate::messages::gateway::{ToGatewayMessage, TaskUpdate, TaskState, TaskFailedMessage};
+use crate::scheduler::protocol::TaskInfo;
+use crate::messages::common::TaskFailInfo;
 
 pub trait Comm {
     fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage);
@@ -20,26 +21,26 @@ pub trait Comm {
         &mut self,
         task_id: TaskId,
         consumers_id: Vec<TaskId>,
-        error_info: ErrorInfo,
+        error_info: TaskFailInfo,
     );
 }
 
 pub struct CommSender {
     workers: Map<WorkerId, UnboundedSender<Bytes>>,
     scheduler_sender: UnboundedSender<ToSchedulerMessage>,
-    pub gateway: Box<dyn Gateway>,
+    client_sender: UnboundedSender<ToGatewayMessage>,
 }
 pub type CommSenderRef = WrappedRcRefCell<CommSender>;
 
 impl CommSenderRef {
     pub fn new(
         scheduler_sender: UnboundedSender<ToSchedulerMessage>,
-        gateway: Box<dyn Gateway>,
+        client_sender: UnboundedSender<ToGatewayMessage>,
     ) -> Self {
         WrappedRcRefCell::wrap(CommSender {
             workers: Default::default(),
             scheduler_sender,
-            gateway,
+            client_sender,
         })
     }
 }
@@ -76,21 +77,33 @@ impl Comm for CommSender {
 
     #[inline]
     fn send_client_task_finished(&mut self, task_id: TaskId) {
-        self.gateway.send_client_task_finished(task_id);
+        log::debug!("Informing client about finished task={}", task_id);
+        self.client_sender.send(ToGatewayMessage::TaskUpdate(TaskUpdate {
+            id: task_id,
+            state: TaskState::Finished
+        }));
     }
 
     #[inline]
     fn send_client_task_removed(&mut self, task_id: TaskId) {
-        self.gateway.send_client_task_removed(task_id);
+        //todo!()
+        //self.gateway.send_client_task_removed(task_id);
     }
 
     fn send_client_task_error(
         &mut self,
         task_id: TaskId,
         consumers_id: Vec<TaskId>,
-        error_info: ErrorInfo,
+        error_info: TaskFailInfo,
     ) {
-        self.gateway
-            .send_client_task_error(task_id, consumers_id, error_info);
+        self.client_sender.send(ToGatewayMessage::TaskFailed({
+            TaskFailedMessage {
+                id: 0,
+                info: error_info
+            }
+        }));
+
+        /*self.gateway
+            .send_client_task_error(task_id, consumers_id, error_info);*/
     }
 }

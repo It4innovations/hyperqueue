@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 use crate::common::{Set, WrappedRcRefCell};
-use crate::TaskId;
+use crate::{TaskId, TaskTypeId};
 use crate::server::core::Core;
 use crate::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::PriorityValue;
@@ -38,11 +38,13 @@ impl fmt::Debug for TaskRuntimeState {
     }
 }
 
-#[derive(Debug)]
-pub struct ErrorInfo {
-    pub exception: Vec<u8>,
-    pub traceback: Vec<u8>,
+bitflags::bitflags! {
+    pub struct TaskFlags: u32 {
+        const KEEP = 0b00000001;
+        const OBSERVE = 0b00000010;
+    }
 }
+
 
 #[derive(Debug)]
 pub struct Task {
@@ -51,7 +53,9 @@ pub struct Task {
     pub unfinished_inputs: u32,
     consumers: Set<TaskRef>,
     pub dependencies: Vec<TaskId>,
-    pub keep_counter: u32,
+    pub flags: TaskFlags,
+
+    pub type_id: TaskTypeId,
     pub spec: Vec<u8>, // Serialized TaskSpec
 
     pub user_priority: i32,
@@ -90,14 +94,23 @@ impl Task {
     }
 
     #[inline]
-    pub fn increment_keep_counter(&mut self) {
-        self.keep_counter += 1;
+    pub fn set_keep_flag(&mut self, value: bool) {
+        self.flags.set(TaskFlags::KEEP, value);
     }
 
     #[inline]
-    pub fn decrement_keep_counter(&mut self) -> bool {
-        self.keep_counter -= 1;
-        self.keep_counter == 0
+    pub fn set_observed_flag(&mut self, value: bool) {
+        self.flags.set(TaskFlags::OBSERVE, value);
+    }
+
+    #[inline]
+    pub fn is_observed(&self) -> bool {
+        self.flags.contains(TaskFlags::OBSERVE)
+    }
+
+    #[inline]
+    pub fn is_keeped(&self) -> bool {
+        self.flags.contains(TaskFlags::KEEP)
     }
 
     pub fn make_sched_info(&self) -> crate::scheduler::protocol::TaskInfo {
@@ -109,7 +122,7 @@ impl Task {
 
     #[inline]
     pub fn is_removable(&self) -> bool {
-        self.consumers.is_empty() && self.keep_counter == 0 && self.is_finished()
+        self.consumers.is_empty() && !self.is_keeped() && self.is_finished()
     }
 
     pub fn collect_consumers(&self) -> HashSet<TaskRef> {
@@ -146,6 +159,7 @@ impl Task {
 
         ToWorkerMessage::ComputeTask(ComputeTaskMsg {
             id: self.id,
+            type_id: self.type_id,
             dep_info,
             spec: self.spec.clone(),
             user_priority: self.user_priority,
@@ -206,16 +220,23 @@ impl Task {
 impl TaskRef {
     pub fn new(
         id: TaskId,
+        type_id: TaskTypeId,
         spec: Vec<u8>,
         dependencies: Vec<TaskId>,
         user_priority: PriorityValue,
         client_priority: PriorityValue,
+        keep: bool,
+        observe: bool,
     ) -> Self {
+        let mut flags = TaskFlags::empty();
+        flags.set(TaskFlags::KEEP, keep);
+        flags.set(TaskFlags::KEEP, observe);
         Self::wrap(Task {
             id,
             dependencies,
             unfinished_inputs: 0,
-            keep_counter: 0,
+            flags,
+            type_id,
             spec,
             user_priority,
             client_priority,

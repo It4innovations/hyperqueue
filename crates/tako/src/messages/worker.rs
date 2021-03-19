@@ -1,18 +1,22 @@
 use serde::{Deserialize, Serialize};
 
 use crate::common::Map;
-use crate::{TaskId, WorkerId};
+use crate::{TaskId, WorkerId, TaskTypeId};
 use crate::PriorityValue;
+use crate::messages::common::{TaskFailInfo, SubworkerDefinition};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerRegistrationResponse {
     pub worker_id: WorkerId,
     pub worker_addresses: Map<WorkerId, String>,
+    pub subworker_definitions: Vec<SubworkerDefinition>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ComputeTaskMsg {
     pub id: TaskId,
+
+    pub type_id: TaskTypeId,
 
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[serde(default)]
@@ -48,6 +52,7 @@ pub enum ToWorkerMessage {
     DeleteData(TaskIdMsg),
     StealTasks(TaskIdsMsg),
     NewWorker(NewWorkerMsg),
+    RegisterSubworker(SubworkerDefinition),
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -61,10 +66,7 @@ pub struct TaskFinishedMsg {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskFailedMsg {
     pub id: TaskId,
-    #[serde(with = "serde_bytes")]
-    pub exception: Vec<u8>,
-    #[serde(with = "serde_bytes")]
-    pub traceback: Vec<u8>,
+    pub info: TaskFailInfo,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

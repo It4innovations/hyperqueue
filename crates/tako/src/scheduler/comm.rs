@@ -9,7 +9,7 @@ use crate::scheduler::{FromSchedulerMessage, Scheduler, SchedulerSender, ToSched
 
 /// Communication channels used by the scheduler to receive events and send assignments.
 pub struct SchedulerComm {
-    pub(crate) recv: UnboundedReceiver<ToSchedulerMessage>,
+    recv: UnboundedReceiver<ToSchedulerMessage>,
     send: UnboundedSender<FromSchedulerMessage>,
 }
 

@@ -13,3 +13,17 @@ pub async fn forward_queue_to_sink<T, E, S: Sink<T, Error = E> + Unpin>(
     }
     Ok(())
 }
+
+pub async fn forward_queue_to_sink_with_map<T1, T2, E, S: Sink<T2, Error = E> + Unpin, F: Fn(T1) -> T2>(
+    mut queue: UnboundedReceiver<T1>,
+    mut sink: S,
+    function: F
+) -> Result<(), E> {
+    while let Some(data) = queue.next().await {
+        if let Err(e) = sink.send(function(data)).await {
+            log::error!("Forwarding from queue failed");
+            return Err(e);
+        }
+    }
+    Ok(())
+}

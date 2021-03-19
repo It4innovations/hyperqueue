@@ -12,13 +12,15 @@ use crate::scheduler::{TaskAssignment, ToSchedulerMessage};
 use crate::server::comm::Comm;
 use crate::server::task::Task;
 use crate::{WorkerId, TaskId};
-use crate::server::task::{DataInfo, ErrorInfo, TaskRef, TaskRuntimeState};
+use crate::server::task::{DataInfo, TaskRef, TaskRuntimeState};
 
 use crate::common::trace::{
     trace_task_assign, trace_task_finish, trace_task_new, trace_task_place, trace_worker_new,
     trace_worker_steal, trace_worker_steal_response, trace_worker_steal_response_missing,
 };
 use crate::server::worker::Worker;
+use crate::messages::gateway::ToGatewayMessage;
+use crate::messages::common::{TaskFailInfo, SubworkerDefinition};
 
 pub fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
     {
@@ -110,13 +112,18 @@ pub fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec<TaskRe
     assert!(!new_tasks.is_empty());
 
     let mut lowest_id = TaskId::MAX;
+    let mut highest_id = 0;
+
     for task_ref in &new_tasks {
         let task_id = task_ref.get().id;
         lowest_id = lowest_id.min(task_id);
+        highest_id = highest_id.max(task_id);
         log::debug!("New task id={}", task_id);
         trace_task_new(task_id, &task_ref.get().dependencies);
         core.add_task(task_ref.clone());
     }
+
+    core.update_max_task_id(highest_id);
 
     for task_ref in &new_tasks {
         let mut task = task_ref.get_mut();
@@ -197,7 +204,7 @@ pub fn on_task_finished(
                 worker: worker_id,
                 size: Some(task.data_info().unwrap().size),
             }));
-            if task.keep_counter > 0 {
+            if task.is_observed() {
                 comm.send_client_task_finished(task.id);
             }
         };
@@ -299,18 +306,30 @@ pub fn on_steal_response(
     }
 }
 
-pub fn on_keep_counter_decrease(core: &mut Core, comm: &mut impl Comm, task_id: TaskId) {
+pub fn on_reset_keep_flag(core: &mut Core, comm: &mut impl Comm, task_id: TaskId) {
     let task_ref = core.get_task_by_id_or_panic(task_id).clone();
     let mut task = task_ref.get_mut();
-    if task.decrement_keep_counter() {
-        remove_task_if_possible(core, comm, &mut task);
-    }
+    task_ref.get_mut().set_keep_flag(false);
+    remove_task_if_possible(core, comm, &mut task);
 }
 
-pub fn on_keep_counter_increase(core: &mut Core, task_id: TaskId) -> TaskRef {
+pub fn on_set_keep_flag(core: &mut Core, task_id: TaskId) -> TaskRef {
     let task_ref = core.get_task_by_id_or_panic(task_id).clone();
-    task_ref.get_mut().increment_keep_counter();
+    task_ref.get_mut().set_keep_flag(true);
     task_ref
+}
+
+pub fn on_set_observe_flag(core: &mut Core, comm: &mut impl Comm, task_id: TaskId, value: bool) -> bool {
+    if let Some(task_ref) = core.get_task_by_id(task_id) {
+        let mut task = task_ref.get_mut();
+        if value && task.is_finished() {
+            comm.send_client_task_finished(task_id);
+        }
+        task.set_observed_flag(value);
+        true
+    } else {
+        false
+    }
 }
 
 pub fn on_task_error(
@@ -318,7 +337,7 @@ pub fn on_task_error(
     comm: &mut impl Comm,
     worker_id: WorkerId,
     task_id: TaskId,
-    error_info: ErrorInfo,
+    error_info: TaskFailInfo,
 ) {
     let task_ref = core.get_task_by_id_or_panic(task_id).clone();
     log::debug!("Task task {} failed", task_id);
@@ -398,6 +417,16 @@ pub fn on_tasks_transferred(
     }
 }
 
+pub fn on_register_subworker(
+    core: &mut Core,
+    comm: &mut impl Comm,
+    sw_def: SubworkerDefinition
+) -> crate::Result<()> {
+    core.add_subworker_definition(sw_def.clone())?;
+    comm.broadcast_worker_message(&ToWorkerMessage::RegisterSubworker(sw_def));
+    Ok(())
+}
+
 #[inline]
 fn send_compute(core: &mut Core, comm: &mut impl Comm, task: &Task, worker_id: WorkerId) {
     trace_task_assign(task.id, worker_id);
@@ -439,6 +468,7 @@ fn remove_task_if_possible(core: &mut Core, comm: &mut impl Comm, task: &mut Tas
         comm.send_client_task_removed(task.id);
     }
 }
+
 
 #[cfg(test)]
 mod tests {

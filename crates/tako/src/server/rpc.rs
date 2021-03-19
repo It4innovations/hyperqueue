@@ -13,7 +13,6 @@ use crate::server::reactor::{
     on_new_worker, on_steal_response, on_task_error, on_task_finished, on_tasks_transferred,
 };
 use crate::server::comm::CommSenderRef;
-use crate::server::task::ErrorInfo;
 use crate::server::worker::Worker;
 
 
@@ -75,6 +74,7 @@ pub async fn worker_rpc_loop<
     let message = WorkerRegistrationResponse {
         worker_id,
         worker_addresses: core_ref.get().get_worker_addresses(),
+        subworker_definitions: core_ref.get().get_subworker_definitions().clone(),
     };
     let data = rmp_serde::to_vec_named(&message).unwrap();
     sender.send(data.into()).await?;
@@ -109,10 +109,7 @@ pub async fn worker_rpc_loop<
                         &mut *comm,
                         worker_id,
                         msg.id,
-                        ErrorInfo {
-                            exception: msg.exception,
-                            traceback: msg.traceback,
-                        },
+                        msg.info
                     );
                 }
                 FromWorkerMessage::DataDownloaded(msg) => {
