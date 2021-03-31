@@ -13,7 +13,10 @@ pub struct TaskDef {
     pub body: Vec<u8>,
 
     #[serde(default)]
-    pub keep: bool
+    pub keep: bool,
+
+    #[serde(default)]
+    pub observe: bool
 }
 
 
@@ -56,9 +59,9 @@ pub struct ErrorResponse {
 
 #[derive(Deserialize, Debug)]
 pub enum TaskState {
-    Invalid = 1,
-    Waiting = 2,
-    Finished = 3,
+    Invalid,
+    Waiting,
+    Finished,
 }
 
 impl Serialize for TaskState {

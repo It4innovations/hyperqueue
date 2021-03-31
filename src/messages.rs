@@ -30,6 +30,7 @@ pub enum ToClientMessage {
 pub enum JobState {
     Waiting,
     Finished,
+    Failed,
 }
 
 

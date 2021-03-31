@@ -1,5 +1,5 @@
 use crate::messages::{SubmitResponse, SubmitMessage, JobInfo, JobState};
-use cli_table::{format::Justify, print_stdout, Cell, Style, Table};
+use cli_table::{format::Justify, print_stdout, Cell, Style, Table, Color};
 
 
 pub fn print_job_stats(tasks: Vec<JobInfo>) {
@@ -7,8 +7,9 @@ pub fn print_job_stats(tasks: Vec<JobInfo>) {
         vec![t.id.cell().justify(Justify::Right),
              t.name.cell(),
              match t.state {
-                 JobState::Waiting => { "WAITING".cell() }
-                 JobState::Finished => { "FINISHED".cell() }
+                 JobState::Waiting => { "WAITING".cell().foreground_color(Some(Color::Cyan)) }
+                 JobState::Finished => { "FINISHED".cell().foreground_color(Some(Color::Green)) }
+                 JobState::Failed => { "FAILED".cell().foreground_color(Some(Color::Red)) }
              },
              "TODO".cell(),
              "TODO".cell()]

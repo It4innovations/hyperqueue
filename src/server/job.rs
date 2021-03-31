@@ -8,7 +8,9 @@ use crate::tako::gateway::TaskInfo;
 pub type JobId = TaskId;
 
 pub enum JobStatus {
-    Submitted
+    Submitted,
+    Finished,
+    Failed(String),
 }
 
 pub struct Job {
@@ -32,10 +34,18 @@ impl Job {
         JobInfo {
             id: self.task_id,
             name: self.name.clone(),
-            state: match task_info {
-                Some(_) => JobState::Waiting,
-                None => JobState::Finished,
-            }
+            state:
+                match self.status {
+                    Submitted => {
+                       match task_info {
+                           Some(_) => JobState::Waiting,
+                           None => JobState::Finished,
+                       }
+                    },
+                    JobStatus::Finished => JobState::Finished,
+                    JobStatus::Failed(_) => JobState::Failed,
+                }
+
         }
     }
 }

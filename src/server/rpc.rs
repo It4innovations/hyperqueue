@@ -77,8 +77,15 @@ impl TakoServer {
                     while let Some(data) = reader.next().await {
                         let data = data.unwrap();
                         let message : ToGatewayMessage = rmp_serde::from_slice(&data).unwrap();
-                        let response = server.inner.get_mut().responses.pop_front().unwrap();
-                        response.send(message);
+                        match message {
+                            ToGatewayMessage::TaskFailed(msg) => {
+                                state_ref.get_mut().process_task_failed(msg);
+                            }
+                            m => {
+                                let response = server.inner.get_mut().responses.pop_front().unwrap();
+                                response.send(m);
+                            }
+                        }
                     }
                     Err(HqError::GenericError("Tako stream terminated".to_string()))
                 };

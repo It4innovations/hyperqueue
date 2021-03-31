@@ -93,7 +93,8 @@ async fn handle_submit(state_ref: &StateRef, tako_ref: &TakoServer, message: Sub
         id: task_id,
         type_id: 0,
         body: rmp_serde::to_vec_named(&program_def).unwrap(),
-        keep: false
+        keep: false,
+        observe: false,
     };
 
     let job = Job::new(task_id, message.name.clone(), program_def);

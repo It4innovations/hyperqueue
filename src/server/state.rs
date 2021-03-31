@@ -1,6 +1,7 @@
 use crate::common::WrappedRcRefCell;
-use crate::server::job::Job;
+use crate::server::job::{Job, JobStatus};
 use crate::TaskId;
+use crate::tako::gateway::TaskFailedMessage;
 
 pub struct State {
     jobs: crate::Map<TaskId, Job>,
@@ -29,6 +30,12 @@ impl State {
         let id = self.id_counter;
         self.id_counter += 1;
         id
+    }
+
+    pub fn process_task_failed(&mut self, msg: TaskFailedMessage) {
+        log::debug!("Task id={} failed", msg.id);
+        let job = self.jobs.get_mut(&msg.id).unwrap();
+        job.status = JobStatus::Failed(msg.info.message);
     }
 }
 

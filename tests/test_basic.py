@@ -23,4 +23,12 @@ def test_submit_sleep(hq_env: HqEnv):
     hq_env.start_server()
     print(hq_env.command("submit", "sleep", "1"))
     print(hq_env.command("stats"))
+    # TODO: Check task is waiting
+
+    # TODO: Add worker
+
+    # TODO: Check task is task is still waiting
+    time.sleep(1.2)
+
+    # TODO: Check task is task is finished
 
