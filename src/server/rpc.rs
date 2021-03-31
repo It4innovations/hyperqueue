@@ -78,9 +78,12 @@ impl TakoServer {
                         let data = data.unwrap();
                         let message : ToGatewayMessage = rmp_serde::from_slice(&data).unwrap();
                         match message {
+                            ToGatewayMessage::TaskUpdate(msg) => {
+                                  state_ref.get_mut().process_task_update(msg);
+                            },
                             ToGatewayMessage::TaskFailed(msg) => {
                                 state_ref.get_mut().process_task_failed(msg);
-                            }
+                            },
                             m => {
                                 let response = server.inner.get_mut().responses.pop_front().unwrap();
                                 response.send(m);

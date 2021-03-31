@@ -30,18 +30,13 @@ impl Job {
         }
     }
 
-    pub fn make_job_info(&self, task_info: Option<&TaskInfo>) -> JobInfo {
+    pub fn make_job_info(&self) -> JobInfo {
         JobInfo {
             id: self.task_id,
             name: self.name.clone(),
             state:
                 match self.status {
-                    Submitted => {
-                       match task_info {
-                           Some(_) => JobState::Waiting,
-                           None => JobState::Finished,
-                       }
-                    },
+                    JobStatus::Submitted => JobState::Waiting,
                     JobStatus::Finished => JobState::Finished,
                     JobStatus::Failed(_) => JobState::Failed,
                 }

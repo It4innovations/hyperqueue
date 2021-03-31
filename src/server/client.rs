@@ -58,7 +58,7 @@ pub async fn client_rpc_loop<T: AsyncRead + AsyncWrite>(
 }
 
 async fn compute_stats(state_ref: &StateRef, tako_ref: &TakoServer) -> ToClientMessage {
-    let response = tako_ref.send_message(FromGatewayMessage::GetTaskInfo(TaskInfoRequest { tasks: vec![] })).await;
+    /*let response = tako_ref.send_message(FromGatewayMessage::GetTaskInfo(TaskInfoRequest { tasks: vec![] })).await;
 
     println!("{:?}", response);
 
@@ -69,12 +69,12 @@ async fn compute_stats(state_ref: &StateRef, tako_ref: &TakoServer) -> ToClientM
         r => {
             panic!("Invalid server response {:?}", r);
         }
-    };
+    };*/
 
     let state = state_ref.get();
     ToClientMessage::StatsResponse(StatsResponse {
         workers: vec![],
-        jobs: state.jobs().map(|j| j.make_job_info(task_info.get(&j.task_id))).collect()
+        jobs: state.jobs().map(|j| j.make_job_info()).collect()
     })
 }
 
@@ -94,7 +94,7 @@ async fn handle_submit(state_ref: &StateRef, tako_ref: &TakoServer, message: Sub
         type_id: 0,
         body: rmp_serde::to_vec_named(&program_def).unwrap(),
         keep: false,
-        observe: false,
+        observe: true,
     };
 
     let job = Job::new(task_id, message.name.clone(), program_def);
