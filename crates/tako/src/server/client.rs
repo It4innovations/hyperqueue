@@ -77,7 +77,7 @@ pub async fn process_client_message(core_ref: &CoreRef, comm_ref: &CommSenderRef
                     0,
                     0,
                     task.keep,
-                    false,
+                    task.observe,
                 );
                 tasks.push(task_ref);
             }
