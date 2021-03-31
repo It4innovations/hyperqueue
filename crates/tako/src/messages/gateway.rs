@@ -14,7 +14,10 @@ pub struct TaskDef {
     pub body: Vec<u8>,
 
     #[serde(default)]
-    pub keep: bool
+    pub keep: bool,
+
+    #[serde(default)]
+    pub observe: bool
 }
 
 

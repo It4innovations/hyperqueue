@@ -98,7 +98,7 @@ impl Comm for CommSender {
     ) {
         self.client_sender.send(ToGatewayMessage::TaskFailed({
             TaskFailedMessage {
-                id: 0,
+                id: task_id,
                 info: error_info
             }
         }));
