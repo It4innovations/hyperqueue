@@ -230,7 +230,7 @@ impl TaskRef {
     ) -> Self {
         let mut flags = TaskFlags::empty();
         flags.set(TaskFlags::KEEP, keep);
-        flags.set(TaskFlags::KEEP, observe);
+        flags.set(TaskFlags::OBSERVE, observe);
         Self::wrap(Task {
             id,
             dependencies,
