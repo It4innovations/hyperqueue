@@ -1,4 +1,4 @@
-use crate::worker::task::{Task, TaskRef};
+use crate::worker::task::{TaskRef};
 use crate::worker::state::WorkerStateRef;
 use crate::common::error::DsError;
 use crate::messages::common::{ProgramDefinition, TaskFailInfo};
@@ -56,11 +56,12 @@ async fn start_program_from_task(task_ref: &TaskRef) -> crate::Result<()> {
 
 pub fn launch_program_from_task(state_ref: WorkerStateRef, task_ref: TaskRef) {
     tokio::task::spawn_local(async move {
-        log::debug!("Starting program launcher");
+        log::debug!("Starting program launcher {}", task_ref.get().id);
         match start_program_from_task(&task_ref).await {
             Ok(()) => {
                 let mut state = state_ref.get_mut();
                 let task_id = task_ref.get().id;
+                log::debug!("Program launcher finished id={}", task_id);
                 state.finish_task(task_ref, 0);
 
                 /* TMP TODO: Allow zero results */
@@ -76,6 +77,7 @@ pub fn launch_program_from_task(state_ref: WorkerStateRef, task_ref: TaskRef) {
                 state.add_data_object(data_ref);
             }
             Err(e) => {
+                log::debug!("Program launcher failed id={}", task_ref.get().id);
                 let mut state = state_ref.get_mut();
                 state.finish_task_failed(task_ref, TaskFailInfo::from_string(e.to_string()));
             }

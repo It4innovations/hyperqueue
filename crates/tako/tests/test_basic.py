@@ -2,8 +2,10 @@ from tako.client.program import ProgramDefinition
 from tako.client.task import make_program_task
 from tako.client import TaskFailed
 
+
 import os
 import pytest
+import time
 
 
 def test_server_without_workers(tako_env):
@@ -62,3 +64,27 @@ def test_submit_simple_task_fail(tako_env):
     t2 = make_program_task(ProgramDefinition(["/usr/bin/hostname"]))
     session.submit([t2])
     session.wait(t2)
+
+
+def test_submit_2_sleeps_on_1(tako_env):
+    session = tako_env.start(workers=[1])
+    t1 = make_program_task(ProgramDefinition(["sleep", "1"]))
+    t2 = make_program_task(ProgramDefinition(["sleep", "1"]))
+
+    start = time.time()
+    session.submit([t1, t2])
+    session.wait_all([t1, t2])
+    end = time.time()
+    assert 2.0 <= (end - start) <= 2.3
+
+
+def test_submit_2_sleeps_on_2(tako_env):
+    session = tako_env.start(workers=[2])
+    t1 = make_program_task(ProgramDefinition(["sleep", "1"]))
+    t2 = make_program_task(ProgramDefinition(["sleep", "1"]))
+
+    start = time.time()
+    session.submit([t1, t2])
+    session.wait_all([t1, t2])
+    end = time.time()
+    assert 1.0 <= (end - start) <= 1.3

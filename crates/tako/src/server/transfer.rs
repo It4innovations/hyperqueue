@@ -1,22 +1,19 @@
 use crate::common::data::SerializationType;
 use crate::transfer::transport::{connect_to_worker};
 use crate::common::Map;
-use crate::scheduler::{ToSchedulerMessage};
 use crate::server::core::{CoreRef, Core};
-use crate::server::comm::{CommSenderRef, Comm};
+use crate::server::comm::{CommSenderRef};
 use crate::server::task::{TaskRef, TaskRuntimeState};
 use crate::common::trace::trace_task_new_finished;
 use crate::transfer::fetch::fetch_data;
 use crate::transfer::messages::{DataRequest, DataResponse, UploadDataMsg};
 use bytes::BytesMut;
-use futures::future::join_all;
 use futures::stream::FuturesUnordered;
 use futures::SinkExt;
 use rand::seq::SliceRandom;
 use std::iter::FromIterator;
 use tokio::stream::StreamExt;
 
-use crate::scheduler::protocol::NewFinishedTaskInfo;
 use crate::server::worker::WorkerId;
 use crate::TaskId;
 
@@ -32,7 +29,7 @@ pub async fn gather(
         for task_id in task_ids {
             let task_ref = core.get_task_by_id_or_panic(*task_id);
             let task = task_ref.get();
-            &task.get_workers().map(|ws| {
+            &task.get_placement().map(|ws| {
                 let ws = Vec::<&WorkerId>::from_iter(ws.into_iter());
                 ws.choose(&mut rng).map(|w| {
                     worker_map
@@ -176,7 +173,8 @@ pub async fn scatter(
     workers: &[WorkerId],
     data: Vec<(TaskRef, BytesMut)>,
 ) {
-    let counter = core_ref.get_mut().get_and_move_scatter_counter(data.len());
+    todo!()
+    /*let counter = core_ref.get_mut().get_and_move_scatter_counter(data.len());
     let tasks: Vec<_> = data.iter().map(|(t_ref, _)| t_ref.clone()).collect();
     let placement = scatter_tasks(&core_ref.get(), data, workers, counter);
     let worker_futures = join_all(
@@ -198,7 +196,7 @@ pub async fn scatter(
             info.push(NewFinishedTaskInfo {
                 id: task.id,
                 workers: task
-                    .get_workers()
+                    .get_placement()
                     .unwrap()
                     .iter()
                     .copied()
@@ -209,5 +207,5 @@ pub async fn scatter(
         core.add_task(t_ref);
     }
     let msg = ToSchedulerMessage::NewFinishedTask(info);
-    comm.send_scheduler_message(msg);
+    comm.send_scheduler_message(msg);*/
 }

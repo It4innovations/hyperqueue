@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize, Serializer};
 use crate::{TaskId, TaskTypeId};
 use crate::messages::common::{TaskFailInfo, SubworkerDefinition};
-use crate::common::data::SerializationType;
 
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -87,6 +86,7 @@ pub struct TaskUpdate {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskFailedMessage {
     pub id: TaskId,
+    pub cancelled_tasks: Vec<TaskId>,
     pub info: TaskFailInfo
 }
 

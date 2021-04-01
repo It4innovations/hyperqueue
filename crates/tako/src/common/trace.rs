@@ -47,9 +47,10 @@ macro_rules! trace_time {
 }
 
 #[inline(always)]
-pub fn trace_task_new(task_id: TaskId, inputs: &[u64]) {
+pub fn trace_task_new(task_id: TaskId, inputs: impl Iterator<Item=u64>) {
     let make_inputs = || {
-        let mut input_str = String::with_capacity(2 * inputs.len());
+        let (_, bound) = inputs.size_hint();
+        let mut input_str = String::with_capacity(5 * bound.unwrap());
         for input in inputs {
             write!(input_str, "{},", input).ok();
         }

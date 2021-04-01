@@ -11,7 +11,6 @@ use crate::messages::worker::{DataDownloadedMsg, FromWorkerMessage, StealRespons
 use crate::{Priority, PriorityValue};
 use crate::server::worker::WorkerId;
 use crate::worker::data::{DataObjectRef, DataObjectState, LocalData, RemoteData, DataObject};
-use crate::worker::reactor::try_assign_tasks;
 use crate::worker::subworker::{SubworkerId, SubworkerRef};
 use crate::worker::task::{TaskRef, TaskState};
 use rand::rngs::SmallRng;
@@ -21,6 +20,8 @@ use smallvec::{smallvec, SmallVec};
 use crate::transfer::DataConnection;
 use std::path::PathBuf;
 use crate::messages::common::{TaskFailInfo, SubworkerDefinition};
+use std::rc::Rc;
+use tokio::sync::Notify;
 
 pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
 
@@ -36,6 +37,8 @@ pub struct WorkerState {
         priority_queue::PriorityQueue<TaskRef, Reverse<(PriorityValue, PriorityValue)>>,
     pub data_objects: HashMap<TaskId, DataObjectRef>,
     pub download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, Priority)>,
+    pub start_task_scheduled: bool,
+    pub start_task_notify: Rc<Notify>,
     pub worker_id: WorkerId,
     pub worker_addresses: Map<WorkerId, String>,
     pub worker_connections: Map<WorkerId, Vec<DataConnection>>,
@@ -131,7 +134,7 @@ impl WorkerState {
     pub fn add_ready_task(&mut self, task_ref: TaskRef) {
         let priority = task_ref.get().priority;
         self.ready_task_queue.push(task_ref, Reverse(priority));
-        try_assign_tasks(self);
+        self.schedule_task_start();
     }
 
     pub fn add_ready_tasks(&mut self, task_refs: &[TaskRef]) {
@@ -140,7 +143,7 @@ impl WorkerState {
             self.ready_task_queue
                 .push(task_ref.clone(), Reverse(priority));
         }
-        try_assign_tasks(self);
+        self.schedule_task_start();
     }
 
     pub fn add_dependancy(
@@ -246,6 +249,7 @@ impl WorkerState {
         let mut task = task_ref.get_mut();
         match task.state {
             TaskState::Waiting(x) => {
+                log::debug!("Removing waiting task id={}", task.id);
                 assert!(!just_finished);
                 if x == 0 {
                     assert!(self.ready_task_queue.remove(&task_ref).is_some());
@@ -274,6 +278,10 @@ impl WorkerState {
             }
             TaskState::Running(_) => {
                 assert!(just_finished);
+                self.free_cpus += 1;
+                debug_assert!(self.free_cpus <= self.ncpus);
+                self.schedule_task_start();
+
             }
             TaskState::Removed => {
                 unreachable!();
@@ -337,6 +345,14 @@ impl WorkerState {
         }
     }
 
+    pub fn schedule_task_start(&mut self) {
+        if self.start_task_scheduled {
+            return
+        }
+        self.start_task_scheduled = true;
+        self.start_task_notify.notify();
+    }
+
     pub fn self_ref(&self) -> WorkerStateRef {
         self.self_ref.clone().unwrap()
     }
@@ -394,6 +410,8 @@ impl WorkerStateRef {
             worker_connections: Default::default(),
             subworker_id_counter: 1, // 0 is reserved for "dummy" subworkers
             self_ref: None,
+            start_task_scheduled: false,
+            start_task_notify: Rc::new(Notify::new()),
         });
         self_ref.get_mut().self_ref = Some(self_ref.clone());
         self_ref

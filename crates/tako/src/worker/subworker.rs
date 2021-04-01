@@ -30,7 +30,7 @@ use crate::worker::task::{Task, TaskRef, TaskState};
 use super::messages::RegisterSubworkerMessage;
 use crate::common::data::SerializationType;
 use crate::{TaskId, TaskTypeId};
-use crate::worker::reactor::{start_task, try_assign_tasks};
+use crate::worker::reactor::{start_task};
 use smallvec::{smallvec, SmallVec};
 use crate::worker::paths::WorkerPaths;
 use crate::messages::common::SubworkerDefinition;
@@ -244,7 +244,7 @@ fn subworker_task_finished(
         );
         state.add_data_object(data_ref);
     }
-    try_assign_tasks(&mut state);
+    state.schedule_task_start();
 }
 
 fn subworker_task_fail(
@@ -263,7 +263,7 @@ fn subworker_task_fail(
         assert_eq!(task_ref.get().id, msg.id);
         state.finish_task_failed(task_ref, msg.info);
     }
-    try_assign_tasks(&mut state);
+    state.schedule_task_start();
 }
 
 async fn run_subworker_message_loop(
