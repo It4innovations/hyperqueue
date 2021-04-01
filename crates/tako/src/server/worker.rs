@@ -1,6 +1,7 @@
 use std::str;
 
-use crate::scheduler::protocol::WorkerInfo;
+use crate::server::task::TaskRef;
+use crate::common::Set;
 
 pub type WorkerId = u64;
 
@@ -8,6 +9,10 @@ pub type WorkerId = u64;
 pub struct Worker {
     pub id: WorkerId,
     pub ncpus: u32,
+
+    // This is list of assigned tasks
+    // !! In case of stealinig T from W1 to W2, T is in "tasks" of W2, even T was not yet canceled from W1.
+    pub tasks: Set<TaskRef>,
     pub listen_address: String,
 }
 
@@ -28,12 +33,10 @@ impl Worker {
         s.chars().take_while(|x| *x != ':').collect()
     }
 
-    pub fn make_sched_info(&self) -> WorkerInfo {
-        WorkerInfo {
-            id: self.id,
-            n_cpus: self.ncpus,
-            hostname: self.hostname(),
-        }
+    #[inline]
+    pub fn is_underloaded(&self) -> bool {
+        let len = self.tasks.len() as u32;
+        len < self.ncpus
     }
 }
 
@@ -45,6 +48,7 @@ impl Worker {
             id,
             ncpus,
             listen_address,
+            tasks: Default::default()
         }
     }
 }

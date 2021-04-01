@@ -13,6 +13,10 @@ pub struct Core {
     tasks: Map<TaskId, TaskRef>,
     workers: Map<WorkerId, Worker>,
 
+    /* Scheduler items */
+    ready_to_assign: Vec<TaskRef>,
+    has_new_tasks: bool,
+
     maximal_task_id: TaskId,
     worker_id_counter: IdCounter,
     scatter_counter: usize,
@@ -30,7 +34,7 @@ impl CoreRef {
 }
 
 impl Core {
-    #[inline]
+
     pub fn new_worker_id(&mut self) -> WorkerId {
         self.worker_id_counter.next()
     }
@@ -53,6 +57,11 @@ impl Core {
         }
     }
 
+    #[inline]
+    pub fn take_ready_to_assign(&mut self) -> Vec<TaskRef> {
+        std::mem::take(&mut self.ready_to_assign)
+    }
+
     pub fn set_worker_listen_port(&mut self, port: u16) {
         self.worker_listen_port = port
     }
@@ -64,6 +73,13 @@ impl Core {
     pub fn update_max_task_id(&mut self, task_id: TaskId) {
         assert!(task_id >= self.maximal_task_id);
         self.maximal_task_id = task_id;
+    }
+
+    #[inline]
+    pub fn check_has_new_tasks_and_reset(&mut self) -> bool {
+        let result = self.has_new_tasks;
+        self.has_new_tasks = false;
+        result
     }
 
     pub fn new_worker(&mut self, worker: Worker) {
@@ -97,8 +113,20 @@ impl Core {
     }
 
     #[inline]
+    pub fn get_worker_mut_by_id_or_panic(&mut self, id: WorkerId) -> &mut Worker {
+        self.workers.get_mut(&id).unwrap_or_else(|| {
+            panic!("Asking for invalid worker id={}", id);
+        })
+    }
+
+    #[inline]
     pub fn get_workers(&self) -> impl Iterator<Item = &Worker> {
         self.workers.values()
+    }
+
+    #[inline]
+    pub fn get_worker_map(&self) -> &Map<WorkerId, Worker> {
+        &self.workers
     }
 
     #[inline]
@@ -108,7 +136,16 @@ impl Core {
 
     pub fn add_task(&mut self, task_ref: TaskRef) {
         let task_id = task_ref.get().id();
+        if task_ref.get().is_ready() {
+            self.ready_to_assign.push(task_ref.clone());
+        }
+        self.has_new_tasks = true;
         assert!(self.tasks.insert(task_id, task_ref).is_none());
+    }
+
+    #[inline]
+    pub fn add_ready_to_assign(&mut self, task_ref: TaskRef) {
+        self.ready_to_assign.push(task_ref);
     }
 
     #[must_use]
@@ -122,6 +159,11 @@ impl Core {
     pub fn get_tasks(&self) -> impl Iterator<Item = &TaskRef> {
         self.tasks.values()
     }
+
+    pub fn get_task_map(&self) -> &Map<TaskId, TaskRef> {
+        &self.tasks
+    }
+
 
     #[inline]
     pub fn get_task_by_id_or_panic(&self, id: TaskId) -> &TaskRef {
@@ -166,10 +208,17 @@ fn get_task_duration(msg: &TaskFinishedMsg) -> (u64, u64) {
 #[cfg(test)]
 mod tests {
 
-    use crate::server::task::TaskRuntimeState;
+    use crate::server::task::{TaskRuntimeState, TaskRef};
 
     use crate::server::core::Core;
-    use crate::test_util::task;
+    use crate::server::test_util::task;
+
+    impl Core {
+        pub fn remove_from_ready_to_assign(&mut self, task_ref: &TaskRef) {
+            let p = self.ready_to_assign.iter().position(|x| x == task_ref).unwrap();
+            self.ready_to_assign.remove(p);
+        }
+    }
 
     #[test]
     fn add_remove() {
@@ -178,7 +227,7 @@ mod tests {
         core.add_task(t.clone());
         assert_eq!(core.get_task_by_id(101).unwrap(), &t);
         assert!(match core.remove_task(&mut t.get_mut()) {
-            TaskRuntimeState::Waiting => true,
+            TaskRuntimeState::Waiting(_) => true,
             _ => false,
         });
         assert_eq!(core.get_task_by_id(101), None);

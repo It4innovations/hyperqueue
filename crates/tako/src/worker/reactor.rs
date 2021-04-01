@@ -1,7 +1,6 @@
 use crate::TaskId;
 use crate::worker::data::{DataObjectState, InSubworkersData, LocalDownloadingData, Subscriber};
 use crate::worker::state::WorkerState;
-use crate::worker::subworker::{Subworker, SubworkerRef};
 use crate::worker::task::{Task, TaskRef, TaskState};
 use smallvec::smallvec;
 use crate::messages::common::SubworkerDefinition;
@@ -16,6 +15,7 @@ pub fn start_task(state: &WorkerState, task: &mut Task, task_ref: &TaskRef, mut 
 }
 
 pub fn assign_task(state: &mut WorkerState, task_ref: &TaskRef) {
+    state.free_cpus -= 1;
     let mut task = task_ref.get_mut();
     log::debug!("Task={} assigned", task.id);
     let task_env = if let Some(env) = TaskEnv::create(state, &task) {
@@ -64,20 +64,6 @@ pub fn assign_task(state: &mut WorkerState, task_ref: &TaskRef) {
         start_task(state, &mut task, &task_ref, task_env);
     } else {
         task.state = TaskState::Uploading(task_env, waiting_count)
-    }
-}
-
-pub fn try_assign_tasks(state: &mut WorkerState) {
-    if state.free_cpus == 0 {
-        return;
-    }
-    while let Some((task_ref, _)) = state.ready_task_queue.pop() {
-        {
-            assign_task(state, &task_ref);
-        }
-        if state.free_subworkers.is_empty() {
-            return;
-        }
     }
 }
 

@@ -29,7 +29,7 @@ use crate::worker::data::{DataObjectRef, DataObjectState, LocalData, Subscriber}
 use crate::common::data::SerializationType;
 use crate::server::worker::WorkerId;
 use crate::transfer::fetch::fetch_data;
-use crate::worker::reactor::start_local_download;
+use crate::worker::reactor::{start_local_download, assign_task};
 use crate::worker::state::WorkerStateRef;
 use crate::worker::task::TaskRef;
 use futures::stream::FuturesUnordered;
@@ -121,6 +121,26 @@ pub async fn run_worker(
         }
     };
 
+    let state_ref2 = state.clone();
+
+    let try_start_tasks = async move {
+        let notify = state_ref2.get().start_task_notify.clone();
+        loop {
+            notify.notified().await;
+            let mut state = state_ref2.get_mut();
+            state.start_task_scheduled = false;
+            if state.free_cpus == 0 {
+                continue;
+            }
+            while let Some((task_ref, _)) = state.ready_task_queue.pop() {
+                assign_task(&mut state, &task_ref);
+                if state.free_cpus == 0 {
+                    break;
+                }
+            }
+        }
+    };
+
     /*log::info!("Starting {} subworkers", ncpus);
     let (subworkers, sw_processes) =
         start_subworkers(&state, subworker_paths, "python3", ncpus).await?;
@@ -129,6 +149,7 @@ pub async fn run_worker(
     state.get_mut().set_subworkers(subworkers);*/
 
     tokio::select! {
+        () = try_start_tasks => { unreachable!() }
         _ = worker_message_loop(state.clone(), reader) => {
             panic!("Connection to server lost");
         }

@@ -1,22 +1,22 @@
-use crate::scheduler::{ToSchedulerMessage};
 use crate::messages::worker::ToWorkerMessage;
 use crate::server::worker::WorkerId;
 
 use crate::common::{Map, WrappedRcRefCell};
 use bytes::Bytes;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::{UnboundedSender};
 use crate::TaskId;
 use crate::messages::gateway::{ToGatewayMessage, TaskUpdate, TaskState, TaskFailedMessage};
-use crate::scheduler::protocol::TaskInfo;
 use crate::messages::common::TaskFailInfo;
+use std::rc::Rc;
+use tokio::sync::Notify;
 
 pub trait Comm {
     fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage);
     fn broadcast_worker_message(&mut self, message: &ToWorkerMessage);
-    fn send_scheduler_message(&mut self, message: ToSchedulerMessage);
+    fn ask_for_scheduling(&mut self);
 
     fn send_client_task_finished(&mut self, task_id: TaskId);
-    fn send_client_task_removed(&mut self, task_id: TaskId);
+    //fn send_client_task_removed(&mut self, task_id: TaskId);
     fn send_client_task_error(
         &mut self,
         task_id: TaskId,
@@ -27,20 +27,22 @@ pub trait Comm {
 
 pub struct CommSender {
     workers: Map<WorkerId, UnboundedSender<Bytes>>,
-    scheduler_sender: UnboundedSender<ToSchedulerMessage>,
+    need_scheduling: bool,
+    scheduler_wakeup: Rc<Notify>,
     client_sender: UnboundedSender<ToGatewayMessage>,
 }
 pub type CommSenderRef = WrappedRcRefCell<CommSender>;
 
 impl CommSenderRef {
     pub fn new(
-        scheduler_sender: UnboundedSender<ToSchedulerMessage>,
+        scheduler_wakeup: Rc<Notify>,
         client_sender: UnboundedSender<ToGatewayMessage>,
     ) -> Self {
         WrappedRcRefCell::wrap(CommSender {
             workers: Default::default(),
-            scheduler_sender,
+            scheduler_wakeup,
             client_sender,
+            need_scheduling: false,
         })
     }
 }
@@ -48,6 +50,11 @@ impl CommSenderRef {
 impl CommSender {
     pub fn add_worker(&mut self, worker_id: WorkerId, sender: UnboundedSender<Bytes>) {
         assert!(self.workers.insert(worker_id, sender).is_none());
+    }
+
+    #[inline]
+    pub fn reset_scheduling_flag(&mut self) {
+        self.need_scheduling = false
     }
 }
 
@@ -69,10 +76,11 @@ impl Comm for CommSender {
     }
 
     #[inline]
-    fn send_scheduler_message(&mut self, message: ToSchedulerMessage) {
-        self.scheduler_sender
-            .send(message)
-            .expect("Sending scheduler message failed");
+    fn ask_for_scheduling(&mut self) {
+        if !self.need_scheduling {
+            self.need_scheduling = true;
+            self.scheduler_wakeup.notify();
+        }
     }
 
     #[inline]
@@ -84,12 +92,6 @@ impl Comm for CommSender {
         }));
     }
 
-    #[inline]
-    fn send_client_task_removed(&mut self, task_id: TaskId) {
-        //todo!()
-        //self.gateway.send_client_task_removed(task_id);
-    }
-
     fn send_client_task_error(
         &mut self,
         task_id: TaskId,
@@ -99,11 +101,9 @@ impl Comm for CommSender {
         self.client_sender.send(ToGatewayMessage::TaskFailed({
             TaskFailedMessage {
                 id: task_id,
-                info: error_info
+                info: error_info,
+                cancelled_tasks: consumers_id,
             }
         }));
-
-        /*self.gateway
-            .send_client_task_error(task_id, consumers_id, error_info);*/
     }
 }
