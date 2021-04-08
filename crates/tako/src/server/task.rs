@@ -47,11 +47,10 @@ bitflags::bitflags! {
         const KEEP    = 0b00000001;
         const OBSERVE = 0b00000010;
 
-        const PINNED  = 0b00000100;
-        const FRESH   = 0b00001000;
+        const FRESH   = 0b00000100;
 
         // This is utilized inside scheduler, it has no meaning between scheduler calls
-        const TAKE   = 0b00010000;
+        const TAKE   = 0b00001000;
     }
 }
 
