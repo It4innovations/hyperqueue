@@ -11,9 +11,8 @@ pub type TaskId = u64;
 pub type TaskTypeId = u32;
 
 // Priority: Bigger number -> Higher priority
-// TODO: This is meaning is not synchronized in all code!! We need to FIX this
-pub type PriorityValue = i32;
-pub type Priority = (PriorityValue, PriorityValue);  // TODO: Rename PriorityValue -> Priority, Priority -> PriotityTuple
+pub type Priority = i32;
+pub type PriorityTuple = (Priority, Priority);  // user priority, scheduler priority
 
 pub type Error = crate::common::error::DsError;
 pub type Result<T> = std::result::Result<T, Error>;
