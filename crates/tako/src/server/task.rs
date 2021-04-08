@@ -4,7 +4,7 @@ use std::fmt;
 use crate::common::{Set, WrappedRcRefCell, Map};
 use crate::{TaskId, TaskTypeId};
 use crate::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
-use crate::PriorityValue;
+use crate::Priority;
 use crate::WorkerId;
 
 
@@ -69,9 +69,8 @@ pub struct Task {
     pub type_id: TaskTypeId,
     pub spec: Vec<u8>, // Serialized TaskSpec
 
-    pub user_priority: i32,
-    pub scheduler_priority: i32,
-    pub client_priority: i32,
+    pub user_priority: Priority,
+    pub scheduler_priority: Priority,
 }
 
 pub type TaskRef = WrappedRcRefCell<Task>;
@@ -309,8 +308,7 @@ impl TaskRef {
         type_id: TaskTypeId,
         spec: Vec<u8>,
         inputs: Vec<TaskRef>,
-        user_priority: PriorityValue,
-        client_priority: PriorityValue,
+        user_priority: Priority,
         keep: bool,
         observe: bool,
     ) -> Self {
@@ -325,7 +323,6 @@ impl TaskRef {
             type_id,
             spec,
             user_priority,
-            client_priority,
             scheduler_priority: Default::default(),
             state: TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 }),
             consumers: Default::default(),

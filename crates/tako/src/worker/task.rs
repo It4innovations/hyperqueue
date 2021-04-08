@@ -2,7 +2,7 @@ use crate::common::WrappedRcRefCell;
 use crate::messages::worker::ComputeTaskMsg;
 use crate::worker::data::DataObjectRef;
 use crate::worker::subworker::SubworkerRef;
-use crate::{TaskId, PriorityValue, TaskTypeId};
+use crate::{TaskId, Priority, TaskTypeId};
 use crate::messages::common::SubworkerKind;
 use crate::worker::taskenv::TaskEnv;
 
@@ -17,7 +17,7 @@ pub struct Task {
     pub id: TaskId,
     pub type_id: TaskTypeId,
     pub state: TaskState,
-    pub priority: (PriorityValue, PriorityValue),
+    pub priority: (Priority, Priority),
     pub deps: Vec<DataObjectRef>,
     pub spec: Vec<u8>,
 }

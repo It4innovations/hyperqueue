@@ -75,7 +75,6 @@ pub async fn process_client_message(core_ref: &CoreRef, comm_ref: &CommSenderRef
                     task.body,
                     Vec::new(),
                     0,
-                    0,
                     task.keep,
                     task.observe,
                 );

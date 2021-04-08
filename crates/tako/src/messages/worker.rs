@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::common::Map;
 use crate::{TaskId, WorkerId, TaskTypeId};
-use crate::PriorityValue;
+use crate::Priority;
 use crate::messages::common::{TaskFailInfo, SubworkerDefinition};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -25,8 +25,8 @@ pub struct ComputeTaskMsg {
     #[serde(with = "serde_bytes")]
     pub spec: Vec<u8>,
 
-    pub user_priority: PriorityValue,
-    pub scheduler_priority: PriorityValue,
+    pub user_priority: Priority,
+    pub scheduler_priority: Priority,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

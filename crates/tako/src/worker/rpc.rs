@@ -1,4 +1,3 @@
-use std::cmp::Reverse;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
@@ -21,8 +20,8 @@ use crate::messages::generic::{GenericMessage, RegisterWorkerMsg};
 use crate::messages::worker::{
     FromWorkerMessage, StealResponseMsg, ToWorkerMessage, WorkerRegistrationResponse,
 };
+use crate::PriorityTuple;
 use crate::Priority;
-use crate::PriorityValue;
 use crate::transfer::messages::{DataRequest, DataResponse, FetchResponseData, UploadResponseMsg};
 use crate::worker::data::{DataObjectRef, DataObjectState, LocalData, Subscriber};
 
@@ -86,7 +85,7 @@ pub async fn run_worker(
     let stream = connect_to_server(&scheduler_address).await?;
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
     let (download_sender, download_reader) =
-        tokio::sync::mpsc::unbounded_channel::<(DataObjectRef, (PriorityValue, PriorityValue))>();
+        tokio::sync::mpsc::unbounded_channel::<(DataObjectRef, (Priority, Priority))>();
     let (mut writer, mut reader) = make_protocol_builder().new_framed(stream).split();
 
     let taskset = LocalSet::default();
@@ -224,11 +223,11 @@ async fn download_data(state_ref: WorkerStateRef, data_ref: DataObjectRef)
 
 async fn worker_data_downloader(
     state_ref: WorkerStateRef,
-    mut stream: tokio::sync::mpsc::UnboundedReceiver<(DataObjectRef, Priority)>,
+    mut stream: tokio::sync::mpsc::UnboundedReceiver<(DataObjectRef, PriorityTuple)>,
 ) {
     // TODO: Limit downloads, more parallel downloads, respect priorities
     // TODO: Reuse connections
-    let mut queue: priority_queue::PriorityQueue<DataObjectRef, Reverse<Priority>> =
+    let mut queue: priority_queue::PriorityQueue<DataObjectRef, PriorityTuple> =
         Default::default();
     //let mut random = SmallRng::from_entropy();
     //let mut stream = stream;
@@ -239,10 +238,10 @@ async fn worker_data_downloader(
         tokio::select! {
             s = stream.next() => {
                let (data_ref, priority) = s.unwrap();
-               queue.push_increase(data_ref, Reverse(priority));
+               queue.push_increase(data_ref, priority);
                loop {
                     match stream.try_recv() {
-                        Ok((data_ref, priority)) => queue.push_increase(data_ref, Reverse(priority)),
+                        Ok((data_ref, priority)) => queue.push_increase(data_ref, priority),
                         Err(TryRecvError::Empty) => break,
                         Err(TryRecvError::Closed) => unreachable!(),
                     };

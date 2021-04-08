@@ -1,4 +1,3 @@
-use std::cmp::Reverse;
 
 use bytes::{Bytes, BytesMut};
 use hashbrown::HashMap;
@@ -8,7 +7,7 @@ use crate::common::data::SerializationType;
 use crate::common::{Map, WrappedRcRefCell};
 use crate::TaskId;
 use crate::messages::worker::{DataDownloadedMsg, FromWorkerMessage, StealResponse, TaskFinishedMsg, TaskFailedMsg};
-use crate::{Priority, PriorityValue};
+use crate::{PriorityTuple, Priority};
 use crate::server::worker::WorkerId;
 use crate::worker::data::{DataObjectRef, DataObjectState, LocalData, RemoteData, DataObject};
 use crate::worker::subworker::{SubworkerId, SubworkerRef};
@@ -34,9 +33,9 @@ pub struct WorkerState {
     pub free_subworkers: Vec<SubworkerRef>,
     pub tasks: HashMap<TaskId, TaskRef>,
     pub ready_task_queue:
-        priority_queue::PriorityQueue<TaskRef, Reverse<(PriorityValue, PriorityValue)>>,
+        priority_queue::PriorityQueue<TaskRef, (Priority, Priority)>,
     pub data_objects: HashMap<TaskId, DataObjectRef>,
-    pub download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, Priority)>,
+    pub download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, PriorityTuple)>,
     pub start_task_scheduled: bool,
     pub start_task_notify: Rc<Notify>,
     pub worker_id: WorkerId,
@@ -133,7 +132,7 @@ impl WorkerState {
 
     pub fn add_ready_task(&mut self, task_ref: TaskRef) {
         let priority = task_ref.get().priority;
-        self.ready_task_queue.push(task_ref, Reverse(priority));
+        self.ready_task_queue.push(task_ref, priority);
         self.schedule_task_start();
     }
 
@@ -141,7 +140,7 @@ impl WorkerState {
         for task_ref in task_refs {
             let priority = task_ref.get().priority;
             self.ready_task_queue
-                .push(task_ref.clone(), Reverse(priority));
+                .push(task_ref.clone(), priority);
         }
         self.schedule_task_start();
     }
@@ -384,7 +383,7 @@ impl WorkerStateRef {
         sender: UnboundedSender<Bytes>,
         ncpus: u32,
         listen_address: String,
-        download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, Priority)>,
+        download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, PriorityTuple)>,
         worker_addresses: Map<WorkerId, String>,
         subworker_definitions: Vec<SubworkerDefinition>,
         work_dir: PathBuf,
