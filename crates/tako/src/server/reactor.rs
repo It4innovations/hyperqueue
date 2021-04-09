@@ -424,7 +424,7 @@ fn remove_task_if_possible(core: &mut Core, comm: &mut impl Comm, task: &mut Tas
 mod tests {
     use super::*;
         use crate::server::test_util::{create_test_comm, task, task_with_deps, create_test_workers, submit_test_tasks, submit_example_1, start_and_finish_on_worker, start_on_worker, sorted_vec, finish_on_worker, force_assign, force_reassign};
-    use crate::scheduler2::scheduler::tests::{create_test_scheduler};
+    use crate::scheduler::scheduler::tests::{create_test_scheduler};
     /*use crate::test_util::{
         create_test_comm, create_test_workers, finish_on_worker, sorted_vec,
         start_and_finish_on_worker, start_on_worker, submit_example_1, submit_test_tasks, task,

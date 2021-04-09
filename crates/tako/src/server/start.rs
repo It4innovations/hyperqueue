@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use std::future::Future;
 use tokio::sync::mpsc::{UnboundedSender};
 use crate::messages::gateway::ToGatewayMessage;
-use crate::scheduler2::scheduler::scheduler_loop;
+use crate::scheduler::scheduler::scheduler_loop;
 use std::rc::Rc;
 use tokio::sync::Notify;
 

@@ -315,7 +315,7 @@ pub mod tests {
 
     use crate::server::core::{Core};
     use crate::server::test_util::{submit_example_2, create_test_workers, task, submit_test_tasks, create_test_comm, finish_on_worker, submit_example_1, start_and_finish_on_worker};
-    use crate::scheduler2::metrics::compute_b_level_metric;
+    use crate::scheduler::metrics::compute_b_level_metric;
     use crate::common::Set;
     use crate::server::reactor::on_steal_response;
     use crate::messages::worker::{StealResponseMsg, StealResponse};

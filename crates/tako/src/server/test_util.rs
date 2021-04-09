@@ -21,8 +21,8 @@ use crate::TaskId;
 use crate::messages::worker::{ToWorkerMessage, TaskFinishedMsg};
 use crate::server::task::TaskRef;
 use crate::messages::common::TaskFailInfo;
-use crate::scheduler2::scheduler::SchedulerState;
-use crate::scheduler2::scheduler::tests::{create_test_scheduler};
+use crate::scheduler::scheduler::SchedulerState;
+use crate::scheduler::scheduler::tests::{create_test_scheduler};
 use crate::server::reactor::{on_new_worker, on_new_tasks, on_task_finished};
 
 /// Memory stream for reading and writing at the same time.
