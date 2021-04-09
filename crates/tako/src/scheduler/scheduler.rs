@@ -1,7 +1,7 @@
 use crate::server::core::{CoreRef, Core};
 use crate::server::comm::{CommSenderRef, Comm};
 use std::time::{Duration, Instant};
-use tokio::time::delay_for;
+use tokio::time::sleep;
 use super::utils::task_transfer_cost;
 use crate::server::task::{TaskRuntimeState, Task, TaskRef};
 use std::cmp::Ordering;
@@ -52,7 +52,12 @@ fn choose_worker_for_task(
 }
 
 
-pub async fn scheduler_loop(core_ref: CoreRef, comm_ref: CommSenderRef, mut scheduler_wakeup: Rc<Notify>, minimum_delay: Duration) {
+pub async fn scheduler_loop(
+    core_ref: CoreRef,
+    comm_ref: CommSenderRef,
+    scheduler_wakeup: Rc<Notify>,
+    minimum_delay: Duration
+) {
     let mut last_schedule = Instant::now() - minimum_delay * 2;
     let mut state = SchedulerState {
         dirty_tasks: Default::default(),
@@ -62,7 +67,7 @@ pub async fn scheduler_loop(core_ref: CoreRef, comm_ref: CommSenderRef, mut sche
         scheduler_wakeup.notified().await;
         let since_last_schedule = last_schedule.elapsed();
         if minimum_delay > since_last_schedule {
-            delay_for(minimum_delay - since_last_schedule).await;
+            sleep(minimum_delay - since_last_schedule).await;
         }
         let mut comm = comm_ref.get_mut();
         state.run_scheduling(&mut core_ref.get_mut(), &mut *comm);
@@ -140,7 +145,7 @@ impl SchedulerState {
         let assigned_worker = task.get_assigned_worker();
         if let Some(w_id) = assigned_worker {
             assert_ne!(w_id, worker_id);
-            let mut previous_worker = core.get_worker_mut_by_id_or_panic(w_id);
+            let previous_worker = core.get_worker_mut_by_id_or_panic(w_id);
             assert!(previous_worker.tasks.remove(&task_ref));
         }
         for tr in &task.inputs {
@@ -269,7 +274,7 @@ impl SchedulerState {
                     task.set_take_flag(true);
                     let old_worker_id = {
                         let worker2_id = task.get_assigned_worker().unwrap();
-                        let mut worker2 = core.get_worker_mut_by_id_or_panic(worker2_id);
+                        let worker2 = core.get_worker_mut_by_id_or_panic(worker2_id);
                         let worker2_n_tasks = worker2.tasks.len();
                         if worker2_n_tasks <= n_tasks || worker2_n_tasks <= worker2.ncpus as usize {
                             continue;
@@ -314,8 +319,7 @@ pub mod tests {
     }
 
     use crate::server::core::{Core};
-    use crate::server::test_util::{submit_example_2, create_test_workers, task, submit_test_tasks, create_test_comm, finish_on_worker, submit_example_1, start_and_finish_on_worker};
-    use crate::scheduler::metrics::compute_b_level_metric;
+    use crate::server::test_util::{create_test_workers, task, submit_test_tasks, create_test_comm, finish_on_worker, submit_example_1, start_and_finish_on_worker};
     use crate::common::Set;
     use crate::server::reactor::on_steal_response;
     use crate::messages::worker::{StealResponseMsg, StealResponse};

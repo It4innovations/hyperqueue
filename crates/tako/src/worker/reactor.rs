@@ -3,9 +3,6 @@ use crate::worker::data::{DataObjectState, InSubworkersData, LocalDownloadingDat
 use crate::worker::state::WorkerState;
 use crate::worker::task::{Task, TaskRef, TaskState};
 use smallvec::smallvec;
-use crate::messages::common::SubworkerDefinition;
-use crate::common::WrappedRcRefCell;
-use crate::common::error::DsError;
 use crate::worker::taskenv::TaskEnv;
 
 

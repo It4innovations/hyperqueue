@@ -12,7 +12,6 @@ use crate::server::comm::Comm;
 use crate::server::task::{Task, WaitingInfo, FinishInfo};
 use crate::{WorkerId, TaskId};
 use crate::server::task::{DataInfo, TaskRef, TaskRuntimeState};
-use crate::messages::worker::ComputeTaskMsg;
 
 use crate::common::trace::{
     trace_task_assign, trace_task_finish, trace_task_place, trace_worker_new,
@@ -123,7 +122,7 @@ pub fn on_task_finished(
             assert!(task.is_assigned_or_stealed_from(worker_id));
 
             {
-                let mut worker = core.get_worker_mut_by_id_or_panic(worker_id);
+                let worker = core.get_worker_mut_by_id_or_panic(worker_id);
                 assert!(worker.tasks.remove(&task_ref));
             }
 
@@ -425,6 +424,7 @@ mod tests {
     use super::*;
         use crate::server::test_util::{create_test_comm, task, task_with_deps, create_test_workers, submit_test_tasks, submit_example_1, start_and_finish_on_worker, start_on_worker, sorted_vec, finish_on_worker, force_assign, force_reassign};
     use crate::scheduler::scheduler::tests::{create_test_scheduler};
+    use crate::messages::worker::ComputeTaskMsg;
     /*use crate::test_util::{
         create_test_comm, create_test_workers, finish_on_worker, sorted_vec,
         start_and_finish_on_worker, start_on_worker, submit_example_1, submit_test_tasks, task,

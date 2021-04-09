@@ -1,12 +1,11 @@
 use crate::worker::subworker::{SubworkerRef, choose_subworker};
-use crate::worker::state::{WorkerState, WorkerStateRef};
+use crate::worker::state::WorkerState;
 use crate::worker::task::Task;
 use crate::worker::task::TaskRef;
-use crate::worker::data::{DataObject, LocalData};
+use crate::worker::data::DataObject;
 use crate::TaskId;
 use crate::common::data::SerializationType;
 use bytes::Bytes;
-use crate::messages::common::ProgramDefinition;
 use crate::worker::launcher::launch_program_from_task;
 
 pub enum TaskEnv {

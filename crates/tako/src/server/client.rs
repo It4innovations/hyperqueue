@@ -1,19 +1,24 @@
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use crate::messages::gateway::{ToGatewayMessage, FromGatewayMessage, NewTasksResponse, ErrorResponse, TaskUpdate, TaskState, ServerInfo, TaskInfo, TasksInfoResponse};
+use crate::messages::gateway::{ToGatewayMessage, FromGatewayMessage, NewTasksResponse, ErrorResponse, TaskUpdate, TaskState, TaskInfo, TasksInfoResponse};
 use tokio::net::UnixListener;
 use crate::transfer::transport::make_protocol_builder;
-use crate::common::rpc::{forward_queue_to_sink, forward_queue_to_sink_with_map};
+use crate::common::rpc::{forward_queue_to_sink_with_map};
 use futures::StreamExt;
-use std::error::Error;
 use crate::server::task::{TaskRef, TaskRuntimeState};
 use crate::server::reactor::{on_new_tasks, on_set_observe_flag};
 use crate::server::core::CoreRef;
 use crate::server::comm::CommSenderRef;
 
 
-pub async fn client_connection_handler(core_ref: CoreRef, comm_ref: CommSenderRef, mut listener: UnixListener, client_sender: UnboundedSender<ToGatewayMessage>, client_receiver: UnboundedReceiver<ToGatewayMessage>) {
-    if let Some(Ok(mut stream)) = listener.next().await {
-        let mut framed = make_protocol_builder().new_framed(stream);
+pub async fn client_connection_handler(
+    core_ref: CoreRef,
+    comm_ref: CommSenderRef,
+    listener: UnixListener,
+    client_sender: UnboundedSender<ToGatewayMessage>,
+    client_receiver: UnboundedReceiver<ToGatewayMessage>
+) {
+    if let Ok((stream, _)) = listener.accept().await {
+        let framed = make_protocol_builder().new_framed(stream);
         let (sender, mut receiver) = framed.split();
         let send_loop = forward_queue_to_sink_with_map(client_receiver, sender, |msg| rmp_serde::to_vec_named(&msg).unwrap().into());
         let receive_loop = async move {
@@ -26,7 +31,7 @@ pub async fn client_connection_handler(core_ref: CoreRef, comm_ref: CommSenderRe
                     Err(e) => Some(format!("Invalid format of message: {}", e.to_string()))
                 };
                 if let Some(message) = error {
-                    client_sender.send(ToGatewayMessage::Error(ErrorResponse{message}));
+                    client_sender.send(ToGatewayMessage::Error(ErrorResponse{message})).unwrap();
                 }
             }
         };
@@ -41,7 +46,12 @@ pub async fn client_connection_handler(core_ref: CoreRef, comm_ref: CommSenderRe
     log::info!("Client connection terminated");
 }
 
-pub async fn process_client_message(core_ref: &CoreRef, comm_ref: &CommSenderRef, client_sender: &UnboundedSender<ToGatewayMessage>, message: FromGatewayMessage) -> Option<String> {
+pub async fn process_client_message(
+    core_ref: &CoreRef,
+    comm_ref: &CommSenderRef,
+    client_sender: &UnboundedSender<ToGatewayMessage>,
+    message: FromGatewayMessage
+) -> Option<String> {
     match message {
         FromGatewayMessage::ObserveTasks(msg) => {
             let mut core = core_ref.get_mut();
@@ -53,7 +63,7 @@ pub async fn process_client_message(core_ref: &CoreRef, comm_ref: &CommSenderRef
                     client_sender.send(ToGatewayMessage::TaskUpdate(TaskUpdate {
                         id: task_id,
                         state: if core.is_used_task_id(task_id) { TaskState::Finished } else { TaskState::Invalid }
-                    }));
+                    })).unwrap();
                 };
             }
             None

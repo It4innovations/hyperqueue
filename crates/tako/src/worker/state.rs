@@ -349,7 +349,7 @@ impl WorkerState {
             return
         }
         self.start_task_scheduled = true;
-        self.start_task_notify.notify();
+        self.start_task_notify.notify_one();
     }
 
     pub fn self_ref(&self) -> WorkerStateRef {

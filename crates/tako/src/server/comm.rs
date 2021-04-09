@@ -79,7 +79,7 @@ impl Comm for CommSender {
     fn ask_for_scheduling(&mut self) {
         if !self.need_scheduling {
             self.need_scheduling = true;
-            self.scheduler_wakeup.notify();
+            self.scheduler_wakeup.notify_one();
         }
     }
 
@@ -89,7 +89,7 @@ impl Comm for CommSender {
         self.client_sender.send(ToGatewayMessage::TaskUpdate(TaskUpdate {
             id: task_id,
             state: TaskState::Finished
-        }));
+        })).unwrap();
     }
 
     fn send_client_task_error(
@@ -104,6 +104,6 @@ impl Comm for CommSender {
                 info: error_info,
                 cancelled_tasks: consumers_id,
             }
-        }));
+        })).unwrap();
     }
 }

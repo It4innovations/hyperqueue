@@ -5,10 +5,8 @@ use crate::messages::common::{ProgramDefinition, TaskFailInfo};
 use tokio::process::Command;
 use std::fs::File;
 use std::process::Stdio;
-use crate::worker::data::{DataObjectRef, DataObjectState, InSubworkersData, LocalData};
+use crate::worker::data::{DataObjectRef, DataObjectState, LocalData};
 use crate::common::data::SerializationType;
-use std::error::Error;
-
 
 fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Command> {
     if definition.args.is_empty() {

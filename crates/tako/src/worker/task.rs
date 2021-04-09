@@ -1,9 +1,7 @@
 use crate::common::WrappedRcRefCell;
 use crate::messages::worker::ComputeTaskMsg;
 use crate::worker::data::DataObjectRef;
-use crate::worker::subworker::SubworkerRef;
 use crate::{TaskId, Priority, TaskTypeId};
-use crate::messages::common::SubworkerKind;
 use crate::worker::taskenv::TaskEnv;
 
 pub enum TaskState {

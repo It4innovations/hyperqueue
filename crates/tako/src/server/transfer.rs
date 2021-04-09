@@ -9,10 +9,9 @@ use crate::transfer::fetch::fetch_data;
 use crate::transfer::messages::{DataRequest, DataResponse, UploadDataMsg};
 use bytes::BytesMut;
 use futures::stream::FuturesUnordered;
-use futures::SinkExt;
+use futures::{SinkExt, StreamExt};
 use rand::seq::SliceRandom;
 use std::iter::FromIterator;
-use tokio::stream::StreamExt;
 
 use crate::server::worker::WorkerId;
 use crate::TaskId;
