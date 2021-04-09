@@ -164,7 +164,12 @@ class TakoEnv(Env):
         return session
 
     def final_check(self):
-        pass
+        if self._session:
+            overview = self._session.overview()
+            for w in overview["workers"]:
+                assert len(w["running_tasks"]) == 0
+                assert len(w["placed_data"]) == 0
+
 
     def close(self):
         pass
@@ -175,9 +180,9 @@ def tako_env(tmp_path):
     """Fixture that allows to start Rain test environment"""
     os.chdir(tmp_path)
     env = TakoEnv(tmp_path)
-    yield env
-    time.sleep(0.2)
     try:
+        yield env
+        time.sleep(0.2)
         env.final_check()
         env.check_running_processes()
     finally:

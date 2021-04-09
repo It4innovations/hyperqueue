@@ -6,8 +6,9 @@ use smallvec::smallvec;
 use crate::worker::taskenv::TaskEnv;
 
 
-pub fn start_task(state: &WorkerState, task: &mut Task, task_ref: &TaskRef, mut task_env: TaskEnv) {
+pub fn start_task(state: &mut WorkerState, task: &mut Task, task_ref: &TaskRef, mut task_env: TaskEnv) {
     task_env.start_task(state, task, task_ref);
+    state.running_tasks.insert(task_ref.clone());
     task.state = TaskState::Running(task_env);
 }
 

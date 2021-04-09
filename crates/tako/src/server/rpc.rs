@@ -118,6 +118,12 @@ pub async fn worker_rpc_loop<
                 FromWorkerMessage::StealResponse(msg) => {
                     on_steal_response(&mut core, &mut *comm, worker_id, msg)
                 }
+                FromWorkerMessage::Overview(overview) => {
+                    core.get_worker_mut(worker_id).map(|worker| {
+                        let sender = worker.overview_callbacks.remove(0);
+                        sender.send(overview);
+                    });
+                }
             }
         }
         Ok(())

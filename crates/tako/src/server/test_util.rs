@@ -13,7 +13,7 @@ use crate::server::core::Core;
 
 use crate::server::comm::Comm;
 use crate::server::worker::{WorkerId, Worker};
-use crate::TaskId;
+use crate::{TaskId, OutputId};
 use crate::messages::worker::{ToWorkerMessage, TaskFinishedMsg};
 use crate::server::task::TaskRef;
 use crate::messages::common::TaskFailInfo;
@@ -71,10 +71,10 @@ impl AsyncWrite for MemoryStream {
 }
 
 pub fn task(id: TaskId) -> TaskRef {
-    task_with_deps(id, &[])
+    task_with_deps(id, &[], 1)
 }
 
-pub fn task_with_deps(id: TaskId, deps: &[&TaskRef]) -> TaskRef {
+pub fn task_with_deps(id: TaskId, deps: &[&TaskRef], n_outputs: OutputId) -> TaskRef {
     let inputs : Vec<TaskRef> = deps.iter().map(|&tr| tr.clone()).collect();
 
     TaskRef::new(
@@ -82,6 +82,7 @@ pub fn task_with_deps(id: TaskId, deps: &[&TaskRef]) -> TaskRef {
         0,
         Vec::new(),
         inputs,
+        n_outputs,
         Default::default(),
         false,
         false
@@ -264,12 +265,12 @@ pub fn submit_example_1(core: &mut Core) {
     let t1 = task(11);
     let t2 = task(12);
     t2.get_mut().set_keep_flag(true);
-    let t3 = task_with_deps(13, &[&t1, &t2]);
-    let t4 = task_with_deps(14, &[&t2]);
-    let t5 = task_with_deps(15, &[&t3, &t4]);
+    let t3 = task_with_deps(13, &[&t1, &t2], 1);
+    let t4 = task_with_deps(14, &[&t2], 1);
+    let t5 = task_with_deps(15, &[&t3, &t4], 1);
     t5.get_mut().set_keep_flag(true);
-    let t6 = task_with_deps(16, &[&t3]);
-    let t7 = task_with_deps(17, &[&t6]);
+    let t6 = task_with_deps(16, &[&t3], 1);
+    let t7 = task_with_deps(17, &[&t6], 1);
     submit_test_tasks(core, &[&t1, &t2, &t3, &t4, &t5, &t6, &t7]);
 }
 
@@ -285,13 +286,13 @@ pub fn submit_example_2(core: &mut Core) {
           T5
     */
 
-    let t1 = task_with_deps(1, &[]);
-    let t2 = task_with_deps(2, &[&t1]);
-    let t3 = task_with_deps(3, &[&t1]);
-    let t4 = task_with_deps(4, &[&t2, &t3]);
-    let t5 = task_with_deps(5, &[&t4]);
-    let t6 = task_with_deps(6, &[&t3]);
-    let t7 = task_with_deps(7, &[&t6]);
+    let t1 = task_with_deps(1, &[], 1);
+    let t2 = task_with_deps(2, &[&t1], 1);
+    let t3 = task_with_deps(3, &[&t1], 1);
+    let t4 = task_with_deps(4, &[&t2, &t3], 1);
+    let t5 = task_with_deps(5, &[&t4], 1);
+    let t6 = task_with_deps(6, &[&t3], 1);
+    let t7 = task_with_deps(7, &[&t6], 1);
 
     submit_test_tasks(core, &[&t1, &t2, &t3, &t4, &t5, &t6, &t7]);
 }

@@ -143,14 +143,14 @@ fn subworker_download_finished(
     data: BytesMut,
     msg: messages::DownloadResponseMsg,
 ) {
-    let state = state_ref.get();
+    let mut state = state_ref.get_mut();
     let data_id = msg.id;
     log::debug!(
         "Downloading data={} from subworker={} finished",
         data_id,
         subworker_ref.get().id
     );
-    if let Some(data_ref) = state.data_objects.get(&data_id) {
+    if let Some(data_ref) = state.data_objects.get(&data_id).cloned() {
         let mut data_obj = data_ref.get_mut();
         let bytes: Bytes = data.into();
         log::debug!(
@@ -187,7 +187,7 @@ fn subworker_download_finished(
                                 _ => unreachable!(),
                             };
                             if let Some(env) = start_env {
-                                start_task(&state, &mut task, &task_ref, env);
+                                start_task(&mut state, &mut task, &task_ref, env);
                             }
                         }
                         Subscriber::OneShot(shot) => {
@@ -374,7 +374,7 @@ pub fn choose_subworker(state: &mut WorkerState, task: &Task) -> Option<Subworke
     if state.free_subworkers.is_empty() {
         return None
     }
-    unimplemented!();
+    todo!();
     let fsw = &state.free_subworkers;
     let len = fsw.len();
     if len == 1 || task.deps.is_empty() {

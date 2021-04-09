@@ -62,7 +62,7 @@ pub fn launch_program_from_task(state_ref: WorkerStateRef, task_ref: TaskRef) {
                 log::debug!("Program launcher finished id={}", task_id);
                 state.finish_task(task_ref, 0);
 
-                /* TMP TODO: Allow zero results */
+                /*
                 let data_ref = DataObjectRef::new(
                     task_id,
                     0,
@@ -72,7 +72,7 @@ pub fn launch_program_from_task(state_ref: WorkerStateRef, task_ref: TaskRef) {
                         subworkers: Default::default()
                     }),
                 );
-                state.add_data_object(data_ref);
+                state.add_data_object(data_ref);*/
             }
             Err(e) => {
                 log::debug!("Program launcher failed id={}", task_ref.get().id);

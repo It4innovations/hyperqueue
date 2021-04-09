@@ -9,6 +9,7 @@ pub mod scheduler;
 pub type WorkerId = u64;
 pub type TaskId = u64;
 pub type TaskTypeId = u32;
+pub type OutputId = u32;
 
 // Priority: Bigger number -> Higher priority
 pub type Priority = i32;

@@ -127,7 +127,11 @@ pub fn on_task_finished(
             }
 
             let mut placement = Set::new();
-            placement.insert(worker_id);
+
+            if task.n_outputs > 0 {
+                placement.insert(worker_id);
+            }
+
             task.state = TaskRuntimeState::Finished(
                 FinishInfo {
                     data_info: DataInfo {
@@ -471,7 +475,7 @@ mod tests {
         //new_workers(&mut core, &mut comm, vec![1]);
 
         let t1 = task(501);
-        let t2 = task_with_deps(502, &[&t1]);
+        let t2 = task_with_deps(502, &[&t1], 1);
         on_new_tasks(&mut core, &mut comm, vec![t2, t1]);
 
         comm.check_need_scheduling();
@@ -485,9 +489,9 @@ mod tests {
         assert!(t1.get().get_consumers().contains(&t2));
 
         let t3 = task(604);
-        let t4 = task_with_deps(602, &[&t1, &t3]);
-        let t5 = task_with_deps(603, &[&t3]);
-        let t6 = task_with_deps(601, &[&t3, &t4, &t5, &t2]);
+        let t4 = task_with_deps(602, &[&t1, &t3], 1);
+        let t5 = task_with_deps(603, &[&t3], 1);
+        let t6 = task_with_deps(601, &[&t3, &t4, &t5, &t2], 1);
 
         on_new_tasks(&mut core, &mut comm, vec![t6, t3, t4, t5]);
         comm.check_need_scheduling();
@@ -524,12 +528,12 @@ mod tests {
         let t1 = task(11);
         t1.get_mut().user_priority = 12;
         let t2 = task(12);
-        let t3 = task_with_deps(13, &[&t1, &t2]);
+        let t3 = task_with_deps(13, &[&t1, &t2], 1);
         t3.get_mut().set_keep_flag(true);
         let t4 = task(14);
         let t5 = task(15);
         //let t6 = task_with_deps(16, &[12]);
-        let t7 = task_with_deps(17, &[&t4]);
+        let t7 = task_with_deps(17, &[&t4], 1);
         t7.get_mut().set_keep_flag(true);
 
         submit_test_tasks(&mut core, &[&t1, &t2, &t3, &t4, &t5, &t7]);
@@ -880,5 +884,24 @@ mod tests {
         create_test_workers(&mut core, &[1, 1, 1]);
         submit_example_1(&mut core);
         finish_on_worker(&mut core, 11, 100, 1000);
+    }
+
+    #[test]
+    fn finish_task_without_outputs() {
+        let mut core = Core::default();
+        create_test_workers(&mut core, &[1]);
+        let t1 = task_with_deps(1, &[], 0);
+        submit_test_tasks(&mut core, &[&t1]);
+        start_on_worker(&mut core, 1, 100);
+
+        let mut comm = create_test_comm();
+        on_task_finished(
+            &mut core,
+            &mut comm,
+            100,
+            TaskFinishedMsg { id: 1, size: 0 },
+        );
+        comm.check_need_scheduling();
+        comm.emptiness_check();
     }
 }

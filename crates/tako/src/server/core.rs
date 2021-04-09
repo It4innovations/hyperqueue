@@ -120,8 +120,18 @@ impl Core {
     }
 
     #[inline]
+    pub fn get_worker_mut(&mut self, id: WorkerId) -> Option<&mut Worker> {
+        self.workers.get_mut(&id)
+    }
+
+    #[inline]
     pub fn get_workers(&self) -> impl Iterator<Item = &Worker> {
         self.workers.values()
+    }
+
+    #[inline]
+    pub fn get_workers_mut(&mut self) -> impl Iterator<Item = &mut Worker> {
+        self.workers.values_mut()
     }
 
     #[inline]

@@ -1,13 +1,17 @@
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use crate::messages::gateway::{ToGatewayMessage, FromGatewayMessage, NewTasksResponse, ErrorResponse, TaskUpdate, TaskState, TaskInfo, TasksInfoResponse};
+use crate::messages::gateway::{ToGatewayMessage, FromGatewayMessage, NewTasksResponse, ErrorResponse, TaskUpdate, TaskState, TaskInfo, TasksInfoResponse, Overview};
 use tokio::net::UnixListener;
 use crate::transfer::transport::make_protocol_builder;
 use crate::common::rpc::{forward_queue_to_sink_with_map};
-use futures::StreamExt;
+use futures::{StreamExt, TryFutureExt};
 use crate::server::task::{TaskRef, TaskRuntimeState};
 use crate::server::reactor::{on_new_tasks, on_set_observe_flag};
 use crate::server::core::CoreRef;
-use crate::server::comm::CommSenderRef;
+use crate::server::comm::{CommSenderRef, Comm};
+use crate::messages::worker::{ToWorkerMessage, WorkerOverview};
+use tokio::sync::oneshot;
+use futures::future::join_all;
+use futures::FutureExt;
 
 
 pub async fn client_connection_handler(
@@ -79,11 +83,20 @@ pub async fn process_client_message(
                 if core.is_used_task_id(task.id) {
                     return Some(format!("Task id={} is already taken", task.id))
                 }
+                assert!(task.n_outputs == 0 || task.n_outputs == 1); // TODO: Implementation for more outputs
+
+                if task.type_id == 0 {
+                    assert_eq!(task.n_outputs, 0);
+                } else {
+                    todo!(); // Check that task type exists
+                }
+
                 let task_ref = TaskRef::new(
                     task.id,
                     task.type_id,
                     task.body,
                     Vec::new(),
+                    task.n_outputs,
                     0,
                     task.keep,
                     task.observe,
@@ -124,6 +137,22 @@ pub async fn process_client_message(
                 }
             }).collect();
             assert!(client_sender.send(ToGatewayMessage::TaskInfo(TasksInfoResponse { tasks: task_infos })).is_ok());
+            None
+        }
+        FromGatewayMessage::GetOverview => {
+            let receivers = {
+                let mut core = core_ref.get_mut();
+                let mut receivers = Vec::with_capacity(core.get_worker_map().len());
+                for w in core.get_workers_mut() {
+                    let (sender, receiver) = oneshot::channel();
+                    w.overview_callbacks.push(sender);
+                    receivers.push(receiver.into_future());
+                }
+                comm_ref.get_mut().broadcast_worker_message(&ToWorkerMessage::GetOverview);
+                receivers
+            };
+            let workers : Vec<WorkerOverview> = join_all(receivers).await.into_iter().filter_map(|r| r.ok()).collect();
+            assert!(client_sender.send(ToGatewayMessage::Overview(Overview { workers })).is_ok());
             None
         }
     }
