@@ -114,8 +114,8 @@ pub async fn update_data_on_worker(
             }
         };
         match &mut task_ref.get_mut().state {
-            TaskRuntimeState::Finished(_, ref mut set) => {
-                set.insert(worker_id);
+            TaskRuntimeState::Finished(ref mut finfo) => {
+                finfo.placement.insert(worker_id);
             }
             _ => unreachable!(),
         };
