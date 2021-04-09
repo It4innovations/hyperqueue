@@ -162,7 +162,7 @@ impl SchedulerState {
             },
             TaskRuntimeState::Stealing(from_w, to_w) => TaskRuntimeState::Stealing(from_w, worker_id),
             TaskRuntimeState::Running(_) |
-            TaskRuntimeState::Finished(_, _) |
+            TaskRuntimeState::Finished(_) |
             TaskRuntimeState::Released => { panic!("Invalid state"); }
         };
         let old_state = std::mem::replace(&mut task.state, new_state);

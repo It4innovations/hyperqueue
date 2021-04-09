@@ -87,7 +87,6 @@ pub fn task_with_deps(id: TaskId, deps: &[&TaskRef]) -> TaskRef {
         Vec::new(),
         inputs,
         Default::default(),
-        Default::default(),
         false,
         false
     )

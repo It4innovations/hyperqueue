@@ -9,9 +9,10 @@ use crate::messages::worker::{
 
 
 use crate::server::comm::Comm;
-use crate::server::task::{Task, WaitingInfo};
+use crate::server::task::{Task, WaitingInfo, FinishInfo};
 use crate::{WorkerId, TaskId};
 use crate::server::task::{DataInfo, TaskRef, TaskRuntimeState};
+use crate::messages::worker::ComputeTaskMsg;
 
 use crate::common::trace::{
     trace_task_assign, trace_task_finish, trace_task_place, trace_worker_new,
@@ -126,14 +127,16 @@ pub fn on_task_finished(
                 assert!(worker.tasks.remove(&task_ref));
             }
 
-            let mut set = Set::new();
-            set.insert(worker_id);
+            let mut placement = Set::new();
+            placement.insert(worker_id);
             task.state = TaskRuntimeState::Finished(
-                DataInfo {
-                    size: msg.size,
-                    //r#type: msg.r#type,
-                },
-                set,
+                FinishInfo {
+                    data_info: DataInfo {
+                        size: msg.size,
+                    },
+                    placement,
+                    future_placement: Default::default(),
+                }
             );
             /*comm.send_scheduler_message(ToSchedulerMessage::TaskUpdate(TaskUpdate {
                 state: TaskUpdateType::Finished,
@@ -336,8 +339,8 @@ pub fn on_tasks_transferred(
     if let Some(task_ref) = core.get_task_by_id(id) {
         let mut task = task_ref.get_mut();
         match &mut task.state {
-            TaskRuntimeState::Finished(_, ws) => {
-                ws.insert(worker_id);
+            TaskRuntimeState::Finished(ref mut winfo) => {
+                winfo.placement.insert(worker_id);
             }
             TaskRuntimeState::Released
             | TaskRuntimeState::Waiting(_)
@@ -396,7 +399,7 @@ fn unregister_as_consumer(
 fn remove_task_if_possible(core: &mut Core, comm: &mut impl Comm, task: &mut Task) {
     if task.is_removable() {
         let ws = match core.remove_task(task) {
-            TaskRuntimeState::Finished(_, ws) => ws,
+            TaskRuntimeState::Finished(finfo) => finfo.placement,
             _ => unreachable!(),
         };
         for worker_id in ws {

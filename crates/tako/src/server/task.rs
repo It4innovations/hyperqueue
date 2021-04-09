@@ -19,12 +19,18 @@ pub struct WaitingInfo {
     // pub scheduler_metric: i32,
 }
 
+pub struct FinishInfo {
+    pub data_info: DataInfo,
+    pub placement: Set<WorkerId>,
+    pub future_placement: Map<WorkerId, u32>
+}
+
 pub enum TaskRuntimeState {
     Waiting(WaitingInfo), // Unfinished inputs
     Assigned(WorkerId),
     Stealing(WorkerId, WorkerId), // (from, to)
     Running(WorkerId),
-    Finished(DataInfo, Set<WorkerId>),
+    Finished(FinishInfo),
     Released,
 }
 
@@ -35,7 +41,7 @@ impl fmt::Debug for TaskRuntimeState {
             Self::Assigned(_) => 'A',
             Self::Stealing(_, _) => 'T',
             Self::Running(_) => 'R',
-            Self::Finished(_, _) => 'F',
+            Self::Finished(_) => 'F',
             Self::Released => 'X',
         };
         write!(f, "{}", n)
@@ -61,7 +67,6 @@ pub struct Task {
     pub state: TaskRuntimeState,
     consumers: Set<TaskRef>,
     pub inputs: Vec<TaskRef>, // TODO: Realn implementation needed
-    pub future_placement: Map<WorkerId, u32>, // TODO move it into Finished enum
 
     pub flags: TaskFlags,
 
@@ -77,7 +82,6 @@ pub type TaskRef = WrappedRcRefCell<Task>;
 impl Task {
 
     pub fn clear(&mut self) {
-        std::mem::take(&mut self.future_placement);
         std::mem::take(&mut self.inputs);
         std::mem::take(&mut self.spec);
     }
@@ -192,7 +196,7 @@ impl Task {
                     .iter()
                     .copied()
                     .collect();
-                (task.id, task.data_info().unwrap().size, addresses)
+                (task.id, task.data_info().unwrap().data_info.size, addresses)
             })
             .collect();
 
@@ -226,23 +230,23 @@ impl Task {
 
     #[inline]
     pub fn is_finished(&self) -> bool {
-        matches!(&self.state, TaskRuntimeState::Finished(_, _))
+        matches!(&self.state, TaskRuntimeState::Finished(_))
     }
 
     #[inline]
     pub fn is_done(&self) -> bool {
-        matches!(&self.state, TaskRuntimeState::Finished(_, _) | TaskRuntimeState::Released)
+        matches!(&self.state, TaskRuntimeState::Finished(_) | TaskRuntimeState::Released)
     }
 
     #[inline]
     pub fn is_done_or_running(&self) -> bool {
-        matches!(&self.state, TaskRuntimeState::Finished(_, _) | TaskRuntimeState::Released | TaskRuntimeState::Running(_))
+        matches!(&self.state, TaskRuntimeState::Finished(_) | TaskRuntimeState::Released | TaskRuntimeState::Running(_))
     }
 
     #[inline]
-    pub fn data_info(&self) -> Option<&DataInfo> {
+    pub fn data_info(&self) -> Option<&FinishInfo> {
         match &self.state {
-            TaskRuntimeState::Finished(data, _) => Some(data),
+            TaskRuntimeState::Finished(finfo) => Some(&finfo),
             _ => None,
         }
     }
@@ -254,7 +258,7 @@ impl Task {
             TaskRuntimeState::Waiting(_) => None,
             TaskRuntimeState::Assigned(id) | TaskRuntimeState::Running(id) => Some(*id),
             TaskRuntimeState::Stealing(_, id) => Some(*id),
-            TaskRuntimeState::Finished(_, _) => None,
+            TaskRuntimeState::Finished(_) => None,
             TaskRuntimeState::Released => None
         }
     }
@@ -262,24 +266,35 @@ impl Task {
     #[inline]
     pub fn get_placement(&self) -> Option<&Set<WorkerId>> {
         match &self.state {
-            TaskRuntimeState::Finished(_, ws) => Some(ws),
+            TaskRuntimeState::Finished(finfo) => Some(&finfo.placement),
             _ => None,
         }
     }
 
     pub fn remove_future_placement(&mut self, worker_id: WorkerId) {
-        let count = self.future_placement.get_mut(&worker_id).unwrap();
-        if *count <= 1 {
-            assert_ne!(*count, 0);
-            self.future_placement.remove(&worker_id);
-        } else {
-            *count -= 1;
+        match &mut self.state {
+            TaskRuntimeState::Finished(finfo) => {
+                let count = finfo.future_placement.get_mut(&worker_id).unwrap();
+                if *count <= 1 {
+                    assert_ne!(*count, 0);
+                    finfo.future_placement.remove(&worker_id);
+                } else {
+                    *count -= 1;
+                }
+            }
+            _ => { unreachable!() }
         }
     }
 
     #[inline]
     pub fn set_future_placement(&mut self, worker_id: WorkerId) {
-        (*self.future_placement.entry(worker_id).or_insert(0)) += 1;
+        match self.state {
+            TaskRuntimeState::Finished(ref mut finfo) => {
+                (*finfo.future_placement.entry(worker_id).or_insert(0)) += 1;
+            }
+            _ => unreachable!()
+        }
+
     }
 
     #[inline]
@@ -325,7 +340,6 @@ impl TaskRef {
             scheduler_priority: Default::default(),
             state: TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 }),
             consumers: Default::default(),
-            future_placement: Default::default()
         })
     }
 }

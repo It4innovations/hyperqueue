@@ -108,7 +108,7 @@ pub async fn process_client_message(core_ref: &CoreRef, comm_ref: &CommSenderRef
                         TaskRuntimeState::Assigned(_) => { TaskState::Waiting }
                         TaskRuntimeState::Stealing(_, _) => { TaskState::Waiting }
                         TaskRuntimeState::Running(_) => { TaskState::Waiting }
-                        TaskRuntimeState::Finished(_, _) => { TaskState::Finished }
+                        TaskRuntimeState::Finished(_) => { TaskState::Finished }
                         TaskRuntimeState::Released => { unreachable!() }
                     }
                 }
