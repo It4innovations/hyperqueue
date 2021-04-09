@@ -19,8 +19,8 @@ def test_submit_simple_task_ok(tako_env):
     stdout = os.path.join(tako_env.work_dir, "test.out")
     stderr = os.path.join(tako_env.work_dir, "test.err")
 
-    t1 = make_program_task(ProgramDefinition(["/usr/bin/hostname"]), keep=True)
-    t2 = make_program_task(ProgramDefinition(["/usr/bin/hostname"]))
+    t1 = make_program_task(ProgramDefinition(["/bin/hostname"]), keep=True)
+    t2 = make_program_task(ProgramDefinition(["/bin/hostname"]))
     t3 = make_program_task(ProgramDefinition(["bash", "-c", "echo 'hello'"], stdout=stdout, stderr=stderr), keep=True)
 
     assert t1._id is None
@@ -64,7 +64,7 @@ def test_submit_simple_task_fail(tako_env):
         session.wait(t1)
 
     # Make sure that program may still run
-    t2 = make_program_task(ProgramDefinition(["/usr/bin/hostname"]))
+    t2 = make_program_task(ProgramDefinition(["/bin/hostname"]))
     session.submit([t2])
     session.wait(t2)
 
