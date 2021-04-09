@@ -4,7 +4,7 @@ use hashbrown::HashMap;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::common::data::SerializationType;
-use crate::common::{Map, WrappedRcRefCell};
+use crate::common::{Map, WrappedRcRefCell, Set};
 use crate::TaskId;
 use crate::messages::worker::{DataDownloadedMsg, FromWorkerMessage, StealResponse, TaskFinishedMsg, TaskFailedMsg};
 use crate::{PriorityTuple, Priority};
@@ -35,9 +35,11 @@ pub struct WorkerState {
     pub ready_task_queue:
         priority_queue::PriorityQueue<TaskRef, (Priority, Priority)>,
     pub data_objects: HashMap<TaskId, DataObjectRef>,
-    pub download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, PriorityTuple)>,
+    pub running_tasks: Set<TaskRef>,
     pub start_task_scheduled: bool,
     pub start_task_notify: Rc<Notify>,
+
+    pub download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, PriorityTuple)>,
     pub worker_id: WorkerId,
     pub worker_addresses: Map<WorkerId, String>,
     pub worker_connections: Map<WorkerId, Vec<DataConnection>>,
@@ -277,6 +279,7 @@ impl WorkerState {
             }
             TaskState::Running(_) => {
                 assert!(just_finished);
+                assert!(self.running_tasks.remove(&task_ref));
                 self.free_cpus += 1;
                 debug_assert!(self.free_cpus <= self.ncpus);
                 self.schedule_task_start();
@@ -411,6 +414,7 @@ impl WorkerStateRef {
             self_ref: None,
             start_task_scheduled: false,
             start_task_notify: Rc::new(Notify::new()),
+            running_tasks: Default::default(),
         });
         self_ref.get_mut().self_ref = Some(self_ref.clone());
         self_ref

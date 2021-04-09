@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 use crate::common::{Set, WrappedRcRefCell, Map};
-use crate::{TaskId, TaskTypeId};
+use crate::{TaskId, TaskTypeId, OutputId};
 use crate::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::Priority;
 use crate::WorkerId;
@@ -69,6 +69,8 @@ pub struct Task {
     pub inputs: Vec<TaskRef>, // TODO: Realn implementation needed
 
     pub flags: TaskFlags,
+
+    pub n_outputs: OutputId,
 
     pub type_id: TaskTypeId,
     pub spec: Vec<u8>, // Serialized TaskSpec
@@ -203,6 +205,7 @@ impl Task {
         ToWorkerMessage::ComputeTask(ComputeTaskMsg {
             id: self.id,
             type_id: self.type_id,
+            n_outputs: self.n_outputs,
             dep_info,
             spec: self.spec.clone(),
             user_priority: self.user_priority,
@@ -322,6 +325,7 @@ impl TaskRef {
         type_id: TaskTypeId,
         spec: Vec<u8>,
         inputs: Vec<TaskRef>,
+        n_outputs: OutputId,
         user_priority: Priority,
         keep: bool,
         observe: bool,
@@ -333,6 +337,7 @@ impl TaskRef {
         Self::wrap(Task {
             id,
             inputs,
+            n_outputs,
             flags,
             type_id,
             spec,
@@ -373,10 +378,10 @@ mod tests {
     fn task_recursive_consumers() {
         let mut core = Core::default();
         let a = task(0);
-        let b = task_with_deps(1, &[&a]);
-        let c = task_with_deps(2, &[&b]);
-        let d = task_with_deps(3, &[&b]);
-        let e = task_with_deps(4, &[&c, &d]);
+        let b = task_with_deps(1, &[&a], 1);
+        let c = task_with_deps(2, &[&b], 1);
+        let d = task_with_deps(3, &[&b], 1);
+        let e = task_with_deps(4, &[&c, &d], 1);
 
         submit_test_tasks(
             &mut core,

@@ -87,6 +87,11 @@ class Session:
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self._send_receive(message, "Ok"))
 
+    def overview(self):
+        message = {"op": "GetOverview"}
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(self._send_receive(message, "Overview"))
+
     @staticmethod
     def _task_failed(msg):
         task_id = msg["id"]

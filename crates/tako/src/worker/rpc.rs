@@ -13,9 +13,7 @@ use crate::common::rpc::forward_queue_to_sink;
 use crate::transfer::transport::{make_protocol_builder, connect_to_worker};
 
 use crate::messages::generic::{GenericMessage, RegisterWorkerMsg};
-use crate::messages::worker::{
-    FromWorkerMessage, StealResponseMsg, ToWorkerMessage, WorkerRegistrationResponse,
-};
+use crate::messages::worker::{FromWorkerMessage, StealResponseMsg, ToWorkerMessage, WorkerRegistrationResponse, WorkerOverview};
 use crate::PriorityTuple;
 use crate::Priority;
 use crate::transfer::messages::{DataRequest, DataResponse, FetchResponseData, UploadResponseMsg};
@@ -300,6 +298,17 @@ async fn worker_message_loop(
             }
             ToWorkerMessage::RegisterSubworker(sw_def) => {
                 state.subworker_definitions.insert(sw_def.id, sw_def);
+            }
+            ToWorkerMessage::GetOverview => {
+                let message = FromWorkerMessage::Overview(WorkerOverview {
+                    id: state.worker_id,
+                    running_tasks: state.running_tasks.iter().map(|tr| {
+                        let task = tr.get();
+                        (task.id, 1) // TODO: Modify this when more cpus are allowed
+                    }).collect(),
+                    placed_data: state.data_objects.keys().copied().collect(),
+                });
+                state.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap());
             }
         }
     }

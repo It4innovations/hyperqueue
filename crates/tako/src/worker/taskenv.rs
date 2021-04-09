@@ -54,6 +54,7 @@ impl TaskEnv {
                 sw.send_start_task(task)
             },
             TaskEnv::Empty => {
+                assert_eq!(task.n_outputs, 0);
                 launch_program_from_task(state.self_ref(), task_ref.clone())
             }
         }

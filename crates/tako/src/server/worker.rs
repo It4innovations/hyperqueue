@@ -2,6 +2,9 @@ use std::str;
 
 use crate::server::task::TaskRef;
 use crate::common::Set;
+use crate::messages::worker::WorkerOverview;
+use tokio::sync::oneshot;
+
 
 pub type WorkerId = u64;
 
@@ -14,6 +17,8 @@ pub struct Worker {
     // !! In case of stealinig T from W1 to W2, T is in "tasks" of W2, even T was not yet canceled from W1.
     pub tasks: Set<TaskRef>,
     pub listen_address: String,
+
+    pub overview_callbacks: Vec<oneshot::Sender<WorkerOverview>>
 }
 
 impl Worker {
@@ -48,7 +53,8 @@ impl Worker {
             id,
             ncpus,
             listen_address,
-            tasks: Default::default()
+            tasks: Default::default(),
+            overview_callbacks: Default::default(),
         }
     }
 }

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize, Serializer};
-use crate::{TaskId, TaskTypeId};
+use crate::{TaskId, TaskTypeId, OutputId};
 use crate::messages::common::{TaskFailInfo, SubworkerDefinition};
+use crate::messages::worker::WorkerOverview;
 
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -8,6 +9,9 @@ pub struct TaskDef {
     pub id: TaskId,
 
     pub type_id: TaskTypeId,
+
+    #[serde(default)]
+    pub n_outputs: OutputId,
 
     #[serde(with = "serde_bytes")]
     pub body: Vec<u8>,
@@ -44,6 +48,7 @@ pub enum FromGatewayMessage {
     RegisterSubworker(SubworkerDefinition),
     GetTaskInfo(TaskInfoRequest),
     ServerInfo,
+    GetOverview,
 }
 
 
@@ -107,6 +112,10 @@ pub struct TasksInfoResponse {
     pub tasks: Vec<TaskInfo>
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Overview {
+    pub workers: Vec<WorkerOverview>,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "op")]
@@ -117,4 +126,5 @@ pub enum ToGatewayMessage {
     TaskInfo(TasksInfoResponse),
     Error(ErrorResponse),
     ServerInfo(ServerInfo),
+    Overview(Overview),
 }
