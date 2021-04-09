@@ -49,7 +49,7 @@ fn crawl<'a, F1: Fn(&Task) -> &Set<TaskRef>, F2: Fn(&Task) -> &Vec<TaskRef>>(
 mod tests {
     use crate::server::core::{Core};
     use crate::server::test_util::submit_example_2;
-    use crate::scheduler2::metrics::compute_b_level_metric;
+    use crate::scheduler::metrics::compute_b_level_metric;
 
     #[test]
     fn b_level_simple_graph() {

@@ -4,7 +4,7 @@ pub mod transfer;
 pub mod messages;
 pub mod server;
 pub mod worker;
-pub mod scheduler2;
+pub mod scheduler;
 
 pub type WorkerId = u64;
 pub type TaskId = u64;
