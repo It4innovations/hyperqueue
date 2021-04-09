@@ -3,8 +3,7 @@ use crate::common::error::DsError::GenericError;
 use crate::TaskId;
 use crate::transfer::messages::{DataRequest, DataResponse, FetchRequestMsg};
 use bytes::BytesMut;
-use futures::SinkExt;
-use tokio::stream::StreamExt;
+use futures::{SinkExt, StreamExt};
 use crate::common::error::DsError;
 use crate::transfer::DataConnection;
 

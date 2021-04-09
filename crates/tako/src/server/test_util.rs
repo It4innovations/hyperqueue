@@ -6,11 +6,7 @@ use std::path::Path;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use bytes::BytesMut;
-
-use tokio::io::{AsyncRead, AsyncWrite};
-
-use tokio_util::codec::Decoder;
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::common::{Map, WrappedRcRefCell};
 use crate::server::core::Core;
@@ -48,8 +44,8 @@ impl AsyncRead for MemoryStream {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize, std::io::Error>> {
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
         Pin::new(&mut self.input).poll_read(cx, buf)
     }
 }

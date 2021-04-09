@@ -1,20 +1,16 @@
 use std::net::{Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
-use bytes::buf::BufMutExt;
-use bytes::{Bytes, BytesMut};
+use bytes::{Bytes, BytesMut, BufMut};
 use futures::{SinkExt, Stream, StreamExt};
 
 use tokio::net::lookup_host;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::mpsc::error::TryRecvError;
 use tokio::task::LocalSet;
-use tokio::time::{delay_for};
+use tokio::time::sleep;
 
 use crate::common::rpc::forward_queue_to_sink;
 use crate::transfer::transport::{make_protocol_builder, connect_to_worker};
-
-//use crate::server::protocol::messages::worker::{GetDataResponse, ToWorkerGenericMessage};
 
 use crate::messages::generic::{GenericMessage, RegisterWorkerMsg};
 use crate::messages::worker::{
@@ -66,7 +62,7 @@ async fn connect_to_server(scheduler_address: &str) -> crate::Result<TcpStream> 
             }
             Err(e) => {
                 log::error!("Could not connect to {}, error: {}", scheduler_address, e);
-                delay_for(Duration::from_secs(2)).await;
+                sleep(Duration::from_secs(2)).await;
             }
         }
     }
@@ -213,7 +209,7 @@ async fn download_data(state_ref: WorkerStateRef, data_ref: DataObjectRef)
             Err(e) => {
                 log::error!("Download of id={} failed; error={}; attempt={}/{}",
                             data_ref.get().id, e, attempt, MAX_ATTEMPTS);
-                delay_for(Duration::from_secs(1)).await;
+                sleep(Duration::from_secs(1)).await;
             }
         }
     }
@@ -236,14 +232,13 @@ async fn worker_data_downloader(
 
     loop {
         tokio::select! {
-            s = stream.next() => {
+            s = stream.recv() => {
                let (data_ref, priority) = s.unwrap();
                queue.push_increase(data_ref, priority);
                loop {
-                    match stream.try_recv() {
-                        Ok((data_ref, priority)) => queue.push_increase(data_ref, priority),
-                        Err(TryRecvError::Empty) => break,
-                        Err(TryRecvError::Closed) => unreachable!(),
+                    match stream.recv().await {
+                        Some((data_ref, priority)) => queue.push_increase(data_ref, priority),
+                        None => break,
                     };
                }
             },
@@ -312,7 +307,7 @@ async fn worker_message_loop(
 }
 
 pub async fn connection_initiator(
-    mut listener: TcpListener,
+    listener: TcpListener,
     state_ref: WorkerStateRef,
 ) -> crate::Result<()> {
     loop {
@@ -339,7 +334,7 @@ async fn connection_rpc_loop(
     enum FetchHelperResult {
         OneShot(tokio::sync::oneshot::Receiver<(SerializationType, Bytes)>),
         DirectResult(DataResponse, Option<Bytes>),
-    };
+    }
 
     loop {
         let data = match stream.next().await {

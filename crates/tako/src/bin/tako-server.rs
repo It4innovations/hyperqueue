@@ -1,10 +1,9 @@
 use tako::common::setup::{setup_logging, setup_interrupt};
-use std::path::Path;
+
 use tokio::net::UnixListener;
-use futures::StreamExt;
 use clap::Clap;
 use std::time::Duration;
-use std::thread;
+
 use std::net::{SocketAddr, Ipv4Addr};
 use tokio::task::LocalSet;
 use tokio::sync::mpsc::unbounded_channel;
@@ -24,8 +23,7 @@ struct Opts {
     port: u16,
 }
 
-
-#[tokio::main(basic_scheduler)]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     let opts: Opts = Opts::parse();
     setup_logging();
@@ -38,7 +36,7 @@ async fn main() {
 
     let mut end_rx = setup_interrupt();
     let end_flag = async move {
-        end_rx.next().await;
+        end_rx.recv().await;
     };
 
     let client_listener = UnixListener::bind(opts.socket_path).unwrap();
@@ -53,5 +51,4 @@ async fn main() {
         r = server_future => { r.unwrap(); },
         () = client_handler => {}
     }}).await;
-
 }

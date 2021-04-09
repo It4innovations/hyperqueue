@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use clap::Clap;
 use tako::common::setup::setup_logging;
 use std::fs;
-use tako::worker::paths::WorkerPaths;
+
 use rand::Rng;
 use rand::distributions::Alphanumeric;
 use tako::worker::rpc::run_worker;
@@ -47,8 +47,7 @@ fn create_paths(
     Ok((work_dir, local_dir))
 }
 
-
-#[tokio::main(basic_scheduler)]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> tako::Result<()> {
     let opts: Opts = Opts::parse();
     setup_logging();

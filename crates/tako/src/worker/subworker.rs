@@ -1,10 +1,9 @@
 use std::fs::File;
-use std::path::PathBuf;
 use std::process::Stdio;
 
 use bytes::{Bytes, BytesMut};
 use futures::stream::{SplitSink, SplitStream};
-use futures::{Future, FutureExt, SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::process::Command;
 use tokio::sync::oneshot;
@@ -13,9 +12,6 @@ use tokio_util::codec::{Framed, LengthDelimitedCodec};
 use crate::transfer::transport::make_protocol_builder;
 use crate::common::WrappedRcRefCell;
 
-use crate::messages::worker::{
-    FromWorkerMessage, TaskFailedMsg, TaskFinishedMsg,
-};
 use crate::worker::data::{
     DataObjectRef, DataObjectState, InSubworkersData, LocalData, Subscriber,
 };
@@ -29,12 +25,10 @@ use crate::worker::task::{Task, TaskRef, TaskState};
 
 use super::messages::RegisterSubworkerMessage;
 use crate::common::data::SerializationType;
-use crate::{TaskId, TaskTypeId};
+use crate::TaskId;
 use crate::worker::reactor::{start_task};
 use smallvec::{smallvec, SmallVec};
 use crate::worker::paths::WorkerPaths;
-use crate::messages::common::SubworkerDefinition;
-use bitflags::_core::ops::Sub;
 use crate::worker::taskenv::TaskEnv;
 
 pub(crate) type SubworkerId = u32;
@@ -106,7 +100,7 @@ impl SubworkerRef {
 
 async fn subworker_handshake(
     state_ref: WorkerStateRef,
-    mut listener: UnixListener,
+    listener: UnixListener,
     subworker_id: SubworkerId,
 ) -> Result<
     (
@@ -115,7 +109,7 @@ async fn subworker_handshake(
     ),
     crate::Error,
 > {
-    if let Some(Ok(stream)) = listener.next().await {
+    if let Ok((stream, _)) = listener.accept().await {
         let mut framed = make_protocol_builder().new_framed(stream);
         let message = framed.next().await;
 
@@ -331,6 +325,8 @@ async fn run_subworker(
             .current_dir(paths.work_dir)
             .spawn()?
     };
+    let process_future = process_future.wait();
+    tokio::pin!(process_future);
 
     std::mem::drop(socket_path);
 

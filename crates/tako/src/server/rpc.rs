@@ -17,7 +17,7 @@ use crate::server::worker::Worker;
 
 
 pub async fn connection_initiator(
-    mut listener: TcpListener,
+    listener: TcpListener,
     core_ref: CoreRef,
     comm_ref: CommSenderRef,
 ) -> crate::Result<()> {
