@@ -52,6 +52,10 @@ impl CommSender {
         assert!(self.workers.insert(worker_id, sender).is_none());
     }
 
+    pub fn remove_worker(&mut self, worker_id: WorkerId) {
+        assert!(self.workers.remove(&worker_id).is_some());
+    }
+
     #[inline]
     pub fn reset_scheduling_flag(&mut self) {
         self.need_scheduling = false

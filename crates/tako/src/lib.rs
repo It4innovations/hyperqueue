@@ -6,7 +6,7 @@ pub mod server;
 pub mod worker;
 pub mod scheduler;
 
-pub type WorkerId = u64;
+pub type WorkerId = u64; // Maybe non-zero type for optimizing Option<WorkerId>?
 pub type TaskId = u64;
 pub type TaskTypeId = u32;
 pub type OutputId = u32;

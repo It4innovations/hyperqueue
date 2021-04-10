@@ -20,6 +20,7 @@ use crate::common::trace::{
 use crate::server::worker::Worker;
 use crate::messages::common::{TaskFailInfo, SubworkerDefinition};
 
+
 pub fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
     {
         trace_worker_new(worker.id, worker.ncpus, worker.address());
@@ -33,6 +34,67 @@ pub fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
         comm.ask_for_scheduling();
     }
     core.new_worker(worker);
+}
+
+pub fn on_remove_worker(core: &mut Core, comm: &mut impl Comm, worker_id: WorkerId) {
+    log::debug!("Removing worker {}", worker_id);
+
+    let mut ready_to_assign = Vec::new();
+    for task_ref in core.get_tasks() {
+        let mut task = task_ref.get_mut();
+        let task_id = task.id;
+        let new_state = match &mut task.state {
+            TaskRuntimeState::Waiting(_) => { continue }
+            TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
+                if *w_id == worker_id {
+                    log::debug!("Removing task task={} from lost worker", task_id);
+                    task.set_fresh_flag(true);
+                    ready_to_assign.push(task_ref.clone());
+                    TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
+                } else {
+                    continue
+                }
+            }
+            TaskRuntimeState::Stealing(from_id, to_id) => {
+                if *from_id == worker_id {
+                    log::debug!("Canceling steal of task={} from lost worker", task_id);
+                    task.set_fresh_flag(true);
+                    ready_to_assign.push(task_ref.clone());
+                    TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
+                } else if *to_id == Some(worker_id) {
+                    log::debug!("Task={} is stealing target for lost worker", task_id);
+                    TaskRuntimeState::Stealing(*from_id, None)
+                } else {
+                    continue
+                }
+            }
+            TaskRuntimeState::Finished(finfo) => {
+                finfo.future_placement.remove(&worker_id);
+                finfo.placement.remove(&worker_id);
+                if finfo.placement.is_empty() {
+                    todo!();
+                    // We have lost last worker that have this data
+                }
+                continue
+            }
+            TaskRuntimeState::Released => { unreachable!() }
+        };
+        task.state = new_state;
+    }
+
+    let ask_for_scheduling = !ready_to_assign.is_empty();
+
+    for task_ref in ready_to_assign {
+        core.add_ready_to_assign(task_ref);
+    }
+
+    let _worker = core.remove_worker(worker_id);
+
+    if ask_for_scheduling {
+        comm.ask_for_scheduling();
+    }
+
+    //let worker = core.get_worker_by_id_or_panic(worker_id);
 }
 
 
@@ -218,7 +280,7 @@ pub fn on_steal_response(
                     trace_worker_steal_response(
                         task_id,
                         worker_id,
-                        to_worker_id,
+                        to_worker_id.unwrap_or(0),
                         match response {
                             StealResponse::Ok => "ok",
                             StealResponse::NotHere => "nothere",
@@ -229,14 +291,21 @@ pub fn on_steal_response(
                     match response {
                         StealResponse::Ok => {
                             log::debug!("Task stealing was successful task={}", task_id);
-                            trace_task_assign(task_id, to_worker_id);
-                            comm.send_worker_message(to_worker_id, &task.make_compute_message());
-                            log::debug!("Task stealing was successful task={}", task_id);
-                            TaskRuntimeState::Assigned(to_worker_id)
+                            trace_task_assign(task_id, to_worker_id.unwrap_or(0));
+                            if let Some(w_id) = to_worker_id {
+                                comm.send_worker_message(w_id, &task.make_compute_message());
+                                TaskRuntimeState::Assigned(w_id)
+                            } else {
+                                comm.ask_for_scheduling();
+                                core.add_ready_to_assign(task_ref.clone());
+                                TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
+                            }
                         },
                         StealResponse::Running => {
                             log::debug!("Task stealing was not successful task={}", task_id);
-                            assert!(core.get_worker_mut_by_id_or_panic(to_worker_id).tasks.remove(&task_ref));
+                            if let Some(w_id) = to_worker_id {
+                                assert!(core.get_worker_mut_by_id_or_panic(w_id).tasks.remove(&task_ref));
+                            }
                             assert!(core.get_worker_mut_by_id_or_panic(from_worker_id).tasks.insert(task_ref.clone()));
                             comm.ask_for_scheduling();
                             TaskRuntimeState::Running(worker_id)
@@ -247,7 +316,16 @@ pub fn on_steal_response(
 
                     }
                 };
-                task_ref.get_mut().state = new_state;
+                {
+                    let mut task = task_ref.get_mut();
+                    match &new_state {
+                        TaskRuntimeState::Waiting(winfo) => {
+                            task.set_fresh_flag(true)
+                        }
+                        _ => { /* Do nothing */ }
+                    };
+                    task.state = new_state;
+                }
             }
             None => {
                 log::debug!("Received trace resposne for invalid task {}", task_id);
@@ -426,7 +504,7 @@ fn remove_task_if_possible(core: &mut Core, comm: &mut impl Comm, task: &mut Tas
 #[cfg(test)]
 mod tests {
     use super::*;
-        use crate::server::test_util::{create_test_comm, task, task_with_deps, create_test_workers, submit_test_tasks, submit_example_1, start_and_finish_on_worker, start_on_worker, sorted_vec, finish_on_worker, force_assign, force_reassign};
+        use crate::server::test_util::{create_test_comm, task, task_with_deps, create_test_workers, submit_test_tasks, submit_example_1, start_and_finish_on_worker, start_on_worker, sorted_vec, finish_on_worker, force_assign, force_reassign, fail_steal, start_stealing};
     use crate::scheduler::scheduler::tests::{create_test_scheduler};
     use crate::messages::worker::ComputeTaskMsg;
     /*use crate::test_util::{
@@ -901,6 +979,64 @@ mod tests {
             100,
             TaskFinishedMsg { id: 1, size: 0 },
         );
+        comm.check_need_scheduling();
+        comm.emptiness_check();
+    }
+
+    #[test]
+    fn lost_worker_with_running_and_assign_tasks() {
+        let mut core = Core::default();
+        create_test_workers(&mut core, &[1, 1, 1]);
+        submit_example_1(&mut core);
+
+        let t40 = task(40);
+        let t41 = task(41);
+        submit_test_tasks(&mut core, &[&t40, &t41]);
+
+        start_on_worker(&mut core, 11, 101);
+        start_on_worker(&mut core, 12, 101);
+        start_on_worker(&mut core, 40, 101);
+        start_on_worker(&mut core, 41, 100);
+
+        fail_steal(&mut core, 12, 101, 100);
+        start_stealing(&mut core, 40, 100);
+        start_stealing(&mut core, 41, 101);
+
+        assert!(core.get_task_by_id_or_panic(12).get().is_running());
+
+        assert!(!core.get_task_by_id_or_panic(11).get().is_fresh());
+        assert!(!core.get_task_by_id_or_panic(12).get().is_fresh());
+        assert!(!core.get_task_by_id_or_panic(40).get().is_fresh());
+        assert!(!core.get_task_by_id_or_panic(41).get().is_fresh());
+
+        let mut comm = create_test_comm();
+        on_remove_worker(&mut core, &mut comm, 101);
+
+        assert_eq!(core.take_ready_to_assign().len(), 3);
+        assert!(core.get_task_by_id_or_panic(11).get().is_ready());
+        assert!(core.get_task_by_id_or_panic(12).get().is_ready());
+        assert!(core.get_task_by_id_or_panic(40).get().is_ready());
+        assert!(core.get_task_by_id_or_panic(11).get().is_fresh());
+        assert!(core.get_task_by_id_or_panic(12).get().is_fresh());
+        assert!(core.get_task_by_id_or_panic(40).get().is_fresh());
+        assert!(matches!(core.get_task_by_id_or_panic(41).get().state, TaskRuntimeState::Stealing(100, None)));
+
+        comm.check_need_scheduling();
+        comm.emptiness_check();
+
+        on_steal_response(
+            &mut core,
+            &mut comm,
+            100,
+            StealResponseMsg {
+                responses: vec![(41, StealResponse::Ok)],
+            },
+        );
+
+        assert_eq!(core.take_ready_to_assign().len(), 1);
+        assert!(core.get_task_by_id_or_panic(41).get().is_ready());
+        assert!(core.get_task_by_id_or_panic(41).get().is_fresh());
+
         comm.check_need_scheduling();
         comm.emptiness_check();
     }

@@ -87,8 +87,8 @@ impl Core {
         self.workers.insert(worker_id, worker);
     }
 
-    pub fn remove_worker(&mut self, worker_id: WorkerId) {
-        assert!(self.workers.remove(&worker_id).is_some());
+    pub fn remove_worker(&mut self, worker_id: WorkerId) -> Worker {
+        self.workers.remove(&worker_id).unwrap()
     }
 
     #[inline]

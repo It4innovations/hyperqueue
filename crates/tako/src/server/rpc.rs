@@ -9,9 +9,7 @@ use crate::transfer::transport::make_protocol_builder;
 use crate::server::core::CoreRef;
 use crate::messages::generic::{GenericMessage, RegisterWorkerMsg};
 use crate::messages::worker::{FromWorkerMessage, WorkerRegistrationResponse};
-use crate::server::reactor::{
-    on_new_worker, on_steal_response, on_task_error, on_task_finished, on_tasks_transferred,
-};
+use crate::server::reactor::{on_new_worker, on_steal_response, on_task_error, on_task_finished, on_tasks_transferred, on_remove_worker};
 use crate::server::comm::CommSenderRef;
 use crate::server::worker::Worker;
 
@@ -144,6 +142,9 @@ pub async fn worker_rpc_loop<
         address
     );
     let mut core = core_ref2.get_mut();
-    core.remove_worker(worker_id);
+    let mut comm = comm_ref.get_mut();
+    comm.remove_worker(worker_id);
+    on_remove_worker(&mut core, &mut *comm, worker_id);
+    //core.remove_worker(worker_id);
     Ok(())
 }

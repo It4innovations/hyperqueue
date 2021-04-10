@@ -28,7 +28,7 @@ pub struct FinishInfo {
 pub enum TaskRuntimeState {
     Waiting(WaitingInfo), // Unfinished inputs
     Assigned(WorkerId),
-    Stealing(WorkerId, WorkerId), // (from, to)
+    Stealing(WorkerId, Option<WorkerId>), // (from, to)
     Running(WorkerId),
     Finished(FinishInfo),
     Released,
@@ -36,15 +36,14 @@ pub enum TaskRuntimeState {
 
 impl fmt::Debug for TaskRuntimeState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let n = match self {
-            Self::Waiting(_) => 'W',
-            Self::Assigned(_) => 'A',
-            Self::Stealing(_, _) => 'T',
-            Self::Running(_) => 'R',
-            Self::Finished(_) => 'F',
-            Self::Released => 'X',
-        };
-        write!(f, "{}", n)
+        match self {
+            Self::Waiting(info) => write!(f, "W({})", info.unfinished_deps),
+            Self::Assigned(w_id) => write!(f, "A({})", w_id),
+            Self::Stealing(from_w, to_w) => write!(f, "S({}, {:?})", from_w, to_w),
+            Self::Running(w_id) => write!(f, "R({})", w_id),
+            Self::Finished(_) => write!(f, "F"),
+            Self::Released => write!(f, "X"),
+        }
     }
 }
 
@@ -259,8 +258,8 @@ impl Task {
     pub fn get_assigned_worker(&self) -> Option<WorkerId> {
         match &self.state {
             TaskRuntimeState::Waiting(_) => None,
-            TaskRuntimeState::Assigned(id) | TaskRuntimeState::Running(id) => Some(*id),
-            TaskRuntimeState::Stealing(_, id) => Some(*id),
+            TaskRuntimeState::Assigned(id) | TaskRuntimeState::Running(id) | TaskRuntimeState::Stealing(_, Some(id)) => Some(*id),
+            TaskRuntimeState::Stealing(_, None) => None,
             TaskRuntimeState::Finished(_) => None,
             TaskRuntimeState::Released => None
         }
