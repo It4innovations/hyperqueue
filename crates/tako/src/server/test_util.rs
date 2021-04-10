@@ -14,12 +14,12 @@ use crate::server::core::Core;
 use crate::server::comm::Comm;
 use crate::server::worker::{WorkerId, Worker};
 use crate::{TaskId, OutputId};
-use crate::messages::worker::{ToWorkerMessage, TaskFinishedMsg};
+use crate::messages::worker::{ToWorkerMessage, TaskFinishedMsg, StealResponseMsg, StealResponse};
 use crate::server::task::TaskRef;
 use crate::messages::common::TaskFailInfo;
 use crate::scheduler::scheduler::SchedulerState;
 use crate::scheduler::scheduler::tests::{create_test_scheduler};
-use crate::server::reactor::{on_new_worker, on_new_tasks, on_task_finished};
+use crate::server::reactor::{on_new_worker, on_new_tasks, on_task_finished, on_steal_response};
 
 /// Memory stream for reading and writing at the same time.
 pub struct MemoryStream {
@@ -223,6 +223,19 @@ pub fn force_reassign(core: &mut Core, scheduler: &mut SchedulerState, task_id: 
     let task_ref = core.get_task_by_id_or_panic(task_id).clone();
     let mut task = task_ref.get_mut();
     scheduler.assign(core, &mut task, task_ref.clone(), worker_id);
+}
+
+pub fn fail_steal(core: &mut Core, task_id: TaskId, worker_id: WorkerId, target_worker_id: WorkerId) {
+    start_stealing(core, task_id, target_worker_id);
+    let mut comm = create_test_comm();
+    on_steal_response(core, &mut comm, worker_id, StealResponseMsg { responses: vec![(task_id, StealResponse::Running)] })
+}
+
+pub fn start_stealing(core: &mut Core, task_id: TaskId, new_worker_id: WorkerId) {
+    let mut scheduler = create_test_scheduler();
+    force_reassign(core, &mut scheduler, task_id, new_worker_id);
+    let mut comm = create_test_comm();
+    scheduler.finish_scheduling(&mut comm);
 }
 
 pub fn start_on_worker(core: &mut Core, task_id: TaskId, worker_id: WorkerId) {

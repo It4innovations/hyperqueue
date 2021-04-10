@@ -50,6 +50,17 @@ class Env:
         self.processes.append((name, p))
         return p
 
+    def kill_process(self, process):
+        for i, (n, p) in enumerate(self.processes):
+            if p == process:
+                del self.processes[i]
+                # Kill the whole group since the process may spawn a child
+                if p.returncode is None and not p.poll():
+                    os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+                return
+        else:
+            raise Exception("Process not found")
+
     def kill_all(self):
         for fn in self.cleanups:
             fn()
@@ -72,6 +83,11 @@ class TakoEnv(Env):
         self.work_dir = work_dir
         self._session = None
 
+    def kill_worker(self, id):
+        worker = self.workers.pop(id)
+        assert worker is not None
+        self.kill_process(worker)
+
     def no_final_check(self):
         self.do_final_check = False
 
@@ -81,7 +97,8 @@ class TakoEnv(Env):
         env["RUST_LOG"] = "debug"
         return env
 
-    def start_worker(self, ncpus, port):
+    def start_worker(self, ncpus, port=None):
+        port = port or self.default_listen_port
         worker_id = self.id_counter
         self.id_counter += 1
         name = "worker{}".format(worker_id)
@@ -96,7 +113,7 @@ class TakoEnv(Env):
         work_dir = (self.work_path / name)
         work_dir.mkdir()
         args = [program, "localhost:{}".format(port), "--ncpus", str(ncpus), "--work-dir", work_dir]
-        self.workers[name] = self.start_process(name, args, env, cwd=work_dir)
+        self.workers[worker_id] = self.start_process(name, args, env, cwd=work_dir)
         #else:
         #    program = "dask-worker"
         #    args = [program, "localhost:{}".format(port), "--nthreads", str(ncpus)]
@@ -105,7 +122,8 @@ class TakoEnv(Env):
 
     def start(self,
               workers=(),
-              port=None):
+              port=None,
+              worker_start_delay=None):
         print("Starting tako env in ", self.work_path)
 
         """
@@ -136,6 +154,8 @@ class TakoEnv(Env):
 
         for cpus in workers:
             self.start_worker(cpus, port=port)
+            if worker_start_delay:
+                time.sleep(worker_start_delay)
 
         time.sleep(0.2)  # TODO: Replace with real check that worker is
 
@@ -147,7 +167,7 @@ class TakoEnv(Env):
         for worker_name, worker in self.workers.items():
             if worker.poll() is not None:
                 raise Exception(
-                    "{0} crashed (log in {1}/{0}.out)".format(worker_name, self.work_path))
+                    "worker{0} crashed (log in {1}/worker{0}.out)".format(worker_name, self.work_path))
 
         if self.server and self.server.poll() is not None:
             server = self.server

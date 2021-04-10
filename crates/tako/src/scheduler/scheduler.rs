@@ -162,13 +162,13 @@ impl SchedulerState {
                 if task.is_fresh() {
                     TaskRuntimeState::Assigned(worker_id)
                 } else {
-                    TaskRuntimeState::Stealing(old_w, worker_id)
+                    TaskRuntimeState::Stealing(old_w, Some(worker_id))
                 }
             },
-            TaskRuntimeState::Stealing(from_w, to_w) => TaskRuntimeState::Stealing(from_w, worker_id),
+            TaskRuntimeState::Stealing(from_w, _) => TaskRuntimeState::Stealing(from_w, Some(worker_id)),
             TaskRuntimeState::Running(_) |
             TaskRuntimeState::Finished(_) |
-            TaskRuntimeState::Released => { panic!("Invalid state"); }
+            TaskRuntimeState::Released => { panic!("Invalid state {:?}", task.state); }
         };
         let old_state = std::mem::replace(&mut task.state, new_state);
         self.dirty_tasks.entry(task_ref).or_insert(old_state);
