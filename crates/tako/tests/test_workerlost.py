@@ -5,7 +5,7 @@ from tako.client.task import make_program_task
 
 
 def test_lost_worker_without_tasks(tako_env):
-    session = tako_env.start(workers=[1, 1])
+    session = tako_env.start(workers=[1, 1], panic_on_worker_lost=False)
     tako_env.kill_worker(0)
     time.sleep(0.2)
     overview = session.overview()
@@ -15,7 +15,7 @@ def test_lost_worker_without_tasks(tako_env):
 
 def test_lost_worker_with_tasks_continue(tako_env):
     # We use delay to ensure that worker_id matches to kill the right one
-    session = tako_env.start(workers=[1, 1], worker_start_delay=0.3)
+    session = tako_env.start(workers=[1, 1], worker_start_delay=0.3, panic_on_worker_lost=False)
 
     t1 = make_program_task(ProgramDefinition(["sleep", "1"]))
 
@@ -42,7 +42,7 @@ def test_lost_worker_with_tasks_continue(tako_env):
 
 def test_lost_worker_with_tasks_restarts(tako_env):
     # We use delay to ensure that worker_id matches to kill the right one
-    session = tako_env.start(workers=[])
+    session = tako_env.start(workers=[], panic_on_worker_lost=False)
 
     t1 = make_program_task(ProgramDefinition(["sleep", "1"]))
 

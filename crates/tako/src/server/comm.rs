@@ -30,6 +30,7 @@ pub struct CommSender {
     need_scheduling: bool,
     scheduler_wakeup: Rc<Notify>,
     client_sender: UnboundedSender<ToGatewayMessage>,
+    panic_on_worker_lost: bool,
 }
 pub type CommSenderRef = WrappedRcRefCell<CommSender>;
 
@@ -37,12 +38,14 @@ impl CommSenderRef {
     pub fn new(
         scheduler_wakeup: Rc<Notify>,
         client_sender: UnboundedSender<ToGatewayMessage>,
+        panic_on_worker_lost: bool,
     ) -> Self {
         WrappedRcRefCell::wrap(CommSender {
             workers: Default::default(),
             scheduler_wakeup,
             client_sender,
             need_scheduling: false,
+            panic_on_worker_lost,
         })
     }
 }
@@ -53,6 +56,9 @@ impl CommSender {
     }
 
     pub fn remove_worker(&mut self, worker_id: WorkerId) {
+        if self.panic_on_worker_lost {
+            panic!("Worker lost while server is running in testing mode with flag '--panic-on-worker-lost'");
+        }
         assert!(self.workers.remove(&worker_id).is_some());
     }
 

@@ -11,7 +11,7 @@ use std::rc::Rc;
 use tokio::sync::Notify;
 
 
-pub async fn server_start(listen_address: SocketAddr, msd: Duration, client_sender: UnboundedSender<ToGatewayMessage>) -> crate::Result<(CoreRef, CommSenderRef, impl Future<Output=crate::Result<()>>)> {
+pub async fn server_start(listen_address: SocketAddr, msd: Duration, client_sender: UnboundedSender<ToGatewayMessage>, panic_on_worker_lost: bool) -> crate::Result<(CoreRef, CommSenderRef, impl Future<Output=crate::Result<()>>)> {
     log::debug!("Waiting for workers on {:?}", listen_address);
     let listener = TcpListener::bind(listen_address).await?;
     let listener_port = listener.local_addr().unwrap().port();
@@ -20,7 +20,7 @@ pub async fn server_start(listen_address: SocketAddr, msd: Duration, client_send
 
     let scheduler_wakeup = Rc::new(Notify::new());
 
-    let comm_ref = CommSenderRef::new(scheduler_wakeup.clone(), client_sender);
+    let comm_ref = CommSenderRef::new(scheduler_wakeup.clone(), client_sender, panic_on_worker_lost);
     let core_ref = CoreRef::new();
     core_ref.get_mut().set_worker_listen_port(listener_port);
 

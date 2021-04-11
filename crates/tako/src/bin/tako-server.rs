@@ -21,6 +21,9 @@ struct Opts {
     socket_path: String,
     #[clap(long, default_value = "7760")]  // TODO: Auto-assign of port as default
     port: u16,
+
+    #[clap(long)]
+    panic_on_worker_lost: bool,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -41,7 +44,7 @@ async fn main() {
 
     let client_listener = UnixListener::bind(opts.socket_path).unwrap();
     let (client_sender, client_receiver) = unbounded_channel::<ToGatewayMessage>();
-    let (core_ref, comm_ref, server_future) = tako::server::server_start(listen_address, msd, client_sender.clone()).await.unwrap();
+    let (core_ref, comm_ref, server_future) = tako::server::server_start(listen_address, msd, client_sender.clone(), opts.panic_on_worker_lost).await.unwrap();
     let client_handler = client_connection_handler(core_ref, comm_ref, client_listener, client_sender, client_receiver);
 
     let local_set = LocalSet::new();

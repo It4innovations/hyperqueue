@@ -123,7 +123,8 @@ class TakoEnv(Env):
     def start(self,
               workers=(),
               port=None,
-              worker_start_delay=None):
+              worker_start_delay=None,
+              panic_on_worker_lost=True):
         print("Starting tako env in ", self.work_path)
 
         """
@@ -140,6 +141,9 @@ class TakoEnv(Env):
         env = self.make_env()
 
         args = [TAKO_SERVER_BIN, "--port", str(port), self.server_socket_path]
+
+        if panic_on_worker_lost:
+            args.append("--panic-on-worker-lost")
 
         self.server = self.start_process("server", args, env=env)
         assert self.server is not None
