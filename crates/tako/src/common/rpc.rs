@@ -7,7 +7,7 @@ pub async fn forward_queue_to_sink<T, E, S: Sink<T, Error = E> + Unpin>(
 ) -> Result<(), E> {
     while let Some(data) = queue.recv().await {
         if let Err(e) = sink.send(data).await {
-            log::error!("Forwarding from queue failed");
+            log::debug!("Forwarding from queue failed");
             return Err(e);
         }
     }

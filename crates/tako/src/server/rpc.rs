@@ -124,18 +124,18 @@ pub async fn worker_rpc_loop<
                 }
             }
         }
-        Ok(())
+        ()
     };
 
-    let result = futures::future::select(recv_loop.boxed_local(), snd_loop.boxed_local()).await;
-    if let Err(e) = result.factor_first().0 {
-        log::error!(
-            "Error in worker connection (id={}, connection={}): {}",
-            worker_id,
-            address,
-            e
-        );
-    }
+    tokio::select! {
+        () = recv_loop => {
+            log::debug!("Receive loop terminated, worker={}", worker_id);
+        }
+        e = snd_loop => {
+            log::debug!("Sending loop terminated: {:?}, worker={}", e, worker_id);
+        }
+    };
+
     log::info!(
         "Worker {} connection closed (connection: {})",
         worker_id,
