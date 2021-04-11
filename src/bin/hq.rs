@@ -18,7 +18,8 @@ static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 pub type Connection = tokio_util::codec::Framed<tokio::net::UnixStream, tokio_util::codec::LengthDelimitedCodec>;
 
 #[derive(Clap)]
-#[clap(version = "1.0")]
+#[clap(version = "0.1")]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
 struct Opts {
     #[clap(long)]
     server_socket: Option<PathBuf>,
