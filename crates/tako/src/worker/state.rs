@@ -77,8 +77,8 @@ impl WorkerState {
         self.data_objects.insert(id, data_ref);
     }
 
-    pub fn send_message_to_server(&self, data: Vec<u8>) {
-        self.sender.send(data.into()).unwrap();
+    pub fn send_message_to_server(&self, data: Bytes) {
+        self.sender.send(data).unwrap();
     }
 
     pub fn on_data_downloaded(
@@ -112,7 +112,7 @@ impl WorkerState {
             });
 
             let message = FromWorkerMessage::DataDownloaded(DataDownloadedMsg { id: data_obj.id });
-            self.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap());
+            self.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
 
             /* We need to drop borrow before calling
               add_ready_task may start to borrow_mut this data_ref
@@ -366,7 +366,7 @@ impl WorkerState {
             id,
             size,
         });
-        self.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap());
+        self.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
     }
 
     pub fn finish_task_failed(&mut self, task_ref: TaskRef, info:    TaskFailInfo) {
@@ -376,7 +376,7 @@ impl WorkerState {
             id,
             info
         });
-        self.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap());
+        self.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
     }
 }
 

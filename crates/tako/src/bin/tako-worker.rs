@@ -7,6 +7,7 @@ use rand::Rng;
 use rand::distributions::Alphanumeric;
 use tako::worker::rpc::run_worker;
 use tokio::task::LocalSet;
+use std::time::Duration;
 
 
 #[derive(Clap)]
@@ -20,6 +21,9 @@ struct Opts {
 
     #[clap(long)]
     local_directory: Option<PathBuf>,
+
+    #[clap(long, default_value="4000")]
+    heartbeat: u32,
 
     #[clap(long)]
     ncpus: Option<u32>,
@@ -63,8 +67,10 @@ async fn main() -> tako::Result<()> {
         panic!("Invalid number of cpus");
     }
 
+    let heartbeat_interval = Duration::from_millis(opts.heartbeat as u64);
+
     let local_set = LocalSet::new();
-    local_set.run_until(run_worker(&opts.server_address, ncpus, work_dir, log_dir)).await?;
+    local_set.run_until(run_worker(&opts.server_address, ncpus, work_dir, log_dir, heartbeat_interval)).await?;
     log::info!("tako worker ends");
     Ok(())
 }

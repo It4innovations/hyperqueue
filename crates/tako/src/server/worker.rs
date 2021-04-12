@@ -16,6 +16,9 @@ pub struct Worker {
     // This is list of assigned tasks
     // !! In case of stealinig T from W1 to W2, T is in "tasks" of W2, even T was not yet canceled from W1.
     pub tasks: Set<TaskRef>,
+
+    pub last_heartbeat: std::time::Instant,
+
     pub listen_address: String,
 
     pub overview_callbacks: Vec<oneshot::Sender<WorkerOverview>>
@@ -55,6 +58,7 @@ impl Worker {
             listen_address,
             tasks: Default::default(),
             overview_callbacks: Default::default(),
+            last_heartbeat: std::time::Instant::now(),
         }
     }
 }

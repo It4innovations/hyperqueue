@@ -83,6 +83,11 @@ class TakoEnv(Env):
         self.work_dir = work_dir
         self._session = None
 
+    def pause_worker(self, id):
+        worker = self.workers.pop(id)
+        assert worker is not None
+        os.kill(worker.pid, signal.SIGSTOP)
+
     def kill_worker(self, id):
         worker = self.workers.pop(id)
         assert worker is not None
@@ -97,7 +102,7 @@ class TakoEnv(Env):
         env["RUST_LOG"] = "debug"
         return env
 
-    def start_worker(self, ncpus, port=None):
+    def start_worker(self, ncpus, port=None, heartbeat=None):
         port = port or self.default_listen_port
         worker_id = self.id_counter
         self.id_counter += 1
@@ -113,6 +118,11 @@ class TakoEnv(Env):
         work_dir = (self.work_path / name)
         work_dir.mkdir()
         args = [program, "localhost:{}".format(port), "--ncpus", str(ncpus), "--work-dir", work_dir]
+
+        if heartbeat:
+            args.append("--heartbeat")
+            args.append(str(heartbeat))
+
         self.workers[worker_id] = self.start_process(name, args, env, cwd=work_dir)
         #else:
         #    program = "dask-worker"
@@ -124,7 +134,8 @@ class TakoEnv(Env):
               workers=(),
               port=None,
               worker_start_delay=None,
-              panic_on_worker_lost=True):
+              panic_on_worker_lost=True,
+              heartbeat=None):
         print("Starting tako env in ", self.work_path)
 
         """
@@ -157,7 +168,7 @@ class TakoEnv(Env):
                 raise Exception("Server not started after 5")
 
         for cpus in workers:
-            self.start_worker(cpus, port=port)
+            self.start_worker(cpus, port=port, heartbeat=heartbeat)
             if worker_start_delay:
                 time.sleep(worker_start_delay)
 

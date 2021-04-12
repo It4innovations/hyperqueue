@@ -12,6 +12,7 @@ use crate::messages::worker::{FromWorkerMessage, WorkerRegistrationResponse};
 use crate::server::reactor::{on_new_worker, on_steal_response, on_task_error, on_task_finished, on_tasks_transferred, on_remove_worker};
 use crate::server::comm::CommSenderRef;
 use crate::server::worker::Worker;
+use std::time::{Instant, Duration};
 
 
 pub async fn connection_initiator(
@@ -69,6 +70,10 @@ pub async fn worker_rpc_loop<
     let worker_id = core_ref.get_mut().new_worker_id();
     log::info!("Worker {} registered from {}", worker_id, address);
 
+    log::debug!("Worker heartbeat: {}", msg.heartbeat_interval);
+    // Sanity that interval is not too small
+    assert!(msg.heartbeat_interval > 150);
+
     let message = WorkerRegistrationResponse {
         worker_id,
         worker_addresses: core_ref.get().get_worker_addresses(),
@@ -115,7 +120,13 @@ pub async fn worker_rpc_loop<
                 }
                 FromWorkerMessage::StealResponse(msg) => {
                     on_steal_response(&mut core, &mut *comm, worker_id, msg)
-                }
+                },
+                FromWorkerMessage::Heartbeat => {
+                      core.get_worker_mut(worker_id).map(|worker| {
+                        log::debug!("Heartbeat received, worker={}", worker_id);
+                        worker.last_heartbeat = Instant::now();
+                      });
+                },
                 FromWorkerMessage::Overview(overview) => {
                     core.get_worker_mut(worker_id).map(|worker| {
                         let sender = worker.overview_callbacks.remove(0);
@@ -127,12 +138,30 @@ pub async fn worker_rpc_loop<
         ()
     };
 
+    let core_ref3 = core_ref.clone();
+
+    let heartbeat_interval = Duration::from_millis(msg.heartbeat_interval as u64);
+    let heartbeat_check = async move {
+        let mut interval = tokio::time::interval(heartbeat_interval);
+        loop {
+            interval.tick().await;
+            let mut core = core_ref.get_mut();
+            let elapsed = core.get_worker_by_id_or_panic(worker_id).last_heartbeat.elapsed();
+            if elapsed > heartbeat_interval * 2 {
+                break;
+            }
+        }
+    };
+
     tokio::select! {
         () = recv_loop => {
             log::debug!("Receive loop terminated, worker={}", worker_id);
         }
         e = snd_loop => {
             log::debug!("Sending loop terminated: {:?}, worker={}", e, worker_id);
+        }
+        () = heartbeat_check => {
+            log::debug!("Heartbeat check failed, worker={}", worker_id);
         }
     };
 

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct RegisterWorkerMsg {
     pub address: String,
     pub ncpus: u32,
+    pub heartbeat_interval: u32,  // number of ms between each heartbeat
 }
 
 #[derive(Serialize, Deserialize, Debug)]
