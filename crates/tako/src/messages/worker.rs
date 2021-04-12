@@ -104,4 +104,5 @@ pub enum FromWorkerMessage {
     DataDownloaded(DataDownloadedMsg),
     StealResponse(StealResponseMsg),
     Overview(WorkerOverview),
+    Heartbeat,
 }

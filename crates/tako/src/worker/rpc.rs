@@ -74,6 +74,7 @@ pub async fn run_worker(
     ncpus: u32,
     work_dir: PathBuf,
     log_dir: PathBuf,
+    heartbeat_interval: Duration,
 ) -> crate::Result<()> {
     let (listener, address) = start_listener().await?;
     let stream = connect_to_server(&scheduler_address).await?;
@@ -87,6 +88,7 @@ pub async fn run_worker(
         let message = GenericMessage::RegisterWorker(RegisterWorkerMsg {
             address: address.clone(),
             ncpus,
+            heartbeat_interval: heartbeat_interval.as_millis() as u32,
         });
         let mut frame = BytesMut::default().writer();
         rmp_serde::encode::write_named(&mut frame, &message)?;
@@ -115,6 +117,7 @@ pub async fn run_worker(
     };
 
     let state_ref2 = state.clone();
+    let state_ref3 = state.clone();
 
     let try_start_tasks = async move {
         let notify = state_ref2.get().start_task_notify.clone();
@@ -131,6 +134,16 @@ pub async fn run_worker(
                     break;
                 }
             }
+        }
+    };
+
+    let heartbeat = async move {
+        let mut interval = tokio::time::interval(heartbeat_interval);
+        let data : Bytes = rmp_serde::to_vec_named(&FromWorkerMessage::Heartbeat).unwrap().into();
+        loop {
+            interval.tick().await;
+            state_ref3.get().send_message_to_server(data.clone());
+            log::debug!("Heartbeat sent");
         }
     };
 
@@ -158,6 +171,7 @@ pub async fn run_worker(
         _ = worker_data_downloader(state, download_reader) => {
             unreachable!()
         }
+        _ = heartbeat => { unreachable!() }
     }
     //Ok(())
 }
@@ -287,7 +301,7 @@ async fn worker_message_loop(
                     })
                     .collect();
                 let message = FromWorkerMessage::StealResponse(StealResponseMsg { responses });
-                state.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap());
+                state.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
             }
             ToWorkerMessage::NewWorker(msg) => {
                 log::debug!("New worker={} announced at {}", msg.worker_id, &msg.address);
@@ -308,7 +322,7 @@ async fn worker_message_loop(
                     }).collect(),
                     placed_data: state.data_objects.keys().copied().collect(),
                 });
-                state.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap());
+                state.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
             }
         }
     }

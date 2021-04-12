@@ -140,6 +140,7 @@ pub async fn process_client_message(
             None
         }
         FromGatewayMessage::GetOverview => {
+            log::debug!("Client ask for overview");
             let receivers = {
                 let mut core = core_ref.get_mut();
                 let mut receivers = Vec::with_capacity(core.get_worker_map().len());
@@ -152,6 +153,7 @@ pub async fn process_client_message(
                 receivers
             };
             let workers : Vec<WorkerOverview> = join_all(receivers).await.into_iter().filter_map(|r| r.ok()).collect();
+            log::debug!("Gathering overview finished");
             assert!(client_sender.send(ToGatewayMessage::Overview(Overview { workers })).is_ok());
             None
         }
