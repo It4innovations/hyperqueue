@@ -1,8 +1,8 @@
 use serde::Serialize;
 use serde::Deserialize;
-use crate::{TaskId, Map};
-use crate::tako::common::ProgramDefinition;
+use crate::TaskId;
 use std::path::PathBuf;
+use tako::messages::common::ProgramDefinition;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitMessage {
