@@ -1,7 +1,7 @@
 use crate::common::WrappedRcRefCell;
 use crate::server::job::{Job, JobStatus};
 use crate::TaskId;
-use crate::tako::gateway::{TaskFailedMessage, TaskUpdate};
+use tako::messages::gateway::{TaskFailedMessage, TaskUpdate};
 
 pub struct State {
     jobs: crate::Map<TaskId, Job>,

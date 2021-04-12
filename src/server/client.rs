@@ -1,4 +1,4 @@
-use tokio::net::{UnixListener, UnixStream};
+use tokio::net::{UnixListener, UnixStream, TcpListener};
 use tokio::io::{AsyncRead, AsyncWrite};
 use crate::messages::{FromClientMessage, StatsResponse, ToClientMessage, SubmitMessage, SubmitResponse, JobInfo, JobState};
 use futures::{StreamExt, SinkExt};
@@ -6,24 +6,25 @@ use crate::server::state::StateRef;
 use crate::server::job::Job;
 use crate::common::protocol::make_protocol_builder;
 use crate::server::rpc::TakoServer;
-use crate::tako::gateway::{FromGatewayMessage, NewTasksMessage, TaskDef, TaskInfoRequest, TaskInfo, ToGatewayMessage};
 use crate::{Map, TaskId};
 use std::future::Future;
+use tako::messages::gateway::{FromGatewayMessage, ToGatewayMessage, TaskDef, NewTasksMessage};
 
-pub async fn handle_client_connections(state_ref: StateRef, tako_ref: TakoServer, mut listener: UnixListener) {
-    while let Some(connection) = listener.next().await {
-        if let Ok(c) = connection {
-            let state_ref = state_ref.clone();
-            let tako_ref = tako_ref.clone();
-            tokio::task::spawn_local(async move {
-                log::debug!("New client connection");
-                client_rpc_loop(c, state_ref, tako_ref)
-                    .await;
-                log::debug!("Client connection ended");
-            });
-        } else {
-            log::error!("Invalid client connection");
-        }
+pub async fn handle_client_connections(
+    state_ref: StateRef,
+    tako_ref: TakoServer,
+    mut listener: TcpListener
+) {
+    // TODO: handle invalid connection
+    while let Ok((connection, _)) = listener.accept().await {
+        let state_ref = state_ref.clone();
+        let tako_ref = tako_ref.clone();
+        tokio::task::spawn_local(async move {
+            log::debug!("New client connection");
+            client_rpc_loop(connection, state_ref, tako_ref)
+                .await;
+            log::debug!("Client connection ended");
+        });
     }
 }
 
@@ -95,12 +96,13 @@ async fn handle_submit(state_ref: &StateRef, tako_ref: &TakoServer, message: Sub
         body: rmp_serde::to_vec_named(&program_def).unwrap(),
         keep: false,
         observe: true,
+        n_outputs: Default::default()
     };
 
     let job = Job::new(task_id, message.name.clone(), program_def);
     state.add_job(job);
 
-    match tako_ref.send_message(FromGatewayMessage::NewTasks(NewTasksMessage { tasks: vec![task_def] })).await {
+    match tako_ref.send_message(FromGatewayMessage::NewTasks(NewTasksMessage { tasks: vec![task_def] })).await.unwrap() {
         ToGatewayMessage::NewTasksResponse(_) => { /* Ok */ }
         _ => { panic!("Invalid response"); }
     };

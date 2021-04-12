@@ -6,5 +6,3 @@ pub fn make_protocol_builder() -> Builder {
         .little_endian()
         .max_frame_length(128 * 1024 * 1024)
 }
-
-

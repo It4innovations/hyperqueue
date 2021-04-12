@@ -2,8 +2,7 @@ use crate::server::job::JobStatus::Submitted;
 use crate::messages::{JobInfo};
 use crate::messages::JobState;
 use crate::TaskId;
-use crate::tako::common::ProgramDefinition;
-use crate::tako::gateway::TaskInfo;
+use tako::messages::common::ProgramDefinition;
 
 pub type JobId = TaskId;
 
@@ -44,4 +43,3 @@ impl Job {
         }
     }
 }
-
