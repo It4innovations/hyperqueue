@@ -53,6 +53,7 @@ pub enum ToWorkerMessage {
     ComputeTask(ComputeTaskMsg),
     DeleteData(TaskIdMsg),
     StealTasks(TaskIdsMsg),
+    CancelTasks(TaskIdsMsg),
     NewWorker(NewWorkerMsg),
     RegisterSubworker(SubworkerDefinition),
     GetOverview,

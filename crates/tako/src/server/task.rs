@@ -65,7 +65,7 @@ pub struct Task {
     pub id: TaskId,
     pub state: TaskRuntimeState,
     consumers: Set<TaskRef>,
-    pub inputs: Vec<TaskRef>, // TODO: Realn implementation needed
+    pub inputs: Vec<TaskRef>,
 
     pub flags: TaskFlags,
 
@@ -83,8 +83,8 @@ pub type TaskRef = WrappedRcRefCell<Task>;
 impl Task {
 
     pub fn clear(&mut self) {
-        std::mem::take(&mut self.inputs);
-        std::mem::take(&mut self.spec);
+        self.inputs = Default::default();
+        self.spec = Default::default();
     }
 
     #[inline]

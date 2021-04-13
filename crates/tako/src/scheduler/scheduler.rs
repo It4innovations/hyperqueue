@@ -347,6 +347,7 @@ pub mod tests {
         let m2 = comm.take_worker_msgs(101, 0);
         let m3 = comm.take_worker_msgs(102, 0);
         comm.emptiness_check();
+        core.sanity_check();
 
         assert_eq!(m1.len() + m2.len() + m3.len(), 300);
         assert!(m1.len() >= 10);
@@ -392,6 +393,7 @@ pub mod tests {
         };
 
         comm.emptiness_check();
+        core.sanity_check();
 
         on_steal_response(&mut core, &mut comm, 101, StealResponseMsg { responses: stealing.iter().map(|t| (*t, StealResponse::Ok)).collect() });
 
@@ -407,12 +409,14 @@ pub mod tests {
         assert!(!core.get_worker_by_id_or_panic(102).is_underloaded());
 
         comm.emptiness_check();
+        core.sanity_check();
 
         finish_all(&mut core, n1, 100);
         finish_all(&mut core, n3, 102);
         assert_eq!(active_ids.len(), core.get_worker_by_id_or_panic(101).tasks.len());
 
         comm.emptiness_check();
+        core.sanity_check();
     }
 
     #[test]
@@ -442,6 +446,7 @@ pub mod tests {
         assert_eq!(core.get_task_by_id_or_panic(14).get().get_assigned_worker().unwrap(), 101);
 
         comm.emptiness_check();
+        core.sanity_check();
     }
 
     #[test]
@@ -470,6 +475,7 @@ pub mod tests {
         assert_eq!(core.get_task_by_id_or_panic(14).get().get_assigned_worker().unwrap(), 101);
 
         comm.emptiness_check();
+        core.sanity_check();
     }
 
 
@@ -503,6 +509,7 @@ pub mod tests {
         assert_eq!(core.get_task_by_id_or_panic(14).get().get_assigned_worker().unwrap(), 101);
 
         comm.emptiness_check();
+        core.sanity_check();
     }
 
 }

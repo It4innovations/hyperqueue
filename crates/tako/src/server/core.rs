@@ -197,6 +197,73 @@ impl Core {
         self.subworker_definitions.push(subworker_def);
         Ok(())
     }
+
+    pub fn sanity_check(&self) {
+
+        let fw_check = |task: &Task| {
+            for t in &task.inputs {
+                assert!(t.get().is_finished());
+            }
+            for t in task.get_consumers() {
+                assert!(t.get().is_waiting());
+            }
+        };
+
+        let worker_check = |core: &Core, tr: &TaskRef, wid: WorkerId| {
+            for (worker_id, worker) in &core.workers {
+                if wid == *worker_id {
+                    assert!(worker.tasks.contains(tr));
+                } else {
+                    dbg!(tr.get().id, wid, worker_id);
+                    assert!(!worker.tasks.contains(tr));
+                }
+            }
+        };
+
+        for (task_id, task_ref) in &self.tasks {
+            let task = task_ref.get();
+            assert_eq!(task.id, *task_id);
+            assert!(task.type_id == 0 || self.subworker_definitions.iter().find(|d| d.id == task.type_id).is_some());
+            match &task.state {
+                TaskRuntimeState::Waiting(winfo) => {
+                    let mut count = 0;
+                    for t in &task.inputs {
+                        if !t.get().is_finished() {
+                            count += 1;
+                        }
+                    }
+                    for t in task.get_consumers() {
+                        assert!(t.get().is_waiting());
+                    }
+                    assert_eq!(winfo.unfinished_deps, count);
+                    worker_check(self, &task_ref, 0);
+                    assert!(task.is_fresh());
+                }
+
+                TaskRuntimeState::Assigned(wid) | TaskRuntimeState::Running(wid) => {
+                    assert!(!task.is_fresh());
+                    fw_check(&task);
+                    worker_check(self, &task_ref, *wid);
+                }
+
+                TaskRuntimeState::Stealing(_, target) => {
+                    assert!(!task.is_fresh());
+                    fw_check(&task);
+                    worker_check(self, &task_ref, target.unwrap_or(0));
+                }
+
+                TaskRuntimeState::Finished(_) => {
+                    for t in &task.inputs {
+                        assert!(t.get().is_finished());
+                    }
+                }
+
+                TaskRuntimeState::Released => {
+                    unreachable!()
+                }
+            }
+        }
+    }
 }
 
 /*

@@ -36,15 +36,20 @@ pub struct ObserveTasksMessage {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskInfoRequest {
-    pub tasks: Vec<TaskId> // If empty, then all tasks if assumed
+    pub tasks: Vec<TaskId> // If empty, then all tasks are assumed
 }
 
+#[derive(Deserialize, Serialize, Debug)]
+pub struct CancelTasks {
+    pub tasks: Vec<TaskId> // If empty, then all tasks are assumed
+}
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "op")]
 pub enum FromGatewayMessage {
     NewTasks(NewTasksMessage),
     ObserveTasks(ObserveTasksMessage),
+    CancelTasks(CancelTasks),
     RegisterSubworker(SubworkerDefinition),
     GetTaskInfo(TaskInfoRequest),
     ServerInfo,
@@ -118,9 +123,23 @@ pub struct Overview {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct CancelTasksResponse {
+    // Tasks that was waiting, assigned or running. Such tasks were removed from server
+    // and force stop command was send to workers.
+    // This also contains a ids of waiting tasks that were recursively canceled
+    // (recursive consumers of tasks in cancel request)
+    pub cancelled_tasks: Vec<TaskId>,
+
+    // Tasks that was already finished when cancel request was received
+    // if there was an keep flag, it was removed
+    pub already_finished: Vec<TaskId>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "op")]
 pub enum ToGatewayMessage {
     NewTasksResponse(NewTasksResponse),
+    CancelTasksResponse(CancelTasksResponse),
     TaskUpdate(TaskUpdate),
     TaskFailed(TaskFailedMessage),
     TaskInfo(TasksInfoResponse),

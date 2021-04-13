@@ -277,8 +277,10 @@ impl WorkerState {
                     }
                 }*/
             }
-            TaskState::Running(_) => {
-                assert!(just_finished);
+            TaskState::Running(ref mut env) => {
+                if !just_finished {
+                    env.cancel_task();
+                }
                 assert!(self.running_tasks.remove(&task_ref));
                 self.free_cpus += 1;
                 debug_assert!(self.free_cpus <= self.ncpus);
@@ -325,6 +327,22 @@ impl WorkerState {
 
     pub fn get_worker_address(&self, worker_id: WorkerId) -> Option<&String> {
         self.worker_addresses.get(&worker_id)
+    }
+
+    pub fn cancel_task(&mut self, task_id: TaskId) {
+        log::debug!("Canceling task {}", task_id);
+        match self.tasks.get(&task_id).cloned() {
+            None => {
+                /* This may happen that task was computed or when work steal
+                   was successful
+                 */
+                log::debug!("Task not found, try to remove object");
+                self.remove_data_by_id(task_id);
+            },
+            Some(task_ref) => {
+                self.remove_task(task_ref, false);
+            }
+        }
     }
 
     pub fn steal_task(&mut self, task_id: TaskId) -> StealResponse {
@@ -378,6 +396,7 @@ impl WorkerState {
         });
         self.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
     }
+
 }
 
 impl WorkerStateRef {

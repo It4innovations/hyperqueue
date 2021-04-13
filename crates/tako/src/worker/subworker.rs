@@ -179,7 +179,7 @@ fn subworker_download_finished(
                                     assert!(*w > 0);
                                     *w -= 1;
                                     if *w == 0 {
-                                        Some(std::mem::replace(env, TaskEnv::Empty))
+                                        Some(std::mem::replace(env, TaskEnv::Invalid))
                                     } else {
                                         None
                                     }
