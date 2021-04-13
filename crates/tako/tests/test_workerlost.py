@@ -88,4 +88,4 @@ def test_frozen_worker2(tako_env):
     overview = session.overview()
     assert len(overview["workers"]) == 0
     end = time.time()
-    assert 0.9 < (end - start) < 1.2
+    assert 0.5 < (end - start) < 1.2

@@ -1,12 +1,12 @@
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use crate::messages::gateway::{ToGatewayMessage, FromGatewayMessage, NewTasksResponse, ErrorResponse, TaskUpdate, TaskState, TaskInfo, TasksInfoResponse, Overview};
+use crate::messages::gateway::{ToGatewayMessage, FromGatewayMessage, NewTasksResponse, ErrorResponse, TaskUpdate, TaskState, TaskInfo, TasksInfoResponse, Overview, CancelTasksResponse};
 use tokio::net::UnixListener;
 use crate::transfer::transport::make_protocol_builder;
 use crate::common::rpc::{forward_queue_to_sink_with_map};
 use futures::{StreamExt, TryFutureExt};
 use crate::server::task::{TaskRef, TaskRuntimeState};
-use crate::server::reactor::{on_new_tasks, on_set_observe_flag};
-use crate::server::core::CoreRef;
+use crate::server::reactor::{on_new_tasks, on_set_observe_flag, on_cancel_tasks};
+use crate::server::core::{CoreRef, Core};
 use crate::server::comm::{CommSenderRef, Comm};
 use crate::messages::worker::{ToWorkerMessage, WorkerOverview};
 use tokio::sync::oneshot;
@@ -121,6 +121,9 @@ pub async fn process_client_message(
         }
         FromGatewayMessage::GetTaskInfo(request) => {
             log::debug!("Client asked for task info");
+            if !request.tasks.is_empty() {
+                todo!();
+            }
             let core = core_ref.get();
             let task_infos = core.get_tasks().map(|tref| {
                 let task = tref.get();
@@ -155,6 +158,17 @@ pub async fn process_client_message(
             let workers : Vec<WorkerOverview> = join_all(receivers).await.into_iter().filter_map(|r| r.ok()).collect();
             log::debug!("Gathering overview finished");
             assert!(client_sender.send(ToGatewayMessage::Overview(Overview { workers })).is_ok());
+            None
+        }
+        FromGatewayMessage::CancelTasks(msg) => {
+            log::debug!("Client asked for canceling tasks");
+            let mut core = core_ref.get_mut();
+            let mut comm = comm_ref.get_mut();
+            let (cancelled_tasks, already_finished) = on_cancel_tasks(&mut core, &mut *comm, &msg.tasks);
+            assert!(client_sender.send(ToGatewayMessage::CancelTasksResponse(CancelTasksResponse {
+                cancelled_tasks,
+                already_finished
+            })).is_ok());
             None
         }
     }

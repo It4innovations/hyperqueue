@@ -7,6 +7,8 @@ use std::fs::File;
 use std::process::Stdio;
 use crate::worker::data::{DataObjectRef, DataObjectState, LocalData};
 use crate::common::data::SerializationType;
+use tokio::sync::oneshot::Sender;
+use tokio::sync::oneshot;
 
 fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Command> {
     if definition.args.is_empty() {
@@ -52,33 +54,45 @@ async fn start_program_from_task(task_ref: &TaskRef) -> crate::Result<()> {
     Ok(())
 }
 
-pub fn launch_program_from_task(state_ref: WorkerStateRef, task_ref: TaskRef) {
+pub fn launch_program_from_task(state_ref: WorkerStateRef, task_ref: TaskRef) -> oneshot::Sender<()> {
+    let (sender, receiver) = oneshot::channel();
     tokio::task::spawn_local(async move {
         log::debug!("Starting program launcher {}", task_ref.get().id);
-        match start_program_from_task(&task_ref).await {
-            Ok(()) => {
-                let mut state = state_ref.get_mut();
+        let program = start_program_from_task(&task_ref);
+        tokio::select! {
+            biased;
+            _ = receiver => {
                 let task_id = task_ref.get().id;
-                log::debug!("Program launcher finished id={}", task_id);
-                state.finish_task(task_ref, 0);
-
-                /*
-                let data_ref = DataObjectRef::new(
-                    task_id,
-                    0,
-                    DataObjectState::Local(LocalData {
-                        serializer: SerializationType::None,
-                        bytes: Default::default(),
-                        subworkers: Default::default()
-                    }),
-                );
-                state.add_data_object(data_ref);*/
+                log::debug!("Launcher cancelled id={}", task_id);
             }
-            Err(e) => {
-                log::debug!("Program launcher failed id={}", task_ref.get().id);
-                let mut state = state_ref.get_mut();
-                state.finish_task_failed(task_ref, TaskFailInfo::from_string(e.to_string()));
+            r = program => {
+                match r {
+                    Ok(()) => {
+                        let mut state = state_ref.get_mut();
+                        let task_id = task_ref.get().id;
+                        log::debug!("Program launcher finished id={}", task_id);
+                        state.finish_task(task_ref, 0);
+                        /*
+                        let data_ref = DataObjectRef::new(
+                            task_id,
+                            0,
+                            DataObjectState::Local(LocalData {
+                                serializer: SerializationType::None,
+                                bytes: Default::default(),
+                                subworkers: Default::default()
+                            }),
+                        );
+                        state.add_data_object(data_ref);*/
+                    }
+                    Err(e) => {
+                        log::debug!("Program launcher failed id={}", task_ref.get().id);
+                        let mut state = state_ref.get_mut();
+                        state.finish_task_failed(task_ref, TaskFailInfo::from_string(e.to_string()));
+                    }
+                }
             }
         }
+
     });
+    sender
 }

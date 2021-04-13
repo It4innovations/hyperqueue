@@ -303,6 +303,11 @@ async fn worker_message_loop(
                 let message = FromWorkerMessage::StealResponse(StealResponseMsg { responses });
                 state.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
             }
+            ToWorkerMessage::CancelTasks(msg) => {
+                for task_id in msg.ids {
+                    state.cancel_task(task_id);
+                }
+            }
             ToWorkerMessage::NewWorker(msg) => {
                 log::debug!("New worker={} announced at {}", msg.worker_id, &msg.address);
                 assert!(state
