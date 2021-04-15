@@ -9,7 +9,7 @@ use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::common::{Map, WrappedRcRefCell};
-use crate::messages::common::TaskFailInfo;
+use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
 use crate::messages::worker::{StealResponse, StealResponseMsg, TaskFinishedMsg, ToWorkerMessage};
 use crate::scheduler::scheduler::tests::create_test_scheduler;
 use crate::scheduler::scheduler::SchedulerState;
@@ -19,6 +19,7 @@ use crate::server::reactor::{on_new_tasks, on_new_worker, on_steal_response, on_
 use crate::server::task::TaskRef;
 use crate::server::worker::{Worker, WorkerId};
 use crate::{OutputId, TaskId};
+use std::time::Duration;
 
 /// Memory stream for reading and writing at the same time.
 pub struct MemoryStream {
@@ -204,7 +205,18 @@ pub fn create_test_comm() -> TestComm {
 pub fn create_test_workers(core: &mut Core, cpus: &[u32]) {
     for (i, c) in cpus.iter().enumerate() {
         let worker_id = (100 + i) as WorkerId;
-        let worker = Worker::new(worker_id, *c, format!("test{}:123", i));
+
+        let wcfg = WorkerConfiguration {
+            n_cpus: *c,
+            listen_address: format!("1.1.1.{}:123", i),
+            hostname: format!("test{}", i),
+            work_dir: Default::default(),
+            log_dir: Default::default(),
+            heartbeat_interval: Duration::from_millis(1000),
+            extra: vec![],
+        };
+
+        let worker = Worker::new(worker_id, wcfg);
         on_new_worker(core, &mut TestComm::default(), worker);
     }
 }

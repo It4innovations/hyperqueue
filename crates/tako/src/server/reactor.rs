@@ -17,11 +17,15 @@ use crate::{TaskId, WorkerId};
 
 pub fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
     {
-        trace_worker_new(worker.id, worker.ncpus, worker.address());
+        trace_worker_new(
+            worker.id,
+            worker.configuration.n_cpus,
+            &worker.configuration.listen_address,
+        );
 
         comm.broadcast_worker_message(&ToWorkerMessage::NewWorker(NewWorkerMsg {
             worker_id: worker.id,
-            address: worker.listen_address.clone(),
+            address: worker.configuration.listen_address.clone(),
         }));
 
         /*comm.send_scheduler_message(ToSchedulerMessage::NewWorker(worker.make_sched_info()));*/
@@ -609,6 +613,8 @@ mod tests {
     };
 
     use super::*;
+    use crate::messages::common::WorkerConfiguration;
+    use std::time::Duration;
 
     /*use crate::test_util::{
         create_test_comm, create_test_workers, finish_on_worker, sorted_vec,
@@ -624,7 +630,17 @@ mod tests {
         let mut comm = create_test_comm();
         comm.emptiness_check();
 
-        let worker = Worker::new(402, 20, "test1:123".into());
+        let wcfg = WorkerConfiguration {
+            n_cpus: 20,
+            listen_address: "test1:123".into(),
+            hostname: "test1".to_string(),
+            work_dir: Default::default(),
+            log_dir: Default::default(),
+            heartbeat_interval: Duration::from_millis(1000),
+            extra: vec![],
+        };
+
+        let worker = Worker::new(402, wcfg);
         on_new_worker(&mut core, &mut comm, worker);
 
         assert!(
@@ -637,7 +653,17 @@ mod tests {
         comm.emptiness_check();
         assert_eq!(core.get_workers().count(), 1);
 
-        let worker = Worker::new(502, 20, "test2:123".into());
+        let wcfg2 = WorkerConfiguration {
+            n_cpus: 20,
+            listen_address: "test2:123".into(),
+            hostname: "test2".to_string(),
+            work_dir: Default::default(),
+            log_dir: Default::default(),
+            heartbeat_interval: Duration::from_millis(1000),
+            extra: vec![],
+        };
+
+        let worker = Worker::new(502, wcfg2);
         on_new_worker(&mut core, &mut comm, worker);
         assert!(
             matches!(comm.take_broadcasts(1)[0], ToWorkerMessage::NewWorker(NewWorkerMsg {

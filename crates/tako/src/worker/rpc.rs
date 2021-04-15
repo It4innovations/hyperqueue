@@ -1,5 +1,4 @@
 use std::net::{Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
 use std::time::Duration;
 
 use bytes::{BufMut, Bytes, BytesMut};
@@ -12,6 +11,7 @@ use tokio::time::sleep;
 
 use crate::common::data::SerializationType;
 use crate::common::rpc::forward_queue_to_sink;
+use crate::messages::common::WorkerConfiguration;
 use crate::messages::generic::{GenericMessage, RegisterWorkerMsg};
 use crate::messages::worker::{
     FromWorkerMessage, StealResponseMsg, ToWorkerMessage, WorkerOverview,
@@ -71,24 +71,21 @@ async fn connect_to_server(scheduler_address: &str) -> crate::Result<TcpStream> 
 
 pub async fn run_worker(
     scheduler_address: &str,
-    ncpus: u32,
-    work_dir: PathBuf,
-    log_dir: PathBuf,
-    heartbeat_interval: Duration,
+    mut configuration: WorkerConfiguration,
 ) -> crate::Result<()> {
     let (listener, address) = start_listener().await?;
+    configuration.listen_address = address;
     let stream = connect_to_server(&scheduler_address).await?;
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
     let (download_sender, download_reader) =
         tokio::sync::mpsc::unbounded_channel::<(DataObjectRef, (Priority, Priority))>();
     let (mut writer, mut reader) = make_protocol_builder().new_framed(stream).split();
+    let heartbeat_interval = configuration.heartbeat_interval;
 
     let taskset = LocalSet::default();
     {
         let message = GenericMessage::RegisterWorker(RegisterWorkerMsg {
-            address: address.clone(),
-            ncpus,
-            heartbeat_interval: heartbeat_interval.as_millis() as u32,
+            configuration: configuration.clone(),
         });
         let mut frame = BytesMut::default().writer();
         rmp_serde::encode::write_named(&mut frame, &message)?;
@@ -102,14 +99,11 @@ pub async fn run_worker(
                     rmp_serde::from_slice(&data.unwrap()).unwrap();
                 WorkerStateRef::new(
                     message.worker_id,
+                    configuration,
                     queue_sender,
-                    ncpus,
-                    address,
                     download_sender,
                     message.worker_addresses,
                     message.subworker_definitions,
-                    work_dir,
-                    log_dir,
                 )
             }
             None => panic!("Connection closed without receiving registration response"),

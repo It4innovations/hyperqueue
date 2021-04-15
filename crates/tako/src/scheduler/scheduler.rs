@@ -219,7 +219,7 @@ impl SchedulerState {
         let mut balanced_tasks = Vec::new();
         for worker in core.get_workers() {
             let len = worker.tasks.len() as u32;
-            if len > worker.ncpus {
+            if len > worker.configuration.n_cpus {
                 log::debug!("Worker {} offers {} tasks", worker.id, len);
                 for tr in &worker.tasks {
                     let mut task = tr.get_mut();
@@ -235,7 +235,7 @@ impl SchedulerState {
         let mut underload_workers = Vec::new();
         for worker in core.get_workers() {
             let len = worker.tasks.len() as u32;
-            if len < worker.ncpus {
+            if len < worker.configuration.n_cpus {
                 log::debug!("Worker {} is underloaded ({} tasks)", worker.id, len);
                 let mut ts = balanced_tasks.clone();
                 ts.sort_by_cached_key(|tr| {
@@ -282,7 +282,9 @@ impl SchedulerState {
                         let worker2_id = task.get_assigned_worker().unwrap();
                         let worker2 = core.get_worker_mut_by_id_or_panic(worker2_id);
                         let worker2_n_tasks = worker2.tasks.len();
-                        if worker2_n_tasks <= n_tasks || worker2_n_tasks <= worker2.ncpus as usize {
+                        if worker2_n_tasks <= n_tasks
+                            || worker2_n_tasks <= worker2.configuration.n_cpus as usize
+                        {
                             continue;
                         }
                         worker2_id

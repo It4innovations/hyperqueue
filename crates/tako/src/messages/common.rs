@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::common::Map;
 use crate::TaskTypeId;
+use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskFailInfo {
@@ -55,4 +56,18 @@ pub struct ProgramDefinition {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stderr: Option<PathBuf>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WorkerConfiguration {
+    pub n_cpus: u32,
+
+    pub listen_address: String,
+    pub hostname: String,
+    pub work_dir: PathBuf,
+    pub log_dir: PathBuf,
+    pub heartbeat_interval: Duration,
+
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra: Vec<(String, String)>,
 }

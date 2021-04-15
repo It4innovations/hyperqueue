@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::rc::Rc;
 
 use bytes::{Bytes, BytesMut};
@@ -12,7 +11,7 @@ use tokio::sync::Notify;
 
 use crate::common::data::SerializationType;
 use crate::common::{Map, Set, WrappedRcRefCell};
-use crate::messages::common::{SubworkerDefinition, TaskFailInfo};
+use crate::messages::common::{SubworkerDefinition, TaskFailInfo, WorkerConfiguration};
 use crate::messages::worker::{
     DataDownloadedMsg, FromWorkerMessage, StealResponse, TaskFailedMsg, TaskFinishedMsg,
 };
@@ -30,7 +29,6 @@ pub struct WorkerState {
     pub sender: UnboundedSender<Bytes>,
     pub ncpus: u32,
     pub free_cpus: u32,
-    pub listen_address: String,
     pub subworkers: HashMap<SubworkerId, SubworkerRef>,
     pub free_subworkers: Vec<SubworkerRef>,
     pub tasks: HashMap<TaskId, TaskRef>,
@@ -50,8 +48,8 @@ pub struct WorkerState {
 
     pub subworker_id_counter: SubworkerId,
     pub subworker_definitions: Map<SubworkerId, SubworkerDefinition>,
-    pub work_dir: PathBuf,
-    pub log_dir: PathBuf,
+
+    pub configuration: WorkerConfiguration,
 }
 
 impl WorkerState {
@@ -397,25 +395,20 @@ impl WorkerState {
 impl WorkerStateRef {
     pub fn new(
         worker_id: WorkerId,
+        configuration: WorkerConfiguration,
         sender: UnboundedSender<Bytes>,
-        ncpus: u32,
-        listen_address: String,
         download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, PriorityTuple)>,
         worker_addresses: Map<WorkerId, String>,
         subworker_definitions: Vec<SubworkerDefinition>,
-        work_dir: PathBuf,
-        log_dir: PathBuf,
     ) -> Self {
         let self_ref = Self::wrap(WorkerState {
             worker_id,
             worker_addresses,
             sender,
-            free_cpus: ncpus,
-            ncpus,
-            listen_address,
+            free_cpus: configuration.n_cpus,
+            ncpus: configuration.n_cpus,
             download_sender,
-            work_dir,
-            log_dir,
+            configuration,
             subworker_definitions: subworker_definitions
                 .into_iter()
                 .map(|x| (x.id, x))

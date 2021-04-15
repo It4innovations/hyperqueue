@@ -8,6 +8,7 @@ use rand::Rng;
 use tokio::task::LocalSet;
 
 use tako::common::setup::setup_logging;
+use tako::messages::common::WorkerConfiguration;
 use tako::worker::rpc::run_worker;
 
 #[derive(Clap)]
@@ -60,22 +61,29 @@ async fn main() -> tako::Result<()> {
         opts.local_directory.unwrap_or(std::env::temp_dir()),
     )?;
 
-    let ncpus = opts.ncpus.unwrap_or(1);
-    if ncpus < 1 {
+    let n_cpus = opts.ncpus.unwrap_or(1);
+    if n_cpus < 1 {
         panic!("Invalid number of cpus");
     }
 
     let heartbeat_interval = Duration::from_millis(opts.heartbeat as u64);
 
+    let configuration = WorkerConfiguration {
+        n_cpus,
+        listen_address: Default::default(), // Will be set later
+        hostname: hostname::get()
+            .expect("Cannot get hostname")
+            .into_string()
+            .expect("Invalid hostname"),
+        work_dir,
+        log_dir,
+        heartbeat_interval,
+        extra: vec![],
+    };
+
     let local_set = LocalSet::new();
     local_set
-        .run_until(run_worker(
-            &opts.server_address,
-            ncpus,
-            work_dir,
-            log_dir,
-            heartbeat_interval,
-        ))
+        .run_until(run_worker(&opts.server_address, configuration))
         .await?;
     log::info!("tako worker ends");
     Ok(())
