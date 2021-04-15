@@ -123,7 +123,7 @@ async fn subworker_handshake(
         }
 
         let message = RegisterSubworkerResponse {
-            worker: state_ref.get().listen_address.clone().into(),
+            worker: state_ref.get().configuration.listen_address.clone().into(),
         };
         framed
             .send(rmp_serde::to_vec_named(&message).unwrap().into())

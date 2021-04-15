@@ -91,13 +91,15 @@ impl Core {
 
     #[inline]
     pub fn get_worker_by_address(&self, address: &str) -> Option<&Worker> {
-        self.workers.values().find(|w| w.address() == address)
+        self.workers
+            .values()
+            .find(|w| w.configuration.listen_address == address)
     }
 
     pub fn get_worker_addresses(&self) -> Map<WorkerId, String> {
         self.workers
             .values()
-            .map(|w| (w.id, w.listen_address.clone()))
+            .map(|w| (w.id, w.configuration.listen_address.clone()))
             .collect()
     }
 

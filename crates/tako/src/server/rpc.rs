@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use bytes::{Bytes, BytesMut};
 use futures::SinkExt;
@@ -73,9 +73,10 @@ pub async fn worker_rpc_loop<
     let worker_id = core_ref.get_mut().new_worker_id();
     log::info!("Worker {} registered from {}", worker_id, address);
 
-    log::debug!("Worker heartbeat: {}", msg.heartbeat_interval);
+    let heartbeat_interval = msg.configuration.heartbeat_interval;
+    log::debug!("Worker heartbeat: {:?}", heartbeat_interval);
     // Sanity that interval is not too small
-    assert!(msg.heartbeat_interval > 150);
+    assert!(heartbeat_interval.as_millis() > 150);
 
     let message = WorkerRegistrationResponse {
         worker_id,
@@ -86,7 +87,7 @@ pub async fn worker_rpc_loop<
     sender.send(data.into()).await?;
 
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
-    let worker = Worker::new(worker_id, msg.ncpus, msg.address);
+    let worker = Worker::new(worker_id, msg.configuration);
 
     on_new_worker(&mut core_ref.get_mut(), &mut *comm_ref.get_mut(), worker);
     comm_ref.get_mut().add_worker(worker_id, queue_sender);
@@ -133,7 +134,6 @@ pub async fn worker_rpc_loop<
 
     //let core_ref3 = core_ref.clone();
 
-    let heartbeat_interval = Duration::from_millis(msg.heartbeat_interval as u64);
     let heartbeat_check = async move {
         let mut interval = tokio::time::interval(heartbeat_interval);
         loop {

@@ -43,6 +43,7 @@ pub async fn gather(
                 core_ref
                     .get()
                     .get_worker_by_id_or_panic(w_id)
+                    .configuration
                     .listen_address
                     .clone(),
                 keys,
@@ -89,6 +90,7 @@ pub async fn update_data_on_worker(
     let address = core
         .get()
         .get_worker_by_id_or_panic(worker_id)
+        .configuration
         .listen_address
         .clone();
     let mut stream = connect_to_worker(address).await?;
