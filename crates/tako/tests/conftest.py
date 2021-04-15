@@ -19,14 +19,13 @@ sys.path.insert(0, TAKO_PYTHON)
 
 def check_free_port(port):
     assert isinstance(port, int)
-    for conn in psutil.net_connections('tcp'):
+    for conn in psutil.net_connections("tcp"):
         if conn.laddr.port == port and conn.status == "LISTEN":
             return False
     return True
 
 
 class Env:
-
     def __init__(self, work_path):
         self.processes = []
         self.cleanups = []
@@ -37,16 +36,16 @@ class Env:
         logfile = (self.work_path / name).with_suffix(".out")
         if catch_io:
             with open(logfile, "w") as out:
-                p = subprocess.Popen(args,
-                                     preexec_fn=os.setsid,
-                                     stdout=out,
-                                     stderr=subprocess.STDOUT,
-                                     cwd=cwd,
-                                     env=env)
+                p = subprocess.Popen(
+                    args,
+                    preexec_fn=os.setsid,
+                    stdout=out,
+                    stderr=subprocess.STDOUT,
+                    cwd=cwd,
+                    env=env,
+                )
         else:
-            p = subprocess.Popen(args,
-                                 cwd=cwd,
-                                 env=env)
+            p = subprocess.Popen(args, cwd=cwd, env=env)
         self.processes.append((name, p))
         return p
 
@@ -115,39 +114,50 @@ class TakoEnv(Env):
         python_path.append(TAKO_PYTHON)
         env["PYTHONPATH"] = ":".join(python_path)
 
-        work_dir = (self.work_path / name)
+        work_dir = self.work_path / name
         work_dir.mkdir()
-        args = [program, "localhost:{}".format(port), "--ncpus", str(ncpus), "--work-dir", work_dir]
+        args = [
+            program,
+            "localhost:{}".format(port),
+            "--ncpus",
+            str(ncpus),
+            "--work-dir",
+            work_dir,
+        ]
 
         if heartbeat:
             args.append("--heartbeat")
             args.append(str(heartbeat))
 
         self.workers[worker_id] = self.start_process(name, args, env, cwd=work_dir)
-        #else:
+        # else:
         #    program = "dask-worker"
         #    args = [program, "localhost:{}".format(port), "--nthreads", str(ncpus)]
         #    self.workers[name] = self.start_process(name, args, env)
 
-
-    def start(self,
-              workers=(),
-              port=None,
-              worker_start_delay=None,
-              panic_on_worker_lost=True,
-              heartbeat=None):
+    def start(
+        self,
+        workers=(),
+        port=None,
+        worker_start_delay=None,
+        panic_on_worker_lost=True,
+        heartbeat=None,
+    ):
         print("Starting tako env in ", self.work_path)
 
         """
         Start infrastructure: server & n governors
         """
 
-        if self.server:            raise Exception("Server is already running")
+        if self.server:
+            raise Exception("Server is already running")
 
         port = port or self.default_listen_port
 
         if not check_free_port(port):
-            raise Exception("Trying to spawn server on port {}, but it is not free".format(port))
+            raise Exception(
+                "Trying to spawn server on port {}, but it is not free".format(port)
+            )
 
         env = self.make_env()
 
@@ -182,18 +192,23 @@ class TakoEnv(Env):
         for worker_name, worker in self.workers.items():
             if worker.poll() is not None:
                 raise Exception(
-                    "worker{0} crashed (log in {1}/worker{0}.out)".format(worker_name, self.work_path))
+                    "worker{0} crashed (log in {1}/worker{0}.out)".format(
+                        worker_name, self.work_path
+                    )
+                )
 
         if self.server and self.server.poll() is not None:
             server = self.server
             self.server = None
             if server.returncode != 0:
                 raise Exception(
-                    "Server crashed (log in {}/server.out)".format(self.work_path))
+                    "Server crashed (log in {}/server.out)".format(self.work_path)
+                )
 
     def session(self):
         assert self._session is None
         from tako.client import connect
+
         session = connect(self.server_socket_path)
         self._session = session
         return session
@@ -204,7 +219,6 @@ class TakoEnv(Env):
             for w in overview["workers"]:
                 assert len(w["running_tasks"]) == 0
                 assert len(w["placed_data"]) == 0
-
 
     def close(self):
         pass

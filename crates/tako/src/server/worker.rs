@@ -1,10 +1,10 @@
 use std::str;
 
-use crate::server::task::TaskRef;
-use crate::common::Set;
-use crate::messages::worker::WorkerOverview;
 use tokio::sync::oneshot;
 
+use crate::common::Set;
+use crate::messages::worker::WorkerOverview;
+use crate::server::task::TaskRef;
 
 pub type WorkerId = u64;
 
@@ -21,7 +21,7 @@ pub struct Worker {
 
     pub listen_address: String,
 
-    pub overview_callbacks: Vec<oneshot::Sender<WorkerOverview>>
+    pub overview_callbacks: Vec<oneshot::Sender<WorkerOverview>>,
 }
 
 impl Worker {

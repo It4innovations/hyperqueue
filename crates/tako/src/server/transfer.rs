@@ -1,21 +1,21 @@
-use crate::common::data::SerializationType;
-use crate::transfer::transport::{connect_to_worker};
-use crate::common::Map;
-use crate::server::core::{CoreRef, Core};
-use crate::server::comm::{CommSenderRef};
-use crate::server::task::{TaskRef, TaskRuntimeState};
-use crate::common::trace::trace_task_new_finished;
-use crate::transfer::fetch::fetch_data;
-use crate::transfer::messages::{DataRequest, DataResponse, UploadDataMsg};
+use std::iter::FromIterator;
+
 use bytes::BytesMut;
 use futures::stream::FuturesUnordered;
 use futures::{SinkExt, StreamExt};
 use rand::seq::SliceRandom;
-use std::iter::FromIterator;
 
+use crate::common::data::SerializationType;
+use crate::common::trace::trace_task_new_finished;
+use crate::common::Map;
+use crate::server::comm::CommSenderRef;
+use crate::server::core::CoreRef;
+use crate::server::task::{TaskRef, TaskRuntimeState};
 use crate::server::worker::WorkerId;
+use crate::transfer::fetch::fetch_data;
+use crate::transfer::messages::{DataRequest, DataResponse, UploadDataMsg};
+use crate::transfer::transport::connect_to_worker;
 use crate::TaskId;
-
 
 pub async fn gather(
     core_ref: &CoreRef,
@@ -31,20 +31,23 @@ pub async fn gather(
             &task.get_placement().map(|ws| {
                 let ws = Vec::<&WorkerId>::from_iter(ws.into_iter());
                 ws.choose(&mut rng).map(|w| {
-                    worker_map
-                        .entry(**w)
-                        .or_default()
-                        .push(*task_id);
+                    worker_map.entry(**w).or_default().push(*task_id);
                 })
             });
         }
     }
 
-    let mut worker_futures: FuturesUnordered<_> = FuturesUnordered::from_iter(
-        worker_map
-            .into_iter()
-            .map(|(w_id, keys)| get_data_from_worker(core_ref.get().get_worker_by_id_or_panic(w_id).listen_address.clone(), keys)),
-    );
+    let mut worker_futures: FuturesUnordered<_> =
+        FuturesUnordered::from_iter(worker_map.into_iter().map(|(w_id, keys)| {
+            get_data_from_worker(
+                core_ref
+                    .get()
+                    .get_worker_by_id_or_panic(w_id)
+                    .listen_address
+                    .clone(),
+                keys,
+            )
+        }));
 
     let mut result = Vec::with_capacity(task_ids.len());
     while let Some(r) = worker_futures.next().await {
@@ -83,7 +86,11 @@ pub async fn update_data_on_worker(
     worker_id: WorkerId,
     data: Vec<(TaskRef, BytesMut)>,
 ) -> crate::Result<()> {
-    let address = core.get().get_worker_by_id_or_panic(worker_id).listen_address.clone();
+    let address = core
+        .get()
+        .get_worker_by_id_or_panic(worker_id)
+        .listen_address
+        .clone();
     let mut stream = connect_to_worker(address).await?;
 
     for (task_ref, data_for_id) in data {
@@ -124,7 +131,7 @@ pub async fn update_data_on_worker(
     Ok(())
 }
 
-fn scatter_tasks<D>(
+/*fn scatter_tasks<D>(
     core: &Core,
     data: Vec<D>,
     workers: &[WorkerId],
@@ -164,13 +171,13 @@ fn scatter_tasks<D>(
         }
     }
     result.into_iter().collect()
-}
+}*/
 
 pub async fn scatter(
-    core_ref: &CoreRef,
-    comm_ref: &CommSenderRef,
-    workers: &[WorkerId],
-    data: Vec<(TaskRef, BytesMut)>,
+    _core_ref: &CoreRef,
+    _comm_ref: &CommSenderRef,
+    _workers: &[WorkerId],
+    _data: Vec<(TaskRef, BytesMut)>,
 ) {
     todo!()
     /*let counter = core_ref.get_mut().get_and_move_scatter_counter(data.len());

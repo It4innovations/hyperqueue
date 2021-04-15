@@ -1,22 +1,19 @@
-use crate::common::{Set, Map};
-
-use crate::server::core::Core;
-
-use crate::messages::worker::{NewWorkerMsg, StealResponse, StealResponseMsg, TaskFinishedMsg, TaskIdMsg, ToWorkerMessage, TaskIdsMsg};
-
-
-use crate::server::comm::Comm;
-use crate::server::task::{Task, WaitingInfo, FinishInfo};
-use crate::{WorkerId, TaskId};
-use crate::server::task::{DataInfo, TaskRef, TaskRuntimeState};
-
 use crate::common::trace::{
     trace_task_assign, trace_task_finish, trace_task_place, trace_worker_new,
     trace_worker_steal_response, trace_worker_steal_response_missing,
 };
+use crate::common::{Map, Set};
+use crate::messages::common::{SubworkerDefinition, TaskFailInfo};
+use crate::messages::worker::{
+    NewWorkerMsg, StealResponse, StealResponseMsg, TaskFinishedMsg, TaskIdMsg, TaskIdsMsg,
+    ToWorkerMessage,
+};
+use crate::server::comm::Comm;
+use crate::server::core::Core;
+use crate::server::task::{DataInfo, TaskRef, TaskRuntimeState};
+use crate::server::task::{FinishInfo, Task, WaitingInfo};
 use crate::server::worker::Worker;
-use crate::messages::common::{TaskFailInfo, SubworkerDefinition};
-
+use crate::{TaskId, WorkerId};
 
 pub fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
     {
@@ -38,11 +35,11 @@ pub fn on_remove_worker(core: &mut Core, comm: &mut impl Comm, worker_id: Worker
 
     let mut ready_to_assign = Vec::new();
     let mut removes = Vec::new();
-    for task_ref in  core.get_tasks() {
+    for task_ref in core.get_tasks() {
         let mut task = task_ref.get_mut();
         let task_id = task.id;
         let new_state = match &mut task.state {
-            TaskRuntimeState::Waiting(_) => { continue }
+            TaskRuntimeState::Waiting(_) => continue,
             TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
                 if *w_id == worker_id {
                     log::debug!("Removing task task={} from lost worker", task_id);
@@ -50,7 +47,7 @@ pub fn on_remove_worker(core: &mut Core, comm: &mut impl Comm, worker_id: Worker
                     ready_to_assign.push(task_ref.clone());
                     TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
                 } else {
-                    continue
+                    continue;
                 }
             }
             TaskRuntimeState::Stealing(from_id, to_id) => {
@@ -67,7 +64,7 @@ pub fn on_remove_worker(core: &mut Core, comm: &mut impl Comm, worker_id: Worker
                     log::debug!("Task={} is stealing target for lost worker", task_id);
                     TaskRuntimeState::Stealing(*from_id, None)
                 } else {
-                    continue
+                    continue;
                 }
             }
             TaskRuntimeState::Finished(finfo) => {
@@ -77,20 +74,25 @@ pub fn on_remove_worker(core: &mut Core, comm: &mut impl Comm, worker_id: Worker
                     todo!();
                     // We have lost last worker that have this data
                 }
-                continue
+                continue;
             }
-            TaskRuntimeState::Released => { unreachable!() }
+            TaskRuntimeState::Released => {
+                unreachable!()
+            }
         };
         task.state = new_state;
     }
 
     for (w_id, task_ref) in removes {
-        assert!(core.get_worker_mut_by_id_or_panic(w_id).tasks.remove(&task_ref))
+        assert!(core
+            .get_worker_mut_by_id_or_panic(w_id)
+            .tasks
+            .remove(&task_ref))
     }
 
-        /*if let Some(w_id) = remove_from {
-            assert!(core.get_worker_mut_by_id_or_panic(w_id).tasks.remove(&task_ref))
-        }*/
+    /*if let Some(w_id) = remove_from {
+        assert!(core.get_worker_mut_by_id_or_panic(w_id).tasks.remove(&task_ref))
+    }*/
 
     for task_ref in ready_to_assign {
         core.add_ready_to_assign(task_ref);
@@ -102,7 +104,6 @@ pub fn on_remove_worker(core: &mut Core, comm: &mut impl Comm, worker_id: Worker
 
     //let worker = core.get_worker_by_id_or_panic(worker_id);
 }
-
 
 pub fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec<TaskRef>) {
     assert!(!new_tasks.is_empty());
@@ -133,8 +134,13 @@ pub fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec<TaskRe
                     count += 1
                 }
             }
-            assert!(matches!(task.state, TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 } )));
-            task.state = TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: count });
+            assert!(matches!(
+                task.state,
+                TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
+            ));
+            task.state = TaskRuntimeState::Waiting(WaitingInfo {
+                unfinished_deps: count,
+            });
         }
         core.add_task(task_ref);
     }
@@ -200,15 +206,11 @@ pub fn on_task_finished(
                 placement.insert(worker_id);
             }
 
-            task.state = TaskRuntimeState::Finished(
-                FinishInfo {
-                    data_info: DataInfo {
-                        size: msg.size,
-                    },
-                    placement,
-                    future_placement: Default::default(),
-                }
-            );
+            task.state = TaskRuntimeState::Finished(FinishInfo {
+                data_info: DataInfo { size: msg.size },
+                placement,
+                future_placement: Default::default(),
+            });
             /*comm.send_scheduler_message(ToSchedulerMessage::TaskUpdate(TaskUpdate {
                 state: TaskUpdateType::Finished,
                 id: task.id,
@@ -264,15 +266,16 @@ pub fn on_steal_response(
                         trace_worker_steal_response(task.id, worker_id, 0, "done");
                         continue;
                     }
-                    let (from_worker_id, to_worker_id) = if let TaskRuntimeState::Stealing(from_w, to_w) = &task.state {
-                        assert_eq!(*from_w, worker_id);
-                        (*from_w, *to_w)
-                    } else {
-                        panic!(
-                            "Invalid state of task={} when steal response occured",
-                            task_id
-                        );
-                    };
+                    let (from_worker_id, to_worker_id) =
+                        if let TaskRuntimeState::Stealing(from_w, to_w) = &task.state {
+                            assert_eq!(*from_w, worker_id);
+                            (*from_w, *to_w)
+                        } else {
+                            panic!(
+                                "Invalid state of task={} when steal response occured",
+                                task_id
+                            );
+                        };
 
                     /*comm.send_scheduler_message(ToSchedulerMessage::TaskStealResponse(
                         TaskStealResponse {
@@ -290,8 +293,8 @@ pub fn on_steal_response(
                         match response {
                             StealResponse::Ok => "ok",
                             StealResponse::NotHere => "nothere",
-                            StealResponse::Running => "running"
-                        }
+                            StealResponse::Running => "running",
+                        },
                     );
 
                     match response {
@@ -306,28 +309,31 @@ pub fn on_steal_response(
                                 core.add_ready_to_assign(task_ref.clone());
                                 TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
                             }
-                        },
+                        }
                         StealResponse::Running => {
                             log::debug!("Task stealing was not successful task={}", task_id);
                             if let Some(w_id) = to_worker_id {
-                                assert!(core.get_worker_mut_by_id_or_panic(w_id).tasks.remove(&task_ref));
+                                assert!(core
+                                    .get_worker_mut_by_id_or_panic(w_id)
+                                    .tasks
+                                    .remove(&task_ref));
                             }
-                            assert!(core.get_worker_mut_by_id_or_panic(from_worker_id).tasks.insert(task_ref.clone()));
+                            assert!(core
+                                .get_worker_mut_by_id_or_panic(from_worker_id)
+                                .tasks
+                                .insert(task_ref.clone()));
                             comm.ask_for_scheduling();
                             TaskRuntimeState::Running(worker_id)
-                        },
+                        }
                         StealResponse::NotHere => {
                             panic!("Received NotHere while stealing, it seems that Finished message got lost");
                         }
-
                     }
                 };
                 {
                     let mut task = task_ref.get_mut();
                     match &new_state {
-                        TaskRuntimeState::Waiting(winfo) => {
-                            task.set_fresh_flag(true)
-                        }
+                        TaskRuntimeState::Waiting(_winfo) => task.set_fresh_flag(true),
                         _ => { /* Do nothing */ }
                     };
                     task.state = new_state;
@@ -354,7 +360,12 @@ pub fn on_set_keep_flag(core: &mut Core, task_id: TaskId) -> TaskRef {
     task_ref
 }
 
-pub fn on_set_observe_flag(core: &mut Core, comm: &mut impl Comm, task_id: TaskId, value: bool) -> bool {
+pub fn on_set_observe_flag(
+    core: &mut Core,
+    comm: &mut impl Comm,
+    task_id: TaskId,
+    value: bool,
+) -> bool {
     if let Some(task_ref) = core.get_task_by_id(task_id) {
         let mut task = task_ref.get_mut();
         if value && task.is_finished() {
@@ -379,7 +390,10 @@ pub fn on_task_error(
 
     let task_refs: Vec<TaskRef> = {
         assert!(task_ref.get().is_assigned_or_stealed_from(worker_id));
-        assert!(core.get_worker_mut_by_id_or_panic(worker_id).tasks.remove(&task_ref));
+        assert!(core
+            .get_worker_mut_by_id_or_panic(worker_id)
+            .tasks
+            .remove(&task_ref));
         task_ref.get().collect_consumers().into_iter().collect()
     };
 
@@ -414,16 +428,20 @@ pub fn on_task_error(
     );
 }
 
-pub fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &[TaskId]) -> (Vec<TaskId>, Vec<TaskId>) {
+pub fn on_cancel_tasks(
+    core: &mut Core,
+    comm: &mut impl Comm,
+    task_ids: &[TaskId],
+) -> (Vec<TaskId>, Vec<TaskId>) {
     let mut task_refs = Set::with_capacity(task_ids.len());
-    let mut running_ids : Map<WorkerId, Vec<TaskId>> = Map::new();
+    let mut running_ids: Map<WorkerId, Vec<TaskId>> = Map::new();
     let mut already_finished: Vec<TaskId> = Vec::new();
 
     log::debug!("Canceling {} tasks", task_ids.len());
 
     for task_id in task_ids {
         log::debug!("Canceling task id={}", task_id);
-        let tr : Option<TaskRef> = core.get_task_by_id(*task_id).cloned();
+        let tr: Option<TaskRef> = core.get_task_by_id(*task_id).cloned();
         if let Some(task_ref) = tr {
             let mut task = task_ref.get_mut();
             match task.state {
@@ -434,14 +452,20 @@ pub fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &[TaskId
                 TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
                     task_refs.insert(task_ref.clone());
                     task_refs.extend(task.collect_consumers().into_iter());
-                    assert!(core.get_worker_mut_by_id_or_panic(w_id).tasks.remove(&task_ref));
+                    assert!(core
+                        .get_worker_mut_by_id_or_panic(w_id)
+                        .tasks
+                        .remove(&task_ref));
                     running_ids.entry(w_id).or_default().push(*task_id);
-                },
+                }
                 TaskRuntimeState::Stealing(from_id, to_id) => {
                     task_refs.insert(task_ref.clone());
                     task_refs.extend(task.collect_consumers().into_iter());
                     if let Some(to_id) = to_id {
-                        assert!(core.get_worker_mut_by_id_or_panic(to_id).tasks.remove(&task_ref));
+                        assert!(core
+                            .get_worker_mut_by_id_or_panic(to_id)
+                            .tasks
+                            .remove(&task_ref));
                     }
                     running_ids.entry(from_id).or_default().push(*task_id);
                 }
@@ -452,7 +476,9 @@ pub fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &[TaskId
                     }
                     already_finished.push(*task_id);
                 }
-                TaskRuntimeState::Released => { unreachable!() }
+                TaskRuntimeState::Released => {
+                    unreachable!()
+                }
             };
         } else {
             log::debug!("Task is not here");
@@ -467,7 +493,7 @@ pub fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &[TaskId
 
     for task_ref in &task_refs {
         let mut task = task_ref.get_mut();
-        core.remove_task(&mut task);
+        let _ = core.remove_task(&mut task);
     }
 
     for (w_id, ids) in running_ids {
@@ -475,9 +501,11 @@ pub fn on_cancel_tasks(core: &mut Core, comm: &mut impl Comm, task_ids: &[TaskId
     }
 
     comm.ask_for_scheduling();
-    (task_refs.into_iter().map(|tr| tr.get().id).collect(), already_finished)
+    (
+        task_refs.into_iter().map(|tr| tr.get().id).collect(),
+        already_finished,
+    )
 }
-
 
 pub fn on_tasks_transferred(
     core: &mut Core,
@@ -520,7 +548,7 @@ pub fn on_tasks_transferred(
 pub fn on_register_subworker(
     core: &mut Core,
     comm: &mut impl Comm,
-    sw_def: SubworkerDefinition
+    sw_def: SubworkerDefinition,
 ) -> crate::Result<()> {
     core.add_subworker_definition(sw_def.clone())?;
     comm.broadcast_worker_message(&ToWorkerMessage::RegisterSubworker(sw_def));
@@ -570,13 +598,18 @@ fn remove_task_if_possible(core: &mut Core, comm: &mut impl Comm, task: &mut Tas
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-        use crate::server::test_util::{create_test_comm, task, task_with_deps, create_test_workers, submit_test_tasks, submit_example_1, start_and_finish_on_worker, start_on_worker, sorted_vec, finish_on_worker, force_assign, force_reassign, fail_steal, start_stealing};
-    use crate::scheduler::scheduler::tests::{create_test_scheduler};
     use crate::messages::worker::ComputeTaskMsg;
+    use crate::scheduler::scheduler::tests::create_test_scheduler;
+    use crate::server::test_util::{
+        create_test_comm, create_test_workers, fail_steal, finish_on_worker, force_assign,
+        force_reassign, sorted_vec, start_and_finish_on_worker, start_on_worker, start_stealing,
+        submit_example_1, submit_test_tasks, task, task_with_deps,
+    };
+
+    use super::*;
+
     /*use crate::test_util::{
         create_test_comm, create_test_workers, finish_on_worker, sorted_vec,
         start_and_finish_on_worker, start_on_worker, submit_example_1, submit_test_tasks, task,
@@ -757,7 +790,6 @@ mod tests {
         assert!(core.get_worker_by_id_or_panic(101).tasks.contains(&t2));
         assert_eq!(core.get_worker_by_id_or_panic(102).tasks.len(), 0);
 
-
         let msgs = comm.take_worker_msgs(100, 1);
         assert!(matches!(
             msgs[0],
@@ -788,7 +820,6 @@ mod tests {
         assert!(core.get_worker_by_id_or_panic(100).tasks.contains(&t1));
         assert_eq!(core.get_worker_by_id_or_panic(101).tasks.len(), 0);
         assert_eq!(core.get_worker_by_id_or_panic(102).tasks.len(), 0);
-
 
         comm.check_need_scheduling();
         //assert_eq!(comm.take_client_task_finished(1), vec![12]);
@@ -880,7 +911,7 @@ mod tests {
             TaskFailInfo {
                 message: "".to_string(),
                 data_type: "".to_string(),
-                error_data: vec![]
+                error_data: vec![],
             },
         );
         assert!(!core.get_worker_by_id_or_panic(102).tasks.contains(&t13));
@@ -1017,7 +1048,6 @@ mod tests {
         assert!(!core.get_worker_by_id_or_panic(101).tasks.contains(&t3));
         assert!(core.get_worker_by_id_or_panic(100).tasks.contains(&t3));
 
-
         on_steal_response(
             &mut core,
             &mut comm,
@@ -1029,7 +1059,6 @@ mod tests {
 
         assert!(core.get_worker_by_id_or_panic(101).tasks.contains(&t3));
         assert!(!core.get_worker_by_id_or_panic(100).tasks.contains(&t3));
-
 
         comm.check_need_scheduling();
         comm.emptiness_check();
@@ -1093,12 +1122,19 @@ mod tests {
         assert_eq!(sorted_vec(ft), vec![11, 33]);
 
         let msgs = comm.take_worker_msgs(100, 1);
-        assert!(matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ids: ref ids }) if ids == &vec![41]));
+        assert!(
+            matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ids: ref ids }) if ids == &vec![41])
+        );
 
         let msgs = comm.take_worker_msgs(101, 2);
         dbg!(&msgs);
-        assert!(matches!(&msgs[0], &ToWorkerMessage::DeleteData(TaskIdMsg { id: 11 })));
-        assert!(matches!(&msgs[1], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ids: ref ids }) if sorted_vec(ids.clone()) == vec![12, 40]));
+        assert!(matches!(
+            &msgs[0],
+            &ToWorkerMessage::DeleteData(TaskIdMsg { id: 11 })
+        ));
+        assert!(
+            matches!(&msgs[1], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ids: ref ids }) if sorted_vec(ids.clone()) == vec![12, 40])
+        );
 
         assert_eq!(core.get_task_map().len(), 1);
         assert!(core.get_task_by_id(42).is_some());
@@ -1144,7 +1180,10 @@ mod tests {
         assert!(core.get_task_by_id_or_panic(11).get().is_fresh());
         assert!(core.get_task_by_id_or_panic(12).get().is_fresh());
         assert!(core.get_task_by_id_or_panic(40).get().is_fresh());
-        assert!(matches!(core.get_task_by_id_or_panic(41).get().state, TaskRuntimeState::Stealing(100, None)));
+        assert!(matches!(
+            core.get_task_by_id_or_panic(41).get().state,
+            TaskRuntimeState::Stealing(100, None)
+        ));
 
         comm.check_need_scheduling();
         comm.emptiness_check();

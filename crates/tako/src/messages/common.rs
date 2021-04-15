@@ -1,8 +1,9 @@
-use serde::{Deserialize, Serialize};
-use crate::TaskTypeId;
-use crate::common::Map;
 use std::path::PathBuf;
 
+use serde::{Deserialize, Serialize};
+
+use crate::common::Map;
+use crate::TaskTypeId;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskFailInfo {
@@ -55,4 +56,3 @@ pub struct ProgramDefinition {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stderr: Option<PathBuf>,
 }
-

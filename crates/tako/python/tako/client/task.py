@@ -1,15 +1,21 @@
 from typing import List, Optional
 
-from tako.client.program import ProgramDefinition
-from tako.client.subworker import SubworkerDefinition
 import msgpack
+from tako.client.program import ProgramDefinition
 
 
 class Task:
 
-    #__slots__ = ["_id", "type_id", "body", "deps", "keep", "name", "error", "finished"]
+    # __slots__ = ["_id", "type_id", "body", "deps", "keep", "name", "error", "finished"]
 
-    def __init__(self, type_id: int, body: bytes, keep: bool, deps: Optional[List["Task"]] = None, name=None):
+    def __init__(
+        self,
+        type_id: int,
+        body: bytes,
+        keep: bool,
+        deps: Optional[List["Task"]] = None,
+        name=None,
+    ):
         self._id = None
         self.type_id = type_id
         self.body = body

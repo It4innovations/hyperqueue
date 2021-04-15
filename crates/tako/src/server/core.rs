@@ -1,12 +1,11 @@
-use crate::common::{IdCounter, Map, WrappedRcRefCell};
-use crate::{TaskId, WorkerId};
-
-use crate::server::task::{Task, TaskRef, TaskRuntimeState};
-use crate::common::trace::trace_task_remove;
-use crate::server::worker::Worker;
-use crate::messages::common::SubworkerDefinition;
 use crate::common::error::DsError;
+use crate::common::trace::trace_task_remove;
+use crate::common::{IdCounter, Map, WrappedRcRefCell};
+use crate::messages::common::SubworkerDefinition;
 use crate::messages::gateway::ServerInfo;
+use crate::server::task::{Task, TaskRef, TaskRuntimeState};
+use crate::server::worker::Worker;
+use crate::{TaskId, WorkerId};
 
 #[derive(Default)]
 pub struct Core {
@@ -34,7 +33,6 @@ impl CoreRef {
 }
 
 impl Core {
-
     pub fn new_worker_id(&mut self) -> WorkerId {
         self.worker_id_counter.next()
     }
@@ -53,7 +51,7 @@ impl Core {
 
     pub fn get_server_info(&self) -> ServerInfo {
         ServerInfo {
-            worker_listen_port: self.worker_listen_port
+            worker_listen_port: self.worker_listen_port,
         }
     }
 
@@ -99,9 +97,7 @@ impl Core {
     pub fn get_worker_addresses(&self) -> Map<WorkerId, String> {
         self.workers
             .values()
-            .map(|w| {
-                (w.id, w.listen_address.clone())
-            })
+            .map(|w| (w.id, w.listen_address.clone()))
             .collect()
     }
 
@@ -174,7 +170,6 @@ impl Core {
         &self.tasks
     }
 
-
     #[inline]
     pub fn get_task_by_id_or_panic(&self, id: TaskId) -> &TaskRef {
         self.tasks.get(&id).unwrap_or_else(|| {
@@ -187,19 +182,28 @@ impl Core {
         self.tasks.get(&id)
     }
 
-    pub fn add_subworker_definition(&mut self, subworker_def: SubworkerDefinition) -> crate::Result<()> {
+    pub fn add_subworker_definition(
+        &mut self,
+        subworker_def: SubworkerDefinition,
+    ) -> crate::Result<()> {
         if subworker_def.id == 0 {
             return Err(DsError::GenericError("Subworker id 0 is reserved".into()));
         }
-        if self.subworker_definitions.iter().any(|d| d.id == subworker_def.id) {
-            return Err(DsError::GenericError(format!("Subworker id {} is already reserved", subworker_def.id)));
+        if self
+            .subworker_definitions
+            .iter()
+            .any(|d| d.id == subworker_def.id)
+        {
+            return Err(DsError::GenericError(format!(
+                "Subworker id {} is already reserved",
+                subworker_def.id
+            )));
         }
         self.subworker_definitions.push(subworker_def);
         Ok(())
     }
 
     pub fn sanity_check(&self) {
-
         let fw_check = |task: &Task| {
             for t in &task.inputs {
                 assert!(t.get().is_finished());
@@ -223,7 +227,14 @@ impl Core {
         for (task_id, task_ref) in &self.tasks {
             let task = task_ref.get();
             assert_eq!(task.id, *task_id);
-            assert!(task.type_id == 0 || self.subworker_definitions.iter().find(|d| d.id == task.type_id).is_some());
+            assert!(
+                task.type_id == 0
+                    || self
+                        .subworker_definitions
+                        .iter()
+                        .find(|d| d.id == task.type_id)
+                        .is_some()
+            );
             match &task.state {
                 TaskRuntimeState::Waiting(winfo) => {
                     let mut count = 0;
@@ -284,15 +295,17 @@ fn get_task_duration(msg: &TaskFinishedMsg) -> (u64, u64) {
 
 #[cfg(test)]
 mod tests {
-
-    use crate::server::task::{TaskRuntimeState, TaskRef};
-
     use crate::server::core::Core;
+    use crate::server::task::{TaskRef, TaskRuntimeState};
     use crate::server::test_util::task;
 
     impl Core {
         pub fn remove_from_ready_to_assign(&mut self, task_ref: &TaskRef) {
-            let p = self.ready_to_assign.iter().position(|x| x == task_ref).unwrap();
+            let p = self
+                .ready_to_assign
+                .iter()
+                .position(|x| x == task_ref)
+                .unwrap();
             self.ready_to_assign.remove(p);
         }
     }

@@ -1,3 +1,2 @@
-
-from .session import connect  # noqa
 from .exception import TakoException, TaskFailed  # noqa
+from .session import connect  # noqa

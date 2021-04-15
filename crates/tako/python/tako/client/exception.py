@@ -1,5 +1,3 @@
-
-
 class TakoException(Exception):
     pass
 

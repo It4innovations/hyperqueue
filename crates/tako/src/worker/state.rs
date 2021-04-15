@@ -1,26 +1,28 @@
+use std::path::PathBuf;
+use std::rc::Rc;
 
 use bytes::{Bytes, BytesMut};
 use hashbrown::HashMap;
-use tokio::sync::mpsc::UnboundedSender;
-
-use crate::common::data::SerializationType;
-use crate::common::{Map, WrappedRcRefCell, Set};
-use crate::TaskId;
-use crate::messages::worker::{DataDownloadedMsg, FromWorkerMessage, StealResponse, TaskFinishedMsg, TaskFailedMsg};
-use crate::{PriorityTuple, Priority};
-use crate::server::worker::WorkerId;
-use crate::worker::data::{DataObjectRef, DataObjectState, LocalData, RemoteData, DataObject};
-use crate::worker::subworker::{SubworkerId, SubworkerRef};
-use crate::worker::task::{TaskRef, TaskState};
 use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
 use smallvec::{smallvec, SmallVec};
-use crate::transfer::DataConnection;
-use std::path::PathBuf;
-use crate::messages::common::{TaskFailInfo, SubworkerDefinition};
-use std::rc::Rc;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
+
+use crate::common::data::SerializationType;
+use crate::common::{Map, Set, WrappedRcRefCell};
+use crate::messages::common::{SubworkerDefinition, TaskFailInfo};
+use crate::messages::worker::{
+    DataDownloadedMsg, FromWorkerMessage, StealResponse, TaskFailedMsg, TaskFinishedMsg,
+};
+use crate::server::worker::WorkerId;
+use crate::transfer::DataConnection;
+use crate::worker::data::{DataObject, DataObjectRef, DataObjectState, LocalData, RemoteData};
+use crate::worker::subworker::{SubworkerId, SubworkerRef};
+use crate::worker::task::{TaskRef, TaskState};
+use crate::TaskId;
+use crate::{Priority, PriorityTuple};
 
 pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
 
@@ -32,8 +34,7 @@ pub struct WorkerState {
     pub subworkers: HashMap<SubworkerId, SubworkerRef>,
     pub free_subworkers: Vec<SubworkerRef>,
     pub tasks: HashMap<TaskId, TaskRef>,
-    pub ready_task_queue:
-        priority_queue::PriorityQueue<TaskRef, (Priority, Priority)>,
+    pub ready_task_queue: priority_queue::PriorityQueue<TaskRef, (Priority, Priority)>,
     pub data_objects: HashMap<TaskId, DataObjectRef>,
     pub running_tasks: Set<TaskRef>,
     pub start_task_scheduled: bool,
@@ -141,8 +142,7 @@ impl WorkerState {
     pub fn add_ready_tasks(&mut self, task_refs: &[TaskRef]) {
         for task_ref in task_refs {
             let priority = task_ref.get().priority;
-            self.ready_task_queue
-                .push(task_ref.clone(), priority);
+            self.ready_task_queue.push(task_ref.clone(), priority);
         }
         self.schedule_task_start();
     }
@@ -285,7 +285,6 @@ impl WorkerState {
                 self.free_cpus += 1;
                 debug_assert!(self.free_cpus <= self.ncpus);
                 self.schedule_task_start();
-
             }
             TaskState::Removed => {
                 unreachable!();
@@ -306,9 +305,7 @@ impl WorkerState {
                     }
                     DataObjectState::InSubworkers(_)
                     | DataObjectState::Local(_)
-                    | DataObjectState::LocalDownloading(_) => {
-                        /* Do nothing */
-                    }
+                    | DataObjectState::LocalDownloading(_) => { /* Do nothing */ }
                     DataObjectState::Removed => {
                         unreachable!()
                     }
@@ -318,11 +315,16 @@ impl WorkerState {
     }
 
     pub fn pop_worker_connection(&mut self, worker_id: WorkerId) -> Option<DataConnection> {
-        self.worker_connections.get_mut(&worker_id).and_then(|connections| connections.pop())
+        self.worker_connections
+            .get_mut(&worker_id)
+            .and_then(|connections| connections.pop())
     }
 
     pub fn return_worker_connection(&mut self, worker_id: WorkerId, connection: DataConnection) {
-        self.worker_connections.entry(worker_id).or_default().push(connection);
+        self.worker_connections
+            .entry(worker_id)
+            .or_default()
+            .push(connection);
     }
 
     pub fn get_worker_address(&self, worker_id: WorkerId) -> Option<&String> {
@@ -334,11 +336,11 @@ impl WorkerState {
         match self.tasks.get(&task_id).cloned() {
             None => {
                 /* This may happen that task was computed or when work steal
-                   was successful
-                 */
+                  was successful
+                */
                 log::debug!("Task not found, try to remove object");
                 self.remove_data_by_id(task_id);
-            },
+            }
             Some(task_ref) => {
                 self.remove_task(task_ref, false);
             }
@@ -367,7 +369,7 @@ impl WorkerState {
 
     pub fn schedule_task_start(&mut self) {
         if self.start_task_scheduled {
-            return
+            return;
         }
         self.start_task_scheduled = true;
         self.start_task_notify.notify_one();
@@ -380,23 +382,16 @@ impl WorkerState {
     pub fn finish_task(&mut self, task_ref: TaskRef, size: u64) {
         let id = task_ref.get().id;
         self.remove_task(task_ref, true);
-        let message = FromWorkerMessage::TaskFinished(TaskFinishedMsg {
-            id,
-            size,
-        });
+        let message = FromWorkerMessage::TaskFinished(TaskFinishedMsg { id, size });
         self.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
     }
 
-    pub fn finish_task_failed(&mut self, task_ref: TaskRef, info:    TaskFailInfo) {
+    pub fn finish_task_failed(&mut self, task_ref: TaskRef, info: TaskFailInfo) {
         let id = task_ref.get().id;
         self.remove_task(task_ref, true);
-        let message = FromWorkerMessage::TaskFailed(TaskFailedMsg {
-            id,
-            info
-        });
+        let message = FromWorkerMessage::TaskFailed(TaskFailedMsg { id, info });
         self.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
     }
-
 }
 
 impl WorkerStateRef {
@@ -421,7 +416,10 @@ impl WorkerStateRef {
             download_sender,
             work_dir,
             log_dir,
-            subworker_definitions: subworker_definitions.into_iter().map(|x| (x.id, x)).collect(),
+            subworker_definitions: subworker_definitions
+                .into_iter()
+                .map(|x| (x.id, x))
+                .collect(),
             tasks: Default::default(),
             subworkers: Default::default(),
             free_subworkers: Default::default(),

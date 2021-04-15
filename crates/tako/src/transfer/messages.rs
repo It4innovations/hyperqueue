@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
+
 use crate::common::data::SerializationType;
 use crate::TaskId;
-use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FetchRequestMsg {

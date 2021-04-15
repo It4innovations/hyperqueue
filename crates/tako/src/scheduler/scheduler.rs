@@ -1,24 +1,26 @@
-use crate::server::core::{CoreRef, Core};
-use crate::server::comm::{CommSenderRef, Comm};
-use std::time::{Duration, Instant};
-use tokio::time::sleep;
-use super::utils::task_transfer_cost;
-use crate::server::task::{TaskRuntimeState, Task, TaskRef};
 use std::cmp::Ordering;
-use rand::seq::SliceRandom;
-use rand::rngs::SmallRng;
-use crate::common::Map;
-use crate::{WorkerId, TaskId};
-use crate::server::worker::Worker;
-use super::metrics::compute_b_level_metric;
-use rand::SeedableRng;
-use crate::messages::worker::{ToWorkerMessage, TaskIdsMsg};
-use crate::common::trace::trace_task_assign;
-use tokio::sync::Notify;
 use std::rc::Rc;
+use std::time::{Duration, Instant};
+
+use rand::rngs::SmallRng;
+use rand::seq::SliceRandom;
+use rand::SeedableRng;
+use tokio::sync::Notify;
+use tokio::time::sleep;
+
+use crate::common::trace::trace_task_assign;
+use crate::common::Map;
+use crate::messages::worker::{TaskIdsMsg, ToWorkerMessage};
+use crate::server::comm::{Comm, CommSenderRef};
+use crate::server::core::{Core, CoreRef};
+use crate::server::task::{Task, TaskRef, TaskRuntimeState};
+use crate::server::worker::Worker;
+use crate::{TaskId, WorkerId};
+
+use super::metrics::compute_b_level_metric;
+use super::utils::task_transfer_cost;
 
 pub struct SchedulerState {
-
     // Which tasks has modified state, this map holds the original state
     dirty_tasks: Map<TaskRef, TaskRuntimeState>,
 
@@ -51,12 +53,11 @@ fn choose_worker_for_task(
     }
 }
 
-
 pub async fn scheduler_loop(
     core_ref: CoreRef,
     comm_ref: CommSenderRef,
     scheduler_wakeup: Rc<Notify>,
-    minimum_delay: Duration
+    minimum_delay: Duration,
 ) {
     let mut last_schedule = Instant::now() - minimum_delay * 2;
     let mut state = SchedulerState {
@@ -76,7 +77,6 @@ pub async fn scheduler_loop(
     }
 }
 
-
 impl SchedulerState {
     fn run_scheduling(&mut self, core: &mut Core, comm: &mut impl Comm) {
         if self.schedule_available_tasks(core) {
@@ -94,14 +94,20 @@ impl SchedulerState {
                 (TaskRuntimeState::Assigned(w_id), TaskRuntimeState::Waiting(winfo)) => {
                     debug_assert_eq!(winfo.unfinished_deps, 0);
                     debug_assert!(task.is_fresh());
-                    task_computes.entry(*w_id).or_default().push(task_ref.clone())
-                },
-                (TaskRuntimeState::Stealing(from_id, to_id), TaskRuntimeState::Assigned(w_id)) => {
+                    task_computes
+                        .entry(*w_id)
+                        .or_default()
+                        .push(task_ref.clone())
+                }
+                (TaskRuntimeState::Stealing(from_id, _to_id), TaskRuntimeState::Assigned(w_id)) => {
                     debug_assert_eq!(*from_id, w_id);
                     debug_assert!(!task.is_fresh());
                     task_steals.entry(w_id).or_default().push(task.id);
                 }
-                (TaskRuntimeState::Stealing(from_w1, to_w1), TaskRuntimeState::Stealing(from_w2, to_w2)) => {
+                (
+                    TaskRuntimeState::Stealing(from_w1, _to_w1),
+                    TaskRuntimeState::Stealing(from_w2, _to_w2),
+                ) => {
                     debug_assert!(!task.is_fresh());
                     debug_assert_eq!(*from_w1, from_w2);
                 }
@@ -111,27 +117,26 @@ impl SchedulerState {
             }
         }
 
-    for (worker_id, task_ids) in task_steals {
-        comm.send_worker_message(
-            worker_id,
-            &ToWorkerMessage::StealTasks(TaskIdsMsg { ids: task_ids }),
-        );
-    }
+        for (worker_id, task_ids) in task_steals {
+            comm.send_worker_message(
+                worker_id,
+                &ToWorkerMessage::StealTasks(TaskIdsMsg { ids: task_ids }),
+            );
+        }
 
-    for (worker_id, mut task_refs) in task_computes {
-        task_refs.sort_unstable_by_key(|tr| {
-            let t = tr.get();
-            (-t.user_priority, -t.scheduler_priority)
-        });
-        for task_ref in task_refs {
-            let mut task = task_ref.get_mut();
-            task.set_fresh_flag(false);
-            trace_task_assign(task.id, worker_id);
-            comm.send_worker_message(worker_id, &task.make_compute_message());
+        for (worker_id, mut task_refs) in task_computes {
+            task_refs.sort_unstable_by_key(|tr| {
+                let t = tr.get();
+                (-t.user_priority, -t.scheduler_priority)
+            });
+            for task_ref in task_refs {
+                let mut task = task_ref.get_mut();
+                task.set_fresh_flag(false);
+                trace_task_assign(task.id, worker_id);
+                comm.send_worker_message(worker_id, &task.make_compute_message());
+            }
         }
     }
-
-   }
 
     pub fn assign(
         &mut self,
@@ -155,7 +160,9 @@ impl SchedulerState {
             }
             t.set_future_placement(worker_id);
         }
-        core.get_worker_mut_by_id_or_panic(worker_id).tasks.insert(task_ref.clone());
+        core.get_worker_mut_by_id_or_panic(worker_id)
+            .tasks
+            .insert(task_ref.clone());
         let new_state = match task.state {
             TaskRuntimeState::Waiting(_) => TaskRuntimeState::Assigned(worker_id),
             TaskRuntimeState::Assigned(old_w) => {
@@ -164,16 +171,19 @@ impl SchedulerState {
                 } else {
                     TaskRuntimeState::Stealing(old_w, Some(worker_id))
                 }
-            },
-            TaskRuntimeState::Stealing(from_w, _) => TaskRuntimeState::Stealing(from_w, Some(worker_id)),
-            TaskRuntimeState::Running(_) |
-            TaskRuntimeState::Finished(_) |
-            TaskRuntimeState::Released => { panic!("Invalid state {:?}", task.state); }
+            }
+            TaskRuntimeState::Stealing(from_w, _) => {
+                TaskRuntimeState::Stealing(from_w, Some(worker_id))
+            }
+            TaskRuntimeState::Running(_)
+            | TaskRuntimeState::Finished(_)
+            | TaskRuntimeState::Released => {
+                panic!("Invalid state {:?}", task.state);
+            }
         };
         let old_state = std::mem::replace(&mut task.state, new_state);
         self.dirty_tasks.entry(task_ref).or_insert(old_state);
     }
-
 
     /// Returns true if balancing is needed.
     fn schedule_available_tasks(&mut self, core: &mut Core) -> bool {
@@ -195,17 +205,10 @@ impl SchedulerState {
             assert!(task.is_waiting());
             let worker_id = choose_worker_for_task(&task, core.get_worker_map(), &mut self.random);
             log::debug!("Task {} initially assigned to {}", task.id, worker_id);
-            self.assign(
-                core,
-                &mut task,
-                tr.clone(),
-                worker_id
-            );
+            self.assign(core, &mut task, tr.clone(), worker_id);
         }
 
-        let has_underload_workers = core.get_workers().any(|w| {
-            w.is_underloaded()
-        });
+        let has_underload_workers = core.get_workers().any(|w| w.is_underloaded());
 
         log::debug!("Scheduling finished");
         has_underload_workers
@@ -255,7 +258,10 @@ impl SchedulerState {
         }
         underload_workers.sort_by_key(|x| x.1);
 
-        let mut n_tasks = core.get_worker_by_id_or_panic(underload_workers[0].0).tasks.len();
+        let mut n_tasks = core
+            .get_worker_by_id_or_panic(underload_workers[0].0)
+            .tasks
+            .len();
         loop {
             let mut change = false;
             for (worker_id, initial_n_tasks, ts) in underload_workers.iter_mut() {
@@ -287,12 +293,7 @@ impl SchedulerState {
                         old_worker_id,
                         worker_id
                     );
-                    self.assign(
-                        core,
-                        &mut task,
-                        tr.clone(),
-                        *worker_id,
-                    );
+                    self.assign(core, &mut task, tr.clone(), *worker_id);
                     break;
                 }
                 change = true;
@@ -306,23 +307,25 @@ impl SchedulerState {
     }
 }
 
-
 #[cfg(test)]
 pub mod tests {
+    use crate::common::Set;
+    use crate::messages::worker::{StealResponse, StealResponseMsg};
+    use crate::server::core::Core;
+    use crate::server::reactor::on_steal_response;
+    use crate::server::test_util::{
+        create_test_comm, create_test_workers, finish_on_worker, start_and_finish_on_worker,
+        submit_example_1, submit_test_tasks, task,
+    };
+
     use super::*;
 
     pub fn create_test_scheduler() -> SchedulerState {
         SchedulerState {
             dirty_tasks: Default::default(),
-            random: SmallRng::from_seed([0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0,0, 0, 0, 0,]),
+            random: SmallRng::from_seed([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
         }
     }
-
-    use crate::server::core::{Core};
-    use crate::server::test_util::{create_test_workers, task, submit_test_tasks, create_test_comm, finish_on_worker, submit_example_1, start_and_finish_on_worker};
-    use crate::common::Set;
-    use crate::server::reactor::on_steal_response;
-    use crate::messages::worker::{StealResponseMsg, StealResponse};
 
     #[test]
     fn test_no_deps_distribute() {
@@ -334,9 +337,9 @@ pub mod tests {
             assert!(w.is_underloaded());
         }
 
-        let mut active_ids : Set<TaskId> = (1..301).collect();
-        let tasks : Vec<TaskRef> = (1..301).map(|i| task(i)).collect();
-        let task_refs : Vec<&TaskRef> = tasks.iter().collect();
+        let mut active_ids: Set<TaskId> = (1..301).collect();
+        let tasks: Vec<TaskRef> = (1..301).map(|i| task(i)).collect();
+        let task_refs: Vec<&TaskRef> = tasks.iter().collect();
         submit_test_tasks(&mut core, &task_refs);
 
         let mut scheduler = create_test_scheduler();
@@ -361,11 +364,11 @@ pub mod tests {
         let mut finish_all = |core: &mut Core, msgs, worker_id| {
             for m in msgs {
                 match m {
-                   ToWorkerMessage::ComputeTask(cm) => {
-                       assert!(active_ids.remove(&cm.id));
-                       finish_on_worker(core, cm.id, worker_id, 1000);
-                   },
-                   _ => unreachable!()
+                    ToWorkerMessage::ComputeTask(cm) => {
+                        assert!(active_ids.remove(&cm.id));
+                        finish_on_worker(core, cm.id, worker_id, 1000);
+                    }
+                    _ => unreachable!(),
                 };
             }
         };
@@ -388,14 +391,23 @@ pub mod tests {
         let x1 = comm.take_worker_msgs(101, 1);
 
         let stealing = match &x1[0] {
-                ToWorkerMessage::StealTasks(tasks) => { tasks.ids.clone() }
-                _ => { unreachable!() }
+            ToWorkerMessage::StealTasks(tasks) => tasks.ids.clone(),
+            _ => {
+                unreachable!()
+            }
         };
 
         comm.emptiness_check();
         core.sanity_check();
 
-        on_steal_response(&mut core, &mut comm, 101, StealResponseMsg { responses: stealing.iter().map(|t| (*t, StealResponse::Ok)).collect() });
+        on_steal_response(
+            &mut core,
+            &mut comm,
+            101,
+            StealResponseMsg {
+                responses: stealing.iter().map(|t| (*t, StealResponse::Ok)).collect(),
+            },
+        );
 
         let n1 = comm.take_worker_msgs(100, 0);
         let n3 = comm.take_worker_msgs(102, 0);
@@ -413,7 +425,10 @@ pub mod tests {
 
         finish_all(&mut core, n1, 100);
         finish_all(&mut core, n3, 102);
-        assert_eq!(active_ids.len(), core.get_worker_by_id_or_panic(101).tasks.len());
+        assert_eq!(
+            active_ids.len(),
+            core.get_worker_by_id_or_panic(101).tasks.len()
+        );
 
         comm.emptiness_check();
         core.sanity_check();
@@ -422,12 +437,12 @@ pub mod tests {
     #[test]
     fn test_minimal_transfer_no_balance1() {
         /*11  12
-           \  / \
-           13   14
+          \  / \
+          13   14
 
-           11 - is big on W100
-           12 - is small on W101
-         */
+          11 - is big on W100
+          12 - is small on W101
+        */
 
         let mut core = Core::default();
         create_test_workers(&mut core, &[2, 2, 2]);
@@ -442,8 +457,20 @@ pub mod tests {
         let m1 = comm.take_worker_msgs(100, 1);
         let m2 = comm.take_worker_msgs(101, 1);
 
-        assert_eq!(core.get_task_by_id_or_panic(13).get().get_assigned_worker().unwrap(), 100);
-        assert_eq!(core.get_task_by_id_or_panic(14).get().get_assigned_worker().unwrap(), 101);
+        assert_eq!(
+            core.get_task_by_id_or_panic(13)
+                .get()
+                .get_assigned_worker()
+                .unwrap(),
+            100
+        );
+        assert_eq!(
+            core.get_task_by_id_or_panic(14)
+                .get()
+                .get_assigned_worker()
+                .unwrap(),
+            101
+        );
 
         comm.emptiness_check();
         core.sanity_check();
@@ -452,12 +479,12 @@ pub mod tests {
     #[test]
     fn test_minimal_transfer_no_balance2() {
         /*11  12
-           \  / \
-           13   14
+          \  / \
+          13   14
 
-           11 - is small on W100
-           12 - is big on W102
-         */
+          11 - is small on W100
+          12 - is big on W102
+        */
 
         let mut core = Core::default();
         create_test_workers(&mut core, &[2, 2, 2]);
@@ -471,23 +498,34 @@ pub mod tests {
 
         comm.take_worker_msgs(101, 2);
 
-        assert_eq!(core.get_task_by_id_or_panic(13).get().get_assigned_worker().unwrap(), 101);
-        assert_eq!(core.get_task_by_id_or_panic(14).get().get_assigned_worker().unwrap(), 101);
+        assert_eq!(
+            core.get_task_by_id_or_panic(13)
+                .get()
+                .get_assigned_worker()
+                .unwrap(),
+            101
+        );
+        assert_eq!(
+            core.get_task_by_id_or_panic(14)
+                .get()
+                .get_assigned_worker()
+                .unwrap(),
+            101
+        );
 
         comm.emptiness_check();
         core.sanity_check();
     }
 
-
     #[test]
     fn test_minimal_transfer_after_balance() {
         /*11  12
-           \  / \
-           13   14
+          \  / \
+          13   14
 
-           11 - is on W100
-           12 - is on W100
-         */
+          11 - is on W100
+          12 - is on W100
+        */
 
         let mut core = Core::default();
         create_test_workers(&mut core, &[1, 1]);
@@ -504,12 +542,22 @@ pub mod tests {
         comm.take_worker_msgs(100, 1);
         comm.take_worker_msgs(101, 1);
 
-
-        assert_eq!(core.get_task_by_id_or_panic(13).get().get_assigned_worker().unwrap(), 100);
-        assert_eq!(core.get_task_by_id_or_panic(14).get().get_assigned_worker().unwrap(), 101);
+        assert_eq!(
+            core.get_task_by_id_or_panic(13)
+                .get()
+                .get_assigned_worker()
+                .unwrap(),
+            100
+        );
+        assert_eq!(
+            core.get_task_by_id_or_panic(14)
+                .get()
+                .get_assigned_worker()
+                .unwrap(),
+            101
+        );
 
         comm.emptiness_check();
         core.sanity_check();
     }
-
 }

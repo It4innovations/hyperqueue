@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize, Serializer};
-use crate::{TaskId, TaskTypeId, OutputId};
-use crate::messages::common::{TaskFailInfo, SubworkerDefinition};
-use crate::messages::worker::WorkerOverview;
 
+use crate::messages::common::{SubworkerDefinition, TaskFailInfo};
+use crate::messages::worker::WorkerOverview;
+use crate::{OutputId, TaskId, TaskTypeId};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskDef {
@@ -20,28 +20,27 @@ pub struct TaskDef {
     pub keep: bool,
 
     #[serde(default)]
-    pub observe: bool
+    pub observe: bool,
 }
-
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct NewTasksMessage {
-    pub tasks: Vec<TaskDef>
+    pub tasks: Vec<TaskDef>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ObserveTasksMessage {
-    pub tasks: Vec<TaskId>
+    pub tasks: Vec<TaskId>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskInfoRequest {
-    pub tasks: Vec<TaskId> // If empty, then all tasks are assumed
+    pub tasks: Vec<TaskId>, // If empty, then all tasks are assumed
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CancelTasks {
-    pub tasks: Vec<TaskId> // If empty, then all tasks are assumed
+    pub tasks: Vec<TaskId>, // If empty, then all tasks are assumed
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -55,7 +54,6 @@ pub enum FromGatewayMessage {
     ServerInfo,
     GetOverview,
 }
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NewTasksResponse {
@@ -97,7 +95,7 @@ pub struct TaskUpdate {
 pub struct TaskFailedMessage {
     pub id: TaskId,
     pub cancelled_tasks: Vec<TaskId>,
-    pub info: TaskFailInfo
+    pub info: TaskFailInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -111,10 +109,9 @@ pub struct TaskInfo {
     pub state: TaskState,
 }
 
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TasksInfoResponse {
-    pub tasks: Vec<TaskInfo>
+    pub tasks: Vec<TaskInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

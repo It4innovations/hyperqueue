@@ -1,13 +1,11 @@
 use std::collections::HashSet;
 use std::fmt;
 
-use crate::common::{Set, WrappedRcRefCell, Map};
-use crate::{TaskId, TaskTypeId, OutputId};
+use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::Priority;
 use crate::WorkerId;
-
-
+use crate::{OutputId, TaskId, TaskTypeId};
 
 #[derive(Debug)]
 pub struct DataInfo {
@@ -22,7 +20,7 @@ pub struct WaitingInfo {
 pub struct FinishInfo {
     pub data_info: DataInfo,
     pub placement: Set<WorkerId>,
-    pub future_placement: Map<WorkerId, u32>
+    pub future_placement: Map<WorkerId, u32>,
 }
 
 pub enum TaskRuntimeState {
@@ -59,7 +57,6 @@ bitflags::bitflags! {
     }
 }
 
-
 #[derive(Debug)]
 pub struct Task {
     pub id: TaskId,
@@ -81,7 +78,6 @@ pub struct Task {
 pub type TaskRef = WrappedRcRefCell<Task>;
 
 impl Task {
-
     pub fn clear(&mut self) {
         self.inputs = Default::default();
         self.spec = Default::default();
@@ -89,7 +85,13 @@ impl Task {
 
     #[inline]
     pub fn is_ready(&self) -> bool {
-        matches!(self.state, TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0, ..}))
+        matches!(
+            self.state,
+            TaskRuntimeState::Waiting(WaitingInfo {
+                unfinished_deps: 0,
+                ..
+            })
+        )
     }
 
     #[inline]
@@ -100,8 +102,13 @@ impl Task {
     #[inline]
     pub fn decrease_unfinished_deps(&mut self) -> bool {
         match &mut self.state {
-            TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps, ..}) if *unfinished_deps > 0 => { *unfinished_deps -= 1; *unfinished_deps == 0 }
-            _ => panic!("Invalid state")
+            TaskRuntimeState::Waiting(WaitingInfo {
+                unfinished_deps, ..
+            }) if *unfinished_deps > 0 => {
+                *unfinished_deps -= 1;
+                *unfinished_deps == 0
+            }
+            _ => panic!("Invalid state"),
         }
     }
 
@@ -158,11 +165,14 @@ impl Task {
     }
 
     #[inline]
-    pub fn is_fresh(&self) -> bool { self.flags.contains(TaskFlags::FRESH) }
+    pub fn is_fresh(&self) -> bool {
+        self.flags.contains(TaskFlags::FRESH)
+    }
 
     #[inline]
-    pub fn is_taken(&self) -> bool { self.flags.contains(TaskFlags::TAKE) }
-
+    pub fn is_taken(&self) -> bool {
+        self.flags.contains(TaskFlags::TAKE)
+    }
 
     #[inline]
     pub fn is_removable(&self) -> bool {
@@ -191,12 +201,7 @@ impl Task {
             .map(|task_ref| {
                 //let task_ref = core.get_task_by_id_or_panic(*task_id);
                 let task = task_ref.get();
-                let addresses: Vec<_> = task
-                    .get_placement()
-                    .unwrap()
-                    .iter()
-                    .copied()
-                    .collect();
+                let addresses: Vec<_> = task.get_placement().unwrap().iter().copied().collect();
                 (task.id, task.data_info().unwrap().data_info.size, addresses)
             })
             .collect();
@@ -225,7 +230,9 @@ impl Task {
     #[inline]
     pub fn is_assigned_or_stealed_from(&self, worker_id: WorkerId) -> bool {
         match &self.state {
-            TaskRuntimeState::Assigned(w) |  TaskRuntimeState::Running(w) | TaskRuntimeState::Stealing(w, _) => worker_id == *w,
+            TaskRuntimeState::Assigned(w)
+            | TaskRuntimeState::Running(w)
+            | TaskRuntimeState::Stealing(w, _) => worker_id == *w,
             _ => false,
         }
     }
@@ -237,12 +244,20 @@ impl Task {
 
     #[inline]
     pub fn is_done(&self) -> bool {
-        matches!(&self.state, TaskRuntimeState::Finished(_) | TaskRuntimeState::Released)
+        matches!(
+            &self.state,
+            TaskRuntimeState::Finished(_) | TaskRuntimeState::Released
+        )
     }
 
     #[inline]
     pub fn is_done_or_running(&self) -> bool {
-        matches!(&self.state, TaskRuntimeState::Finished(_) | TaskRuntimeState::Released | TaskRuntimeState::Running(_))
+        matches!(
+            &self.state,
+            TaskRuntimeState::Finished(_)
+                | TaskRuntimeState::Released
+                | TaskRuntimeState::Running(_)
+        )
     }
 
     #[inline]
@@ -253,15 +268,16 @@ impl Task {
         }
     }
 
-
     #[inline]
     pub fn get_assigned_worker(&self) -> Option<WorkerId> {
         match &self.state {
             TaskRuntimeState::Waiting(_) => None,
-            TaskRuntimeState::Assigned(id) | TaskRuntimeState::Running(id) | TaskRuntimeState::Stealing(_, Some(id)) => Some(*id),
+            TaskRuntimeState::Assigned(id)
+            | TaskRuntimeState::Running(id)
+            | TaskRuntimeState::Stealing(_, Some(id)) => Some(*id),
             TaskRuntimeState::Stealing(_, None) => None,
             TaskRuntimeState::Finished(_) => None,
-            TaskRuntimeState::Released => None
+            TaskRuntimeState::Released => None,
         }
     }
 
@@ -284,7 +300,9 @@ impl Task {
                     *count -= 1;
                 }
             }
-            _ => { unreachable!() }
+            _ => {
+                unreachable!()
+            }
         }
     }
 
@@ -294,9 +312,8 @@ impl Task {
             TaskRuntimeState::Finished(ref mut finfo) => {
                 (*finfo.future_placement.entry(worker_id).or_insert(0)) += 1;
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
-
     }
 
     #[inline]
@@ -353,16 +370,16 @@ mod tests {
     use std::default::Default;
 
     use crate::server::core::Core;
-    use crate::server::test_util::{task, task_with_deps, submit_test_tasks};
-    //use crate::test_util::{submit_test_tasks, task, task_with_deps};
-
     use crate::server::task::{Task, TaskRuntimeState};
+    use crate::server::test_util::{submit_test_tasks, task, task_with_deps};
+
+    //use crate::test_util::{submit_test_tasks, task, task_with_deps};
 
     impl Task {
         pub fn get_unfinished_deps(&self) -> u32 {
             match &self.state {
                 TaskRuntimeState::Waiting(winfo) => winfo.unfinished_deps,
-                _ => panic!("Invalid state")
+                _ => panic!("Invalid state"),
             }
         }
     }
@@ -382,10 +399,7 @@ mod tests {
         let d = task_with_deps(3, &[&b], 1);
         let e = task_with_deps(4, &[&c, &d], 1);
 
-        submit_test_tasks(
-            &mut core,
-            &[&a, &b, &c, &d, &e],
-        );
+        submit_test_tasks(&mut core, &[&a, &b, &c, &d, &e]);
 
         assert_eq!(
             a.get().collect_consumers(),

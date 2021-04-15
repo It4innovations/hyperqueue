@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::common::Map;
-use crate::{TaskId, WorkerId, TaskTypeId, OutputId};
+use crate::messages::common::{SubworkerDefinition, TaskFailInfo};
 use crate::Priority;
-use crate::messages::common::{TaskFailInfo, SubworkerDefinition};
+use crate::{OutputId, TaskId, TaskTypeId, WorkerId};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerRegistrationResponse {

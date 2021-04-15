@@ -1,12 +1,17 @@
-use crate::TaskId;
+use smallvec::smallvec;
+
 use crate::worker::data::{DataObjectState, InSubworkersData, LocalDownloadingData, Subscriber};
 use crate::worker::state::WorkerState;
 use crate::worker::task::{Task, TaskRef, TaskState};
-use smallvec::smallvec;
 use crate::worker::taskenv::TaskEnv;
+use crate::TaskId;
 
-
-pub fn start_task(state: &mut WorkerState, task: &mut Task, task_ref: &TaskRef, mut task_env: TaskEnv) {
+pub fn start_task(
+    state: &mut WorkerState,
+    task: &mut Task,
+    task_ref: &TaskRef,
+    mut task_env: TaskEnv,
+) {
     task_env.start_task(state, task, task_ref);
     state.running_tasks.insert(task_ref.clone());
     task.state = TaskState::Running(task_env);
@@ -19,7 +24,7 @@ pub fn assign_task(state: &mut WorkerState, task_ref: &TaskRef) {
     let task_env = if let Some(env) = TaskEnv::create(state, &task) {
         env
     } else {
-        return
+        return;
     };
     let mut waiting_count = 0;
     for data_ref in &task.deps {

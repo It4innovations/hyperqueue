@@ -1,11 +1,10 @@
+import os
+import time
+
+import pytest
+from tako.client import TaskFailed
 from tako.client.program import ProgramDefinition
 from tako.client.task import make_program_task
-from tako.client import TaskFailed
-
-
-import os
-import pytest
-import time
 
 
 def test_server_without_workers(tako_env):
@@ -21,7 +20,10 @@ def test_submit_simple_task_ok(tako_env):
 
     t1 = make_program_task(ProgramDefinition(["/bin/hostname"]), keep=True)
     t2 = make_program_task(ProgramDefinition(["/bin/hostname"]))
-    t3 = make_program_task(ProgramDefinition(["bash", "-c", "echo 'hello'"], stdout=stdout, stderr=stderr), keep=True)
+    t3 = make_program_task(
+        ProgramDefinition(["bash", "-c", "echo 'hello'"], stdout=stdout, stderr=stderr),
+        keep=True,
+    )
 
     assert t1._id is None
     assert t2._id is None
@@ -83,12 +85,18 @@ def test_submit_2_sleeps_on_1(tako_env):
     time.sleep(0.5)
     overview2 = session.overview()
     assert len(overview2["workers"][0]["running_tasks"]) == 1
-    assert overview1["workers"][0]["running_tasks"] == overview2["workers"][0]["running_tasks"]
+    assert (
+        overview1["workers"][0]["running_tasks"]
+        == overview2["workers"][0]["running_tasks"]
+    )
 
     time.sleep(0.5)
     overview2 = session.overview()
     assert len(overview2["workers"][0]["running_tasks"]) == 1
-    assert overview1["workers"][0]["running_tasks"] != overview2["workers"][0]["running_tasks"]
+    assert (
+        overview1["workers"][0]["running_tasks"]
+        != overview2["workers"][0]["running_tasks"]
+    )
 
     session.wait_all([t1, t2])
     end = time.time()

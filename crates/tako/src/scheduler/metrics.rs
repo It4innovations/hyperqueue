@@ -1,6 +1,6 @@
 use crate::common::{Map, Set};
+use crate::server::task::{Task, TaskRef};
 use crate::TaskId;
-use crate::server::task::{TaskRef, Task};
 
 pub fn compute_b_level_metric<'a>(tasks: &Map<TaskId, TaskRef>) {
     crawl(tasks, |t| t.get_consumers(), |t| &t.inputs);
@@ -47,9 +47,9 @@ fn crawl<'a, F1: Fn(&Task) -> &Set<TaskRef>, F2: Fn(&Task) -> &Vec<TaskRef>>(
 
 #[cfg(test)]
 mod tests {
-    use crate::server::core::{Core};
-    use crate::server::test_util::submit_example_2;
     use crate::scheduler::metrics::compute_b_level_metric;
+    use crate::server::core::Core;
+    use crate::server::test_util::submit_example_2;
 
     #[test]
     fn b_level_simple_graph() {
@@ -57,13 +57,47 @@ mod tests {
         submit_example_2(&mut core);
         compute_b_level_metric(core.get_task_map());
 
-        assert_eq!(core.get_task_by_id_or_panic(7).get().get_scheduler_priority(), 1);
-        assert_eq!(core.get_task_by_id_or_panic(6).get().get_scheduler_priority(), 2);
-        assert_eq!(core.get_task_by_id_or_panic(5).get().get_scheduler_priority(), 1);
-        assert_eq!(core.get_task_by_id_or_panic(4).get().get_scheduler_priority(), 2);
-        assert_eq!(core.get_task_by_id_or_panic(3).get().get_scheduler_priority(), 3);
-        assert_eq!(core.get_task_by_id_or_panic(2).get().get_scheduler_priority(), 3);
-        assert_eq!(core.get_task_by_id_or_panic(1).get().get_scheduler_priority(), 4);
+        assert_eq!(
+            core.get_task_by_id_or_panic(7)
+                .get()
+                .get_scheduler_priority(),
+            1
+        );
+        assert_eq!(
+            core.get_task_by_id_or_panic(6)
+                .get()
+                .get_scheduler_priority(),
+            2
+        );
+        assert_eq!(
+            core.get_task_by_id_or_panic(5)
+                .get()
+                .get_scheduler_priority(),
+            1
+        );
+        assert_eq!(
+            core.get_task_by_id_or_panic(4)
+                .get()
+                .get_scheduler_priority(),
+            2
+        );
+        assert_eq!(
+            core.get_task_by_id_or_panic(3)
+                .get()
+                .get_scheduler_priority(),
+            3
+        );
+        assert_eq!(
+            core.get_task_by_id_or_panic(2)
+                .get()
+                .get_scheduler_priority(),
+            3
+        );
+        assert_eq!(
+            core.get_task_by_id_or_panic(1)
+                .get()
+                .get_scheduler_priority(),
+            4
+        );
     }
-
 }
