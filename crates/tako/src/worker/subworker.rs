@@ -4,14 +4,15 @@ use std::process::Stdio;
 use bytes::{Bytes, BytesMut};
 use futures::stream::{SplitSink, SplitStream};
 use futures::{SinkExt, StreamExt};
+use smallvec::{smallvec, SmallVec};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::process::Command;
 use tokio::sync::oneshot;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-use crate::transfer::transport::make_protocol_builder;
+use crate::common::data::SerializationType;
 use crate::common::WrappedRcRefCell;
-
+use crate::transfer::transport::make_protocol_builder;
 use crate::worker::data::{
     DataObjectRef, DataObjectState, InSubworkersData, LocalData, Subscriber,
 };
@@ -20,16 +21,14 @@ use crate::worker::messages::{
     ComputeTaskMsg, DownloadRequestMsg, FromSubworkerMessage, RegisterSubworkerResponse,
     RemoveDataMsg, ToSubworkerMessage, UploadMsg,
 };
-use crate::worker::state::{WorkerStateRef, WorkerState};
+use crate::worker::paths::WorkerPaths;
+use crate::worker::reactor::start_task;
+use crate::worker::state::{WorkerState, WorkerStateRef};
 use crate::worker::task::{Task, TaskRef, TaskState};
+use crate::worker::taskenv::TaskEnv;
+use crate::TaskId;
 
 use super::messages::RegisterSubworkerMessage;
-use crate::common::data::SerializationType;
-use crate::TaskId;
-use crate::worker::reactor::{start_task};
-use smallvec::{smallvec, SmallVec};
-use crate::worker::paths::WorkerPaths;
-use crate::worker::taskenv::TaskEnv;
 
 pub(crate) type SubworkerId = u32;
 
@@ -166,16 +165,12 @@ fn subworker_download_finished(
                     match subscriber {
                         Subscriber::Task(task_ref) => {
                             let mut task = task_ref.get_mut();
-                            let start_env : Option<TaskEnv> = match &mut task.state {
+                            let start_env: Option<TaskEnv> = match &mut task.state {
                                 TaskState::Uploading(ref mut env, ref mut w) => {
                                     if let Some(target_sw_ref) = env.get_subworker() {
                                         subworkers.push(target_sw_ref.clone());
                                     }
-                                    env.send_data(
-                                        data_id,
-                                        bytes.clone(),
-                                        msg.serializer.clone(),
-                                    );
+                                    env.send_data(data_id, bytes.clone(), msg.serializer.clone());
                                     assert!(*w > 0);
                                     *w -= 1;
                                     if *w == 0 {
@@ -370,12 +365,12 @@ async fn run_subworker(
     todo!()
 }*/
 
-pub fn choose_subworker(state: &mut WorkerState, task: &Task) -> Option<SubworkerRef> {
+pub fn choose_subworker(state: &mut WorkerState, _task: &Task) -> Option<SubworkerRef> {
     if state.free_subworkers.is_empty() {
-        return None
+        return None;
     }
     todo!();
-    let fsw = &state.free_subworkers;
+    /*let fsw = &state.free_subworkers;
     let len = fsw.len();
     if len == 1 || task.deps.is_empty() {
         return Some(state.free_subworkers.pop().unwrap());
@@ -410,10 +405,8 @@ pub fn choose_subworker(state: &mut WorkerState, task: &Task) -> Option<Subworke
         .min_by_key(|x| x.1)
         .map(|x| x.0)
         .unwrap();
-    Some(state.free_subworkers.remove(pos))
+    Some(state.free_subworkers.remove(pos))*/
 }
-
-
 
 /*pub async fn start_subworkers(
     state: &WorkerStateRef,

@@ -1,25 +1,26 @@
-use crate::worker::task::{TaskRef};
-use crate::worker::state::WorkerStateRef;
-use crate::common::error::DsError;
-use crate::messages::common::{ProgramDefinition, TaskFailInfo};
-use tokio::process::Command;
 use std::fs::File;
 use std::process::Stdio;
-use crate::worker::data::{DataObjectRef, DataObjectState, LocalData};
-use crate::common::data::SerializationType;
-use tokio::sync::oneshot::Sender;
+
+use tokio::process::Command;
 use tokio::sync::oneshot;
+
+use crate::common::error::DsError;
+use crate::messages::common::{ProgramDefinition, TaskFailInfo};
+use crate::worker::state::WorkerStateRef;
+use crate::worker::task::TaskRef;
 
 fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Command> {
     if definition.args.is_empty() {
-        return Result::Err(crate::Error::GenericError("No command arguments".to_string()));
+        return Result::Err(crate::Error::GenericError(
+            "No command arguments".to_string(),
+        ));
     }
 
     let mut command = Command::new(&definition.args[0]);
 
     command.kill_on_drop(true);
     command.args(&definition.args[1..]);
-           //.current_dir(paths.work_dir);
+    //.current_dir(paths.work_dir);
 
     command.stdout(if let Some(filename) = &definition.stdout {
         Stdio::from(File::create(filename)?)
@@ -41,7 +42,7 @@ fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Com
 }
 
 async fn start_program_from_task(task_ref: &TaskRef) -> crate::Result<()> {
-    let definition : ProgramDefinition = {
+    let definition: ProgramDefinition = {
         let task = task_ref.get();
         rmp_serde::from_slice(&task.spec)?
     };
@@ -49,12 +50,18 @@ async fn start_program_from_task(task_ref: &TaskRef) -> crate::Result<()> {
     let status = command.status().await?;
     if !status.success() {
         let code = status.code().unwrap_or(-1);
-        return Result::Err(DsError::GenericError(format!("Program terminated with exit code {}", code)))
+        return Result::Err(DsError::GenericError(format!(
+            "Program terminated with exit code {}",
+            code
+        )));
     }
     Ok(())
 }
 
-pub fn launch_program_from_task(state_ref: WorkerStateRef, task_ref: TaskRef) -> oneshot::Sender<()> {
+pub fn launch_program_from_task(
+    state_ref: WorkerStateRef,
+    task_ref: TaskRef,
+) -> oneshot::Sender<()> {
     let (sender, receiver) = oneshot::channel();
     tokio::task::spawn_local(async move {
         log::debug!("Starting program launcher {}", task_ref.get().id);
@@ -92,7 +99,6 @@ pub fn launch_program_from_task(state_ref: WorkerStateRef, task_ref: TaskRef) ->
                 }
             }
         }
-
     });
     sender
 }

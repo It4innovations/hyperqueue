@@ -1,19 +1,22 @@
+use std::time::{Duration, Instant};
+
 use bytes::{Bytes, BytesMut};
-use futures::{FutureExt, SinkExt};
+use futures::SinkExt;
 use futures::{Sink, Stream, StreamExt};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpListener;
 
 use crate::common::rpc::forward_queue_to_sink;
-use crate::transfer::transport::make_protocol_builder;
-use crate::server::core::CoreRef;
 use crate::messages::generic::{GenericMessage, RegisterWorkerMsg};
 use crate::messages::worker::{FromWorkerMessage, WorkerRegistrationResponse};
-use crate::server::reactor::{on_new_worker, on_steal_response, on_task_error, on_task_finished, on_tasks_transferred, on_remove_worker};
 use crate::server::comm::CommSenderRef;
+use crate::server::core::CoreRef;
+use crate::server::reactor::{
+    on_new_worker, on_remove_worker, on_steal_response, on_task_error, on_task_finished,
+    on_tasks_transferred,
+};
 use crate::server::worker::Worker;
-use std::time::{Instant, Duration};
-
+use crate::transfer::transport::make_protocol_builder;
 
 pub async fn connection_initiator(
     listener: TcpListener,
@@ -85,11 +88,7 @@ pub async fn worker_rpc_loop<
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
     let worker = Worker::new(worker_id, msg.ncpus, msg.address);
 
-    on_new_worker(
-        &mut core_ref.get_mut(),
-        &mut *comm_ref.get_mut(),
-        worker,
-    );
+    on_new_worker(&mut core_ref.get_mut(), &mut *comm_ref.get_mut(), worker);
     comm_ref.get_mut().add_worker(worker_id, queue_sender);
 
     let snd_loop = forward_queue_to_sink(queue_receiver, sender);
@@ -107,30 +106,24 @@ pub async fn worker_rpc_loop<
                     on_task_finished(&mut core, &mut *comm, worker_id, msg);
                 }
                 FromWorkerMessage::TaskFailed(msg) => {
-                    on_task_error(
-                        &mut core,
-                        &mut *comm,
-                        worker_id,
-                        msg.id,
-                        msg.info
-                    );
+                    on_task_error(&mut core, &mut *comm, worker_id, msg.id, msg.info);
                 }
                 FromWorkerMessage::DataDownloaded(msg) => {
                     on_tasks_transferred(&mut core, &mut *comm, worker_id, msg.id)
                 }
                 FromWorkerMessage::StealResponse(msg) => {
                     on_steal_response(&mut core, &mut *comm, worker_id, msg)
-                },
+                }
                 FromWorkerMessage::Heartbeat => {
-                      core.get_worker_mut(worker_id).map(|worker| {
+                    core.get_worker_mut(worker_id).map(|worker| {
                         log::debug!("Heartbeat received, worker={}", worker_id);
                         worker.last_heartbeat = Instant::now();
-                      });
-                },
+                    });
+                }
                 FromWorkerMessage::Overview(overview) => {
                     core.get_worker_mut(worker_id).map(|worker| {
                         let sender = worker.overview_callbacks.remove(0);
-                        sender.send(overview);
+                        let _ = sender.send(overview);
                     });
                 }
             }
@@ -138,15 +131,18 @@ pub async fn worker_rpc_loop<
         ()
     };
 
-    let core_ref3 = core_ref.clone();
+    //let core_ref3 = core_ref.clone();
 
     let heartbeat_interval = Duration::from_millis(msg.heartbeat_interval as u64);
     let heartbeat_check = async move {
         let mut interval = tokio::time::interval(heartbeat_interval);
         loop {
             interval.tick().await;
-            let mut core = core_ref.get_mut();
-            let elapsed = core.get_worker_by_id_or_panic(worker_id).last_heartbeat.elapsed();
+            let core = core_ref.get();
+            let elapsed = core
+                .get_worker_by_id_or_panic(worker_id)
+                .last_heartbeat
+                .elapsed();
             if elapsed > heartbeat_interval * 2 {
                 break;
             }

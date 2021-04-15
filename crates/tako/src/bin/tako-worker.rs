@@ -1,19 +1,18 @@
-use std::path::PathBuf;
-use clap::Clap;
-use tako::common::setup::setup_logging;
 use std::fs;
-
-use rand::Rng;
-use rand::distributions::Alphanumeric;
-use tako::worker::rpc::run_worker;
-use tokio::task::LocalSet;
+use std::path::PathBuf;
 use std::time::Duration;
 
+use clap::Clap;
+use rand::distributions::Alphanumeric;
+use rand::Rng;
+use tokio::task::LocalSet;
+
+use tako::common::setup::setup_logging;
+use tako::worker::rpc::run_worker;
 
 #[derive(Clap)]
 #[clap(version = "1.0")]
 struct Opts {
-
     server_address: String,
 
     #[clap(long)]
@@ -22,12 +21,11 @@ struct Opts {
     #[clap(long)]
     local_directory: Option<PathBuf>,
 
-    #[clap(long, default_value="4000")]
+    #[clap(long, default_value = "4000")]
     heartbeat: u32,
 
     #[clap(long)]
     ncpus: Option<u32>,
-
 }
 
 fn create_local_directory(prefix: PathBuf) -> Result<PathBuf, std::io::Error> {
@@ -70,7 +68,15 @@ async fn main() -> tako::Result<()> {
     let heartbeat_interval = Duration::from_millis(opts.heartbeat as u64);
 
     let local_set = LocalSet::new();
-    local_set.run_until(run_worker(&opts.server_address, ncpus, work_dir, log_dir, heartbeat_interval)).await?;
+    local_set
+        .run_until(run_worker(
+            &opts.server_address,
+            ncpus,
+            work_dir,
+            log_dir,
+            heartbeat_interval,
+        ))
+        .await?;
     log::info!("tako worker ends");
     Ok(())
 }

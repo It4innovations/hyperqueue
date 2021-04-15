@@ -1,33 +1,33 @@
 use std::net::{Ipv4Addr, SocketAddr};
+use std::path::PathBuf;
 use std::time::Duration;
 
-use bytes::{Bytes, BytesMut, BufMut};
+use bytes::{BufMut, Bytes, BytesMut};
+use futures::stream::FuturesUnordered;
 use futures::{SinkExt, Stream, StreamExt};
-
 use tokio::net::lookup_host;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::LocalSet;
 use tokio::time::sleep;
 
-use crate::common::rpc::forward_queue_to_sink;
-use crate::transfer::transport::{make_protocol_builder, connect_to_worker};
-
-use crate::messages::generic::{GenericMessage, RegisterWorkerMsg};
-use crate::messages::worker::{FromWorkerMessage, StealResponseMsg, ToWorkerMessage, WorkerRegistrationResponse, WorkerOverview};
-use crate::PriorityTuple;
-use crate::Priority;
-use crate::transfer::messages::{DataRequest, DataResponse, FetchResponseData, UploadResponseMsg};
-use crate::worker::data::{DataObjectRef, DataObjectState, LocalData, Subscriber};
-
 use crate::common::data::SerializationType;
+use crate::common::rpc::forward_queue_to_sink;
+use crate::messages::generic::{GenericMessage, RegisterWorkerMsg};
+use crate::messages::worker::{
+    FromWorkerMessage, StealResponseMsg, ToWorkerMessage, WorkerOverview,
+    WorkerRegistrationResponse,
+};
 use crate::server::worker::WorkerId;
 use crate::transfer::fetch::fetch_data;
-use crate::worker::reactor::{start_local_download, assign_task};
+use crate::transfer::messages::{DataRequest, DataResponse, FetchResponseData, UploadResponseMsg};
+use crate::transfer::transport::{connect_to_worker, make_protocol_builder};
+use crate::transfer::DataConnection;
+use crate::worker::data::{DataObjectRef, DataObjectState, LocalData, Subscriber};
+use crate::worker::reactor::{assign_task, start_local_download};
 use crate::worker::state::WorkerStateRef;
 use crate::worker::task::TaskRef;
-use futures::stream::FuturesUnordered;
-use crate::transfer::DataConnection;
-use std::path::PathBuf;
+use crate::Priority;
+use crate::PriorityTuple;
 
 async fn start_listener() -> crate::Result<(TcpListener, String)> {
     let address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
@@ -109,7 +109,7 @@ pub async fn run_worker(
                     message.worker_addresses,
                     message.subworker_definitions,
                     work_dir,
-                    log_dir
+                    log_dir,
                 )
             }
             None => panic!("Connection closed without receiving registration response"),
@@ -139,7 +139,9 @@ pub async fn run_worker(
 
     let heartbeat = async move {
         let mut interval = tokio::time::interval(heartbeat_interval);
-        let data : Bytes = rmp_serde::to_vec_named(&FromWorkerMessage::Heartbeat).unwrap().into();
+        let data: Bytes = rmp_serde::to_vec_named(&FromWorkerMessage::Heartbeat)
+            .unwrap()
+            .into();
         loop {
             interval.tick().await;
             state_ref3.get().send_message_to_server(data.clone());
@@ -177,10 +179,9 @@ pub async fn run_worker(
 }
 
 const MAX_RUNNING_DOWNLOADS: usize = 32;
-const MAX_ATTEMPTS : u32 = 8;
+const MAX_ATTEMPTS: u32 = 8;
 
-async fn download_data(state_ref: WorkerStateRef, data_ref: DataObjectRef)
-{
+async fn download_data(state_ref: WorkerStateRef, data_ref: DataObjectRef) {
     for attempt in 0..MAX_ATTEMPTS {
         let (worker_id, data_id) = {
             let data_obj = data_ref.get();
@@ -202,12 +203,15 @@ async fn download_data(state_ref: WorkerStateRef, data_ref: DataObjectRef)
             (worker_id, data_obj.id)
         };
 
-
         let worker_conn = state_ref.get_mut().pop_worker_connection(worker_id);
         let stream = if let Some(stream) = worker_conn {
             stream
         } else {
-            let address = state_ref.get().get_worker_address(worker_id).unwrap().clone();
+            let address = state_ref
+                .get()
+                .get_worker_address(worker_id)
+                .unwrap()
+                .clone();
             connect_to_worker(address).await.unwrap()
         };
 
@@ -219,13 +223,21 @@ async fn download_data(state_ref: WorkerStateRef, data_ref: DataObjectRef)
                 return;
             }
             Err(e) => {
-                log::error!("Download of id={} failed; error={}; attempt={}/{}",
-                            data_ref.get().id, e, attempt, MAX_ATTEMPTS);
+                log::error!(
+                    "Download of id={} failed; error={}; attempt={}/{}",
+                    data_ref.get().id,
+                    e,
+                    attempt,
+                    MAX_ATTEMPTS
+                );
                 sleep(Duration::from_secs(1)).await;
             }
         }
     }
-    log::error!("Failed to download id={} after all attemps", data_ref.get().id);
+    log::error!(
+        "Failed to download id={} after all attemps",
+        data_ref.get().id
+    );
     todo!();
 }
 
@@ -235,8 +247,7 @@ async fn worker_data_downloader(
 ) {
     // TODO: Limit downloads, more parallel downloads, respect priorities
     // TODO: Reuse connections
-    let mut queue: priority_queue::PriorityQueue<DataObjectRef, PriorityTuple> =
-        Default::default();
+    let mut queue: priority_queue::PriorityQueue<DataObjectRef, PriorityTuple> = Default::default();
     //let mut random = SmallRng::from_entropy();
     //let mut stream = stream;
 
@@ -321,10 +332,14 @@ async fn worker_message_loop(
             ToWorkerMessage::GetOverview => {
                 let message = FromWorkerMessage::Overview(WorkerOverview {
                     id: state.worker_id,
-                    running_tasks: state.running_tasks.iter().map(|tr| {
-                        let task = tr.get();
-                        (task.id, 1) // TODO: Modify this when more cpus are allowed
-                    }).collect(),
+                    running_tasks: state
+                        .running_tasks
+                        .iter()
+                        .map(|tr| {
+                            let task = tr.get();
+                            (task.id, 1) // TODO: Modify this when more cpus are allowed
+                        })
+                        .collect(),
                     placed_data: state.data_objects.keys().copied().collect(),
                 });
                 state.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
@@ -491,7 +506,10 @@ async fn connection_rpc_loop(
                                     todo!()
                                 }
                                 DataObjectState::Local(local) => {
-                                    log::debug!("Uploaded data {} is already in worker", &msg.task_id);
+                                    log::debug!(
+                                        "Uploaded data {} is already in worker",
+                                        &msg.task_id
+                                    );
                                     if local.serializer != msg.serializer
                                         || local.bytes.len() != data.len()
                                     {

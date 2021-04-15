@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::common::data::SerializationType;
+use crate::messages::common::TaskFailInfo;
+use crate::TaskId;
 
 use super::subworker::SubworkerId;
-use crate::TaskId;
-use crate::messages::common::TaskFailInfo;
 
 #[derive(Deserialize, Debug)]
 pub(crate) struct RegisterSubworkerMessage {

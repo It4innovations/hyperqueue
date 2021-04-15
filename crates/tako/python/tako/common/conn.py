@@ -1,11 +1,10 @@
 import asyncio
+import logging
 import os
 import struct
-from asyncio import StreamReader, StreamWriter
-from asyncio import IncompleteReadError
+from asyncio import IncompleteReadError, StreamReader, StreamWriter
 
 import msgpack
-import logging
 
 logger = logging.getLogger(__name__)
 

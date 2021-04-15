@@ -1,12 +1,10 @@
 pub mod data;
-pub mod paths;
+pub mod launcher;
 mod messages;
+pub mod paths;
 mod reactor;
 pub mod rpc;
 mod state;
 pub mod subworker;
-pub mod taskenv;
 pub mod task;
-pub mod launcher;
-
-
+pub mod taskenv;

@@ -1,14 +1,15 @@
+use std::fmt::Debug;
+use std::fmt::Formatter;
+
 use bytes::Bytes;
 use hashbrown::HashSet;
+use smallvec::SmallVec;
 
 use crate::common::data::SerializationType;
 use crate::common::WrappedRcRefCell;
 use crate::worker::subworker::SubworkerRef;
 use crate::worker::task::TaskRef;
-use smallvec::SmallVec;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use crate::{WorkerId, TaskId};
+use crate::{TaskId, WorkerId};
 
 pub struct LocalData {
     pub serializer: SerializationType,

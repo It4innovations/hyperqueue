@@ -1,6 +1,5 @@
-
 from dataclasses import dataclass
-from typing import List, Optional, Mapping
+from typing import List, Mapping, Optional
 
 
 @dataclass
@@ -12,9 +11,7 @@ class ProgramDefinition:
     stderr: Optional[str] = None
 
     def as_dict(self):
-        output = {
-            "args": self.args
-        }
+        output = {"args": self.args}
         if self.env:
             output["env"] = self.env
         if self.stdout:

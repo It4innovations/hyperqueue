@@ -14,10 +14,16 @@ pub async fn forward_queue_to_sink<T, E, S: Sink<T, Error = E> + Unpin>(
     Ok(())
 }
 
-pub async fn forward_queue_to_sink_with_map<T1, T2, E, S: Sink<T2, Error = E> + Unpin, F: Fn(T1) -> T2>(
+pub async fn forward_queue_to_sink_with_map<
+    T1,
+    T2,
+    E,
+    S: Sink<T2, Error = E> + Unpin,
+    F: Fn(T1) -> T2,
+>(
     mut queue: UnboundedReceiver<T1>,
     mut sink: S,
-    function: F
+    function: F,
 ) -> Result<(), E> {
     while let Some(data) = queue.recv().await {
         if let Err(e) = sink.send(function(data)).await {

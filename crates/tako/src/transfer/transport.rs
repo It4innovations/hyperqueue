@@ -1,5 +1,6 @@
-use tokio_util::codec::length_delimited::{Builder, LengthDelimitedCodec};
 use tokio::net::TcpStream;
+use tokio_util::codec::length_delimited::{Builder, LengthDelimitedCodec};
+
 use crate::transfer::DataConnection;
 
 pub fn make_protocol_builder() -> Builder {

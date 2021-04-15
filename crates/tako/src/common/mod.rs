@@ -8,10 +8,10 @@ pub type Set<T> = hashbrown::HashSet<T>;
 
 mod cycle_wrapped;
 pub mod data;
+pub mod error;
 mod id_counter;
 pub mod rpc;
 mod wrapped;
-pub mod error;
 #[macro_use]
 pub mod trace;
 pub mod setup;

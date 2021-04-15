@@ -1,14 +1,15 @@
-use crate::messages::worker::ToWorkerMessage;
-use crate::server::worker::WorkerId;
+use std::rc::Rc;
+
+use bytes::Bytes;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::Notify;
 
 use crate::common::{Map, WrappedRcRefCell};
-use bytes::Bytes;
-use tokio::sync::mpsc::{UnboundedSender};
-use crate::TaskId;
-use crate::messages::gateway::{ToGatewayMessage, TaskUpdate, TaskState, TaskFailedMessage};
 use crate::messages::common::TaskFailInfo;
-use std::rc::Rc;
-use tokio::sync::Notify;
+use crate::messages::gateway::{TaskFailedMessage, TaskState, TaskUpdate, ToGatewayMessage};
+use crate::messages::worker::ToWorkerMessage;
+use crate::server::worker::WorkerId;
+use crate::TaskId;
 
 pub trait Comm {
     fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage);
@@ -96,10 +97,12 @@ impl Comm for CommSender {
     #[inline]
     fn send_client_task_finished(&mut self, task_id: TaskId) {
         log::debug!("Informing client about finished task={}", task_id);
-        self.client_sender.send(ToGatewayMessage::TaskUpdate(TaskUpdate {
-            id: task_id,
-            state: TaskState::Finished
-        })).unwrap();
+        self.client_sender
+            .send(ToGatewayMessage::TaskUpdate(TaskUpdate {
+                id: task_id,
+                state: TaskState::Finished,
+            }))
+            .unwrap();
     }
 
     fn send_client_task_error(
@@ -108,12 +111,14 @@ impl Comm for CommSender {
         consumers_id: Vec<TaskId>,
         error_info: TaskFailInfo,
     ) {
-        self.client_sender.send(ToGatewayMessage::TaskFailed({
-            TaskFailedMessage {
-                id: task_id,
-                info: error_info,
-                cancelled_tasks: consumers_id,
-            }
-        })).unwrap();
+        self.client_sender
+            .send(ToGatewayMessage::TaskFailed({
+                TaskFailedMessage {
+                    id: task_id,
+                    info: error_info,
+                    cancelled_tasks: consumers_id,
+                }
+            }))
+            .unwrap();
     }
 }

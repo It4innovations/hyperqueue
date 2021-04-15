@@ -1,21 +1,18 @@
-import logging
 import asyncio
+import logging
 import weakref
+from typing import List
 
+from ..common import conn
+from ..common.conn import SocketWrapper
 from .exception import TaskFailed
 from .subworker import SubworkerDefinition
 from .task import Task
-from ..common import conn
-from ..common.conn import SocketWrapper
-from typing import List
-
 
 logger = logging.getLogger(__name__)
 
 
-
 class Session:
-
     def __init__(self, connection: SocketWrapper):
         self.connection = connection
         self.task_id_counter = 0
@@ -34,7 +31,9 @@ class Session:
             elif msg["op"] == "Error":
                 raise Exception("Error from server: {}", msg["message"])
             else:
-                raise Exception(f"Unexpected message received {msg}, expecting {expected_response}")
+                raise Exception(
+                    f"Unexpected message received {msg}, expecting {expected_response}"
+                )
 
     def wait(self, task: Task):
         self.wait_all([task])
@@ -52,7 +51,7 @@ class Session:
         if not tasks:
             return
 
-        #def callback(msg):
+        # def callback(msg):
         #    if msg["state"] == "Finished" or msg["state"] == "Invalid":
         #        id_set.remove(msg["id"])
         #    return not id_set
@@ -73,7 +72,9 @@ class Session:
 
         message = {"op": "CancelTasks", "tasks": [task._id for task in tasks]}
         loop = asyncio.get_event_loop()
-        response = loop.run_until_complete(self._send_receive(message, "CancelTasksResponse"))
+        response = loop.run_until_complete(
+            self._send_receive(message, "CancelTasksResponse")
+        )
 
         for task_id in response["cancelled_tasks"]:
             self._finish_task(task_id, "Task canceled", None)
@@ -100,10 +101,11 @@ class Session:
             task_defs.append(task_def)
             self.tasks[task_id] = task
         loop = asyncio.get_event_loop()
-        response = loop.run_until_complete(self._send_receive({
-           "op": "NewTasks",
-           "tasks": task_defs
-        }, "NewTasksResponse"))
+        response = loop.run_until_complete(
+            self._send_receive(
+                {"op": "NewTasks", "tasks": task_defs}, "NewTasksResponse"
+            )
+        )
 
     def register_subworker(self, sw_def: SubworkerDefinition):
         message = sw_def.as_dict()

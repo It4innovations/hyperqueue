@@ -1,7 +1,5 @@
-
-from typing import List
-from dataclasses import dataclass
 import enum
+from dataclasses import dataclass
 
 from tako.client.program import ProgramDefinition
 

@@ -1,8 +1,8 @@
 use crate::common::WrappedRcRefCell;
 use crate::messages::worker::ComputeTaskMsg;
 use crate::worker::data::DataObjectRef;
-use crate::{TaskId, Priority, TaskTypeId, OutputId};
 use crate::worker::taskenv::TaskEnv;
+use crate::{OutputId, Priority, TaskId, TaskTypeId};
 
 pub enum TaskState {
     Waiting(u32),

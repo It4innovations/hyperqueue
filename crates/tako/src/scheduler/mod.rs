@@ -1,3 +1,3 @@
-pub mod scheduler;
 mod metrics;
+pub mod scheduler;
 mod utils;

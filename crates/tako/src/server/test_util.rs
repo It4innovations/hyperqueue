@@ -9,17 +9,16 @@ use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::common::{Map, WrappedRcRefCell};
-use crate::server::core::Core;
-
-use crate::server::comm::Comm;
-use crate::server::worker::{WorkerId, Worker};
-use crate::{TaskId, OutputId};
-use crate::messages::worker::{ToWorkerMessage, TaskFinishedMsg, StealResponseMsg, StealResponse};
-use crate::server::task::TaskRef;
 use crate::messages::common::TaskFailInfo;
+use crate::messages::worker::{StealResponse, StealResponseMsg, TaskFinishedMsg, ToWorkerMessage};
+use crate::scheduler::scheduler::tests::create_test_scheduler;
 use crate::scheduler::scheduler::SchedulerState;
-use crate::scheduler::scheduler::tests::{create_test_scheduler};
-use crate::server::reactor::{on_new_worker, on_new_tasks, on_task_finished, on_steal_response};
+use crate::server::comm::Comm;
+use crate::server::core::Core;
+use crate::server::reactor::{on_new_tasks, on_new_worker, on_steal_response, on_task_finished};
+use crate::server::task::TaskRef;
+use crate::server::worker::{Worker, WorkerId};
+use crate::{OutputId, TaskId};
 
 /// Memory stream for reading and writing at the same time.
 pub struct MemoryStream {
@@ -75,7 +74,7 @@ pub fn task(id: TaskId) -> TaskRef {
 }
 
 pub fn task_with_deps(id: TaskId, deps: &[&TaskRef], n_outputs: OutputId) -> TaskRef {
-    let inputs : Vec<TaskRef> = deps.iter().map(|&tr| tr.clone()).collect();
+    let inputs: Vec<TaskRef> = deps.iter().map(|&tr| tr.clone()).collect();
 
     TaskRef::new(
         id,
@@ -85,7 +84,7 @@ pub fn task_with_deps(id: TaskId, deps: &[&TaskRef], n_outputs: OutputId) -> Tas
         n_outputs,
         Default::default(),
         false,
-        false
+        false,
     )
 }
 
@@ -139,7 +138,10 @@ impl TestComm {
         std::mem::take(&mut self.client_task_finished)
     }
 
-    pub fn take_client_task_errors(&mut self, len: usize) -> Vec<(TaskId, Vec<TaskId>, TaskFailInfo)> {
+    pub fn take_client_task_errors(
+        &mut self,
+        len: usize,
+    ) -> Vec<(TaskId, Vec<TaskId>, TaskFailInfo)> {
         assert_eq!(self.client_task_errors.len(), len);
         std::mem::take(&mut self.client_task_errors)
     }
@@ -208,27 +210,53 @@ pub fn create_test_workers(core: &mut Core, cpus: &[u32]) {
 }
 
 pub fn submit_test_tasks(core: &mut Core, tasks: &[&TaskRef]) {
-    on_new_tasks(core, &mut TestComm::default(), tasks.iter().map(|&tr| tr.clone()).collect());
+    on_new_tasks(
+        core,
+        &mut TestComm::default(),
+        tasks.iter().map(|&tr| tr.clone()).collect(),
+    );
 }
 
-pub fn force_assign(core: &mut Core, scheduler: &mut SchedulerState, task_id: TaskId, worker_id: WorkerId) {
+pub fn force_assign(
+    core: &mut Core,
+    scheduler: &mut SchedulerState,
+    task_id: TaskId,
+    worker_id: WorkerId,
+) {
     let task_ref = core.get_task_by_id_or_panic(task_id).clone();
     core.remove_from_ready_to_assign(&task_ref);
     let mut task = task_ref.get_mut();
     scheduler.assign(core, &mut task, task_ref.clone(), worker_id);
 }
 
-pub fn force_reassign(core: &mut Core, scheduler: &mut SchedulerState, task_id: TaskId, worker_id: WorkerId) {
+pub fn force_reassign(
+    core: &mut Core,
+    scheduler: &mut SchedulerState,
+    task_id: TaskId,
+    worker_id: WorkerId,
+) {
     // The same as force_assign, but do not expect that task in ready_to_assign array
     let task_ref = core.get_task_by_id_or_panic(task_id).clone();
     let mut task = task_ref.get_mut();
     scheduler.assign(core, &mut task, task_ref.clone(), worker_id);
 }
 
-pub fn fail_steal(core: &mut Core, task_id: TaskId, worker_id: WorkerId, target_worker_id: WorkerId) {
+pub fn fail_steal(
+    core: &mut Core,
+    task_id: TaskId,
+    worker_id: WorkerId,
+    target_worker_id: WorkerId,
+) {
     start_stealing(core, task_id, target_worker_id);
     let mut comm = create_test_comm();
-    on_steal_response(core, &mut comm, worker_id, StealResponseMsg { responses: vec![(task_id, StealResponse::Running)] })
+    on_steal_response(
+        core,
+        &mut comm,
+        worker_id,
+        StealResponseMsg {
+            responses: vec![(task_id, StealResponse::Running)],
+        },
+    )
 }
 
 pub fn start_stealing(core: &mut Core, task_id: TaskId, new_worker_id: WorkerId) {
@@ -251,18 +279,19 @@ pub fn finish_on_worker(core: &mut Core, task_id: TaskId, worker_id: WorkerId, s
         core,
         &mut comm,
         worker_id,
-        TaskFinishedMsg {
-            id: task_id,
-            size,
-        },
+        TaskFinishedMsg { id: task_id, size },
     );
 }
 
-pub fn start_and_finish_on_worker(core: &mut Core, task_id: TaskId, worker_id: WorkerId, size: u64) {
+pub fn start_and_finish_on_worker(
+    core: &mut Core,
+    task_id: TaskId,
+    worker_id: WorkerId,
+    size: u64,
+) {
     start_on_worker(core, task_id, worker_id);
     finish_on_worker(core, task_id, worker_id, size);
 }
-
 
 pub fn submit_example_1(core: &mut Core) {
     /*
