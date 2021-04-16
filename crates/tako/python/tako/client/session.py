@@ -28,6 +28,8 @@ class Session:
                 self._task_failed(msg, wait_list)
             elif msg["op"] == "TaskUpdate":
                 self._task_update(msg, wait_list)
+            elif msg["op"] == "NewWorker" or msg["op"] == "LostWorker":
+                continue
             elif msg["op"] == "Error":
                 raise Exception("Error from server: {}", msg["message"])
             else:

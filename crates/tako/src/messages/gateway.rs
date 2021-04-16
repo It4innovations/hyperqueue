@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::messages::common::{SubworkerDefinition, TaskFailInfo};
+use crate::messages::common::{SubworkerDefinition, TaskFailInfo, WorkerConfiguration};
 use crate::messages::worker::WorkerOverview;
-use crate::{OutputId, TaskId, TaskTypeId};
+use crate::{OutputId, TaskId, TaskTypeId, WorkerId};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskDef {
@@ -133,6 +133,17 @@ pub struct CancelTasksResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct NewWorkerMessage {
+    pub worker_id: WorkerId,
+    pub configuration: WorkerConfiguration,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LostWorkerMessage {
+    pub worker_id: WorkerId,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "op")]
 pub enum ToGatewayMessage {
     NewTasksResponse(NewTasksResponse),
@@ -143,4 +154,6 @@ pub enum ToGatewayMessage {
     Error(ErrorResponse),
     ServerInfo(ServerInfo),
     Overview(Overview),
+    NewWorker(NewWorkerMessage),
+    LostWorker(LostWorkerMessage)
 }
