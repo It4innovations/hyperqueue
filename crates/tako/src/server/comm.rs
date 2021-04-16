@@ -6,7 +6,9 @@ use tokio::sync::Notify;
 
 use crate::common::{Map, WrappedRcRefCell};
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
-use crate::messages::gateway::{TaskFailedMessage, TaskState, TaskUpdate, ToGatewayMessage, NewWorkerMessage, LostWorkerMessage};
+use crate::messages::gateway::{
+    LostWorkerMessage, NewWorkerMessage, TaskFailedMessage, TaskState, TaskUpdate, ToGatewayMessage,
+};
 use crate::messages::worker::ToWorkerMessage;
 use crate::server::worker::WorkerId;
 use crate::TaskId;
@@ -126,12 +128,21 @@ impl Comm for CommSender {
     }
 
     fn send_client_worker_new(&mut self, worker_id: u64, configuration: &WorkerConfiguration) {
-        assert!(
-            self.client_sender.send(ToGatewayMessage::NewWorker(NewWorkerMessage { worker_id, configuration: configuration.clone() })).is_ok());
+        assert!(self
+            .client_sender
+            .send(ToGatewayMessage::NewWorker(NewWorkerMessage {
+                worker_id,
+                configuration: configuration.clone()
+            }))
+            .is_ok());
     }
 
     fn send_client_worker_lost(&mut self, worker_id: u64) {
-        assert!(
-            self.client_sender.send(ToGatewayMessage::LostWorker(LostWorkerMessage { worker_id })).is_ok());
+        assert!(self
+            .client_sender
+            .send(ToGatewayMessage::LostWorker(LostWorkerMessage {
+                worker_id
+            }))
+            .is_ok());
     }
 }

@@ -49,6 +49,17 @@ class Env:
         self.processes.append((name, p))
         return p
 
+    def expect_to_fail(self, process):
+        for i, (n, p) in enumerate(self.processes):
+            if p == process:
+                if process.returncode is None:
+                    p.poll()
+                assert process.returncode is not None and process.returncode != 0
+                del self.processes[i]
+                return
+        else:
+            raise Exception("Process not found")
+
     def kill_process(self, process):
         for i, (n, p) in enumerate(self.processes):
             if p == process:
@@ -92,6 +103,11 @@ class TakoEnv(Env):
         assert worker is not None
         self.kill_process(worker)
 
+    def expect_worker_fail(self, id):
+        worker = self.workers.pop(id)
+        assert worker is not None
+        self.expect_to_fail(worker)
+
     def no_final_check(self):
         self.do_final_check = False
 
@@ -101,7 +117,7 @@ class TakoEnv(Env):
         env["RUST_LOG"] = "debug"
         return env
 
-    def start_worker(self, ncpus, port=None, heartbeat=None):
+    def start_worker(self, ncpus, port=None, heartbeat=None, secret_file=None):
         port = port or self.default_listen_port
         worker_id = self.id_counter
         self.id_counter += 1
@@ -129,26 +145,21 @@ class TakoEnv(Env):
             args.append("--heartbeat")
             args.append(str(heartbeat))
 
+        if secret_file:
+            args.append("--secret-file")
+            args.append(secret_file)
+
         self.workers[worker_id] = self.start_process(name, args, env, cwd=work_dir)
         # else:
         #    program = "dask-worker"
         #    args = [program, "localhost:{}".format(port), "--nthreads", str(ncpus)]
         #    self.workers[name] = self.start_process(name, args, env)
 
-    def start(
-        self,
-        workers=(),
-        port=None,
-        worker_start_delay=None,
-        panic_on_worker_lost=True,
-        heartbeat=None,
-    ):
-        print("Starting tako env in ", self.work_path)
+    def create_secret_file(self, filename, secret):
+        with open(os.path.join(self.work_path, filename), "w") as f:
+            f.write(secret)
 
-        """
-        Start infrastructure: server & n governors
-        """
-
+    def start_server(self, port=None, panic_on_worker_lost=None, secret_file=None):
         if self.server:
             raise Exception("Server is already running")
 
@@ -165,9 +176,30 @@ class TakoEnv(Env):
 
         if panic_on_worker_lost:
             args.append("--panic-on-worker-lost")
+        if secret_file:
+            args.append("--secret-file")
+            args.append(secret_file)
 
         self.server = self.start_process("server", args, env=env)
         assert self.server is not None
+        return self.server
+
+    def start(
+        self,
+        workers=(),
+        port=None,
+        worker_start_delay=None,
+        panic_on_worker_lost=True,
+        heartbeat=None,
+        secret_file=None,
+    ):
+        print("Starting tako env in ", self.work_path)
+
+        """
+        Start infrastructure: server & n governors
+        """
+        port = port or self.default_listen_port
+        self.start_server(port=port, panic_on_worker_lost=panic_on_worker_lost, secret_file=secret_file)
 
         it = 0
         while check_free_port(port):
@@ -222,6 +254,10 @@ class TakoEnv(Env):
 
     def close(self):
         pass
+
+    def expect_server_fail(self):
+        self.expect_to_fail(self.server)
+        self.server = None
 
 
 @pytest.fixture(autouse=False, scope="function")

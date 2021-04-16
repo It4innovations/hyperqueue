@@ -1,23 +1,28 @@
 use std::net::{Ipv4Addr, SocketAddr};
+use std::rc::Rc;
 use std::time::Duration;
 
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{Bytes, BytesMut};
 use futures::stream::FuturesUnordered;
 use futures::{SinkExt, Stream, StreamExt};
+use orion::aead::streaming::StreamOpener;
+use orion::aead::SecretKey;
 use tokio::net::lookup_host;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::LocalSet;
 use tokio::time::sleep;
+use tokio::time::timeout;
 
 use crate::common::data::SerializationType;
-use crate::common::rpc::forward_queue_to_sink;
 use crate::messages::common::WorkerConfiguration;
-use crate::messages::generic::{GenericMessage, RegisterWorkerMsg};
 use crate::messages::worker::{
-    FromWorkerMessage, StealResponseMsg, ToWorkerMessage, WorkerOverview,
+    FromWorkerMessage, RegisterWorker, StealResponseMsg, ToWorkerMessage, WorkerOverview,
     WorkerRegistrationResponse,
 };
 use crate::server::worker::WorkerId;
+use crate::transfer::auth::{
+    do_authentication, forward_queue_to_sealed_sink, open_message, seal_message,
+};
 use crate::transfer::fetch::fetch_data;
 use crate::transfer::messages::{DataRequest, DataResponse, FetchResponseData, UploadResponseMsg};
 use crate::transfer::transport::{connect_to_worker, make_protocol_builder};
@@ -72,41 +77,47 @@ async fn connect_to_server(scheduler_address: &str) -> crate::Result<TcpStream> 
 pub async fn run_worker(
     scheduler_address: &str,
     mut configuration: WorkerConfiguration,
+    secret_key: Option<SecretKey>,
 ) -> crate::Result<()> {
     let (listener, address) = start_listener().await?;
     configuration.listen_address = address;
     let stream = connect_to_server(&scheduler_address).await?;
+    let (mut writer, mut reader) = make_protocol_builder().new_framed(stream).split();
+    let secret_key = secret_key.map(Rc::new);
+    let (mut sealer, mut opener) =
+        do_authentication(secret_key.clone(), &mut writer, &mut reader).await?;
+
+    let taskset = LocalSet::default();
+
+    {
+        let message = RegisterWorker {
+            configuration: configuration.clone(),
+        };
+        let data = rmp_serde::to_vec_named(&message)?.into();
+        writer.send(seal_message(&mut sealer, data)).await?;
+    }
+
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
     let (download_sender, download_reader) =
         tokio::sync::mpsc::unbounded_channel::<(DataObjectRef, (Priority, Priority))>();
-    let (mut writer, mut reader) = make_protocol_builder().new_framed(stream).split();
     let heartbeat_interval = configuration.heartbeat_interval;
 
-    let taskset = LocalSet::default();
-    {
-        let message = GenericMessage::RegisterWorker(RegisterWorkerMsg {
-            configuration: configuration.clone(),
-        });
-        let mut frame = BytesMut::default().writer();
-        rmp_serde::encode::write_named(&mut frame, &message)?;
-        writer.send(frame.into_inner().into()).await.unwrap();
-    }
-
     let state = {
-        match reader.next().await {
-            Some(data) => {
-                let message: WorkerRegistrationResponse =
-                    rmp_serde::from_slice(&data.unwrap()).unwrap();
+        match timeout(Duration::from_secs(15), reader.next()).await {
+            Ok(Some(data)) => {
+                let message: WorkerRegistrationResponse = open_message(&mut opener, &data?)?;
                 WorkerStateRef::new(
                     message.worker_id,
                     configuration,
+                    secret_key,
                     queue_sender,
                     download_sender,
                     message.worker_addresses,
                     message.subworker_definitions,
                 )
             }
-            None => panic!("Connection closed without receiving registration response"),
+            Ok(None) => panic!("Connection closed without receiving registration response"),
+            Err(_) => panic!("Did not received worker registration response"),
         }
     };
 
@@ -152,10 +163,10 @@ pub async fn run_worker(
 
     tokio::select! {
         () = try_start_tasks => { unreachable!() }
-        _ = worker_message_loop(state.clone(), reader) => {
+        _ = worker_message_loop(state.clone(), reader, opener) => {
             panic!("Connection to server lost");
         }
-        _ = forward_queue_to_sink(queue_receiver, writer) => {
+        _ = forward_queue_to_sealed_sink(queue_receiver, writer, sealer) => {
             panic!("Cannot send a message to server");
         }
         _result = taskset.run_until(connection_initiator(listener, state.clone())) => {
@@ -276,10 +287,11 @@ async fn worker_data_downloader(
 async fn worker_message_loop(
     state_ref: WorkerStateRef,
     mut stream: impl Stream<Item = Result<BytesMut, std::io::Error>> + Unpin,
+    mut opener: Option<StreamOpener>,
 ) -> crate::Result<()> {
     while let Some(data) = stream.next().await {
         let data = data?;
-        let message: ToWorkerMessage = rmp_serde::from_slice(&data)?;
+        let message: ToWorkerMessage = open_message(&mut opener, &data)?;
         let mut state = state_ref.get_mut();
         match message {
             ToWorkerMessage::ComputeTask(mut msg) => {

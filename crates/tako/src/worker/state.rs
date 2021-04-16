@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use bytes::{Bytes, BytesMut};
 use hashbrown::HashMap;
+use orion::aead::SecretKey;
 use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
@@ -50,6 +51,8 @@ pub struct WorkerState {
     pub subworker_definitions: Map<SubworkerId, SubworkerDefinition>,
 
     pub configuration: WorkerConfiguration,
+
+    pub secret_key: Option<Rc<SecretKey>>,
 }
 
 impl WorkerState {
@@ -396,6 +399,7 @@ impl WorkerStateRef {
     pub fn new(
         worker_id: WorkerId,
         configuration: WorkerConfiguration,
+        secret_key: Option<Rc<SecretKey>>,
         sender: UnboundedSender<Bytes>,
         download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, PriorityTuple)>,
         worker_addresses: Map<WorkerId, String>,
@@ -409,6 +413,7 @@ impl WorkerStateRef {
             ncpus: configuration.n_cpus,
             download_sender,
             configuration,
+            secret_key,
             subworker_definitions: subworker_definitions
                 .into_iter()
                 .map(|x| (x.id, x))

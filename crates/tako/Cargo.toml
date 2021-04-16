@@ -34,6 +34,8 @@ priority-queue = "1.0"
 bitflags = "1.2"
 tempdir = "0.3"
 hostname = "0.3.1"
+orion = "0.16.0"
+hex = "0.4"
 
 [profile.release]
 lto = true

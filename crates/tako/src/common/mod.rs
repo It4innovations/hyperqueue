@@ -14,4 +14,5 @@ pub mod rpc;
 mod wrapped;
 #[macro_use]
 pub mod trace;
+pub mod secret;
 pub mod setup;

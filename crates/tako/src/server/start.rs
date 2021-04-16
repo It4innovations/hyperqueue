@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use std::rc::Rc;
 use std::time::Duration;
 
+use orion::aead::SecretKey;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
@@ -14,6 +15,7 @@ use crate::server::core::CoreRef;
 
 pub async fn server_start(
     listen_address: SocketAddr,
+    secret_key: Option<SecretKey>,
     msd: Duration,
     client_sender: UnboundedSender<ToGatewayMessage>,
     panic_on_worker_lost: bool,
@@ -37,6 +39,7 @@ pub async fn server_start(
     );
     let core_ref = CoreRef::new();
     core_ref.get_mut().set_worker_listen_port(listener_port);
+    core_ref.get_mut().set_secret_key(secret_key.map(Rc::new));
 
     //let scheduler = observe_scheduler(core_ref.clone(), comm_ref.clone(), scheduler_receiver);
     let connections =
