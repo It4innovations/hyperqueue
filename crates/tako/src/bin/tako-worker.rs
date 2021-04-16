@@ -7,6 +7,7 @@ use rand::distributions::Alphanumeric;
 use rand::Rng;
 use tokio::task::LocalSet;
 
+use tako::common::secret::read_secret_file;
 use tako::common::setup::setup_logging;
 use tako::messages::common::WorkerConfiguration;
 use tako::worker::rpc::run_worker;
@@ -27,6 +28,9 @@ struct Opts {
 
     #[clap(long)]
     ncpus: Option<u32>,
+
+    #[clap(long)]
+    secret_file: Option<PathBuf>,
 }
 
 fn create_local_directory(prefix: PathBuf) -> Result<PathBuf, std::io::Error> {
@@ -81,9 +85,20 @@ async fn main() -> tako::Result<()> {
         extra: vec![],
     };
 
+    let secret_key = opts.secret_file.map(|key_file| {
+        read_secret_file(&key_file).unwrap_or_else(|e| {
+            log::error!("Reading secret file {}: {:?}", key_file.display(), e);
+            std::process::exit(1);
+        })
+    });
+
+    if secret_key.is_none() {
+        log::info!("Authentication is switched off");
+    };
+
     let local_set = LocalSet::new();
     local_set
-        .run_until(run_worker(&opts.server_address, configuration))
+        .run_until(run_worker(&opts.server_address, configuration, secret_key))
         .await?;
     log::info!("tako worker ends");
     Ok(())

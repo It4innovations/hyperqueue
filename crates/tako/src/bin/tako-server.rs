@@ -1,4 +1,5 @@
 use std::net::{Ipv4Addr, SocketAddr};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::Clap;
@@ -6,6 +7,7 @@ use tokio::net::UnixListener;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::task::LocalSet;
 
+use tako::common::secret::read_secret_file;
 use tako::common::setup::{setup_interrupt, setup_logging};
 use tako::messages::gateway::ToGatewayMessage;
 use tako::server::client::client_connection_handler;
@@ -22,12 +24,22 @@ struct Opts {
 
     #[clap(long)]
     panic_on_worker_lost: bool,
+
+    #[clap(long)]
+    secret_file: Option<PathBuf>,
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let opts: Opts = Opts::parse();
     setup_logging();
+
+    let secret_key = opts.secret_file.map(|key_file| {
+        read_secret_file(&key_file).unwrap_or_else(|e| {
+            log::error!("Reading secret file {}: {:?}", key_file.display(), e);
+            std::process::exit(1);
+        })
+    });
 
     let listen_address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), opts.port);
     let msd = Duration::from_millis(20);
@@ -41,6 +53,7 @@ async fn main() {
     let (client_sender, client_receiver) = unbounded_channel::<ToGatewayMessage>();
     let (core_ref, comm_ref, server_future) = tako::server::server_start(
         listen_address,
+        secret_key,
         msd,
         client_sender.clone(),
         opts.panic_on_worker_lost,

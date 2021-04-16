@@ -155,5 +155,5 @@ pub enum ToGatewayMessage {
     ServerInfo(ServerInfo),
     Overview(Overview),
     NewWorker(NewWorkerMessage),
-    LostWorker(LostWorkerMessage)
+    LostWorker(LostWorkerMessage),
 }

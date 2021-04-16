@@ -1,14 +1,15 @@
+use core::time::Duration;
 use std::time::Instant;
 
 use bytes::{Bytes, BytesMut};
-use futures::SinkExt;
 use futures::{Sink, Stream, StreamExt};
+use orion::aead::streaming::{StreamOpener, StreamSealer};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpListener;
+use tokio::time::timeout;
 
-use crate::common::rpc::forward_queue_to_sink;
-use crate::messages::generic::{GenericMessage, RegisterWorkerMsg};
-use crate::messages::worker::{FromWorkerMessage, WorkerRegistrationResponse};
+use crate::common::error::DsError;
+use crate::messages::worker::{FromWorkerMessage, RegisterWorker, WorkerRegistrationResponse};
 use crate::server::comm::CommSenderRef;
 use crate::server::core::CoreRef;
 use crate::server::reactor::{
@@ -16,7 +17,9 @@ use crate::server::reactor::{
     on_tasks_transferred,
 };
 use crate::server::worker::Worker;
+use crate::transfer::auth::{do_authentication, forward_queue_to_sealed_sink, open_message};
 use crate::transfer::transport::make_protocol_builder;
+use crate::WorkerId;
 
 pub async fn connection_initiator(
     listener: TcpListener,
@@ -30,45 +33,63 @@ pub async fn connection_initiator(
         let comm_ref = comm_ref.clone();
         tokio::task::spawn_local(async move {
             log::debug!("New connection: {}", address);
-            generic_rpc_loop(core_ref, comm_ref, socket, address)
-                .await
-                .expect("Connection failed");
+            match worker_authentication(core_ref, comm_ref, socket, address).await {
+                Ok(_) => { /* Do nothing */ }
+                Err(e) => {
+                    log::warn!("Connection ended with: {:?}", e);
+                }
+            }
             log::debug!("Connection ended: {}", address);
         });
     }
 }
 
-pub async fn generic_rpc_loop<T: AsyncRead + AsyncWrite>(
+pub async fn worker_authentication<T: AsyncRead + AsyncWrite>(
     core_ref: CoreRef,
     comm_ref: CommSenderRef,
     stream: T,
     address: std::net::SocketAddr,
 ) -> crate::Result<()> {
-    let (writer, mut reader) = make_protocol_builder().new_framed(stream).split();
-    #[allow(clippy::never_loop)] // More general messages to come
-    while let Some(message_data) = reader.next().await {
-        let message: GenericMessage = rmp_serde::from_slice(&message_data?)?;
-        match message {
-            GenericMessage::RegisterWorker(msg) => {
-                log::debug!("Worker registration from {}", address);
-                worker_rpc_loop(&core_ref, &comm_ref, address, reader, writer, msg).await?;
-                break;
-            }
-        }
-    }
+    let (mut writer, mut reader) = make_protocol_builder().new_framed(stream).split();
+
+    let secret_key = core_ref.get().secret_key().clone();
+    let has_key = secret_key.is_some();
+    let (sealer, mut opener) =
+        do_authentication(secret_key.clone(), &mut writer, &mut reader).await?;
+    assert_eq!(sealer.is_some(), has_key);
+
+    let message_data = timeout(Duration::from_secs(15), reader.next())
+        .await
+        .map_err(|_| DsError::GenericError("Worker registration did not arrived".to_string()))?
+        .ok_or_else(|| {
+            DsError::GenericError(
+                "The remote side closed connection without worker registration".to_string(),
+            )
+        })??;
+
+    let message: RegisterWorker = open_message(&mut opener, &message_data)?;
+
+    log::debug!("Worker registration from {}", address);
+    worker_rpc_loop(
+        &core_ref, &comm_ref, address, reader, writer, message, sealer, opener,
+    )
+    .await?;
+
     Ok(())
 }
 
-pub async fn worker_rpc_loop<
+async fn worker_rpc_loop<
     Reader: Stream<Item = Result<BytesMut, std::io::Error>> + Unpin,
     Writer: Sink<Bytes, Error = std::io::Error> + Unpin,
 >(
     core_ref: &CoreRef,
     comm_ref: &CommSenderRef,
     address: std::net::SocketAddr,
-    mut receiver: Reader,
-    mut sender: Writer,
-    msg: RegisterWorkerMsg,
+    receiver: Reader,
+    sender: Writer,
+    msg: RegisterWorker,
+    sealer: Option<StreamSealer>,
+    opener: Option<StreamOpener>,
 ) -> crate::Result<()> {
     let worker_id = core_ref.get_mut().new_worker_id();
     log::info!("Worker {} registered from {}", worker_id, address);
@@ -78,61 +99,23 @@ pub async fn worker_rpc_loop<
     // Sanity that interval is not too small
     assert!(heartbeat_interval.as_millis() > 150);
 
+    let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
+
     let message = WorkerRegistrationResponse {
         worker_id,
         worker_addresses: core_ref.get().get_worker_addresses(),
         subworker_definitions: core_ref.get().get_subworker_definitions().clone(),
     };
-    let data = rmp_serde::to_vec_named(&message).unwrap();
-    sender.send(data.into()).await?;
+    queue_sender
+        .send(rmp_serde::to_vec_named(&message).unwrap().into())
+        .unwrap();
 
-    let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
     let worker = Worker::new(worker_id, msg.configuration);
 
     on_new_worker(&mut core_ref.get_mut(), &mut *comm_ref.get_mut(), worker);
     comm_ref.get_mut().add_worker(worker_id, queue_sender);
 
-    let snd_loop = forward_queue_to_sink(queue_receiver, sender);
-
-    let core_ref2 = core_ref.clone();
-    let recv_loop = async move {
-        while let Some(message) = receiver.next().await {
-            // TODO: If more worker messages are waiting, process them at once and
-            // after that send the notifications
-            let message: FromWorkerMessage = rmp_serde::from_slice(&message.unwrap()).unwrap();
-            let mut core = core_ref.get_mut();
-            let mut comm = comm_ref.get_mut();
-            match message {
-                FromWorkerMessage::TaskFinished(msg) => {
-                    on_task_finished(&mut core, &mut *comm, worker_id, msg);
-                }
-                FromWorkerMessage::TaskFailed(msg) => {
-                    on_task_error(&mut core, &mut *comm, worker_id, msg.id, msg.info);
-                }
-                FromWorkerMessage::DataDownloaded(msg) => {
-                    on_tasks_transferred(&mut core, &mut *comm, worker_id, msg.id)
-                }
-                FromWorkerMessage::StealResponse(msg) => {
-                    on_steal_response(&mut core, &mut *comm, worker_id, msg)
-                }
-                FromWorkerMessage::Heartbeat => {
-                    core.get_worker_mut(worker_id).map(|worker| {
-                        log::debug!("Heartbeat received, worker={}", worker_id);
-                        worker.last_heartbeat = Instant::now();
-                    });
-                }
-                FromWorkerMessage::Overview(overview) => {
-                    core.get_worker_mut(worker_id).map(|worker| {
-                        let sender = worker.overview_callbacks.remove(0);
-                        let _ = sender.send(overview);
-                    });
-                }
-            }
-        }
-        ()
-    };
-
-    //let core_ref3 = core_ref.clone();
+    let snd_loop = forward_queue_to_sealed_sink(queue_receiver, sender, sealer);
 
     let heartbeat_check = async move {
         let mut interval = tokio::time::interval(heartbeat_interval);
@@ -150,8 +133,8 @@ pub async fn worker_rpc_loop<
     };
 
     tokio::select! {
-        () = recv_loop => {
-            log::debug!("Receive loop terminated, worker={}", worker_id);
+        e = worker_receive_loop(core_ref.clone(), comm_ref.clone(), worker_id, receiver, opener) => {
+            log::debug!("Receive loop terminated ({:?}), worker={}", e, worker_id);
         }
         e = snd_loop => {
             log::debug!("Sending loop terminated: {:?}, worker={}", e, worker_id);
@@ -166,10 +149,53 @@ pub async fn worker_rpc_loop<
         worker_id,
         address
     );
-    let mut core = core_ref2.get_mut();
+    let mut core = core_ref.get_mut();
     let mut comm = comm_ref.get_mut();
     comm.remove_worker(worker_id);
     on_remove_worker(&mut core, &mut *comm, worker_id);
     //core.remove_worker(worker_id);
+    Ok(())
+}
+
+pub async fn worker_receive_loop<
+    Reader: Stream<Item = Result<BytesMut, std::io::Error>> + Unpin,
+>(
+    core_ref: CoreRef,
+    comm_ref: CommSenderRef,
+    worker_id: WorkerId,
+    mut receiver: Reader,
+    mut opener: Option<StreamOpener>,
+) -> crate::Result<()> {
+    while let Some(message) = receiver.next().await {
+        let message: FromWorkerMessage = open_message(&mut opener, &message?)?;
+        let mut core = core_ref.get_mut();
+        let mut comm = comm_ref.get_mut();
+        match message {
+            FromWorkerMessage::TaskFinished(msg) => {
+                on_task_finished(&mut core, &mut *comm, worker_id, msg);
+            }
+            FromWorkerMessage::TaskFailed(msg) => {
+                on_task_error(&mut core, &mut *comm, worker_id, msg.id, msg.info);
+            }
+            FromWorkerMessage::DataDownloaded(msg) => {
+                on_tasks_transferred(&mut core, &mut *comm, worker_id, msg.id)
+            }
+            FromWorkerMessage::StealResponse(msg) => {
+                on_steal_response(&mut core, &mut *comm, worker_id, msg)
+            }
+            FromWorkerMessage::Heartbeat => {
+                core.get_worker_mut(worker_id).map(|worker| {
+                    log::debug!("Heartbeat received, worker={}", worker_id);
+                    worker.last_heartbeat = Instant::now();
+                });
+            }
+            FromWorkerMessage::Overview(overview) => {
+                core.get_worker_mut(worker_id).map(|worker| {
+                    let sender = worker.overview_callbacks.remove(0);
+                    let _ = sender.send(overview);
+                });
+            }
+        }
+    }
     Ok(())
 }

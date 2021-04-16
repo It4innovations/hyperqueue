@@ -1,3 +1,7 @@
+use std::rc::Rc;
+
+use orion::aead::SecretKey;
+
 use crate::common::error::DsError;
 use crate::common::trace::trace_task_remove;
 use crate::common::{IdCounter, Map, WrappedRcRefCell};
@@ -22,6 +26,7 @@ pub struct Core {
     worker_listen_port: u16,
 
     subworker_definitions: Vec<SubworkerDefinition>,
+    secret_key: Option<Rc<SecretKey>>,
 }
 
 pub type CoreRef = WrappedRcRefCell<Core>;
@@ -276,6 +281,14 @@ impl Core {
                 }
             }
         }
+    }
+
+    pub fn set_secret_key(&mut self, secret_key: Option<Rc<SecretKey>>) {
+        self.secret_key = secret_key
+    }
+
+    pub fn secret_key(&self) -> &Option<Rc<SecretKey>> {
+        &self.secret_key
     }
 }
 

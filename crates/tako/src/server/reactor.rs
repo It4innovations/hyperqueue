@@ -606,6 +606,9 @@ fn remove_task_if_possible(core: &mut Core, comm: &mut impl Comm, task: &mut Tas
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use crate::messages::common::WorkerConfiguration;
     use crate::messages::worker::ComputeTaskMsg;
     use crate::scheduler::scheduler::tests::create_test_scheduler;
     use crate::server::test_util::{
@@ -615,8 +618,6 @@ mod tests {
     };
 
     use super::*;
-    use crate::messages::common::WorkerConfiguration;
-    use std::time::Duration;
 
     /*use crate::test_util::{
         create_test_comm, create_test_workers, finish_on_worker, sorted_vec,

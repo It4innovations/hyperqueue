@@ -5,6 +5,7 @@ use std::ops::DerefMut;
 use std::path::Path;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
@@ -19,7 +20,6 @@ use crate::server::reactor::{on_new_tasks, on_new_worker, on_steal_response, on_
 use crate::server::task::TaskRef;
 use crate::server::worker::{Worker, WorkerId};
 use crate::{OutputId, TaskId};
-use std::time::Duration;
 
 /// Memory stream for reading and writing at the same time.
 pub struct MemoryStream {
