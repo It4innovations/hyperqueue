@@ -29,6 +29,13 @@ pub async fn client_connection_handler(
         let send_loop = forward_queue_to_sink_with_map(client_receiver, sender, |msg| {
             rmp_serde::to_vec_named(&msg).unwrap().into()
         });
+        {
+            let core = core_ref.get();
+            let mut comm = comm_ref.get_mut();
+            for worker in core.get_workers() {
+                comm.send_client_worker_new(worker.id, &worker.configuration);
+            }
+        }
         let receive_loop = async move {
             while let Some(data) = receiver.next().await {
                 // TODO: Instead of unwrap, send error message to client

@@ -112,6 +112,9 @@ pub struct TestComm {
     pub client_task_finished: Vec<TaskId>,
     pub client_task_errors: Vec<(TaskId, Vec<TaskId>, TaskFailInfo)>,
 
+    pub new_workers: Vec<(WorkerId, WorkerConfiguration)>,
+    pub lost_workers: Vec<WorkerId>,
+
     pub need_scheduling: bool,
 }
 
@@ -147,6 +150,14 @@ impl TestComm {
         std::mem::take(&mut self.client_task_errors)
     }
 
+    pub fn take_new_workers(&mut self) -> Vec<(WorkerId, WorkerConfiguration)> {
+        std::mem::take(&mut self.new_workers)
+    }
+
+    pub fn take_lost_workers(&mut self) -> Vec<WorkerId> {
+        std::mem::take(&mut self.lost_workers)
+    }
+
     pub fn check_need_scheduling(&mut self) {
         assert!(self.need_scheduling);
         self.need_scheduling = false;
@@ -161,6 +172,9 @@ impl TestComm {
 
         assert!(self.client_task_finished.is_empty());
         assert!(self.client_task_errors.is_empty());
+
+        assert!(self.new_workers.is_empty());
+        assert!(self.lost_workers.is_empty());
 
         assert!(!self.need_scheduling);
     }
@@ -195,6 +209,14 @@ impl Comm for TestComm {
     ) {
         self.client_task_errors
             .push((task_id, consumers, error_info));
+    }
+
+    fn send_client_worker_new(&mut self, worker_id: u64, configuration: &WorkerConfiguration) {
+        self.new_workers.push((worker_id, configuration.clone()));
+    }
+
+    fn send_client_worker_lost(&mut self, worker_id: u64) {
+        self.lost_workers.push(worker_id);
     }
 }
 

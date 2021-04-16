@@ -28,6 +28,8 @@ pub fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
             address: worker.configuration.listen_address.clone(),
         }));
 
+        comm.send_client_worker_new(worker.id, &worker.configuration);
+
         /*comm.send_scheduler_message(ToSchedulerMessage::NewWorker(worker.make_sched_info()));*/
         comm.ask_for_scheduling();
     }
@@ -103,7 +105,7 @@ pub fn on_remove_worker(core: &mut Core, comm: &mut impl Comm, worker_id: Worker
     }
 
     let _worker = core.remove_worker(worker_id);
-
+    comm.send_client_worker_lost(worker_id);
     comm.ask_for_scheduling();
 
     //let worker = core.get_worker_by_id_or_panic(worker_id);
@@ -643,6 +645,11 @@ mod tests {
         let worker = Worker::new(402, wcfg);
         on_new_worker(&mut core, &mut comm, worker);
 
+        let new_w = comm.take_new_workers();
+        assert_eq!(new_w.len(), 1);
+        assert_eq!(new_w[0].0, 402);
+        assert_eq!(new_w[0].1.n_cpus, 20);
+
         assert!(
             matches!(comm.take_broadcasts(1)[0], ToWorkerMessage::NewWorker(NewWorkerMsg {
             worker_id: 402, address: ref a
@@ -654,7 +661,7 @@ mod tests {
         assert_eq!(core.get_workers().count(), 1);
 
         let wcfg2 = WorkerConfiguration {
-            n_cpus: 20,
+            n_cpus: 100,
             listen_address: "test2:123".into(),
             hostname: "test2".to_string(),
             work_dir: Default::default(),
@@ -665,6 +672,12 @@ mod tests {
 
         let worker = Worker::new(502, wcfg2);
         on_new_worker(&mut core, &mut comm, worker);
+
+        let new_w = comm.take_new_workers();
+        assert_eq!(new_w.len(), 1);
+        assert_eq!(new_w[0].0, 502);
+        assert_eq!(new_w[0].1.n_cpus, 100);
+
         assert!(
             matches!(comm.take_broadcasts(1)[0], ToWorkerMessage::NewWorker(NewWorkerMsg {
             worker_id: 502, address: ref a
@@ -1198,6 +1211,8 @@ mod tests {
 
         let mut comm = create_test_comm();
         on_remove_worker(&mut core, &mut comm, 101);
+
+        assert_eq!(comm.take_lost_workers(), vec![101]);
 
         assert_eq!(core.take_ready_to_assign().len(), 3);
         assert!(core.get_task_by_id_or_panic(11).get().is_ready());
