@@ -37,10 +37,7 @@ pub async fn server_start(
         client_sender,
         panic_on_worker_lost,
     );
-    let core_ref = CoreRef::new();
-    core_ref.get_mut().set_worker_listen_port(listener_port);
-    core_ref.get_mut().set_secret_key(secret_key.map(Rc::new));
-
+    let core_ref = CoreRef::new(listener_port, secret_key.map(Rc::new));
     //let scheduler = observe_scheduler(core_ref.clone(), comm_ref.clone(), scheduler_receiver);
     let connections =
         crate::server::rpc::connection_initiator(listener, core_ref.clone(), comm_ref.clone());

@@ -27,3 +27,13 @@ impl From<rmp_serde::decode::Error> for DsError {
         Self::SerializationError(e.to_string())
     }
 }
+impl From<String> for DsError {
+    fn from(e: String) -> Self {
+        Self::GenericError(e)
+    }
+}
+impl From<&str> for DsError {
+    fn from(e: &str) -> Self {
+        Self::GenericError(e.to_string())
+    }
+}
