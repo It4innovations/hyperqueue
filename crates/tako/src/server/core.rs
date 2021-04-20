@@ -32,8 +32,11 @@ pub struct Core {
 pub type CoreRef = WrappedRcRefCell<Core>;
 
 impl CoreRef {
-    pub fn new() -> Self {
-        CoreRef::wrap(Core::default())
+    pub fn new(worker_listen_port: u16, secret_key: Option<Rc<SecretKey>>) -> Self {
+        let mut core = Core::default();
+        core.worker_listen_port = worker_listen_port;
+        core.secret_key = secret_key;
+        CoreRef::wrap(core)
     }
 }
 

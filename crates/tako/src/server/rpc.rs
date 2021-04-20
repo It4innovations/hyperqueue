@@ -60,11 +60,9 @@ pub async fn worker_authentication<T: AsyncRead + AsyncWrite>(
 
     let message_data = timeout(Duration::from_secs(15), reader.next())
         .await
-        .map_err(|_| DsError::GenericError("Worker registration did not arrived".to_string()))?
+        .map_err(|_| "Worker registration did not arrived")?
         .ok_or_else(|| {
-            DsError::GenericError(
-                "The remote side closed connection without worker registration".to_string(),
-            )
+            DsError::from("The remote side closed connection without worker registration")
         })??;
 
     let message: RegisterWorker = open_message(&mut opener, &message_data)?;

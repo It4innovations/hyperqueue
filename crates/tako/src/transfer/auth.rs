@@ -16,7 +16,7 @@ use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 use crate::common::error::DsError;
 use crate::messages::auth::{
-    AuthenticationError, AuthenticationMessage, AuthenticationResponse, ChallengeResponse,
+    AuthenticationError, AuthenticationRequest, AuthenticationResponse, ChallengeResponse,
     EncryptionMessage,
 };
 
@@ -41,59 +41,57 @@ impl Authenticator {
         }
     }
 
-    pub fn make_auth_message(&mut self) -> crate::Result<AuthenticationMessage> {
+    pub fn make_auth_request(&mut self) -> crate::Result<AuthenticationRequest> {
         if let Some(key) = &self.secret_key {
             let mut challenge = vec![0; CHALLENGE_LENGTH];
-            secure_rand_bytes(&mut challenge).unwrap();
-            let (sealer, nonce) = StreamSealer::new(&key).unwrap();
+            secure_rand_bytes(&mut challenge).map_err(|_| "Generaing challenge failed")?;
+            let (sealer, nonce) = StreamSealer::new(&key).map_err(|_| "Creating sealer failed")?;
             self.sealer = Some(sealer);
             self.challenge = challenge.clone();
-            Ok(AuthenticationMessage::Encryption(EncryptionMessage {
+            Ok(AuthenticationRequest::Encryption(EncryptionMessage {
                 nonce: nonce.as_ref().into(),
                 challenge,
             }))
         } else {
-            Ok(AuthenticationMessage::NoAuth)
+            Ok(AuthenticationRequest::NoAuth)
         }
     }
 
     pub fn make_auth_response(
         &mut self,
-        message: AuthenticationMessage,
+        message: AuthenticationRequest,
     ) -> crate::Result<AuthenticationResponse> {
         match &mut (message, &mut self.sealer) {
-            (AuthenticationMessage::NoAuth, None) => Ok(AuthenticationResponse::NoAuth),
-            (AuthenticationMessage::Encryption(msg), Some(ref mut sealer)) => {
+            (AuthenticationRequest::NoAuth, None) => Ok(AuthenticationResponse::NoAuth),
+            (AuthenticationRequest::Encryption(msg), Some(ref mut sealer)) => {
                 log::debug!("Worker authorization started");
                 let key = self.secret_key.as_ref().unwrap();
                 if msg.challenge.len() != CHALLENGE_LENGTH {
-                    return Err(DsError::GenericError(format!(
-                        "Invalid length of challenge ({})",
-                        msg.challenge.len()
-                    )));
+                    return Err(
+                        format!("Invalid length of challenge ({})", msg.challenge.len()).into(),
+                    );
                 }
-                let remote_nonce = &Nonce::from_slice(&msg.nonce)
-                    .map_err(|_| DsError::GenericError("Invalid nonce".to_string()))?;
-                let opener = StreamOpener::new(key, remote_nonce)
-                    .map_err(|_| DsError::GenericError("Failed to create opener".to_string()))?;
+                let remote_nonce = &Nonce::from_slice(&msg.nonce).map_err(|_| "Invalid nonce")?;
+                let opener =
+                    StreamOpener::new(key, remote_nonce).map_err(|_| "Failed to create opener")?;
                 self.opener = Some(opener);
                 let challenge_response = sealer
                     .seal_chunk(&msg.challenge, StreamTag::Message)
-                    .map_err(|_| DsError::GenericError("Cannot seal challenge".to_string()))?;
+                    .map_err(|_| "Cannot seal challenge")?;
                 Ok(AuthenticationResponse::ChallengeResponse(
                     ChallengeResponse {
                         response: challenge_response,
                     },
                 ))
             }
-            (AuthenticationMessage::Encryption(_), None) => {
+            (AuthenticationRequest::Encryption(_), None) => {
                 let msg = "Peer requests authentication".to_string();
                 self.error = Some(msg.clone());
                 Ok(AuthenticationResponse::Error(AuthenticationError {
                     message: msg,
                 }))
             }
-            (AuthenticationMessage::NoAuth, Some(_)) => {
+            (AuthenticationRequest::NoAuth, Some(_)) => {
                 let msg = "Peer does not support authentication".to_string();
                 self.error = Some(msg.clone());
                 Ok(AuthenticationResponse::Error(AuthenticationError {
@@ -108,18 +106,12 @@ impl Authenticator {
         message: AuthenticationResponse,
     ) -> crate::Result<(Option<StreamSealer>, Option<StreamOpener>)> {
         if let Some(error) = std::mem::take(&mut self.error) {
-            return Err(DsError::GenericError(format!(
-                "Authentication failed: {}",
-                error
-            )));
+            return Err(format!("Authentication failed: {}", error).into());
         }
 
         match (message, &mut self.opener) {
             (AuthenticationResponse::Error(error), _) => {
-                return Err(DsError::GenericError(format!(
-                    "Received authentication error: {}",
-                    error.message
-                )));
+                return Err(format!("Received authentication error: {}", error.message).into());
             }
             (AuthenticationResponse::NoAuth, None) => {
                 log::debug!("Empty authentication finished");
@@ -130,16 +122,12 @@ impl Authenticator {
                     .open_chunk(&response.response)
                     .map_err(|_| DsError::GenericError("Cannot verify challenge".to_string()))?;
                 if tag != StreamTag::Message || opened_challenge != self.challenge {
-                    return Err(DsError::GenericError(format!(
-                        "Received challenge does not match. Replay attack?"
-                    )));
+                    return Err("Received challenge does not match. Replay attack?".into());
                 }
                 log::debug!("Challenge verification finished");
             }
             (_, _) => {
-                return Err(DsError::GenericError(format!(
-                    "Invalid authentication state"
-                )));
+                return Err("Invalid authentication state".into());
             }
         }
         Ok((self.sealer, self.opener))
@@ -155,40 +143,36 @@ pub async fn do_authentication<T: AsyncRead + AsyncWrite>(
     let mut authenticator = Authenticator::new(secret_key);
 
     /* Send authentication message */
-    let message = authenticator.make_auth_message()?;
+    let message = authenticator.make_auth_request()?;
     let message_data = rmp_serde::to_vec_named(&message).unwrap().into();
     timeout(AUTH_TIMEOUT, writer.send(message_data))
         .await
-        .map_err(|_| DsError::GenericError("Sending authentication timeouted".to_string()))?
-        .map_err(|_| DsError::GenericError("Sending authentication failed".to_string()))?;
+        .map_err(|_| "Sending authentication timeout")?
+        .map_err(|_| "Sending authentication failed")?;
 
     /* Receive authentication message */
     let remote_message_data = timeout(AUTH_TIMEOUT, reader.next())
         .await
-        .map_err(|_| DsError::GenericError("Authentication message did not arrived".to_string()))?
+        .map_err(|_| "Authentication message did not arrived")?
         .ok_or_else(|| {
-            DsError::GenericError(
-                "The remote side closed connection without authentication message".to_string(),
-            )
+            DsError::from("The remote side closed connection without authentication message")
         })??;
-    let remote_message: AuthenticationMessage = rmp_serde::from_slice(&remote_message_data)?;
+    let remote_message: AuthenticationRequest = rmp_serde::from_slice(&remote_message_data)?;
 
     /* Send authentication response */
     let response = authenticator.make_auth_response(remote_message)?;
     let response_data = rmp_serde::to_vec_named(&response).unwrap().into();
     timeout(AUTH_TIMEOUT, writer.send(response_data))
         .await
-        .map_err(|_| DsError::GenericError("Sending authentication timeouted".to_string()))?
-        .map_err(|_| DsError::GenericError("Sending authentication failed".to_string()))?;
+        .map_err(|_| "Sending authentication timeouted")?
+        .map_err(|_| "Sending authentication failed")?;
 
     /* Receive authentication response */
     let remote_response_data = timeout(AUTH_TIMEOUT, reader.next())
         .await
-        .map_err(|_| DsError::GenericError("Authentication message did not arrived".to_string()))?
+        .map_err(|_| "Authentication message did not arrived")?
         .ok_or_else(|| {
-            DsError::GenericError(
-                "The remote side closed connection without authentication message".to_string(),
-            )
+            DsError::from("The remote side closed connection without authentication message")
         })??;
     let remote_response: AuthenticationResponse = rmp_serde::from_slice(&remote_response_data)?;
 

@@ -11,7 +11,7 @@ pub struct EncryptionMessage {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "op")]
-pub enum AuthenticationMessage {
+pub enum AuthenticationRequest {
     NoAuth,
     Encryption(EncryptionMessage),
 }
