@@ -54,8 +54,15 @@ pub async fn worker_authentication<T: AsyncRead + AsyncWrite>(
 
     let secret_key = core_ref.get().secret_key().clone();
     let has_key = secret_key.is_some();
-    let (sealer, mut opener) =
-        do_authentication(secret_key.clone(), &mut writer, &mut reader).await?;
+    let (sealer, mut opener) = do_authentication(
+        0,
+        "server".to_string(),
+        "worker".to_string(),
+        secret_key.clone(),
+        &mut writer,
+        &mut reader,
+    )
+    .await?;
     assert_eq!(sealer.is_some(), has_key);
 
     let message_data = timeout(Duration::from_secs(15), reader.next())
