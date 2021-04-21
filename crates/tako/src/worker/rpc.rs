@@ -84,8 +84,15 @@ pub async fn run_worker(
     let stream = connect_to_server(&scheduler_address).await?;
     let (mut writer, mut reader) = make_protocol_builder().new_framed(stream).split();
     let secret_key = secret_key.map(Rc::new);
-    let (mut sealer, mut opener) =
-        do_authentication(secret_key.clone(), &mut writer, &mut reader).await?;
+    let (mut sealer, mut opener) = do_authentication(
+        0,
+        "worker".to_string(),
+        "server".to_string(),
+        secret_key.clone(),
+        &mut writer,
+        &mut reader,
+    )
+    .await?;
 
     let taskset = LocalSet::default();
 
