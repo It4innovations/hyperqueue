@@ -1,4 +1,4 @@
-use tokio::net::{UnixListener, UnixStream, TcpListener};
+use tokio::net::TcpListener;
 use tokio::io::{AsyncRead, AsyncWrite};
 use crate::messages::{FromClientMessage, StatsResponse, ToClientMessage, SubmitMessage, SubmitResponse, JobInfo, JobState};
 use futures::{StreamExt, SinkExt};
@@ -6,14 +6,12 @@ use crate::server::state::StateRef;
 use crate::server::job::Job;
 use crate::common::protocol::make_protocol_builder;
 use crate::server::rpc::TakoServer;
-use crate::{Map, TaskId};
-use std::future::Future;
 use tako::messages::gateway::{FromGatewayMessage, ToGatewayMessage, TaskDef, NewTasksMessage};
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
     tako_ref: TakoServer,
-    mut listener: TcpListener
+    listener: TcpListener
 ) {
     // TODO: handle invalid connection
     while let Ok((connection, _)) = listener.accept().await {

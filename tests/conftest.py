@@ -6,9 +6,8 @@ import time
 
 PYTEST_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(PYTEST_DIR)
-HQ_SERVER_BIN = os.path.join(ROOT_DIR, "target", "debug", "hq-server")
+HQ_BINARY = os.path.join(ROOT_DIR, "target", "debug", "hq")
 HQ_WORKER_BIN = os.path.join(ROOT_DIR, "target", "debug", "hq-worker")
-HQ_CLIENT_BIN = os.path.join(ROOT_DIR, "target", "debug", "hq")
 
 TAKO_BIN_PATH = os.path.join(os.path.dirname(ROOT_DIR), "tako", "target", "debug")
 #TAKO_SERVER_BIN = os.path.join(TAKO_BIN_PATH, "tako-server")
@@ -77,13 +76,13 @@ class HqEnv(Env):
     def start_server(self):
         env = self.make_default_env()
         env["PATH"] = env.get("PATH", "") + ":" + TAKO_BIN_PATH
-        args = [HQ_SERVER_BIN, "hq-server.socket"]
+        args = [HQ_BINARY, "hq-server.socket"]
         self.start_process("server", args, env=env)
         self.check_running_processes()
         time.sleep(0.2)
 
     def command(self, *args):
-        args = [HQ_CLIENT_BIN] + list(args)
+        args = [HQ_BINARY] + list(args)
         try:
             output = subprocess.check_output(args, stderr=subprocess.STDOUT, cwd=self.work_path)
             return output.decode()
