@@ -42,8 +42,9 @@ impl TakoServer {
 
         let (from_tako_sender, mut from_tako_receiver) = unbounded_channel::<ToGatewayMessage>();
         let (to_tako_sender, mut to_tako_receiver) = unbounded_channel::<FromGatewayMessage>();
-        let (core_ref, comm_ref, server_future, worker_port) = tako::server::server_start(
+        let (core_ref, comm_ref, server_future) = tako::server::server_start(
             "0.0.0.0:0".parse().unwrap(),
+            None, // TODO
             msd,
             from_tako_sender.clone(),
             false,
@@ -53,7 +54,7 @@ impl TakoServer {
             inner: WrappedRcRefCell::wrap(Inner {
                 sender: to_tako_sender,
                 responses: Default::default(),
-                worker_port,
+                worker_port: core_ref.get().get_worker_listen_port(),
             })
         };
         let server2 = server.clone();
@@ -62,12 +63,8 @@ impl TakoServer {
             let tako_msg_reader = async move {
                 while let Some(message) = from_tako_receiver.recv().await {
                     match message {
-                        ToGatewayMessage::TaskUpdate(msg) => {
-                            state_ref.get_mut().process_task_update(msg);
-                        }
-                        ToGatewayMessage::TaskFailed(msg) => {
-                            state_ref.get_mut().process_task_failed(msg);
-                        }
+                        ToGatewayMessage::TaskUpdate(msg) => state_ref.get_mut().process_task_update(msg),
+                        ToGatewayMessage::TaskFailed(msg) => state_ref.get_mut().process_task_failed(msg),
                         m => {
                             let response = server2.inner.get_mut().responses.pop_front().unwrap();
                             response.send(m).unwrap();

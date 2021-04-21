@@ -1,16 +1,26 @@
-use clap::Clap;
-use std::path::{Path, PathBuf};
-use tokio_util::codec::Decoder;
-use tokio::net::UnixStream;
-use hyperqueue::messages::{FromClientMessage, StatsResponse, SubmitResponse, ToClientMessage, SubmitMessage};
-use futures::SinkExt;
-use tokio::stream::StreamExt;
-use serde::Deserialize;
-use bytes::BytesMut;
 use std::error::Error;
+use std::fs::File;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+
+use bytes::BytesMut;
+use clap::Clap;
+use futures::SinkExt;
+use serde::Deserialize;
+use tokio::net::UnixStream;
+use tokio_util::codec::Decoder;
+
+use hyperqueue::client::commands::print_job_stats;
+use hyperqueue::common::error::error;
+use hyperqueue::common::error::HqError::GenericError;
 use hyperqueue::common::protocol::make_protocol_builder;
-use hyperqueue::client::commands::{print_job_stats};
-use hyperqueue::tako::common::ProgramDefinition;
+use hyperqueue::common::rundir::{load_runfile, RunDirectory, Runfile, store_runfile};
+use hyperqueue::common::setup::setup_logging;
+use hyperqueue::messages::{FromClientMessage, StatsResponse, SubmitMessage, SubmitResponse, ToClientMessage};
+use hyperqueue::server::bootstrap::hyperqueue_start;
+use hyperqueue::server::rpc::TakoServer;
+use hyperqueue::server::state::StateRef;
+use hyperqueue::utils::absolute_path;
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -21,30 +31,49 @@ pub type Connection = tokio_util::codec::Framed<tokio::net::UnixStream, tokio_ut
 #[clap(version = "0.1")]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct Opts {
-    #[clap(long)]
-    server_socket: Option<PathBuf>,
-
     #[clap(subcommand)]
     subcmd: SubCommand,
 }
 
-/*#[derive(Clap)]
-struct StatsOpts {
+#[derive(Clap)]
+struct CommonOpts {
+    #[clap(long)]
+    rundir: Option<PathBuf>,
+}
 
-}*/
+impl CommonOpts {
+    fn get_rundir(&self) -> PathBuf {
+        absolute_path(self.rundir.clone().unwrap_or_else(|| default_rundir()))
+    }
+}
+
+#[derive(Clap)]
+struct StartOpts {
+    #[clap(flatten)]
+    common: CommonOpts,
+}
+
+#[derive(Clap)]
+struct StatsOpts {
+    #[clap(flatten)]
+    common: CommonOpts,
+}
 
 #[derive(Clap)]
 struct SubmitOpts {
+    #[clap(flatten)]
+    common: CommonOpts,
     commands: Vec<String>,
 }
 
 #[derive(Clap)]
 enum SubCommand {
-    Stats,
-    Submit(SubmitOpts)
+    Start(StartOpts),
+    // Stats(StatsOpts),
+    // Submit(SubmitOpts)
 }
 
-fn handle_server_error(message: &str) -> ! {
+/*fn handle_server_error(message: &str) -> ! {
     eprintln!("Server error: {}", message);
     std::process::exit(1);
 }
@@ -55,9 +84,26 @@ async fn send_and_receive(connection: &mut Connection, message: FromClientMessag
     connection.next().await.unwrap_or_else(|| handle_server_error("Unexpected end of the connection")).unwrap()
 }
 
-async fn command_stats(connection: &mut Connection) {
+async fn create_server_connection(runfile_path: &PathBuf) -> hyperqueue::Result<Connection> {
+    let runfile = load_runfile(runfile_path)?;
+
+    /*let server_socket = runfile.server_socket_path();
+    match UnixStream::connect(&server_socket).await {
+        Ok(socket) => Ok(make_protocol_builder().new_framed(socket)),
+        Err(e) => Err(GenericError(format!("Cannot connect to socket {}: {}", server_socket.display(), e)))
+    }*/
+    return error("test".to_string());
+}*/
+
+async fn command_start(rundir_path: PathBuf) -> hyperqueue::Result<()> {
+    hyperqueue_start(rundir_path).await
+}
+
+/*async fn command_stats(runfile_path: PathBuf) -> hyperqueue::Result<()> {
+    let mut connection = create_server_connection(&runfile_path).await?;
+
     let message = FromClientMessage::Stats;
-    let data = send_and_receive(connection, message).await;
+    let data = send_and_receive(&mut connection, message).await;
     let response : ToClientMessage = rmp_serde::from_slice(&data).unwrap();
     match response {
         ToClientMessage::StatsResponse(stats) => {
@@ -65,11 +111,13 @@ async fn command_stats(connection: &mut Connection) {
         }
         ToClientMessage::Error(e) => { handle_server_error(&e); }
         _ => { handle_server_error("Received an invalid message"); }
-    }
+    };
+    Ok(())
 }
 
+async fn command_submit(cmd_opts: SubmitOpts, runfile_path: PathBuf) -> hyperqueue::Result<()> {
+    let mut connection = create_server_connection(&runfile_path).await?;
 
-async fn command_submit(cmd_opts: SubmitOpts, connection: &mut Connection) {
     // TODO: Strip path
     let name = cmd_opts.commands.get(0).map(|t| t.to_string()).unwrap_or_else(|| "job".to_string());
 
@@ -83,7 +131,7 @@ async fn command_submit(cmd_opts: SubmitOpts, connection: &mut Connection) {
             stderr: None
         }
     });
-    let data = send_and_receive(connection, message).await;
+    let data = send_and_receive(&mut connection, message).await;
     let response : ToClientMessage = rmp_serde::from_slice(&data).unwrap();
     match response {
         ToClientMessage::SubmitResponse(sr) => {
@@ -91,24 +139,33 @@ async fn command_submit(cmd_opts: SubmitOpts, connection: &mut Connection) {
         }
         ToClientMessage::Error(e) => { handle_server_error(&e); }
         _ => { handle_server_error("Received an invalid message"); }
-    }
+    };
+    Ok(())
+}*/
+
+fn default_rundir() -> PathBuf {
+    let mut home = dirs::home_dir().unwrap_or_else(|| std::env::temp_dir());
+    home.push(".hq-rundir");
+    home
 }
 
-
-#[tokio::main(basic_scheduler)]
-async fn main() {
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> hyperqueue::Result<()> {
     let opts: Opts = Opts::parse();
+    setup_logging();
 
-    let server_socket = opts.server_socket.unwrap_or("hq-server.socket".into());
-    let mut protocol = match UnixStream::connect(&server_socket).await {
-        Ok(socket) => make_protocol_builder().new_framed(socket),
-        Err(e) => {
-            eprintln!("Cannot connect to socket {}: {}", server_socket.display(), e);
-            std::process::exit(1);
-        }
+    let result = match opts.subcmd {
+        SubCommand::Start(opts) => command_start(opts.common.get_rundir()).await,
+        /*SubCommand::Stats(opts) => command_stats(opts.common.get_rundir()).await,
+        SubCommand::Submit(opts) => {
+            let rundir = opts.common.get_rundir();
+            command_submit(opts, rundir).await
+        },*/
     };
-    match opts.subcmd {
-        SubCommand::Stats => command_stats(&mut protocol).await,
-        SubCommand::Submit(o) => command_submit(o, &mut protocol).await,
+    if let Err(e) = result {
+        eprintln!("{}", e);
+        std::process::exit(1);
     }
+
+    Ok(())
 }
