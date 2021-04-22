@@ -17,10 +17,10 @@ pub fn deserialize_key(key: &str) -> crate::Result<SecretKey> {
         .map_err(|e| GenericError(format!("Could not create secret key from slice: {}", e)))?;
     Ok(key)
 }
-pub fn clone_key(key: &SecretKey) -> SecretKey {
+/*pub fn clone_key(key: &SecretKey) -> SecretKey {
     let str = serialize_key(key);
     deserialize_key(&str).unwrap()
-}
+}*/
 
 #[cfg(test)]
 mod tests {

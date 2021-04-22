@@ -11,6 +11,7 @@ use crate::common::WrappedRcRefCell;
 use crate::server::state::StateRef;
 use tokio::time::Duration;
 use orion::kdf::SecretKey;
+use std::sync::Arc;
 
 struct Inner {
     sender: UnboundedSender<FromGatewayMessage>,
@@ -38,7 +39,7 @@ impl TakoServer {
         Ok(rx.await.unwrap())
     }
 
-    pub async fn start(state_ref: StateRef, key: SecretKey) -> crate::Result<(TakoServer, impl Future<Output=crate::Result<()>>)> {
+    pub async fn start(state_ref: StateRef, key: Arc<SecretKey>) -> crate::Result<(TakoServer, impl Future<Output=crate::Result<()>>)> {
         let msd = Duration::from_millis(20);
 
         let (from_tako_sender, mut from_tako_receiver) = unbounded_channel::<ToGatewayMessage>();

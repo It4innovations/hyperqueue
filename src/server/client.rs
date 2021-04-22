@@ -8,22 +8,23 @@ use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{FromClientMessage, JobInfo, JobState, StatsResponse, SubmitMessage, SubmitResponse, ToClientMessage};
-use crate::transfer::auth::clone_key;
+//use crate::transfer::auth::clone_key;
 use tokio::sync::Notify;
 use std::rc::Rc;
+use std::sync::Arc;
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
     tako_ref: TakoServer,
     listener: TcpListener,
     end_flag: Rc<Notify>,
-    key: SecretKey,
+    key: Arc<SecretKey>,
 ) {
     while let Ok((connection, _)) = listener.accept().await {
         let state_ref = state_ref.clone();
         let tako_ref = tako_ref.clone();
         let end_flag = end_flag.clone();
-        let key = clone_key(&key);
+        let key = key.clone();
         tokio::task::spawn_local(async move {
             if let Err(e) = handle_client(connection, state_ref, tako_ref, end_flag, key).await {
                 log::error!("Client error: {}", e);
@@ -37,7 +38,7 @@ async fn handle_client(
     state_ref: StateRef,
     tako_ref: TakoServer,
     end_flag: Rc<Notify>,
-    key: SecretKey,
+    key: Arc<SecretKey>,
 ) -> crate::Result<()> {
     log::debug!("New client connection");
     let socket = ServerConnection::accept_client(socket, key).await?;
