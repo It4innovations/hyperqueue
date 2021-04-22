@@ -60,24 +60,27 @@ pub async fn client_rpc_loop<
     end_flag: Rc<Notify>,
 ) {
     while let Some(message_result) = rx.next().await {
-        if let Ok(message) = message_result {
-            let response = match message {
-                FromClientMessage::Submit(msg) => {
-                    handle_submit(&state_ref, &tako_ref, msg).await
-                }
-                FromClientMessage::Stats => {
-                    compute_stats(&state_ref, &tako_ref).await
-                }
-                FromClientMessage::Stop => {
-                    end_flag.notify_one();
-                    break;
-                }
-            };
-            assert!(tx.send(response).await.is_ok());
-        } else {
-            log::error!("Cannot parse client message");
-            assert!(tx.send(ToClientMessage::Error("Cannot parse message".into())).await.is_ok());
-            return;
+        match message_result {
+            Ok(message) => {
+                let response = match message {
+                    FromClientMessage::Submit(msg) => {
+                        handle_submit(&state_ref, &tako_ref, msg).await
+                    }
+                    FromClientMessage::Stats => {
+                        compute_stats(&state_ref, &tako_ref).await
+                    }
+                    FromClientMessage::Stop => {
+                        end_flag.notify_one();
+                        break;
+                    }
+                };
+                assert!(tx.send(response).await.is_ok());
+            }
+            Err(e) => {
+                log::error!("Cannot parse client message: {}", e);
+                assert!(tx.send(ToClientMessage::Error(format!("Cannot parse message: {}", e))).await.is_ok());
+                return;
+            }
         }
     }
 }
