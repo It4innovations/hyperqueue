@@ -38,8 +38,6 @@ impl CommonOpts {
 struct StartOpts {
     #[clap(flatten)]
     common: CommonOpts,
-    #[clap(long)]
-    no_auth: bool,
 }
 
 #[derive(Clap)]
@@ -71,7 +69,7 @@ enum SubCommand {
 
 async fn command_start(opts: StartOpts) -> hyperqueue::Result<()> {
     let rundir_path = opts.common.get_rundir();
-    init_hq_server(rundir_path, !opts.no_auth).await
+    init_hq_server(rundir_path).await
 }
 
 async fn command_stop(opts: StopOpts) -> hyperqueue::Result<()> {

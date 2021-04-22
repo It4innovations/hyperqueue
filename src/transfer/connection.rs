@@ -73,7 +73,7 @@ impl<R: DeserializeOwned, S: Serialize> HqConnection<R, S> {
         (sink, stream)
     }
 
-    async fn init(socket: TcpStream, server: bool, key: Option<Rc<SecretKey>>) -> crate::Result<Self> {
+    async fn init(socket: TcpStream, server: bool, key: SecretKey) -> crate::Result<Self> {
         let connection = make_protocol_builder().new_framed(socket);
         let (mut tx, mut rx) = connection.split();
 
@@ -83,7 +83,7 @@ impl<R: DeserializeOwned, S: Serialize> HqConnection<R, S> {
             std::mem::swap(&mut my_role, &mut peer_role);
         }
 
-        let (sealer, opener) = do_authentication(COMM_PROTOCOL, my_role, peer_role, key, &mut tx, &mut rx).await?;
+        let (sealer, opener) = do_authentication(COMM_PROTOCOL, my_role, peer_role, Some(Rc::new(key)), &mut tx, &mut rx).await?;
 
         Ok(Self {
             writer: tx,
@@ -105,14 +105,14 @@ impl ClientConnection {
         let address = format!("{}:{}", runfile.hostname(), runfile.server_port());
         let connection = TcpStream::connect(address).await?;
 
-        let key = runfile.hq_secret_key().as_ref().map(clone_key).map(Rc::new);
+        let key = clone_key(runfile.hq_secret_key());
         HqConnection::init(connection, false, key).await
     }
 }
 
 /// Server -> client connection
 impl ServerConnection {
-    pub async fn accept_client(socket: TcpStream, key: Option<Rc<SecretKey>>) -> crate::Result<ServerConnection> {
+    pub async fn accept_client(socket: TcpStream, key: SecretKey) -> crate::Result<ServerConnection> {
         HqConnection::init(socket, true, key).await
     }
 }

@@ -37,25 +37,15 @@ impl RunDirectory {
     }
 }
 
-fn serde_serialize_key<S: Serializer>(key: &Option<SecretKey>, serializer: S) -> Result<S::Ok, S::Error> {
-    match key {
-        Some(k) => {
-            let str = serialize_key(&k);
-            serializer.serialize_some(&str)
-        }
-        None => serializer.serialize_none()
-    }
+fn serde_serialize_key<S: Serializer>(key: &SecretKey, serializer: S) -> Result<S::Ok, S::Error> {
+    let str = serialize_key(&key);
+    serializer.serialize_str(&str)
 }
 
-fn serde_deserialize_key<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<SecretKey>, D::Error> {
-    let key: Option<String> = Deserialize::deserialize(deserializer)?;
-    match key {
-        Some(key) => {
-            let key = deserialize_key(&key).map_err(|e| D::Error::custom(format!("Could not load secret key {}", e)))?;
-            Ok(Some(key))
-        }
-        None => Ok(None)
-    }
+fn serde_deserialize_key<'de, D: Deserializer<'de>>(deserializer: D) -> Result<SecretKey, D::Error> {
+    let key: String = Deserialize::deserialize(deserializer)?;
+    deserialize_key(&key)
+        .map_err(|e| D::Error::custom(format!("Could not load secret key {}", e)))
 }
 
 /// This data structure represents information required to connect to a running instance of
@@ -78,11 +68,11 @@ pub struct Runfile {
 
     #[serde(serialize_with = "serde_serialize_key")]
     #[serde(deserialize_with = "serde_deserialize_key")]
-    hq_secret_key: Option<SecretKey>,
+    hq_secret_key: SecretKey,
 
     #[serde(serialize_with = "serde_serialize_key")]
     #[serde(deserialize_with = "serde_deserialize_key")]
-    tako_secret_key: Option<SecretKey>,
+    tako_secret_key: SecretKey,
 }
 
 impl Runfile {
@@ -90,8 +80,8 @@ impl Runfile {
         hostname: String,
         server_port: u16,
         worker_port: u16,
-        hq_secret_key: Option<SecretKey>,
-        tako_secret_key: Option<SecretKey>,
+        hq_secret_key: SecretKey,
+        tako_secret_key: SecretKey,
     ) -> Self {
         Self {
             hostname,
@@ -114,10 +104,10 @@ impl Runfile {
     pub fn start_date(&self) -> &DateTime<Utc> {
         &self.start_date
     }
-    pub fn hq_secret_key(&self) -> &Option<SecretKey> {
+    pub fn hq_secret_key(&self) -> &SecretKey {
         &self.hq_secret_key
     }
-    pub fn tako_secret_key(&self) -> &Option<SecretKey> {
+    pub fn tako_secret_key(&self) -> &SecretKey {
         &self.tako_secret_key
     }
 }
@@ -153,8 +143,8 @@ mod tests {
             "foo".into(),
             42,
             43,
-            Some(Default::default()),
-            Some(Default::default()),
+            Default::default(),
+            Default::default(),
         );
         let path = TempDir::new("foo").unwrap().into_path().join("runfile.json");
         store_runfile(&runfile, path.clone()).unwrap();
