@@ -17,6 +17,7 @@ use crate::common::rundir::Runfile;
 use crate::transfer::auth::clone_key;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use crate::transfer::protocol::make_protocol_builder;
+use crate::common::error::error;
 
 type Codec = Framed<TcpStream, LengthDelimitedCodec>;
 
@@ -44,6 +45,13 @@ impl<R: DeserializeOwned, S: Serialize> HqConnection<R, S> {
                 .and_then(|m| deserialize_message(Ok(m), &mut self.opener))
             ),
             None => None
+        }
+    }
+    pub async fn send_and_receive(&mut self, item: S) -> crate::Result<R> {
+        self.send(item).await?;
+        match self.receive().await {
+            Some(msg) => msg,
+            None => error("Expected response was not received".into())
         }
     }
 

@@ -14,8 +14,7 @@ use crate::common::setup::setup_interrupt;
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::auth::{clone_key, generate_key};
-use crate::transfer::connection::HqConnection;
-use crate::transfer::messages::FromClientMessage;
+use crate::transfer::connection::{HqConnection, ClientConnection};
 
 const SYMLINK_PATH: &str = "hq-active-dir";
 
@@ -33,7 +32,7 @@ enum ServerStatus {
 /// server will be started.
 ///
 /// If an already running server is found, an error will be returned.
-pub async fn hyperqueue_start(rundir_path: PathBuf, use_auth: bool) -> crate::Result<()> {
+pub async fn init_hq_server(rundir_path: PathBuf, use_auth: bool) -> crate::Result<()> {
     let directory = resolve_active_directory(rundir_path.clone());
     std::fs::create_dir_all(&directory)?;
 
@@ -54,18 +53,11 @@ pub async fn hyperqueue_start(rundir_path: PathBuf, use_auth: bool) -> crate::Re
     }
 }
 
-pub async fn hyperqueue_stop(rundir_path: PathBuf) -> crate::Result<()> {
+pub async fn get_client_connection(rundir_path: PathBuf) -> crate::Result<ClientConnection> {
     match get_runfile(rundir_path.clone()) {
-        Ok(runfile) => {
-            let mut connection = HqConnection::connect_to_server(&runfile).await?;
-            connection.send(FromClientMessage::Stop).await?;
-            log::info!("Stopping server");
-        }
-        Err(e) => {
-            return error(format!("No running instance of HQ found: {}", e));
-        }
+        Ok(runfile) => Ok(HqConnection::connect_to_server(&runfile).await?),
+        Err(e) => error(format!("No running instance of HQ found: {}", e))
     }
-    Ok(())
 }
 
 /// Returns either `path` if it doesn't contain `SYMLINK_PATH` or the target of `SYMLINK_PATH`.
@@ -194,11 +186,12 @@ mod tests {
     use tempdir::TempDir;
 
     use crate::common::rundir::{RunDirectory, Runfile, store_runfile};
-    use crate::server::bootstrap::{get_server_status, hyperqueue_stop, initialize_server, resolve_active_directory, SYMLINK_PATH};
+    use crate::server::bootstrap::{get_server_status, initialize_server, resolve_active_directory, SYMLINK_PATH};
     use crate::utils::test_utils::run_concurrent;
 
     use super::ServerStatus;
     use futures::future::pending;
+    use crate::client::commands::stop::stop_server;
 
     #[tokio::test]
     async fn test_status_empty_directory() {
@@ -250,7 +243,7 @@ mod tests {
         let tmp_dir = TempDir::new("foo").unwrap().into_path();
         let fut = initialize_server(tmp_dir.clone(), false, pending()).await.unwrap();
         let (set, handle) = run_concurrent(fut, async {
-            hyperqueue_stop(tmp_dir).await.unwrap();
+            stop_server(tmp_dir).await.unwrap();
         }).await;
         set.run_until(handle).await.unwrap().unwrap();
     }
@@ -260,7 +253,7 @@ mod tests {
         let tmp_dir = TempDir::new("foo").unwrap().into_path();
         let fut = initialize_server(tmp_dir.clone(), true, pending()).await.unwrap();
         let (set, handle) = run_concurrent(fut, async {
-            hyperqueue_stop(tmp_dir).await.unwrap();
+            stop_server(tmp_dir).await.unwrap();
         }).await;
         set.run_until(handle).await.unwrap().unwrap();
     }
