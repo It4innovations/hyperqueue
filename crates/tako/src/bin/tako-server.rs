@@ -11,6 +11,8 @@ use tako::common::secret::read_secret_file;
 use tako::common::setup::{setup_interrupt, setup_logging};
 use tako::messages::gateway::ToGatewayMessage;
 use tako::server::client::client_connection_handler;
+use std::rc::Rc;
+use std::sync::Arc;
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -35,10 +37,10 @@ async fn main() {
     setup_logging();
 
     let secret_key = opts.secret_file.map(|key_file| {
-        read_secret_file(&key_file).unwrap_or_else(|e| {
+        Arc::new(read_secret_file(&key_file).unwrap_or_else(|e| {
             log::error!("Reading secret file {}: {:?}", key_file.display(), e);
             std::process::exit(1);
-        })
+        }))
     });
 
     let listen_address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), opts.port);
