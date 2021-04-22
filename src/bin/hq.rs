@@ -13,11 +13,11 @@ use tokio_util::codec::Decoder;
 use hyperqueue::client::commands::print_job_stats;
 use hyperqueue::common::error::error;
 use hyperqueue::common::error::HqError::GenericError;
-use hyperqueue::common::protocol::make_protocol_builder;
+use hyperqueue::transfer::protocol::make_protocol_builder;
 use hyperqueue::common::rundir::{load_runfile, RunDirectory, Runfile, store_runfile};
 use hyperqueue::common::setup::setup_logging;
-use hyperqueue::messages::{FromClientMessage, StatsResponse, SubmitMessage, SubmitResponse, ToClientMessage};
-use hyperqueue::server::bootstrap::hyperqueue_start;
+use hyperqueue::transfer::messages::{FromClientMessage, StatsResponse, SubmitMessage, SubmitResponse, ToClientMessage};
+use hyperqueue::server::bootstrap::{hyperqueue_start, hyperqueue_stop};
 use hyperqueue::server::rpc::TakoServer;
 use hyperqueue::server::state::StateRef;
 use hyperqueue::utils::absolute_path;
@@ -54,6 +54,12 @@ struct StartOpts {
 }
 
 #[derive(Clap)]
+struct StopOpts {
+    #[clap(flatten)]
+    common: CommonOpts,
+}
+
+#[derive(Clap)]
 struct StatsOpts {
     #[clap(flatten)]
     common: CommonOpts,
@@ -69,6 +75,7 @@ struct SubmitOpts {
 #[derive(Clap)]
 enum SubCommand {
     Start(StartOpts),
+    Stop(StopOpts)
     // Stats(StatsOpts),
     // Submit(SubmitOpts)
 }
@@ -94,10 +101,6 @@ async fn create_server_connection(runfile_path: &PathBuf) -> hyperqueue::Result<
     }*/
     return error("test".to_string());
 }*/
-
-async fn command_start(rundir_path: PathBuf) -> hyperqueue::Result<()> {
-    hyperqueue_start(rundir_path).await
-}
 
 /*async fn command_stats(runfile_path: PathBuf) -> hyperqueue::Result<()> {
     let mut connection = create_server_connection(&runfile_path).await?;
@@ -143,6 +146,13 @@ async fn command_submit(cmd_opts: SubmitOpts, runfile_path: PathBuf) -> hyperque
     Ok(())
 }*/
 
+async fn command_start(rundir_path: PathBuf) -> hyperqueue::Result<()> {
+    hyperqueue_start(rundir_path).await
+}
+async fn command_stop(rundir_path: PathBuf) -> hyperqueue::Result<()> {
+    hyperqueue_stop(rundir_path).await
+}
+
 fn default_rundir() -> PathBuf {
     let mut home = dirs::home_dir().unwrap_or_else(|| std::env::temp_dir());
     home.push(".hq-rundir");
@@ -156,6 +166,7 @@ async fn main() -> hyperqueue::Result<()> {
 
     let result = match opts.subcmd {
         SubCommand::Start(opts) => command_start(opts.common.get_rundir()).await,
+        SubCommand::Stop(opts) => command_stop(opts.common.get_rundir()).await,
         /*SubCommand::Stats(opts) => command_stats(opts.common.get_rundir()).await,
         SubCommand::Submit(opts) => {
             let rundir = opts.common.get_rundir();

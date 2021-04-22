@@ -1,8 +1,8 @@
 pub mod common;
 pub mod server;
-pub mod messages;
 pub mod client;
 pub mod utils;
+pub mod transfer;
 
 pub type Map<K, V> = hashbrown::HashMap<K, V>;
 pub type Set<T> = hashbrown::HashSet<T>;

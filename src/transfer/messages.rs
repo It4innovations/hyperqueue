@@ -14,9 +14,9 @@ pub struct SubmitMessage {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum FromClientMessage {
     Submit(SubmitMessage),
-    Stats
+    Stats,
+    Stop
 }
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ToClientMessage {
@@ -25,14 +25,12 @@ pub enum ToClientMessage {
     Error(String),
 }
 
-
 #[derive(Serialize, Deserialize, Debug)]
 pub enum JobState {
     Waiting,
     Finished,
     Failed,
 }
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JobInfo {
@@ -41,13 +39,11 @@ pub struct JobInfo {
     pub state: JobState,
 }
 
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StatsResponse {
     pub workers: Vec<String>,
     pub jobs: Vec<JobInfo>
 }
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitResponse {
