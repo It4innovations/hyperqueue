@@ -68,8 +68,8 @@ impl Core {
         std::mem::take(&mut self.ready_to_assign)
     }
 
-    pub fn set_worker_listen_port(&mut self, port: u16) {
-        self.worker_listen_port = port
+    pub fn get_worker_listen_port(&self) -> u16 {
+        self.worker_listen_port
     }
 
     pub fn get_subworker_definitions(&self) -> &Vec<SubworkerDefinition> {
