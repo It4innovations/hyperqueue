@@ -1,11 +1,15 @@
+use std::fs::{File, OpenOptions};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
-use std::fs::{OpenOptions, File};
-use std::os::unix::fs::OpenOptionsExt;
-use crate::utils::absolute_path;
-use crate::common::error::error;
 use chrono::{DateTime, Utc};
+use orion::kdf::SecretKey;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::Error;
+
+use crate::common::error::error;
+use crate::transfer::auth::{deserialize_key, serialize_key};
+use crate::utils::absolute_path;
 
 #[derive(Clone)]
 pub struct RunDirectory {
@@ -33,12 +37,33 @@ impl RunDirectory {
     }
 }
 
+fn serde_serialize_key<S: Serializer>(key: &Option<SecretKey>, serializer: S) -> Result<S::Ok, S::Error> {
+    match key {
+        Some(k) => {
+            let str = serialize_key(&k);
+            serializer.serialize_some(&str)
+        }
+        None => serializer.serialize_none()
+    }
+}
+
+fn serde_deserialize_key<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<SecretKey>, D::Error> {
+    let key: Option<String> = Deserialize::deserialize(deserializer)?;
+    match key {
+        Some(key) => {
+            let key = deserialize_key(&key).map_err(|e| D::Error::custom(format!("Could not load secret key {}", e)))?;
+            Ok(Some(key))
+        }
+        None => Ok(None)
+    }
+}
+
 /// This data structure represents information required to connect to a running instance of
 /// HyperQueue.
 ///
 /// It is stored on disk during `hq start` and loaded by both client operations (stats, submit) and
 /// HyperQueue workers in order to connect to the server instance.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Eq, PartialEq)]
 pub struct Runfile {
     /// Hostname of the HyperQueue server
     hostname: String,
@@ -49,13 +74,33 @@ pub struct Runfile {
     /// Port that you can connect to as a Tako worker
     worker_port: u16,
 
-    start_date: DateTime<Utc>
-    // TODO: add secret
+    start_date: DateTime<Utc>,
+
+    #[serde(serialize_with = "serde_serialize_key")]
+    #[serde(deserialize_with = "serde_deserialize_key")]
+    hq_secret_key: Option<SecretKey>,
+
+    #[serde(serialize_with = "serde_serialize_key")]
+    #[serde(deserialize_with = "serde_deserialize_key")]
+    tako_secret_key: Option<SecretKey>,
 }
 
 impl Runfile {
-    pub fn new(hostname: String, server_port: u16, worker_port: u16) -> Self {
-        Self { hostname, server_port, worker_port, start_date: Utc::now() }
+    pub fn new(
+        hostname: String,
+        server_port: u16,
+        worker_port: u16,
+        hq_secret_key: Option<SecretKey>,
+        tako_secret_key: Option<SecretKey>,
+    ) -> Self {
+        Self {
+            hostname,
+            server_port,
+            worker_port,
+            start_date: Utc::now(),
+            hq_secret_key,
+            tako_secret_key,
+        }
     }
     pub fn hostname(&self) -> &str {
         &self.hostname
@@ -69,6 +114,12 @@ impl Runfile {
     pub fn start_date(&self) -> &DateTime<Utc> {
         &self.start_date
     }
+    pub fn hq_secret_key(&self) -> &Option<SecretKey> {
+        &self.hq_secret_key
+    }
+    pub fn tako_secret_key(&self) -> &Option<SecretKey> {
+        &self.tako_secret_key
+    }
 }
 
 pub fn store_runfile<P: AsRef<Path>>(runfile: &Runfile, path: P) -> crate::Result<()> {
@@ -76,7 +127,7 @@ pub fn store_runfile<P: AsRef<Path>>(runfile: &Runfile, path: P) -> crate::Resul
     options
         .write(true)
         .create_new(true)
-        .mode(0o600); // Read/write for user, nothing for others
+        .mode(0o400); // Read for user, nothing for others
 
     let file = options.open(path)?;
     serde_json::to_writer_pretty(file, runfile)?;
@@ -88,4 +139,26 @@ pub fn load_runfile<P: AsRef<Path>>(path: P) -> crate::Result<Runfile> {
     let file = File::open(path)?;
     let runfile = serde_json::from_reader(file)?;
     Ok(runfile)
+}
+
+#[cfg(test)]
+mod tests {
+    use tempdir::TempDir;
+
+    use crate::common::rundir::{load_runfile, Runfile, store_runfile};
+
+    #[test]
+    fn test_roundtrip() {
+        let runfile = Runfile::new(
+            "foo".into(),
+            42,
+            43,
+            Some(Default::default()),
+            Some(Default::default()),
+        );
+        let path = TempDir::new("foo").unwrap().into_path().join("runfile.json");
+        store_runfile(&runfile, path.clone()).unwrap();
+        let loaded = load_runfile(path).unwrap();
+        assert!(runfile == loaded);
+    }
 }

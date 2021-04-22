@@ -50,6 +50,8 @@ impl CommonOpts {
 struct StartOpts {
     #[clap(flatten)]
     common: CommonOpts,
+    #[clap(long)]
+    no_auth: bool
 }
 
 #[derive(Clap)]
@@ -145,11 +147,12 @@ async fn command_submit(cmd_opts: SubmitOpts, runfile_path: PathBuf) -> hyperque
     Ok(())
 }*/
 
-async fn command_start(rundir_path: PathBuf) -> hyperqueue::Result<()> {
-    hyperqueue_start(rundir_path).await
+async fn command_start(opts: StartOpts) -> hyperqueue::Result<()> {
+    let rundir_path = opts.common.get_rundir();
+    hyperqueue_start(rundir_path, !opts.no_auth).await
 }
-async fn command_stop(rundir_path: PathBuf) -> hyperqueue::Result<()> {
-    hyperqueue_stop(rundir_path).await
+async fn command_stop(opts: StopOpts) -> hyperqueue::Result<()> {
+    hyperqueue_stop(opts.common.get_rundir()).await
 }
 
 fn default_rundir() -> PathBuf {
@@ -164,8 +167,8 @@ async fn main() -> hyperqueue::Result<()> {
     setup_logging();
 
     let result = match opts.subcmd {
-        SubCommand::Start(opts) => command_start(opts.common.get_rundir()).await,
-        SubCommand::Stop(opts) => command_stop(opts.common.get_rundir()).await,
+        SubCommand::Start(opts) => command_start(opts).await,
+        SubCommand::Stop(opts) => command_stop(opts).await,
         /*SubCommand::Stats(opts) => command_stats(opts.common.get_rundir()).await,
         SubCommand::Submit(opts) => {
             let rundir = opts.common.get_rundir();

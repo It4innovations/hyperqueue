@@ -481,6 +481,7 @@ dependencies = [
  "futures",
  "gethostname",
  "hashbrown 0.11.2",
+ "hex",
  "jemallocator",
  "log",
  "orion",

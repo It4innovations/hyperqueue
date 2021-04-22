@@ -10,6 +10,7 @@ use crate::common::error::error;
 use crate::common::WrappedRcRefCell;
 use crate::server::state::StateRef;
 use tokio::time::Duration;
+use orion::kdf::SecretKey;
 
 struct Inner {
     sender: UnboundedSender<FromGatewayMessage>,
@@ -37,14 +38,14 @@ impl TakoServer {
         Ok(rx.await.unwrap())
     }
 
-    pub async fn start(state_ref: StateRef) -> crate::Result<(TakoServer, impl Future<Output=crate::Result<()>>)> {
+    pub async fn start(state_ref: StateRef, key: Option<SecretKey>) -> crate::Result<(TakoServer, impl Future<Output=crate::Result<()>>)> {
         let msd = Duration::from_millis(20);
 
         let (from_tako_sender, mut from_tako_receiver) = unbounded_channel::<ToGatewayMessage>();
         let (to_tako_sender, mut to_tako_receiver) = unbounded_channel::<FromGatewayMessage>();
         let (core_ref, comm_ref, server_future) = tako::server::server_start(
             "0.0.0.0:0".parse().unwrap(),
-            None, // TODO
+            key,
             msd,
             from_tako_sender.clone(),
             false,
@@ -109,14 +110,14 @@ mod tests {
     #[tokio::test]
     async fn test_server_connect_worker() {
         let state = StateRef::new();
-        let (server, _fut) = TakoServer::start(state).await.unwrap();
+        let (server, _fut) = TakoServer::start(state, None).await.unwrap();
         TcpStream::connect(format!("127.0.0.1:{}", server.worker_port())).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_server_server_info() {
         let state = StateRef::new();
-        let (server, fut) = TakoServer::start(state).await.unwrap();
+        let (server, fut) = TakoServer::start(state, None).await.unwrap();
         run_concurrent(fut, async move {
             assert!(matches!(server.send_message(FromGatewayMessage::ServerInfo).await.unwrap(),
                 ToGatewayMessage::ServerInfo(ServerInfo { worker_listen_port })
