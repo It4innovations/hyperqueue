@@ -1,5 +1,8 @@
+use std::rc::Rc;
+
 use futures::{Sink, SinkExt, Stream, StreamExt};
-use tako::messages::gateway::{FromGatewayMessage, NewTasksMessage, TaskDef, ToGatewayMessage};
+use orion::kdf::SecretKey;
+use tako::messages::gateway::{FromGatewayMessage, NewTasksMessage, TaskDef, TaskInfo, TaskInfoRequest, ToGatewayMessage};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::Sender;
 
@@ -8,15 +11,13 @@ use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{FromClientMessage, JobInfo, JobState, StatsResponse, SubmitMessage, SubmitResponse, ToClientMessage};
-use orion::kdf::SecretKey;
-use std::rc::Rc;
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
     tako_ref: TakoServer,
     listener: TcpListener,
     end_flag: Sender<()>,
-    key: Option<Rc<SecretKey>>
+    key: Option<Rc<SecretKey>>,
 ) {
     while let Ok((connection, _)) = listener.accept().await {
         let state_ref = state_ref.clone();
@@ -36,7 +37,7 @@ async fn handle_client(
     state_ref: StateRef,
     tako_ref: TakoServer,
     end_flag: Sender<()>,
-    key: Option<Rc<SecretKey>>
+    key: Option<Rc<SecretKey>>,
 ) -> crate::Result<()> {
     log::debug!("New client connection");
     let socket = ServerConnection::accept_client(socket, key).await?;
@@ -86,13 +87,11 @@ async fn compute_stats(state_ref: &StateRef, tako_ref: &TakoServer) -> ToClientM
 
     println!("{:?}", response);
 
-    let task_info : Map<TaskId, TaskInfo> = match response {
+    let task_info : Map<TaskId, TaskInfo> = match response.unwrap() {
         ToGatewayMessage::TaskInfo(info) => {
             info.tasks.into_iter().map(|t| (t.id, t)).collect()
         }
-        r => {
-            panic!("Invalid server response {:?}", r);
-        }
+        r => panic!("Invalid server response {:?}", r)
     };*/
 
     let state = state_ref.get();
