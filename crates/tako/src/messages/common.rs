@@ -51,9 +51,11 @@ pub struct ProgramDefinition {
     #[serde(skip_serializing_if = "Map::is_empty")]
     pub env: Map<String, String>,
 
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stdout: Option<PathBuf>,
 
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stderr: Option<PathBuf>,
 }
