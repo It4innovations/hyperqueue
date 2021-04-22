@@ -29,6 +29,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
+          args: --all-targets
 
       - name: Test
         uses: actions-rs/cargo@v1
@@ -45,11 +46,10 @@ jobs:
           python -m pip install --upgrade pip wheel setuptools
           python -m pip install pytest
 
-      - name: Test Python
-        run: python -m pytest tests
+#      - name: Test Python
+#        run: python -m pytest tests
 
       - name: Lint
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings
