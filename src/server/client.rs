@@ -112,8 +112,8 @@ async fn handle_submit(state_ref: &StateRef, tako_ref: &TakoServer, message: Sub
 
     let stdout = format!("stdout.{}", task_id);
     let stderr = format!("stdout.{}", task_id);
-    program_def.stdout = Some(message.cwd.join(stdout).into());
-    program_def.stderr = Some(message.cwd.join(stderr).into());
+    program_def.stdout = Some(message.cwd.join(stdout));
+    program_def.stderr = Some(message.cwd.join(stderr));
 
     let task_def = TaskDef {
         id: task_id,

@@ -30,7 +30,7 @@ struct CommonOpts {
 
 impl CommonOpts {
     fn get_rundir(&self) -> PathBuf {
-        absolute_path(self.rundir.clone().unwrap_or_else(|| default_rundir()))
+        absolute_path(self.rundir.clone().unwrap_or_else(default_rundir))
     }
 }
 
@@ -85,7 +85,7 @@ async fn command_submit(opts: SubmitOpts) -> hyperqueue::Result<()> {
 }
 
 fn default_rundir() -> PathBuf {
-    let mut home = dirs::home_dir().unwrap_or_else(|| std::env::temp_dir());
+    let mut home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
     home.push(".hq-rundir");
     home
 }

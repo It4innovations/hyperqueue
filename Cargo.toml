@@ -36,7 +36,8 @@ gethostname = "0.2.1"
 chrono = { version = "0.4.19", features = ["serde"] }
 orion = "0.16.0"
 hex = "0.4.3"
-tako = { path = "../tako" }
+#tako = { path = "../tako" }
+tako = { git = "https://github.com/spirali/tako", branch = "main" }
 
 [dev-dependencies]
 tempdir = "0.3.7"

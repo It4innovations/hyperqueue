@@ -68,7 +68,7 @@ fn resolve_active_directory(path: PathBuf) -> PathBuf {
 }
 
 fn get_runfile(directory: PathBuf) -> crate::Result<Runfile> {
-    let directory = resolve_active_directory(directory.clone());
+    let directory = resolve_active_directory(directory);
     let rundir = RunDirectory::new(directory)?;
     let runfile = load_runfile(rundir.runfile())?;
     Ok(runfile)
@@ -77,7 +77,7 @@ fn get_runfile(directory: PathBuf) -> crate::Result<Runfile> {
 async fn get_server_status(rundir: &RunDirectory) -> crate::Result<ServerStatus> {
     let runfile = get_runfile(rundir.directory().clone())?;
 
-    if let Err(_) = HqConnection::connect_to_server(&runfile).await {
+    if HqConnection::connect_to_server(&runfile).await.is_err() {
         return Ok(ServerStatus::Offline(runfile));
     }
 
@@ -145,7 +145,7 @@ async fn start_server(directory: PathBuf) -> crate::Result<()> {
     local_set.run_until(fut).await
 }
 
-fn initialize_directory(directory: &PathBuf, runfile: &Runfile) -> crate::Result<()> {
+fn initialize_directory(directory: &Path, runfile: &Runfile) -> crate::Result<()> {
     let rundir_path = directory.join(runfile.start_date().format("%Y-%m-%d-%H-%M-%S").to_string());
     std::fs::create_dir_all(&rundir_path)?;
     let rundir = RunDirectory::new(rundir_path.clone())?;

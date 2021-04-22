@@ -107,19 +107,18 @@ mod tests {
     use crate::server::rpc::TakoServer;
     use crate::server::state::StateRef;
     use crate::utils::test_utils::run_concurrent;
-    use crate::transfer::auth::generate_key;
 
     #[tokio::test]
     async fn test_server_connect_worker() {
         let state = StateRef::new();
-        let (server, _fut) = TakoServer::start(state, generate_key()).await.unwrap();
+        let (server, _fut) = TakoServer::start(state, Default::default()).await.unwrap();
         TcpStream::connect(format!("127.0.0.1:{}", server.worker_port())).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_server_server_info() {
         let state = StateRef::new();
-        let (server, fut) = TakoServer::start(state, generate_key()).await.unwrap();
+        let (server, fut) = TakoServer::start(state, Default::default()).await.unwrap();
         run_concurrent(fut, async move {
             assert!(matches!(server.send_message(FromGatewayMessage::ServerInfo).await.unwrap(),
                 ToGatewayMessage::ServerInfo(ServerInfo { worker_listen_port })
