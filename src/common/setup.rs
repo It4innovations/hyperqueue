@@ -1,4 +1,5 @@
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::Notify;
+use std::sync::Arc;
 
 pub fn setup_logging() {
     if std::env::var("RUST_LOG").is_err() {
@@ -7,14 +8,13 @@ pub fn setup_logging() {
     env_logger::builder().format_timestamp_millis().init();
 }
 
-pub fn setup_interrupt() -> UnboundedReceiver<()> {
-    let (end_tx, end_rx) = tokio::sync::mpsc::unbounded_channel();
+pub fn setup_interrupt() -> Arc<Notify> {
+    let notify = Arc::new(Notify::new());
+    let sender = notify.clone();
     ctrlc::set_handler(move || {
         log::debug!("Received SIGINT, attempting to stop");
-        end_tx
-            .send(())
-            .unwrap_or_else(|_| log::error!("Sending signal failed"))
+        sender.notify_one();
     })
     .expect("Error setting Ctrl-C handler");
-    end_rx
+    notify
 }
