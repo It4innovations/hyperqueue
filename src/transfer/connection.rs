@@ -13,7 +13,6 @@ use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 use crate::common::rundir::Runfile;
-//use crate::transfer::auth::clone_key;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use crate::transfer::protocol::make_protocol_builder;
 use crate::common::error::error;

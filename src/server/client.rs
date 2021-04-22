@@ -8,7 +8,6 @@ use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{FromClientMessage, JobInfo, JobState, StatsResponse, SubmitMessage, SubmitResponse, ToClientMessage};
-//use crate::transfer::auth::clone_key;
 use tokio::sync::Notify;
 use std::rc::Rc;
 use std::sync::Arc;
