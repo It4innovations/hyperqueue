@@ -9,7 +9,6 @@ ROOT_DIR = os.path.dirname(PYTEST_DIR)
 HQ_BINARY = os.path.join(ROOT_DIR, "target", "debug", "hq")
 HQ_WORKER_BIN = os.path.join(ROOT_DIR, "target", "debug", "hq-worker")
 
-TAKO_BIN_PATH = os.path.join(os.path.dirname(ROOT_DIR), "tako", "target", "debug")
 #TAKO_SERVER_BIN = os.path.join(TAKO_BIN_PATH, "tako-server")
 
 
@@ -63,6 +62,7 @@ class HqEnv(Env):
         self.workers = {}
         self.id_counter = 0
         self.do_final_check = True
+        self.rundir = None
 
     def no_final_check(self):
         self.do_final_check = False
@@ -73,16 +73,16 @@ class HqEnv(Env):
         env["RUST_BACKTRACE"] = "full"
         return env
 
-    def start_server(self):
+    def start_server(self, rundir="./hq-rundir"):
+        self.rundir = os.path.join(self.work_path, rundir)
         env = self.make_default_env()
-        env["PATH"] = env.get("PATH", "") + ":" + TAKO_BIN_PATH
-        args = [HQ_BINARY, "start"]
+        args = [HQ_BINARY, "--rundir", self.rundir, "start"]
         self.start_process("server", args, env=env)
         self.check_running_processes()
         time.sleep(0.2)
 
     def command(self, *args):
-        args = [HQ_BINARY] + list(args)
+        args = [HQ_BINARY, "--rundir", self.rundir] + list(args)
         try:
             output = subprocess.check_output(args, stderr=subprocess.STDOUT, cwd=self.work_path)
             return output.decode()

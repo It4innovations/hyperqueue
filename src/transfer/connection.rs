@@ -76,8 +76,8 @@ impl<R: DeserializeOwned, S: Serialize> HqConnection<R, S> {
         let connection = make_protocol_builder().new_framed(socket);
         let (mut tx, mut rx) = connection.split();
 
-        let mut my_role = "server".to_string();
-        let mut peer_role = "client".to_string();
+        let mut my_role = "hq-server".to_string();
+        let mut peer_role = "hq-client".to_string();
         if !server {
             std::mem::swap(&mut my_role, &mut peer_role);
         }
