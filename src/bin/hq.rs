@@ -15,17 +15,21 @@ static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 pub type Connection = tokio_util::codec::Framed<tokio::net::UnixStream, tokio_util::codec::LengthDelimitedCodec>;
 
 #[derive(Clap)]
-#[clap(version = "0.1")]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
-struct Opts {
-    #[clap(subcommand)]
-    subcmd: SubCommand,
-}
-
-#[derive(Clap)]
 struct CommonOpts {
     #[clap(long)]
     rundir: Option<PathBuf>,
+}
+
+
+#[derive(Clap)]
+#[clap(version = "0.1")]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct Opts {
+    #[clap(flatten)]
+    common: CommonOpts,
+
+    #[clap(subcommand)]
+    subcmd: SubCommand,
 }
 
 impl CommonOpts {
@@ -36,26 +40,18 @@ impl CommonOpts {
 
 #[derive(Clap)]
 struct StartOpts {
-    #[clap(flatten)]
-    common: CommonOpts,
 }
 
 #[derive(Clap)]
 struct StopOpts {
-    #[clap(flatten)]
-    common: CommonOpts,
 }
 
 #[derive(Clap)]
 struct StatsOpts {
-    #[clap(flatten)]
-    common: CommonOpts,
 }
 
 #[derive(Clap)]
 struct SubmitOpts {
-    #[clap(flatten)]
-    common: CommonOpts,
     commands: Vec<String>,
 }
 
@@ -67,21 +63,21 @@ enum SubCommand {
     Submit(SubmitOpts),
 }
 
-async fn command_start(opts: StartOpts) -> hyperqueue::Result<()> {
-    let rundir_path = opts.common.get_rundir();
+async fn command_start(common: CommonOpts, opts: StartOpts) -> hyperqueue::Result<()> {
+    let rundir_path = common.get_rundir();
     init_hq_server(rundir_path).await
 }
 
-async fn command_stop(opts: StopOpts) -> hyperqueue::Result<()> {
-    stop_server(opts.common.get_rundir()).await
+async fn command_stop(common: CommonOpts, opts: StopOpts) -> hyperqueue::Result<()> {
+    stop_server(common.get_rundir()).await
 }
 
-async fn command_stats(opts: StatsOpts) -> hyperqueue::Result<()> {
-    get_server_stats(opts.common.get_rundir()).await
+async fn command_stats(common: CommonOpts, opts: StatsOpts) -> hyperqueue::Result<()> {
+    get_server_stats(common.get_rundir()).await
 }
 
-async fn command_submit(opts: SubmitOpts) -> hyperqueue::Result<()> {
-    submit_computation(opts.common.get_rundir(), opts.commands).await
+async fn command_submit(common: CommonOpts, opts: SubmitOpts) -> hyperqueue::Result<()> {
+    submit_computation(common.get_rundir(), opts.commands).await
 }
 
 fn default_rundir() -> PathBuf {
@@ -92,14 +88,14 @@ fn default_rundir() -> PathBuf {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> hyperqueue::Result<()> {
-    let opts: Opts = Opts::parse();
+    let top_opts: Opts = Opts::parse();
     setup_logging();
 
-    let result = match opts.subcmd {
-        SubCommand::Start(opts) => command_start(opts).await,
-        SubCommand::Stop(opts) => command_stop(opts).await,
-        SubCommand::Stats(opts) => command_stats(opts).await,
-        SubCommand::Submit(opts) => command_submit(opts).await
+    let result = match top_opts.subcmd {
+        SubCommand::Start(opts) => command_start(top_opts.common, opts).await,
+        SubCommand::Stop(opts) => command_stop(top_opts.common, opts).await,
+        SubCommand::Stats(opts) => command_stats(top_opts.common, opts).await,
+        SubCommand::Submit(opts) => command_submit(top_opts.common, opts).await
     };
     if let Err(e) = result {
         eprintln!("{}", e);

@@ -76,7 +76,7 @@ class HqEnv(Env):
     def start_server(self):
         env = self.make_default_env()
         env["PATH"] = env.get("PATH", "") + ":" + TAKO_BIN_PATH
-        args = [HQ_BINARY, "hq-server.socket"]
+        args = [HQ_BINARY, "start"]
         self.start_process("server", args, env=env)
         self.check_running_processes()
         time.sleep(0.2)
