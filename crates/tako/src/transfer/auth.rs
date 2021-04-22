@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -20,13 +20,14 @@ use crate::messages::auth::{
     Challenge, EncryptionResponse,
 };
 
+
 const CHALLENGE_LENGTH: usize = 20;
 
 struct Authenticator {
     pub protocol: u32,
     pub my_role: String,
     pub peer_role: String,
-    pub secret_key: Option<Rc<SecretKey>>,
+    pub secret_key: Option<Arc<SecretKey>>,
     pub challenge: Vec<u8>,
     pub sealer: Option<StreamSealer>,
     pub error: Option<String>,
@@ -37,7 +38,7 @@ impl Authenticator {
         protocol: u32,
         role: String,
         peer_role: String,
-        secret_key: Option<Rc<SecretKey>>,
+        secret_key: Option<Arc<SecretKey>>,
     ) -> Self {
         Authenticator {
             protocol,
@@ -176,7 +177,7 @@ pub async fn do_authentication<T: AsyncRead + AsyncWrite>(
     protocol: u32,
     my_role: String,
     peer_role: String,
-    secret_key: Option<Rc<SecretKey>>,
+    secret_key: Option<Arc<SecretKey>>,
     writer: &mut SplitSink<Framed<T, LengthDelimitedCodec>, bytes::Bytes>,
     reader: &mut SplitStream<Framed<T, LengthDelimitedCodec>>,
 ) -> crate::Result<(Option<StreamSealer>, Option<StreamOpener>)> {

@@ -1,6 +1,6 @@
 use std::future::Future;
 use std::net::SocketAddr;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use orion::aead::SecretKey;
@@ -12,10 +12,11 @@ use crate::messages::gateway::ToGatewayMessage;
 use crate::scheduler::scheduler::scheduler_loop;
 use crate::server::comm::CommSenderRef;
 use crate::server::core::CoreRef;
+use std::rc::Rc;
 
 pub async fn server_start(
     listen_address: SocketAddr,
-    secret_key: Option<SecretKey>,
+    secret_key: Option<Arc<SecretKey>>,
     msd: Duration,
     client_sender: UnboundedSender<ToGatewayMessage>,
     panic_on_worker_lost: bool,
@@ -37,7 +38,7 @@ pub async fn server_start(
         client_sender,
         panic_on_worker_lost,
     );
-    let core_ref = CoreRef::new(listener_port, secret_key.map(Rc::new));
+    let core_ref = CoreRef::new(listener_port, secret_key);
     //let scheduler = observe_scheduler(core_ref.clone(), comm_ref.clone(), scheduler_receiver);
     let connections =
         crate::server::rpc::connection_initiator(listener, core_ref.clone(), comm_ref.clone());

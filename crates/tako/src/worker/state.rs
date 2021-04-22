@@ -23,6 +23,7 @@ use crate::worker::subworker::{SubworkerId, SubworkerRef};
 use crate::worker::task::{TaskRef, TaskState};
 use crate::TaskId;
 use crate::{Priority, PriorityTuple};
+use std::sync::Arc;
 
 pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
 
@@ -52,7 +53,7 @@ pub struct WorkerState {
 
     pub configuration: WorkerConfiguration,
 
-    pub secret_key: Option<Rc<SecretKey>>,
+    pub secret_key: Option<Arc<SecretKey>>,
 }
 
 impl WorkerState {
@@ -399,7 +400,7 @@ impl WorkerStateRef {
     pub fn new(
         worker_id: WorkerId,
         configuration: WorkerConfiguration,
-        secret_key: Option<Rc<SecretKey>>,
+        secret_key: Option<Arc<SecretKey>>,
         sender: UnboundedSender<Bytes>,
         download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, PriorityTuple)>,
         worker_addresses: Map<WorkerId, String>,

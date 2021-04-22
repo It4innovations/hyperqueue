@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use orion::aead::SecretKey;
 
 use crate::common::error::DsError;
@@ -10,6 +8,7 @@ use crate::messages::gateway::ServerInfo;
 use crate::server::task::{Task, TaskRef, TaskRuntimeState};
 use crate::server::worker::Worker;
 use crate::{TaskId, WorkerId};
+use std::sync::Arc;
 
 #[derive(Default)]
 pub struct Core {
@@ -26,13 +25,13 @@ pub struct Core {
     worker_listen_port: u16,
 
     subworker_definitions: Vec<SubworkerDefinition>,
-    secret_key: Option<Rc<SecretKey>>,
+    secret_key: Option<Arc<SecretKey>>,
 }
 
 pub type CoreRef = WrappedRcRefCell<Core>;
 
 impl CoreRef {
-    pub fn new(worker_listen_port: u16, secret_key: Option<Rc<SecretKey>>) -> Self {
+    pub fn new(worker_listen_port: u16, secret_key: Option<Arc<SecretKey>>) -> Self {
         let mut core = Core::default();
         core.worker_listen_port = worker_listen_port;
         core.secret_key = secret_key;
@@ -286,11 +285,11 @@ impl Core {
         }
     }
 
-    pub fn set_secret_key(&mut self, secret_key: Option<Rc<SecretKey>>) {
+    pub fn set_secret_key(&mut self, secret_key: Option<Arc<SecretKey>>) {
         self.secret_key = secret_key
     }
 
-    pub fn secret_key(&self) -> &Option<Rc<SecretKey>> {
+    pub fn secret_key(&self) -> &Option<Arc<SecretKey>> {
         &self.secret_key
     }
 }

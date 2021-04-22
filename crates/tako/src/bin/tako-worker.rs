@@ -11,6 +11,8 @@ use tako::common::secret::read_secret_file;
 use tako::common::setup::setup_logging;
 use tako::messages::common::WorkerConfiguration;
 use tako::worker::rpc::run_worker;
+use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clap)]
 #[clap(version = "1.0")]
@@ -86,10 +88,10 @@ async fn main() -> tako::Result<()> {
     };
 
     let secret_key = opts.secret_file.map(|key_file| {
-        read_secret_file(&key_file).unwrap_or_else(|e| {
+        Arc::new(read_secret_file(&key_file).unwrap_or_else(|e| {
             log::error!("Reading secret file {}: {:?}", key_file.display(), e);
             std::process::exit(1);
-        })
+        }))
     });
 
     if secret_key.is_none() {

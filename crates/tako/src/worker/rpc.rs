@@ -1,5 +1,4 @@
 use std::net::{Ipv4Addr, SocketAddr};
-use std::rc::Rc;
 use std::time::Duration;
 
 use bytes::{Bytes, BytesMut};
@@ -33,6 +32,7 @@ use crate::worker::state::WorkerStateRef;
 use crate::worker::task::TaskRef;
 use crate::Priority;
 use crate::PriorityTuple;
+use std::sync::Arc;
 
 async fn start_listener() -> crate::Result<(TcpListener, String)> {
     let address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
@@ -77,13 +77,12 @@ async fn connect_to_server(scheduler_address: &str) -> crate::Result<TcpStream> 
 pub async fn run_worker(
     scheduler_address: &str,
     mut configuration: WorkerConfiguration,
-    secret_key: Option<SecretKey>,
+    secret_key: Option<Arc<SecretKey>>,
 ) -> crate::Result<()> {
     let (listener, address) = start_listener().await?;
     configuration.listen_address = address;
     let stream = connect_to_server(&scheduler_address).await?;
     let (mut writer, mut reader) = make_protocol_builder().new_framed(stream).split();
-    let secret_key = secret_key.map(Rc::new);
     let (mut sealer, mut opener) = do_authentication(
         0,
         "worker".to_string(),
