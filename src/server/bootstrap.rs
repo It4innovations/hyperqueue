@@ -1,7 +1,9 @@
 use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use futures::TryFutureExt;
+use orion::kdf::SecretKey;
 use tokio::net::TcpListener;
 use tokio::task::LocalSet;
 
@@ -11,6 +13,7 @@ use crate::common::rundir::{load_runfile, RunDirectory, Runfile, store_runfile};
 use crate::common::setup::setup_interrupt;
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
+use crate::transfer::auth::{clone_key, generate_key};
 use crate::transfer::connection::HqConnection;
 use crate::transfer::messages::FromClientMessage;
 
@@ -30,7 +33,7 @@ enum ServerStatus {
 /// server will be started.
 ///
 /// If an already running server is found, an error will be returned.
-pub async fn hyperqueue_start(rundir_path: PathBuf) -> crate::Result<()> {
+pub async fn hyperqueue_start(rundir_path: PathBuf, use_auth: bool) -> crate::Result<()> {
     let directory = resolve_active_directory(rundir_path.clone());
     std::fs::create_dir_all(&directory)?;
 
@@ -39,7 +42,10 @@ pub async fn hyperqueue_start(rundir_path: PathBuf) -> crate::Result<()> {
     match get_server_status(&rundir).await {
         Err(_) | Ok(ServerStatus::Offline(_)) => {
             log::info!("No online server found, starting a new server");
-            start_server(rundir_path).await
+            if !use_auth {
+                log::warn!("Running server without authentication and encryption. Anyone will be able to connect to the server.");
+            }
+            start_server(rundir_path, use_auth).await
         }
         Ok(ServerStatus::Online(_)) => {
             error(format!("Server at {0} is already online, please stop it first using \
@@ -91,33 +97,48 @@ async fn get_server_status(rundir: &RunDirectory) -> crate::Result<ServerStatus>
     Ok(ServerStatus::Online(runfile))
 }
 
-async fn initialize_server(directory: PathBuf) -> crate::Result<impl Future<Output=crate::Result<()>>> {
-    let mut end_rx = setup_interrupt();
-    let end_flag = async move {
-        end_rx.recv().await;
-    };
-
+async fn initialize_server<F: Future<Output=()>>(
+    directory: PathBuf,
+    use_auth: bool,
+    end_flag: F
+) -> crate::Result<impl Future<Output=crate::Result<()>>> {
     let client_listener = TcpListener::bind("0.0.0.0:0")
         .map_err(|e| GenericError(format!("Cannot create HQ server socket: {}", e)))
         .await?;
     let server_port = client_listener.local_addr()?.port();
 
+    let gen_key = move || -> Option<SecretKey> {
+        if use_auth {
+            Some(generate_key())
+        } else {
+            None
+        }
+    };
+
+    let hq_secret_key = gen_key();
+    let tako_secret_key = gen_key();
+
     let state_ref = StateRef::new();
-    let (tako_server, tako_future) = TakoServer::start(state_ref.clone()).await?;
+    let (tako_server, tako_future) = TakoServer::start(
+        state_ref.clone(),
+        tako_secret_key.as_ref().map(clone_key),
+    ).await?;
 
     let runfile = Runfile::new(
         gethostname::gethostname().into_string().unwrap(),
         server_port,
         tako_server.worker_port(),
+        hq_secret_key.as_ref().map(clone_key),
+        tako_secret_key,
     );
     initialize_directory(&directory, &runfile)?;
 
     let (stop_tx, mut stop_rx) = tokio::sync::mpsc::channel(1);
 
+    let key = hq_secret_key.map(Rc::new);
     let fut = async move {
         tokio::select! {
             _ = end_flag => {
-                log::info!("Stopping after SIGINT");
                 Ok(())
             },
             _ = stop_rx.recv() => {
@@ -128,7 +149,8 @@ async fn initialize_server(directory: PathBuf) -> crate::Result<impl Future<Outp
                 state_ref,
                 tako_server,
                 client_listener,
-                stop_tx
+                stop_tx,
+                key
             ) => { Ok(()) }
             r = tako_future => { r }
         }
@@ -136,8 +158,14 @@ async fn initialize_server(directory: PathBuf) -> crate::Result<impl Future<Outp
     Ok(fut)
 }
 
-async fn start_server(directory: PathBuf) -> crate::Result<()> {
-    let fut = initialize_server(directory).await?;
+async fn start_server(directory: PathBuf, use_auth: bool) -> crate::Result<()> {
+    let mut end_rx = setup_interrupt();
+    let end_flag = async move {
+        end_rx.recv().await;
+        log::info!("Received SIGINT");
+    };
+
+    let fut = initialize_server(directory, use_auth, end_flag).await?;
     let local_set = LocalSet::new();
     local_set.run_until(fut).await
 }
@@ -170,6 +198,7 @@ mod tests {
     use crate::utils::test_utils::run_concurrent;
 
     use super::ServerStatus;
+    use futures::future::pending;
 
     #[tokio::test]
     async fn test_status_empty_directory() {
@@ -185,6 +214,8 @@ mod tests {
             "foo".into(),
             42,
             43,
+            None,
+            None,
         );
         store_runfile(&runfile, rundir.runfile()).unwrap();
 
@@ -204,6 +235,8 @@ mod tests {
             "foo".into(),
             42,
             43,
+            None,
+            None,
         );
         store_runfile(&runfile, rundir.runfile()).unwrap();
 
@@ -215,7 +248,17 @@ mod tests {
     #[tokio::test]
     async fn test_start_stop() {
         let tmp_dir = TempDir::new("foo").unwrap().into_path();
-        let fut = initialize_server(tmp_dir.clone()).await.unwrap();
+        let fut = initialize_server(tmp_dir.clone(), false, pending()).await.unwrap();
+        let (set, handle) = run_concurrent(fut, async {
+            hyperqueue_stop(tmp_dir).await.unwrap();
+        }).await;
+        set.run_until(handle).await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_start_stop_auth() {
+        let tmp_dir = TempDir::new("foo").unwrap().into_path();
+        let fut = initialize_server(tmp_dir.clone(), true, pending()).await.unwrap();
         let (set, handle) = run_concurrent(fut, async {
             hyperqueue_stop(tmp_dir).await.unwrap();
         }).await;

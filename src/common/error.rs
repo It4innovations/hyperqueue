@@ -33,3 +33,9 @@ impl From<rmp_serde::decode::Error> for HqError {
 pub fn error<T>(message: String) -> crate::Result<T> {
     Err(GenericError(message))
 }
+
+impl From<String> for HqError {
+    fn from(e: String) -> Self {
+        GenericError(e)
+    }
+}

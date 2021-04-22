@@ -1,21 +1,26 @@
 use std::marker::PhantomData;
+use std::rc::Rc;
 
 use bytes::{Bytes, BytesMut};
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use futures::future::ready;
 use futures::stream::{SplitSink, SplitStream};
 use orion::aead::streaming::{StreamOpener, StreamSealer};
-use serde::Serialize;
+use orion::kdf::SecretKey;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use tako::transfer::auth::{do_authentication, open_message, seal_message};
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 use crate::common::rundir::Runfile;
+use crate::transfer::auth::clone_key;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use crate::transfer::protocol::make_protocol_builder;
 
 type Codec = Framed<TcpStream, LengthDelimitedCodec>;
+
+const COMM_PROTOCOL: u32 = 0;
 
 pub struct HqConnection<ReceiveMsg, SendMsg> {
     writer: SplitSink<Codec, Bytes>,
@@ -60,11 +65,17 @@ impl<R: DeserializeOwned, S: Serialize> HqConnection<R, S> {
         (sink, stream)
     }
 
-    async fn init(socket: TcpStream) -> crate::Result<Self> {
+    async fn init(socket: TcpStream, server: bool, key: Option<Rc<SecretKey>>) -> crate::Result<Self> {
         let connection = make_protocol_builder().new_framed(socket);
         let (mut tx, mut rx) = connection.split();
 
-        let (sealer, opener) = do_authentication(None, &mut tx, &mut rx).await?;
+        let mut my_role = "server".to_string();
+        let mut peer_role = "client".to_string();
+        if !server {
+            std::mem::swap(&mut my_role, &mut peer_role);
+        }
+
+        let (sealer, opener) = do_authentication(COMM_PROTOCOL, my_role, peer_role, key, &mut tx, &mut rx).await?;
 
         Ok(Self {
             writer: tx,
@@ -85,14 +96,16 @@ impl ClientConnection {
     pub async fn connect_to_server(runfile: &Runfile) -> crate::Result<ClientConnection> {
         let address = format!("{}:{}", runfile.hostname(), runfile.server_port());
         let connection = TcpStream::connect(address).await?;
-        HqConnection::init(connection).await
+
+        let key = runfile.hq_secret_key().as_ref().map(clone_key).map(Rc::new);
+        HqConnection::init(connection, false, key).await
     }
 }
 
 /// Server -> client connection
 impl ServerConnection {
-    pub async fn accept_client(socket: TcpStream) -> crate::Result<ServerConnection> {
-        HqConnection::init(socket).await
+    pub async fn accept_client(socket: TcpStream, key: Option<Rc<SecretKey>>) -> crate::Result<ServerConnection> {
+        HqConnection::init(socket, true, key).await
     }
 }
 
