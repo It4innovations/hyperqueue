@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::rc::Rc;
 
 use bytes::{Bytes, BytesMut};
 use futures::{Sink, SinkExt, Stream, StreamExt};
@@ -14,10 +13,10 @@ use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 use crate::common::rundir::Runfile;
-use crate::transfer::auth::clone_key;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use crate::transfer::protocol::make_protocol_builder;
 use crate::common::error::error;
+use std::sync::Arc;
 
 type Codec = Framed<TcpStream, LengthDelimitedCodec>;
 
@@ -73,7 +72,7 @@ impl<R: DeserializeOwned, S: Serialize> HqConnection<R, S> {
         (sink, stream)
     }
 
-    async fn init(socket: TcpStream, server: bool, key: SecretKey) -> crate::Result<Self> {
+    async fn init(socket: TcpStream, server: bool, key: Arc<SecretKey>) -> crate::Result<Self> {
         let connection = make_protocol_builder().new_framed(socket);
         let (mut tx, mut rx) = connection.split();
 
@@ -83,7 +82,7 @@ impl<R: DeserializeOwned, S: Serialize> HqConnection<R, S> {
             std::mem::swap(&mut my_role, &mut peer_role);
         }
 
-        let (sealer, opener) = do_authentication(COMM_PROTOCOL, my_role, peer_role, Some(Rc::new(key)), &mut tx, &mut rx).await?;
+        let (sealer, opener) = do_authentication(COMM_PROTOCOL, my_role, peer_role, Some(key), &mut tx, &mut rx).await?;
 
         Ok(Self {
             writer: tx,
@@ -105,14 +104,14 @@ impl ClientConnection {
         let address = format!("{}:{}", runfile.hostname(), runfile.server_port());
         let connection = TcpStream::connect(address).await?;
 
-        let key = clone_key(runfile.hq_secret_key());
+        let key = runfile.hq_secret_key().clone();
         HqConnection::init(connection, false, key).await
     }
 }
 
 /// Server -> client connection
 impl ServerConnection {
-    pub async fn accept_client(socket: TcpStream, key: SecretKey) -> crate::Result<ServerConnection> {
+    pub async fn accept_client(socket: TcpStream, key: Arc<SecretKey>) -> crate::Result<ServerConnection> {
         HqConnection::init(socket, true, key).await
     }
 }

@@ -10,6 +10,7 @@ use serde::de::Error;
 use crate::common::error::error;
 use crate::transfer::auth::{deserialize_key, serialize_key};
 use crate::utils::absolute_path;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct RunDirectory {
@@ -37,14 +38,15 @@ impl RunDirectory {
     }
 }
 
-fn serde_serialize_key<S: Serializer>(key: &SecretKey, serializer: S) -> Result<S::Ok, S::Error> {
+fn serde_serialize_key<S: Serializer>(key: &Arc<SecretKey>, serializer: S) -> Result<S::Ok, S::Error> {
     let str = serialize_key(&key);
     serializer.serialize_str(&str)
 }
 
-fn serde_deserialize_key<'de, D: Deserializer<'de>>(deserializer: D) -> Result<SecretKey, D::Error> {
+fn serde_deserialize_key<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Arc<SecretKey>, D::Error> {
     let key: String = Deserialize::deserialize(deserializer)?;
     deserialize_key(&key)
+        .map(Arc::new)
         .map_err(|e| D::Error::custom(format!("Could not load secret key {}", e)))
 }
 
@@ -68,11 +70,11 @@ pub struct Runfile {
 
     #[serde(serialize_with = "serde_serialize_key")]
     #[serde(deserialize_with = "serde_deserialize_key")]
-    hq_secret_key: SecretKey,
+    hq_secret_key: Arc<SecretKey>,
 
     #[serde(serialize_with = "serde_serialize_key")]
     #[serde(deserialize_with = "serde_deserialize_key")]
-    tako_secret_key: SecretKey,
+    tako_secret_key: Arc<SecretKey>,
 }
 
 impl Runfile {
@@ -80,8 +82,8 @@ impl Runfile {
         hostname: String,
         server_port: u16,
         worker_port: u16,
-        hq_secret_key: SecretKey,
-        tako_secret_key: SecretKey,
+        hq_secret_key: Arc<SecretKey>,
+        tako_secret_key: Arc<SecretKey>,
     ) -> Self {
         Self {
             hostname,
@@ -104,10 +106,10 @@ impl Runfile {
     pub fn start_date(&self) -> &DateTime<Utc> {
         &self.start_date
     }
-    pub fn hq_secret_key(&self) -> &SecretKey {
+    pub fn hq_secret_key(&self) -> &Arc<SecretKey> {
         &self.hq_secret_key
     }
-    pub fn tako_secret_key(&self) -> &SecretKey {
+    pub fn tako_secret_key(&self) -> &Arc<SecretKey> {
         &self.tako_secret_key
     }
 }

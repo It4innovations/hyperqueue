@@ -11,7 +11,7 @@ use crate::common::rundir::{load_runfile, RunDirectory, Runfile, store_runfile};
 use crate::common::setup::setup_interrupt;
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
-use crate::transfer::auth::{clone_key, generate_key};
+use crate::transfer::auth::{generate_key};
 use crate::transfer::connection::{HqConnection, ClientConnection};
 use tokio::sync::Notify;
 use std::rc::Rc;
@@ -93,21 +93,21 @@ async fn initialize_server(
         .await?;
     let server_port = client_listener.local_addr()?.port();
 
-    let hq_secret_key = generate_key();
-    let tako_secret_key = generate_key();
+    let hq_secret_key = Arc::new(generate_key());
+    let tako_secret_key = Arc::new(generate_key());
 
     let state_ref = StateRef::new();
     let (tako_server, tako_future) = TakoServer::start(
         state_ref.clone(),
-        clone_key(&tako_secret_key),
+        tako_secret_key.clone(),
     ).await?;
 
     let runfile = Runfile::new(
         gethostname::gethostname().into_string().unwrap(),
         server_port,
         tako_server.worker_port(),
-        clone_key(&hq_secret_key),
-        clone_key(&tako_secret_key),
+        hq_secret_key.clone(),
+        tako_secret_key.clone(),
     );
     initialize_directory(&directory, &runfile)?;
 
