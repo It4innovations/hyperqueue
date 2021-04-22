@@ -13,6 +13,9 @@ use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::auth::{clone_key, generate_key};
 use crate::transfer::connection::{HqConnection, ClientConnection};
+use tokio::sync::Notify;
+use std::rc::Rc;
+use std::sync::Arc;
 
 const SYMLINK_PATH: &str = "hq-active-dir";
 
@@ -81,9 +84,9 @@ async fn get_server_status(rundir: &RunDirectory) -> crate::Result<ServerStatus>
     Ok(ServerStatus::Online(runfile))
 }
 
-async fn initialize_server<F: Future<Output=()>>(
+async fn initialize_server(
     directory: PathBuf,
-    end_flag: F
+    end_flag: Arc<Notify>
 ) -> crate::Result<impl Future<Output=crate::Result<()>>> {
     let client_listener = TcpListener::bind("0.0.0.0:0")
         .map_err(|e| GenericError(format!("Cannot create HQ server socket: {}", e)))
@@ -108,15 +111,17 @@ async fn initialize_server<F: Future<Output=()>>(
     );
     initialize_directory(&directory, &runfile)?;
 
-    let (stop_tx, mut stop_rx) = tokio::sync::mpsc::channel(1);
+    let stop_notify = Rc::new(Notify::new());
+    let stop_cloned = stop_notify.clone();
 
     let key = hq_secret_key;
     let fut = async move {
         tokio::select! {
-            _ = end_flag => {
+            _ = end_flag.notified() => {
+                log::info!("Received SIGINT");
                 Ok(())
             },
-            _ = stop_rx.recv() => {
+            _ = stop_notify.notified() => {
                 log::info!("Stopping after Stop command from client");
                 Ok(())
             },
@@ -124,7 +129,7 @@ async fn initialize_server<F: Future<Output=()>>(
                 state_ref,
                 tako_server,
                 client_listener,
-                stop_tx,
+                stop_cloned,
                 key
             ) => { Ok(()) }
             r = tako_future => { r }
@@ -134,12 +139,7 @@ async fn initialize_server<F: Future<Output=()>>(
 }
 
 async fn start_server(directory: PathBuf) -> crate::Result<()> {
-    let mut end_rx = setup_interrupt();
-    let end_flag = async move {
-        end_rx.recv().await;
-        log::info!("Received SIGINT");
-    };
-
+    let end_flag = setup_interrupt();
     let fut = initialize_server(directory, end_flag).await?;
     let local_set = LocalSet::new();
     local_set.run_until(fut).await
@@ -173,8 +173,9 @@ mod tests {
     use crate::utils::test_utils::run_concurrent;
 
     use super::ServerStatus;
-    use futures::future::pending;
     use crate::client::commands::stop::stop_server;
+    use tokio::sync::Notify;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_status_empty_directory() {
@@ -224,10 +225,20 @@ mod tests {
     #[tokio::test]
     async fn test_start_stop() {
         let tmp_dir = TempDir::new("foo").unwrap().into_path();
-        let fut = initialize_server(tmp_dir.clone(), pending()).await.unwrap();
+        let fut = initialize_server(tmp_dir.clone(), Default::default()).await.unwrap();
         let (set, handle) = run_concurrent(fut, async {
             stop_server(tmp_dir).await.unwrap();
         }).await;
         set.run_until(handle).await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_stop_on_end_condition() {
+        let tmp_dir = TempDir::new("foo").unwrap().into_path();
+
+        let notify = Arc::new(Notify::new());
+        let fut = initialize_server(tmp_dir.clone(), notify.clone()).await.unwrap();
+        notify.notify_one();
+        fut.await.unwrap();
     }
 }

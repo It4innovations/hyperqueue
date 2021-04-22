@@ -2,7 +2,6 @@ use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
 use tako::messages::gateway::{FromGatewayMessage, NewTasksMessage, TaskDef, ToGatewayMessage};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::mpsc::Sender;
 
 use crate::server::job::Job;
 use crate::server::rpc::TakoServer;
@@ -10,12 +9,14 @@ use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{FromClientMessage, JobInfo, JobState, StatsResponse, SubmitMessage, SubmitResponse, ToClientMessage};
 use crate::transfer::auth::clone_key;
+use tokio::sync::Notify;
+use std::rc::Rc;
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
     tako_ref: TakoServer,
     listener: TcpListener,
-    end_flag: Sender<()>,
+    end_flag: Rc<Notify>,
     key: SecretKey,
 ) {
     while let Ok((connection, _)) = listener.accept().await {
@@ -35,7 +36,7 @@ async fn handle_client(
     socket: TcpStream,
     state_ref: StateRef,
     tako_ref: TakoServer,
-    end_flag: Sender<()>,
+    end_flag: Rc<Notify>,
     key: SecretKey,
 ) -> crate::Result<()> {
     log::debug!("New client connection");
@@ -56,7 +57,7 @@ pub async fn client_rpc_loop<
     mut rx: Rx,
     state_ref: StateRef,
     tako_ref: TakoServer,
-    end_flag: Sender<()>,
+    end_flag: Rc<Notify>,
 ) {
     while let Some(message_result) = rx.next().await {
         if let Ok(message) = message_result {
@@ -68,8 +69,8 @@ pub async fn client_rpc_loop<
                     compute_stats(&state_ref, &tako_ref).await
                 }
                 FromClientMessage::Stop => {
-                    end_flag.send(()).await.unwrap();
-                    continue;
+                    end_flag.notify_one();
+                    break;
                 }
             };
             assert!(tx.send(response).await.is_ok());
