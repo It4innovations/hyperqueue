@@ -101,12 +101,6 @@ checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
 name = "bytes"
-version = "0.5.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e4cec68f03f32e44924783795810fa50a7035d8c8ebe78580ad7e6c703fba38"
-
-[[package]]
-name = "bytes"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b700ce4376041dcd0a327fd0097c41095743c4c8af8887265942faf1100bd040"
@@ -477,7 +471,7 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 name = "hyperqueue"
 version = "0.1.0"
 dependencies = [
- "bytes 0.5.6",
+ "bytes",
  "chrono",
  "clap",
  "cli-table",
@@ -489,6 +483,7 @@ dependencies = [
  "hashbrown 0.11.2",
  "jemallocator",
  "log",
+ "orion",
  "rmp-serde",
  "rmpv",
  "serde",
@@ -1132,7 +1127,7 @@ version = "0.1.0"
 dependencies = [
  "bitflags",
  "byteorder",
- "bytes 1.0.1",
+ "bytes",
  "clap",
  "ctrlc",
  "env_logger",
@@ -1236,7 +1231,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "134af885d758d645f0f0505c9a8b3f9bf8a348fd822e112ab5248138348f1722"
 dependencies = [
  "autocfg",
- "bytes 1.0.1",
+ "bytes",
  "libc",
  "memchr",
  "mio",
@@ -1266,7 +1261,7 @@ version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5143d049e85af7fbc36f5454d990e62c2df705b3589f123b71f441b6b59f443f"
 dependencies = [
- "bytes 1.0.1",
+ "bytes",
  "futures-core",
  "futures-sink",
  "log",

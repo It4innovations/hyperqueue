@@ -1,6 +1,6 @@
 use crate::server::job::JobStatus::Submitted;
-use crate::messages::{JobInfo};
-use crate::messages::JobState;
+use crate::transfer::messages::{JobInfo};
+use crate::transfer::messages::JobState;
 use crate::TaskId;
 use tako::messages::common::ProgramDefinition;
 

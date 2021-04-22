@@ -1,4 +1,4 @@
-use crate::messages::{JobInfo, JobState};
+use crate::transfer::messages::{JobInfo, JobState};
 use cli_table::{format::Justify, print_stdout, Cell, Style, Table, Color};
 
 

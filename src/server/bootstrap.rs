@@ -1,15 +1,19 @@
 use std::path::{Path, PathBuf};
 
-use tokio::net::{TcpStream, TcpListener};
+use futures::{TryFutureExt, SinkExt};
+use tokio::net::{TcpListener, TcpStream};
 use tokio::task::LocalSet;
 
+use crate::common::error::error;
 use crate::common::error::HqError::GenericError;
 use crate::common::rundir::{load_runfile, RunDirectory, Runfile, store_runfile};
 use crate::common::setup::setup_interrupt;
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
-use futures::TryFutureExt;
-use crate::common::error::error;
+use crate::transfer::connection::HqConnection;
+use crate::transfer::messages::FromClientMessage;
+use tako::transfer::auth::do_authentication;
+use std::future::Future;
 
 const SYMLINK_PATH: &str = "hq-active-dir";
 
@@ -27,7 +31,7 @@ enum ServerStatus {
 /// If no metadata is found or the metadata links to a server that seems to be offline, a new
 /// server will be started.
 ///
-/// If an already running server is found, TODO.
+/// If an already running server is found, an error will be returned.
 pub async fn hyperqueue_start(rundir_path: PathBuf) -> crate::Result<()> {
     let directory = resolve_active_directory(rundir_path.clone());
     std::fs::create_dir_all(&directory)?;
@@ -40,10 +44,24 @@ pub async fn hyperqueue_start(rundir_path: PathBuf) -> crate::Result<()> {
             start_server(rundir_path).await
         }
         ServerStatus::Online(_) => {
-            // TODO: stop? stop if --forced?
-            error(format!("Server at {} is already online, please stop it first", rundir_path.display()))
+            error(format!("Server at {0} is already online, please stop it first using \
+            `hq stop --rundir {0}`", rundir_path.display()))
         }
     }
+}
+
+pub async fn hyperqueue_stop(rundir_path: PathBuf) -> crate::Result<()> {
+    match get_runfile(rundir_path.clone()) {
+        Ok(runfile) => {
+            let mut connection = HqConnection::connect_to_server(&runfile).await?;
+            connection.client_send(FromClientMessage::Stop).await?;
+            log::info!("Stopping server");
+        }
+        Err(e) => {
+            return error(format!("No running instance of HQ found: {}", e));
+        }
+    }
+    Ok(())
 }
 
 /// Returns either `path` if it doesn't contain `SYMLINK_PATH` or the target of `SYMLINK_PATH`.
@@ -58,20 +76,24 @@ fn resolve_active_directory(path: PathBuf) -> PathBuf {
     path
 }
 
-async fn get_server_status(rundir: &RunDirectory) -> crate::Result<ServerStatus> {
-    if !rundir.runfile().is_file() {
-        return Ok(ServerStatus::None);
-    }
+fn get_runfile(directory: PathBuf) -> crate::Result<Runfile> {
+    let directory = resolve_active_directory(directory.clone());
+    let rundir = RunDirectory::new(directory)?;
     let runfile = load_runfile(rundir.runfile())?;
+    Ok(runfile)
+}
 
-    if let Err(_) = TcpStream::connect(format!("{}:{}", runfile.hostname(), runfile.server_port())).await {
+async fn get_server_status(rundir: &RunDirectory) -> crate::Result<ServerStatus> {
+    let runfile = get_runfile(rundir.directory().clone())?;
+
+    if let Err(_) = HqConnection::connect_to_server(&runfile).await {
         return Ok(ServerStatus::Offline(runfile));
     }
 
     Ok(ServerStatus::Online(runfile))
 }
 
-async fn start_server(directory: PathBuf) -> crate::Result<()> {
+async fn initialize_server(directory: PathBuf) -> crate::Result<impl Future<Output=crate::Result<()>>> {
     let mut end_rx = setup_interrupt();
     let end_flag = async move {
         end_rx.recv().await;
@@ -88,19 +110,38 @@ async fn start_server(directory: PathBuf) -> crate::Result<()> {
     let runfile = Runfile::new(
         gethostname::gethostname().into_string().unwrap(),
         server_port,
-        tako_server.worker_port()
+        tako_server.worker_port(),
     );
     initialize_directory(&directory, &runfile)?;
 
-    let local_set = LocalSet::new();
-    local_set.run_until(async move {
+    let (stop_tx, mut stop_rx) = tokio::sync::mpsc::channel(1);
+
+    let fut = async move {
         tokio::select! {
-            _ = end_flag => {},
-            () = crate::server::client::handle_client_connections(state_ref, tako_server, client_listener) => {}
-            r = tako_future => { r.expect("Tako has failed") }
-        };
-        Ok(())
-    }).await
+            _ = end_flag => {
+                log::info!("Stopping after SIGINT");
+                Ok(())
+            },
+            _ = stop_rx.recv() => {
+                log::info!("Stopping after Stop command from client");
+                Ok(())
+            },
+            () = crate::server::client::handle_client_connections(
+                state_ref,
+                tako_server,
+                client_listener,
+                stop_tx
+            ) => { Ok(()) }
+            r = tako_future => { r }
+        }
+    };
+    Ok(fut)
+}
+
+async fn start_server(directory: PathBuf) -> crate::Result<()> {
+    let fut = initialize_server(directory).await?;
+    let local_set = LocalSet::new();
+    local_set.run_until(fut).await
 }
 
 fn initialize_directory(directory: &PathBuf, runfile: &Runfile) -> crate::Result<()> {
@@ -125,9 +166,12 @@ fn create_symlink(symlink_path: &Path, target: &Path) -> crate::Result<()> {
 #[cfg(test)]
 mod tests {
     use tempdir::TempDir;
-    use crate::server::bootstrap::{get_server_status, resolve_active_directory, SYMLINK_PATH};
+
     use crate::common::rundir::{RunDirectory, Runfile, store_runfile};
+    use crate::server::bootstrap::{get_server_status, resolve_active_directory, SYMLINK_PATH, start_server, hyperqueue_stop, initialize_server};
+
     use super::ServerStatus;
+    use crate::utils::test_utils::run_concurrent;
 
     #[tokio::test]
     async fn test_status_empty_directory() {
@@ -143,7 +187,7 @@ mod tests {
         let runfile = Runfile::new(
             "foo".into(),
             42,
-            43
+            43,
         );
         store_runfile(&runfile, rundir.runfile()).unwrap();
 
@@ -162,12 +206,22 @@ mod tests {
         let runfile = Runfile::new(
             "foo".into(),
             42,
-            43
+            43,
         );
         store_runfile(&runfile, rundir.runfile()).unwrap();
 
         let rundir = RunDirectory::new(resolve_active_directory(tmp_dir)).unwrap();
         let res = get_server_status(&rundir).await.unwrap();
         assert!(matches!(res, ServerStatus::Offline(_)));
+    }
+
+    #[tokio::test]
+    async fn test_start_stop() {
+        let tmp_dir = TempDir::new("foo").unwrap().into_path();
+        let fut = initialize_server(tmp_dir.clone()).await.unwrap();
+        let (set, handle) = run_concurrent(fut, async {
+            hyperqueue_stop(tmp_dir).await.unwrap();
+        }).await;
+        set.run_until(handle).await.unwrap().unwrap();
     }
 }

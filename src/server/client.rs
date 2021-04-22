@@ -1,25 +1,27 @@
 use tokio::net::TcpListener;
 use tokio::io::{AsyncRead, AsyncWrite};
-use crate::messages::{FromClientMessage, StatsResponse, ToClientMessage, SubmitMessage, SubmitResponse, JobInfo, JobState};
+use crate::transfer::messages::{FromClientMessage, StatsResponse, ToClientMessage, SubmitMessage, SubmitResponse, JobInfo, JobState};
 use futures::{StreamExt, SinkExt};
 use crate::server::state::StateRef;
 use crate::server::job::Job;
-use crate::common::protocol::make_protocol_builder;
+use crate::transfer::protocol::make_protocol_builder;
 use crate::server::rpc::TakoServer;
 use tako::messages::gateway::{FromGatewayMessage, ToGatewayMessage, TaskDef, NewTasksMessage};
+use tokio::sync::mpsc::Sender;
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
     tako_ref: TakoServer,
-    listener: TcpListener
+    listener: TcpListener,
+    end_flag: Sender<()>
 ) {
-    // TODO: handle invalid connection
     while let Ok((connection, _)) = listener.accept().await {
         let state_ref = state_ref.clone();
         let tako_ref = tako_ref.clone();
+        let flag = end_flag.clone();
         tokio::task::spawn_local(async move {
             log::debug!("New client connection");
-            client_rpc_loop(connection, state_ref, tako_ref)
+            client_rpc_loop(connection, state_ref, tako_ref, flag)
                 .await;
             log::debug!("Client connection ended");
         });
@@ -30,6 +32,7 @@ pub async fn client_rpc_loop<T: AsyncRead + AsyncWrite>(
     stream: T,
     state_ref: StateRef,
     tako_ref: TakoServer,
+    end_flag: Sender<()>
 ) {
     let (mut writer, mut reader) = make_protocol_builder().new_framed(stream).split();
     while let Some(message_result) = reader.next().await {
@@ -41,6 +44,10 @@ pub async fn client_rpc_loop<T: AsyncRead + AsyncWrite>(
                 }
                 Ok(FromClientMessage::Stats) => {
                     compute_stats(&state_ref, &tako_ref).await
+                }
+                Ok(FromClientMessage::Stop) => {
+                    end_flag.send(()).await.unwrap();
+                    continue;
                 }
                 Err(_) => {
                     log::error!("Cannot parse client message");
