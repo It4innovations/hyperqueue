@@ -1,50 +1,114 @@
-use futures::{SinkExt, StreamExt};
-use tokio::net::TcpStream;
+use std::marker::PhantomData;
 
-use crate::transfer::protocol::make_protocol_builder;
-use crate::common::rundir::Runfile;
-use crate::transfer::messages::FromClientMessage;
-use tako::transfer::auth::{do_authentication, seal_message};
+use bytes::{Bytes, BytesMut};
+use futures::{Sink, SinkExt, Stream, StreamExt};
+use futures::future::ready;
 use futures::stream::{SplitSink, SplitStream};
-use bytes::Bytes;
+use orion::aead::streaming::{StreamOpener, StreamSealer};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+use tako::transfer::auth::{do_authentication, open_message, seal_message};
+use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
-use orion::aead::streaming::{StreamSealer, StreamOpener};
+
+use crate::common::rundir::Runfile;
+use crate::transfer::messages::{FromClientMessage, ToClientMessage};
+use crate::transfer::protocol::make_protocol_builder;
 
 type Codec = Framed<TcpStream, LengthDelimitedCodec>;
 
-pub struct HqConnection {
+pub struct HqConnection<ReceiveMsg, SendMsg> {
     writer: SplitSink<Codec, Bytes>,
     reader: SplitStream<Codec>,
     sealer: Option<StreamSealer>,
-    opener: Option<StreamOpener>
+    opener: Option<StreamOpener>,
+    _r: PhantomData<ReceiveMsg>,
+    _s: PhantomData<SendMsg>,
 }
 
-impl HqConnection {
-    pub async fn connect_to_server(runfile: &Runfile) -> crate::Result<Self> {
-        let address = format!("{}:{}", runfile.hostname(), runfile.server_port());
-        let connection = TcpStream::connect(address).await?;
-        let connection = make_protocol_builder().new_framed(connection);
+impl<R: DeserializeOwned, S: Serialize> HqConnection<R, S> {
+    pub async fn send(&mut self, item: S) -> crate::Result<()> {
+        let data = serialize_message(item, &mut self.sealer)?;
+        self.writer.send(data).await?;
+        Ok(())
+    }
+    pub async fn receive(&mut self) -> Option<crate::Result<R>> {
+        match self.reader.next().await {
+            Some(msg) => Some(msg
+                .map_err(|e| e.into())
+                .and_then(|m| deserialize_message(Ok(m), &mut self.opener))
+            ),
+            None => None
+        }
+    }
+
+    pub fn split(self) -> (impl Sink<S, Error=crate::Error>, impl Stream<Item=crate::Result<R>>) {
+        let HqConnection {
+            reader,
+            writer,
+            mut sealer,
+            mut opener,
+            ..
+        } = self;
+
+        let sink = writer
+            .with(move |msg| ready(serialize_message(msg, &mut sealer)));
+
+        let stream = reader
+            .map(move |message| deserialize_message(message, &mut opener));
+
+        (sink, stream)
+    }
+
+    async fn init(socket: TcpStream) -> crate::Result<Self> {
+        let connection = make_protocol_builder().new_framed(socket);
         let (mut tx, mut rx) = connection.split();
 
-        // let (sealer, opener) = do_authentication(None, &mut tx, &mut rx).await?;
+        let (sealer, opener) = do_authentication(None, &mut tx, &mut rx).await?;
 
         Ok(Self {
             writer: tx,
             reader: rx,
-            sealer: None,
-            opener: None
+            sealer,
+            opener,
+            _r: Default::default(),
+            _s: Default::default(),
         })
     }
+}
 
-    pub async fn send(&mut self, data: Bytes) -> crate::Result<()> {
-        let data = seal_message(&mut self.sealer, data);
-        self.writer.send(data).await?;
-        Ok(())
-    }
+pub type ClientConnection = HqConnection<ToClientMessage, FromClientMessage>;
+pub type ServerConnection = HqConnection<FromClientMessage, ToClientMessage>;
 
-    pub async fn client_send(&mut self, message: FromClientMessage) -> crate::Result<()> {
-        let msg_data = rmp_serde::to_vec_named(&message).unwrap();
-        self.writer.send(msg_data.into()).await?;
-        Ok(())
+/// Client -> server connection
+impl ClientConnection {
+    pub async fn connect_to_server(runfile: &Runfile) -> crate::Result<ClientConnection> {
+        let address = format!("{}:{}", runfile.hostname(), runfile.server_port());
+        let connection = TcpStream::connect(address).await?;
+        HqConnection::init(connection).await
     }
+}
+
+/// Server -> client connection
+impl ServerConnection {
+    pub async fn accept_client(socket: TcpStream) -> crate::Result<ServerConnection> {
+        HqConnection::init(socket).await
+    }
+}
+
+fn serialize_message<S: Serialize>(
+    item: S,
+    mut sealer: &mut Option<StreamSealer>,
+) -> crate::Result<Bytes> {
+    let data = rmp_serde::to_vec(&item)?;
+    Ok(seal_message(&mut sealer, data.into()))
+}
+
+fn deserialize_message<R: DeserializeOwned>(
+    message: Result<BytesMut, std::io::Error>,
+    mut opener: &mut Option<StreamOpener>,
+) -> crate::Result<R> {
+    let message = message?;
+    let item = open_message(&mut opener, &message)?;
+    Ok(item)
 }

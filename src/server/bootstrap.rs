@@ -1,7 +1,8 @@
+use std::future::Future;
 use std::path::{Path, PathBuf};
 
-use futures::{TryFutureExt, SinkExt};
-use tokio::net::{TcpListener, TcpStream};
+use futures::TryFutureExt;
+use tokio::net::TcpListener;
 use tokio::task::LocalSet;
 
 use crate::common::error::error;
@@ -12,13 +13,10 @@ use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::connection::HqConnection;
 use crate::transfer::messages::FromClientMessage;
-use tako::transfer::auth::do_authentication;
-use std::future::Future;
 
 const SYMLINK_PATH: &str = "hq-active-dir";
 
 enum ServerStatus {
-    None,
     Offline(Runfile),
     Online(Runfile),
 }
@@ -38,12 +36,12 @@ pub async fn hyperqueue_start(rundir_path: PathBuf) -> crate::Result<()> {
 
     let rundir = RunDirectory::new(directory.clone())?;
 
-    match get_server_status(&rundir).await.unwrap_or(ServerStatus::None) {
-        ServerStatus::None | ServerStatus::Offline(_) => {
+    match get_server_status(&rundir).await {
+        Err(_) | Ok(ServerStatus::Offline(_)) => {
             log::info!("No online server found, starting a new server");
             start_server(rundir_path).await
         }
-        ServerStatus::Online(_) => {
+        Ok(ServerStatus::Online(_)) => {
             error(format!("Server at {0} is already online, please stop it first using \
             `hq stop --rundir {0}`", rundir_path.display()))
         }
@@ -54,7 +52,7 @@ pub async fn hyperqueue_stop(rundir_path: PathBuf) -> crate::Result<()> {
     match get_runfile(rundir_path.clone()) {
         Ok(runfile) => {
             let mut connection = HqConnection::connect_to_server(&runfile).await?;
-            connection.client_send(FromClientMessage::Stop).await?;
+            connection.send(FromClientMessage::Stop).await?;
             log::info!("Stopping server");
         }
         Err(e) => {
@@ -168,16 +166,15 @@ mod tests {
     use tempdir::TempDir;
 
     use crate::common::rundir::{RunDirectory, Runfile, store_runfile};
-    use crate::server::bootstrap::{get_server_status, resolve_active_directory, SYMLINK_PATH, start_server, hyperqueue_stop, initialize_server};
+    use crate::server::bootstrap::{get_server_status, hyperqueue_stop, initialize_server, resolve_active_directory, SYMLINK_PATH};
+    use crate::utils::test_utils::run_concurrent;
 
     use super::ServerStatus;
-    use crate::utils::test_utils::run_concurrent;
 
     #[tokio::test]
     async fn test_status_empty_directory() {
         let tmp_dir = TempDir::new("foo").unwrap();
-        let res = get_server_status(&RunDirectory::new(tmp_dir.into_path()).unwrap()).await.unwrap();
-        assert!(matches!(res, ServerStatus::None));
+        assert!(get_server_status(&RunDirectory::new(tmp_dir.into_path()).unwrap()).await.is_err());
     }
 
     #[tokio::test]
