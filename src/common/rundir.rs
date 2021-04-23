@@ -57,8 +57,14 @@ fn serde_deserialize_key<'de, D: Deserializer<'de>>(deserializer: D) -> Result<A
 /// HyperQueue workers in order to connect to the server instance.
 #[derive(Serialize, Deserialize, Eq, PartialEq)]
 pub struct Runfile {
+    /// Version of HQ
+    version: String,
+
     /// Hostname of the HyperQueue server
     hostname: String,
+
+    /// Server process pid
+    pid: u32,
 
     /// Port that you can connect to as a HyperQueue client
     server_port: u16,
@@ -86,16 +92,22 @@ impl Runfile {
         tako_secret_key: Arc<SecretKey>,
     ) -> Self {
         Self {
+            version: env!("CARGO_PKG_VERSION").to_string(),
             hostname,
             server_port,
             worker_port,
             start_date: Utc::now(),
             hq_secret_key,
             tako_secret_key,
+            pid: std::process::id(),
         }
     }
+    pub fn version(&self) -> &str { &self.version }
     pub fn hostname(&self) -> &str {
         &self.hostname
+    }
+    pub fn pid(&self) -> u32 {
+        self.pid
     }
     pub fn server_port(&self) -> u16 {
         self.server_port

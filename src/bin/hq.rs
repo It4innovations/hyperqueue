@@ -85,6 +85,7 @@ struct WorkerOpts {
 async fn command_start(common: CommonOpts, opts: StartOpts) -> hyperqueue::Result<()> {
     let rundir_path = common.get_rundir();
     init_hq_server(rundir_path).await
+
 }
 
 async fn command_stop(common: CommonOpts, opts: StopOpts) -> hyperqueue::Result<()> {

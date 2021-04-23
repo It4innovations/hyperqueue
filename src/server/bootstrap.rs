@@ -16,6 +16,7 @@ use crate::transfer::connection::{HqConnection, ClientConnection};
 use tokio::sync::Notify;
 use std::rc::Rc;
 use std::sync::Arc;
+use cli_table::{print_stdout, Table, Cell, Style};
 
 const SYMLINK_PATH: &str = "hq-active-dir";
 
@@ -111,6 +112,8 @@ async fn initialize_server(
     );
     initialize_directory(&directory, &runfile)?;
 
+    print_status(&directory, &runfile);
+
     let stop_notify = Rc::new(Notify::new());
     let stop_cloned = stop_notify.clone();
 
@@ -162,6 +165,21 @@ fn create_symlink(symlink_path: &Path, target: &Path) -> crate::Result<()> {
     }
     std::os::unix::fs::symlink(target, symlink_path)?;
     Ok(())
+}
+
+pub fn print_status(runfile_path: &Path, runfile: &Runfile) {
+    let rows = vec![
+        vec!["Rundir".cell().bold(true), runfile_path.display().cell()],
+        vec!["Hostname".cell().bold(true), runfile.hostname().cell()],
+        vec!["Pid".cell().bold(true), runfile.pid().cell()],
+        vec!["HQ port".cell().bold(true), runfile.server_port().cell()],
+        vec!["Workers port".cell().bold(true), runfile.worker_port().cell()],
+        vec!["Start date".cell().bold(true), runfile.start_date().format("%F %T %Z").cell()],
+        vec!["Version".cell().bold(true), runfile.version().cell()],
+
+    ];
+    let table = rows.table();
+    assert!(print_stdout(table).is_ok());
 }
 
 #[cfg(test)]
