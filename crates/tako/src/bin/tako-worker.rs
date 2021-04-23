@@ -77,8 +77,7 @@ async fn main() -> tako::Result<()> {
     let configuration = WorkerConfiguration {
         n_cpus,
         listen_address: Default::default(), // Will be set later
-        hostname: hostname::get()
-            .expect("Cannot get hostname")
+        hostname: gethostname::gethostname()
             .into_string()
             .expect("Invalid hostname"),
         work_dir,
