@@ -8,7 +8,7 @@ use hyperqueue::client::commands::submit::submit_computation;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::server::bootstrap::{init_hq_server, get_client_connection};
 use hyperqueue::common::fsutils::absolute_path;
-use hyperqueue::worker::start::start_hq_worker;
+use hyperqueue::worker::start::{start_hq_worker, WorkerOpts};
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -77,12 +77,6 @@ enum ServerCommand {
     Stop(StopOpts),
 }
 
-#[derive(Clap)]
-struct WorkerOpts {
-
-}
-
-
 async fn command_server_start(common: CommonOpts, opts: StartOpts) -> hyperqueue::Result<()> {
     init_hq_server(&common.get_server_directory_path()).await
 }
@@ -103,7 +97,7 @@ async fn command_submit(common: CommonOpts, opts: SubmitOpts) -> hyperqueue::Res
 }
 
 async fn command_worker(common: CommonOpts, opts: WorkerOpts) -> hyperqueue::Result<()> {
-    start_hq_worker(&common.get_server_directory_path()).await
+    start_hq_worker(&common.get_server_directory_path(), opts).await
 }
 
 fn default_server_directory_path() -> PathBuf {

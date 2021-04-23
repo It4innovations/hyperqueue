@@ -67,6 +67,8 @@ impl TakoServer {
                     match message {
                         ToGatewayMessage::TaskUpdate(msg) => state_ref.get_mut().process_task_update(msg),
                         ToGatewayMessage::TaskFailed(msg) => state_ref.get_mut().process_task_failed(msg),
+                        ToGatewayMessage::NewWorker(_) => { /* TODO */ },
+                        ToGatewayMessage::LostWorker(_) => { /* TODO */ },
                         m => {
                             let response = server2.inner.get_mut().responses.pop_front().unwrap();
                             response.send(m).unwrap();
