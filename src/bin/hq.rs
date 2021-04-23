@@ -8,6 +8,7 @@ use hyperqueue::client::commands::submit::submit_computation;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::server::bootstrap::init_hq_server;
 use hyperqueue::utils::absolute_path;
+use hyperqueue::worker::start::start_hq_worker;
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -82,13 +83,13 @@ struct WorkerOpts {
 }
 
 
-async fn command_start(common: CommonOpts, opts: StartOpts) -> hyperqueue::Result<()> {
+async fn command_server_start(common: CommonOpts, opts: StartOpts) -> hyperqueue::Result<()> {
     let rundir_path = common.get_rundir();
     init_hq_server(rundir_path).await
 
 }
 
-async fn command_stop(common: CommonOpts, opts: StopOpts) -> hyperqueue::Result<()> {
+async fn command_server_stop(common: CommonOpts, opts: StopOpts) -> hyperqueue::Result<()> {
     stop_server(common.get_rundir()).await
 }
 
@@ -98,6 +99,10 @@ async fn command_stats(common: CommonOpts, opts: StatsOpts) -> hyperqueue::Resul
 
 async fn command_submit(common: CommonOpts, opts: SubmitOpts) -> hyperqueue::Result<()> {
     submit_computation(common.get_rundir(), opts.commands).await
+}
+
+async fn command_worker(common: CommonOpts, opts: WorkerOpts) -> hyperqueue::Result<()> {
+    start_hq_worker(common.get_rundir()).await
 }
 
 fn default_rundir() -> PathBuf {
@@ -112,9 +117,9 @@ async fn main() -> hyperqueue::Result<()> {
     setup_logging();
 
     let result = match top_opts.subcmd {
-        SubCommand::Server(ServerOpts { subcmd: ServerCommand::Start(opts) }) => command_start(top_opts.common, opts).await,
-        SubCommand::Server(ServerOpts { subcmd: ServerCommand::Stop(opts) }) => command_stop(top_opts.common, opts).await,
-        SubCommand::Worker(opts) => { todo!() },
+        SubCommand::Server(ServerOpts { subcmd: ServerCommand::Start(opts) }) => command_server_start(top_opts.common, opts).await,
+        SubCommand::Server(ServerOpts { subcmd: ServerCommand::Stop(opts) }) => command_server_stop(top_opts.common, opts).await,
+        SubCommand::Worker(opts) => { command_worker(top_opts.common, opts).await },
         SubCommand::Stats(opts) => command_stats(top_opts.common, opts).await,
         SubCommand::Submit(opts) => command_submit(top_opts.common, opts).await
     };

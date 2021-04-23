@@ -33,8 +33,8 @@ impl RunDirectory {
         &self.path
     }
 
-    pub fn runfile(&self) -> PathBuf {
-        self.path("runfile.json")
+    pub fn access_filename(&self) -> PathBuf {
+        self.path("access.json")
     }
 }
 
@@ -56,7 +56,7 @@ fn serde_deserialize_key<'de, D: Deserializer<'de>>(deserializer: D) -> Result<A
 /// It is stored on disk during `hq start` and loaded by both client operations (stats, submit) and
 /// HyperQueue workers in order to connect to the server instance.
 #[derive(Serialize, Deserialize, Eq, PartialEq)]
-pub struct Runfile {
+pub struct AccessRecord {
     /// Version of HQ
     version: String,
 
@@ -83,7 +83,7 @@ pub struct Runfile {
     tako_secret_key: Arc<SecretKey>,
 }
 
-impl Runfile {
+impl AccessRecord {
     pub fn new(
         hostname: String,
         server_port: u16,
@@ -126,7 +126,7 @@ impl Runfile {
     }
 }
 
-pub fn store_runfile<P: AsRef<Path>>(runfile: &Runfile, path: P) -> crate::Result<()> {
+pub fn store_access_record<P: AsRef<Path>>(record: &AccessRecord, path: P) -> crate::Result<()> {
     let mut options = OpenOptions::new();
     options
         .write(true)
@@ -134,35 +134,35 @@ pub fn store_runfile<P: AsRef<Path>>(runfile: &Runfile, path: P) -> crate::Resul
         .mode(0o400); // Read for user, nothing for others
 
     let file = options.open(path)?;
-    serde_json::to_writer_pretty(file, runfile)?;
+    serde_json::to_writer_pretty(file, record)?;
 
     Ok(())
 }
 
-pub fn load_runfile<P: AsRef<Path>>(path: P) -> crate::Result<Runfile> {
+pub fn load_access_file<P: AsRef<Path>>(path: P) -> crate::Result<AccessRecord> {
     let file = File::open(path)?;
-    let runfile = serde_json::from_reader(file)?;
-    Ok(runfile)
+    Ok(serde_json::from_reader(file)?)
 }
+
 
 #[cfg(test)]
 mod tests {
     use tempdir::TempDir;
 
-    use crate::common::rundir::{load_runfile, Runfile, store_runfile};
+    use crate::common::rundir::{load_access_file, AccessRecord, store_access_record};
 
     #[test]
     fn test_roundtrip() {
-        let runfile = Runfile::new(
+        let record = AccessRecord::new(
             "foo".into(),
             42,
             43,
             Default::default(),
             Default::default(),
         );
-        let path = TempDir::new("foo").unwrap().into_path().join("runfile.json");
-        store_runfile(&runfile, path.clone()).unwrap();
-        let loaded = load_runfile(path).unwrap();
-        assert!(runfile == loaded);
+        let path = TempDir::new("foo").unwrap().into_path().join("access.json");
+        store_access_record(&record, path.clone()).unwrap();
+        let loaded = load_access_file(path).unwrap();
+        assert!(record == loaded);
     }
 }

@@ -12,7 +12,7 @@ use tako::transfer::auth::{do_authentication, open_message, seal_message};
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-use crate::common::rundir::Runfile;
+use crate::common::rundir::AccessRecord;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use crate::transfer::protocol::make_protocol_builder;
 use crate::common::error::error;
@@ -100,11 +100,11 @@ pub type ServerConnection = HqConnection<FromClientMessage, ToClientMessage>;
 
 /// Client -> server connection
 impl ClientConnection {
-    pub async fn connect_to_server(runfile: &Runfile) -> crate::Result<ClientConnection> {
-        let address = format!("{}:{}", runfile.hostname(), runfile.server_port());
+    pub async fn connect_to_server(record: &AccessRecord) -> crate::Result<ClientConnection> {
+        let address = format!("{}:{}", record.hostname(), record.server_port());
         let connection = TcpStream::connect(address).await?;
 
-        let key = runfile.hq_secret_key().clone();
+        let key = record.hq_secret_key().clone();
         HqConnection::init(connection, false, key).await
     }
 }
