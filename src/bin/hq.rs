@@ -57,11 +57,30 @@ struct SubmitOpts {
 
 #[derive(Clap)]
 enum SubCommand {
-    Start(StartOpts),
-    Stop(StopOpts),
+    Server(ServerOpts),
+    Worker(WorkerOpts),
     Stats(StatsOpts),
     Submit(SubmitOpts),
 }
+
+#[derive(Clap)]
+struct ServerOpts {
+
+    #[clap(subcommand)]
+    subcmd: ServerCommand,
+}
+
+#[derive(Clap)]
+enum ServerCommand {
+    Start(StartOpts),
+    Stop(StopOpts),
+}
+
+#[derive(Clap)]
+struct WorkerOpts {
+
+}
+
 
 async fn command_start(common: CommonOpts, opts: StartOpts) -> hyperqueue::Result<()> {
     let rundir_path = common.get_rundir();
@@ -92,8 +111,9 @@ async fn main() -> hyperqueue::Result<()> {
     setup_logging();
 
     let result = match top_opts.subcmd {
-        SubCommand::Start(opts) => command_start(top_opts.common, opts).await,
-        SubCommand::Stop(opts) => command_stop(top_opts.common, opts).await,
+        SubCommand::Server(ServerOpts { subcmd: ServerCommand::Start(opts) }) => command_start(top_opts.common, opts).await,
+        SubCommand::Server(ServerOpts { subcmd: ServerCommand::Stop(opts) }) => command_stop(top_opts.common, opts).await,
+        SubCommand::Worker(opts) => { todo!() },
         SubCommand::Stats(opts) => command_stats(top_opts.common, opts).await,
         SubCommand::Submit(opts) => command_submit(top_opts.common, opts).await
     };

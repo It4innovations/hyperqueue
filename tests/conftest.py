@@ -76,7 +76,7 @@ class HqEnv(Env):
     def start_server(self, rundir="./hq-rundir"):
         self.rundir = os.path.join(self.work_path, rundir)
         env = self.make_default_env()
-        args = [HQ_BINARY, "--rundir", self.rundir, "start"]
+        args = [HQ_BINARY, "--rundir", self.rundir, "server", "start"]
         self.start_process("server", args, env=env)
         self.check_running_processes()
         time.sleep(0.2)
