@@ -266,7 +266,7 @@ mod tests {
 
     use crate::transfer::auth::Authenticator;
     use orion::kdf::SecretKey;
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     #[test]
     fn test_no_auth() {
@@ -293,7 +293,7 @@ mod tests {
 
     #[test]
     fn test_auth_ok() {
-        let secret_key = Some(Rc::new(SecretKey::generate(32).unwrap()));
+        let secret_key = Some(Arc::new(SecretKey::generate(32).unwrap()));
         let mut a1 = Authenticator::new(0, "a".to_string(), "b".to_string(), secret_key.clone());
         let mut a2 = Authenticator::new(0, "b".to_string(), "a".to_string(), secret_key);
 
@@ -317,8 +317,8 @@ mod tests {
 
     #[test]
     fn test_auth_diferent_keys() {
-        let secret_key1 = Some(Rc::new(SecretKey::generate(32).unwrap()));
-        let secret_key2 = Some(Rc::new(SecretKey::generate(32).unwrap()));
+        let secret_key1 = Some(Arc::new(SecretKey::generate(32).unwrap()));
+        let secret_key2 = Some(Arc::new(SecretKey::generate(32).unwrap()));
         let mut a1 = Authenticator::new(0, "a".to_string(), "b".to_string(), secret_key1);
         let mut a2 = Authenticator::new(0, "b".to_string(), "a".to_string(), secret_key2);
 
@@ -337,7 +337,7 @@ mod tests {
 
     #[test]
     fn test_auth_and_no_auth() {
-        let secret_key = Some(Rc::new(SecretKey::generate(32).unwrap()));
+        let secret_key = Some(Arc::new(SecretKey::generate(32).unwrap()));
         let mut a1 = Authenticator::new(0, "a".to_string(), "b".to_string(), secret_key);
         let mut a2 = Authenticator::new(0, "b".to_string(), "a".to_string(), None);
 
@@ -356,7 +356,7 @@ mod tests {
 
     #[test]
     fn test_mirror_attack() {
-        let secret_key = Some(Rc::new(SecretKey::generate(32).unwrap()));
+        let secret_key = Some(Arc::new(SecretKey::generate(32).unwrap()));
         let mut a1 = Authenticator::new(0, "a".to_string(), "b".to_string(), secret_key);
 
         let mut q1 = a1.make_auth_request().unwrap();
