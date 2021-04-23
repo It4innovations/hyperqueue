@@ -106,7 +106,7 @@ mod tests {
 
     use crate::server::rpc::TakoServer;
     use crate::server::state::StateRef;
-    use crate::utils::test_utils::run_concurrent;
+    use crate::common::fsutils::test_utils::run_concurrent;
 
     #[tokio::test]
     async fn test_server_connect_worker() {

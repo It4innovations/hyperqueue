@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 
 pub fn absolute_path(path: PathBuf) -> PathBuf {
     if path.is_absolute() {
@@ -8,6 +8,15 @@ pub fn absolute_path(path: PathBuf) -> PathBuf {
         env.join(path)
     }
 }
+
+pub fn create_symlink(symlink_path: &Path, target: &Path) -> crate::Result<()> {
+    if symlink_path.exists() {
+        std::fs::remove_file(symlink_path)?;
+    }
+    std::os::unix::fs::symlink(target, symlink_path)?;
+    Ok(())
+}
+
 
 #[cfg(test)]
 pub(crate) mod test_utils {

@@ -6,8 +6,8 @@ use hyperqueue::client::commands::stats::get_server_stats;
 use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::submit_computation;
 use hyperqueue::common::setup::setup_logging;
-use hyperqueue::server::bootstrap::init_hq_server;
-use hyperqueue::utils::absolute_path;
+use hyperqueue::server::bootstrap::{init_hq_server, get_client_connection};
+use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::worker::start::start_hq_worker;
 
 #[global_allocator]
@@ -18,7 +18,7 @@ pub type Connection = tokio_util::codec::Framed<tokio::net::UnixStream, tokio_ut
 #[derive(Clap)]
 struct CommonOpts {
     #[clap(long)]
-    rundir: Option<PathBuf>,
+    server_dir: Option<PathBuf>,
 }
 
 
@@ -34,8 +34,8 @@ struct Opts {
 }
 
 impl CommonOpts {
-    fn get_rundir(&self) -> PathBuf {
-        absolute_path(self.rundir.clone().unwrap_or_else(default_rundir))
+    fn get_server_directory_path(&self) -> PathBuf {
+        absolute_path(self.server_dir.clone().unwrap_or_else(default_server_directory_path))
     }
 }
 
@@ -84,30 +84,31 @@ struct WorkerOpts {
 
 
 async fn command_server_start(common: CommonOpts, opts: StartOpts) -> hyperqueue::Result<()> {
-    let rundir_path = common.get_rundir();
-    init_hq_server(rundir_path).await
-
+    init_hq_server(&common.get_server_directory_path()).await
 }
 
 async fn command_server_stop(common: CommonOpts, opts: StopOpts) -> hyperqueue::Result<()> {
-    stop_server(common.get_rundir()).await
+    let mut connection = get_client_connection(&common.get_server_directory_path()).await?;
+    stop_server(&mut connection).await
 }
 
 async fn command_stats(common: CommonOpts, opts: StatsOpts) -> hyperqueue::Result<()> {
-    get_server_stats(common.get_rundir()).await
+    let mut connection = get_client_connection(&common.get_server_directory_path()).await?;
+    get_server_stats(&mut connection).await
 }
 
 async fn command_submit(common: CommonOpts, opts: SubmitOpts) -> hyperqueue::Result<()> {
-    submit_computation(common.get_rundir(), opts.commands).await
+    let mut connection = get_client_connection(&common.get_server_directory_path()).await?;
+    submit_computation(&mut connection, opts.commands).await
 }
 
 async fn command_worker(common: CommonOpts, opts: WorkerOpts) -> hyperqueue::Result<()> {
-    start_hq_worker(common.get_rundir()).await
+    start_hq_worker(&common.get_server_directory_path()).await
 }
 
-fn default_rundir() -> PathBuf {
+fn default_server_directory_path() -> PathBuf {
     let mut home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
-    home.push(".hq-rundir");
+    home.push(".hq-server");
     home
 }
 

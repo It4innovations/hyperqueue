@@ -12,7 +12,7 @@ use tako::transfer::auth::{do_authentication, open_message, seal_message};
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-use crate::common::rundir::AccessRecord;
+use crate::common::serverdir::AccessRecord;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use crate::transfer::protocol::make_protocol_builder;
 use crate::common::error::error;

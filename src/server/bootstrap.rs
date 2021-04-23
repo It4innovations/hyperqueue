@@ -7,7 +7,7 @@ use tokio::task::LocalSet;
 
 use crate::common::error::error;
 use crate::common::error::HqError::GenericError;
-use crate::common::rundir::{load_access_file, RunDirectory, AccessRecord, store_access_record};
+use crate::common::serverdir::{load_access_file, ServerDir, AccessRecord, store_access_record};
 use crate::common::setup::setup_interrupt;
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
@@ -17,8 +17,7 @@ use tokio::sync::Notify;
 use std::rc::Rc;
 use std::sync::Arc;
 use cli_table::{print_stdout, Table, Cell, Style};
-
-const SYMLINK_PATH: &str = "hq-active-dir";
+use tako::messages::gateway::FromGatewayMessage::ServerInfo;
 
 enum ServerStatus {
     Offline(AccessRecord),
@@ -34,48 +33,28 @@ enum ServerStatus {
 /// server will be started.
 ///
 /// If an already running server is found, an error will be returned.
-pub async fn init_hq_server(rundir_path: PathBuf) -> crate::Result<()> {
-    let directory = resolve_active_directory(rundir_path.clone());
-    std::fs::create_dir_all(&directory)?;
-
-    let rundir = RunDirectory::new(directory.clone())?;
-
-    match get_server_status(&rundir).await {
+pub async fn init_hq_server(server_directory: &Path) -> crate::Result<()> {
+    match get_server_status(&server_directory).await {
         Err(_) | Ok(ServerStatus::Offline(_)) => {
             log::info!("No online server found, starting a new server");
-            start_server(rundir_path).await
+            start_server(server_directory).await
         }
         Ok(ServerStatus::Online(_)) => {
             error(format!("Server at {0} is already online, please stop it first using \
-            `hq stop --rundir {0}`", rundir_path.display()))
+            `hq stop --server-dir {0}`", server_directory.display()))
         }
     }
 }
 
-pub async fn get_client_connection(rundir_path: PathBuf) -> crate::Result<ClientConnection> {
-    match read_access_record_from_rundir(rundir_path.clone()) {
+pub async fn get_client_connection(server_directory: &Path) -> crate::Result<ClientConnection> {
+    match ServerDir::open(server_directory).and_then(|sd| sd.read_access_record()) {
         Ok(record) => Ok(HqConnection::connect_to_server(&record).await?),
         Err(e) => error(format!("No running instance of HQ found: {}", e))
     }
 }
 
-/// Returns either `path` if it doesn't contain `SYMLINK_PATH` or the target of `SYMLINK_PATH`.
-fn resolve_active_directory(path: PathBuf) -> PathBuf {
-    let symlink_path = path.join(SYMLINK_PATH);
-    std::fs::canonicalize(symlink_path)
-        .ok()
-        .filter(|p| p.is_dir())
-        .unwrap_or(path)
-}
-
-pub fn read_access_record_from_rundir(directory: PathBuf) -> crate::Result<AccessRecord> {
-    let directory = resolve_active_directory(directory);
-    let rundir = RunDirectory::new(directory)?;
-    load_access_file(rundir.access_filename())
-}
-
-async fn get_server_status(rundir: &RunDirectory) -> crate::Result<ServerStatus> {
-    let record = read_access_record_from_rundir(rundir.directory().clone())?;
+async fn get_server_status(server_directory: &Path) -> crate::Result<ServerStatus> {
+    let record = ServerDir::open(server_directory).and_then(|sd| sd.read_access_record())?;
 
     if HqConnection::connect_to_server(&record).await.is_err() {
         return Ok(ServerStatus::Offline(record));
@@ -85,7 +64,7 @@ async fn get_server_status(rundir: &RunDirectory) -> crate::Result<ServerStatus>
 }
 
 async fn initialize_server(
-    directory: PathBuf,
+    server_directory: &Path,
     end_flag: Arc<Notify>
 ) -> crate::Result<impl Future<Output=crate::Result<()>>> {
     let client_listener = TcpListener::bind("0.0.0.0:0")
@@ -109,9 +88,8 @@ async fn initialize_server(
         hq_secret_key.clone(),
         tako_secret_key.clone(),
     );
-    initialize_directory(&directory, &record)?;
-
-    print_status(&directory, &record);
+    let server_dir = ServerDir::create(server_directory, &record)?;
+    print_access_record(server_directory, &record);
 
     let stop_notify = Rc::new(Notify::new());
     let stop_cloned = stop_notify.clone();
@@ -140,35 +118,16 @@ async fn initialize_server(
     Ok(fut)
 }
 
-async fn start_server(directory: PathBuf) -> crate::Result<()> {
+async fn start_server(directory: &Path) -> crate::Result<()> {
     let end_flag = setup_interrupt();
-    let fut = initialize_server(directory, end_flag).await?;
+    let fut = initialize_server(&directory, end_flag).await?;
     let local_set = LocalSet::new();
     local_set.run_until(fut).await
 }
 
-fn initialize_directory(directory: &Path, record: &AccessRecord) -> crate::Result<()> {
-    let rundir_path = directory.join(record.start_date().format("%Y-%m-%d-%H-%M-%S").to_string());
-    std::fs::create_dir_all(&rundir_path)?;
-    let rundir = RunDirectory::new(rundir_path.clone())?;
-
-    log::info!("Storing access file to {:?}", rundir.access_filename());
-    store_access_record(&record, rundir.access_filename())?;
-
-    create_symlink(&directory.join(SYMLINK_PATH), &rundir_path)
-}
-
-fn create_symlink(symlink_path: &Path, target: &Path) -> crate::Result<()> {
-    if symlink_path.exists() {
-        std::fs::remove_file(symlink_path)?;
-    }
-    std::os::unix::fs::symlink(target, symlink_path)?;
-    Ok(())
-}
-
-pub fn print_status(rundir: &Path, record: &AccessRecord) {
+pub fn print_access_record(server_dir: &Path, record: &AccessRecord) {
     let rows = vec![
-        vec!["Rundir".cell().bold(true), rundir.display().cell()],
+        vec!["Server directory".cell().bold(true), server_dir.display().cell()],
         vec!["Hostname".cell().bold(true), record.hostname().cell()],
         vec!["Pid".cell().bold(true), record.pid().cell()],
         vec!["HQ port".cell().bold(true), record.server_port().cell()],
@@ -184,9 +143,9 @@ pub fn print_status(rundir: &Path, record: &AccessRecord) {
 mod tests {
     use tempdir::TempDir;
 
-    use crate::common::rundir::{RunDirectory, AccessRecord, store_access_record};
-    use crate::server::bootstrap::{get_server_status, initialize_server, resolve_active_directory, SYMLINK_PATH};
-    use crate::utils::test_utils::run_concurrent;
+    use crate::common::serverdir::{ServerDir, AccessRecord, store_access_record, SYMLINK_PATH};
+    use crate::server::bootstrap::{get_server_status, initialize_server, get_client_connection};
+    use crate::common::fsutils::test_utils::run_concurrent;
 
     use super::ServerStatus;
     use crate::client::commands::stop::stop_server;
@@ -196,13 +155,14 @@ mod tests {
     #[tokio::test]
     async fn test_status_empty_directory() {
         let tmp_dir = TempDir::new("foo").unwrap();
-        assert!(get_server_status(&RunDirectory::new(tmp_dir.into_path()).unwrap()).await.is_err());
+        assert!(get_server_status(&tmp_dir.into_path()).await.is_err());
     }
 
     #[tokio::test]
     async fn test_status_directory_with_access_file() {
         let tmp_dir = TempDir::new("foo").unwrap();
-        let rundir = RunDirectory::new(tmp_dir.into_path()).unwrap();
+        let tmp_path = tmp_dir.into_path();
+        let server_dir = ServerDir::open(&tmp_path).unwrap();
         let record = AccessRecord::new(
             "foo".into(),
             42,
@@ -210,20 +170,20 @@ mod tests {
             Default::default(),
             Default::default(),
         );
-        store_access_record(&record, rundir.access_filename()).unwrap();
+        store_access_record(&record, server_dir.access_filename()).unwrap();
 
-        let res = get_server_status(&rundir).await.unwrap();
+        let res = get_server_status(&tmp_path).await.unwrap();
         assert!(matches!(res, ServerStatus::Offline(_)));
     }
 
     #[tokio::test]
     async fn test_status_directory_with_symlink() {
         let tmp_dir = TempDir::new("foo").unwrap().into_path();
-        let actual_dir = tmp_dir.join("rundir");
+        let actual_dir = tmp_dir.join("server-dir");
         std::fs::create_dir(&actual_dir).unwrap();
         std::os::unix::fs::symlink(&actual_dir, tmp_dir.join(SYMLINK_PATH)).unwrap();
 
-        let rundir = RunDirectory::new(actual_dir.clone()).unwrap();
+        let server_dir = ServerDir::open(&actual_dir).unwrap();
         let record = AccessRecord::new(
             "foo".into(),
             42,
@@ -231,19 +191,20 @@ mod tests {
             Default::default(),
             Default::default(),
         );
-        store_access_record(&record, rundir.access_filename()).unwrap();
+        store_access_record(&record, server_dir.access_filename()).unwrap();
 
-        let rundir = RunDirectory::new(resolve_active_directory(tmp_dir)).unwrap();
-        let res = get_server_status(&rundir).await.unwrap();
+        //let server_dir = ServerDir::open(&tmp_dir).unwrap();
+        let res = get_server_status(&tmp_dir).await.unwrap();
         assert!(matches!(res, ServerStatus::Offline(_)));
     }
 
     #[tokio::test]
     async fn test_start_stop() {
         let tmp_dir = TempDir::new("foo").unwrap().into_path();
-        let fut = initialize_server(tmp_dir.clone(), Default::default()).await.unwrap();
+        let fut = initialize_server(&tmp_dir, Default::default()).await.unwrap();
         let (set, handle) = run_concurrent(fut, async {
-            stop_server(tmp_dir).await.unwrap();
+            let mut connection = get_client_connection(&tmp_dir).await.unwrap();
+            stop_server(&mut connection).await.unwrap();
         }).await;
         set.run_until(handle).await.unwrap().unwrap();
     }
@@ -253,7 +214,7 @@ mod tests {
         let tmp_dir = TempDir::new("foo").unwrap().into_path();
 
         let notify = Arc::new(Notify::new());
-        let fut = initialize_server(tmp_dir.clone(), notify.clone()).await.unwrap();
+        let fut = initialize_server(&tmp_dir, notify.clone()).await.unwrap();
         notify.notify_one();
         fut.await.unwrap();
     }

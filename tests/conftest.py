@@ -62,7 +62,7 @@ class HqEnv(Env):
         self.workers = {}
         self.id_counter = 0
         self.do_final_check = True
-        self.rundir = None
+        self.server_dir = None
 
     def no_final_check(self):
         self.do_final_check = False
@@ -73,16 +73,16 @@ class HqEnv(Env):
         env["RUST_BACKTRACE"] = "full"
         return env
 
-    def start_server(self, rundir="./hq-rundir"):
-        self.rundir = os.path.join(self.work_path, rundir)
+    def start_server(self, server_dir="./hq-server"):
+        self.server_dir = os.path.join(self.work_path, server_dir)
         env = self.make_default_env()
-        args = [HQ_BINARY, "--rundir", self.rundir, "server", "start"]
+        args = [HQ_BINARY, "--server-dir", self.server_dir, "server", "start"]
         self.start_process("server", args, env=env)
         self.check_running_processes()
         time.sleep(0.2)
 
     def command(self, *args):
-        args = [HQ_BINARY, "--rundir", self.rundir] + list(args)
+        args = [HQ_BINARY, "--server-dir", self.server_dir] + list(args)
         try:
             output = subprocess.check_output(args, stderr=subprocess.STDOUT, cwd=self.work_path)
             return output.decode()
