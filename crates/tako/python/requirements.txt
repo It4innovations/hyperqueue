@@ -1,5 +1,6 @@
 msgpack==1.0.0
-cloudpickle==1.5.0
+cloudpickle==1.6.0
 uvloop==0.14.0
 pytest
 pytest-asyncio
+psutil
