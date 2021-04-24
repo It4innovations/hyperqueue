@@ -11,7 +11,7 @@ use crate::worker::output::print_worker_configuration;
 
 
 #[derive(Clap)]
-pub struct WorkerOpts {
+pub struct StartWorkerOpts {
 
     #[clap(long)]
     ncpus: Option<u32>,
@@ -21,7 +21,7 @@ pub struct WorkerOpts {
 }
 
 
-pub async fn start_hq_worker(server_dir_path: &Path, opts: WorkerOpts) -> crate::Result<()> {
+pub async fn start_hq_worker(server_dir_path: &Path, opts: StartWorkerOpts) -> crate::Result<()> {
     log::info!("Starting hyperqueue worker {}", env!("CARGO_PKG_VERSION"));
     let server_dir = ServerDir::open(server_dir_path).map_err(|e| format!("Server directory error: {}", e))?;
     let record = server_dir.read_access_record().map_err(|e| format!("Server is not running: {}", e))?;
@@ -35,7 +35,7 @@ pub async fn start_hq_worker(server_dir_path: &Path, opts: WorkerOpts) -> crate:
     Ok(())
 }
 
-fn gather_configuration(opts: WorkerOpts) -> WorkerConfiguration {
+fn gather_configuration(opts: StartWorkerOpts) -> WorkerConfiguration {
     let hostname = gethostname::gethostname()
             .into_string()
             .expect("Invalid hostname");

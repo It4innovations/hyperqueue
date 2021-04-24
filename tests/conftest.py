@@ -76,10 +76,10 @@ class HqEnv(Env):
     def start_server(self, server_dir="./hq-server"):
         self.server_dir = os.path.join(self.work_path, server_dir)
         env = self.make_default_env()
-        args = [HQ_BINARY, "--server-dir", self.server_dir, "server", "start"]
+        args = [HQ_BINARY, "--server-dir", self.server_dir, "start", "server"]
         self.start_process("server", args, env=env)
-        self.check_running_processes()
         time.sleep(0.2)
+        self.check_running_processes()
 
     def command(self, *args):
         args = [HQ_BINARY, "--server-dir", self.server_dir] + list(args)
