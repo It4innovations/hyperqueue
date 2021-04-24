@@ -13,6 +13,7 @@ use tako::messages::common::WorkerConfiguration;
 use tako::worker::rpc::run_worker;
 use std::rc::Rc;
 use std::sync::Arc;
+use orion::kdf::SecretKey;
 
 #[derive(Clap)]
 #[clap(version = "1.0")]
@@ -54,6 +55,12 @@ fn create_paths(
     let work_dir = fs::canonicalize(workdir)?;
     let local_dir = create_local_directory(local_directory)?;
     Ok((work_dir, local_dir))
+}
+
+async fn worker_main(server_address: &str, configuration: WorkerConfiguration, secret_key: Option<Arc<SecretKey>>) -> tako::Result<()> {
+    let (_, worker_future) = run_worker(server_address, configuration, secret_key).await?;
+    worker_future.await;
+    Ok(())
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -99,7 +106,7 @@ async fn main() -> tako::Result<()> {
 
     let local_set = LocalSet::new();
     local_set
-        .run_until(run_worker(&opts.server_address, configuration, secret_key))
+        .run_until(worker_main(&opts.server_address, configuration, secret_key))
         .await?;
     log::info!("tako worker ends");
     Ok(())
