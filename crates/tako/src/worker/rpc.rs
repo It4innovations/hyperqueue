@@ -33,6 +33,7 @@ use crate::worker::task::TaskRef;
 use crate::Priority;
 use crate::PriorityTuple;
 use std::sync::Arc;
+use std::future::Future;
 
 async fn start_listener() -> crate::Result<(TcpListener, String)> {
     let address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
@@ -78,7 +79,7 @@ pub async fn run_worker(
     scheduler_address: &str,
     mut configuration: WorkerConfiguration,
     secret_key: Option<Arc<SecretKey>>,
-) -> crate::Result<()> {
+) -> crate::Result<((WorkerId, WorkerConfiguration), impl Future<Output=()>)> {
     let (listener, address) = start_listener().await?;
     configuration.listen_address = address;
     let stream = connect_to_server(&scheduler_address).await?;
@@ -108,19 +109,19 @@ pub async fn run_worker(
         tokio::sync::mpsc::unbounded_channel::<(DataObjectRef, (Priority, Priority))>();
     let heartbeat_interval = configuration.heartbeat_interval;
 
-    let state = {
+    let (worker_id, state) = {
         match timeout(Duration::from_secs(15), reader.next()).await {
             Ok(Some(data)) => {
                 let message: WorkerRegistrationResponse = open_message(&mut opener, &data?)?;
-                WorkerStateRef::new(
+                (message.worker_id, WorkerStateRef::new(
                     message.worker_id,
-                    configuration,
+                    configuration.clone(),
                     secret_key,
                     queue_sender,
                     download_sender,
                     message.worker_addresses,
                     message.subworker_definitions,
-                )
+                ))
             }
             Ok(None) => panic!("Connection closed without receiving registration response"),
             Err(_) => panic!("Did not received worker registration response"),
@@ -167,25 +168,27 @@ pub async fn run_worker(
 
     state.get_mut().set_subworkers(subworkers);*/
 
-    tokio::select! {
-        () = try_start_tasks => { unreachable!() }
-        _ = worker_message_loop(state.clone(), reader, opener) => {
-            panic!("Connection to server lost");
+    Ok(((worker_id, configuration), async move {
+        tokio::select! {
+            () = try_start_tasks => { unreachable!() }
+            _ = worker_message_loop(state.clone(), reader, opener) => {
+                panic!("Connection to server lost");
+            }
+            _ = forward_queue_to_sealed_sink(queue_receiver, writer, sealer) => {
+                panic!("Cannot send a message to server");
+            }
+            _result = taskset.run_until(connection_initiator(listener, state.clone())) => {
+                panic!("Taskset failed");
+            }
+            /*idx = sw_processes => {
+                panic!("Subworker process {} failed", idx);
+            }*/
+            _ = worker_data_downloader(state, download_reader) => {
+                unreachable!()
+            }
+            _ = heartbeat => { unreachable!() }
         }
-        _ = forward_queue_to_sealed_sink(queue_receiver, writer, sealer) => {
-            panic!("Cannot send a message to server");
-        }
-        _result = taskset.run_until(connection_initiator(listener, state.clone())) => {
-            panic!("Taskset failed");
-        }
-        /*idx = sw_processes => {
-            panic!("Subworker process {} failed", idx);
-        }*/
-        _ = worker_data_downloader(state, download_reader) => {
-            unreachable!()
-        }
-        _ = heartbeat => { unreachable!() }
-    }
+    }))
     //Ok(())
 }
 
