@@ -8,7 +8,8 @@ use hyperqueue::client::commands::submit::submit_computation;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::server::bootstrap::{init_hq_server, get_client_connection};
 use hyperqueue::common::fsutils::absolute_path;
-use hyperqueue::worker::start::{start_hq_worker, StartWorkerOpts};
+use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
+use hyperqueue::WorkerId;
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -40,7 +41,7 @@ impl CommonOpts {
 }
 
 #[derive(Clap)]
-struct StartServerOpts {
+struct ServerStartOpts {
 }
 
 #[derive(Clap)]
@@ -58,22 +59,10 @@ struct SubmitOpts {
 
 #[derive(Clap)]
 enum SubCommand {
-    Start(StartOpts),
     Server(ServerOpts),
     Stats(StatsOpts),
     Submit(SubmitOpts),
-}
-
-#[derive(Clap)]
-struct StartOpts {
-    #[clap(subcommand)]
-    subcmd: StartCommand,
-}
-
-#[derive(Clap)]
-enum StartCommand {
-    Server(StartServerOpts),
-    Worker(StartWorkerOpts),
+    Worker(WorkerOpts),
 }
 
 #[derive(Clap)]
@@ -84,10 +73,45 @@ struct ServerOpts {
 
 #[derive(Clap)]
 enum ServerCommand {
+    Start(ServerStartOpts),
     Stop(ServerStopOpts),
 }
 
-async fn command_server_start(common: CommonOpts, opts: StartServerOpts) -> hyperqueue::Result<()> {
+#[derive(Clap)]
+struct WorkersOpts {
+
+}
+
+#[derive(Clap)]
+struct WorkerOpts {
+    #[clap(subcommand)]
+    subcmd: WorkerCommand,
+}
+
+#[derive(Clap)]
+struct WorkerStopOpts {
+    worker_id: WorkerId,
+}
+
+#[derive(Clap)]
+struct WorkerListOpts {
+}
+
+#[derive(Clap)]
+struct WorkerInfoOpts {
+    worker_id: WorkerId,
+}
+
+
+#[derive(Clap)]
+enum WorkerCommand {
+    Start(WorkerStartOpts),
+    Stop(WorkerStopOpts),
+    List(WorkerListOpts),
+    Info(WorkerInfoOpts),
+}
+
+async fn command_server_start(common: CommonOpts, opts: ServerStartOpts) -> hyperqueue::Result<()> {
     init_hq_server(&common.get_server_directory_path()).await
 }
 
@@ -106,7 +130,7 @@ async fn command_submit(common: CommonOpts, opts: SubmitOpts) -> hyperqueue::Res
     submit_computation(&mut connection, opts.commands).await
 }
 
-async fn command_worker(common: CommonOpts, opts: StartWorkerOpts) -> hyperqueue::Result<()> {
+async fn command_worker(common: CommonOpts, opts: WorkerStartOpts) -> hyperqueue::Result<()> {
     start_hq_worker(&common.get_server_directory_path(), opts).await
 }
 
@@ -122,11 +146,17 @@ async fn main() -> hyperqueue::Result<()> {
     setup_logging();
 
     let result = match top_opts.subcmd {
-        SubCommand::Start(StartOpts { subcmd: StartCommand::Server(opts) }) => command_server_start(top_opts.common, opts).await,
-        SubCommand::Start(StartOpts { subcmd: StartCommand::Worker(opts) }) => { command_worker(top_opts.common, opts).await },
+        SubCommand::Server(ServerOpts { subcmd: ServerCommand::Start(opts) }) => command_server_start(top_opts.common, opts).await,
         SubCommand::Server(ServerOpts { subcmd: ServerCommand::Stop(opts) }) => command_server_stop(top_opts.common, opts).await,
+
+        SubCommand::Worker(WorkerOpts { subcmd: WorkerCommand::Start(opts) }) => { command_worker(top_opts.common, opts).await },
+        SubCommand::Worker(WorkerOpts { subcmd: WorkerCommand::Stop(_) }) => { todo!() }
+        SubCommand::Worker(WorkerOpts { subcmd: WorkerCommand::List(_) }) => { todo!() }
+        SubCommand::Worker(WorkerOpts { subcmd: WorkerCommand::Info(_) }) => { todo!() }
+
         SubCommand::Stats(opts) => command_stats(top_opts.common, opts).await,
-        SubCommand::Submit(opts) => command_submit(top_opts.common, opts).await
+        SubCommand::Submit(opts) => command_submit(top_opts.common, opts).await,
+
     };
     if let Err(e) = result {
         eprintln!("{}", e);
