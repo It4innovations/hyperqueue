@@ -24,7 +24,7 @@ struct CommonOpts {
 
 
 #[derive(Clap)]
-#[clap(version = "0.1")]
+#[clap(version = env!("CARGO_PKG_VERSION"))]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct Opts {
     #[clap(flatten)]
