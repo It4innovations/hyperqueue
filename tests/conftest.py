@@ -4,6 +4,8 @@ import os
 import signal
 import time
 
+from testutils import parse_table
+
 PYTEST_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(PYTEST_DIR)
 HQ_BINARY = os.path.join(ROOT_DIR, "target", "debug", "hq")
@@ -52,6 +54,17 @@ class Env:
             if not p.poll():
                 os.killpg(os.getpgid(p.pid), signal.SIGTERM)
 
+    def kill_process(self, name):
+        for i, (n, p) in enumerate(self.processes):
+            if n == name:
+                del self.processes[i]
+                # Kill the whole group since the process may spawn a child
+                if p.returncode is None and not p.poll():
+                    os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+                return
+        else:
+            raise Exception("Process not found")
+
 
 class HqEnv(Env):
     default_listen_port = 17002
@@ -76,16 +89,34 @@ class HqEnv(Env):
     def start_server(self, server_dir="./hq-server"):
         self.server_dir = os.path.join(self.work_path, server_dir)
         env = self.make_default_env()
-        args = [HQ_BINARY, "--server-dir", self.server_dir, "start", "server"]
+        args = [HQ_BINARY, "--server-dir", self.server_dir, "server", "start"]
         self.start_process("server", args, env=env)
         time.sleep(0.2)
         self.check_running_processes()
 
-    def command(self, *args):
-        args = [HQ_BINARY, "--server-dir", self.server_dir] + list(args)
+    def start_worker(self):
+        self.id_counter += 1
+        worker_id = self.id_counter
+        env = self.make_default_env()
+        args = [HQ_BINARY, "--server-dir", self.server_dir, "worker", "start"]
+        self.start_process(f"worker{worker_id}", args, env=env)
+
+    def kill_worker(self, worker_id):
+        self.kill_process(f"worker{worker_id}")
+
+    def command(self, args, as_table=False):
+        if isinstance(args, str):
+            args = [args]
+        else:
+            args = list(args)
+
+        args = [HQ_BINARY, "--server-dir", self.server_dir] + args
         try:
             output = subprocess.check_output(args, stderr=subprocess.STDOUT, cwd=self.work_path)
-            return output.decode()
+            output = output.decode()
+            if as_table:
+                return parse_table(output)
+            return output
         except subprocess.CalledProcessError as e:
             print("Process output: ", e.stdout)
             raise

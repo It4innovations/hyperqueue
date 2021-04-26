@@ -2,7 +2,7 @@ use std::path::{PathBuf, Path};
 
 use tako::messages::common::ProgramDefinition;
 
-use crate::client::handle_message;
+use crate::client::utils::handle_message;
 use crate::common::error::error;
 use crate::server::bootstrap::get_client_connection;
 use crate::transfer::messages::{FromClientMessage, SubmitMessage, ToClientMessage};

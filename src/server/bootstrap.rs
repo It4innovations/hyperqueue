@@ -18,6 +18,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use cli_table::{print_stdout, Table, Cell, Style};
 use tako::messages::gateway::FromGatewayMessage::ServerInfo;
+use crate::client::globalsettings::GlobalSettings;
 
 enum ServerStatus {
     Offline(AccessRecord),
@@ -33,15 +34,15 @@ enum ServerStatus {
 /// server will be started.
 ///
 /// If an already running server is found, an error will be returned.
-pub async fn init_hq_server(server_directory: &Path) -> crate::Result<()> {
-    match get_server_status(&server_directory).await {
+pub async fn init_hq_server(gsettings: &GlobalSettings) -> crate::Result<()> {
+    match get_server_status(gsettings.server_directory()).await {
         Err(_) | Ok(ServerStatus::Offline(_)) => {
             log::info!("No online server found, starting a new server");
-            start_server(server_directory).await
+            start_server(gsettings.server_directory()).await
         }
         Ok(ServerStatus::Online(_)) => {
             error(format!("Server at {0} is already online, please stop it first using \
-            `hq stop --server-dir {0}`", server_directory.display()))
+            `hq stop --server-dir {0}`", gsettings.server_directory().display()))
         }
     }
 }

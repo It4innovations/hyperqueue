@@ -7,7 +7,7 @@ use crate::server::job::Job;
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
-use crate::transfer::messages::{FromClientMessage, JobInfo, JobState, StatsResponse, SubmitMessage, SubmitResponse, ToClientMessage};
+use crate::transfer::messages::{FromClientMessage, JobInfo, JobState, StatsResponse, SubmitMessage, SubmitResponse, ToClientMessage, WorkerListResponse};
 use tokio::sync::Notify;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -72,6 +72,9 @@ pub async fn client_rpc_loop<
                     FromClientMessage::Stop => {
                         end_flag.notify_one();
                         break;
+                    }
+                    FromClientMessage::WorkerList => {
+                        handle_worker_list(&state_ref).await
                     }
                 };
                 assert!(tx.send(response).await.is_ok());
@@ -138,5 +141,14 @@ async fn handle_submit(state_ref: &StateRef, tako_ref: &TakoServer, message: Sub
             name: message.name,
             state: JobState::Waiting,
         }
+    })
+}
+
+
+async fn handle_worker_list(state_ref: &StateRef) -> ToClientMessage {
+    let state = state_ref.get();
+
+    ToClientMessage::WorkerListResponse(WorkerListResponse {
+        workers: state.get_workers().values().map(|w| w.make_info()).collect()
     })
 }

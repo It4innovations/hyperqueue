@@ -10,16 +10,31 @@ use hyperqueue::server::bootstrap::{init_hq_server, get_client_connection};
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::WorkerId;
+use hyperqueue::client::commands::worker::get_worker_list;
+use hyperqueue::client::utils::OutputStyle;
+use cli_table::ColorChoice;
+use hyperqueue::client::globalsettings::GlobalSettings;
+use std::str::FromStr;
+use hyperqueue::common::error::error;
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 pub type Connection = tokio_util::codec::Framed<tokio::net::UnixStream, tokio_util::codec::LengthDelimitedCodec>;
 
+
+
+
 #[derive(Clap)]
 struct CommonOpts {
     #[clap(long)]
     server_dir: Option<PathBuf>,
+
+    #[clap(long, default_value="auto")]
+    colors: ColorPolicy,
+
+    #[clap(long)]
+    plain_output: bool,
 }
 
 
@@ -32,12 +47,6 @@ struct Opts {
 
     #[clap(subcommand)]
     subcmd: SubCommand,
-}
-
-impl CommonOpts {
-    fn get_server_directory_path(&self) -> PathBuf {
-        absolute_path(self.server_dir.clone().unwrap_or_else(default_server_directory_path))
-    }
 }
 
 #[derive(Clap)]
@@ -111,27 +120,27 @@ enum WorkerCommand {
     Info(WorkerInfoOpts),
 }
 
-async fn command_server_start(common: CommonOpts, opts: ServerStartOpts) -> hyperqueue::Result<()> {
-    init_hq_server(&common.get_server_directory_path()).await
+async fn command_server_start(gsettings: GlobalSettings, opts: ServerStartOpts) -> hyperqueue::Result<()> {
+    init_hq_server(&gsettings).await
 }
 
-async fn command_server_stop(common: CommonOpts, opts: ServerStopOpts) -> hyperqueue::Result<()> {
-    let mut connection = get_client_connection(&common.get_server_directory_path()).await?;
+async fn command_server_stop(gsettings: GlobalSettings, opts: ServerStopOpts) -> hyperqueue::Result<()> {
+    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
     stop_server(&mut connection).await
 }
 
-async fn command_stats(common: CommonOpts, opts: StatsOpts) -> hyperqueue::Result<()> {
-    let mut connection = get_client_connection(&common.get_server_directory_path()).await?;
+async fn command_stats(gsettings: GlobalSettings, opts: StatsOpts) -> hyperqueue::Result<()> {
+    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
     get_server_stats(&mut connection).await
 }
 
-async fn command_submit(common: CommonOpts, opts: SubmitOpts) -> hyperqueue::Result<()> {
-    let mut connection = get_client_connection(&common.get_server_directory_path()).await?;
+async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> hyperqueue::Result<()> {
+    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
     submit_computation(&mut connection, opts.commands).await
 }
 
-async fn command_worker(common: CommonOpts, opts: WorkerStartOpts) -> hyperqueue::Result<()> {
-    start_hq_worker(&common.get_server_directory_path(), opts).await
+async fn command_worker_start(gsettings: GlobalSettings, opts: WorkerStartOpts) -> hyperqueue::Result<()> {
+    start_hq_worker(&gsettings.server_directory(), opts).await
 }
 
 fn default_server_directory_path() -> PathBuf {
@@ -140,22 +149,66 @@ fn default_server_directory_path() -> PathBuf {
     home
 }
 
+async fn command_worker_list(gsettings: GlobalSettings, opts: WorkerListOpts) -> hyperqueue::Result<()> {
+    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    get_worker_list(&mut connection, &gsettings).await
+}
+
+pub enum ColorPolicy {
+        Auto,
+        Always,
+        Never,
+}
+
+impl FromStr for ColorPolicy {
+    type Err = hyperqueue::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "auto" => Self::Auto,
+            "always" => Self::Always,
+            "never" => Self::Never,
+            _ => return error("Invalid color policy".to_string())
+        })
+    }
+}
+
+fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
+    let color_policy = match opts.colors {
+        ColorPolicy::Always => ColorChoice::AlwaysAnsi,
+        ColorPolicy::Auto => {
+            if atty::is(atty::Stream::Stdout) {
+                ColorChoice::Auto
+            } else {
+                ColorChoice::Never
+            }
+        }
+        ColorPolicy::Never => ColorChoice::Never,
+    };
+
+    let server_dir = absolute_path(opts.server_dir.clone().unwrap_or_else(default_server_directory_path));
+
+    GlobalSettings::new(server_dir, color_policy)
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> hyperqueue::Result<()> {
     let top_opts: Opts = Opts::parse();
     setup_logging();
 
-    let result = match top_opts.subcmd {
-        SubCommand::Server(ServerOpts { subcmd: ServerCommand::Start(opts) }) => command_server_start(top_opts.common, opts).await,
-        SubCommand::Server(ServerOpts { subcmd: ServerCommand::Stop(opts) }) => command_server_stop(top_opts.common, opts).await,
+    let gsettings = make_global_settings(top_opts.common);
 
-        SubCommand::Worker(WorkerOpts { subcmd: WorkerCommand::Start(opts) }) => { command_worker(top_opts.common, opts).await },
+    let result = match top_opts.subcmd {
+        SubCommand::Server(ServerOpts { subcmd: ServerCommand::Start(opts) }) => command_server_start(gsettings, opts).await,
+        SubCommand::Server(ServerOpts { subcmd: ServerCommand::Stop(opts) }) => command_server_stop(gsettings, opts).await,
+
+        SubCommand::Worker(WorkerOpts { subcmd: WorkerCommand::Start(opts) }) => { command_worker_start(gsettings, opts).await },
         SubCommand::Worker(WorkerOpts { subcmd: WorkerCommand::Stop(_) }) => { todo!() }
-        SubCommand::Worker(WorkerOpts { subcmd: WorkerCommand::List(_) }) => { todo!() }
+        SubCommand::Worker(WorkerOpts { subcmd: WorkerCommand::List(opts) }) => { command_worker_list(gsettings, opts).await }
         SubCommand::Worker(WorkerOpts { subcmd: WorkerCommand::Info(_) }) => { todo!() }
 
-        SubCommand::Stats(opts) => command_stats(top_opts.common, opts).await,
-        SubCommand::Submit(opts) => command_submit(top_opts.common, opts).await,
+        SubCommand::Stats(opts) => command_stats(gsettings, opts).await,
+        SubCommand::Submit(opts) => command_submit(gsettings, opts).await,
 
     };
     if let Err(e) = result {

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::common::error::error;
 use crate::server::bootstrap::get_client_connection;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
-use crate::client::handle_message;
+use crate::client::utils::handle_message;
 use crate::client::job::print_job_stats;
 use crate::transfer::connection::ClientConnection;
 

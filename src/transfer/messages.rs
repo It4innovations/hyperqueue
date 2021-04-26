@@ -1,8 +1,9 @@
 use serde::Serialize;
 use serde::Deserialize;
-use crate::TaskId;
+use crate::{TaskId, WorkerId};
 use std::path::PathBuf;
-use tako::messages::common::ProgramDefinition;
+use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
+use chrono::{DateTime, Utc};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitMessage {
@@ -15,6 +16,7 @@ pub struct SubmitMessage {
 pub enum FromClientMessage {
     Submit(SubmitMessage),
     Stats,
+    WorkerList,
     Stop
 }
 
@@ -22,6 +24,7 @@ pub enum FromClientMessage {
 pub enum ToClientMessage {
     StatsResponse(StatsResponse),
     SubmitResponse(SubmitResponse),
+    WorkerListResponse(WorkerListResponse),
     Error(String),
 }
 
@@ -40,6 +43,13 @@ pub struct JobInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct WorkerInfo {
+    pub id: WorkerId,
+    pub configuration: WorkerConfiguration,
+    pub ended_at: Option<DateTime<Utc>>
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct StatsResponse {
     pub workers: Vec<String>,
     pub jobs: Vec<JobInfo>
@@ -48,4 +58,9 @@ pub struct StatsResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitResponse {
     pub job: JobInfo
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct WorkerListResponse {
+    pub workers: Vec<WorkerInfo>,
 }

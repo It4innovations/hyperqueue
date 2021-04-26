@@ -11,7 +11,7 @@ def test_empty_stats(hq_env: HqEnv):
 
 def test_submit_out(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
-    hq_env.command("submit", "--", "bash", "-c", "echo 'hello'")
+    hq_env.command(["submit", "--", "bash", "-c", "echo 'hello'"])
     time.sleep(0.2)
     #  with open(os.path.join(tmp_path, "stdout.1")) as f:
     #      assert f.read() == "hello"
@@ -21,7 +21,7 @@ def test_submit_out(hq_env: HqEnv, tmp_path):
 
 def test_submit_sleep(hq_env: HqEnv):
     hq_env.start_server()
-    print(hq_env.command("submit", "sleep", "1"))
+    print(hq_env.command(["submit", "sleep", "1"]))
     print(hq_env.command("stats"))
     # TODO: Check task is waiting
 
