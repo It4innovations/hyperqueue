@@ -2,8 +2,9 @@ use cli_table::{Cell, Color, print_stdout, Style, Table};
 use cli_table::format::Justify;
 
 use crate::transfer::messages::{JobInfo, JobState};
+use crate::client::globalsettings::GlobalSettings;
 
-pub fn print_job_stats(tasks: Vec<JobInfo>) {
+pub fn print_job_list(gsettings: &GlobalSettings, tasks: Vec<JobInfo>) {
     let rows: Vec<_> = tasks.into_iter().map(|t| {
         vec![t.id.cell().justify(Justify::Right),
              t.name.cell(),
@@ -17,6 +18,7 @@ pub fn print_job_stats(tasks: Vec<JobInfo>) {
     }).collect();
 
     let table = rows.table()
+        .color_choice(gsettings.color_policy())
         .title(vec![
             "Id".cell().bold(true),
             "Name".cell().bold(true),

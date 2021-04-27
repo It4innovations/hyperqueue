@@ -15,14 +15,14 @@ pub struct SubmitMessage {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum FromClientMessage {
     Submit(SubmitMessage),
-    Stats,
+    JobList,
     WorkerList,
     Stop
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ToClientMessage {
-    StatsResponse(StatsResponse),
+    JobListResponse(JobListResponse),
     SubmitResponse(SubmitResponse),
     WorkerListResponse(WorkerListResponse),
     Error(String),
@@ -50,7 +50,7 @@ pub struct WorkerInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct StatsResponse {
+pub struct JobListResponse {
     pub workers: Vec<String>,
     pub jobs: Vec<JobInfo>
 }

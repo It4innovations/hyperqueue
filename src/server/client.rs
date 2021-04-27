@@ -7,7 +7,7 @@ use crate::server::job::Job;
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
-use crate::transfer::messages::{FromClientMessage, JobInfo, JobState, StatsResponse, SubmitMessage, SubmitResponse, ToClientMessage, WorkerListResponse};
+use crate::transfer::messages::{FromClientMessage, JobInfo, JobState, JobListResponse, SubmitMessage, SubmitResponse, ToClientMessage, WorkerListResponse};
 use tokio::sync::Notify;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -66,7 +66,7 @@ pub async fn client_rpc_loop<
                     FromClientMessage::Submit(msg) => {
                         handle_submit(&state_ref, &tako_ref, msg).await
                     }
-                    FromClientMessage::Stats => {
+                    FromClientMessage::JobList => {
                         compute_stats(&state_ref, &tako_ref).await
                     }
                     FromClientMessage::Stop => {
@@ -101,35 +101,37 @@ async fn compute_stats(state_ref: &StateRef, tako_ref: &TakoServer) -> ToClientM
     };*/
 
     let state = state_ref.get();
-    ToClientMessage::StatsResponse(StatsResponse {
+    ToClientMessage::JobListResponse(JobListResponse {
         workers: vec![],
         jobs: state.jobs().map(|j| j.make_job_info()).collect(),
     })
 }
 
 async fn handle_submit(state_ref: &StateRef, tako_ref: &TakoServer, message: SubmitMessage) -> ToClientMessage {
-    let mut state = state_ref.get_mut();
-    let task_id = state.new_job_id();
+    let (task_def, task_id) = {
+        let mut state = state_ref.get_mut();
+        let task_id = state.new_job_id();
 
-    let mut program_def = message.spec;
+        let mut program_def = message.spec;
 
-    let stdout = format!("stdout.{}", task_id);
-    let stderr = format!("stdout.{}", task_id);
-    program_def.stdout = Some(message.cwd.join(stdout));
-    program_def.stderr = Some(message.cwd.join(stderr));
+        let stdout = format!("stdout.{}", task_id);
+        let stderr = format!("stderr.{}", task_id);
+        program_def.stdout = Some(message.cwd.join(stdout));
+        program_def.stderr = Some(message.cwd.join(stderr));
 
-    let task_def = TaskDef {
-        id: task_id,
-        type_id: 0,
-        body: rmp_serde::to_vec_named(&program_def).unwrap(),
-        keep: false,
-        observe: true,
-        n_outputs: Default::default(),
+        let body = rmp_serde::to_vec_named(&program_def).unwrap();
+        let job = Job::new(task_id, message.name.clone(), program_def);
+        state.add_job(job);
+
+        (TaskDef {
+            id: task_id,
+            type_id: 0,
+            body,
+            keep: false,
+            observe: true,
+            n_outputs: Default::default(),
+        }, task_id)
     };
-
-    let job = Job::new(task_id, message.name.clone(), program_def);
-    state.add_job(job);
-
     match tako_ref.send_message(FromGatewayMessage::NewTasks(NewTasksMessage { tasks: vec![task_def] })).await.unwrap() {
         ToGatewayMessage::NewTasksResponse(_) => { /* Ok */ }
         _ => { panic!("Invalid response"); }

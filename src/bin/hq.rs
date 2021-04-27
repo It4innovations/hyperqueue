@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::Clap;
 
-use hyperqueue::client::commands::stats::get_server_stats;
+use hyperqueue::client::commands::jobs::get_job_list;
 use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::submit_computation;
 use hyperqueue::common::setup::setup_logging;
@@ -58,7 +58,7 @@ struct ServerStopOpts {
 }
 
 #[derive(Clap)]
-struct StatsOpts {
+struct JobListOpts {
 }
 
 #[derive(Clap)]
@@ -69,7 +69,7 @@ struct SubmitOpts {
 #[derive(Clap)]
 enum SubCommand {
     Server(ServerOpts),
-    Stats(StatsOpts),
+    Jobs(JobListOpts),
     Submit(SubmitOpts),
     Worker(WorkerOpts),
 }
@@ -129,18 +129,18 @@ async fn command_server_stop(gsettings: GlobalSettings, opts: ServerStopOpts) ->
     stop_server(&mut connection).await
 }
 
-async fn command_stats(gsettings: GlobalSettings, opts: StatsOpts) -> hyperqueue::Result<()> {
+async fn command_job_list(gsettings: GlobalSettings, opts: JobListOpts) -> hyperqueue::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    get_server_stats(&mut connection).await
+    get_job_list(&gsettings, &mut connection).await
 }
 
 async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> hyperqueue::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    submit_computation(&mut connection, opts.commands).await
+    submit_computation(&gsettings, &mut connection, opts.commands).await
 }
 
 async fn command_worker_start(gsettings: GlobalSettings, opts: WorkerStartOpts) -> hyperqueue::Result<()> {
-    start_hq_worker(&gsettings.server_directory(), opts).await
+    start_hq_worker(&gsettings, opts).await
 }
 
 fn default_server_directory_path() -> PathBuf {
@@ -207,7 +207,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Worker(WorkerOpts { subcmd: WorkerCommand::List(opts) }) => { command_worker_list(gsettings, opts).await }
         SubCommand::Worker(WorkerOpts { subcmd: WorkerCommand::Info(_) }) => { todo!() }
 
-        SubCommand::Stats(opts) => command_stats(gsettings, opts).await,
+        SubCommand::Jobs(opts) => command_job_list(gsettings, opts).await,
         SubCommand::Submit(opts) => command_submit(gsettings, opts).await,
 
     };

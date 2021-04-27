@@ -1,4 +1,4 @@
 pub mod stop;
-pub mod stats;
+pub mod jobs;
 pub mod submit;
 pub mod worker;

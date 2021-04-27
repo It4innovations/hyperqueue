@@ -48,3 +48,15 @@ def test_worker_list(hq_env: HqEnv):
     assert table[1][:2] == ["1", "OFFLINE"]
     assert table[2][:2] == ["2", "OFFLINE"]
     assert table[3][:2] == ["3", "RUNNING"]
+
+
+def test_worker_cpus(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(n_cpus=1)
+    hq_env.start_worker(n_cpus=2)
+    time.sleep(0.2)
+    table = hq_env.command(["worker", "list"], as_table=True)
+    assert len(table) == 3
+    assert table[0][3] == "# cpus"
+    assert table[1][3] == "1"
+    assert table[2][3] == "2"
