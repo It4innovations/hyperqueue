@@ -1,5 +1,5 @@
 use cli_table::ColorChoice;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
 pub struct GlobalSettings {
     color_policy: ColorChoice,
@@ -7,7 +7,6 @@ pub struct GlobalSettings {
 }
 
 impl GlobalSettings {
-
     pub fn new(server_dir: PathBuf, color_policy: ColorChoice) -> Self {
         GlobalSettings {
             color_policy,

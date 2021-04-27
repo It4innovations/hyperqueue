@@ -9,9 +9,9 @@ use tokio::sync::oneshot;
 use crate::common::error::error;
 use crate::common::WrappedRcRefCell;
 use crate::server::state::StateRef;
-use tokio::time::Duration;
 use orion::kdf::SecretKey;
 use std::sync::Arc;
+use tokio::time::Duration;
 
 struct Inner {
     sender: UnboundedSender<FromGatewayMessage>,
@@ -21,7 +21,7 @@ struct Inner {
 
 #[derive(Clone)]
 pub struct TakoServer {
-    inner: WrappedRcRefCell<Inner>
+    inner: WrappedRcRefCell<Inner>,
 }
 
 impl TakoServer {
@@ -29,7 +29,10 @@ impl TakoServer {
         self.inner.get().worker_port
     }
 
-    pub async fn send_message(&self, message: FromGatewayMessage) -> crate::Result<ToGatewayMessage> {
+    pub async fn send_message(
+        &self,
+        message: FromGatewayMessage,
+    ) -> crate::Result<ToGatewayMessage> {
         let (sx, rx) = oneshot::channel::<ToGatewayMessage>();
         {
             let mut inner = self.inner.get_mut();
@@ -39,7 +42,10 @@ impl TakoServer {
         Ok(rx.await.unwrap())
     }
 
-    pub async fn start(state_ref: StateRef, key: Arc<SecretKey>) -> crate::Result<(TakoServer, impl Future<Output=crate::Result<()>>)> {
+    pub async fn start(
+        state_ref: StateRef,
+        key: Arc<SecretKey>,
+    ) -> crate::Result<(TakoServer, impl Future<Output = crate::Result<()>>)> {
         let msd = Duration::from_millis(20);
 
         let (from_tako_sender, mut from_tako_receiver) = unbounded_channel::<ToGatewayMessage>();
@@ -50,14 +56,15 @@ impl TakoServer {
             msd,
             from_tako_sender.clone(),
             false,
-        ).await?;
+        )
+        .await?;
 
         let server = TakoServer {
             inner: WrappedRcRefCell::wrap(Inner {
                 sender: to_tako_sender,
                 responses: Default::default(),
                 worker_port: core_ref.get().get_worker_listen_port(),
-            })
+            }),
         };
         let server2 = server.clone();
 
@@ -65,10 +72,18 @@ impl TakoServer {
             let tako_msg_reader = async move {
                 while let Some(message) = from_tako_receiver.recv().await {
                     match message {
-                        ToGatewayMessage::TaskUpdate(msg) => state_ref.get_mut().process_task_update(msg),
-                        ToGatewayMessage::TaskFailed(msg) => state_ref.get_mut().process_task_failed(msg),
-                        ToGatewayMessage::NewWorker(msg) => { state_ref.get_mut().process_worker_new(msg) },
-                        ToGatewayMessage::LostWorker(msg) => { state_ref.get_mut().process_worker_lost(msg) },
+                        ToGatewayMessage::TaskUpdate(msg) => {
+                            state_ref.get_mut().process_task_update(msg)
+                        }
+                        ToGatewayMessage::TaskFailed(msg) => {
+                            state_ref.get_mut().process_task_failed(msg)
+                        }
+                        ToGatewayMessage::NewWorker(msg) => {
+                            state_ref.get_mut().process_worker_new(msg)
+                        }
+                        ToGatewayMessage::LostWorker(msg) => {
+                            state_ref.get_mut().process_worker_lost(msg)
+                        }
                         m => {
                             let response = server2.inner.get_mut().responses.pop_front().unwrap();
                             response.send(m).unwrap();
@@ -79,11 +94,13 @@ impl TakoServer {
             };
             let tako_msg_sender = async move {
                 while let Some(message) = to_tako_receiver.recv().await {
-                    let error = process_client_message(&core_ref, &comm_ref, &from_tako_sender, message).await;
+                    let error =
+                        process_client_message(&core_ref, &comm_ref, &from_tako_sender, message)
+                            .await;
                     if let Some(message) = error {
-                        from_tako_sender.send(ToGatewayMessage::Error(ErrorResponse {
-                            message
-                        })).unwrap();
+                        from_tako_sender
+                            .send(ToGatewayMessage::Error(ErrorResponse { message }))
+                            .unwrap();
                     }
                 }
 
@@ -106,15 +123,17 @@ mod tests {
     use tako::messages::gateway::{FromGatewayMessage, ServerInfo, ToGatewayMessage};
     use tokio::net::TcpStream;
 
+    use crate::common::fsutils::test_utils::run_concurrent;
     use crate::server::rpc::TakoServer;
     use crate::server::state::StateRef;
-    use crate::common::fsutils::test_utils::run_concurrent;
 
     #[tokio::test]
     async fn test_server_connect_worker() {
         let state = StateRef::new();
         let (server, _fut) = TakoServer::start(state, Default::default()).await.unwrap();
-        TcpStream::connect(format!("127.0.0.1:{}", server.worker_port())).await.unwrap();
+        TcpStream::connect(format!("127.0.0.1:{}", server.worker_port()))
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -122,10 +141,13 @@ mod tests {
         let state = StateRef::new();
         let (server, fut) = TakoServer::start(state, Default::default()).await.unwrap();
         run_concurrent(fut, async move {
-            assert!(matches!(server.send_message(FromGatewayMessage::ServerInfo).await.unwrap(),
-                ToGatewayMessage::ServerInfo(ServerInfo { worker_listen_port })
-                if worker_listen_port == server.worker_port()
-            ));
-        }).await;
+            assert!(
+                matches!(server.send_message(FromGatewayMessage::ServerInfo).await.unwrap(),
+                    ToGatewayMessage::ServerInfo(ServerInfo { worker_listen_port })
+                    if worker_listen_port == server.worker_port()
+                )
+            );
+        })
+        .await;
     }
 }

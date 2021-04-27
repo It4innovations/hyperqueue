@@ -2,7 +2,7 @@ from conftest import HqEnv
 import time
 import os
 
-def test_task_submit(hq_env: HqEnv):
+def test_job_submit(hq_env: HqEnv):
     hq_env.start_server()
     #table = hq_env.command("jobs")
     #print(table)
@@ -44,7 +44,7 @@ def test_task_submit(hq_env: HqEnv):
     assert table[3][:3] == ["3", "sleep", "FINISHED"]
 
 
-def test_task_output(hq_env: HqEnv, tmp_path):
+def test_job_output(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker(n_cpus=1)
     hq_env.command(["submit", "--", "bash", "-c", "echo 'hello'"])
@@ -67,27 +67,10 @@ def test_task_output(hq_env: HqEnv, tmp_path):
     with open(os.path.join(tmp_path, "stdout.3")) as f:
          assert f.read() == ""
     with open(os.path.join(tmp_path, "stderr.3")) as f:
-         data = f.read()
-         assert "No such file or directory" in data
-         assert data.startswith("bash:")
+         assert f.read() == ""
 
 
-
-def test_submit_sleep(hq_env: HqEnv):
-    hq_env.start_server()
-    print(hq_env.command(["submit", "sleep", "1"]))
-    print(hq_env.command("stats"))
-    # TODO: Check task is waiting
-
-    # TODO: Add worker
-
-    # TODO: Check task is task is still waiting
-    time.sleep(1.2)
-
-    # TODO: Check task is task is finished
-
-
-def test_task_fail(hq_env: HqEnv):
+def test_job_fail(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(n_cpus=1)
     hq_env.command(["submit", "--", "/non-existent-program"])
@@ -95,3 +78,16 @@ def test_task_fail(hq_env: HqEnv):
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 2
     assert table[1][:3] == ["1", "/non-existent-program", "FAILED"]
+
+    table = hq_env.command(["job", "1"], as_table=True)
+    assert table[0] == ["Id", "1"]
+    assert table[2] == ["State", "FAILED"]
+    assert table[3][0] == "Error"
+    assert "No such file or directory" in table[3][1]
+
+
+def test_job_invalid(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(n_cpus=1)
+    result = hq_env.command(["job", "5"])
+    assert "Job 5 not found" in result

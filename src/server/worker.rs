@@ -1,8 +1,8 @@
-use crate::WorkerId;
-use tako::messages::common::WorkerConfiguration;
 use crate::server::worker::WorkerState::Offline;
 use crate::transfer::messages::WorkerInfo;
+use crate::WorkerId;
 use chrono::{DateTime, Utc};
+use tako::messages::common::WorkerConfiguration;
 
 pub enum WorkerState {
     Online,
@@ -12,7 +12,7 @@ pub enum WorkerState {
 pub struct Worker {
     worker_id: WorkerId,
     state: WorkerState,
-    configuration: WorkerConfiguration
+    configuration: WorkerConfiguration,
 }
 
 impl Worker {
@@ -43,7 +43,7 @@ impl Worker {
             ended_at: match self.state {
                 WorkerState::Online => None,
                 Offline(d) => Some(d),
-            }
+            },
         }
     }
 }

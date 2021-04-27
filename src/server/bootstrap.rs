@@ -5,20 +5,20 @@ use futures::TryFutureExt;
 use tokio::net::TcpListener;
 use tokio::task::LocalSet;
 
+use crate::client::globalsettings::GlobalSettings;
 use crate::common::error::error;
 use crate::common::error::HqError::GenericError;
-use crate::common::serverdir::{load_access_file, ServerDir, AccessRecord, store_access_record};
+use crate::common::serverdir::{load_access_file, store_access_record, AccessRecord, ServerDir};
 use crate::common::setup::setup_interrupt;
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
-use crate::transfer::auth::{generate_key};
-use crate::transfer::connection::{HqConnection, ClientConnection};
-use tokio::sync::Notify;
+use crate::transfer::auth::generate_key;
+use crate::transfer::connection::{ClientConnection, HqConnection};
+use cli_table::{print_stdout, Cell, Style, Table};
 use std::rc::Rc;
 use std::sync::Arc;
-use cli_table::{print_stdout, Table, Cell, Style};
 use tako::messages::gateway::FromGatewayMessage::ServerInfo;
-use crate::client::globalsettings::GlobalSettings;
+use tokio::sync::Notify;
 
 enum ServerStatus {
     Offline(AccessRecord),
@@ -40,17 +40,18 @@ pub async fn init_hq_server(gsettings: &GlobalSettings) -> crate::Result<()> {
             log::info!("No online server found, starting a new server");
             start_server(gsettings.server_directory()).await
         }
-        Ok(ServerStatus::Online(_)) => {
-            error(format!("Server at {0} is already online, please stop it first using \
-            `hq stop --server-dir {0}`", gsettings.server_directory().display()))
-        }
+        Ok(ServerStatus::Online(_)) => error(format!(
+            "Server at {0} is already online, please stop it first using \
+            `hq stop --server-dir {0}`",
+            gsettings.server_directory().display()
+        )),
     }
 }
 
 pub async fn get_client_connection(server_directory: &Path) -> crate::Result<ClientConnection> {
     match ServerDir::open(server_directory).and_then(|sd| sd.read_access_record()) {
         Ok(record) => Ok(HqConnection::connect_to_server(&record).await?),
-        Err(e) => error(format!("No running instance of HQ found: {}", e))
+        Err(e) => error(format!("No running instance of HQ found: {}", e)),
     }
 }
 
@@ -66,8 +67,8 @@ async fn get_server_status(server_directory: &Path) -> crate::Result<ServerStatu
 
 async fn initialize_server(
     server_directory: &Path,
-    end_flag: Arc<Notify>
-) -> crate::Result<impl Future<Output=crate::Result<()>>> {
+    end_flag: Arc<Notify>,
+) -> crate::Result<impl Future<Output = crate::Result<()>>> {
     let client_listener = TcpListener::bind("0.0.0.0:0")
         .map_err(|e| GenericError(format!("Cannot create HQ server socket: {}", e)))
         .await?;
@@ -77,10 +78,8 @@ async fn initialize_server(
     let tako_secret_key = Arc::new(generate_key());
 
     let state_ref = StateRef::new();
-    let (tako_server, tako_future) = TakoServer::start(
-        state_ref.clone(),
-        tako_secret_key.clone(),
-    ).await?;
+    let (tako_server, tako_future) =
+        TakoServer::start(state_ref.clone(), tako_secret_key.clone()).await?;
 
     let record = AccessRecord::new(
         gethostname::gethostname().into_string().unwrap(),
@@ -128,12 +127,21 @@ async fn start_server(directory: &Path) -> crate::Result<()> {
 
 pub fn print_access_record(server_dir: &Path, record: &AccessRecord) {
     let rows = vec![
-        vec!["Server directory".cell().bold(true), server_dir.display().cell()],
+        vec![
+            "Server directory".cell().bold(true),
+            server_dir.display().cell(),
+        ],
         vec!["Hostname".cell().bold(true), record.hostname().cell()],
         vec!["Pid".cell().bold(true), record.pid().cell()],
         vec!["HQ port".cell().bold(true), record.server_port().cell()],
-        vec!["Workers port".cell().bold(true), record.worker_port().cell()],
-        vec!["Start date".cell().bold(true), record.start_date().format("%F %T %Z").cell()],
+        vec![
+            "Workers port".cell().bold(true),
+            record.worker_port().cell(),
+        ],
+        vec![
+            "Start date".cell().bold(true),
+            record.start_date().format("%F %T %Z").cell(),
+        ],
         vec!["Version".cell().bold(true), record.version().cell()],
     ];
     let table = rows.table();
@@ -144,14 +152,14 @@ pub fn print_access_record(server_dir: &Path, record: &AccessRecord) {
 mod tests {
     use tempdir::TempDir;
 
-    use crate::common::serverdir::{ServerDir, AccessRecord, store_access_record, SYMLINK_PATH};
-    use crate::server::bootstrap::{get_server_status, initialize_server, get_client_connection};
     use crate::common::fsutils::test_utils::run_concurrent;
+    use crate::common::serverdir::{store_access_record, AccessRecord, ServerDir, SYMLINK_PATH};
+    use crate::server::bootstrap::{get_client_connection, get_server_status, initialize_server};
 
     use super::ServerStatus;
     use crate::client::commands::stop::stop_server;
-    use tokio::sync::Notify;
     use std::sync::Arc;
+    use tokio::sync::Notify;
 
     #[tokio::test]
     async fn test_status_empty_directory() {
@@ -164,13 +172,8 @@ mod tests {
         let tmp_dir = TempDir::new("foo").unwrap();
         let tmp_path = tmp_dir.into_path();
         let server_dir = ServerDir::open(&tmp_path).unwrap();
-        let record = AccessRecord::new(
-            "foo".into(),
-            42,
-            43,
-            Default::default(),
-            Default::default(),
-        );
+        let record =
+            AccessRecord::new("foo".into(), 42, 43, Default::default(), Default::default());
         store_access_record(&record, server_dir.access_filename()).unwrap();
 
         let res = get_server_status(&tmp_path).await.unwrap();
@@ -185,13 +188,8 @@ mod tests {
         std::os::unix::fs::symlink(&actual_dir, tmp_dir.join(SYMLINK_PATH)).unwrap();
 
         let server_dir = ServerDir::open(&actual_dir).unwrap();
-        let record = AccessRecord::new(
-            "foo".into(),
-            42,
-            43,
-            Default::default(),
-            Default::default(),
-        );
+        let record =
+            AccessRecord::new("foo".into(), 42, 43, Default::default(), Default::default());
         store_access_record(&record, server_dir.access_filename()).unwrap();
 
         //let server_dir = ServerDir::open(&tmp_dir).unwrap();
@@ -202,11 +200,14 @@ mod tests {
     #[tokio::test]
     async fn test_start_stop() {
         let tmp_dir = TempDir::new("foo").unwrap().into_path();
-        let fut = initialize_server(&tmp_dir, Default::default()).await.unwrap();
+        let fut = initialize_server(&tmp_dir, Default::default())
+            .await
+            .unwrap();
         let (set, handle) = run_concurrent(fut, async {
             let mut connection = get_client_connection(&tmp_dir).await.unwrap();
             stop_server(&mut connection).await.unwrap();
-        }).await;
+        })
+        .await;
         set.run_until(handle).await.unwrap().unwrap();
     }
 

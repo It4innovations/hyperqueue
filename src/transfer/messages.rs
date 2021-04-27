@@ -1,9 +1,10 @@
-use serde::Serialize;
-use serde::Deserialize;
+use crate::server::job::{Job, JobId};
 use crate::{TaskId, WorkerId};
+use chrono::{DateTime, Utc};
+use serde::Deserialize;
+use serde::Serialize;
 use std::path::PathBuf;
 use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
-use chrono::{DateTime, Utc};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitMessage {
@@ -13,16 +14,23 @@ pub struct SubmitMessage {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct JobInfoRequest {
+    // If None then all jobs are turned
+    pub job_ids: Option<Vec<JobId>>,
+    pub include_program_def: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum FromClientMessage {
     Submit(SubmitMessage),
-    JobList,
+    JobInfo(JobInfoRequest),
     WorkerList,
-    Stop
+    Stop,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ToClientMessage {
-    JobListResponse(JobListResponse),
+    JobInfoResponse(JobInfoResponse),
     SubmitResponse(SubmitResponse),
     WorkerListResponse(WorkerListResponse),
     Error(String),
@@ -40,24 +48,28 @@ pub struct JobInfo {
     pub id: TaskId,
     pub name: String,
     pub state: JobState,
+
+    pub worker_id: Option<WorkerId>,
+    pub error: Option<String>,
+
+    pub spec: Option<ProgramDefinition>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerInfo {
     pub id: WorkerId,
     pub configuration: WorkerConfiguration,
-    pub ended_at: Option<DateTime<Utc>>
+    pub ended_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct JobListResponse {
-    pub workers: Vec<String>,
-    pub jobs: Vec<JobInfo>
+pub struct JobInfoResponse {
+    pub jobs: Vec<JobInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitResponse {
-    pub job: JobInfo
+    pub job: JobInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -3,14 +3,17 @@ use orion::kdf::SecretKey;
 use tako::messages::gateway::{FromGatewayMessage, NewTasksMessage, TaskDef, ToGatewayMessage};
 use tokio::net::{TcpListener, TcpStream};
 
-use crate::server::job::Job;
+use crate::server::job::{Job, JobId};
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
-use crate::transfer::messages::{FromClientMessage, JobInfo, JobState, JobListResponse, SubmitMessage, SubmitResponse, ToClientMessage, WorkerListResponse};
-use tokio::sync::Notify;
+use crate::transfer::messages::{
+    FromClientMessage, JobInfo, JobInfoResponse, JobState, SubmitMessage, SubmitResponse,
+    ToClientMessage, WorkerListResponse,
+};
 use std::rc::Rc;
 use std::sync::Arc;
+use tokio::sync::Notify;
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
@@ -43,15 +46,14 @@ async fn handle_client(
     let socket = ServerConnection::accept_client(socket, key).await?;
     let (tx, rx) = socket.split();
 
-    client_rpc_loop(tx, rx, state_ref, tako_ref, end_flag)
-        .await;
+    client_rpc_loop(tx, rx, state_ref, tako_ref, end_flag).await;
     log::debug!("Client connection ended");
     Ok(())
 }
 
 pub async fn client_rpc_loop<
     Tx: Sink<ToClientMessage> + Unpin,
-    Rx: Stream<Item=crate::Result<FromClientMessage>> + Unpin
+    Rx: Stream<Item = crate::Result<FromClientMessage>> + Unpin,
 >(
     mut tx: Tx,
     mut rx: Rx,
@@ -66,49 +68,72 @@ pub async fn client_rpc_loop<
                     FromClientMessage::Submit(msg) => {
                         handle_submit(&state_ref, &tako_ref, msg).await
                     }
-                    FromClientMessage::JobList => {
-                        compute_stats(&state_ref, &tako_ref).await
+                    FromClientMessage::JobInfo(msg) => {
+                        compute_job_info(
+                            &state_ref,
+                            &tako_ref,
+                            msg.job_ids,
+                            msg.include_program_def,
+                        )
+                        .await
                     }
                     FromClientMessage::Stop => {
                         end_flag.notify_one();
                         break;
                     }
-                    FromClientMessage::WorkerList => {
-                        handle_worker_list(&state_ref).await
-                    }
+                    FromClientMessage::WorkerList => handle_worker_list(&state_ref).await,
                 };
                 assert!(tx.send(response).await.is_ok());
             }
             Err(e) => {
                 log::error!("Cannot parse client message: {}", e);
-                assert!(tx.send(ToClientMessage::Error(format!("Cannot parse message: {}", e))).await.is_ok());
+                assert!(tx
+                    .send(ToClientMessage::Error(format!(
+                        "Cannot parse message: {}",
+                        e
+                    )))
+                    .await
+                    .is_ok());
                 return;
             }
         }
     }
 }
 
-async fn compute_stats(state_ref: &StateRef, tako_ref: &TakoServer) -> ToClientMessage {
-    /*let response = tako_ref.send_message(FromGatewayMessage::GetTaskInfo(TaskInfoRequest { tasks: vec![] })).await;
-
-    println!("{:?}", response);
-
-    let task_info : Map<TaskId, TaskInfo> = match response.unwrap() {
-        ToGatewayMessage::TaskInfo(info) => {
-            info.tasks.into_iter().map(|t| (t.id, t)).collect()
-        }
-        r => panic!("Invalid server response {:?}", r)
-    };*/
-
+async fn compute_job_info(
+    state_ref: &StateRef,
+    tako_ref: &TakoServer,
+    job_ids: Option<Vec<JobId>>,
+    include_program_def: bool,
+) -> ToClientMessage {
     let state = state_ref.get();
-    ToClientMessage::JobListResponse(JobListResponse {
-        workers: vec![],
-        jobs: state.jobs().map(|j| j.make_job_info()).collect(),
-    })
+    if let Some(job_ids) = job_ids {
+        ToClientMessage::JobInfoResponse(JobInfoResponse {
+            jobs: job_ids
+                .into_iter()
+                .filter_map(|job_id| {
+                    state
+                        .get_job(job_id)
+                        .map(|j| j.make_job_info(include_program_def))
+                })
+                .collect(),
+        })
+    } else {
+        ToClientMessage::JobInfoResponse(JobInfoResponse {
+            jobs: state
+                .jobs()
+                .map(|j| j.make_job_info(include_program_def))
+                .collect(),
+        })
+    }
 }
 
-async fn handle_submit(state_ref: &StateRef, tako_ref: &TakoServer, message: SubmitMessage) -> ToClientMessage {
-    let (task_def, task_id) = {
+async fn handle_submit(
+    state_ref: &StateRef,
+    tako_ref: &TakoServer,
+    message: SubmitMessage,
+) -> ToClientMessage {
+    let (task_def, task_id, program_def) = {
         let mut state = state_ref.get_mut();
         let task_id = state.new_job_id();
 
@@ -120,21 +145,33 @@ async fn handle_submit(state_ref: &StateRef, tako_ref: &TakoServer, message: Sub
         program_def.stderr = Some(message.cwd.join(stderr));
 
         let body = rmp_serde::to_vec_named(&program_def).unwrap();
-        let job = Job::new(task_id, message.name.clone(), program_def);
+        let job = Job::new(task_id, message.name.clone(), program_def.clone());
         state.add_job(job);
 
-        (TaskDef {
-            id: task_id,
-            type_id: 0,
-            body,
-            keep: false,
-            observe: true,
-            n_outputs: Default::default(),
-        }, task_id)
+        (
+            TaskDef {
+                id: task_id,
+                type_id: 0,
+                body,
+                keep: false,
+                observe: true,
+                n_outputs: Default::default(),
+            },
+            task_id,
+            program_def,
+        )
     };
-    match tako_ref.send_message(FromGatewayMessage::NewTasks(NewTasksMessage { tasks: vec![task_def] })).await.unwrap() {
+    match tako_ref
+        .send_message(FromGatewayMessage::NewTasks(NewTasksMessage {
+            tasks: vec![task_def],
+        }))
+        .await
+        .unwrap()
+    {
         ToGatewayMessage::NewTasksResponse(_) => { /* Ok */ }
-        _ => { panic!("Invalid response"); }
+        _ => {
+            panic!("Invalid response");
+        }
     };
 
     ToClientMessage::SubmitResponse(SubmitResponse {
@@ -142,15 +179,21 @@ async fn handle_submit(state_ref: &StateRef, tako_ref: &TakoServer, message: Sub
             id: task_id,
             name: message.name,
             state: JobState::Waiting,
-        }
+            worker_id: None,
+            error: None,
+            spec: Some(program_def),
+        },
     })
 }
-
 
 async fn handle_worker_list(state_ref: &StateRef) -> ToClientMessage {
     let state = state_ref.get();
 
     ToClientMessage::WorkerListResponse(WorkerListResponse {
-        workers: state.get_workers().values().map(|w| w.make_info()).collect()
+        workers: state
+            .get_workers()
+            .values()
+            .map(|w| w.make_info())
+            .collect(),
     })
 }

@@ -1,4 +1,4 @@
-pub mod messages;
-pub mod connection;
-pub mod protocol;
 pub mod auth;
+pub mod connection;
+pub mod messages;
+pub mod protocol;

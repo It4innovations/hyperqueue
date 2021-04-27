@@ -37,11 +37,13 @@ gethostname = "0.2.1"
 chrono = { version = "0.4.19", features = ["serde"] }
 orion = "0.16.0"
 hex = "0.4.3"
-# tako = { path = "../tako" }
-tako = { git = "https://github.com/spirali/tako", branch = "main" }
+tako = { path = "../tako" }
+# tako = { git = "https://github.com/spirali/tako", branch = "main" }
 tempdir = "0.3.7"
 humantime = "2.1.0"
 num_cpus = "1.13.0"
+bincode = "1.3.3"
+
 
 # [dev-dependencies]
 

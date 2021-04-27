@@ -1,8 +1,8 @@
 use crate::common::WrappedRcRefCell;
-use crate::server::job::{Job, JobStatus};
-use crate::{TaskId, WorkerId, Map};
-use tako::messages::gateway::{TaskFailedMessage, TaskUpdate, NewWorkerMessage, LostWorkerMessage};
+use crate::server::job::{Job, JobId, JobStatus};
 use crate::server::worker::Worker;
+use crate::{Map, TaskId, WorkerId};
+use tako::messages::gateway::{LostWorkerMessage, NewWorkerMessage, TaskFailedMessage, TaskUpdate};
 use tako::messages::worker::NewWorkerMsg;
 
 pub struct State {
@@ -20,7 +20,11 @@ pub type StateRef = WrappedRcRefCell<State>;
 }*/
 
 impl State {
-    pub fn jobs(&self) -> impl Iterator<Item=&Job> {
+    pub fn get_job(&self, job_id: JobId) -> Option<&Job> {
+        self.jobs.get(&job_id)
+    }
+
+    pub fn jobs(&self) -> impl Iterator<Item = &Job> {
         self.jobs.values()
     }
 
@@ -70,8 +74,6 @@ impl State {
         let mut worker = self.workers.get_mut(&msg.worker_id).unwrap();
         worker.set_offline_state();
     }
-
-
 }
 
 impl StateRef {

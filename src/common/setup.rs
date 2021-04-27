@@ -1,5 +1,5 @@
-use tokio::sync::Notify;
 use std::sync::Arc;
+use tokio::sync::Notify;
 
 pub fn setup_logging() {
     if std::env::var("RUST_LOG").is_err() {

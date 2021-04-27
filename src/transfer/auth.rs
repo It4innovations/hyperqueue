@@ -1,5 +1,5 @@
-use orion::kdf::SecretKey;
 use crate::common::error::HqError::GenericError;
+use orion::kdf::SecretKey;
 
 const KEY_SIZE: usize = 32;
 
@@ -20,8 +20,8 @@ pub fn deserialize_key(key: &str) -> crate::Result<SecretKey> {
 
 #[cfg(test)]
 mod tests {
+    use crate::transfer::auth::{deserialize_key, serialize_key};
     use orion::kdf::SecretKey;
-    use crate::transfer::auth::{serialize_key, deserialize_key};
 
     #[test]
     fn test_roundtrip() {

@@ -60,3 +60,4 @@ def test_worker_cpus(hq_env: HqEnv):
     assert table[0][3] == "# cpus"
     assert table[1][3] == "1"
     assert table[2][3] == "2"
+

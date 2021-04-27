@@ -4,17 +4,17 @@ use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Utc};
 use orion::kdf::SecretKey;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Error;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::common::error::error;
-use crate::transfer::auth::{deserialize_key, serialize_key};
 use crate::common::fsutils::{absolute_path, create_symlink};
+use crate::transfer::auth::{deserialize_key, serialize_key};
 use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct ServerDir {
-    path: PathBuf
+    path: PathBuf,
 }
 
 pub const SYMLINK_PATH: &str = "hq-current";
@@ -26,7 +26,9 @@ impl ServerDir {
         if !path.is_dir() {
             return error(format!("{:?} is not a directory", path));
         }
-        Ok(Self { path: absolute_path(path.into()) })
+        Ok(Self {
+            path: absolute_path(path.into()),
+        })
     }
 
     pub fn create(directory: &Path, record: &AccessRecord) -> crate::Result<ServerDir> {
@@ -68,12 +70,17 @@ fn resolve_active_directory(path: &Path) -> PathBuf {
         .unwrap_or(path.into())
 }
 
-fn serde_serialize_key<S: Serializer>(key: &Arc<SecretKey>, serializer: S) -> Result<S::Ok, S::Error> {
+fn serde_serialize_key<S: Serializer>(
+    key: &Arc<SecretKey>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
     let str = serialize_key(&key);
     serializer.serialize_str(&str)
 }
 
-fn serde_deserialize_key<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Arc<SecretKey>, D::Error> {
+fn serde_deserialize_key<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Arc<SecretKey>, D::Error> {
     let key: String = Deserialize::deserialize(deserializer)?;
     deserialize_key(&key)
         .map(Arc::new)
@@ -132,7 +139,9 @@ impl AccessRecord {
             pid: std::process::id(),
         }
     }
-    pub fn version(&self) -> &str { &self.version }
+    pub fn version(&self) -> &str {
+        &self.version
+    }
     pub fn hostname(&self) -> &str {
         &self.hostname
     }
@@ -158,10 +167,7 @@ impl AccessRecord {
 
 pub fn store_access_record<P: AsRef<Path>>(record: &AccessRecord, path: P) -> crate::Result<()> {
     let mut options = OpenOptions::new();
-    options
-        .write(true)
-        .create_new(true)
-        .mode(0o400); // Read for user, nothing for others
+    options.write(true).create_new(true).mode(0o400); // Read for user, nothing for others
 
     let file = options.open(path)?;
     serde_json::to_writer_pretty(file, record)?;
@@ -174,22 +180,16 @@ pub fn load_access_file<P: AsRef<Path>>(path: P) -> crate::Result<AccessRecord> 
     Ok(serde_json::from_reader(file)?)
 }
 
-
 #[cfg(test)]
 mod tests {
     use tempdir::TempDir;
 
-    use crate::common::serverdir::{load_access_file, AccessRecord, store_access_record};
+    use crate::common::serverdir::{load_access_file, store_access_record, AccessRecord};
 
     #[test]
     fn test_roundtrip() {
-        let record = AccessRecord::new(
-            "foo".into(),
-            42,
-            43,
-            Default::default(),
-            Default::default(),
-        );
+        let record =
+            AccessRecord::new("foo".into(), 42, 43, Default::default(), Default::default());
         let path = TempDir::new("foo").unwrap().into_path().join("access.json");
         store_access_record(&record, path.clone()).unwrap();
         let loaded = load_access_file(path).unwrap();
