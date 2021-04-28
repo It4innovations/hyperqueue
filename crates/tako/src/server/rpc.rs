@@ -14,10 +14,12 @@ use crate::server::comm::CommSenderRef;
 use crate::server::core::CoreRef;
 use crate::server::reactor::{
     on_new_worker, on_remove_worker, on_steal_response, on_task_error, on_task_finished,
-    on_tasks_transferred,
+    on_task_running, on_tasks_transferred,
 };
 use crate::server::worker::Worker;
-use crate::transfer::auth::{do_authentication, forward_queue_to_sealed_sink, open_message, serialize};
+use crate::transfer::auth::{
+    do_authentication, forward_queue_to_sealed_sink, open_message, serialize,
+};
 use crate::transfer::transport::make_protocol_builder;
 use crate::WorkerId;
 
@@ -178,6 +180,9 @@ pub async fn worker_receive_loop<
         match message {
             FromWorkerMessage::TaskFinished(msg) => {
                 on_task_finished(&mut core, &mut *comm, worker_id, msg);
+            }
+            FromWorkerMessage::TaskRunning(msg) => {
+                on_task_running(&mut core, &mut *comm, worker_id, msg.id);
             }
             FromWorkerMessage::TaskFailed(msg) => {
                 on_task_error(&mut core, &mut *comm, worker_id, msg.id, msg.info);

@@ -16,11 +16,13 @@ use crate::scheduler::scheduler::tests::create_test_scheduler;
 use crate::scheduler::scheduler::SchedulerState;
 use crate::server::comm::Comm;
 use crate::server::core::Core;
-use crate::server::reactor::{on_new_tasks, on_new_worker, on_steal_response, on_task_finished};
+use crate::server::reactor::{
+    on_cancel_tasks, on_new_tasks, on_new_worker, on_steal_response, on_task_finished,
+};
 use crate::server::task::TaskRef;
 use crate::server::worker::{Worker, WorkerId};
+use crate::transfer::auth::{deserialize, serialize};
 use crate::{OutputId, TaskId};
-use crate::transfer::auth::{serialize, deserialize};
 
 /// Memory stream for reading and writing at the same time.
 pub struct MemoryStream {
@@ -111,6 +113,7 @@ pub struct TestComm {
     pub broadcast_msgs: Vec<ToWorkerMessage>,
 
     pub client_task_finished: Vec<TaskId>,
+    pub client_task_running: Vec<TaskId>,
     pub client_task_errors: Vec<(TaskId, Vec<TaskId>, TaskFailInfo)>,
 
     pub new_workers: Vec<(WorkerId, WorkerConfiguration)>,
@@ -143,6 +146,11 @@ impl TestComm {
         std::mem::take(&mut self.client_task_finished)
     }
 
+    pub fn take_client_task_running(&mut self, len: usize) -> Vec<TaskId> {
+        assert_eq!(self.client_task_running.len(), len);
+        std::mem::take(&mut self.client_task_running)
+    }
+
     pub fn take_client_task_errors(
         &mut self,
         len: usize,
@@ -172,6 +180,7 @@ impl TestComm {
         assert!(self.broadcast_msgs.is_empty());
 
         assert!(self.client_task_finished.is_empty());
+        assert!(self.client_task_running.is_empty());
         assert!(self.client_task_errors.is_empty());
 
         assert!(self.new_workers.is_empty());
@@ -200,6 +209,10 @@ impl Comm for TestComm {
 
     fn send_client_task_finished(&mut self, task_id: TaskId) {
         self.client_task_finished.push(task_id);
+    }
+
+    fn send_client_task_started(&mut self, task_id: TaskId) {
+        self.client_task_running.push(task_id);
     }
 
     fn send_client_task_error(
@@ -306,6 +319,11 @@ pub fn start_on_worker(core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
     let mut comm = TestComm::default();
     force_assign(core, &mut scheduler, task_id, worker_id);
     scheduler.finish_scheduling(&mut comm);
+}
+
+pub fn cancel_tasks(core: &mut Core, task_ids: &[TaskId]) {
+    let mut comm = create_test_comm();
+    on_cancel_tasks(core, &mut comm, task_ids);
 }
 
 pub fn finish_on_worker(core: &mut Core, task_id: TaskId, worker_id: WorkerId, size: u64) {

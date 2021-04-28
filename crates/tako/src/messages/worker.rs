@@ -77,6 +77,11 @@ pub struct TaskFailedMsg {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct TaskRunningMsg {
+    pub id: TaskId,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct DataDownloadedMsg {
     pub id: TaskId,
 }
@@ -105,6 +110,7 @@ pub struct WorkerOverview {
 pub enum FromWorkerMessage {
     TaskFinished(TaskFinishedMsg),
     TaskFailed(TaskFailedMsg),
+    TaskRunning(TaskRunningMsg),
     DataDownloaded(DataDownloadedMsg),
     StealResponse(StealResponseMsg),
     Overview(WorkerOverview),

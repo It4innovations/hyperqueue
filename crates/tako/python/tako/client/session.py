@@ -127,8 +127,8 @@ class Session:
             self._finish_task(task_id, error, wait_list)
 
     def _task_update(self, msg, wait_list):
-        assert msg["state"] == "Finished" or msg["state"] == "Invalid"
-        self._finish_task(msg["id"], None, wait_list)
+        if msg["state"] == "Finished" or msg["state"] == "Invalid":
+            self._finish_task(msg["id"], None, wait_list)
 
     def _finish_task(self, task_id, error=None, wait_list=None):
         task = self.tasks.get(task_id)
