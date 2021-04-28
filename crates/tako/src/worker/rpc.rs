@@ -19,7 +19,9 @@ use crate::messages::worker::{
     WorkerRegistrationResponse,
 };
 use crate::server::worker::WorkerId;
-use crate::transfer::auth::{do_authentication, forward_queue_to_sealed_sink, open_message, seal_message, serialize};
+use crate::transfer::auth::{
+    do_authentication, forward_queue_to_sealed_sink, open_message, seal_message, serialize,
+};
 use crate::transfer::fetch::fetch_data;
 use crate::transfer::messages::{DataRequest, DataResponse, FetchResponseData, UploadResponseMsg};
 use crate::transfer::transport::{connect_to_worker, make_protocol_builder};
@@ -30,8 +32,8 @@ use crate::worker::state::WorkerStateRef;
 use crate::worker::task::TaskRef;
 use crate::Priority;
 use crate::PriorityTuple;
-use std::sync::Arc;
 use std::future::Future;
+use std::sync::Arc;
 
 async fn start_listener() -> crate::Result<(TcpListener, String)> {
     let address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
@@ -77,7 +79,7 @@ pub async fn run_worker(
     scheduler_address: &str,
     mut configuration: WorkerConfiguration,
     secret_key: Option<Arc<SecretKey>>,
-) -> crate::Result<((WorkerId, WorkerConfiguration), impl Future<Output=()>)> {
+) -> crate::Result<((WorkerId, WorkerConfiguration), impl Future<Output = ()>)> {
     let (listener, address) = start_listener().await?;
     configuration.listen_address = address;
     let stream = connect_to_server(&scheduler_address).await?;
@@ -111,15 +113,18 @@ pub async fn run_worker(
         match timeout(Duration::from_secs(15), reader.next()).await {
             Ok(Some(data)) => {
                 let message: WorkerRegistrationResponse = open_message(&mut opener, &data?)?;
-                (message.worker_id, WorkerStateRef::new(
+                (
                     message.worker_id,
-                    configuration.clone(),
-                    secret_key,
-                    queue_sender,
-                    download_sender,
-                    message.worker_addresses,
-                    message.subworker_definitions,
-                ))
+                    WorkerStateRef::new(
+                        message.worker_id,
+                        configuration.clone(),
+                        secret_key,
+                        queue_sender,
+                        download_sender,
+                        message.worker_addresses,
+                        message.subworker_definitions,
+                    ),
+                )
             }
             Ok(None) => panic!("Connection closed without receiving registration response"),
             Err(_) => panic!("Did not received worker registration response"),
@@ -150,11 +155,13 @@ pub async fn run_worker(
     let heartbeat = async move {
         let mut interval = tokio::time::interval(heartbeat_interval);
         /*let data: Bytes = serialize(&FromWorkerMessage::Heartbeat)
-            .unwrap()
-            .into();*/
+        .unwrap()
+        .into();*/
         loop {
             interval.tick().await;
-            state_ref3.get().send_message_to_server(FromWorkerMessage::Heartbeat);
+            state_ref3
+                .get()
+                .send_message_to_server(FromWorkerMessage::Heartbeat);
             log::debug!("Heartbeat sent");
         }
     };

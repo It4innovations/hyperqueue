@@ -182,14 +182,49 @@ pub fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec<TaskRe
     comm.ask_for_scheduling()
 }
 
+pub fn on_task_running(
+    core: &mut Core,
+    comm: &mut impl Comm,
+    worker_id: WorkerId,
+    task_id: TaskId,
+) {
+    if let Some(task_ref) = core.get_task_by_id(task_id).cloned() {
+        let mut task = task_ref.get_mut();
+        let new_state = match task.state {
+            TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Stealing(w_id, None) => {
+                assert_eq!(w_id, worker_id);
+                TaskRuntimeState::Running(worker_id)
+            }
+            TaskRuntimeState::Stealing(w_id, Some(target_id)) => {
+                assert_eq!(w_id, worker_id);
+                let worker = core.get_worker_mut_by_id_or_panic(target_id);
+                assert!(worker.tasks.remove(&task_ref));
+                let worker = core.get_worker_mut_by_id_or_panic(w_id);
+                assert!(worker.tasks.insert(task_ref.clone()));
+                comm.ask_for_scheduling();
+                TaskRuntimeState::Running(worker_id)
+            }
+            TaskRuntimeState::Running(_)
+            | TaskRuntimeState::Waiting(_)
+            | TaskRuntimeState::Finished(_)
+            | TaskRuntimeState::Released => {
+                unreachable!()
+            }
+        };
+        task.state = new_state;
+        if task.is_observed() {
+            comm.send_client_task_started(task_id);
+        }
+    }
+}
+
 pub fn on_task_finished(
     core: &mut Core,
     comm: &mut impl Comm,
     worker_id: WorkerId,
     msg: TaskFinishedMsg,
 ) {
-    let task_ref = core.get_task_by_id_or_panic(msg.id).clone();
-    {
+    if let Some(task_ref) = core.get_task_by_id(msg.id).cloned() {
         {
             let mut task = task_ref.get_mut();
             trace_task_finish(
@@ -201,9 +236,26 @@ pub fn on_task_finished(
             log::debug!("Task id={} finished on worker={}", task.id, worker_id);
             assert!(task.is_assigned_or_stealed_from(worker_id));
 
-            {
-                let worker = core.get_worker_mut_by_id_or_panic(worker_id);
-                assert!(worker.tasks.remove(&task_ref));
+            match &task.state {
+                TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
+                    assert_eq!(*w_id, worker_id);
+                    let worker = core.get_worker_mut_by_id_or_panic(worker_id);
+                    assert!(worker.tasks.remove(&task_ref));
+                }
+                TaskRuntimeState::Stealing(w_id, Some(target_w)) => {
+                    assert_eq!(*w_id, worker_id);
+                    let worker = core.get_worker_mut_by_id_or_panic(*target_w);
+                    assert!(worker.tasks.remove(&task_ref));
+                }
+                TaskRuntimeState::Stealing(w_id, None) => {
+                    assert_eq!(*w_id, worker_id);
+                    /* Do nothing */
+                }
+                TaskRuntimeState::Waiting(_)
+                | TaskRuntimeState::Finished(_)
+                | TaskRuntimeState::Released => {
+                    unreachable!();
+                }
             }
 
             let mut placement = Set::new();
@@ -246,6 +298,8 @@ pub fn on_task_finished(
         remove_task_if_possible(core, comm, &mut task);
 
         //self.notify_key_in_memory(&task_ref, notifications);
+    } else {
+        log::debug!("Unknown task finished id={}", msg.id);
     }
 }
 
@@ -346,7 +400,7 @@ pub fn on_steal_response(
                 }
             }
             None => {
-                log::debug!("Received trace resposne for invalid task {}", task_id);
+                log::debug!("Received trace response for invalid task {}", task_id);
                 trace_worker_steal_response_missing(task_id, worker_id)
             }
         }
@@ -391,47 +445,50 @@ pub fn on_task_error(
     task_id: TaskId,
     error_info: TaskFailInfo,
 ) {
-    let task_ref = core.get_task_by_id_or_panic(task_id).clone();
-    log::debug!("Task task {} failed", task_id);
+    if let Some(task_ref) = core.get_task_by_id(task_id).cloned() {
+        log::debug!("Task task {} failed", task_id);
 
-    let task_refs: Vec<TaskRef> = {
-        assert!(task_ref.get().is_assigned_or_stealed_from(worker_id));
-        assert!(core
-            .get_worker_mut_by_id_or_panic(worker_id)
-            .tasks
-            .remove(&task_ref));
-        task_ref.get().collect_consumers().into_iter().collect()
-    };
+        let task_refs: Vec<TaskRef> = {
+            assert!(task_ref.get().is_assigned_or_stealed_from(worker_id));
+            assert!(core
+                .get_worker_mut_by_id_or_panic(worker_id)
+                .tasks
+                .remove(&task_ref));
+            task_ref.get().collect_consumers().into_iter().collect()
+        };
 
-    unregister_as_consumer(core, comm, &mut task_ref.get_mut(), &task_ref);
+        unregister_as_consumer(core, comm, &mut task_ref.get_mut(), &task_ref);
 
-    for task_ref in &task_refs {
-        let mut task = task_ref.get_mut();
-        log::debug!("Task={} canceled because of failed dependency", task.id);
-        assert!(task.is_waiting());
-        unregister_as_consumer(core, comm, &mut task, &task_ref);
-    }
+        for task_ref in &task_refs {
+            let mut task = task_ref.get_mut();
+            log::debug!("Task={} canceled because of failed dependency", task.id);
+            assert!(task.is_waiting());
+            unregister_as_consumer(core, comm, &mut task, &task_ref);
+        }
 
-    assert!(matches!(
-        core.remove_task(&mut task_ref.get_mut()),
-        TaskRuntimeState::Assigned(_) | TaskRuntimeState::Stealing(_, _)
-    ));
-    //comm.send_scheduler_message(ToSchedulerMessage::RemoveTask(task_ref.get().id));
-
-    for task_ref in &task_refs {
-        // We can drop the resulting state as checks was done earlier
-        let mut task = task_ref.get_mut();
         assert!(matches!(
-            core.remove_task(&mut task),
-            TaskRuntimeState::Waiting(_)
+            core.remove_task(&mut task_ref.get_mut()),
+            TaskRuntimeState::Assigned(_)
+                | TaskRuntimeState::Running(_)
+                | TaskRuntimeState::Stealing(_, _)
         ));
-        //comm.send_scheduler_message(ToSchedulerMessage::RemoveTask(task.id));
+        //comm.send_scheduler_message(ToSchedulerMessage::RemoveTask(task_ref.get().id));
+
+        for task_ref in &task_refs {
+            // We can drop the resulting state as checks was done earlier
+            let mut task = task_ref.get_mut();
+            assert!(matches!(
+                core.remove_task(&mut task),
+                TaskRuntimeState::Waiting(_)
+            ));
+            //comm.send_scheduler_message(ToSchedulerMessage::RemoveTask(task.id));
+        }
+        comm.send_client_task_error(
+            task_id,
+            task_refs.iter().map(|tr| tr.get().id).collect(),
+            error_info,
+        );
     }
-    comm.send_client_task_error(
-        task_id,
-        task_refs.iter().map(|tr| tr.get().id).collect(),
-        error_info,
-    );
 }
 
 pub fn on_cancel_tasks(
@@ -513,15 +570,35 @@ pub fn on_cancel_tasks(
     )
 }
 
+fn get_task_or_send_delete(
+    core: &Core,
+    comm: &mut impl Comm,
+    worker_id: WorkerId,
+    task_id: TaskId,
+) -> Option<TaskRef> {
+    let result = core.get_task_by_id(task_id).cloned();
+    if result.is_none() {
+        log::debug!(
+            "Task id={} is not known to server; replaying with delete",
+            task_id
+        );
+        comm.send_worker_message(
+            worker_id,
+            &ToWorkerMessage::DeleteData(TaskIdMsg { id: task_id }),
+        );
+    }
+    result
+}
+
 pub fn on_tasks_transferred(
     core: &mut Core,
     comm: &mut impl Comm,
     worker_id: WorkerId,
-    id: TaskId,
+    task_id: TaskId,
 ) {
-    log::debug!("Task id={} transfered on worker={}", id, worker_id);
+    log::debug!("Task id={} transfered on worker={}", task_id, worker_id);
     // TODO handle the race when task is removed from server before this message arrives
-    if let Some(task_ref) = core.get_task_by_id(id) {
+    if let Some(task_ref) = get_task_or_send_delete(core, comm, worker_id, task_id) {
         let mut task = task_ref.get_mut();
         match &mut task.state {
             TaskRuntimeState::Finished(ref mut winfo) => {
@@ -542,12 +619,6 @@ pub fn on_tasks_transferred(
             worker: worker_id,
             size: None,
         }));*/
-    } else {
-        log::debug!(
-            "Task id={} is not known to server; replaying with delete",
-            id
-        );
-        comm.send_worker_message(worker_id, &ToWorkerMessage::DeleteData(TaskIdMsg { id }));
     }
 }
 
@@ -612,9 +683,9 @@ mod tests {
     use crate::messages::worker::ComputeTaskMsg;
     use crate::scheduler::scheduler::tests::create_test_scheduler;
     use crate::server::test_util::{
-        create_test_comm, create_test_workers, fail_steal, finish_on_worker, force_assign,
-        force_reassign, sorted_vec, start_and_finish_on_worker, start_on_worker, start_stealing,
-        submit_example_1, submit_test_tasks, task, task_with_deps,
+        cancel_tasks, create_test_comm, create_test_workers, fail_steal, finish_on_worker,
+        force_assign, force_reassign, sorted_vec, start_and_finish_on_worker, start_on_worker,
+        start_stealing, submit_example_1, submit_test_tasks, task, task_with_deps,
     };
 
     use super::*;
@@ -1182,6 +1253,169 @@ mod tests {
         comm.check_need_scheduling();
         comm.emptiness_check();
         core.sanity_check();
+    }
+
+    #[test]
+    fn test_running_task() {
+        let mut core = Core::default();
+        create_test_workers(&mut core, &[1, 1, 1]);
+        let t1 = task(1);
+        let t2 = task(2);
+        submit_test_tasks(&mut core, &[&t1, &t2]);
+        start_on_worker(&mut core, 1, 101);
+        start_on_worker(&mut core, 2, 101);
+
+        let mut comm = create_test_comm();
+
+        on_set_observe_flag(&mut core, &mut comm, 1, true);
+        comm.emptiness_check();
+
+        on_task_running(&mut core, &mut comm, 101, 1);
+        assert_eq!(comm.take_client_task_running(1), vec![1]);
+        comm.emptiness_check();
+
+        on_task_running(&mut core, &mut comm, 101, 2);
+        comm.emptiness_check();
+
+        assert!(matches!(t1.get().state, TaskRuntimeState::Running(101)));
+        assert!(matches!(t2.get().state, TaskRuntimeState::Running(101)));
+    }
+
+    #[test]
+    fn test_finished_before_steal_response() {
+        let mut core = Core::default();
+        create_test_workers(&mut core, &[1, 1, 1]);
+        let t1 = task(1);
+        submit_test_tasks(&mut core, &[&t1]);
+        start_on_worker(&mut core, 1, 101);
+        start_stealing(&mut core, 1, 102);
+        assert!(core.get_worker_mut_by_id_or_panic(102).tasks.contains(&t1));
+
+        let mut comm = create_test_comm();
+        on_task_finished(
+            &mut core,
+            &mut comm,
+            101,
+            TaskFinishedMsg { id: 1, size: 0 },
+        );
+        let msgs = comm.take_worker_msgs(101, 1);
+        assert!(matches!(
+            msgs[0],
+            ToWorkerMessage::DeleteData(TaskIdMsg { id: 1 })
+        ));
+        comm.check_need_scheduling();
+        comm.emptiness_check();
+
+        assert!(!core.get_worker_mut_by_id_or_panic(101).tasks.contains(&t1));
+        assert!(!core.get_worker_mut_by_id_or_panic(102).tasks.contains(&t1));
+
+        on_steal_response(
+            &mut core,
+            &mut comm,
+            101,
+            StealResponseMsg {
+                responses: vec![(1, StealResponse::NotHere)],
+            },
+        );
+
+        comm.emptiness_check();
+
+        assert!(!core.get_worker_mut_by_id_or_panic(101).tasks.contains(&t1));
+        assert!(!core.get_worker_mut_by_id_or_panic(102).tasks.contains(&t1));
+    }
+
+    #[test]
+    fn test_running_before_steal_response() {
+        let mut core = Core::default();
+        create_test_workers(&mut core, &[1, 1, 1]);
+        let t1 = task(1);
+        submit_test_tasks(&mut core, &[&t1]);
+        start_on_worker(&mut core, 1, 101);
+        start_stealing(&mut core, 1, 102);
+        assert!(core.get_worker_mut_by_id_or_panic(102).tasks.contains(&t1));
+
+        let mut comm = create_test_comm();
+        on_task_running(&mut core, &mut comm, 101, 1);
+        comm.check_need_scheduling();
+        comm.emptiness_check();
+
+        assert!(core.get_worker_mut_by_id_or_panic(101).tasks.contains(&t1));
+        assert!(!core.get_worker_mut_by_id_or_panic(102).tasks.contains(&t1));
+
+        on_steal_response(
+            &mut core,
+            &mut comm,
+            101,
+            StealResponseMsg {
+                responses: vec![(1, StealResponse::Running)],
+            },
+        );
+
+        comm.emptiness_check();
+        assert!(core.get_worker_mut_by_id_or_panic(101).tasks.contains(&t1));
+        assert!(!core.get_worker_mut_by_id_or_panic(102).tasks.contains(&t1));
+    }
+
+    #[test]
+    fn test_after_cancel_messages() {
+        let mut core = Core::default();
+        create_test_workers(&mut core, &[1, 1, 1]);
+        let t1 = task(1);
+        let t2 = task(2);
+        let t3 = task(3);
+        let t4 = task(4);
+        submit_test_tasks(&mut core, &[&t1, &t2, &t3, &t4]);
+        start_on_worker(&mut core, 1, 101);
+        start_on_worker(&mut core, 2, 101);
+        start_on_worker(&mut core, 3, 101);
+        start_on_worker(&mut core, 4, 101);
+
+        cancel_tasks(&mut core, &[1, 2, 3, 4]);
+
+        let mut comm = create_test_comm();
+        on_task_finished(
+            &mut core,
+            &mut comm,
+            101,
+            TaskFinishedMsg { id: 1, size: 100 },
+        );
+        comm.emptiness_check();
+
+        on_steal_response(
+            &mut core,
+            &mut comm,
+            101,
+            StealResponseMsg {
+                responses: vec![(2, StealResponse::Ok)],
+            },
+        );
+        comm.emptiness_check();
+
+        on_steal_response(
+            &mut core,
+            &mut comm,
+            101,
+            StealResponseMsg {
+                responses: vec![(2, StealResponse::Running)],
+            },
+        );
+        comm.emptiness_check();
+
+        on_task_error(
+            &mut core,
+            &mut comm,
+            101,
+            3,
+            TaskFailInfo {
+                message: "".to_string(),
+                data_type: "".to_string(),
+                error_data: vec![],
+            },
+        );
+        comm.emptiness_check();
+
+        on_task_running(&mut core, &mut comm, 101, 4);
+        comm.emptiness_check();
     }
 
     #[test]

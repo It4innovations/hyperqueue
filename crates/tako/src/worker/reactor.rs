@@ -1,5 +1,6 @@
 use smallvec::smallvec;
 
+use crate::messages::worker::{FromWorkerMessage, TaskRunningMsg, ToWorkerMessage};
 use crate::worker::data::{DataObjectState, InSubworkersData, LocalDownloadingData, Subscriber};
 use crate::worker::state::WorkerState;
 use crate::worker::task::{Task, TaskRef, TaskState};
@@ -21,6 +22,11 @@ pub fn assign_task(state: &mut WorkerState, task_ref: &TaskRef) {
     state.free_cpus -= 1;
     let mut task = task_ref.get_mut();
     log::debug!("Task={} assigned", task.id);
+
+    state.send_message_to_server(FromWorkerMessage::TaskRunning(TaskRunningMsg {
+        id: task.id,
+    }));
+
     let task_env = if let Some(env) = TaskEnv::create(state, &task) {
         env
     } else {

@@ -10,12 +10,12 @@ use crate::TaskTypeId;
 pub struct TaskFailInfo {
     pub message: String,
 
-/*    #[serde(default)]
+    /*    #[serde(default)]
     #[serde(skip_serializing_if = "String::is_empty")]*/
     pub data_type: String,
 
     #[serde(with = "serde_bytes")]
-/*    #[serde(default)]
+    /*    #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]*/
     pub error_data: Vec<u8>,
 }
@@ -46,7 +46,6 @@ pub struct SubworkerDefinition {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProgramDefinition {
     pub args: Vec<String>,
-
 
     /*#[serde(skip_serializing_if = "Map::is_empty")]*/
     #[serde(default)]

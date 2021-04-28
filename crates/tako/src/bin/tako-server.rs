@@ -7,12 +7,12 @@ use tokio::net::UnixListener;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::task::LocalSet;
 
+use std::rc::Rc;
+use std::sync::Arc;
 use tako::common::secret::read_secret_file;
 use tako::common::setup::{setup_interrupt, setup_logging};
 use tako::messages::gateway::ToGatewayMessage;
 use tako::server::client::client_connection_handler;
-use std::rc::Rc;
-use std::sync::Arc;
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;

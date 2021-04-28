@@ -7,13 +7,13 @@ use rand::distributions::Alphanumeric;
 use rand::Rng;
 use tokio::task::LocalSet;
 
+use orion::kdf::SecretKey;
+use std::rc::Rc;
+use std::sync::Arc;
 use tako::common::secret::read_secret_file;
 use tako::common::setup::setup_logging;
 use tako::messages::common::WorkerConfiguration;
 use tako::worker::rpc::run_worker;
-use std::rc::Rc;
-use std::sync::Arc;
-use orion::kdf::SecretKey;
 
 #[derive(Clap)]
 #[clap(version = "1.0")]
@@ -57,7 +57,11 @@ fn create_paths(
     Ok((work_dir, local_dir))
 }
 
-async fn worker_main(server_address: &str, configuration: WorkerConfiguration, secret_key: Option<Arc<SecretKey>>) -> tako::Result<()> {
+async fn worker_main(
+    server_address: &str,
+    configuration: WorkerConfiguration,
+    secret_key: Option<Arc<SecretKey>>,
+) -> tako::Result<()> {
     let (_, worker_future) = run_worker(server_address, configuration, secret_key).await?;
     worker_future.await;
     Ok(())

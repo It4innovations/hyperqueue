@@ -69,6 +69,7 @@ pub struct ErrorResponse {
 pub enum TaskState {
     Invalid,
     Waiting,
+    Running,
     Finished,
 }
 
@@ -81,6 +82,7 @@ impl Serialize for TaskState {
             TaskState::Invalid => "Invalid",
             TaskState::Waiting => "Waiting",
             TaskState::Finished => "Finished",
+            TaskState::Running => "Running",
         })
     }
 }

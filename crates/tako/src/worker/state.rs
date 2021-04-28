@@ -17,6 +17,7 @@ use crate::messages::worker::{
     DataDownloadedMsg, FromWorkerMessage, StealResponse, TaskFailedMsg, TaskFinishedMsg,
 };
 use crate::server::worker::WorkerId;
+use crate::transfer::auth::serialize;
 use crate::transfer::DataConnection;
 use crate::worker::data::{DataObject, DataObjectRef, DataObjectState, LocalData, RemoteData};
 use crate::worker::subworker::{SubworkerId, SubworkerRef};
@@ -24,7 +25,6 @@ use crate::worker::task::{TaskRef, TaskState};
 use crate::TaskId;
 use crate::{Priority, PriorityTuple};
 use std::sync::Arc;
-use crate::transfer::auth::serialize;
 
 pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
 
@@ -82,7 +82,9 @@ impl WorkerState {
     }
 
     pub fn send_message_to_server(&self, message: FromWorkerMessage) {
-        self.sender.send(serialize(&message).unwrap().into()).unwrap();
+        self.sender
+            .send(serialize(&message).unwrap().into())
+            .unwrap();
     }
 
     pub fn on_data_downloaded(

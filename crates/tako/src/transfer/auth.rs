@@ -22,7 +22,6 @@ use crate::messages::auth::{
 use bincode::{DefaultOptions, Options};
 use serde::Deserialize;
 
-
 const CHALLENGE_LENGTH: usize = 16;
 
 struct Authenticator {
@@ -242,16 +241,23 @@ where
 #[inline]
 pub fn serialize<T: ?Sized>(value: &T) -> crate::Result<Vec<u8>>
 where
-    T: serde::Serialize
+    T: serde::Serialize,
 {
-    DefaultOptions::new().with_fixint_encoding().serialize(value).map_err(|e| format!("Serialization failed: {:?}", e).into())
+    DefaultOptions::new()
+        .with_fixint_encoding()
+        .serialize(value)
+        .map_err(|e| format!("Serialization failed: {:?}", e).into())
 }
 
 #[inline]
-pub fn deserialize<'a, T>(bytes: &'a [u8]) -> crate::Result<T> where
+pub fn deserialize<'a, T>(bytes: &'a [u8]) -> crate::Result<T>
+where
     T: Deserialize<'a>,
 {
-    DefaultOptions::new().with_fixint_encoding().deserialize(bytes).map_err(|e| format!("Deserialization failed: {:?}, data {:?}", e, bytes).into())
+    DefaultOptions::new()
+        .with_fixint_encoding()
+        .deserialize(bytes)
+        .map_err(|e| format!("Deserialization failed: {:?}, data {:?}", e, bytes).into())
 }
 
 #[inline]
