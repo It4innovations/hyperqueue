@@ -19,9 +19,7 @@ use crate::messages::worker::{
     WorkerRegistrationResponse,
 };
 use crate::server::worker::WorkerId;
-use crate::transfer::auth::{
-    do_authentication, forward_queue_to_sealed_sink, open_message, seal_message,
-};
+use crate::transfer::auth::{do_authentication, forward_queue_to_sealed_sink, open_message, seal_message, serialize};
 use crate::transfer::fetch::fetch_data;
 use crate::transfer::messages::{DataRequest, DataResponse, FetchResponseData, UploadResponseMsg};
 use crate::transfer::transport::{connect_to_worker, make_protocol_builder};
@@ -100,7 +98,7 @@ pub async fn run_worker(
         let message = RegisterWorker {
             configuration: configuration.clone(),
         };
-        let data = rmp_serde::to_vec_named(&message)?.into();
+        let data = serialize(&message)?.into();
         writer.send(seal_message(&mut sealer, data)).await?;
     }
 
@@ -151,12 +149,12 @@ pub async fn run_worker(
 
     let heartbeat = async move {
         let mut interval = tokio::time::interval(heartbeat_interval);
-        let data: Bytes = rmp_serde::to_vec_named(&FromWorkerMessage::Heartbeat)
+        /*let data: Bytes = serialize(&FromWorkerMessage::Heartbeat)
             .unwrap()
-            .into();
+            .into();*/
         loop {
             interval.tick().await;
-            state_ref3.get().send_message_to_server(data.clone());
+            state_ref3.get().send_message_to_server(FromWorkerMessage::Heartbeat);
             log::debug!("Heartbeat sent");
         }
     };
@@ -327,7 +325,7 @@ async fn worker_message_loop(
                     })
                     .collect();
                 let message = FromWorkerMessage::StealResponse(StealResponseMsg { responses });
-                state.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
+                state.send_message_to_server(message);
             }
             ToWorkerMessage::CancelTasks(msg) => {
                 for task_id in msg.ids {
@@ -357,7 +355,7 @@ async fn worker_message_loop(
                         .collect(),
                     placed_data: state.data_objects.keys().copied().collect(),
                 });
-                state.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
+                state.send_message_to_server(message);
             }
         }
     }
@@ -399,6 +397,7 @@ async fn connection_rpc_loop(
             None => return Ok(()),
             Some(data) => data?,
         };
+        todo!(); // Update procotol
         let request: DataRequest = rmp_serde::from_slice(&data)?;
 
         match request {
@@ -470,7 +469,7 @@ async fn connection_rpc_loop(
                         Err(_) => (DataResponse::NotAvailable, None),
                     },
                 };
-                let data = rmp_serde::to_vec_named(&out_msg).unwrap();
+                let data = serialize(&out_msg).unwrap();
                 stream.send(data.into()).await?;
                 if let Some(bytes) = opt_bytes {
                     stream.send(bytes).await?;
@@ -546,7 +545,7 @@ async fn connection_rpc_loop(
                     task_id: msg.task_id,
                     error,
                 });
-                let data = rmp_serde::to_vec_named(&response).unwrap();
+                let data = serialize(&response).unwrap();
                 stream.send(data.into()).await?;
             }
         }

@@ -17,7 +17,7 @@ use crate::server::reactor::{
     on_tasks_transferred,
 };
 use crate::server::worker::Worker;
-use crate::transfer::auth::{do_authentication, forward_queue_to_sealed_sink, open_message};
+use crate::transfer::auth::{do_authentication, forward_queue_to_sealed_sink, open_message, serialize};
 use crate::transfer::transport::make_protocol_builder;
 use crate::WorkerId;
 
@@ -112,7 +112,7 @@ async fn worker_rpc_loop<
         subworker_definitions: core_ref.get().get_subworker_definitions().clone(),
     };
     queue_sender
-        .send(rmp_serde::to_vec_named(&message).unwrap().into())
+        .send(serialize(&message).unwrap().into())
         .unwrap();
 
     let worker = Worker::new(worker_id, msg.configuration);

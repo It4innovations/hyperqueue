@@ -19,9 +19,11 @@ use crate::messages::auth::{
     AuthenticationError, AuthenticationMode, AuthenticationRequest, AuthenticationResponse,
     Challenge, EncryptionResponse,
 };
+use bincode::{DefaultOptions, Options};
+use serde::Deserialize;
 
 
-const CHALLENGE_LENGTH: usize = 20;
+const CHALLENGE_LENGTH: usize = 16;
 
 struct Authenticator {
     pub protocol: u32,
@@ -186,7 +188,7 @@ pub async fn do_authentication<T: AsyncRead + AsyncWrite>(
 
     /* Send authentication message */
     let message = authenticator.make_auth_request()?;
-    let message_data = rmp_serde::to_vec_named(&message).unwrap().into();
+    let message_data = serialize(&message).unwrap().into();
     timeout(AUTH_TIMEOUT, writer.send(message_data))
         .await
         .map_err(|_| "Sending authentication timeout")?
@@ -199,11 +201,11 @@ pub async fn do_authentication<T: AsyncRead + AsyncWrite>(
         .ok_or_else(|| {
             DsError::from("The remote side closed connection without authentication message")
         })??;
-    let remote_message: AuthenticationRequest = rmp_serde::from_slice(&remote_message_data)?;
+    let remote_message: AuthenticationRequest = deserialize(&remote_message_data)?;
 
     /* Send authentication response */
     let response = authenticator.make_auth_response(remote_message)?;
-    let response_data = rmp_serde::to_vec_named(&response).unwrap().into();
+    let response_data = serialize(&response).unwrap().into();
     timeout(AUTH_TIMEOUT, writer.send(response_data))
         .await
         .map_err(|_| "Sending authentication timeouted")?
@@ -216,7 +218,7 @@ pub async fn do_authentication<T: AsyncRead + AsyncWrite>(
         .ok_or_else(|| {
             DsError::from("The remote side closed connection without authentication message")
         })??;
-    let remote_response: AuthenticationResponse = rmp_serde::from_slice(&remote_response_data)?;
+    let remote_response: AuthenticationResponse = deserialize(&remote_response_data)?;
 
     // Finish authentication
     authenticator.finish_authentication(remote_response)
@@ -231,10 +233,25 @@ where
             .open_chunk(&message_data)
             .map_err(|_| DsError::GenericError("Cannot decrypt message".to_string()))?;
         assert_eq!(tag, StreamTag::Message);
-        Ok(rmp_serde::from_slice(&msg)?)
+        Ok(deserialize(&msg)?)
     } else {
-        Ok(rmp_serde::from_slice(&message_data)?)
+        Ok(deserialize(&message_data)?)
     }
+}
+
+#[inline]
+pub fn serialize<T: ?Sized>(value: &T) -> crate::Result<Vec<u8>>
+where
+    T: serde::Serialize
+{
+    DefaultOptions::new().with_fixint_encoding().serialize(value).map_err(|e| format!("Serialization failed: {:?}", e).into())
+}
+
+#[inline]
+pub fn deserialize<'a, T>(bytes: &'a [u8]) -> crate::Result<T> where
+    T: Deserialize<'a>,
+{
+    DefaultOptions::new().with_fixint_encoding().deserialize(bytes).map_err(|e| format!("Deserialization failed: {:?}, data {:?}", e, bytes).into())
 }
 
 #[inline]

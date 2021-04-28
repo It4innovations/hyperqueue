@@ -10,13 +10,13 @@ use crate::TaskTypeId;
 pub struct TaskFailInfo {
     pub message: String,
 
-    #[serde(default)]
-    #[serde(skip_serializing_if = "String::is_empty")]
+/*    #[serde(default)]
+    #[serde(skip_serializing_if = "String::is_empty")]*/
     pub data_type: String,
 
     #[serde(with = "serde_bytes")]
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+/*    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]*/
     pub error_data: Vec<u8>,
 }
 
@@ -47,16 +47,19 @@ pub struct SubworkerDefinition {
 pub struct ProgramDefinition {
     pub args: Vec<String>,
 
+
+    /*#[serde(skip_serializing_if = "Map::is_empty")]*/
     #[serde(default)]
-    #[serde(skip_serializing_if = "Map::is_empty")]
     pub env: Map<String, String>,
 
+    /*
+    #[serde(skip_serializing_if = "Option::is_none")]*/
     #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub stdout: Option<PathBuf>,
 
+    /*#[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]*/
     #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub stderr: Option<PathBuf>,
 }
 
@@ -70,6 +73,5 @@ pub struct WorkerConfiguration {
     pub log_dir: PathBuf,
     pub heartbeat_interval: Duration,
 
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra: Vec<(String, String)>,
 }
