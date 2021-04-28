@@ -12,6 +12,7 @@ use crate::messages::gateway::{
 use crate::messages::worker::ToWorkerMessage;
 use crate::server::worker::WorkerId;
 use crate::TaskId;
+use crate::transfer::auth::serialize;
 
 pub trait Comm {
     fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage);
@@ -76,7 +77,7 @@ impl CommSender {
 
 impl Comm for CommSender {
     fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage) {
-        let data = rmp_serde::to_vec_named(&message).unwrap();
+        let data = serialize(&message).unwrap();
         self.workers
             .get(&worker_id)
             .unwrap()
@@ -85,7 +86,7 @@ impl Comm for CommSender {
     }
 
     fn broadcast_worker_message(&mut self, message: &ToWorkerMessage) {
-        let data: Bytes = rmp_serde::to_vec_named(&message).unwrap().into();
+        let data: Bytes = serialize(&message).unwrap().into();
         for sender in self.workers.values() {
             sender.send(data.clone()).expect("Send to worker failed");
         }

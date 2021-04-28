@@ -20,6 +20,7 @@ use crate::server::reactor::{on_new_tasks, on_new_worker, on_steal_response, on_
 use crate::server::task::TaskRef;
 use crate::server::worker::{Worker, WorkerId};
 use crate::{OutputId, TaskId};
+use crate::transfer::auth::{serialize, deserialize};
 
 /// Memory stream for reading and writing at the same time.
 pub struct MemoryStream {
@@ -182,14 +183,14 @@ impl TestComm {
 
 impl Comm for TestComm {
     fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage) {
-        let data = rmp_serde::to_vec_named(&message).unwrap();
-        let message = rmp_serde::from_slice(&data).unwrap();
+        let data = serialize(&message).unwrap();
+        let message = deserialize(&data).unwrap();
         self.worker_msgs.entry(worker_id).or_default().push(message);
     }
 
     fn broadcast_worker_message(&mut self, message: &ToWorkerMessage) {
-        let data = rmp_serde::to_vec_named(&message).unwrap();
-        let message = rmp_serde::from_slice(&data).unwrap();
+        let data = serialize(&message).unwrap();
+        let message = deserialize(&data).unwrap();
         self.broadcast_msgs.push(message);
     }
 

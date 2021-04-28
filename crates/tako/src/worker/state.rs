@@ -24,6 +24,7 @@ use crate::worker::task::{TaskRef, TaskState};
 use crate::TaskId;
 use crate::{Priority, PriorityTuple};
 use std::sync::Arc;
+use crate::transfer::auth::serialize;
 
 pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
 
@@ -80,8 +81,8 @@ impl WorkerState {
         self.data_objects.insert(id, data_ref);
     }
 
-    pub fn send_message_to_server(&self, data: Bytes) {
-        self.sender.send(data).unwrap();
+    pub fn send_message_to_server(&self, message: FromWorkerMessage) {
+        self.sender.send(serialize(&message).unwrap().into()).unwrap();
     }
 
     pub fn on_data_downloaded(
@@ -115,7 +116,7 @@ impl WorkerState {
             });
 
             let message = FromWorkerMessage::DataDownloaded(DataDownloadedMsg { id: data_obj.id });
-            self.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
+            self.send_message_to_server(message);
 
             /* We need to drop borrow before calling
               add_ready_task may start to borrow_mut this data_ref
@@ -385,14 +386,14 @@ impl WorkerState {
         let id = task_ref.get().id;
         self.remove_task(task_ref, true);
         let message = FromWorkerMessage::TaskFinished(TaskFinishedMsg { id, size });
-        self.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
+        self.send_message_to_server(message);
     }
 
     pub fn finish_task_failed(&mut self, task_ref: TaskRef, info: TaskFailInfo) {
         let id = task_ref.get().id;
         self.remove_task(task_ref, true);
         let message = FromWorkerMessage::TaskFailed(TaskFailedMsg { id, info });
-        self.send_message_to_server(rmp_serde::to_vec_named(&message).unwrap().into());
+        self.send_message_to_server(message);
     }
 }
 

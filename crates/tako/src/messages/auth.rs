@@ -7,14 +7,14 @@ pub struct Challenge {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(tag = "op")]
+//#[serde(tag = "op")]
 pub enum AuthenticationMode {
     NoAuth,
     Encryption(Challenge),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(tag = "op")]
+//#[serde(tag = "op")]
 pub struct AuthenticationRequest {
     pub protocol: u32,
     pub role: String,
@@ -36,7 +36,7 @@ pub struct AuthenticationError {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(tag = "op")]
+//#[serde(tag = "op")]
 pub enum AuthenticationResponse {
     NoAuth,
     Encryption(EncryptionResponse),

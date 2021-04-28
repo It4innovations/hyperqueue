@@ -25,8 +25,6 @@ pub struct ComputeTaskMsg {
 
     pub n_outputs: OutputId,
 
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    #[serde(default)]
     pub dep_info: Vec<(TaskId, u64, Vec<WorkerId>)>,
 
     #[serde(with = "serde_bytes")]
@@ -53,7 +51,7 @@ pub struct TaskIdMsg {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(tag = "op")]
+//#[serde(tag = "op")]
 pub enum ToWorkerMessage {
     ComputeTask(ComputeTaskMsg),
     DeleteData(TaskIdMsg),
@@ -103,7 +101,7 @@ pub struct WorkerOverview {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(tag = "op")]
+//#[serde(tag = "op")]
 pub enum FromWorkerMessage {
     TaskFinished(TaskFinishedMsg),
     TaskFailed(TaskFailedMsg),
