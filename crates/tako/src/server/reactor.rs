@@ -1357,6 +1357,16 @@ mod tests {
     }
 
     #[test]
+    fn test_ready_to_assign_is_empty_after_cancel() {
+        let mut core = Core::default();
+        let t1 = task(1);
+        submit_test_tasks(&mut core, &[&t1]);
+        cancel_tasks(&mut core, &[1]);
+        assert!(core.take_ready_to_assign().is_empty());
+    }
+
+
+    #[test]
     fn test_after_cancel_messages() {
         let mut core = Core::default();
         create_test_workers(&mut core, &[1, 1, 1]);
