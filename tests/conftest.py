@@ -19,7 +19,7 @@ class Env:
         self.cleanups = []
         self.work_path = work_path
 
-    def start_process(self, name, args, env=None, catch_io=True, cwd=None, detach=False):
+    def start_process(self, name, args, env=None, catch_io=True, cwd=None):
         cwd = str(cwd or self.work_path)
         logfile = (self.work_path / name).with_suffix(".out")
         if catch_io:
@@ -34,9 +34,20 @@ class Env:
             p = subprocess.Popen(args,
                                  cwd=cwd,
                                  env=env)
-        if not detach:
-            self.processes.append((name, p))
+        self.processes.append((name, p))
         return p
+
+    def check_process_exited(self, process: subprocess.Popen, expected_code=0):
+        for (n, p) in self.processes:
+            if p is process:
+                if process.poll() is None:
+                    raise Exception(f"Process with pid {process.pid} is still running")
+                if expected_code is not None:
+                    assert process.returncode == expected_code
+
+                self.processes = [(n, p) for (n, p) in self.processes if p is not process]
+                return
+        raise Exception(f"Process with pid {process.pid} not found")
 
     def check_running_processes(self):
         """Checks that everything is still running"""
@@ -85,22 +96,23 @@ class HqEnv(Env):
         env["RUST_BACKTRACE"] = "full"
         return env
 
-    def start_server(self, server_dir="./hq-server"):
+    def start_server(self, server_dir="./hq-server") -> subprocess.Popen:
         self.server_dir = os.path.join(self.work_path, server_dir)
         env = self.make_default_env()
         args = [HQ_BINARY, "--server-dir", self.server_dir, "server", "start"]
-        self.start_process("server", args, env=env)
+        process = self.start_process("server", args, env=env)
         time.sleep(0.2)
         self.check_running_processes()
+        return process
 
-    def start_worker(self, *, n_cpus=None, detach=False):
+    def start_worker(self, *, n_cpus=None) -> subprocess.Popen:
         self.id_counter += 1
         worker_id = self.id_counter
         env = self.make_default_env()
         args = [HQ_BINARY, "--server-dir", self.server_dir, "worker", "start"]
         if n_cpus is not None:
             args += ["--cpus", str(n_cpus)]
-        return self.start_process(f"worker{worker_id}", args, env=env, detach=detach)
+        return self.start_process(f"worker{worker_id}", args, env=env)
 
     def kill_worker(self, worker_id):
         self.kill_process(f"worker{worker_id}")
