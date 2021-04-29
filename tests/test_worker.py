@@ -69,12 +69,13 @@ def test_worker_cpus(hq_env: HqEnv):
 
 def test_worker_stop(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.start_worker(detach=True)
+    process = hq_env.start_worker()
 
     worker_id = wait_until(lambda: get_worker_id(hq_env, 0))
     hq_env.command(["worker", "stop", worker_id])
 
     wait_until(lambda: hq_env.command(["worker", "list"], as_table=True)[1][1] == "OFFLINE")
+    hq_env.check_process_exited(process)
 
 
 def get_worker_id(hq_env: HqEnv, index: int) -> Optional[str]:
