@@ -1,7 +1,11 @@
+use std::rc::Rc;
+use std::sync::Arc;
+
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
-use tako::messages::gateway::{FromGatewayMessage, NewTasksMessage, TaskDef, ToGatewayMessage};
+use tako::messages::gateway::{FromGatewayMessage, NewTasksMessage, TaskDef, ToGatewayMessage, StopWorkerRequest};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Notify;
 
 use crate::server::job::{Job, JobId};
 use crate::server::rpc::TakoServer;
@@ -11,9 +15,7 @@ use crate::transfer::messages::{
     FromClientMessage, JobInfo, JobInfoResponse, JobStatus, SubmitMessage, SubmitResponse,
     ToClientMessage, WorkerListResponse,
 };
-use std::rc::Rc;
-use std::sync::Arc;
-use tokio::sync::Notify;
+use crate::WorkerId;
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
@@ -53,7 +55,7 @@ async fn handle_client(
 
 pub async fn client_rpc_loop<
     Tx: Sink<ToClientMessage> + Unpin,
-    Rx: Stream<Item = crate::Result<FromClientMessage>> + Unpin,
+    Rx: Stream<Item=crate::Result<FromClientMessage>> + Unpin,
 >(
     mut tx: Tx,
     mut rx: Rx,
@@ -75,13 +77,14 @@ pub async fn client_rpc_loop<
                             msg.job_ids,
                             msg.include_program_def,
                         )
-                        .await
+                            .await
                     }
                     FromClientMessage::Stop => {
                         end_flag.notify_one();
                         break;
                     }
                     FromClientMessage::WorkerList => handle_worker_list(&state_ref).await,
+                    FromClientMessage::StopWorker(msg) => handle_worker_stop(&tako_ref, msg.worker_id).await.unwrap()
                 };
                 assert!(tx.send(response).await.is_ok());
             }
@@ -97,6 +100,16 @@ pub async fn client_rpc_loop<
                 return;
             }
         }
+    }
+}
+
+async fn handle_worker_stop(tako_ref: &TakoServer, worker_id: WorkerId) -> crate::Result<ToClientMessage> {
+    match tako_ref
+        .send_message(FromGatewayMessage::StopWorker(StopWorkerRequest { worker_id }))
+        .await? {
+        ToGatewayMessage::WorkerStopped => Ok(ToClientMessage::StopWorkerResponse),
+        ToGatewayMessage::Error(error) => Ok(ToClientMessage::Error(error.message)),
+        msg => panic!("Received invalid response to worker stop: {:?}", msg)
     }
 }
 
