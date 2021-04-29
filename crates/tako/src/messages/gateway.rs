@@ -44,6 +44,11 @@ pub struct CancelTasks {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct StopWorkerRequest {
+    pub worker_id: WorkerId
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "op")]
 pub enum FromGatewayMessage {
     NewTasks(NewTasksMessage),
@@ -53,6 +58,7 @@ pub enum FromGatewayMessage {
     GetTaskInfo(TaskInfoRequest),
     ServerInfo,
     GetOverview,
+    StopWorker(StopWorkerRequest)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -158,4 +164,5 @@ pub enum ToGatewayMessage {
     Overview(Overview),
     NewWorker(NewWorkerMessage),
     LostWorker(LostWorkerMessage),
+    WorkerStopped
 }

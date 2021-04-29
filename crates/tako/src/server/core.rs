@@ -111,6 +111,11 @@ impl Core {
     }
 
     #[inline]
+    pub fn get_worker_by_id(&self, id: WorkerId) -> Option<&Worker> {
+        self.workers.get(&id)
+    }
+
+    #[inline]
     pub fn get_worker_by_id_or_panic(&self, id: WorkerId) -> &Worker {
         self.workers.get(&id).unwrap_or_else(|| {
             panic!("Asking for invalid worker id={}", id);

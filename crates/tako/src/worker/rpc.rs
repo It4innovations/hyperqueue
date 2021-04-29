@@ -176,8 +176,10 @@ pub async fn run_worker(
     Ok(((worker_id, configuration), async move {
         tokio::select! {
             () = try_start_tasks => { unreachable!() }
-            _ = worker_message_loop(state.clone(), reader, opener) => {
-                panic!("Connection to server lost");
+            worker_res = worker_message_loop(state.clone(), reader, opener) => {
+                if let Err(e) = worker_res {
+                    panic!("Main worker loop failed: {}", e);
+                }
             }
             _ = forward_queue_to_sealed_sink(queue_receiver, writer, sealer) => {
                 panic!("Cannot send a message to server");
@@ -194,7 +196,6 @@ pub async fn run_worker(
             _ = heartbeat => { unreachable!() }
         }
     }))
-    //Ok(())
 }
 
 const MAX_RUNNING_DOWNLOADS: usize = 32;
@@ -363,6 +364,9 @@ async fn worker_message_loop(
                     placed_data: state.data_objects.keys().copied().collect(),
                 });
                 state.send_message_to_server(message);
+            }
+            ToWorkerMessage::Stop => {
+                break;
             }
         }
     }
