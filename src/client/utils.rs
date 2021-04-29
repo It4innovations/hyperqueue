@@ -1,19 +1,25 @@
-use crate::common::error::error;
-use crate::transfer::messages::ToClientMessage;
-use cli_table::{Cell, CellStruct, Color, Style, Table};
-use rmp_serde::decode::Error::OutOfRange;
 use std::fmt::Display;
 
-pub(crate) fn handle_message(
-    message: crate::Result<ToClientMessage>,
-) -> crate::Result<ToClientMessage> {
-    match message {
-        Ok(msg) => match msg {
-            ToClientMessage::Error(e) => error(format!("Server error: {}", e)),
-            _ => Ok(msg),
-        },
-        Err(e) => error(format!("Communication error: {}", e)),
-    }
+use cli_table::{Cell, CellStruct, Color, Style, Table};
+use rmp_serde::decode::Error::OutOfRange;
+
+use crate::common::error::error;
+use crate::common::serverdir::AccessRecord;
+use crate::transfer::connection::HqConnection;
+use crate::transfer::messages::{FromClientMessage, ToClientMessage, WorkerListResponse};
+
+#[macro_export]
+macro_rules! rpc_call {
+    ($conn:expr, $message:expr, $matcher:pat $(=> $result:expr)?) => {
+        async move {
+            match $conn.send_and_receive($message).await? {
+                $matcher => $crate::Result::Ok(($($result),*)),
+                msg => {
+                    $crate::common::error::error(format!("Received an invalid message {:?}", msg))
+                }
+            }
+        }
+    };
 }
 
 pub struct OutputStyle {
