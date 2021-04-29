@@ -172,7 +172,10 @@ impl Core {
     pub fn remove_task(&mut self, task: &mut Task) -> TaskRuntimeState {
         trace_task_remove(task.id);
         assert!(!task.has_consumers());
-        assert!(self.tasks.remove(&task.id).is_some());
+        let task_ref = self.tasks.remove(&task.id).unwrap();
+        if task.is_ready() {
+            self.ready_to_assign.iter().position(|t| t == &task_ref).map(|idx| self.ready_to_assign.remove(idx));
+        }
         std::mem::replace(&mut task.state, TaskRuntimeState::Released)
     }
 
