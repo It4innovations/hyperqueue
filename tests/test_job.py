@@ -1,6 +1,7 @@
-from conftest import HqEnv
+from .conftest import HqEnv
 import time
 import os
+
 
 def test_job_submit(hq_env: HqEnv):
     hq_env.start_server()

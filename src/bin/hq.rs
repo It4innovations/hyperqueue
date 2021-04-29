@@ -6,7 +6,7 @@ use cli_table::ColorChoice;
 use hyperqueue::client::commands::jobs::{get_job_detail, get_job_list};
 use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::submit_computation;
-use hyperqueue::client::commands::worker::get_worker_list;
+use hyperqueue::client::commands::worker::{get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
 use hyperqueue::client::utils::OutputStyle;
 use hyperqueue::common::error::error;
@@ -157,6 +157,14 @@ async fn command_worker_start(
     start_hq_worker(&gsettings, opts).await
 }
 
+async fn command_worker_stop(
+    gsettings: GlobalSettings,
+    opts: WorkerStopOpts,
+) -> hyperqueue::Result<()> {
+    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    stop_worker(&mut connection, opts.worker_id).await
+}
+
 fn default_server_directory_path() -> PathBuf {
     let mut home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
     home.push(".hq-server");
@@ -231,10 +239,8 @@ async fn main() -> hyperqueue::Result<()> {
             subcmd: WorkerCommand::Start(opts),
         }) => command_worker_start(gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::Stop(_),
-        }) => {
-            todo!()
-        }
+            subcmd: WorkerCommand::Stop(opts),
+        }) => command_worker_stop(gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::List(opts),
         }) => command_worker_list(gsettings, opts).await,

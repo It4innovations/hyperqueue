@@ -4,14 +4,12 @@ import os
 import signal
 import time
 
-from testutils import parse_table
+from .testutils import parse_table
 
 PYTEST_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(PYTEST_DIR)
 HQ_BINARY = os.path.join(ROOT_DIR, "target", "debug", "hq")
 HQ_WORKER_BIN = os.path.join(ROOT_DIR, "target", "debug", "hq-worker")
-
-#TAKO_SERVER_BIN = os.path.join(TAKO_BIN_PATH, "tako-server")
 
 
 class Env:
@@ -21,7 +19,7 @@ class Env:
         self.cleanups = []
         self.work_path = work_path
 
-    def start_process(self, name, args, env=None, catch_io=True, cwd=None):
+    def start_process(self, name, args, env=None, catch_io=True, cwd=None, detach=False):
         cwd = str(cwd or self.work_path)
         logfile = (self.work_path / name).with_suffix(".out")
         if catch_io:
@@ -36,7 +34,8 @@ class Env:
             p = subprocess.Popen(args,
                                  cwd=cwd,
                                  env=env)
-        self.processes.append((name, p))
+        if not detach:
+            self.processes.append((name, p))
         return p
 
     def check_running_processes(self):
@@ -94,14 +93,14 @@ class HqEnv(Env):
         time.sleep(0.2)
         self.check_running_processes()
 
-    def start_worker(self, *, n_cpus=None):
+    def start_worker(self, *, n_cpus=None, detach=False):
         self.id_counter += 1
         worker_id = self.id_counter
         env = self.make_default_env()
         args = [HQ_BINARY, "--server-dir", self.server_dir, "worker", "start"]
         if n_cpus is not None:
             args += ["--cpus", str(n_cpus)]
-        self.start_process(f"worker{worker_id}", args, env=env)
+        return self.start_process(f"worker{worker_id}", args, env=env, detach=detach)
 
     def kill_worker(self, worker_id):
         self.kill_process(f"worker{worker_id}")

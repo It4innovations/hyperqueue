@@ -21,10 +21,16 @@ pub struct JobInfoRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct StopWorkerMessage {
+    pub(crate) worker_id: WorkerId
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum FromClientMessage {
     Submit(SubmitMessage),
     JobInfo(JobInfoRequest),
     WorkerList,
+    StopWorker(StopWorkerMessage),
     Stop,
 }
 
@@ -33,6 +39,7 @@ pub enum ToClientMessage {
     JobInfoResponse(JobInfoResponse),
     SubmitResponse(SubmitResponse),
     WorkerListResponse(WorkerListResponse),
+    StopWorkerResponse,
     Error(String),
 }
 
