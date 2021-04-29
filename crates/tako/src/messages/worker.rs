@@ -60,6 +60,7 @@ pub enum ToWorkerMessage {
     NewWorker(NewWorkerMsg),
     RegisterSubworker(SubworkerDefinition),
     GetOverview,
+    Stop
 }
 
 #[derive(Deserialize, Serialize, Debug)]
