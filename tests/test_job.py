@@ -34,7 +34,7 @@ def test_job_submit(hq_env: HqEnv):
     assert len(table) == 4
     assert table[1][:3] == ["1", "bash", "FINISHED"]
     assert table[2][:3] == ["2", "bash", "FINISHED"]
-    assert table[3][:3] == ["3", "sleep", "WAITING"]
+    assert table[3][:3] == ["3", "sleep", "RUNNING"]
 
     time.sleep(1.0)
     table = hq_env.command("jobs", as_table=True)

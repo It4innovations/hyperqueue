@@ -29,7 +29,7 @@ serde_bytes = "0.11"
 serde-tuple-vec-map = "1"
 bytes = "1.0.1"
 atty = "0.2"
-cli-table = "0.4"
+cli-table = "0.4.6"
 hashbrown = { version = "0.11", features = ["serde"] }
 thiserror = "1"
 dirs = "3.0.1"
@@ -37,8 +37,8 @@ gethostname = "0.2.1"
 chrono = { version = "0.4.19", features = ["serde"] }
 orion = "0.16.0"
 hex = "0.4.3"
-tako = { path = "../tako" }
-# tako = { git = "https://github.com/spirali/tako", branch = "main" }
+# tako = { path = "../tako" }
+tako = { git = "https://github.com/spirali/tako", branch = "main" }
 tempdir = "0.3.7"
 humantime = "2.1.0"
 num_cpus = "1.13.0"

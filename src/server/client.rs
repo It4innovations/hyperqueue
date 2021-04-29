@@ -8,7 +8,7 @@ use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
-    FromClientMessage, JobInfo, JobInfoResponse, JobState, SubmitMessage, SubmitResponse,
+    FromClientMessage, JobInfo, JobInfoResponse, JobStatus, SubmitMessage, SubmitResponse,
     ToClientMessage, WorkerListResponse,
 };
 use std::rc::Rc;
@@ -178,7 +178,7 @@ async fn handle_submit(
         job: JobInfo {
             id: task_id,
             name: message.name,
-            state: JobState::Waiting,
+            status: JobStatus::Waiting,
             worker_id: None,
             error: None,
             spec: Some(program_def),

@@ -1,20 +1,21 @@
-use crate::server::job::JobStatus::Submitted;
+use crate::server::job::JobState::Submitted;
 use crate::transfer::messages::JobInfo;
-use crate::transfer::messages::JobState;
+use crate::transfer::messages::JobStatus;
 use crate::TaskId;
 use tako::messages::common::ProgramDefinition;
 
 pub type JobId = TaskId;
 
-pub enum JobStatus {
+pub enum JobState {
     Submitted,
+    Running,
     Finished,
     Failed(String),
 }
 
 pub struct Job {
     pub task_id: TaskId,
-    pub status: JobStatus,
+    pub state: JobState,
     pub name: String,
     pub program_def: ProgramDefinition,
 }
@@ -24,23 +25,24 @@ impl Job {
         Job {
             task_id,
             name,
-            status: Submitted,
+            state: Submitted,
             program_def,
         }
     }
 
     pub fn make_job_info(&self, include_program_def: bool) -> JobInfo {
-        let (state, error) = match &self.status {
-            JobStatus::Submitted => (JobState::Waiting, None),
-            JobStatus::Finished => (JobState::Finished, None),
-            JobStatus::Failed(e) => (JobState::Failed, Some(e.clone())),
+        let (state, error) = match &self.state {
+            JobState::Submitted => (JobStatus::Waiting, None),
+            JobState::Finished => (JobStatus::Finished, None),
+            JobState::Failed(e) => (JobStatus::Failed, Some(e.clone())),
+            JobState::Running => (JobStatus::Running, None),
         };
 
         JobInfo {
             id: self.task_id,
             name: self.name.clone(),
             worker_id: None,
-            state,
+            status: state,
             error,
             spec: include_program_def.then(|| self.program_def.clone()),
         }

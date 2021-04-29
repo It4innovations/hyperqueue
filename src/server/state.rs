@@ -1,8 +1,8 @@
 use crate::common::WrappedRcRefCell;
-use crate::server::job::{Job, JobId, JobStatus};
+use crate::server::job::{Job, JobId, JobState};
 use crate::server::worker::Worker;
 use crate::{Map, TaskId, WorkerId};
-use tako::messages::gateway::{LostWorkerMessage, NewWorkerMessage, TaskFailedMessage, TaskUpdate};
+use tako::messages::gateway::{LostWorkerMessage, NewWorkerMessage, TaskFailedMessage, TaskUpdate, TaskState};
 use tako::messages::worker::NewWorkerMsg;
 
 pub struct State {
@@ -55,13 +55,17 @@ impl State {
     pub fn process_task_failed(&mut self, msg: TaskFailedMessage) {
         log::debug!("Task id={} failed", msg.id);
         let job = self.jobs.get_mut(&msg.id).unwrap();
-        job.status = JobStatus::Failed(msg.info.message);
+        job.state = JobState::Failed(msg.info.message);
     }
 
     pub fn process_task_update(&mut self, msg: TaskUpdate) {
         log::debug!("Task id={} updated", msg.id);
-        let job = self.jobs.get_mut(&msg.id).unwrap();
-        job.status = JobStatus::Finished;
+        let mut job = self.jobs.get_mut(&msg.id).unwrap();
+        job.state = match msg.state {
+            TaskState::Running => JobState::Running,
+            TaskState::Finished => JobState::Finished,
+            TaskState::Waiting | TaskState::Invalid => { unreachable!() }
+        };
     }
 
     pub fn process_worker_new(&mut self, msg: NewWorkerMessage) {

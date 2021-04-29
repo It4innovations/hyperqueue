@@ -8,7 +8,7 @@ use crate::client::utils::handle_message;
 use crate::common::error::error;
 use crate::server::bootstrap::get_client_connection;
 use crate::transfer::connection::ClientConnection;
-use crate::transfer::messages::{FromClientMessage, SubmitMessage, ToClientMessage};
+use crate::transfer::messages::{FromClientMessage, SubmitMessage, ToClientMessage, JobStatus};
 
 pub async fn submit_computation(
     gsettings: &GlobalSettings,
@@ -33,7 +33,10 @@ pub async fn submit_computation(
     });
     let response = handle_message(connection.send_and_receive(message).await)?;
     match response {
-        ToClientMessage::SubmitResponse(sr) => print_job_detail(gsettings, sr.job),
+        ToClientMessage::SubmitResponse(mut sr) => {
+            sr.job.status = JobStatus::Submitted;
+            print_job_detail(gsettings, sr.job)
+        },
         msg => return error(format!("Received an invalid message {:?}", msg)),
     };
     Ok(())

@@ -2,13 +2,15 @@ use cli_table::format::Justify;
 use cli_table::{print_stdout, Cell, CellStruct, Color, Style, Table};
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::transfer::messages::{JobInfo, JobState};
+use crate::transfer::messages::{JobInfo, JobStatus};
 
-fn job_state_cell(state: &JobState) -> CellStruct {
+fn job_state_cell(state: &JobStatus) -> CellStruct {
     match state {
-        JobState::Waiting => "WAITING".cell().foreground_color(Some(Color::Cyan)),
-        JobState::Finished => "FINISHED".cell().foreground_color(Some(Color::Green)),
-        JobState::Failed => "FAILED".cell().foreground_color(Some(Color::Red)),
+        JobStatus::Waiting => "WAITING".cell().foreground_color(Some(Color::Cyan)),
+        JobStatus::Finished => "FINISHED".cell().foreground_color(Some(Color::Green)),
+        JobStatus::Failed => "FAILED".cell().foreground_color(Some(Color::Red)),
+        JobStatus::Running => "RUNNING".cell().foreground_color(Some(Color::Yellow)),
+        JobStatus::Submitted => "SUBMITTED".cell().foreground_color(Some(Color::Magenta)),
     }
 }
 
@@ -19,7 +21,7 @@ pub fn print_job_list(gsettings: &GlobalSettings, tasks: Vec<JobInfo>) {
             vec![
                 t.id.cell().justify(Justify::Right),
                 t.name.cell(),
-                job_state_cell(&t.state),
+                job_state_cell(&t.status),
                 "TODO".cell(),
                 "TODO".cell(),
             ]
@@ -43,7 +45,7 @@ pub fn print_job_detail(gsettings: &GlobalSettings, job: JobInfo) {
     let mut rows = vec![
         vec!["Id".cell().bold(true), job.id.cell()],
         vec!["Name".cell().bold(true), job.name.cell()],
-        vec!["State".cell().bold(true), job_state_cell(&job.state)],
+        vec!["State".cell().bold(true), job_state_cell(&job.status)],
     ];
 
     if let Some(error) = job.error {
@@ -57,7 +59,7 @@ pub fn print_job_detail(gsettings: &GlobalSettings, job: JobInfo) {
     if let Some(program_def) = job.spec {
         rows.push(vec![
             "Command".cell().bold(true),
-            program_def.args.join(" ").cell(),
+            program_def.args.join("\n").cell(),
         ]);
         rows.push(vec![
             "Stdout".cell().bold(true),

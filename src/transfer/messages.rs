@@ -37,8 +37,10 @@ pub enum ToClientMessage {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum JobState {
+pub enum JobStatus {
+    Submitted,
     Waiting,
+    Running,
     Finished,
     Failed,
 }
@@ -47,7 +49,7 @@ pub enum JobState {
 pub struct JobInfo {
     pub id: TaskId,
     pub name: String,
-    pub state: JobState,
+    pub status: JobStatus,
 
     pub worker_id: Option<WorkerId>,
     pub error: Option<String>,
