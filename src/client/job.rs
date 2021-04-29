@@ -10,7 +10,8 @@ fn job_state_cell(state: &JobStatus) -> CellStruct {
         JobStatus::Finished => "FINISHED".cell().foreground_color(Some(Color::Green)),
         JobStatus::Failed => "FAILED".cell().foreground_color(Some(Color::Red)),
         JobStatus::Running => "RUNNING".cell().foreground_color(Some(Color::Yellow)),
-        JobStatus::Submitted => "SUBMITTED".cell().foreground_color(Some(Color::Magenta)),
+        JobStatus::Submitted => "SUBMITTED".cell().foreground_color(Some(Color::Cyan)),
+        JobStatus::Canceled => "CANCELED".cell().foreground_color(Some(Color::Magenta)),
     }
 }
 

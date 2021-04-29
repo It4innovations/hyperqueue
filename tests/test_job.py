@@ -92,3 +92,48 @@ def test_job_invalid(hq_env: HqEnv):
     hq_env.start_worker(n_cpus=1)
     result = hq_env.command(["job", "5"])
     assert "Job 5 not found" in result
+
+
+def test_cancel_without_workers(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "/bin/hostname"])
+    r = hq_env.command(["cancel", "1"])
+    assert "Job 1 canceled" in r
+    table = hq_env.command(["jobs"], as_table=True)
+    assert table[1][2] == "CANCELED"
+    hq_env.start_worker(n_cpus=1)
+    time.sleep(0.2)
+    table = hq_env.command(["jobs"], as_table=True)
+    assert table[1][2] == "CANCELED"
+
+
+def test_cancel_running(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(n_cpus=1)
+    hq_env.command(["submit", "sleep", "10"])
+    time.sleep(0.3)
+    table = hq_env.command(["jobs"], as_table=True)
+    assert table[1][2] == "RUNNING"
+    r = hq_env.command(["cancel", "1"])
+    assert "Job 1 canceled" in r
+    table = hq_env.command(["jobs"], as_table=True)
+    assert table[1][2] == "CANCELED"
+
+    r = hq_env.command(["cancel", "1"])
+    assert "Canceling job 1 failed" in r
+
+
+def test_cancel_finished(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(n_cpus=1)
+    hq_env.command(["submit", "hostname"])
+    hq_env.command(["submit", "/invalid"])
+    time.sleep(0.3)
+    r = hq_env.command(["cancel", "1"])
+    assert "Canceling job 1 failed" in r
+    r = hq_env.command(["cancel", "2"])
+    assert "Canceling job 2 failed" in r
+
+    table = hq_env.command(["jobs"], as_table=True)
+    assert table[1][2] == "FINISHED"
+    assert table[2][2] == "FAILED"

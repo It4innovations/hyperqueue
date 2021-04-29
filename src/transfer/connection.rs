@@ -46,6 +46,7 @@ impl<R: DeserializeOwned, S: Serialize> HqConnection<R, S> {
             None => None,
         }
     }
+
     pub async fn send_and_receive(&mut self, item: S) -> crate::Result<R> {
         self.send(item).await?;
         match self.receive().await {

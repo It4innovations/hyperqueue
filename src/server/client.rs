@@ -3,18 +3,21 @@ use std::sync::Arc;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
-use tako::messages::gateway::{FromGatewayMessage, NewTasksMessage, TaskDef, ToGatewayMessage, StopWorkerRequest};
+use tako::messages::gateway::{
+    CancelTasks, FromGatewayMessage, NewTasksMessage, StopWorkerRequest, TaskDef, ToGatewayMessage,
+};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Notify;
 
-use crate::server::job::{Job, JobId};
+use crate::server::job::{Job, JobId, JobState};
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
-    FromClientMessage, JobInfo, JobInfoResponse, JobStatus, SubmitMessage, SubmitResponse,
-    ToClientMessage, WorkerListResponse,
+    CancelJobResponse, FromClientMessage, JobInfo, JobInfoResponse, JobStatus, SubmitRequest,
+    SubmitResponse, ToClientMessage, WorkerListResponse,
 };
+
 use crate::WorkerId;
 
 pub async fn handle_client_connections(
@@ -55,7 +58,7 @@ async fn handle_client(
 
 pub async fn client_rpc_loop<
     Tx: Sink<ToClientMessage> + Unpin,
-    Rx: Stream<Item=crate::Result<FromClientMessage>> + Unpin,
+    Rx: Stream<Item = crate::Result<FromClientMessage>> + Unpin,
 >(
     mut tx: Tx,
     mut rx: Rx,
@@ -77,14 +80,19 @@ pub async fn client_rpc_loop<
                             msg.job_ids,
                             msg.include_program_def,
                         )
-                            .await
+                        .await
                     }
                     FromClientMessage::Stop => {
                         end_flag.notify_one();
                         break;
                     }
                     FromClientMessage::WorkerList => handle_worker_list(&state_ref).await,
-                    FromClientMessage::StopWorker(msg) => handle_worker_stop(&tako_ref, msg.worker_id).await.unwrap()
+                    FromClientMessage::StopWorker(msg) => {
+                        handle_worker_stop(&tako_ref, msg.worker_id).await.unwrap()
+                    }
+                    FromClientMessage::Cancel(msg) => {
+                        handle_job_cancel(&state_ref, &tako_ref, msg.job_id).await
+                    }
                 };
                 assert!(tx.send(response).await.is_ok());
             }
@@ -103,13 +111,19 @@ pub async fn client_rpc_loop<
     }
 }
 
-async fn handle_worker_stop(tako_ref: &TakoServer, worker_id: WorkerId) -> crate::Result<ToClientMessage> {
+async fn handle_worker_stop(
+    tako_ref: &TakoServer,
+    worker_id: WorkerId,
+) -> crate::Result<ToClientMessage> {
     match tako_ref
-        .send_message(FromGatewayMessage::StopWorker(StopWorkerRequest { worker_id }))
-        .await? {
+        .send_message(FromGatewayMessage::StopWorker(StopWorkerRequest {
+            worker_id,
+        }))
+        .await?
+    {
         ToGatewayMessage::WorkerStopped => Ok(ToClientMessage::StopWorkerResponse),
         ToGatewayMessage::Error(error) => Ok(ToClientMessage::Error(error.message)),
-        msg => panic!("Received invalid response to worker stop: {:?}", msg)
+        msg => panic!("Received invalid response to worker stop: {:?}", msg),
     }
 }
 
@@ -141,10 +155,76 @@ async fn compute_job_info(
     }
 }
 
+async fn handle_job_cancel(
+    state_ref: &StateRef,
+    tako_ref: &TakoServer,
+    job_id: JobId,
+) -> ToClientMessage {
+    {
+        let mut state = state_ref.get_mut();
+        match state.get_job(job_id) {
+            None => return ToClientMessage::CancelJobResponse(CancelJobResponse::InvalidJob),
+            Some(job) => {
+                match job.state {
+                    JobState::Waiting | JobState::Running => { /* Continue */ }
+                    JobState::Finished | JobState::Failed(_) | JobState::Canceled => {
+                        return ToClientMessage::CancelJobResponse(
+                            CancelJobResponse::AlreadyFinished,
+                        )
+                    }
+                }
+            }
+        };
+    }
+
+    match tako_ref
+        .send_message(FromGatewayMessage::CancelTasks(CancelTasks {
+            tasks: vec![job_id],
+        }))
+        .await
+        .unwrap()
+    {
+        ToGatewayMessage::CancelTasksResponse(msg) => {
+            if !msg.already_finished.is_empty() {
+                assert_eq!(msg.already_finished.len(), 1);
+                return ToClientMessage::CancelJobResponse(CancelJobResponse::AlreadyFinished);
+            }
+        }
+        ToGatewayMessage::Error(msg) => {
+            log::debug!("Canceling job failed: {}", msg.message);
+            return ToClientMessage::Error(format!("Canceling job failed: {}", msg.message));
+        }
+        _ => {
+            panic!("Invalid message");
+        }
+    }
+
+    {
+        let mut state = state_ref.get_mut();
+        let job = state.get_job_mut(job_id);
+        match job {
+            None => return ToClientMessage::CancelJobResponse(CancelJobResponse::InvalidJob),
+            Some(job) => {
+                match job.state {
+                    JobState::Waiting | JobState::Running => { /* Continue */ }
+                    JobState::Finished | JobState::Failed(_) | JobState::Canceled => {
+                        return ToClientMessage::CancelJobResponse(
+                            CancelJobResponse::AlreadyFinished,
+                        )
+                    }
+                }
+                job.state = JobState::Canceled
+            }
+        };
+    }
+
+    ToClientMessage::CancelJobResponse(CancelJobResponse::Canceled)
+}
+
 async fn handle_submit(
     state_ref: &StateRef,
     tako_ref: &TakoServer,
-    message: SubmitMessage,
+    message: SubmitRequest,
 ) -> ToClientMessage {
     let (task_def, task_id, program_def) = {
         let mut state = state_ref.get_mut();

@@ -7,10 +7,15 @@ use std::path::PathBuf;
 use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SubmitMessage {
+pub struct SubmitRequest {
     pub name: String,
     pub cwd: PathBuf,
     pub spec: ProgramDefinition,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CancelRequest {
+    pub job_id: JobId,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -22,16 +27,24 @@ pub struct JobInfoRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StopWorkerMessage {
-    pub(crate) worker_id: WorkerId
+    pub(crate) worker_id: WorkerId,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum FromClientMessage {
-    Submit(SubmitMessage),
+    Submit(SubmitRequest),
+    Cancel(CancelRequest),
     JobInfo(JobInfoRequest),
     WorkerList,
     StopWorker(StopWorkerMessage),
     Stop,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum CancelJobResponse {
+    Canceled,
+    AlreadyFinished,
+    InvalidJob,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -40,6 +53,7 @@ pub enum ToClientMessage {
     SubmitResponse(SubmitResponse),
     WorkerListResponse(WorkerListResponse),
     StopWorkerResponse,
+    CancelJobResponse(CancelJobResponse),
     Error(String),
 }
 
@@ -50,6 +64,7 @@ pub enum JobStatus {
     Running,
     Finished,
     Failed,
+    Canceled,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

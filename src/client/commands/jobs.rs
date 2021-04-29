@@ -3,7 +3,9 @@ use crate::client::job::{print_job_detail, print_job_list};
 use crate::rpc_call;
 use crate::server::job::JobId;
 use crate::transfer::connection::ClientConnection;
-use crate::transfer::messages::{FromClientMessage, JobInfoRequest, ToClientMessage};
+use crate::transfer::messages::{
+    CancelJobResponse, CancelRequest, FromClientMessage, JobInfoRequest, ToClientMessage,
+};
 
 pub async fn get_job_list(
     gsettings: &GlobalSettings,
@@ -36,6 +38,28 @@ pub async fn get_job_detail(
         print_job_detail(gsettings, job);
     } else {
         log::error!("Job {} not found", job_id);
+    }
+    Ok(())
+}
+
+pub async fn cancel_job(
+    _gsettings: &GlobalSettings,
+    connection: &mut ClientConnection,
+    job_id: JobId,
+) -> crate::Result<()> {
+    let mut response =
+        rpc_call!(connection, FromClientMessage::Cancel(CancelRequest { job_id }), ToClientMessage::CancelJobResponse(r) => r).await?;
+
+    match response {
+        CancelJobResponse::Canceled => {
+            log::info!("Job {} canceled", job_id)
+        }
+        CancelJobResponse::AlreadyFinished => {
+            log::error!("Canceling job {} failed; job is already finished", job_id)
+        }
+        CancelJobResponse::InvalidJob => {
+            log::error!("Canceling job {} failed; job not found", job_id)
+        }
     }
     Ok(())
 }

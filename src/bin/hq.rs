@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::Clap;
 
 use cli_table::ColorChoice;
-use hyperqueue::client::commands::jobs::{get_job_detail, get_job_list};
+use hyperqueue::client::commands::jobs::{cancel_job, get_job_detail, get_job_list};
 use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::submit_computation;
 use hyperqueue::client::commands::worker::{get_worker_list, stop_worker};
@@ -67,11 +67,17 @@ struct SubmitOpts {
 }
 
 #[derive(Clap)]
+struct CancelOpts {
+    job_id: JobId,
+}
+
+#[derive(Clap)]
 enum SubCommand {
     Server(ServerOpts),
     Jobs(JobListOpts),
     Job(JobDetailOpts),
     Submit(SubmitOpts),
+    Cancel(CancelOpts),
     Worker(WorkerOpts),
 }
 
@@ -148,6 +154,11 @@ async fn command_job_detail(
 async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> hyperqueue::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
     submit_computation(&gsettings, &mut connection, opts.commands).await
+}
+
+async fn command_cancel(gsettings: GlobalSettings, opts: CancelOpts) -> hyperqueue::Result<()> {
+    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    cancel_job(&gsettings, &mut connection, opts.job_id).await
 }
 
 async fn command_worker_start(
@@ -253,6 +264,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Jobs(opts) => command_job_list(gsettings, opts).await,
         SubCommand::Job(opts) => command_job_detail(gsettings, opts).await,
         SubCommand::Submit(opts) => command_submit(gsettings, opts).await,
+        SubCommand::Cancel(opts) => command_cancel(gsettings, opts).await,
     };
     if let Err(e) = result {
         eprintln!("{}", e);

@@ -4,7 +4,7 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::print_job_detail;
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
-use crate::transfer::messages::{FromClientMessage, JobStatus, SubmitMessage, ToClientMessage};
+use crate::transfer::messages::{FromClientMessage, JobStatus, SubmitRequest, ToClientMessage};
 
 pub async fn submit_computation(
     gsettings: &GlobalSettings,
@@ -17,7 +17,7 @@ pub async fn submit_computation(
         .map(|t| t.to_string())
         .unwrap_or_else(|| "job".to_string());
 
-    let message = FromClientMessage::Submit(SubmitMessage {
+    let message = FromClientMessage::Submit(SubmitRequest {
         name: name.clone(),
         cwd: std::env::current_dir().unwrap(),
         spec: ProgramDefinition {
