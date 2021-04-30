@@ -1,5 +1,6 @@
-use cli_table::ColorChoice;
 use std::path::{Path, PathBuf};
+
+use cli_table::ColorChoice;
 
 pub struct GlobalSettings {
     color_policy: ColorChoice,

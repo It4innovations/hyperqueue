@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use bytes::{Bytes, BytesMut};
 use futures::future::ready;
@@ -16,7 +17,6 @@ use crate::common::error::error;
 use crate::common::serverdir::AccessRecord;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use crate::transfer::protocol::make_protocol_builder;
-use std::sync::Arc;
 
 type Codec = Framed<TcpStream, LengthDelimitedCodec>;
 

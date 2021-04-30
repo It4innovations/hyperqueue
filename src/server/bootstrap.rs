@@ -1,24 +1,23 @@
 use std::future::Future;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::rc::Rc;
+use std::sync::Arc;
 
+use cli_table::{print_stdout, Cell, Style, Table};
 use futures::TryFutureExt;
 use tokio::net::TcpListener;
+use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::error::error;
 use crate::common::error::HqError::GenericError;
-use crate::common::serverdir::{load_access_file, store_access_record, AccessRecord, ServerDir};
+use crate::common::serverdir::{AccessRecord, ServerDir};
 use crate::common::setup::setup_interrupt;
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
 use crate::transfer::connection::{ClientConnection, HqConnection};
-use cli_table::{print_stdout, Cell, Style, Table};
-use std::rc::Rc;
-use std::sync::Arc;
-use tako::messages::gateway::FromGatewayMessage::ServerInfo;
-use tokio::sync::Notify;
 
 enum ServerStatus {
     Offline(AccessRecord),
@@ -88,7 +87,8 @@ async fn initialize_server(
         hq_secret_key.clone(),
         tako_secret_key.clone(),
     );
-    let server_dir = ServerDir::create(server_directory, &record)?;
+
+    ServerDir::create(server_directory, &record)?;
     print_access_record(server_directory, &record);
 
     let stop_notify = Rc::new(Notify::new());
@@ -150,16 +150,17 @@ pub fn print_access_record(server_dir: &Path, record: &AccessRecord) {
 
 #[cfg(test)]
 mod tests {
-    use tempdir::TempDir;
+    use std::sync::Arc;
 
+    use tempdir::TempDir;
+    use tokio::sync::Notify;
+
+    use crate::client::commands::stop::stop_server;
     use crate::common::fsutils::test_utils::run_concurrent;
     use crate::common::serverdir::{store_access_record, AccessRecord, ServerDir, SYMLINK_PATH};
     use crate::server::bootstrap::{get_client_connection, get_server_status, initialize_server};
 
     use super::ServerStatus;
-    use crate::client::commands::stop::stop_server;
-    use std::sync::Arc;
-    use tokio::sync::Notify;
 
     #[tokio::test]
     async fn test_status_empty_directory() {

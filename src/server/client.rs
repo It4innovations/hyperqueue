@@ -17,7 +17,6 @@ use crate::transfer::messages::{
     CancelJobResponse, FromClientMessage, JobInfo, JobInfoResponse, JobStatus, SubmitRequest,
     SubmitResponse, ToClientMessage, WorkerListResponse,
 };
-
 use crate::WorkerId;
 
 pub async fn handle_client_connections(
@@ -74,13 +73,7 @@ pub async fn client_rpc_loop<
                         handle_submit(&state_ref, &tako_ref, msg).await
                     }
                     FromClientMessage::JobInfo(msg) => {
-                        compute_job_info(
-                            &state_ref,
-                            &tako_ref,
-                            msg.job_ids,
-                            msg.include_program_def,
-                        )
-                        .await
+                        compute_job_info(&state_ref, msg.job_ids, msg.include_program_def).await
                     }
                     FromClientMessage::Stop => {
                         end_flag.notify_one();
@@ -129,7 +122,6 @@ async fn handle_worker_stop(
 
 async fn compute_job_info(
     state_ref: &StateRef,
-    tako_ref: &TakoServer,
     job_ids: Option<Vec<JobId>>,
     include_program_def: bool,
 ) -> ToClientMessage {
@@ -161,7 +153,7 @@ async fn handle_job_cancel(
     job_id: JobId,
 ) -> ToClientMessage {
     {
-        let mut state = state_ref.get_mut();
+        let state = state_ref.get_mut();
         match state.get_job(job_id) {
             None => return ToClientMessage::CancelJobResponse(CancelJobResponse::InvalidJob),
             Some(job) => {

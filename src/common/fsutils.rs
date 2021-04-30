@@ -20,6 +20,7 @@ pub fn create_symlink(symlink_path: &Path, target: &Path) -> crate::Result<()> {
 #[cfg(test)]
 pub(crate) mod test_utils {
     use std::future::Future;
+
     use tokio::task::{JoinHandle, LocalSet};
 
     pub(crate) async fn run_concurrent<

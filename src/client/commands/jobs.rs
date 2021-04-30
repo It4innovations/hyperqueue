@@ -47,7 +47,7 @@ pub async fn cancel_job(
     connection: &mut ClientConnection,
     job_id: JobId,
 ) -> crate::Result<()> {
-    let mut response =
+    let response =
         rpc_call!(connection, FromClientMessage::Cancel(CancelRequest { job_id }), ToClientMessage::CancelJobResponse(r) => r).await?;
 
     match response {

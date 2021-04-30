@@ -1,14 +1,14 @@
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use clap::Clap;
-
 use cli_table::ColorChoice;
+
 use hyperqueue::client::commands::jobs::{cancel_job, get_job_detail, get_job_list};
 use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::submit_computation;
 use hyperqueue::client::commands::worker::{get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
-use hyperqueue::client::utils::OutputStyle;
 use hyperqueue::common::error::error;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
@@ -16,7 +16,6 @@ use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server};
 use hyperqueue::server::job::JobId;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::WorkerId;
-use std::str::FromStr;
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -31,9 +30,6 @@ struct CommonOpts {
 
     #[clap(long, default_value = "auto")]
     colors: ColorPolicy,
-
-    #[clap(long)]
-    plain_output: bool,
 }
 
 #[derive(Clap)]
@@ -125,20 +121,20 @@ enum WorkerCommand {
 
 async fn command_server_start(
     gsettings: GlobalSettings,
-    opts: ServerStartOpts,
+    _opts: ServerStartOpts,
 ) -> hyperqueue::Result<()> {
     init_hq_server(&gsettings).await
 }
 
 async fn command_server_stop(
     gsettings: GlobalSettings,
-    opts: ServerStopOpts,
+    _opts: ServerStopOpts,
 ) -> hyperqueue::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
     stop_server(&mut connection).await
 }
 
-async fn command_job_list(gsettings: GlobalSettings, opts: JobListOpts) -> hyperqueue::Result<()> {
+async fn command_job_list(gsettings: GlobalSettings, _opts: JobListOpts) -> hyperqueue::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
     get_job_list(&gsettings, &mut connection).await
 }
@@ -184,7 +180,7 @@ fn default_server_directory_path() -> PathBuf {
 
 async fn command_worker_list(
     gsettings: GlobalSettings,
-    opts: WorkerListOpts,
+    _opts: WorkerListOpts,
 ) -> hyperqueue::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
     get_worker_list(&mut connection, &gsettings).await

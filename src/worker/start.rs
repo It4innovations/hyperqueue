@@ -1,17 +1,16 @@
-use crate::client::globalsettings::GlobalSettings;
-use crate::common::serverdir::ServerDir;
-use crate::server::bootstrap::print_access_record;
-use crate::worker::output::print_worker_configuration;
-use clap::Clap;
-use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::time::Duration;
+
+use clap::Clap;
 use tako::messages::common::WorkerConfiguration;
-use tako::messages::worker::FromWorkerMessage::Heartbeat;
 use tako::worker::rpc::run_worker;
 use tempdir::TempDir;
 use tokio::task::LocalSet;
-use std::str::FromStr;
+
+use crate::client::globalsettings::GlobalSettings;
 use crate::common::error::{error, HqError};
+use crate::common::serverdir::ServerDir;
+use crate::worker::output::print_worker_configuration;
 use crate::Map;
 
 #[derive(Clap)]
@@ -19,7 +18,7 @@ pub enum ManagerOpts {
     Detect,
     None,
     Pbs,
-    Slurm
+    Slurm,
 }
 
 impl FromStr for ManagerOpts {
@@ -31,7 +30,12 @@ impl FromStr for ManagerOpts {
             "none" => Self::None,
             "pbs" => Self::Pbs,
             "slurm" => Self::Slurm,
-            _ => return error("Invalid manager value. Allowed values are 'detect', 'none', 'pbs', 'slurm'".to_string()),
+            _ => {
+                return error(
+                    "Invalid manager value. Allowed values are 'detect', 'none', 'pbs', 'slurm'"
+                        .to_string(),
+                )
+            }
         })
     }
 }
@@ -74,12 +78,13 @@ pub async fn start_hq_worker(
     Ok(())
 }
 
-fn try_get_pbs_info() -> crate::Result<Map<String, String>>
-{
+fn try_get_pbs_info() -> crate::Result<Map<String, String>> {
     log::debug!("Detecting PBS environment");
 
     std::env::var("PBS_ENVIRONMENT").map_err(|_| {
-        HqError::GenericError("PBS_JOBID not found. The process is not running under PBS".to_string())
+        HqError::GenericError(
+            "PBS_JOBID not found. The process is not running under PBS".to_string(),
+        )
     })?;
 
     let manager_job_id = std::env::var("PBS_JOBID").unwrap_or_else(|_| "unknown".to_string());
@@ -94,13 +99,17 @@ fn try_get_pbs_info() -> crate::Result<Map<String, String>>
     Ok(result)
 }
 
-fn try_get_slurm_info() -> crate::Result<Map<String, String>>
-{
+fn try_get_slurm_info() -> crate::Result<Map<String, String>> {
     log::debug!("Detecting SLURM environment");
 
-    let manager_job_id = std::env::var("SLURM_JOB_ID").or_else(|_| std::env::var("SLURM_JOBID")).map_err(|_| {
-        HqError::GenericError("SLURM_JOB_ID/SLURM_JOBID not found. The process is not running under SLURM".to_string())
-    })?;
+    let manager_job_id = std::env::var("SLURM_JOB_ID")
+        .or_else(|_| std::env::var("SLURM_JOBID"))
+        .map_err(|_| {
+            HqError::GenericError(
+                "SLURM_JOB_ID/SLURM_JOBID not found. The process is not running under SLURM"
+                    .to_string(),
+            )
+        })?;
 
     let mut result = Map::with_capacity(2);
     result.insert("MANAGER".to_string(), "SLURM".to_string());
@@ -116,18 +125,16 @@ fn gather_manager_info(opts: ManagerOpts) -> crate::Result<Map<String, String>> 
     match opts {
         ManagerOpts::Detect => {
             log::debug!("Trying to detect manager");
-            try_get_pbs_info().or_else(|_| try_get_slurm_info()).or_else(|_| Ok(Map::new()))
+            try_get_pbs_info()
+                .or_else(|_| try_get_slurm_info())
+                .or_else(|_| Ok(Map::new()))
         }
         ManagerOpts::None => {
             log::debug!("Manager detection disabled");
             Ok(Map::new())
         }
-        ManagerOpts::Pbs => {
-            try_get_pbs_info()
-        }
-        ManagerOpts::Slurm => {
-            try_get_slurm_info()
-        }
+        ManagerOpts::Pbs => try_get_pbs_info(),
+        ManagerOpts::Slurm => try_get_slurm_info(),
     }
 }
 

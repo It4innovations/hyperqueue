@@ -1,8 +1,9 @@
+use tako::messages::common::ProgramDefinition;
+
 use crate::server::job::JobState::Waiting;
 use crate::transfer::messages::JobInfo;
 use crate::transfer::messages::JobStatus;
 use crate::TaskId;
-use tako::messages::common::ProgramDefinition;
 
 pub type JobId = TaskId;
 

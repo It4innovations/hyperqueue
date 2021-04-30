@@ -1,8 +1,9 @@
-use crate::client::globalsettings::GlobalSettings;
-use crate::WorkerId;
 use cli_table::{print_stdout, Cell, Style, Table};
 use humantime::format_duration;
 use tako::messages::common::WorkerConfiguration;
+
+use crate::client::globalsettings::GlobalSettings;
+use crate::WorkerId;
 
 pub fn print_worker_configuration(
     gsettings: &GlobalSettings,

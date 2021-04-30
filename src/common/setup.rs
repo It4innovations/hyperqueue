@@ -1,4 +1,5 @@
 use std::sync::Arc;
+
 use tokio::sync::Notify;
 
 pub fn setup_logging() {

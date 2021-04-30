@@ -1,8 +1,9 @@
+use chrono::{DateTime, Utc};
+use tako::messages::common::WorkerConfiguration;
+
 use crate::server::worker::WorkerState::Offline;
 use crate::transfer::messages::WorkerInfo;
 use crate::WorkerId;
-use chrono::{DateTime, Utc};
-use tako::messages::common::WorkerConfiguration;
 
 pub enum WorkerState {
     Online,

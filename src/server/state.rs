@@ -1,11 +1,11 @@
+use tako::messages::gateway::{
+    LostWorkerMessage, NewWorkerMessage, TaskFailedMessage, TaskState, TaskUpdate,
+};
+
 use crate::common::WrappedRcRefCell;
 use crate::server::job::{Job, JobId, JobState};
 use crate::server::worker::Worker;
 use crate::{Map, TaskId, WorkerId};
-use tako::messages::gateway::{
-    LostWorkerMessage, NewWorkerMessage, TaskFailedMessage, TaskState, TaskUpdate,
-};
-use tako::messages::worker::NewWorkerMsg;
 
 pub struct State {
     jobs: crate::Map<TaskId, Job>,
@@ -83,7 +83,7 @@ impl State {
 
     pub fn process_worker_lost(&mut self, msg: LostWorkerMessage) {
         log::debug!("Worker lost id={}", msg.worker_id);
-        let mut worker = self.workers.get_mut(&msg.worker_id).unwrap();
+        let worker = self.workers.get_mut(&msg.worker_id).unwrap();
         worker.set_offline_state();
     }
 }

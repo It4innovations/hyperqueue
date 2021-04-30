@@ -1,5 +1,6 @@
-use crate::common::error::HqError::GenericError;
 use thiserror::Error;
+
+use crate::common::error::HqError::GenericError;
 
 #[derive(Debug, Error)]
 pub enum HqError {

@@ -1,9 +1,8 @@
-use crate::client::globalsettings::GlobalSettings;
-use crate::client::utils::OutputStyle;
-use crate::transfer::messages::WorkerInfo;
 use cli_table::format::Justify;
 use cli_table::{print_stdout, Cell, Color, Style, Table};
-use std::process::Output;
+
+use crate::client::globalsettings::GlobalSettings;
+use crate::transfer::messages::WorkerInfo;
 
 pub fn print_worker_info(workers: Vec<WorkerInfo>, gsettings: &GlobalSettings) {
     let rows: Vec<_> = workers
@@ -17,8 +16,18 @@ pub fn print_worker_info(workers: Vec<WorkerInfo>, gsettings: &GlobalSettings) {
                 },
                 w.configuration.hostname.cell(),
                 w.configuration.n_cpus.cell(),
-                w.configuration.extra.get("MANAGER").map(|x| x.as_str()).unwrap_or("None").cell(),
-                w.configuration.extra.get("MANAGER_JOB_ID").map(|x| x.as_str()).unwrap_or("N/A").cell(),
+                w.configuration
+                    .extra
+                    .get("MANAGER")
+                    .map(|x| x.as_str())
+                    .unwrap_or("None")
+                    .cell(),
+                w.configuration
+                    .extra
+                    .get("MANAGER_JOB_ID")
+                    .map(|x| x.as_str())
+                    .unwrap_or("N/A")
+                    .cell(),
             ]
         })
         .collect();

@@ -1,6 +1,7 @@
 use std::fs::{File, OpenOptions};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use orion::kdf::SecretKey;
@@ -10,7 +11,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::common::error::error;
 use crate::common::fsutils::{absolute_path, create_symlink};
 use crate::transfer::auth::{deserialize_key, serialize_key};
-use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct ServerDir {

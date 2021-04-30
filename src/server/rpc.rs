@@ -1,17 +1,17 @@
 use std::collections::VecDeque;
 use std::future::Future;
+use std::sync::Arc;
 
+use orion::kdf::SecretKey;
 use tako::messages::gateway::{ErrorResponse, FromGatewayMessage, ToGatewayMessage};
 use tako::server::client::process_client_message;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::oneshot;
+use tokio::time::Duration;
 
 use crate::common::error::error;
 use crate::common::WrappedRcRefCell;
 use crate::server::state::StateRef;
-use orion::kdf::SecretKey;
-use std::sync::Arc;
-use tokio::time::Duration;
 
 struct Inner {
     sender: UnboundedSender<FromGatewayMessage>,
