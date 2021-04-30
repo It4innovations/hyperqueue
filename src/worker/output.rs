@@ -32,6 +32,24 @@ pub fn print_worker_configuration(
                 .cell(),
         ],
         vec!["# of cpus".cell().bold(true), configuration.n_cpus.cell()],
+        vec![
+            "Manager".cell().bold(true),
+            configuration
+                .extra
+                .get("MANAGER")
+                .map(|x| x.as_str())
+                .unwrap_or("None")
+                .cell(),
+        ],
+        vec![
+            "Manager Job Id".cell().bold(true),
+            configuration
+                .extra
+                .get("MANAGER_JOB_ID")
+                .map(|x| x.as_str())
+                .unwrap_or("N/A")
+                .cell(),
+        ],
     ];
     let table = rows.table().color_choice(gsettings.color_policy());
     assert!(print_stdout(table).is_ok());
