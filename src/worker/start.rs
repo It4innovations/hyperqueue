@@ -31,7 +31,7 @@ impl FromStr for ManagerOpts {
             "none" => Self::None,
             "pbs" => Self::Pbs,
             "slurm" => Self::Slurm,
-            _ => return error("Invalid manager value. Allowed values are 'detect', 'none', 'pbs'".to_string()),
+            _ => return error("Invalid manager value. Allowed values are 'detect', 'none', 'pbs', 'slurm'".to_string()),
         })
     }
 }
