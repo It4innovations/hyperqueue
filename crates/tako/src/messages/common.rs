@@ -72,5 +72,5 @@ pub struct WorkerConfiguration {
     pub log_dir: PathBuf,
     pub heartbeat_interval: Duration,
 
-    pub extra: Vec<(String, String)>,
+    pub extra: Map<String, String>,
 }

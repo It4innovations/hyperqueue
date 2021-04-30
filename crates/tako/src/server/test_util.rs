@@ -249,7 +249,7 @@ pub fn create_test_workers(core: &mut Core, cpus: &[u32]) {
             work_dir: Default::default(),
             log_dir: Default::default(),
             heartbeat_interval: Duration::from_millis(1000),
-            extra: vec![],
+            extra: Default::default(),
         };
 
         let worker = Worker::new(worker_id, wcfg);
