@@ -17,6 +17,8 @@ pub fn print_worker_info(workers: Vec<WorkerInfo>, gsettings: &GlobalSettings) {
                 },
                 w.configuration.hostname.cell(),
                 w.configuration.n_cpus.cell(),
+                w.configuration.extra.get("MANAGER").map(|x| x.as_str()).unwrap_or("None").cell(),
+                w.configuration.extra.get("MANAGER_JOB_ID").map(|x| x.as_str()).unwrap_or("N/A").cell(),
             ]
         })
         .collect();
@@ -29,6 +31,8 @@ pub fn print_worker_info(workers: Vec<WorkerInfo>, gsettings: &GlobalSettings) {
             "State".cell().bold(true),
             "Hostname".cell().bold(true),
             "# cpus".cell().bold(true),
+            "Manager".cell().bold(true),
+            "Manager Job Id".cell().bold(true),
         ]);
     assert!(print_stdout(table).is_ok());
 }

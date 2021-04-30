@@ -105,14 +105,18 @@ class HqEnv(Env):
         self.check_running_processes()
         return process
 
-    def start_worker(self, *, n_cpus=None) -> subprocess.Popen:
+    def start_worker(self, *, n_cpus=None, env=None, args=None) -> subprocess.Popen:
         self.id_counter += 1
         worker_id = self.id_counter
-        env = self.make_default_env()
-        args = [HQ_BINARY, "--server-dir", self.server_dir, "worker", "start"]
+        worker_env = self.make_default_env()
+        if env:
+            worker_env.update(env)
+        worker_args = [HQ_BINARY, "--server-dir", self.server_dir, "worker", "start"]
         if n_cpus is not None:
-            args += ["--cpus", str(n_cpus)]
-        return self.start_process(f"worker{worker_id}", args, env=env)
+            worker_args += ["--cpus", str(n_cpus)]
+        if args:
+            worker_args += list(args)
+        return self.start_process(f"worker{worker_id}", worker_args, env=worker_env)
 
     def kill_worker(self, worker_id):
         self.kill_process(f"worker{worker_id}")
