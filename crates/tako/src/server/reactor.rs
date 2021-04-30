@@ -711,7 +711,7 @@ mod tests {
             work_dir: Default::default(),
             log_dir: Default::default(),
             heartbeat_interval: Duration::from_millis(1000),
-            extra: vec![],
+            extra: Default::default(),
         };
 
         let worker = Worker::new(402, wcfg);
@@ -739,7 +739,7 @@ mod tests {
             work_dir: Default::default(),
             log_dir: Default::default(),
             heartbeat_interval: Duration::from_millis(1000),
-            extra: vec![],
+            extra: Default::default(),
         };
 
         let worker = Worker::new(502, wcfg2);
