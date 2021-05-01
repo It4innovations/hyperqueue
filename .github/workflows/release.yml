@@ -49,6 +49,9 @@ jobs:
           command: build
           args: --release
 
+      - name: Strip binary
+        run: strip target/release/hq
+
       - name: Create release
         id: create_release
         uses: actions/create-release@v1
