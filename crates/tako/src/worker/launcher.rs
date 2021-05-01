@@ -20,7 +20,10 @@ fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Com
 
     command.kill_on_drop(true);
     command.args(&definition.args[1..]);
-    //.current_dir(paths.work_dir);
+
+    if let Some(cwd) = &definition.cwd {
+        command.current_dir(cwd);
+    }
 
     command.stdout(if let Some(filename) = &definition.stdout {
         Stdio::from(File::create(filename)?)

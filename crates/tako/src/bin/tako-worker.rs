@@ -94,7 +94,7 @@ async fn main() -> tako::Result<()> {
         work_dir,
         log_dir,
         heartbeat_interval,
-        extra: vec![],
+        extra: Default::default(),
     };
 
     let secret_key = opts.secret_file.map(|key_file| {
