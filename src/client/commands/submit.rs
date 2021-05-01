@@ -25,6 +25,7 @@ pub async fn submit_computation(
             env: Default::default(),
             stdout: None,
             stderr: None,
+            cwd: None
         },
     });
     let mut response =
