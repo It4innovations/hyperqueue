@@ -1,0 +1,73 @@
+name: Create release
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit SHA to create release from"
+        required: true
+      tag:
+        description: "Tag of the release"
+        required: true
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.inputs.sha || env.GITHUB_SHA }}
+
+      - name: Set env on push
+        if: github.event_name == 'push'
+        run: |
+          echo "INPUT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
+          echo "INPUT_TAG=$(git tag --points-at HEAD)" >> $GITHUB_ENV
+
+      - name: Set env on trigger
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "INPUT_SHA=${{ github.event.inputs.sha }}" >> $GITHUB_ENV
+          echo "INPUT_TAG=${{ github.event.inputs.tag }}" >> $GITHUB_ENV
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.INPUT_TAG }}
+          release_name: ${{ env.INPUT_TAG }}
+          body: HQ ${{ env.INPUT_TAG }}
+          commitish: ${{ env.INPUT_SHA }}
+          draft: false
+          prerelease: false
+
+      - name: Upload scheduler binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./target/release/hq
+          asset_name: hq
+          asset_content_type: application/exe
