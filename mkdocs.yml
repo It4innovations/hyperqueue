@@ -1,0 +1,24 @@
+site_name: Hyperqueue
+
+site_url: https://spirali.github.io/hyperqueue/
+repo_url: https://github.com/spirali/hyperqueue
+edit_uri: blob/main/docs/
+
+site_description: Documentation of HyperQueue.
+site_author: Stanislav Böhm
+
+nav:
+  - Overview: README.md
+
+theme:
+  name: readthedocs
+
+markdown_extensions:
+  - toc:
+      permalink: "#"
+
+extra_javascript:
+  - js/analytics.js
+
+plugins:
+  - search
