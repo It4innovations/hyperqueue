@@ -47,19 +47,17 @@ pub struct SubworkerDefinition {
 pub struct ProgramDefinition {
     pub args: Vec<String>,
 
-    /*#[serde(skip_serializing_if = "Map::is_empty")]*/
     #[serde(default)]
     pub env: Map<String, String>,
 
-    /*
-    #[serde(skip_serializing_if = "Option::is_none")]*/
     #[serde(default)]
     pub stdout: Option<PathBuf>,
 
-    /*#[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]*/
     #[serde(default)]
     pub stderr: Option<PathBuf>,
+
+    #[serde(default)]
+    pub cwd: Option<PathBuf>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
