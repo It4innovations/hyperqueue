@@ -47,7 +47,7 @@ jobs:
           python -m pip install -e python
 
       - name: Test Python
-        run: python -m pytest tests
+        run: python -m pytest -v --timeout=20 tests
 
       - name: Lint
         uses: actions-rs/cargo@v1
