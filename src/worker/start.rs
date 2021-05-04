@@ -41,14 +41,18 @@ impl FromStr for ManagerOpts {
 }
 
 #[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
 pub struct WorkerStartOpts {
+    /// How many cores should be allocated for the worker
     #[clap(long)]
     cpus: Option<u32>,
 
+    /// How often should the worker announce its existence to the server. [ms]
     #[clap(long, default_value = "8000")]
     heartbeat: u32,
 
-    #[clap(long, default_value = "detect")]
+    /// What HPC job manager should be used by the worker.
+    #[clap(long, default_value = "detect", possible_values = &["detect", "slurm", "pbs", "none"])]
     manager: ManagerOpts,
 }
 
@@ -83,7 +87,7 @@ fn try_get_pbs_info() -> crate::Result<Map<String, String>> {
 
     std::env::var("PBS_ENVIRONMENT").map_err(|_| {
         HqError::GenericError(
-            "PBS_JOBID not found. The process is not running under PBS".to_string(),
+            "PBS_ENVIRONMENT not found. The process is not running under PBS".to_string(),
         )
     })?;
 
