@@ -48,8 +48,24 @@ pub async fn init_hq_server(gsettings: &GlobalSettings) -> crate::Result<()> {
 }
 
 pub async fn get_client_connection(server_directory: &Path) -> crate::Result<ClientConnection> {
-    match ServerDir::open(server_directory).and_then(|sd| sd.read_access_record()) {
-        Ok(record) => Ok(HqConnection::connect_to_server(&record).await?),
+    match ServerDir::open(server_directory).and_then(|sd| {
+        sd.read_access_record().map_err(|e| {
+            GenericError(format!(
+                "Cannot read access record from {:?}: {}",
+                sd.access_filename(),
+                e
+            ))
+        })
+    }) {
+        Ok(record) => match HqConnection::connect_to_server(&record).await {
+            Ok(conn) => Ok(conn),
+            Err(e) => error(format!(
+                "Cannot connect to HQ server at port {}:{}: {}",
+                record.hostname(),
+                record.server_port(),
+                e
+            )),
+        },
         Err(e) => error(format!("No running instance of HQ found: {}", e)),
     }
 }
