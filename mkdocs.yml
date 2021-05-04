@@ -9,6 +9,10 @@ site_author: Stanislav Böhm
 
 nav:
   - Overview: README.md
+  - Installation: install.md
+  - Deployment: deployment.md
+  - Jobs: jobs.md
+  - Cheatsheet: cheatsheet.md
 
 theme:
   name: readthedocs
