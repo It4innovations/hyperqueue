@@ -4,7 +4,7 @@ use crate::common::error::HqError::GenericError;
 
 #[derive(Debug, Error)]
 pub enum HqError {
-    #[error("IO error: {0}")]
+    #[error(transparent)]
     IoError(#[from] std::io::Error),
     #[error("Serialization error: {0}")]
     SerializationError(String),

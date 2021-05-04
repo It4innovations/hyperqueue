@@ -1,6 +1,6 @@
 use orion::kdf::SecretKey;
 
-use crate::common::error::HqError::GenericError;
+use anyhow::Context;
 
 const KEY_SIZE: usize = 32;
 
@@ -11,11 +11,9 @@ pub fn serialize_key(key: &SecretKey) -> String {
     let bytes = key.unprotected_as_bytes();
     hex::encode(bytes)
 }
-pub fn deserialize_key(key: &str) -> crate::Result<SecretKey> {
-    let data = hex::decode(key)
-        .map_err(|e| GenericError(format!("Could not deserialize secret key: {}", e)))?;
-    let key = SecretKey::from_slice(&data)
-        .map_err(|e| GenericError(format!("Could not create secret key from slice: {}", e)))?;
+pub fn deserialize_key(key: &str) -> anyhow::Result<SecretKey> {
+    let data = hex::decode(key).context("Could not deserialize secret key")?;
+    let key = SecretKey::from_slice(&data).context("Could not create secret key from slice")?;
     Ok(key)
 }
 
