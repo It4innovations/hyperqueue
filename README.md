@@ -9,8 +9,7 @@ important features.
 
 **HyperQueue** (HQ) lets you build a computation plan consisting of a large amount of tasks (so-called qjobs) and then
 execute it transparently over a system like SLURM/PBS. It dynamically groups qjobs into SLURM/PBS jobs and distributes
-them to fully utilize allocated notes. You thus don't have to care about qjob granularity and crucially, you don't have
-to manually aggregate qjobs into SLURM/PBS jobs.
+them to fully utilize allocated notes. You thus do not have to manually aggregate qjobs into SLURM/PBS jobs.
 
 ## Features
 

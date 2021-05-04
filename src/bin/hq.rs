@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use clap::Clap;
+use clap::{Clap, ValueHint};
 use cli_table::ColorChoice;
 
 use hyperqueue::client::commands::jobs::{cancel_job, get_job_detail, get_job_list};
@@ -20,20 +20,23 @@ use hyperqueue::WorkerId;
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
-pub type Connection =
-    tokio_util::codec::Framed<tokio::net::UnixStream, tokio_util::codec::LengthDelimitedCodec>;
+// Common CLI options
 
 #[derive(Clap)]
 struct CommonOpts {
-    #[clap(long)]
+    /// Path to a directory that stores HyperQueue access files
+    #[clap(long, global = true, value_hint = ValueHint::DirPath)]
     server_dir: Option<PathBuf>,
 
-    #[clap(long, default_value = "auto")]
+    /// Console color policy.
+    #[clap(long, default_value = "auto", possible_values = &["auto", "always", "never"])]
     colors: ColorPolicy,
 }
 
+// Root CLI options
 #[derive(Clap)]
-#[clap(version = env!("CARGO_PKG_VERSION"))]
+#[clap(about = "HyperQueue CLI")]
+#[clap(author, about, version)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct Opts {
     #[clap(flatten)]
@@ -44,40 +47,32 @@ struct Opts {
 }
 
 #[derive(Clap)]
-struct ServerStartOpts {}
-
-#[derive(Clap)]
-struct ServerStopOpts {}
-
-#[derive(Clap)]
-struct JobListOpts {}
-
-#[derive(Clap)]
-struct JobDetailOpts {
-    job_id: JobId,
-}
-
-#[derive(Clap)]
-struct SubmitOpts {
-    commands: Vec<String>,
-}
-
-#[derive(Clap)]
-struct CancelOpts {
-    job_id: JobId,
-}
-
-#[derive(Clap)]
 enum SubCommand {
+    /// Commands for controlling the HyperQueue server
     Server(ServerOpts),
+    /// Display information about all jobs
     Jobs(JobListOpts),
+    /// Display information about a specific job
     Job(JobDetailOpts),
+    /// Submit a job to HyperQueue
     Submit(SubmitOpts),
+    /// Cancel a specific job
     Cancel(CancelOpts),
+    /// Commands for controlling HyperQueue workers
     Worker(WorkerOpts),
 }
 
+// Server CLI options
 #[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct ServerStartOpts {}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct ServerStopOpts {}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
 struct ServerOpts {
     #[clap(subcommand)]
     subcmd: ServerCommand,
@@ -85,40 +80,72 @@ struct ServerOpts {
 
 #[derive(Clap)]
 enum ServerCommand {
+    /// Start the HyperQueue server
     Start(ServerStartOpts),
+    /// Stop the HyperQueue server, if it is running
     Stop(ServerStopOpts),
 }
 
+// Worker CLI options
 #[derive(Clap)]
-struct WorkersOpts {}
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct WorkerStopOpts {
+    worker_id: WorkerId,
+}
 
 #[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct WorkerListOpts {}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct WorkerInfoOpts {
+    worker_id: WorkerId,
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
 struct WorkerOpts {
     #[clap(subcommand)]
     subcmd: WorkerCommand,
 }
 
 #[derive(Clap)]
-struct WorkerStopOpts {
-    worker_id: WorkerId,
-}
-
-#[derive(Clap)]
-struct WorkerListOpts {}
-
-#[derive(Clap)]
-struct WorkerInfoOpts {
-    worker_id: WorkerId,
-}
-
-#[derive(Clap)]
 enum WorkerCommand {
+    /// Start worker
     Start(WorkerStartOpts),
+    /// Stop worker
     Stop(WorkerStopOpts),
+    /// Display information about all workers
     List(WorkerListOpts),
+    /// Display information about a specific worker
     Info(WorkerInfoOpts),
 }
 
+// Job CLI options
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct JobListOpts {}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct JobDetailOpts {
+    job_id: JobId,
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct SubmitOpts {
+    commands: Vec<String>,
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct CancelOpts {
+    job_id: JobId,
+}
+
+// Commands
 async fn command_server_start(
     gsettings: GlobalSettings,
     _opts: ServerStartOpts,
@@ -172,12 +199,6 @@ async fn command_worker_stop(
     stop_worker(&mut connection, opts.worker_id).await
 }
 
-fn default_server_directory_path() -> PathBuf {
-    let mut home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
-    home.push(".hq-server");
-    home
-}
-
 async fn command_worker_list(
     gsettings: GlobalSettings,
     _opts: WorkerListOpts,
@@ -206,6 +227,12 @@ impl FromStr for ColorPolicy {
 }
 
 fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
+    fn default_server_directory_path() -> PathBuf {
+        let mut home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
+        home.push(".hq-server");
+        home
+    }
+
     let color_policy = match opts.colors {
         ColorPolicy::Always => ColorChoice::AlwaysAnsi,
         ColorPolicy::Auto => {
