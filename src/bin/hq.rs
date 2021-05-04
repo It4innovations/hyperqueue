@@ -9,7 +9,6 @@ use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::submit_computation;
 use hyperqueue::client::commands::worker::{get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
-use hyperqueue::common::error::error;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server};
@@ -149,62 +148,74 @@ struct CancelOpts {
 async fn command_server_start(
     gsettings: GlobalSettings,
     _opts: ServerStartOpts,
-) -> hyperqueue::Result<()> {
-    init_hq_server(&gsettings).await
+) -> anyhow::Result<()> {
+    init_hq_server(&gsettings).await.map_err(|e| e.into())
 }
 
 async fn command_server_stop(
     gsettings: GlobalSettings,
     _opts: ServerStopOpts,
-) -> hyperqueue::Result<()> {
+) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    stop_server(&mut connection).await
+    stop_server(&mut connection).await?;
+    Ok(())
 }
 
-async fn command_job_list(gsettings: GlobalSettings, _opts: JobListOpts) -> hyperqueue::Result<()> {
+async fn command_job_list(gsettings: GlobalSettings, _opts: JobListOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    get_job_list(&gsettings, &mut connection).await
+    get_job_list(&gsettings, &mut connection)
+        .await
+        .map_err(|e| e.into())
 }
 
-async fn command_job_detail(
-    gsettings: GlobalSettings,
-    opts: JobDetailOpts,
-) -> hyperqueue::Result<()> {
+async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    get_job_detail(&gsettings, &mut connection, opts.job_id).await
+    get_job_detail(&gsettings, &mut connection, opts.job_id)
+        .await
+        .map_err(|e| e.into())
 }
 
-async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> hyperqueue::Result<()> {
+async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    submit_computation(&gsettings, &mut connection, opts.commands).await
+    submit_computation(&gsettings, &mut connection, opts.commands)
+        .await
+        .map_err(|e| e.into())
 }
 
-async fn command_cancel(gsettings: GlobalSettings, opts: CancelOpts) -> hyperqueue::Result<()> {
+async fn command_cancel(gsettings: GlobalSettings, opts: CancelOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    cancel_job(&gsettings, &mut connection, opts.job_id).await
+    cancel_job(&gsettings, &mut connection, opts.job_id)
+        .await
+        .map_err(|e| e.into())
 }
 
 async fn command_worker_start(
     gsettings: GlobalSettings,
     opts: WorkerStartOpts,
-) -> hyperqueue::Result<()> {
-    start_hq_worker(&gsettings, opts).await
+) -> anyhow::Result<()> {
+    start_hq_worker(&gsettings, opts)
+        .await
+        .map_err(|e| e.into())
 }
 
 async fn command_worker_stop(
     gsettings: GlobalSettings,
     opts: WorkerStopOpts,
-) -> hyperqueue::Result<()> {
+) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    stop_worker(&mut connection, opts.worker_id).await
+    stop_worker(&mut connection, opts.worker_id)
+        .await
+        .map_err(|e| e.into())
 }
 
 async fn command_worker_list(
     gsettings: GlobalSettings,
     _opts: WorkerListOpts,
-) -> hyperqueue::Result<()> {
+) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    get_worker_list(&mut connection, &gsettings).await
+    get_worker_list(&mut connection, &gsettings)
+        .await
+        .map_err(|e| e.into())
 }
 
 pub enum ColorPolicy {
@@ -214,14 +225,14 @@ pub enum ColorPolicy {
 }
 
 impl FromStr for ColorPolicy {
-    type Err = hyperqueue::Error;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "auto" => Self::Auto,
             "always" => Self::Always,
             "never" => Self::Never,
-            _ => return error("Invalid color policy".to_string()),
+            _ => anyhow::bail!("Invalid color policy"),
         })
     }
 }
@@ -290,7 +301,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Cancel(opts) => command_cancel(gsettings, opts).await,
     };
     if let Err(e) = result {
-        eprintln!("{}", e);
+        eprintln!("{:?}", e);
         std::process::exit(1);
     }
 
