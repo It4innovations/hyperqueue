@@ -51,7 +51,7 @@ enum SubCommand {
     Server(ServerOpts),
     /// Display information about all jobs
     Jobs(JobListOpts),
-    /// Display information about a specific job
+    /// Display detailed information about a specific job
     Job(JobDetailOpts),
     /// Submit a job to HyperQueue
     Submit(SubmitOpts),

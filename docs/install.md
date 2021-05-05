@@ -3,10 +3,10 @@
 
 ## Binary distribution
 
-* Download latest binary distribution from http://TODO
+* Download latest binary distribution from https://github.com/spirali/hyperqueue/releases/latest
 * Unpack the downloaded archive:
 
-   ``$ tar xvzf hq-XXX-linux64.tar.gz``
+   ``$ tar -xvzf hq-<version>-linux-x64.tar.gz``
 
 
 ## Compilation from source codes

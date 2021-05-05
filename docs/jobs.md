@@ -10,6 +10,13 @@ In the current version, a job is a single execution of a program.
 HyperQueue assigns a unique job id when a job is submitted.
 
 
+## Name of a job
+
+Each job has assigned a name. It has only an informative character for the user. By default, the name is extracted from the job's program name. You can set a job name explicitly by:
+
+``hq submit --name=<NAME> ...``
+
+
 ## Information about jobs
 
 List of all jobs:
