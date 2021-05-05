@@ -1,23 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url>
      <loc>https://spirali.github.io/hyperqueue/</loc>
-     <lastmod>2021-05-04</lastmod>
+     <lastmod>2021-05-05</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://spirali.github.io/hyperqueue/install/</loc>
-     <lastmod>2021-05-04</lastmod>
-     <changefreq>daily</changefreq>
-    </url><url>
-     <loc>https://spirali.github.io/hyperqueue/deployment/</loc>
-     <lastmod>2021-05-04</lastmod>
-     <changefreq>daily</changefreq>
-    </url><url>
-     <loc>https://spirali.github.io/hyperqueue/jobs/</loc>
-     <lastmod>2021-05-04</lastmod>
+     <lastmod>2021-05-05</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://spirali.github.io/hyperqueue/cheatsheet/</loc>
-     <lastmod>2021-05-04</lastmod>
+     <lastmod>2021-05-05</lastmod>
+     <changefreq>daily</changefreq>
+    </url><url>
+     <loc>https://spirali.github.io/hyperqueue/deployment/</loc>
+     <lastmod>2021-05-05</lastmod>
+     <changefreq>daily</changefreq>
+    </url><url>
+     <loc>https://spirali.github.io/hyperqueue/jobs/</loc>
+     <lastmod>2021-05-05</lastmod>
+     <changefreq>daily</changefreq>
+    </url><url>
+     <loc>https://spirali.github.io/hyperqueue/jobarrays/</loc>
+     <lastmod>2021-05-05</lastmod>
+     <changefreq>daily</changefreq>
+    </url><url>
+     <loc>https://spirali.github.io/hyperqueue/resources/</loc>
+     <lastmod>2021-05-05</lastmod>
      <changefreq>daily</changefreq>
     </url>
 </urlset>
