@@ -40,7 +40,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
     <img width="600" src="docs/imgs/schema.png">
     </p>
 
-* **What is a qjob in HQ?**
+* **What is a job in HQ?**
 
   Right now, we support running arbitrary external programs or bash scripts. We plan to support Python defined
   workflows (with a Dask-like API).
@@ -141,7 +141,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
       ``sbatch <your-params-of-sbatch> -- hq worker start``
 
-* Monitor the state of qjobs
+* Monitor the state of jobs
 
   ``$ hq jobs``
 
@@ -154,12 +154,12 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 ## 0.1
 
 * [x] Basic worker management
-* [x] Submitting, observing and canceling simple qjobs
+* [x] Submitting, observing and canceling simple jobs
 * [x] Encryption and authentication
 
 ## 0.2
 
-* [ ] Qjobs that take more than 1 cpu
+* [ ] jobs that take more than 1 cpu
 * [ ] Job arrays
 
 ## 0.3

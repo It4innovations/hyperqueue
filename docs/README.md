@@ -39,7 +39,7 @@ Project repository: [https://github.com/spirali/hyperqueue/](https://github.com/
 
       ``sbatch <your-params-of-sbatch> -- hq worker start``
 
-* Monitor the state of qjobs
+* Monitor the state of jobs
 
   ``$ hq jobs``
 
