@@ -1,5 +1,5 @@
 <p align="center">
-<img width="300" src="docs/imgs/hq.png">
+<img src="docs/imgs/hq.png">
 </p>
 
 **Warning** this project is under heavy development; it works on a basic level, but we are still working on some
@@ -13,11 +13,11 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 ## Features
 
-- **Performant**
+- **Performance**
     - The inner scheduler can scale to hundreds of nodes
     - Qjob granularities can range from milliseconds to hours
 - **Easy deployment**
-    - HQ is distributed as a single, statically linked binary without any dependencies
+    - HQ is provided as a single, statically linked binary without any dependencies
     - No admin access to a cluster is needed
 
 ## FAQ
@@ -76,9 +76,11 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
   In cluster mode, Snakemake submits each Snakemake job as one job into SLURM/PBS. If your jobs are too small, you will
   have to manually aggregate them to avoid exhausting SLURM/PBS resources. Manual job aggregation is often quite arduous
   and since the aggregation is static, it might also waste resources because of poor load balancing.
-  
-  If you use HQ, you will not have to aggregate jobs. You can submit millions of (almost) arbitrarily small qjobs to HQ
+
+  If you use HQ, you will not have to aggregate jobs. You can submit millions of small[*] qjobs to HQ
     and it will take care of assigning them dynamically to individual SLURM/PBS jobs and workers.
+
+    [*] small = makespan from hundreds of ms.
 
 * **How many qjobs may I submit into HQ?**
 
@@ -89,6 +91,17 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
   Not yet, but we consider it as a first class feature. It is actually implemented in the scheduling core, but it has
   no user interface yet.
+
+* **How is HQ implemented?**
+
+  HQ is implemented in Rust and uses Tokio ecosystem. The scheduler is work-stealing scheduler implemented in
+  our project [Tako](https://github.com/spirali/tako/),
+  that is derived from our previous work [RSDS](https://github.com/It4innovations/rsds).
+
+* **Who stands behind HyperQueue?**
+
+  We are a group at [IT4Innovations](https://www.it4i.cz/), the Czech National Supercomputing Center. We welcome any contribution from outside.
+
 
 # Getting started
 

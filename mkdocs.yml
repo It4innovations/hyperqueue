@@ -10,9 +10,12 @@ site_author: Stanislav Böhm
 nav:
   - Overview: README.md
   - Installation: install.md
-  - Deployment: deployment.md
-  - Jobs: jobs.md
   - Cheatsheet: cheatsheet.md
+  - Deployment: deployment.md
+  - Jobs (Basics): jobs.md
+  - Job Arrays: jobarrays.md
+  - Resource Requests: resources.md
+
 
 theme:
   name: readthedocs
