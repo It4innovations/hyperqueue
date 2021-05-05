@@ -78,7 +78,7 @@ def test_job_fail(hq_env: HqEnv):
     time.sleep(0.2)
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 2
-    assert table[1][:3] == ["1", "/non-existent-program", "FAILED"]
+    assert table[1][:3] == ["1", "non-existent-program", "FAILED"]
 
     table = hq_env.command(["job", "1"], as_table=True)
     assert table[0] == ["Id", "1"]
