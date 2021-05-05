@@ -67,7 +67,7 @@ pub fn print_job_detail(gsettings: &GlobalSettings, job: JobInfo) {
             program_def
                 .stdout
                 .map(|p| p.display().to_string())
-                .unwrap_or("N/A".to_string())
+                .unwrap_or_else(|| "N/A".to_string())
                 .cell(),
         ]);
         rows.push(vec![
@@ -75,7 +75,7 @@ pub fn print_job_detail(gsettings: &GlobalSettings, job: JobInfo) {
             program_def
                 .stderr
                 .map(|p| p.display().to_string())
-                .unwrap_or("N/A".to_string())
+                .unwrap_or_else(|| "N/A".to_string())
                 .cell(),
         ]);
     }

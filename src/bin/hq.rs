@@ -149,7 +149,7 @@ async fn command_server_start(
     gsettings: GlobalSettings,
     _opts: ServerStartOpts,
 ) -> anyhow::Result<()> {
-    init_hq_server(&gsettings).await.map_err(|e| e.into())
+    init_hq_server(&gsettings).await
 }
 
 async fn command_server_stop(
@@ -195,7 +195,6 @@ async fn command_worker_start(
 ) -> anyhow::Result<()> {
     start_hq_worker(&gsettings, opts)
         .await
-        .map_err(|e| e.into())
 }
 
 async fn command_worker_stop(
@@ -258,7 +257,6 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
 
     let server_dir = absolute_path(
         opts.server_dir
-            .clone()
             .unwrap_or_else(default_server_directory_path),
     );
 

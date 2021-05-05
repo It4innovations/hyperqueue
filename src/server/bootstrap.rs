@@ -78,7 +78,7 @@ async fn initialize_server(
 ) -> anyhow::Result<impl Future<Output = anyhow::Result<()>>> {
     let client_listener = TcpListener::bind("0.0.0.0:0")
         .await
-        .with_context(|| format!("Cannot create HQ server socket"))?;
+        .with_context(|| "Cannot create HQ server socket".to_string())?;
     let server_port = client_listener.local_addr()?.port();
 
     let hq_secret_key = Arc::new(generate_key());
