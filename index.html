@@ -49,6 +49,8 @@
       <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
                 <ul class="current">
                     <li class="toctree-l1 current"><a class="reference internal current" href=".">Overview</a>
+    <ul class="current">
+    </ul>
                     </li>
                 </ul>
                 <ul>
@@ -114,7 +116,44 @@
 <img src="imgs/hq.png">
 </p>
 
-<p>TODO: Write documentation</p>
+<p><strong>HyperQueue</strong> lets you build a computation plan consisting of a large amount of tasks and then
+execute it transparently over a system like SLURM/PBS. It dynamically groups jobs into SLURM/PBS jobs and distributes
+them to fully utilize allocated notes. You thus do not have to manually aggregate your tasks into SLURM/PBS jobs.</p>
+<p>Project repository: https://github.com/spirali/hyperqueue/</p>
+<h2 id="submiting-a-simple-task">Submiting a simple task<a class="headerlink" href="#submiting-a-simple-task" title="Permanent link">#</a></h2>
+<ul>
+<li>Start server (e.g. on a login node or in a cluster partition)</li>
+</ul>
+<p><code>$ hq server start</code></p>
+<ul>
+<li>Submit a job (command <code>echo 'Hello world'</code> in this case)</li>
+</ul>
+<p><code>$ hq submit echo 'Hello world'</code></p>
+<ul>
+<li>
+<p>Ask for computing resource</p>
+<ul>
+<li>Start worker manually</li>
+</ul>
+<p><code>$ hq worker start</code></p>
+<ul>
+<li>Automatic resource request</li>
+</ul>
+<p>[Not implemented yet]</p>
+<ul>
+<li>Manual request in PBS</li>
+</ul>
+<p><code>$ qsub &lt;your-params-of-qsub&gt; -- hq worker start</code></p>
+<ul>
+<li>Manual request in SLURM</li>
+</ul>
+<p><code>sbatch &lt;your-params-of-sbatch&gt; -- hq worker start</code></p>
+</li>
+<li>
+<p>Monitor the state of qjobs</p>
+</li>
+</ul>
+<p><code>$ hq jobs</code></p>
               
             </div>
           </div>
@@ -171,5 +210,5 @@
 
 <!--
 MkDocs version : 1.1.2
-Build Date UTC : 2021-05-05 10:31:31.712692+00:00
+Build Date UTC : 2021-05-05 11:40:34.672821+00:00
 -->

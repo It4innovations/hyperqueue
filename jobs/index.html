@@ -68,6 +68,8 @@
     <ul class="current">
     <li class="toctree-l2"><a class="reference internal" href="#submiting-jobs">Submiting jobs</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#name-of-a-job">Name of a job</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#information-about-jobs">Information about jobs</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#output-of-the-job">Output of the job</a>
@@ -129,6 +131,9 @@
 <h2 id="submiting-jobs">Submiting jobs<a class="headerlink" href="#submiting-jobs" title="Permanent link">#</a></h2>
 <p><code>hq submit &lt;program&gt; &lt;args1&gt; ...</code></p>
 <p>HyperQueue assigns a unique job id when a job is submitted.</p>
+<h2 id="name-of-a-job">Name of a job<a class="headerlink" href="#name-of-a-job" title="Permanent link">#</a></h2>
+<p>Each job has assigned a name. It has only an informative character for the user. By default, the name is extracted from the job's program name. You can set a job name explicitly by:</p>
+<p><code>hq submit --name=&lt;NAME&gt; ...</code></p>
 <h2 id="information-about-jobs">Information about jobs<a class="headerlink" href="#information-about-jobs" title="Permanent link">#</a></h2>
 <p>List of all jobs:</p>
 <p><code>hq jobs</code></p>
