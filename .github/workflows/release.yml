@@ -15,7 +15,8 @@ on:
 
 jobs:
   create-release:
-    runs-on: ubuntu-latest
+    # Use older Ubuntu to avoid too recent versions of GLIBC
+    runs-on: ubuntu-18.04
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
