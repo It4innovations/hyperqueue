@@ -11,11 +11,10 @@ pub async fn submit_computation(
     connection: &mut ClientConnection,
     commands: Vec<String>,
 ) -> crate::Result<()> {
-    let mut name = extract_task_name_from_path(&commands
+    let mut name = &commands
         .get(0)
-        .map(|t| t.to_string())
-        .unwrap_or_else(|| "job".to_string())
-    );
+        .map(|t| extract_task_name_from_path(&t))
+        .unwrap_or_else(|| "job".to_string());
     let message = FromClientMessage::Submit(SubmitRequest {
         name: name.clone(),
         cwd: std::env::current_dir().unwrap(),
@@ -24,7 +23,7 @@ pub async fn submit_computation(
             env: Default::default(),
             stdout: None,
             stderr: None,
-            cwd: None
+            cwd: None,
         },
     });
     let mut response =
@@ -34,7 +33,7 @@ pub async fn submit_computation(
     Ok(())
 }
 
-fn extract_task_name_from_path(job_path: &str) ->String{
+fn extract_task_name_from_path(job_path: &str) -> String {
     let mut job_path: String = job_path.to_string();
     while job_path.ends_with("/") {
         job_path.pop();
@@ -42,6 +41,5 @@ fn extract_task_name_from_path(job_path: &str) ->String{
     if job_path.is_empty() {
         job_path = "<empty>".to_string();
     }
-    let split = job_path.split('/').collect::<Vec<_>>();
-    split[split.len()-1].to_string()
+    job_path.split('/').last().unwrap().to_string()
 }
