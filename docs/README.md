@@ -15,7 +15,7 @@ Project repository: [https://github.com/It4innovations/hyperqueue](https://githu
 
 * Start server (e.g. on a login node or in a cluster partition)
 
-  ``$ hq server start``
+  ``$ hq server start &``
 
 * Submit a job (command ``echo 'Hello world'`` in this case)
 
@@ -25,7 +25,7 @@ Project repository: [https://github.com/It4innovations/hyperqueue](https://githu
 
     * Start worker manually
 
-      ``$ hq worker start``
+      ``$ hq worker start &``
 
     * Automatic resource request
 

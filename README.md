@@ -117,7 +117,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 * Start server (e.g. on a login node or in a cluster partition)
 
-  ``$ hq server start``
+  ``$ hq server start &``
 
 * Submit a job (command ``echo 'Hello world'`` in this case)
 
@@ -127,7 +127,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
     * Start worker manually
 
-      ``$ hq worker start``
+      ``$ hq worker start &``
 
     * Automatic resource request
 
