@@ -1,11 +1,9 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::{print_job_detail, print_job_list};
 use crate::rpc_call;
-use crate::server::job::JobId;
+use crate::JobId;
 use crate::transfer::connection::ClientConnection;
-use crate::transfer::messages::{
-    CancelJobResponse, CancelRequest, FromClientMessage, JobInfoRequest, ToClientMessage,
-};
+use crate::transfer::messages::{CancelJobResponse, CancelRequest, FromClientMessage, JobInfoRequest, ToClientMessage, JobDetailRequest};
 
 pub async fn get_job_list(
     gsettings: &GlobalSettings,
@@ -13,7 +11,6 @@ pub async fn get_job_list(
 ) -> crate::Result<()> {
     let message = FromClientMessage::JobInfo(JobInfoRequest {
         job_ids: None,
-        include_program_def: false,
     });
     let mut response =
         rpc_call!(connection, message, ToClientMessage::JobInfoResponse(r) => r).await?;
@@ -26,16 +23,17 @@ pub async fn get_job_detail(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
     job_id: JobId,
+    show_tasks: bool,
 ) -> crate::Result<()> {
-    let message = FromClientMessage::JobInfo(JobInfoRequest {
-        job_ids: Some(vec![job_id]),
-        include_program_def: true,
+    let message = FromClientMessage::JobDetail(JobDetailRequest {
+        job_id,
+        include_tasks: true,
     });
-    let mut response =
-        rpc_call!(connection, message, ToClientMessage::JobInfoResponse(r) => r).await?;
-    assert!(response.jobs.len() <= 1);
-    if let Some(job) = response.jobs.pop() {
-        print_job_detail(gsettings, job);
+    let response =
+        rpc_call!(connection, message, ToClientMessage::JobDetailResponse(r) => r).await?;
+
+    if let Some(job) = response {
+        print_job_detail(gsettings, job, false, show_tasks);
     } else {
         log::error!("Job {} not found", job_id);
     }
@@ -51,11 +49,11 @@ pub async fn cancel_job(
         rpc_call!(connection, FromClientMessage::Cancel(CancelRequest { job_id }), ToClientMessage::CancelJobResponse(r) => r).await?;
 
     match response {
-        CancelJobResponse::Canceled => {
-            log::info!("Job {} canceled", job_id)
+        CancelJobResponse::Canceled(canceled, already_finished) if !canceled.is_empty() => {
+            log::info!("Job {} canceled ({} tasks canceled, {} tasks already finished)", job_id, canceled.len(), already_finished)
         }
-        CancelJobResponse::AlreadyFinished => {
-            log::error!("Canceling job {} failed; job is already finished", job_id)
+        CancelJobResponse::Canceled(_, _) => {
+            log::error!("Canceling job {} failed; all tasks are already finished", job_id)
         }
         CancelJobResponse::InvalidJob => {
             log::error!("Canceling job {} failed; job not found", job_id)

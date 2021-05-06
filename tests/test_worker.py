@@ -3,7 +3,7 @@ from typing import Optional
 from .conftest import HqEnv
 import time
 
-from .testutils import wait_until
+from .utils import wait_until
 
 
 def test_worker_list(hq_env: HqEnv):

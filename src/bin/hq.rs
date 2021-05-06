@@ -6,15 +6,15 @@ use cli_table::ColorChoice;
 
 use hyperqueue::client::commands::jobs::{cancel_job, get_job_detail, get_job_list};
 use hyperqueue::client::commands::stop::stop_server;
-use hyperqueue::client::commands::submit::submit_computation;
+use hyperqueue::client::commands::submit::{submit_computation, SubmitOpts};
 use hyperqueue::client::commands::worker::{get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server};
-use hyperqueue::server::job::JobId;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
-use hyperqueue::WorkerId;
+use hyperqueue::{WorkerId, JobId};
+
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -130,12 +130,9 @@ struct JobListOpts {}
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct JobDetailOpts {
     job_id: JobId,
-}
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
-struct SubmitOpts {
-    commands: Vec<String>,
+    #[clap(long)]
+    tasks: bool,
 }
 
 #[derive(Clap)]
@@ -170,14 +167,14 @@ async fn command_job_list(gsettings: GlobalSettings, _opts: JobListOpts) -> anyh
 
 async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    get_job_detail(&gsettings, &mut connection, opts.job_id)
+    get_job_detail(&gsettings, &mut connection, opts.job_id, opts.tasks)
         .await
         .map_err(|e| e.into())
 }
 
 async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    submit_computation(&gsettings, &mut connection, opts.commands)
+    submit_computation(&gsettings, &mut connection, opts)
         .await
         .map_err(|e| e.into())
 }

@@ -4,36 +4,57 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::print_job_detail;
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
-use crate::transfer::messages::{FromClientMessage, JobStatus, SubmitRequest, ToClientMessage};
+use crate::transfer::messages::{FromClientMessage, SubmitRequest, ToClientMessage, JobType};
 use std::path::PathBuf;
+use clap::Clap;
+use crate::common::arraydef::ArrayDef;
+
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+pub struct SubmitOpts {
+
+    command: String,
+    args: Vec<String>,
+
+    #[clap(long)]
+    array: Option<ArrayDef>,
+}
+
 
 pub async fn submit_computation(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
-    commands: Vec<String>,
+    opts: SubmitOpts,
 ) -> crate::Result<()> {
-    let name = commands
-        .get(0)
-        .and_then(|t| {
-            PathBuf::from(t)
+    let name = PathBuf::from(&opts.command)
                 .file_name()
                 .and_then(|t| t.to_str().map(|s| s.to_string()))
-        })
-        .unwrap_or_else(|| "job".to_string());
+                .unwrap_or_else(|| "job".to_string());
+
+    let mut args = opts.args;
+    args.insert(0, opts.command);
+
+    let job_type = opts.array.map(JobType::Array).unwrap_or(JobType::Simple);
+
+    let submit_cwd = std::env::current_dir().unwrap();
+    let stdout = submit_cwd.join("stdout.%{JOB_ID}.%{TASK_ID}");
+    let stderr = submit_cwd.join("stderr.%{JOB_ID}.%{TASK_ID}");
+
     let message = FromClientMessage::Submit(SubmitRequest {
+        job_type,
         name,
-        cwd: std::env::current_dir().unwrap(),
+        submit_cwd,
         spec: ProgramDefinition {
-            args: commands,
+            args,
             env: Default::default(),
-            stdout: None,
-            stderr: None,
+            stdout: Some(stdout),
+            stderr: Some(stderr),
             cwd: None,
         },
     });
-    let mut response =
+    let response =
         rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
-    response.job.status = JobStatus::Submitted;
-    print_job_detail(gsettings, response.job);
+    print_job_detail(gsettings, response.job, true, false);
     Ok(())
 }

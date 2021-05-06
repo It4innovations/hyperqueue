@@ -4,7 +4,7 @@ import os
 import signal
 import time
 
-from .testutils import parse_table
+from .utils import parse_table
 
 PYTEST_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(PYTEST_DIR)
@@ -144,7 +144,7 @@ class HqEnv(Env):
                 return parse_table(output)
             return output
         except subprocess.CalledProcessError as e:
-            print("Process output: ", e.stdout)
+            print("Process output: ", e.stdout.decode())
             raise
 
     def final_check(self):

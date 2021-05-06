@@ -5,13 +5,22 @@ use serde::Deserialize;
 use serde::Serialize;
 use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 
-use crate::server::job::JobId;
-use crate::{TaskId, WorkerId};
+use crate::{WorkerId, JobId, JobTaskCount, JobTaskId};
+use crate::common::arraydef::ArrayDef;
+use crate::server::job::{JobTaskCounters, JobTaskInfo};
+
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum  JobType {
+    Simple,
+    Array(ArrayDef)
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitRequest {
+    pub job_type: JobType,
     pub name: String,
-    pub cwd: PathBuf,
+    pub submit_cwd: PathBuf,
     pub spec: ProgramDefinition,
 }
 
@@ -24,7 +33,12 @@ pub struct CancelRequest {
 pub struct JobInfoRequest {
     // If None then all jobs are turned
     pub job_ids: Option<Vec<JobId>>,
-    pub include_program_def: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct JobDetailRequest {
+    pub job_id: JobId,
+    pub include_tasks: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -36,6 +50,7 @@ pub struct StopWorkerMessage {
 pub enum FromClientMessage {
     Submit(SubmitRequest),
     Cancel(CancelRequest),
+    JobDetail(JobDetailRequest),
     JobInfo(JobInfoRequest),
     WorkerList,
     StopWorker(StopWorkerMessage),
@@ -44,14 +59,14 @@ pub enum FromClientMessage {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum CancelJobResponse {
-    Canceled,
-    AlreadyFinished,
+    Canceled(Vec<JobTaskId>, JobTaskCount),
     InvalidJob,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ToClientMessage {
     JobInfoResponse(JobInfoResponse),
+    JobDetailResponse(Option<JobDetail>),
     SubmitResponse(SubmitResponse),
     WorkerListResponse(WorkerListResponse),
     StopWorkerResponse,
@@ -59,27 +74,25 @@ pub enum ToClientMessage {
     Error(String),
 }
 
+
 #[derive(Serialize, Deserialize, Debug)]
-pub enum JobStatus {
-    Submitted,
+pub enum TaskStatus {
     Waiting,
     Running,
     Finished,
-    Failed,
+    Failed(String),
     Canceled,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JobInfo {
-    pub id: TaskId,
+    pub id: JobId,
     pub name: String,
-    pub status: JobStatus,
 
-    pub worker_id: Option<WorkerId>,
-    pub error: Option<String>,
-
-    pub spec: Option<ProgramDefinition>,
+    pub n_tasks: JobTaskCount,
+    pub counters: JobTaskCounters,
 }
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerInfo {
@@ -93,9 +106,18 @@ pub struct JobInfoResponse {
     pub jobs: Vec<JobInfo>,
 }
 
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct JobDetail {
+    pub info: JobInfo,
+    pub job_type: JobType,
+    pub program_def: ProgramDefinition,
+    pub tasks: Vec<JobTaskInfo>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitResponse {
-    pub job: JobInfo,
+    pub job: JobDetail,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

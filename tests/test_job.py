@@ -53,21 +53,21 @@ def test_job_output(hq_env: HqEnv, tmp_path):
     hq_env.command(["submit", "--", "/non-existent-program"])
     time.sleep(0.2)
     print(hq_env.command("jobs"))
-    with open(os.path.join(tmp_path, "stdout.1")) as f:
+    with open(os.path.join(tmp_path, "stdout.1.0")) as f:
          assert f.read() == "hello\n"
-    with open(os.path.join(tmp_path, "stderr.1")) as f:
+    with open(os.path.join(tmp_path, "stderr.1.0")) as f:
          assert f.read() == ""
 
-    with open(os.path.join(tmp_path, "stdout.2")) as f:
+    with open(os.path.join(tmp_path, "stdout.2.0")) as f:
          assert f.read() == ""
-    with open(os.path.join(tmp_path, "stderr.2")) as f:
+    with open(os.path.join(tmp_path, "stderr.2.0")) as f:
          data = f.read()
          assert "No such file or directory" in data
          assert data.startswith("ls:")
 
-    with open(os.path.join(tmp_path, "stdout.3")) as f:
+    with open(os.path.join(tmp_path, "stdout.3.0")) as f:
          assert f.read() == ""
-    with open(os.path.join(tmp_path, "stderr.3")) as f:
+    with open(os.path.join(tmp_path, "stderr.3.0")) as f:
          assert f.read() == ""
 
 
@@ -83,8 +83,9 @@ def test_job_fail(hq_env: HqEnv):
     table = hq_env.command(["job", "1"], as_table=True)
     assert table[0] == ["Id", "1"]
     assert table[2] == ["State", "FAILED"]
-    assert table[3][0] == "Error"
-    assert "No such file or directory" in table[3][1]
+
+    assert table[8][0] == "0"
+    assert "No such file or directory" in table[8][1]
 
 
 def test_job_invalid(hq_env: HqEnv):
