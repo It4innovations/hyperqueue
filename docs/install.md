@@ -3,7 +3,7 @@
 
 ## Binary distribution
 
-* Download latest binary distribution from https://github.com/spirali/hyperqueue/releases/latest
+* Download latest binary distribution from https://github.com/It4innovations/hyperqueue/releases/latest
 * Unpack the downloaded archive:
 
    ``$ tar -xvzf hq-<version>-linux-x64.tar.gz``
@@ -15,7 +15,7 @@
 
 * Clone HyperQueue repository:
 
-  ``$ git clone https://github.com/spirali/hyperqueue/``
+  ``$ git clone https://github.com/It4innovations/hyperqueue/``
 
 * Build project:
 

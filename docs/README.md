@@ -8,7 +8,7 @@ execute it transparently over a system like SLURM/PBS. It dynamically groups job
 them to fully utilize allocated notes. You thus do not have to manually aggregate your tasks into SLURM/PBS jobs.
 
 
-Project repository: [https://github.com/spirali/hyperqueue/](https://github.com/spirali/hyperqueue/)
+Project repository: [https://github.com/It4innovations/hyperqueue](https://github.com/It4innovations/hyperqueue)
 
 
 ## Submiting a simple task

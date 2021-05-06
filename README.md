@@ -5,7 +5,7 @@
 **Warning** this project is under heavy development; it works on a basic level, but we are still working on some
 important features.
 
-[[Documentation]](https://spirali.github.io/hyperqueue/)
+[Documentation](https://it4innovations.github.io/hyperqueue/)
 
 **HyperQueue** (HQ) lets you build a computation plan consisting of a large amount of tasks and then
 execute it transparently over a system like SLURM/PBS. It dynamically groups jobs into SLURM/PBS jobs and distributes
@@ -108,7 +108,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 ## Installation
 
-* Download latest binary distribution from this [link](https://github.com/spirali/hyperqueue/releases/latest).
+* Download latest binary distribution from this [link](https://github.com/It4innovations/hyperqueue/releases/latest).
 * Unpack the downloaded archive:
 
   ``$ tar -xvzf hq-<version>-linux-x64.tar.gz``
@@ -147,7 +147,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 # What next?
 
-[Documentation](https://spirali.github.io/hyperqueue/)
+[Documentation](https://it4innovations.github.io/hyperqueue/)
 
 # Roadmap
 
