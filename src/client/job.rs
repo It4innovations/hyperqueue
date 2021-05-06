@@ -23,8 +23,8 @@ pub fn print_job_list(gsettings: &GlobalSettings, tasks: Vec<JobInfo>) {
                 t.id.cell().justify(Justify::Right),
                 t.name.cell(),
                 job_state_cell(&t.status),
-                "TODO".cell(),
-                "TODO".cell(),
+                // "TODO".cell(),
+                // "TODO".cell(),
             ]
         })
         .collect();
@@ -36,8 +36,8 @@ pub fn print_job_list(gsettings: &GlobalSettings, tasks: Vec<JobInfo>) {
             "Id".cell().bold(true),
             "Name".cell().bold(true),
             "State".cell().bold(true),
-            "Resources".cell().bold(true),
-            "Walltime".cell().bold(true),
+            // "Resources".cell().bold(true),
+            // "Walltime".cell().bold(true),
         ]);
     assert!(print_stdout(table).is_ok());
 }
