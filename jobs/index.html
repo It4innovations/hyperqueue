@@ -131,6 +131,8 @@
 <h2 id="submiting-jobs">Submiting jobs<a class="headerlink" href="#submiting-jobs" title="Permanent link">#</a></h2>
 <p><code>hq submit &lt;program&gt; &lt;args1&gt; ...</code></p>
 <p>HyperQueue assigns a unique job id when a job is submitted.</p>
+<p>When your command contains its own switches, you need to use <code>--</code> after submit:</p>
+<p><code>hq submit -- /bin/bash -c 'echo $PPID'</code></p>
 <h2 id="name-of-a-job">Name of a job<a class="headerlink" href="#name-of-a-job" title="Permanent link">#</a></h2>
 <p>Each job has assigned a name. It has only an informative character for the user. By default, the name is extracted from the job's program name. You can set a job name explicitly by:</p>
 <p><code>hq submit --name=&lt;NAME&gt; ...</code></p>
@@ -158,7 +160,7 @@ Running-----------------|
 Finished    Failed   Canceled
 </code></pre>
 <ul>
-<li><em>Submitted</em> - Only an informative state that submit was successfull, immediately changed into "Waiting" state.</li>
+<li><em>Submitted</em> - Only an informative state that a submission was successfull; it is immediately changed into "Waiting" state.</li>
 <li><em>Waiting</em> - The job is waiting for start</li>
 <li><em>Running</em> - The job is running in a worker</li>
 <li><em>Finished</em> - The job was sucessfully finished</li>
