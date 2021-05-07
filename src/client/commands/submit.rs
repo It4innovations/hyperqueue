@@ -11,20 +11,23 @@ pub async fn submit_computation(
     connection: &mut ClientConnection,
     commands: Vec<String>,
 ) -> crate::Result<()> {
-    let mut name = extract_task_name_from_path(&commands
+    let name = commands
         .get(0)
-        .map(|t| t.to_string())
-        .unwrap_or_else(|| "job".to_string())
-    );
+        .and_then(|t| {
+            PathBuf::from(t)
+                .file_name()
+                .and_then(|t| t.to_str().map(|s| s.to_string()))
+        })
+        .unwrap_or_else(|| "job".to_string());
     let message = FromClientMessage::Submit(SubmitRequest {
-        name: name.clone(),
+        name,
         cwd: std::env::current_dir().unwrap(),
         spec: ProgramDefinition {
             args: commands,
             env: Default::default(),
             stdout: None,
             stderr: None,
-            cwd: None
+            cwd: None,
         },
     });
     let mut response =
@@ -44,4 +47,29 @@ fn extract_task_name_from_path(job_path: &str) ->String{
     }
     let split = job_path.split('/').collect::<Vec<_>>();
     split[split.len()-1].to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use tako::messages::gateway::{FromGatewayMessage, ServerInfo, ToGatewayMessage};
+    use tokio::net::TcpStream;
+
+    use crate::common::fsutils::test_utils::run_concurrent;
+    use crate::server::rpc::TakoServer;
+    use crate::server::state::StateRef;
+    use crate::client::commands::submit::extract_task_name_from_path;
+
+    #[test]
+     fn test_empty_path() {
+        let input = "";
+        let path = extract_task_name_from_path(input);
+        assert_eq!("<empty>", path);
+    }
+
+    #[test]
+    fn test_forward_slash_ignore() {
+        let input = "/test///";
+        let path = extract_task_name_from_path(input);
+        assert_eq!("test", path);
+    }
 }
