@@ -16,7 +16,11 @@ on:
 jobs:
   create-release:
     runs-on: ubuntu-latest
+    # Use a container with GLIBC 2.17
+    container: quay.io/pypa/manylinux2014_x86_64
     steps:
+      - name: Show GLIBC
+        run: ldd --version
       - name: Checkout sources
         uses: actions/checkout@v2
         with:

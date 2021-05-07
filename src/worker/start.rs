@@ -8,10 +8,11 @@ use tempdir::TempDir;
 use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::common::error::{error, HqError};
+use crate::common::error::error;
 use crate::common::serverdir::ServerDir;
 use crate::worker::output::print_worker_configuration;
 use crate::Map;
+use anyhow::{anyhow, Context};
 
 #[derive(Clap)]
 pub enum ManagerOpts {
@@ -41,27 +42,34 @@ impl FromStr for ManagerOpts {
 }
 
 #[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
 pub struct WorkerStartOpts {
+    /// How many cores should be allocated for the worker
     #[clap(long)]
     cpus: Option<u32>,
 
+    /// How often should the worker announce its existence to the server. [ms]
     #[clap(long, default_value = "8000")]
     heartbeat: u32,
 
-    #[clap(long, default_value = "detect")]
+    /// What HPC job manager should be used by the worker.
+    #[clap(long, default_value = "detect", possible_values = &["detect", "slurm", "pbs", "none"])]
     manager: ManagerOpts,
 }
 
 pub async fn start_hq_worker(
     gsettings: &GlobalSettings,
     opts: WorkerStartOpts,
-) -> crate::Result<()> {
+) -> anyhow::Result<()> {
     log::info!("Starting hyperqueue worker {}", env!("CARGO_PKG_VERSION"));
-    let server_dir = ServerDir::open(gsettings.server_directory())
-        .map_err(|e| format!("Server directory error: {}", e))?;
-    let record = server_dir
-        .read_access_record()
-        .map_err(|e| format!("Server is not running: {}", e))?;
+    let server_dir =
+        ServerDir::open(gsettings.server_directory()).context("Cannot load server directory")?;
+    let record = server_dir.read_access_record().with_context(|| {
+        format!(
+            "Cannot load access record from {:?}",
+            server_dir.access_filename()
+        )
+    })?;
     let server_address = format!("{}:{}", record.hostname(), record.worker_port());
     log::info!("Connecting to: {}", server_address);
 
@@ -78,14 +86,11 @@ pub async fn start_hq_worker(
     Ok(())
 }
 
-fn try_get_pbs_info() -> crate::Result<Map<String, String>> {
+fn try_get_pbs_info() -> anyhow::Result<Map<String, String>> {
     log::debug!("Detecting PBS environment");
 
-    std::env::var("PBS_ENVIRONMENT").map_err(|_| {
-        HqError::GenericError(
-            "PBS_JOBID not found. The process is not running under PBS".to_string(),
-        )
-    })?;
+    std::env::var("PBS_ENVIRONMENT")
+        .map_err(|_| anyhow!("PBS_ENVIRONMENT not found. The process is not running under PBS"))?;
 
     let manager_job_id = std::env::var("PBS_JOBID").unwrap_or_else(|_| "unknown".to_string());
 
@@ -99,16 +104,13 @@ fn try_get_pbs_info() -> crate::Result<Map<String, String>> {
     Ok(result)
 }
 
-fn try_get_slurm_info() -> crate::Result<Map<String, String>> {
+fn try_get_slurm_info() -> anyhow::Result<Map<String, String>> {
     log::debug!("Detecting SLURM environment");
 
     let manager_job_id = std::env::var("SLURM_JOB_ID")
         .or_else(|_| std::env::var("SLURM_JOBID"))
         .map_err(|_| {
-            HqError::GenericError(
-                "SLURM_JOB_ID/SLURM_JOBID not found. The process is not running under SLURM"
-                    .to_string(),
-            )
+            anyhow!("SLURM_JOB_ID/SLURM_JOBID not found. The process is not running under SLURM")
         })?;
 
     let mut result = Map::with_capacity(2);
@@ -121,7 +123,7 @@ fn try_get_slurm_info() -> crate::Result<Map<String, String>> {
     Ok(result)
 }
 
-fn gather_manager_info(opts: ManagerOpts) -> crate::Result<Map<String, String>> {
+fn gather_manager_info(opts: ManagerOpts) -> anyhow::Result<Map<String, String>> {
     match opts {
         ManagerOpts::Detect => {
             log::debug!("Trying to detect manager");
@@ -138,7 +140,7 @@ fn gather_manager_info(opts: ManagerOpts) -> crate::Result<Map<String, String>> 
     }
 }
 
-fn gather_configuration(opts: WorkerStartOpts) -> crate::Result<WorkerConfiguration> {
+fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfiguration> {
     let hostname = gethostname::gethostname()
         .into_string()
         .expect("Invalid hostname");

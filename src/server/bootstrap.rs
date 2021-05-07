@@ -4,20 +4,18 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use cli_table::{print_stdout, Cell, Style, Table};
-use futures::TryFutureExt;
 use tokio::net::TcpListener;
 use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::common::error::error;
-use crate::common::error::HqError::GenericError;
 use crate::common::serverdir::{AccessRecord, ServerDir};
 use crate::common::setup::setup_interrupt;
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
 use crate::transfer::connection::{ClientConnection, HqConnection};
+use anyhow::Context;
 
 enum ServerStatus {
     Offline(AccessRecord),
@@ -33,25 +31,35 @@ enum ServerStatus {
 /// server will be started.
 ///
 /// If an already running server is found, an error will be returned.
-pub async fn init_hq_server(gsettings: &GlobalSettings) -> crate::Result<()> {
+pub async fn init_hq_server(gsettings: &GlobalSettings) -> anyhow::Result<()> {
     match get_server_status(gsettings.server_directory()).await {
         Err(_) | Ok(ServerStatus::Offline(_)) => {
             log::info!("No online server found, starting a new server");
             start_server(gsettings.server_directory()).await
         }
-        Ok(ServerStatus::Online(_)) => error(format!(
+        Ok(ServerStatus::Online(_)) => anyhow::bail!(
             "Server at {0} is already online, please stop it first using \
             `hq stop --server-dir {0}`",
             gsettings.server_directory().display()
-        )),
+        ),
     }
 }
 
-pub async fn get_client_connection(server_directory: &Path) -> crate::Result<ClientConnection> {
-    match ServerDir::open(server_directory).and_then(|sd| sd.read_access_record()) {
-        Ok(record) => Ok(HqConnection::connect_to_server(&record).await?),
-        Err(e) => error(format!("No running instance of HQ found: {}", e)),
-    }
+pub async fn get_client_connection(server_directory: &Path) -> anyhow::Result<ClientConnection> {
+    let sd = ServerDir::open(server_directory).context("No running instance of HQ found")?;
+    let access_record = sd
+        .read_access_record()
+        .with_context(|| format!("Cannot read access record from {:?}", sd.access_filename()))?;
+    let connection = HqConnection::connect_to_server(&access_record)
+        .await
+        .with_context(|| {
+            format!(
+                "Cannot connect to HQ server at port {}:{}",
+                access_record.hostname(),
+                access_record.server_port()
+            )
+        })?;
+    Ok(connection)
 }
 
 async fn get_server_status(server_directory: &Path) -> crate::Result<ServerStatus> {
@@ -67,10 +75,10 @@ async fn get_server_status(server_directory: &Path) -> crate::Result<ServerStatu
 async fn initialize_server(
     server_directory: &Path,
     end_flag: Arc<Notify>,
-) -> crate::Result<impl Future<Output = crate::Result<()>>> {
+) -> anyhow::Result<impl Future<Output = anyhow::Result<()>>> {
     let client_listener = TcpListener::bind("0.0.0.0:0")
-        .map_err(|e| GenericError(format!("Cannot create HQ server socket: {}", e)))
-        .await?;
+        .await
+        .with_context(|| "Cannot create HQ server socket".to_string())?;
     let server_port = client_listener.local_addr()?.port();
 
     let hq_secret_key = Arc::new(generate_key());
@@ -112,13 +120,13 @@ async fn initialize_server(
                 stop_cloned,
                 key
             ) => { Ok(()) }
-            r = tako_future => { r }
+            r = tako_future => { r.map_err(|e| e.into()) }
         }
     };
     Ok(fut)
 }
 
-async fn start_server(directory: &Path) -> crate::Result<()> {
+async fn start_server(directory: &Path) -> anyhow::Result<()> {
     let end_flag = setup_interrupt();
     let fut = initialize_server(&directory, end_flag).await?;
     let local_set = LocalSet::new();

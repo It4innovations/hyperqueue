@@ -5,6 +5,7 @@ use crate::client::job::print_job_detail;
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, JobStatus, SubmitRequest, ToClientMessage};
+use std::path::PathBuf;
 
 pub async fn submit_computation(
     gsettings: &GlobalSettings,

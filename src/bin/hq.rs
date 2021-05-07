@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use clap::Clap;
+use clap::{Clap, ValueHint};
 use cli_table::ColorChoice;
 
 use hyperqueue::client::commands::jobs::{cancel_job, get_job_detail, get_job_list};
@@ -9,7 +9,6 @@ use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::submit_computation;
 use hyperqueue::client::commands::worker::{get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
-use hyperqueue::common::error::error;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server};
@@ -20,20 +19,23 @@ use hyperqueue::WorkerId;
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
-pub type Connection =
-    tokio_util::codec::Framed<tokio::net::UnixStream, tokio_util::codec::LengthDelimitedCodec>;
+// Common CLI options
 
 #[derive(Clap)]
 struct CommonOpts {
-    #[clap(long)]
+    /// Path to a directory that stores HyperQueue access files
+    #[clap(long, global = true, value_hint = ValueHint::DirPath)]
     server_dir: Option<PathBuf>,
 
-    #[clap(long, default_value = "auto")]
+    /// Console color policy.
+    #[clap(long, default_value = "auto", possible_values = &["auto", "always", "never"])]
     colors: ColorPolicy,
 }
 
+// Root CLI options
 #[derive(Clap)]
-#[clap(version = env!("CARGO_PKG_VERSION"))]
+#[clap(about = "HyperQueue CLI")]
+#[clap(author, about, version)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct Opts {
     #[clap(flatten)]
@@ -44,40 +46,32 @@ struct Opts {
 }
 
 #[derive(Clap)]
-struct ServerStartOpts {}
-
-#[derive(Clap)]
-struct ServerStopOpts {}
-
-#[derive(Clap)]
-struct JobListOpts {}
-
-#[derive(Clap)]
-struct JobDetailOpts {
-    job_id: JobId,
-}
-
-#[derive(Clap)]
-struct SubmitOpts {
-    commands: Vec<String>,
-}
-
-#[derive(Clap)]
-struct CancelOpts {
-    job_id: JobId,
-}
-
-#[derive(Clap)]
 enum SubCommand {
+    /// Commands for controlling the HyperQueue server
     Server(ServerOpts),
+    /// Display information about all jobs
     Jobs(JobListOpts),
+    /// Display detailed information about a specific job
     Job(JobDetailOpts),
+    /// Submit a job to HyperQueue
     Submit(SubmitOpts),
+    /// Cancel a specific job
     Cancel(CancelOpts),
+    /// Commands for controlling HyperQueue workers
     Worker(WorkerOpts),
 }
 
+// Server CLI options
 #[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct ServerStartOpts {}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct ServerStopOpts {}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
 struct ServerOpts {
     #[clap(subcommand)]
     subcmd: ServerCommand,
@@ -85,105 +79,142 @@ struct ServerOpts {
 
 #[derive(Clap)]
 enum ServerCommand {
+    /// Start the HyperQueue server
     Start(ServerStartOpts),
+    /// Stop the HyperQueue server, if it is running
     Stop(ServerStopOpts),
 }
 
+// Worker CLI options
 #[derive(Clap)]
-struct WorkersOpts {}
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct WorkerStopOpts {
+    worker_id: WorkerId,
+}
 
 #[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct WorkerListOpts {}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct WorkerInfoOpts {
+    worker_id: WorkerId,
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
 struct WorkerOpts {
     #[clap(subcommand)]
     subcmd: WorkerCommand,
 }
 
 #[derive(Clap)]
-struct WorkerStopOpts {
-    worker_id: WorkerId,
-}
-
-#[derive(Clap)]
-struct WorkerListOpts {}
-
-#[derive(Clap)]
-struct WorkerInfoOpts {
-    worker_id: WorkerId,
-}
-
-#[derive(Clap)]
 enum WorkerCommand {
+    /// Start worker
     Start(WorkerStartOpts),
+    /// Stop worker
     Stop(WorkerStopOpts),
+    /// Display information about all workers
     List(WorkerListOpts),
+    /// Display information about a specific worker
     Info(WorkerInfoOpts),
 }
 
+// Job CLI options
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct JobListOpts {}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct JobDetailOpts {
+    job_id: JobId,
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct SubmitOpts {
+    commands: Vec<String>,
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct CancelOpts {
+    job_id: JobId,
+}
+
+// Commands
 async fn command_server_start(
     gsettings: GlobalSettings,
     _opts: ServerStartOpts,
-) -> hyperqueue::Result<()> {
+) -> anyhow::Result<()> {
     init_hq_server(&gsettings).await
 }
 
 async fn command_server_stop(
     gsettings: GlobalSettings,
     _opts: ServerStopOpts,
-) -> hyperqueue::Result<()> {
+) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    stop_server(&mut connection).await
+    stop_server(&mut connection).await?;
+    Ok(())
 }
 
-async fn command_job_list(gsettings: GlobalSettings, _opts: JobListOpts) -> hyperqueue::Result<()> {
+async fn command_job_list(gsettings: GlobalSettings, _opts: JobListOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    get_job_list(&gsettings, &mut connection).await
+    get_job_list(&gsettings, &mut connection)
+        .await
+        .map_err(|e| e.into())
 }
 
-async fn command_job_detail(
-    gsettings: GlobalSettings,
-    opts: JobDetailOpts,
-) -> hyperqueue::Result<()> {
+async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    get_job_detail(&gsettings, &mut connection, opts.job_id).await
+    get_job_detail(&gsettings, &mut connection, opts.job_id)
+        .await
+        .map_err(|e| e.into())
 }
 
-async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> hyperqueue::Result<()> {
+async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    submit_computation(&gsettings, &mut connection, opts.commands).await
+    submit_computation(&gsettings, &mut connection, opts.commands)
+        .await
+        .map_err(|e| e.into())
 }
 
-async fn command_cancel(gsettings: GlobalSettings, opts: CancelOpts) -> hyperqueue::Result<()> {
+async fn command_cancel(gsettings: GlobalSettings, opts: CancelOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    cancel_job(&gsettings, &mut connection, opts.job_id).await
+    cancel_job(&gsettings, &mut connection, opts.job_id)
+        .await
+        .map_err(|e| e.into())
 }
 
 async fn command_worker_start(
     gsettings: GlobalSettings,
     opts: WorkerStartOpts,
-) -> hyperqueue::Result<()> {
-    start_hq_worker(&gsettings, opts).await
+) -> anyhow::Result<()> {
+    start_hq_worker(&gsettings, opts)
+        .await
 }
 
 async fn command_worker_stop(
     gsettings: GlobalSettings,
     opts: WorkerStopOpts,
-) -> hyperqueue::Result<()> {
+) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    stop_worker(&mut connection, opts.worker_id).await
-}
-
-fn default_server_directory_path() -> PathBuf {
-    let mut home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
-    home.push(".hq-server");
-    home
+    stop_worker(&mut connection, opts.worker_id)
+        .await
+        .map_err(|e| e.into())
 }
 
 async fn command_worker_list(
     gsettings: GlobalSettings,
     _opts: WorkerListOpts,
-) -> hyperqueue::Result<()> {
+) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    get_worker_list(&mut connection, &gsettings).await
+    get_worker_list(&mut connection, &gsettings)
+        .await
+        .map_err(|e| e.into())
 }
 
 pub enum ColorPolicy {
@@ -193,19 +224,25 @@ pub enum ColorPolicy {
 }
 
 impl FromStr for ColorPolicy {
-    type Err = hyperqueue::Error;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "auto" => Self::Auto,
             "always" => Self::Always,
             "never" => Self::Never,
-            _ => return error("Invalid color policy".to_string()),
+            _ => anyhow::bail!("Invalid color policy"),
         })
     }
 }
 
 fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
+    fn default_server_directory_path() -> PathBuf {
+        let mut home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
+        home.push(".hq-server");
+        home
+    }
+
     let color_policy = match opts.colors {
         ColorPolicy::Always => ColorChoice::AlwaysAnsi,
         ColorPolicy::Auto => {
@@ -220,7 +257,6 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
 
     let server_dir = absolute_path(
         opts.server_dir
-            .clone()
             .unwrap_or_else(default_server_directory_path),
     );
 
@@ -263,7 +299,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Cancel(opts) => command_cancel(gsettings, opts).await,
     };
     if let Err(e) = result {
-        eprintln!("{}", e);
+        eprintln!("{:?}", e);
         std::process::exit(1);
     }
 

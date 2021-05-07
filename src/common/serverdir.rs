@@ -27,7 +27,7 @@ impl ServerDir {
             return error(format!("{:?} is not a directory", path));
         }
         Ok(Self {
-            path: absolute_path(path.into()),
+            path: absolute_path(path),
         })
     }
 
@@ -67,7 +67,7 @@ fn resolve_active_directory(path: &Path) -> PathBuf {
     std::fs::canonicalize(symlink_path)
         .ok()
         .filter(|p| p.is_dir())
-        .unwrap_or(path.into())
+        .unwrap_or_else(|| path.into())
 }
 
 fn serde_serialize_key<S: Serializer>(
