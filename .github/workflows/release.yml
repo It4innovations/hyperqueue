@@ -15,9 +15,12 @@ on:
 
 jobs:
   create-release:
-    # Use older Ubuntu to avoid too recent versions of GLIBC
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
+    # Use a container with GLIBC 2.17
+    container: quay.io/pypa/manylinux2014_x86_64
     steps:
+      - name: Show GLIBC
+        run: ldd --version
       - name: Checkout sources
         uses: actions/checkout@v2
         with:
