@@ -1,6 +1,8 @@
 import os
 import time
 
+import pytest
+
 from .conftest import HqEnv
 
 
@@ -44,6 +46,33 @@ def test_job_submit(hq_env: HqEnv):
     assert table[1][:3] == ["1", "bash", "FINISHED"]
     assert table[2][:3] == ["2", "bash", "FINISHED"]
     assert table[3][:3] == ["3", "sleep", "FINISHED"]
+
+
+def test_custom_name(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+
+    hq_env.command(["submit", "sleep", "1", "--name=sleep_prog"])
+    time.sleep(0.2)
+    table = hq_env.command("jobs", as_table=True)
+    assert len(table) == 2
+    assert table[1][:3] == ["1", "sleep_prog", "WAITING"]
+
+    with pytest.raises(Exception):
+        hq_env.command(["submit", "sleep", "1", "--name=second_sleep \n"])
+    with pytest.raises(Exception):
+        hq_env.command(["submit", "sleep", "1", "--name=second_sleep \t"])
+    with pytest.raises(Exception):
+        hq_env.command(
+            [
+                "submit",
+                "sleep",
+                "1",
+                "--name=sleep_sleep_sleep_sleep_sleep_sleep_sleep_sleep",
+            ]
+        )
+
+    table = hq_env.command("jobs", as_table=True)
+    assert len(table) == 2
 
 
 def test_job_output(hq_env: HqEnv, tmp_path):
