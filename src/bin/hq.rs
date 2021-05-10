@@ -135,6 +135,8 @@ struct JobDetailOpts {
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct SubmitOpts {
+    #[clap(long)]
+    name: Option<String>,
     commands: Vec<String>,
 }
 
@@ -177,7 +179,7 @@ async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> a
 
 async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    submit_computation(&gsettings, &mut connection, opts.commands)
+    submit_computation(&gsettings, &mut connection, opts.name, opts.commands)
         .await
         .map_err(|e| e.into())
 }
