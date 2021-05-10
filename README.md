@@ -57,7 +57,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 * **Is HQ a replacement for SLURM or PBS?**
 
-  Definitely no. Multi-tenancy is out of the scope of HQ, i.e. HQ does not provide user isolation or fairness. HQ is
+  Definitely no. Multi-tenancy is out of the scope of HQ, i.e. HQ does not provide user isolation. HQ is
   light-weight and easy to deploy; on a HPC system each user (or a group of users that trust each other) may run her own
   instance of HQ.
 
