@@ -6,6 +6,7 @@ use crate::{rpc_call, Error};
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, JobStatus, SubmitRequest, ToClientMessage};
 use std::path::PathBuf;
+use crate::common::error::{HqError, invalid_args_error, error};
 
 pub async fn submit_computation(
     gsettings: &GlobalSettings,
@@ -25,7 +26,9 @@ pub async fn submit_computation(
                 .unwrap_or_else(|| "job".to_string())
         }
 
-        Some(name) => {name}
+        Some(name) => {
+            validate_and_sanitize_name(name)?
+        }
     };
 
     let message = FromClientMessage::Submit(SubmitRequest {
@@ -45,3 +48,13 @@ pub async fn submit_computation(
     print_job_detail(gsettings, response.job);
     Ok(())
 }
+
+ fn validate_and_sanitize_name(mut name:String) ->anyhow::Result<String, Error> {
+     if name.contains('\n') || name.contains('\t'){
+         error(format!("name cannot have a newline or a tab"))
+     } else if name.len()>40 {
+         error(format!("name cannot be more than 40 characters"))
+     } else {
+         Ok((name))
+     }
+ }
