@@ -19,13 +19,11 @@ nav:
 
 theme:
   name: readthedocs
+  custom_dir: docs/theme
 
 markdown_extensions:
   - toc:
       permalink: "#"
-
-extra_javascript:
-  - js/analytics.js
 
 plugins:
   - search

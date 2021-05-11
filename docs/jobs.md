@@ -9,6 +9,10 @@ In the current version, a job is a single execution of a program.
 
 HyperQueue assigns a unique job id when a job is submitted.
 
+When your command contains its own switches, you need to use ``--`` after submit:
+
+``hq submit -- /bin/bash -c 'echo $PPID'``
+
 
 ## Name of a job
 
@@ -53,7 +57,7 @@ Running-----------------|
 Finished    Failed   Canceled
 ```
 
-* *Submitted* - Only an informative state that submit was successfull, immediately changed into "Waiting" state.
+* *Submitted* - Only an informative state that a submission was successfull; it is immediately changed into "Waiting" state.
 * *Waiting* - The job is waiting for start
 * *Running* - The job is running in a worker
 * *Finished* - The job was sucessfully finished
