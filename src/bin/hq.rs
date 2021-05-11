@@ -135,6 +135,7 @@ struct JobDetailOpts {
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct SubmitOpts {
+    /// Assign a custom name to the job
     #[clap(long)]
     name: Option<String>,
     commands: Vec<String>,

@@ -2,11 +2,12 @@ use tako::messages::common::ProgramDefinition;
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::print_job_detail;
-use crate::{rpc_call, Error};
+use crate::{rpc_call};
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, JobStatus, SubmitRequest, ToClientMessage};
+
+use anyhow::anyhow;
 use std::path::PathBuf;
-use crate::common::error::{HqError, invalid_args_error, error};
 
 pub async fn submit_computation(
     gsettings: &GlobalSettings,
@@ -14,22 +15,20 @@ pub async fn submit_computation(
     name: Option<String>,
     commands: Vec<String>,
 ) -> crate::Result<()> {
-    let name = match name {
-        None => {
-            commands
-                .get(0)
-                .and_then(|t| {
-                    PathBuf::from(t)
-                        .file_name()
-                        .and_then(|t| t.to_str().map(|s| s.to_string()))
-                })
-                .unwrap_or_else(|| "job".to_string())
-        }
 
-        Some(name) => {
-            validate_and_sanitize_name(name)?
+    let name = name.map(|name| {
+        validate_name(name).unwrap()
+    }).unwrap_or_else( || {
+        commands
+            .get(0)
+            .and_then(|t| {
+                PathBuf::from(t)
+                    .file_name()
+                    .and_then(|t| t.to_str().map(|s| s.to_string()))
+            })
+            .unwrap_or_else(|| "job".to_string())
         }
-    };
+    );
 
     let message = FromClientMessage::Submit(SubmitRequest {
         name,
@@ -49,12 +48,14 @@ pub async fn submit_computation(
     Ok(())
 }
 
- fn validate_and_sanitize_name(mut name:String) ->anyhow::Result<String, Error> {
+ fn validate_name(name:String)
+                  ->anyhow::Result<String, anyhow::Error> {
+
      if name.contains('\n') || name.contains('\t'){
-         error(format!("name cannot have a newline or a tab"))
+         return Err(anyhow!("name cannot have a newline or a tab"));
      } else if name.len()>40 {
-         error(format!("name cannot be more than 40 characters"))
+         return Err(anyhow!("name cannot be more than 40 characters"));
      } else {
-         Ok((name))
+         Ok(name)
      }
  }
