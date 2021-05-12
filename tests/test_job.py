@@ -45,6 +45,25 @@ def test_job_submit(hq_env: HqEnv):
     assert table[3][:3] == ["3", "sleep", "FINISHED"]
 
 
+def test_custom_name(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+
+    hq_env.command(["submit", "sleep", "1", "--name=sleep_prog"])
+    time.sleep(0.2)
+    table = hq_env.command("jobs", as_table=True)
+    assert len(table) == 2
+    assert table[1][:3] == ["1", "sleep_prog", "WAITING"]
+    failed = False
+    try:
+        hq_env.command(["submit", "sleep", "1", "--name=second_sleep \t"])
+        hq_env.command(["submit", "sleep", "1", "--name=second_sleep \n"])
+    except:
+        failed = True
+    assert failed
+    table = hq_env.command("jobs", as_table=True)
+    assert (len(table) == 2)
+
+
 def test_job_output(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker(n_cpus=1)
