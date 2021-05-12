@@ -115,10 +115,9 @@ pub struct TestComm {
     pub client_task_finished: Vec<TaskId>,
     pub client_task_running: Vec<TaskId>,
     pub client_task_errors: Vec<(TaskId, Vec<TaskId>, TaskFailInfo)>,
-    pub client_task_lost: Vec<TaskId>,
 
     pub new_workers: Vec<(WorkerId, WorkerConfiguration)>,
-    pub lost_workers: Vec<WorkerId>,
+    pub lost_workers: Vec<(WorkerId, Vec<TaskId>)>,
 
     pub need_scheduling: bool,
 }
@@ -147,11 +146,6 @@ impl TestComm {
         std::mem::take(&mut self.client_task_finished)
     }
 
-    pub fn take_client_task_lost(&mut self, len: usize) -> Vec<TaskId> {
-        assert_eq!(self.client_task_lost.len(), len);
-        std::mem::take(&mut self.client_task_lost)
-    }
-
     pub fn take_client_task_running(&mut self, len: usize) -> Vec<TaskId> {
         assert_eq!(self.client_task_running.len(), len);
         std::mem::take(&mut self.client_task_running)
@@ -169,7 +163,7 @@ impl TestComm {
         std::mem::take(&mut self.new_workers)
     }
 
-    pub fn take_lost_workers(&mut self) -> Vec<WorkerId> {
+    pub fn take_lost_workers(&mut self) -> Vec<(WorkerId, Vec<TaskId>)> {
         std::mem::take(&mut self.lost_workers)
     }
 
@@ -188,7 +182,6 @@ impl TestComm {
         assert!(self.client_task_finished.is_empty());
         assert!(self.client_task_running.is_empty());
         assert!(self.client_task_errors.is_empty());
-        assert!(self.client_task_lost.is_empty());
 
         assert!(self.new_workers.is_empty());
         assert!(self.lost_workers.is_empty());
@@ -232,16 +225,12 @@ impl Comm for TestComm {
             .push((task_id, consumers, error_info));
     }
 
-    fn send_client_task_lost(&mut self, task_id: TaskId) {
-        self.client_task_lost.push(task_id)
-    }
-
     fn send_client_worker_new(&mut self, worker_id: WorkerId, configuration: &WorkerConfiguration) {
         self.new_workers.push((worker_id, configuration.clone()));
     }
 
-    fn send_client_worker_lost(&mut self, worker_id: WorkerId) {
-        self.lost_workers.push(worker_id);
+    fn send_client_worker_lost(&mut self, worker_id: WorkerId, running_tasks: Vec<TaskId>) {
+        self.lost_workers.push((worker_id, running_tasks));
     }
 }
 
