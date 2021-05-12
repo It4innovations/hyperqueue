@@ -70,7 +70,8 @@ impl State {
         job.state = match msg.state {
             TaskState::Running => JobState::Running,
             TaskState::Finished => JobState::Finished,
-            TaskState::Waiting | TaskState::Invalid => {
+            TaskState::Waiting => JobState::Waiting,
+            TaskState::Invalid => {
                 unreachable!()
             }
         };
@@ -85,6 +86,10 @@ impl State {
         log::debug!("Worker lost id={}", msg.worker_id);
         let worker = self.workers.get_mut(&msg.worker_id).unwrap();
         worker.set_offline_state();
+        for task_id in msg.running_tasks {
+            let mut job = self.jobs.get_mut(&task_id).unwrap();
+            job.state = JobState::Waiting;
+        }
     }
 }
 

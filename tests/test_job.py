@@ -137,3 +137,35 @@ def test_cancel_finished(hq_env: HqEnv):
     table = hq_env.command(["jobs"], as_table=True)
     assert table[1][2] == "FINISHED"
     assert table[2][2] == "FAILED"
+
+
+def test_reporting_state_after_worker_lost(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(n_cpus=1)
+    hq_env.start_worker(n_cpus=1)
+    hq_env.command(["submit", "sleep", "1"])
+    hq_env.command(["submit", "sleep", "1"])
+    time.sleep(0.25)
+    table = hq_env.command(["jobs"], as_table=True)
+    assert table[1][2] == "RUNNING"
+    assert table[2][2] == "RUNNING"
+    hq_env.kill_worker(1)
+    time.sleep(0.25)
+    table = hq_env.command(["jobs"], as_table=True)
+    print(table)
+    if table[1][2] == "WAITING":
+        idx, other = 1, 2
+    elif table[2][2] == "WAITING":
+        idx, other = 2, 1
+    else:
+        assert 0
+    assert table[other][2] == "RUNNING"
+
+    time.sleep(1)
+    table = hq_env.command(["jobs"], as_table=True)
+    assert table[other][2] == "FINISHED"
+    assert table[idx][2] == "RUNNING"
+    time.sleep(1)
+    table = hq_env.command(["jobs"], as_table=True)
+    assert table[other][2] == "FINISHED"
+    assert table[idx][2] == "FINISHED"
