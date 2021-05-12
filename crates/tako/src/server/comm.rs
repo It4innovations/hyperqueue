@@ -28,6 +28,7 @@ pub trait Comm {
         consumers_id: Vec<TaskId>,
         error_info: TaskFailInfo,
     );
+    fn send_client_task_lost(&mut self, task_id: TaskId);
 
     fn send_client_worker_new(&mut self, worker_id: WorkerId, configuration: &WorkerConfiguration);
     fn send_client_worker_lost(&mut self, worker_id: WorkerId);
@@ -135,6 +136,15 @@ impl Comm for CommSender {
                     info: error_info,
                     cancelled_tasks: consumers_id,
                 }
+            }))
+            .unwrap();
+    }
+
+    fn send_client_task_lost(&mut self, task_id: u64) {
+        self.client_sender
+            .send(ToGatewayMessage::TaskUpdate(TaskUpdate {
+                id: task_id,
+                state: TaskState::Waiting,
             }))
             .unwrap();
     }
