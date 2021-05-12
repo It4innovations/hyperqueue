@@ -228,9 +228,7 @@ pub async fn process_client_message(
 
             comm.send_worker_message(msg.worker_id, &ToWorkerMessage::Stop);
 
-            assert!(client_sender
-                .send(ToGatewayMessage::WorkerStopped)
-                .is_ok());
+            assert!(client_sender.send(ToGatewayMessage::WorkerStopped).is_ok());
             None
         }
     }
