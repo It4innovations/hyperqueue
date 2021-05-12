@@ -153,6 +153,7 @@ pub struct NewWorkerMessage {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LostWorkerMessage {
     pub worker_id: WorkerId,
+    pub running_tasks: Vec<TaskId>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

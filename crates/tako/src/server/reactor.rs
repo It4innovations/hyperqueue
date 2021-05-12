@@ -41,13 +41,11 @@ pub fn on_remove_worker(core: &mut Core, comm: &mut impl Comm, worker_id: Worker
 
     let mut ready_to_assign = Vec::new();
     let mut removes = Vec::new();
+    let mut running_tasks = Vec::new();
+
     for task_ref in core.get_tasks() {
         let mut task = task_ref.get_mut();
         let task_id = task.id;
-
-        if task.is_running() && task.is_observed() {
-            comm.send_client_task_lost(task_id);
-        }
 
         let new_state = match &mut task.state {
             TaskRuntimeState::Waiting(_) => continue,
@@ -56,6 +54,9 @@ pub fn on_remove_worker(core: &mut Core, comm: &mut impl Comm, worker_id: Worker
                     log::debug!("Removing task task={} from lost worker", task_id);
                     task.set_fresh_flag(true);
                     ready_to_assign.push(task_ref.clone());
+                    if task.is_running() {
+                        running_tasks.push(task_id);
+                    }
                     TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
                 } else {
                     continue;
@@ -110,7 +111,7 @@ pub fn on_remove_worker(core: &mut Core, comm: &mut impl Comm, worker_id: Worker
     }
 
     let _worker = core.remove_worker(worker_id);
-    comm.send_client_worker_lost(worker_id);
+    comm.send_client_worker_lost(worker_id, running_tasks);
     comm.ask_for_scheduling();
 
     //let worker = core.get_worker_by_id_or_panic(worker_id);
@@ -1286,8 +1287,9 @@ mod tests {
         assert!(matches!(t2.get().state, TaskRuntimeState::Running(101)));
 
         on_remove_worker(&mut core, &mut comm, 101);
-        assert_eq!(comm.take_client_task_lost(1), vec![1]);
-        assert_eq!(comm.take_lost_workers(), vec![101]);
+        let mut lw = comm.take_lost_workers();
+        assert_eq!(lw[0].0, 101);
+        assert_eq!(sorted_vec(std::mem::take(&mut lw[0].1)), vec![1, 2]);
         comm.check_need_scheduling();
         comm.emptiness_check();
     }
@@ -1467,7 +1469,7 @@ mod tests {
         let mut comm = create_test_comm();
         on_remove_worker(&mut core, &mut comm, 101);
 
-        assert_eq!(comm.take_lost_workers(), vec![101]);
+        assert_eq!(comm.take_lost_workers(), vec![(101, vec![12])]);
 
         assert_eq!(core.take_ready_to_assign().len(), 3);
         assert!(core.get_task_by_id_or_panic(11).get().is_ready());

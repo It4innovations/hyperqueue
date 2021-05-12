@@ -28,10 +28,9 @@ pub trait Comm {
         consumers_id: Vec<TaskId>,
         error_info: TaskFailInfo,
     );
-    fn send_client_task_lost(&mut self, task_id: TaskId);
 
     fn send_client_worker_new(&mut self, worker_id: WorkerId, configuration: &WorkerConfiguration);
-    fn send_client_worker_lost(&mut self, worker_id: WorkerId);
+    fn send_client_worker_lost(&mut self, worker_id: WorkerId, running_tasks: Vec<TaskId>);
 }
 
 pub struct CommSender {
@@ -140,16 +139,7 @@ impl Comm for CommSender {
             .unwrap();
     }
 
-    fn send_client_task_lost(&mut self, task_id: u64) {
-        self.client_sender
-            .send(ToGatewayMessage::TaskUpdate(TaskUpdate {
-                id: task_id,
-                state: TaskState::Waiting,
-            }))
-            .unwrap();
-    }
-
-    fn send_client_worker_new(&mut self, worker_id: u64, configuration: &WorkerConfiguration) {
+    fn send_client_worker_new(&mut self, worker_id: WorkerId, configuration: &WorkerConfiguration) {
         assert!(self
             .client_sender
             .send(ToGatewayMessage::NewWorker(NewWorkerMessage {
@@ -159,11 +149,12 @@ impl Comm for CommSender {
             .is_ok());
     }
 
-    fn send_client_worker_lost(&mut self, worker_id: u64) {
+    fn send_client_worker_lost(&mut self, worker_id: WorkerId, running_tasks: Vec<TaskId>) {
         assert!(self
             .client_sender
             .send(ToGatewayMessage::LostWorker(LostWorkerMessage {
-                worker_id
+                worker_id,
+                running_tasks
             }))
             .is_ok());
     }
