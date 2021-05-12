@@ -93,6 +93,10 @@ impl Serialize for TaskState {
     }
 }
 
+/* User can receive this updates when task is registered with "observe flag"
+   Note: Error state is NOT there, it is sent separately as TaskFail,
+   because task fail is received even without "observe" flag.
+ */
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskUpdate {
     pub id: TaskId,

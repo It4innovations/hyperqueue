@@ -44,6 +44,11 @@ pub fn on_remove_worker(core: &mut Core, comm: &mut impl Comm, worker_id: Worker
     for task_ref in core.get_tasks() {
         let mut task = task_ref.get_mut();
         let task_id = task.id;
+
+        if task.is_running() && task.is_observed() {
+            comm.send_client_task_lost(task_id);
+        }
+
         let new_state = match &mut task.state {
             TaskRuntimeState::Waiting(_) => continue,
             TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
@@ -1279,6 +1284,12 @@ mod tests {
 
         assert!(matches!(t1.get().state, TaskRuntimeState::Running(101)));
         assert!(matches!(t2.get().state, TaskRuntimeState::Running(101)));
+
+        on_remove_worker(&mut core, &mut comm, 101);
+        assert_eq!(comm.take_client_task_lost(1), vec![1]);
+        assert_eq!(comm.take_lost_workers(), vec![101]);
+        comm.check_need_scheduling();
+        comm.emptiness_check();
     }
 
     #[test]
