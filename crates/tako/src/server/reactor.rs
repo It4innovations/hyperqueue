@@ -1376,7 +1376,6 @@ mod tests {
         assert!(core.take_ready_to_assign().is_empty());
     }
 
-
     #[test]
     fn test_after_cancel_messages() {
         let mut core = Core::default();
