@@ -15,20 +15,20 @@ pub async fn submit_computation(
     name: Option<String>,
     commands: Vec<String>,
 ) -> crate::Result<()> {
-
-    let name = name.map(|name| {
-        validate_name(name).unwrap()
-    }).unwrap_or_else( || {
-        commands
-            .get(0)
-            .and_then(|t| {
-                PathBuf::from(t)
-                    .file_name()
-                    .and_then(|t| t.to_str().map(|s| s.to_string()))
-            })
-            .unwrap_or_else(|| "job".to_string())
+    let name = match name {
+        None => {
+            commands
+                .get(0)
+                .and_then(|t| {
+                    PathBuf::from(t)
+                        .file_name()
+                        .and_then(|t| t.to_str().map(|s| s.to_string()))
+                })
+                .unwrap_or_else(|| "job".to_string())
         }
-    );
+
+        Some(name) => validate_name(name)?
+    };
 
     let message = FromClientMessage::Submit(SubmitRequest {
         name,
