@@ -102,7 +102,6 @@ def test_cancel_without_workers(hq_env: HqEnv):
     table = hq_env.command(["jobs"], as_table=True)
     assert table[1][2] == "CANCELED"
     hq_env.start_worker(n_cpus=1)
-    time.sleep(0.2)
     table = hq_env.command(["jobs"], as_table=True)
     assert table[1][2] == "CANCELED"
 
@@ -141,8 +140,7 @@ def test_cancel_finished(hq_env: HqEnv):
 
 def test_reporting_state_after_worker_lost(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.start_worker(n_cpus=1)
-    hq_env.start_worker(n_cpus=1)
+    hq_env.start_workers(2, n_cpus=1)
     hq_env.command(["submit", "sleep", "1"])
     hq_env.command(["submit", "sleep", "1"])
     time.sleep(0.25)

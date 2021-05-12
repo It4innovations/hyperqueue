@@ -105,7 +105,13 @@ class HqEnv(Env):
         self.check_running_processes()
         return process
 
-    def start_worker(self, *, n_cpus=None, env=None, args=None) -> subprocess.Popen:
+    def start_workers(self, count, *, sleep=True, **kwargs):
+        for _ in range(count):
+            self.start_worker(sleep=False, **kwargs)
+        if sleep:
+            time.sleep(0.2)
+
+    def start_worker(self, *, n_cpus=None, env=None, args=None, sleep=True) -> subprocess.Popen:
         self.id_counter += 1
         worker_id = self.id_counter
         worker_env = self.make_default_env()
@@ -116,7 +122,10 @@ class HqEnv(Env):
             worker_args += ["--cpus", str(n_cpus)]
         if args:
             worker_args += list(args)
-        return self.start_process(f"worker{worker_id}", worker_args, env=worker_env)
+        r = self.start_process(f"worker{worker_id}", worker_args, env=worker_env)
+        if sleep:
+            time.sleep(0.2)
+        return r
 
     def kill_worker(self, worker_id):
         self.kill_process(f"worker{worker_id}")

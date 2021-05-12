@@ -12,10 +12,7 @@ def test_worker_list(hq_env: HqEnv):
     assert len(table) == 1
     assert table[0][:2] == ["Id", "State"]
 
-    hq_env.start_worker()
-    hq_env.start_worker()
-
-    time.sleep(0.2)
+    hq_env.start_workers(2)
 
     table = hq_env.command(["worker", "list"], as_table=True)
     assert len(table) == 3
@@ -24,7 +21,7 @@ def test_worker_list(hq_env: HqEnv):
     assert table[2][:2] == ["2", "RUNNING"]
 
     hq_env.kill_worker(2)
-    time.sleep(0.1)
+    time.sleep(0.2)
 
     table = hq_env.command(["worker", "list"], as_table=True)
     assert len(table) == 3
@@ -33,7 +30,7 @@ def test_worker_list(hq_env: HqEnv):
     assert table[2][:2] == ["2", "OFFLINE"]
 
     hq_env.kill_worker(1)
-    time.sleep(0.1)
+    time.sleep(0.2)
 
     table = hq_env.command(["worker", "list"], as_table=True)
     assert len(table) == 3
@@ -42,7 +39,6 @@ def test_worker_list(hq_env: HqEnv):
     assert table[2][:2] == ["2", "OFFLINE"]
 
     hq_env.start_worker()
-    time.sleep(0.2)
 
     table = hq_env.command(["worker", "list"], as_table=True)
 
