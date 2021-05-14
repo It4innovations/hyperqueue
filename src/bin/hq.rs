@@ -15,6 +15,7 @@ use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server};
 use hyperqueue::server::job::JobId;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::WorkerId;
+use hyperqueue::transfer::messages::JobStatus;
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -124,7 +125,9 @@ enum WorkerCommand {
 // Job CLI options
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
-struct JobListOpts {}
+struct JobListOpts {
+    job_filters: Vec<JobStatus>,
+}
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
@@ -161,9 +164,9 @@ async fn command_server_stop(
     Ok(())
 }
 
-async fn command_job_list(gsettings: GlobalSettings, _opts: JobListOpts) -> anyhow::Result<()> {
+async fn command_job_list(gsettings: GlobalSettings, opts: JobListOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    get_job_list(&gsettings, &mut connection)
+    get_job_list(&gsettings, &mut connection, opts.job_filters)
         .await
         .map_err(|e| e.into())
 }
@@ -288,7 +291,7 @@ async fn main() -> hyperqueue::Result<()> {
             subcmd: WorkerCommand::List(opts),
         }) => command_worker_list(gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::Info(_),
+            subcmd: WorkerCommand::Info(opts),
         }) => {
             todo!()
         }

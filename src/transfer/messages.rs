@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -59,7 +60,7 @@ pub enum ToClientMessage {
     Error(String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub enum JobStatus {
     Submitted,
     Waiting,
@@ -67,6 +68,22 @@ pub enum JobStatus {
     Finished,
     Failed,
     Canceled,
+}
+
+impl FromStr for JobStatus {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "submitted" => Self::Submitted,
+            "waiting" => Self::Waiting,
+            "running" => Self::Running,
+            "finished" => Self::Finished,
+            "failed" => Self::Failed,
+            "canceled" => Self::Canceled,
+            _ => anyhow::bail!("Invalid job status"),
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

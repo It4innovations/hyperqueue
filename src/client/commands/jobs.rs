@@ -4,12 +4,14 @@ use crate::rpc_call;
 use crate::server::job::JobId;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    CancelJobResponse, CancelRequest, FromClientMessage, JobInfoRequest, ToClientMessage,
+    CancelJobResponse, CancelRequest, FromClientMessage, JobInfoRequest, ToClientMessage, JobStatus,
 };
+
 
 pub async fn get_job_list(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
+    job_filters: Vec<JobStatus>,
 ) -> crate::Result<()> {
     let message = FromClientMessage::JobInfo(JobInfoRequest {
         job_ids: None,
@@ -17,6 +19,10 @@ pub async fn get_job_list(
     });
     let mut response =
         rpc_call!(connection, message, ToClientMessage::JobInfoResponse(r) => r).await?;
+
+    if !job_filters.is_empty() {
+        response.jobs.retain(|j| job_filters.contains(&j.status));
+    }
     response.jobs.sort_unstable_by_key(|j| j.id);
     print_job_list(gsettings, response.jobs);
     Ok(())
