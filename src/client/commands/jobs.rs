@@ -1,5 +1,5 @@
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::job::{print_job_detail, print_job_list};
+use crate::client::job::{job_status, print_job_detail, print_job_list, Status};
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
@@ -11,10 +11,17 @@ use crate::JobId;
 pub async fn get_job_list(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
+    job_filters: Vec<Status>,
 ) -> crate::Result<()> {
     let message = FromClientMessage::JobInfo(JobInfoRequest { job_ids: None });
     let mut response =
         rpc_call!(connection, message, ToClientMessage::JobInfoResponse(r) => r).await?;
+
+    if !job_filters.is_empty() {
+        response
+            .jobs
+            .retain(|j| job_filters.contains(&job_status(&j)));
+    }
     response.jobs.sort_unstable_by_key(|j| j.id);
     print_job_list(gsettings, response.jobs);
     Ok(())

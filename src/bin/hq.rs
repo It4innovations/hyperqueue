@@ -9,6 +9,7 @@ use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{submit_computation, SubmitOpts};
 use hyperqueue::client::commands::worker::{get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
+use hyperqueue::client::job::Status;
 use hyperqueue::client::worker::print_worker_info;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
@@ -128,7 +129,9 @@ enum WorkerCommand {
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
-struct JobListOpts {}
+struct JobListOpts {
+    job_filters: Vec<Status>,
+}
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
@@ -162,9 +165,9 @@ async fn command_server_stop(
     Ok(())
 }
 
-async fn command_job_list(gsettings: GlobalSettings, _opts: JobListOpts) -> anyhow::Result<()> {
+async fn command_job_list(gsettings: GlobalSettings, opts: JobListOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    get_job_list(&gsettings, &mut connection)
+    get_job_list(&gsettings, &mut connection, opts.job_filters)
         .await
         .map_err(|e| e.into())
 }
@@ -303,7 +306,6 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Hwdetect,
         }) => command_worker_hwdetect(),
-
         SubCommand::Jobs(opts) => command_job_list(gsettings, opts).await,
         SubCommand::Job(opts) => command_job_detail(gsettings, opts).await,
         SubCommand::Submit(opts) => command_submit(gsettings, opts).await,

@@ -1,8 +1,7 @@
-use std::path::PathBuf;
-
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde::Serialize;
+use std::path::PathBuf;
 use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 
 use crate::common::arraydef::ArrayDef;
@@ -77,7 +76,8 @@ pub enum ToClientMessage {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum TaskStatus {
+pub enum JobStatus {
+    Submitted,
     Waiting,
     Running,
     Finished,

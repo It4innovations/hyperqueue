@@ -6,8 +6,10 @@ use crate::client::resources::cpu_request_to_string;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::transfer::messages::{JobDetail, JobInfo, JobType};
 use crate::JobTaskCount;
+use std::str::FromStr;
 
-enum Status {
+#[derive(PartialEq)]
+pub enum Status {
     Waiting,
     Running,
     Finished,
@@ -15,7 +17,22 @@ enum Status {
     Canceled,
 }
 
-fn job_status(info: &JobInfo) -> Status {
+impl FromStr for Status {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "waiting" => Self::Waiting,
+            "running" => Self::Running,
+            "finished" => Self::Finished,
+            "failed" => Self::Failed,
+            "canceled" => Self::Canceled,
+            _ => anyhow::bail!("Invalid job status"),
+        })
+    }
+}
+
+pub fn job_status(info: &JobInfo) -> Status {
     if info.counters.n_running_tasks > 0 {
         Status::Running
     } else if info.counters.n_canceled_tasks > 0 {
