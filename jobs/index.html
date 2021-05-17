@@ -75,25 +75,11 @@
                 <ul class="current">
                     <li class="toctree-l1 current"><a class="reference internal current" href="./">Jobs (Basics)</a>
     <ul class="current">
-    <li class="toctree-l2"><a class="reference internal" href="#submiting-jobs">Submiting jobs</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#name-of-a-job">Name of a job</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#information-about-jobs">Information about jobs</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#output-of-the-job">Output of the job</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#job-states">Job states</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#canceling-jobs">Canceling jobs</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#priorities">Priorities</a>
-    </li>
     </ul>
                     </li>
                 </ul>
                 <ul>
-                    <li class="toctree-l1"><a class="reference internal" href="../jobarrays/">Job Arrays</a>
+                    <li class="toctree-l1"><a class="reference internal" href="../arrays/">Task Arrays</a>
                     </li>
                 </ul>
                 <ul>
@@ -136,7 +122,14 @@
             <div class="section">
               
                 <h1 id="jobs">Jobs<a class="headerlink" href="#jobs" title="Permanent link">#</a></h1>
-<p>In the current version, a job is a single execution of a program.</p>
+<p>A <em>job</em> is a portion of work that can be submited into a HyperQueue.</p>
+<p>Each job may have one or <em>tasks</em>. In the current version, a is a single execution of a program.</p>
+<p><strong>In this section, we are introducing simple jobs, where each job has exactly one tasks.</strong>
+See section about Job arrays for submiting more tasks in one job.</p>
+<h1 id="identification-numbers">Identification numbers<a class="headerlink" href="#identification-numbers" title="Permanent link">#</a></h1>
+<p>Each job is identified by a positive integer that is assigned by HyperQueue server when the job is submitted, we refer to it as <em>job id</em>.</p>
+<p>Each task is identified by an unsigned 32b integer called <em>task id</em>. Task id can be assigned by a user and same task id may be used in two different jobs.</p>
+<p>In simple jobs, task id is set to 0.</p>
 <h2 id="submiting-jobs">Submiting jobs<a class="headerlink" href="#submiting-jobs" title="Permanent link">#</a></h2>
 <p><code>hq submit &lt;program&gt; &lt;args1&gt; ...</code></p>
 <p>HyperQueue assigns a unique job id when a job is submitted.</p>
@@ -151,16 +144,16 @@
 <p>Detailed information about a job:</p>
 <p><code>hq job &lt;job-id&gt;</code></p>
 <h2 id="output-of-the-job">Output of the job<a class="headerlink" href="#output-of-the-job" title="Permanent link">#</a></h2>
-<p>By default, job produces two files named <code>stdout.&lt;job-id&gt;</code> and <code>stderr.&lt;job-id&gt;</code> that contains standard output and standard error output in the. The files are by default placed in the directory where the job was submitted.</p>
-<h2 id="job-states">Job states<a class="headerlink" href="#job-states" title="Permanent link">#</a></h2>
+<p>By default, job produces two files named <code>stdout.&lt;job-id&gt;.&lt;task-id&gt;</code> and <code>stderr.&lt;job-id&gt;.&lt;task-id&gt;</code> that contains standard output and standard error output in the. The files are by default placed in the directory where the job was submitted.</p>
+<h2 id="task-states">Task states<a class="headerlink" href="#task-states" title="Permanent link">#</a></h2>
 <pre><code>Submitted
    |
    |
    v
 Waiting-----------------\
-   |                    |
-   |                    |
-   v                    |
+   | ^                  |
+   | |                  |
+   v |                  |
 Running-----------------|
    | |                  |
    | \--------\         |
@@ -170,12 +163,14 @@ Finished    Failed   Canceled
 </code></pre>
 <ul>
 <li><em>Submitted</em> - Only an informative state that a submission was successfull; it is immediately changed into "Waiting" state.</li>
-<li><em>Waiting</em> - The job is waiting for start</li>
-<li><em>Running</em> - The job is running in a worker</li>
-<li><em>Finished</em> - The job was sucessfully finished</li>
-<li><em>Failed</em> - The job failed. The error can be shown by <code>hq job &lt;job-id&gt;</code>.</li>
-<li><em>Canceled</em> -  The job was canceled by a user.</li>
+<li><em>Waiting</em> - The task is waiting for start</li>
+<li><em>Running</em> - The task is running in a worker. It may become "waiting" again when a worker (where the task is running) is lost.</li>
+<li><em>Finished</em> - The task was sucessfully finished.</li>
+<li><em>Failed</em> - The task failed. The error can be shown by <code>hq job &lt;job-id&gt;</code>.</li>
+<li><em>Canceled</em> -  The task was canceled by a user.</li>
 </ul>
+<h2 id="job-states">Job states<a class="headerlink" href="#job-states" title="Permanent link">#</a></h2>
+<p>In simple jobs, job state correspondes directly to the state of its a single task. In case of task arrays, see the chapter about task arrays.</p>
 <h2 id="canceling-jobs">Canceling jobs<a class="headerlink" href="#canceling-jobs" title="Permanent link">#</a></h2>
 <p><code>hq cancel &lt;job-id&gt;</code></p>
 <p>A job cannot be canceled if it is already finished, failed, or canceled.</p>
@@ -188,7 +183,7 @@ Finished    Failed   Canceled
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../jobarrays/" class="btn btn-neutral float-right" title="Job Arrays">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../arrays/" class="btn btn-neutral float-right" title="Task Arrays">Next <span class="icon icon-circle-arrow-right"></span></a>
       
       
         <a href="../deployment/" class="btn btn-neutral" title="Deployment"><span class="icon icon-circle-arrow-left"></span> Previous</a>
@@ -222,7 +217,7 @@ Finished    Failed   Canceled
         <span><a href="../deployment/" style="color: #fcfcfc;">&laquo; Previous</a></span>
       
       
-        <span style="margin-left: 15px"><a href="../jobarrays/" style="color: #fcfcfc">Next &raquo;</a></span>
+        <span style="margin-left: 15px"><a href="../arrays/" style="color: #fcfcfc">Next &raquo;</a></span>
       
     </span>
 </div>
