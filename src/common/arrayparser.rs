@@ -28,7 +28,7 @@ fn p_task_id_range(input: &str) -> NomResult<TaskIdRange> {
 }
 
 fn p_array_def(input: &str) -> NomResult<ArrayDef> {
-    map(p_task_id_range, |r| ArrayDef::new(r))(input)
+    map(p_task_id_range, ArrayDef::new)(input)
 }
 
 pub fn parse_array_def(input: &str) -> anyhow::Result<ArrayDef> {

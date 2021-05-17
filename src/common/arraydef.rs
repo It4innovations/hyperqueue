@@ -36,7 +36,7 @@ impl ArrayDef {
     #[cfg(test)]
     pub fn simple_range(start: JobTaskId, count: JobTaskCount) -> Self {
         ArrayDef {
-            range: TaskIdRange { start: 0, count }
+            range: TaskIdRange { start, count }
         }
     }
     

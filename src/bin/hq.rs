@@ -285,8 +285,9 @@ async fn main() -> hyperqueue::Result<()> {
             subcmd: WorkerCommand::List(opts),
         }) => command_worker_list(gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::Info(_),
+            subcmd: WorkerCommand::Info(opts),
         }) => {
+            let _worker_id = opts.worker_id; // TODO: Just for silent warning
             todo!()
         }
 

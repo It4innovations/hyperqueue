@@ -152,10 +152,8 @@ mod tests {
     use crate::server::state::StateRef;
     use crate::server::job::Job;
     use tako::messages::common::ProgramDefinition;
-    use tako::server::task::Task;
     use crate::transfer::messages::JobType;
     use crate::common::arraydef::ArrayDef;
-    use crate::JobTaskCount;
 
     fn dummy_program_definition() -> ProgramDefinition {
         ProgramDefinition {

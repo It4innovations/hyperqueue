@@ -17,18 +17,16 @@ enum Status {
 
 fn job_status(info: &JobInfo) -> Status {
     if info.counters.n_running_tasks > 0 {
-        return Status::Running;
+        Status::Running
+    } else if info.counters.n_canceled_tasks > 0 {
+        Status::Canceled
+    } else if info.counters.n_failed_tasks > 0 {
+        Status::Failed
+    } else if info.counters.n_finished_tasks == info.n_tasks {
+        Status::Finished
+    } else {
+        Status::Waiting
     }
-    if info.counters.n_canceled_tasks > 0 {
-        return Status::Canceled;
-    }
-    if info.counters.n_failed_tasks > 0 {
-        return Status::Failed;
-    }
-    if info.counters.n_finished_tasks == info.n_tasks {
-        return Status::Finished;
-    }
-    return Status::Waiting;
 }
 
 fn task_status(status: &JobTaskState) -> Status {
@@ -96,16 +94,14 @@ pub fn print_job_detail(gsettings: &GlobalSettings, job: JobDetail, just_submitt
     let state_label = "State".cell().bold(true);
     let status = if just_submitted {
         vec![vec![state_label, "SUBMITTED".cell().foreground_color(Some(Color::Cyan))]]
-    } else {
-        if job.info.n_tasks == 1 {
+    } else if job.info.n_tasks == 1 {
             vec![vec![state_label, status_cell(job_status(&job.info))]]
-        } else {
-            let mut result = Vec::new();
-            let mut it = job_status_with_counts_cells(&job.info).into_iter();
-            result.push(vec![state_label, it.next().unwrap()]);
-            result.extend(it.map(|c| vec!["".cell(), c]));
-            result
-        }
+    } else {
+        let mut result = Vec::new();
+        let mut it = job_status_with_counts_cells(&job.info).into_iter();
+        result.push(vec![state_label, it.next().unwrap()]);
+        result.extend(it.map(|c| vec!["".cell(), c]));
+        result
     };
 
     let mut rows = vec![
