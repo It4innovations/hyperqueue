@@ -60,6 +60,10 @@ def test_custom_name(hq_env: HqEnv, tmp_path):
         hq_env.command(["submit", "sleep", "1", "--name=second_sleep \n"])
     with pytest.raises(Exception):
         hq_env.command(["submit", "sleep", "1", "--name=second_sleep \t"])
+    with pytest.raises(Exception):
+        hq_env.command(["submit", "sleep", "1", "--name=sleep_sleep_sleep"
+                                                "_sleep_sleep_sleep_sleep"
+                                                "sleep"])
 
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 2

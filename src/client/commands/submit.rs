@@ -48,14 +48,13 @@ pub async fn submit_computation(
     Ok(())
 }
 
- fn validate_name(name:String)
-                  ->anyhow::Result<String, anyhow::Error> {
-
-     if name.contains('\n') || name.contains('\t'){
-         return Err(anyhow!("name cannot have a newline or a tab"));
-     } else if name.len()>40 {
-         return Err(anyhow!("name cannot be more than 40 characters"));
-     } else {
-         Ok(name)
-     }
- }
+fn validate_name(name: String)
+                 -> anyhow::Result<String, anyhow::Error> {
+    match name {
+        name if name.contains('\n') || name.contains('\t') =>
+            Err(anyhow!("name cannot have a newline or a tab")),
+        name if name.len() > 40 =>
+            Err(anyhow!("name cannot be more than 40 characters")),
+        name => Ok(name)
+    }
+}
