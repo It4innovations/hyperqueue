@@ -1,12 +1,13 @@
-from .conftest import HqEnv
-import time
 import os
+import time
+
+from .conftest import HqEnv
 
 
 def test_job_submit(hq_env: HqEnv):
     hq_env.start_server()
-    #table = hq_env.command("jobs")
-    #print(table)
+    # table = hq_env.command("jobs")
+    # print(table)
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 1
     assert table[0][:3] == ["Id", "Name", "State"]
@@ -54,21 +55,21 @@ def test_job_output(hq_env: HqEnv, tmp_path):
     time.sleep(0.2)
     print(hq_env.command("jobs"))
     with open(os.path.join(tmp_path, "stdout.1.0")) as f:
-         assert f.read() == "hello\n"
+        assert f.read() == "hello\n"
     with open(os.path.join(tmp_path, "stderr.1.0")) as f:
-         assert f.read() == ""
+        assert f.read() == ""
 
     with open(os.path.join(tmp_path, "stdout.2.0")) as f:
-         assert f.read() == ""
+        assert f.read() == ""
     with open(os.path.join(tmp_path, "stderr.2.0")) as f:
-         data = f.read()
-         assert "No such file or directory" in data
-         assert data.startswith("ls:")
+        data = f.read()
+        assert "No such file or directory" in data
+        assert data.startswith("ls:")
 
     with open(os.path.join(tmp_path, "stdout.3.0")) as f:
-         assert f.read() == ""
+        assert f.read() == ""
     with open(os.path.join(tmp_path, "stderr.3.0")) as f:
-         assert f.read() == ""
+        assert f.read() == ""
 
 
 def test_job_fail(hq_env: HqEnv):

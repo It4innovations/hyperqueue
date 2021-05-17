@@ -1,8 +1,7 @@
+import time
 from typing import Optional
 
 from .conftest import HqEnv
-import time
-
 from .utils import wait_until
 
 
@@ -70,7 +69,9 @@ def test_worker_stop(hq_env: HqEnv):
     worker_id = wait_until(lambda: get_worker_id(hq_env, 0))
     hq_env.command(["worker", "stop", worker_id])
 
-    wait_until(lambda: hq_env.command(["worker", "list"], as_table=True)[1][1] == "OFFLINE")
+    wait_until(
+        lambda: hq_env.command(["worker", "list"], as_table=True)[1][1] == "OFFLINE"
+    )
     hq_env.check_process_exited(process)
 
 

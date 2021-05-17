@@ -3,6 +3,7 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use anyhow::Context;
 use cli_table::{print_stdout, Cell, Style, Table};
 use tokio::net::TcpListener;
 use tokio::sync::Notify;
@@ -15,7 +16,6 @@ use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
 use crate::transfer::connection::{ClientConnection, HqConnection};
-use anyhow::Context;
 
 enum ServerStatus {
     Offline(AccessRecord),

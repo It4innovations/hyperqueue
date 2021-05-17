@@ -2,7 +2,8 @@ from .utils import parse_table
 
 
 def test_table_parser():
-    table = parse_table("""+---------+--------------+
+    table = parse_table(
+        """+---------+--------------+
 | Id      | 1            |
 +---------+--------------+
 |         | WAITING [2]  |
@@ -14,7 +15,8 @@ def test_table_parser():
 |         | 2            |
 +---------+--------------+
 | Stdout  | N/A          |
-+---------+--------------+""")
++---------+--------------+"""
+    )
     assert table == [
         ["Id", "1"],
         ["", "WAITING [2]"],

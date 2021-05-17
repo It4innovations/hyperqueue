@@ -1,8 +1,10 @@
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
+use tako::messages::common::ProgramDefinition;
 use tako::messages::gateway::{
     CancelTasks, FromGatewayMessage, NewTasksMessage, StopWorkerRequest, TaskDef, ToGatewayMessage,
 };
@@ -13,11 +15,11 @@ use crate::server::job::{Job, JobTaskState};
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
-use crate::transfer::messages::{CancelJobResponse, FromClientMessage, JobInfoResponse, SubmitRequest, SubmitResponse, ToClientMessage, WorkerListResponse, JobType};
-use crate::{WorkerId, JobTaskId, JobId, JobTaskCount};
-
-use tako::messages::common::ProgramDefinition;
-use std::path::{PathBuf};
+use crate::transfer::messages::{
+    CancelJobResponse, FromClientMessage, JobInfoResponse, JobType, SubmitRequest, SubmitResponse,
+    ToClientMessage, WorkerListResponse,
+};
+use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
@@ -72,9 +74,7 @@ pub async fn client_rpc_loop<
                     FromClientMessage::Submit(msg) => {
                         handle_submit(&state_ref, &tako_ref, msg).await
                     }
-                    FromClientMessage::JobInfo(msg) => {
-                        compute_job_info(&state_ref, msg.job_ids)
-                    }
+                    FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, msg.job_ids),
                     FromClientMessage::Stop => {
                         end_flag.notify_one();
                         break;
@@ -123,37 +123,27 @@ async fn handle_worker_stop(
     }
 }
 
-fn compute_job_detail(
-    state_ref: &StateRef,
-    job_id: JobId,
-    include_tasks: bool,
-) -> ToClientMessage {
+fn compute_job_detail(state_ref: &StateRef, job_id: JobId, include_tasks: bool) -> ToClientMessage {
     let state = state_ref.get();
-    ToClientMessage::JobDetailResponse(state.get_job(job_id).map(|j| j.make_job_detail(include_tasks)))
+    ToClientMessage::JobDetailResponse(
+        state
+            .get_job(job_id)
+            .map(|j| j.make_job_detail(include_tasks)),
+    )
 }
 
-fn compute_job_info(
-    state_ref: &StateRef,
-    job_ids: Option<Vec<JobId>>,
-) -> ToClientMessage {
+fn compute_job_info(state_ref: &StateRef, job_ids: Option<Vec<JobId>>) -> ToClientMessage {
     let state = state_ref.get();
     if let Some(job_ids) = job_ids {
         ToClientMessage::JobInfoResponse(JobInfoResponse {
             jobs: job_ids
                 .into_iter()
-                .filter_map(|job_id| {
-                    state
-                        .get_job(job_id)
-                        .map(|j| j.make_job_info())
-                })
+                .filter_map(|job_id| state.get_job(job_id).map(|j| j.make_job_info()))
                 .collect(),
         })
     } else {
         ToClientMessage::JobInfoResponse(JobInfoResponse {
-            jobs: state
-                .jobs()
-                .map(|j| j.make_job_info())
-                .collect(),
+            jobs: state.jobs().map(|j| j.make_job_info()).collect(),
         })
     }
 }
@@ -171,17 +161,22 @@ async fn handle_job_cancel(
             Some(job) => {
                 for (tako_id, _task_id, state) in job.iter_task_states() {
                     match state {
-                        JobTaskState::Waiting | JobTaskState::Running => { tako_task_ids.push(tako_id) }
-                        JobTaskState::Finished | JobTaskState::Failed(_) | JobTaskState::Canceled => {
-                            /* Do nothing */
+                        JobTaskState::Waiting | JobTaskState::Running => {
+                            tako_task_ids.push(tako_id)
                         }
+                        JobTaskState::Finished
+                        | JobTaskState::Failed(_)
+                        | JobTaskState::Canceled => { /* Do nothing */ }
                     }
                 }
                 job.n_tasks()
             }
         };
         if tako_task_ids.is_empty() {
-            return ToClientMessage::CancelJobResponse(CancelJobResponse::Canceled(Vec::new(), n_tasks))
+            return ToClientMessage::CancelJobResponse(CancelJobResponse::Canceled(
+                Vec::new(),
+                n_tasks,
+            ));
         }
     }
 
@@ -192,9 +187,7 @@ async fn handle_job_cancel(
         .await
         .unwrap()
     {
-        ToGatewayMessage::CancelTasksResponse(msg) => {
-            msg.cancelled_tasks
-        }
+        ToGatewayMessage::CancelTasksResponse(msg) => msg.cancelled_tasks,
         ToGatewayMessage::Error(msg) => {
             log::debug!("Canceling job failed: {}", msg.message);
             return ToClientMessage::Error(format!("Canceling job failed: {}", msg.message));
@@ -204,28 +197,42 @@ async fn handle_job_cancel(
         }
     };
 
-
     let (canceled_ids, already_finished) = {
         let mut state = state_ref.get_mut();
         let job = state.get_job_mut(job_id).unwrap();
-        let canceled_ids : Vec<_> = canceled_tasks.iter().map(|tako_id| job.set_cancel_state(*tako_id)).collect();
+        let canceled_ids: Vec<_> = canceled_tasks
+            .iter()
+            .map(|tako_id| job.set_cancel_state(*tako_id))
+            .collect();
         let already_finished = job.n_tasks() - canceled_ids.len() as JobTaskCount;
         (canceled_ids, already_finished)
     };
     ToClientMessage::CancelJobResponse(CancelJobResponse::Canceled(canceled_ids, already_finished))
 }
 
-fn make_program_def_for_task(program_def: &ProgramDefinition, job_id: JobId, task_id: JobTaskId) -> ProgramDefinition {
+fn make_program_def_for_task(
+    program_def: &ProgramDefinition,
+    job_id: JobId,
+    task_id: JobTaskId,
+) -> ProgramDefinition {
     let job_id_str = job_id.to_string();
     let task_id_str = task_id.to_string();
 
-    let make_replacement = |s: &str| s.replace("%{JOB_ID}", &job_id_str).replace("%{TASK_ID}", &task_id_str);
+    let make_replacement = |s: &str| {
+        s.replace("%{JOB_ID}", &job_id_str)
+            .replace("%{TASK_ID}", &task_id_str)
+    };
 
     let mut def = program_def.clone();
     def.env.insert("HQ_JOB_ID".to_string(), job_id.to_string());
-    def.env.insert("HQ_TASK_ID".to_string(), task_id.to_string());
-    def.stdout = def.stdout.and_then(|p| p.to_str().map(make_replacement).map(PathBuf::from));
-    def.stderr = def.stderr.and_then(|p| p.to_str().map(make_replacement).map(PathBuf::from));
+    def.env
+        .insert("HQ_TASK_ID".to_string(), task_id.to_string());
+    def.stdout = def
+        .stdout
+        .and_then(|p| p.to_str().map(make_replacement).map(PathBuf::from));
+    def.stderr = def
+        .stderr
+        .and_then(|p| p.to_str().map(make_replacement).map(PathBuf::from));
     def
 }
 
@@ -256,11 +263,19 @@ async fn handle_submit(
         let tako_base_id = state.new_task_id(task_count);
         let task_defs = match &message.job_type {
             JobType::Simple => vec![make_task(job_id, 0, tako_base_id)],
-            JobType::Array(a) => a.iter().zip(tako_base_id..).map(|(task_id, tako_id)|
-                make_task(job_id, task_id, tako_id)
-            ).collect()
+            JobType::Array(a) => a
+                .iter()
+                .zip(tako_base_id..)
+                .map(|(task_id, tako_id)| make_task(job_id, task_id, tako_id))
+                .collect(),
         };
-        let job = Job::new(message.job_type, job_id, tako_base_id, message.name.clone(), message.spec);
+        let job = Job::new(
+            message.job_type,
+            job_id,
+            tako_base_id,
+            message.name.clone(),
+            message.spec,
+        );
         let job_detail = job.make_job_detail(false);
         state.add_job(job);
 
@@ -279,9 +294,7 @@ async fn handle_submit(
         }
     };
 
-    ToClientMessage::SubmitResponse(SubmitResponse {
-        job: job_detail,
-    })
+    ToClientMessage::SubmitResponse(SubmitResponse { job: job_detail })
 }
 
 async fn handle_worker_list(state_ref: &StateRef) -> ToClientMessage {

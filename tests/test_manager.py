@@ -6,7 +6,9 @@ from .conftest import HqEnv
 def test_manager_autodetect(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(n_cpus=1)
-    hq_env.start_worker(n_cpus=1, env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"})
+    hq_env.start_worker(
+        n_cpus=1, env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"}
+    )
     hq_env.start_worker(n_cpus=1, env={"SLURM_JOB_ID": "y5678"})
 
     table = hq_env.command(["worker", "list"], as_table=True)
@@ -28,7 +30,9 @@ def test_manager_set_none(hq_env: HqEnv):
     hq_env.start_server()
     args = ["--manager", "none"]
     hq_env.start_worker(n_cpus=1, args=args)
-    hq_env.start_worker(n_cpus=1, args=args, env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"})
+    hq_env.start_worker(
+        n_cpus=1, args=args, env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"}
+    )
     hq_env.start_worker(n_cpus=1, args=args, env={"SLURM_JOB_ID": "y5678"})
 
     table = hq_env.command(["worker", "list"], as_table=True)
@@ -47,12 +51,13 @@ def test_manager_set_pbs(hq_env: HqEnv):
     p = hq_env.start_worker(n_cpus=1, args=args)
     hq_env.check_process_exited(p, 1)
     time.sleep(0.2)
-    hq_env.start_worker(n_cpus=1, args=args, env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"})
+    hq_env.start_worker(
+        n_cpus=1, args=args, env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"}
+    )
 
     table = hq_env.command(["worker", "list"], as_table=True)
     assert table[1][4] == "PBS"
     assert table[1][5] == "x1234"
-
 
 
 def test_manager_set_slurm(hq_env: HqEnv):
@@ -66,4 +71,3 @@ def test_manager_set_slurm(hq_env: HqEnv):
     print(table)
     assert table[1][4] == "SLURM"
     assert table[1][5] == "abcd"
-

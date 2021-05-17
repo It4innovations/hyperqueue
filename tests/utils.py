@@ -1,12 +1,10 @@
-from typing import List
-
 import time
+from typing import List
 
 
 def parse_table(table_string: str) -> List[str]:
     lines = table_string.strip().split("\n")
     result = []
-    frame = set("+-")
     new_row = True
     for line in lines:
         if line.startswith("+-"):

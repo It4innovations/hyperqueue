@@ -1,8 +1,9 @@
-import subprocess
-import pytest
 import os
 import signal
+import subprocess
 import time
+
+import pytest
 
 from .utils import parse_table
 
@@ -13,7 +14,6 @@ HQ_WORKER_BIN = os.path.join(ROOT_DIR, "target", "debug", "hq-worker")
 
 
 class Env:
-
     def __init__(self, work_path):
         self.processes = []
         self.cleanups = []
@@ -24,16 +24,16 @@ class Env:
         logfile = (self.work_path / name).with_suffix(".out")
         if catch_io:
             with open(logfile, "w") as out:
-                p = subprocess.Popen(args,
-                                     preexec_fn=os.setsid,
-                                     stdout=out,
-                                     stderr=subprocess.STDOUT,
-                                     cwd=cwd,
-                                     env=env)
+                p = subprocess.Popen(
+                    args,
+                    preexec_fn=os.setsid,
+                    stdout=out,
+                    stderr=subprocess.STDOUT,
+                    cwd=cwd,
+                    env=env,
+                )
         else:
-            p = subprocess.Popen(args,
-                                 cwd=cwd,
-                                 env=env)
+            p = subprocess.Popen(args, cwd=cwd, env=env)
         self.processes.append((name, p))
         return p
 
@@ -45,7 +45,9 @@ class Env:
                 if expected_code is not None:
                     assert process.returncode == expected_code
 
-                self.processes = [(n, p) for (n, p) in self.processes if p is not process]
+                self.processes = [
+                    (n, p) for (n, p) in self.processes if p is not process
+                ]
                 return
         raise Exception(f"Process with pid {process.pid} not found")
 
@@ -54,7 +56,10 @@ class Env:
         for name, process in self.processes:
             if process.poll() is not None:
                 raise Exception(
-                    "Process {0} crashed (log in {1}/{0}.out)".format(name, self.work_path))
+                    "Process {0} crashed (log in {1}/{0}.out)".format(
+                        name, self.work_path
+                    )
+                )
 
     def kill_all(self):
         for fn in self.cleanups:
@@ -111,7 +116,9 @@ class HqEnv(Env):
         if sleep:
             time.sleep(0.2)
 
-    def start_worker(self, *, n_cpus=None, env=None, args=None, sleep=True) -> subprocess.Popen:
+    def start_worker(
+        self, *, n_cpus=None, env=None, args=None, sleep=True
+    ) -> subprocess.Popen:
         self.id_counter += 1
         worker_id = self.id_counter
         worker_env = self.make_default_env()
@@ -138,7 +145,9 @@ class HqEnv(Env):
 
         args = [HQ_BINARY, "--server-dir", self.server_dir] + args
         try:
-            output = subprocess.check_output(args, stderr=subprocess.STDOUT, cwd=self.work_path)
+            output = subprocess.check_output(
+                args, stderr=subprocess.STDOUT, cwd=self.work_path
+            )
             output = output.decode()
             if as_table:
                 return parse_table(output)

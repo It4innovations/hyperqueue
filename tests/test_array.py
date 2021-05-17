@@ -1,13 +1,16 @@
-from .conftest import HqEnv
-import time
-import os
 import collections
+import os
+import time
+
+from .conftest import HqEnv
 
 
 def test_job_array_submit(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(n_cpus=4)
-    hq_env.command(["submit", "--array=30-36", "--", "bash", "-c", "echo $HQ_JOB_ID-$HQ_TASK_ID"])
+    hq_env.command(
+        ["submit", "--array=30-36", "--", "bash", "-c", "echo $HQ_JOB_ID-$HQ_TASK_ID"]
+    )
     time.sleep(0.4)
     for i in list(range(0, 30)) + list(range(37, 40)):
         assert not os.path.isfile(os.path.join(hq_env.work_path, f"stdout.1.{i}"))
@@ -51,7 +54,16 @@ def test_job_array_report(hq_env: HqEnv):
 
 def test_job_array_error_some(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(["submit", "--array=0-9", "--", "python3", "-c", "import os; assert os.environ['HQ_TASK_ID'] not in ['2', '3', '7']"])
+    hq_env.command(
+        [
+            "submit",
+            "--array=0-9",
+            "--",
+            "python3",
+            "-c",
+            "import os; assert os.environ['HQ_TASK_ID'] not in ['2', '3', '7']",
+        ]
+    )
     hq_env.start_worker(n_cpus=2)
     time.sleep(0.4)
 
@@ -75,7 +87,10 @@ def test_job_array_error_some(hq_env: HqEnv):
     assert table[11][1] == "Error: Program terminated with exit code 1"
 
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
-    for i, s in enumerate(["FINISHED", "FAILED", "FAILED", "FINISHED", "FINISHED", "FINISHED", "FAILED"] + 3 * ["FINISHED"]):
+    for i, s in enumerate(
+        ["FINISHED", "FAILED", "FAILED", "FINISHED", "FINISHED", "FINISHED", "FAILED"]
+        + 3 * ["FINISHED"]
+    ):
         assert table[9 + i][0] == str(i)
 
 

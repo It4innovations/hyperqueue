@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use tako::messages::gateway::{
     LostWorkerMessage, NewWorkerMessage, TaskFailedMessage, TaskState, TaskUpdate,
 };
@@ -5,9 +7,7 @@ use tako::messages::gateway::{
 use crate::common::WrappedRcRefCell;
 use crate::server::job::Job;
 use crate::server::worker::Worker;
-use crate::{Map, TakoTaskId, WorkerId, JobId, JobTaskCount};
-use std::collections::BTreeMap;
-
+use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
 
 pub struct State {
     jobs: crate::Map<JobId, Job>,
@@ -59,7 +59,10 @@ impl State {
 
     pub fn add_job(&mut self, job: Job) {
         let job_id = job.job_id;
-        assert!(self.base_task_id_to_job_id.insert(job.base_task_id, job_id).is_none());
+        assert!(self
+            .base_task_id_to_job_id
+            .insert(job.base_task_id, job_id)
+            .is_none());
         assert!(self.jobs.insert(job_id, job).is_none());
     }
 
@@ -70,7 +73,12 @@ impl State {
     }*/
 
     pub fn get_job_mut_by_tako_task_id(&mut self, task_id: TakoTaskId) -> Option<&mut Job> {
-        let job_id : JobId = *self.base_task_id_to_job_id.range(..=task_id).rev().next()?.1;
+        let job_id: JobId = *self
+            .base_task_id_to_job_id
+            .range(..=task_id)
+            .rev()
+            .next()?
+            .1;
         let job = self.jobs.get_mut(&job_id)?;
         if task_id < job.base_task_id + job.n_tasks() as u64 {
             Some(job)
@@ -146,14 +154,14 @@ impl StateRef {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::server::state::StateRef;
-    use crate::server::job::Job;
     use tako::messages::common::ProgramDefinition;
-    use crate::transfer::messages::JobType;
+
     use crate::common::arraydef::ArrayDef;
+    use crate::server::job::Job;
+    use crate::server::state::StateRef;
+    use crate::transfer::messages::JobType;
 
     fn dummy_program_definition() -> ProgramDefinition {
         ProgramDefinition {
@@ -161,7 +169,7 @@ mod tests {
             env: Default::default(),
             stdout: None,
             stderr: None,
-            cwd: None
+            cwd: None,
         }
     }
 
@@ -169,11 +177,41 @@ mod tests {
     fn test_find_job_id_by_task_id() {
         let state_ref = StateRef::new();
         let mut state = state_ref.get_mut();
-        state.add_job(Job::new(JobType::Array(ArrayDef::simple_range(0, 10)), 223, 100, "".to_string(), dummy_program_definition()));
-        state.add_job(Job::new(JobType::Array(ArrayDef::simple_range(0, 15)), 224, 110, "".to_string(), dummy_program_definition()));
-        state.add_job(Job::new(JobType::Simple, 225, 125, "".to_string(), dummy_program_definition()));
-        state.add_job(Job::new(JobType::Simple, 226, 126, "".to_string(), dummy_program_definition()));
-        state.add_job(Job::new(JobType::Simple, 227, 130, "".to_string(), dummy_program_definition()));
+        state.add_job(Job::new(
+            JobType::Array(ArrayDef::simple_range(0, 10)),
+            223,
+            100,
+            "".to_string(),
+            dummy_program_definition(),
+        ));
+        state.add_job(Job::new(
+            JobType::Array(ArrayDef::simple_range(0, 15)),
+            224,
+            110,
+            "".to_string(),
+            dummy_program_definition(),
+        ));
+        state.add_job(Job::new(
+            JobType::Simple,
+            225,
+            125,
+            "".to_string(),
+            dummy_program_definition(),
+        ));
+        state.add_job(Job::new(
+            JobType::Simple,
+            226,
+            126,
+            "".to_string(),
+            dummy_program_definition(),
+        ));
+        state.add_job(Job::new(
+            JobType::Simple,
+            227,
+            130,
+            "".to_string(),
+            dummy_program_definition(),
+        ));
 
         assert!(state.get_job_mut_by_tako_task_id(99).is_none());
         assert_eq!(state.get_job_mut_by_tako_task_id(100).unwrap().job_id, 223);

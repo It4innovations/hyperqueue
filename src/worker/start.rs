@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use anyhow::{anyhow, Context};
 use clap::Clap;
 use tako::messages::common::WorkerConfiguration;
 use tako::worker::rpc::run_worker;
@@ -12,7 +13,6 @@ use crate::common::error::error;
 use crate::common::serverdir::ServerDir;
 use crate::worker::output::print_worker_configuration;
 use crate::Map;
-use anyhow::{anyhow, Context};
 
 #[derive(Clap)]
 pub enum ManagerOpts {

@@ -5,15 +5,14 @@ use serde::Deserialize;
 use serde::Serialize;
 use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 
-use crate::{WorkerId, JobId, JobTaskCount, JobTaskId};
 use crate::common::arraydef::ArrayDef;
 use crate::server::job::{JobTaskCounters, JobTaskInfo};
-
+use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum  JobType {
+pub enum JobType {
     Simple,
-    Array(ArrayDef)
+    Array(ArrayDef),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -74,7 +73,6 @@ pub enum ToClientMessage {
     Error(String),
 }
 
-
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TaskStatus {
     Waiting,
@@ -93,7 +91,6 @@ pub struct JobInfo {
     pub counters: JobTaskCounters,
 }
 
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerInfo {
     pub id: WorkerId,
@@ -105,7 +102,6 @@ pub struct WorkerInfo {
 pub struct JobInfoResponse {
     pub jobs: Vec<JobInfo>,
 }
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JobDetail {

@@ -13,8 +13,7 @@ use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server};
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
-use hyperqueue::{WorkerId, JobId};
-
+use hyperqueue::{JobId, WorkerId};
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -190,8 +189,7 @@ async fn command_worker_start(
     gsettings: GlobalSettings,
     opts: WorkerStartOpts,
 ) -> anyhow::Result<()> {
-    start_hq_worker(&gsettings, opts)
-        .await
+    start_hq_worker(&gsettings, opts).await
 }
 
 async fn command_worker_stop(

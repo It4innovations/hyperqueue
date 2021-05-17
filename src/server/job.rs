@@ -1,9 +1,8 @@
+use serde::{Deserialize, Serialize};
 use tako::messages::common::ProgramDefinition;
 
-use crate::transfer::messages::{JobInfo, JobType, JobDetail};
-use crate::{TakoTaskId, JobTaskId, JobId, JobTaskCount, Map};
-use serde::{Deserialize, Serialize};
-
+use crate::transfer::messages::{JobDetail, JobInfo, JobType};
+use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum JobTaskState {
@@ -22,7 +21,7 @@ pub struct JobTaskInfo {
 
 pub enum JobState {
     SingleTask(JobTaskState),
-    ManyTasks(Map<TakoTaskId, JobTaskInfo>)
+    ManyTasks(Map<TakoTaskId, JobTaskInfo>),
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, Default)]
@@ -34,12 +33,14 @@ pub struct JobTaskCounters {
 }
 
 impl JobTaskCounters {
-
     pub fn n_waiting_tasks(&self, n_tasks: JobTaskCount) -> JobTaskCount {
-        n_tasks - self.n_running_tasks - self.n_finished_tasks - self.n_failed_tasks - self.n_canceled_tasks
+        n_tasks
+            - self.n_running_tasks
+            - self.n_finished_tasks
+            - self.n_failed_tasks
+            - self.n_canceled_tasks
     }
 }
-
 
 pub struct Job {
     pub job_id: JobId,
@@ -55,16 +56,30 @@ pub struct Job {
 }
 
 impl Job {
-    pub fn new(job_type: JobType,
-               job_id: JobId,
-               base_task_id: TakoTaskId,
-               name: String, program_def: ProgramDefinition) -> Self {
-
+    pub fn new(
+        job_type: JobType,
+        job_id: JobId,
+        base_task_id: TakoTaskId,
+        name: String,
+        program_def: ProgramDefinition,
+    ) -> Self {
         let state = match &job_type {
             JobType::Simple => JobState::SingleTask(JobTaskState::Waiting),
             JobType::Array(m) if m.task_count() == 1 => JobState::SingleTask(JobTaskState::Waiting),
-            JobType::Array(m) => JobState::ManyTasks(m.iter().enumerate().map(|(i, task_id)|
-                                                              (base_task_id + i as TakoTaskId, JobTaskInfo { state: JobTaskState::Waiting, task_id})).collect())
+            JobType::Array(m) => JobState::ManyTasks(
+                m.iter()
+                    .enumerate()
+                    .map(|(i, task_id)| {
+                        (
+                            base_task_id + i as TakoTaskId,
+                            JobTaskInfo {
+                                state: JobTaskState::Waiting,
+                                task_id,
+                            },
+                        )
+                    })
+                    .collect(),
+            ),
         };
 
         Job {
@@ -90,14 +105,12 @@ impl Job {
                             task_id: 0,
                             state: s.clone(),
                         }]
-                    },
-                    JobState::ManyTasks(m) => {
-                        m.values().cloned().collect()
                     }
+                    JobState::ManyTasks(m) => m.values().cloned().collect(),
                 }
             } else {
                 Vec::new()
-            }
+            },
         }
     }
 
@@ -109,7 +122,6 @@ impl Job {
             JobState::Running => (JobStatus::Running, None),
             JobState::Canceled => (JobStatus::Canceled, None),
         };*/
-
 
         JobInfo {
             id: self.job_id,
@@ -123,7 +135,7 @@ impl Job {
     pub fn n_tasks(&self) -> JobTaskCount {
         match &self.state {
             JobState::SingleTask(_) => 1,
-            JobState::ManyTasks(s) => s.len() as JobTaskCount
+            JobState::ManyTasks(s) => s.len() as JobTaskCount,
         }
     }
 
@@ -132,7 +144,7 @@ impl Job {
             JobState::SingleTask(ref mut s) => {
                 debug_assert_eq!(tako_task_id, self.base_task_id);
                 (0, s)
-            },
+            }
             JobState::ManyTasks(m) => {
                 let state = m.get_mut(&tako_task_id).unwrap();
                 (state.task_id, &mut state.state)
@@ -140,12 +152,11 @@ impl Job {
         }
     }
 
-    pub fn iter_task_states<'a>(&'a self) -> Box<dyn Iterator<Item=(TakoTaskId, JobTaskId, &'a JobTaskState)> + 'a>
-    {
+    pub fn iter_task_states<'a>(
+        &'a self,
+    ) -> Box<dyn Iterator<Item = (TakoTaskId, JobTaskId, &'a JobTaskState)> + 'a> {
         match self.state {
-            JobState::SingleTask(ref s) => {
-                Box::new(Some((self.base_task_id, 0, s)).into_iter())
-            }
+            JobState::SingleTask(ref s) => Box::new(Some((self.base_task_id, 0, s)).into_iter()),
             JobState::ManyTasks(ref m) => {
                 Box::new(m.iter().map(|(k, v)| (*k, v.task_id, &v.state)))
             }
@@ -169,7 +180,6 @@ impl Job {
         assert!(matches!(state, JobTaskState::Waiting));
         *state = JobTaskState::Running;
         self.counters.n_running_tasks += 1;
-
     }
 
     pub fn set_finished_state(&mut self, tako_task_id: TakoTaskId) {
@@ -178,8 +188,6 @@ impl Job {
         *state = JobTaskState::Finished;
         self.counters.n_running_tasks -= 1;
         self.counters.n_finished_tasks += 1;
-
-
     }
 
     pub fn set_waiting_state(&mut self, tako_task_id: TakoTaskId) {
@@ -201,7 +209,10 @@ impl Job {
         let (task_id, state) = self.get_task_state_mut(tako_task_id);
         let old_state = std::mem::replace(state, JobTaskState::Canceled);
         dbg!(&old_state);
-        assert!(matches!(old_state, JobTaskState::Running | JobTaskState::Waiting));
+        assert!(matches!(
+            old_state,
+            JobTaskState::Running | JobTaskState::Waiting
+        ));
         if let JobTaskState::Running = old_state {
             self.counters.n_running_tasks -= 1;
         }

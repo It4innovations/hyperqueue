@@ -1,6 +1,5 @@
-use orion::kdf::SecretKey;
-
 use anyhow::Context;
+use orion::kdf::SecretKey;
 
 const KEY_SIZE: usize = 32;
 

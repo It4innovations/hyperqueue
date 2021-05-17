@@ -1,17 +1,18 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::{print_job_detail, print_job_list};
 use crate::rpc_call;
-use crate::JobId;
 use crate::transfer::connection::ClientConnection;
-use crate::transfer::messages::{CancelJobResponse, CancelRequest, FromClientMessage, JobInfoRequest, ToClientMessage, JobDetailRequest};
+use crate::transfer::messages::{
+    CancelJobResponse, CancelRequest, FromClientMessage, JobDetailRequest, JobInfoRequest,
+    ToClientMessage,
+};
+use crate::JobId;
 
 pub async fn get_job_list(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
 ) -> crate::Result<()> {
-    let message = FromClientMessage::JobInfo(JobInfoRequest {
-        job_ids: None,
-    });
+    let message = FromClientMessage::JobInfo(JobInfoRequest { job_ids: None });
     let mut response =
         rpc_call!(connection, message, ToClientMessage::JobInfoResponse(r) => r).await?;
     response.jobs.sort_unstable_by_key(|j| j.id);
@@ -50,10 +51,18 @@ pub async fn cancel_job(
 
     match response {
         CancelJobResponse::Canceled(canceled, already_finished) if !canceled.is_empty() => {
-            log::info!("Job {} canceled ({} tasks canceled, {} tasks already finished)", job_id, canceled.len(), already_finished)
+            log::info!(
+                "Job {} canceled ({} tasks canceled, {} tasks already finished)",
+                job_id,
+                canceled.len(),
+                already_finished
+            )
         }
         CancelJobResponse::Canceled(_, _) => {
-            log::error!("Canceling job {} failed; all tasks are already finished", job_id)
+            log::error!(
+                "Canceling job {} failed; all tasks are already finished",
+                job_id
+            )
         }
         CancelJobResponse::InvalidJob => {
             log::error!("Canceling job {} failed; job not found", job_id)
