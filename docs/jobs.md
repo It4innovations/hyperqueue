@@ -1,7 +1,21 @@
 
 # Jobs
 
-In the current version, a job is a single execution of a program.
+A *job* is a portion of work that can be submited into a HyperQueue.
+
+Each job may have one or *tasks*. In the current version, a is a single execution of a program.
+
+**In this section, we are introducing simple jobs, where each job has exactly one tasks.**
+See section about Job arrays for submiting more tasks in one job.
+
+# Identification numbers
+
+Each job is identified by a positive integer that is assigned by HyperQueue server when the job is submitted, we refer to it as *job id*.
+
+Each task is identified by an unsigned 32b integer called *task id*. Task id can be assigned by a user and same task id may be used in two different jobs.
+
+In simple jobs, task id is set to 0.
+
 
 ## Submiting jobs
 
@@ -35,10 +49,10 @@ Detailed information about a job:
 
 ## Output of the job
 
-By default, job produces two files named ``stdout.<job-id>`` and ``stderr.<job-id>`` that contains standard output and standard error output in the. The files are by default placed in the directory where the job was submitted.
+By default, job produces two files named ``stdout.<job-id>.<task-id>`` and ``stderr.<job-id>.<task-id>`` that contains standard output and standard error output in the. The files are by default placed in the directory where the job was submitted.
 
 
-## Job states
+## Task states
 
 ```
 Submitted
@@ -46,9 +60,9 @@ Submitted
    |
    v
 Waiting-----------------\
-   |                    |
-   |                    |
-   v                    |
+   | ^                  |
+   | |                  |
+   v |                  |
 Running-----------------|
    | |                  |
    | \--------\         |
@@ -58,11 +72,17 @@ Finished    Failed   Canceled
 ```
 
 * *Submitted* - Only an informative state that a submission was successfull; it is immediately changed into "Waiting" state.
-* *Waiting* - The job is waiting for start
-* *Running* - The job is running in a worker
-* *Finished* - The job was sucessfully finished
-* *Failed* - The job failed. The error can be shown by ``hq job <job-id>``.
-* *Canceled* -  The job was canceled by a user.
+* *Waiting* - The task is waiting for start
+* *Running* - The task is running in a worker. It may become "waiting" again when a worker (where the task is running) is lost.
+* *Finished* - The task was sucessfully finished.
+* *Failed* - The task failed. The error can be shown by ``hq job <job-id>``.
+* *Canceled* -  The task was canceled by a user.
+
+
+## Job states
+
+In simple jobs, job state correspondes directly to the state of its a single task. In case of task arrays, see the chapter about task arrays.
+
 
 ## Canceling jobs
 

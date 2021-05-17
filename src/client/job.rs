@@ -19,11 +19,11 @@ fn job_status(info: &JobInfo) -> Status {
     if info.counters.n_running_tasks > 0 {
         return Status::Running;
     }
-    if info.counters.n_failed_tasks > 0 {
-        return Status::Failed;
-    }
     if info.counters.n_canceled_tasks > 0 {
         return Status::Canceled;
+    }
+    if info.counters.n_failed_tasks > 0 {
+        return Status::Failed;
     }
     if info.counters.n_finished_tasks == info.n_tasks {
         return Status::Finished;

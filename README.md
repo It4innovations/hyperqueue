@@ -139,7 +139,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
     * Manual request in SLURM
 
-      ``sbatch <your-params-of-sbatch> -- hq worker start``
+      ``$ sbatch <your-params-of-sbatch> -- hq worker start``
 
 * Monitor the state of jobs
 
@@ -160,7 +160,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 ## 0.2
 
 * [ ] jobs that take more than 1 cpu
-* [ ] Job arrays
+* [x] Job arrays
 
 ## 0.3
 

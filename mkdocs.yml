@@ -13,7 +13,7 @@ nav:
   - Cheatsheet: cheatsheet.md
   - Deployment: deployment.md
   - Jobs (Basics): jobs.md
-  - Job Arrays: jobarrays.md
+  - Task Arrays: arrays.md
   - Resource Requests: resources.md
 
 
