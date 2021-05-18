@@ -165,7 +165,7 @@ def test_array_mix_with_simple_jobs(hq_env: HqEnv):
         hq_env.command(["submit", "--array=1-4", "/bin/hostname"])
         hq_env.command(["submit", "/bin/hostname"])
     hq_env.start_workers(1, n_cpus=2)
-    time.sleep(1.0)
+    time.sleep(1.6)
     table = hq_env.command("jobs", as_table=True)
     for i in range(1, 101):
         assert table[i][0] == str(i)
