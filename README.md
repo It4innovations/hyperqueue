@@ -97,6 +97,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
   HQ is implemented in Rust and uses Tokio ecosystem. The scheduler is work-stealing scheduler implemented in
   our project [Tako](https://github.com/spirali/tako/),
   that is derived from our previous work [RSDS](https://github.com/It4innovations/rsds).
+  Integration tests are written in Python, but HQ itself does not depend on Python.
 
 * **Who stands behind HyperQueue?**
 
