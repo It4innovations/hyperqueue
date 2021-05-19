@@ -1,12 +1,14 @@
 use orion::aead::SecretKey;
 
 use crate::common::error::DsError;
+use crate::common::resources::{ResourceAllocation, ResourceRequest};
 use crate::common::trace::trace_task_remove;
-use crate::common::{IdCounter, Map, WrappedRcRefCell};
-use crate::messages::common::SubworkerDefinition;
+use crate::common::{IdCounter, Map, Set, WrappedRcRefCell};
+use crate::messages::common::{ProgramDefinition, SubworkerDefinition};
 use crate::messages::gateway::ServerInfo;
 use crate::server::task::{Task, TaskRef, TaskRuntimeState};
 use crate::server::worker::Worker;
+use crate::server::worker_load::WorkerResources;
 use crate::{TaskId, WorkerId};
 use std::sync::Arc;
 
@@ -16,8 +18,11 @@ pub struct Core {
     workers: Map<WorkerId, Worker>,
 
     /* Scheduler items */
+    parked_resources: Set<WorkerResources>, // Resources of workers that has flag NOTHING_TO_LOAD
     ready_to_assign: Vec<TaskRef>,
     has_new_tasks: bool,
+
+    sleeping_tasks: Vec<TaskRef>, // Tasks that cannot be scheduled to any available worker
 
     maximal_task_id: TaskId,
     worker_id_counter: IdCounter,
@@ -49,12 +54,30 @@ impl Core {
         task_id <= self.maximal_task_id
     }
 
-    #[inline]
     pub fn get_and_move_scatter_counter(&mut self, size: usize) -> usize {
         let c = self.scatter_counter;
         self.scatter_counter += size;
         c
     }
+
+    pub fn park_workers(&mut self) {
+        for worker in self.workers.values_mut() {
+            if worker.is_underloaded() && worker.tasks().iter().all(|t| t.get().is_running()) {
+                worker.set_parked_flag(true);
+                self.parked_resources.insert(worker.resources.clone());
+            }
+        }
+    }
+
+    pub fn add_sleeping_task(&mut self, task_ref: TaskRef) {
+        self.sleeping_tasks.push(task_ref);
+    }
+
+    pub fn take_sleeping_tasks(&mut self) -> Vec<TaskRef> {
+        std::mem::take(&mut self.sleeping_tasks)
+    }
+
+    pub fn reset_waiting_resources(&mut self) {}
 
     pub fn get_server_info(&self) -> ServerInfo {
         ServerInfo {
@@ -62,7 +85,6 @@ impl Core {
         }
     }
 
-    #[inline]
     pub fn take_ready_to_assign(&mut self) -> Vec<TaskRef> {
         std::mem::take(&mut self.ready_to_assign)
     }
@@ -80,7 +102,6 @@ impl Core {
         self.maximal_task_id = task_id;
     }
 
-    #[inline]
     pub fn check_has_new_tasks_and_reset(&mut self) -> bool {
         let result = self.has_new_tasks;
         self.has_new_tasks = false;
@@ -88,6 +109,8 @@ impl Core {
     }
 
     pub fn new_worker(&mut self, worker: Worker) {
+        let mut sleeping_tasks = self.take_sleeping_tasks();
+        self.ready_to_assign.append(&mut sleeping_tasks);
         let worker_id = worker.id;
         self.workers.insert(worker_id, worker);
     }
@@ -96,7 +119,6 @@ impl Core {
         self.workers.remove(&worker_id).unwrap()
     }
 
-    #[inline]
     pub fn get_worker_by_address(&self, address: &str) -> Option<&Worker> {
         self.workers
             .values()
@@ -156,11 +178,32 @@ impl Core {
 
     pub fn add_task(&mut self, task_ref: TaskRef) {
         let task_id = task_ref.get().id();
-        if task_ref.get().is_ready() {
-            self.ready_to_assign.push(task_ref.clone());
+        {
+            let task = task_ref.get();
+            if task.is_ready() {
+                self.add_ready_to_assign(task_ref.clone());
+            }
         }
         self.has_new_tasks = true;
         assert!(self.tasks.insert(task_id, task_ref).is_none());
+    }
+
+    #[inline(never)]
+    fn wakeup_parked_resources(&mut self) {
+        for worker in self.workers.values_mut() {
+            worker.set_parked_flag(false);
+        }
+        self.parked_resources.clear();
+    }
+
+    #[inline]
+    pub fn try_wakeup_parked_resources(&mut self, request: &ResourceRequest) {
+        for res in &self.parked_resources {
+            if res.is_capable_to_run(request) {
+                self.wakeup_parked_resources();
+                break;
+            }
+        }
     }
 
     #[inline]
@@ -236,13 +279,22 @@ impl Core {
         let worker_check = |core: &Core, tr: &TaskRef, wid: WorkerId| {
             for (worker_id, worker) in &core.workers {
                 if wid == *worker_id {
-                    assert!(worker.tasks.contains(tr));
+                    assert!(worker.tasks().contains(tr));
                 } else {
-                    dbg!(tr.get().id, wid, worker_id);
-                    assert!(!worker.tasks.contains(tr));
+                    //dbg!(tr.get().id, wid, worker_id);
+                    assert!(!worker.tasks().contains(tr));
                 }
             }
         };
+
+        for (worker_id, worker) in &self.workers {
+            assert_eq!(worker.id, *worker_id);
+            assert_eq!(
+                self.parked_resources.contains(&worker.resources),
+                worker.is_parked()
+            );
+            worker.sanity_check();
+        }
 
         for (task_id, task_ref) in &self.tasks {
             let task = task_ref.get();

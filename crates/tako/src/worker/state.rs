@@ -20,6 +20,9 @@ use crate::server::worker::WorkerId;
 use crate::transfer::auth::serialize;
 use crate::transfer::DataConnection;
 use crate::worker::data::{DataObject, DataObjectRef, DataObjectState, LocalData, RemoteData};
+use crate::worker::launcher::LauncherSetup;
+use crate::worker::pool::ResourcePool;
+use crate::worker::rqueue::ResourceWaitQueue;
 use crate::worker::subworker::{SubworkerId, SubworkerRef};
 use crate::worker::task::{TaskRef, TaskState};
 use crate::TaskId;
@@ -30,12 +33,10 @@ pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
 
 pub struct WorkerState {
     pub sender: UnboundedSender<Bytes>,
-    pub ncpus: u32,
-    pub free_cpus: u32,
     pub subworkers: HashMap<SubworkerId, SubworkerRef>,
     pub free_subworkers: Vec<SubworkerRef>,
     pub tasks: HashMap<TaskId, TaskRef>,
-    pub ready_task_queue: priority_queue::PriorityQueue<TaskRef, (Priority, Priority)>,
+    pub ready_task_queue: ResourceWaitQueue,
     pub data_objects: HashMap<TaskId, DataObjectRef>,
     pub running_tasks: Set<TaskRef>,
     pub start_task_scheduled: bool,
@@ -53,7 +54,7 @@ pub struct WorkerState {
     pub subworker_definitions: Map<SubworkerId, SubworkerDefinition>,
 
     pub configuration: WorkerConfiguration,
-
+    pub launcher_setup: LauncherSetup,
     pub secret_key: Option<Arc<SecretKey>>,
 }
 
@@ -139,15 +140,13 @@ impl WorkerState {
     }
 
     pub fn add_ready_task(&mut self, task_ref: TaskRef) {
-        let priority = task_ref.get().priority;
-        self.ready_task_queue.push(task_ref, priority);
+        self.ready_task_queue.add_task(task_ref);
         self.schedule_task_start();
     }
 
     pub fn add_ready_tasks(&mut self, task_refs: &[TaskRef]) {
         for task_ref in task_refs {
-            let priority = task_ref.get().priority;
-            self.ready_task_queue.push(task_ref.clone(), priority);
+            self.ready_task_queue.add_task(task_ref.clone());
         }
         self.schedule_task_start();
     }
@@ -253,15 +252,15 @@ impl WorkerState {
 
     pub fn remove_task(&mut self, task_ref: TaskRef, just_finished: bool) {
         let mut task = task_ref.get_mut();
-        match task.state {
+        match std::mem::replace(&mut task.state, TaskState::Removed) {
             TaskState::Waiting(x) => {
                 log::debug!("Removing waiting task id={}", task.id);
                 assert!(!just_finished);
                 if x == 0 {
-                    assert!(self.ready_task_queue.remove(&task_ref).is_some());
+                    self.ready_task_queue.remove_task(&task_ref);
                 }
             }
-            TaskState::Uploading(_, _) => {
+            TaskState::Uploading(_, _, _) => {
                 todo!()
                 /* This should not happen in this version, but in case of need:
                    TODO: The following code
@@ -282,20 +281,18 @@ impl WorkerState {
                     }
                 }*/
             }
-            TaskState::Running(ref mut env) => {
+            TaskState::Running(mut env, allocation) => {
                 if !just_finished {
                     env.cancel_task();
                 }
                 assert!(self.running_tasks.remove(&task_ref));
-                self.free_cpus += 1;
-                debug_assert!(self.free_cpus <= self.ncpus);
                 self.schedule_task_start();
+                self.ready_task_queue.release_allocation(allocation);
             }
             TaskState::Removed => {
                 unreachable!();
             }
         }
-        task.state = TaskState::Removed;
 
         assert!(self.tasks.remove(&task.id).is_some());
         for data_ref in std::mem::take(&mut task.deps) {
@@ -360,7 +357,7 @@ impl WorkerState {
                     let task = task_ref.get_mut();
                     match task.state {
                         TaskState::Waiting(_) => { /* Continue */ }
-                        TaskState::Running(_) | TaskState::Uploading(_, _) => {
+                        TaskState::Running(_, _) | TaskState::Uploading(_, _, _) => {
                             return StealResponse::Running
                         }
                         TaskState::Removed => unreachable!(),
@@ -408,15 +405,16 @@ impl WorkerStateRef {
         download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, PriorityTuple)>,
         worker_addresses: Map<WorkerId, String>,
         subworker_definitions: Vec<SubworkerDefinition>,
+        launcher_setup: LauncherSetup,
     ) -> Self {
+        let ready_task_queue = ResourceWaitQueue::new(&configuration.resources);
         let self_ref = Self::wrap(WorkerState {
             worker_id,
             worker_addresses,
             sender,
-            free_cpus: configuration.n_cpus,
-            ncpus: configuration.n_cpus,
             download_sender,
             configuration,
+            launcher_setup,
             secret_key,
             subworker_definitions: subworker_definitions
                 .into_iter()
@@ -425,7 +423,7 @@ impl WorkerStateRef {
             tasks: Default::default(),
             subworkers: Default::default(),
             free_subworkers: Default::default(),
-            ready_task_queue: Default::default(),
+            ready_task_queue,
             data_objects: Default::default(),
             random: SmallRng::from_entropy(),
             worker_connections: Default::default(),

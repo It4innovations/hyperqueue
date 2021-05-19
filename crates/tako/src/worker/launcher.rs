@@ -5,9 +5,12 @@ use tokio::process::Command;
 use tokio::sync::oneshot;
 
 use crate::common::error::DsError;
+use crate::common::resources::ResourceAllocation;
 use crate::messages::common::{ProgramDefinition, TaskFailInfo};
 use crate::worker::state::WorkerStateRef;
-use crate::worker::task::TaskRef;
+use crate::worker::task::{Task, TaskRef};
+
+pub type LauncherSetup = Box<dyn Fn(&Task, ProgramDefinition) -> crate::Result<ProgramDefinition>>;
 
 fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Command> {
     if definition.args.is_empty() {
@@ -44,11 +47,16 @@ fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Com
     Ok(command)
 }
 
-async fn start_program_from_task(task_ref: &TaskRef) -> crate::Result<()> {
+async fn start_program_from_task(
+    state_ref: &WorkerStateRef,
+    task_ref: &TaskRef,
+) -> crate::Result<()> {
     let definition: ProgramDefinition = {
         let task = task_ref.get();
-        rmp_serde::from_slice(&task.spec)?
+        let def = rmp_serde::from_slice(&task.spec)?;
+        (state_ref.get().launcher_setup)(&task, def)?
     };
+
     let mut command = command_from_definitions(&definition)?;
     let status = command.status().await?;
     if !status.success() {
@@ -67,8 +75,13 @@ pub fn launch_program_from_task(
 ) -> oneshot::Sender<()> {
     let (sender, receiver) = oneshot::channel();
     tokio::task::spawn_local(async move {
-        log::debug!("Starting program launcher {}", task_ref.get().id);
-        let program = start_program_from_task(&task_ref);
+        log::debug!(
+            "Starting program launcher {} {:?} {:?}",
+            task_ref.get().id,
+            &task_ref.get().resources,
+            task_ref.get().resource_allocation()
+        );
+        let program = start_program_from_task(&state_ref, &task_ref);
         tokio::select! {
             biased;
             _ = receiver => {

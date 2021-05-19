@@ -2,6 +2,7 @@ use bytes::Bytes;
 use tokio::sync::oneshot::Sender;
 
 use crate::common::data::SerializationType;
+use crate::common::resources::ResourceAllocation;
 use crate::worker::data::DataObject;
 use crate::worker::launcher::launch_program_from_task;
 use crate::worker::state::WorkerState;
@@ -77,7 +78,13 @@ impl TaskEnv {
         }
     }
 
-    pub fn start_task(&mut self, state: &WorkerState, task: &Task, task_ref: &TaskRef) {
+    pub fn start_task(
+        &mut self,
+        state: &WorkerState,
+        task: &Task,
+        task_ref: &TaskRef,
+        allocation: &ResourceAllocation,
+    ) {
         match self {
             TaskEnv::Subworker(subworker_ref) => {
                 let mut sw = subworker_ref.get_mut();

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::common::resources::{ResourceAllocation, ResourceRequest};
 use crate::common::Map;
 use crate::messages::common::{SubworkerDefinition, TaskFailInfo, WorkerConfiguration};
 use crate::Priority;
@@ -32,6 +33,8 @@ pub struct ComputeTaskMsg {
 
     pub user_priority: Priority,
     pub scheduler_priority: Priority,
+
+    pub resources: ResourceRequest,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -102,7 +105,7 @@ pub struct StealResponseMsg {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerOverview {
     pub id: WorkerId,
-    pub running_tasks: Vec<(TaskId, u32)>, // (task_id, cpus)
+    pub running_tasks: Vec<(TaskId, ResourceAllocation)>,
     pub placed_data: Vec<TaskId>,
 }
 

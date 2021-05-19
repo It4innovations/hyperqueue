@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::common::resources::ResourceDescriptor;
 use crate::common::Map;
 use crate::TaskTypeId;
 
@@ -62,7 +63,7 @@ pub struct ProgramDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerConfiguration {
-    pub n_cpus: u32,
+    pub resources: ResourceDescriptor,
 
     pub listen_address: String,
     pub hostname: String,

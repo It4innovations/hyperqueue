@@ -16,3 +16,4 @@ mod wrapped;
 pub mod trace;
 pub mod secret;
 pub mod setup;
+pub mod resources;
