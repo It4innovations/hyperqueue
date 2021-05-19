@@ -13,6 +13,7 @@ use tokio::time::sleep;
 use tokio::time::timeout;
 
 use crate::common::data::SerializationType;
+use crate::common::resources::{ResourceAllocation, ResourceDescriptor};
 use crate::messages::common::WorkerConfiguration;
 use crate::messages::worker::{
     FromWorkerMessage, RegisterWorker, StealResponseMsg, ToWorkerMessage, WorkerOverview,
@@ -27,6 +28,8 @@ use crate::transfer::messages::{DataRequest, DataResponse, FetchResponseData, Up
 use crate::transfer::transport::{connect_to_worker, make_protocol_builder};
 use crate::transfer::DataConnection;
 use crate::worker::data::{DataObjectRef, DataObjectState, LocalData, Subscriber};
+use crate::worker::launcher::LauncherSetup;
+use crate::worker::pool::ResourcePool;
 use crate::worker::reactor::{assign_task, start_local_download};
 use crate::worker::state::WorkerStateRef;
 use crate::worker::task::TaskRef;
@@ -79,6 +82,7 @@ pub async fn run_worker(
     scheduler_address: &str,
     mut configuration: WorkerConfiguration,
     secret_key: Option<Arc<SecretKey>>,
+    launcher_setup: LauncherSetup,
 ) -> crate::Result<((WorkerId, WorkerConfiguration), impl Future<Output = ()>)> {
     let (listener, address) = start_listener().await?;
     configuration.listen_address = address;
@@ -123,6 +127,7 @@ pub async fn run_worker(
                         download_sender,
                         message.worker_addresses,
                         message.subworker_definitions,
+                        launcher_setup,
                     ),
                 )
             }
@@ -140,13 +145,13 @@ pub async fn run_worker(
             notify.notified().await;
             let mut state = state_ref2.get_mut();
             state.start_task_scheduled = false;
-            if state.free_cpus == 0 {
-                continue;
-            }
-            while let Some((task_ref, _)) = state.ready_task_queue.pop() {
-                assign_task(&mut state, &task_ref);
-                if state.free_cpus == 0 {
+            loop {
+                let allocations = state.ready_task_queue.try_start_tasks();
+                if allocations.is_empty() {
                     break;
+                }
+                for (task_ref, allocation) in allocations {
+                    assign_task(&mut state, task_ref, allocation);
                 }
             }
         }
@@ -358,7 +363,10 @@ async fn worker_message_loop(
                         .iter()
                         .map(|tr| {
                             let task = tr.get();
-                            (task.id, 1) // TODO: Modify this when more cpus are allowed
+                            let allocation: ResourceAllocation =
+                                task.resource_allocation().unwrap().clone();
+                            (task.id, allocation)
+                            // TODO: Modify this when more cpus are allowed
                         })
                         .collect(),
                     placed_data: state.data_objects.keys().copied().collect(),

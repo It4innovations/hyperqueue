@@ -100,6 +100,8 @@ class Session:
             }
             if task.keep:
                 task_def["keep"] = True
+            if task.resources:
+                task_def["resources"] = task.resources.to_dict()
             task_defs.append(task_def)
             self.tasks[task_id] = task
         loop = asyncio.get_event_loop()

@@ -8,6 +8,7 @@ use std::time::SystemTime;
 use tracing_subscriber::fmt::time::FormatTime;
 use tracing_subscriber::FmtSubscriber;
 
+use crate::messages::common::WorkerConfiguration;
 use crate::TaskId;
 use crate::WorkerId;
 
@@ -118,12 +119,12 @@ pub fn trace_task_remove(task_id: TaskId) {
     tracing::info!(action = "task", event = "remove", task = task_id,);
 }
 #[inline(always)]
-pub fn trace_worker_new(worker_id: WorkerId, ncpus: u32, address: &str) {
+pub fn trace_worker_new(worker_id: WorkerId, configuration: &WorkerConfiguration) {
     tracing::info!(
         action = "new-worker",
         worker_id = worker_id,
-        cpus = ncpus,
-        address = address
+        resources = format!("{:?}", &configuration.resources).as_str(),
+        address = configuration.listen_address.as_str(),
     );
 }
 #[inline(always)]

@@ -19,8 +19,10 @@ use crate::{TaskId, WorkerId};
 
 use super::metrics::compute_b_level_metric;
 use super::utils::task_transfer_cost;
+use crate::common::resources::ResourceRequest;
+use crate::server::worker_load::ResourceRequestLowerBound;
 
-pub struct SchedulerState {
+pub(crate) struct SchedulerState {
     // Which tasks has modified state, this map holds the original state
     dirty_tasks: Map<TaskRef, TaskRuntimeState>,
 
@@ -31,25 +33,28 @@ fn choose_worker_for_task(
     task: &Task,
     worker_map: &Map<WorkerId, Worker>,
     random: &mut SmallRng,
-) -> WorkerId {
-    let mut costs = std::u64::MAX;
-    let mut workers = Vec::with_capacity(worker_map.len());
-    for wr in worker_map.keys() {
-        let c = task_transfer_cost(task, *wr);
+    mut workers: &mut Vec<WorkerId>,
+) -> Option<WorkerId> {
+    let mut costs = u64::MAX;
+    for worker in worker_map.values() {
+        if !worker.is_capable_to_run(&task.resources) {
+            continue;
+        }
+        let c = task_transfer_cost(task, worker.id);
         match c.cmp(&costs) {
             Ordering::Less => {
                 costs = c;
                 workers.clear();
-                workers.push(wr.clone());
+                workers.push(worker.id);
             }
-            Ordering::Equal => workers.push(wr.clone()),
+            Ordering::Equal => workers.push(worker.id),
             Ordering::Greater => { /* Do nothing */ }
         }
     }
-    if workers.len() == 1 {
-        workers.pop().unwrap()
-    } else {
-        workers.choose(random).unwrap().clone()
+    match workers.len() {
+        1 => Some(workers.pop().unwrap()),
+        0 => None,
+        _ => Some(*workers.choose(random).unwrap()),
     }
 }
 
@@ -78,14 +83,14 @@ pub async fn scheduler_loop(
 }
 
 impl SchedulerState {
-    fn run_scheduling(&mut self, core: &mut Core, comm: &mut impl Comm) {
+    pub(crate) fn run_scheduling(&mut self, core: &mut Core, comm: &mut impl Comm) {
         if self.schedule_available_tasks(core) {
             trace_time!("scheduler", "balance", self.balance(core));
         }
         self.finish_scheduling(comm);
     }
 
-    pub fn finish_scheduling(&mut self, comm: &mut impl Comm) {
+    pub(crate) fn finish_scheduling(&mut self, comm: &mut impl Comm) {
         let mut task_steals: Map<WorkerId, Vec<TaskId>> = Default::default();
         let mut task_computes: Map<WorkerId, Vec<TaskRef>> = Default::default();
         for (task_ref, old_state) in self.dirty_tasks.drain() {
@@ -138,7 +143,7 @@ impl SchedulerState {
         }
     }
 
-    pub fn assign(
+    pub(crate) fn assign(
         &mut self,
         core: &mut Core,
         task: &mut Task,
@@ -146,12 +151,23 @@ impl SchedulerState {
         worker_id: WorkerId,
     ) {
         //assign_task_to_worker(task, task_ref, worker, worker_ref);
-
         let assigned_worker = task.get_assigned_worker();
         if let Some(w_id) = assigned_worker {
+            log::debug!(
+                "Changing assignment of task={} from worker={} to worker={}",
+                task.id,
+                w_id,
+                worker_id
+            );
             assert_ne!(w_id, worker_id);
             let previous_worker = core.get_worker_mut_by_id_or_panic(w_id);
-            assert!(previous_worker.tasks.remove(&task_ref));
+            previous_worker.remove_task(task, &task_ref);
+        } else {
+            log::debug!(
+                "Fresh assignment of task={} to worker={}",
+                task.id,
+                worker_id
+            );
         }
         for tr in &task.inputs {
             let mut t = tr.get_mut();
@@ -161,8 +177,7 @@ impl SchedulerState {
             t.set_future_placement(worker_id);
         }
         core.get_worker_mut_by_id_or_panic(worker_id)
-            .tasks
-            .insert(task_ref.clone());
+            .insert_task(task, task_ref.clone());
         let new_state = match task.state {
             TaskRuntimeState::Waiting(_) => TaskRuntimeState::Assigned(worker_id),
             TaskRuntimeState::Assigned(old_w) => {
@@ -200,49 +215,91 @@ impl SchedulerState {
             });
         }
 
-        for tr in core.take_ready_to_assign().drain(..) {
-            let mut task = tr.get_mut();
-            assert!(task.is_waiting());
-            let worker_id = choose_worker_for_task(&task, core.get_worker_map(), &mut self.random);
-            log::debug!("Task {} initially assigned to {}", task.id, worker_id);
-            self.assign(core, &mut task, tr.clone(), worker_id);
+        let mut ready_tasks = core.take_ready_to_assign();
+        if !ready_tasks.is_empty() {
+            let mut tmp_workers = Vec::with_capacity(core.get_worker_map().len());
+            for tr in ready_tasks.drain(..) {
+                let mut task = tr.get_mut();
+                assert!(task.is_waiting());
+                core.try_wakeup_parked_resources(&task.resources);
+                let worker_id = choose_worker_for_task(
+                    &task,
+                    core.get_worker_map(),
+                    &mut self.random,
+                    &mut tmp_workers,
+                );
+                //log::debug!("Task {} initially assigned to {}", task.id, worker_id);
+                if let Some(worker_id) = worker_id {
+                    self.assign(core, &mut task, tr.clone(), worker_id);
+                } else {
+                    core.add_sleeping_task(tr.clone());
+                }
+            }
         }
 
-        let has_underload_workers = core.get_workers().any(|w| w.is_underloaded());
+        let has_underload_workers = core
+            .get_workers()
+            .any(|w| !w.is_parked() && w.is_underloaded());
 
         log::debug!("Scheduling finished");
         has_underload_workers
     }
 
-    pub fn balance(&mut self, core: &mut Core) {
+    pub(crate) fn balance(&mut self, core: &mut Core) {
+        // This method is called only if at least one worker is underloaded
+
         log::debug!("Balancing started");
+
         let mut balanced_tasks = Vec::new();
+        let mut min_resource = ResourceRequestLowerBound::default();
+
         for worker in core.get_workers() {
-            let len = worker.tasks.len() as u32;
-            if len > worker.configuration.n_cpus {
-                log::debug!("Worker {} offers {} tasks", worker.id, len);
-                for tr in &worker.tasks {
-                    let mut task = tr.get_mut();
-                    if task.is_running() {
-                        continue;
-                    }
-                    task.set_take_flag(false);
-                    balanced_tasks.push(tr.clone());
+            let mut offered = 0;
+            let not_overloaded = !worker.is_overloaded();
+            for tr in worker.tasks() {
+                let mut task = tr.get_mut();
+                if task.is_running()
+                    || (not_overloaded && (task.is_fresh() || !task.inputs.is_empty()))
+                {
+                    continue;
                 }
+                task.set_take_flag(false);
+                min_resource.include(&task.resources);
+                balanced_tasks.push(tr.clone());
+                offered += 1;
             }
+            if offered > 0 {
+                log::debug!(
+                    "Worker {} offers {}/{} tasks",
+                    worker.id,
+                    offered,
+                    worker.tasks().len()
+                );
+            }
+        }
+
+        if balanced_tasks.is_empty() {
+            log::debug!("No tasks to balance");
+            return;
         }
 
         let mut underload_workers = Vec::new();
         for worker in core.get_workers() {
-            let len = worker.tasks.len() as u32;
-            if len < worker.configuration.n_cpus {
-                log::debug!("Worker {} is underloaded ({} tasks)", worker.id, len);
+            // We could here also testing park flag, but it is already solved in the next condition
+            if worker.have_immediate_resources_for_lb(&min_resource) {
+                log::debug!(
+                    "Worker {} is underloaded ({} tasks)",
+                    worker.id,
+                    worker.tasks().len()
+                );
                 let mut ts = balanced_tasks.clone();
+                // Here we want to sort task such that [t1, ... tN]
+                // Where t1 is the task with the highest cost to schedule here
+                // and tN is the lowest cost to schedule here
                 ts.sort_by_cached_key(|tr| {
                     let task = tr.get();
                     let mut cost = task_transfer_cost(&task, worker.id);
-                    if !task.is_fresh() {
-                        cost += cost / 8;
+                    if !task.is_fresh() && task.get_assigned_worker() != Some(worker.id) {
                         cost += 10_000_000;
                     }
                     log::debug!(
@@ -251,315 +308,148 @@ impl SchedulerState {
                         worker.id,
                         cost
                     );
-                    std::u64::MAX - cost
+                    (u64::MAX - cost, worker.resources.n_cpus(&task.resources))
                 });
-                underload_workers.push((worker.id, worker.tasks.len(), ts));
+                /*for tr in &ts {
+                    println!("LIST {} {}", tr.get().id(), tr.get().resources.get_n_cpus());
+                }*/
+                let len = ts.len();
+                underload_workers.push((worker.id, ts, len));
             }
         }
-        underload_workers.sort_by_key(|x| x.1);
 
-        let mut n_tasks = core
-            .get_worker_by_id_or_panic(underload_workers[0].0)
-            .tasks
-            .len();
+        //dbg!(&underload_workers);
+
+        if underload_workers.is_empty() {
+            log::debug!("No balancing possible");
+            return;
+        }
+
+        /* Micro heuristic, give small priority to workers with less tasks */
+        underload_workers.sort_unstable_by_key(|(_, ts, _)| ts.len());
+
+        /* Iteration 1 - try to assign tasks so workers are not longer underutilized */
+        /* This should be always relatively quick even with million of tasks and many workers,
+          since we require that each task need at least one core and we expect that number
+          of cores per worker is low
+        */
         loop {
-            let mut change = false;
-            for (worker_id, initial_n_tasks, ts) in underload_workers.iter_mut() {
-                if *initial_n_tasks > n_tasks {
-                    break;
-                }
-                if ts.is_empty() {
+            let mut changed = false;
+            for (worker_id, ts, pos) in underload_workers.iter_mut() {
+                let worker = core.get_worker_by_id_or_panic(*worker_id);
+                if !worker.have_immediate_resources_for_lb(&min_resource) {
                     continue;
                 }
+                while *pos > 0 {
+                    *pos -= 1;
+                    let mut task = ts[*pos].get_mut();
+                    if task.is_taken() {
+                        continue;
+                    }
+                    if !worker.have_immediate_resources_for_rq(&task.resources) {
+                        continue;
+                    }
+                    let worker2_id = task.get_assigned_worker().unwrap();
+                    /*
+                    let worker2 = core.get_worker_by_id_or_panic(worker2_id);
+                    if !worker2.is_overloaded() {
+                        continue;
+                    }*/
+                    if *worker_id != worker2_id {
+                        self.assign(core, &mut task, ts[*pos].clone(), *worker_id);
+                    }
+                    changed = true;
+                    task.set_take_flag(true);
+                    break;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
 
+        log::debug!("Balacing phase 2");
+
+        /* Iteration 2 - balance number of tasks per node */
+        /* After Iteration 1 we know that workers are not underutilized,
+          or this state could not be achieved, so it does not make sense
+          to examine detailed resource requirements and we do it only roughly
+        */
+
+        loop {
+            let mut changed = false;
+            for (worker_id, ts, _) in underload_workers.iter_mut() {
+                let worker = core.get_worker_by_id_or_panic(*worker_id);
                 while let Some(tr) = ts.pop() {
                     let mut task = tr.get_mut();
                     if task.is_taken() {
                         continue;
                     }
+                    let worker2_id = task.get_assigned_worker().unwrap();
+                    let worker2 = core.get_worker_by_id_or_panic(worker2_id);
+
+                    /*dbg!(&worker.id);
+                    dbg!(&worker.load);
+                    dbg!(&worker.configuration.resources);
+                    dbg!(&worker2.id);
+                    dbg!(&worker2.load);
+                    dbg!(&worker2.configuration.resources);*/
+
+                    if !worker2.is_overloaded() || !worker2.is_more_loaded_then(&worker) {
+                        continue;
+                    }
+                    if *worker_id != worker2_id {
+                        self.assign(core, &mut task, tr.clone(), *worker_id);
+                    }
+                    changed = true;
                     task.set_take_flag(true);
-                    let old_worker_id = {
-                        let worker2_id = task.get_assigned_worker().unwrap();
-                        let worker2 = core.get_worker_mut_by_id_or_panic(worker2_id);
-                        let worker2_n_tasks = worker2.tasks.len();
-                        if worker2_n_tasks <= n_tasks
-                            || worker2_n_tasks <= worker2.configuration.n_cpus as usize
-                        {
-                            continue;
-                        }
-                        worker2_id
-                    };
-                    log::debug!(
-                        "Changing assignment of task={} from worker={} to worker={}",
-                        task.id,
-                        old_worker_id,
-                        worker_id
-                    );
-                    self.assign(core, &mut task, tr.clone(), *worker_id);
                     break;
                 }
-                change = true;
             }
-            if !change {
+            if !changed {
                 break;
             }
-            n_tasks += 1;
         }
+
+        if core.get_workers().any(|w| w.is_overloaded()) {
+            // We have overloaded worker, so try to park underloaded workers
+            // as it may be case the there are unschedulable tasks for them
+            core.park_workers();
+        }
+
         log::debug!("Balancing finished");
     }
 }
 
 #[cfg(test)]
 pub mod tests {
-    use crate::common::Set;
-    use crate::messages::worker::{StealResponse, StealResponseMsg};
+    use crate::scheduler::scheduler::SchedulerState;
     use crate::server::core::Core;
-    use crate::server::reactor::on_steal_response;
-    use crate::server::test_util::{
-        create_test_comm, create_test_workers, finish_on_worker, start_and_finish_on_worker,
-        submit_example_1, submit_test_tasks, task,
-    };
+    use crate::server::task::TaskRef;
+    use crate::WorkerId;
+    use rand::rngs::SmallRng;
+    use rand::SeedableRng;
 
-    use super::*;
-
-    pub fn create_test_scheduler() -> SchedulerState {
+    pub(crate) fn create_test_scheduler() -> SchedulerState {
         SchedulerState {
             dirty_tasks: Default::default(),
             random: SmallRng::from_seed([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
         }
     }
 
-    #[test]
-    fn test_no_deps_distribute() {
-        let mut core = Core::default();
-        create_test_workers(&mut core, &[2, 2, 2]);
-
-        assert_eq!(core.get_worker_map().len(), 3);
-        for w in core.get_workers() {
-            assert!(w.is_underloaded());
+    impl SchedulerState {
+        pub(crate) fn test_assign(
+            &mut self,
+            core: &mut Core,
+            task_ref: &TaskRef,
+            worker_id: WorkerId,
+        ) {
+            let mut task = task_ref.get_mut();
+            self.assign(core, &mut task, task_ref.clone(), worker_id);
         }
-
-        let mut active_ids: Set<TaskId> = (1..301).collect();
-        let tasks: Vec<TaskRef> = (1..301).map(|i| task(i)).collect();
-        let task_refs: Vec<&TaskRef> = tasks.iter().collect();
-        submit_test_tasks(&mut core, &task_refs);
-
-        let mut scheduler = create_test_scheduler();
-        let mut comm = create_test_comm();
-        scheduler.run_scheduling(&mut core, &mut comm);
-
-        let m1 = comm.take_worker_msgs(100, 0);
-        let m2 = comm.take_worker_msgs(101, 0);
-        let m3 = comm.take_worker_msgs(102, 0);
-        comm.emptiness_check();
-        core.sanity_check();
-
-        assert_eq!(m1.len() + m2.len() + m3.len(), 300);
-        assert!(m1.len() >= 10);
-        assert!(m2.len() >= 10);
-        assert!(m3.len() >= 10);
-
-        for w in core.get_workers() {
-            assert!(!w.is_underloaded());
-        }
-
-        let mut finish_all = |core: &mut Core, msgs, worker_id| {
-            for m in msgs {
-                match m {
-                    ToWorkerMessage::ComputeTask(cm) => {
-                        assert!(active_ids.remove(&cm.id));
-                        finish_on_worker(core, cm.id, worker_id, 1000);
-                    }
-                    _ => unreachable!(),
-                };
-            }
-        };
-
-        finish_all(&mut core, m1, 100);
-        finish_all(&mut core, m3, 102);
-
-        assert!(core.get_worker_by_id_or_panic(100).is_underloaded());
-        assert!(!core.get_worker_by_id_or_panic(101).is_underloaded());
-        assert!(core.get_worker_by_id_or_panic(102).is_underloaded());
-
-        scheduler.run_scheduling(&mut core, &mut comm);
-
-        assert!(!core.get_worker_by_id_or_panic(100).is_underloaded());
-        assert!(!core.get_worker_by_id_or_panic(101).is_underloaded());
-        assert!(!core.get_worker_by_id_or_panic(102).is_underloaded());
-
-        // TODO: Finish stealing
-
-        let x1 = comm.take_worker_msgs(101, 1);
-
-        let stealing = match &x1[0] {
-            ToWorkerMessage::StealTasks(tasks) => tasks.ids.clone(),
-            _ => {
-                unreachable!()
-            }
-        };
-
-        comm.emptiness_check();
-        core.sanity_check();
-
-        on_steal_response(
-            &mut core,
-            &mut comm,
-            101,
-            StealResponseMsg {
-                responses: stealing.iter().map(|t| (*t, StealResponse::Ok)).collect(),
-            },
-        );
-
-        let n1 = comm.take_worker_msgs(100, 0);
-        let n3 = comm.take_worker_msgs(102, 0);
-
-        assert!(n1.len() > 5);
-        assert!(n3.len() > 5);
-        assert_eq!(n1.len() + n3.len(), stealing.len());
-
-        assert!(!core.get_worker_by_id_or_panic(100).is_underloaded());
-        assert!(!core.get_worker_by_id_or_panic(101).is_underloaded());
-        assert!(!core.get_worker_by_id_or_panic(102).is_underloaded());
-
-        comm.emptiness_check();
-        core.sanity_check();
-
-        finish_all(&mut core, n1, 100);
-        finish_all(&mut core, n3, 102);
-        assert_eq!(
-            active_ids.len(),
-            core.get_worker_by_id_or_panic(101).tasks.len()
-        );
-
-        comm.emptiness_check();
-        core.sanity_check();
-    }
-
-    #[test]
-    fn test_minimal_transfer_no_balance1() {
-        /*11  12
-          \  / \
-          13   14
-
-          11 - is big on W100
-          12 - is small on W101
-        */
-
-        let mut core = Core::default();
-        create_test_workers(&mut core, &[2, 2, 2]);
-        submit_example_1(&mut core);
-        start_and_finish_on_worker(&mut core, 11, 100, 10000);
-        start_and_finish_on_worker(&mut core, 12, 101, 1000);
-
-        let mut scheduler = create_test_scheduler();
-        let mut comm = create_test_comm();
-        scheduler.run_scheduling(&mut core, &mut comm);
-
-        let m1 = comm.take_worker_msgs(100, 1);
-        let m2 = comm.take_worker_msgs(101, 1);
-
-        assert_eq!(
-            core.get_task_by_id_or_panic(13)
-                .get()
-                .get_assigned_worker()
-                .unwrap(),
-            100
-        );
-        assert_eq!(
-            core.get_task_by_id_or_panic(14)
-                .get()
-                .get_assigned_worker()
-                .unwrap(),
-            101
-        );
-
-        comm.emptiness_check();
-        core.sanity_check();
-    }
-
-    #[test]
-    fn test_minimal_transfer_no_balance2() {
-        /*11  12
-          \  / \
-          13   14
-
-          11 - is small on W100
-          12 - is big on W102
-        */
-
-        let mut core = Core::default();
-        create_test_workers(&mut core, &[2, 2, 2]);
-        submit_example_1(&mut core);
-        start_and_finish_on_worker(&mut core, 11, 100, 1000);
-        start_and_finish_on_worker(&mut core, 12, 101, 10000);
-
-        let mut scheduler = create_test_scheduler();
-        let mut comm = create_test_comm();
-        scheduler.run_scheduling(&mut core, &mut comm);
-
-        comm.take_worker_msgs(101, 2);
-
-        assert_eq!(
-            core.get_task_by_id_or_panic(13)
-                .get()
-                .get_assigned_worker()
-                .unwrap(),
-            101
-        );
-        assert_eq!(
-            core.get_task_by_id_or_panic(14)
-                .get()
-                .get_assigned_worker()
-                .unwrap(),
-            101
-        );
-
-        comm.emptiness_check();
-        core.sanity_check();
-    }
-
-    #[test]
-    fn test_minimal_transfer_after_balance() {
-        /*11  12
-          \  / \
-          13   14
-
-          11 - is on W100
-          12 - is on W100
-        */
-
-        let mut core = Core::default();
-        create_test_workers(&mut core, &[1, 1]);
-        submit_example_1(&mut core);
-        start_and_finish_on_worker(&mut core, 11, 100, 10000);
-        start_and_finish_on_worker(&mut core, 12, 100, 10000);
-
-        let mut scheduler = create_test_scheduler();
-        let mut comm = create_test_comm();
-        scheduler.run_scheduling(&mut core, &mut comm);
-
-        dbg!(&comm);
-
-        comm.take_worker_msgs(100, 1);
-        comm.take_worker_msgs(101, 1);
-
-        assert_eq!(
-            core.get_task_by_id_or_panic(13)
-                .get()
-                .get_assigned_worker()
-                .unwrap(),
-            100
-        );
-        assert_eq!(
-            core.get_task_by_id_or_panic(14)
-                .get()
-                .get_assigned_worker()
-                .unwrap(),
-            101
-        );
-
-        comm.emptiness_check();
-        core.sanity_check();
     }
 }
+
+/*
+ *  Tests are in test_scheduler.rs
+ */

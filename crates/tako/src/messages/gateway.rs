@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize, Serializer};
 
+use crate::common::resources::ResourceRequest;
 use crate::messages::common::{SubworkerDefinition, TaskFailInfo, WorkerConfiguration};
 use crate::messages::worker::WorkerOverview;
 use crate::{OutputId, TaskId, TaskTypeId, WorkerId};
@@ -21,6 +22,9 @@ pub struct TaskDef {
 
     #[serde(default)]
     pub observe: bool,
+
+    #[serde(default)]
+    pub resources: ResourceRequest,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

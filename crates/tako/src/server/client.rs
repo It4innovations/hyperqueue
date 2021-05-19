@@ -121,6 +121,7 @@ pub async fn process_client_message(
                     Vec::new(),
                     task.n_outputs,
                     0,
+                    task.resources,
                     task.keep,
                     task.observe,
                 );

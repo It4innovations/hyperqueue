@@ -10,10 +10,12 @@ use tokio::task::LocalSet;
 use orion::kdf::SecretKey;
 use std::rc::Rc;
 use std::sync::Arc;
+use tako::common::resources::{ResourceAllocation, ResourceDescriptor};
 use tako::common::secret::read_secret_file;
 use tako::common::setup::setup_logging;
-use tako::messages::common::WorkerConfiguration;
+use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 use tako::worker::rpc::run_worker;
+use tako::worker::task::Task;
 
 #[derive(Clap)]
 #[clap(version = "1.0")]
@@ -30,7 +32,10 @@ struct Opts {
     heartbeat: u32,
 
     #[clap(long)]
-    ncpus: Option<u32>,
+    cpus: Option<u32>,
+
+    #[clap(long)]
+    sockets: Option<u32>,
 
     #[clap(long)]
     secret_file: Option<PathBuf>,
@@ -57,12 +62,22 @@ fn create_paths(
     Ok((work_dir, local_dir))
 }
 
+fn launcher_setup(_task: &Task, def: ProgramDefinition) -> tako::Result<ProgramDefinition> {
+    Ok(def)
+}
+
 async fn worker_main(
     server_address: &str,
     configuration: WorkerConfiguration,
     secret_key: Option<Arc<SecretKey>>,
 ) -> tako::Result<()> {
-    let (_, worker_future) = run_worker(server_address, configuration, secret_key).await?;
+    let (_, worker_future) = run_worker(
+        server_address,
+        configuration,
+        secret_key,
+        Box::new(launcher_setup),
+    )
+    .await?;
     worker_future.await;
     Ok(())
 }
@@ -78,15 +93,16 @@ async fn main() -> tako::Result<()> {
         opts.local_directory.unwrap_or(std::env::temp_dir()),
     )?;
 
-    let n_cpus = opts.ncpus.unwrap_or(1);
-    if n_cpus < 1 {
-        panic!("Invalid number of cpus");
-    }
-
     let heartbeat_interval = Duration::from_millis(opts.heartbeat as u64);
 
+    let resources = match (opts.cpus, opts.sockets) {
+        (Some(c), s) => ResourceDescriptor::new_with_socket_size(s.unwrap_or(1), c),
+        (None, Some(_)) => todo!(),
+        (None, None) => todo!(),
+    };
+
     let configuration = WorkerConfiguration {
-        n_cpus,
+        resources,
         listen_address: Default::default(), // Will be set later
         hostname: gethostname::gethostname()
             .into_string()

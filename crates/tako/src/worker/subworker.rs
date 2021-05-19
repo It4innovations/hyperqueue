@@ -29,6 +29,7 @@ use crate::worker::taskenv::TaskEnv;
 use crate::TaskId;
 
 use super::messages::RegisterSubworkerMessage;
+use crate::common::resources::ResourceAllocation;
 
 pub(crate) type SubworkerId = u32;
 
@@ -165,8 +166,10 @@ fn subworker_download_finished(
                     match subscriber {
                         Subscriber::Task(task_ref) => {
                             let mut task = task_ref.get_mut();
-                            let start_env: Option<TaskEnv> = match &mut task.state {
-                                TaskState::Uploading(ref mut env, ref mut w) => {
+                            let start_env: Option<(TaskEnv, ResourceAllocation)> = match &mut task
+                                .state
+                            {
+                                TaskState::Uploading(ref mut env, ref mut w, ref mut a) => {
                                     if let Some(target_sw_ref) = env.get_subworker() {
                                         subworkers.push(target_sw_ref.clone());
                                     }
@@ -174,15 +177,18 @@ fn subworker_download_finished(
                                     assert!(*w > 0);
                                     *w -= 1;
                                     if *w == 0 {
-                                        Some(std::mem::replace(env, TaskEnv::Invalid))
+                                        Some((
+                                            std::mem::replace(env, TaskEnv::Invalid),
+                                            std::mem::take(a),
+                                        ))
                                     } else {
                                         None
                                     }
                                 }
                                 _ => unreachable!(),
                             };
-                            if let Some(env) = start_env {
-                                start_task(&mut state, &mut task, &task_ref, env);
+                            if let Some((env, allocation)) = start_env {
+                                start_task(&mut state, &mut task, &task_ref, env, allocation);
                             }
                         }
                         Subscriber::OneShot(shot) => {

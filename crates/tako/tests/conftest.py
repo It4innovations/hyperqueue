@@ -117,7 +117,7 @@ class TakoEnv(Env):
         env["RUST_LOG"] = "debug"
         return env
 
-    def start_worker(self, ncpus, port=None, heartbeat=None, secret_file=None):
+    def start_worker(self, ncpus, port=None, heartbeat=None, secret_file=None, nsockets=None):
         port = port or self.default_listen_port
         worker_id = self.id_counter
         self.id_counter += 1
@@ -135,11 +135,15 @@ class TakoEnv(Env):
         args = [
             program,
             "localhost:{}".format(port),
-            "--ncpus",
+            "--cpus",
             str(ncpus),
             "--work-dir",
             work_dir,
         ]
+
+        if nsockets is not None:
+            args.append("--sockets")
+            args.append(str(nsockets))
 
         if heartbeat:
             args.append("--heartbeat")

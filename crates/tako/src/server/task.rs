@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::fmt;
 
+use crate::common::resources::ResourceRequest;
 use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::Priority;
@@ -57,7 +58,6 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Debug)]
 pub struct Task {
     pub id: TaskId,
     pub state: TaskRuntimeState,
@@ -68,6 +68,8 @@ pub struct Task {
 
     pub n_outputs: OutputId,
 
+    pub resources: ResourceRequest,
+
     pub type_id: TaskTypeId,
     pub spec: Vec<u8>, // Serialized TaskSpec
 
@@ -75,6 +77,12 @@ pub struct Task {
     pub scheduler_priority: Priority,
 }
 
+impl fmt::Debug for Task {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        //let task_ids : Vec<_> = self.tasks.iter().map(|r| r.get().id.to_string()).collect();
+        f.debug_struct("Task").field("id", &self.id).finish()
+    }
+}
 pub type TaskRef = WrappedRcRefCell<Task>;
 
 impl Task {
@@ -214,6 +222,7 @@ impl Task {
             spec: self.spec.clone(),
             user_priority: self.user_priority,
             scheduler_priority: self.scheduler_priority,
+            resources: self.resources.clone(),
         })
     }
 
@@ -343,6 +352,7 @@ impl TaskRef {
         inputs: Vec<TaskRef>,
         n_outputs: OutputId,
         user_priority: Priority,
+        resources: ResourceRequest,
         keep: bool,
         observe: bool,
     ) -> Self {
@@ -359,6 +369,7 @@ impl TaskRef {
             spec,
             user_priority,
             scheduler_priority: Default::default(),
+            resources,
             state: TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 }),
             consumers: Default::default(),
         })

@@ -1,3 +1,4 @@
+use crate::common::resources::{ResourceAllocation, ResourceRequest};
 use crate::common::WrappedRcRefCell;
 use crate::messages::worker::ComputeTaskMsg;
 use crate::worker::data::DataObjectRef;
@@ -6,8 +7,8 @@ use crate::{OutputId, Priority, TaskId, TaskTypeId};
 
 pub enum TaskState {
     Waiting(u32),
-    Uploading(TaskEnv, u32),
-    Running(TaskEnv),
+    Uploading(TaskEnv, u32, ResourceAllocation),
+    Running(TaskEnv, ResourceAllocation),
     Removed,
 }
 
@@ -17,6 +18,7 @@ pub struct Task {
     pub state: TaskState,
     pub priority: (Priority, Priority),
     pub deps: Vec<DataObjectRef>,
+    pub resources: ResourceRequest,
     pub n_outputs: OutputId,
     pub spec: Vec<u8>,
 }
@@ -34,7 +36,15 @@ impl Task {
 
     #[inline]
     pub fn is_running(&self) -> bool {
-        matches!(self.state, TaskState::Running(_))
+        matches!(self.state, TaskState::Running(_, _))
+    }
+
+    pub fn resource_allocation(&self) -> Option<&ResourceAllocation> {
+        match &self.state {
+            TaskState::Uploading(_, _, a) | TaskState::Running(_, a) => Some(a),
+            TaskState::Waiting(_) => None,
+            TaskState::Removed => unreachable!(),
+        }
     }
 
     pub fn get_waiting(&self) -> u32 {
@@ -77,6 +87,7 @@ impl TaskRef {
             priority: (message.user_priority, message.scheduler_priority),
             state: TaskState::Waiting(0),
             deps: Default::default(),
+            resources: message.resources,
         })
     }
 }

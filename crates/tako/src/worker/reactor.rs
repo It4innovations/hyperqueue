@@ -1,5 +1,6 @@
 use smallvec::smallvec;
 
+use crate::common::resources::ResourceAllocation;
 use crate::messages::worker::{FromWorkerMessage, TaskRunningMsg, ToWorkerMessage};
 use crate::worker::data::{DataObjectState, InSubworkersData, LocalDownloadingData, Subscriber};
 use crate::worker::state::WorkerState;
@@ -12,14 +13,14 @@ pub fn start_task(
     task: &mut Task,
     task_ref: &TaskRef,
     mut task_env: TaskEnv,
+    allocation: ResourceAllocation,
 ) {
-    task_env.start_task(state, task, task_ref);
+    task_env.start_task(state, task, task_ref, &allocation);
+    task.state = TaskState::Running(task_env, allocation);
     state.running_tasks.insert(task_ref.clone());
-    task.state = TaskState::Running(task_env);
 }
 
-pub fn assign_task(state: &mut WorkerState, task_ref: &TaskRef) {
-    state.free_cpus -= 1;
+pub fn assign_task(state: &mut WorkerState, task_ref: TaskRef, allocation: ResourceAllocation) {
     let mut task = task_ref.get_mut();
     log::debug!("Task={} assigned", task.id);
 
@@ -70,9 +71,9 @@ pub fn assign_task(state: &mut WorkerState, task_ref: &TaskRef) {
     }
 
     if waiting_count == 0 {
-        start_task(state, &mut task, &task_ref, task_env);
+        start_task(state, &mut task, &task_ref, task_env, allocation);
     } else {
-        task.state = TaskState::Uploading(task_env, waiting_count)
+        task.state = TaskState::Uploading(task_env, waiting_count, allocation)
     }
 }
 

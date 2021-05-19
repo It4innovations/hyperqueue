@@ -68,7 +68,7 @@ def test_lost_worker_with_tasks_restarts(tako_env):
 
 def test_frozen_worker1(tako_env):
     session = tako_env.start(
-        workers=[1], worker_start_delay=0.3, panic_on_worker_lost=False, heartbeat=500
+        workers=[1], worker_start_delay=0.4, panic_on_worker_lost=False, heartbeat=500
     )
     time.sleep(0.5)
 
@@ -85,7 +85,7 @@ def test_frozen_worker1(tako_env):
 
 def test_frozen_worker2(tako_env):
     session = tako_env.start(
-        workers=[1], worker_start_delay=0.3, panic_on_worker_lost=False, heartbeat=500
+        workers=[1], worker_start_delay=0.4, panic_on_worker_lost=False, heartbeat=500
     )
     overview = session.overview()
     assert len(overview["workers"]) == 1
@@ -95,4 +95,4 @@ def test_frozen_worker2(tako_env):
     overview = session.overview()
     assert len(overview["workers"]) == 0
     end = time.time()
-    assert 0.5 < (end - start) < 1.2
+    assert 0.5 < (end - start) < 1.5
