@@ -13,7 +13,10 @@ use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server};
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
-use hyperqueue::{JobId, WorkerId};
+use hyperqueue::{JobId, WorkerId, JobStatus};
+use hyperqueue::transfer::messages::WorkerInfo;
+use hyperqueue::client::worker::print_worker_info;
+
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -27,7 +30,7 @@ struct CommonOpts {
     server_dir: Option<PathBuf>,
 
     /// Console color policy.
-    #[clap(long, default_value = "auto", possible_values = &["auto", "always", "never"])]
+    #[clap(long, default_value = "auto", possible_values = & ["auto", "always", "never"])]
     colors: ColorPolicy,
 }
 
@@ -92,8 +95,21 @@ struct WorkerStopOpts {
 }
 
 #[derive(Clap)]
+struct WorkerListCommon {
+    ///shows just running workers
+    #[clap(long, takes_value = false,short='r')]
+    running: bool,
+    ///shows just offline workers
+    #[clap(long, takes_value = false,short='o')]
+    offline: bool
+}
+
+#[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
-struct WorkerListOpts {}
+struct WorkerListOpts {
+    #[clap(flatten)]
+    common: WorkerListCommon,
+}
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
@@ -121,6 +137,8 @@ enum WorkerCommand {
 }
 
 // Job CLI options
+
+
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct JobListOpts {}
@@ -207,9 +225,33 @@ async fn command_worker_list(
     _opts: WorkerListOpts,
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    get_worker_list(&mut connection, &gsettings)
-        .await
-        .map_err(|e| e.into())
+    let workers = get_worker_list(&mut connection, &gsettings)
+        .await.unwrap();
+    let mut print_workers = Vec::new();
+
+    if(_opts.common.running){
+
+        for worker in workers{
+           if(worker.ended_at == None){
+               print_workers.push(worker)
+           }
+        }
+
+    }else{
+        if(_opts.common.offline){
+            for worker in workers{
+                if(worker.ended_at != None){
+                    print_workers.push(worker)
+                }
+            }
+        }else{
+            print_workers = workers;
+        }
+
+    }
+
+    print_worker_info(print_workers,&gsettings);
+    Ok(())
 }
 
 pub enum ColorPolicy {
@@ -267,24 +309,24 @@ async fn main() -> hyperqueue::Result<()> {
 
     let result = match top_opts.subcmd {
         SubCommand::Server(ServerOpts {
-            subcmd: ServerCommand::Start(opts),
-        }) => command_server_start(gsettings, opts).await,
+                               subcmd: ServerCommand::Start(opts),
+                           }) => command_server_start(gsettings, opts).await,
         SubCommand::Server(ServerOpts {
-            subcmd: ServerCommand::Stop(opts),
-        }) => command_server_stop(gsettings, opts).await,
+                               subcmd: ServerCommand::Stop(opts),
+                           }) => command_server_stop(gsettings, opts).await,
 
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::Start(opts),
-        }) => command_worker_start(gsettings, opts).await,
+                               subcmd: WorkerCommand::Start(opts),
+                           }) => command_worker_start(gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::Stop(opts),
-        }) => command_worker_stop(gsettings, opts).await,
+                               subcmd: WorkerCommand::Stop(opts),
+                           }) => command_worker_stop(gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::List(opts),
-        }) => command_worker_list(gsettings, opts).await,
+                               subcmd: WorkerCommand::List(opts),
+                           }) => command_worker_list(gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::Info(opts),
-        }) => {
+                               subcmd: WorkerCommand::Info(opts),
+                           }) => {
             let _worker_id = opts.worker_id; // TODO: Just for silent warning
             todo!()
         }
