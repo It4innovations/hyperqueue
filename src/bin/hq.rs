@@ -9,9 +9,11 @@ use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{submit_computation, SubmitOpts};
 use hyperqueue::client::commands::worker::{get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
+use hyperqueue::client::worker::print_worker_info;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server};
+use hyperqueue::transfer::messages::WorkerInfo;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::{JobId, WorkerId};
 
@@ -27,7 +29,7 @@ struct CommonOpts {
     server_dir: Option<PathBuf>,
 
     /// Console color policy.
-    #[clap(long, default_value = "auto", possible_values = &["auto", "always", "never"])]
+    #[clap(long, default_value = "auto", possible_values = & ["auto", "always", "never"])]
     colors: ColorPolicy,
 }
 
@@ -92,8 +94,21 @@ struct WorkerStopOpts {
 }
 
 #[derive(Clap)]
+struct WorkerListCommon {
+    ///shows just running workers
+    #[clap(long, takes_value = false, short = 'r')]
+    running: bool,
+    ///shows just offline workers
+    #[clap(long, takes_value = false, short = 'o')]
+    offline: bool,
+}
+
+#[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
-struct WorkerListOpts {}
+struct WorkerListOpts {
+    #[clap(flatten)]
+    common: WorkerListCommon,
+}
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
@@ -121,6 +136,7 @@ enum WorkerCommand {
 }
 
 // Job CLI options
+
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct JobListOpts {}
@@ -201,15 +217,33 @@ async fn command_worker_stop(
         .await
         .map_err(|e| e.into())
 }
-
+fn be_printed(worker: &WorkerInfo, option: &WorkerListOpts) -> bool {
+    let mut output_state = false;
+    if option.common.running {
+        if worker.ended_at == None {
+            output_state = true;
+        }
+    }
+    if option.common.offline {
+        if worker.ended_at != None {
+            output_state = true;
+        }
+    }
+    output_state
+}
 async fn command_worker_list(
     gsettings: GlobalSettings,
     _opts: WorkerListOpts,
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    get_worker_list(&mut connection, &gsettings)
-        .await
-        .map_err(|e| e.into())
+    let mut workers = get_worker_list(&mut connection, &gsettings).await?;
+
+    if _opts.common.running != false || _opts.common.offline != false {
+        workers.retain(|x| be_printed(&x, &_opts));
+    }
+
+    print_worker_info(workers, &gsettings);
+    Ok(())
 }
 
 pub enum ColorPolicy {
