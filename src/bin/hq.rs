@@ -13,7 +13,7 @@ use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server};
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
-use hyperqueue::{JobId, WorkerId, JobStatus};
+use hyperqueue::{JobId, WorkerId};
 use hyperqueue::transfer::messages::WorkerInfo;
 use hyperqueue::client::worker::print_worker_info;
 
@@ -97,11 +97,11 @@ struct WorkerStopOpts {
 #[derive(Clap)]
 struct WorkerListCommon {
     ///shows just running workers
-    #[clap(long, takes_value = false,short='r')]
+    #[clap(long, takes_value = false, short = 'r')]
     running: bool,
     ///shows just offline workers
-    #[clap(long, takes_value = false,short='o')]
-    offline: bool
+    #[clap(long, takes_value = false, short = 'o')]
+    offline: bool,
 }
 
 #[derive(Clap)]
@@ -219,38 +219,37 @@ async fn command_worker_stop(
         .await
         .map_err(|e| e.into())
 }
-
+fn worker_state(worker:&WorkerInfo,option:&WorkerListOpts) -> bool{
+    let mut output_state = false;
+    if(option.common.running){
+        if (worker.ended_at == None) {
+            output_state = true;
+        }
+    }
+    if(option.common.offline){
+        if (worker.ended_at != None) {
+            output_state = true;
+        }
+    }
+    output_state
+}
 async fn command_worker_list(
     gsettings: GlobalSettings,
     _opts: WorkerListOpts,
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    let workers = get_worker_list(&mut connection, &gsettings)
+    let mut workers = get_worker_list(&mut connection, &gsettings)
         .await.unwrap();
     let mut print_workers = Vec::new();
 
-    if(_opts.common.running){
-
-        for worker in workers{
-           if(worker.ended_at == None){
-               print_workers.push(worker)
-           }
+    for worker in workers{
+        if worker_state(&worker,&_opts){
+            print_workers.push(worker)
         }
-
-    }else{
-        if(_opts.common.offline){
-            for worker in workers{
-                if(worker.ended_at != None){
-                    print_workers.push(worker)
-                }
-            }
-        }else{
-            print_workers = workers;
-        }
-
     }
 
-    print_worker_info(print_workers,&gsettings);
+
+    print_worker_info(print_workers, &gsettings);
     Ok(())
 }
 
