@@ -219,7 +219,7 @@ async fn command_worker_stop(
         .await
         .map_err(|e| e.into())
 }
-fn worker_state(worker:&WorkerInfo,option:&WorkerListOpts) -> bool{
+fn be_printed(worker:&WorkerInfo,option:&WorkerListOpts) -> bool{
     let mut output_state = false;
     if(option.common.running){
         if (worker.ended_at == None) {
@@ -243,7 +243,7 @@ async fn command_worker_list(
     let mut print_workers = Vec::new();
     if _opts.common.running != false || _opts.common.offline != false{
         for worker in workers{
-            if worker_state(&worker,&_opts){
+            if be_printed(&worker,&_opts){
                 print_workers.push(worker)
             }
         }
