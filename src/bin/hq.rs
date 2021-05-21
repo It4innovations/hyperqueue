@@ -241,12 +241,17 @@ async fn command_worker_list(
     let mut workers = get_worker_list(&mut connection, &gsettings)
         .await.unwrap();
     let mut print_workers = Vec::new();
-
-    for worker in workers{
-        if worker_state(&worker,&_opts){
-            print_workers.push(worker)
+    if _opts.common.running != false || _opts.common.offline != false{
+        for worker in workers{
+            if worker_state(&worker,&_opts){
+                print_workers.push(worker)
+            }
         }
     }
+    else{
+        print_workers = workers;
+    }
+
 
 
     print_worker_info(print_workers, &gsettings);
