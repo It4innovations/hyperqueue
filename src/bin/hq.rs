@@ -221,13 +221,13 @@ async fn command_worker_stop(
 }
 fn be_printed(worker:&WorkerInfo,option:&WorkerListOpts) -> bool{
     let mut output_state = false;
-    if(option.common.running){
-        if (worker.ended_at == None) {
+    if option.common.running{
+        if worker.ended_at == None {
             output_state = true;
         }
     }
-    if(option.common.offline){
-        if (worker.ended_at != None) {
+    if option.common.offline{
+        if worker.ended_at != None {
             output_state = true;
         }
     }

@@ -7,7 +7,7 @@ use crate::WorkerId;
 pub async fn get_worker_list(
     connection: &mut ClientConnection,
     gsettings: &GlobalSettings,
-) -> crate::Result<(Vec<WorkerInfo>)> {
+) -> crate::Result<Vec<WorkerInfo>> {
     let mut msg = rpc_call!(
         connection,
         FromClientMessage::WorkerList,
