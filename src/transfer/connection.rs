@@ -38,13 +38,10 @@ impl<R: DeserializeOwned, S: Serialize> HqConnection<R, S> {
         Ok(())
     }
     pub async fn receive(&mut self) -> Option<crate::Result<R>> {
-        match self.reader.next().await {
-            Some(msg) => Some(
-                msg.map_err(|e| e.into())
-                    .and_then(|m| deserialize_message(Ok(m), &mut self.opener)),
-            ),
-            None => None,
-        }
+        self.reader.next().await.map(|msg| {
+            msg.map_err(|e| e.into())
+                .and_then(|m| deserialize_message(Ok(m), &mut self.opener))
+        })
     }
 
     pub async fn send_and_receive(&mut self, item: S) -> crate::Result<R> {
