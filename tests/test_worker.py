@@ -80,3 +80,26 @@ def get_worker_id(hq_env: HqEnv, index: int) -> Optional[str]:
     if index >= len(table) - 1:
         return None
     return table[index + 1][0]
+
+
+def test_worker_list_online_offline_state(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_workers(2)
+    table = hq_env.command(["worker", "list"], as_table=True)
+    assert len(table) == 3
+    assert table[1][:2] == ['1', 'RUNNING']
+    assert table[2][:2] == ['2', 'RUNNING']
+    hq_env.kill_worker(2)
+    table = hq_env.command(["worker", "list"], as_table=True)
+    assert len(table) == 3
+    assert table[1][:2] == ['1', 'RUNNING']
+    assert table[2][:2] == ['2', 'OFFLINE']
+
+    table = hq_env.command(["worker", "list","--offline"], as_table=True)
+    assert len(table) == 2
+    assert table[1][:2] == ['2', 'OFFLINE']
+
+    table = hq_env.command(["worker", "list", "--running"], as_table=True)
+    assert len(table) == 2
+    assert table[1][:2] == ['1', 'RUNNING']
+
