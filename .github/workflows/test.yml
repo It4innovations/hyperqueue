@@ -49,6 +49,13 @@ jobs:
       - name: Test Python
         run: python -m pytest tests
 
+      - name: Archive test artifacts
+        uses: actions/upload-artifact@v2
+        if: ${{ failure() }}
+        with:
+          name: pytest results
+          path: /tmp/pytest-*
+
       - name: Lint
         uses: actions-rs/cargo@v1
         with:
