@@ -239,22 +239,13 @@ async fn command_worker_list(
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
     let mut workers = get_worker_list(&mut connection, &gsettings)
-        .await.unwrap();
-    let mut print_workers = Vec::new();
+        .await?;
+
     if _opts.common.running != false || _opts.common.offline != false{
-        for worker in workers{
-            if be_printed(&worker,&_opts){
-                print_workers.push(worker)
-            }
-        }
-    }
-    else{
-        print_workers = workers;
+        workers.retain(|x| be_printed(&x,&_opts));
     }
 
-
-
-    print_worker_info(print_workers, &gsettings);
+    print_worker_info(workers, &gsettings);
     Ok(())
 }
 
