@@ -1,4 +1,3 @@
-use crate::client::globalsettings::GlobalSettings;
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
@@ -8,7 +7,8 @@ use crate::WorkerId;
 
 pub async fn get_worker_list(
     connection: &mut ClientConnection,
-    gsettings: &GlobalSettings,
+    get_online: bool,
+    get_offline: bool,
 ) -> crate::Result<Vec<WorkerInfo>> {
     let mut msg = rpc_call!(
         connection,
@@ -18,8 +18,14 @@ pub async fn get_worker_list(
     .await?;
 
     msg.workers.sort_unstable_by_key(|w| w.id);
+    msg.workers.retain(|w| {
+        if w.ended_at == None {
+            get_online
+        } else {
+            get_offline
+        }
+    });
 
-    //print_worker_info(msg.workers, gsettings);
     Ok(msg.workers)
 }
 

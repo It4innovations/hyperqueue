@@ -13,7 +13,6 @@ use hyperqueue::client::worker::print_worker_info;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server};
-use hyperqueue::transfer::messages::WorkerInfo;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::{JobId, WorkerId};
 
@@ -94,20 +93,15 @@ struct WorkerStopOpts {
 }
 
 #[derive(Clap)]
-struct WorkerListCommon {
-    ///shows just running workers
-    #[clap(long, takes_value = false, short = 'r')]
-    running: bool,
-    ///shows just offline workers
-    #[clap(long, takes_value = false, short = 'o')]
-    offline: bool,
-}
-
-#[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct WorkerListOpts {
-    #[clap(flatten)]
-    common: WorkerListCommon,
+    /// shows running workers
+    #[clap(long)]
+    running: bool,
+
+    /// shows offline workers
+    #[clap(long)]
+    offline: bool,
 }
 
 #[derive(Clap)]
@@ -217,31 +211,20 @@ async fn command_worker_stop(
         .await
         .map_err(|e| e.into())
 }
-fn be_printed(worker: &WorkerInfo, option: &WorkerListOpts) -> bool {
-    let mut output_state = false;
-    if option.common.running {
-        if worker.ended_at == None {
-            output_state = true;
-        }
-    }
-    if option.common.offline {
-        if worker.ended_at != None {
-            output_state = true;
-        }
-    }
-    output_state
-}
+
 async fn command_worker_list(
     gsettings: GlobalSettings,
-    _opts: WorkerListOpts,
+    opts: WorkerListOpts,
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    let mut workers = get_worker_list(&mut connection, &gsettings).await?;
 
-    if _opts.common.running != false || _opts.common.offline != false {
-        workers.retain(|x| be_printed(&x, &_opts));
-    }
-
+    // If --running and --offline was not set then show all workers
+    let (online, offline) = if !opts.running && !opts.offline {
+        (true, true)
+    } else {
+        (opts.running, opts.offline)
+    };
+    let workers = get_worker_list(&mut connection, online, offline).await?;
     print_worker_info(workers, &gsettings);
     Ok(())
 }
