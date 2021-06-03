@@ -1,5 +1,4 @@
 use crate::common::Set;
-use crate::messages::gateway::StopWorkerRequest;
 use serde::{Deserialize, Serialize};
 
 pub type NumOfCpus = u32;
@@ -98,7 +97,7 @@ impl ResourceDescriptor {
         if self.cpus.is_empty() || !self.cpus.iter().all(|g| !g.is_empty()) {
             return false;
         }
-        let mut s: Set<CpuId> = self.cpus.iter().flatten().copied().collect();
+        let s: Set<CpuId> = self.cpus.iter().flatten().copied().collect();
         s.len() == self.cpus.iter().flatten().count()
     }
 }

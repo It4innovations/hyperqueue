@@ -88,7 +88,7 @@ def test_submit_sleeps_more_cpus1(tako_env):
     t1 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq1)
     t2 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq2)
     t3 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq2)
-    t4 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq1)
+    # t4 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq1)
 
     start = time.time()
     session.submit([t1, t2, t3])
@@ -96,7 +96,7 @@ def test_submit_sleeps_more_cpus1(tako_env):
     time.sleep(0.2)
     overview = session.overview()
     print([overview["workers"]])
-    #print([w["running_tasks"] for w in overview["workers"]])
+    # print([w["running_tasks"] for w in overview["workers"]])
     rts = [len(w["running_tasks"]) for w in overview["workers"]]
     rts.sort()
     assert rts == [1, 2]
@@ -122,13 +122,16 @@ def test_submit_sleeps_more_cpus2(tako_env):
 
 
 def test_submit_sleeps_more_cpus3(tako_env):
-    session = tako_env.start(workers=[5, 5])
+    session = tako_env.start()
     rq1 = ResourceRequest(cpus=3)
     rq2 = ResourceRequest(cpus=2)
     t1 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq1)
     t2 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq2)
     t3 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq2)
     t4 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq1)
+
+    tako_env.start_worker(5)
+    tako_env.start_worker(5)
 
     start = time.time()
     session.submit([t1, t2, t3, t4])

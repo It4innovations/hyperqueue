@@ -389,9 +389,8 @@ pub fn on_steal_response(
                 };
                 {
                     let mut task = task_ref.get_mut();
-                    match &new_state {
-                        TaskRuntimeState::Waiting(_winfo) => task.set_fresh_flag(true),
-                        _ => { /* Do nothing */ }
+                    if let TaskRuntimeState::Waiting(_winfo) = &new_state {
+                        task.set_fresh_flag(true)
                     };
                     task.state = new_state;
                 }
@@ -673,7 +672,7 @@ mod tests {
 
     use crate::messages::common::WorkerConfiguration;
     use crate::messages::worker::ComputeTaskMsg;
-    use crate::scheduler::scheduler::tests::create_test_scheduler;
+    use crate::scheduler::state::tests::create_test_scheduler;
     use crate::server::test_util::{
         cancel_tasks, create_test_comm, create_test_workers, fail_steal, finish_on_worker,
         force_assign, force_reassign, sorted_vec, start_and_finish_on_worker, start_on_worker,

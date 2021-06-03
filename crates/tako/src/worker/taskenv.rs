@@ -2,7 +2,6 @@ use bytes::Bytes;
 use tokio::sync::oneshot::Sender;
 
 use crate::common::data::SerializationType;
-use crate::common::resources::ResourceAllocation;
 use crate::worker::data::DataObject;
 use crate::worker::launcher::launch_program_from_task;
 use crate::worker::state::WorkerState;
@@ -31,7 +30,7 @@ impl TaskEnv {
     pub fn is_uploaded(&self, data_obj: &DataObject) -> bool {
         match self {
             TaskEnv::Subworker(subworker_ref) => data_obj.is_in_subworker(&subworker_ref),
-            TaskEnv::Launcher(_) => return true,
+            TaskEnv::Launcher(_) => true,
             TaskEnv::Invalid => {
                 unreachable!()
             }
@@ -78,13 +77,7 @@ impl TaskEnv {
         }
     }
 
-    pub fn start_task(
-        &mut self,
-        state: &WorkerState,
-        task: &Task,
-        task_ref: &TaskRef,
-        allocation: &ResourceAllocation,
-    ) {
+    pub fn start_task(&mut self, state: &WorkerState, task: &Task, task_ref: &TaskRef) {
         match self {
             TaskEnv::Subworker(subworker_ref) => {
                 let mut sw = subworker_ref.get_mut();

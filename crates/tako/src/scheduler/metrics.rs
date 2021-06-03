@@ -2,11 +2,11 @@ use crate::common::{Map, Set};
 use crate::server::task::{Task, TaskRef};
 use crate::TaskId;
 
-pub fn compute_b_level_metric<'a>(tasks: &Map<TaskId, TaskRef>) {
+pub fn compute_b_level_metric(tasks: &Map<TaskId, TaskRef>) {
     crawl(tasks, |t| t.get_consumers(), |t| &t.inputs);
 }
 
-fn crawl<'a, F1: Fn(&Task) -> &Set<TaskRef>, F2: Fn(&Task) -> &Vec<TaskRef>>(
+fn crawl<F1: Fn(&Task) -> &Set<TaskRef>, F2: Fn(&Task) -> &Vec<TaskRef>>(
     tasks: &Map<TaskId, TaskRef>,
     predecessor_fn: F1,
     successor_fn: F2,

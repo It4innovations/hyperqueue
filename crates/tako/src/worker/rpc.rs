@@ -12,8 +12,7 @@ use tokio::task::LocalSet;
 use tokio::time::sleep;
 use tokio::time::timeout;
 
-use crate::common::data::SerializationType;
-use crate::common::resources::{ResourceAllocation, ResourceDescriptor};
+use crate::common::resources::ResourceAllocation;
 use crate::messages::common::WorkerConfiguration;
 use crate::messages::worker::{
     FromWorkerMessage, RegisterWorker, StealResponseMsg, ToWorkerMessage, WorkerOverview,
@@ -24,13 +23,11 @@ use crate::transfer::auth::{
     do_authentication, forward_queue_to_sealed_sink, open_message, seal_message, serialize,
 };
 use crate::transfer::fetch::fetch_data;
-use crate::transfer::messages::{DataRequest, DataResponse, FetchResponseData, UploadResponseMsg};
 use crate::transfer::transport::{connect_to_worker, make_protocol_builder};
 use crate::transfer::DataConnection;
-use crate::worker::data::{DataObjectRef, DataObjectState, LocalData, Subscriber};
+use crate::worker::data::{DataObjectRef, DataObjectState};
 use crate::worker::launcher::LauncherSetup;
-use crate::worker::pool::ResourcePool;
-use crate::worker::reactor::{assign_task, start_local_download};
+use crate::worker::reactor::assign_task;
 use crate::worker::state::WorkerStateRef;
 use crate::worker::task::TaskRef;
 use crate::Priority;
@@ -224,7 +221,7 @@ async fn download_data(state_ref: WorkerStateRef, data_ref: DataObjectRef) {
                 // Task that requested data was removed (because of work stealing)
                 return;
             }
-            let worker_id: WorkerId = state_ref.get_mut().random_choice(&workers).clone();
+            let worker_id: WorkerId = *state_ref.get_mut().random_choice(&workers);
             (worker_id, data_obj.id)
         };
 
@@ -402,11 +399,12 @@ pub async fn connection_initiator(
 }
 
 async fn connection_rpc_loop(
-    mut stream: DataConnection,
-    state_ref: WorkerStateRef,
-    address: SocketAddr,
+    _stream: DataConnection,
+    _state_ref: WorkerStateRef,
+    _address: SocketAddr,
 ) -> crate::Result<()> {
-    enum FetchHelperResult {
+    todo!()
+    /*enum FetchHelperResult {
         OneShot(tokio::sync::oneshot::Receiver<(SerializationType, Bytes)>),
         DirectResult(DataResponse, Option<Bytes>),
     }
@@ -416,7 +414,6 @@ async fn connection_rpc_loop(
             None => return Ok(()),
             Some(data) => data?,
         };
-        todo!(); // Update procotol
         let request: DataRequest = rmp_serde::from_slice(&data)?;
 
         match request {
@@ -568,5 +565,5 @@ async fn connection_rpc_loop(
                 stream.send(data.into()).await?;
             }
         }
-    }
+    }*/
 }

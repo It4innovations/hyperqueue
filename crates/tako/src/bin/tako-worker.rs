@@ -8,9 +8,8 @@ use rand::Rng;
 use tokio::task::LocalSet;
 
 use orion::kdf::SecretKey;
-use std::rc::Rc;
 use std::sync::Arc;
-use tako::common::resources::{ResourceAllocation, ResourceDescriptor};
+use tako::common::resources::ResourceDescriptor;
 use tako::common::secret::read_secret_file;
 use tako::common::setup::setup_logging;
 use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
@@ -62,6 +61,7 @@ fn create_paths(
     Ok((work_dir, local_dir))
 }
 
+#[allow(clippy::unnecessary_wraps)] // This function needs to match an interface
 fn launcher_setup(_task: &Task, def: ProgramDefinition) -> tako::Result<ProgramDefinition> {
     Ok(def)
 }
@@ -89,8 +89,9 @@ async fn main() -> tako::Result<()> {
     log::info!("tako worker v0.1 started");
 
     let (work_dir, log_dir) = create_paths(
-        opts.work_dir.unwrap_or(PathBuf::from("rsds-worker-space")),
-        opts.local_directory.unwrap_or(std::env::temp_dir()),
+        opts.work_dir
+            .unwrap_or_else(|| PathBuf::from("rsds-worker-space")),
+        opts.local_directory.unwrap_or_else(std::env::temp_dir),
     )?;
 
     let heartbeat_interval = Duration::from_millis(opts.heartbeat as u64);

@@ -13,8 +13,8 @@ use crate::common::resources::{CpuRequest, NumOfCpus, ResourceDescriptor, Resour
 use crate::common::{Map, WrappedRcRefCell};
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
 use crate::messages::worker::{StealResponse, StealResponseMsg, TaskFinishedMsg, ToWorkerMessage};
-use crate::scheduler::scheduler::tests::create_test_scheduler;
-use crate::scheduler::scheduler::SchedulerState;
+use crate::scheduler::state::tests::create_test_scheduler;
+use crate::scheduler::state::SchedulerState;
 use crate::server::comm::Comm;
 use crate::server::core::Core;
 use crate::server::reactor::{

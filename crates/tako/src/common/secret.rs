@@ -15,7 +15,7 @@ pub fn read_secret_file(path: &Path) -> crate::Result<SecretKey> {
 
     Ok(SecretKey::from_slice(
         &hex::decode(&hex_secret)
-            .map_err(|_| DsError::GenericError(format!("Invalid content of the secret file")))?,
+            .map_err(|_| DsError::GenericError("Invalid content of the secret file".to_string()))?,
     )
     .unwrap())
 }

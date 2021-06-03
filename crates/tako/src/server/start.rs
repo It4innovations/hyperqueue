@@ -9,10 +9,9 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
 
 use crate::messages::gateway::ToGatewayMessage;
-use crate::scheduler::scheduler::scheduler_loop;
+use crate::scheduler::state::scheduler_loop;
 use crate::server::comm::CommSenderRef;
 use crate::server::core::CoreRef;
-use crate::TaskTypeId;
 use std::rc::Rc;
 
 pub async fn server_start(

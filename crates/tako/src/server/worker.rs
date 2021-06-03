@@ -7,7 +7,6 @@ use crate::messages::common::WorkerConfiguration;
 use crate::messages::worker::WorkerOverview;
 use crate::server::task::{Task, TaskRef};
 use crate::server::worker_load::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
-use crate::worker::launcher::LauncherSetup;
 use std::fmt;
 
 pub type WorkerId = u64;

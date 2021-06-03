@@ -345,6 +345,7 @@ impl Task {
 }
 
 impl TaskRef {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: TaskId,
         type_id: TaskTypeId,

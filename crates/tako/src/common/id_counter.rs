@@ -6,7 +6,7 @@ pub struct IdCounter {
 
 impl IdCounter {
     #[inline]
-    pub fn next(&mut self) -> u64 {
+    pub fn next_id(&mut self) -> u64 {
         self.value += 1;
         self.value
     }

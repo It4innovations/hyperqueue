@@ -85,6 +85,7 @@ pub async fn worker_authentication<T: AsyncRead + AsyncWrite>(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn worker_rpc_loop<
     Reader: Stream<Item = Result<BytesMut, std::io::Error>> + Unpin,
     Writer: Sink<Bytes, Error = std::io::Error> + Unpin,
@@ -194,16 +195,16 @@ pub async fn worker_receive_loop<
                 on_steal_response(&mut core, &mut *comm, worker_id, msg)
             }
             FromWorkerMessage::Heartbeat => {
-                core.get_worker_mut(worker_id).map(|worker| {
+                if let Some(worker) = core.get_worker_mut(worker_id) {
                     log::debug!("Heartbeat received, worker={}", worker_id);
                     worker.last_heartbeat = Instant::now();
-                });
+                };
             }
             FromWorkerMessage::Overview(overview) => {
-                core.get_worker_mut(worker_id).map(|worker| {
+                if let Some(worker) = core.get_worker_mut(worker_id) {
                     let sender = worker.overview_callbacks.remove(0);
                     let _ = sender.send(overview);
-                });
+                };
             }
         }
     }
