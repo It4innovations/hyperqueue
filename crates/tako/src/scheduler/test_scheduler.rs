@@ -12,8 +12,8 @@ use crate::server::test_util::{
 
 use crate::common::resources::NumOfCpus;
 use crate::common::setup::setup_logging;
-use crate::scheduler::scheduler::tests::create_test_scheduler;
-use crate::scheduler::scheduler::SchedulerState;
+use crate::scheduler::state::tests::create_test_scheduler;
+use crate::scheduler::state::SchedulerState;
 use crate::server::task::TaskRef;
 use crate::server::worker::Worker;
 use crate::{TaskId, WorkerId};

@@ -64,9 +64,9 @@ impl ResourcePool {
         &mut self,
         mut n_cpus: NumOfCpus,
         total_cpus: NumOfCpus,
-    ) -> Option<Vec<CpuId>> {
+    ) -> Vec<CpuId> {
         if total_cpus == n_cpus {
-            Some(self._take_all_free_cpus())
+            self._take_all_free_cpus()
         } else {
             let mut cpus = Vec::new();
             while n_cpus > 0 {
@@ -90,7 +90,7 @@ impl ResourcePool {
                     cpus.append(group);
                 }
             }
-            Some(cpus)
+            cpus
         }
     }
 
@@ -98,9 +98,9 @@ impl ResourcePool {
         &mut self,
         mut n_cpus: NumOfCpus,
         total_cpus: NumOfCpus,
-    ) -> Option<Vec<CpuId>> {
+    ) -> Vec<CpuId> {
         if total_cpus == n_cpus {
-            Some(self._take_all_free_cpus())
+            self._take_all_free_cpus()
         } else {
             let count = self.free_cpus.len();
             let mut cpus = Vec::new();
@@ -118,14 +118,11 @@ impl ResourcePool {
                 }
                 i += 1;
             }
-            Some(cpus)
+            cpus
         }
     }
 
-    fn _try_allocate_resources_force_compact(
-        &mut self,
-        mut n_cpus: NumOfCpus,
-    ) -> Option<Vec<CpuId>> {
+    fn _try_allocate_resources_force_compact(&mut self, n_cpus: NumOfCpus) -> Option<Vec<CpuId>> {
         let mut full_sockets = n_cpus / self.socket_size;
         let free_sockets = self
             .free_cpus
@@ -182,15 +179,15 @@ impl ResourcePool {
         &mut self,
         request: &ResourceRequest,
     ) -> Option<ResourceAllocation> {
-        let mut n_cpus = self.n_cpus(&request);
+        let n_cpus = self.n_cpus(&request);
         let total_cpus = self.n_free_cpus();
         if total_cpus < n_cpus {
             return None;
         }
         let mut cpus = match request.cpus() {
-            CpuRequest::Compact(_) => self._try_allocate_resources_compact(n_cpus, total_cpus)?,
+            CpuRequest::Compact(_) => self._try_allocate_resources_compact(n_cpus, total_cpus),
             CpuRequest::ForceCompact(_) => self._try_allocate_resources_force_compact(n_cpus)?,
-            CpuRequest::Scatter(_) => self._try_allocate_resources_scatter(n_cpus, total_cpus)?,
+            CpuRequest::Scatter(_) => self._try_allocate_resources_scatter(n_cpus, total_cpus),
             CpuRequest::All => self._take_all_free_cpus(),
         };
         cpus.sort_unstable();

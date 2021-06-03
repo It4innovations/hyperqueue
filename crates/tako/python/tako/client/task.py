@@ -1,7 +1,6 @@
 from typing import List, Optional
 
 import msgpack
-
 from tako.client.program import ProgramDefinition
 from tako.client.resources import ResourceRequest
 
@@ -40,6 +39,10 @@ class Task:
         return f"<Task {self.name if self.name else id(self)} {inner}>"
 
 
-def make_program_task(program_def: ProgramDefinition, keep: bool = False, resources: ResourceRequest = None):
+def make_program_task(
+    program_def: ProgramDefinition,
+    keep: bool = False,
+    resources: ResourceRequest = None,
+):
     body = msgpack.dumps(program_def.as_dict())
     return Task(0, body, keep, resources=resources)

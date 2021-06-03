@@ -5,7 +5,6 @@ use tokio::process::Command;
 use tokio::sync::oneshot;
 
 use crate::common::error::DsError;
-use crate::common::resources::ResourceAllocation;
 use crate::messages::common::{ProgramDefinition, TaskFailInfo};
 use crate::worker::state::WorkerStateRef;
 use crate::worker::task::{Task, TaskRef};

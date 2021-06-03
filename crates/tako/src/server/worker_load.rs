@@ -1,4 +1,4 @@
-use crate::common::resources::{CpuId, CpuRequest, NumOfCpus, ResourceDescriptor, ResourceRequest};
+use crate::common::resources::{CpuRequest, NumOfCpus, ResourceDescriptor, ResourceRequest};
 
 // WorkerResources are transformed information from ResourceDescriptor
 // but transformed for scheduler needs
@@ -67,13 +67,13 @@ impl WorkerLoad {
         self.n_cpus > wr.n_cpus
     }
 
-    pub fn is_overloaded_without_request(
+    /*pub fn is_overloaded_without_request(
         &self,
         wr: &WorkerResources,
         request: &ResourceRequest,
     ) -> bool {
         self.n_cpus > wr.n_cpus
-    }
+    }*/
 
     pub fn have_immediate_resources_for_rq(
         &self,

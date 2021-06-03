@@ -220,7 +220,7 @@ pub async fn process_client_message(
             None
         }
         FromGatewayMessage::StopWorker(msg) => {
-            let mut core = core_ref.get_mut();
+            let core = core_ref.get_mut();
             let mut comm = comm_ref.get_mut();
 
             if core.get_worker_by_id(msg.worker_id).is_none() {

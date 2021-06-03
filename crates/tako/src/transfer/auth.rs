@@ -53,7 +53,7 @@ impl Authenticator {
     }
 
     pub fn make_auth_request(&mut self) -> crate::Result<AuthenticationRequest> {
-        let mode = if let Some(_) = &self.secret_key {
+        let mode = if self.secret_key.is_some() {
             let mut challenge = vec![0; CHALLENGE_LENGTH];
             secure_rand_bytes(&mut challenge).map_err(|_| "Generaing challenge failed")?;
             self.challenge = challenge.clone();
@@ -122,10 +122,10 @@ impl Authenticator {
                 }))
             }
             (AuthenticationMode::Encryption(_), None) => {
-                return self._make_error("Peer requests authentication".to_string());
+                self._make_error("Peer requests authentication".to_string())
             }
             (AuthenticationMode::NoAuth, Some(_)) => {
-                return self._make_error("Peer does not support authentication".to_string());
+                self._make_error("Peer does not support authentication".to_string())
             }
         }
     }

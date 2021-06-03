@@ -1,3 +1,9 @@
+/*
+   This file contains several #[allow(dead_code)]
+   because subworkers are disable now, but as they are planned
+   to be reenabled, I do not want to remove the code for name
+*/
+
 use std::fs::File;
 use std::process::Stdio;
 
@@ -98,6 +104,7 @@ impl SubworkerRef {
     }
 }
 
+#[allow(dead_code)]
 async fn subworker_handshake(
     state_ref: WorkerStateRef,
     listener: UnixListener,
@@ -124,7 +131,7 @@ async fn subworker_handshake(
         }
 
         let message = RegisterSubworkerResponse {
-            worker: state_ref.get().configuration.listen_address.clone().into(),
+            worker: state_ref.get().configuration.listen_address.clone(),
         };
         framed
             .send(rmp_serde::to_vec_named(&message).unwrap().into())
@@ -137,6 +144,7 @@ async fn subworker_handshake(
     }
 }
 
+#[allow(dead_code)]
 fn subworker_download_finished(
     state_ref: &WorkerStateRef,
     subworker_ref: &SubworkerRef,
@@ -214,6 +222,7 @@ fn subworker_download_finished(
     }
 }
 
+#[allow(dead_code)]
 fn subworker_task_finished(
     state_ref: &WorkerStateRef,
     subworker_ref: &SubworkerRef,
@@ -242,6 +251,7 @@ fn subworker_task_finished(
     state.schedule_task_start();
 }
 
+#[allow(dead_code)]
 fn subworker_task_fail(
     state_ref: &WorkerStateRef,
     subworker_ref: &SubworkerRef,
@@ -261,6 +271,7 @@ fn subworker_task_fail(
     state.schedule_task_start();
 }
 
+#[allow(dead_code)]
 async fn run_subworker_message_loop(
     state_ref: WorkerStateRef,
     subworker_ref: SubworkerRef,
@@ -288,6 +299,7 @@ async fn run_subworker_message_loop(
     Ok(())
 }
 
+#[allow(dead_code)]
 async fn run_subworker(
     state_ref: WorkerStateRef,
     paths: WorkerPaths,
@@ -312,7 +324,7 @@ async fn run_subworker(
 
         if let Ok(cmd) = std::env::var("RSDS_SUBWORKER_PREFIX") {
             let cmd = cmd.replace("<I>", &subworker_id.to_string());
-            let splitted: Vec<_> = cmd.split(" ").map(|i| i.to_string()).collect();
+            let splitted: Vec<_> = cmd.split(' ').map(|i| i.to_string()).collect();
             args = [&splitted[1..], &["--".to_string()], &[program], &args[..]].concat();
             program = splitted[0].clone();
         }

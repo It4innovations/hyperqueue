@@ -1,10 +1,10 @@
 use orion::aead::SecretKey;
 
 use crate::common::error::DsError;
-use crate::common::resources::{ResourceAllocation, ResourceRequest};
+use crate::common::resources::ResourceRequest;
 use crate::common::trace::trace_task_remove;
 use crate::common::{IdCounter, Map, Set, WrappedRcRefCell};
-use crate::messages::common::{ProgramDefinition, SubworkerDefinition};
+use crate::messages::common::SubworkerDefinition;
 use crate::messages::gateway::ServerInfo;
 use crate::server::task::{Task, TaskRef, TaskRuntimeState};
 use crate::server::worker::Worker;
@@ -37,16 +37,20 @@ pub type CoreRef = WrappedRcRefCell<Core>;
 
 impl CoreRef {
     pub fn new(worker_listen_port: u16, secret_key: Option<Arc<SecretKey>>) -> Self {
-        let mut core = Core::default();
+        /*let mut core = Core::default();
         core.worker_listen_port = worker_listen_port;
-        core.secret_key = secret_key;
-        CoreRef::wrap(core)
+        core.secret_key = secret_key;*/
+        CoreRef::wrap(Core {
+            worker_listen_port,
+            secret_key,
+            ..Default::default()
+        })
     }
 }
 
 impl Core {
     pub fn new_worker_id(&mut self) -> WorkerId {
-        self.worker_id_counter.next()
+        self.worker_id_counter.next_id()
     }
 
     #[inline]
@@ -304,8 +308,7 @@ impl Core {
                     || self
                         .subworker_definitions
                         .iter()
-                        .find(|d| d.id == task.type_id)
-                        .is_some()
+                        .any(|d| d.id == task.type_id)
             );
             match &task.state {
                 TaskRuntimeState::Waiting(winfo) => {

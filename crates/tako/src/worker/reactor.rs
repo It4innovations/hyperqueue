@@ -1,7 +1,7 @@
 use smallvec::smallvec;
 
 use crate::common::resources::ResourceAllocation;
-use crate::messages::worker::{FromWorkerMessage, TaskRunningMsg, ToWorkerMessage};
+use crate::messages::worker::{FromWorkerMessage, TaskRunningMsg};
 use crate::worker::data::{DataObjectState, InSubworkersData, LocalDownloadingData, Subscriber};
 use crate::worker::state::WorkerState;
 use crate::worker::task::{Task, TaskRef, TaskState};
@@ -15,7 +15,7 @@ pub fn start_task(
     mut task_env: TaskEnv,
     allocation: ResourceAllocation,
 ) {
-    task_env.start_task(state, task, task_ref, &allocation);
+    task_env.start_task(state, task, task_ref);
     task.state = TaskState::Running(task_env, allocation);
     state.running_tasks.insert(task_ref.clone());
 }

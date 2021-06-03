@@ -21,12 +21,11 @@ use crate::transfer::auth::serialize;
 use crate::transfer::DataConnection;
 use crate::worker::data::{DataObject, DataObjectRef, DataObjectState, LocalData, RemoteData};
 use crate::worker::launcher::LauncherSetup;
-use crate::worker::pool::ResourcePool;
 use crate::worker::rqueue::ResourceWaitQueue;
 use crate::worker::subworker::{SubworkerId, SubworkerRef};
 use crate::worker::task::{TaskRef, TaskState};
+use crate::PriorityTuple;
 use crate::TaskId;
-use crate::{Priority, PriorityTuple};
 use std::sync::Arc;
 
 pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;

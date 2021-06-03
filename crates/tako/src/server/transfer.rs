@@ -28,8 +28,8 @@ pub async fn gather(
         for task_id in task_ids {
             let task_ref = core.get_task_by_id_or_panic(*task_id);
             let task = task_ref.get();
-            &task.get_placement().map(|ws| {
-                let ws = Vec::<&WorkerId>::from_iter(ws.into_iter());
+            task.get_placement().map(|ws| {
+                let ws: Vec<_> = ws.into_iter().collect();
                 ws.choose(&mut rng).map(|w| {
                     worker_map.entry(**w).or_default().push(*task_id);
                 })

@@ -117,7 +117,9 @@ class TakoEnv(Env):
         env["RUST_LOG"] = "debug"
         return env
 
-    def start_worker(self, ncpus, port=None, heartbeat=None, secret_file=None, nsockets=None):
+    def start_worker(
+        self, ncpus, port=None, heartbeat=None, secret_file=None, nsockets=None
+    ):
         port = port or self.default_listen_port
         worker_id = self.id_counter
         self.id_counter += 1
@@ -203,7 +205,11 @@ class TakoEnv(Env):
         Start infrastructure: server & n governors
         """
         port = port or self.default_listen_port
-        self.start_server(port=port, panic_on_worker_lost=panic_on_worker_lost, secret_file=secret_file)
+        self.start_server(
+            port=port,
+            panic_on_worker_lost=panic_on_worker_lost,
+            secret_file=secret_file,
+        )
 
         it = 0
         while check_free_port(port):

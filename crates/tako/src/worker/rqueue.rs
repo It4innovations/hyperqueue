@@ -1,11 +1,8 @@
-use crate::common::resources::{
-    NumOfCpus, ResourceAllocation, ResourceDescriptor, ResourceRequest,
-};
+use crate::common::resources::{ResourceAllocation, ResourceDescriptor, ResourceRequest};
 use crate::common::Map;
 use crate::worker::pool::ResourcePool;
 use crate::worker::task::TaskRef;
 use crate::PriorityTuple;
-use futures::StreamExt;
 use std::cmp::Reverse;
 
 pub struct ResourceWaitQueue {

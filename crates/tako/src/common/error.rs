@@ -3,7 +3,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum DsError {
     #[error("IO error: {0}")]
-    IOError(#[from] std::io::Error),
+    IoError(#[from] std::io::Error),
     #[error("Serialization error: {0}")]
     SerializationError(String),
     #[error("Scheduler error: {0}")]

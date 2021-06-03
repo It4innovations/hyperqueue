@@ -19,7 +19,6 @@ use crate::{TaskId, WorkerId};
 
 use super::metrics::compute_b_level_metric;
 use super::utils::task_transfer_cost;
-use crate::common::resources::ResourceRequest;
 use crate::server::worker_load::ResourceRequestLowerBound;
 
 pub(crate) struct SchedulerState {
@@ -33,7 +32,7 @@ fn choose_worker_for_task(
     task: &Task,
     worker_map: &Map<WorkerId, Worker>,
     random: &mut SmallRng,
-    mut workers: &mut Vec<WorkerId>,
+    workers: &mut Vec<WorkerId>,
 ) -> Option<WorkerId> {
     let mut costs = u64::MAX;
     for worker in worker_map.values() {
@@ -423,7 +422,7 @@ impl SchedulerState {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::scheduler::scheduler::SchedulerState;
+    use crate::scheduler::state::SchedulerState;
     use crate::server::core::Core;
     use crate::server::task::TaskRef;
     use crate::WorkerId;

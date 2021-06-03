@@ -3,11 +3,11 @@ import logging
 import weakref
 from typing import List
 
+from ..common import conn
+from ..common.conn import SocketWrapper
 from .exception import TaskFailed
 from .subworker import SubworkerDefinition
 from .task import Task
-from ..common import conn
-from ..common.conn import SocketWrapper
 
 logger = logging.getLogger(__name__)
 
