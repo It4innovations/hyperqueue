@@ -1,4 +1,5 @@
-use crate::common::Set;
+use crate::common::error::DsError;
+use crate::common::{Map, Set};
 use serde::{Deserialize, Serialize};
 
 pub type NumOfCpus = u32;
@@ -16,15 +17,25 @@ impl Default for CpuRequest {
     fn default() -> Self {
         CpuRequest::Compact(1)
     }
+}
 
-    /*pub fn set_n_cpus(&mut self, n_cpus: NumOfCpus) {
-        self.n_cpus = n_cpus;
-    }*/
-
-    /*#[inline]
-    pub fn get_n_cpus(&self) -> NumOfCpus {
-        self.n_cpus
-    }*/
+impl CpuRequest {
+    pub fn validate(&self) -> crate::Result<()> {
+        match &self {
+            CpuRequest::Scatter(n_cpus)
+            | CpuRequest::ForceCompact(n_cpus)
+            | CpuRequest::Compact(n_cpus) => {
+                if *n_cpus == 0 {
+                    Err(DsError::GenericError(
+                        "Zero cpus cannot be requested".to_string(),
+                    ))
+                } else {
+                    Ok(())
+                }
+            }
+            CpuRequest::All => Ok(()),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
@@ -62,6 +73,10 @@ impl ResourceRequest {
             CpuRequest::All => (NumOfCpus::MAX, NumOfCpus::MAX),
         }
     }
+
+    pub fn validate(&self) -> crate::Result<()> {
+        self.cpus.validate()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -72,9 +87,7 @@ pub struct ResourceDescriptor {
 impl ResourceDescriptor {
     #[cfg(test)]
     pub fn simple(n_cpus: NumOfCpus) -> Self {
-        ResourceDescriptor {
-            cpus: vec![(0..n_cpus).collect()],
-        }
+        ResourceDescriptor::new_with_socket_size(1, n_cpus)
     }
 
     pub fn new_with_socket_size(n_sockets: NumOfCpus, n_cpus_per_socket: NumOfCpus) -> Self {
@@ -100,6 +113,44 @@ impl ResourceDescriptor {
         let s: Set<CpuId> = self.cpus.iter().flatten().copied().collect();
         s.len() == self.cpus.iter().flatten().count()
     }
+
+    pub fn full_describe(&self) -> String {
+        self.cpus
+            .iter()
+            .map(|socket| {
+                format!(
+                    "[{}]",
+                    socket
+                        .iter()
+                        .map(|x| x.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    pub fn summary(&self) -> String {
+        if self.cpus.len() == 1 {
+            format!("1x{} cpus", self.cpus[0].len())
+        } else {
+            let mut counts = Map::<usize, usize>::new();
+            for group in &self.cpus {
+                *counts.entry(group.len()).or_default() += 1;
+            }
+            let mut counts: Vec<_> = counts.into_iter().collect();
+            counts.sort_unstable();
+            format!(
+                "{} cpus",
+                counts
+                    .iter()
+                    .map(|(cores, count)| format!("{}x{}", count, cores))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -110,5 +161,53 @@ pub struct ResourceAllocation {
 impl ResourceAllocation {
     pub fn new(cpus: Vec<CpuId>) -> Self {
         ResourceAllocation { cpus }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resources_to_summary() {
+        let d = ResourceDescriptor {
+            cpus: vec![vec![0]],
+        };
+        assert_eq!(&d.summary(), "1x1 cpus");
+
+        let d = ResourceDescriptor {
+            cpus: vec![vec![0, 1, 2]],
+        };
+        assert_eq!(&d.summary(), "1x3 cpus");
+
+        let d = ResourceDescriptor {
+            cpus: vec![vec![0, 1, 2, 4], vec![10, 11, 12, 14]],
+        };
+        assert_eq!(&d.summary(), "2x4 cpus");
+
+        let d = ResourceDescriptor {
+            cpus: vec![
+                vec![0, 1],
+                vec![10, 11],
+                vec![20, 21],
+                vec![30, 31],
+                vec![40, 41],
+                vec![50, 51, 52, 53, 54, 55],
+            ],
+        };
+        assert_eq!(&d.summary(), "5x2 1x6 cpus");
+    }
+
+    #[test]
+    fn test_resources_to_describe() {
+        let d = ResourceDescriptor {
+            cpus: vec![vec![0]],
+        };
+        assert_eq!(&d.full_describe(), "[0]");
+
+        let d = ResourceDescriptor {
+            cpus: vec![vec![0, 1, 2, 4], vec![10, 11, 12, 14]],
+        };
+        assert_eq!(&d.full_describe(), "[0, 1, 2, 4], [10, 11, 12, 14]");
     }
 }

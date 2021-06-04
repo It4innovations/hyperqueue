@@ -214,7 +214,7 @@ impl SchedulerState {
             });
         }
 
-        let mut ready_tasks = core.take_ready_to_assign();
+        let ready_tasks = core.take_ready_to_assign();
         if !ready_tasks.is_empty() {
             let mut tmp_workers = Vec::with_capacity(core.get_worker_map().len());
             for tr in ready_tasks.into_iter() {

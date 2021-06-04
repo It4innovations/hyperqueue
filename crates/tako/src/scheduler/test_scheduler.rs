@@ -5,18 +5,13 @@ use crate::messages::worker::{StealResponse, StealResponseMsg, ToWorkerMessage};
 use crate::server::core::Core;
 use crate::server::reactor::on_steal_response;
 use crate::server::test_util::{
-    create_test_comm, create_test_workers, finish_on_worker, sorted_vec,
-    start_and_finish_on_worker, submit_example_1, submit_test_tasks, task, task_with_deps,
-    TaskBuilder, TestEnv,
+    create_test_comm, create_test_workers, finish_on_worker, start_and_finish_on_worker,
+    submit_example_1, submit_test_tasks, task, TaskBuilder, TestEnv,
 };
 
-use crate::common::resources::NumOfCpus;
-use crate::common::setup::setup_logging;
 use crate::scheduler::state::tests::create_test_scheduler;
-use crate::scheduler::state::SchedulerState;
 use crate::server::task::TaskRef;
-use crate::server::worker::Worker;
-use crate::{TaskId, WorkerId};
+use crate::TaskId;
 
 #[test]
 fn test_no_deps_distribute() {
@@ -146,8 +141,8 @@ fn test_minimal_transfer_no_balance1() {
     let mut comm = create_test_comm();
     scheduler.run_scheduling(&mut core, &mut comm);
 
-    let m1 = comm.take_worker_msgs(100, 1);
-    let m2 = comm.take_worker_msgs(101, 1);
+    comm.take_worker_msgs(100, 1);
+    comm.take_worker_msgs(101, 1);
 
     assert_eq!(
         core.get_task_by_id_or_panic(13)

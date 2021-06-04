@@ -23,9 +23,8 @@ use crate::server::reactor::{
 };
 use crate::server::task::TaskRef;
 use crate::server::worker::{Worker, WorkerId};
-use crate::server::worker_load::{WorkerLoad, WorkerResources};
+use crate::server::worker_load::WorkerLoad;
 use crate::transfer::auth::{deserialize, serialize};
-use crate::worker::data::Subscriber::Task;
 use crate::{OutputId, TaskId};
 
 /// Memory stream for reading and writing at the same time.
@@ -221,7 +220,6 @@ pub struct TaskBuilder {
     id: TaskId,
     inputs: Vec<TaskRef>,
     n_outputs: OutputId,
-    n_cpus: NumOfCpus,
     resources: ResourceRequest,
 }
 
@@ -231,7 +229,6 @@ impl TaskBuilder {
             id,
             inputs: Default::default(),
             n_outputs: 0,
-            n_cpus: 1,
             resources: Default::default(),
         }
     }

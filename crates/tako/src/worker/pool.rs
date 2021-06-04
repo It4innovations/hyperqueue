@@ -198,7 +198,7 @@ impl ResourcePool {
 #[cfg(test)]
 mod tests {
     use crate::common::resources::{
-        CpuId, CpuRequest, ResourceAllocation, ResourceDescriptor, ResourceRequest,
+        CpuRequest, ResourceAllocation, ResourceDescriptor, ResourceRequest,
     };
     use crate::common::Set;
     use crate::server::test_util::sorted_vec;
@@ -330,7 +330,7 @@ mod tests {
         assert_eq!(pool.n_free_cpus(), 24);
 
         let rq2 = ResourceRequest::new(CpuRequest::Compact(1));
-        assert!(pool.try_allocate_resources(&rq).is_some());
+        assert!(pool.try_allocate_resources(&rq2).is_some());
         assert!(pool.try_allocate_resources(&rq).is_none());
     }
 
