@@ -94,10 +94,7 @@ mod tests {
         CpuRequest, ResourceAllocation, ResourceDescriptor, ResourceRequest,
     };
     use crate::common::Map;
-    use crate::server::test_util::start_and_finish_on_worker;
-    use crate::worker::pool::ResourcePool;
     use crate::worker::rqueue::ResourceWaitQueue;
-    use crate::worker::task::TaskRef;
     use crate::worker::test_util::worker_task;
     use crate::TaskId;
 

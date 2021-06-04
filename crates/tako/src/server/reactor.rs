@@ -681,7 +681,6 @@ mod tests {
 
     use super::*;
     use crate::common::resources::ResourceDescriptor;
-    use crate::server::worker_load::WorkerResources;
 
     /*use crate::test_util::{
         create_test_comm, create_test_workers, finish_on_worker, sorted_vec,
@@ -1232,7 +1231,7 @@ mod tests {
 
         let msgs = comm.take_worker_msgs(100, 1);
         assert!(
-            matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ids: ref ids }) if ids == &vec![41])
+            matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ref ids }) if ids == &vec![41])
         );
 
         let msgs = comm.take_worker_msgs(101, 2);
@@ -1242,7 +1241,7 @@ mod tests {
             &ToWorkerMessage::DeleteData(TaskIdMsg { id: 11 })
         ));
         assert!(
-            matches!(&msgs[1], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ids: ref ids }) if sorted_vec(ids.clone()) == vec![12, 40])
+            matches!(&msgs[1], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ref ids }) if sorted_vec(ids.clone()) == vec![12, 40])
         );
 
         assert_eq!(core.get_task_map().len(), 1);
