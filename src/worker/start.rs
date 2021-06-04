@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Context};
 use clap::Clap;
-use tako::messages::common::WorkerConfiguration;
+use tako::messages::common::{LauncherDefinition, ProgramDefinition, WorkerConfiguration};
 use tako::worker::rpc::run_worker;
 use tempdir::TempDir;
 use tokio::task::LocalSet;
@@ -11,8 +11,12 @@ use tokio::task::LocalSet;
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::error::error;
 use crate::common::serverdir::ServerDir;
+use crate::worker::hwdetect::detect_resource;
 use crate::worker::output::print_worker_configuration;
+use crate::worker::parser::parse_cpu_definition;
 use crate::Map;
+use tako::worker::launcher::pin_program;
+use tako::worker::task::Task;
 
 #[derive(Clap)]
 pub enum ManagerOpts {
@@ -46,7 +50,7 @@ impl FromStr for ManagerOpts {
 pub struct WorkerStartOpts {
     /// How many cores should be allocated for the worker
     #[clap(long)]
-    cpus: Option<u32>,
+    cpus: Option<String>,
 
     /// How often should the worker announce its existence to the server. [ms]
     #[clap(long, default_value = "8000")]
@@ -55,6 +59,21 @@ pub struct WorkerStartOpts {
     /// What HPC job manager should be used by the worker.
     #[clap(long, default_value = "detect", possible_values = &["detect", "slurm", "pbs", "none"])]
     manager: ManagerOpts,
+}
+
+fn launcher_setup(task: &Task, def: LauncherDefinition) -> tako::Result<ProgramDefinition> {
+    let allocation = task.resource_allocation().unwrap();
+    let mut program = def.program;
+
+    if def.pin {
+        pin_program(&mut program, &allocation);
+        program.env.insert("HQ_PIN".to_string(), "1".to_string());
+    }
+
+    program
+        .env
+        .insert("HQ_CPUS".to_string(), allocation.comma_delimited_cpu_ids());
+    Ok(program)
 }
 
 pub async fn start_hq_worker(
@@ -78,6 +97,7 @@ pub async fn start_hq_worker(
         &server_address,
         configuration,
         Some(record.tako_secret_key().clone()),
+        Box::new(launcher_setup),
     )
     .await?;
     print_worker_configuration(gsettings, worker_id, configuration);
@@ -145,10 +165,10 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         .into_string()
         .expect("Invalid hostname");
 
-    let n_cpus = opts.cpus.unwrap_or_else(|| num_cpus::get() as u32);
-    if n_cpus < 1 {
-        panic!("Invalid number of cpus");
-    };
+    let resources = opts
+        .cpus
+        .map(|cpus| parse_cpu_definition(&cpus))
+        .unwrap_or_else(detect_resource)?;
 
     let heartbeat_interval = Duration::from_millis(opts.heartbeat as u64);
 
@@ -160,7 +180,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
     let extra = gather_manager_info(opts.manager)?;
 
     Ok(WorkerConfiguration {
-        n_cpus,
+        resources,
         listen_address: Default::default(), // Will be filled during init
         hostname,
         work_dir,

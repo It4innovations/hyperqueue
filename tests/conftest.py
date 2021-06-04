@@ -117,7 +117,7 @@ class HqEnv(Env):
             time.sleep(0.2)
 
     def start_worker(
-        self, *, n_cpus=None, env=None, args=None, sleep=True
+        self, *, cpus=None, env=None, args=None, sleep=True
     ) -> subprocess.Popen:
         self.id_counter += 1
         worker_id = self.id_counter
@@ -125,8 +125,8 @@ class HqEnv(Env):
         if env:
             worker_env.update(env)
         worker_args = [HQ_BINARY, "--server-dir", self.server_dir, "worker", "start"]
-        if n_cpus is not None:
-            worker_args += ["--cpus", str(n_cpus)]
+        if cpus is not None:
+            worker_args += ["--cpus", str(cpus)]
         if args:
             worker_args += list(args)
         r = self.start_process(f"worker{worker_id}", worker_args, env=worker_env)
@@ -179,3 +179,8 @@ def hq_env(tmp_path):
         # Final sleep to let server port be freed, on some slow computers
         # a new test is starter before the old server is properly cleaned
         time.sleep(0.02)
+
+
+def print_table(table):
+    for i, row in enumerate(table):
+        print(i, row)

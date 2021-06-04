@@ -23,7 +23,7 @@ def test_job_submit(hq_env: HqEnv):
     assert table[1][:3] == ["1", "bash", "WAITING"]
     assert table[2][:3] == ["2", "bash", "WAITING"]
 
-    hq_env.start_worker(n_cpus=1)
+    hq_env.start_worker(cpus=1)
     time.sleep(0.3)
 
     table = hq_env.command("jobs", as_table=True)
@@ -77,7 +77,7 @@ def test_custom_name(hq_env: HqEnv, tmp_path):
 
 def test_job_output(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
-    hq_env.start_worker(n_cpus=1)
+    hq_env.start_worker(cpus=1)
     hq_env.command(["submit", "--", "bash", "-c", "echo 'hello'"])
     hq_env.command(["submit", "--", "ls", "/non-existent"])
     hq_env.command(["submit", "--", "/non-existent-program"])
@@ -103,7 +103,7 @@ def test_job_output(hq_env: HqEnv, tmp_path):
 
 def test_job_fail(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.start_worker(n_cpus=1)
+    hq_env.start_worker(cpus=1)
     hq_env.command(["submit", "--", "/non-existent-program"])
     time.sleep(0.2)
     table = hq_env.command("jobs", as_table=True)
@@ -114,13 +114,13 @@ def test_job_fail(hq_env: HqEnv):
     assert table[0] == ["Id", "1"]
     assert table[2] == ["State", "FAILED"]
 
-    assert table[8][0] == "0"
-    assert "No such file or directory" in table[8][1]
+    assert table[9][0] == "0"
+    assert "No such file or directory" in table[9][1]
 
 
 def test_job_invalid(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.start_worker(n_cpus=1)
+    hq_env.start_worker(cpus=1)
     result = hq_env.command(["job", "5"])
     assert "Job 5 not found" in result
 
@@ -132,14 +132,14 @@ def test_cancel_without_workers(hq_env: HqEnv):
     assert "Job 1 canceled" in r
     table = hq_env.command(["jobs"], as_table=True)
     assert table[1][2] == "CANCELED"
-    hq_env.start_worker(n_cpus=1)
+    hq_env.start_worker(cpus=1)
     table = hq_env.command(["jobs"], as_table=True)
     assert table[1][2] == "CANCELED"
 
 
 def test_cancel_running(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.start_worker(n_cpus=1)
+    hq_env.start_worker(cpus=1)
     hq_env.command(["submit", "sleep", "10"])
     time.sleep(0.3)
     table = hq_env.command(["jobs"], as_table=True)
@@ -155,7 +155,7 @@ def test_cancel_running(hq_env: HqEnv):
 
 def test_cancel_finished(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.start_worker(n_cpus=1)
+    hq_env.start_worker(cpus=1)
     hq_env.command(["submit", "hostname"])
     hq_env.command(["submit", "/invalid"])
     time.sleep(0.3)
@@ -171,7 +171,7 @@ def test_cancel_finished(hq_env: HqEnv):
 
 def test_reporting_state_after_worker_lost(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.start_workers(2, n_cpus=1)
+    hq_env.start_workers(2, cpus=1)
     hq_env.command(["submit", "sleep", "1"])
     hq_env.command(["submit", "sleep", "1"])
     time.sleep(0.25)

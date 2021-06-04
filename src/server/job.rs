@@ -3,6 +3,7 @@ use tako::messages::common::ProgramDefinition;
 
 use crate::transfer::messages::{JobDetail, JobInfo, JobType};
 use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId};
+use tako::common::resources::ResourceRequest;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum JobTaskState {
@@ -53,6 +54,8 @@ pub struct Job {
     pub job_type: JobType,
     pub name: String,
     pub program_def: ProgramDefinition,
+    pub resources: ResourceRequest,
+    pub pin: bool,
 }
 
 impl Job {
@@ -62,6 +65,8 @@ impl Job {
         base_task_id: TakoTaskId,
         name: String,
         program_def: ProgramDefinition,
+        resources: ResourceRequest,
+        pin: bool,
     ) -> Self {
         let state = match &job_type {
             JobType::Simple => JobState::SingleTask(JobTaskState::Waiting),
@@ -90,6 +95,8 @@ impl Job {
             name,
             state,
             program_def,
+            resources,
+            pin,
         }
     }
 
@@ -98,6 +105,7 @@ impl Job {
             info: self.make_job_info(),
             job_type: self.job_type.clone(),
             program_def: self.program_def.clone(),
+            resources: self.resources.clone(),
             tasks: if include_tasks {
                 match &self.state {
                     JobState::SingleTask(s) => {
@@ -111,6 +119,7 @@ impl Job {
             } else {
                 Vec::new()
             },
+            pin: self.pin,
         }
     }
 
@@ -128,6 +137,7 @@ impl Job {
             name: self.name.clone(),
             n_tasks: self.n_tasks(),
             counters: self.counters,
+            resources: self.resources.clone(),
         }
     }
 

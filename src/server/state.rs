@@ -162,6 +162,7 @@ mod tests {
     use crate::server::job::Job;
     use crate::server::state::StateRef;
     use crate::transfer::messages::JobType;
+    use tako::common::resources::ResourceRequest;
 
     fn dummy_program_definition() -> ProgramDefinition {
         ProgramDefinition {
@@ -183,6 +184,8 @@ mod tests {
             100,
             "".to_string(),
             dummy_program_definition(),
+            ResourceRequest::default(),
+            false,
         ));
         state.add_job(Job::new(
             JobType::Array(ArrayDef::simple_range(0, 15)),
@@ -190,6 +193,8 @@ mod tests {
             110,
             "".to_string(),
             dummy_program_definition(),
+            ResourceRequest::default(),
+            false,
         ));
         state.add_job(Job::new(
             JobType::Simple,
@@ -197,6 +202,8 @@ mod tests {
             125,
             "".to_string(),
             dummy_program_definition(),
+            ResourceRequest::default(),
+            false,
         ));
         state.add_job(Job::new(
             JobType::Simple,
@@ -204,6 +211,8 @@ mod tests {
             126,
             "".to_string(),
             dummy_program_definition(),
+            ResourceRequest::default(),
+            false,
         ));
         state.add_job(Job::new(
             JobType::Simple,
@@ -211,6 +220,8 @@ mod tests {
             130,
             "".to_string(),
             dummy_program_definition(),
+            ResourceRequest::default(),
+            false,
         ));
 
         assert!(state.get_job_mut_by_tako_task_id(99).is_none());

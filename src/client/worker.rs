@@ -15,7 +15,7 @@ pub fn print_worker_info(workers: Vec<WorkerInfo>, gsettings: &GlobalSettings) {
                     Some(_) => "OFFLINE".cell().foreground_color(Some(Color::Red)),
                 },
                 w.configuration.hostname.cell(),
-                w.configuration.n_cpus.cell(),
+                w.configuration.resources.summary().cell(),
                 w.configuration
                     .extra
                     .get("MANAGER")
@@ -39,7 +39,7 @@ pub fn print_worker_info(workers: Vec<WorkerInfo>, gsettings: &GlobalSettings) {
             "Id".cell(),
             "State".cell().bold(true),
             "Hostname".cell().bold(true),
-            "# cpus".cell().bold(true),
+            "Resources".cell().bold(true),
             "Manager".cell().bold(true),
             "Manager Job Id".cell().bold(true),
         ]);

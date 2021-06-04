@@ -31,7 +31,10 @@ pub fn print_worker_configuration(
                 .to_string()
                 .cell(),
         ],
-        vec!["# of cpus".cell().bold(true), configuration.n_cpus.cell()],
+        vec![
+            "Resources".cell().bold(true),
+            configuration.resources.summary().cell(),
+        ],
         vec![
             "Manager".cell().bold(true),
             configuration

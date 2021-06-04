@@ -6,11 +6,26 @@ use tako::messages::common::ProgramDefinition;
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::print_job_detail;
 
+use crate::client::resources::parse_cpu_request;
 use crate::common::arraydef::ArrayDef;
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, JobType, SubmitRequest, ToClientMessage};
 use anyhow::anyhow;
+use std::str::FromStr;
+use tako::common::resources::{CpuRequest, ResourceRequest};
+
+// I am wrapping CpuRequest + implementing FromStr as I am not able to provide
+// own parser function into clap??
+struct ArgCpuRequest(CpuRequest);
+
+impl FromStr for ArgCpuRequest {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parse_cpu_request(s).map(ArgCpuRequest)
+    }
+}
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
@@ -21,8 +36,20 @@ pub struct SubmitOpts {
     #[clap(long)]
     array: Option<ArrayDef>,
 
+    #[clap(long, default_value = "1")]
+    cpus: ArgCpuRequest,
+
     #[clap(long)]
     name: Option<String>,
+
+    #[clap(long)]
+    pin: bool,
+}
+
+impl SubmitOpts {
+    fn resource_request(&self) -> ResourceRequest {
+        ResourceRequest::new(self.cpus.0.clone())
+    }
 }
 
 pub async fn submit_computation(
@@ -30,6 +57,10 @@ pub async fn submit_computation(
     connection: &mut ClientConnection,
     opts: SubmitOpts,
 ) -> crate::Result<()> {
+    let resources = opts.resource_request();
+
+    resources.validate()?;
+
     let name = if let Some(name) = opts.name {
         validate_name(name)?
     } else {
@@ -47,7 +78,6 @@ pub async fn submit_computation(
     let submit_cwd = std::env::current_dir().unwrap();
     let stdout = submit_cwd.join("stdout.%{JOB_ID}.%{TASK_ID}");
     let stderr = submit_cwd.join("stderr.%{JOB_ID}.%{TASK_ID}");
-
     let message = FromClientMessage::Submit(SubmitRequest {
         job_type,
         name,
@@ -59,6 +89,8 @@ pub async fn submit_computation(
             stderr: Some(stderr),
             cwd: None,
         },
+        resources,
+        pin: opts.pin,
     });
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
     print_job_detail(gsettings, response.job, true, false);

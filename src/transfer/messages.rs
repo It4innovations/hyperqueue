@@ -8,6 +8,7 @@ use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 use crate::common::arraydef::ArrayDef;
 use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
+use tako::common::resources::ResourceRequest;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum JobType {
@@ -21,6 +22,8 @@ pub struct SubmitRequest {
     pub name: String,
     pub submit_cwd: PathBuf,
     pub spec: ProgramDefinition,
+    pub resources: ResourceRequest,
+    pub pin: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -89,6 +92,7 @@ pub struct JobInfo {
 
     pub n_tasks: JobTaskCount,
     pub counters: JobTaskCounters,
+    pub resources: ResourceRequest,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -109,6 +113,8 @@ pub struct JobDetail {
     pub job_type: JobType,
     pub program_def: ProgramDefinition,
     pub tasks: Vec<JobTaskInfo>,
+    pub resources: ResourceRequest,
+    pub pin: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

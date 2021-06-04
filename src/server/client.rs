@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
-use tako::messages::common::ProgramDefinition;
+use tako::messages::common::{LauncherDefinition, ProgramDefinition};
 use tako::messages::gateway::{
     CancelTasks, FromGatewayMessage, NewTasksMessage, StopWorkerRequest, TaskDef, ToGatewayMessage,
 };
@@ -241,9 +241,17 @@ async fn handle_submit(
     tako_ref: &TakoServer,
     message: SubmitRequest,
 ) -> ToClientMessage {
+    if message.resources.validate().is_err() {
+        return ToClientMessage::Error("Invalid resource request".to_string());
+    }
+
     let make_task = |job_id, task_id, tako_id| {
-        let program_def = make_program_def_for_task(&message.spec, job_id, task_id);
-        let body = rmp_serde::to_vec_named(&program_def).unwrap();
+        let program = make_program_def_for_task(&message.spec, job_id, task_id);
+        let launcher_def = LauncherDefinition {
+            program,
+            pin: message.pin,
+        };
+        let body = rmp_serde::to_vec_named(&launcher_def).unwrap();
         TaskDef {
             id: tako_id,
             type_id: 0,
@@ -251,6 +259,7 @@ async fn handle_submit(
             keep: false,
             observe: true,
             n_outputs: 0,
+            resources: message.resources.clone(),
         }
     };
     let (task_defs, job_detail) = {
@@ -275,6 +284,8 @@ async fn handle_submit(
             tako_base_id,
             message.name.clone(),
             message.spec,
+            message.resources,
+            message.pin,
         );
         let job_detail = job.make_job_detail(false);
         state.add_job(job);

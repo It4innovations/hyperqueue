@@ -2,6 +2,7 @@ use cli_table::format::Justify;
 use cli_table::{print_stdout, Cell, CellStruct, Color, Style, Table};
 
 use crate::client::globalsettings::GlobalSettings;
+use crate::client::resources::cpu_request_to_string;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::transfer::messages::{JobDetail, JobInfo, JobType};
 use crate::JobTaskCount;
@@ -160,6 +161,18 @@ pub fn print_job_detail(
     }
 
     rows.push(vec!["Tasks".cell().bold(true), n_tasks.cell()]);
+
+    let resources = cpu_request_to_string(job.resources.cpus());
+
+    rows.push(vec![
+        "Resources".cell().bold(true),
+        if job.pin {
+            format!("{} [pin]", resources)
+        } else {
+            resources
+        }
+        .cell(),
+    ]);
 
     // TODO: Each argument on own line, after the bug in cli-table is fixed
     let program_def = job.program_def;

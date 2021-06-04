@@ -48,20 +48,6 @@ def test_worker_list(hq_env: HqEnv):
     assert table[3][:2] == ["3", "RUNNING"]
 
 
-def test_worker_cpus(hq_env: HqEnv):
-    hq_env.start_server()
-    hq_env.start_worker(n_cpus=1)
-    hq_env.start_worker(n_cpus=2)
-
-    wait_until(lambda: len(hq_env.command(["worker", "list"], as_table=True)) == 3)
-
-    table = hq_env.command(["worker", "list"], as_table=True)
-    assert len(table) == 3
-    assert table[0][3] == "# cpus"
-    assert table[1][3] == "1"
-    assert table[2][3] == "2"
-
-
 def test_worker_stop(hq_env: HqEnv):
     hq_env.start_server()
     process = hq_env.start_worker()
@@ -87,19 +73,32 @@ def test_worker_list_online_offline_state(hq_env: HqEnv):
     hq_env.start_workers(2)
     table = hq_env.command(["worker", "list"], as_table=True)
     assert len(table) == 3
-    assert table[1][:2] == ['1', 'RUNNING']
-    assert table[2][:2] == ['2', 'RUNNING']
+    assert table[1][:2] == ["1", "RUNNING"]
+    assert table[2][:2] == ["2", "RUNNING"]
     hq_env.kill_worker(2)
     table = hq_env.command(["worker", "list"], as_table=True)
     assert len(table) == 3
-    assert table[1][:2] == ['1', 'RUNNING']
-    assert table[2][:2] == ['2', 'OFFLINE']
+    assert table[1][:2] == ["1", "RUNNING"]
+    assert table[2][:2] == ["2", "OFFLINE"]
 
-    table = hq_env.command(["worker", "list","--offline"], as_table=True)
+    table = hq_env.command(["worker", "list", "--offline"], as_table=True)
     assert len(table) == 2
-    assert table[1][:2] == ['2', 'OFFLINE']
+    assert table[1][:2] == ["2", "OFFLINE"]
 
     table = hq_env.command(["worker", "list", "--running"], as_table=True)
     assert len(table) == 2
-    assert table[1][:2] == ['1', 'RUNNING']
+    assert table[1][:2] == ["1", "RUNNING"]
 
+
+def test_worker_list_resources(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus="10")
+    hq_env.start_worker(cpus="4x5")
+
+    table = hq_env.command(["worker", "list"], as_table=True)
+    assert len(table) == 3
+    assert table[1][:2] == ["1", "RUNNING"]
+    assert table[2][:2] == ["2", "RUNNING"]
+    assert table[0][3] == "Resources"
+    assert table[1][3] == "1x10 cpus"
+    assert table[2][3] == "4x5 cpus"
