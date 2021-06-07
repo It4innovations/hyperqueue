@@ -62,6 +62,14 @@ pub struct ProgramDefinition {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LauncherDefinition {
+    pub program: ProgramDefinition,
+
+    #[serde(default)]
+    pub pin: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerConfiguration {
     pub resources: ResourceDescriptor,
 

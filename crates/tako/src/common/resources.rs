@@ -162,6 +162,14 @@ impl ResourceAllocation {
     pub fn new(cpus: Vec<CpuId>) -> Self {
         ResourceAllocation { cpus }
     }
+
+    pub fn comma_delimited_cpu_ids(&self) -> String {
+        self.cpus
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    }
 }
 
 #[cfg(test)]
