@@ -46,13 +46,14 @@ impl JobTaskCounters {
 pub struct Job {
     pub job_id: JobId,
     pub base_task_id: TakoTaskId,
-
+    pub max_fails: Option<TakoTaskId>,
     pub counters: JobTaskCounters,
 
     pub state: JobState,
 
     pub job_type: JobType,
     pub name: String,
+
     pub program_def: ProgramDefinition,
     pub resources: ResourceRequest,
     pub pin: bool,
@@ -67,6 +68,7 @@ impl Job {
         program_def: ProgramDefinition,
         resources: ResourceRequest,
         pin: bool,
+        max_fails: Option<TakoTaskId>,
     ) -> Self {
         let state = match &job_type {
             JobType::Simple => JobState::SingleTask(JobTaskState::Waiting),
@@ -97,6 +99,7 @@ impl Job {
             program_def,
             resources,
             pin,
+            max_fails,
         }
     }
 
@@ -149,7 +152,10 @@ impl Job {
         }
     }
 
-    fn get_task_state_mut(&mut self, tako_task_id: TakoTaskId) -> (JobTaskId, &mut JobTaskState) {
+    pub fn get_task_state_mut(
+        &mut self,
+        tako_task_id: TakoTaskId,
+    ) -> (JobTaskId, &mut JobTaskState) {
         match &mut self.state {
             JobState::SingleTask(ref mut s) => {
                 debug_assert_eq!(tako_task_id, self.base_task_id);
@@ -187,9 +193,10 @@ impl Job {
 
     pub fn set_running_state(&mut self, tako_task_id: TakoTaskId) {
         let (_, state) = self.get_task_state_mut(tako_task_id);
-        assert!(matches!(state, JobTaskState::Waiting));
-        *state = JobTaskState::Running;
-        self.counters.n_running_tasks += 1;
+        if matches!(state, JobTaskState::Waiting) {
+            *state = JobTaskState::Running;
+            self.counters.n_running_tasks += 1;
+        }
     }
 
     pub fn set_finished_state(&mut self, tako_task_id: TakoTaskId) {
@@ -225,7 +232,10 @@ impl Job {
         if let JobTaskState::Running = old_state {
             self.counters.n_running_tasks -= 1;
         }
-        self.counters.n_canceled_tasks += 1;
         task_id
+        //assert!(matches!(
+        //    old_state,
+        //    JobTaskState::Running | JobTaskState::Waiting
+        //));
     }
 }
