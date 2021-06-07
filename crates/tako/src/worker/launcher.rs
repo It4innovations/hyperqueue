@@ -5,11 +5,18 @@ use tokio::process::Command;
 use tokio::sync::oneshot;
 
 use crate::common::error::DsError;
-use crate::messages::common::{ProgramDefinition, TaskFailInfo};
+use crate::common::resources::ResourceAllocation;
+use crate::messages::common::{LauncherDefinition, ProgramDefinition, TaskFailInfo};
 use crate::worker::state::WorkerStateRef;
 use crate::worker::task::{Task, TaskRef};
 
-pub type LauncherSetup = Box<dyn Fn(&Task, ProgramDefinition) -> crate::Result<ProgramDefinition>>;
+pub type LauncherSetup = Box<dyn Fn(&Task, LauncherDefinition) -> crate::Result<ProgramDefinition>>;
+
+pub fn pin_program(program: &mut ProgramDefinition, allocation: &ResourceAllocation) {
+    program.args.insert(0, "taskset".to_string());
+    program.args.insert(1, "-c".to_string());
+    program.args.insert(2, allocation.comma_delimited_cpu_ids());
+}
 
 fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Command> {
     if definition.args.is_empty() {
@@ -50,13 +57,13 @@ async fn start_program_from_task(
     state_ref: &WorkerStateRef,
     task_ref: &TaskRef,
 ) -> crate::Result<()> {
-    let definition: ProgramDefinition = {
+    let program: ProgramDefinition = {
         let task = task_ref.get();
-        let def = rmp_serde::from_slice(&task.spec)?;
+        let def: LauncherDefinition = rmp_serde::from_slice(&task.spec)?;
         (state_ref.get().launcher_setup)(&task, def)?
     };
 
-    let mut command = command_from_definitions(&definition)?;
+    let mut command = command_from_definitions(&program)?;
     let status = command.status().await?;
     if !status.success() {
         let code = status.code().unwrap_or(-1);

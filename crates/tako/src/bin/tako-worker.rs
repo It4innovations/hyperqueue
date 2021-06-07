@@ -12,7 +12,8 @@ use std::sync::Arc;
 use tako::common::resources::ResourceDescriptor;
 use tako::common::secret::read_secret_file;
 use tako::common::setup::setup_logging;
-use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
+use tako::messages::common::{LauncherDefinition, ProgramDefinition, WorkerConfiguration};
+use tako::worker::launcher::pin_program;
 use tako::worker::rpc::run_worker;
 use tako::worker::task::Task;
 
@@ -62,8 +63,12 @@ fn create_paths(
 }
 
 #[allow(clippy::unnecessary_wraps)] // This function needs to match an interface
-fn launcher_setup(_task: &Task, def: ProgramDefinition) -> tako::Result<ProgramDefinition> {
-    Ok(def)
+fn launcher_setup(task: &Task, def: LauncherDefinition) -> tako::Result<ProgramDefinition> {
+    let mut program = def.program;
+    if def.pin {
+        pin_program(&mut program, task.resource_allocation().unwrap());
+    }
+    Ok(program)
 }
 
 async fn worker_main(

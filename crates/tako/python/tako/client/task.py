@@ -44,5 +44,5 @@ def make_program_task(
     keep: bool = False,
     resources: ResourceRequest = None,
 ):
-    body = msgpack.dumps(program_def.as_dict())
+    body = msgpack.dumps({"program": program_def.as_dict()})
     return Task(0, body, keep, resources=resources)
