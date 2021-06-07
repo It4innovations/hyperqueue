@@ -5,7 +5,7 @@ use tako::messages::gateway::{
 };
 
 use crate::common::WrappedRcRefCell;
-use crate::server::job::Job;
+use crate::server::job::{Job, JobTaskState};
 use crate::server::worker::Worker;
 use crate::transfer::messages::LostWorkerReasonInfo;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
@@ -110,8 +110,21 @@ impl State {
 
     pub fn process_task_failed(&mut self, msg: TaskFailedMessage) {
         log::debug!("Task id={} failed", msg.id);
+
         let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
-        job.set_failed_state(msg.id, msg.info.message);
+
+        if job.counters.n_failed_tasks >= job.max_fails {
+            let sub_task = job.make_job_detail(true);
+            for x in sub_task.tasks.iter() {
+                let (_, state) = job.get_task_state_mut(x.task_id.into());
+                if matches!(state, JobTaskState::Running) || matches!(state, JobTaskState::Waiting)
+                {
+                    job.set_cancel_state(x.task_id.into());
+                }
+            }
+        } else {
+            job.set_failed_state(msg.id, msg.info.message);
+        }
     }
 
     pub fn process_task_update(&mut self, msg: TaskUpdate) {

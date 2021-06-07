@@ -287,6 +287,7 @@ async fn handle_submit(
             spec,
             resources,
             pin,
+            message.max_fails,
         );
         let job_detail = job.make_job_detail(false);
         state.add_job(job);

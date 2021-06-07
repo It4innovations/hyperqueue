@@ -17,6 +17,7 @@ use crate::common::arraydef::ArrayDef;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, JobType, SubmitRequest, ToClientMessage};
 use crate::{rpc_call, JobTaskCount};
+use tako::TaskId;
 
 struct ArgCpuRequest(CpuRequest);
 
@@ -124,6 +125,9 @@ pub struct SubmitOpts {
     ///
     /// `--array=3-5` - create task array with three jobs with task IDs 3, 4, 5
     array: Option<ArrayDef>,
+
+    #[clap(long, requires = "array")]
+    max_fails: Option<TaskId>,
 }
 
 impl SubmitOpts {
@@ -139,7 +143,6 @@ pub async fn submit_computation(
 ) -> anyhow::Result<()> {
     let resources = opts.resource_request();
     resources.validate()?;
-
     let (job_type, entries) = if let Some(filename) = opts.each_line {
         let lines = read_lines(&filename)?;
         let def = ArrayDef::simple_range(0, lines.len() as JobTaskCount);
@@ -207,6 +210,7 @@ pub async fn submit_computation(
         resources,
         pin: opts.pin,
         entries,
+        max_fails: opts.max_fails,
     });
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
     print_job_detail(gsettings, response.job, true, false);

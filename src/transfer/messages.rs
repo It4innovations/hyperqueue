@@ -5,9 +5,10 @@ use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 
 use crate::common::arraydef::ArrayDef;
 use crate::server::job::{JobTaskCounters, JobTaskInfo};
-use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
+use crate::{JobId, JobTaskCount, JobTaskId, TakoTaskId, WorkerId};
 use bstr::BString;
 use tako::common::resources::ResourceRequest;
+use tako::TaskId;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum JobType {
@@ -19,6 +20,7 @@ pub enum JobType {
 pub struct SubmitRequest {
     pub job_type: JobType,
     pub name: String,
+    pub max_fails: Option<TakoTaskId>,
     pub spec: ProgramDefinition,
     pub resources: ResourceRequest,
     pub pin: bool,
