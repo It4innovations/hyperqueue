@@ -259,6 +259,7 @@ async fn handle_submit(
             keep: false,
             observe: true,
             n_outputs: 0,
+            priority: 0,
             resources: message.resources.clone(),
         }
     };
