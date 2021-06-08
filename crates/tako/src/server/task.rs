@@ -358,6 +358,7 @@ impl TaskRef {
         observe: bool,
     ) -> Self {
         let mut flags = TaskFlags::empty();
+        log::debug!("New task {} {:?}", id, &resources);
         flags.set(TaskFlags::KEEP, keep);
         flags.set(TaskFlags::OBSERVE, observe);
         flags.set(TaskFlags::FRESH, true);
