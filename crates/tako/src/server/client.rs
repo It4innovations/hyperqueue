@@ -120,7 +120,7 @@ pub async fn process_client_message(
                     task.body,
                     Vec::new(),
                     task.n_outputs,
-                    0,
+                    task.priority,
                     task.resources,
                     task.keep,
                     task.observe,
