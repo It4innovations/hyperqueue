@@ -1,7 +1,7 @@
 import time
 
 from tako.client.program import ProgramDefinition
-from tako.client.resources import ResourceRequest
+from tako.client.resources import ResourceRequest, AllocationPolicy
 from tako.client.task import make_program_task
 
 
@@ -138,3 +138,12 @@ def test_submit_sleeps_more_cpus3(tako_env):
     session.wait_all([t1, t2, t3, t4])
     end = time.time()
     assert 1.0 <= (end - start) <= 1.3
+
+
+def test_force_compact(tako_env):
+    session = tako_env.start()
+    tako_env.start_worker(ncpus=2, nsockets=2)
+    rq1 = ResourceRequest(cpus=4, policy=AllocationPolicy.ForceCompact)
+    t1 = make_program_task(ProgramDefinition(["hostname"]), resources=rq1)
+    session.submit([t1])
+    session.wait_all([t1])

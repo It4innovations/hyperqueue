@@ -119,6 +119,8 @@ async fn main() -> tako::Result<()> {
         extra: Default::default(),
     };
 
+    log::debug!("Worker configuration: {:?}", &configuration);
+
     let secret_key = opts.secret_file.map(|key_file| {
         Arc::new(read_secret_file(&key_file).unwrap_or_else(|e| {
             log::error!("Reading secret file {}: {:?}", key_file.display(), e);
