@@ -20,7 +20,7 @@ fn p_cpu_request(input: &str) -> NomResult<CpuRequest> {
             )),
             |(count, policy)| {
                 if count == 0 {
-                    return Err(nom::Err::Error("xxx"));
+                    return Err(nom::Err::Error("Requesting zero cpus are not allowed"));
                 }
                 Ok(match policy {
                     None | Some("compact") => CpuRequest::Compact(count),

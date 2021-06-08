@@ -14,7 +14,7 @@ nav:
   - Deployment: deployment.md
   - Jobs (Basics): jobs.md
   - Task Arrays: arrays.md
-  - Resource Requests: resources.md
+  - CPU management: cpus.md
 
 
 theme:

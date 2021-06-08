@@ -62,7 +62,9 @@ pub struct WorkerStartOpts {
 }
 
 fn launcher_setup(task: &Task, def: LauncherDefinition) -> tako::Result<ProgramDefinition> {
-    let allocation = task.resource_allocation().unwrap();
+    let allocation = task
+        .resource_allocation()
+        .expect("Missing resource allocation for running task");
     let mut program = def.program;
 
     if def.pin {
