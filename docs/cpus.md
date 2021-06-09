@@ -4,10 +4,10 @@
 
 [Added in 0.2]
 
-**Note:** In this text we use term **CPU** as a resource that is provided by operating system (e.g. what you get from /proc/cpuinfo). In this meaning, it is usually a core of a physical CPU. In the section about NUMA we use term **socket** to refer to a physical CPU.
+**Note:** In this text we use term **CPU** as a resource that is provided by operating system (e.g. what you get from /proc/cpuinfo). In this meaning, it is usually a core of a physical CPU. In the text related to NUMA we use term **socket** to refer to a physical CPU.
 
 
-## Requesting mode CPUs
+## Requesting more CPUs
 
 By default, each task allocates a single CPU on worker's node. This can be changed by argument ``--cpus=...``.
 
@@ -19,6 +19,16 @@ $ hq submit --cpus=8 <program_name> <args...>
 
 This ensures that 8 cpus will be exclusively reserved when this task is started. This task will never be scheduled on a worker that has less then 8 cpus.
 
+
+## Requesting all CPUs
+
+Setting ``--cpus=all`` ensures that will request all CPUs of the worker and ensures an exclusive run of the task.
+
+```
+$ hq submit --cpus=all <program_name> <args...>
+```
+
+
 ## Pinning
 
 By default, HQ internally allocates CPUs on logical level without pinning.
@@ -26,6 +36,7 @@ In other words, HQ ensures that the sum of requests of concurrently running task
 CPUs as it wants.
 
 If this is not desired, especially in case of NUMA, processes could be pinned, either manually or automatically.
+
 
 ### Automatic pinning
 
@@ -36,6 +47,7 @@ $ hq submit --pin --cpus=8 <your-program> <args>
 ```
 
 When an automatic pinning is enabled then the environment variable ``HQ_PIN`` is set to ``1`` in the task process.
+
 
 ### Manual pinning
 
@@ -65,6 +77,7 @@ In case of ``numactl``, the equivalent script is:
 
 numactl -C $HQ_CPUS <your-program> <args...>
 ```
+
 
 ## NUMA allocation policy
 
