@@ -61,6 +61,7 @@ pub struct WorkerStartOpts {
     manager: ManagerOpts,
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn launcher_setup(task: &Task, def: LauncherDefinition) -> tako::Result<ProgramDefinition> {
     let allocation = task
         .resource_allocation()

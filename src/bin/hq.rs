@@ -13,6 +13,7 @@ use hyperqueue::client::worker::print_worker_info;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server};
+use hyperqueue::worker::hwdetect::{detect_resource, print_resource_descriptor};
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::{JobId, WorkerId};
 
@@ -106,12 +107,6 @@ struct WorkerListOpts {
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
-struct WorkerInfoOpts {
-    worker_id: WorkerId,
-}
-
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
 struct WorkerOpts {
     #[clap(subcommand)]
     subcmd: WorkerCommand,
@@ -125,8 +120,8 @@ enum WorkerCommand {
     Stop(WorkerStopOpts),
     /// Display information about all workers
     List(WorkerListOpts),
-    /// Display information about a specific worker
-    Info(WorkerInfoOpts),
+    /// Hwdetect
+    Hwdetect,
 }
 
 // Job CLI options
@@ -229,6 +224,12 @@ async fn command_worker_list(
     Ok(())
 }
 
+fn command_worker_hwdetect() -> anyhow::Result<()> {
+    let descriptor = detect_resource()?;
+    print_resource_descriptor(&descriptor);
+    Ok(())
+}
+
 pub enum ColorPolicy {
     Auto,
     Always,
@@ -300,11 +301,8 @@ async fn main() -> hyperqueue::Result<()> {
             subcmd: WorkerCommand::List(opts),
         }) => command_worker_list(gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::Info(opts),
-        }) => {
-            let _worker_id = opts.worker_id; // TODO: Just for silent warning
-            todo!()
-        }
+            subcmd: WorkerCommand::Hwdetect,
+        }) => command_worker_hwdetect(),
 
         SubCommand::Jobs(opts) => command_job_list(gsettings, opts).await,
         SubCommand::Job(opts) => command_job_detail(gsettings, opts).await,
