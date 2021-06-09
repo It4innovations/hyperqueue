@@ -79,6 +79,8 @@ impl ResourceRequest {
     }
 }
 
+pub type CpusDescriptor = Vec<Vec<CpuId>>;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ResourceDescriptor {
     pub cpus: Vec<Vec<CpuId>>,
