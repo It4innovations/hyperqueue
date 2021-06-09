@@ -86,6 +86,14 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
   We did not benchmark HQ itself yet, but our backend library used in HQ handles hundreds of thousands job with `1ms`
   overhead per job with dependencies and around `0.1ms` per job without dependencies.
 
+* **Does HQ support multi-CPU jobs?**
+
+  Yes. You can define number of CPUs for each job. HQ is NUMA aware and you can choose the allocation strategy.
+
+* **Does HQ support job arrays?**
+
+  Yes.
+
 * **Does HQ support jobs with dependencies?**
 
   Not yet. It is actually implemented in the scheduling core, but it has
