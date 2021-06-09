@@ -47,8 +47,7 @@ pub fn print_resource_descriptor(descriptor: &ResourceDescriptor) {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_range;
-    use crate::worker::hwdetect::read_linux_numa;
+    use super::{parse_range, read_linux_numa};
 
     #[test]
     fn test_parse_range() {
