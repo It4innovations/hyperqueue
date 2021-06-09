@@ -12,6 +12,8 @@ ROOT_DIR = os.path.dirname(PYTEST_DIR)
 HQ_BINARY = os.path.join(ROOT_DIR, "target", "debug", "hq")
 HQ_WORKER_BIN = os.path.join(ROOT_DIR, "target", "debug", "hq-worker")
 
+RUNNING_IN_CI = "CI" in os.environ
+
 
 class Env:
     def __init__(self, work_path):

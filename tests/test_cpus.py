@@ -1,6 +1,8 @@
 import time
 
-from .conftest import HqEnv, print_table
+import pytest
+
+from .conftest import RUNNING_IN_CI, HqEnv, print_table
 
 
 def read_list(filename):
@@ -59,6 +61,7 @@ def test_job_num_of_cpus(hq_env: HqEnv):
     assert list(range(12)) == lst
 
 
+@pytest.mark.skipif(RUNNING_IN_CI, reason="Processes in CI is already prepinned")
 def test_manual_taskset(hq_env: HqEnv):
 
     hq_env.start_server()
@@ -80,6 +83,7 @@ def test_manual_taskset(hq_env: HqEnv):
     assert table[2][1] == "FINISHED"
 
 
+@pytest.mark.skipif(RUNNING_IN_CI, reason="Processes in CI is already prepinned")
 def test_job_no_pin(hq_env: HqEnv):
 
     hq_env.start_server()
