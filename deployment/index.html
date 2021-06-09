@@ -89,6 +89,12 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#stopping-worker">Stopping worker</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cpus-configuration">CPUs configuration</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#manual-specification-of-cpu-configration">Manual specification of CPU configration</a>
+    </li>
+        </ul>
+    </li>
     </ul>
                     </li>
                 </ul>
@@ -167,6 +173,23 @@ all commands need to use the <code>--server-dir</code> settings.</p>
 <p><code>hq worker list</code></p>
 <h2 id="stopping-worker">Stopping worker<a class="headerlink" href="#stopping-worker" title="Permanent link">#</a></h2>
 <p><code>hq worker stop &lt;id&gt;</code></p>
+<h2 id="cpus-configuration">CPUs configuration<a class="headerlink" href="#cpus-configuration" title="Permanent link">#</a></h2>
+<p>Worker automatically detect number of CPUs and on Linux system it also detects partitioning into sockets.
+In most cases, it should work without need of any touch. If you want to see how is your seen by
+a worker without actually starting it, you can start <code>$ hq worker hwdetect</code> that only prints CPUs layout.</p>
+<h3 id="manual-specification-of-cpu-configration">Manual specification of CPU configration<a class="headerlink" href="#manual-specification-of-cpu-configration" title="Permanent link">#</a></h3>
+<p>If automatic detection fails, or you want to manually configure set CPU configuration, you can use
+<code>--cpus</code> parameter; for example as follows:</p>
+<ul>
+<li>
+<p>8 CPUs for worker
+  <code>$ hq worker start --cpus=8</code></p>
+</li>
+<li>
+<p>2 sockets with 12 cores per socket
+  <code>$ hq worker --cpus=2x12</code></p>
+</li>
+</ul>
               
             </div>
           </div>
