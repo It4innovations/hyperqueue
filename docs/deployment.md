@@ -61,3 +61,20 @@ A worker can be started by command. It reads server directory and connectes to t
 
 ``hq worker stop <id>``
 
+
+## CPUs configuration
+
+Worker automatically detect number of CPUs and on Linux system it also detects partitioning into sockets.
+In most cases, it should work without need of any touch. If you want to see how is your seen by
+a worker without actually starting it, you can start ``$ hq worker hwdetect`` that only prints CPUs layout.
+
+### Manual specification of CPU configration
+
+If automatic detection fails, or you want to manually configure set CPU configuration, you can use
+``--cpus`` parameter; for example as follows:
+
+- 8 CPUs for worker
+  ``$ hq worker start --cpus=8``
+
+- 2 sockets with 12 cores per socket
+  ``$ hq worker --cpus=2x12``
