@@ -71,6 +71,32 @@ def test_job_output(hq_env: HqEnv, tmp_path):
          assert f.read() == ""
 
 
+def test_job_filters(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--", "bash", "-c", "echo 'hello'"])
+    r = hq_env.command(["cancel", "1"])
+    hq_env.command(["submit", "--", "bash", "-c", "echo 'repeat'"])
+    hq_env.command(["submit", "--", "bash", "-c", "echo 'bye'"])
+
+    time.sleep(0.2)
+    assert "Job 1 canceled" in r
+    table = hq_env.command(["jobs"], as_table=True)
+    assert table[1][2] == "CANCELED"
+    assert table[2][2] == "WAITING"
+    assert table[3][2] == "WAITING"
+
+    table_canceled = hq_env.command(["jobs", "canceled"], as_table=True)
+    print(table_canceled)
+    assert table_canceled[1][2] == "CANCELED"
+    assert len(table_canceled) == 2
+
+    table_waiting = hq_env.command(["jobs", "waiting"], as_table=True)
+    print(table_waiting)
+    assert table_waiting[1][2] == "WAITING"
+    assert table_waiting[2][2] == "WAITING"
+    assert len(table_waiting) == 3
+
+
 def test_job_fail(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(n_cpus=1)
