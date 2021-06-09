@@ -168,16 +168,29 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 ## 0.2
 
-* [ ] jobs that take more than 1 cpu
+* [x] jobs that take more than 1 cpu
 * [x] Job arrays
 
 ## 0.3
 
+* [ ] Automatic stopping of idling workers
+* [ ] Handling stdout/stderr when a large number of jobs is submitted
+
+## 0.4
+
+* [ ] Reporting improvements
+* [ ] Resubmit
+
+## 0.5
+
 * [ ] Time constraints
 * [ ] Priorities
+
 
 ## Next releases (unordered)
 
 * [ ] API for dependencies
 * [ ] Generic resource management
 * [ ] Python API
+* [ ] "hq top" -- an analogue to "top" but over all cluster
+* [ ] Auto-submit into SLURM/PBS
