@@ -83,7 +83,9 @@
                 <ul class="current">
                     <li class="toctree-l1 current"><a class="reference internal current" href="./">CPU management</a>
     <ul class="current">
-    <li class="toctree-l2"><a class="reference internal" href="#requesting-mode-cpus">Requesting mode CPUs</a>
+    <li class="toctree-l2"><a class="reference internal" href="#requesting-more-cpus">Requesting more CPUs</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#requesting-all-cpus">Requesting all CPUs</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#pinning">Pinning</a>
         <ul>
@@ -137,13 +139,17 @@
               
                 <h1 id="cpu-management">CPU management<a class="headerlink" href="#cpu-management" title="Permanent link">#</a></h1>
 <p>[Added in 0.2]</p>
-<p><strong>Note:</strong> In this text we use term <strong>CPU</strong> as a resource that is provided by operating system (e.g. what you get from /proc/cpuinfo). In this meaning, it is usually a core of a physical CPU. In the section about NUMA we use term <strong>socket</strong> to refer to a physical CPU.</p>
-<h2 id="requesting-mode-cpus">Requesting mode CPUs<a class="headerlink" href="#requesting-mode-cpus" title="Permanent link">#</a></h2>
+<p><strong>Note:</strong> In this text we use term <strong>CPU</strong> as a resource that is provided by operating system (e.g. what you get from /proc/cpuinfo). In this meaning, it is usually a core of a physical CPU. In the text related to NUMA we use term <strong>socket</strong> to refer to a physical CPU.</p>
+<h2 id="requesting-more-cpus">Requesting more CPUs<a class="headerlink" href="#requesting-more-cpus" title="Permanent link">#</a></h2>
 <p>By default, each task allocates a single CPU on worker's node. This can be changed by argument <code>--cpus=...</code>.</p>
 <p>Example: Request for a job with a task that needs 8 cpus:</p>
 <pre><code>$ hq submit --cpus=8 &lt;program_name&gt; &lt;args...&gt;
 </code></pre>
 <p>This ensures that 8 cpus will be exclusively reserved when this task is started. This task will never be scheduled on a worker that has less then 8 cpus.</p>
+<h2 id="requesting-all-cpus">Requesting all CPUs<a class="headerlink" href="#requesting-all-cpus" title="Permanent link">#</a></h2>
+<p>Setting <code>--cpus=all</code> ensures that will request all CPUs of the worker and ensures an exclusive run of the task.</p>
+<pre><code>$ hq submit --cpus=all &lt;program_name&gt; &lt;args...&gt;
+</code></pre>
 <h2 id="pinning">Pinning<a class="headerlink" href="#pinning" title="Permanent link">#</a></h2>
 <p>By default, HQ internally allocates CPUs on logical level without pinning.
 In other words, HQ ensures that the sum of requests of concurrently running tasks does not exceed the number of CPUs in the worker, but the the process placement is left on the system scheduler that may move processes across
