@@ -144,7 +144,14 @@ See section about Job arrays for submiting more tasks in one job.</p>
 <p>Detailed information about a job:</p>
 <p><code>hq job &lt;job-id&gt;</code></p>
 <h2 id="output-of-the-job">Output of the job<a class="headerlink" href="#output-of-the-job" title="Permanent link">#</a></h2>
-<p>By default, job produces two files named <code>stdout.&lt;job-id&gt;.&lt;task-id&gt;</code> and <code>stderr.&lt;job-id&gt;.&lt;task-id&gt;</code> that contains standard output and standard error output in the. The files are by default placed in the directory where the job was submitted.</p>
+<p>By default, job produces two files named <code>stdout.&lt;job-id&gt;.&lt;task-id&gt;</code> and <code>stderr.&lt;job-id&gt;.&lt;task-id&gt;</code>
+that contains standard output and standard error output in the.
+The files are by default placed in the directory where the job was submitted.</p>
+<p>This can be changed via options <code>--stdout=&lt;path&gt;</code> and <code>--stderr=&lt;path&gt;</code>.
+These set paths where stdout/stderr files are created. Placeholders
+<code>%{JOB_ID}</code> and <code>%{TASK_ID}</code> in a path will be replaced to the JOB_ID/TASK_ID.</p>
+<p>You can disable creating stdout/stderr completely by setting value <code>none</code>.
+(<code>--stdout=none</code> / <code>--stderr=none</code>).</p>
 <h2 id="task-states">Task states<a class="headerlink" href="#task-states" title="Permanent link">#</a></h2>
 <pre><code>Submitted
    |
