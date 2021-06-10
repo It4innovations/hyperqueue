@@ -73,28 +73,43 @@ def test_job_output(hq_env: HqEnv, tmp_path):
 
 def test_job_filters(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(["submit", "--", "bash", "-c", "echo 'hello'"])
-    r = hq_env.command(["cancel", "1"])
-    hq_env.command(["submit", "--", "bash", "-c", "echo 'repeat'"])
+
+    table_empty = hq_env.command(["jobs"], as_table=True)
+    assert len(table_empty) == 1
+
+    hq_env.command(["submit", "--", "bash", "-c", "echo 'to cancel'"])
     hq_env.command(["submit", "--", "bash", "-c", "echo 'bye'"])
+    hq_env.command(["submit", "--", "ls", "failed"])
 
     time.sleep(0.2)
+    r = hq_env.command(["cancel", "1"])
     assert "Job 1 canceled" in r
+
     table = hq_env.command(["jobs"], as_table=True)
     assert table[1][2] == "CANCELED"
     assert table[2][2] == "WAITING"
     assert table[3][2] == "WAITING"
+    assert len(table) == 4
 
     table_canceled = hq_env.command(["jobs", "canceled"], as_table=True)
-    print(table_canceled)
-    assert table_canceled[1][2] == "CANCELED"
     assert len(table_canceled) == 2
 
     table_waiting = hq_env.command(["jobs", "waiting"], as_table=True)
-    print(table_waiting)
-    assert table_waiting[1][2] == "WAITING"
-    assert table_waiting[2][2] == "WAITING"
     assert len(table_waiting) == 3
+
+    hq_env.start_worker(n_cpus=1)
+    time.sleep(0.2)
+    hq_env.command(["submit", "--", "sleep", "1"])
+
+    print(hq_env.command(["jobs"], as_table=True))
+    table_finished = hq_env.command(["jobs", "finished"], as_table=True)
+    assert len(table_finished) == 2
+
+    table_failed = hq_env.command(["jobs", "failed"], as_table=True)
+    assert len(table_failed) == 2
+
+    table_running = hq_env.command(["jobs", "running"], as_table=True)
+    assert len(table_running) == 2
 
 
 def test_job_fail(hq_env: HqEnv):
