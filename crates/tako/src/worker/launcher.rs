@@ -35,13 +35,17 @@ fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Com
     }
 
     command.stdout(if let Some(filename) = &definition.stdout {
-        Stdio::from(File::create(filename)?)
+        Stdio::from(
+            File::create(filename).map_err(|e| format!("Creating stdout file failed: {}", e))?,
+        )
     } else {
         Stdio::null()
     });
 
     command.stderr(if let Some(filename) = &definition.stderr {
-        Stdio::from(File::create(filename)?)
+        Stdio::from(
+            File::create(filename).map_err(|e| format!("Creating stderr file failed: {}", e))?,
+        )
     } else {
         Stdio::null()
     });
