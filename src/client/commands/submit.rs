@@ -44,6 +44,12 @@ pub struct SubmitOpts {
 
     #[clap(long)]
     pin: bool,
+
+    #[clap(long)]
+    stdout: Option<String>,
+
+    #[clap(long)]
+    stderr: Option<String>,
 }
 
 impl SubmitOpts {
@@ -76,8 +82,30 @@ pub async fn submit_computation(
     let job_type = opts.array.map(JobType::Array).unwrap_or(JobType::Simple);
 
     let submit_cwd = std::env::current_dir().unwrap();
-    let stdout = submit_cwd.join("stdout.%{JOB_ID}.%{TASK_ID}");
-    let stderr = submit_cwd.join("stderr.%{JOB_ID}.%{TASK_ID}");
+    let stdout = if opts.stdout.as_deref() == Some("none") {
+        None
+    } else {
+        Some(
+            submit_cwd.join(
+                opts.stdout
+                    .as_deref()
+                    .unwrap_or("stdout.%{JOB_ID}.%{TASK_ID}"),
+            ),
+        )
+    };
+
+    let stderr = if opts.stderr.as_deref() == Some("none") {
+        None
+    } else {
+        Some(
+            submit_cwd.join(
+                opts.stderr
+                    .as_deref()
+                    .unwrap_or("stderr.%{JOB_ID}.%{TASK_ID}"),
+            ),
+        )
+    };
+
     let message = FromClientMessage::Submit(SubmitRequest {
         job_type,
         name,
@@ -85,8 +113,8 @@ pub async fn submit_computation(
         spec: ProgramDefinition {
             args,
             env: Default::default(),
-            stdout: Some(stdout),
-            stderr: Some(stderr),
+            stdout,
+            stderr,
             cwd: None,
         },
         resources,

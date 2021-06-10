@@ -49,7 +49,16 @@ Detailed information about a job:
 
 ## Output of the job
 
-By default, job produces two files named ``stdout.<job-id>.<task-id>`` and ``stderr.<job-id>.<task-id>`` that contains standard output and standard error output in the. The files are by default placed in the directory where the job was submitted.
+By default, job produces two files named ``stdout.<job-id>.<task-id>`` and ``stderr.<job-id>.<task-id>``
+that contains standard output and standard error output in the.
+The files are by default placed in the directory where the job was submitted.
+
+This can be changed via options ``--stdout=<path>`` and ``--stderr=<path>``.
+These set paths where stdout/stderr files are created. Placeholders
+``%{JOB_ID}`` and ``%{TASK_ID}`` in a path will be replaced to the JOB_ID/TASK_ID.
+
+You can disable creating stdout/stderr completely by setting value ``none``.
+(``--stdout=none`` / ``--stderr=none``).
 
 
 ## Task states
