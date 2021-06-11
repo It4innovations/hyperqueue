@@ -7,6 +7,7 @@ use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 use crate::common::arraydef::ArrayDef;
 use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
+use bstr::BString;
 use tako::common::resources::ResourceRequest;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -23,6 +24,7 @@ pub struct SubmitRequest {
     pub spec: ProgramDefinition,
     pub resources: ResourceRequest,
     pub pin: bool,
+    pub entries: Option<Vec<BString>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

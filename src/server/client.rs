@@ -20,6 +20,7 @@ use crate::transfer::messages::{
     ToClientMessage, WorkerListResponse,
 };
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
+use bstr::BString;
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
@@ -224,9 +225,10 @@ fn make_program_def_for_task(
     };
 
     let mut def = program_def.clone();
-    def.env.insert("HQ_JOB_ID".to_string(), job_id.to_string());
     def.env
-        .insert("HQ_TASK_ID".to_string(), task_id.to_string());
+        .insert("HQ_JOB_ID".into(), job_id.to_string().into());
+    def.env
+        .insert("HQ_TASK_ID".into(), task_id.to_string().into());
     def.stdout = def
         .stdout
         .and_then(|p| p.to_str().map(make_replacement).map(PathBuf::from));
@@ -244,13 +246,16 @@ async fn handle_submit(
     if message.resources.validate().is_err() {
         return ToClientMessage::Error("Invalid resource request".to_string());
     }
+    let resources = message.resources;
+    let spec = message.spec;
+    let pin = message.pin;
 
-    let make_task = |job_id, task_id, tako_id| {
-        let program = make_program_def_for_task(&message.spec, job_id, task_id);
-        let launcher_def = LauncherDefinition {
-            program,
-            pin: message.pin,
-        };
+    let make_task = |job_id, task_id, tako_id, entry: Option<BString>| {
+        let mut program = make_program_def_for_task(&spec, job_id, task_id);
+        if let Some(e) = entry {
+            program.env.insert("HQ_ENTRY".into(), e);
+        }
+        let launcher_def = LauncherDefinition { program, pin };
         let body = rmp_serde::to_vec_named(&launcher_def).unwrap();
         TaskDef {
             id: tako_id,
@@ -260,7 +265,7 @@ async fn handle_submit(
             observe: true,
             n_outputs: 0,
             priority: 0,
-            resources: message.resources.clone(),
+            resources: resources.clone(),
         }
     };
     let (task_defs, job_detail) = {
@@ -271,12 +276,18 @@ async fn handle_submit(
             JobType::Array(a) => a.task_count(),
         };
         let tako_base_id = state.new_task_id(task_count);
-        let task_defs = match &message.job_type {
-            JobType::Simple => vec![make_task(job_id, 0, tako_base_id)],
-            JobType::Array(a) => a
+        let task_defs = match (&message.job_type, message.entries) {
+            (JobType::Simple, _) => vec![make_task(job_id, 0, tako_base_id, None)],
+            (JobType::Array(a), None) => a
                 .iter()
                 .zip(tako_base_id..)
-                .map(|(task_id, tako_id)| make_task(job_id, task_id, tako_id))
+                .map(|(task_id, tako_id)| make_task(job_id, task_id, tako_id, None))
+                .collect(),
+            (JobType::Array(a), Some(entries)) => a
+                .iter()
+                .zip(tako_base_id..)
+                .zip(entries.into_iter())
+                .map(|((task_id, tako_id), entry)| make_task(job_id, task_id, tako_id, Some(entry)))
                 .collect(),
         };
         let job = Job::new(
@@ -284,9 +295,9 @@ async fn handle_submit(
             job_id,
             tako_base_id,
             message.name.clone(),
-            message.spec,
-            message.resources,
-            message.pin,
+            spec,
+            resources,
+            pin,
         );
         let job_detail = job.make_job_detail(false);
         state.add_job(job);
