@@ -104,7 +104,9 @@ def test_job_output_default(hq_env: HqEnv, tmp_path):
 def test_job_output_configured(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker(cpus=1)
-    hq_env.command(["submit", "--stdout=abc", "--stderr=xyz", "--", "bash", "-c", "echo 'hello'"])
+    hq_env.command(
+        ["submit", "--stdout=abc", "--stderr=xyz", "--", "bash", "-c", "echo 'hello'"]
+    )
     time.sleep(0.2)
     print(hq_env.command("jobs"))
     with open(os.path.join(tmp_path, "abc")) as f:
@@ -116,7 +118,9 @@ def test_job_output_configured(hq_env: HqEnv, tmp_path):
 def test_job_output_none(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker(cpus=1)
-    hq_env.command(["submit", "--stdout=none", "--stderr=none", "--", "bash", "-c", "echo 'hello'"])
+    hq_env.command(
+        ["submit", "--stdout=none", "--stderr=none", "--", "bash", "-c", "echo 'hello'"]
+    )
     time.sleep(0.2)
     print(hq_env.command("jobs"))
     assert not os.path.exists(os.path.join(tmp_path, "none"))

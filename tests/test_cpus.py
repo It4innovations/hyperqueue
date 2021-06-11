@@ -1,3 +1,5 @@
+import os
+import subprocess
 import time
 
 import pytest
@@ -83,8 +85,19 @@ def test_manual_taskset(hq_env: HqEnv):
     assert table[2][1] == "FINISHED"
 
 
-@pytest.mark.skipif(RUNNING_IN_CI, reason="Processes in CI is already prepinned")
+# @pytest.mark.skipif(RUNNING_IN_CI, reason="Processes in CI is already prepinned")
 def test_job_no_pin(hq_env: HqEnv):
+
+    pid = os.getpid()
+
+    process = subprocess.Popen(["taskset", "-p", str(pid)], stdout=subprocess.PIPE)
+    (output, _) = process.communicate()
+    exit_code = process.wait()
+    assert exit_code == 0
+
+    output = output.split()
+    del output[1]  # Remove actual PID
+    print(output)
 
     hq_env.start_server()
     hq_env.command(
@@ -106,9 +119,11 @@ def test_job_no_pin(hq_env: HqEnv):
     assert table[2][1] == "FINISHED"
     assert table[4][1] == "2 compact!"
 
-    with open("stdout.1.0") as f:
-        f.readline()
-        assert "f" == f.readline().rstrip().split(" ")[5]
+    with open("stdout.1.0", "rb") as f:
+        f.readline()  # skip line
+        line = f.readline().split()
+        del line[1]  # Remove actual PID
+        assert output == line
 
 
 def test_job_pin(hq_env: HqEnv):
