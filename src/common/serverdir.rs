@@ -57,7 +57,17 @@ impl ServerDir {
     }
 
     pub fn read_access_record(&self) -> crate::Result<AccessRecord> {
-        load_access_file(self.access_filename())
+        let record = load_access_file(self.access_filename())?;
+        let version = env!("CARGO_PKG_VERSION");
+        if record.version != version {
+            return error(format!(
+                "Hyperqueue version mismatch detected.\nServer was started with version {}, \
+                but the current version is {}.",
+                record.version, version
+            ));
+        }
+
+        Ok(record)
     }
 }
 
