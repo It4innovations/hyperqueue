@@ -155,8 +155,9 @@ class HqEnv(Env):
                 return parse_table(output)
             return output
         except subprocess.CalledProcessError as e:
-            print("Process output: ", e.stdout.decode())
-            raise
+            stdout = e.stdout.decode()
+            print(f"Process output: {stdout}")
+            raise Exception(f"Process failed with exit-code {e.returncode}\n\n{stdout}")
 
     def final_check(self):
         pass
