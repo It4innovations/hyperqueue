@@ -496,6 +496,7 @@ dependencies = [
  "anyhow",
  "atty",
  "bincode",
+ "bstr",
  "bytes",
  "chrono",
  "clap",
@@ -1185,10 +1186,11 @@ dependencies = [
 [[package]]
 name = "tako"
 version = "0.1.0"
-source = "git+https://github.com/spirali/tako?branch=main#3869dbe3e8e76d86eee711a11a218e03ca8da90f"
+source = "git+https://github.com/spirali/tako?branch=main#7c67de8d12a39db3e1a30f05e4fd8cc8c0d757cd"
 dependencies = [
  "bincode",
  "bitflags",
+ "bstr",
  "byteorder",
  "bytes",
  "clap",

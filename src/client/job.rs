@@ -195,7 +195,13 @@ pub fn print_job_detail(
     let program_def = job.program_def;
     rows.push(vec![
         "Command".cell().bold(true),
-        program_def.args.join("\n").cell(),
+        program_def
+            .args
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<String>>()
+            .join("\n")
+            .cell(),
     ]);
     rows.push(vec![
         "Stdout".cell().bold(true),

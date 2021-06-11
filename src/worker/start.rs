@@ -70,12 +70,13 @@ fn launcher_setup(task: &Task, def: LauncherDefinition) -> tako::Result<ProgramD
 
     if def.pin {
         pin_program(&mut program, &allocation);
-        program.env.insert("HQ_PIN".to_string(), "1".to_string());
+        program.env.insert("HQ_PIN".into(), "1".into());
     }
 
-    program
-        .env
-        .insert("HQ_CPUS".to_string(), allocation.comma_delimited_cpu_ids());
+    program.env.insert(
+        "HQ_CPUS".into(),
+        allocation.comma_delimited_cpu_ids().into(),
+    );
     Ok(program)
 }
 
