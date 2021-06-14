@@ -42,6 +42,12 @@ List of all jobs:
 ``hq jobs``
 
 
+List of jobs in a defined state:
+
+``hq jobs <filters...>``
+
+Where filters can be: ``waiting``, ``running``, ``finished``, ``failed``, or ``canceled``.
+
 Detailed information about a job:
 
 ``hq job <job-id>``
