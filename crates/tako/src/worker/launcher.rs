@@ -9,13 +9,16 @@ use crate::common::resources::ResourceAllocation;
 use crate::messages::common::{LauncherDefinition, ProgramDefinition, TaskFailInfo};
 use crate::worker::state::WorkerStateRef;
 use crate::worker::task::{Task, TaskRef};
+use bstr::ByteSlice;
 
 pub type LauncherSetup = Box<dyn Fn(&Task, LauncherDefinition) -> crate::Result<ProgramDefinition>>;
 
 pub fn pin_program(program: &mut ProgramDefinition, allocation: &ResourceAllocation) {
-    program.args.insert(0, "taskset".to_string());
-    program.args.insert(1, "-c".to_string());
-    program.args.insert(2, allocation.comma_delimited_cpu_ids());
+    program.args.insert(0, "taskset".into());
+    program.args.insert(1, "-c".into());
+    program
+        .args
+        .insert(2, allocation.comma_delimited_cpu_ids().into());
 }
 
 fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Command> {
@@ -25,10 +28,10 @@ fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Com
         ));
     }
 
-    let mut command = Command::new(&definition.args[0]);
+    let mut command = Command::new(definition.args[0].to_os_str_lossy());
 
     command.kill_on_drop(true);
-    command.args(&definition.args[1..]);
+    command.args(definition.args[1..].iter().map(|x| x.to_os_str_lossy()));
 
     if let Some(cwd) = &definition.cwd {
         command.current_dir(cwd);
@@ -51,7 +54,7 @@ fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Com
     });
 
     for (k, v) in definition.env.iter() {
-        command.env(k, v);
+        command.env(k.to_os_str_lossy(), v.to_os_str_lossy());
     }
 
     Ok(command)
