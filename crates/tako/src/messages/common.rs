@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::common::resources::ResourceDescriptor;
 use crate::common::Map;
 use crate::TaskTypeId;
+use bstr::BString;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskFailInfo {
@@ -46,10 +47,10 @@ pub struct SubworkerDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProgramDefinition {
-    pub args: Vec<String>,
+    pub args: Vec<BString>,
 
     #[serde(default)]
-    pub env: Map<String, String>,
+    pub env: Map<BString, BString>,
 
     #[serde(default)]
     pub stdout: Option<PathBuf>,
