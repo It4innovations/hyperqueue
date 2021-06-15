@@ -11,6 +11,7 @@ use crate::server::worker::Worker;
 use crate::server::worker_load::WorkerResources;
 use crate::{TaskId, WorkerId};
 use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Default)]
 pub struct Core {
@@ -29,6 +30,8 @@ pub struct Core {
     scatter_counter: usize,
     worker_listen_port: u16,
 
+    idle_timeout: Option<Duration>,
+
     subworker_definitions: Vec<SubworkerDefinition>,
     secret_key: Option<Arc<SecretKey>>,
 }
@@ -36,13 +39,18 @@ pub struct Core {
 pub type CoreRef = WrappedRcRefCell<Core>;
 
 impl CoreRef {
-    pub fn new(worker_listen_port: u16, secret_key: Option<Arc<SecretKey>>) -> Self {
+    pub fn new(
+        worker_listen_port: u16,
+        secret_key: Option<Arc<SecretKey>>,
+        idle_timeout: Option<Duration>,
+    ) -> Self {
         /*let mut core = Core::default();
         core.worker_listen_port = worker_listen_port;
         core.secret_key = secret_key;*/
         CoreRef::wrap(Core {
             worker_listen_port,
             secret_key,
+            idle_timeout,
             ..Default::default()
         })
     }
@@ -56,6 +64,10 @@ impl Core {
     #[inline]
     pub fn is_used_task_id(&self, task_id: TaskId) -> bool {
         task_id <= self.maximal_task_id
+    }
+
+    pub fn idle_timeout(&self) -> &Option<Duration> {
+        &self.idle_timeout
     }
 
     pub fn get_and_move_scatter_counter(&mut self, size: usize) -> usize {

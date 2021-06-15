@@ -4,6 +4,7 @@ use crate::common::trace::{
 };
 use crate::common::{Map, Set};
 use crate::messages::common::{SubworkerDefinition, TaskFailInfo};
+use crate::messages::gateway::LostWorkerReason;
 use crate::messages::worker::{
     NewWorkerMsg, StealResponse, StealResponseMsg, TaskFinishedMsg, TaskIdMsg, TaskIdsMsg,
     ToWorkerMessage,
@@ -32,7 +33,12 @@ pub fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
     core.new_worker(worker);
 }
 
-pub fn on_remove_worker(core: &mut Core, comm: &mut impl Comm, worker_id: WorkerId) {
+pub fn on_remove_worker(
+    core: &mut Core,
+    comm: &mut impl Comm,
+    worker_id: WorkerId,
+    reason: LostWorkerReason,
+) {
     log::debug!("Removing worker {}", worker_id);
 
     let mut ready_to_assign = Vec::new();
@@ -106,7 +112,7 @@ pub fn on_remove_worker(core: &mut Core, comm: &mut impl Comm, worker_id: Worker
     }
 
     let _worker = core.remove_worker(worker_id);
-    comm.send_client_worker_lost(worker_id, running_tasks);
+    comm.send_client_worker_lost(worker_id, running_tasks, reason);
     comm.ask_for_scheduling();
 
     //let worker = core.get_worker_by_id_or_panic(worker_id);
@@ -1277,7 +1283,7 @@ mod tests {
         assert!(matches!(t1.get().state, TaskRuntimeState::Running(101)));
         assert!(matches!(t2.get().state, TaskRuntimeState::Running(101)));
 
-        on_remove_worker(&mut core, &mut comm, 101);
+        on_remove_worker(&mut core, &mut comm, 101, LostWorkerReason::HeartbeatLost);
         let mut lw = comm.take_lost_workers();
         assert_eq!(lw[0].0, 101);
         assert_eq!(sorted_vec(std::mem::take(&mut lw[0].1)), vec![1, 2]);
@@ -1488,7 +1494,7 @@ mod tests {
         assert!(!core.get_task_by_id_or_panic(41).get().is_fresh());
 
         let mut comm = create_test_comm();
-        on_remove_worker(&mut core, &mut comm, 101);
+        on_remove_worker(&mut core, &mut comm, 101, LostWorkerReason::HeartbeatLost);
 
         assert_eq!(comm.take_lost_workers(), vec![(101, vec![12])]);
 

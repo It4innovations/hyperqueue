@@ -16,6 +16,9 @@ bitflags::bitflags! {
         // There is no "waiting" task for resources of this worker
         // Therefore this worker should not cause balancing even it is underloaded
         const PARKED = 0b00000001;
+        // The worker is in processed of being stopped. In the current implementation
+        // it is always the case when the user ask for stop
+        const STOPPING = 0b00000010;
     }
 }
 
@@ -30,8 +33,9 @@ pub struct Worker {
     pub resources: WorkerResources,
     pub flags: WorkerFlags,
 
-    // COLD DATA move it into a box
+    // COLD DATA move it into a box (?)
     pub last_heartbeat: std::time::Instant,
+    pub last_occupied: std::time::Instant,
     pub configuration: WorkerConfiguration,
     pub overview_callbacks: Vec<oneshot::Sender<WorkerOverview>>,
 }
@@ -128,6 +132,14 @@ impl Worker {
     pub fn is_capable_to_run(&self, request: &ResourceRequest) -> bool {
         self.resources.is_capable_to_run(&request)
     }
+
+    pub fn set_stopping_flag(&mut self, value: bool) {
+        self.flags.set(WorkerFlags::STOPPING, value);
+    }
+
+    pub fn is_stopping(&self) -> bool {
+        self.flags.contains(WorkerFlags::STOPPING)
+    }
 }
 
 //pub type WorkerRef = WrappedRcRefCell<Worker>;
@@ -135,6 +147,7 @@ impl Worker {
 impl Worker {
     pub fn new(id: WorkerId, configuration: WorkerConfiguration) -> Self {
         let resources = WorkerResources::from_description(&configuration.resources);
+        let now = std::time::Instant::now();
         Worker {
             id,
             configuration,
@@ -142,7 +155,8 @@ impl Worker {
             tasks: Default::default(),
             flags: WorkerFlags::empty(),
             overview_callbacks: Default::default(),
-            last_heartbeat: std::time::Instant::now(),
+            last_heartbeat: now,
+            last_occupied: now,
             load: Default::default(),
         }
     }

@@ -157,10 +157,34 @@ pub struct NewWorkerMessage {
     pub configuration: WorkerConfiguration,
 }
 
+#[derive(Deserialize, Debug)]
+pub enum LostWorkerReason {
+    Stopped,
+    ConnectionLost,
+    HeartbeatLost,
+    IdleTimeout,
+}
+
+impl Serialize for LostWorkerReason {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(match self {
+            LostWorkerReason::Stopped => "Stopped",
+            LostWorkerReason::ConnectionLost => "ConnectionLost",
+            LostWorkerReason::HeartbeatLost => "HeartbeatLost",
+            LostWorkerReason::IdleTimeout => "IdleTimeout",
+        })
+    }
+}
+
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LostWorkerMessage {
     pub worker_id: WorkerId,
     pub running_tasks: Vec<TaskId>,
+    pub reason: LostWorkerReason,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

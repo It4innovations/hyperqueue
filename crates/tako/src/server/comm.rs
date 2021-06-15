@@ -7,7 +7,8 @@ use tokio::sync::Notify;
 use crate::common::{Map, WrappedRcRefCell};
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
 use crate::messages::gateway::{
-    LostWorkerMessage, NewWorkerMessage, TaskFailedMessage, TaskState, TaskUpdate, ToGatewayMessage,
+    LostWorkerMessage, LostWorkerReason, NewWorkerMessage, TaskFailedMessage, TaskState,
+    TaskUpdate, ToGatewayMessage,
 };
 use crate::messages::worker::ToWorkerMessage;
 use crate::server::worker::WorkerId;
@@ -30,7 +31,12 @@ pub trait Comm {
     );
 
     fn send_client_worker_new(&mut self, worker_id: WorkerId, configuration: &WorkerConfiguration);
-    fn send_client_worker_lost(&mut self, worker_id: WorkerId, running_tasks: Vec<TaskId>);
+    fn send_client_worker_lost(
+        &mut self,
+        worker_id: WorkerId,
+        running_tasks: Vec<TaskId>,
+        reason: LostWorkerReason,
+    );
 }
 
 pub struct CommSender {
@@ -149,12 +155,18 @@ impl Comm for CommSender {
             .is_ok());
     }
 
-    fn send_client_worker_lost(&mut self, worker_id: WorkerId, running_tasks: Vec<TaskId>) {
+    fn send_client_worker_lost(
+        &mut self,
+        worker_id: WorkerId,
+        running_tasks: Vec<TaskId>,
+        reason: LostWorkerReason,
+    ) {
         assert!(self
             .client_sender
             .send(ToGatewayMessage::LostWorker(LostWorkerMessage {
                 worker_id,
-                running_tasks
+                running_tasks,
+                reason
             }))
             .is_ok());
     }

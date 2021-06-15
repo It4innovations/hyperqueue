@@ -49,12 +49,15 @@ class Env:
         self.processes.append((name, p))
         return p
 
-    def expect_to_fail(self, process):
+    def expect_exit(self, process, non_zero_exit_code=False):
         for i, (n, p) in enumerate(self.processes):
             if p == process:
                 if process.returncode is None:
                     p.poll()
-                assert process.returncode is not None and process.returncode != 0
+                if non_zero_exit_code:
+                    assert process.returncode is not None and process.returncode != 0
+                else:
+                    assert process.returncode is not None
                 del self.processes[i]
                 return
         else:
@@ -106,7 +109,12 @@ class TakoEnv(Env):
     def expect_worker_fail(self, id):
         worker = self.workers.pop(id)
         assert worker is not None
-        self.expect_to_fail(worker)
+        self.expect_exit(worker, non_zero_exit_code=True)
+
+    def expect_worker_exit(self, id):
+        worker = self.workers.pop(id)
+        assert worker is not None
+        self.expect_exit(worker)
 
     def no_final_check(self):
         self.do_final_check = False
@@ -165,7 +173,9 @@ class TakoEnv(Env):
         with open(os.path.join(self.work_path, filename), "w") as f:
             f.write(secret)
 
-    def start_server(self, port=None, panic_on_worker_lost=None, secret_file=None):
+    def start_server(
+        self, port=None, panic_on_worker_lost=None, secret_file=None, idle_timeout=None
+    ):
         if self.server:
             raise Exception("Server is already running")
 
@@ -185,6 +195,9 @@ class TakoEnv(Env):
         if secret_file:
             args.append("--secret-file")
             args.append(secret_file)
+        if idle_timeout:
+            args.append("--idle-timeout")
+            args.append(str(idle_timeout))
 
         self.server = self.start_process("server", args, env=env)
         assert self.server is not None
@@ -198,6 +211,7 @@ class TakoEnv(Env):
         panic_on_worker_lost=True,
         heartbeat=None,
         secret_file=None,
+        idle_timeout=None,
     ):
         print("Starting tako env in ", self.work_path)
 
@@ -209,6 +223,7 @@ class TakoEnv(Env):
             port=port,
             panic_on_worker_lost=panic_on_worker_lost,
             secret_file=secret_file,
+            idle_timeout=idle_timeout,
         )
 
         it = 0
@@ -266,7 +281,7 @@ class TakoEnv(Env):
         pass
 
     def expect_server_fail(self):
-        self.expect_to_fail(self.server)
+        self.expect_exit(self.server, non_zero_exit_code=True)
         self.server = None
 
 
