@@ -31,11 +31,14 @@ enum ServerStatus {
 /// server will be started.
 ///
 /// If an already running server is found, an error will be returned.
-pub async fn init_hq_server(gsettings: &GlobalSettings) -> anyhow::Result<()> {
+pub async fn init_hq_server(
+    gsettings: &GlobalSettings,
+    host: Option<String>,
+) -> anyhow::Result<()> {
     match get_server_status(gsettings.server_directory()).await {
         Err(_) | Ok(ServerStatus::Offline(_)) => {
             log::info!("No online server found, starting a new server");
-            start_server(gsettings.server_directory()).await
+            start_server(gsettings, host).await
         }
         Ok(ServerStatus::Online(_)) => anyhow::bail!(
             "Server at {0} is already online, please stop it first using \
@@ -55,7 +58,7 @@ pub async fn get_client_connection(server_directory: &Path) -> anyhow::Result<Cl
         .with_context(|| {
             format!(
                 "Cannot connect to HQ server at port {}:{}",
-                access_record.hostname(),
+                access_record.host(),
                 access_record.server_port()
             )
         })?;
@@ -73,9 +76,11 @@ async fn get_server_status(server_directory: &Path) -> crate::Result<ServerStatu
 }
 
 async fn initialize_server(
-    server_directory: &Path,
+    gsettings: &GlobalSettings,
     end_flag: Arc<Notify>,
+    host: Option<String>,
 ) -> anyhow::Result<impl Future<Output = anyhow::Result<()>>> {
+    let server_directory = gsettings.server_directory();
     let client_listener = TcpListener::bind("0.0.0.0:0")
         .await
         .with_context(|| "Cannot create HQ server socket".to_string())?;
@@ -89,7 +94,7 @@ async fn initialize_server(
         TakoServer::start(state_ref.clone(), tako_secret_key.clone()).await?;
 
     let record = AccessRecord::new(
-        gethostname::gethostname().into_string().unwrap(),
+        host.unwrap_or_else(|| gethostname::gethostname().into_string().unwrap()),
         server_port,
         tako_server.worker_port(),
         hq_secret_key.clone(),
@@ -97,7 +102,7 @@ async fn initialize_server(
     );
 
     ServerDir::create(server_directory, &record)?;
-    print_access_record(server_directory, &record);
+    print_access_record(gsettings, server_directory, &record);
 
     let stop_notify = Rc::new(Notify::new());
     let stop_cloned = stop_notify.clone();
@@ -126,20 +131,20 @@ async fn initialize_server(
     Ok(fut)
 }
 
-async fn start_server(directory: &Path) -> anyhow::Result<()> {
+async fn start_server(gsettings: &GlobalSettings, host: Option<String>) -> anyhow::Result<()> {
     let end_flag = setup_interrupt();
-    let fut = initialize_server(&directory, end_flag).await?;
+    let fut = initialize_server(gsettings, end_flag, host).await?;
     let local_set = LocalSet::new();
     local_set.run_until(fut).await
 }
 
-pub fn print_access_record(server_dir: &Path, record: &AccessRecord) {
+pub fn print_access_record(gsettings: &GlobalSettings, server_dir: &Path, record: &AccessRecord) {
     let rows = vec![
         vec![
             "Server directory".cell().bold(true),
             server_dir.display().cell(),
         ],
-        vec!["Hostname".cell().bold(true), record.hostname().cell()],
+        vec!["Host".cell().bold(true), record.host().cell()],
         vec!["Pid".cell().bold(true), record.pid().cell()],
         vec!["HQ port".cell().bold(true), record.server_port().cell()],
         vec![
@@ -152,7 +157,7 @@ pub fn print_access_record(server_dir: &Path, record: &AccessRecord) {
         ],
         vec!["Version".cell().bold(true), record.version().cell()],
     ];
-    let table = rows.table();
+    let table = rows.table().color_choice(gsettings.color_policy());
     assert!(print_stdout(table).is_ok());
 }
 
@@ -169,6 +174,8 @@ mod tests {
     use crate::server::bootstrap::{get_client_connection, get_server_status, initialize_server};
 
     use super::ServerStatus;
+    use crate::client::globalsettings::GlobalSettings;
+    use cli_table::ColorChoice;
 
     #[tokio::test]
     async fn test_status_empty_directory() {
@@ -209,7 +216,8 @@ mod tests {
     #[tokio::test]
     async fn test_start_stop() {
         let tmp_dir = TempDir::new("foo").unwrap().into_path();
-        let fut = initialize_server(&tmp_dir, Default::default())
+        let gsettings = GlobalSettings::new(tmp_dir.to_path_buf(), ColorChoice::Never);
+        let fut = initialize_server(&gsettings, Default::default(), None)
             .await
             .unwrap();
         let (set, handle) = run_concurrent(fut, async {
@@ -225,7 +233,10 @@ mod tests {
         let tmp_dir = TempDir::new("foo").unwrap().into_path();
 
         let notify = Arc::new(Notify::new());
-        let fut = initialize_server(&tmp_dir, notify.clone()).await.unwrap();
+        let gsettings = GlobalSettings::new(tmp_dir.to_path_buf(), ColorChoice::Never);
+        let fut = initialize_server(&gsettings, notify.clone(), None)
+            .await
+            .unwrap();
         notify.notify_one();
         fut.await.unwrap();
     }

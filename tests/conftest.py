@@ -103,10 +103,14 @@ class HqEnv(Env):
         env["RUST_BACKTRACE"] = "full"
         return env
 
+    @staticmethod
+    def server_args(server_dir="./hq-server"):
+        return [HQ_BINARY, "--colors", "never", "--server-dir", server_dir, "server", "start"]
+
     def start_server(self, server_dir="./hq-server") -> subprocess.Popen:
         self.server_dir = os.path.join(self.work_path, server_dir)
         env = self.make_default_env()
-        args = [HQ_BINARY, "--server-dir", self.server_dir, "server", "start"]
+        args = self.server_args(self.server_dir)
         process = self.start_process("server", args, env=env)
         time.sleep(0.2)
         self.check_running_processes()

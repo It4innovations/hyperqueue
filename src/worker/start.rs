@@ -93,7 +93,7 @@ pub async fn start_hq_worker(
             server_dir.access_filename()
         )
     })?;
-    let server_address = format!("{}:{}", record.hostname(), record.worker_port());
+    let server_address = format!("{}:{}", record.host(), record.worker_port());
     log::info!("Connecting to: {}", server_address);
 
     let configuration = gather_configuration(opts)?;
