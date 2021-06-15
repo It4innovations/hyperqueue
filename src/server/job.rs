@@ -218,7 +218,6 @@ impl Job {
     pub fn set_cancel_state(&mut self, tako_task_id: TakoTaskId) -> JobTaskId {
         let (task_id, state) = self.get_task_state_mut(tako_task_id);
         let old_state = std::mem::replace(state, JobTaskState::Canceled);
-        dbg!(&old_state);
         assert!(matches!(
             old_state,
             JobTaskState::Running | JobTaskState::Waiting
