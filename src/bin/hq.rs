@@ -66,7 +66,11 @@ enum SubCommand {
 // Server CLI options
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
-struct ServerStartOpts {}
+struct ServerStartOpts {
+    /// Hostname/IP of the machine under which is visible to others, default: hostname
+    #[clap(long)]
+    host: Option<String>,
+}
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
@@ -151,9 +155,9 @@ struct CancelOpts {
 // Commands
 async fn command_server_start(
     gsettings: GlobalSettings,
-    _opts: ServerStartOpts,
+    opts: ServerStartOpts,
 ) -> anyhow::Result<()> {
-    init_hq_server(&gsettings).await
+    init_hq_server(&gsettings, opts.host).await
 }
 
 async fn command_server_stop(

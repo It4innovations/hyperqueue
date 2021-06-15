@@ -110,7 +110,7 @@ pub type ServerConnection = HqConnection<FromClientMessage, ToClientMessage>;
 /// Client -> server connection
 impl ClientConnection {
     pub async fn connect_to_server(record: &AccessRecord) -> crate::Result<ClientConnection> {
-        let address = format!("{}:{}", record.hostname(), record.server_port());
+        let address = format!("{}:{}", record.host(), record.server_port());
         let connection = TcpStream::connect(address).await?;
 
         let key = record.hq_secret_key().clone();
