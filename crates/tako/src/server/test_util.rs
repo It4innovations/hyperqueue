@@ -12,6 +12,7 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use crate::common::resources::{CpuRequest, NumOfCpus, ResourceDescriptor, ResourceRequest};
 use crate::common::{Map, WrappedRcRefCell};
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
+use crate::messages::gateway::LostWorkerReason;
 use crate::messages::worker::{StealResponse, StealResponseMsg, TaskFinishedMsg, ToWorkerMessage};
 use crate::scheduler::state::tests::create_test_scheduler;
 use crate::scheduler::state::SchedulerState;
@@ -409,7 +410,12 @@ impl Comm for TestComm {
         self.new_workers.push((worker_id, configuration.clone()));
     }
 
-    fn send_client_worker_lost(&mut self, worker_id: WorkerId, running_tasks: Vec<TaskId>) {
+    fn send_client_worker_lost(
+        &mut self,
+        worker_id: WorkerId,
+        running_tasks: Vec<TaskId>,
+        _reason: LostWorkerReason,
+    ) {
         self.lost_workers.push((worker_id, running_tasks));
     }
 }

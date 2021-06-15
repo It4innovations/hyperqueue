@@ -20,6 +20,7 @@ pub async fn server_start(
     msd: Duration,
     client_sender: UnboundedSender<ToGatewayMessage>,
     panic_on_worker_lost: bool,
+    idle_timeout: Option<Duration>,
 ) -> crate::Result<(
     CoreRef,
     CommSenderRef,
@@ -38,7 +39,7 @@ pub async fn server_start(
         client_sender,
         panic_on_worker_lost,
     );
-    let core_ref = CoreRef::new(listener_port, secret_key);
+    let core_ref = CoreRef::new(listener_port, secret_key, idle_timeout);
     //let scheduler = observe_scheduler(core_ref.clone(), comm_ref.clone(), scheduler_receiver);
     let connections =
         crate::server::rpc::connection_initiator(listener, core_ref.clone(), comm_ref.clone());

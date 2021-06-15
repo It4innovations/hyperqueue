@@ -28,6 +28,9 @@ struct Opts {
 
     #[clap(long)]
     secret_file: Option<PathBuf>,
+
+    #[clap(long)]
+    idle_timeout: Option<u64>,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -58,6 +61,7 @@ async fn main() {
         msd,
         client_sender.clone(),
         opts.panic_on_worker_lost,
+        opts.idle_timeout.map(Duration::from_secs),
     )
     .await
     .unwrap();

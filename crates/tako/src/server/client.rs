@@ -220,17 +220,16 @@ pub async fn process_client_message(
             None
         }
         FromGatewayMessage::StopWorker(msg) => {
-            let core = core_ref.get_mut();
-            let mut comm = comm_ref.get_mut();
-
-            if core.get_worker_by_id(msg.worker_id).is_none() {
-                return Some(format!("Worker with id {} not found", msg.worker_id));
+            let mut core = core_ref.get_mut();
+            if let Some(ref mut worker) = core.get_worker_mut(msg.worker_id) {
+                worker.set_stopping_flag(true);
+                let mut comm = comm_ref.get_mut();
+                comm.send_worker_message(msg.worker_id, &ToWorkerMessage::Stop);
+                assert!(client_sender.send(ToGatewayMessage::WorkerStopped).is_ok());
+                None
+            } else {
+                Some(format!("Worker with id {} not found", msg.worker_id))
             }
-
-            comm.send_worker_message(msg.worker_id, &ToWorkerMessage::Stop);
-
-            assert!(client_sender.send(ToGatewayMessage::WorkerStopped).is_ok());
-            None
         }
     }
 }

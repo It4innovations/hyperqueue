@@ -9,6 +9,7 @@ use tokio::net::TcpListener;
 use tokio::time::timeout;
 
 use crate::common::error::DsError;
+use crate::messages::gateway::LostWorkerReason;
 use crate::messages::worker::{FromWorkerMessage, RegisterWorker, WorkerRegistrationResponse};
 use crate::server::comm::CommSenderRef;
 use crate::server::core::CoreRef;
@@ -125,30 +126,55 @@ async fn worker_rpc_loop<
 
     let snd_loop = forward_queue_to_sealed_sink(queue_receiver, sender, sealer);
 
-    let heartbeat_check = async move {
-        let mut interval = tokio::time::interval(heartbeat_interval);
+    let periodic_check = async move {
+        let mut interval = {
+            let core = core_ref.get();
+            tokio::time::interval(
+                heartbeat_interval
+                    .min(core.idle_timeout().unwrap_or(heartbeat_interval))
+                    // Sanity check that interval is not too short
+                    .max(Duration::from_millis(500)),
+            )
+        };
         loop {
             interval.tick().await;
-            let core = core_ref.get();
-            let elapsed = core
-                .get_worker_by_id_or_panic(worker_id)
-                .last_heartbeat
-                .elapsed();
+            let now = Instant::now();
+            let mut core = core_ref.get_mut();
+            let idle_timeout = core.idle_timeout().clone();
+            let mut worker = core.get_worker_mut_by_id_or_panic(worker_id);
+            let elapsed = now - worker.last_heartbeat;
+
+            if let Some(timeout) = idle_timeout {
+                if worker.tasks().is_empty() {
+                    let elapsed = now - worker.last_occupied;
+                    if elapsed > timeout {
+                        log::debug!("Idle timeout, worker={}", worker.id);
+                        break LostWorkerReason::IdleTimeout;
+                    }
+                } else {
+                    worker.last_occupied = now;
+                }
+            }
+
             if elapsed > heartbeat_interval * 2 {
-                break;
+                log::debug!("Heartbeat not arrived, worker={}", worker.id);
+                break LostWorkerReason::HeartbeatLost;
             }
         }
     };
 
-    tokio::select! {
+    let reason = tokio::select! {
         e = worker_receive_loop(core_ref.clone(), comm_ref.clone(), worker_id, receiver, opener) => {
             log::debug!("Receive loop terminated ({:?}), worker={}", e, worker_id);
+            LostWorkerReason::ConnectionLost
         }
         e = snd_loop => {
             log::debug!("Sending loop terminated: {:?}, worker={}", e, worker_id);
+            LostWorkerReason::ConnectionLost
         }
-        () = heartbeat_check => {
-            log::debug!("Heartbeat check failed, worker={}", worker_id);
+        r = periodic_check => {
+            log::debug!("Heartbeat loop terminated, worker={}", worker_id);
+            r
         }
     };
 
@@ -159,8 +185,18 @@ async fn worker_rpc_loop<
     );
     let mut core = core_ref.get_mut();
     let mut comm = comm_ref.get_mut();
+    let stopping = { core.get_worker_by_id_or_panic(worker_id).is_stopping() };
     comm.remove_worker(worker_id);
-    on_remove_worker(&mut core, &mut *comm, worker_id);
+    on_remove_worker(
+        &mut core,
+        &mut *comm,
+        worker_id,
+        if stopping {
+            LostWorkerReason::Stopped
+        } else {
+            reason
+        },
+    );
     //core.remove_worker(worker_id);
     Ok(())
 }
