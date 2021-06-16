@@ -79,6 +79,21 @@ def test_custom_name(hq_env: HqEnv, tmp_path):
     assert len(table) == 2
 
 
+def test_custom_working_dir(hq_env: HqEnv, tmp_path):
+    offset = 10
+    hq_env.start_server()
+    cwd_custom_tbl = hq_env.command(
+        [
+            "submit",
+            "sleep 1",
+            "--cwd=/test/directory/",
+        ], as_table=True
+    )
+    time.sleep(0.2)
+
+    assert (cwd_custom_tbl[offset][1] == "/test/directory/")
+
+
 def test_job_output_default(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker(cpus=1)
@@ -191,8 +206,8 @@ def test_job_fail(hq_env: HqEnv):
     assert table[0] == ["Id", "1"]
     assert table[2] == ["State", "FAILED"]
 
-    assert table[10][0] == "0"
-    assert "No such file or directory" in table[10][1]
+    assert table[11][0] == "0"
+    assert "No such file or directory" in table[11][1]
 
 
 def test_job_invalid(hq_env: HqEnv):

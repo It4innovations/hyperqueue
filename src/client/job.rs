@@ -267,6 +267,15 @@ pub fn print_job_detail(
             .cell(),
     ]);
 
+    rows.push(vec![
+        "Working Dir".cell().bold(true),
+        program_def
+            .cwd
+            .map(|cwd| cwd.display().to_string())
+            .unwrap()
+            .cell(),
+    ]);
+
     let table = rows.table().color_choice(gsettings.color_policy());
     assert!(print_stdout(table).is_ok());
 
