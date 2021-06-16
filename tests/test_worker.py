@@ -130,3 +130,14 @@ def test_idle_timeout_worker_cfg(hq_env: HqEnv):
     hq_env.check_process_exited(w, expected_code=None)
     table = hq_env.command(["worker", "list"], as_table=True)
     assert table[1][1] == "IDLE TIMEOUT"
+
+
+def test_worker_info(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus="10", args=["--heartbeat", "10s", "--manager", "none"])
+
+    table = hq_env.command(["worker", "info", "1"], as_table=True)
+    assert table[0] == ["Worker ID", "1"]
+    assert table[5] == ["Heartbeat", "10s"]
+    assert table[7] == ["Resources", "1x10 cpus"]
+    assert table[8] == ["Manager", "None"]

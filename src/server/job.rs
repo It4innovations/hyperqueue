@@ -5,7 +5,7 @@ use crate::transfer::messages::{JobDetail, JobInfo, JobType};
 use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId};
 use tako::common::resources::ResourceRequest;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum JobTaskState {
     Waiting,
     Running,

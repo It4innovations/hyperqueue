@@ -87,11 +87,12 @@ def test_custom_working_dir(hq_env: HqEnv, tmp_path):
             "submit",
             "sleep 1",
             "--cwd=/test/directory/",
-        ], as_table=True
+        ],
+        as_table=True,
     )
     time.sleep(0.2)
 
-    assert (cwd_custom_tbl[offset][1] == "/test/directory/")
+    assert cwd_custom_tbl[offset][1] == "/test/directory/"
 
 
 def test_job_output_default(hq_env: HqEnv, tmp_path):
@@ -331,13 +332,23 @@ def test_set_env(hq_env: HqEnv):
 
 def test_max_fails_0(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(["submit",
-                    "--array", "1-200",
-                    "--stdout", "none",
-                    "--stderr", "none",
-                    "--max-fails", "0",
-                    "--",
-                    "bash", "-c", "if [ $HQ_TASK_ID == 137 ]; then exit 1; fi"])
+    hq_env.command(
+        [
+            "submit",
+            "--array",
+            "1-200",
+            "--stdout",
+            "none",
+            "--stderr",
+            "none",
+            "--max-fails",
+            "0",
+            "--",
+            "bash",
+            "-c",
+            "if [ $HQ_TASK_ID == 137 ]; then exit 1; fi",
+        ]
+    )
     hq_env.start_workers(1)
 
     wait_for_job_state(hq_env, 1, "CANCELED")
@@ -350,13 +361,23 @@ def test_max_fails_0(hq_env: HqEnv):
 
 def test_max_fails_1(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(["submit",
-                    "--array", "1-200",
-                    "--stdout", "none",
-                    "--stderr", "none",
-                    "--max-fails", "1",
-                    "--",
-                    "bash", "-c", "if [ $HQ_TASK_ID == 137 ]; then exit 1; fi"])
+    hq_env.command(
+        [
+            "submit",
+            "--array",
+            "1-200",
+            "--stdout",
+            "none",
+            "--stderr",
+            "none",
+            "--max-fails",
+            "1",
+            "--",
+            "bash",
+            "-c",
+            "if [ $HQ_TASK_ID == 137 ]; then exit 1; fi",
+        ]
+    )
     hq_env.start_workers(1)
 
     wait_for_job_state(hq_env, 1, "FAILED")
@@ -368,13 +389,23 @@ def test_max_fails_1(hq_env: HqEnv):
 
 def test_max_fails_many(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(["submit",
-                    "--array", "1-10",
-                    "--stdout", "none",
-                    "--stderr", "none",
-                    "--max-fails", "3",
-                    "--",
-                    "bash", "-c", "sleep 1; exit 1"])
+    hq_env.command(
+        [
+            "submit",
+            "--array",
+            "1-10",
+            "--stdout",
+            "none",
+            "--stderr",
+            "none",
+            "--max-fails",
+            "3",
+            "--",
+            "bash",
+            "-c",
+            "sleep 1; exit 1",
+        ]
+    )
     hq_env.start_workers(1)
 
     time.sleep(5)

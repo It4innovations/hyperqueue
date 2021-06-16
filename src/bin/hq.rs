@@ -7,7 +7,7 @@ use cli_table::ColorChoice;
 use hyperqueue::client::commands::jobs::{cancel_job, output_job_detail, output_job_list};
 use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{submit_computation, SubmitOpts};
-use hyperqueue::client::commands::worker::{get_worker_list, stop_worker};
+use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
 use hyperqueue::client::job::Status;
 use hyperqueue::client::worker::print_worker_info;
@@ -16,6 +16,7 @@ use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::timeutils::ArgDuration;
 use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server, ServerConfig};
 use hyperqueue::worker::hwdetect::{detect_resource, print_resource_descriptor};
+use hyperqueue::worker::output::print_worker_configuration;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::{JobId, WorkerId};
 
@@ -122,6 +123,12 @@ struct WorkerOpts {
 }
 
 #[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct WorkerInfoOpts {
+    worker_id: WorkerId,
+}
+
+#[derive(Clap)]
 enum WorkerCommand {
     /// Start worker
     Start(WorkerStartOpts),
@@ -131,6 +138,8 @@ enum WorkerCommand {
     List(WorkerListOpts),
     /// Hwdetect
     Hwdetect,
+    /// Display info about worker
+    Info(WorkerInfoOpts),
 }
 
 // Job CLI options
@@ -239,6 +248,21 @@ async fn command_worker_list(
     Ok(())
 }
 
+async fn command_worker_info(
+    gsettings: GlobalSettings,
+    opts: WorkerInfoOpts,
+) -> anyhow::Result<()> {
+    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    let response = get_worker_info(&mut connection, opts.worker_id).await?;
+
+    if let Some(worker) = response {
+        print_worker_configuration(&gsettings, opts.worker_id, worker.configuration);
+    } else {
+        log::error!("Worker {} not found", opts.worker_id);
+    }
+    Ok(())
+}
+
 fn command_worker_hwdetect() -> anyhow::Result<()> {
     let descriptor = detect_resource()?;
     print_resource_descriptor(&descriptor);
@@ -324,6 +348,9 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::List(opts),
         }) => command_worker_list(gsettings, opts).await,
+        SubCommand::Worker(WorkerOpts {
+            subcmd: WorkerCommand::Info(opts),
+        }) => command_worker_info(gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Hwdetect,
         }) => command_worker_hwdetect(),

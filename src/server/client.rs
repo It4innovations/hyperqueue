@@ -81,6 +81,9 @@ pub async fn client_rpc_loop<
                         break;
                     }
                     FromClientMessage::WorkerList => handle_worker_list(&state_ref).await,
+                    FromClientMessage::WorkerInfo(msg) => {
+                        handle_worker_info(&state_ref, msg.worker_id).await
+                    }
                     FromClientMessage::StopWorker(msg) => {
                         handle_worker_stop(&tako_ref, msg.worker_id).await.unwrap()
                     }
@@ -311,4 +314,10 @@ async fn handle_worker_list(state_ref: &StateRef) -> ToClientMessage {
             .map(|w| w.make_info())
             .collect(),
     })
+}
+
+async fn handle_worker_info(state_ref: &StateRef, worker_id: WorkerId) -> ToClientMessage {
+    let state = state_ref.get();
+
+    ToClientMessage::WorkerInfoResponse(state.get_worker(worker_id).map(|w| w.make_info()))
 }
