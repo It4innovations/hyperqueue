@@ -73,6 +73,10 @@ pub struct SubmitOpts {
     #[clap(long)]
     pin: bool,
 
+    //Working dir for the submitted job, defaults to the current dir
+    #[clap(long)]
+    cwd: Option<PathBuf>,
+
     /// Path where the standard output of the job will be stored
     #[clap(long)]
     stdout: Option<String>,
@@ -145,7 +149,17 @@ pub async fn submit_computation(
         .collect();
     args.insert(0, opts.command.into());
 
-    let submit_cwd = std::env::current_dir().unwrap();
+    let submit_cwd = opts.cwd.unwrap_or_else(|| std::env::current_dir().unwrap());
+    if !fs::metadata(&submit_cwd)
+        .map(|m| m.is_dir())
+        .unwrap_or(false)
+    {
+        log::warn!(
+            "{:?} is not a valid directory on the current node",
+            submit_cwd
+        )
+    }
+
     let stdout = if opts.stdout.as_deref() == Some("none") {
         None
     } else {
@@ -186,13 +200,12 @@ pub async fn submit_computation(
     let message = FromClientMessage::Submit(SubmitRequest {
         job_type,
         name,
-        submit_cwd,
         spec: ProgramDefinition {
             args,
             env,
             stdout,
             stderr,
-            cwd: None,
+            cwd: Some(submit_cwd),
         },
         resources,
         pin: opts.pin,

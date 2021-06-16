@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde::Serialize;
-use std::path::PathBuf;
 use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 
 use crate::common::arraydef::ArrayDef;
@@ -20,7 +19,6 @@ pub enum JobType {
 pub struct SubmitRequest {
     pub job_type: JobType,
     pub name: String,
-    pub submit_cwd: PathBuf,
     pub spec: ProgramDefinition,
     pub resources: ResourceRequest,
     pub pin: bool,
