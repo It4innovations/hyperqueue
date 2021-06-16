@@ -194,3 +194,9 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 * [ ] Python API
 * [ ] "hq top" -- an analogue to "top" but over all cluster
 * [ ] Auto-submit into SLURM/PBS
+
+# Acknowledgement
+
+* This work was supported by the LIGATE project. This project has received funding from the European High-Performance Computing Joint Undertaking (JU) under grant agreement No 956137. The JU receives support from the European Union’s Horizon 2020 research and innovation programme and Italy, Sweden, Austria, the Czech Republic, Switzerland.
+
+* This work was supported by the Ministry of Education, Youth and Sports of the Czech Republic through the e-INFRA CZ (ID:90140). 
