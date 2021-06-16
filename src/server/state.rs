@@ -139,6 +139,10 @@ impl State {
         &self.workers
     }
 
+    pub fn get_worker(&self, worker_id: WorkerId) -> Option<&Worker> {
+        self.workers.get(&worker_id)
+    }
+
     pub fn get_worker_mut(&mut self, worker_id: WorkerId) -> Option<&mut Worker> {
         self.workers.get_mut(&worker_id)
     }

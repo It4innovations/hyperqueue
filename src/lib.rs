@@ -10,6 +10,7 @@ pub type Set<T> = hashbrown::HashSet<T>;
 pub type WorkerId = tako::WorkerId;
 pub type TakoTaskId = tako::TaskId;
 pub type TaskTypeId = tako::TaskTypeId;
+pub type Priority = tako::Priority;
 
 pub type JobId = u64;
 pub type JobTaskId = u32;

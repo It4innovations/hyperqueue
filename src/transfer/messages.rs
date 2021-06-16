@@ -55,6 +55,7 @@ pub enum FromClientMessage {
     JobDetail(JobDetailRequest),
     JobInfo(JobInfoRequest),
     WorkerList,
+    WorkerInfo(WorkerInfoRequest),
     StopWorker(StopWorkerMessage),
     Stop,
 }
@@ -71,6 +72,7 @@ pub enum ToClientMessage {
     JobDetailResponse(Option<JobDetail>),
     SubmitResponse(SubmitResponse),
     WorkerListResponse(WorkerListResponse),
+    WorkerInfoResponse(Option<WorkerInfo>),
     StopWorkerResponse,
     CancelJobResponse(CancelJobResponse),
     Error(String),
@@ -141,4 +143,14 @@ pub struct SubmitResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerListResponse {
     pub workers: Vec<WorkerInfo>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct WorkerInfoRequest {
+    pub worker_id: WorkerId,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct WorkerInfoResponse {
+    pub worker: WorkerInfo,
 }
