@@ -4,7 +4,7 @@ use std::str::FromStr;
 use clap::{Clap, ValueHint};
 use cli_table::ColorChoice;
 
-use hyperqueue::client::commands::jobs::{cancel_job, get_job_detail, get_job_list};
+use hyperqueue::client::commands::jobs::{cancel_job, output_job_detail, output_job_list};
 use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{submit_computation, SubmitOpts};
 use hyperqueue::client::commands::worker::{get_worker_list, stop_worker};
@@ -171,14 +171,14 @@ async fn command_server_stop(
 
 async fn command_job_list(gsettings: GlobalSettings, opts: JobListOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    get_job_list(&gsettings, &mut connection, opts.job_filters)
+    output_job_list(&gsettings, &mut connection, opts.job_filters)
         .await
         .map_err(|e| e.into())
 }
 
 async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    get_job_detail(&gsettings, &mut connection, opts.job_id, opts.tasks)
+    output_job_detail(&gsettings, &mut connection, opts.job_id, opts.tasks)
         .await
         .map_err(|e| e.into())
 }
@@ -281,12 +281,21 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
     GlobalSettings::new(server_dir, color_policy)
 }
 
+fn set_colored_settings(settings: &GlobalSettings) {
+    match settings.color_policy() {
+        ColorChoice::Always | ColorChoice::AlwaysAnsi => colored::control::set_override(true),
+        ColorChoice::Never => colored::control::set_override(false),
+        _ => {}
+    }
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> hyperqueue::Result<()> {
     let top_opts: Opts = Opts::parse();
     setup_logging();
 
     let gsettings = make_global_settings(top_opts.common);
+    set_colored_settings(&gsettings);
 
     let result = match top_opts.subcmd {
         SubCommand::Server(ServerOpts {

@@ -8,7 +8,7 @@ use crate::transfer::messages::{
 };
 use crate::JobId;
 
-pub async fn get_job_list(
+pub async fn output_job_list(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
     job_filters: Vec<Status>,
@@ -27,7 +27,7 @@ pub async fn get_job_list(
     Ok(())
 }
 
-pub async fn get_job_detail(
+pub async fn output_job_detail(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
     job_id: JobId,

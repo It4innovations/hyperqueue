@@ -6,6 +6,8 @@ use crate::client::resources::cpu_request_to_string;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::transfer::messages::{JobDetail, JobInfo, JobType};
 use crate::JobTaskCount;
+use colored::Colorize;
+use std::fmt::Write;
 use std::str::FromStr;
 
 #[derive(PartialEq)]
@@ -66,6 +68,40 @@ fn status_cell(status: Status) -> CellStruct {
     }
 }
 
+/// Draws a colored progress bar that depicts counts of tasks with individual states
+fn job_progress_bar(info: &JobInfo) -> String {
+    let mut buffer = String::from("[");
+
+    let width: usize = 40;
+    let parts = vec![
+        (info.counters.n_canceled_tasks, colored::Color::Magenta),
+        (info.counters.n_failed_tasks, colored::Color::Red),
+        (info.counters.n_finished_tasks, colored::Color::Green),
+        (info.counters.n_running_tasks, colored::Color::Yellow),
+    ];
+
+    let chars = |count: JobTaskCount| {
+        let ratio = (count as f64) / (info.n_tasks as f64);
+        (ratio * width as f64).ceil() as usize
+    };
+
+    let mut total_char_count: usize = 0;
+    for (count, color) in parts {
+        let char_count = chars(count);
+        write!(buffer, "{}", "#".repeat(char_count).color(color)).unwrap();
+        total_char_count += char_count;
+    }
+    write!(
+        buffer,
+        "{}",
+        " ".repeat(width.saturating_sub(total_char_count))
+    )
+    .unwrap();
+
+    buffer.push(']');
+    buffer
+}
+
 fn job_status_with_counts_cells(info: &JobInfo) -> Vec<CellStruct> {
     let row = |result: &mut Vec<_>, string, value, color| {
         if value > 0 {
@@ -76,7 +112,7 @@ fn job_status_with_counts_cells(info: &JobInfo) -> Vec<CellStruct> {
             );
         }
     };
-    let mut result: Vec<CellStruct> = Vec::new();
+    let mut result: Vec<CellStruct> = vec![job_progress_bar(info).cell()];
     row(
         &mut result,
         "RUNNING",
