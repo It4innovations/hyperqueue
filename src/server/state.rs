@@ -1,12 +1,13 @@
 use std::collections::BTreeMap;
 
 use tako::messages::gateway::{
-    LostWorkerMessage, NewWorkerMessage, TaskFailedMessage, TaskState, TaskUpdate,
+    LostWorkerMessage, LostWorkerReason, NewWorkerMessage, TaskFailedMessage, TaskState, TaskUpdate,
 };
 
 use crate::common::WrappedRcRefCell;
 use crate::server::job::Job;
 use crate::server::worker::Worker;
+use crate::transfer::messages::LostWorkerReasonInfo;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
 
 pub struct State {
@@ -134,7 +135,12 @@ impl State {
     pub fn process_worker_lost(&mut self, msg: LostWorkerMessage) {
         log::debug!("Worker lost id={}", msg.worker_id);
         let worker = self.workers.get_mut(&msg.worker_id).unwrap();
-        worker.set_offline_state();
+        worker.set_offline_state(match msg.reason {
+            LostWorkerReason::Stopped => LostWorkerReasonInfo::Stopped,
+            LostWorkerReason::ConnectionLost => LostWorkerReasonInfo::ConnectionLost,
+            LostWorkerReason::HeartbeatLost => LostWorkerReasonInfo::HeartbeatLost,
+            LostWorkerReason::IdleTimeout => LostWorkerReasonInfo::IdleTimeout,
+        });
         for task_id in msg.running_tasks {
             let job = self.get_job_mut_by_tako_task_id(task_id).unwrap();
             job.set_waiting_state(task_id);

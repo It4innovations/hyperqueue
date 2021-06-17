@@ -105,13 +105,23 @@ class HqEnv(Env):
 
     @staticmethod
     def server_args(server_dir="./hq-server"):
-        return [HQ_BINARY, "--colors", "never", "--server-dir", server_dir, "server", "start"]
+        return [
+            HQ_BINARY,
+            "--colors",
+            "never",
+            "--server-dir",
+            server_dir,
+            "server",
+            "start",
+        ]
 
-    def start_server(self, server_dir="./hq-server") -> subprocess.Popen:
+    def start_server(self, server_dir="./hq-server", args=None) -> subprocess.Popen:
         self.server_dir = os.path.join(self.work_path, server_dir)
         env = self.make_default_env()
-        args = self.server_args(self.server_dir)
-        process = self.start_process("server", args, env=env)
+        server_args = self.server_args(self.server_dir)
+        if args:
+            server_args += args
+        process = self.start_process("server", server_args, env=env)
         time.sleep(0.2)
         self.check_running_processes()
         return process

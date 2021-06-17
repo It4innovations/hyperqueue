@@ -1,13 +1,13 @@
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use tako::messages::common::WorkerConfiguration;
 
 use crate::server::worker::WorkerState::Offline;
-use crate::transfer::messages::WorkerInfo;
+use crate::transfer::messages::{LostWorkerReasonInfo, WorkerExitInfo, WorkerInfo};
 use crate::WorkerId;
 
 pub enum WorkerState {
     Online,
-    Offline(DateTime<Utc>),
+    Offline(WorkerExitInfo),
 }
 
 pub struct Worker {
@@ -33,17 +33,20 @@ impl Worker {
         &self.configuration
     }
 
-    pub fn set_offline_state(&mut self) {
-        self.state = Offline(Utc::now());
+    pub fn set_offline_state(&mut self, reason: LostWorkerReasonInfo) {
+        self.state = Offline(WorkerExitInfo {
+            ended_at: Utc::now(),
+            reason,
+        });
     }
 
     pub fn make_info(&self) -> WorkerInfo {
         WorkerInfo {
             id: self.worker_id,
             configuration: self.configuration.clone(),
-            ended_at: match self.state {
+            ended: match &self.state {
                 WorkerState::Online => None,
-                Offline(d) => Some(d),
+                Offline(d) => Some(d.clone()),
             },
         }
     }

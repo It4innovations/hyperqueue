@@ -1,8 +1,36 @@
 use cli_table::format::Justify;
-use cli_table::{print_stdout, Cell, Color, Style, Table};
+use cli_table::{print_stdout, Cell, CellStruct, Color, Style, Table};
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::transfer::messages::WorkerInfo;
+use crate::transfer::messages::{LostWorkerReasonInfo, WorkerExitInfo, WorkerInfo};
+
+pub enum WorkerState {
+    Running,
+    ConnectionLost,
+    HeartbeatLost,
+}
+
+fn worker_state(worker: &WorkerInfo) -> CellStruct {
+    match worker.ended {
+        None => "RUNNING".cell().foreground_color(Some(Color::Green)),
+        Some(WorkerExitInfo {
+            reason: LostWorkerReasonInfo::ConnectionLost,
+            ..
+        }) => "CONNECTION LOST".cell().foreground_color(Some(Color::Red)),
+        Some(WorkerExitInfo {
+            reason: LostWorkerReasonInfo::HeartbeatLost,
+            ..
+        }) => "HEARTBEAT LOST".cell().foreground_color(Some(Color::Red)),
+        Some(WorkerExitInfo {
+            reason: LostWorkerReasonInfo::IdleTimeout,
+            ..
+        }) => "IDLE TIMEOUT".cell().foreground_color(Some(Color::Cyan)),
+        Some(WorkerExitInfo {
+            reason: LostWorkerReasonInfo::Stopped,
+            ..
+        }) => "STOPPED".cell().foreground_color(Some(Color::Magenta)),
+    }
+}
 
 pub fn print_worker_info(workers: Vec<WorkerInfo>, gsettings: &GlobalSettings) {
     let rows: Vec<_> = workers
@@ -10,10 +38,7 @@ pub fn print_worker_info(workers: Vec<WorkerInfo>, gsettings: &GlobalSettings) {
         .map(|w| {
             vec![
                 w.id.cell().justify(Justify::Right),
-                match w.ended_at {
-                    None => "RUNNING".cell().foreground_color(Some(Color::Green)),
-                    Some(_) => "OFFLINE".cell().foreground_color(Some(Color::Red)),
-                },
+                worker_state(&w),
                 w.configuration.hostname.cell(),
                 w.configuration.resources.summary().cell(),
                 w.configuration
