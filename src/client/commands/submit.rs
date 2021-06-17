@@ -64,7 +64,7 @@ pub struct SubmitOpts {
     /// Create a task array where a task will be created for each number in the specified number range.
     /// Each task will be passed an environment variable `HQ_TASK_ID`.
     ///
-    /// `--array=5` - create task array with five jobs with task IDs 0, 1, 2, 3, 4
+    /// `--array=5` - create task array with one job with task ID 5
     ///
     /// `--array=3-5` - create task array with three jobs with task IDs 3, 4, 5
     array: Option<ArrayDef>,
