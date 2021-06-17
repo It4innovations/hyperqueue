@@ -3,20 +3,20 @@ import time
 
 import pytest
 
+from .utils import wait_for_job_state
 from .conftest import HqEnv
 
 
 def test_job_submit(hq_env: HqEnv):
     hq_env.start_server()
-    # table = hq_env.command("jobs")
-    # print(table)
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 1
     assert table[0][:3] == ["Id", "Name", "State"]
 
     hq_env.command(["submit", "--", "bash", "-c", "echo 'hello'"])
     hq_env.command(["submit", "--", "bash", "-c", "echo 'hello2'"])
-    time.sleep(0.2)
+
+    wait_for_job_state(hq_env, [1, 2], "WAITING")
 
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 3
@@ -24,7 +24,8 @@ def test_job_submit(hq_env: HqEnv):
     assert table[2][:3] == ["2", "bash", "WAITING"]
 
     hq_env.start_worker(cpus=1)
-    time.sleep(0.3)
+
+    wait_for_job_state(hq_env, [1, 2], "FINISHED")
 
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 3
@@ -32,7 +33,8 @@ def test_job_submit(hq_env: HqEnv):
     assert table[2][:3] == ["2", "bash", "FINISHED"]
 
     hq_env.command(["submit", "--", "sleep", "1"])
-    time.sleep(0.2)
+
+    wait_for_job_state(hq_env, 3, "RUNNING", sleep_s=0.2)
 
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 4
@@ -40,7 +42,8 @@ def test_job_submit(hq_env: HqEnv):
     assert table[2][:3] == ["2", "bash", "FINISHED"]
     assert table[3][:3] == ["3", "sleep", "RUNNING"]
 
-    time.sleep(1.0)
+    wait_for_job_state(hq_env, 3, "FINISHED")
+
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 4
     assert table[1][:3] == ["1", "bash", "FINISHED"]
@@ -52,7 +55,8 @@ def test_custom_name(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
 
     hq_env.command(["submit", "sleep", "1", "--name=sleep_prog"])
-    time.sleep(0.2)
+    wait_for_job_state(hq_env, 1, "WAITING")
+
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 2
     assert table[1][:3] == ["1", "sleep_prog", "WAITING"]
@@ -81,7 +85,9 @@ def test_job_output_default(hq_env: HqEnv, tmp_path):
     hq_env.command(["submit", "--", "bash", "-c", "echo 'hello'"])
     hq_env.command(["submit", "--", "ls", "/non-existent"])
     hq_env.command(["submit", "--", "/non-existent-program"])
-    time.sleep(0.2)
+
+    wait_for_job_state(hq_env, [1, 2, 3], ["FINISHED", "FAILED"])
+
     print(hq_env.command("jobs"))
     with open(os.path.join(tmp_path, "stdout.1.0")) as f:
         assert f.read() == "hello\n"
@@ -107,7 +113,8 @@ def test_job_output_configured(hq_env: HqEnv, tmp_path):
     hq_env.command(
         ["submit", "--stdout=abc", "--stderr=xyz", "--", "bash", "-c", "echo 'hello'"]
     )
-    time.sleep(0.2)
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
     print(hq_env.command("jobs"))
     with open(os.path.join(tmp_path, "abc")) as f:
         assert f.read() == "hello\n"
@@ -121,8 +128,8 @@ def test_job_output_none(hq_env: HqEnv, tmp_path):
     hq_env.command(
         ["submit", "--stdout=none", "--stderr=none", "--", "bash", "-c", "echo 'hello'"]
     )
-    time.sleep(0.2)
-    print(hq_env.command("jobs"))
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
     assert not os.path.exists(os.path.join(tmp_path, "none"))
     assert not os.path.exists(os.path.join(tmp_path, "stdout.1.0"))
     assert not os.path.exists(os.path.join(tmp_path, "stderr.1.0"))
@@ -138,7 +145,8 @@ def test_job_filters(hq_env: HqEnv):
     hq_env.command(["submit", "--", "bash", "-c", "echo 'bye'"])
     hq_env.command(["submit", "--", "ls", "failed"])
 
-    time.sleep(0.2)
+    wait_for_job_state(hq_env, [1, 2, 3], "WAITING")
+
     r = hq_env.command(["cancel", "1"])
     assert "Job 1 canceled" in r
 
@@ -155,25 +163,26 @@ def test_job_filters(hq_env: HqEnv):
     assert len(table_waiting) == 3
 
     hq_env.start_worker(cpus=1)
-    time.sleep(0.2)
     hq_env.command(["submit", "--", "sleep", "1"])
 
-    print(hq_env.command(["jobs"], as_table=True))
+    wait_for_job_state(hq_env, 4, "RUNNING")
+
+    table_running = hq_env.command(["jobs", "running"], as_table=True)
+    assert len(table_running) == 2
+
     table_finished = hq_env.command(["jobs", "finished"], as_table=True)
     assert len(table_finished) == 2
 
     table_failed = hq_env.command(["jobs", "failed"], as_table=True)
     assert len(table_failed) == 2
 
-    table_running = hq_env.command(["jobs", "running"], as_table=True)
-    assert len(table_running) == 2
-
 
 def test_job_fail(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus=1)
     hq_env.command(["submit", "--", "/non-existent-program"])
-    time.sleep(0.2)
+    wait_for_job_state(hq_env, 1, "FAILED")
+
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 2
     assert table[1][:3] == ["1", "non-existent-program", "FAILED"]
@@ -209,7 +218,9 @@ def test_cancel_running(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus=1)
     hq_env.command(["submit", "sleep", "10"])
-    time.sleep(0.3)
+
+    wait_for_job_state(hq_env, 1, "RUNNING")
+
     table = hq_env.command(["jobs"], as_table=True)
     assert table[1][2] == "RUNNING"
     r = hq_env.command(["cancel", "1"])
@@ -226,7 +237,9 @@ def test_cancel_finished(hq_env: HqEnv):
     hq_env.start_worker(cpus=1)
     hq_env.command(["submit", "hostname"])
     hq_env.command(["submit", "/invalid"])
-    time.sleep(0.3)
+
+    wait_for_job_state(hq_env, [1, 2], ["FINISHED", "FAILED"])
+
     r = hq_env.command(["cancel", "1"])
     assert "Canceling job 1 failed" in r
     r = hq_env.command(["cancel", "2"])
@@ -242,12 +255,16 @@ def test_reporting_state_after_worker_lost(hq_env: HqEnv):
     hq_env.start_workers(2, cpus=1)
     hq_env.command(["submit", "sleep", "1"])
     hq_env.command(["submit", "sleep", "1"])
-    time.sleep(0.25)
+
+    wait_for_job_state(hq_env, [1, 2], "RUNNING")
+
     table = hq_env.command(["jobs"], as_table=True)
     assert table[1][2] == "RUNNING"
     assert table[2][2] == "RUNNING"
     hq_env.kill_worker(1)
+
     time.sleep(0.25)
+
     table = hq_env.command(["jobs"], as_table=True)
     print(table)
     if table[1][2] == "WAITING":
@@ -258,11 +275,14 @@ def test_reporting_state_after_worker_lost(hq_env: HqEnv):
         assert 0
     assert table[other][2] == "RUNNING"
 
-    time.sleep(1)
+    wait_for_job_state(hq_env, other, "FINISHED")
+
     table = hq_env.command(["jobs"], as_table=True)
     assert table[other][2] == "FINISHED"
     assert table[idx][2] == "RUNNING"
-    time.sleep(1)
+
+    wait_for_job_state(hq_env, idx, "FINISHED")
+
     table = hq_env.command(["jobs"], as_table=True)
     assert table[other][2] == "FINISHED"
     assert table[idx][2] == "FINISHED"
