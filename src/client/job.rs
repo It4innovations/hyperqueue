@@ -248,7 +248,7 @@ pub fn print_job_detail(
             .cell(),
     ]);
     rows.push(vec![
-        "Stdout".cell().bold(true),
+        "Stderr".cell().bold(true),
         program_def
             .stderr
             .map(|p| p.display().to_string())
