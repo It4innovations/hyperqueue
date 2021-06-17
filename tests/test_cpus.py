@@ -1,10 +1,10 @@
 import os
 import subprocess
-import time
 
 import pytest
 
 from .conftest import RUNNING_IN_CI, HqEnv, print_table
+from .utils import wait_for_job_state
 
 
 def read_list(filename):
@@ -13,7 +13,6 @@ def read_list(filename):
 
 
 def test_job_num_of_cpus(hq_env: HqEnv):
-
     hq_env.start_server()
     hq_env.command(["submit", "--", "bash", "-c", "echo $HQ_CPUS"])
     hq_env.command(
@@ -34,7 +33,8 @@ def test_job_num_of_cpus(hq_env: HqEnv):
     hq_env.command(["submit", "--cpus", "all", "--", "bash", "-c", "echo $HQ_CPUS"])
 
     hq_env.start_worker(cpus="3x4")
-    time.sleep(0.5)
+
+    wait_for_job_state(hq_env, [1, 2, 4, 5, 6], "FINISHED")
 
     table = hq_env.command(["job", "1"], as_table=True)
     assert table[4][0] == "Resources"
@@ -63,9 +63,8 @@ def test_job_num_of_cpus(hq_env: HqEnv):
     assert list(range(12)) == lst
 
 
-@pytest.mark.skipif(RUNNING_IN_CI, reason="Processes in CI is already prepinned")
+@pytest.mark.skipif(RUNNING_IN_CI, reason="Processes in CI are already pre-pinned")
 def test_manual_taskset(hq_env: HqEnv):
-
     hq_env.start_server()
     hq_env.command(
         [
@@ -79,15 +78,13 @@ def test_manual_taskset(hq_env: HqEnv):
         ]
     )
     hq_env.start_worker(cpus=4)
-    time.sleep(1.5)
 
+    wait_for_job_state(hq_env, 1, "FINISHED")
     table = hq_env.command(["job", "1"], as_table=True)
     assert table[2][1] == "FINISHED"
 
 
-# @pytest.mark.skipif(RUNNING_IN_CI, reason="Processes in CI is already prepinned")
 def test_job_no_pin(hq_env: HqEnv):
-
     pid = os.getpid()
 
     process = subprocess.Popen(["taskset", "-p", str(pid)], stdout=subprocess.PIPE)
@@ -112,8 +109,8 @@ def test_job_no_pin(hq_env: HqEnv):
         ]
     )
     hq_env.start_worker(cpus=2)
-    time.sleep(0.4)
 
+    wait_for_job_state(hq_env, 1, "FINISHED")
     table = hq_env.command(["job", "1"], as_table=True)
     print_table(table)
     assert table[2][1] == "FINISHED"
@@ -127,7 +124,6 @@ def test_job_no_pin(hq_env: HqEnv):
 
 
 def test_job_pin(hq_env: HqEnv):
-
     hq_env.start_server()
     hq_env.command(
         [
@@ -142,8 +138,8 @@ def test_job_pin(hq_env: HqEnv):
         ]
     )
     hq_env.start_worker(cpus=2)
-    time.sleep(0.4)
 
+    wait_for_job_state(hq_env, 1, "FINISHED")
     table = hq_env.command(["job", "1"], as_table=True)
     print_table(table)
     assert table[2][1] == "FINISHED"

@@ -2,6 +2,7 @@ import collections
 import os
 import time
 
+from .utils import wait_for_job_state
 from .conftest import HqEnv, print_table
 
 
@@ -11,7 +12,8 @@ def test_job_array_submit(hq_env: HqEnv):
     hq_env.command(
         ["submit", "--array=30-36", "--", "bash", "-c", "echo $HQ_JOB_ID-$HQ_TASK_ID"]
     )
-    time.sleep(0.4)
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
     for i in list(range(0, 30)) + list(range(37, 40)):
         assert not os.path.isfile(os.path.join(hq_env.work_path, f"stdout.1.{i}"))
         assert not os.path.isfile(os.path.join(hq_env.work_path, f"stderr.1.{i}"))
@@ -64,7 +66,8 @@ def test_job_array_error_some(hq_env: HqEnv):
         ]
     )
     hq_env.start_worker(cpus=2)
-    time.sleep(1)
+
+    wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["jobs"], as_table=True)
     assert table[1][2] == "FAILED"
@@ -99,7 +102,8 @@ def test_job_array_error_all(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["submit", "--array=0-9", "--", "/non-existent"])
     hq_env.start_worker(cpus=2)
-    time.sleep(0.4)
+
+    wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["jobs"], as_table=True)
     assert table[1][2] == "FAILED"
@@ -169,7 +173,9 @@ def test_array_mix_with_simple_jobs(hq_env: HqEnv):
         hq_env.command(["submit", "--array=1-4", "/bin/hostname"])
         hq_env.command(["submit", "/bin/hostname"])
     hq_env.start_workers(1, cpus=2)
-    time.sleep(1.6)
+
+    wait_for_job_state(hq_env, list(range(1, 101)), "FINISHED")
+
     table = hq_env.command("jobs", as_table=True)
     for i in range(1, 101):
         assert table[i][0] == str(i)

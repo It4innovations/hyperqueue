@@ -1,6 +1,8 @@
-from .conftest import HqEnv
 import os
 import time
+
+from .conftest import HqEnv
+from .utils import wait_for_job_state
 
 
 def test_entries_no_newline(hq_env: HqEnv):
@@ -20,7 +22,7 @@ def test_entries_no_newline(hq_env: HqEnv):
             "echo $HQ_ENTRY",
         ]
     )
-    time.sleep(0.4)
+    wait_for_job_state(hq_env, 1, "FINISHED")
 
     for i, test in enumerate(["One\n", "Two\n", "Three\n", "Four\n"]):
         with open(f"stdout.1.{i}") as f:
@@ -49,7 +51,7 @@ def test_entries_with_newline(hq_env: HqEnv):
             "echo $HQ_ENTRY",
         ]
     )
-    time.sleep(0.4)
+    wait_for_job_state(hq_env, 1, "FINISHED")
 
     for i, test in enumerate(["One\n", "Two\n", "Three\n", "Four\n"]):
         with open(f"stdout.1.{i}") as f:
