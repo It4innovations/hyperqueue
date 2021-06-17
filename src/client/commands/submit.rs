@@ -18,8 +18,6 @@ use std::str::FromStr;
 use std::{fs, io};
 use tako::common::resources::{CpuRequest, ResourceRequest};
 
-// I am wrapping CpuRequest + implementing FromStr as I am not able to provide
-// own parser function into clap??
 struct ArgCpuRequest(CpuRequest);
 
 impl FromStr for ArgCpuRequest {
@@ -36,26 +34,40 @@ pub struct SubmitOpts {
     command: String,
     args: Vec<String>,
 
-    #[clap(long)]
-    array: Option<ArrayDef>,
-
+    /// Number and placement of CPUs for each job
     #[clap(long, default_value = "1")]
     cpus: ArgCpuRequest,
 
+    /// Name of the job
     #[clap(long)]
     name: Option<String>,
 
+    /// Pin the job to the cores specified in `--cpus`.
     #[clap(long)]
     pin: bool,
 
+    /// Path where the standard output of the job will be stored
     #[clap(long)]
     stdout: Option<String>,
 
+    /// Path where the standard error of the job will be stored
     #[clap(long)]
     stderr: Option<String>,
 
-    #[clap(long)]
+    // Parameters for creating array jobs
+    /// Create a task array where a task will be created for each line of the given file.
+    /// The corresponding line will be passed to the task in environment variable `HQ_ENTRY`.
+    #[clap(long, conflicts_with("array"), value_hint = clap::ValueHint::FilePath)]
     each_line: Option<PathBuf>,
+
+    #[clap(long)]
+    /// Create a task array where a task will be created for each number in the specified number range.
+    /// Each task will be passed an environment variable `HQ_TASK_ID`.
+    ///
+    /// `--array=5` - create task array with five jobs with task IDs 0, 1, 2, 3, 4
+    ///
+    /// `--array=3-5` - create task array with three jobs with task IDs 3, 4, 5
+    array: Option<ArrayDef>,
 }
 
 impl SubmitOpts {
@@ -73,9 +85,6 @@ pub async fn submit_computation(
     resources.validate()?;
 
     let (job_type, entries) = if let Some(filename) = opts.each_line {
-        if opts.array.is_some() {
-            anyhow::bail!("--array and --each-line cannot be combined");
-        }
         let lines = read_lines(&filename)?;
         let def = ArrayDef::simple_range(0, lines.len() as JobTaskCount);
         (JobType::Array(def), Some(lines))
