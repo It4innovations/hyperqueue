@@ -3,8 +3,8 @@ import time
 
 import pytest
 
-from .utils import wait_for_job_state
 from .conftest import HqEnv
+from .utils import wait_for_job_state
 
 
 def test_job_submit(hq_env: HqEnv):
@@ -291,7 +291,19 @@ def test_reporting_state_after_worker_lost(hq_env: HqEnv):
 def test_set_env(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_workers(1)
-    hq_env.command(["submit", "--env", "FOO=BAR", "--env", "FOO2=BAR2", "--", "bash", "-c", "echo $FOO $FOO2"])
+    hq_env.command(
+        [
+            "submit",
+            "--env",
+            "FOO=BAR",
+            "--env",
+            "FOO2=BAR2",
+            "--",
+            "bash",
+            "-c",
+            "echo $FOO $FOO2",
+        ]
+    )
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     with open(f"{hq_env.work_path}/stdout.1.0") as f:

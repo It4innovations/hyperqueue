@@ -13,7 +13,8 @@ use hyperqueue::client::job::Status;
 use hyperqueue::client::worker::print_worker_info;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
-use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server};
+use hyperqueue::common::timeutils::ArgDuration;
+use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server, ServerConfig};
 use hyperqueue::worker::hwdetect::{detect_resource, print_resource_descriptor};
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::{JobId, WorkerId};
@@ -70,6 +71,9 @@ struct ServerStartOpts {
     /// Hostname/IP of the machine under which is visible to others, default: hostname
     #[clap(long)]
     host: Option<String>,
+
+    #[clap(long)]
+    idle_timeout: Option<ArgDuration>,
 }
 
 #[derive(Clap)]
@@ -157,7 +161,13 @@ async fn command_server_start(
     gsettings: GlobalSettings,
     opts: ServerStartOpts,
 ) -> anyhow::Result<()> {
-    init_hq_server(&gsettings, opts.host).await
+    let server_cfg = ServerConfig {
+        host: opts
+            .host
+            .unwrap_or_else(|| gethostname::gethostname().into_string().unwrap()),
+        idle_timeout: opts.idle_timeout.map(|x| x.into_duration()),
+    };
+    init_hq_server(&gsettings, server_cfg).await
 }
 
 async fn command_server_stop(

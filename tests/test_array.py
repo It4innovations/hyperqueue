@@ -2,8 +2,8 @@ import collections
 import os
 import time
 
-from .utils import wait_for_job_state
 from .conftest import HqEnv, print_table
+from .utils import wait_for_job_state
 
 
 def test_job_array_submit(hq_env: HqEnv):

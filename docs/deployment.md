@@ -56,6 +56,14 @@ A worker can be started by command. It reads server directory and connectes to t
 
 ``hq worker list``
 
+State of workers:
+
+* **Running** - Worker is running and is able to process tasks
+* **Connection lost** - Worker closes connection. Probably someone manually killed the worker or wall time in PBS/SLURM job was reached
+* **Heartbeat lost** - Communication between server and worker was interrputed. It usually means a network problem or an hardware crash of the computational node
+* **Stopped** - Worker was stopped by ``hq worker stop ...``
+* **Idle timeout** - Idle timeout is enabled on server and worker did not received any task for more then the limit.
+
 
 ## Stopping worker
 
@@ -78,3 +86,11 @@ If automatic detection fails, or you want to manually configure set CPU configur
 
 - 2 sockets with 12 cores per socket
   ``$ hq worker --cpus=2x12``
+
+
+## Idle timeout
+
+When server is started, a idle timeout may be configureated, via ``--idle-timeout=<TIMEOUT>`` where ``TIMEOUT`` is a string like ``"2min 30s"``.
+(All possible formats are documented at https://docs.rs/humantime/2.1.0/humantime/fn.parse_duration.html).
+
+When idle timeout is enabled, each worker is automatically stopped if it does not receive a task for longer then a given timeout.

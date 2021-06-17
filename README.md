@@ -185,7 +185,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 ## 0.3
 
-* [ ] Automatic stopping of idling workers
+* [x] Automatic stopping of idling workers
 * [ ] Handling stdout/stderr when a large number of jobs is submitted
 
 ## 0.4
@@ -211,4 +211,4 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 * This work was supported by the LIGATE project. This project has received funding from the European High-Performance Computing Joint Undertaking (JU) under grant agreement No 956137. The JU receives support from the European Union’s Horizon 2020 research and innovation programme and Italy, Sweden, Austria, the Czech Republic, Switzerland.
 
-* This work was supported by the Ministry of Education, Youth and Sports of the Czech Republic through the e-INFRA CZ (ID:90140). 
+* This work was supported by the Ministry of Education, Youth and Sports of the Czech Republic through the e-INFRA CZ (ID:90140).

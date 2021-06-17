@@ -1,6 +1,7 @@
-from .utils import parse_table
-from .conftest import HqEnv
 import subprocess
+
+from .conftest import HqEnv
+from .utils import parse_table
 
 
 def test_server_host(hq_env: HqEnv):

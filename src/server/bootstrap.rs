@@ -16,10 +16,16 @@ use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
 use crate::transfer::connection::{ClientConnection, HqConnection};
+use std::time::Duration;
 
 enum ServerStatus {
     Offline(AccessRecord),
     Online(AccessRecord),
+}
+
+pub struct ServerConfig {
+    pub host: String,
+    pub idle_timeout: Option<Duration>,
 }
 
 /// This function initializes the HQ server.
@@ -33,12 +39,12 @@ enum ServerStatus {
 /// If an already running server is found, an error will be returned.
 pub async fn init_hq_server(
     gsettings: &GlobalSettings,
-    host: Option<String>,
+    server_cfg: ServerConfig,
 ) -> anyhow::Result<()> {
     match get_server_status(gsettings.server_directory()).await {
         Err(_) | Ok(ServerStatus::Offline(_)) => {
             log::info!("No online server found, starting a new server");
-            start_server(gsettings, host).await
+            start_server(gsettings, server_cfg).await
         }
         Ok(ServerStatus::Online(_)) => anyhow::bail!(
             "Server at {0} is already online, please stop it first using \
@@ -78,7 +84,7 @@ async fn get_server_status(server_directory: &Path) -> crate::Result<ServerStatu
 async fn initialize_server(
     gsettings: &GlobalSettings,
     end_flag: Arc<Notify>,
-    host: Option<String>,
+    server_cfg: ServerConfig,
 ) -> anyhow::Result<impl Future<Output = anyhow::Result<()>>> {
     let server_directory = gsettings.server_directory();
     let client_listener = TcpListener::bind("0.0.0.0:0")
@@ -90,11 +96,15 @@ async fn initialize_server(
     let tako_secret_key = Arc::new(generate_key());
 
     let state_ref = StateRef::new();
-    let (tako_server, tako_future) =
-        TakoServer::start(state_ref.clone(), tako_secret_key.clone()).await?;
+    let (tako_server, tako_future) = TakoServer::start(
+        state_ref.clone(),
+        tako_secret_key.clone(),
+        server_cfg.idle_timeout,
+    )
+    .await?;
 
     let record = AccessRecord::new(
-        host.unwrap_or_else(|| gethostname::gethostname().into_string().unwrap()),
+        server_cfg.host,
         server_port,
         tako_server.worker_port(),
         hq_secret_key.clone(),
@@ -131,9 +141,12 @@ async fn initialize_server(
     Ok(fut)
 }
 
-async fn start_server(gsettings: &GlobalSettings, host: Option<String>) -> anyhow::Result<()> {
+async fn start_server(
+    gsettings: &GlobalSettings,
+    server_config: ServerConfig,
+) -> anyhow::Result<()> {
     let end_flag = setup_interrupt();
-    let fut = initialize_server(gsettings, end_flag, host).await?;
+    let fut = initialize_server(gsettings, end_flag, server_config).await?;
     let local_set = LocalSet::new();
     local_set.run_until(fut).await
 }
@@ -171,11 +184,32 @@ mod tests {
     use crate::client::commands::stop::stop_server;
     use crate::common::fsutils::test_utils::run_concurrent;
     use crate::common::serverdir::{store_access_record, AccessRecord, ServerDir, SYMLINK_PATH};
-    use crate::server::bootstrap::{get_client_connection, get_server_status, initialize_server};
+    use crate::server::bootstrap::{
+        get_client_connection, get_server_status, initialize_server, ServerConfig,
+    };
 
     use super::ServerStatus;
     use crate::client::globalsettings::GlobalSettings;
     use cli_table::ColorChoice;
+    use std::future::Future;
+    use std::path::Path;
+
+    pub async fn init_test_server(
+        tmp_dir: &Path,
+    ) -> (impl Future<Output = anyhow::Result<()>>, Arc<Notify>) {
+        let gsettings = GlobalSettings::new(tmp_dir.to_path_buf(), ColorChoice::Never);
+        let server_cfg = ServerConfig {
+            host: "localhost".to_string(),
+            idle_timeout: None,
+        };
+        let notify = Arc::new(Notify::new());
+        (
+            initialize_server(&gsettings, notify.clone(), server_cfg)
+                .await
+                .unwrap(),
+            notify,
+        )
+    }
 
     #[tokio::test]
     async fn test_status_empty_directory() {
@@ -216,10 +250,7 @@ mod tests {
     #[tokio::test]
     async fn test_start_stop() {
         let tmp_dir = TempDir::new("foo").unwrap().into_path();
-        let gsettings = GlobalSettings::new(tmp_dir.to_path_buf(), ColorChoice::Never);
-        let fut = initialize_server(&gsettings, Default::default(), None)
-            .await
-            .unwrap();
+        let (fut, _) = init_test_server(&tmp_dir).await;
         let (set, handle) = run_concurrent(fut, async {
             let mut connection = get_client_connection(&tmp_dir).await.unwrap();
             stop_server(&mut connection).await.unwrap();
@@ -231,12 +262,7 @@ mod tests {
     #[tokio::test]
     async fn test_stop_on_end_condition() {
         let tmp_dir = TempDir::new("foo").unwrap().into_path();
-
-        let notify = Arc::new(Notify::new());
-        let gsettings = GlobalSettings::new(tmp_dir.to_path_buf(), ColorChoice::Never);
-        let fut = initialize_server(&gsettings, notify.clone(), None)
-            .await
-            .unwrap();
+        let (fut, notify) = init_test_server(&tmp_dir).await;
         notify.notify_one();
         fut.await.unwrap();
     }

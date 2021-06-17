@@ -45,6 +45,7 @@ impl TakoServer {
     pub async fn start(
         state_ref: StateRef,
         key: Arc<SecretKey>,
+        idle_timeout: Option<Duration>,
     ) -> crate::Result<(TakoServer, impl Future<Output = crate::Result<()>>)> {
         let msd = Duration::from_millis(20);
 
@@ -56,6 +57,7 @@ impl TakoServer {
             msd,
             from_tako_sender.clone(),
             false,
+            idle_timeout,
         )
         .await?;
 
@@ -130,7 +132,9 @@ mod tests {
     #[tokio::test]
     async fn test_server_connect_worker() {
         let state = StateRef::new();
-        let (server, _fut) = TakoServer::start(state, Default::default()).await.unwrap();
+        let (server, _fut) = TakoServer::start(state, Default::default(), None)
+            .await
+            .unwrap();
         TcpStream::connect(format!("127.0.0.1:{}", server.worker_port()))
             .await
             .unwrap();
@@ -139,7 +143,9 @@ mod tests {
     #[tokio::test]
     async fn test_server_server_info() {
         let state = StateRef::new();
-        let (server, fut) = TakoServer::start(state, Default::default()).await.unwrap();
+        let (server, fut) = TakoServer::start(state, Default::default(), None)
+            .await
+            .unwrap();
         run_concurrent(fut, async move {
             assert!(
                 matches!(server.send_message(FromGatewayMessage::ServerInfo).await.unwrap(),

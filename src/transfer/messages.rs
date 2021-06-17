@@ -97,11 +97,26 @@ pub struct JobInfo {
     pub resources: ResourceRequest,
 }
 
+// We need to duplicate LostWorkerReason because of serialization problems (msgpack vs. binpack)
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum LostWorkerReasonInfo {
+    Stopped,
+    ConnectionLost,
+    HeartbeatLost,
+    IdleTimeout,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WorkerExitInfo {
+    pub ended_at: DateTime<Utc>,
+    pub reason: LostWorkerReasonInfo,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerInfo {
     pub id: WorkerId,
     pub configuration: WorkerConfiguration,
-    pub ended_at: Option<DateTime<Utc>>,
+    pub ended: Option<WorkerExitInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

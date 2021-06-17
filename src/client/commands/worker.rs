@@ -19,7 +19,7 @@ pub async fn get_worker_list(
 
     msg.workers.sort_unstable_by_key(|w| w.id);
     msg.workers.retain(|w| {
-        if w.ended_at == None {
+        if w.ended.is_none() {
             get_online
         } else {
             get_offline
