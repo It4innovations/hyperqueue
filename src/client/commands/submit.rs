@@ -1,22 +1,22 @@
+use std::io::BufRead;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use std::{fs, io};
 
+use anyhow::anyhow;
+use bstr::BString;
 use clap::Clap;
+use hashbrown::HashMap;
+use tako::common::resources::{CpuRequest, ResourceRequest};
 use tako::messages::common::ProgramDefinition;
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::print_job_detail;
-
 use crate::client::resources::parse_cpu_request;
 use crate::common::arraydef::ArrayDef;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, JobType, SubmitRequest, ToClientMessage};
 use crate::{rpc_call, JobTaskCount};
-use anyhow::anyhow;
-use bstr::BString;
-use std::io::BufRead;
-use std::str::FromStr;
-use std::{fs, io};
-use tako::common::resources::{CpuRequest, ResourceRequest};
 
 struct ArgCpuRequest(CpuRequest);
 
@@ -25,6 +25,33 @@ impl FromStr for ArgCpuRequest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         parse_cpu_request(s).map(ArgCpuRequest)
+    }
+}
+
+#[derive(Debug)]
+pub struct ArgEnvironmentVar {
+    key: BString,
+    value: BString,
+}
+
+impl FromStr for ArgEnvironmentVar {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            anyhow::bail!("Environment variable cannot be empty");
+        }
+        let var = match s.find('=') {
+            Some(position) => ArgEnvironmentVar {
+                key: s[..position].into(),
+                value: s[position + 1..].into(),
+            },
+            None => ArgEnvironmentVar {
+                key: s.into(),
+                value: Default::default(),
+            },
+        };
+        Ok(var)
     }
 }
 
@@ -53,6 +80,13 @@ pub struct SubmitOpts {
     /// Path where the standard error of the job will be stored
     #[clap(long)]
     stderr: Option<String>,
+
+    /// Specify additional environment variable for the job
+    /// You can pass this flag multiple times to pass multiple variables
+    ///
+    /// `--env=KEY=VAL` - set an environment variable named `KEY` with the value `VAL`
+    #[clap(long, multiple_occurrences(true))]
+    pub env: Vec<ArgEnvironmentVar>,
 
     // Parameters for creating array jobs
     /// Create a task array where a task will be created for each line of the given file.
@@ -136,13 +170,26 @@ pub async fn submit_computation(
         )
     };
 
+    let env_count = opts.env.len();
+    let env: HashMap<_, _> = opts
+        .env
+        .into_iter()
+        .map(|env| (env.key, env.value))
+        .collect();
+
+    if env.len() != env_count {
+        log::warn!(
+            "Some environment variables were ignored. Check if you haven't used duplicate keys."
+        )
+    }
+
     let message = FromClientMessage::Submit(SubmitRequest {
         job_type,
         name,
         submit_cwd,
         spec: ProgramDefinition {
             args,
-            env: Default::default(),
+            env,
             stdout,
             stderr,
             cwd: None,
@@ -178,4 +225,45 @@ fn read_lines(filename: &Path) -> anyhow::Result<Vec<BString>> {
         .map(|x| x.map(BString::from))
         .collect();
     Ok(results?)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::ArgEnvironmentVar;
+
+    #[test]
+    fn test_parse_env_empty() {
+        let env: Result<ArgEnvironmentVar, _> = FromStr::from_str("");
+        assert!(env.is_err());
+    }
+
+    #[test]
+    fn test_parse_env_key() {
+        let env: ArgEnvironmentVar = FromStr::from_str("key").unwrap();
+        assert_eq!(env.key, "key");
+        assert!(env.value.is_empty());
+    }
+
+    #[test]
+    fn test_parse_env_empty_value() {
+        let env: ArgEnvironmentVar = FromStr::from_str("key=").unwrap();
+        assert_eq!(env.key, "key");
+        assert!(env.value.is_empty());
+    }
+
+    #[test]
+    fn test_parse_env_key_value() {
+        let env: ArgEnvironmentVar = FromStr::from_str("key=value").unwrap();
+        assert_eq!(env.key, "key");
+        assert_eq!(env.value, "value");
+    }
+
+    #[test]
+    fn test_parse_env_multiple_equal_signs() {
+        let env: ArgEnvironmentVar = FromStr::from_str("key=value=value2").unwrap();
+        assert_eq!(env.key, "key");
+        assert_eq!(env.value, "value=value2");
+    }
 }

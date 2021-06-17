@@ -255,6 +255,17 @@ pub fn print_job_detail(
             .unwrap_or_else(|| "N/A".to_string())
             .cell(),
     ]);
+    let mut env_vars: Vec<(_, _)> = program_def.env.iter().collect();
+    env_vars.sort_by_key(|item| item.0);
+    rows.push(vec![
+        "Environment".cell().bold(true),
+        env_vars
+            .into_iter()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect::<Vec<_>>()
+            .join("\n")
+            .cell(),
+    ]);
 
     let table = rows.table().color_choice(gsettings.color_policy());
     assert!(print_stdout(table).is_ok());
