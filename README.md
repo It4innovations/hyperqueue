@@ -117,14 +117,14 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 ## Installation
 
-* Download latest binary distribution from this [link](https://github.com/It4innovations/hyperqueue/releases/latest).
+* Download the latest binary distribution from this [link](https://github.com/It4innovations/hyperqueue/releases/latest).
 * Unpack the downloaded archive:
 
   ``$ tar -xvzf hq-<version>-linux-x64.tar.gz``
 
-## Submiting a simple task
+## Submitting a simple task
 
-* Start server (e.g. on a login node or in a cluster partition)
+* Start a server (e.g. on a login node or in a cluster partition)
 
   ``$ hq server start &``
 
@@ -132,7 +132,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
   ``$ hq submit echo 'Hello world'``
 
-* Ask for computing resource
+* Ask for computing resources
 
     * Start worker manually
 
@@ -143,12 +143,24 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
       [Not implemented yet]
 
     * Manual request in PBS
+      
+      - Start worker on the first node of a PBS job
 
-      ``$ qsub <your-params-of-qsub> -- hq worker start``
+        ``$ qsub <your-params-of-qsub> -- hq worker start``
+
+      - Start worker on all nodes of a PBS job
+
+        ``$ qsub <your-params-of-qsub> -- `which pbsdsh` hq worker start``
 
     * Manual request in SLURM
 
-      ``$ sbatch <your-params-of-sbatch> -- hq worker start``
+      - Start worker on the first node of a Slurm job
+
+        ``$ sbatch <your-params-of-sbatch> --wrap "hq worker start"``
+
+      - Start worker on all nodes of a Slurm job
+
+        ``$ sbatch <your-params-of-sbatch> --wrap "srun hq worker start"``
 
 * Monitor the state of jobs
 
