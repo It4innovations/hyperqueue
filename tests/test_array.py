@@ -34,22 +34,21 @@ def test_job_array_report(hq_env: HqEnv):
 
     table = hq_env.command(["job", "1"], as_table=True)
 
-    assert table[5][0] == "Tasks"
-    assert table[5][1] == "10; Ids: 10-19"
+    assert table[6] == ["Tasks", "10; Ids: 10-19"]
 
     assert table[2][0] == "State"
     assert table[3][0] == ""
     assert table[4][0] == ""
 
-    assert table[2][1] == "RUNNING (4)"
-    assert table[3][1] == "FINISHED (4)"
-    assert table[4][1] == "WAITING (2)"
+    assert table[3][1] == "RUNNING (4)"
+    assert table[4][1] == "FINISHED (4)"
+    assert table[5][1] == "WAITING (2)"
 
     time.sleep(1.6)
 
     table = hq_env.command(["job", "1"], as_table=True)
     assert table[2][0] == "State"
-    assert table[2][1] == "FINISHED (10)"
+    assert table[3][1] == "FINISHED (10)"
 
 
 def test_job_array_error_some(hq_env: HqEnv):
@@ -65,16 +64,16 @@ def test_job_array_error_some(hq_env: HqEnv):
         ]
     )
     hq_env.start_worker(cpus=2)
-    time.sleep(0.4)
+    time.sleep(1)
 
     table = hq_env.command(["jobs"], as_table=True)
     assert table[1][2] == "FAILED"
 
     table = hq_env.command(["job", "1"], as_table=True)
-    assert table[2][1] == "FAILED (3)"
-    assert table[3][1] == "FINISHED (7)"
+    assert table[3][1] == "FAILED (3)"
+    assert table[4][1] == "FINISHED (7)"
 
-    offset = 9
+    offset = 10
 
     assert table[offset][0] == "Task Id"
     assert table[offset][1] == "Error"
@@ -106,9 +105,9 @@ def test_job_array_error_all(hq_env: HqEnv):
     assert table[1][2] == "FAILED"
 
     table = hq_env.command(["job", "1"], as_table=True)
-    assert table[2][1] == "FAILED (10)"
+    assert table[3][1] == "FAILED (10)"
 
-    offset = 9
+    offset = 10
 
     for i in range(5):
         assert table[offset + i][0] == str(i)
@@ -117,7 +116,7 @@ def test_job_array_error_all(hq_env: HqEnv):
     assert table[offset + 5] == []
 
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
-    assert table[2][1] == "FAILED (10)"
+    assert table[3][1] == "FAILED (10)"
 
     for i in range(10):
         assert table[offset + i][0] == str(i)
@@ -134,8 +133,8 @@ def test_job_array_cancel(hq_env: HqEnv):
     time.sleep(0.4)
 
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
-    assert table[2][1] == "FINISHED (4)"
-    assert table[3][1] == "CANCELED (6)"
+    assert table[3][1] == "FINISHED (4)"
+    assert table[4][1] == "CANCELED (6)"
     c = collections.Counter([x[1] for x in table[9:]])
     assert c.get("FINISHED") == 4
     assert c.get("CANCELED") == 6
@@ -153,14 +152,14 @@ def test_array_reporting_state_after_worker_lost(hq_env: HqEnv):
     time.sleep(0.25)
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
     c = collections.Counter([x[1] for x in table[8:]])
-    assert table[2][1] == "WAITING (4)"
+    assert table[3][1] == "WAITING (4)"
     assert c.get("WAITING") == 4
     hq_env.start_workers(1, cpus=2)
 
     time.sleep(2.2)
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
     c = collections.Counter([x[1] for x in table[8:]])
-    assert table[2][1] == "FINISHED (4)"
+    assert table[3][1] == "FINISHED (4)"
     assert c.get("FINISHED") == 4
 
 
