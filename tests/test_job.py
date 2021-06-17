@@ -191,8 +191,8 @@ def test_job_fail(hq_env: HqEnv):
     assert table[0] == ["Id", "1"]
     assert table[2] == ["State", "FAILED"]
 
-    assert table[9][0] == "0"
-    assert "No such file or directory" in table[9][1]
+    assert table[10][0] == "0"
+    assert "No such file or directory" in table[10][1]
 
 
 def test_job_invalid(hq_env: HqEnv):
@@ -286,3 +286,17 @@ def test_reporting_state_after_worker_lost(hq_env: HqEnv):
     table = hq_env.command(["jobs"], as_table=True)
     assert table[other][2] == "FINISHED"
     assert table[idx][2] == "FINISHED"
+
+
+def test_set_env(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_workers(1)
+    hq_env.command(["submit", "--env", "FOO=BAR", "--env", "FOO2=BAR2", "--", "bash", "-c", "echo $FOO $FOO2"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    with open(f"{hq_env.work_path}/stdout.1.0") as f:
+        assert f.read().strip() == "BAR BAR2"
+
+    table = hq_env.command(["job", "1"], as_table=True)
+    assert table[8][0] == "Environment"
+    assert table[8][1] == "FOO=BAR\nFOO2=BAR2"
