@@ -1,5 +1,4 @@
 use std::str::FromStr;
-use std::time::Duration;
 
 use anyhow::{anyhow, Context};
 use clap::Clap;
@@ -11,6 +10,7 @@ use tokio::task::LocalSet;
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::error::error;
 use crate::common::serverdir::ServerDir;
+use crate::common::timeutils::ArgDuration;
 use crate::worker::hwdetect::detect_resource;
 use crate::worker::output::print_worker_configuration;
 use crate::worker::parser::parse_cpu_definition;
@@ -52,9 +52,9 @@ pub struct WorkerStartOpts {
     #[clap(long)]
     cpus: Option<String>,
 
-    /// How often should the worker announce its existence to the server. [ms]
-    #[clap(long, default_value = "8000")]
-    heartbeat: u32,
+    /// How often should the worker announce its existence to the server. (default: "8s")
+    #[clap(long, default_value = "8s")]
+    heartbeat: ArgDuration,
 
     /// What HPC job manager should be used by the worker.
     #[clap(long, default_value = "detect", possible_values = &["detect", "slurm", "pbs", "none"])]
@@ -174,7 +174,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         .map(|cpus| parse_cpu_definition(&cpus))
         .unwrap_or_else(detect_resource)?;
 
-    let heartbeat_interval = Duration::from_millis(opts.heartbeat as u64);
+    let heartbeat_interval = opts.heartbeat.into_duration();
 
     let (work_dir, log_dir) = {
         let tmpdir = TempDir::new("hq-worker").unwrap().into_path();
