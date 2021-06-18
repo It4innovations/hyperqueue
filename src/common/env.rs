@@ -1,6 +1,6 @@
 use bstr::BString;
 
-const HQ_ENV_PREFIX: &'static str = "HQ_";
+const HQ_ENV_PREFIX: &str = "HQ_";
 
 pub fn create_hq_env(name: &str) -> BString {
     format!("{}{}", HQ_ENV_PREFIX, name).into()
