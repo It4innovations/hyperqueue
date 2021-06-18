@@ -104,7 +104,7 @@ def test_worker_list_resources(hq_env: HqEnv):
 
 def test_idle_timeout(hq_env: HqEnv):
     hq_env.start_server(args=["--idle-timeout", "1s"])
-    w = hq_env.start_worker(args=["--heartbeat", "500"])
+    w = hq_env.start_worker(args=["--heartbeat", "500ms"])
     time.sleep(0.5)
     hq_env.command(["submit", "--", "sleep", "1"])
     time.sleep(1.0)
