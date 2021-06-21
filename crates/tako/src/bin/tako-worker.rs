@@ -116,6 +116,7 @@ async fn main() -> tako::Result<()> {
         work_dir,
         log_dir,
         heartbeat_interval,
+        idle_timeout: None,
         extra: Default::default(),
     };
 

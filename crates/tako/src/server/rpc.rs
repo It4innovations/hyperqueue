@@ -108,6 +108,13 @@ async fn worker_rpc_loop<
     // Sanity that interval is not too small
     assert!(heartbeat_interval.as_millis() > 150);
 
+    let mut configuration = msg.configuration;
+    // Update idle_timeout configuration from server default
+    if configuration.idle_timeout.is_none() {
+        configuration.idle_timeout = core_ref.get().idle_timeout().clone();
+    }
+    let idle_timeout = configuration.idle_timeout.clone();
+
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
 
     let message = WorkerRegistrationResponse {
@@ -119,7 +126,7 @@ async fn worker_rpc_loop<
         .send(serialize(&message).unwrap().into())
         .unwrap();
 
-    let worker = Worker::new(worker_id, msg.configuration);
+    let worker = Worker::new(worker_id, configuration);
 
     on_new_worker(&mut core_ref.get_mut(), &mut *comm_ref.get_mut(), worker);
     comm_ref.get_mut().add_worker(worker_id, queue_sender);
@@ -128,10 +135,9 @@ async fn worker_rpc_loop<
 
     let periodic_check = async move {
         let mut interval = {
-            let core = core_ref.get();
             tokio::time::interval(
                 heartbeat_interval
-                    .min(core.idle_timeout().unwrap_or(heartbeat_interval))
+                    .min(idle_timeout.unwrap_or(heartbeat_interval))
                     // Sanity check that interval is not too short
                     .max(Duration::from_millis(500)),
             )
@@ -140,11 +146,10 @@ async fn worker_rpc_loop<
             interval.tick().await;
             let now = Instant::now();
             let mut core = core_ref.get_mut();
-            let idle_timeout = core.idle_timeout().clone();
             let mut worker = core.get_worker_mut_by_id_or_panic(worker_id);
             let elapsed = now - worker.last_heartbeat;
 
-            if let Some(timeout) = idle_timeout {
+            if let Some(timeout) = worker.configuration.idle_timeout {
                 if worker.tasks().is_empty() {
                     let elapsed = now - worker.last_occupied;
                     if elapsed > timeout {
