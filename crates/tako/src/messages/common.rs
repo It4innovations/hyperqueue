@@ -79,6 +79,7 @@ pub struct WorkerConfiguration {
     pub work_dir: PathBuf,
     pub log_dir: PathBuf,
     pub heartbeat_interval: Duration,
+    pub idle_timeout: Option<Duration>,
 
     pub extra: Map<String, String>,
 }
