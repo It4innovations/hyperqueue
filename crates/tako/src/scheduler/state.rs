@@ -432,7 +432,10 @@ pub mod tests {
     pub(crate) fn create_test_scheduler() -> SchedulerState {
         SchedulerState {
             dirty_tasks: Default::default(),
-            random: SmallRng::from_seed([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            random: SmallRng::from_seed([
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0,
+            ]),
         }
     }
 
