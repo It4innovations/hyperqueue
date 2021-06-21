@@ -32,6 +32,14 @@ pub fn print_worker_configuration(
                 .cell(),
         ],
         vec![
+            "Idle timeout".cell().bold(true),
+            configuration
+                .idle_timeout
+                .map(|x| format_duration(x).to_string())
+                .unwrap_or("None".to_string())
+                .cell(),
+        ],
+        vec![
             "Resources".cell().bold(true),
             configuration.resources.summary().cell(),
         ],

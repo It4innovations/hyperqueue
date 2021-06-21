@@ -56,6 +56,9 @@ pub struct WorkerStartOpts {
     #[clap(long, default_value = "8s")]
     heartbeat: ArgDuration,
 
+    #[clap(long)]
+    idle_timeout: Option<ArgDuration>,
+
     /// What HPC job manager should be used by the worker.
     #[clap(long, default_value = "detect", possible_values = &["detect", "slurm", "pbs", "none"])]
     manager: ManagerOpts,
@@ -174,8 +177,6 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         .map(|cpus| parse_cpu_definition(&cpus))
         .unwrap_or_else(detect_resource)?;
 
-    let heartbeat_interval = opts.heartbeat.into_duration();
-
     let (work_dir, log_dir) = {
         let tmpdir = TempDir::new("hq-worker").unwrap().into_path();
         (tmpdir.join("work"), tmpdir.join("logs"))
@@ -189,7 +190,8 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         hostname,
         work_dir,
         log_dir,
-        heartbeat_interval,
+        heartbeat_interval: opts.heartbeat.into_duration(),
+        idle_timeout: opts.idle_timeout.map(|x| x.into_duration()),
         extra,
     })
 }

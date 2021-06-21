@@ -102,9 +102,24 @@ def test_worker_list_resources(hq_env: HqEnv):
     assert table[2][3] == "4x5 cpus"
 
 
-def test_idle_timeout(hq_env: HqEnv):
+def test_idle_timeout_server_cfg(hq_env: HqEnv):
     hq_env.start_server(args=["--idle-timeout", "1s"])
     w = hq_env.start_worker(args=["--heartbeat", "500ms"])
+    time.sleep(0.5)
+    hq_env.command(["submit", "--", "sleep", "1"])
+    time.sleep(1.0)
+    table = hq_env.command(["worker", "list"], as_table=True)
+    assert table[1][1] == "RUNNING"
+
+    time.sleep(1.5)
+    hq_env.check_process_exited(w, expected_code=None)
+    table = hq_env.command(["worker", "list"], as_table=True)
+    assert table[1][1] == "IDLE TIMEOUT"
+
+
+def test_idle_timeout_worker_cfg(hq_env: HqEnv):
+    hq_env.start_server()
+    w = hq_env.start_worker(args=["--heartbeat", "500ms", "--idle-timeout", "1s"])
     time.sleep(0.5)
     hq_env.command(["submit", "--", "sleep", "1"])
     time.sleep(1.0)
