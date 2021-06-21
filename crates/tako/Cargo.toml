@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3"
-tokio = { version= "1.4", features = ["full"] }
+tokio = { version= "1.7", features = ["full"] }
 tokio-util = { version = "0.6", features = ["codec"] }
 bytes = "1.0"
 byteorder = "1.4"
@@ -20,7 +20,7 @@ serde_bytes = "0.11"
 serde-tuple-vec-map = "1"
 serde_json = "1.0"
 thiserror = "1"
-rand = { version = "0.7", features = ["small_rng"] }
+rand = { version = "0.8", features = ["small_rng"] }
 jemallocator = "0.3.2"
 hashbrown = { version = "0.11", features = ["serde"] }
 ctrlc = "3"

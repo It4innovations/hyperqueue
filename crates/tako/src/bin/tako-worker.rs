@@ -43,10 +43,13 @@ struct Opts {
 
 fn create_local_directory(prefix: PathBuf) -> Result<PathBuf, std::io::Error> {
     let mut work_dir = prefix;
-    let rnd_string: String = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(5)
-        .collect();
+    let rnd_string: String = String::from_utf8(
+        rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(5)
+            .collect::<Vec<u8>>(),
+    )
+    .unwrap();
     work_dir.push(format!("rsds-{}", rnd_string));
     fs::create_dir_all(&work_dir)?;
     Ok(work_dir)
