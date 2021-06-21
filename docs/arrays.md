@@ -53,7 +53,8 @@ A global job state for summary outputs is derived as following (when a rule is m
 
 By default, when a task fails the computation of job continues.
 
-TODO - fail policy
+You can change it by ``--max-fails=X`` where ``X`` is non-negative integer.
+If more tasks then ``X`` fails, then the rest of non-finished tasks are canceled.
 
 ## Job canceling
 

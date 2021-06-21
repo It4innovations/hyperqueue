@@ -133,7 +133,7 @@ class HqEnv(Env):
             time.sleep(0.2)
 
     def start_worker(
-        self, *, cpus=None, env=None, args=None, sleep=True
+        self, *, cpus="1", env=None, args=None, sleep=True
     ) -> subprocess.Popen:
         self.id_counter += 1
         worker_id = self.id_counter
