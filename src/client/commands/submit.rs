@@ -55,6 +55,21 @@ impl FromStr for ArgEnvironmentVar {
     }
 }
 
+/// Represents a filepath. If "none" is passed to it, it will behave as if no path is needed.
+struct OptionalPath(Option<PathBuf>);
+
+impl FromStr for OptionalPath {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let path = match s {
+            "none" => None,
+            _ => Some(s.into()),
+        };
+        Ok(OptionalPath(path))
+    }
+}
+
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 pub struct SubmitOpts {
@@ -73,17 +88,20 @@ pub struct SubmitOpts {
     #[clap(long)]
     pin: bool,
 
-    //Working dir for the submitted job, defaults to the current dir
-    #[clap(long)]
-    cwd: Option<PathBuf>,
+    /// Working directory for the submitted job
+    /// The path must be accessible from a worker node
+    #[clap(long, default_value("./"))]
+    cwd: PathBuf,
 
     /// Path where the standard output of the job will be stored
-    #[clap(long)]
-    stdout: Option<String>,
+    /// The path must be accessible from a worker node
+    #[clap(long, default_value("stdout.%{JOB_ID}.%{TASK_ID}"))]
+    stdout: OptionalPath,
 
     /// Path where the standard error of the job will be stored
-    #[clap(long)]
-    stderr: Option<String>,
+    /// The path must be accessible from a worker node
+    #[clap(long, default_value("stderr.%{JOB_ID}.%{TASK_ID}"))]
+    stderr: OptionalPath,
 
     /// Specify additional environment variable for the job
     /// You can pass this flag multiple times to pass multiple variables
@@ -149,7 +167,7 @@ pub async fn submit_computation(
         .collect();
     args.insert(0, opts.command.into());
 
-    let submit_cwd = opts.cwd.unwrap_or_else(|| std::env::current_dir().unwrap());
+    let submit_cwd = opts.cwd;
     if !fs::metadata(&submit_cwd)
         .map(|m| m.is_dir())
         .unwrap_or(false)
@@ -160,29 +178,8 @@ pub async fn submit_computation(
         )
     }
 
-    let stdout = if opts.stdout.as_deref() == Some("none") {
-        None
-    } else {
-        Some(
-            submit_cwd.join(
-                opts.stdout
-                    .as_deref()
-                    .unwrap_or("stdout.%{JOB_ID}.%{TASK_ID}"),
-            ),
-        )
-    };
-
-    let stderr = if opts.stderr.as_deref() == Some("none") {
-        None
-    } else {
-        Some(
-            submit_cwd.join(
-                opts.stderr
-                    .as_deref()
-                    .unwrap_or("stderr.%{JOB_ID}.%{TASK_ID}"),
-            ),
-        )
-    };
+    let stdout = opts.stdout.0;
+    let stderr = opts.stderr.0;
 
     let env_count = opts.env.len();
     let env: HashMap<_, _> = opts
