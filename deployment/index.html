@@ -95,6 +95,8 @@
     </li>
         </ul>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#idle-timeout">Idle timeout</a>
+    </li>
     </ul>
                     </li>
                 </ul>
@@ -171,6 +173,14 @@ all commands need to use the <code>--server-dir</code> settings.</p>
 <p><code>sbatch &lt;qsub-settings&gt; -- hq worker start</code></p>
 <h2 id="list-of-workers">List of workers<a class="headerlink" href="#list-of-workers" title="Permanent link">#</a></h2>
 <p><code>hq worker list</code></p>
+<p>State of workers:</p>
+<ul>
+<li><strong>Running</strong> - Worker is running and is able to process tasks</li>
+<li><strong>Connection lost</strong> - Worker closes connection. Probably someone manually killed the worker or wall time in PBS/SLURM job was reached</li>
+<li><strong>Heartbeat lost</strong> - Communication between server and worker was interrputed. It usually means a network problem or an hardware crash of the computational node</li>
+<li><strong>Stopped</strong> - Worker was stopped by <code>hq worker stop ...</code></li>
+<li><strong>Idle timeout</strong> - Idle timeout is enabled on server and worker did not received any task for more then the limit.</li>
+</ul>
 <h2 id="stopping-worker">Stopping worker<a class="headerlink" href="#stopping-worker" title="Permanent link">#</a></h2>
 <p><code>hq worker stop &lt;id&gt;</code></p>
 <h2 id="cpus-configuration">CPUs configuration<a class="headerlink" href="#cpus-configuration" title="Permanent link">#</a></h2>
@@ -190,6 +200,10 @@ a worker without actually starting it, you can start <code>$ hq worker hwdetect<
   <code>$ hq worker --cpus=2x12</code></p>
 </li>
 </ul>
+<h2 id="idle-timeout">Idle timeout<a class="headerlink" href="#idle-timeout" title="Permanent link">#</a></h2>
+<p>Idle timeout allows to automatically stop a worker when no tasks are given to the worker for a specified time.</p>
+<p>When a worker is started, an idle timeout may be configurated via <code>--idle-timeout=&lt;TIMEOUT&gt;</code> for <code>hq worker start</code> where <code>TIMEOUT</code> is a string like <code>"2min 30s"</code>. (All possible formats are documented at https://docs.rs/humantime/2.1.0/humantime/fn.parse_duration.html).</p>
+<p>Idle timeout can be also configured for all workers at once by <code>hq server start --idle-timeout=&lt;TIMEOUT&gt;</code>. This value is then used for each worker that does not explicitly specifies its own timeout.</p>
               
             </div>
           </div>
