@@ -1,11 +1,13 @@
 use std::collections::BTreeMap;
 
 use tako::messages::gateway::{
-    LostWorkerMessage, LostWorkerReason, NewWorkerMessage, TaskFailedMessage, TaskState, TaskUpdate,
+    CancelTasks, FromGatewayMessage, LostWorkerMessage, LostWorkerReason, NewWorkerMessage,
+    TaskFailedMessage, TaskState, TaskUpdate, ToGatewayMessage,
 };
 
 use crate::common::WrappedRcRefCell;
-use crate::server::job::{Job, JobTaskState};
+use crate::server::job::Job;
+use crate::server::rpc::TakoServer;
 use crate::server::worker::Worker;
 use crate::transfer::messages::LostWorkerReasonInfo;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
@@ -39,6 +41,39 @@ pub type StateRef = WrappedRcRefCell<State>;
 
         })
 }*/
+
+fn cancel_tasks_from_callback(
+    state_ref: &StateRef,
+    tako_ref: &TakoServer,
+    job_id: JobId,
+    tasks: Vec<TakoTaskId>,
+) {
+    if tasks.is_empty() {
+        return;
+    }
+    let tako_ref = tako_ref.clone();
+    let state_ref = state_ref.clone();
+    tokio::task::spawn_local(async move {
+        let message = FromGatewayMessage::CancelTasks(CancelTasks { tasks });
+        let response = tako_ref.send_message(message).await.unwrap();
+
+        match response {
+            ToGatewayMessage::CancelTasksResponse(msg) => {
+                let mut state = state_ref.get_mut();
+                let job = state.get_job_mut(job_id).unwrap();
+                for tako_id in msg.cancelled_tasks {
+                    job.set_cancel_state(tako_id);
+                }
+            }
+            ToGatewayMessage::Error(msg) => {
+                log::debug!("Canceling job {} failed: {}", job_id, msg.message);
+            }
+            _ => {
+                panic!("Invalid message");
+            }
+        };
+    });
+}
 
 impl State {
     pub fn get_job(&self, job_id: JobId) -> Option<&Job> {
@@ -108,22 +143,22 @@ impl State {
         self.workers.get_mut(&worker_id)
     }
 
-    pub fn process_task_failed(&mut self, msg: TaskFailedMessage) {
+    pub fn process_task_failed(
+        &mut self,
+        state_ref: &StateRef,
+        tako_ref: &TakoServer,
+        msg: TaskFailedMessage,
+    ) {
         log::debug!("Task id={} failed", msg.id);
 
         let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
+        job.set_failed_state(msg.id, msg.info.message);
 
-        if job.counters.n_failed_tasks >= job.max_fails {
-            let sub_task = job.make_job_detail(true);
-            for x in sub_task.tasks.iter() {
-                let (_, state) = job.get_task_state_mut(x.task_id.into());
-                if matches!(state, JobTaskState::Running) || matches!(state, JobTaskState::Waiting)
-                {
-                    job.set_cancel_state(x.task_id.into());
-                }
+        if let Some(max_fails) = job.max_fails {
+            if job.counters.n_failed_tasks > max_fails {
+                let task_ids = job.non_finished_task_ids();
+                cancel_tasks_from_callback(state_ref, tako_ref, job.job_id, task_ids);
             }
-        } else {
-            job.set_failed_state(msg.id, msg.info.message);
         }
     }
 
@@ -205,6 +240,7 @@ mod tests {
             dummy_program_definition(),
             ResourceRequest::default(),
             false,
+            None,
         ));
         state.add_job(Job::new(
             JobType::Array(ArrayDef::simple_range(0, 15)),
@@ -214,6 +250,7 @@ mod tests {
             dummy_program_definition(),
             ResourceRequest::default(),
             false,
+            None,
         ));
         state.add_job(Job::new(
             JobType::Simple,
@@ -223,6 +260,7 @@ mod tests {
             dummy_program_definition(),
             ResourceRequest::default(),
             false,
+            None,
         ));
         state.add_job(Job::new(
             JobType::Simple,
@@ -232,6 +270,7 @@ mod tests {
             dummy_program_definition(),
             ResourceRequest::default(),
             false,
+            None,
         ));
         state.add_job(Job::new(
             JobType::Simple,
@@ -241,6 +280,7 @@ mod tests {
             dummy_program_definition(),
             ResourceRequest::default(),
             false,
+            None,
         ));
 
         assert!(state.get_job_mut_by_tako_task_id(99).is_none());

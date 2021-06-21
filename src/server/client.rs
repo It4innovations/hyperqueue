@@ -11,7 +11,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Notify;
 
 use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
-use crate::server::job::{Job, JobTaskState};
+use crate::server::job::Job;
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
@@ -154,22 +154,13 @@ async fn handle_job_cancel(
     tako_ref: &TakoServer,
     job_id: JobId,
 ) -> ToClientMessage {
-    let mut tako_task_ids = Vec::new();
+    let tako_task_ids;
     {
         let state = state_ref.get_mut();
         let n_tasks = match state.get_job(job_id) {
             None => return ToClientMessage::CancelJobResponse(CancelJobResponse::InvalidJob),
             Some(job) => {
-                for (tako_id, _task_id, state) in job.iter_task_states() {
-                    match state {
-                        JobTaskState::Waiting | JobTaskState::Running => {
-                            tako_task_ids.push(tako_id)
-                        }
-                        JobTaskState::Finished
-                        | JobTaskState::Failed(_)
-                        | JobTaskState::Canceled => { /* Do nothing */ }
-                    }
-                }
+                tako_task_ids = job.non_finished_task_ids();
                 job.n_tasks()
             }
         };

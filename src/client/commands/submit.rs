@@ -17,7 +17,6 @@ use crate::common::arraydef::ArrayDef;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, JobType, SubmitRequest, ToClientMessage};
 use crate::{rpc_call, JobTaskCount};
-use tako::TaskId;
 
 struct ArgCpuRequest(CpuRequest);
 
@@ -126,8 +125,8 @@ pub struct SubmitOpts {
     /// `--array=3-5` - create task array with three jobs with task IDs 3, 4, 5
     array: Option<ArrayDef>,
 
-    #[clap(long, requires = "array")]
-    max_fails: Option<TaskId>,
+    #[clap(long)]
+    max_fails: Option<JobTaskCount>,
 }
 
 impl SubmitOpts {

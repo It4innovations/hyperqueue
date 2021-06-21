@@ -46,7 +46,7 @@ impl JobTaskCounters {
 pub struct Job {
     pub job_id: JobId,
     pub base_task_id: TakoTaskId,
-    pub max_fails: Option<TakoTaskId>,
+    pub max_fails: Option<JobTaskCount>,
     pub counters: JobTaskCounters,
 
     pub state: JobState,
@@ -68,7 +68,7 @@ impl Job {
         program_def: ProgramDefinition,
         resources: ResourceRequest,
         pin: bool,
-        max_fails: Option<TakoTaskId>,
+        max_fails: Option<JobTaskCount>,
     ) -> Self {
         let state = match &job_type {
             JobType::Simple => JobState::SingleTask(JobTaskState::Waiting),
@@ -179,6 +179,18 @@ impl Job {
         }
     }
 
+    pub fn non_finished_task_ids(&self) -> Vec<TakoTaskId> {
+        let mut result = Vec::new();
+        for (tako_id, _task_id, state) in self.iter_task_states() {
+            match state {
+                JobTaskState::Waiting | JobTaskState::Running => result.push(tako_id),
+                JobTaskState::Finished | JobTaskState::Failed(_) | JobTaskState::Canceled => { /* Do nothing */
+                }
+            }
+        }
+        result
+    }
+
     /*pub fn iter_task_states_mut(&mut self) -> Box<dyn Iterator<Item=(TakoTaskId, &mut JobTaskState)>>
     {
         match &mut self.state {
@@ -232,6 +244,7 @@ impl Job {
         if let JobTaskState::Running = old_state {
             self.counters.n_running_tasks -= 1;
         }
+        self.counters.n_canceled_tasks += 1;
         task_id
         //assert!(matches!(
         //    old_state,

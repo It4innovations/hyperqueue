@@ -327,3 +327,60 @@ def test_set_env(hq_env: HqEnv):
     table = hq_env.command(["job", "1"], as_table=True)
     assert table[8][0] == "Environment"
     assert table[8][1] == "FOO=BAR\nFOO2=BAR2"
+
+
+def test_max_fails_0(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit",
+                    "--array", "1-200",
+                    "--stdout", "none",
+                    "--stderr", "none",
+                    "--max-fails", "0",
+                    "--",
+                    "bash", "-c", "if [ $HQ_TASK_ID == 137 ]; then exit 1; fi"])
+    hq_env.start_workers(1)
+
+    wait_for_job_state(hq_env, 1, "CANCELED")
+
+    table = hq_env.command(["job", "1"], as_table=True)
+    assert table[3][1] == "FAILED (1)"
+    assert table[4][1].startswith("FINISHED")
+    assert table[5][1].startswith("CANCELED")
+
+
+def test_max_fails_1(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit",
+                    "--array", "1-200",
+                    "--stdout", "none",
+                    "--stderr", "none",
+                    "--max-fails", "1",
+                    "--",
+                    "bash", "-c", "if [ $HQ_TASK_ID == 137 ]; then exit 1; fi"])
+    hq_env.start_workers(1)
+
+    wait_for_job_state(hq_env, 1, "FAILED")
+
+    table = hq_env.command(["job", "1"], as_table=True)
+    assert table[3][1] == "FAILED (1)"
+    assert table[4][1] == "FINISHED (199)"
+
+
+def test_max_fails_many(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit",
+                    "--array", "1-10",
+                    "--stdout", "none",
+                    "--stderr", "none",
+                    "--max-fails", "3",
+                    "--",
+                    "bash", "-c", "sleep 1; exit 1"])
+    hq_env.start_workers(1)
+
+    time.sleep(5)
+    wait_for_job_state(hq_env, 1, "CANCELED")
+
+    table = hq_env.command(["job", "1"], as_table=True)
+    print(table)
+    assert table[3][1] == "FAILED (4)"
+    assert table[4][1] == "CANCELED (6)"

@@ -78,7 +78,9 @@ impl TakoServer {
                             state_ref.get_mut().process_task_update(msg)
                         }
                         ToGatewayMessage::TaskFailed(msg) => {
-                            state_ref.get_mut().process_task_failed(msg)
+                            state_ref
+                                .get_mut()
+                                .process_task_failed(&state_ref, &server2, msg);
                         }
                         ToGatewayMessage::NewWorker(msg) => {
                             state_ref.get_mut().process_worker_new(msg)
