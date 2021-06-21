@@ -17,7 +17,7 @@ panic = "abort"
 log = "0.4"
 env_logger = "0.8"
 futures = "0.3"
-tokio = { version = "1.4", features = ["full"] }
+tokio = { version = "1.7", features = ["full"] }
 tokio-util = { version = "0.6", features = ["codec"] }
 clap = "3.0.0-beta.2"
 ctrlc = "3"
@@ -45,6 +45,6 @@ tempdir = "0.3.7"
 humantime = "2.1.0"
 num_cpus = "1.13.0"
 bincode = "1.3.3"
-nom = "6"
+nom = "6.2"
 bstr = { version = "0.2", features = ["serde1"] }
 colored = "2"
