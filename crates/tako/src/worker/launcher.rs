@@ -88,6 +88,10 @@ pub fn launch_program_from_task(
 ) -> oneshot::Sender<()> {
     let (sender, receiver) = oneshot::channel();
     tokio::task::spawn_local(async move {
+        if task_ref.get().is_removed() {
+            // Task was canceled in between start of the task and this spawn_local
+            return;
+        }
         log::debug!(
             "Starting program launcher {} {:?} {:?}",
             task_ref.get().id,

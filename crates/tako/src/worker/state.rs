@@ -281,6 +281,7 @@ impl WorkerState {
                 }*/
             }
             TaskState::Running(mut env, allocation) => {
+                log::debug!("Removing running task id={}", task.id);
                 if !just_finished {
                     env.cancel_task();
                 }
