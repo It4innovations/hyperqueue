@@ -34,6 +34,7 @@ fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Com
     command.args(definition.args[1..].iter().map(|x| x.to_os_str_lossy()));
 
     if let Some(cwd) = &definition.cwd {
+        std::fs::create_dir_all(cwd).expect("Could not create working directory");
         command.current_dir(cwd);
     }
 
