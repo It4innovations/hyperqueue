@@ -1,8 +1,8 @@
 import time
-from typing import Optional
+from socket import gethostname
 
 from .conftest import HqEnv
-from .utils import wait_for_worker_state, wait_until
+from .utils import wait_for_worker_state
 
 
 def test_worker_list(hq_env: HqEnv):
@@ -141,3 +141,11 @@ def test_worker_info(hq_env: HqEnv):
     assert table[5] == ["Heartbeat", "10s"]
     assert table[7] == ["Resources", "1x10 cpus"]
     assert table[8] == ["Manager", "None"]
+
+
+def test_worker_address(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    output = hq_env.command(["worker", "address", "1"]).strip()
+    assert output == gethostname()

@@ -119,6 +119,12 @@ struct WorkerListOpts {
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
+struct WorkerAddressOpts {
+    worker_id: WorkerId,
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
 struct WorkerOpts {
     #[clap(subcommand)]
     subcmd: WorkerCommand,
@@ -142,6 +148,8 @@ enum WorkerCommand {
     Hwdetect,
     /// Display info about worker
     Info(WorkerInfoOpts),
+    /// Print worker's hostname
+    Address(WorkerAddressOpts),
 }
 
 // Job CLI options
@@ -304,6 +312,21 @@ fn command_worker_hwdetect() -> anyhow::Result<()> {
     Ok(())
 }
 
+async fn command_worker_address(
+    gsettings: GlobalSettings,
+    opts: WorkerAddressOpts,
+) -> anyhow::Result<()> {
+    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    let response = get_worker_info(&mut connection, opts.worker_id).await?;
+
+    match response {
+        Some(info) => println!("{}", info.configuration.hostname),
+        None => anyhow::bail!("Worker {} not found", opts.worker_id),
+    }
+
+    Ok(())
+}
+
 pub enum ColorPolicy {
     Auto,
     Always,
@@ -389,6 +412,9 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Hwdetect,
         }) => command_worker_hwdetect(),
+        SubCommand::Worker(WorkerOpts {
+            subcmd: WorkerCommand::Address(opts),
+        }) => command_worker_address(gsettings, opts).await,
         SubCommand::Jobs(opts) => command_job_list(gsettings, opts).await,
         SubCommand::Job(opts) => command_job_detail(gsettings, opts).await,
         SubCommand::Submit(opts) => command_submit(gsettings, opts).await,
