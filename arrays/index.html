@@ -167,7 +167,8 @@ The number of tasks with each state can be seen by:</p>
 </ul>
 <h2 id="task-fail-in-array-job">Task fail in array job<a class="headerlink" href="#task-fail-in-array-job" title="Permanent link">#</a></h2>
 <p>By default, when a task fails the computation of job continues.</p>
-<p>TODO - fail policy</p>
+<p>You can change it by <code>--max-fails=X</code> where <code>X</code> is non-negative integer.
+If more tasks then <code>X</code> fails, then the rest of non-finished tasks are canceled.</p>
 <h2 id="job-canceling">Job canceling<a class="headerlink" href="#job-canceling" title="Permanent link">#</a></h2>
 <p>When a job with more tasks is canceled then all non-finished tasks is canceled.</p>
               
