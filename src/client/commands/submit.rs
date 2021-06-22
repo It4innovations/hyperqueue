@@ -90,7 +90,7 @@ pub struct SubmitOpts {
 
     /// Working directory for the submitted job
     /// The path must be accessible from a worker node
-    #[clap(long, default_value("./"))]
+    #[clap(long, default_value("%{SUBMIT_DIR}"))]
     cwd: PathBuf,
 
     /// Path where the standard output of the job will be stored
