@@ -1,13 +1,19 @@
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context};
+use bstr::BString;
 use clap::Clap;
+use humantime::format_rfc3339;
 use tako::messages::common::{LauncherDefinition, ProgramDefinition, WorkerConfiguration};
+use tako::worker::launcher::pin_program;
 use tako::worker::rpc::run_worker;
+use tako::worker::task::Task;
 use tempdir::TempDir;
 use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
+use crate::common::env::{HQ_CPUS, HQ_JOB_ID, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::error::error;
 use crate::common::serverdir::ServerDir;
 use crate::common::timeutils::ArgDuration;
@@ -15,8 +21,7 @@ use crate::worker::hwdetect::detect_resource;
 use crate::worker::output::print_worker_configuration;
 use crate::worker::parser::parse_cpu_definition;
 use crate::Map;
-use tako::worker::launcher::pin_program;
-use tako::worker::task::Task;
+use hashbrown::HashMap;
 
 #[derive(Clap)]
 pub enum ManagerOpts {
@@ -64,7 +69,56 @@ pub struct WorkerStartOpts {
     manager: ManagerOpts,
 }
 
-#[allow(clippy::unnecessary_wraps)]
+/// Replace placeholders in user-defined program attributes
+fn replace_placeholders(program: &mut ProgramDefinition) {
+    let date = format_rfc3339(std::time::SystemTime::now()).to_string();
+
+    let mut placeholder_map = HashMap::new();
+    placeholder_map.insert(
+        "%{JOB_ID}",
+        program.env[&BString::from(HQ_JOB_ID)].to_string(),
+    );
+    placeholder_map.insert(
+        "%{TASK_ID}",
+        program.env[&BString::from(HQ_TASK_ID)].to_string(),
+    );
+    placeholder_map.insert(
+        "%{SUBMIT_DIR}",
+        program.env[&BString::from(HQ_SUBMIT_DIR)].to_string(),
+    );
+    placeholder_map.insert("%{DATE}", date);
+
+    let replace = |replacement_map: &HashMap<&str, String>, path: &PathBuf| -> PathBuf {
+        let mut result: String = path.to_str().unwrap().into();
+        for (placeholder, replacement) in replacement_map.iter() {
+            result = result.replace(placeholder, replacement);
+        }
+        result.into()
+    };
+
+    // Replace CWD
+    program.cwd = program
+        .cwd
+        .as_ref()
+        .map(|cwd| replace(&placeholder_map, cwd))
+        .or_else(|| Some(std::env::current_dir().unwrap()));
+
+    // Replace STDOUT and STDERR
+    placeholder_map.insert(
+        "%{CWD}",
+        program.cwd.as_ref().unwrap().to_str().unwrap().to_string(),
+    );
+
+    program.stdout = program
+        .stdout
+        .as_ref()
+        .map(|path| replace(&placeholder_map, path));
+    program.stderr = program
+        .stderr
+        .as_ref()
+        .map(|path| replace(&placeholder_map, path));
+}
+
 fn launcher_setup(task: &Task, def: LauncherDefinition) -> tako::Result<ProgramDefinition> {
     let allocation = task
         .resource_allocation()
@@ -73,13 +127,15 @@ fn launcher_setup(task: &Task, def: LauncherDefinition) -> tako::Result<ProgramD
 
     if def.pin {
         pin_program(&mut program, &allocation);
-        program.env.insert("HQ_PIN".into(), "1".into());
+        program.env.insert(HQ_PIN.into(), "1".into());
     }
 
-    program.env.insert(
-        "HQ_CPUS".into(),
-        allocation.comma_delimited_cpu_ids().into(),
-    );
+    program
+        .env
+        .insert(HQ_CPUS.into(), allocation.comma_delimited_cpu_ids().into());
+
+    replace_placeholders(&mut program);
+
     Ok(program)
 }
 
@@ -194,4 +250,101 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         idle_timeout: opts.idle_timeout.map(|x| x.into_duration()),
         extra,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use hashbrown::HashMap;
+    use tako::messages::common::ProgramDefinition;
+
+    use crate::common::env::{HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
+    use crate::{JobId, JobTaskId};
+
+    use super::replace_placeholders;
+
+    #[test]
+    fn test_replace_task_id() {
+        let mut program = program_def(
+            "dir-%{TASK_ID}",
+            Some("%{TASK_ID}.out"),
+            Some("%{TASK_ID}.err"),
+            "",
+            0,
+            1,
+        );
+        replace_placeholders(&mut program);
+        assert_eq!(program.cwd, Some("dir-1".into()));
+        assert_eq!(program.stdout, Some("1.out".into()));
+        assert_eq!(program.stderr, Some("1.err".into()));
+    }
+
+    #[test]
+    fn test_replace_job_id() {
+        let mut program = program_def(
+            "dir-%{JOB_ID}-%{TASK_ID}",
+            Some("%{JOB_ID}-%{TASK_ID}.out"),
+            Some("%{JOB_ID}-%{TASK_ID}.err"),
+            "",
+            5,
+            1,
+        );
+        replace_placeholders(&mut program);
+        assert_eq!(program.cwd, Some("dir-5-1".into()));
+        assert_eq!(program.stdout, Some("5-1.out".into()));
+        assert_eq!(program.stderr, Some("5-1.err".into()));
+    }
+
+    #[test]
+    fn test_replace_submit_dir() {
+        let mut program = program_def(
+            "%{SUBMIT_DIR}",
+            Some("%{SUBMIT_DIR}/out"),
+            Some("%{SUBMIT_DIR}/err"),
+            "submit-dir",
+            5,
+            1,
+        );
+        replace_placeholders(&mut program);
+        assert_eq!(program.cwd, Some("submit-dir".into()));
+        assert_eq!(program.stdout, Some("submit-dir/out".into()));
+        assert_eq!(program.stderr, Some("submit-dir/err".into()));
+    }
+
+    #[test]
+    fn test_replace_cwd() {
+        let mut program = program_def(
+            "dir-%{JOB_ID}-%{TASK_ID}",
+            Some("%{CWD}.out"),
+            Some("%{CWD}.err"),
+            "",
+            5,
+            1,
+        );
+        replace_placeholders(&mut program);
+        assert_eq!(program.cwd, Some("dir-5-1".into()));
+        assert_eq!(program.stdout, Some("dir-5-1.out".into()));
+        assert_eq!(program.stderr, Some("dir-5-1.err".into()));
+    }
+
+    fn program_def(
+        cwd: &str,
+        stdout: Option<&str>,
+        stderr: Option<&str>,
+        submit_dir: &str,
+        job_id: JobId,
+        task_id: JobTaskId,
+    ) -> ProgramDefinition {
+        let mut env = HashMap::new();
+        env.insert(HQ_SUBMIT_DIR.into(), submit_dir.into());
+        env.insert(HQ_JOB_ID.into(), job_id.to_string().into());
+        env.insert(HQ_TASK_ID.into(), task_id.to_string().into());
+
+        ProgramDefinition {
+            args: vec![],
+            env,
+            stdout: stdout.map(|v| v.into()),
+            stderr: stderr.map(|v| v.into()),
+            cwd: Some(cwd.into()),
+        }
+    }
 }
