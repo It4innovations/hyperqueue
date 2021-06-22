@@ -39,6 +39,10 @@ impl Task {
         matches!(self.state, TaskState::Running(_, _))
     }
 
+    pub fn is_removed(&self) -> bool {
+        matches!(self.state, TaskState::Removed)
+    }
+
     pub fn resource_allocation(&self) -> Option<&ResourceAllocation> {
         match &self.state {
             TaskState::Uploading(_, _, a) | TaskState::Running(_, a) => Some(a),
