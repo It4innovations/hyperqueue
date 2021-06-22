@@ -36,7 +36,7 @@ pub fn print_worker_configuration(
             configuration
                 .idle_timeout
                 .map(|x| format_duration(x).to_string())
-                .unwrap_or("None".to_string())
+                .unwrap_or_else(|| "None".to_string())
                 .cell(),
         ],
         vec![

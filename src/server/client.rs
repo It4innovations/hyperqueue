@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -11,6 +10,7 @@ use tako::messages::gateway::{
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Notify;
 
+use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::server::job::{Job, JobTaskState};
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
@@ -216,25 +216,14 @@ fn make_program_def_for_task(
     job_id: JobId,
     task_id: JobTaskId,
 ) -> ProgramDefinition {
-    let job_id_str = job_id.to_string();
-    let task_id_str = task_id.to_string();
-
-    let make_replacement = |s: &str| {
-        s.replace("%{JOB_ID}", &job_id_str)
-            .replace("%{TASK_ID}", &task_id_str)
-    };
-
     let mut def = program_def.clone();
+    def.env.insert(HQ_JOB_ID.into(), job_id.to_string().into());
     def.env
-        .insert("HQ_JOB_ID".into(), job_id.to_string().into());
-    def.env
-        .insert("HQ_TASK_ID".into(), task_id.to_string().into());
-    def.stdout = def
-        .stdout
-        .and_then(|p| p.to_str().map(make_replacement).map(PathBuf::from));
-    def.stderr = def
-        .stderr
-        .and_then(|p| p.to_str().map(make_replacement).map(PathBuf::from));
+        .insert(HQ_TASK_ID.into(), task_id.to_string().into());
+    def.env.insert(
+        HQ_SUBMIT_DIR.into(),
+        std::env::current_dir().unwrap().to_str().unwrap().into(),
+    );
     def
 }
 
@@ -253,7 +242,7 @@ async fn handle_submit(
     let make_task = |job_id, task_id, tako_id, entry: Option<BString>| {
         let mut program = make_program_def_for_task(&spec, job_id, task_id);
         if let Some(e) = entry {
-            program.env.insert("HQ_ENTRY".into(), e);
+            program.env.insert(HQ_ENTRY.into(), e);
         }
         let launcher_def = LauncherDefinition { program, pin };
         let body = rmp_serde::to_vec_named(&launcher_def).unwrap();
