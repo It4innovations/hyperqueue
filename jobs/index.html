@@ -122,22 +122,77 @@
             <div class="section">
               
                 <h1 id="jobs">Jobs<a class="headerlink" href="#jobs" title="Permanent link">#</a></h1>
-<p>A <em>job</em> is a portion of work that can be submited into a HyperQueue.</p>
+<p>A <em>job</em> is a portion of work that can be submitted into a HyperQueue.</p>
 <p>Each job may have one or <em>tasks</em>. In the current version, a is a single execution of a program.</p>
 <p><strong>In this section, we are introducing simple jobs, where each job has exactly one tasks.</strong>
-See section about Job arrays for submiting more tasks in one job.</p>
+See section about Job arrays for submitting more tasks in one job.</p>
 <h1 id="identification-numbers">Identification numbers<a class="headerlink" href="#identification-numbers" title="Permanent link">#</a></h1>
 <p>Each job is identified by a positive integer that is assigned by HyperQueue server when the job is submitted, we refer to it as <em>job id</em>.</p>
 <p>Each task is identified by an unsigned 32b integer called <em>task id</em>. Task id can be assigned by a user and same task id may be used in two different jobs.</p>
 <p>In simple jobs, task id is set to 0.</p>
-<h2 id="submiting-jobs">Submiting jobs<a class="headerlink" href="#submiting-jobs" title="Permanent link">#</a></h2>
+<h2 id="submitting-jobs">Submitting jobs<a class="headerlink" href="#submitting-jobs" title="Permanent link">#</a></h2>
 <p><code>hq submit &lt;program&gt; &lt;args1&gt; ...</code></p>
 <p>HyperQueue assigns a unique job id when a job is submitted.</p>
 <p>When your command contains its own switches, you need to use <code>--</code> after submit:</p>
 <p><code>hq submit -- /bin/bash -c 'echo $PPID'</code></p>
-<h2 id="name-of-a-job">Name of a job<a class="headerlink" href="#name-of-a-job" title="Permanent link">#</a></h2>
-<p>Each job has assigned a name. It has only an informative character for the user. By default, the name is extracted from the job's program name. You can set a job name explicitly by:</p>
+<h3 id="name-of-a-job">Name of a job<a class="headerlink" href="#name-of-a-job" title="Permanent link">#</a></h3>
+<p>Each job has an assigned name. It has only an informative character for the user. By default, the name is extracted from
+the job's program name. You can set a job name explicitly by:</p>
 <p><code>hq submit --name=&lt;NAME&gt; ...</code></p>
+<h3 id="working-directory-of-a-job">Working directory of a job<a class="headerlink" href="#working-directory-of-a-job" title="Permanent link">#</a></h3>
+<p>You can change the working directory of a job using the <code>--cwd</code> parameter. By default it is set to the directory
+from which was the job submitted.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>You can use <a href="#placeholders">placeholders</a> in the working directory path.</p>
+</div>
+<h3 id="output-of-the-job">Output of the job<a class="headerlink" href="#output-of-the-job" title="Permanent link">#</a></h3>
+<p>By default, each job will produce two files containing the standard output and standard error output, respectively.</p>
+<p>The paths where these files will be created can be changed via the parameters <code>--stdout=&lt;path&gt;</code> and <code>--stderr=&lt;path&gt;</code>.
+You can also disable creating stdout/stderr completely by setting value <code>none</code>.</p>
+<pre><code class="language-bash">$ hq submit --stdout=none ...
+</code></pre>
+<p>The default values for these paths are <code>stdout.%{JOB_ID}.%{TASK_ID}</code> and <code>stderr.%{JOB_ID}.%{TASK_ID}</code>. You can read
+about the <code>%{JOB_ID}</code> and <code>%{TASK_ID}</code> placeholders <a href="#placeholders">below</a>.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>You can use <a href="#placeholders">placeholders</a> in the <code>stdout</code> and <code>stderr</code> paths.</p>
+</div>
+<h2 id="placeholders">Placeholders<a class="headerlink" href="#placeholders" title="Permanent link">#</a></h2>
+<p>You can use special variables in working directory, <code>stdout</code> and <code>stderr</code> paths, which will be interpolated with
+job/task-specific information before the job is executed. Placeholders are enclosed in curly braces and prepended with
+a percent sign.</p>
+<p>Currently, you can use the following placeholders:</p>
+<table>
+<thead>
+<tr>
+<th>Placeholder</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>%{JOB_ID}</code></td>
+<td>Job ID.</td>
+</tr>
+<tr>
+<td><code>%{TASK_ID}</code></td>
+<td>Task ID.</td>
+</tr>
+<tr>
+<td><code>%{SUBMIT_DIR}</code></td>
+<td>Directory from which the job was submitted.</td>
+</tr>
+<tr>
+<td><code>%{CWD}</code></td>
+<td>Working directory of the job.<br/><br/>This placeholder is only available for <code>stdout</code> and <code>stderr</code> paths.</td>
+</tr>
+<tr>
+<td><code>%{DATE}</code></td>
+<td>Current date when the job was executed in the RFC3339 format.</td>
+</tr>
+</tbody>
+</table>
 <h2 id="information-about-jobs">Information about jobs<a class="headerlink" href="#information-about-jobs" title="Permanent link">#</a></h2>
 <p>List of all jobs:</p>
 <p><code>hq jobs</code></p>
@@ -146,15 +201,6 @@ See section about Job arrays for submiting more tasks in one job.</p>
 <p>Where filters can be: <code>waiting</code>, <code>running</code>, <code>finished</code>, <code>failed</code>, or <code>canceled</code>.</p>
 <p>Detailed information about a job:</p>
 <p><code>hq job &lt;job-id&gt;</code></p>
-<h2 id="output-of-the-job">Output of the job<a class="headerlink" href="#output-of-the-job" title="Permanent link">#</a></h2>
-<p>By default, job produces two files named <code>stdout.&lt;job-id&gt;.&lt;task-id&gt;</code> and <code>stderr.&lt;job-id&gt;.&lt;task-id&gt;</code>
-that contains standard output and standard error output in the.
-The files are by default placed in the directory where the job was submitted.</p>
-<p>This can be changed via options <code>--stdout=&lt;path&gt;</code> and <code>--stderr=&lt;path&gt;</code>.
-These set paths where stdout/stderr files are created. Placeholders
-<code>%{JOB_ID}</code> and <code>%{TASK_ID}</code> in a path will be replaced to the JOB_ID/TASK_ID.</p>
-<p>You can disable creating stdout/stderr completely by setting value <code>none</code>.
-(<code>--stdout=none</code> / <code>--stderr=none</code>).</p>
 <h2 id="task-states">Task states<a class="headerlink" href="#task-states" title="Permanent link">#</a></h2>
 <pre><code>Submitted
    |
