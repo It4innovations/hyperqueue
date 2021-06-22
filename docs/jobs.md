@@ -1,12 +1,11 @@
-
 # Jobs
 
-A *job* is a portion of work that can be submited into a HyperQueue.
+A *job* is a portion of work that can be submitted into a HyperQueue.
 
 Each job may have one or *tasks*. In the current version, a is a single execution of a program.
 
 **In this section, we are introducing simple jobs, where each job has exactly one tasks.**
-See section about Job arrays for submiting more tasks in one job.
+See section about Job arrays for submitting more tasks in one job.
 
 # Identification numbers
 
@@ -17,7 +16,7 @@ Each task is identified by an unsigned 32b integer called *task id*. Task id can
 In simple jobs, task id is set to 0.
 
 
-## Submiting jobs
+## Submitting jobs
 
 ``hq submit <program> <args1> ...``
 
@@ -28,12 +27,54 @@ When your command contains its own switches, you need to use ``--`` after submit
 ``hq submit -- /bin/bash -c 'echo $PPID'``
 
 
-## Name of a job
+### Name of a job
 
-Each job has assigned a name. It has only an informative character for the user. By default, the name is extracted from the job's program name. You can set a job name explicitly by:
+Each job has an assigned name. It has only an informative character for the user. By default, the name is extracted from
+the job's program name. You can set a job name explicitly by:
 
 ``hq submit --name=<NAME> ...``
 
+### Working directory of a job
+
+You can change the working directory of a job using the ``--cwd`` parameter. By default it is set to the directory
+from which was the job submitted.
+
+!!! Hint
+
+    You can use [placeholders](#placeholders) in the working directory path.
+
+### Output of the job
+
+By default, each job will produce two files containing the standard output and standard error output, respectively.
+
+The paths where these files will be created can be changed via the parameters ``--stdout=<path>`` and ``--stderr=<path>``.
+You can also disable creating stdout/stderr completely by setting value ``none``.
+
+```bash
+$ hq submit --stdout=none ...
+```
+
+The default values for these paths are ``stdout.%{JOB_ID}.%{TASK_ID}`` and ``stderr.%{JOB_ID}.%{TASK_ID}``. You can read
+about the `%{JOB_ID}` and `%{TASK_ID}` placeholders [below](#placeholders).
+
+!!! Hint
+
+    You can use [placeholders](#placeholders) in the `stdout` and `stderr` paths.
+
+## Placeholders
+You can use special variables in working directory, `stdout` and `stderr` paths, which will be interpolated with
+job/task-specific information before the job is executed. Placeholders are enclosed in curly braces and prepended with
+a percent sign.
+
+Currently, you can use the following placeholders:
+
+| Placeholder | Value                          |
+| ----------- | ------------------------------------ |
+| `%{JOB_ID}`     | Job ID. |
+| `%{TASK_ID}`    | Task ID. |
+| `%{SUBMIT_DIR}` | Directory from which the job was submitted. |
+| `%{CWD}`        | Working directory of the job.<br/><br/>This placeholder is only available for `stdout` and `stderr` paths. |
+| `%{DATE}`       | Current date when the job was executed in the RFC3339 format. |
 
 ## Information about jobs
 
@@ -51,21 +92,6 @@ Where filters can be: ``waiting``, ``running``, ``finished``, ``failed``, or ``c
 Detailed information about a job:
 
 ``hq job <job-id>``
-
-
-## Output of the job
-
-By default, job produces two files named ``stdout.<job-id>.<task-id>`` and ``stderr.<job-id>.<task-id>``
-that contains standard output and standard error output in the.
-The files are by default placed in the directory where the job was submitted.
-
-This can be changed via options ``--stdout=<path>`` and ``--stderr=<path>``.
-These set paths where stdout/stderr files are created. Placeholders
-``%{JOB_ID}`` and ``%{TASK_ID}`` in a path will be replaced to the JOB_ID/TASK_ID.
-
-You can disable creating stdout/stderr completely by setting value ``none``.
-(``--stdout=none`` / ``--stderr=none``).
-
 
 ## Task states
 
@@ -106,8 +132,6 @@ In simple jobs, job state correspondes directly to the state of its a single tas
 A job cannot be canceled if it is already finished, failed, or canceled.
 
 
-
 ## Priorities
 
 Not released yet, **scheduled for release v0.3**
-
