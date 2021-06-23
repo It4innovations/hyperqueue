@@ -60,6 +60,9 @@ pub struct Job {
 }
 
 impl Job {
+    // Probably we need some structure for the future, but as it is called in exactly one place,
+    // I am disabling it now
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         job_type: JobType,
         job_id: JobId,

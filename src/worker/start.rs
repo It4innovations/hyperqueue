@@ -119,6 +119,7 @@ fn replace_placeholders(program: &mut ProgramDefinition) {
         .map(|path| replace(&placeholder_map, path));
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn launcher_setup(task: &Task, def: LauncherDefinition) -> tako::Result<ProgramDefinition> {
     let allocation = task
         .resource_allocation()
