@@ -415,3 +415,22 @@ def test_max_fails_many(hq_env: HqEnv):
     print(table)
     assert table[3][1] == "FAILED (4)"
     assert table[4][1] == "CANCELED (6)"
+
+
+def test_job_last(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["job", "last"])
+
+    hq_env.command(["submit", "ls"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    table = hq_env.command(["job", "last"], as_table=True)
+    assert table[0][1] == "1"
+
+    hq_env.command(["submit", "ls"])
+    wait_for_job_state(hq_env, 2, "FINISHED")
+
+    table = hq_env.command(["job", "last"], as_table=True)
+    assert table[0][1] == "2"

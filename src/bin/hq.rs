@@ -4,7 +4,9 @@ use std::str::FromStr;
 use clap::{Clap, ValueHint};
 use cli_table::ColorChoice;
 
-use hyperqueue::client::commands::jobs::{cancel_job, output_job_detail, output_job_list};
+use hyperqueue::client::commands::jobs::{
+    cancel_job, get_last_job_id, output_job_detail, output_job_list,
+};
 use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{submit_computation, SubmitOpts};
 use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, stop_worker};
@@ -150,11 +152,29 @@ struct JobListOpts {
     job_filters: Vec<Status>,
 }
 
+enum JobSpecifier {
+    Last,
+    Id(JobId),
+}
+
+impl FromStr for JobSpecifier {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "last" => Ok(JobSpecifier::Last),
+            _ => Ok(JobSpecifier::Id(FromStr::from_str(s)?)),
+        }
+    }
+}
+
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct JobDetailOpts {
-    job_id: JobId,
+    /// Numeric job id or `last` to display the most recently submitted job
+    job_specifier: JobSpecifier,
 
+    // Include task info in the output
     #[clap(long)]
     tasks: bool,
 }
@@ -197,7 +217,22 @@ async fn command_job_list(gsettings: GlobalSettings, opts: JobListOpts) -> anyho
 
 async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    output_job_detail(&gsettings, &mut connection, opts.job_id, opts.tasks)
+
+    let job_id = match opts.job_specifier {
+        JobSpecifier::Id(job_id) => job_id,
+        JobSpecifier::Last => {
+            let id = get_last_job_id(&mut connection).await?;
+            match id {
+                Some(id) => id,
+                None => {
+                    log::warn!("No jobs were found");
+                    return Ok(());
+                }
+            }
+        }
+    };
+
+    output_job_detail(&gsettings, &mut connection, job_id, opts.tasks)
         .await
         .map_err(|e| e.into())
 }
