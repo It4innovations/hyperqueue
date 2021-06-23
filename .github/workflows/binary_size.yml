@@ -16,6 +16,7 @@ jobs:
         with:
           toolchain: stable
           override: true
+      - uses: Swatinem/rust-cache@v1
       - name: Run cargo bloat
         uses: kobzol/cargo-bloat-action@master
         with:
