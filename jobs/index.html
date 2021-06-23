@@ -222,15 +222,16 @@ Running-----------------|
 Finished    Failed   Canceled
 </code></pre>
 <ul>
-<li><em>Submitted</em> - Only an informative state that a submission was successfull; it is immediately changed into "Waiting" state.</li>
-<li><em>Waiting</em> - The task is waiting for start</li>
+<li><em>Submitted</em> - Only an informative state that a submission was successful; it is only shown immediately after a submit.</li>
+<li><em>Waiting</em> - The task is waiting to be executed.</li>
 <li><em>Running</em> - The task is running in a worker. It may become "waiting" again when a worker (where the task is running) is lost.</li>
-<li><em>Finished</em> - The task was sucessfully finished.</li>
-<li><em>Failed</em> - The task failed. The error can be shown by <code>hq job &lt;job-id&gt;</code>.</li>
-<li><em>Canceled</em> -  The task was canceled by a user.</li>
+<li><em>Finished</em> - The task has successfully finished.</li>
+<li><em>Failed</em> - The task has failed. The error can be shown by <code>hq job &lt;job-id&gt;</code>.</li>
+<li><em>Canceled</em> -  The task has been canceled by a user.</li>
 </ul>
 <h2 id="job-states">Job states<a class="headerlink" href="#job-states" title="Permanent link">#</a></h2>
-<p>In simple jobs, job state correspondes directly to the state of its a single task. In case of task arrays, see the chapter about task arrays.</p>
+<p>In simple jobs, job state corresponds directly to the state of its single task. In the case of task arrays, see the chapter
+about <a href="../arrays/">task arrays</a>.</p>
 <h2 id="canceling-jobs">Canceling jobs<a class="headerlink" href="#canceling-jobs" title="Permanent link">#</a></h2>
 <p><code>hq cancel &lt;job-id&gt;</code></p>
 <p>A job cannot be canceled if it is already finished, failed, or canceled.</p>
