@@ -16,8 +16,8 @@ use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
-    CancelJobResponse, FromClientMessage, JobInfoResponse, JobType, SubmitRequest, SubmitResponse,
-    ToClientMessage, WorkerListResponse,
+    CancelJobResponse, FromClientMessage, JobInfoResponse, JobSelector, JobType, SubmitRequest,
+    SubmitResponse, ToClientMessage, WorkerListResponse,
 };
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 use bstr::BString;
@@ -75,7 +75,7 @@ pub async fn client_rpc_loop<
                     FromClientMessage::Submit(msg) => {
                         handle_submit(&state_ref, &tako_ref, msg).await
                     }
-                    FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, msg.job_ids),
+                    FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, msg.selector),
                     FromClientMessage::Stop => {
                         end_flag.notify_one();
                         break;
@@ -133,20 +133,25 @@ fn compute_job_detail(state_ref: &StateRef, job_id: JobId, include_tasks: bool) 
     )
 }
 
-fn compute_job_info(state_ref: &StateRef, job_ids: Option<Vec<JobId>>) -> ToClientMessage {
+fn compute_job_info(state_ref: &StateRef, selector: JobSelector) -> ToClientMessage {
     let state = state_ref.get();
-    if let Some(job_ids) = job_ids {
-        ToClientMessage::JobInfoResponse(JobInfoResponse {
-            jobs: job_ids
-                .into_iter()
-                .filter_map(|job_id| state.get_job(job_id).map(|j| j.make_job_info()))
-                .collect(),
-        })
-    } else {
-        ToClientMessage::JobInfoResponse(JobInfoResponse {
-            jobs: state.jobs().map(|j| j.make_job_info()).collect(),
-        })
-    }
+
+    let jobs: Vec<_> = match selector {
+        JobSelector::All => state.jobs().map(|j| j.make_job_info()).collect(),
+        JobSelector::LastN(n) => {
+            let jobs = state.jobs();
+            let length = jobs.len();
+            jobs.skip(length.saturating_sub(n))
+                .map(|j| j.make_job_info())
+                .collect()
+        }
+        JobSelector::Specific(ids) => ids
+            .into_iter()
+            .filter_map(|id| state.get_job(id))
+            .map(|j| j.make_job_info())
+            .collect(),
+    };
+    ToClientMessage::JobInfoResponse(JobInfoResponse { jobs })
 }
 
 async fn handle_job_cancel(

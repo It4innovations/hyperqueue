@@ -4,16 +4,27 @@ use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
     CancelJobResponse, CancelRequest, FromClientMessage, JobDetailRequest, JobInfoRequest,
-    ToClientMessage,
+    JobSelector, ToClientMessage,
 };
 use crate::JobId;
+
+pub async fn get_last_job_id(connection: &mut ClientConnection) -> crate::Result<Option<JobId>> {
+    let message = FromClientMessage::JobInfo(JobInfoRequest {
+        selector: JobSelector::LastN(1),
+    });
+    let response = rpc_call!(connection, message, ToClientMessage::JobInfoResponse(r) => r).await?;
+
+    Ok(response.jobs.last().map(|job| job.id))
+}
 
 pub async fn output_job_list(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
     job_filters: Vec<Status>,
 ) -> crate::Result<()> {
-    let message = FromClientMessage::JobInfo(JobInfoRequest { job_ids: None });
+    let message = FromClientMessage::JobInfo(JobInfoRequest {
+        selector: JobSelector::All,
+    });
     let mut response =
         rpc_call!(connection, message, ToClientMessage::JobInfoResponse(r) => r).await?;
 

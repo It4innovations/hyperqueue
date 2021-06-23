@@ -32,9 +32,15 @@ pub struct CancelRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub enum JobSelector {
+    All,
+    LastN(usize),
+    Specific(Vec<JobId>),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JobInfoRequest {
-    // If None then all jobs are turned
-    pub job_ids: Option<Vec<JobId>>,
+    pub selector: JobSelector,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
