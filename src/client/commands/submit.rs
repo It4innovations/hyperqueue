@@ -169,17 +169,7 @@ pub async fn submit_computation(
         .collect();
     args.insert(0, opts.command.into());
 
-    let submit_cwd = opts.cwd;
-    if !fs::metadata(&submit_cwd)
-        .map(|m| m.is_dir())
-        .unwrap_or(false)
-    {
-        log::warn!(
-            "{:?} is not a valid directory on the current node",
-            submit_cwd
-        )
-    }
-
+    let cwd = Some(opts.cwd);
     let stdout = opts.stdout.0;
     let stderr = opts.stderr.0;
 
@@ -204,7 +194,7 @@ pub async fn submit_computation(
             env,
             stdout,
             stderr,
-            cwd: Some(submit_cwd),
+            cwd,
         },
         resources,
         pin: opts.pin,
