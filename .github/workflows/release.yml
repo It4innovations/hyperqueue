@@ -60,6 +60,9 @@ jobs:
           echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> $GITHUB_ENV
           tar -czvf $ARCHIVE_NAME -C target/release hq
 
+      - name: Generate changelog
+        run: /opt/python/cp38-cp38/bin/python scripts/extract_changelog.py ${{ env.INPUT_TAG }} > generated-changelog.md
+
       - name: Create release
         id: create_release
         uses: actions/create-release@v1
@@ -68,7 +71,7 @@ jobs:
         with:
           tag_name: ${{ env.INPUT_TAG }}
           release_name: ${{ env.INPUT_TAG }}
-          body: HQ ${{ env.INPUT_TAG }}
+          body_path: generated-changelog.md
           commitish: ${{ env.INPUT_SHA }}
           draft: false
           prerelease: false
