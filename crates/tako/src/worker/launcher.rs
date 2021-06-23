@@ -10,6 +10,7 @@ use crate::messages::common::{LauncherDefinition, ProgramDefinition, TaskFailInf
 use crate::worker::state::WorkerStateRef;
 use crate::worker::task::{Task, TaskRef};
 use bstr::ByteSlice;
+use std::path::PathBuf;
 
 pub type LauncherSetup = Box<dyn Fn(&Task, LauncherDefinition) -> crate::Result<ProgramDefinition>>;
 
@@ -19,6 +20,25 @@ pub fn pin_program(program: &mut ProgramDefinition, allocation: &ResourceAllocat
     program
         .args
         .insert(2, allocation.comma_delimited_cpu_ids().into());
+}
+
+/// Create an output stream file on the given path.
+/// If the path is relative and `cwd` is specified, the file will be created relative to `cwd`.
+fn create_output_stream(path: Option<&PathBuf>, cwd: Option<&PathBuf>) -> crate::Result<Stdio> {
+    let stdio = match path {
+        Some(path) => {
+            let stream_path = match cwd {
+                Some(cwd) => cwd.join(path),
+                None => path.clone()
+            };
+
+            let file = File::create(stream_path)
+                .map_err(|e| format!("Creating stream file failed: {}", e))?;
+            Stdio::from(file)
+        }
+        None => Stdio::null(),
+    };
+    Ok(stdio)
 }
 
 fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Command> {
@@ -38,21 +58,14 @@ fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Com
         command.current_dir(cwd);
     }
 
-    command.stdout(if let Some(filename) = &definition.stdout {
-        Stdio::from(
-            File::create(filename).map_err(|e| format!("Creating stdout file failed: {}", e))?,
-        )
-    } else {
-        Stdio::null()
-    });
-
-    command.stderr(if let Some(filename) = &definition.stderr {
-        Stdio::from(
-            File::create(filename).map_err(|e| format!("Creating stderr file failed: {}", e))?,
-        )
-    } else {
-        Stdio::null()
-    });
+    command.stdout(create_output_stream(
+        definition.stdout.as_ref(),
+        definition.cwd.as_ref(),
+    )?);
+    command.stderr(create_output_stream(
+        definition.stderr.as_ref(),
+        definition.cwd.as_ref(),
+    )?);
 
     for (k, v) in definition.env.iter() {
         command.env(k.to_os_str_lossy(), v.to_os_str_lossy());
