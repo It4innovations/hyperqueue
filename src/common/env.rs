@@ -15,6 +15,7 @@ pub fn is_hq_env(name: &BString) -> bool {
 /// Known environment variables
 pub const HQ_JOB_ID: &str = create_hq_env!("JOB_ID");
 pub const HQ_TASK_ID: &str = create_hq_env!("TASK_ID");
+pub const HQ_INSTANCE_ID: &str = create_hq_env!("INSTANCE_ID");
 pub const HQ_SUBMIT_DIR: &str = create_hq_env!("SUBMIT_DIR");
 pub const HQ_ENTRY: &str = create_hq_env!("ENTRY");
 pub const HQ_PIN: &str = create_hq_env!("PIN");

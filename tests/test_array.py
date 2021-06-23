@@ -3,7 +3,7 @@ import os
 import time
 
 from .conftest import HqEnv, print_table
-from .utils import wait_for_job_state, JOB_TABLE_ROWS
+from .utils import JOB_TABLE_ROWS, wait_for_job_state
 
 
 def test_job_array_submit(hq_env: HqEnv):

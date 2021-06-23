@@ -7,7 +7,7 @@ use tako::messages::gateway::{
 
 use crate::common::WrappedRcRefCell;
 use crate::server::job::Job;
-use crate::server::rpc::TakoServer;
+use crate::server::rpc::Backend;
 use crate::server::worker::Worker;
 use crate::transfer::messages::LostWorkerReasonInfo;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
@@ -22,7 +22,7 @@ pub struct State {
     // only one entry.
     // Example:
     // Real mapping: TaskId   JobId
-    //                 1   ->   1
+    //                 1   ->    1
     //                 2   ->    1
     //                 3   ->    2
     //                 4   ->    2
@@ -39,7 +39,7 @@ pub type StateRef = WrappedRcRefCell<State>;
 
 fn cancel_tasks_from_callback(
     state_ref: &StateRef,
-    tako_ref: &TakoServer,
+    tako_ref: &Backend,
     job_id: JobId,
     tasks: Vec<TakoTaskId>,
 ) {
@@ -50,14 +50,14 @@ fn cancel_tasks_from_callback(
     let state_ref = state_ref.clone();
     tokio::task::spawn_local(async move {
         let message = FromGatewayMessage::CancelTasks(CancelTasks { tasks });
-        let response = tako_ref.send_message(message).await.unwrap();
+        let response = tako_ref.send_tako_message(message).await.unwrap();
 
         match response {
             ToGatewayMessage::CancelTasksResponse(msg) => {
                 let mut state = state_ref.get_mut();
                 let job = state.get_job_mut(job_id).unwrap();
                 for tako_id in msg.cancelled_tasks {
-                    job.set_cancel_state(tako_id);
+                    job.set_cancel_state(tako_id, &tako_ref);
                 }
             }
             ToGatewayMessage::Error(msg) => {
@@ -144,13 +144,13 @@ impl State {
     pub fn process_task_failed(
         &mut self,
         state_ref: &StateRef,
-        tako_ref: &TakoServer,
+        tako_ref: &Backend,
         msg: TaskFailedMessage,
     ) {
         log::debug!("Task id={} failed", msg.id);
 
         let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
-        job.set_failed_state(msg.id, msg.info.message);
+        job.set_failed_state(msg.id, msg.info.message, &tako_ref);
 
         if let Some(max_fails) = job.max_fails {
             if job.counters.n_failed_tasks > max_fails {
@@ -159,7 +159,8 @@ impl State {
             }
         }
     }
-    pub fn process_task_update(&mut self, msg: TaskUpdate) {
+
+    pub fn process_task_update(&mut self, msg: TaskUpdate, backend: &Backend) {
         log::debug!("Task id={} updated {:?}", msg.id, msg.state);
         match msg.state {
             TaskState::Running(worker_id) => {
@@ -168,7 +169,7 @@ impl State {
             }
             TaskState::Finished => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
-                job.set_finished_state(msg.id)
+                job.set_finished_state(msg.id, backend)
             }
             TaskState::Waiting => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
@@ -215,7 +216,7 @@ impl StateRef {
 
 #[cfg(test)]
 mod tests {
-    use tako::messages::common::ProgramDefinition;
+    use tako::messages::common::{ProgramDefinition, StdioDef};
 
     use crate::common::arraydef::ArrayDef;
     use crate::server::job::Job;
@@ -227,8 +228,8 @@ mod tests {
         ProgramDefinition {
             args: vec![],
             env: Default::default(),
-            stdout: None,
-            stderr: None,
+            stdout: StdioDef::Null,
+            stderr: StdioDef::Null,
             cwd: None,
         }
     }
@@ -248,6 +249,7 @@ mod tests {
             None,
             Some(Vec::new()),
             0,
+            None,
         ));
         state.add_job(Job::new(
             JobType::Array(ArrayDef::simple_range(0, 15)),
@@ -260,6 +262,7 @@ mod tests {
             None,
             Some(Vec::new()),
             1,
+            None,
         ));
         state.add_job(Job::new(
             JobType::Simple,
@@ -272,6 +275,7 @@ mod tests {
             None,
             Some(Vec::new()),
             5,
+            None,
         ));
         state.add_job(Job::new(
             JobType::Simple,
@@ -284,6 +288,7 @@ mod tests {
             None,
             Some(Vec::new()),
             1,
+            None,
         ));
         state.add_job(Job::new(
             JobType::Simple,
@@ -296,6 +301,7 @@ mod tests {
             None,
             Some(Vec::new()),
             2,
+            None,
         ));
 
         assert!(state.get_job_mut_by_tako_task_id(99).is_none());

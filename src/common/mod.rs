@@ -8,5 +8,6 @@ pub mod fsutils;
 pub mod parser;
 pub mod serverdir;
 pub mod setup;
+pub mod size;
 pub mod timeutils;
 pub mod wrapped;

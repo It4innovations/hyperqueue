@@ -1,5 +1,5 @@
 use cli_table::format::Justify;
-use cli_table::{print_stdout, Cell, Color, Style, Table};
+use cli_table::{print_stdout, Cell, CellStruct, Color, Style, Table};
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::resources::cpu_request_to_string;
@@ -13,6 +13,7 @@ use crate::{JobTaskCount, Map, WorkerId};
 use colored::Colorize;
 use std::collections::BTreeSet;
 use std::fmt::Write;
+use tako::messages::common::StdioDef;
 
 /// Maps worker IDs to hostnames.
 type WorkerMap = Map<WorkerId, String>;
@@ -130,6 +131,14 @@ pub fn print_job_list(gsettings: &GlobalSettings, tasks: Vec<JobInfo>) {
     assert!(print_stdout(table).is_ok());
 }
 
+pub fn stdio_to_cell(stdio: &StdioDef) -> CellStruct {
+    match stdio {
+        StdioDef::Null => "<None>".cell(),
+        StdioDef::File(filename) => filename.display().cell(),
+        StdioDef::Pipe => "<Stream>".cell(),
+    }
+}
+
 pub fn print_job_detail(
     gsettings: &GlobalSettings,
     job: JobDetail,
@@ -191,19 +200,11 @@ pub fn print_job_detail(
     ]);
     rows.push(vec![
         "Stdout".cell().bold(true),
-        program_def
-            .stdout
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|| "N/A".to_string())
-            .cell(),
+        stdio_to_cell(&program_def.stdout),
     ]);
     rows.push(vec![
         "Stderr".cell().bold(true),
-        program_def
-            .stderr
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|| "N/A".to_string())
-            .cell(),
+        stdio_to_cell(&program_def.stderr),
     ]);
     let mut env_vars: Vec<(_, _)> = program_def
         .env

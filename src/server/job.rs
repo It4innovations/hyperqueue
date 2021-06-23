@@ -1,9 +1,12 @@
 use serde::{Deserialize, Serialize};
 use tako::messages::common::ProgramDefinition;
 
+use crate::server::rpc::Backend;
+use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{JobDetail, JobInfo, JobType};
 use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
 use bstr::BString;
+use std::path::PathBuf;
 use tako::common::resources::ResourceRequest;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -63,6 +66,8 @@ pub struct Job {
 
     pub state: JobState,
 
+    pub log: Option<PathBuf>,
+
     pub job_type: JobType,
     pub name: String,
 
@@ -89,6 +94,7 @@ impl Job {
         max_fails: Option<JobTaskCount>,
         entries: Option<Vec<BString>>,
         priority: tako::Priority,
+        job_log: Option<PathBuf>,
     ) -> Self {
         let state = match &job_type {
             JobType::Simple => JobState::SingleTask(JobTaskState::Waiting),
@@ -122,6 +128,7 @@ impl Job {
             max_fails,
             entries,
             priority,
+            log: job_log,
         }
     }
 
@@ -177,6 +184,10 @@ impl Job {
         }
     }
 
+    pub fn is_terminated(&self) -> bool {
+        self.counters.n_running_tasks == 0 && self.counters.n_waiting_tasks(self.n_tasks()) == 0
+    }
+
     pub fn get_task_state_mut(
         &mut self,
         tako_task_id: TakoTaskId,
@@ -226,9 +237,8 @@ impl Job {
         }
     }
 
-    pub fn set_finished_state(&mut self, tako_task_id: TakoTaskId) {
+    pub fn set_finished_state(&mut self, tako_task_id: TakoTaskId, backend: &Backend) {
         let (_, state) = self.get_task_state_mut(tako_task_id);
-
         match state {
             JobTaskState::Running { worker } => {
                 *state = JobTaskState::Finished { worker: *worker };
@@ -236,6 +246,9 @@ impl Job {
                 self.counters.n_finished_tasks += 1;
             }
             _ => panic!("Invalid worker state, expected Running, got {:?}", state),
+        }
+        if self.log.is_some() && self.is_terminated() {
+            backend.send_stream_control(StreamServerControlMessage::UnregisterStream(self.job_id));
         }
     }
 
@@ -246,7 +259,7 @@ impl Job {
         self.counters.n_running_tasks -= 1;
     }
 
-    pub fn set_failed_state(&mut self, tako_task_id: TakoTaskId, error: String) {
+    pub fn set_failed_state(&mut self, tako_task_id: TakoTaskId, error: String, backend: &Backend) {
         let (_, state) = self.get_task_state_mut(tako_task_id);
 
         match state {
@@ -260,9 +273,13 @@ impl Job {
             }
             _ => panic!("Invalid worker state, expected Running, got {:?}", state),
         }
+
+        if self.log.is_some() && self.is_terminated() {
+            backend.send_stream_control(StreamServerControlMessage::UnregisterStream(self.job_id));
+        }
     }
 
-    pub fn set_cancel_state(&mut self, tako_task_id: TakoTaskId) -> JobTaskId {
+    pub fn set_cancel_state(&mut self, tako_task_id: TakoTaskId, backend: &Backend) -> JobTaskId {
         let (task_id, state) = self.get_task_state_mut(tako_task_id);
         let old_state = std::mem::replace(state, JobTaskState::Canceled);
         assert!(matches!(
@@ -273,6 +290,11 @@ impl Job {
             self.counters.n_running_tasks -= 1;
         }
         self.counters.n_canceled_tasks += 1;
+
+        if self.log.is_some() && self.is_terminated() {
+            backend.send_stream_control(StreamServerControlMessage::UnregisterStream(self.job_id));
+        }
+
         task_id
         //assert!(matches!(
         //    old_state,

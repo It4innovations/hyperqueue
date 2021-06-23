@@ -8,6 +8,8 @@ use anyhow::bail;
 use hyperqueue::client::commands::jobs::{
     cancel_job, get_last_job_id, output_job_detail, output_job_list,
 };
+use hyperqueue::client::commands::log::{command_log, LogOpts};
+use hyperqueue::client::commands::stats::print_server_stats;
 use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{
     resubmit_computation, submit_computation, ResubmitOpts, SubmitOpts,
@@ -76,6 +78,8 @@ enum SubCommand {
     Resubmit(ResubmitOpts),
     /// Waits until a job is ended
     Wait(WaitOpts),
+    /// Operations with log
+    Log(LogOpts),
 }
 
 // Server CLI options
@@ -96,7 +100,11 @@ struct ServerStopOpts {}
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
-struct ServerInfoOpts {}
+struct ServerInfoOpts {
+    /// Show internal internal state of server
+    #[clap(long)]
+    stats: bool,
+}
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
@@ -268,9 +276,14 @@ async fn command_server_stop(
 
 async fn command_server_info(
     gsettings: GlobalSettings,
-    _opts: ServerInfoOpts,
+    opts: ServerInfoOpts,
 ) -> anyhow::Result<()> {
-    print_server_info(&gsettings).await
+    if opts.stats {
+        let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+        print_server_stats(&gsettings, &mut connection).await
+    } else {
+        print_server_info(&gsettings).await
+    }
 }
 
 async fn command_job_list(gsettings: GlobalSettings, opts: JobListOpts) -> anyhow::Result<()> {
@@ -507,6 +520,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Cancel(opts) => command_cancel(gsettings, opts).await,
         SubCommand::Resubmit(opts) => command_resubmit(gsettings, opts).await,
         SubCommand::Wait(opts) => command_wait(gsettings, opts).await,
+        SubCommand::Log(opts) => command_log(gsettings, opts),
     };
     if let Err(e) = result {
         eprintln!("{:?}", e);

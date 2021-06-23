@@ -12,7 +12,7 @@ use tokio::task::LocalSet;
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::serverdir::{AccessRecord, ServerDir};
 use crate::common::setup::setup_interrupt;
-use crate::server::rpc::TakoServer;
+use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
 use crate::transfer::connection::{ClientConnection, HqConnection};
@@ -96,7 +96,7 @@ async fn initialize_server(
     let tako_secret_key = Arc::new(generate_key());
 
     let state_ref = StateRef::new();
-    let (tako_server, tako_future) = TakoServer::start(
+    let (tako_server, tako_future) = Backend::start(
         state_ref.clone(),
         tako_secret_key.clone(),
         server_cfg.idle_timeout,
