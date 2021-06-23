@@ -116,18 +116,18 @@ Running-----------------|
 Finished    Failed   Canceled
 ```
 
-* *Submitted* - Only an informative state that a submission was successfull; it is immediately changed into "Waiting" state.
-* *Waiting* - The task is waiting for start
+* *Submitted* - Only an informative state that a submission was successful; it is only shown immediately after a submit.
+* *Waiting* - The task is waiting to be executed.
 * *Running* - The task is running in a worker. It may become "waiting" again when a worker (where the task is running) is lost.
-* *Finished* - The task was sucessfully finished.
-* *Failed* - The task failed. The error can be shown by ``hq job <job-id>``.
-* *Canceled* -  The task was canceled by a user.
+* *Finished* - The task has successfully finished.
+* *Failed* - The task has failed. The error can be shown by ``hq job <job-id>``.
+* *Canceled* -  The task has been canceled by a user.
 
 
 ## Job states
 
-In simple jobs, job state correspondes directly to the state of its a single task. In case of task arrays, see the chapter about task arrays.
-
+In simple jobs, job state corresponds directly to the state of its single task. In the case of task arrays, see the chapter
+about [task arrays](arrays.md).
 
 ## Canceling jobs
 
