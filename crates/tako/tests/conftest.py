@@ -4,6 +4,7 @@ import signal
 import subprocess
 import sys
 import time
+from socket import gethostname
 
 import psutil
 import pytest
@@ -144,7 +145,7 @@ class TakoEnv(Env):
         work_dir.mkdir()
         args = [
             program,
-            "localhost:{}".format(port),
+            f"{gethostname()}:{port}",
             "--cpus",
             str(ncpus),
             "--work-dir",
