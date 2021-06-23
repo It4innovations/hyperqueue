@@ -445,6 +445,7 @@ dependencies = [
  "atty",
  "bincode",
  "bstr",
+ "byteorder",
  "bytes",
  "chrono",
  "clap",
@@ -470,6 +471,7 @@ dependencies = [
  "serde-tuple-vec-map",
  "serde_bytes",
  "serde_json",
+ "smallvec",
  "tako",
  "tempdir",
  "thiserror",
@@ -1111,7 +1113,7 @@ dependencies = [
 [[package]]
 name = "tako"
 version = "0.1.0"
-source = "git+https://github.com/spirali/tako?branch=main#fcf24011cf81d04c6e030a5789e0af4df9978f4d"
+source = "git+https://github.com/spirali/tako?branch=main#2ce99949a913725344e8e438636f99b03a03c2c8"
 dependencies = [
  "bincode",
  "bitflags",

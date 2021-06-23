@@ -153,7 +153,7 @@ class HqEnv(Env):
     def kill_worker(self, worker_id):
         self.kill_process(f"worker{worker_id}")
 
-    def command(self, args, as_table=False, cwd=None):
+    def command(self, args, as_table=False, as_lines=False, cwd=None):
         if isinstance(args, str):
             args = [args]
         else:
@@ -167,6 +167,8 @@ class HqEnv(Env):
             output = output.decode()
             if as_table:
                 return parse_table(output)
+            if as_lines:
+                return output.rstrip().split("\n")
             return output
         except subprocess.CalledProcessError as e:
             stdout = e.stdout.decode()

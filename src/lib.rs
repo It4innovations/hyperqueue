@@ -3,6 +3,7 @@
 pub mod client;
 pub mod common;
 pub mod server;
+pub mod stream;
 pub mod transfer;
 pub mod worker;
 

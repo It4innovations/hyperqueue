@@ -30,7 +30,7 @@ class Table:
 
     def check_value_row(self, key: str, value: str):
         row = self.get_row_value(key)
-        if not row:
+        if row is None:
             raise Exception(f"Key {key} not found in\n{self}")
         assert_equals(row, value)
 

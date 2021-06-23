@@ -1,27 +1,44 @@
+use futures::FutureExt;
 use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context};
 use bstr::{BString, ByteSlice};
 use clap::Clap;
+use futures::TryFutureExt;
 use humantime::format_rfc3339;
-use tako::messages::common::{LauncherDefinition, ProgramDefinition, WorkerConfiguration};
-use tako::worker::launcher::pin_program;
+use tako::messages::common::WorkerConfiguration;
+use tako::messages::common::{ProgramDefinition, StdioDef};
+use tako::worker::launcher::{command_from_definitions, pin_program};
 use tako::worker::rpc::run_worker;
-use tako::worker::task::Task;
+use tako::worker::task::TaskRef;
 use tempdir::TempDir;
+use tokio::net::lookup_host;
 use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::common::env::{HQ_CPUS, HQ_JOB_ID, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_ID};
+use crate::common::env::{HQ_CPUS, HQ_INSTANCE_ID, HQ_JOB_ID, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::error::error;
 use crate::common::serverdir::ServerDir;
 use crate::common::timeutils::ArgDuration;
+use crate::transfer::messages::TaskBody;
+use crate::transfer::stream::ChannelId;
 use crate::worker::hwdetect::detect_resource;
 use crate::worker::output::print_worker_configuration;
 use crate::worker::parser::parse_cpu_definition;
-use crate::Map;
+use crate::worker::streamer::StreamSender;
+use crate::worker::streamer::StreamerRef;
+use crate::{JobId, JobTaskId, Map};
 use hashbrown::HashMap;
+use std::future::Future;
+use std::pin::Pin;
+use std::time::Duration;
+use tako::common::error::DsError;
+use tako::InstanceId;
+use tokio::io::AsyncReadExt;
+use tokio::sync::oneshot;
+
+const STDIO_BUFFER_SIZE: usize = 16 * 1024; // 16kB
 
 #[derive(Clap)]
 pub enum ManagerOpts {
@@ -88,6 +105,10 @@ fn replace_placeholders(program: &mut ProgramDefinition) {
         program.env[&BString::from(HQ_TASK_ID)].to_string(),
     );
     placeholder_map.insert(
+        "%{INSTANCE_ID}",
+        program.env[&BString::from(HQ_INSTANCE_ID)].to_string(),
+    );
+    placeholder_map.insert(
         "%{SUBMIT_DIR}",
         program.env[&BString::from(HQ_SUBMIT_DIR)].to_string(),
     );
@@ -114,35 +135,135 @@ fn replace_placeholders(program: &mut ProgramDefinition) {
         program.cwd.as_ref().unwrap().to_str().unwrap().to_string(),
     );
 
-    program.stdout = program
-        .stdout
-        .as_ref()
-        .map(|path| submit_dir.join(replace(&placeholder_map, path)));
-    program.stderr = program
-        .stderr
-        .as_ref()
-        .map(|path| submit_dir.join(replace(&placeholder_map, path)));
+    program.stdout = std::mem::take(&mut program.stdout)
+        .map_filename(|path| submit_dir.join(replace(&placeholder_map, &path)));
+    program.stderr = std::mem::take(&mut program.stderr)
+        .map_filename(|path| submit_dir.join(replace(&placeholder_map, &path)));
 }
 
-#[allow(clippy::unnecessary_wraps)]
-fn launcher_setup(task: &Task, def: LauncherDefinition) -> tako::Result<ProgramDefinition> {
-    let allocation = task
-        .resource_allocation()
-        .expect("Missing resource allocation for running task");
-    let mut program = def.program;
-
-    if def.pin {
-        pin_program(&mut program, &allocation);
-        program.env.insert(HQ_PIN.into(), "1".into());
+async fn resend_stdio(
+    job_id: JobId,
+    job_task_id: JobTaskId,
+    channel: ChannelId,
+    stdio: Option<impl tokio::io::AsyncRead + Unpin>,
+    stream: StreamSender,
+) -> tako::Result<()> {
+    if let Some(mut stdio) = stdio {
+        log::debug!("Starting stream {}/{}/1", job_id, job_task_id);
+        loop {
+            let mut buffer = vec![0; STDIO_BUFFER_SIZE];
+            let size = stdio.read(&mut buffer[..]).await?;
+            if size == 0 {
+                break;
+            };
+            buffer.truncate(size);
+            stream.send_data(channel, buffer).await?;
+        }
     }
+    Ok(())
+}
 
-    program
-        .env
-        .insert(HQ_CPUS.into(), allocation.comma_delimited_cpu_ids().into());
+async fn launcher_main(streamer_ref: StreamerRef, task_ref: TaskRef) -> tako::Result<()> {
+    log::debug!(
+        "Starting program launcher {} {:?} {:?}",
+        task_ref.get().id,
+        &task_ref.get().resources,
+        task_ref.get().resource_allocation()
+    );
 
-    replace_placeholders(&mut program);
+    let (program, job_id, job_task_id, instance_id): (
+        ProgramDefinition,
+        JobId,
+        JobTaskId,
+        InstanceId,
+    ) = {
+        let task = task_ref.get();
+        let body: TaskBody = tako::transfer::auth::deserialize(&task.spec)?;
+        let allocation = task
+            .resource_allocation()
+            .expect("Missing resource allocation for running task");
+        let mut program = body.program;
 
-    Ok(program)
+        if body.pin {
+            pin_program(&mut program, &allocation);
+            program.env.insert(HQ_PIN.into(), "1".into());
+        }
+
+        program
+            .env
+            .insert(HQ_CPUS.into(), allocation.comma_delimited_cpu_ids().into());
+
+        program
+            .env
+            .insert(HQ_INSTANCE_ID.into(), task.instance_id.to_string().into());
+
+        replace_placeholders(&mut program);
+        (program, body.job_id, body.task_id, task.instance_id)
+    };
+
+    let mut command = command_from_definitions(&program)?;
+
+    /* let stream_stdio = matches!(program.stdout, StdioDef::Pipe);
+    let stream_stderr = matches!(program.stderr, StdioDef::Pipe);*/
+
+    let status = if matches!(program.stdout, StdioDef::Pipe)
+        || matches!(program.stderr, StdioDef::Pipe)
+    {
+        let streamer_error =
+            |e: DsError| DsError::GenericError(format!("Streamer: {:?}", e.to_string()));
+        let mut child = command.spawn()?;
+        let (close_sender, close_responder) = oneshot::channel();
+        let stream = streamer_ref.get_mut().get_stream(
+            &streamer_ref,
+            job_id,
+            job_task_id,
+            instance_id,
+            close_sender,
+        );
+
+        stream.send_stream_start().await.map_err(streamer_error)?;
+
+        let main_fut = async move {
+            let stdout = child.stdout.take();
+            let stderr = child.stderr.take();
+
+            let response = tokio::try_join!(
+                child.wait().map_err(|e| DsError::from(e)),
+                resend_stdio(job_id, job_task_id, 0, stdout, stream.clone())
+                    .map_err(streamer_error),
+                resend_stdio(job_id, job_task_id, 1, stderr, stream.clone())
+                    .map_err(streamer_error),
+            );
+            stream.close().await.map_err(streamer_error)?;
+            Ok(response?.0)
+        };
+        tokio::try_join!(
+            main_fut,
+            close_responder.map(|r| r
+                .map_err(|_| DsError::GenericError("Connection to stream server closed".into()))?
+                .map_err(streamer_error))
+        )?
+        .0
+    } else {
+        command.status().await?
+    };
+    if !status.success() {
+        let code = status.code().unwrap_or(-1);
+        return tako::Result::Err(DsError::GenericError(format!(
+            "Program terminated with exit code {}",
+            code
+        )));
+    }
+    Ok(())
+}
+
+fn launcher(
+    streamer_ref: &StreamerRef,
+    task_ref: &TaskRef,
+) -> Pin<Box<dyn Future<Output = tako::Result<()>> + 'static>> {
+    let task_ref = task_ref.clone();
+    let streamer_ref = streamer_ref.clone();
+    Box::pin(async move { launcher_main(streamer_ref, task_ref).await })
 }
 
 pub async fn start_hq_worker(
@@ -162,16 +283,38 @@ pub async fn start_hq_worker(
     log::info!("Connecting to: {}", server_address);
 
     let configuration = gather_configuration(opts)?;
+
+    let server_addr = lookup_host(&server_address)
+        .await?
+        .next()
+        .expect("Invalid server address");
+
+    log::debug!("Starting streamer ...");
+    let (streamer_ref, streamer_future) = StreamerRef::start(
+        Duration::from_secs(10),
+        server_addr,
+        record.tako_secret_key().clone(),
+    );
+
+    log::debug!("Starting Tako worker ...");
     let ((worker_id, configuration), worker_future) = run_worker(
-        &server_address,
+        server_addr,
         configuration,
         Some(record.tako_secret_key().clone()),
-        Box::new(launcher_setup),
+        Box::new(move |task_ref| launcher(&streamer_ref, task_ref)),
     )
     .await?;
     print_worker_configuration(gsettings, worker_id, configuration);
+
     let local_set = LocalSet::new();
-    local_set.run_until(worker_future).await;
+    local_set
+        .run_until(async move {
+            tokio::select! {
+                () = worker_future => {}
+                () = streamer_future => {}
+            }
+        })
+        .await;
     Ok(())
 }
 
@@ -230,6 +373,8 @@ fn gather_manager_info(opts: ManagerOpts) -> anyhow::Result<Map<String, String>>
 }
 
 fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfiguration> {
+    log::debug!("Gathering worker configuration information");
+
     let hostname = gethostname::gethostname()
         .into_string()
         .expect("Invalid hostname");
@@ -261,9 +406,9 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
 #[cfg(test)]
 mod tests {
     use hashbrown::HashMap;
-    use tako::messages::common::ProgramDefinition;
+    use tako::messages::common::{ProgramDefinition, StdioDef};
 
-    use crate::common::env::{HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
+    use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
     use crate::{JobId, JobTaskId};
 
     use super::replace_placeholders;
@@ -280,8 +425,8 @@ mod tests {
         );
         replace_placeholders(&mut program);
         assert_eq!(program.cwd, Some("dir-1".into()));
-        assert_eq!(program.stdout, Some("1.out".into()));
-        assert_eq!(program.stderr, Some("1.err".into()));
+        assert_eq!(program.stdout, StdioDef::File("1.out".into()));
+        assert_eq!(program.stderr, StdioDef::File("1.err".into()));
     }
 
     #[test]
@@ -296,8 +441,8 @@ mod tests {
         );
         replace_placeholders(&mut program);
         assert_eq!(program.cwd, Some("dir-5-1".into()));
-        assert_eq!(program.stdout, Some("5-1.out".into()));
-        assert_eq!(program.stderr, Some("5-1.err".into()));
+        assert_eq!(program.stdout, StdioDef::File("5-1.out".into()));
+        assert_eq!(program.stderr, StdioDef::File("5-1.err".into()));
     }
 
     #[test]
@@ -311,9 +456,10 @@ mod tests {
             1,
         );
         replace_placeholders(&mut program);
+
         assert_eq!(program.cwd, Some("/submit-dir".into()));
-        assert_eq!(program.stdout, Some("/submit-dir/out".into()));
-        assert_eq!(program.stderr, Some("/submit-dir/err".into()));
+        assert_eq!(program.stdout, StdioDef::File("/submit-dir/out".into()));
+        assert_eq!(program.stderr, StdioDef::File("/submit-dir/err".into()));
     }
 
     #[test]
@@ -328,8 +474,8 @@ mod tests {
         );
         replace_placeholders(&mut program);
         assert_eq!(program.cwd, Some("dir-5-1".into()));
-        assert_eq!(program.stdout, Some("dir-5-1.out".into()));
-        assert_eq!(program.stderr, Some("dir-5-1.err".into()));
+        assert_eq!(program.stdout, StdioDef::File("dir-5-1.out".into()));
+        assert_eq!(program.stderr, StdioDef::File("dir-5-1.err".into()));
     }
 
     fn program_def(
@@ -344,12 +490,13 @@ mod tests {
         env.insert(HQ_SUBMIT_DIR.into(), submit_dir.into());
         env.insert(HQ_JOB_ID.into(), job_id.to_string().into());
         env.insert(HQ_TASK_ID.into(), task_id.to_string().into());
+        env.insert(HQ_INSTANCE_ID.into(), "0".into());
 
         ProgramDefinition {
             args: vec![],
             env,
-            stdout: stdout.map(|v| v.into()),
-            stderr: stderr.map(|v| v.into()),
+            stdout: stdout.map(|v| StdioDef::File(v.into())).unwrap_or_default(),
+            stderr: stderr.map(|v| StdioDef::File(v.into())).unwrap_or_default(),
             cwd: Some(cwd.into()),
         }
     }

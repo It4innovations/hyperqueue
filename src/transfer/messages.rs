@@ -11,6 +11,14 @@ use bstr::BString;
 use std::path::PathBuf;
 use tako::common::resources::ResourceRequest;
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TaskBody {
+    pub program: ProgramDefinition,
+    pub pin: bool,
+    pub job_id: JobId,
+    pub task_id: JobTaskId,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum JobType {
     Simple,
@@ -28,6 +36,7 @@ pub struct SubmitRequest {
     pub entries: Option<Vec<BString>>,
     pub submit_dir: PathBuf,
     pub priority: tako::Priority,
+    pub log: Option<PathBuf>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -73,6 +82,7 @@ pub enum FromClientMessage {
     JobInfo(JobInfoRequest),
     WorkerList,
     WorkerInfo(WorkerInfoRequest),
+    Stats,
     StopWorker(StopWorkerMessage),
     Stop,
 }
@@ -93,12 +103,24 @@ pub enum StopWorkerResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct StreamStats {
+    pub connections: Vec<String>,
+    pub registrations: Vec<(JobId, PathBuf)>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct StatsResponse {
+    pub stream_stats: StreamStats,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ToClientMessage {
     JobInfoResponse(JobInfoResponse),
     JobDetailResponse(Option<JobDetail>),
     SubmitResponse(SubmitResponse),
     WorkerListResponse(WorkerListResponse),
     WorkerInfoResponse(Option<WorkerInfo>),
+    StatsResponse(StatsResponse),
     StopWorkerResponse(Vec<(WorkerId, StopWorkerResponse)>),
     CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
     Error(String),

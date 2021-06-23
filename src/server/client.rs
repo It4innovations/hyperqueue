@@ -3,24 +3,25 @@ use std::sync::Arc;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
-use tako::messages::common::{LauncherDefinition, ProgramDefinition};
+use tako::messages::common::ProgramDefinition;
 use tako::messages::gateway::{
     CancelTasks, FromGatewayMessage, NewTasksMessage, StopWorkerRequest, TaskDef, ToGatewayMessage,
 };
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::Notify;
+use tokio::sync::{oneshot, Notify};
 
 use crate::client::status::{job_status, task_status, Status};
 use crate::common::arraydef::ArrayDef;
 use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::server::job::Job;
-use crate::server::rpc::TakoServer;
+use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
+use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
     CancelJobResponse, FromClientMessage, JobInfoResponse, JobSelector, JobType, ResubmitRequest,
-    StopWorkerResponse, SubmitRequest, SubmitResponse, ToClientMessage, WorkerListResponse,
-    WorkerSelector,
+    StatsResponse, StopWorkerResponse, SubmitRequest, SubmitResponse, TaskBody, ToClientMessage,
+    WorkerListResponse, WorkerSelector,
 };
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 use bstr::BString;
@@ -28,7 +29,7 @@ use std::path::Path;
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
-    tako_ref: TakoServer,
+    tako_ref: Backend,
     listener: TcpListener,
     end_flag: Rc<Notify>,
     key: Arc<SecretKey>,
@@ -49,7 +50,7 @@ pub async fn handle_client_connections(
 async fn handle_client(
     socket: TcpStream,
     state_ref: StateRef,
-    tako_ref: TakoServer,
+    tako_ref: Backend,
     end_flag: Rc<Notify>,
     key: Arc<SecretKey>,
 ) -> crate::Result<()> {
@@ -69,7 +70,7 @@ pub async fn client_rpc_loop<
     mut tx: Tx,
     mut rx: Rx,
     state_ref: StateRef,
-    tako_ref: TakoServer,
+    tako_ref: Backend,
     end_flag: Rc<Notify>,
 ) {
     while let Some(message_result) = rx.next().await {
@@ -100,6 +101,7 @@ pub async fn client_rpc_loop<
                     FromClientMessage::JobDetail(msg) => {
                         compute_job_detail(&state_ref, msg.job_id, msg.include_tasks)
                     }
+                    FromClientMessage::Stats => compose_server_stats(&state_ref, &tako_ref).await,
                 };
                 assert!(tx.send(response).await.is_ok());
             }
@@ -120,7 +122,7 @@ pub async fn client_rpc_loop<
 
 async fn handle_worker_stop(
     state_ref: &StateRef,
-    tako_ref: &TakoServer,
+    tako_ref: &Backend,
     selector: WorkerSelector,
 ) -> ToClientMessage {
     log::debug!("Client asked for worker termination {:?}", selector);
@@ -149,7 +151,7 @@ async fn handle_worker_stop(
         }
         let response = tako_ref
             .clone()
-            .send_message(FromGatewayMessage::StopWorker(StopWorkerRequest {
+            .send_tako_message(FromGatewayMessage::StopWorker(StopWorkerRequest {
                 worker_id,
             }))
             .await;
@@ -185,6 +187,15 @@ fn compute_job_detail(state_ref: &StateRef, job_id: JobId, include_tasks: bool) 
     )
 }
 
+async fn compose_server_stats(_state_ref: &StateRef, backend: &Backend) -> ToClientMessage {
+    let stream_stats = {
+        let (sender, receiver) = oneshot::channel();
+        backend.send_stream_control(StreamServerControlMessage::Stats(sender));
+        receiver.await.unwrap()
+    };
+    ToClientMessage::StatsResponse(StatsResponse { stream_stats })
+}
+
 fn compute_job_info(state_ref: &StateRef, selector: JobSelector) -> ToClientMessage {
     let state = state_ref.get();
 
@@ -206,7 +217,7 @@ fn compute_job_info(state_ref: &StateRef, selector: JobSelector) -> ToClientMess
 
 async fn handle_job_cancel(
     state_ref: &StateRef,
-    tako_ref: &TakoServer,
+    tako_ref: &Backend,
     selector: JobSelector,
 ) -> ToClientMessage {
     let job_ids: Vec<JobId> = match selector {
@@ -242,7 +253,7 @@ async fn handle_job_cancel(
         }
 
         let canceled_tasks = match tako_ref
-            .send_message(FromGatewayMessage::CancelTasks(CancelTasks {
+            .send_tako_message(FromGatewayMessage::CancelTasks(CancelTasks {
                 tasks: tako_task_ids,
             }))
             .await
@@ -260,7 +271,7 @@ async fn handle_job_cancel(
         let job = state.get_job_mut(job_id).unwrap();
         let canceled_ids: Vec<_> = canceled_tasks
             .iter()
-            .map(|tako_id| job.set_cancel_state(*tako_id))
+            .map(|tako_id| job.set_cancel_state(*tako_id, &tako_ref))
             .collect();
         let already_finished = job.n_tasks() - canceled_ids.len() as JobTaskCount;
         responses.push((
@@ -291,7 +302,7 @@ fn make_program_def_for_task(
 
 async fn handle_submit(
     state_ref: &StateRef,
-    tako_ref: &TakoServer,
+    tako_ref: &Backend,
     message: SubmitRequest,
 ) -> ToClientMessage {
     if message.resources.validate().is_err() {
@@ -308,8 +319,13 @@ async fn handle_submit(
         if let Some(e) = entry {
             program.env.insert(HQ_ENTRY.into(), e);
         }
-        let launcher_def = LauncherDefinition { program, pin };
-        let body = rmp_serde::to_vec_named(&launcher_def).unwrap();
+        let body_msg = TaskBody {
+            program,
+            pin,
+            job_id,
+            task_id,
+        };
+        let body = tako::transfer::auth::serialize(&body_msg).unwrap();
         TaskDef {
             id: tako_id,
             type_id: 0,
@@ -321,7 +337,7 @@ async fn handle_submit(
             resources: resources.clone(),
         }
     };
-    let (task_defs, job_detail) = {
+    let (task_defs, job_detail, job_id) = {
         let mut state = state_ref.get_mut();
         let job_id = state.new_job_id();
         let task_count = match &message.job_type {
@@ -354,14 +370,26 @@ async fn handle_submit(
             message.max_fails,
             message.entries.clone(),
             message.priority,
+            message.log.clone(),
         );
         let job_detail = job.make_job_detail(false);
         state.add_job(job);
 
-        (task_defs, job_detail)
+        (task_defs, job_detail, job_id)
     };
+
+    if let Some(log) = message.log {
+        let (sender, receiver) = oneshot::channel();
+        tako_ref.send_stream_control(StreamServerControlMessage::RegisterStream {
+            job_id,
+            path: submit_dir.join(log),
+            response: sender,
+        });
+        assert!(receiver.await.is_ok());
+    }
+
     match tako_ref
-        .send_message(FromGatewayMessage::NewTasks(NewTasksMessage {
+        .send_tako_message(FromGatewayMessage::NewTasks(NewTasksMessage {
             tasks: task_defs,
         }))
         .await
@@ -378,7 +406,7 @@ async fn handle_submit(
 
 async fn handle_resubmit(
     state_ref: &StateRef,
-    tako_ref: &TakoServer,
+    tako_ref: &Backend,
     message: ResubmitRequest,
 ) -> ToClientMessage {
     let response = state_ref
@@ -424,6 +452,7 @@ async fn handle_resubmit(
                 entries,
                 submit_dir: std::env::current_dir().unwrap().to_str().unwrap().into(),
                 priority,
+                log: None, // TODO: Reuse log configuration
             };
             handle_submit(&state_ref.clone(), &tako_ref.clone(), msg_submit).await
         } else {
