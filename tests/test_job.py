@@ -79,20 +79,32 @@ def test_custom_name(hq_env: HqEnv, tmp_path):
     assert len(table) == 2
 
 
-def test_custom_working_dir(hq_env: HqEnv, tmp_path):
-    offset = 10
+def test_custom_working_dir(hq_env: HqEnv, tmpdir):
     hq_env.start_server()
-    cwd_custom_tbl = hq_env.command(
+
+    cwd_offset = 9
+    test_string = "cwd_test_string"
+    test_path = tmpdir.mkdir("test_dir")
+    test_file = test_path.join("testfile")
+    test_file.write(test_string)
+
+    cwd_submit_tbl = hq_env.command(
         [
             "submit",
-            "sleep 1",
-            "--cwd=/test/directory/",
-        ],
-        as_table=True,
+            "--cwd=" + str(test_path),
+            "--",
+            "bash",
+            "-c",
+            "cat testfile"
+        ], as_table=True
     )
-    wait_for_job_state(hq_env, 1, "WAITING")
+    assert (cwd_submit_tbl[cwd_offset][1] == str(test_path))
 
-    assert cwd_custom_tbl[offset][1] == "/test/directory/"
+    hq_env.start_worker(cpus=1)
+    wait_for_job_state(hq_env, 1, ["FINISHED"])
+
+    with open(os.path.join(tmpdir, "test_dir", "stdout.1.0")) as f:
+        assert f.read() == test_string
 
 
 def test_job_output_default(hq_env: HqEnv, tmp_path):
