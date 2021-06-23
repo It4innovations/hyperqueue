@@ -1,0 +1,22 @@
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+name: Check binary size
+
+jobs:
+  bloat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Run cargo bloat
+        uses: kobzol/cargo-bloat-action@master
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
