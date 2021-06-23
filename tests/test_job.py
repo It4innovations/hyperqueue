@@ -90,7 +90,7 @@ def test_custom_working_dir(hq_env: HqEnv, tmp_path):
         ],
         as_table=True,
     )
-    time.sleep(0.2)
+    wait_for_job_state(hq_env, 1, "WAITING")
 
     assert cwd_custom_tbl[offset][1] == "/test/directory/"
 
