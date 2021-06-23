@@ -282,7 +282,6 @@ def test_reporting_state_after_worker_lost(hq_env: HqEnv):
     time.sleep(0.25)
 
     table = hq_env.command(["jobs"], as_table=True)
-    print(table)
     if table[1][2] == "WAITING":
         idx, other = 1, 2
     elif table[2][2] == "WAITING":
