@@ -84,7 +84,7 @@ impl State {
         self.jobs.get_mut(&job_id)
     }
 
-    pub fn jobs(&self) -> impl ExactSizeIterator<Item = &Job> {
+    pub fn jobs(&self) -> impl Iterator<Item = &Job> {
         self.jobs.values()
     }
 

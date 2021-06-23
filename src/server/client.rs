@@ -21,6 +21,7 @@ use crate::transfer::messages::{
 };
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 use bstr::BString;
+use std::cmp::Reverse;
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
@@ -142,9 +143,11 @@ fn compute_job_info(state_ref: &StateRef, selector: JobSelector) -> ToClientMess
     let jobs: Vec<_> = match selector {
         JobSelector::All => state.jobs().map(|j| j.make_job_info()).collect(),
         JobSelector::LastN(n) => {
-            let jobs = state.jobs();
-            let length = jobs.len();
-            jobs.skip(length.saturating_sub(n))
+            let mut jobs: Vec<_> = state.jobs().collect();
+            jobs.sort_unstable_by_key(|job| Reverse(job.job_id));
+
+            jobs.into_iter()
+                .take(n)
                 .map(|j| j.make_job_info())
                 .collect()
         }
