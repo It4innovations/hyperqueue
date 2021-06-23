@@ -93,6 +93,10 @@ Detailed information about a job:
 
 ``hq job <job-id>``
 
+!!! Hint
+
+    You can also use `hq job last` to get information about the most recently submitted job.
+
 ## Task states
 
 ```
