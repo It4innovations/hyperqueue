@@ -29,24 +29,27 @@ When a task is started then the following environment variables are created:
 * HQ_TASK_ID - Task id
 
 
-## Tasks states
+## Task states
 
-Each task has its own individual state as defined in the previous chapter.
-The number of tasks with each state can be seen by:
+Each task has its own individual state as defined in the [previous chapter](jobs.md).
+The number of tasks with each state can be displayed by the following command:
 
 ``$ hq job <job_id>``
 
-State of each task can be seen:
+Detailed state of each task will also be included if you pass the `--tasks` flag:
 
 ``$ hq job <job_id> --tasks``
 
-A global job state for summary outputs is derived as following (when a rule is matched, the rest is ignored):
+A global job state for summary outputs is derived from the state of its tasks by the first rule that matches from the
+following list of rules:
 
-* If at least one task is in state "Running" then job state is "Running".
-* If at least one task is in state "Canceled" then job state is "Canceled".
-* If at least one task is in state "Failed" then job state is "Failed".
-* If at least all tasks are in state "Finished" then job state is "Finished".
-* Otherwise the job state is "Waiting".
+
+1. If at least one task is in state "Running", then job state is "Running".
+2. If at least one task has not been computed yet, then job state is "Waiting".
+   A task has been computed once it has reached the `canceled`, `failed` or `finished` state.
+3. If at least one task is in state "Canceled" then job state is "Canceled".
+4. If at least one task is in state "Failed" then job state is "Failed".
+5. All tasks have to be in state "Finished", therefore the job state will also be "Finished".
 
 
 ## Task fail in array job
