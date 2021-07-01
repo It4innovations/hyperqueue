@@ -89,6 +89,8 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#job-canceling">Job canceling</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#task-for-each-line-of-a-file">Task for each line of a file</a>
+    </li>
     </ul>
                     </li>
                 </ul>
@@ -173,6 +175,10 @@ following list of rules:</p>
 If more tasks then <code>X</code> fails, then the rest of non-finished tasks are canceled.</p>
 <h2 id="job-canceling">Job canceling<a class="headerlink" href="#job-canceling" title="Permanent link">#</a></h2>
 <p>When a job with more tasks is canceled then all non-finished tasks is canceled.</p>
+<h2 id="task-for-each-line-of-a-file">Task for each line of a file<a class="headerlink" href="#task-for-each-line-of-a-file" title="Permanent link">#</a></h2>
+<p>The switch <code>--each-line=&lt;FILE&gt;</code> is an alternative way to create an array job. It creates a job for each line of the file. The content of a line is stored in variable <code>HQ_ENTRY</code>.</p>
+<p>Example:</p>
+<p><code>$ hq submit --each-line /path/to/file my-program.sh</code></p>
               
             </div>
           </div>

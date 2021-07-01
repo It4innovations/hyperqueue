@@ -97,6 +97,8 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#idle-timeout">Idle timeout</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#server-address">Server address</a>
+    </li>
     </ul>
                     </li>
                 </ul>
@@ -168,9 +170,23 @@ all commands need to use the <code>--server-dir</code> settings.</p>
 <p>A worker can be started by command. It reads server directory and connectes to the server.</p>
 <p><code>hq worker start</code></p>
 <h3 id="starting-worker-in-pbs">Starting worker in PBS<a class="headerlink" href="#starting-worker-in-pbs" title="Permanent link">#</a></h3>
+<ul>
+<li>Start worker on the first node of a PBS job</li>
+</ul>
 <p><code>qsub &lt;qsub-settings&gt; -- hq worker start</code></p>
+<ul>
+<li>Start worker on all nodes of a PBS job</li>
+</ul>
+<p><code>$ qsub &lt;your-params-of-qsub&gt; -- `which pbsdsh` hq worker start</code></p>
 <h3 id="starting-worker-in-slurm">Starting worker in SLURM<a class="headerlink" href="#starting-worker-in-slurm" title="Permanent link">#</a></h3>
-<p><code>sbatch &lt;qsub-settings&gt; -- hq worker start</code></p>
+<ul>
+<li>Start worker on the first node of a SLURM job</li>
+</ul>
+<p><code>sbatch &lt;your-params-of-sbatch&gt; --wrap "hq worker start"</code></p>
+<ul>
+<li>Start worker on all nodes of a SLURM job``</li>
+</ul>
+<p><code>$ sbatch &lt;your-params-of-sbatch&gt; --wrap "srun hq worker start"</code></p>
 <h2 id="list-of-workers">List of workers<a class="headerlink" href="#list-of-workers" title="Permanent link">#</a></h2>
 <p><code>hq worker list</code></p>
 <p>State of workers:</p>
@@ -204,6 +220,8 @@ a worker without actually starting it, you can start <code>$ hq worker hwdetect<
 <p>Idle timeout allows to automatically stop a worker when no tasks are given to the worker for a specified time.</p>
 <p>When a worker is started, an idle timeout may be configurated via <code>--idle-timeout=&lt;TIMEOUT&gt;</code> for <code>hq worker start</code> where <code>TIMEOUT</code> is a string like <code>"2min 30s"</code>. (All possible formats are documented at https://docs.rs/humantime/2.1.0/humantime/fn.parse_duration.html).</p>
 <p>Idle timeout can be also configured for all workers at once by <code>hq server start --idle-timeout=&lt;TIMEOUT&gt;</code>. This value is then used for each worker that does not explicitly specifies its own timeout.</p>
+<h2 id="server-address">Server address<a class="headerlink" href="#server-address" title="Permanent link">#</a></h2>
+<p>By default, the server stores its own hostname as an address for connection of clients and workers. This can be changed by <code>hq server start --host=HOST</code>, where HOST is a hostname/address under which is server visible.</p>
               
             </div>
           </div>
