@@ -62,3 +62,15 @@ If more tasks then ``X`` fails, then the rest of non-finished tasks are canceled
 ## Job canceling
 
 When a job with more tasks is canceled then all non-finished tasks is canceled.
+
+
+## Task for each line of a file
+
+The switch ``--each-line=<FILE>`` is an alternative way to create an array job. It creates a job for each line of the file. The content of a line is stored in variable ``HQ_ENTRY``.
+
+Example:
+
+``$ hq submit --each-line /path/to/file my-program.sh``
+
+
+

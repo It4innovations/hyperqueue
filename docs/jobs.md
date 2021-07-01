@@ -34,6 +34,7 @@ the job's program name. You can set a job name explicitly by:
 
 ``hq submit --name=<NAME> ...``
 
+
 ### Working directory of a job
 
 You can change the working directory of a job using the ``--cwd`` parameter. By default it is set to the directory
@@ -42,6 +43,7 @@ from which was the job submitted.
 !!! Hint
 
     You can use [placeholders](#placeholders) in the working directory path.
+
 
 ### Output of the job
 
@@ -61,7 +63,9 @@ about the `%{JOB_ID}` and `%{TASK_ID}` placeholders [below](#placeholders).
 
     You can use [placeholders](#placeholders) in the `stdout` and `stderr` paths.
 
+
 ## Placeholders
+
 You can use special variables in working directory, `stdout` and `stderr` paths, which will be interpolated with
 job/task-specific information before the job is executed. Placeholders are enclosed in curly braces and prepended with
 a percent sign.
@@ -75,6 +79,15 @@ Currently, you can use the following placeholders:
 | `%{SUBMIT_DIR}` | Directory from which the job was submitted. |
 | `%{CWD}`        | Working directory of the job.<br/><br/>This placeholder is only available for `stdout` and `stderr` paths. |
 | `%{DATE}`       | Current date when the job was executed in the RFC3339 format. |
+
+
+## Setting env variables
+
+In a submit of a task, you can set an environment variable named `KEY` with the value `VAL` by:
+
+``--env KEY=VAL``
+
+You can pass the following flag multiple times to pass multiple variables.
 
 ## Information about jobs
 
@@ -138,4 +151,4 @@ A job cannot be canceled if it is already finished, failed, or canceled.
 
 ## Priorities
 
-Not released yet, **scheduled for release v0.3**
+Not released yet, **scheduled for release v0.5**

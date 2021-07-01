@@ -44,12 +44,23 @@ A worker can be started by command. It reads server directory and connectes to t
 
 ### Starting worker in PBS
 
-``qsub <qsub-settings> -- hq worker start``
+* Start worker on the first node of a PBS job
 
+  ``qsub <qsub-settings> -- hq worker start``
+
+* Start worker on all nodes of a PBS job
+
+  ``$ qsub <your-params-of-qsub> -- `which pbsdsh` hq worker start``
 
 ### Starting worker in SLURM
 
-``sbatch <qsub-settings> -- hq worker start``
+* Start worker on the first node of a SLURM job
+
+  ``sbatch <your-params-of-sbatch> --wrap "hq worker start"``
+
+* Start worker on all nodes of a SLURM job``
+
+  ``$ sbatch <your-params-of-sbatch> --wrap "srun hq worker start"``
 
 
 ## List of workers
@@ -95,3 +106,8 @@ Idle timeout allows to automatically stop a worker when no tasks are given to th
 When a worker is started, an idle timeout may be configurated via ``--idle-timeout=<TIMEOUT>`` for ``hq worker start`` where ``TIMEOUT`` is a string like ``"2min 30s"``. (All possible formats are documented at https://docs.rs/humantime/2.1.0/humantime/fn.parse_duration.html).
 
 Idle timeout can be also configured for all workers at once by ``hq server start --idle-timeout=<TIMEOUT>``. This value is then used for each worker that does not explicitly specifies its own timeout.
+
+
+## Server address
+
+By default, the server stores its own hostname as an address for connection of clients and workers. This can be changed by ``hq server start --host=HOST``, where HOST is a hostname/address under which is server visible.

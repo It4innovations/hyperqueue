@@ -143,7 +143,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
       [Not implemented yet]
 
     * Manual request in PBS
-      
+
       - Start worker on the first node of a PBS job
 
         ``$ qsub <your-params-of-qsub> -- hq worker start``
@@ -186,14 +186,17 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 ## 0.3
 
 * [x] Automatic stopping of idling workers
-* [ ] Handling stdout/stderr when a large number of jobs is submitted
 
 ## 0.4
+
+* [ ] Handling stdout/stderr when a large number of jobs is submitted
+
+## 0.5
 
 * [ ] Reporting improvements
 * [ ] Resubmit
 
-## 0.5
+## 0.6
 
 * [ ] Time constraints
 * [ ] Priorities
