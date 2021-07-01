@@ -100,7 +100,7 @@ fn job_progress_bar(info: &JobInfo) -> String {
     write!(
         buffer,
         "{}",
-        " ".repeat(width.saturating_sub(total_char_count))
+        ".".repeat(width.saturating_sub(total_char_count))
     )
     .unwrap();
 
