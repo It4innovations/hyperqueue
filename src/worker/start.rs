@@ -306,14 +306,14 @@ mod tests {
             "%{SUBMIT_DIR}",
             Some("%{SUBMIT_DIR}/out"),
             Some("%{SUBMIT_DIR}/err"),
-            "submit-dir",
+            "/submit-dir",
             5,
             1,
         );
         replace_placeholders(&mut program);
-        assert_eq!(program.cwd, Some("submit-dir".into()));
-        assert_eq!(program.stdout, Some("submit-dir/out".into()));
-        assert_eq!(program.stderr, Some("submit-dir/err".into()));
+        assert_eq!(program.cwd, Some("/submit-dir".into()));
+        assert_eq!(program.stdout, Some("/submit-dir/out".into()));
+        assert_eq!(program.stderr, Some("/submit-dir/err".into()));
     }
 
     #[test]
