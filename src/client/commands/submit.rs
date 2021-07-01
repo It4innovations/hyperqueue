@@ -200,6 +200,7 @@ pub async fn submit_computation(
         pin: opts.pin,
         entries,
         max_fails: opts.max_fails,
+        submit_dir: std::env::current_dir().unwrap().to_str().unwrap().into(),
     });
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
     print_job_detail(gsettings, response.job, true, false);

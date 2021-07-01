@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context};
-use bstr::BString;
+use bstr::{BString, ByteSlice};
 use clap::Clap;
 use humantime::format_rfc3339;
 use tako::messages::common::{LauncherDefinition, ProgramDefinition, WorkerConfiguration};
@@ -72,6 +72,11 @@ pub struct WorkerStartOpts {
 /// Replace placeholders in user-defined program attributes
 fn replace_placeholders(program: &mut ProgramDefinition) {
     let date = format_rfc3339(std::time::SystemTime::now()).to_string();
+    let submit_dir = PathBuf::from(
+        program.env[&BString::from(HQ_SUBMIT_DIR)]
+            .to_os_str()
+            .unwrap_or_default(),
+    );
 
     let mut placeholder_map = HashMap::new();
     placeholder_map.insert(
@@ -100,7 +105,7 @@ fn replace_placeholders(program: &mut ProgramDefinition) {
     program.cwd = program
         .cwd
         .as_ref()
-        .map(|cwd| replace(&placeholder_map, cwd))
+        .map(|cwd| submit_dir.join(replace(&placeholder_map, cwd)))
         .or_else(|| Some(std::env::current_dir().unwrap()));
 
     // Replace STDOUT and STDERR
@@ -112,11 +117,11 @@ fn replace_placeholders(program: &mut ProgramDefinition) {
     program.stdout = program
         .stdout
         .as_ref()
-        .map(|path| replace(&placeholder_map, path));
+        .map(|path| submit_dir.join(replace(&placeholder_map, path)));
     program.stderr = program
         .stderr
         .as_ref()
-        .map(|path| replace(&placeholder_map, path));
+        .map(|path| submit_dir.join(replace(&placeholder_map, path)));
 }
 
 #[allow(clippy::unnecessary_wraps)]

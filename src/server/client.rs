@@ -22,6 +22,7 @@ use crate::transfer::messages::{
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 use bstr::BString;
 use std::cmp::Reverse;
+use std::path::Path;
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
@@ -217,6 +218,7 @@ fn make_program_def_for_task(
     program_def: &ProgramDefinition,
     job_id: JobId,
     task_id: JobTaskId,
+    submit_dir: &Path,
 ) -> ProgramDefinition {
     let mut def = program_def.clone();
     def.env.insert(HQ_JOB_ID.into(), job_id.to_string().into());
@@ -224,7 +226,7 @@ fn make_program_def_for_task(
         .insert(HQ_TASK_ID.into(), task_id.to_string().into());
     def.env.insert(
         HQ_SUBMIT_DIR.into(),
-        std::env::current_dir().unwrap().to_str().unwrap().into(),
+        BString::from(submit_dir.to_string_lossy().as_bytes()),
     );
     def
 }
@@ -240,9 +242,10 @@ async fn handle_submit(
     let resources = message.resources;
     let spec = message.spec;
     let pin = message.pin;
+    let submit_dir = message.submit_dir;
 
     let make_task = |job_id, task_id, tako_id, entry: Option<BString>| {
-        let mut program = make_program_def_for_task(&spec, job_id, task_id);
+        let mut program = make_program_def_for_task(&spec, job_id, task_id, &submit_dir);
         if let Some(e) = entry {
             program.env.insert(HQ_ENTRY.into(), e);
         }
