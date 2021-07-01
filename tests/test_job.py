@@ -88,6 +88,8 @@ def test_custom_working_dir(hq_env: HqEnv, tmpdir):
     test_file = test_path.join("testfile")
     test_file.write(test_string)
 
+    submit_dir = tmpdir.mkdir("submit_dir")
+
     cwd_submit_tbl = hq_env.command(
         [
             "submit",
@@ -96,14 +98,14 @@ def test_custom_working_dir(hq_env: HqEnv, tmpdir):
             "bash",
             "-c",
             "cat testfile"
-        ], as_table=True
+        ], as_table=True, cwd=submit_dir
     )
     assert (cwd_submit_tbl[cwd_offset][1] == str(test_path))
 
     hq_env.start_worker(cpus=1)
     wait_for_job_state(hq_env, 1, ["FINISHED"])
 
-    with open(os.path.join(tmpdir, "test_dir", "stdout.1.0")) as f:
+    with open(os.path.join(tmpdir, "submit_dir", "stdout.1.0")) as f:
         assert f.read() == test_string
 
 

@@ -153,7 +153,7 @@ class HqEnv(Env):
     def kill_worker(self, worker_id):
         self.kill_process(f"worker{worker_id}")
 
-    def command(self, args, as_table=False):
+    def command(self, args, as_table=False, cwd=None):
         if isinstance(args, str):
             args = [args]
         else:
@@ -162,7 +162,7 @@ class HqEnv(Env):
         args = [HQ_BINARY, "--server-dir", self.server_dir] + args
         try:
             output = subprocess.check_output(
-                args, stderr=subprocess.STDOUT, cwd=self.work_path
+                args, stderr=subprocess.STDOUT, cwd=cwd or self.work_path
             )
             output = output.decode()
             if as_table:
