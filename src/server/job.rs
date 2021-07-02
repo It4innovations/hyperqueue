@@ -3,6 +3,7 @@ use tako::messages::common::ProgramDefinition;
 
 use crate::transfer::messages::{JobDetail, JobInfo, JobType};
 use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId};
+use bstr::BString;
 use tako::common::resources::ResourceRequest;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -57,6 +58,8 @@ pub struct Job {
     pub program_def: ProgramDefinition,
     pub resources: ResourceRequest,
     pub pin: bool,
+
+    pub entries: Option<Vec<BString>>,
 }
 
 impl Job {
@@ -72,6 +75,7 @@ impl Job {
         resources: ResourceRequest,
         pin: bool,
         max_fails: Option<JobTaskCount>,
+        entries: Option<Vec<BString>>,
     ) -> Self {
         let state = match &job_type {
             JobType::Simple => JobState::SingleTask(JobTaskState::Waiting),
@@ -103,6 +107,7 @@ impl Job {
             resources,
             pin,
             max_fails,
+            entries,
         }
     }
 
@@ -126,6 +131,7 @@ impl Job {
                 Vec::new()
             },
             pin: self.pin,
+            entries: self.entries.clone(),
         }
     }
 

@@ -7,7 +7,7 @@ use serde::Serialize;
 use crate::common::arrayparser::parse_array_def;
 use crate::{JobTaskCount, JobTaskId};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct TaskIdRange {
     start: JobTaskId,
     count: JobTaskCount,
@@ -21,26 +21,40 @@ impl TaskIdRange {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ArrayDef {
-    range: TaskIdRange,
+    ranges: Vec<TaskIdRange>,
 }
 
 impl ArrayDef {
-    pub fn new(range: TaskIdRange) -> ArrayDef {
-        ArrayDef { range }
+    pub fn new(ranges: Vec<TaskIdRange>) -> ArrayDef {
+        ArrayDef { ranges }
+    }
+
+    pub fn new_tasks(task_ids: Vec<JobTaskId>) -> ArrayDef {
+        let mut ranges: Vec<TaskIdRange> = Vec::new();
+        for task_id in task_ids {
+            if let Some(pos) = ranges.iter().position(|x| task_id == (x.start + x.count)) {
+                ranges[pos].count += 1;
+            } else {
+                ranges.push(TaskIdRange::new(task_id, 1));
+            }
+        }
+        ArrayDef { ranges }
     }
 
     pub fn simple_range(start: JobTaskId, count: JobTaskCount) -> Self {
         ArrayDef {
-            range: TaskIdRange { start, count },
+            ranges: vec![TaskIdRange { start, count }],
         }
     }
 
     pub fn task_count(&self) -> JobTaskCount {
-        self.range.count
+        self.ranges.iter().map(|x| x.count).sum()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = JobTaskId> {
-        self.range.start..self.range.start + self.range.count
+    pub fn iter(&self) -> impl Iterator<Item = JobTaskId> + '_ {
+        self.ranges
+            .iter()
+            .flat_map(|x| (x.start..x.start + x.count))
     }
 }
 
@@ -54,15 +68,14 @@ impl FromStr for ArrayDef {
 
 impl fmt::Display for ArrayDef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.range.count == 1 {
-            write!(f, "{}", self.range.start)
-        } else {
-            write!(
-                f,
-                "{}-{}",
-                self.range.start,
-                self.range.start + self.range.count - 1
-            )
+        let mut str = String::new();
+        for x in &self.ranges {
+            if x.count == 1 {
+                str.push_str(&*format!("{}, ", x.start));
+            } else {
+                str.push_str(&*format!("{}-{}, ", x.start, x.start + x.count - 1));
+            }
         }
+        write!(f, "{}", &str[0..str.len() - 2])
     }
 }

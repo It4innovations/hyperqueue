@@ -212,12 +212,12 @@ def test_job_fail(hq_env: HqEnv):
     assert len(table) == 2
     assert table[1][:3] == ["1", "non-existent-program", "FAILED"]
 
-    table = hq_env.command(["job", "1"], as_table=True)
+    table = hq_env.command(["job", "1", "--tasks"], as_table=True)
     assert table[0] == ["Id", "1"]
     assert table[2] == ["State", "FAILED"]
 
     assert table[11][0] == "0"
-    assert "No such file or directory" in table[11][1]
+    assert "No such file or directory" in table[11][2]
 
 
 def test_job_invalid(hq_env: HqEnv):
@@ -468,3 +468,25 @@ def test_job_last(hq_env: HqEnv):
 
     table = hq_env.command(["job", "last"], as_table=True)
     assert table[0][1] == "2"
+
+
+def test_job_resubmit(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(
+        [
+            "submit",
+            "--array=3-9",
+            "--",
+            "python3",
+            "-c",
+            "import os; assert os.environ['HQ_TASK_ID'] not in ['4', '5', '6', '8']",
+        ]
+    )
+    hq_env.start_workers(2, cpus=1)
+    wait_for_job_state(hq_env, 1, "FAILED")
+
+    table = hq_env.command(["resubmit", "1", "failed"], as_table=True)
+    assert table[3] == ["Tasks", "4; Ids: 4-6, 8"]
+
+    table = hq_env.command(["resubmit", "1", "finished"], as_table=True)
+    assert table[3] == ["Tasks", "3; Ids: 3, 7, 9"]

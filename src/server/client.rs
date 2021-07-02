@@ -13,6 +13,9 @@ use tokio::sync::Notify;
 use crate::client::job::{job_status, Status};
 use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::server::job::Job;
+use crate::client::job::task_status;
+use crate::common::arraydef::ArrayDef;
+use crate::server::job::{Job, JobTaskState};
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
@@ -78,6 +81,10 @@ pub async fn client_rpc_loop<
                         handle_submit(&state_ref, &tako_ref, msg).await
                     }
                     FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, msg.selector),
+                    FromClientMessage::Resubmit(msg) => {
+                        handle_resubmit(&state_ref, &tako_ref, msg).await
+                    }
+                    FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, msg.job_ids),
                     FromClientMessage::Stop => {
                         end_flag.notify_one();
                         break;
@@ -285,7 +292,7 @@ async fn handle_submit(
             JobType::Array(a) => a.task_count(),
         };
         let tako_base_id = state.new_task_id(task_count);
-        let task_defs = match (&message.job_type, message.entries) {
+        let task_defs = match (&message.job_type, message.entries.clone()) {
             (JobType::Simple, _) => vec![make_task(job_id, 0, tako_base_id, None)],
             (JobType::Array(a), None) => a
                 .iter()
@@ -308,6 +315,7 @@ async fn handle_submit(
             resources,
             pin,
             message.max_fails,
+            message.entries.clone(),
         );
         let job_detail = job.make_job_detail(false);
         state.add_job(job);
@@ -328,6 +336,53 @@ async fn handle_submit(
     };
 
     ToClientMessage::SubmitResponse(SubmitResponse { job: job_detail })
+}
+
+async fn handle_resubmit(
+    state_ref: &StateRef,
+    tako_ref: &TakoServer,
+    message: ResubmitRequest,
+) -> ToClientMessage {
+    let response = state_ref
+        .get_mut()
+        .get_job(message.job_id)
+        .map(|j| j.make_job_detail(true));
+
+    if let Some(job) = response {
+        let mut ids: Vec<JobTaskId> = job
+            .tasks
+            .iter()
+            .filter(|&x| message.task_filters.contains(&task_status(&x.state)))
+            .map(|x| x.task_id)
+            .collect();
+        ids.sort_unstable();
+
+        if !ids.is_empty() {
+            let job_type = match &job.job_type {
+                JobType::Simple => job.job_type.clone(),
+                JobType::Array(_) => JobType::Array(ArrayDef::new_tasks(ids)),
+            };
+            let spec = job.program_def.clone();
+            let name = job.info.name.clone();
+            let resources = job.resources.clone();
+            let pin = job.pin;
+            let entries = job.entries.clone();
+
+            let msg_submit = SubmitRequest {
+                job_type,
+                name,
+                spec,
+                resources,
+                pin,
+                entries,
+            };
+            handle_submit(&state_ref.clone(), &tako_ref.clone(), msg_submit).await
+        } else {
+            return ToClientMessage::Error("Nothing was resubmitted".to_string());
+        }
+    } else {
+        return ToClientMessage::Error("Invalid job_id".to_string());
+    }
 }
 
 async fn handle_worker_list(state_ref: &StateRef) -> ToClientMessage {
