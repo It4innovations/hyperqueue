@@ -7,12 +7,12 @@ use nom::sequence::{preceded, tuple};
 use crate::common::arraydef::{ArrayDef, TaskIdRange};
 use crate::common::parser::{format_parse_error, p_uint, NomResult};
 
-fn p_task_id_range(input: &str) -> NomResult<TaskIdRange> {
+fn p_task_id_range(input: &str) -> NomResult<Vec<TaskIdRange>> {
     map_res(
         tuple((p_uint, opt(preceded(tag("-"), p_uint)))),
         |r| match r {
-            (v, None) => Ok(TaskIdRange::new(v, 1)),
-            (v, Some(w)) if w >= v => Ok(TaskIdRange::new(v, w - v + 1)),
+            (v, None) => Ok(vec![TaskIdRange::new(v, 1)]),
+            (v, Some(w)) if w >= v => Ok(vec![TaskIdRange::new(v, w - v + 1)]),
             _ => Err(anyhow!("Invalid range")),
         },
     )(input)

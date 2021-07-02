@@ -3,6 +3,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 
+use crate::client::job::Status;
 use crate::common::arraydef::ArrayDef;
 use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
@@ -26,6 +27,12 @@ pub struct SubmitRequest {
     pub pin: bool,
     pub entries: Option<Vec<BString>>,
     pub submit_dir: PathBuf,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ResubmitRequest {
+    pub job_id: JobId,
+    pub task_filters: Vec<Status>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -59,6 +66,7 @@ pub struct StopWorkerMessage {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum FromClientMessage {
     Submit(SubmitRequest),
+    Resubmit(ResubmitRequest),
     Cancel(CancelRequest),
     JobDetail(JobDetailRequest),
     JobInfo(JobInfoRequest),
@@ -80,6 +88,7 @@ pub enum ToClientMessage {
     JobInfoResponse(JobInfoResponse),
     JobDetailResponse(Option<JobDetail>),
     SubmitResponse(SubmitResponse),
+    ResubmitResponse(SubmitResponse),
     WorkerListResponse(WorkerListResponse),
     WorkerInfoResponse(Option<WorkerInfo>),
     StopWorkerResponse,
@@ -142,6 +151,7 @@ pub struct JobDetail {
     pub tasks: Vec<JobTaskInfo>,
     pub resources: ResourceRequest,
     pub pin: bool,
+    pub entries: Option<Vec<BString>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

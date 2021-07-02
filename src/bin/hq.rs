@@ -9,8 +9,10 @@ use hyperqueue::client::commands::jobs::{
     cancel_job, get_last_job_id, output_job_detail, output_job_list,
 };
 use hyperqueue::client::commands::stop::stop_server;
-use hyperqueue::client::commands::submit::{submit_computation, SubmitOpts};
-use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, stop_worker};
+use hyperqueue::client::commands::submit::{
+    resubmit_computation, submit_computation, ResubmitOpts, SubmitOpts,
+};
+use hyperqueue::client::commands::worker::{get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
 use hyperqueue::client::job::Status;
 use hyperqueue::client::worker::print_worker_info;
@@ -67,6 +69,8 @@ enum SubCommand {
     Cancel(CancelOpts),
     /// Commands for controlling HyperQueue workers
     Worker(WorkerOpts),
+    /// Resubmits all filtered tasks within a job
+    Resubmit(ResubmitOpts),
 }
 
 // Server CLI options
@@ -320,6 +324,11 @@ async fn command_worker_info(
     Ok(())
 }
 
+async fn command_resubmit(gsettings: GlobalSettings, opts: ResubmitOpts) -> anyhow::Result<()> {
+    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    resubmit_computation(&gsettings, &mut connection, opts).await
+}
+
 fn command_worker_hwdetect() -> anyhow::Result<()> {
     let descriptor = detect_resource()?;
     print_resource_descriptor(&descriptor);
@@ -433,6 +442,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Job(opts) => command_job_detail(gsettings, opts).await,
         SubCommand::Submit(opts) => command_submit(gsettings, opts).await,
         SubCommand::Cancel(opts) => command_cancel(gsettings, opts).await,
+        SubCommand::Resubmit(opts) => command_resubmit(gsettings, opts).await,
     };
     if let Err(e) = result {
         eprintln!("{:?}", e);

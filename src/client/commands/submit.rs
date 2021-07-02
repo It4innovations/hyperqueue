@@ -11,12 +11,14 @@ use tako::common::resources::{CpuRequest, ResourceRequest};
 use tako::messages::common::ProgramDefinition;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::job::print_job_detail;
+use crate::client::job::{print_job_detail, Status};
 use crate::client::resources::parse_cpu_request;
 use crate::common::arraydef::ArrayDef;
 use crate::transfer::connection::ClientConnection;
-use crate::transfer::messages::{FromClientMessage, JobType, SubmitRequest, ToClientMessage};
-use crate::{rpc_call, JobTaskCount};
+use crate::transfer::messages::{
+    FromClientMessage, JobType, ResubmitRequest, SubmitRequest, ToClientMessage,
+};
+use crate::{rpc_call, JobId, JobTaskCount};
 
 struct ArgCpuRequest(CpuRequest);
 
@@ -203,7 +205,28 @@ pub async fn submit_computation(
         submit_dir: std::env::current_dir().unwrap().to_str().unwrap().into(),
     });
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
-    print_job_detail(gsettings, response.job, true, false);
+    print_job_detail(gsettings, response.job, true, true);
+    Ok(())
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+pub struct ResubmitOpts {
+    job_id: JobId,
+    task_filters: Vec<Status>,
+}
+
+pub async fn resubmit_computation(
+    gsettings: &GlobalSettings,
+    connection: &mut ClientConnection,
+    opts: ResubmitOpts,
+) -> anyhow::Result<()> {
+    let message = FromClientMessage::Resubmit(ResubmitRequest {
+        job_id: opts.job_id,
+        task_filters: opts.task_filters,
+    });
+    let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
+    print_job_detail(gsettings, response.job, true, true);
     Ok(())
 }
 

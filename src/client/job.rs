@@ -11,7 +11,10 @@ use colored::Colorize;
 use std::fmt::Write;
 use std::str::FromStr;
 
-#[derive(PartialEq)]
+use serde::Deserialize;
+use serde::Serialize;
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub enum Status {
     Waiting,
     Running,
@@ -52,7 +55,7 @@ pub fn job_status(info: &JobInfo) -> Status {
     }
 }
 
-fn task_status(status: &JobTaskState) -> Status {
+pub fn task_status(status: &JobTaskState) -> Status {
     match status {
         JobTaskState::Waiting => Status::Waiting,
         JobTaskState::Running => Status::Running,
