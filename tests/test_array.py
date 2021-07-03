@@ -72,14 +72,25 @@ def test_job_array_error_some(hq_env: HqEnv):
     table = hq_env.command(["jobs"], as_table=True)
     assert table[1][2] == "FAILED"
 
-    table = hq_env.command(["job", "1", "--tasks"], as_table=True)
+    table = hq_env.command(["job", "1"], as_table=True)
     assert table[3][1] == "FAILED (3)"
     assert table[4][1] == "FINISHED (7)"
 
     offset = 12
-    assert table[offset][0] == "Task Id"
-    assert table[offset][2] == "Message"
 
+    assert table[offset][0] == "Task Id"
+    assert table[offset][1] == "Error"
+
+    assert table[offset + 1][0] == "2"
+    assert table[offset + 1][1] == "Error: Program terminated with exit code 1"
+
+    assert table[offset + 2][0] == "3"
+    assert table[offset + 2][1] == "Error: Program terminated with exit code 1"
+
+    assert table[offset + 3][0] == "7"
+    assert table[offset + 3][1] == "Error: Program terminated with exit code 1"
+
+    table = hq_env.command(["job", "1", "--tasks"], as_table=True)
     for i, s in enumerate(
         ["FINISHED", "FAILED", "FAILED", "FINISHED", "FINISHED", "FINISHED", "FAILED"]
         + 3 * ["FINISHED"]
@@ -97,10 +108,19 @@ def test_job_array_error_all(hq_env: HqEnv):
     table = hq_env.command(["jobs"], as_table=True)
     assert table[1][2] == "FAILED"
 
-    table = hq_env.command(["job", "1", "--tasks"], as_table=True)
+    table = hq_env.command(["job", "1"], as_table=True)
     assert table[3][1] == "FAILED (10)"
 
     offset = 12
+
+    for i in range(5):
+        assert table[offset + i][0] == str(i)
+        assert "No such file or directory" in table[offset + i][1]
+    print_table(table)
+    assert table[offset + 5] == []
+
+    table = hq_env.command(["job", "1", "--tasks"], as_table=True)
+    assert table[3][1] == "FAILED (10)"
 
     for i in range(10):
         assert table[offset + i][0] == str(i)
