@@ -221,6 +221,10 @@ pub async fn resubmit_computation(
     connection: &mut ClientConnection,
     opts: ResubmitOpts,
 ) -> anyhow::Result<()> {
+    if opts.task_filters.is_empty() {
+        return Err(anyhow!("task filters cannot be empty"));
+    }
+
     let message = FromClientMessage::Resubmit(ResubmitRequest {
         job_id: opts.job_id,
         task_filters: opts.task_filters,
