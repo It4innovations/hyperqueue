@@ -346,13 +346,12 @@ fn try_get_pbs_info() -> anyhow::Result<Map<String, String>> {
     std::env::var("PBS_ENVIRONMENT")
         .map_err(|_| anyhow!("PBS_ENVIRONMENT not found. The process is not running under PBS"))?;
 
-    let manager_job_id = std::env::var("PBS_JOBID").unwrap_or_else(|_| "unknown".to_string());
+    let manager_job_id =
+        std::env::var("PBS_JOBID").expect("PBS_JOBID not found in environment variables");
 
-    let mut result = Map::with_capacity(2);
+    let mut result = Map::with_capacity(3);
     result.insert("MANAGER".to_string(), "PBS".to_string());
-    result.insert("MANAGER_JOB_ID".to_string(), manager_job_id);
-
-    // TODO: Run "qstat -f -F json $PBS_JOBID" to get walltime
+    result.insert("MANAGER_JOB_ID".to_string(), manager_job_id.clone());
 
     log::info!("PBS environment detected");
     Ok(result)
