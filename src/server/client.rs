@@ -90,7 +90,7 @@ pub async fn client_rpc_loop<
                         handle_worker_stop(&tako_ref, msg.worker_id).await.unwrap()
                     }
                     FromClientMessage::Cancel(msg) => {
-                        handle_job_cancel(&state_ref, &tako_ref, msg.job_id).await
+                        handle_job_cancel(&state_ref, &tako_ref, msg.job_ids).await
                     }
                     FromClientMessage::JobDetail(msg) => {
                         compute_job_detail(&state_ref, msg.job_id, msg.include_tasks)
@@ -164,54 +164,59 @@ fn compute_job_info(state_ref: &StateRef, selector: JobSelector) -> ToClientMess
 async fn handle_job_cancel(
     state_ref: &StateRef,
     tako_ref: &TakoServer,
-    job_id: JobId,
+    job_ids: Vec<JobId>,
 ) -> ToClientMessage {
-    let tako_task_ids;
-    {
-        let state = state_ref.get_mut();
-        let n_tasks = match state.get_job(job_id) {
-            None => return ToClientMessage::CancelJobResponse(CancelJobResponse::InvalidJob),
-            Some(job) => {
-                tako_task_ids = job.non_finished_task_ids();
-                job.n_tasks()
+    let mut state = state_ref.get_mut();
+    let mut cancel_responses: Vec<CancelJobResponse> = Vec::new();
+
+    for job_id in job_ids {
+        let tako_task_ids;
+        {
+            let n_tasks = match state.get_job(job_id) {
+                None => {
+                    cancel_responses.push(CancelJobResponse::InvalidJob(job_id));
+                    continue
+                },
+                Some(job) => {
+                    tako_task_ids = job.non_finished_task_ids();
+                    job.n_tasks()
+                }
+            };
+            if tako_task_ids.is_empty() {
+                cancel_responses.push(CancelJobResponse::Canceled(
+                    job_id,
+                    Vec::new(),
+                    n_tasks,
+                ));
+                continue
             }
-        };
-        if tako_task_ids.is_empty() {
-            return ToClientMessage::CancelJobResponse(CancelJobResponse::Canceled(
-                Vec::new(),
-                n_tasks,
-            ));
         }
-    }
 
-    let canceled_tasks = match tako_ref
-        .send_message(FromGatewayMessage::CancelTasks(CancelTasks {
-            tasks: tako_task_ids,
-        }))
-        .await
-        .unwrap()
-    {
-        ToGatewayMessage::CancelTasksResponse(msg) => msg.cancelled_tasks,
-        ToGatewayMessage::Error(msg) => {
-            log::debug!("Canceling job failed: {}", msg.message);
-            return ToClientMessage::Error(format!("Canceling job failed: {}", msg.message));
-        }
-        _ => {
-            panic!("Invalid message");
-        }
-    };
+        let canceled_tasks = match tako_ref
+            .send_message(FromGatewayMessage::CancelTasks(CancelTasks {
+                tasks: tako_task_ids,
+            }))
+            .await
+            .unwrap()
+            {
+                ToGatewayMessage::CancelTasksResponse(msg) => msg.cancelled_tasks,
+                ToGatewayMessage::Error(msg) => {
+                    return ToClientMessage::Error(format!("Canceling job failed: {}", msg.message));
+                }
+                _ => {
+                    panic!("Invalid message");
+                }
+            };
 
-    let (canceled_ids, already_finished) = {
-        let mut state = state_ref.get_mut();
         let job = state.get_job_mut(job_id).unwrap();
         let canceled_ids: Vec<_> = canceled_tasks
             .iter()
             .map(|tako_id| job.set_cancel_state(*tako_id))
             .collect();
         let already_finished = job.n_tasks() - canceled_ids.len() as JobTaskCount;
-        (canceled_ids, already_finished)
-    };
-    ToClientMessage::CancelJobResponse(CancelJobResponse::Canceled(canceled_ids, already_finished))
+        cancel_responses.push(CancelJobResponse::Canceled(job_id, canceled_ids, already_finished));
+    }
+    ToClientMessage::CancelJobResponse(cancel_responses)
 }
 
 fn make_program_def_for_task(
