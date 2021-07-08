@@ -393,7 +393,7 @@ impl Comm for TestComm {
         self.client_task_finished.push(task_id);
     }
 
-    fn send_client_task_started(&mut self, task_id: TaskId) {
+    fn send_client_task_started(&mut self, task_id: TaskId, _worker_id: WorkerId) {
         self.client_task_running.push(task_id);
     }
 
