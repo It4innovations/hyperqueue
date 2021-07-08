@@ -159,6 +159,7 @@ pub async fn run_worker(
         /*let data: Bytes = serialize(&FromWorkerMessage::Heartbeat)
         .unwrap()
         .into();*/
+
         loop {
             interval.tick().await;
             state_ref3

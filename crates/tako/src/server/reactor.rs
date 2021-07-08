@@ -220,7 +220,7 @@ pub fn on_task_running(
         };
         task.state = new_state;
         if task.is_observed() {
-            comm.send_client_task_started(task_id);
+            comm.send_client_task_started(task_id, worker_id);
         }
     }
 }

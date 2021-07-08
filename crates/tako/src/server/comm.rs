@@ -21,7 +21,7 @@ pub trait Comm {
     fn ask_for_scheduling(&mut self);
 
     fn send_client_task_finished(&mut self, task_id: TaskId);
-    fn send_client_task_started(&mut self, task_id: TaskId);
+    fn send_client_task_started(&mut self, task_id: TaskId, worker_id: WorkerId);
     //fn send_client_task_removed(&mut self, task_id: TaskId);
     fn send_client_task_error(
         &mut self,
@@ -46,6 +46,7 @@ pub struct CommSender {
     client_sender: UnboundedSender<ToGatewayMessage>,
     panic_on_worker_lost: bool,
 }
+
 pub type CommSenderRef = WrappedRcRefCell<CommSender>;
 
 impl CommSenderRef {
@@ -118,12 +119,12 @@ impl Comm for CommSender {
             .unwrap();
     }
 
-    fn send_client_task_started(&mut self, task_id: TaskId) {
+    fn send_client_task_started(&mut self, task_id: TaskId, worker_id: WorkerId) {
         log::debug!("Informing client about running task={}", task_id);
         self.client_sender
             .send(ToGatewayMessage::TaskUpdate(TaskUpdate {
                 id: task_id,
-                state: TaskState::Running,
+                state: TaskState::Running(worker_id),
             }))
             .unwrap();
     }
@@ -150,7 +151,7 @@ impl Comm for CommSender {
             .client_sender
             .send(ToGatewayMessage::NewWorker(NewWorkerMessage {
                 worker_id,
-                configuration: configuration.clone()
+                configuration: configuration.clone(),
             }))
             .is_ok());
     }
@@ -166,7 +167,7 @@ impl Comm for CommSender {
             .send(ToGatewayMessage::LostWorker(LostWorkerMessage {
                 worker_id,
                 running_tasks,
-                reason
+                reason,
             }))
             .is_ok());
     }
