@@ -17,6 +17,19 @@ pub async fn get_last_job_id(connection: &mut ClientConnection) -> crate::Result
     Ok(response.jobs.last().map(|job| job.id))
 }
 
+pub async fn get_job_ids(connection: &mut ClientConnection) -> crate::Result<Option<Vec<JobId>>> {
+    let message = FromClientMessage::JobInfo(JobInfoRequest {
+        selector: JobSelector::All,
+    });
+    let response = rpc_call!(connection, message, ToClientMessage::JobInfoResponse(r) => r).await?;
+
+    let mut ids: Vec<JobId> = Vec::new();
+    for job in response.jobs {
+        ids.push(job.id);
+    }
+    Ok(Option::from(ids))
+}
+
 pub async fn output_job_list(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
@@ -62,28 +75,33 @@ pub async fn output_job_detail(
 pub async fn cancel_job(
     _gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
-    job_id: JobId,
+    job_ids: Vec<JobId>,
 ) -> crate::Result<()> {
-    let response =
-        rpc_call!(connection, FromClientMessage::Cancel(CancelRequest { job_id }), ToClientMessage::CancelJobResponse(r) => r).await?;
+    let mut sorted_ids = job_ids.clone();
+    sorted_ids.sort_unstable();
 
-    match response {
-        CancelJobResponse::Canceled(canceled, already_finished) if !canceled.is_empty() => {
-            log::info!(
-                "Job {} canceled ({} tasks canceled, {} tasks already finished)",
-                job_id,
-                canceled.len(),
-                already_finished
-            )
-        }
-        CancelJobResponse::Canceled(_, _) => {
-            log::error!(
-                "Canceling job {} failed; all tasks are already finished",
-                job_id
-            )
-        }
-        CancelJobResponse::InvalidJob => {
-            log::error!("Canceling job {} failed; job not found", job_id)
+    let responses =
+        rpc_call!(connection, FromClientMessage::Cancel(CancelRequest { job_ids: sorted_ids }), ToClientMessage::CancelJobResponse(r) => r).await?;
+
+    for response in responses{
+        match response {
+            CancelJobResponse::Canceled(job_id, canceled, already_finished) if !canceled.is_empty() => {
+                log::info!(
+                    "Job {} canceled ({} tasks canceled, {} tasks already finished)",
+                    job_id,
+                    canceled.len(),
+                    already_finished
+                )
+            }
+            CancelJobResponse::Canceled(job_id, _, _) => {
+                log::error!(
+                    "Canceling job {} failed; all tasks are already finished",
+                    job_id
+                )
+            }
+            CancelJobResponse::InvalidJob(job_id) => {
+                log::error!("Canceling job {} failed; job not found", job_id)
+            }
         }
     }
     Ok(())

@@ -4,9 +4,7 @@ use std::str::FromStr;
 use clap::{Clap, ValueHint};
 use cli_table::ColorChoice;
 
-use hyperqueue::client::commands::jobs::{
-    cancel_job, get_last_job_id, output_job_detail, output_job_list,
-};
+use hyperqueue::client::commands::jobs::{cancel_job, get_last_job_id, output_job_detail, output_job_list, get_job_ids};
 use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{submit_computation, SubmitOpts};
 use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, stop_worker};
@@ -21,6 +19,7 @@ use hyperqueue::worker::hwdetect::{detect_resource, print_resource_descriptor};
 use hyperqueue::worker::output::print_worker_configuration;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::{JobId, WorkerId};
+use anyhow::Error;
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -161,6 +160,7 @@ struct JobListOpts {
 }
 
 enum JobSpecifier {
+    All,
     Last,
     Id(JobId),
 }
@@ -171,6 +171,7 @@ impl FromStr for JobSpecifier {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "last" => Ok(JobSpecifier::Last),
+            "all" => Ok(JobSpecifier::All),
             _ => Ok(JobSpecifier::Id(FromStr::from_str(s)?)),
         }
     }
@@ -190,7 +191,7 @@ struct JobDetailOpts {
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct CancelOpts {
-    job_id: JobId,
+    job_specifier: JobSpecifier,
 }
 
 // Commands
@@ -238,6 +239,7 @@ async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> a
                 }
             }
         }
+        JobSpecifier::All => return Err(Error::msg("Specifier all is not implemented for job details, did you mean: job list?"))
     };
 
     output_job_detail(&gsettings, &mut connection, job_id, opts.tasks)
@@ -252,7 +254,32 @@ async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> anyhow::
 
 async fn command_cancel(gsettings: GlobalSettings, opts: CancelOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    cancel_job(&gsettings, &mut connection, opts.job_id)
+
+    let job_ids: Vec<JobId> = match opts.job_specifier {
+        JobSpecifier::Id(job_id) => vec![job_id],
+        JobSpecifier::Last => {
+            let id = get_last_job_id(&mut connection).await?;
+            match id {
+                Some(id) => vec![id],
+                None => {
+                    log::warn!("No jobs were found");
+                    return Ok(());
+                }
+            }
+        }
+        JobSpecifier::All => {
+            let ids = get_job_ids(&mut connection).await?;
+            match ids {
+                Some(ids) => ids,
+                None => {
+                    log::warn!("No jobs were found");
+                    return Ok(());
+                }
+            }
+        }
+    };
+
+    cancel_job(&gsettings, &mut connection, job_ids)
         .await
         .map_err(|e| e.into())
 }
