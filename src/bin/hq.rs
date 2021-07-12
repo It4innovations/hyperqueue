@@ -4,7 +4,7 @@ use std::str::FromStr;
 use clap::{Clap, ValueHint};
 use cli_table::ColorChoice;
 
-use hyperqueue::client::commands::jobs::{cancel_job, get_last_job_id, output_job_detail, output_job_list, get_job_ids};
+use hyperqueue::client::commands::jobs::{cancel_job, get_last_job_id, output_job_detail, output_job_list};
 use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{submit_computation, SubmitOpts};
 use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, stop_worker};
@@ -20,6 +20,7 @@ use hyperqueue::worker::output::print_worker_configuration;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::{JobId, WorkerId};
 use anyhow::bail;
+use hyperqueue::transfer::messages::JobSelector;
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -159,20 +160,20 @@ struct JobListOpts {
     job_filters: Vec<Status>,
 }
 
-enum JobSpecifier {
+enum JobSelectorArg {
     All,
     Last,
     Id(JobId),
 }
 
-impl FromStr for JobSpecifier {
+impl FromStr for JobSelectorArg {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "last" => Ok(JobSpecifier::Last),
-            "all" => Ok(JobSpecifier::All),
-            _ => Ok(JobSpecifier::Id(FromStr::from_str(s)?)),
+            "last" => Ok(JobSelectorArg::Last),
+            "all" => Ok(JobSelectorArg::All),
+            _ => Ok(JobSelectorArg::Id(FromStr::from_str(s)?)),
         }
     }
 }
@@ -181,7 +182,7 @@ impl FromStr for JobSpecifier {
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct JobDetailOpts {
     /// Numeric job id or `last` to display the most recently submitted job
-    job_specifier: JobSpecifier,
+    job_specifier: JobSelectorArg,
 
     // Include task info in the output
     #[clap(long)]
@@ -191,7 +192,7 @@ struct JobDetailOpts {
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct CancelOpts {
-    job_specifier: JobSpecifier,
+    job_specifier: JobSelectorArg,
 }
 
 // Commands
@@ -228,8 +229,8 @@ async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> a
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
 
     let job_id = match opts.job_specifier {
-        JobSpecifier::Id(job_id) => job_id,
-        JobSpecifier::Last => {
+        JobSelectorArg::Id(job_id) => job_id,
+        JobSelectorArg::Last => {
             let id = get_last_job_id(&mut connection).await?;
             match id {
                 Some(id) => id,
@@ -239,7 +240,7 @@ async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> a
                 }
             }
         }
-        JobSpecifier::All => bail!("Specifier all is not implemented for job details, did you mean: job list?")
+        JobSelectorArg::All => bail!("Specifier all is not implemented for job details, did you mean: job list?")
     };
 
     output_job_detail(&gsettings, &mut connection, job_id, opts.tasks)
@@ -255,31 +256,13 @@ async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> anyhow::
 async fn command_cancel(gsettings: GlobalSettings, opts: CancelOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
 
-    let job_ids: Vec<JobId> = match opts.job_specifier {
-        JobSpecifier::Id(job_id) => vec![job_id],
-        JobSpecifier::Last => {
-            let id = get_last_job_id(&mut connection).await?;
-            match id {
-                Some(id) => vec![id],
-                None => {
-                    log::warn!("No jobs were found");
-                    return Ok(());
-                }
-            }
-        }
-        JobSpecifier::All => {
-            let ids = get_job_ids(&mut connection).await?;
-            match ids {
-                Some(ids) => ids,
-                None => {
-                    log::warn!("No jobs were found");
-                    return Ok(());
-                }
-            }
-        }
+    let selector: JobSelector = match opts.job_specifier {
+        JobSelectorArg::Id(job_id) => JobSelector::Specific(vec![job_id]),
+        JobSelectorArg::Last => JobSelector::LastN(1),
+        JobSelectorArg::All => JobSelector::All,
     };
 
-    cancel_job(&gsettings, &mut connection, job_ids)
+    cancel_job(&gsettings, &mut connection, selector)
         .await
         .map_err(|e| e.into())
 }
