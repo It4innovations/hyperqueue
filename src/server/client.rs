@@ -174,7 +174,7 @@ async fn handle_job_cancel(
         {
             let n_tasks = match state.get_job(job_id) {
                 None => {
-                    cancel_responses.push(CancelJobResponse::InvalidJob(job_id));
+                    cancel_responses.push(CancelJobResponse::InvalidJob);
                     continue
                 },
                 Some(job) => {
@@ -184,7 +184,6 @@ async fn handle_job_cancel(
             };
             if tako_task_ids.is_empty() {
                 cancel_responses.push(CancelJobResponse::Canceled(
-                    job_id,
                     Vec::new(),
                     n_tasks,
                 ));
@@ -214,7 +213,7 @@ async fn handle_job_cancel(
             .map(|tako_id| job.set_cancel_state(*tako_id))
             .collect();
         let already_finished = job.n_tasks() - canceled_ids.len() as JobTaskCount;
-        cancel_responses.push(CancelJobResponse::Canceled(job_id, canceled_ids, already_finished));
+        cancel_responses.push(CancelJobResponse::Canceled(canceled_ids, already_finished));
     }
     ToClientMessage::CancelJobResponse(cancel_responses)
 }

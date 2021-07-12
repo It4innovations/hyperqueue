@@ -19,7 +19,7 @@ use hyperqueue::worker::hwdetect::{detect_resource, print_resource_descriptor};
 use hyperqueue::worker::output::print_worker_configuration;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::{JobId, WorkerId};
-use anyhow::Error;
+use anyhow::bail;
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -239,7 +239,7 @@ async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> a
                 }
             }
         }
-        JobSpecifier::All => return Err(Error::msg("Specifier all is not implemented for job details, did you mean: job list?"))
+        JobSpecifier::All => bail!("Specifier all is not implemented for job details, did you mean: job list?")
     };
 
     output_job_detail(&gsettings, &mut connection, job_id, opts.tasks)
