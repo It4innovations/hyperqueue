@@ -1,8 +1,5 @@
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  pull_request_target:
 
 name: Check binary size
 
@@ -10,7 +7,10 @@ jobs:
   bloat:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
