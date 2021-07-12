@@ -11,6 +11,7 @@ use crate::server::rpc::TakoServer;
 use crate::server::worker::Worker;
 use crate::transfer::messages::LostWorkerReasonInfo;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
+use std::cmp::min;
 
 pub struct State {
     jobs: crate::Map<JobId, Job>,
@@ -123,10 +124,15 @@ impl State {
         }
     }
 
-    pub fn new_job_id(&mut self) -> TakoTaskId {
+    pub fn new_job_id(&mut self) -> JobId {
         let id = self.job_id_counter;
         self.job_id_counter += 1;
         id
+    }
+
+    pub fn last_n_ids(&self, n: JobId) -> impl Iterator<Item = JobId> {
+        let n = min(n, self.job_id_counter - 1);
+        (self.job_id_counter - n)..self.job_id_counter
     }
 
     pub fn new_task_id(&mut self, task_count: JobTaskCount) -> TakoTaskId {

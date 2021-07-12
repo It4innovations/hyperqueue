@@ -36,7 +36,7 @@ pub struct CancelRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum JobSelector {
     All,
-    LastN(usize),
+    LastN(JobId),
     Specific(Vec<JobId>),
 }
 
