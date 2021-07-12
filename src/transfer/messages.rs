@@ -70,8 +70,8 @@ pub enum FromClientMessage {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum CancelJobResponse {
-    Canceled(JobId, Vec<JobTaskId>, JobTaskCount),
-    InvalidJob(JobId),
+    Canceled(Vec<JobTaskId>, JobTaskCount),
+    InvalidJob,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

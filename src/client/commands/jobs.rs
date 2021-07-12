@@ -75,17 +75,17 @@ pub async fn output_job_detail(
 pub async fn cancel_job(
     _gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
-    job_ids: Vec<JobId>,
+    mut job_ids: Vec<JobId>,
 ) -> crate::Result<()> {
-    let mut sorted_ids = job_ids.clone();
-    sorted_ids.sort_unstable();
+    job_ids.sort_unstable();
+    let ids = job_ids.clone();
+    let responses = rpc_call!(connection, FromClientMessage::Cancel(CancelRequest { job_ids }), ToClientMessage::CancelJobResponse(r) => r).await?;
 
-    let responses =
-        rpc_call!(connection, FromClientMessage::Cancel(CancelRequest { job_ids: sorted_ids }), ToClientMessage::CancelJobResponse(r) => r).await?;
-
-    for response in responses{
+    let mut zipped = ids.iter().zip(responses).collect::<Vec<_>>();
+    zipped.sort_by_key(|&(&id, _)| id);
+    for (job_id, response) in zipped{
         match response {
-            CancelJobResponse::Canceled(job_id, canceled, already_finished) if !canceled.is_empty() => {
+            CancelJobResponse::Canceled(canceled, already_finished) if !canceled.is_empty() => {
                 log::info!(
                     "Job {} canceled ({} tasks canceled, {} tasks already finished)",
                     job_id,
@@ -93,13 +93,13 @@ pub async fn cancel_job(
                     already_finished
                 )
             }
-            CancelJobResponse::Canceled(job_id, _, _) => {
+            CancelJobResponse::Canceled(_, _) => {
                 log::error!(
                     "Canceling job {} failed; all tasks are already finished",
                     job_id
                 )
             }
-            CancelJobResponse::InvalidJob(job_id) => {
+            CancelJobResponse::InvalidJob => {
                 log::error!("Canceling job {} failed; job not found", job_id)
             }
         }

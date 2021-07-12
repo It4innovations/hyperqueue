@@ -280,6 +280,33 @@ def test_cancel_finished(hq_env: HqEnv):
     assert table[2][2] == "FAILED"
 
 
+def test_cancel_last(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus=1)
+    hq_env.command(["submit", "hostname"])
+    hq_env.command(["submit", "/invalid"])
+
+    wait_for_job_state(hq_env, [1, 2], ["FINISHED", "FAILED"])
+
+    r = hq_env.command(["cancel", "last"])
+    assert "Canceling job 2 failed" in r
+
+
+def test_cancel_all(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus=1)
+    hq_env.command(["submit", "hostname"])
+    hq_env.command(["submit", "/invalid"])
+    hq_env.command(["submit", "sleep", "1"])
+
+    wait_for_job_state(hq_env, [1, 2], ["FINISHED", "FAILED"])
+
+    r = hq_env.command(["cancel", "all"]).splitlines()
+    assert "Canceling job 1 failed" in r[0]
+    assert "Canceling job 2 failed" in r[1]
+    assert "Job 3 canceled" in r[2]
+
+
 def test_reporting_state_after_worker_lost(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_workers(2, cpus=1)
