@@ -30,7 +30,7 @@ pub struct SubmitRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CancelRequest {
-    pub job_ids: Vec<JobId>,
+    pub selector: JobSelector,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -72,6 +72,7 @@ pub enum FromClientMessage {
 pub enum CancelJobResponse {
     Canceled(Vec<JobTaskId>, JobTaskCount),
     InvalidJob,
+    Failed(String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -82,7 +83,7 @@ pub enum ToClientMessage {
     WorkerListResponse(WorkerListResponse),
     WorkerInfoResponse(Option<WorkerInfo>),
     StopWorkerResponse,
-    CancelJobResponse(Vec<CancelJobResponse>),
+    CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
     Error(String),
 }
 
