@@ -41,7 +41,7 @@ def test_version_mismatch(hq_env: HqEnv):
         json.dump(data, f)
 
     with pytest.raises(
-            Exception,
-            match=f"Server was started with version {version}.1, but the current version is {version}",
+        Exception,
+        match=f"Server was started with version {version}.1, but the current version is {version}",
     ):
         hq_env.command("jobs", as_table=True)

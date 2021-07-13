@@ -4,7 +4,10 @@ use std::str::FromStr;
 use clap::{Clap, ValueHint};
 use cli_table::ColorChoice;
 
-use hyperqueue::client::commands::jobs::{cancel_job, get_last_job_id, output_job_detail, output_job_list};
+use anyhow::bail;
+use hyperqueue::client::commands::jobs::{
+    cancel_job, get_last_job_id, output_job_detail, output_job_list,
+};
 use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{submit_computation, SubmitOpts};
 use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, stop_worker};
@@ -15,12 +18,11 @@ use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::timeutils::ArgDuration;
 use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server, ServerConfig};
+use hyperqueue::transfer::messages::JobSelector;
 use hyperqueue::worker::hwdetect::{detect_resource, print_resource_descriptor};
 use hyperqueue::worker::output::print_worker_configuration;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::{JobId, WorkerId};
-use anyhow::bail;
-use hyperqueue::transfer::messages::JobSelector;
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -240,7 +242,9 @@ async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> a
                 }
             }
         }
-        JobSelectorArg::All => bail!("Specifier all is not implemented for job details, did you mean: job list?")
+        JobSelectorArg::All => {
+            bail!("Specifier all is not implemented for job details, did you mean: job list?")
+        }
     };
 
     output_job_detail(&gsettings, &mut connection, job_id, opts.tasks)

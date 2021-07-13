@@ -10,6 +10,7 @@ use tako::messages::gateway::{
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Notify;
 
+use crate::client::job::{job_status, Status};
 use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::server::job::Job;
 use crate::server::rpc::TakoServer;
@@ -165,7 +166,16 @@ async fn handle_job_cancel(
     let mut responses: Vec<(JobId, CancelJobResponse)> = Vec::new();
 
     let job_ids: Vec<JobId> = match selector {
-        JobSelector::All => state.jobs().map(|j| j.job_id).collect(),
+        JobSelector::All => state
+            .jobs()
+            .map(|job| job.make_job_info())
+            .filter(|job_info| {
+                vec![Status::Running, Status::Waiting]
+                    .iter()
+                    .any(|status| status == &job_status(&job_info))
+            })
+            .map(|job_info| job_info.id)
+            .collect(),
         JobSelector::LastN(n) => state.last_n_ids(n).collect(),
         JobSelector::Specific(ids) => ids,
     };
