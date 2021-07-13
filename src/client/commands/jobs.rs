@@ -79,10 +79,15 @@ pub async fn cancel_job(
 ) -> crate::Result<()> {
     let mut responses = rpc_call!(connection, FromClientMessage::Cancel(CancelRequest {
          selector,
-    }), ToClientMessage::CancelJobResponse(r) => r).await?;
+    }), ToClientMessage::CancelJobResponse(r) => r)
+    .await?;
     responses.sort_unstable_by_key(|x| x.0);
 
-    for (job_id, response) in responses{
+    if responses.is_empty() {
+        log::info!("There is nothing to cancel")
+    }
+
+    for (job_id, response) in responses {
         match response {
             CancelJobResponse::Canceled(canceled, already_finished) if !canceled.is_empty() => {
                 log::info!(
@@ -102,7 +107,7 @@ pub async fn cancel_job(
                 log::error!("Canceling job {} failed; job not found", job_id)
             }
             CancelJobResponse::Failed(msg) => {
-                log::error!("Canceling job failed: {}", msg)
+                log::error!("Canceling job {} failed; {}", job_id, msg)
             }
         }
     }

@@ -91,16 +91,11 @@ def test_custom_working_dir(hq_env: HqEnv, tmpdir):
     submit_dir = tmpdir.mkdir("submit_dir")
 
     cwd_submit_tbl = hq_env.command(
-        [
-            "submit",
-            "--cwd=" + str(test_path),
-            "--",
-            "bash",
-            "-c",
-            "cat testfile"
-        ], as_table=True, cwd=submit_dir
+        ["submit", "--cwd=" + str(test_path), "--", "bash", "-c", "cat testfile"],
+        as_table=True,
+        cwd=submit_dir,
     )
-    assert (cwd_submit_tbl[cwd_offset][1] == str(test_path))
+    assert cwd_submit_tbl[cwd_offset][1] == str(test_path)
 
     hq_env.start_worker(cpus=1)
     wait_for_job_state(hq_env, 1, ["FINISHED"])
@@ -302,9 +297,8 @@ def test_cancel_all(hq_env: HqEnv):
     wait_for_job_state(hq_env, [1, 2], ["FINISHED", "FAILED"])
 
     r = hq_env.command(["cancel", "all"]).splitlines()
-    assert "Canceling job 1 failed" in r[0]
-    assert "Canceling job 2 failed" in r[1]
-    assert "Job 3 canceled" in r[2]
+    assert len(r) == 1
+    assert "Job 3 canceled" in r[0]
 
 
 def test_reporting_state_after_worker_lost(hq_env: HqEnv):

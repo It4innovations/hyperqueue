@@ -42,15 +42,13 @@ pub fn job_status(info: &JobInfo) -> Status {
         Status::Running
     } else if has_waiting {
         Status::Waiting
+    } else if info.counters.n_canceled_tasks > 0 {
+        Status::Canceled
+    } else if info.counters.n_failed_tasks > 0 {
+        Status::Failed
     } else {
-        if info.counters.n_canceled_tasks > 0 {
-            Status::Canceled
-        } else if info.counters.n_failed_tasks > 0 {
-            Status::Failed
-        } else {
-            assert_eq!(info.counters.n_finished_tasks, info.n_tasks);
-            Status::Finished
-        }
+        assert_eq!(info.counters.n_finished_tasks, info.n_tasks);
+        Status::Finished
     }
 }
 
