@@ -58,6 +58,23 @@ def test_worker_stop(hq_env: HqEnv):
     wait_for_worker_state(hq_env, 1, "STOPPED")
     hq_env.check_process_exited(process)
 
+    response = hq_env.command(["worker", "stop", "1"])
+    assert "worker is already stopped" in response
+    response = hq_env.command(["worker", "stop", "2"])
+    assert "worker not found" in response
+
+
+def test_worker_stop_all(hq_env: HqEnv):
+    hq_env.start_server()
+    processes = [hq_env.start_worker() for i in range(4)]
+
+    wait_for_worker_state(hq_env, [1, 2, 3, 4], ["RUNNING" for i in range(4)]),
+    hq_env.command(["worker", "stop", "all"])
+    wait_for_worker_state(hq_env, [1, 2, 3, 4], ["STOPPED" for i in range(4)]),
+
+    for process in processes:
+        hq_env.check_process_exited(process)
+
 
 def test_worker_list_online_offline_state(hq_env: HqEnv):
     hq_env.start_server()

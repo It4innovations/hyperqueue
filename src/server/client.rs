@@ -21,7 +21,8 @@ use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
     CancelJobResponse, FromClientMessage, JobInfoResponse, JobSelector, JobType, ResubmitRequest,
-    SubmitRequest, SubmitResponse, ToClientMessage, WorkerListResponse,
+    StopWorkerResponse, SubmitRequest, SubmitResponse, ToClientMessage, WorkerListResponse,
+    WorkerSelector,
 };
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 use bstr::BString;
@@ -93,7 +94,7 @@ pub async fn client_rpc_loop<
                         handle_worker_info(&state_ref, msg.worker_id).await
                     }
                     FromClientMessage::StopWorker(msg) => {
-                        handle_worker_stop(&tako_ref, msg.worker_id).await.unwrap()
+                        handle_worker_stop(&state_ref, &tako_ref, msg.selector).await
                     }
                     FromClientMessage::Cancel(msg) => {
                         handle_job_cancel(&state_ref, &tako_ref, msg.selector).await
@@ -120,19 +121,61 @@ pub async fn client_rpc_loop<
 }
 
 async fn handle_worker_stop(
+    state_ref: &StateRef,
     tako_ref: &TakoServer,
-    worker_id: WorkerId,
-) -> crate::Result<ToClientMessage> {
-    match tako_ref
-        .send_message(FromGatewayMessage::StopWorker(StopWorkerRequest {
-            worker_id,
-        }))
-        .await?
-    {
-        ToGatewayMessage::WorkerStopped => Ok(ToClientMessage::StopWorkerResponse),
-        ToGatewayMessage::Error(error) => Ok(ToClientMessage::Error(error.message)),
-        msg => panic!("Received invalid response to worker stop: {:?}", msg),
+    selector: WorkerSelector,
+) -> ToClientMessage {
+    log::debug!("Client asked for worker termination {:?}", selector);
+    let mut responses: Vec<(WorkerId, StopWorkerResponse)> = Vec::new();
+
+    let worker_ids: Vec<WorkerId> = match selector {
+        WorkerSelector::Specific(ids) => ids,
+        WorkerSelector::All => state_ref
+            .get()
+            .get_workers()
+            .iter()
+            .filter(|(_, worker)| worker.make_info().ended.is_none())
+            .map(|(_, worker)| worker.worker_id())
+            .collect(),
+    };
+
+    for worker_id in worker_ids {
+        if let Some(worker) = state_ref.get().get_worker(worker_id) {
+            if worker.make_info().ended.is_some() {
+                responses.push((worker_id, StopWorkerResponse::AlreadyStopped));
+                continue;
+            }
+        } else {
+            responses.push((worker_id, StopWorkerResponse::InvalidWorker));
+            continue;
+        }
+        let response = tako_ref
+            .clone()
+            .send_message(FromGatewayMessage::StopWorker(StopWorkerRequest {
+                worker_id,
+            }))
+            .await;
+
+        match response {
+            Ok(result) => match result {
+                ToGatewayMessage::WorkerStopped => {
+                    responses.push((worker_id, StopWorkerResponse::Stopped))
+                }
+                ToGatewayMessage::Error(error) => {
+                    responses.push((worker_id, StopWorkerResponse::Failed(error.message)))
+                }
+                msg => panic!(
+                    "Received invalid response to worker: {} stop: {:?}",
+                    worker_id, msg
+                ),
+            },
+            Err(err) => {
+                responses.push((worker_id, StopWorkerResponse::Failed(err.to_string())));
+                log::error!("Unable to stop worker: {} error: {:?}", worker_id, err);
+            }
+        }
     }
+    ToClientMessage::StopWorkerResponse(responses)
 }
 
 fn compute_job_detail(state_ref: &StateRef, job_id: JobId, include_tasks: bool) -> ToClientMessage {

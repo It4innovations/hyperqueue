@@ -20,7 +20,7 @@ use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::timeutils::ArgDuration;
 use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server, ServerConfig};
-use hyperqueue::transfer::messages::JobSelector;
+use hyperqueue::transfer::messages::{JobSelector, WorkerSelector};
 use hyperqueue::worker::hwdetect::{detect_resource, print_resource_descriptor};
 use hyperqueue::worker::output::print_worker_configuration;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
@@ -104,11 +104,36 @@ enum ServerCommand {
     Stop(ServerStopOpts),
 }
 
+enum WorkerSelectorArg {
+    All,
+    Id(JobId),
+}
+
+impl FromStr for WorkerSelectorArg {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "all" => Ok(WorkerSelectorArg::All),
+            _ => Ok(WorkerSelectorArg::Id(FromStr::from_str(s)?)),
+        }
+    }
+}
+
+impl From<WorkerSelectorArg> for WorkerSelector {
+    fn from(selector: WorkerSelectorArg) -> Self {
+        match selector {
+            WorkerSelectorArg::Id(job_id) => WorkerSelector::Specific(vec![job_id]),
+            WorkerSelectorArg::All => WorkerSelector::All,
+        }
+    }
+}
+
 // Worker CLI options
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct WorkerStopOpts {
-    worker_id: WorkerId,
+    selector: WorkerSelectorArg,
 }
 
 #[derive(Clap)]
@@ -287,9 +312,8 @@ async fn command_worker_stop(
     opts: WorkerStopOpts,
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
-    stop_worker(&mut connection, opts.worker_id)
-        .await
-        .map_err(|e| e.into())
+    stop_worker(&mut connection, opts.selector.into()).await?;
+    Ok(())
 }
 
 async fn command_worker_list(
