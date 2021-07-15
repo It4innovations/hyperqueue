@@ -1,7 +1,8 @@
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    FromClientMessage, StopWorkerMessage, ToClientMessage, WorkerInfo, WorkerInfoRequest,
+    FromClientMessage, StopWorkerMessage, StopWorkerResponse, ToClientMessage, WorkerInfo,
+    WorkerInfoRequest, WorkerSelector,
 };
 use crate::WorkerId;
 
@@ -47,8 +48,29 @@ pub async fn get_worker_info(
 
 pub async fn stop_worker(
     connection: &mut ClientConnection,
-    worker_id: WorkerId,
+    selector: WorkerSelector,
 ) -> crate::Result<()> {
-    let message = FromClientMessage::StopWorker(StopWorkerMessage { worker_id });
-    rpc_call!(connection, message, ToClientMessage::StopWorkerResponse).await
+    let message = FromClientMessage::StopWorker(StopWorkerMessage { selector });
+    let mut responses =
+        rpc_call!(connection, message, ToClientMessage::StopWorkerResponse(r) => r).await?;
+
+    responses.sort_unstable_by_key(|x| x.0);
+    for (id, response) in responses {
+        match response {
+            StopWorkerResponse::Failed(e) => {
+                log::error!("Stopping worker {} failed; {}", id, e.to_string());
+            }
+            StopWorkerResponse::InvalidWorker => {
+                log::error!("Stopping worker {} failed; worker not found", id);
+            }
+            StopWorkerResponse::AlreadyStopped => {
+                log::warn!("Stopping worker {} failed; worker is already stopped", id);
+            }
+            StopWorkerResponse::Stopped => {
+                log::info!("Worker {} stopped", id)
+            }
+        }
+    }
+
+    Ok(())
 }

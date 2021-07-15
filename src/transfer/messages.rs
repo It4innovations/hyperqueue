@@ -60,7 +60,7 @@ pub struct JobDetailRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StopWorkerMessage {
-    pub(crate) worker_id: WorkerId,
+    pub selector: WorkerSelector,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -84,6 +84,14 @@ pub enum CancelJobResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub enum StopWorkerResponse {
+    Stopped,
+    AlreadyStopped,
+    InvalidWorker,
+    Failed(String),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ToClientMessage {
     JobInfoResponse(JobInfoResponse),
     JobDetailResponse(Option<JobDetail>),
@@ -91,7 +99,7 @@ pub enum ToClientMessage {
     ResubmitResponse(SubmitResponse),
     WorkerListResponse(WorkerListResponse),
     WorkerInfoResponse(Option<WorkerInfo>),
-    StopWorkerResponse,
+    StopWorkerResponse(Vec<(WorkerId, StopWorkerResponse)>),
     CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
     Error(String),
 }
@@ -158,6 +166,12 @@ pub struct JobDetail {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitResponse {
     pub job: JobDetail,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum WorkerSelector {
+    All,
+    Specific(Vec<WorkerId>),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
