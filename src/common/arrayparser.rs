@@ -5,7 +5,7 @@ use nom::combinator::{map, map_res, opt};
 use nom::sequence::{preceded, tuple};
 
 use crate::common::arraydef::{ArrayDef, TaskIdRange};
-use crate::common::parser::{p_uint, NomResult};
+use crate::common::parser::{format_parse_error, p_uint, NomResult};
 
 fn p_task_id_range(input: &str) -> NomResult<TaskIdRange> {
     map_res(
@@ -13,7 +13,7 @@ fn p_task_id_range(input: &str) -> NomResult<TaskIdRange> {
         |r| match r {
             (v, None) => Ok(TaskIdRange::new(v, 1)),
             (v, Some(w)) if w >= v => Ok(TaskIdRange::new(v, w - v + 1)),
-            _ => Err("Invalid range"),
+            _ => Err(anyhow!("Invalid range")),
         },
     )(input)
 }
@@ -25,7 +25,7 @@ fn p_array_def(input: &str) -> NomResult<ArrayDef> {
 pub fn parse_array_def(input: &str) -> anyhow::Result<ArrayDef> {
     all_consuming(p_array_def)(input)
         .map(|r| r.1)
-        .map_err(|e| anyhow!(e.to_string()))
+        .map_err(format_parse_error)
 }
 
 #[cfg(test)]

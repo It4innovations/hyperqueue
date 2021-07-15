@@ -1,5 +1,4 @@
-use crate::common::parser::{p_uint, NomResult};
-use anyhow::anyhow;
+use crate::common::parser::{format_parse_error, p_uint, NomResult};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::multispace1;
@@ -20,7 +19,7 @@ fn p_cpu_request(input: &str) -> NomResult<CpuRequest> {
             )),
             |(count, policy)| {
                 if count == 0 {
-                    return Err(nom::Err::Error("Requesting zero cpus are not allowed"));
+                    return Err(anyhow::anyhow!("Requesting zero cpus is not allowed"));
                 }
                 Ok(match policy {
                     None | Some("compact") => CpuRequest::Compact(count),
@@ -36,7 +35,7 @@ fn p_cpu_request(input: &str) -> NomResult<CpuRequest> {
 pub fn parse_cpu_request(input: &str) -> anyhow::Result<CpuRequest> {
     all_consuming(p_cpu_request)(input)
         .map(|r| r.1)
-        .map_err(|e| anyhow!(e.to_string()))
+        .map_err(format_parse_error)
 }
 
 pub fn cpu_request_to_string(cr: &CpuRequest) -> String {
@@ -74,5 +73,10 @@ mod test {
             parse_cpu_request("10 scatter").unwrap(),
             CpuRequest::Scatter(10)
         );
+    }
+
+    #[test]
+    fn test_parse_zero_cpus() {
+        assert!(parse_cpu_request("0").is_err());
     }
 }
