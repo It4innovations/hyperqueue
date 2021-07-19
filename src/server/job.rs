@@ -7,11 +7,17 @@ use bstr::BString;
 use tako::common::resources::ResourceRequest;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct FailedMessage {
+    pub error: String,
+    pub worker_hostname: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum JobTaskState {
     Waiting,
-    Running,
-    Finished,
-    Failed(String),
+    Running(String),
+    Finished(String),
+    Failed(FailedMessage),
     Canceled,
 }
 
@@ -197,55 +203,58 @@ impl Job {
         let mut result = Vec::new();
         for (tako_id, _task_id, state) in self.iter_task_states() {
             match state {
-                JobTaskState::Waiting | JobTaskState::Running => result.push(tako_id),
-                JobTaskState::Finished | JobTaskState::Failed(_) | JobTaskState::Canceled => { /* Do nothing */
+                JobTaskState::Waiting | JobTaskState::Running(_) => result.push(tako_id),
+                JobTaskState::Finished(_) | JobTaskState::Failed(_) | JobTaskState::Canceled => {
+                    /* Do nothing */
                 }
             }
         }
         result
     }
 
-    /*pub fn iter_task_states_mut(&mut self) -> Box<dyn Iterator<Item=(TakoTaskId, &mut JobTaskState)>>
-    {
-        match &mut self.state {
-            JobState::SingleTask(ref mut s) => {
-                Box::new(Some((0, s)))
-            }
-            JobState::ManyTasks(ref mut m) => {
-                Box::new(m.iter_mut().map(|(k, v)| (k, &mut v.state)))
-            }
-        }
-    }*/
-
-    pub fn set_running_state(&mut self, tako_task_id: TakoTaskId) {
+    pub fn set_running_state(&mut self, tako_task_id: TakoTaskId, worker_hostname: String) {
         let (_, state) = self.get_task_state_mut(tako_task_id);
+
         if matches!(state, JobTaskState::Waiting) {
-            *state = JobTaskState::Running;
+            *state = JobTaskState::Running(worker_hostname);
             self.counters.n_running_tasks += 1;
         }
     }
 
     pub fn set_finished_state(&mut self, tako_task_id: TakoTaskId) {
         let (_, state) = self.get_task_state_mut(tako_task_id);
-        assert!(matches!(state, JobTaskState::Running));
-        *state = JobTaskState::Finished;
-        self.counters.n_running_tasks -= 1;
-        self.counters.n_finished_tasks += 1;
+
+        match state {
+            JobTaskState::Running(worker_hostname) => {
+                *state = JobTaskState::Finished(worker_hostname.to_owned());
+                self.counters.n_running_tasks -= 1;
+                self.counters.n_finished_tasks += 1;
+            }
+            _ => panic!("Invalid worker state, expected Running, got {:?}", state),
+        }
     }
 
     pub fn set_waiting_state(&mut self, tako_task_id: TakoTaskId) {
         let (_, state) = self.get_task_state_mut(tako_task_id);
-        assert!(matches!(state, JobTaskState::Running));
+        assert!(matches!(state, JobTaskState::Running(_)));
         *state = JobTaskState::Waiting;
         self.counters.n_running_tasks -= 1;
     }
 
     pub fn set_failed_state(&mut self, tako_task_id: TakoTaskId, error: String) {
         let (_, state) = self.get_task_state_mut(tako_task_id);
-        assert!(matches!(state, JobTaskState::Running));
-        *state = JobTaskState::Failed(error);
-        self.counters.n_running_tasks -= 1;
-        self.counters.n_failed_tasks += 1;
+
+        match state {
+            JobTaskState::Running(worker_hostname) => {
+                *state = JobTaskState::Failed(FailedMessage {
+                    error,
+                    worker_hostname: worker_hostname.to_owned(),
+                });
+                self.counters.n_running_tasks -= 1;
+                self.counters.n_failed_tasks += 1;
+            }
+            _ => panic!("Invalid worker state, expected Running, got {:?}", state),
+        }
     }
 
     pub fn set_cancel_state(&mut self, tako_task_id: TakoTaskId) -> JobTaskId {
@@ -253,9 +262,9 @@ impl Job {
         let old_state = std::mem::replace(state, JobTaskState::Canceled);
         assert!(matches!(
             old_state,
-            JobTaskState::Running | JobTaskState::Waiting
+            JobTaskState::Running(_) | JobTaskState::Waiting
         ));
-        if let JobTaskState::Running = old_state {
+        if let JobTaskState::Running(_) = old_state {
             self.counters.n_running_tasks -= 1;
         }
         self.counters.n_canceled_tasks += 1;

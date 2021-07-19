@@ -54,25 +54,28 @@ impl FromStr for StatusList {
 }
 
 pub fn job_status(info: &JobInfo) -> Status {
+    let has_waiting = info.counters.n_waiting_tasks(info.n_tasks) > 0;
+
     if info.counters.n_running_tasks > 0 {
         Status::Running
+    } else if has_waiting {
+        Status::Waiting
     } else if info.counters.n_canceled_tasks > 0 {
         Status::Canceled
     } else if info.counters.n_failed_tasks > 0 {
         Status::Failed
-    } else if info.counters.n_finished_tasks == info.n_tasks {
-        Status::Finished
     } else {
-        Status::Waiting
+        assert_eq!(info.counters.n_finished_tasks, info.n_tasks);
+        Status::Finished
     }
 }
 
 pub fn task_status(status: &JobTaskState) -> Status {
     match status {
         JobTaskState::Waiting => Status::Waiting,
-        JobTaskState::Running => Status::Running,
-        JobTaskState::Finished => Status::Finished,
-        JobTaskState::Failed(_) => Status::Failed,
+        JobTaskState::Running(..) => Status::Running,
+        JobTaskState::Finished(..) => Status::Finished,
+        JobTaskState::Failed(..) => Status::Failed,
         JobTaskState::Canceled => Status::Canceled,
     }
 }

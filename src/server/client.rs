@@ -10,9 +10,7 @@ use tako::messages::gateway::{
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Notify;
 
-use crate::client::job::job_status;
-use crate::client::job::task_status;
-use crate::client::status::Status;
+use crate::client::status::{job_status, task_status, Status};
 use crate::common::arraydef::ArrayDef;
 use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::server::job::Job;

@@ -3,50 +3,14 @@ use cli_table::{print_stdout, Cell, CellStruct, Color, Style, Table};
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::resources::cpu_request_to_string;
-use crate::client::status::Status;
+use crate::client::status::{job_status, status_cell, task_status};
 use crate::common::env::is_hq_env;
+use crate::server::job::FailedMessage;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::transfer::messages::{JobDetail, JobInfo, JobType};
 use crate::JobTaskCount;
 use colored::Colorize;
 use std::fmt::Write;
-
-pub fn job_status(info: &JobInfo) -> Status {
-    let has_waiting = info.counters.n_waiting_tasks(info.n_tasks) > 0;
-
-    if info.counters.n_running_tasks > 0 {
-        Status::Running
-    } else if has_waiting {
-        Status::Waiting
-    } else if info.counters.n_canceled_tasks > 0 {
-        Status::Canceled
-    } else if info.counters.n_failed_tasks > 0 {
-        Status::Failed
-    } else {
-        assert_eq!(info.counters.n_finished_tasks, info.n_tasks);
-        Status::Finished
-    }
-}
-
-pub fn task_status(status: &JobTaskState) -> Status {
-    match status {
-        JobTaskState::Waiting => Status::Waiting,
-        JobTaskState::Running => Status::Running,
-        JobTaskState::Finished => Status::Finished,
-        JobTaskState::Failed(_) => Status::Failed,
-        JobTaskState::Canceled => Status::Canceled,
-    }
-}
-
-fn status_cell(status: Status) -> CellStruct {
-    match status {
-        Status::Waiting => "WAITING".cell().foreground_color(Some(Color::Cyan)),
-        Status::Finished => "FINISHED".cell().foreground_color(Some(Color::Green)),
-        Status::Failed => "FAILED".cell().foreground_color(Some(Color::Red)),
-        Status::Running => "RUNNING".cell().foreground_color(Some(Color::Yellow)),
-        Status::Canceled => "CANCELED".cell().foreground_color(Some(Color::Magenta)),
-    }
-}
 
 /// Draws a colored progress bar that depicts counts of tasks with individual states
 fn job_progress_bar(info: &JobInfo) -> String {
@@ -281,7 +245,11 @@ fn print_job_tasks(
     let make_error_row = |t: &JobTaskInfo| match &t.state {
         JobTaskState::Failed(e) => Some(vec![
             t.task_id.cell(),
-            e.cell().foreground_color(Some(Color::Red)),
+            e.worker_hostname
+                .to_owned()
+                .cell()
+                .foreground_color(Some(Color::Red)),
+            e.error.to_owned().cell().foreground_color(Some(Color::Red)),
         ]),
         _ => None,
     };
@@ -294,7 +262,17 @@ fn print_job_tasks(
                     t.task_id.cell(),
                     status_cell(task_status(&t.state)),
                     match &t.state {
-                        JobTaskState::Failed(e) => e.cell().foreground_color(Some(Color::Red)),
+                        JobTaskState::Finished(worker_hostname)
+                        | JobTaskState::Running(worker_hostname)
+                        | JobTaskState::Failed(FailedMessage {
+                            worker_hostname, ..
+                        }) => worker_hostname.cell().foreground_color(Some(Color::Cyan)),
+                        _ => "".cell(),
+                    },
+                    match &t.state {
+                        JobTaskState::Failed(e) => {
+                            e.error.to_owned().cell().foreground_color(Some(Color::Red))
+                        }
                         _ => "".cell(),
                     },
                 ]
@@ -306,6 +284,7 @@ fn print_job_tasks(
             .title(vec![
                 "Task Id".cell().bold(true),
                 "State".cell().bold(true),
+                "Worker".cell().bold(true),
                 "Message".cell().bold(true),
             ]);
         assert!(print_stdout(table).is_ok());
@@ -322,7 +301,11 @@ fn print_job_tasks(
             let table = fail_rows
                 .table()
                 .color_choice(gsettings.color_policy())
-                .title(vec!["Task Id".cell().bold(true), "Error".cell().bold(true)]);
+                .title(vec![
+                    "Task Id".cell().bold(true),
+                    "Worker".cell().bold(true),
+                    "Error".cell().bold(true),
+                ]);
             assert!(print_stdout(table).is_ok());
 
             if count < counters.n_failed_tasks {
