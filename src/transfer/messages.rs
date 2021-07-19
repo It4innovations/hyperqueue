@@ -96,7 +96,6 @@ pub enum ToClientMessage {
     JobInfoResponse(JobInfoResponse),
     JobDetailResponse(Option<JobDetail>),
     SubmitResponse(SubmitResponse),
-    ResubmitResponse(SubmitResponse),
     WorkerListResponse(WorkerListResponse),
     WorkerInfoResponse(Option<WorkerInfo>),
     StopWorkerResponse(Vec<(WorkerId, StopWorkerResponse)>),

@@ -19,7 +19,9 @@ use hyperqueue::client::worker::print_worker_info;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::timeutils::ArgDuration;
-use hyperqueue::server::bootstrap::{get_client_connection, init_hq_server, ServerConfig};
+use hyperqueue::server::bootstrap::{
+    get_client_connection, init_hq_server, print_server_info, ServerConfig,
+};
 use hyperqueue::transfer::messages::{JobSelector, WorkerSelector};
 use hyperqueue::worker::hwdetect::{detect_resource, print_resource_descriptor};
 use hyperqueue::worker::output::print_worker_configuration;
@@ -91,6 +93,10 @@ struct ServerStopOpts {}
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
+struct ServerInfoOpts {}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
 struct ServerOpts {
     #[clap(subcommand)]
     subcmd: ServerCommand,
@@ -102,6 +108,8 @@ enum ServerCommand {
     Start(ServerStartOpts),
     /// Stop the HyperQueue server, if it is running
     Stop(ServerStopOpts),
+    /// Show info of running HyperQueue server
+    Info(ServerInfoOpts),
 }
 
 enum WorkerSelectorArg {
@@ -247,6 +255,13 @@ async fn command_server_stop(
     let mut connection = get_client_connection(&gsettings.server_directory()).await?;
     stop_server(&mut connection).await?;
     Ok(())
+}
+
+async fn command_server_info(
+    gsettings: GlobalSettings,
+    _opts: ServerInfoOpts,
+) -> anyhow::Result<()> {
+    print_server_info(&gsettings).await
 }
 
 async fn command_job_list(gsettings: GlobalSettings, opts: JobListOpts) -> anyhow::Result<()> {
@@ -443,6 +458,9 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Server(ServerOpts {
             subcmd: ServerCommand::Stop(opts),
         }) => command_server_stop(gsettings, opts).await,
+        SubCommand::Server(ServerOpts {
+            subcmd: ServerCommand::Info(opts),
+        }) => command_server_info(gsettings, opts).await,
 
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Start(opts),

@@ -45,3 +45,9 @@ def test_version_mismatch(hq_env: HqEnv):
         match=f"Server was started with version {version}.1, but the current version is {version}",
     ):
         hq_env.command("jobs", as_table=True)
+
+
+def test_server_info(hq_env: HqEnv):
+    hq_env.start_server()
+    table = hq_env.command(["server", "info"], as_table=True)
+    assert len(table) == 7
