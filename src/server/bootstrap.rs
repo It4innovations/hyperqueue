@@ -174,6 +174,16 @@ pub fn print_access_record(gsettings: &GlobalSettings, server_dir: &Path, record
     assert!(print_stdout(table).is_ok());
 }
 
+pub async fn print_server_info(gsettings: &GlobalSettings) -> anyhow::Result<()> {
+    match get_server_status(gsettings.server_directory()).await {
+        Err(_) | Ok(ServerStatus::Offline(_)) => anyhow::bail!("No online server found"),
+        Ok(ServerStatus::Online(record)) => {
+            print_access_record(gsettings, gsettings.server_directory(), &record)
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
