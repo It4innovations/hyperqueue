@@ -372,16 +372,17 @@ async fn handle_resubmit(
             let resources = job.resources.clone();
             let pin = job.pin;
             let entries = job.entries.clone();
+            let max_fails = job.max_fails;
 
             let msg_submit = SubmitRequest {
                 job_type,
                 name,
-                max_fails: None,
+                max_fails,
                 spec,
                 resources,
                 pin,
                 entries,
-                submit_dir: Default::default(),
+                submit_dir: std::env::current_dir().unwrap().to_str().unwrap().into(),
             };
             handle_submit(&state_ref.clone(), &tako_ref.clone(), msg_submit).await
         } else {
