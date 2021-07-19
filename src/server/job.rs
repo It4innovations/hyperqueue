@@ -132,6 +132,7 @@ impl Job {
             },
             pin: self.pin,
             entries: self.entries.clone(),
+            max_fails: self.max_fails,
         }
     }
 

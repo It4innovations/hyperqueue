@@ -152,6 +152,7 @@ pub struct JobDetail {
     pub resources: ResourceRequest,
     pub pin: bool,
     pub entries: Option<Vec<BString>>,
+    pub max_fails: Option<JobTaskCount>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
