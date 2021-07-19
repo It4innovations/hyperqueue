@@ -13,7 +13,7 @@ pub enum WorkerState {
 pub struct Worker {
     worker_id: WorkerId,
     state: WorkerState,
-    configuration: WorkerConfiguration,
+    pub(crate) configuration: WorkerConfiguration,
 }
 
 impl Worker {

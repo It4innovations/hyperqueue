@@ -210,7 +210,7 @@ pub async fn submit_computation(
         priority: opts.priority,
     });
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
-    print_job_detail(gsettings, response.job, true, true);
+    print_job_detail(gsettings, response.job, true, false);
     Ok(())
 }
 
@@ -234,7 +234,7 @@ pub async fn resubmit_computation(
         status: opts.status.map(|x| x.to_vec()),
     });
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
-    print_job_detail(gsettings, response.job, true, true);
+    print_job_detail(gsettings, response.job, true, false);
     Ok(())
 }
 

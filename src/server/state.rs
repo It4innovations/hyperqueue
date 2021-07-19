@@ -29,19 +29,13 @@ pub struct State {
     //                 5   ->    2
     // The actual base_task_id_to_job will be 1 -> 1, 3 -> 2
     // Therefore we need to find biggest key that is lower then a given task id
-    // To make this query efficitnet, we use BTreeMap and not Map
+    // To make this query efficient, we use BTreeMap and not Map
     base_task_id_to_job_id: BTreeMap<TakoTaskId, WorkerId>,
     job_id_counter: JobId,
     task_id_counter: TakoTaskId,
 }
 
 pub type StateRef = WrappedRcRefCell<State>;
-
-/*pub fn new_state_ref() -> StateRef {
-        WrappedRcRefCell::wrap(State {
-
-        })
-}*/
 
 fn cancel_tasks_from_callback(
     state_ref: &StateRef,
@@ -102,12 +96,6 @@ impl State {
             .is_none());
         assert!(self.jobs.insert(job_id, job).is_none());
     }
-
-    /*pub fn get_job_mut_by_tako_task_id(&mut self, task_id: TakoTaskId) -> Option<&mut Job> {
-        self.base_task_id_to_job_id.range(..=task_id).rev().next().and_then(|(_, job_id)| {
-            self.jobs.get_mut(job_id)
-        }).filter(|job| task_id < job.base_task_id + job.counters.n_tasks as u64)
-    }*/
 
     pub fn get_job_mut_by_tako_task_id(&mut self, task_id: TakoTaskId) -> Option<&mut Job> {
         let job_id: JobId = *self
@@ -171,14 +159,27 @@ impl State {
             }
         }
     }
-
     pub fn process_task_update(&mut self, msg: TaskUpdate) {
         log::debug!("Task id={} updated {:?}", msg.id, msg.state);
-        let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
         match msg.state {
-            TaskState::Running => job.set_running_state(msg.id),
-            TaskState::Finished => job.set_finished_state(msg.id),
-            TaskState::Waiting => job.set_waiting_state(msg.id),
+            TaskState::Running(worker_id) => {
+                let hostname = self
+                    .get_worker(worker_id)
+                    .unwrap()
+                    .configuration
+                    .hostname
+                    .clone();
+                let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
+                job.set_running_state(msg.id, hostname)
+            }
+            TaskState::Finished => {
+                let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
+                job.set_finished_state(msg.id)
+            }
+            TaskState::Waiting => {
+                let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
+                job.set_waiting_state(msg.id)
+            }
             TaskState::Invalid => {
                 unreachable!()
             }
