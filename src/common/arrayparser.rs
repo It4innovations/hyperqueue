@@ -6,7 +6,7 @@ use nom::multi::separated_list1;
 use nom::sequence::{preceded, tuple};
 
 use crate::common::arraydef::{ArrayDef, TaskIdRange};
-use crate::common::parser::{p_uint, NomResult};
+use crate::common::parser::{format_parse_error, p_uint, NomResult};
 use crate::Set;
 
 fn p_task_id_range(input: &str) -> NomResult<TaskIdRange> {
@@ -30,7 +30,7 @@ fn p_task_id_range(input: &str) -> NomResult<TaskIdRange> {
 fn p_array_def(input: &str) -> NomResult<ArrayDef> {
     map_res(p_task_id_ranges, |r| match r {
         res if !is_overlapping(res.clone()) => Ok(ArrayDef::new(res)),
-        _ => Err("Ranges overlap"),
+        _ => Err(anyhow!("Ranges overlap")),
     })(input)
 }
 

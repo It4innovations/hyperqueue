@@ -12,9 +12,9 @@ use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{
     resubmit_computation, submit_computation, ResubmitOpts, SubmitOpts,
 };
-use hyperqueue::client::commands::worker::{get_worker_list, stop_worker};
+use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
-use hyperqueue::client::job::Status;
+use hyperqueue::client::status::Status;
 use hyperqueue::client::worker::print_worker_info;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
