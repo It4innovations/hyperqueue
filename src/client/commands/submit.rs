@@ -11,8 +11,9 @@ use tako::common::resources::{CpuRequest, ResourceRequest};
 use tako::messages::common::ProgramDefinition;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::job::{print_job_detail, Status};
+use crate::client::job::print_job_detail;
 use crate::client::resources::parse_cpu_request;
+use crate::client::status::StatusList;
 use crate::common::arraydef::ArrayDef;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
@@ -213,7 +214,10 @@ pub async fn submit_computation(
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 pub struct ResubmitOpts {
     job_id: JobId,
-    task_filters: Vec<Status>,
+
+    ///  Filter only tasks in a given status
+    #[clap(long)]
+    status: Option<StatusList>,
 }
 
 pub async fn resubmit_computation(
@@ -221,13 +225,9 @@ pub async fn resubmit_computation(
     connection: &mut ClientConnection,
     opts: ResubmitOpts,
 ) -> anyhow::Result<()> {
-    if opts.task_filters.is_empty() {
-        return Err(anyhow!("task filters cannot be empty"));
-    }
-
     let message = FromClientMessage::Resubmit(ResubmitRequest {
         job_id: opts.job_id,
-        task_filters: opts.task_filters,
+        status: opts.status.map(|x| x.to_vec()),
     });
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
     print_job_detail(gsettings, response.job, true, true);

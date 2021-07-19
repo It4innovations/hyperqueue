@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 
-use crate::client::job::Status;
+use crate::client::status::Status;
 use crate::common::arraydef::ArrayDef;
 use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
@@ -32,7 +32,7 @@ pub struct SubmitRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ResubmitRequest {
     pub job_id: JobId,
-    pub task_filters: Vec<Status>,
+    pub status: Option<Vec<Status>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

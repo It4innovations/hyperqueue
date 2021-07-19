@@ -470,7 +470,7 @@ def test_job_last(hq_env: HqEnv):
     assert table[0][1] == "2"
 
 
-def test_job_resubmit(hq_env: HqEnv):
+def test_job_resubmit_with_status(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(
         [
@@ -485,8 +485,18 @@ def test_job_resubmit(hq_env: HqEnv):
     hq_env.start_workers(2, cpus=1)
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    table = hq_env.command(["resubmit", "1", "failed"], as_table=True)
+    table = hq_env.command(["resubmit", "1", "--status=failed"], as_table=True)
     assert table[3] == ["Tasks", "4; Ids: 4-6, 8"]
 
-    table = hq_env.command(["resubmit", "1", "finished"], as_table=True)
+    table = hq_env.command(["resubmit", "1", "--status=finished"], as_table=True)
     assert table[3] == ["Tasks", "3; Ids: 3, 7, 9"]
+
+
+def test_job_resubmit_all(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--array=2,7,9", "--", "/bin/hostname"])
+    hq_env.start_workers(2, cpus=1)
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    table = hq_env.command(["resubmit", "1"], as_table=True)
+    assert table[3] == ["Tasks", "3; Ids: 2, 7, 9"]

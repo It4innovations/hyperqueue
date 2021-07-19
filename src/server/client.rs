@@ -10,18 +10,18 @@ use tako::messages::gateway::{
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Notify;
 
-use crate::client::job::{job_status, Status};
+use crate::client::job::job_status;
+use crate::client::job::task_status;
+use crate::client::status::Status;
+use crate::common::arraydef::ArrayDef;
 use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::server::job::Job;
-use crate::client::job::task_status;
-use crate::common::arraydef::ArrayDef;
-use crate::server::job::{Job, JobTaskState};
 use crate::server::rpc::TakoServer;
 use crate::server::state::StateRef;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
-    CancelJobResponse, FromClientMessage, JobInfoResponse, JobSelector, JobType, SubmitRequest,
-    SubmitResponse, ToClientMessage, WorkerListResponse,
+    CancelJobResponse, FromClientMessage, JobInfoResponse, JobSelector, JobType, ResubmitRequest,
+    SubmitRequest, SubmitResponse, ToClientMessage, WorkerListResponse,
 };
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 use bstr::BString;
@@ -84,7 +84,6 @@ pub async fn client_rpc_loop<
                     FromClientMessage::Resubmit(msg) => {
                         handle_resubmit(&state_ref, &tako_ref, msg).await
                     }
-                    FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, msg.job_ids),
                     FromClientMessage::Stop => {
                         end_flag.notify_one();
                         break;
@@ -233,7 +232,7 @@ async fn handle_job_cancel(
         ));
     }
 
-    return ToClientMessage::CancelJobResponse(responses);
+    ToClientMessage::CancelJobResponse(responses)
 }
 
 fn make_program_def_for_task(
@@ -352,7 +351,13 @@ async fn handle_resubmit(
         let mut ids: Vec<JobTaskId> = job
             .tasks
             .iter()
-            .filter(|&x| message.task_filters.contains(&task_status(&x.state)))
+            .filter(|&x| {
+                if let Some(filter) = &message.status {
+                    filter.contains(&task_status(&x.state))
+                } else {
+                    true
+                }
+            })
             .map(|x| x.task_id)
             .collect();
         ids.sort_unstable();
@@ -371,17 +376,19 @@ async fn handle_resubmit(
             let msg_submit = SubmitRequest {
                 job_type,
                 name,
+                max_fails: None,
                 spec,
                 resources,
                 pin,
                 entries,
+                submit_dir: Default::default(),
             };
             handle_submit(&state_ref.clone(), &tako_ref.clone(), msg_submit).await
         } else {
-            return ToClientMessage::Error("Nothing was resubmitted".to_string());
+            ToClientMessage::Error("Nothing was resubmitted".to_string())
         }
     } else {
-        return ToClientMessage::Error("Invalid job_id".to_string());
+        ToClientMessage::Error("Invalid job_id".to_string())
     }
 }
 

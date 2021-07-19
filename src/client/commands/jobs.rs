@@ -1,5 +1,6 @@
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::job::{job_status, print_job_detail, print_job_list, Status};
+use crate::client::job::{print_job_detail, print_job_list};
+use crate::client::status::{job_status, Status};
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
