@@ -17,7 +17,7 @@ def test_table_parser():
 | Stdout  | N/A          |
 +---------+--------------+"""
     )
-    assert table == [
+    assert table.rows == [
         ["Id", "1"],
         ["", "WAITING [2]"],
         ["Tasks", "10"],

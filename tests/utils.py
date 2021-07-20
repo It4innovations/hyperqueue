@@ -1,10 +1,75 @@
 import time
-from typing import List, Set, Union
+from typing import List, Union, Optional
 
 DEFAULT_TIMEOUT = 5
 
 
-def parse_table(table_string: str) -> List[str]:
+# TODO: create a pandas dataframe instead?
+class Table:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def __getitem__(self, item):
+        if isinstance(item, slice):
+            return Table(self.rows[item])
+        return self.rows[item]
+
+    def __iter__(self):
+        yield from self.rows
+
+    def get_row_value(self, key: str) -> Optional[str]:
+        """
+        Assumes vertical table (each value has a separate row).
+        """
+        row = [r for r in self.rows if r[0] == key]
+        if not row:
+            return None
+        assert len(row) == 1
+        return row[0][1]
+
+    def check_value_row(self, key: str, value: str):
+        row = [r for r in self.rows if r and r[0] == key]
+        if not row:
+            raise Exception(f"Key {key} not found in\n{self}")
+        assert len(row) == 1
+        assertEquals(row[0][1], value)
+
+    def get_column_value(self, key: str) -> Optional[List[str]]:
+        """
+        Assumes horizontal table (each value has a separate column).
+        """
+        header = self.rows[0]
+        if key not in header:
+            return None
+
+        index = header.index(key)
+        return [row[index] for row in self.rows[1:]]
+
+    def check_value_column(self, key: str, index: int, value: str):
+        column = self.get_column_value(key)
+        if not column:
+            raise Exception(f"Key {key} not found in\n{self}")
+        row = column[index]
+        assertEquals(row, value)
+
+    def check_value_columns(self, keys: List[str], index: int, values: List[str]):
+        assert len(keys) == len(values)
+        for (key, val) in zip(keys, values):
+            self.check_value_column(key, index, val)
+
+    def __len__(self):
+        return len(self.rows)
+
+    def __repr__(self):
+        return "\n".join(" ".join(val) for val in self.rows)
+
+
+def assertEquals(a, b):
+    if a != b:
+        raise Exception(f"{a} does not equal {b}")
+
+
+def parse_table(table_string: str) -> Table:
     lines = table_string.strip().split("\n")
     result = []
     new_row = True
@@ -20,7 +85,7 @@ def parse_table(table_string: str) -> List[str]:
             for i, item in enumerate(items):
                 if item:
                     result[-1][i] += "\n" + item
-    return result
+    return Table(result)
 
 
 def wait_until(fn, sleep_s=0.2, timeout_s=DEFAULT_TIMEOUT):
@@ -35,12 +100,12 @@ def wait_until(fn, sleep_s=0.2, timeout_s=DEFAULT_TIMEOUT):
 
 
 def wait_for_state(
-    env,
-    ids: Union[int, List[int]],
-    target_states: Union[str, List[str]],
-    commands: List[str],
-    state_index: int,
-    **kwargs,
+        env,
+        ids: Union[int, List[int]],
+        target_states: Union[str, List[str]],
+        commands: List[str],
+        state_index: int,
+        **kwargs,
 ):
     if isinstance(ids, int):
         ids = {str(ids)}
@@ -63,12 +128,12 @@ def wait_for_state(
 
 
 def wait_for_job_state(
-    env, ids: Union[int, List[int]], target_states: Union[str, List[str]], **kwargs
+        env, ids: Union[int, List[int]], target_states: Union[str, List[str]], **kwargs
 ):
     wait_for_state(env, ids, target_states, ["jobs"], 2, **kwargs)
 
 
 def wait_for_worker_state(
-    env, ids: Union[int, List[int]], target_states: Union[str, List[str]], **kwargs
+        env, ids: Union[int, List[int]], target_states: Union[str, List[str]], **kwargs
 ):
     wait_for_state(env, ids, target_states, ["worker", "list"], 1, **kwargs)
