@@ -15,27 +15,24 @@ def test_worker_list(hq_env: HqEnv):
 
     table = hq_env.command(["worker", "list"], as_table=True)
     assert len(table) == 3
-    assert table[0][:2] == ["Id", "State"]
-    assert table[1][:2] == ["1", "RUNNING"]
-    assert table[2][:2] == ["2", "RUNNING"]
+    table.check_value_columns(["Id", "State"], 0, ["1", "RUNNING"])
+    table.check_value_columns(["Id", "State"], 1, ["2", "RUNNING"])
 
     hq_env.kill_worker(2)
     wait_for_worker_state(hq_env, 2, "CONNECTION LOST")
 
     table = hq_env.command(["worker", "list"], as_table=True)
     assert len(table) == 3
-    assert table[0][:2] == ["Id", "State"]
-    assert table[1][:2] == ["1", "RUNNING"]
-    assert table[2][:2] == ["2", "CONNECTION LOST"]
+    table.check_value_columns(["Id", "State"], 0, ["1", "RUNNING"])
+    table.check_value_columns(["Id", "State"], 1, ["2", "CONNECTION LOST"])
 
     hq_env.kill_worker(1)
     wait_for_worker_state(hq_env, 1, "CONNECTION LOST")
 
     table = hq_env.command(["worker", "list"], as_table=True)
     assert len(table) == 3
-    assert table[0][:2] == ["Id", "State"]
-    assert table[1][:2] == ["1", "CONNECTION LOST"]
-    assert table[2][:2] == ["2", "CONNECTION LOST"]
+    table.check_value_columns(["Id", "State"], 0, ["1", "CONNECTION LOST"])
+    table.check_value_columns(["Id", "State"], 1, ["2", "CONNECTION LOST"])
 
     hq_env.start_worker()
     wait_for_worker_state(hq_env, 3, "RUNNING")
@@ -43,10 +40,9 @@ def test_worker_list(hq_env: HqEnv):
     table = hq_env.command(["worker", "list"], as_table=True)
 
     assert len(table) == 4
-    assert table[0][:2] == ["Id", "State"]
-    assert table[1][:2] == ["1", "CONNECTION LOST"]
-    assert table[2][:2] == ["2", "CONNECTION LOST"]
-    assert table[3][:2] == ["3", "RUNNING"]
+    table.check_value_columns(["Id", "State"], 0, ["1", "CONNECTION LOST"])
+    table.check_value_columns(["Id", "State"], 1, ["2", "CONNECTION LOST"])
+    table.check_value_columns(["Id", "State"], 2, ["3", "RUNNING"])
 
 
 def test_worker_stop(hq_env: HqEnv):
@@ -84,23 +80,23 @@ def test_worker_list_online_offline_state(hq_env: HqEnv):
 
     table = hq_env.command(["worker", "list"], as_table=True)
     assert len(table) == 3
-    assert table[1][:2] == ["1", "RUNNING"]
-    assert table[2][:2] == ["2", "RUNNING"]
+    table.check_value_columns(["Id", "State"], 0, ["1", "RUNNING"])
+    table.check_value_columns(["Id", "State"], 1, ["2", "RUNNING"])
     hq_env.kill_worker(2)
 
     wait_for_worker_state(hq_env, 2, "CONNECTION LOST")
     table = hq_env.command(["worker", "list"], as_table=True)
     assert len(table) == 3
-    assert table[1][:2] == ["1", "RUNNING"]
-    assert table[2][:2] == ["2", "CONNECTION LOST"]
+    table.check_value_columns(["Id", "State"], 0, ["1", "RUNNING"])
+    table.check_value_columns(["Id", "State"], 1, ["2", "CONNECTION LOST"])
 
     table = hq_env.command(["worker", "list", "--offline"], as_table=True)
     assert len(table) == 2
-    assert table[1][:2] == ["2", "CONNECTION LOST"]
+    table.check_value_columns(["Id", "State"], 0, ["2", "CONNECTION LOST"])
 
     table = hq_env.command(["worker", "list", "--running"], as_table=True)
     assert len(table) == 2
-    assert table[1][:2] == ["1", "RUNNING"]
+    table.check_value_columns(["Id", "State"], 0, ["1", "RUNNING"])
 
 
 def test_worker_list_resources(hq_env: HqEnv):
@@ -112,11 +108,8 @@ def test_worker_list_resources(hq_env: HqEnv):
 
     table = hq_env.command(["worker", "list"], as_table=True)
     assert len(table) == 3
-    assert table[1][:2] == ["1", "RUNNING"]
-    assert table[2][:2] == ["2", "RUNNING"]
-    assert table[0][3] == "Resources"
-    assert table[1][3] == "1x10 cpus"
-    assert table[2][3] == "4x5 cpus"
+    table.check_value_columns(["Id", "State", "Resources"], 0, ["1", "RUNNING", "1x10 cpus"])
+    table.check_value_columns(["Id", "State", "Resources"], 1, ["2", "RUNNING", "4x5 cpus"])
 
 
 def test_idle_timeout_server_cfg(hq_env: HqEnv):
@@ -126,12 +119,12 @@ def test_idle_timeout_server_cfg(hq_env: HqEnv):
     hq_env.command(["submit", "--", "sleep", "1"])
     time.sleep(1.0)
     table = hq_env.command(["worker", "list"], as_table=True)
-    assert table[1][1] == "RUNNING"
+    table.check_value_column("State", 0, "RUNNING")
 
     time.sleep(1.5)
     hq_env.check_process_exited(w, expected_code=None)
     table = hq_env.command(["worker", "list"], as_table=True)
-    assert table[1][1] == "IDLE TIMEOUT"
+    table.check_value_column("State", 0, "IDLE TIMEOUT")
 
 
 def test_idle_timeout_worker_cfg(hq_env: HqEnv):
@@ -141,12 +134,12 @@ def test_idle_timeout_worker_cfg(hq_env: HqEnv):
     hq_env.command(["submit", "--", "sleep", "1"])
     time.sleep(1.0)
     table = hq_env.command(["worker", "list"], as_table=True)
-    assert table[1][1] == "RUNNING"
+    table.check_value_column("State", 0, "RUNNING")
 
     time.sleep(1.5)
     hq_env.check_process_exited(w, expected_code=None)
     table = hq_env.command(["worker", "list"], as_table=True)
-    assert table[1][1] == "IDLE TIMEOUT"
+    table.check_value_column("State", 0, "IDLE TIMEOUT")
 
 
 def test_worker_info(hq_env: HqEnv):
@@ -154,10 +147,10 @@ def test_worker_info(hq_env: HqEnv):
     hq_env.start_worker(cpus="10", args=["--heartbeat", "10s", "--manager", "none"])
 
     table = hq_env.command(["worker", "info", "1"], as_table=True)
-    assert table[0] == ["Worker ID", "1"]
-    assert table[5] == ["Heartbeat", "10s"]
-    assert table[7] == ["Resources", "1x10 cpus"]
-    assert table[8] == ["Manager", "None"]
+    table.check_value_row("Worker ID", "1")
+    table.check_value_row("Heartbeat", "10s")
+    table.check_value_row("Resources", "1x10 cpus")
+    table.check_value_row("Manager", "None")
 
 
 def test_worker_address(hq_env: HqEnv):

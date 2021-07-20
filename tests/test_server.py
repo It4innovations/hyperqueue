@@ -19,7 +19,7 @@ def test_server_host(hq_env: HqEnv):
         stdout, stderr = p.communicate()
     stdout = stdout.decode()
     table = parse_table(stdout)
-    assert table[1][1] == "abcd123"
+    table.check_value_row("Host", "abcd123")
 
 
 def test_version_mismatch(hq_env: HqEnv):
