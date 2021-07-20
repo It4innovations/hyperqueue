@@ -140,7 +140,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 <p><code>$ hq submit echo 'Hello world'</code></p>
 <ul>
 <li>
-<p>Ask for computing resource</p>
+<p>Ask for computing resources</p>
 <ul>
 <li>Start worker manually</li>
 </ul>
@@ -150,13 +150,29 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 </ul>
 <p>[Not implemented yet]</p>
 <ul>
-<li>Manual request in PBS</li>
-</ul>
+<li>
+<p>Manual request in PBS</p>
+</li>
+<li>
+<p>Start worker on the first node of a PBS job</p>
 <p><code>$ qsub &lt;your-params-of-qsub&gt; -- hq worker start</code></p>
-<ul>
-<li>Manual request in SLURM</li>
+</li>
+<li>
+<p>Start worker on all nodes of a PBS job</p>
+<p><code>$ qsub &lt;your-params-of-qsub&gt; -- `which pbsdsh` hq worker start</code></p>
+</li>
+<li>
+<p>Manual request in SLURM</p>
+</li>
+<li>
+<p>Start worker on the first node of a Slurm job</p>
+<p><code>$ sbatch &lt;your-params-of-sbatch&gt; --wrap "hq worker start"</code></p>
+</li>
+<li>
+<p>Start worker on all nodes of a Slurm job</p>
+<p><code>$ sbatch &lt;your-params-of-sbatch&gt; --wrap "srun hq worker start"</code></p>
+</li>
 </ul>
-<p><code>sbatch &lt;your-params-of-sbatch&gt; -- hq worker start</code></p>
 </li>
 <li>
 <p>Monitor the state of jobs</p>
@@ -218,5 +234,5 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 <!--
 MkDocs version : 1.1.2
-Build Date UTC : 2021-07-19 10:56:51.438928+00:00
+Build Date UTC : 2021-07-20 08:10:58.353720+00:00
 -->
