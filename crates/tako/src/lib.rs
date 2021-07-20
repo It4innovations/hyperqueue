@@ -1,3 +1,5 @@
+#![deny(clippy::await_holding_refcell_ref)]
+
 #[macro_use]
 pub mod common;
 pub mod messages;
