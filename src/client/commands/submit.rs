@@ -130,6 +130,9 @@ pub struct SubmitOpts {
 
     #[clap(long)]
     max_fails: Option<JobTaskCount>,
+
+    #[clap(long, default_value = "0")]
+    priority: tako::Priority,
 }
 
 impl SubmitOpts {
@@ -204,6 +207,7 @@ pub async fn submit_computation(
         entries,
         max_fails: opts.max_fails,
         submit_dir: std::env::current_dir().unwrap().to_str().unwrap().into(),
+        priority: opts.priority,
     });
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
     print_job_detail(gsettings, response.job, true, true);

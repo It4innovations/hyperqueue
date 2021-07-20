@@ -307,6 +307,7 @@ async fn handle_submit(
     let spec = message.spec;
     let pin = message.pin;
     let submit_dir = message.submit_dir;
+    let priority = message.priority;
 
     let make_task = |job_id, task_id, tako_id, entry: Option<BString>| {
         let mut program = make_program_def_for_task(&spec, job_id, task_id, &submit_dir);
@@ -322,7 +323,7 @@ async fn handle_submit(
             keep: false,
             observe: true,
             n_outputs: 0,
-            priority: 0,
+            priority,
             resources: resources.clone(),
         }
     };
@@ -358,6 +359,7 @@ async fn handle_submit(
             pin,
             message.max_fails,
             message.entries.clone(),
+            message.priority,
         );
         let job_detail = job.make_job_detail(false);
         state.add_job(job);
@@ -416,6 +418,7 @@ async fn handle_resubmit(
             let pin = job.pin;
             let entries = job.entries.clone();
             let max_fails = job.max_fails;
+            let priority = job.priority;
 
             let msg_submit = SubmitRequest {
                 job_type,
@@ -426,6 +429,7 @@ async fn handle_resubmit(
                 pin,
                 entries,
                 submit_dir: std::env::current_dir().unwrap().to_str().unwrap().into(),
+                priority,
             };
             handle_submit(&state_ref.clone(), &tako_ref.clone(), msg_submit).await
         } else {

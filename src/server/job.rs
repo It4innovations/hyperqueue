@@ -60,6 +60,7 @@ pub struct Job {
     pub pin: bool,
 
     pub entries: Option<Vec<BString>>,
+    pub priority: tako::Priority,
 }
 
 impl Job {
@@ -76,6 +77,7 @@ impl Job {
         pin: bool,
         max_fails: Option<JobTaskCount>,
         entries: Option<Vec<BString>>,
+        priority: tako::Priority,
     ) -> Self {
         let state = match &job_type {
             JobType::Simple => JobState::SingleTask(JobTaskState::Waiting),
@@ -108,6 +110,7 @@ impl Job {
             pin,
             max_fails,
             entries,
+            priority,
         }
     }
 
@@ -133,6 +136,7 @@ impl Job {
             pin: self.pin,
             entries: self.entries.clone(),
             max_fails: self.max_fails,
+            priority: self.priority,
         }
     }
 

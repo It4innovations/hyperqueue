@@ -500,3 +500,64 @@ def test_job_resubmit_all(hq_env: HqEnv):
 
     table = hq_env.command(["resubmit", "1"], as_table=True)
     assert table[3] == ["Tasks", "3; Ids: 2, 7, 9"]
+
+
+def test_job_priority(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(
+        [
+            "submit",
+            "--priority",
+            "1",
+            "--",
+            "bash",
+            "-c",
+            "sleep 1",
+        ]
+    )
+    hq_env.command(
+        [
+            "submit",
+            "--priority",
+            "3",
+            "--",
+            "bash",
+            "-c",
+            "sleep 1",
+        ]
+    )
+    hq_env.command(
+        [
+            "submit",
+            "--priority",
+            "3",
+            "--",
+            "bash",
+            "-c",
+            "sleep 1",
+        ]
+    )
+    hq_env.command(
+        [
+            "submit",
+            "--",
+            "bash",
+            "-c",
+            "sleep 1",
+        ]
+    )
+    hq_env.start_worker(cpus=1)
+
+    wait_for_job_state(hq_env, 1, "RUNNING")
+
+    table = hq_env.command(["job", "2"], as_table=True)
+    assert table[5][1] == "3"
+    assert table[2][1] == "FINISHED"
+
+    table = hq_env.command(["job", "3"], as_table=True)
+    assert table[5][1] == "3"
+    assert table[2][1] == "FINISHED"
+
+    table = hq_env.command(["job", "4"], as_table=True)
+    assert table[5][1] == "0"
+    assert table[2][1] == "WAITING"

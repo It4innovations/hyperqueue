@@ -252,6 +252,7 @@ mod tests {
             false,
             None,
             Some(Vec::new()),
+            0,
         ));
         state.add_job(Job::new(
             JobType::Array(ArrayDef::simple_range(0, 15)),
@@ -263,6 +264,7 @@ mod tests {
             false,
             None,
             Some(Vec::new()),
+            1,
         ));
         state.add_job(Job::new(
             JobType::Simple,
@@ -274,6 +276,7 @@ mod tests {
             false,
             None,
             Some(Vec::new()),
+            5,
         ));
         state.add_job(Job::new(
             JobType::Simple,
@@ -285,6 +288,7 @@ mod tests {
             false,
             None,
             Some(Vec::new()),
+            1,
         ));
         state.add_job(Job::new(
             JobType::Simple,
@@ -296,6 +300,7 @@ mod tests {
             false,
             None,
             Some(Vec::new()),
+            2,
         ));
 
         assert!(state.get_job_mut_by_tako_task_id(99).is_none());
