@@ -21,7 +21,7 @@ Project repository: [https://github.com/It4innovations/hyperqueue](https://githu
 
   ``$ hq submit echo 'Hello world'``
 
-* Ask for computing resource
+* Ask for computing resources
 
     * Start worker manually
 
@@ -33,11 +33,23 @@ Project repository: [https://github.com/It4innovations/hyperqueue](https://githu
 
     * Manual request in PBS
 
-      ``$ qsub <your-params-of-qsub> -- hq worker start``
+      - Start worker on the first node of a PBS job
+
+        ``$ qsub <your-params-of-qsub> -- hq worker start``
+
+      - Start worker on all nodes of a PBS job
+
+        ``$ qsub <your-params-of-qsub> -- `which pbsdsh` hq worker start``
 
     * Manual request in SLURM
 
-      ``sbatch <your-params-of-sbatch> -- hq worker start``
+      - Start worker on the first node of a Slurm job
+
+        ``$ sbatch <your-params-of-sbatch> --wrap "hq worker start"``
+
+      - Start worker on all nodes of a Slurm job
+
+        ``$ sbatch <your-params-of-sbatch> --wrap "srun hq worker start"``
 
 * Monitor the state of jobs
 
