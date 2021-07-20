@@ -151,4 +151,11 @@ A job cannot be canceled if it is already finished, failed, or canceled.
 
 ## Priorities
 
-Not released yet, **scheduled for release v0.5**
+Priorities affect the order in which the "waiting" tasks are executed.
+
+In a submit of a task, you can set variable named `priority` with the value `VAL` by:
+
+``--priority=VAL``
+
+Default value is 0.
+

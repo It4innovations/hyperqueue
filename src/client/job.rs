@@ -207,6 +207,8 @@ pub fn print_job_detail(
         .cell(),
     ]);
 
+    rows.push(vec!["Priority".cell().bold(true), job.priority.cell()]);
+
     // TODO: Each argument on own line, after the bug in cli-table is fixed
     let program_def = job.program_def;
     rows.push(vec![

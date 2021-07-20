@@ -27,6 +27,7 @@ pub struct SubmitRequest {
     pub pin: bool,
     pub entries: Option<Vec<BString>>,
     pub submit_dir: PathBuf,
+    pub priority: tako::Priority,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -160,6 +161,7 @@ pub struct JobDetail {
     pub pin: bool,
     pub entries: Option<Vec<BString>>,
     pub max_fails: Option<JobTaskCount>,
+    pub priority: tako::Priority,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
