@@ -211,11 +211,9 @@ async fn handle_job_cancel(
     tako_ref: &TakoServer,
     selector: JobSelector,
 ) -> ToClientMessage {
-    let mut state = state_ref.get_mut();
-    let mut responses: Vec<(JobId, CancelJobResponse)> = Vec::new();
-
     let job_ids: Vec<JobId> = match selector {
-        JobSelector::All => state
+        JobSelector::All => state_ref
+            .get()
             .jobs()
             .map(|job| job.make_job_info())
             .filter(|job_info| {
@@ -225,14 +223,15 @@ async fn handle_job_cancel(
             })
             .map(|job_info| job_info.id)
             .collect(),
-        JobSelector::LastN(n) => state.last_n_ids(n).collect(),
+        JobSelector::LastN(n) => state_ref.get().last_n_ids(n).collect(),
         JobSelector::Specific(ids) => ids,
     };
 
+    let mut responses: Vec<(JobId, CancelJobResponse)> = Vec::new();
     for job_id in job_ids {
         let tako_task_ids;
         {
-            let n_tasks = match state.get_job(job_id) {
+            let n_tasks = match state_ref.get().get_job(job_id) {
                 None => {
                     responses.push((job_id, CancelJobResponse::InvalidJob));
                     continue;
@@ -263,6 +262,7 @@ async fn handle_job_cancel(
             _ => panic!("Invalid message"),
         };
 
+        let mut state = state_ref.get_mut();
         let job = state.get_job_mut(job_id).unwrap();
         let canceled_ids: Vec<_> = canceled_tasks
             .iter()
