@@ -1,24 +1,32 @@
+use crate::common::parser::{NomResult, p_uint, format_parse_error};
+use anyhow::anyhow;
+
 use tako::common::resources::{CpuId, NumOfCpus, ResourceDescriptor};
 
-pub fn parse_range(line: &str) -> anyhow::Result<Vec<CpuId>> {
-    let line = line.trim();
-    let mut result = Vec::new();
-    for part in line.split(',') {
-        let part = part.trim();
-        if part.contains('-') {
-            let ids: Vec<&str> = part.split('-').collect();
-            if ids.len() != 2 {
-                anyhow::bail!("Invalid format of range");
-            }
-            for i in ids[0].parse()?..=ids[1].parse()? {
-                result.push(i);
-            }
-        } else {
-            let id: CpuId = part.parse()?;
-            result.push(id);
-        }
-    }
-    Ok(result)
+use nom::bytes::complete::tag;
+use nom::combinator::all_consuming;
+use nom::combinator::{map_res, opt};
+use nom::sequence::{preceded, tuple};
+
+fn vec_from_range(start: CpuId, count: NumOfCpus) -> Vec<CpuId> {
+    (start..(start + count)).collect()
+}
+
+fn p_cpu_range(input: &str) -> NomResult<Vec<CpuId>> {
+    map_res(
+        tuple((p_uint, opt(preceded(tag("-"), p_uint)))),
+        |r| match r {
+            (u, None) => Ok(vec_from_range(u, 1)),
+            (u, Some(v)) if v >= u => Ok(vec_from_range(u, v-u+1)),
+            _ => Err(anyhow!("Invalid format of range")),
+        },
+    )(input)
+}
+
+pub fn parse_range(input: &str) -> anyhow::Result<Vec<CpuId>> {
+    all_consuming(p_cpu_range)(input)
+        .map(|r| r.1)
+        .map_err(format_parse_error)
 }
 
 pub fn read_linux_numa() -> anyhow::Result<Vec<Vec<CpuId>>> {
