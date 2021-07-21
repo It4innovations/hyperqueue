@@ -89,8 +89,13 @@ struct ServerStartOpts {
     #[clap(long)]
     host: Option<String>,
 
+    /// Duration after which will an idle worker automatically stop
     #[clap(long)]
     idle_timeout: Option<ArgDuration>,
+
+    /// How often should the auto allocator perform its actions
+    #[clap(long)]
+    autoalloc_interval: Option<ArgDuration>,
 }
 
 #[derive(Clap)]
@@ -248,6 +253,7 @@ async fn command_server_start(
             .host
             .unwrap_or_else(|| gethostname::gethostname().into_string().unwrap()),
         idle_timeout: opts.idle_timeout.map(|x| x.into_duration()),
+        autoalloc_interval: opts.autoalloc_interval.map(|x| x.into_duration()),
     };
     init_hq_server(&gsettings, server_cfg).await
 }

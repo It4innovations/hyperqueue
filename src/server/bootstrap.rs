@@ -18,6 +18,8 @@ use crate::transfer::auth::generate_key;
 use crate::transfer::connection::{ClientConnection, HqConnection};
 use std::time::Duration;
 
+const DEFAULT_AUTOALLOC_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
+
 enum ServerStatus {
     Offline(AccessRecord),
     Online(AccessRecord),
@@ -26,6 +28,7 @@ enum ServerStatus {
 pub struct ServerConfig {
     pub host: String,
     pub idle_timeout: Option<Duration>,
+    pub autoalloc_interval: Option<Duration>,
 }
 
 /// This function initializes the HQ server.
@@ -95,7 +98,11 @@ async fn initialize_server(
     let hq_secret_key = Arc::new(generate_key());
     let tako_secret_key = Arc::new(generate_key());
 
-    let state_ref = StateRef::new();
+    let state_ref = StateRef::new(
+        server_cfg
+            .autoalloc_interval
+            .unwrap_or(DEFAULT_AUTOALLOC_REFRESH_INTERVAL),
+    );
     let (tako_server, tako_future) = Backend::start(
         state_ref.clone(),
         tako_secret_key.clone(),
@@ -128,13 +135,14 @@ async fn initialize_server(
                 log::info!("Stopping after Stop command from client");
                 Ok(())
             },
-            () = crate::server::client::handle_client_connections(
-                state_ref,
+            _ = crate::server::client::handle_client_connections(
+                state_ref.clone(),
                 tako_server,
                 client_listener,
                 stop_cloned,
                 key
             ) => { Ok(()) }
+            _ = crate::server::autoalloc::autoalloc_process(state_ref) => { Ok(()) }
             r = tako_future => { r.map_err(|e| e.into()) }
         }
     };
@@ -216,6 +224,7 @@ mod tests {
         let server_cfg = ServerConfig {
             host: "localhost".to_string(),
             idle_timeout: None,
+            autoalloc_interval: None,
         };
         let notify = Arc::new(Notify::new());
         (

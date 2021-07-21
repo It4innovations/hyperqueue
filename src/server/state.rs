@@ -6,12 +6,14 @@ use tako::messages::gateway::{
 };
 
 use crate::common::WrappedRcRefCell;
+use crate::server::autoalloc::AutoAllocState;
 use crate::server::job::Job;
 use crate::server::rpc::Backend;
 use crate::server::worker::Worker;
 use crate::transfer::messages::LostWorkerReasonInfo;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
 use std::cmp::min;
+use std::time::Duration;
 
 pub struct State {
     jobs: crate::Map<JobId, Job>,
@@ -33,6 +35,8 @@ pub struct State {
     base_task_id_to_job_id: BTreeMap<TakoTaskId, JobId>,
     job_id_counter: JobId,
     task_id_counter: TakoTaskId,
+
+    autoalloc_state: AutoAllocState,
 }
 
 pub type StateRef = WrappedRcRefCell<State>;
@@ -200,16 +204,25 @@ impl State {
             job.set_waiting_state(task_id);
         }
     }
+
+    pub fn get_autoalloc_state(&self) -> &AutoAllocState {
+        &self.autoalloc_state
+    }
+
+    pub fn get_autoalloc_state_mut(&mut self) -> &mut AutoAllocState {
+        &mut self.autoalloc_state
+    }
 }
 
 impl StateRef {
-    pub fn new() -> StateRef {
+    pub fn new(autoalloc_interval: Duration) -> StateRef {
         WrappedRcRefCell::wrap(State {
             jobs: Default::default(),
             workers: Default::default(),
             base_task_id_to_job_id: Default::default(),
             job_id_counter: 1,
             task_id_counter: 1,
+            autoalloc_state: AutoAllocState::new(autoalloc_interval),
         })
     }
 }
@@ -223,6 +236,7 @@ mod tests {
     use crate::server::state::StateRef;
     use crate::transfer::messages::JobType;
     use crate::{JobId, TakoTaskId};
+    use std::time::Duration;
     use tako::common::resources::ResourceRequest;
 
     fn dummy_program_definition() -> ProgramDefinition {
@@ -254,7 +268,7 @@ mod tests {
 
     #[test]
     fn test_find_job_id_by_task_id() {
-        let state_ref = StateRef::new();
+        let state_ref = StateRef::new(Duration::from_secs(1));
         let mut state = state_ref.get_mut();
         state.add_job(test_job(
             JobType::Array(IntArray::from_range(0, 10)),

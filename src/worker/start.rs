@@ -84,6 +84,7 @@ pub struct WorkerStartOpts {
     #[clap(long, default_value = "8s")]
     heartbeat: ArgDuration,
 
+    /// Duration after which will an idle worker automatically stop
     #[clap(long)]
     idle_timeout: Option<ArgDuration>,
 

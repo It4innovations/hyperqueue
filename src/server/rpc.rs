@@ -149,10 +149,11 @@ mod tests {
     use crate::common::fsutils::test_utils::run_concurrent;
     use crate::server::rpc::Backend;
     use crate::server::state::StateRef;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_server_connect_worker() {
-        let state = StateRef::new();
+        let state = StateRef::new(Duration::from_secs(1));
         let (server, _fut) = Backend::start(state, Default::default(), None)
             .await
             .unwrap();
@@ -163,7 +164,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_server_server_info() {
-        let state = StateRef::new();
+        let state = StateRef::new(Duration::from_secs(1));
         let (server, fut) = Backend::start(state, Default::default(), None)
             .await
             .unwrap();
