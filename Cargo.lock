@@ -277,6 +277,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_logger"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b2cf0344971ee6c64c31be0d530793fba457d322dfec2810c453d0ef228f9c3"
+dependencies = [
+ "atty",
+ "humantime",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
 name = "fs_extra"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -471,7 +484,7 @@ dependencies = [
  "colored",
  "ctrlc",
  "dirs",
- "env_logger",
+ "env_logger 0.9.0",
  "futures",
  "gethostname",
  "hashbrown",
@@ -1168,7 +1181,7 @@ dependencies = [
  "bytes",
  "clap",
  "ctrlc",
- "env_logger",
+ "env_logger 0.8.4",
  "futures",
  "gethostname",
  "hashbrown",
