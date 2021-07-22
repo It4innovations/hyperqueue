@@ -1,44 +1,36 @@
 use crate::common::parser::{format_parse_error, p_uint, NomResult};
-use anyhow::anyhow;
 
 use tako::common::resources::{CpuId, NumOfCpus, ResourceDescriptor};
 
 use nom::bytes::complete::tag;
+use nom::character::complete::{newline, space0};
 use nom::combinator::all_consuming;
 use nom::combinator::{map_res, opt};
 use nom::multi::separated_list1;
-use nom::sequence::{preceded, tuple};
-
-fn remove_whitespace(s: &str) -> String {
-    s.split_whitespace().collect()
-}
-
-fn vec_from_range(start: CpuId, count: NumOfCpus) -> Vec<CpuId> {
-    (start..(start + count)).collect()
-}
+use nom::sequence::{delimited, preceded, terminated, tuple};
 
 fn p_cpu_range(input: &str) -> NomResult<Vec<CpuId>> {
     map_res(
-        tuple((p_uint, opt(preceded(tag("-"), p_uint)))),
-        |r| match r {
-            (u, None) => Ok(vec_from_range(u, 1)),
-            (u, Some(v)) if v >= u => Ok(vec_from_range(u, v - u + 1)),
-            _ => Err(anyhow!("Invalid format of range")),
-        },
+        tuple((
+            terminated(p_uint, space0),
+            opt(terminated(
+                preceded(tuple((tag("-"), space0)), p_uint),
+                space0,
+            )),
+        )),
+        |(u, v)| crate::Result::Ok((u..=v.unwrap_or(u)).collect()),
     )(input)
 }
 
 fn p_cpu_ranges(input: &str) -> NomResult<Vec<CpuId>> {
-    separated_list1(tag(","), p_cpu_range)(input)
+    separated_list1(terminated(tag(","), space0), p_cpu_range)(input)
         .map(|(a, b)| (a, b.into_iter().flatten().collect()))
 }
 
 pub fn parse_range(input: &str) -> anyhow::Result<Vec<CpuId>> {
-    let f_input = remove_whitespace(input);
-    let res = all_consuming(p_cpu_ranges)(&*f_input)
+    all_consuming(terminated(p_cpu_ranges, opt(newline)))(input)
         .map(|r| r.1)
-        .map_err(format_parse_error);
-    res
+        .map_err(format_parse_error)
 }
 
 pub fn read_linux_numa() -> anyhow::Result<Vec<Vec<CpuId>>> {
@@ -93,6 +85,7 @@ mod tests {
         assert!(parse_range("-\n").is_err());
         assert!(parse_range("-2\n").is_err());
         assert!(parse_range("0-1-2\n").is_err());
+        assert!(parse_range(",,").is_err());
     }
 
     #[test]

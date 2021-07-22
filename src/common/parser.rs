@@ -1,8 +1,9 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use nom::character::complete::digit1;
+use nom::character::complete::{digit1, space0};
 use nom::combinator::map_res;
 use nom::error::{ErrorKind, FromExternalError, ParseError};
+use nom::sequence::terminated;
 use nom::IResult;
 
 pub enum ParserError<I> {
