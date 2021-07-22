@@ -1,19 +1,17 @@
-use tokio::time::sleep;
+use thiserror::Error;
 
+pub use descriptor::create_pbs_descriptor;
+pub use process::autoalloc_process;
 pub use state::AutoAllocState;
 
-use crate::server::state::StateRef;
-
+mod descriptor;
+mod process;
 mod state;
 
-pub async fn autoalloc_check(state_ref: &StateRef) {
-    log::debug!("Running autoalloc");
+#[derive(Debug, Error)]
+pub enum AutoAllocError {
+    #[error("Descriptor named {0} already exists")]
+    DescriptorAlreadyExists(String),
 }
 
-pub async fn autoalloc_process(state_ref: StateRef) {
-    loop {
-        autoalloc_check(&state_ref).await;
-        let duration = state_ref.get().get_autoalloc_state().refresh_interval();
-        sleep(duration).await;
-    }
-}
+pub type AutoAllocResult<T> = Result<T, AutoAllocError>;

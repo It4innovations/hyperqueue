@@ -6,7 +6,6 @@ use std::{fs, io};
 use anyhow::anyhow;
 use bstr::BString;
 use clap::Clap;
-use hashbrown::HashMap;
 use tako::common::resources::{CpuRequest, ResourceRequest};
 use tako::messages::common::{ProgramDefinition, StdioDef};
 
@@ -21,7 +20,7 @@ use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
     FromClientMessage, JobType, ResubmitRequest, SubmitRequest, ToClientMessage,
 };
-use crate::{rpc_call, JobId, JobTaskCount};
+use crate::{rpc_call, JobId, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 const DEFAULT_STDOUT_PATH: &str = "job-%{JOB_ID}/stdout.%{TASK_ID}";
@@ -233,7 +232,7 @@ pub async fn submit_computation(
     });
 
     let env_count = opts.env.len();
-    let env: HashMap<_, _> = opts
+    let env: Map<_, _> = opts
         .env
         .into_iter()
         .map(|env| (env.key, env.value))

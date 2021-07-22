@@ -31,7 +31,7 @@ use crate::worker::parser::parse_cpu_definition;
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use crate::{JobId, JobTaskId};
-use hashbrown::HashMap;
+use crate::Map;
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -102,7 +102,7 @@ fn replace_placeholders(program: &mut ProgramDefinition) {
             .unwrap_or_default(),
     );
 
-    let mut placeholder_map = HashMap::new();
+    let mut placeholder_map = Map::new();
     placeholder_map.insert(
         "%{JOB_ID}",
         program.env[&BString::from(HQ_JOB_ID)].to_string(),
@@ -121,7 +121,7 @@ fn replace_placeholders(program: &mut ProgramDefinition) {
     );
     placeholder_map.insert("%{DATE}", date);
 
-    let replace = |replacement_map: &HashMap<&str, String>, path: &PathBuf| -> PathBuf {
+    let replace = |replacement_map: &Map<&str, String>, path: &PathBuf| -> PathBuf {
         let mut result: String = path.to_str().unwrap().into();
         for (placeholder, replacement) in replacement_map.iter() {
             result = result.replace(placeholder, replacement);
@@ -491,11 +491,10 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
 
 #[cfg(test)]
 mod tests {
-    use hashbrown::HashMap;
     use tako::messages::common::{ProgramDefinition, StdioDef};
 
-    use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
-    use crate::{JobId, JobTaskId};
+    use crate::common::env::{HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
+    use crate::{JobId, JobTaskId, Map};
 
     use super::replace_placeholders;
 
@@ -572,7 +571,7 @@ mod tests {
         job_id: JobId,
         task_id: JobTaskId,
     ) -> ProgramDefinition {
-        let mut env = HashMap::new();
+        let mut env = Map::new();
         env.insert(HQ_SUBMIT_DIR.into(), submit_dir.into());
         env.insert(HQ_JOB_ID.into(), job_id.to_string().into());
         env.insert(HQ_TASK_ID.into(), task_id.to_string().into());

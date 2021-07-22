@@ -57,3 +57,4 @@ smallvec = "1.0"
 [features]
 # Mode that does not execute tasks, useful for benchmarking HQ overhead
 zero-worker = []
+async-trait = "0.1.50"
