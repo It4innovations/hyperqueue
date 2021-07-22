@@ -36,7 +36,7 @@ pub struct State {
     job_id_counter: JobId,
     task_id_counter: TakoTaskId,
 
-    autoalloc_state: AutoAllocState,
+    autoalloc_state: WrappedRcRefCell<AutoAllocState>,
 }
 
 pub type StateRef = WrappedRcRefCell<State>;
@@ -205,12 +205,8 @@ impl State {
         }
     }
 
-    pub fn get_autoalloc_state(&self) -> &AutoAllocState {
+    pub fn get_autoalloc_state(&self) -> &WrappedRcRefCell<AutoAllocState> {
         &self.autoalloc_state
-    }
-
-    pub fn get_autoalloc_state_mut(&mut self) -> &mut AutoAllocState {
-        &mut self.autoalloc_state
     }
 }
 
@@ -222,7 +218,7 @@ impl StateRef {
             base_task_id_to_job_id: Default::default(),
             job_id_counter: 1,
             task_id_counter: 1,
-            autoalloc_state: AutoAllocState::new(autoalloc_interval),
+            autoalloc_state: WrappedRcRefCell::wrap(AutoAllocState::new(autoalloc_interval)),
         })
     }
 }
