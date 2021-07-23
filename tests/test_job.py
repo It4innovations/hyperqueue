@@ -584,3 +584,13 @@ def test_job_tasks_table(hq_env: HqEnv):
     table = hq_env.command(["job", "2", "--tasks"], as_table=True)[JOB_TABLE_ROWS:]
     wait_for_job_state(hq_env, 2, "FAILED")
     table.check_value_column("Worker", 0, socket.gethostname())
+
+
+def test_job_wait(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.command(["submit", "--", "sleep", "1"])
+    r = hq_env.command(["wait", "1"])
+    assert len(r) == 0
+    r = hq_env.command(["wait", "all"])
+    assert "There are no jobs to wait for" in r

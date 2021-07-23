@@ -12,6 +12,7 @@ use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{
     resubmit_computation, submit_computation, ResubmitOpts, SubmitOpts,
 };
+use hyperqueue::client::commands::wait::wait_on_job;
 use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
 use hyperqueue::client::status::Status;
@@ -73,6 +74,8 @@ enum SubCommand {
     Worker(WorkerOpts),
     /// Resubmits all filtered tasks within a job
     Resubmit(ResubmitOpts),
+    /// Waits until a job is ended
+    Wait(WaitOpts),
 }
 
 // Server CLI options
@@ -110,6 +113,12 @@ enum ServerCommand {
     Stop(ServerStopOpts),
     /// Show info of running HyperQueue server
     Info(ServerInfoOpts),
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+pub struct WaitOpts {
+    selector: JobSelectorArg,
 }
 
 enum WorkerSelectorArg {
@@ -389,6 +398,18 @@ async fn command_worker_address(
     Ok(())
 }
 
+async fn command_wait(gsettings: GlobalSettings, opts: WaitOpts) -> anyhow::Result<()> {
+    let connection = get_client_connection(&gsettings.server_directory()).await?;
+
+    let selector: JobSelector = match opts.selector {
+        JobSelectorArg::Id(job_id) => JobSelector::Specific(vec![job_id]),
+        JobSelectorArg::Last => JobSelector::LastN(1),
+        JobSelectorArg::All => JobSelector::All,
+    };
+
+    wait_on_job(connection, selector).await
+}
+
 pub enum ColorPolicy {
     Auto,
     Always,
@@ -485,6 +506,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Submit(opts) => command_submit(gsettings, opts).await,
         SubCommand::Cancel(opts) => command_cancel(gsettings, opts).await,
         SubCommand::Resubmit(opts) => command_resubmit(gsettings, opts).await,
+        SubCommand::Wait(opts) => command_wait(gsettings, opts).await,
     };
     if let Err(e) = result {
         eprintln!("{:?}", e);
