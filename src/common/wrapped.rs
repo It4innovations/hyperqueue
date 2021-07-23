@@ -16,7 +16,7 @@ use std::rc::Rc;
 /// `impl WrappedRcRefCell<MyType> { fn foo(&self) {} }`
 /// or even `type WrapType = WrappedRcRefCell<MyType>; impl WrapType { ... }`.
 #[derive(Default, Debug)]
-pub struct WrappedRcRefCell<T> {
+pub struct WrappedRcRefCell<T: ?Sized> {
     inner: Rc<RefCell<T>>,
 }
 
@@ -28,6 +28,13 @@ impl<T> WrappedRcRefCell<T> {
         WrappedRcRefCell {
             inner: Rc::new(RefCell::new(t)),
         }
+    }
+}
+
+impl<T: ?Sized> WrappedRcRefCell<T> {
+    #[inline]
+    pub fn new_wrapped(inner: Rc<RefCell<T>>) -> Self {
+        WrappedRcRefCell { inner }
     }
 
     /// Return a immutable reference to contents. Panics whenever `RefCell::borrow()` would.
@@ -49,7 +56,7 @@ impl<T> WrappedRcRefCell<T> {
     }
 }
 
-impl<T> Clone for WrappedRcRefCell<T> {
+impl<T: ?Sized> Clone for WrappedRcRefCell<T> {
     fn clone(&self) -> Self {
         WrappedRcRefCell {
             inner: self.inner.clone(),
@@ -57,17 +64,17 @@ impl<T> Clone for WrappedRcRefCell<T> {
     }
 }
 
-impl<T> Hash for WrappedRcRefCell<T> {
+impl<T: ?Sized> Hash for WrappedRcRefCell<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let ptr = &*self.inner as *const RefCell<T>;
         ptr.hash(state);
     }
 }
 
-impl<T> PartialEq for WrappedRcRefCell<T> {
+impl<T: ?Sized> PartialEq for WrappedRcRefCell<T> {
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.inner, &other.inner)
     }
 }
 
-impl<T> Eq for WrappedRcRefCell<T> {}
+impl<T: ?Sized> Eq for WrappedRcRefCell<T> {}

@@ -1,11 +1,17 @@
+use crate::common::WrappedRcRefCell;
 use crate::server::autoalloc::descriptor::QueueDescriptor;
 use crate::server::autoalloc::{AutoAllocError, AutoAllocResult};
 use crate::Map;
+use std::collections::VecDeque;
 use std::time::{Duration, Instant};
+
+const MAX_EVENT_QUEUE_LENGTH: usize = 20;
+
+pub type DescriptorName = String;
 
 pub struct AutoAllocState {
     refresh_interval: Duration,
-    descriptors: Map<String, DescriptorState>,
+    descriptors: Map<DescriptorName, DescriptorState>,
 }
 
 impl AutoAllocState {
@@ -22,8 +28,8 @@ impl AutoAllocState {
 
     pub fn add_descriptor(
         &mut self,
-        name: String,
-        descriptor: Box<dyn QueueDescriptor>,
+        name: DescriptorName,
+        descriptor: WrappedRcRefCell<dyn QueueDescriptor>,
     ) -> AutoAllocResult<()> {
         if self.descriptors.contains_key(&name) {
             return Result::Err(AutoAllocError::DescriptorAlreadyExists(name));
@@ -32,22 +38,45 @@ impl AutoAllocState {
         Ok(())
     }
 
-    pub fn descriptors(&mut self) -> impl Iterator<Item = &mut DescriptorState> {
-        self.descriptors.values_mut()
+    pub fn get_descriptor(&self, key: &str) -> Option<&DescriptorState> {
+        self.descriptors.get(key)
+    }
+
+    pub fn get_descriptor_mut(&mut self, key: &str) -> Option<&mut DescriptorState> {
+        self.descriptors.get_mut(key)
+    }
+
+    pub fn descriptor_names(&self) -> impl Iterator<Item = &str> {
+        self.descriptors.keys().map(|s| s.as_str())
     }
 }
 
 pub struct DescriptorState {
-    pub descriptor: Box<dyn QueueDescriptor>,
+    pub descriptor: WrappedRcRefCell<dyn QueueDescriptor>,
     pub allocations: Vec<Allocation>,
+    events: VecDeque<AllocationEventHolder>,
 }
 
-impl From<Box<dyn QueueDescriptor>> for DescriptorState {
-    fn from(descriptor: Box<dyn QueueDescriptor>) -> Self {
+impl From<WrappedRcRefCell<dyn QueueDescriptor>> for DescriptorState {
+    fn from(descriptor: WrappedRcRefCell<dyn QueueDescriptor>) -> Self {
         Self {
             descriptor,
             allocations: Default::default(),
+            events: Default::default(),
         }
+    }
+}
+
+impl DescriptorState {
+    pub fn add_event<T: Into<AllocationEventHolder>>(&mut self, event: T) {
+        self.events.push_back(event.into());
+        if self.events.len() > MAX_EVENT_QUEUE_LENGTH {
+            self.events.pop_front();
+        }
+    }
+
+    pub fn get_events(&self) -> &VecDeque<AllocationEventHolder> {
+        &self.events
     }
 }
 
@@ -59,17 +88,44 @@ pub struct Allocation {
     pub status: AllocationStatus,
 }
 
+#[derive(Debug, Clone)]
 pub enum AllocationStatus {
     Queued { queued_at: Instant },
     Running { started_at: Instant },
 }
 
+#[derive(Debug, Clone)]
+pub struct AllocationEventHolder {
+    pub date: Instant,
+    pub event: AllocationEvent,
+}
+
+#[derive(Debug, Clone)]
+pub enum AllocationEvent {
+    QueueSuccess(AllocationId),
+    QueueFail(AutoAllocError),
+    StatusFail(AutoAllocError),
+    Finished(AllocationId),
+}
+
+impl From<AllocationEvent> for AllocationEventHolder {
+    fn from(event: AllocationEvent) -> Self {
+        Self {
+            date: Instant::now(),
+            event,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::common::WrappedRcRefCell;
     use crate::server::autoalloc::descriptor::QueueDescriptor;
     use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
     use crate::server::autoalloc::{AutoAllocError, AutoAllocResult, AutoAllocState};
     use async_trait::async_trait;
+    use std::cell::RefCell;
+    use std::rc::Rc;
     use std::time::Duration;
 
     #[test]
@@ -84,23 +140,31 @@ mod tests {
 
             async fn schedule_allocation(
                 &self,
-                worker_count: u64,
+                _worker_count: u64,
             ) -> AutoAllocResult<AllocationId> {
                 todo!()
             }
 
             async fn get_allocation_status(
                 &self,
-                allocation_id: &AllocationId,
+                _allocation_id: &str,
             ) -> AutoAllocResult<Option<AllocationStatus>> {
                 todo!()
             }
         }
 
         let name = "foo".to_string();
-        assert!(state.add_descriptor(name.clone(), Box::new(())).is_ok());
+        assert!(state
+            .add_descriptor(
+                name.clone(),
+                WrappedRcRefCell::new_wrapped(Rc::new(RefCell::new(())))
+            )
+            .is_ok());
         assert!(matches!(
-            state.add_descriptor(name, Box::new(())),
+            state.add_descriptor(
+                name,
+                WrappedRcRefCell::new_wrapped(Rc::new(RefCell::new(())))
+            ),
             Err(AutoAllocError::DescriptorAlreadyExists(_))
         ));
     }
