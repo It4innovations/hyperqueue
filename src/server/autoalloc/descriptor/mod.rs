@@ -1,10 +1,7 @@
 use async_trait::async_trait;
-pub use pbs::create_pbs_descriptor;
 
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
 use crate::server::autoalloc::AutoAllocResult;
-
-mod pbs;
 
 #[async_trait(?Send)]
 pub trait QueueDescriptor {
@@ -22,6 +19,6 @@ pub trait QueueDescriptor {
     /// Get allocation status
     async fn get_allocation_status(
         &self,
-        allocation_id: &AllocationId,
+        allocation_id: &str,
     ) -> AutoAllocResult<Option<AllocationStatus>>;
 }

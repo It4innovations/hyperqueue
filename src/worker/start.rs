@@ -30,8 +30,8 @@ use crate::worker::output::print_worker_configuration;
 use crate::worker::parser::parse_cpu_definition;
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
-use crate::{JobId, JobTaskId};
 use crate::Map;
+use crate::{JobId, JobTaskId};
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -468,7 +468,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
     };
 
     let manager_info = gather_manager_info(opts.manager)?;
-    let mut extra = HashMap::new();
+    let mut extra = Map::new();
     if let Some(manager_info) = manager_info {
         extra.insert(
             WORKER_EXTRA_MANAGER_KEY.to_string(),
@@ -493,7 +493,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
 mod tests {
     use tako::messages::common::{ProgramDefinition, StdioDef};
 
-    use crate::common::env::{HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
+    use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
     use crate::{JobId, JobTaskId, Map};
 
     use super::replace_placeholders;
