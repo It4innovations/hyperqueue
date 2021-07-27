@@ -7,7 +7,7 @@ use nom::character::complete::{newline, space0};
 use nom::combinator::all_consuming;
 use nom::combinator::{map_res, opt};
 use nom::multi::separated_list1;
-use nom::sequence::{delimited, preceded, terminated, tuple};
+use nom::sequence::{preceded, terminated, tuple};
 
 fn p_cpu_range(input: &str) -> NomResult<Vec<CpuId>> {
     map_res(

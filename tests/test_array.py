@@ -78,16 +78,16 @@ def test_job_array_error_some(hq_env: HqEnv):
     offset = 13
 
     assert table[offset][0] == "Task Id"
-    assert table[offset][1] == "Error"
+    assert table[offset][2] == "Error"
 
     assert table[offset + 1][0] == "2"
-    assert table[offset + 1][1] == "Error: Program terminated with exit code 1"
+    assert table[offset + 1][2] == "Error: Program terminated with exit code 1"
 
     assert table[offset + 2][0] == "3"
-    assert table[offset + 2][1] == "Error: Program terminated with exit code 1"
+    assert table[offset + 2][2] == "Error: Program terminated with exit code 1"
 
     assert table[offset + 3][0] == "7"
-    assert table[offset + 3][1] == "Error: Program terminated with exit code 1"
+    assert table[offset + 3][2] == "Error: Program terminated with exit code 1"
 
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
     for i, s in enumerate(
@@ -114,7 +114,7 @@ def test_job_array_error_all(hq_env: HqEnv):
 
     for i in range(5):
         assert table[offset + i][0] == str(i)
-        assert "No such file or directory" in table[offset + i][1]
+        assert "No such file or directory" in table[offset + i][2]
     print_table(table)
     assert table[offset + 5] == []
 
@@ -124,7 +124,7 @@ def test_job_array_error_all(hq_env: HqEnv):
     for i in range(10):
         assert table[offset + i][0] == str(i)
         assert table[offset + i][1] == "FAILED"
-        assert "No such file or directory" in table[offset + i][2]
+        assert "No such file or directory" in table[offset + i][3]
 
 
 def test_job_array_cancel(hq_env: HqEnv):

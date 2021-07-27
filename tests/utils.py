@@ -2,6 +2,7 @@ import time
 from typing import List, Union, Optional
 
 DEFAULT_TIMEOUT = 5
+JOB_TABLE_ROWS = 11
 
 
 # TODO: create a pandas dataframe instead?

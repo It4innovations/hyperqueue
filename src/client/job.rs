@@ -245,10 +245,7 @@ fn print_job_tasks(
     let make_error_row = |t: &JobTaskInfo| match &t.state {
         JobTaskState::Failed(e) => Some(vec![
             t.task_id.cell(),
-            e.worker_hostname
-                .to_owned()
-                .cell()
-                .foreground_color(Some(Color::Red)),
+            e.worker_hostname.to_owned().cell(),
             e.error.to_owned().cell().foreground_color(Some(Color::Red)),
         ]),
         _ => None,
@@ -270,9 +267,7 @@ fn print_job_tasks(
                         _ => "".cell(),
                     },
                     match &t.state {
-                        JobTaskState::Failed(e) => {
-                            e.error.to_owned().cell().foreground_color(Some(Color::Red))
-                        }
+                        JobTaskState::Failed(e) => e.error.to_owned().cell(),
                         _ => "".cell(),
                     },
                 ]
