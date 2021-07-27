@@ -225,8 +225,7 @@ pub async fn submit_computation(
         get_worker_map(connection).await?,
     );
     if opts.wait {
-        let conn_ref = &mut *connection;
-        wait_on_job(conn_ref, JobSelector::Specific(vec![job_id])).await?;
+        wait_on_job(connection, JobSelector::Specific(vec![job_id])).await?;
     }
     Ok(())
 }

@@ -12,9 +12,8 @@ pub async fn wait_on_job(
     connection: &mut ClientConnection,
     selector: JobSelector,
 ) -> anyhow::Result<()> {
-    let conn_ref = &mut *connection;
     let response = rpc_call!(
-        conn_ref,
+        connection,
         FromClientMessage::JobInfo(JobInfoRequest {
             selector,
         }),
@@ -37,10 +36,9 @@ pub async fn wait_on_job(
         let mut non_terminated_ids: Set<JobId> = job_ids.into_iter().collect();
 
         while !non_terminated_ids.is_empty() {
-            let conn_ref = &mut *connection;
             let ids_ref = &mut non_terminated_ids;
             let response = rpc_call!(
-                conn_ref,
+                connection,
                 FromClientMessage::JobInfo(JobInfoRequest {
                     selector: JobSelector::Specific(ids_ref.iter().copied().collect()),
                 }),
