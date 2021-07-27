@@ -163,14 +163,8 @@ impl State {
         log::debug!("Task id={} updated {:?}", msg.id, msg.state);
         match msg.state {
             TaskState::Running(worker_id) => {
-                let hostname = self
-                    .get_worker(worker_id)
-                    .unwrap()
-                    .configuration
-                    .hostname
-                    .clone();
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
-                job.set_running_state(msg.id, hostname)
+                job.set_running_state(msg.id, worker_id)
             }
             TaskState::Finished => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();

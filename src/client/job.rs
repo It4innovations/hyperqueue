@@ -5,12 +5,28 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::client::resources::cpu_request_to_string;
 use crate::client::status::{job_status, status_cell, task_status};
 use crate::common::env::is_hq_env;
-use crate::server::job::FailedMessage;
+use crate::rpc_call;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
-use crate::transfer::messages::{JobDetail, JobInfo, JobType};
-use crate::JobTaskCount;
+use crate::transfer::connection::ClientConnection;
+use crate::transfer::messages::{FromClientMessage, JobDetail, JobInfo, JobType, ToClientMessage};
+use crate::{JobTaskCount, Map, WorkerId};
 use colored::Colorize;
 use std::fmt::Write;
+
+/// Maps worker IDs to hostnames.
+type WorkerMap = Map<WorkerId, String>;
+
+pub async fn get_worker_map(connection: &mut ClientConnection) -> anyhow::Result<WorkerMap> {
+    let message = FromClientMessage::WorkerList;
+    let response =
+        rpc_call!(connection, message, ToClientMessage::WorkerListResponse(r) => r).await?;
+    let map = response
+        .workers
+        .into_iter()
+        .map(|w| (w.id, w.configuration.hostname))
+        .collect();
+    Ok(map)
+}
 
 /// Draws a colored progress bar that depicts counts of tasks with individual states
 fn job_progress_bar(info: &JobInfo) -> String {
@@ -118,6 +134,7 @@ pub fn print_job_detail(
     job: JobDetail,
     just_submitted: bool,
     show_tasks: bool,
+    worker_map: WorkerMap,
 ) {
     let mut rows = vec![
         vec!["Id".cell().bold(true), job.info.id.cell()],
@@ -212,7 +229,13 @@ pub fn print_job_detail(
     assert!(print_stdout(table).is_ok());
 
     if !job.tasks.is_empty() {
-        print_job_tasks(gsettings, job.tasks, show_tasks, &job.info.counters);
+        print_job_tasks(
+            gsettings,
+            job.tasks,
+            show_tasks,
+            &job.info.counters,
+            &worker_map,
+        );
     }
 }
 
@@ -221,14 +244,22 @@ fn print_job_tasks(
     mut tasks: Vec<JobTaskInfo>,
     show_tasks: bool,
     counters: &JobTaskCounters,
+    worker_map: &WorkerMap,
 ) {
     tasks.sort_unstable_by_key(|t| t.task_id);
 
+    let format_worker = |id: WorkerId| -> &str {
+        worker_map
+            .get(&id)
+            .map(|s| s.as_str())
+            .unwrap_or_else(|| "N/A")
+    };
+
     let make_error_row = |t: &JobTaskInfo| match &t.state {
-        JobTaskState::Failed(e) => Some(vec![
+        JobTaskState::Failed { worker, error } => Some(vec![
             t.task_id.cell(),
-            e.worker_hostname.to_owned().cell(),
-            e.error.to_owned().cell().foreground_color(Some(Color::Red)),
+            format_worker(*worker).cell(),
+            error.to_owned().cell().foreground_color(Some(Color::Red)),
         ]),
         _ => None,
     };
@@ -241,15 +272,16 @@ fn print_job_tasks(
                     t.task_id.cell(),
                     status_cell(task_status(&t.state)),
                     match &t.state {
-                        JobTaskState::Finished(worker_hostname)
-                        | JobTaskState::Running(worker_hostname)
-                        | JobTaskState::Failed(FailedMessage {
-                            worker_hostname, ..
-                        }) => worker_hostname.cell().foreground_color(Some(Color::Cyan)),
-                        _ => "".cell(),
-                    },
+                        JobTaskState::Finished { worker }
+                        | JobTaskState::Running { worker }
+                        | JobTaskState::Failed { worker, .. } => format_worker(*worker),
+                        _ => "",
+                    }
+                    .cell(),
                     match &t.state {
-                        JobTaskState::Failed(e) => e.error.to_owned().cell(),
+                        JobTaskState::Failed { error, .. } => {
+                            error.to_owned().cell().foreground_color(Some(Color::Red))
+                        }
                         _ => "".cell(),
                     },
                 ]

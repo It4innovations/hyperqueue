@@ -1,5 +1,5 @@
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::job::{print_job_detail, print_job_list};
+use crate::client::job::{get_worker_map, print_job_detail, print_job_list};
 use crate::client::status::{job_status, Status};
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
@@ -66,7 +66,13 @@ pub async fn output_job_detail(
         rpc_call!(connection, message, ToClientMessage::JobDetailResponse(r) => r).await?;
 
     if let Some(job) = response {
-        print_job_detail(gsettings, job, false, show_tasks);
+        print_job_detail(
+            gsettings,
+            job,
+            false,
+            show_tasks,
+            get_worker_map(connection).await?,
+        );
     } else {
         log::error!("Job {} not found", job_id);
     }
