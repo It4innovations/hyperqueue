@@ -240,7 +240,10 @@ about <a href="../arrays/">task arrays</a>.</p>
 <p><code>hq cancel &lt;job-id&gt;</code></p>
 <p>A job cannot be canceled if it is already finished, failed, or canceled.</p>
 <h2 id="priorities">Priorities<a class="headerlink" href="#priorities" title="Permanent link">#</a></h2>
-<p>Not released yet, <strong>scheduled for release v0.5</strong></p>
+<p>Priorities affect the order in which the "waiting" tasks are executed. Specifically, tasks are executed in descending order from highest priority to lowest.</p>
+<p>In a submit of a task, you can set variable named <code>priority</code> with the value <code>VAL</code> by:</p>
+<p><code>--priority=VAL</code></p>
+<p>Default value is 0.</p>
               
             </div>
           </div>
