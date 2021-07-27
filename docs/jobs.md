@@ -151,7 +151,7 @@ A job cannot be canceled if it is already finished, failed, or canceled.
 
 ## Priorities
 
-Priorities affect the order in which the "waiting" tasks are executed.
+Priorities affect the order in which the "waiting" tasks are executed. Specifically, tasks are executed in descending order from highest priority to lowest.
 
 In a submit of a task, you can set variable named `priority` with the value `VAL` by:
 
