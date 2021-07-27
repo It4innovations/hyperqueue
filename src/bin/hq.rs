@@ -399,7 +399,7 @@ async fn command_worker_address(
 }
 
 async fn command_wait(gsettings: GlobalSettings, opts: WaitOpts) -> anyhow::Result<()> {
-    let connection = get_client_connection(&gsettings.server_directory()).await?;
+    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
 
     let selector: JobSelector = match opts.selector {
         JobSelectorArg::Id(job_id) => JobSelector::Specific(vec![job_id]),
@@ -407,7 +407,7 @@ async fn command_wait(gsettings: GlobalSettings, opts: WaitOpts) -> anyhow::Resu
         JobSelectorArg::All => JobSelector::All,
     };
 
-    wait_on_job(connection, selector).await
+    wait_on_job(&mut connection, selector).await
 }
 
 pub enum ColorPolicy {

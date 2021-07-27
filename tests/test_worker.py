@@ -108,8 +108,12 @@ def test_worker_list_resources(hq_env: HqEnv):
 
     table = hq_env.command(["worker", "list"], as_table=True)
     assert len(table) == 3
-    table.check_value_columns(["Id", "State", "Resources"], 0, ["1", "RUNNING", "1x10 cpus"])
-    table.check_value_columns(["Id", "State", "Resources"], 1, ["2", "RUNNING", "4x5 cpus"])
+    table.check_value_columns(
+        ["Id", "State", "Resources"], 0, ["1", "RUNNING", "1x10 cpus"]
+    )
+    table.check_value_columns(
+        ["Id", "State", "Resources"], 1, ["2", "RUNNING", "4x5 cpus"]
+    )
 
 
 def test_idle_timeout_server_cfg(hq_env: HqEnv):

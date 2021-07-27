@@ -1,12 +1,12 @@
 import os
 import socket
 import time
-
-import pytest
 from datetime import datetime
 
+import pytest
+
 from .conftest import HqEnv
-from .utils import wait_for_job_state, JOB_TABLE_ROWS
+from .utils import JOB_TABLE_ROWS, wait_for_job_state
 
 
 def test_job_submit(hq_env: HqEnv):
@@ -61,7 +61,9 @@ def test_custom_name(hq_env: HqEnv, tmp_path):
 
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 2
-    table.check_value_columns(["Id", "Name", "State"], 0, ["1", "sleep_prog", "WAITING"])
+    table.check_value_columns(
+        ["Id", "Name", "State"], 0, ["1", "sleep_prog", "WAITING"]
+    )
 
     with pytest.raises(Exception):
         hq_env.command(["submit", "sleep", "1", "--name=second_sleep \n"])
@@ -589,8 +591,19 @@ def test_job_tasks_table(hq_env: HqEnv):
 def test_job_wait(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
-    hq_env.command(["submit", "--", "sleep", "1"])
+    hq_env.command(["submit", "sleep", "1"])
     r = hq_env.command(["wait", "1"])
-    assert len(r) == 0
+    assert "Waiting for 1 job(s)" in r
+    table = hq_env.command(["job", "1"], as_table=True)
+    table.check_value_row("State", "FINISHED")
     r = hq_env.command(["wait", "all"])
     assert "There are no jobs to wait for" in r
+
+
+def test_job_submit_wait(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    r = hq_env.command(["submit", "sleep", "1", "--wait"])
+    assert "Waiting for 1 job(s)" in r
+    table = hq_env.command(["job", "1"], as_table=True)
+    table.check_value_row("State", "FINISHED")

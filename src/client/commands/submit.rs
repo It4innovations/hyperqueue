@@ -10,6 +10,7 @@ use hashbrown::HashMap;
 use tako::common::resources::{CpuRequest, ResourceRequest};
 use tako::messages::common::ProgramDefinition;
 
+use crate::client::commands::wait::wait_on_job;
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::{get_worker_map, print_job_detail};
 use crate::client::resources::parse_cpu_request;
@@ -17,7 +18,7 @@ use crate::client::status::StatusList;
 use crate::common::arraydef::ArrayDef;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    FromClientMessage, JobType, ResubmitRequest, SubmitRequest, ToClientMessage,
+    FromClientMessage, JobSelector, JobType, ResubmitRequest, SubmitRequest, ToClientMessage,
 };
 use crate::{rpc_call, JobId, JobTaskCount};
 
@@ -133,6 +134,10 @@ pub struct SubmitOpts {
 
     #[clap(long, default_value = "0")]
     priority: tako::Priority,
+
+    /// Wait on the job(s) execution.
+    #[clap(long)]
+    wait: bool,
 }
 
 impl SubmitOpts {
@@ -209,7 +214,9 @@ pub async fn submit_computation(
         submit_dir: std::env::current_dir().unwrap().to_str().unwrap().into(),
         priority: opts.priority,
     });
+
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
+    let job_id = response.job.info.id;
     print_job_detail(
         gsettings,
         response.job,
@@ -217,6 +224,10 @@ pub async fn submit_computation(
         false,
         get_worker_map(connection).await?,
     );
+    if opts.wait {
+        let conn_ref = &mut *connection;
+        wait_on_job(conn_ref, JobSelector::Specific(vec![job_id])).await?;
+    }
     Ok(())
 }
 
