@@ -217,8 +217,9 @@ def test_job_fail(hq_env: HqEnv):
     table.check_value_row("Id", "1")
     table.check_value_row("State", "FAILED")
 
-    assert table[12][0] == "0"
-    assert "No such file or directory" in table[12][3]
+    table = table[JOB_TABLE_ROWS:]
+    table.check_value_column("Task Id", 0, "0")
+    assert "No such file or directory" in table.get_column_value("Message")[0]
 
 
 def test_job_invalid(hq_env: HqEnv):
