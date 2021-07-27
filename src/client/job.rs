@@ -1,5 +1,5 @@
 use cli_table::format::Justify;
-use cli_table::{print_stdout, Cell, CellStruct, Color, Style, Table};
+use cli_table::{print_stdout, Cell, Color, Style, Table};
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::resources::cpu_request_to_string;
@@ -46,46 +46,43 @@ fn job_progress_bar(info: &JobInfo) -> String {
     buffer
 }
 
-fn job_status_with_counts_cells(info: &JobInfo) -> Vec<CellStruct> {
-    let row = |result: &mut Vec<_>, string, value, color| {
+fn job_status_with_counts_cells(info: &JobInfo) -> String {
+    let row = |result: &mut String, string, value, color| {
         if value > 0 {
-            result.push(
-                format!("{} ({})", string, value)
-                    .cell()
-                    .foreground_color(Some(color)),
-            );
+            let text = format!("{} ({})", string, value).color(color);
+            writeln!(result, "{}", text).unwrap();
         }
     };
-    let mut result: Vec<CellStruct> = vec![job_progress_bar(info).cell()];
+    let mut result = format!("{}\n", job_progress_bar(info));
     row(
         &mut result,
         "RUNNING",
         info.counters.n_running_tasks,
-        Color::Yellow,
+        colored::Color::Yellow,
     );
     row(
         &mut result,
         "FAILED",
         info.counters.n_failed_tasks,
-        Color::Red,
+        colored::Color::Red,
     );
     row(
         &mut result,
         "FINISHED",
         info.counters.n_finished_tasks,
-        Color::Green,
+        colored::Color::Green,
     );
     row(
         &mut result,
         "CANCELED",
         info.counters.n_canceled_tasks,
-        Color::Magenta,
+        colored::Color::Magenta,
     );
     row(
         &mut result,
         "WAITING",
         info.counters.n_waiting_tasks(info.n_tasks),
-        Color::Cyan,
+        colored::Color::Cyan,
     );
     result
 }
@@ -122,35 +119,21 @@ pub fn print_job_detail(
     just_submitted: bool,
     show_tasks: bool,
 ) {
-    let state_label = "State".cell().bold(true);
-    let status = if just_submitted {
-        vec![vec![
-            state_label,
-            "SUBMITTED".cell().foreground_color(Some(Color::Cyan)),
-        ]]
-    } else if job.info.n_tasks == 1 {
-        vec![vec![state_label, status_cell(job_status(&job.info))]]
-    } else {
-        let mut result = Vec::new();
-        let mut it = job_status_with_counts_cells(&job.info).into_iter();
-        result.push(vec![state_label, it.next().unwrap()]);
-        result.extend(it.map(|c| vec!["".cell(), c]));
-        result
-    };
-
     let mut rows = vec![
         vec!["Id".cell().bold(true), job.info.id.cell()],
-        vec!["Name".cell().bold(true), job.info.name.cell()],
+        vec!["Name".cell().bold(true), job.info.name.as_str().cell()],
     ];
 
-    rows.extend(status.into_iter());
+    let status = if just_submitted {
+        "SUBMITTED".cell().foreground_color(Some(Color::Cyan))
+    } else if job.info.n_tasks == 1 {
+        status_cell(job_status(&job.info))
+    } else {
+        job_status_with_counts_cells(&job.info).cell()
+    };
 
-    /*if let Some(error) = job.error {
-        rows.push(vec![
-            "Error".cell().bold(true),
-            error.cell().foreground_color(Option::from(Color::Red)),
-        ])
-    }*/
+    let state_label = "State".cell().bold(true);
+    rows.push(vec![state_label, status]);
 
     let mut n_tasks = job.info.n_tasks.to_string();
     if let JobType::Array(array_def) = job.job_type {
@@ -173,7 +156,6 @@ pub fn print_job_detail(
 
     rows.push(vec!["Priority".cell().bold(true), job.priority.cell()]);
 
-    // TODO: Each argument on own line, after the bug in cli-table is fixed
     let program_def = job.program_def;
     rows.push(vec![
         "Command".cell().bold(true),

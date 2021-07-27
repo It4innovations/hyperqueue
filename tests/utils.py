@@ -22,18 +22,17 @@ class Table:
         """
         Assumes vertical table (each value has a separate row).
         """
-        row = [r for r in self.rows if r[0] == key]
+        row = [r for r in self.rows if r and r[0] == key]
         if not row:
             return None
         assert len(row) == 1
         return row[0][1]
 
     def check_value_row(self, key: str, value: str):
-        row = [r for r in self.rows if r and r[0] == key]
+        row = self.get_row_value(key)
         if not row:
             raise Exception(f"Key {key} not found in\n{self}")
-        assert len(row) == 1
-        assertEquals(row[0][1], value)
+        assert_equals(row, value)
 
     def get_column_value(self, key: str) -> Optional[List[str]]:
         """
@@ -51,7 +50,7 @@ class Table:
         if not column:
             raise Exception(f"Key {key} not found in\n{self}")
         row = column[index]
-        assertEquals(row, value)
+        assert_equals(row, value)
 
     def check_value_columns(self, keys: List[str], index: int, values: List[str]):
         assert len(keys) == len(values)
@@ -65,7 +64,11 @@ class Table:
         return "\n".join(" ".join(val) for val in self.rows)
 
 
-def assertEquals(a, b):
+def assert_equals(a, b):
+    """
+    Workaround for pytest.
+    Without this it won't show the differing values if an assert error happens inside some method.
+    """
     if a != b:
         raise Exception(f"{a} does not equal {b}")
 

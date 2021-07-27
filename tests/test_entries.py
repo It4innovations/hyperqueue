@@ -30,7 +30,7 @@ def test_entries_no_newline(hq_env: HqEnv):
     assert not os.path.isfile("stdout.0.4")
 
     table = hq_env.command(["job", "1"], as_table=True)
-    assert table[3][1] == "FINISHED (4)"
+    assert table.get_row_value("State").split("\n")[-1] == "FINISHED (4)"
 
 
 def test_entries_with_newline(hq_env: HqEnv):
@@ -59,4 +59,4 @@ def test_entries_with_newline(hq_env: HqEnv):
     assert not os.path.isfile("stdout.0.4")
 
     table = hq_env.command(["job", "1"], as_table=True)
-    assert table[3][1] == "FINISHED (4)"
+    assert table.get_row_value("State").split("\n")[-1] == "FINISHED (4)"
