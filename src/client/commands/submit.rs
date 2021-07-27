@@ -11,7 +11,7 @@ use tako::common::resources::{CpuRequest, ResourceRequest};
 use tako::messages::common::ProgramDefinition;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::job::print_job_detail;
+use crate::client::job::{get_worker_map, print_job_detail};
 use crate::client::resources::parse_cpu_request;
 use crate::client::status::StatusList;
 use crate::common::arraydef::ArrayDef;
@@ -210,7 +210,13 @@ pub async fn submit_computation(
         priority: opts.priority,
     });
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
-    print_job_detail(gsettings, response.job, true, false);
+    print_job_detail(
+        gsettings,
+        response.job,
+        true,
+        false,
+        get_worker_map(connection).await?,
+    );
     Ok(())
 }
 
@@ -234,7 +240,13 @@ pub async fn resubmit_computation(
         status: opts.status.map(|x| x.to_vec()),
     });
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
-    print_job_detail(gsettings, response.job, true, false);
+    print_job_detail(
+        gsettings,
+        response.job,
+        true,
+        false,
+        get_worker_map(connection).await?,
+    );
     Ok(())
 }
 

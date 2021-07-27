@@ -73,9 +73,9 @@ pub fn job_status(info: &JobInfo) -> Status {
 pub fn task_status(status: &JobTaskState) -> Status {
     match status {
         JobTaskState::Waiting => Status::Waiting,
-        JobTaskState::Running(..) => Status::Running,
-        JobTaskState::Finished(..) => Status::Finished,
-        JobTaskState::Failed(..) => Status::Failed,
+        JobTaskState::Running { .. } => Status::Running,
+        JobTaskState::Finished { .. } => Status::Finished,
+        JobTaskState::Failed { .. } => Status::Failed,
         JobTaskState::Canceled => Status::Canceled,
     }
 }

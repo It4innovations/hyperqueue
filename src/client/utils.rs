@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! rpc_call {
     ($conn:expr, $message:expr, $matcher:pat $(=> $result:expr)?) => {
-        async move {
+        async {
             match $conn.send_and_receive($message).await? {
                 $matcher => $crate::Result::Ok(($($result),*)),
                 msg => {

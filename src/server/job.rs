@@ -2,22 +2,16 @@ use serde::{Deserialize, Serialize};
 use tako::messages::common::ProgramDefinition;
 
 use crate::transfer::messages::{JobDetail, JobInfo, JobType};
-use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId};
+use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
 use bstr::BString;
 use tako::common::resources::ResourceRequest;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct FailedMessage {
-    pub error: String,
-    pub worker_hostname: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum JobTaskState {
     Waiting,
-    Running(String),
-    Finished(String),
-    Failed(FailedMessage),
+    Running { worker: WorkerId },
+    Finished { worker: WorkerId },
+    Failed { worker: WorkerId, error: String },
     Canceled,
 }
 
@@ -203,20 +197,20 @@ impl Job {
         let mut result = Vec::new();
         for (tako_id, _task_id, state) in self.iter_task_states() {
             match state {
-                JobTaskState::Waiting | JobTaskState::Running(_) => result.push(tako_id),
-                JobTaskState::Finished(_) | JobTaskState::Failed(_) | JobTaskState::Canceled => {
-                    /* Do nothing */
-                }
+                JobTaskState::Waiting | JobTaskState::Running { .. } => result.push(tako_id),
+                JobTaskState::Finished { .. }
+                | JobTaskState::Failed { .. }
+                | JobTaskState::Canceled => { /* Do nothing */ }
             }
         }
         result
     }
 
-    pub fn set_running_state(&mut self, tako_task_id: TakoTaskId, worker_hostname: String) {
+    pub fn set_running_state(&mut self, tako_task_id: TakoTaskId, worker: WorkerId) {
         let (_, state) = self.get_task_state_mut(tako_task_id);
 
         if matches!(state, JobTaskState::Waiting) {
-            *state = JobTaskState::Running(worker_hostname);
+            *state = JobTaskState::Running { worker };
             self.counters.n_running_tasks += 1;
         }
     }
@@ -225,8 +219,8 @@ impl Job {
         let (_, state) = self.get_task_state_mut(tako_task_id);
 
         match state {
-            JobTaskState::Running(worker_hostname) => {
-                *state = JobTaskState::Finished(worker_hostname.to_owned());
+            JobTaskState::Running { worker } => {
+                *state = JobTaskState::Finished { worker: *worker };
                 self.counters.n_running_tasks -= 1;
                 self.counters.n_finished_tasks += 1;
             }
@@ -236,7 +230,7 @@ impl Job {
 
     pub fn set_waiting_state(&mut self, tako_task_id: TakoTaskId) {
         let (_, state) = self.get_task_state_mut(tako_task_id);
-        assert!(matches!(state, JobTaskState::Running(_)));
+        assert!(matches!(state, JobTaskState::Running { .. }));
         *state = JobTaskState::Waiting;
         self.counters.n_running_tasks -= 1;
     }
@@ -245,11 +239,11 @@ impl Job {
         let (_, state) = self.get_task_state_mut(tako_task_id);
 
         match state {
-            JobTaskState::Running(worker_hostname) => {
-                *state = JobTaskState::Failed(FailedMessage {
+            JobTaskState::Running { worker } => {
+                *state = JobTaskState::Failed {
                     error,
-                    worker_hostname: worker_hostname.to_owned(),
-                });
+                    worker: *worker,
+                };
                 self.counters.n_running_tasks -= 1;
                 self.counters.n_failed_tasks += 1;
             }
@@ -262,9 +256,9 @@ impl Job {
         let old_state = std::mem::replace(state, JobTaskState::Canceled);
         assert!(matches!(
             old_state,
-            JobTaskState::Running(_) | JobTaskState::Waiting
+            JobTaskState::Running { .. } | JobTaskState::Waiting
         ));
-        if let JobTaskState::Running(_) = old_state {
+        if let JobTaskState::Running { .. } = old_state {
             self.counters.n_running_tasks -= 1;
         }
         self.counters.n_canceled_tasks += 1;
