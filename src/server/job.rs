@@ -15,6 +15,17 @@ pub enum JobTaskState {
     Canceled,
 }
 
+impl JobTaskState {
+    pub fn get_worker(&self) -> Option<WorkerId> {
+        match self {
+            JobTaskState::Running { worker }
+            | JobTaskState::Finished { worker }
+            | JobTaskState::Failed { worker, .. } => Some(*worker),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobTaskInfo {
     pub state: JobTaskState,

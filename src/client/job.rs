@@ -11,6 +11,7 @@ use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, JobDetail, JobInfo, JobType, ToClientMessage};
 use crate::{JobTaskCount, Map, WorkerId};
 use colored::Colorize;
+use std::collections::BTreeSet;
 use std::fmt::Write;
 
 /// Maps worker IDs to hostnames.
@@ -153,11 +154,15 @@ pub fn print_job_detail(
     rows.push(vec![state_label, status]);
 
     let mut n_tasks = job.info.n_tasks.to_string();
-    if let JobType::Array(array_def) = job.job_type {
+    if let JobType::Array(array_def) = &job.job_type {
         n_tasks.push_str(&format!("; Ids: {}", array_def));
     }
 
     rows.push(vec!["Tasks".cell().bold(true), n_tasks.cell()]);
+    rows.push(vec![
+        "Workers".cell().bold(true),
+        format_job_workers(&job, &worker_map).cell(),
+    ]);
 
     let resources = cpu_request_to_string(job.resources.cpus());
 
@@ -239,6 +244,38 @@ pub fn print_job_detail(
     }
 }
 
+const MAX_DISPLAYED_WORKERS: usize = 2;
+
+fn format_job_workers(job: &JobDetail, worker_map: &WorkerMap) -> String {
+    // BTreeSet is used to both filter duplicates and keep a stable order
+    let worker_set: BTreeSet<_> = job
+        .tasks
+        .iter()
+        .filter_map(|task| task.state.get_worker())
+        .collect();
+    let worker_count = worker_set.len();
+
+    let mut result = worker_set
+        .into_iter()
+        .take(MAX_DISPLAYED_WORKERS)
+        .map(|id| format_worker(id, worker_map))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    if worker_count > MAX_DISPLAYED_WORKERS {
+        write!(result, ", … ({} total)", worker_count).unwrap();
+    }
+
+    result
+}
+
+fn format_worker(id: WorkerId, worker_map: &WorkerMap) -> &str {
+    worker_map
+        .get(&id)
+        .map(|s| s.as_str())
+        .unwrap_or_else(|| "N/A")
+}
+
 fn print_job_tasks(
     gsettings: &GlobalSettings,
     mut tasks: Vec<JobTaskInfo>,
@@ -248,17 +285,10 @@ fn print_job_tasks(
 ) {
     tasks.sort_unstable_by_key(|t| t.task_id);
 
-    let format_worker = |id: WorkerId| -> &str {
-        worker_map
-            .get(&id)
-            .map(|s| s.as_str())
-            .unwrap_or_else(|| "N/A")
-    };
-
     let make_error_row = |t: &JobTaskInfo| match &t.state {
         JobTaskState::Failed { worker, error } => Some(vec![
             t.task_id.cell(),
-            format_worker(*worker).cell(),
+            format_worker(*worker, worker_map).cell(),
             error.to_owned().cell().foreground_color(Some(Color::Red)),
         ]),
         _ => None,
@@ -271,10 +301,8 @@ fn print_job_tasks(
                 vec![
                     t.task_id.cell(),
                     status_cell(task_status(&t.state)),
-                    match &t.state {
-                        JobTaskState::Finished { worker }
-                        | JobTaskState::Running { worker }
-                        | JobTaskState::Failed { worker, .. } => format_worker(*worker),
+                    match t.state.get_worker() {
+                        Some(worker) => format_worker(worker, worker_map),
                         _ => "",
                     }
                     .cell(),
