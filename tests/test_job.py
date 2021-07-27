@@ -2,6 +2,7 @@ import os
 import time
 
 import pytest
+from datetime import datetime
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
@@ -499,7 +500,7 @@ def test_job_resubmit_all(hq_env: HqEnv):
     table.check_value_row("Tasks", "3; Ids: 2, 7, 9")
 
 
-def test_job_priority(hq_env: HqEnv):
+def test_job_priority(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.command(
         [
@@ -509,7 +510,7 @@ def test_job_priority(hq_env: HqEnv):
             "--",
             "bash",
             "-c",
-            "sleep 1",
+            "date --iso-8601=seconds && sleep 1",
         ]
     )
     hq_env.command(
@@ -520,7 +521,7 @@ def test_job_priority(hq_env: HqEnv):
             "--",
             "bash",
             "-c",
-            "sleep 1",
+            "date --iso-8601=seconds && sleep 1",
         ]
     )
     hq_env.command(
@@ -531,7 +532,7 @@ def test_job_priority(hq_env: HqEnv):
             "--",
             "bash",
             "-c",
-            "sleep 1",
+            "date --iso-8601=seconds && sleep 1",
         ]
     )
     hq_env.command(
@@ -540,21 +541,21 @@ def test_job_priority(hq_env: HqEnv):
             "--",
             "bash",
             "-c",
-            "sleep 1",
+            "date --iso-8601=seconds && sleep 1",
         ]
     )
     hq_env.start_worker(cpus=1)
 
-    wait_for_job_state(hq_env, 1, "RUNNING")
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    wait_for_job_state(hq_env, 2, "FINISHED")
+    wait_for_job_state(hq_env, 3, "FINISHED")
+    wait_for_job_state(hq_env, 4, "FINISHED")
 
-    table = hq_env.command(["job", "2"], as_table=True)
-    table.check_value_row("Priority", "3")
-    table.check_value_row("State", "FINISHED")
+    dates = []
+    for file in ["stdout.1.0", "stdout.2.0", "stdout.3.0", "stdout.4.0"]:
+        with open(os.path.join(tmp_path, file)) as f:
+            dates.append(datetime.fromisoformat(f.read().strip()))
 
-    table = hq_env.command(["job", "3"], as_table=True)
-    table.check_value_row("Priority", "3")
-    table.check_value_row("State", "FINISHED")
-
-    table = hq_env.command(["job", "4"], as_table=True)
-    table.check_value_row("Priority", "0")
-    table.check_value_row("State", "WAITING")
+    assert dates[1] < dates[0]
+    assert dates[2] < dates[0]
+    assert dates[0] < dates[3]
