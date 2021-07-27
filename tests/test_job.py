@@ -388,9 +388,10 @@ def test_max_fails_0(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "CANCELED")
 
     table = hq_env.command(["job", "1"], as_table=True)
-    assert table[3][1] == "FAILED (1)"
-    assert table[4][1].startswith("FINISHED")
-    assert table[5][1].startswith("CANCELED")
+    states = table.get_row_value("State").split("\n")
+    assert "FAILED (1)" in states
+    assert any(s.startswith("FINISHED") for s in states)
+    assert any(s.startswith("CANCELED") for s in states)
 
 
 def test_max_fails_1(hq_env: HqEnv):
@@ -417,8 +418,9 @@ def test_max_fails_1(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["job", "1"], as_table=True)
-    assert table[3][1] == "FAILED (1)"
-    assert table[4][1] == "FINISHED (199)"
+    states = table.get_row_value("State").split("\n")
+    assert "FAILED (1)" in states
+    assert "FINISHED (199)" in states
 
 
 def test_max_fails_many(hq_env: HqEnv):
@@ -446,8 +448,9 @@ def test_max_fails_many(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "CANCELED")
 
     table = hq_env.command(["job", "1"], as_table=True)
-    assert table[3][1] == "FAILED (4)"
-    assert table[4][1] == "CANCELED (6)"
+    states = table.get_row_value("State").split("\n")
+    assert "FAILED (4)" in states
+    assert "CANCELED (6)" in states
 
 
 def test_job_last(hq_env: HqEnv):

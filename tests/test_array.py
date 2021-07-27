@@ -3,7 +3,7 @@ import os
 import time
 
 from .conftest import HqEnv, print_table
-from .utils import wait_for_job_state
+from .utils import wait_for_job_state, JOB_TABLE_ROWS
 
 
 def test_job_array_submit(hq_env: HqEnv):
@@ -37,19 +37,15 @@ def test_job_array_report(hq_env: HqEnv):
     table = hq_env.command(["job", "1"], as_table=True)
     table.check_value_row("Tasks", "10; Ids: 10-19")
 
-    assert table[2][0] == "State"
-    assert table[3][0] == ""
-    assert table[4][0] == ""
-
-    assert table[3][1] == "RUNNING (4)"
-    assert table[4][1] == "FINISHED (4)"
-    assert table[5][1] == "WAITING (2)"
+    states = table.get_row_value("State").split("\n")
+    assert "RUNNING (4)" in states
+    assert "FINISHED (4)" in states
+    assert "WAITING (2)" in states
 
     time.sleep(1.6)
 
     table = hq_env.command(["job", "1"], as_table=True)
-    assert table[2][0] == "State"
-    assert table[3][1] == "FINISHED (10)"
+    assert table.get_row_value("State").split("\n")[-1] == "FINISHED (10)"
 
 
 def test_job_array_error_some(hq_env: HqEnv):
@@ -72,10 +68,11 @@ def test_job_array_error_some(hq_env: HqEnv):
     table.check_value_column("State", 0, "FAILED")
 
     table = hq_env.command(["job", "1"], as_table=True)
-    assert table[3][1] == "FAILED (3)"
-    assert table[4][1] == "FINISHED (7)"
+    states = table.get_row_value("State").split("\n")
+    assert "FAILED (3)" in states
+    assert "FINISHED (7)" in states
 
-    offset = 13
+    offset = JOB_TABLE_ROWS
 
     assert table[offset][0] == "Task Id"
     assert table[offset][2] == "Error"
@@ -108,9 +105,10 @@ def test_job_array_error_all(hq_env: HqEnv):
     table.check_value_column("State", 0, "FAILED")
 
     table = hq_env.command(["job", "1"], as_table=True)
-    assert table[3][1] == "FAILED (10)"
+    states = table.get_row_value("State").split("\n")
+    assert "FAILED (10)" in states
 
-    offset = 13
+    offset = JOB_TABLE_ROWS + 1
 
     for i in range(5):
         assert table[offset + i][0] == str(i)
@@ -119,7 +117,8 @@ def test_job_array_error_all(hq_env: HqEnv):
     assert table[offset + 5] == []
 
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
-    assert table[3][1] == "FAILED (10)"
+    states = table.get_row_value("State").split("\n")
+    assert "FAILED (10)" in states
 
     for i in range(10):
         assert table[offset + i][0] == str(i)
@@ -136,14 +135,18 @@ def test_job_array_cancel(hq_env: HqEnv):
     time.sleep(0.4)
 
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
-    assert table[3][1] == "FINISHED (4)"
-    assert table[4][1] == "CANCELED (6)"
-    c = collections.Counter([x[1] for x in table[9:]])
+    states = table.get_row_value("State").split("\n")
+    assert "FINISHED (4)" in states
+    assert "CANCELED (6)" in states
+
+    table = table[JOB_TABLE_ROWS:]
+    task_states = table.get_column_value("State")
+    c = collections.Counter(task_states)
     assert c.get("FINISHED") == 4
     assert c.get("CANCELED") == 6
 
     table = hq_env.command(["jobs"], as_table=True)
-    assert table[1][2] == "CANCELED"
+    table.check_value_column("State", 0, "CANCELED")
 
 
 def test_array_reporting_state_after_worker_lost(hq_env: HqEnv):
@@ -154,15 +157,19 @@ def test_array_reporting_state_after_worker_lost(hq_env: HqEnv):
     hq_env.kill_worker(1)
     time.sleep(0.25)
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
-    c = collections.Counter([x[1] for x in table[8:]])
-    assert table[3][1] == "WAITING (4)"
+    assert "WAITING (4)" in table.get_row_value("State").split("\n")
+
+    task_states = table[JOB_TABLE_ROWS:].get_column_value("State")
+    c = collections.Counter(task_states)
     assert c.get("WAITING") == 4
     hq_env.start_workers(1, cpus=2)
 
     time.sleep(2.2)
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
-    c = collections.Counter([x[1] for x in table[8:]])
-    assert table[3][1] == "FINISHED (4)"
+    assert "FINISHED (4)" in table.get_row_value("State").split("\n")
+
+    task_states = table[JOB_TABLE_ROWS:].get_column_value("State")
+    c = collections.Counter(task_states)
     assert c.get("FINISHED") == 4
 
 
