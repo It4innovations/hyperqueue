@@ -1,11 +1,12 @@
 import os
+import socket
 import time
 
 import pytest
 from datetime import datetime
 
 from .conftest import HqEnv
-from .utils import wait_for_job_state
+from .utils import wait_for_job_state, JOB_TABLE_ROWS
 
 
 def test_job_submit(hq_env: HqEnv):
@@ -217,7 +218,7 @@ def test_job_fail(hq_env: HqEnv):
     table.check_value_row("State", "FAILED")
 
     assert table[12][0] == "0"
-    assert "No such file or directory" in table[12][2]
+    assert "No such file or directory" in table[12][3]
 
 
 def test_job_invalid(hq_env: HqEnv):
@@ -559,3 +560,23 @@ def test_job_priority(hq_env: HqEnv, tmp_path):
     assert dates[1] < dates[0]
     assert dates[2] < dates[0]
     assert dates[0] < dates[3]
+
+
+def test_job_tasks_table(hq_env: HqEnv):
+    hq_env.start_server()
+
+    hq_env.command(["submit", "echo", "test"])
+    table = hq_env.command(["job", "1", "--tasks"], as_table=True)[JOB_TABLE_ROWS:]
+    wait_for_job_state(hq_env, 1, "WAITING")
+    table.check_value_column("Worker", 0, "")
+
+    hq_env.start_worker()
+
+    table = hq_env.command(["job", "1", "--tasks"], as_table=True)[JOB_TABLE_ROWS:]
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    table.check_value_column("Worker", 0, socket.gethostname())
+
+    hq_env.command(["submit", "non-existent-program", "test"])
+    table = hq_env.command(["job", "2", "--tasks"], as_table=True)[JOB_TABLE_ROWS:]
+    wait_for_job_state(hq_env, 2, "FAILED")
+    table.check_value_column("Worker", 0, socket.gethostname())
