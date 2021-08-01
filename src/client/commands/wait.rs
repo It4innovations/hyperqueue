@@ -5,8 +5,8 @@ use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, JobInfoRequest, JobSelector, ToClientMessage};
 use crate::{rpc_call, JobId, Set};
 
-use std::thread::sleep;
 use std::time::Duration;
+use tokio::time::sleep;
 
 pub async fn wait_on_job(
     connection: &mut ClientConnection,
@@ -35,7 +35,7 @@ pub async fn wait_on_job(
         let bar = ProgressBar::new(job_ids.len() as u64);
         let mut non_terminated_ids: Set<JobId> = job_ids.into_iter().collect();
 
-        while !non_terminated_ids.is_empty() {
+        loop {
             let ids_ref = &mut non_terminated_ids;
             let response = rpc_call!(
                 connection,
@@ -52,11 +52,12 @@ pub async fn wait_on_job(
                     bar.inc(1);
                 }
             }
-
-            sleep(Duration::from_secs(1));
+            if non_terminated_ids.is_empty() {
+                break;
+            }
+            sleep(Duration::from_secs(1)).await;
         }
         bar.finish();
     }
-
     Ok(())
 }
