@@ -1,5 +1,5 @@
 import time
-from typing import List, Union, Optional
+from typing import List, Optional, Union
 
 DEFAULT_TIMEOUT = 5
 JOB_TABLE_ROWS = 12
@@ -104,12 +104,12 @@ def wait_until(fn, sleep_s=0.2, timeout_s=DEFAULT_TIMEOUT):
 
 
 def wait_for_state(
-        env,
-        ids: Union[int, List[int]],
-        target_states: Union[str, List[str]],
-        commands: List[str],
-        state_index: int,
-        **kwargs,
+    env,
+    ids: Union[int, List[int]],
+    target_states: Union[str, List[str]],
+    commands: List[str],
+    state_index: int,
+    **kwargs,
 ):
     if isinstance(ids, int):
         ids = {str(ids)}
@@ -132,12 +132,12 @@ def wait_for_state(
 
 
 def wait_for_job_state(
-        env, ids: Union[int, List[int]], target_states: Union[str, List[str]], **kwargs
+    env, ids: Union[int, List[int]], target_states: Union[str, List[str]], **kwargs
 ):
     wait_for_state(env, ids, target_states, ["jobs"], 2, **kwargs)
 
 
 def wait_for_worker_state(
-        env, ids: Union[int, List[int]], target_states: Union[str, List[str]], **kwargs
+    env, ids: Union[int, List[int]], target_states: Union[str, List[str]], **kwargs
 ):
     wait_for_state(env, ids, target_states, ["worker", "list"], 1, **kwargs)

@@ -214,11 +214,7 @@ async fn handle_job_cancel(
             .get()
             .jobs()
             .map(|job| job.make_job_info())
-            .filter(|job_info| {
-                vec![Status::Running, Status::Waiting]
-                    .iter()
-                    .any(|status| status == &job_status(&job_info))
-            })
+            .filter(|job_info| matches!(&job_status(&job_info), Status::Waiting | Status::Running))
             .map(|job_info| job_info.id)
             .collect(),
         JobSelector::LastN(n) => state_ref.get().last_n_ids(n).collect(),

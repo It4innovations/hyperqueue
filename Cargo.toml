@@ -51,3 +51,4 @@ bincode = "1.3.3"
 nom = "6.2"
 bstr = { version = "0.2", features = ["serde1"] }
 colored = "2"
+indicatif = "0.16.2"
