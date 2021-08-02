@@ -3,33 +3,17 @@ use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, JobInfoRequest, JobSelector, ToClientMessage};
 use crate::{rpc_call, JobId, JobTaskCount, Set};
 
+use crate::server::job::JobTaskCounters;
 use anyhow::bail;
 use colored::Colorize;
-use std::fmt::{self, Display};
 use std::time::Duration;
 use tokio::time::sleep;
-
-#[derive(Clone, Copy)]
-struct DisplayRepeat<T>(usize, T);
-
-impl<T: Display> Display for DisplayRepeat<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for _ in 0..self.0 {
-            self.1.fmt(f)?;
-        }
-        Ok(())
-    }
-}
-
-fn repeat<T>(times: usize, item: T) -> DisplayRepeat<T> {
-    DisplayRepeat(times, item)
-}
 
 pub async fn wait_on_job(
     connection: &mut ClientConnection,
     selector: JobSelector,
 ) -> anyhow::Result<()> {
-    let width: u32 = 25;
+    let width: f64 = 25.0;
     let response = rpc_call!(
         connection,
         FromClientMessage::JobInfo(JobInfoRequest {
@@ -55,7 +39,7 @@ pub async fn wait_on_job(
             .filter(|info| !is_terminated(info))
             .map(|info| info.n_tasks)
             .sum();
-        let total_jobs: u32 = job_ids.len() as u32;
+        let total_jobs = job_ids.len();
 
         log::info!(
             "Waiting for {} job(s) with a {} task(s)",
@@ -63,12 +47,11 @@ pub async fn wait_on_job(
             total_tasks
         );
 
-        let mut non_terminated_ids: Set<JobId> = job_ids.into_iter().collect();
-        let (mut current_jobs, mut finished, mut failed, mut canceled, mut running) =
-            (0, 0, 0, 0, 0);
+        let mut remaining_job_ids: Set<JobId> = job_ids.into_iter().collect();
+        let mut counters = JobTaskCounters::default();
 
         loop {
-            let ids_ref = &mut non_terminated_ids;
+            let ids_ref = &mut remaining_job_ids;
             let response = rpc_call!(
                 connection,
                 FromClientMessage::JobInfo(JobInfoRequest {
@@ -78,61 +61,63 @@ pub async fn wait_on_job(
             )
             .await?;
 
-            let (mut tmp_finished, mut tmp_failed, mut tmp_canceled, mut tmp_running) =
-                (0, 0, 0, 0);
+            let mut current_counters = counters;
             for job in &response.jobs {
-                if is_terminated(&job) {
-                    non_terminated_ids.remove(&job.id);
-                    current_jobs += 1;
+                current_counters = current_counters + job.counters;
 
-                    finished += job.counters.n_finished_tasks;
-                    canceled += job.counters.n_canceled_tasks;
-                    failed += job.counters.n_failed_tasks;
-                    running += job.counters.n_running_tasks;
-                } else {
-                    tmp_finished += job.counters.n_finished_tasks;
-                    tmp_canceled += job.counters.n_canceled_tasks;
-                    tmp_failed += job.counters.n_failed_tasks;
-                    tmp_running += job.counters.n_running_tasks;
+                if is_terminated(&job) {
+                    remaining_job_ids.remove(&job.id);
+                    counters = counters + job.counters;
                 }
             }
 
-            let jobs_percentage = current_jobs / total_jobs;
-            let current_tasks =
-                finished + tmp_finished + canceled + tmp_canceled + failed + tmp_failed;
-            let tasks_percentage = current_tasks / total_tasks;
+            let completed_jobs = total_jobs - remaining_job_ids.len();
+            let jobs_percentage: f64 = completed_jobs as f64 / total_jobs as f64;
+            let completed_tasks = current_counters.n_finished_tasks
+                + current_counters.n_canceled_tasks
+                + current_counters.n_failed_tasks;
+            let tasks_percentage: f64 = completed_tasks as f64 / total_tasks as f64;
+
+            let job_arrow = if completed_jobs < total_jobs { ">" } else { "" };
+            let task_arrow = if completed_tasks < total_tasks {
+                ">"
+            } else {
+                ""
+            };
 
             println!(
-                "[{}>{}] {} / {} jobs\n\
-                [{}>{}] {} / {} tasks ({} {} | {} {} | {} {} | {} {})",
-                repeat((width * jobs_percentage) as usize, '#'),
-                repeat((width * (1 - jobs_percentage)) as usize, '-'),
-                current_jobs,
+                "[{}{job_arrow}{}] {} / {} jobs\n\
+                [{}{task_arrow}{}] {} / {} tasks ({} {} | {} {} | {} {} | {} {})",
+                "#".repeat((width * jobs_percentage) as usize),
+                "-".repeat((width * (1.0 - jobs_percentage)) as usize),
+                completed_jobs,
                 total_jobs,
-                repeat((width * tasks_percentage) as usize, '#'),
-                repeat((width * (1 - tasks_percentage)) as usize, '-'),
-                current_tasks,
+                "#".repeat((width * tasks_percentage) as usize),
+                "-".repeat((width * (1.0 - tasks_percentage)) as usize),
+                completed_tasks,
                 total_tasks,
                 "RUNNING".yellow(),
-                running + tmp_running,
+                current_counters.n_running_tasks,
                 "FINISHED".green(),
-                finished + tmp_finished,
+                current_counters.n_finished_tasks,
                 "CANCELED".magenta(),
-                canceled + tmp_canceled,
+                current_counters.n_canceled_tasks,
                 "FAILED".red(),
-                failed + tmp_failed,
+                current_counters.n_failed_tasks,
+                job_arrow = job_arrow,
+                task_arrow = task_arrow
             );
 
-            if non_terminated_ids.is_empty() {
+            if remaining_job_ids.is_empty() {
                 break;
             }
             sleep(Duration::from_secs(1)).await;
         }
 
-        if failed > 0 {
+        if counters.n_failed_tasks > 0 {
             bail!("Some jobs have failed");
         }
-        if canceled > 0 {
+        if counters.n_canceled_tasks > 0 {
             bail!("Some jobs were canceled");
         }
     }

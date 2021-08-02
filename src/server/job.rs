@@ -48,6 +48,19 @@ pub struct JobTaskCounters {
     pub n_canceled_tasks: JobTaskCount,
 }
 
+impl std::ops::Add<JobTaskCounters> for JobTaskCounters {
+    type Output = JobTaskCounters;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            n_running_tasks: self.n_running_tasks + rhs.n_running_tasks,
+            n_finished_tasks: self.n_finished_tasks + rhs.n_finished_tasks,
+            n_failed_tasks: self.n_failed_tasks + rhs.n_failed_tasks,
+            n_canceled_tasks: self.n_canceled_tasks + rhs.n_canceled_tasks,
+        }
+    }
+}
+
 impl JobTaskCounters {
     pub fn n_waiting_tasks(&self, n_tasks: JobTaskCount) -> JobTaskCount {
         n_tasks
