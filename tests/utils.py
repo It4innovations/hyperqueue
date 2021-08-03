@@ -141,3 +141,8 @@ def wait_for_worker_state(
     env, ids: Union[int, List[int]], target_states: Union[str, List[str]], **kwargs
 ):
     wait_for_state(env, ids, target_states, ["worker", "list"], 1, **kwargs)
+
+
+def print_table(table):
+    for i, row in enumerate(table):
+        print(i, row)
