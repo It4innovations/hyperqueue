@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::sync::Arc;
 
 use bytes::{Bytes, BytesMut};
 use hashbrown::HashMap;
@@ -20,13 +21,12 @@ use crate::server::worker::WorkerId;
 use crate::transfer::auth::serialize;
 use crate::transfer::DataConnection;
 use crate::worker::data::{DataObject, DataObjectRef, DataObjectState, LocalData, RemoteData};
-use crate::worker::launcher::LauncherSetup;
+use crate::worker::launcher::InnerTaskLauncher;
 use crate::worker::rqueue::ResourceWaitQueue;
 use crate::worker::subworker::{SubworkerId, SubworkerRef};
 use crate::worker::task::{TaskRef, TaskState};
 use crate::PriorityTuple;
 use crate::TaskId;
-use std::sync::Arc;
 
 pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
 
@@ -53,7 +53,7 @@ pub struct WorkerState {
     pub subworker_definitions: Map<SubworkerId, SubworkerDefinition>,
 
     pub configuration: WorkerConfiguration,
-    pub launcher_setup: LauncherSetup,
+    pub inner_task_launcher: InnerTaskLauncher,
     pub secret_key: Option<Arc<SecretKey>>,
 }
 
@@ -397,6 +397,7 @@ impl WorkerState {
 }
 
 impl WorkerStateRef {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         worker_id: WorkerId,
         configuration: WorkerConfiguration,
@@ -405,7 +406,7 @@ impl WorkerStateRef {
         download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, PriorityTuple)>,
         worker_addresses: Map<WorkerId, String>,
         subworker_definitions: Vec<SubworkerDefinition>,
-        launcher_setup: LauncherSetup,
+        inner_task_launcher: InnerTaskLauncher,
     ) -> Self {
         let ready_task_queue = ResourceWaitQueue::new(&configuration.resources);
         let self_ref = Self::wrap(WorkerState {
@@ -414,7 +415,7 @@ impl WorkerStateRef {
             sender,
             download_sender,
             configuration,
-            launcher_setup,
+            inner_task_launcher,
             secret_key,
             subworker_definitions: subworker_definitions
                 .into_iter()

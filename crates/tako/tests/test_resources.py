@@ -1,7 +1,7 @@
 import time
 
 from tako.client.program import ProgramDefinition
-from tako.client.resources import ResourceRequest, AllocationPolicy
+from tako.client.resources import AllocationPolicy, ResourceRequest
 from tako.client.task import make_program_task
 
 

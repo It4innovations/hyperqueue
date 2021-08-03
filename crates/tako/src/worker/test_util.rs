@@ -8,6 +8,7 @@ use crate::{Priority, TaskId};
 pub fn worker_task(task_id: TaskId, resources: ResourceRequest, u_priority: Priority) -> TaskRef {
     TaskRef::new(ComputeTaskMsg {
         id: task_id,
+        instance_id: 0,
         type_id: 0,
         n_outputs: 0,
         dep_info: vec![],

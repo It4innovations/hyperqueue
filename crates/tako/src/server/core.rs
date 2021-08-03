@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use std::time::Duration;
+
 use orion::aead::SecretKey;
 
 use crate::common::error::DsError;
@@ -6,12 +9,13 @@ use crate::common::trace::trace_task_remove;
 use crate::common::{IdCounter, Map, Set, WrappedRcRefCell};
 use crate::messages::common::SubworkerDefinition;
 use crate::messages::gateway::ServerInfo;
+use crate::server::rpc::ConnectionDescriptor;
 use crate::server::task::{Task, TaskRef, TaskRuntimeState};
 use crate::server::worker::Worker;
 use crate::server::worker_load::WorkerResources;
 use crate::{TaskId, WorkerId};
-use std::sync::Arc;
-use std::time::Duration;
+
+pub type CustomConnectionHandler = Box<dyn Fn(ConnectionDescriptor)>;
 
 #[derive(Default)]
 pub struct Core {
@@ -34,6 +38,8 @@ pub struct Core {
 
     subworker_definitions: Vec<SubworkerDefinition>,
     secret_key: Option<Arc<SecretKey>>,
+
+    custom_conn_handler: Option<CustomConnectionHandler>,
 }
 
 pub type CoreRef = WrappedRcRefCell<Core>;
@@ -43,6 +49,7 @@ impl CoreRef {
         worker_listen_port: u16,
         secret_key: Option<Arc<SecretKey>>,
         idle_timeout: Option<Duration>,
+        custom_conn_handler: Option<CustomConnectionHandler>,
     ) -> Self {
         /*let mut core = Core::default();
         core.worker_listen_port = worker_listen_port;
@@ -51,6 +58,7 @@ impl CoreRef {
             worker_listen_port,
             secret_key,
             idle_timeout,
+            custom_conn_handler,
             ..Default::default()
         })
     }
@@ -261,6 +269,10 @@ impl Core {
         self.tasks.get(&id)
     }
 
+    pub fn custom_conn_handler(&self) -> &Option<CustomConnectionHandler> {
+        &self.custom_conn_handler
+    }
+
     pub fn add_subworker_definition(
         &mut self,
         subworker_def: SubworkerDefinition,
@@ -334,20 +346,20 @@ impl Core {
                         assert!(t.get().is_waiting());
                     }
                     assert_eq!(winfo.unfinished_deps, count);
-                    worker_check(self, &task_ref, 0);
+                    worker_check(self, task_ref, 0);
                     assert!(task.is_fresh());
                 }
 
                 TaskRuntimeState::Assigned(wid) | TaskRuntimeState::Running(wid) => {
                     assert!(!task.is_fresh());
                     fw_check(&task);
-                    worker_check(self, &task_ref, *wid);
+                    worker_check(self, task_ref, *wid);
                 }
 
                 TaskRuntimeState::Stealing(_, target) => {
                     assert!(!task.is_fresh());
                     fw_check(&task);
-                    worker_check(self, &task_ref, target.unwrap_or(0));
+                    worker_check(self, task_ref, target.unwrap_or(0));
                 }
 
                 TaskRuntimeState::Finished(_) => {

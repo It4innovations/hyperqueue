@@ -1,18 +1,18 @@
 use std::fs::File;
+use std::future::Future;
+use std::path::PathBuf;
+use std::pin::Pin;
 use std::process::Stdio;
 
-use tokio::process::Command;
-use tokio::sync::oneshot;
-
-use crate::common::error::DsError;
-use crate::common::resources::ResourceAllocation;
-use crate::messages::common::{LauncherDefinition, ProgramDefinition, TaskFailInfo};
-use crate::worker::state::WorkerStateRef;
-use crate::worker::task::{Task, TaskRef};
 use bstr::ByteSlice;
-use std::path::PathBuf;
+use tokio::process::Command;
 
-pub type LauncherSetup = Box<dyn Fn(&Task, LauncherDefinition) -> crate::Result<ProgramDefinition>>;
+use crate::common::resources::ResourceAllocation;
+use crate::messages::common::{ProgramDefinition, StdioDef};
+use crate::worker::task::TaskRef;
+
+pub type InnerTaskLauncher =
+    Box<dyn Fn(&TaskRef) -> Pin<Box<dyn Future<Output = crate::Result<()>> + 'static>>>;
 
 pub fn pin_program(program: &mut ProgramDefinition, allocation: &ResourceAllocation) {
     program.args.insert(0, "taskset".into());
@@ -24,24 +24,25 @@ pub fn pin_program(program: &mut ProgramDefinition, allocation: &ResourceAllocat
 
 /// Create an output stream file on the given path.
 /// If the path is relative and `cwd` is specified, the file will be created relative to `cwd`.
-fn create_output_stream(path: Option<&PathBuf>, cwd: Option<&PathBuf>) -> crate::Result<Stdio> {
-    let stdio = match path {
-        Some(path) => {
+fn create_output_stream(def: &StdioDef, cwd: Option<&PathBuf>) -> crate::Result<Stdio> {
+    let stdio = match def {
+        StdioDef::File(path) => {
             let stream_path = match cwd {
                 Some(cwd) => cwd.join(path),
-                None => path.clone()
+                None => path.clone(),
             };
 
             let file = File::create(stream_path)
                 .map_err(|e| format!("Creating stream file failed: {}", e))?;
             Stdio::from(file)
         }
-        None => Stdio::null(),
+        StdioDef::Null => Stdio::null(),
+        StdioDef::Pipe => Stdio::piped(),
     };
     Ok(stdio)
 }
 
-fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Command> {
+pub fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Command> {
     if definition.args.is_empty() {
         return Result::Err(crate::Error::GenericError(
             "No command arguments".to_string(),
@@ -59,11 +60,11 @@ fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Com
     }
 
     command.stdout(create_output_stream(
-        definition.stdout.as_ref(),
+        &definition.stdout,
         definition.cwd.as_ref(),
     )?);
     command.stderr(create_output_stream(
-        definition.stderr.as_ref(),
+        &definition.stderr,
         definition.cwd.as_ref(),
     )?);
 
@@ -74,29 +75,7 @@ fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result<Com
     Ok(command)
 }
 
-async fn start_program_from_task(
-    state_ref: &WorkerStateRef,
-    task_ref: &TaskRef,
-) -> crate::Result<()> {
-    let program: ProgramDefinition = {
-        let task = task_ref.get();
-        let def: LauncherDefinition = rmp_serde::from_slice(&task.spec)?;
-        (state_ref.get().launcher_setup)(&task, def)?
-    };
-
-    let mut command = command_from_definitions(&program)?;
-    let status = command.status().await?;
-    if !status.success() {
-        let code = status.code().unwrap_or(-1);
-        return Result::Err(DsError::GenericError(format!(
-            "Program terminated with exit code {}",
-            code
-        )));
-    }
-    Ok(())
-}
-
-pub fn launch_program_from_task(
+/*pub fn launch_program_from_task(
     state_ref: WorkerStateRef,
     task_ref: TaskRef,
 ) -> oneshot::Sender<()> {
@@ -106,12 +85,7 @@ pub fn launch_program_from_task(
             // Task was canceled in between start of the task and this spawn_local
             return;
         }
-        log::debug!(
-            "Starting program launcher {} {:?} {:?}",
-            task_ref.get().id,
-            &task_ref.get().resources,
-            task_ref.get().resource_allocation()
-        );
+
         let program = start_program_from_task(&state_ref, &task_ref);
         tokio::select! {
             biased;
@@ -149,3 +123,4 @@ pub fn launch_program_from_task(
     });
     sender
 }
+*/

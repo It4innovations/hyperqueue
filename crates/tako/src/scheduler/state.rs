@@ -15,11 +15,11 @@ use crate::server::comm::{Comm, CommSenderRef};
 use crate::server::core::{Core, CoreRef};
 use crate::server::task::{Task, TaskRef, TaskRuntimeState};
 use crate::server::worker::Worker;
+use crate::server::worker_load::ResourceRequestLowerBound;
 use crate::{TaskId, WorkerId};
 
 use super::metrics::compute_b_level_metric;
 use super::utils::task_transfer_cost;
-use crate::server::worker_load::ResourceRequestLowerBound;
 
 pub(crate) struct SchedulerState {
     // Which tasks has modified state, this map holds the original state
@@ -394,7 +394,7 @@ impl SchedulerState {
                     dbg!(&worker2.load);
                     dbg!(&worker2.configuration.resources);*/
 
-                    if !worker2.is_overloaded() || !worker2.is_more_loaded_then(&worker) {
+                    if !worker2.is_overloaded() || !worker2.is_more_loaded_then(worker) {
                         continue;
                     }
                     if *worker_id != worker2_id {
@@ -422,12 +422,13 @@ impl SchedulerState {
 
 #[cfg(test)]
 pub mod tests {
+    use rand::rngs::SmallRng;
+    use rand::SeedableRng;
+
     use crate::scheduler::state::SchedulerState;
     use crate::server::core::Core;
     use crate::server::task::TaskRef;
     use crate::WorkerId;
-    use rand::rngs::SmallRng;
-    use rand::SeedableRng;
 
     pub(crate) fn create_test_scheduler() -> SchedulerState {
         SchedulerState {

@@ -17,6 +17,7 @@ use tokio::sync::oneshot;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 use crate::common::data::SerializationType;
+use crate::common::resources::ResourceAllocation;
 use crate::common::WrappedRcRefCell;
 use crate::transfer::transport::make_protocol_builder;
 use crate::worker::data::{
@@ -35,7 +36,6 @@ use crate::worker::taskenv::TaskEnv;
 use crate::TaskId;
 
 use super::messages::RegisterSubworkerMessage;
-use crate::common::resources::ResourceAllocation;
 
 pub(crate) type SubworkerId = u32;
 

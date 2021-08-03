@@ -12,6 +12,7 @@ pub type WorkerId = u64; // Maybe non-zero type for optimizing Option<WorkerId>?
 pub type TaskId = u64;
 pub type TaskTypeId = u32;
 pub type OutputId = u32;
+pub type InstanceId = u32;
 
 // Priority: Bigger number -> Higher priority
 pub type Priority = i32;

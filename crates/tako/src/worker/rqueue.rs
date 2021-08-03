@@ -1,9 +1,10 @@
+use std::cmp::Reverse;
+
 use crate::common::resources::{ResourceAllocation, ResourceDescriptor, ResourceRequest};
 use crate::common::Map;
 use crate::worker::pool::ResourcePool;
 use crate::worker::task::TaskRef;
 use crate::PriorityTuple;
-use std::cmp::Reverse;
 
 pub struct ResourceWaitQueue {
     queues: Map<ResourceRequest, priority_queue::PriorityQueue<TaskRef, PriorityTuple>>,
@@ -16,7 +17,7 @@ impl ResourceWaitQueue {
         ResourceWaitQueue {
             queues: Default::default(),
             requests: Default::default(),
-            pool: ResourcePool::new(&desc),
+            pool: ResourcePool::new(desc),
         }
     }
 
@@ -47,7 +48,7 @@ impl ResourceWaitQueue {
 
     pub fn remove_task(&mut self, task_ref: &TaskRef) {
         for queue in self.queues.values_mut() {
-            if queue.remove(&task_ref).is_some() {
+            if queue.remove(task_ref).is_some() {
                 return;
             }
         }
@@ -64,12 +65,12 @@ impl ResourceWaitQueue {
         };
         let mut results: Vec<(TaskRef, ResourceAllocation)> = Vec::new();
         for request in &self.requests {
-            let queue = self.queues.get_mut(&request).unwrap();
-            loop {
-                let allocation = if let Some((task_ref, priority)) = queue.peek() {
-                    if current_priority != *priority {
-                        break;
-                    }
+            let queue = self.queues.get_mut(request).unwrap();
+            while let Some((task_ref, priority)) = queue.peek() {
+                if current_priority != *priority {
+                    break;
+                }
+                let allocation = {
                     if let Some(allocation) =
                         self.pool.try_allocate_resources(&task_ref.get().resources)
                     {
@@ -77,8 +78,6 @@ impl ResourceWaitQueue {
                     } else {
                         break;
                     }
-                } else {
-                    break;
                 };
                 let task_ref = queue.pop().unwrap().0;
                 results.push((task_ref, allocation));

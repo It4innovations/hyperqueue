@@ -54,6 +54,7 @@ pub fn on_remove_worker(
             TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
                 if *w_id == worker_id {
                     log::debug!("Removing task task={} from lost worker", task_id);
+                    task.increment_instance_id();
                     task.set_fresh_flag(true);
                     ready_to_assign.push(task_ref.clone());
                     if task.is_running() {
@@ -71,6 +72,7 @@ pub fn on_remove_worker(
                     if let Some(to_id) = to_id {
                         removes.push((*to_id, task_ref.clone()));
                     }
+                    task.increment_instance_id();
                     task.set_fresh_flag(true);
                     ready_to_assign.push(task_ref.clone());
                     TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
@@ -464,7 +466,7 @@ pub fn on_task_error(
             let mut task = task_ref.get_mut();
             log::debug!("Task={} canceled because of failed dependency", task.id);
             assert!(task.is_waiting());
-            unregister_as_consumer(core, comm, &mut task, &task_ref);
+            unregister_as_consumer(core, comm, &mut task, task_ref);
         }
 
         assert!(matches!(
@@ -548,7 +550,7 @@ pub fn on_cancel_tasks(
 
     for task_ref in &task_refs {
         let mut task = task_ref.get_mut();
-        unregister_as_consumer(core, comm, &mut task, &task_ref);
+        unregister_as_consumer(core, comm, &mut task, task_ref);
     }
 
     for task_ref in &task_refs {
@@ -644,7 +646,7 @@ fn unregister_as_consumer(
     for tr in &task.inputs {
         //let tr = core.get_task_by_id_or_panic(*input_id).clone();
         let mut t = tr.get_mut();
-        assert!(t.remove_consumer(&task_ref));
+        assert!(t.remove_consumer(task_ref));
         remove_task_if_possible(core, comm, &mut t);
     }
 }
@@ -676,6 +678,7 @@ fn remove_task_if_possible(core: &mut Core, comm: &mut impl Comm, task: &mut Tas
 mod tests {
     use std::time::Duration;
 
+    use crate::common::resources::ResourceDescriptor;
     use crate::messages::common::WorkerConfiguration;
     use crate::messages::worker::ComputeTaskMsg;
     use crate::scheduler::state::tests::create_test_scheduler;
@@ -686,7 +689,6 @@ mod tests {
     };
 
     use super::*;
-    use crate::common::resources::ResourceDescriptor;
 
     /*use crate::test_util::{
         create_test_comm, create_test_workers, finish_on_worker, sorted_vec,
@@ -1489,6 +1491,7 @@ mod tests {
         start_stealing(&mut core, 41, 101);
 
         assert!(core.get_task_by_id_or_panic(12).get().is_running());
+        assert_eq!(core.get_task_by_id_or_panic(12).get().instance_id, 0);
 
         assert!(!core.get_task_by_id_or_panic(11).get().is_fresh());
         assert!(!core.get_task_by_id_or_panic(12).get().is_fresh());
@@ -1503,6 +1506,7 @@ mod tests {
         assert_eq!(core.take_ready_to_assign().len(), 3);
         assert!(core.get_task_by_id_or_panic(11).get().is_ready());
         assert!(core.get_task_by_id_or_panic(12).get().is_ready());
+        assert_eq!(core.get_task_by_id_or_panic(12).get().instance_id, 1);
         assert!(core.get_task_by_id_or_panic(40).get().is_ready());
         assert!(core.get_task_by_id_or_panic(11).get().is_fresh());
         assert!(core.get_task_by_id_or_panic(12).get().is_fresh());

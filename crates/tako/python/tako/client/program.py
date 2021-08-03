@@ -15,7 +15,7 @@ class ProgramDefinition:
         if self.env:
             output["env"] = self.env
         if self.stdout:
-            output["stdout"] = self.stdout
+            output["stdout"] = {"File": self.stdout}
         if self.stderr:
-            output["stderr"] = self.stderr
+            output["stderr"] = {"File": self.stderr}
         return output

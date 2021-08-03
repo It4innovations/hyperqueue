@@ -2,15 +2,14 @@
 
 use crate::common::Set;
 use crate::messages::worker::{StealResponse, StealResponseMsg, ToWorkerMessage};
+use crate::scheduler::state::tests::create_test_scheduler;
 use crate::server::core::Core;
 use crate::server::reactor::on_steal_response;
+use crate::server::task::TaskRef;
 use crate::server::test_util::{
     create_test_comm, create_test_workers, finish_on_worker, start_and_finish_on_worker,
     submit_example_1, submit_test_tasks, task, TaskBuilder, TestEnv,
 };
-
-use crate::scheduler::state::tests::create_test_scheduler;
-use crate::server::task::TaskRef;
 use crate::TaskId;
 
 #[test]

@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
+use bstr::BString;
 use serde::{Deserialize, Serialize};
 
 use crate::common::resources::ResourceDescriptor;
 use crate::common::Map;
 use crate::TaskTypeId;
-use bstr::BString;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskFailInfo {
@@ -45,6 +45,32 @@ pub struct SubworkerDefinition {
     pub program: ProgramDefinition,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+pub enum StdioDef {
+    Null,
+    File(PathBuf),
+    Pipe,
+}
+
+impl StdioDef {
+    pub fn map_filename<F>(self, f: F) -> StdioDef
+    where
+        F: FnOnce(PathBuf) -> PathBuf,
+    {
+        match self {
+            StdioDef::Null => StdioDef::Null,
+            StdioDef::File(filename) => StdioDef::File(f(filename)),
+            StdioDef::Pipe => StdioDef::Pipe,
+        }
+    }
+}
+
+impl Default for StdioDef {
+    fn default() -> Self {
+        StdioDef::Null
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProgramDefinition {
     pub args: Vec<BString>,
@@ -53,22 +79,22 @@ pub struct ProgramDefinition {
     pub env: Map<BString, BString>,
 
     #[serde(default)]
-    pub stdout: Option<PathBuf>,
+    pub stdout: StdioDef,
 
     #[serde(default)]
-    pub stderr: Option<PathBuf>,
+    pub stderr: StdioDef,
 
     #[serde(default)]
     pub cwd: Option<PathBuf>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+/*#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LauncherDefinition {
     pub program: ProgramDefinition,
 
     #[serde(default)]
     pub pin: bool,
-}
+}*/
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerConfiguration {

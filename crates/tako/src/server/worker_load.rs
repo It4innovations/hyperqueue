@@ -80,7 +80,7 @@ impl WorkerLoad {
         request: &ResourceRequest,
         wr: &WorkerResources,
     ) -> bool {
-        wr.n_cpus(&request) + self.n_cpus <= wr.n_cpus
+        wr.n_cpus(request) + self.n_cpus <= wr.n_cpus
     }
 
     pub fn have_immediate_resources_for_lb(

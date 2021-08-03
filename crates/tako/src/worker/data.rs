@@ -92,7 +92,7 @@ impl DataObject {
 
     pub fn is_in_subworker(&self, subworker_ref: &SubworkerRef) -> bool {
         self.get_placement()
-            .map(|refs| refs.contains(&subworker_ref))
+            .map(|refs| refs.contains(subworker_ref))
             .unwrap_or(false)
     }
 }
