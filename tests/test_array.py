@@ -2,8 +2,8 @@ import collections
 import os
 import time
 
-from .conftest import HqEnv, print_table
-from .utils import JOB_TABLE_ROWS, wait_for_job_state
+from .conftest import HqEnv
+from .utils import JOB_TABLE_ROWS, wait_for_job_state, print_table
 
 
 def test_job_array_submit(hq_env: HqEnv):
@@ -88,8 +88,8 @@ def test_job_array_error_some(hq_env: HqEnv):
 
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
     for i, s in enumerate(
-        ["FINISHED", "FAILED", "FAILED", "FINISHED", "FINISHED", "FINISHED", "FAILED"]
-        + 3 * ["FINISHED"]
+            ["FINISHED", "FAILED", "FAILED", "FINISHED", "FINISHED", "FINISHED", "FAILED"]
+            + 3 * ["FINISHED"]
     ):
         assert table[offset + 1 + i][0] == str(i)
 

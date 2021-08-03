@@ -3,8 +3,8 @@ import subprocess
 
 import pytest
 
-from .conftest import RUNNING_IN_CI, HqEnv, print_table
-from .utils import wait_for_job_state
+from .conftest import RUNNING_IN_CI, HqEnv
+from .utils import wait_for_job_state, print_table
 
 
 def read_list(filename):

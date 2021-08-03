@@ -1,3 +1,4 @@
+import contextlib
 import os
 import signal
 import subprocess
@@ -9,8 +10,12 @@ from .utils import parse_table
 
 PYTEST_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(PYTEST_DIR)
-HQ_BINARY = os.path.join(ROOT_DIR, "target", "debug", "hq")
-HQ_WORKER_BIN = os.path.join(ROOT_DIR, "target", "debug", "hq-worker")
+
+
+def get_hq_binary(debug=True):
+    directory = "debug" if debug else "release"
+    return os.path.join(ROOT_DIR, "target", directory, "hq")
+
 
 RUNNING_IN_CI = "CI" in os.environ
 
@@ -86,13 +91,14 @@ class Env:
 class HqEnv(Env):
     default_listen_port = 17002
 
-    def __init__(self, work_dir):
+    def __init__(self, work_dir, debug=True):
         Env.__init__(self, work_dir)
         self.server = None
         self.workers = {}
         self.id_counter = 0
         self.do_final_check = True
         self.server_dir = None
+        self.debug = debug
 
     def no_final_check(self):
         self.do_final_check = False
@@ -104,9 +110,9 @@ class HqEnv(Env):
         return env
 
     @staticmethod
-    def server_args(server_dir="./hq-server"):
+    def server_args(server_dir="./hq-server", debug=True):
         return [
-            HQ_BINARY,
+            get_hq_binary(debug=debug),
             "--colors",
             "never",
             "--server-dir",
@@ -118,7 +124,7 @@ class HqEnv(Env):
     def start_server(self, server_dir="./hq-server", args=None) -> subprocess.Popen:
         self.server_dir = os.path.join(self.work_path, server_dir)
         env = self.make_default_env()
-        server_args = self.server_args(self.server_dir)
+        server_args = self.server_args(self.server_dir, debug=self.debug)
         if args:
             server_args += args
         process = self.start_process("server", server_args, env=env)
@@ -140,7 +146,7 @@ class HqEnv(Env):
         worker_env = self.make_default_env()
         if env:
             worker_env.update(env)
-        worker_args = [HQ_BINARY, "--server-dir", self.server_dir, "worker", "start"]
+        worker_args = [get_hq_binary(self.debug), "--server-dir", self.server_dir, "worker", "start"]
         if cpus is not None:
             worker_args += ["--cpus", str(cpus)]
         if args:
@@ -159,7 +165,7 @@ class HqEnv(Env):
         else:
             args = list(args)
 
-        args = [HQ_BINARY, "--server-dir", self.server_dir] + args
+        args = [get_hq_binary(self.debug), "--server-dir", self.server_dir] + args
         cwd = cwd or self.work_path
         try:
             if not wait:
@@ -188,10 +194,16 @@ class HqEnv(Env):
 
 @pytest.fixture(autouse=False, scope="function")
 def hq_env(tmp_path):
+    with run_hq_env(tmp_path) as env:
+        yield env
+
+
+@contextlib.contextmanager
+def run_hq_env(tmp_path, debug=True):
     """Fixture that allows to start HQ test environment"""
     print("Working dir", tmp_path)
     os.chdir(tmp_path)
-    env = HqEnv(tmp_path)
+    env = HqEnv(tmp_path, debug=debug)
     yield env
     try:
         env.final_check()
@@ -202,8 +214,3 @@ def hq_env(tmp_path):
         # Final sleep to let server port be freed, on some slow computers
         # a new test is starter before the old server is properly cleaned
         time.sleep(0.02)
-
-
-def print_table(table):
-    for i, row in enumerate(table):
-        print(i, row)
