@@ -8,14 +8,19 @@ use rand::Rng;
 use tokio::task::LocalSet;
 
 use orion::kdf::SecretKey;
+use std::future::Future;
+use std::net::SocketAddr;
+use std::pin::Pin;
 use std::sync::Arc;
+use tako::common::error::DsError;
 use tako::common::resources::ResourceDescriptor;
 use tako::common::secret::read_secret_file;
 use tako::common::setup::setup_logging;
-use tako::messages::common::{LauncherDefinition, ProgramDefinition, WorkerConfiguration};
-use tako::worker::launcher::pin_program;
+use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
+use tako::worker::launcher::command_from_definitions;
 use tako::worker::rpc::run_worker;
-use tako::worker::task::Task;
+use tako::worker::task::TaskRef;
+use tokio::net::lookup_host;
 
 #[derive(Clap)]
 #[clap(version = "1.0")]
@@ -65,17 +70,43 @@ fn create_paths(
     Ok((work_dir, local_dir))
 }
 
-#[allow(clippy::unnecessary_wraps)] // This function needs to match an interface
-fn launcher_setup(task: &Task, def: LauncherDefinition) -> tako::Result<ProgramDefinition> {
-    let mut program = def.program;
+async fn launcher_main(task_ref: TaskRef) -> tako::Result<()> {
+    log::debug!(
+        "Starting program launcher {} {:?} {:?}",
+        task_ref.get().id,
+        &task_ref.get().resources,
+        task_ref.get().resource_allocation()
+    );
+
+    let program: ProgramDefinition = {
+        let task = task_ref.get();
+        rmp_serde::from_slice(&task.spec)?
+    };
+
+    let mut command = command_from_definitions(&program)?;
+    let status = command.status().await?;
+    if !status.success() {
+        let code = status.code().unwrap_or(-1);
+        return tako::Result::Err(DsError::GenericError(format!(
+            "Program terminated with exit code {}",
+            code
+        )));
+    }
+    Ok(())
+}
+
+fn launcher(task_ref: &TaskRef) -> Pin<Box<dyn Future<Output = tako::Result<()>> + 'static>> {
+    /*let mut program = def.program;
     if def.pin {
         pin_program(&mut program, task.resource_allocation().unwrap());
     }
-    Ok(program)
+    Ok(program)*/
+    let task_ref = task_ref.clone();
+    Box::pin(async move { launcher_main(task_ref).await })
 }
 
 async fn worker_main(
-    server_address: &str,
+    server_address: SocketAddr,
     configuration: WorkerConfiguration,
     secret_key: Option<Arc<SecretKey>>,
 ) -> tako::Result<()> {
@@ -83,7 +114,7 @@ async fn worker_main(
         server_address,
         configuration,
         secret_key,
-        Box::new(launcher_setup),
+        Box::new(launcher),
     )
     .await?;
     worker_future.await;
@@ -137,8 +168,17 @@ async fn main() -> tako::Result<()> {
     };
 
     let local_set = LocalSet::new();
+    let server_address = opts.server_address;
     local_set
-        .run_until(worker_main(&opts.server_address, configuration, secret_key))
+        .run_until(async move {
+            match lookup_host(&server_address).await {
+                Ok(mut addrs) => {
+                    let address = addrs.next().expect("Invalid server address");
+                    worker_main(address, configuration, secret_key).await
+                }
+                Err(e) => Result::Err(e.into()),
+            }
+        })
         .await?;
     log::info!("tako worker ends");
     Ok(())

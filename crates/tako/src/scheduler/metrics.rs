@@ -33,7 +33,7 @@ fn crawl<F1: Fn(&Task) -> &Set<TaskRef>, F2: Fn(&Task) -> &Vec<TaskRef>>(
 
         for inp in successor_fn(&task) {
             let v: &mut u32 = neighbours
-                .get_mut(&inp)
+                .get_mut(inp)
                 .expect("Couldn't find task neighbour in level computation");
             if *v <= 1 {
                 assert_eq!(*v, 1);

@@ -4,8 +4,8 @@ use std::fmt;
 use crate::common::resources::ResourceRequest;
 use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
-use crate::Priority;
 use crate::WorkerId;
+use crate::{InstanceId, Priority};
 use crate::{OutputId, TaskId, TaskTypeId};
 
 #[derive(Debug)]
@@ -70,6 +70,7 @@ pub struct Task {
 
     pub resources: ResourceRequest,
 
+    pub instance_id: InstanceId,
     pub type_id: TaskTypeId,
     pub spec: Vec<u8>, // Serialized TaskSpec
 
@@ -202,6 +203,10 @@ impl Task {
         result
     }
 
+    pub fn increment_instance_id(&mut self) {
+        self.instance_id += 1;
+    }
+
     pub fn make_compute_message(&self) -> ToWorkerMessage {
         let dep_info: Vec<_> = self
             .inputs
@@ -216,6 +221,7 @@ impl Task {
 
         ToWorkerMessage::ComputeTask(ComputeTaskMsg {
             id: self.id,
+            instance_id: self.instance_id,
             type_id: self.type_id,
             n_outputs: self.n_outputs,
             dep_info,
@@ -272,7 +278,7 @@ impl Task {
     #[inline]
     pub fn data_info(&self) -> Option<&FinishInfo> {
         match &self.state {
-            TaskRuntimeState::Finished(finfo) => Some(&finfo),
+            TaskRuntimeState::Finished(finfo) => Some(finfo),
             _ => None,
         }
     }
@@ -374,6 +380,7 @@ impl TaskRef {
             resources,
             state: TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 }),
             consumers: Default::default(),
+            instance_id: 0,
         })
     }
 }

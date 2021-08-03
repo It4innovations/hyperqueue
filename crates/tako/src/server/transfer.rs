@@ -1,5 +1,3 @@
-use std::iter::FromIterator;
-
 use bytes::BytesMut;
 use futures::stream::FuturesUnordered;
 use futures::{SinkExt, StreamExt};
@@ -37,8 +35,9 @@ pub async fn gather(
         }
     }
 
-    let mut worker_futures: FuturesUnordered<_> =
-        FuturesUnordered::from_iter(worker_map.into_iter().map(|(w_id, keys)| {
+    let mut worker_futures: FuturesUnordered<_> = worker_map
+        .into_iter()
+        .map(|(w_id, keys)| {
             get_data_from_worker(
                 core_ref
                     .get()
@@ -48,7 +47,8 @@ pub async fn gather(
                     .clone(),
                 keys,
             )
-        }));
+        })
+        .collect();
 
     let mut result = Vec::with_capacity(task_ids.len());
     while let Some(r) = worker_futures.next().await {

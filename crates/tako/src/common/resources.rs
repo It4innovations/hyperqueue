@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
+
 use crate::common::error::DsError;
 use crate::common::{Map, Set};
-use serde::{Deserialize, Serialize};
 
 pub type NumOfCpus = u32;
 pub type CpuId = u32;

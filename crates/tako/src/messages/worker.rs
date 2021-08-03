@@ -3,8 +3,14 @@ use serde::{Deserialize, Serialize};
 use crate::common::resources::{ResourceAllocation, ResourceRequest};
 use crate::common::Map;
 use crate::messages::common::{SubworkerDefinition, TaskFailInfo, WorkerConfiguration};
-use crate::Priority;
+use crate::{InstanceId, Priority};
 use crate::{OutputId, TaskId, TaskTypeId, WorkerId};
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ConnectionRegistration {
+    Worker(RegisterWorker),
+    Custom,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterWorker {
@@ -21,6 +27,8 @@ pub struct WorkerRegistrationResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ComputeTaskMsg {
     pub id: TaskId,
+
+    pub instance_id: InstanceId,
 
     pub type_id: TaskTypeId,
 

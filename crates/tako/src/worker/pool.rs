@@ -179,7 +179,7 @@ impl ResourcePool {
         &mut self,
         request: &ResourceRequest,
     ) -> Option<ResourceAllocation> {
-        let n_cpus = self.n_cpus(&request);
+        let n_cpus = self.n_cpus(request);
         let total_cpus = self.n_free_cpus();
         if total_cpus < n_cpus {
             return None;

@@ -2,15 +2,18 @@ use core::time::Duration;
 use std::time::Instant;
 
 use bytes::{Bytes, BytesMut};
-use futures::{Sink, Stream, StreamExt};
+use futures::stream::{SplitSink, SplitStream};
+use futures::{Stream, StreamExt};
 use orion::aead::streaming::{StreamOpener, StreamSealer};
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
+use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 use crate::common::error::DsError;
 use crate::messages::gateway::LostWorkerReason;
-use crate::messages::worker::{FromWorkerMessage, RegisterWorker, WorkerRegistrationResponse};
+use crate::messages::worker::{
+    ConnectionRegistration, FromWorkerMessage, RegisterWorker, WorkerRegistrationResponse,
+};
 use crate::server::comm::CommSenderRef;
 use crate::server::core::CoreRef;
 use crate::server::reactor::{
@@ -24,6 +27,14 @@ use crate::transfer::auth::{
 use crate::transfer::transport::make_protocol_builder;
 use crate::WorkerId;
 
+pub struct ConnectionDescriptor {
+    pub address: std::net::SocketAddr,
+    pub receiver: SplitStream<Framed<tokio::net::TcpStream, LengthDelimitedCodec>>,
+    pub sender: SplitSink<Framed<tokio::net::TcpStream, LengthDelimitedCodec>, bytes::Bytes>,
+    pub sealer: Option<StreamSealer>,
+    pub opener: Option<StreamOpener>,
+}
+
 pub async fn connection_initiator(
     listener: TcpListener,
     core_ref: CoreRef,
@@ -36,23 +47,40 @@ pub async fn connection_initiator(
         let comm_ref = comm_ref.clone();
         tokio::task::spawn_local(async move {
             log::debug!("New connection: {}", address);
-            match worker_authentication(core_ref, comm_ref, socket, address).await {
-                Ok(_) => { /* Do nothing */ }
-                Err(e) => {
-                    log::warn!("Connection ended with: {:?}", e);
+            let (connection, message) =
+                match worker_authentication(&core_ref, socket, address).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        log::warn!("Worker connection ended with: {:?}", e);
+                        return;
+                    }
+                };
+            match message {
+                ConnectionRegistration::Worker(msg) => {
+                    match worker_rpc_loop(&core_ref, &comm_ref, connection, msg).await {
+                        Ok(_) => {
+                            log::debug!("Connection ended: {}", address);
+                        }
+                        Err(e) => {
+                            log::warn!("Worker connection ended with: {:?}", e);
+                        }
+                    }
+                }
+                ConnectionRegistration::Custom => {
+                    if let Some(handler) = core_ref.get().custom_conn_handler() {
+                        handler(connection);
+                    }
                 }
             }
-            log::debug!("Connection ended: {}", address);
         });
     }
 }
 
-pub async fn worker_authentication<T: AsyncRead + AsyncWrite>(
-    core_ref: CoreRef,
-    comm_ref: CommSenderRef,
-    stream: T,
+pub async fn worker_authentication(
+    core_ref: &CoreRef,
+    stream: TcpStream,
     address: std::net::SocketAddr,
-) -> crate::Result<()> {
+) -> crate::Result<(ConnectionDescriptor, ConnectionRegistration)> {
     let (mut writer, mut reader) = make_protocol_builder().new_framed(stream).split();
 
     let secret_key = core_ref.get().secret_key().clone();
@@ -75,33 +103,32 @@ pub async fn worker_authentication<T: AsyncRead + AsyncWrite>(
             DsError::from("The remote side closed connection without worker registration")
         })??;
 
-    let message: RegisterWorker = open_message(&mut opener, &message_data)?;
+    let message: ConnectionRegistration = open_message(&mut opener, &message_data)?;
 
     log::debug!("Worker registration from {}", address);
-    worker_rpc_loop(
-        &core_ref, &comm_ref, address, reader, writer, message, sealer, opener,
-    )
-    .await?;
 
-    Ok(())
+    let connection = ConnectionDescriptor {
+        address,
+        receiver: reader,
+        sender: writer,
+        opener,
+        sealer,
+    };
+    Ok((connection, message))
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn worker_rpc_loop<
-    Reader: Stream<Item = Result<BytesMut, std::io::Error>> + Unpin,
-    Writer: Sink<Bytes, Error = std::io::Error> + Unpin,
->(
+async fn worker_rpc_loop(
     core_ref: &CoreRef,
     comm_ref: &CommSenderRef,
-    address: std::net::SocketAddr,
-    receiver: Reader,
-    sender: Writer,
+    connection: ConnectionDescriptor,
     msg: RegisterWorker,
-    sealer: Option<StreamSealer>,
-    opener: Option<StreamOpener>,
 ) -> crate::Result<()> {
     let worker_id = core_ref.get_mut().new_worker_id();
-    log::info!("Worker {} registered from {}", worker_id, address);
+    log::info!(
+        "Worker {} registered from {}",
+        worker_id,
+        connection.address
+    );
 
     let heartbeat_interval = msg.configuration.heartbeat_interval;
     log::debug!("Worker heartbeat: {:?}", heartbeat_interval);
@@ -111,9 +138,9 @@ async fn worker_rpc_loop<
     let mut configuration = msg.configuration;
     // Update idle_timeout configuration from server default
     if configuration.idle_timeout.is_none() {
-        configuration.idle_timeout = core_ref.get().idle_timeout().clone();
+        configuration.idle_timeout = *core_ref.get().idle_timeout();
     }
-    let idle_timeout = configuration.idle_timeout.clone();
+    let idle_timeout = configuration.idle_timeout;
 
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
 
@@ -131,7 +158,8 @@ async fn worker_rpc_loop<
     on_new_worker(&mut core_ref.get_mut(), &mut *comm_ref.get_mut(), worker);
     comm_ref.get_mut().add_worker(worker_id, queue_sender);
 
-    let snd_loop = forward_queue_to_sealed_sink(queue_receiver, sender, sealer);
+    let snd_loop =
+        forward_queue_to_sealed_sink(queue_receiver, connection.sender, connection.sealer);
 
     let periodic_check = async move {
         let mut interval = {
@@ -169,7 +197,7 @@ async fn worker_rpc_loop<
     };
 
     let reason = tokio::select! {
-        e = worker_receive_loop(core_ref.clone(), comm_ref.clone(), worker_id, receiver, opener) => {
+        e = worker_receive_loop(core_ref.clone(), comm_ref.clone(), worker_id, connection.receiver, connection.opener) => {
             log::debug!("Receive loop terminated ({:?}), worker={}", e, worker_id);
             LostWorkerReason::ConnectionLost
         }
@@ -186,7 +214,7 @@ async fn worker_rpc_loop<
     log::info!(
         "Worker {} connection closed (connection: {})",
         worker_id,
-        address
+        connection.address
     );
     let mut core = core_ref.get_mut();
     let mut comm = comm_ref.get_mut();

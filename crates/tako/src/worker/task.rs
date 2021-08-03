@@ -3,7 +3,7 @@ use crate::common::WrappedRcRefCell;
 use crate::messages::worker::ComputeTaskMsg;
 use crate::worker::data::DataObjectRef;
 use crate::worker::taskenv::TaskEnv;
-use crate::{OutputId, Priority, TaskId, TaskTypeId};
+use crate::{InstanceId, OutputId, Priority, TaskId, TaskTypeId};
 
 pub enum TaskState {
     Waiting(u32),
@@ -21,6 +21,7 @@ pub struct Task {
     pub resources: ResourceRequest,
     pub n_outputs: OutputId,
     pub spec: Vec<u8>,
+    pub instance_id: InstanceId,
 }
 
 impl Task {
@@ -92,6 +93,7 @@ impl TaskRef {
             state: TaskState::Waiting(0),
             deps: Default::default(),
             resources: message.resources,
+            instance_id: message.instance_id,
         })
     }
 }
