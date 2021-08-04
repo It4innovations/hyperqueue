@@ -3,9 +3,14 @@ use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, JobInfoRequest, JobSelector, ToClientMessage};
 use crate::{rpc_call, JobId, JobTaskCount, Set};
 
+use crate::client::utils::{
+    job_progress_bar, TASK_COLOR_CANCELED, TASK_COLOR_FAILED, TASK_COLOR_FINISHED,
+    TASK_COLOR_RUNNING,
+};
 use crate::server::job::JobTaskCounters;
 use anyhow::bail;
 use colored::Colorize;
+use std::io::Write;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -13,7 +18,6 @@ pub async fn wait_on_job(
     connection: &mut ClientConnection,
     selector: JobSelector,
 ) -> anyhow::Result<()> {
-    let width: f64 = 25.0;
     let response = rpc_call!(
         connection,
         FromClientMessage::JobInfo(JobInfoRequest {
@@ -72,43 +76,53 @@ pub async fn wait_on_job(
             }
 
             let completed_jobs = total_jobs - remaining_job_ids.len();
-            let jobs_percentage: f64 = completed_jobs as f64 / total_jobs as f64;
             let completed_tasks = current_counters.n_finished_tasks
                 + current_counters.n_canceled_tasks
                 + current_counters.n_failed_tasks;
-            let tasks_percentage: f64 = completed_tasks as f64 / total_tasks as f64;
 
-            let job_arrow = if completed_jobs < total_jobs { ">" } else { "" };
-            let task_arrow = if completed_tasks < total_tasks {
-                ">"
+            let mut statuses = vec![];
+            let mut add_count = |count, name: &str, color| {
+                if count > 0 {
+                    statuses.push(format!("{} {}", count, name.to_string().color(color)));
+                }
+            };
+            add_count(
+                current_counters.n_running_tasks,
+                "RUNNING",
+                TASK_COLOR_RUNNING,
+            );
+            add_count(
+                current_counters.n_finished_tasks,
+                "FINISHED",
+                TASK_COLOR_FINISHED,
+            );
+            add_count(current_counters.n_failed_tasks, "FAILED", TASK_COLOR_FAILED);
+            add_count(
+                current_counters.n_canceled_tasks,
+                "CANCELED",
+                TASK_COLOR_CANCELED,
+            );
+            let status = if !statuses.is_empty() {
+                format!("({})", statuses.join(", "))
             } else {
-                ""
+                "".to_string()
             };
 
-            println!(
-                "[{}{job_arrow}{}] {} / {} jobs\n\
-                [{}{task_arrow}{}] {} / {} tasks ({} {} | {} {} | {} {} | {} {})",
-                "#".repeat((width * jobs_percentage) as usize),
-                "-".repeat((width * (1.0 - jobs_percentage)) as usize),
+            // \x1b[2K clears the line
+            print!(
+                "\r\x1b[2K{} {}/{} jobs, {}/{} tasks {}",
+                job_progress_bar(current_counters, total_tasks, 40),
                 completed_jobs,
                 total_jobs,
-                "#".repeat((width * tasks_percentage) as usize),
-                "-".repeat((width * (1.0 - tasks_percentage)) as usize),
                 completed_tasks,
                 total_tasks,
-                "RUNNING".yellow(),
-                current_counters.n_running_tasks,
-                "FINISHED".green(),
-                current_counters.n_finished_tasks,
-                "CANCELED".magenta(),
-                current_counters.n_canceled_tasks,
-                "FAILED".red(),
-                current_counters.n_failed_tasks,
-                job_arrow = job_arrow,
-                task_arrow = task_arrow
+                status
             );
+            std::io::stdout().flush().unwrap();
 
             if remaining_job_ids.is_empty() {
+                // Move the cursor to a new line
+                println!();
                 break;
             }
             sleep(Duration::from_secs(1)).await;
