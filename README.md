@@ -15,7 +15,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 - **Performance**
     - The inner scheduler can scale to hundreds of nodes
-    - The overhead for one task is below 1ms.
+    - The overhead for one task is below 0.1ms.
 
 - **Easy deployment**
     - HQ is provided as a single, statically linked binary without any dependencies
@@ -83,9 +83,8 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 * **How many jobs may I submit into HQ?**
 
-  We did not benchmark HQ itself yet, but our backend library used in HQ handles hundreds of thousands job with `1ms`
-  overhead per job with dependencies and around `0.1ms` per job without dependencies.
-
+  Our preliminary benchmarks show that overhead of HQ is around 0.1 ms per task.
+  
 * **Does HQ support multi-CPU jobs?**
 
   Yes. You can define number of CPUs for each job. HQ is NUMA aware and you can choose the allocation strategy.
