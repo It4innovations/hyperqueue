@@ -201,10 +201,31 @@ async fn launcher_main(streamer_ref: StreamerRef, task_ref: TaskRef) -> tako::Re
         (program, body.job_id, body.task_id, task.instance_id)
     };
 
-    let mut command = command_from_definitions(&program)?;
+    run_task(streamer_ref, &program, job_id, job_task_id, instance_id).await
+}
 
-    /* let stream_stdio = matches!(program.stdout, StdioDef::Pipe);
-    let stream_stderr = matches!(program.stderr, StdioDef::Pipe);*/
+/// Zero-worker mode measures pure overhead of HyperQueue.
+/// In this mode the task is not executed at all.
+#[cfg(feature = "zero-worker")]
+async fn run_task(
+    _streamer_ref: StreamerRef,
+    _program: &ProgramDefinition,
+    _job_id: u64,
+    _job_task_id: u32,
+    _instance_id: u32,
+) -> tako::Result<()> {
+    Ok(())
+}
+
+#[cfg(not(feature = "zero-worker"))]
+async fn run_task(
+    streamer_ref: StreamerRef,
+    program: &ProgramDefinition,
+    job_id: u64,
+    job_task_id: u32,
+    instance_id: u32,
+) -> tako::Result<()> {
+    let mut command = command_from_definitions(program)?;
 
     let status = if matches!(program.stdout, StdioDef::Pipe)
         || matches!(program.stderr, StdioDef::Pipe)
