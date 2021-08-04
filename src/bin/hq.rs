@@ -14,7 +14,7 @@ use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{
     resubmit_computation, submit_computation, ResubmitOpts, SubmitOpts,
 };
-use hyperqueue::client::commands::wait::wait_on_job;
+use hyperqueue::client::commands::wait::wait_for_job_with_selector;
 use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
 use hyperqueue::client::status::Status;
@@ -421,7 +421,7 @@ async fn command_wait(gsettings: GlobalSettings, opts: WaitOpts) -> anyhow::Resu
         JobSelectorArg::All => JobSelector::All,
     };
 
-    wait_on_job(&mut connection, selector).await
+    wait_for_job_with_selector(&mut connection, selector).await
 }
 
 pub enum ColorPolicy {

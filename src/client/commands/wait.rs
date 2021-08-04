@@ -1,6 +1,8 @@
 use crate::client::status::is_terminated;
 use crate::transfer::connection::ClientConnection;
-use crate::transfer::messages::{FromClientMessage, JobInfoRequest, JobSelector, ToClientMessage};
+use crate::transfer::messages::{
+    FromClientMessage, JobInfo, JobInfoRequest, JobSelector, ToClientMessage,
+};
 use crate::{rpc_call, JobId, JobTaskCount, Set};
 
 use crate::client::utils::{
@@ -14,7 +16,14 @@ use std::io::Write;
 use std::time::Duration;
 use tokio::time::sleep;
 
-pub async fn wait_on_job(
+pub async fn wait_for_job_with_info(
+    connection: &mut ClientConnection,
+    job_info: JobInfo,
+) -> anyhow::Result<()> {
+    wait_for_jobs(connection, vec![job_info]).await
+}
+
+pub async fn wait_for_job_with_selector(
     connection: &mut ClientConnection,
     selector: JobSelector,
 ) -> anyhow::Result<()> {
@@ -27,23 +36,22 @@ pub async fn wait_on_job(
     )
     .await?;
 
-    let job_ids: Vec<JobId> = response
-        .jobs
-        .iter()
-        .filter(|info| !is_terminated(info))
-        .map(|info| info.id)
-        .collect();
+    wait_for_jobs(connection, response.jobs).await
+}
 
-    if job_ids.is_empty() {
+async fn wait_for_jobs(
+    connection: &mut ClientConnection,
+    mut jobs: Vec<JobInfo>,
+) -> anyhow::Result<()> {
+    jobs.retain(|info| !is_terminated(info));
+
+    if jobs.is_empty() {
         log::warn!("There are no jobs to wait for");
     } else {
-        let total_tasks: JobTaskCount = response
-            .jobs
-            .iter()
-            .filter(|info| !is_terminated(info))
-            .map(|info| info.n_tasks)
-            .sum();
-        let total_jobs = job_ids.len();
+        let total_tasks: JobTaskCount = jobs.iter().map(|info| info.n_tasks).sum();
+        let mut remaining_job_ids: Set<JobId> = jobs.into_iter().map(|info| info.id).collect();
+
+        let total_jobs = remaining_job_ids.len();
 
         log::info!(
             "Waiting for {} job(s) with a {} task(s)",
@@ -51,7 +59,6 @@ pub async fn wait_on_job(
             total_tasks
         );
 
-        let mut remaining_job_ids: Set<JobId> = job_ids.into_iter().collect();
         let mut counters = JobTaskCounters::default();
 
         loop {
@@ -69,7 +76,7 @@ pub async fn wait_on_job(
             for job in &response.jobs {
                 current_counters = current_counters + job.counters;
 
-                if is_terminated(&job) {
+                if is_terminated(job) {
                     remaining_job_ids.remove(&job.id);
                     counters = counters + job.counters;
                 }

@@ -136,7 +136,7 @@ pub enum JobStatus {
     Canceled,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobInfo {
     pub id: JobId,
     pub name: String,
