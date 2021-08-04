@@ -616,14 +616,7 @@ def test_job_wait_failure_exit_code(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
     process = hq_env.command([
-        "submit",
-        "--array", "1-100",
-        "--stdout", "none",
-        "--stderr", "none",
-        "--max-fails", "1",
-        "--wait",
-        "--",
-        "bash", "-c", "if [ $HQ_TASK_ID == 100 ]; then exit 1; fi",
+        "submit", "--wait", "non-existent-program"
     ], wait=False)
     assert process.wait() == 1
 
@@ -632,10 +625,8 @@ def test_job_wait_cancellation_exit_code(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
 
-    hq_env.command(["submit", "sleep", "100"])
-
-    process = hq_env.command(["wait", "last"], wait=False)
-    time.sleep(0.1)  # Let the process start
+    process = hq_env.command(["submit", "--wait", "sleep", "100"], wait=False)
+    wait_for_job_state(hq_env, 1, "RUNNING")
 
     hq_env.command(["cancel", "last"])
 

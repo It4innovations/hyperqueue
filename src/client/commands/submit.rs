@@ -10,7 +10,7 @@ use hashbrown::HashMap;
 use tako::common::resources::{CpuRequest, ResourceRequest};
 use tako::messages::common::{ProgramDefinition, StdioDef};
 
-use crate::client::commands::wait::wait_on_job;
+use crate::client::commands::wait::wait_for_job_with_info;
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::{get_worker_map, print_job_detail};
 use crate::client::resources::parse_cpu_request;
@@ -18,7 +18,7 @@ use crate::client::status::StatusList;
 use crate::common::arraydef::ArrayDef;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    FromClientMessage, JobSelector, JobType, ResubmitRequest, SubmitRequest, ToClientMessage,
+    FromClientMessage, JobType, ResubmitRequest, SubmitRequest, ToClientMessage,
 };
 use crate::{rpc_call, JobId, JobTaskCount};
 
@@ -235,7 +235,8 @@ pub async fn submit_computation(
     });
 
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
-    let job_id = response.job.info.id;
+    let info = response.job.info.clone();
+
     print_job_detail(
         gsettings,
         response.job,
@@ -244,7 +245,7 @@ pub async fn submit_computation(
         get_worker_map(connection).await?,
     );
     if opts.wait {
-        wait_on_job(connection, JobSelector::Specific(vec![job_id])).await?;
+        wait_for_job_with_info(connection, info).await?;
     }
     Ok(())
 }
