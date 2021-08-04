@@ -90,6 +90,7 @@ pub struct Summary {
     pub superseded_stderr_size: u64,
 }
 
+#[allow(clippy::enum_variant_names)]
 enum Block {
     StreamStart {
         task_id: JobTaskId,
@@ -123,7 +124,7 @@ impl LogFile {
     fn check_header(file: &mut BufReader<File>) -> anyhow::Result<()> {
         let mut header = [0u8; 6];
         file.read_exact(&mut header)?;
-        if &header != &HQ_LOG_HEADER {
+        if header != HQ_LOG_HEADER {
             anyhow::bail!("Invalid file format");
         }
         let version = file.read_u32::<byteorder::BigEndian>()?;
@@ -189,7 +190,7 @@ impl LogFile {
         let stdout = std::io::stdout();
         let mut stdout_buf = BufWriter::new(stdout.lock());
 
-        for (_, task_info) in &self.index {
+        for task_info in self.index.values() {
             let instance = task_info.last_instance();
             if !instance.finished {
                 continue;

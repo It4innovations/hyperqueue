@@ -225,7 +225,7 @@ async fn handle_job_cancel(
             .get()
             .jobs()
             .map(|job| job.make_job_info())
-            .filter(|job_info| matches!(&job_status(&job_info), Status::Waiting | Status::Running))
+            .filter(|job_info| matches!(job_status(job_info), Status::Waiting | Status::Running))
             .map(|job_info| job_info.id)
             .collect(),
         JobSelector::LastN(n) => state_ref.get().last_n_ids(n).collect(),
@@ -271,7 +271,7 @@ async fn handle_job_cancel(
         let job = state.get_job_mut(job_id).unwrap();
         let canceled_ids: Vec<_> = canceled_tasks
             .iter()
-            .map(|tako_id| job.set_cancel_state(*tako_id, &tako_ref))
+            .map(|tako_id| job.set_cancel_state(*tako_id, tako_ref))
             .collect();
         let already_finished = job.n_tasks() - canceled_ids.len() as JobTaskCount;
         responses.push((

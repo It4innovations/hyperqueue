@@ -241,13 +241,14 @@ pub struct StreamSender {
 
 impl StreamSender {
     pub async fn close(&self) -> tako::Result<()> {
-        if let Err(_) = self
+        if self
             .sender
             .send(FromStreamerMessage::End(EndTaskStreamMsg {
                 task: self.task_id,
                 instance: self.instance_id,
             }))
             .await
+            .is_err()
         {
             return Err("Sending close message failed".into());
         }
@@ -255,7 +256,7 @@ impl StreamSender {
     }
 
     pub async fn send_data(&self, channel: ChannelId, data: Vec<u8>) -> tako::Result<()> {
-        if let Err(_) = self
+        if self
             .sender
             .send(FromStreamerMessage::Data(DataMsg {
                 task: self.task_id,
@@ -264,6 +265,7 @@ impl StreamSender {
                 data,
             }))
             .await
+            .is_err()
         {
             return Err("Sending streamer message failed".into());
         }
@@ -271,13 +273,14 @@ impl StreamSender {
     }
 
     pub async fn send_stream_start(&self) -> tako::Result<()> {
-        if let Err(_) = self
+        if self
             .sender
             .send(FromStreamerMessage::Start(StartTaskStreamMsg {
                 task: self.task_id,
                 instance: self.instance_id,
             }))
             .await
+            .is_err()
         {
             return Err("Sending streamer message failed".into());
         }

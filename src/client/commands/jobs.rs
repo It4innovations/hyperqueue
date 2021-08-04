@@ -45,7 +45,7 @@ pub async fn output_job_list(
     if !job_filters.is_empty() {
         response
             .jobs
-            .retain(|j| job_filters.contains(&job_status(&j)));
+            .retain(|j| job_filters.contains(&job_status(j)));
     }
     response.jobs.sort_unstable_by_key(|j| j.id);
     print_job_list(gsettings, response.jobs);

@@ -60,6 +60,7 @@ struct Opts {
     subcmd: SubCommand,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clap)]
 enum SubCommand {
     /// Commands for controlling the HyperQueue server
@@ -269,7 +270,7 @@ async fn command_server_stop(
     gsettings: GlobalSettings,
     _opts: ServerStopOpts,
 ) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
     stop_server(&mut connection).await?;
     Ok(())
 }
@@ -279,7 +280,7 @@ async fn command_server_info(
     opts: ServerInfoOpts,
 ) -> anyhow::Result<()> {
     if opts.stats {
-        let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+        let mut connection = get_client_connection(gsettings.server_directory()).await?;
         print_server_stats(&gsettings, &mut connection).await
     } else {
         print_server_info(&gsettings).await
@@ -287,14 +288,14 @@ async fn command_server_info(
 }
 
 async fn command_job_list(gsettings: GlobalSettings, opts: JobListOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
     output_job_list(&gsettings, &mut connection, opts.job_filters)
         .await
         .map_err(|e| e.into())
 }
 
 async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
 
     let job_id = match opts.job_specifier {
         JobSelectorArg::Id(job_id) => job_id,
@@ -319,12 +320,12 @@ async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> a
 }
 
 async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
     submit_computation(&gsettings, &mut connection, opts).await
 }
 
 async fn command_cancel(gsettings: GlobalSettings, opts: CancelOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
 
     let selector: JobSelector = match opts.job_specifier {
         JobSelectorArg::Id(job_id) => JobSelector::Specific(vec![job_id]),
@@ -348,7 +349,7 @@ async fn command_worker_stop(
     gsettings: GlobalSettings,
     opts: WorkerStopOpts,
 ) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
     stop_worker(&mut connection, opts.selector.into()).await?;
     Ok(())
 }
@@ -357,7 +358,7 @@ async fn command_worker_list(
     gsettings: GlobalSettings,
     opts: WorkerListOpts,
 ) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
 
     // If --running and --offline was not set then show all workers
     let (online, offline) = if !opts.running && !opts.offline {
@@ -374,7 +375,7 @@ async fn command_worker_info(
     gsettings: GlobalSettings,
     opts: WorkerInfoOpts,
 ) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
     let response = get_worker_info(&mut connection, opts.worker_id).await?;
 
     if let Some(worker) = response {
@@ -386,7 +387,7 @@ async fn command_worker_info(
 }
 
 async fn command_resubmit(gsettings: GlobalSettings, opts: ResubmitOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
     resubmit_computation(&gsettings, &mut connection, opts).await
 }
 
@@ -400,7 +401,7 @@ async fn command_worker_address(
     gsettings: GlobalSettings,
     opts: WorkerAddressOpts,
 ) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
     let response = get_worker_info(&mut connection, opts.worker_id).await?;
 
     match response {
@@ -412,7 +413,7 @@ async fn command_worker_address(
 }
 
 async fn command_wait(gsettings: GlobalSettings, opts: WaitOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(&gsettings.server_directory()).await?;
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
 
     let selector: JobSelector = match opts.selector {
         JobSelectorArg::Id(job_id) => JobSelector::Specific(vec![job_id]),

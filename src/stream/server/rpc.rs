@@ -44,21 +44,19 @@ impl StreamServerState {
     fn get_stream(&mut self, job_id: JobId) -> anyhow::Result<Sender<StreamMessage>> {
         if let Some(s) = self.streams.get(&job_id) {
             Ok(s.clone())
+        } else if let Some(path) = self.registrations.get(&job_id) {
+            log::debug!("Starting new stream for job {}", job_id);
+            let (sender, mut receiver) = channel(STREAM_BUFFER_SIZE);
+            self.streams.insert(job_id, sender.clone());
+            let path = path.clone();
+            tokio::task::spawn_local(async move {
+                if let Err(e) = file_writer(&mut receiver, path).await {
+                    error_state(receiver, e.to_string()).await;
+                }
+            });
+            Ok(sender)
         } else {
-            if let Some(path) = self.registrations.get(&job_id) {
-                log::debug!("Starting new stream for job {}", job_id);
-                let (sender, mut receiver) = channel(STREAM_BUFFER_SIZE);
-                self.streams.insert(job_id, sender.clone());
-                let path = path.clone();
-                tokio::task::spawn_local(async move {
-                    if let Err(e) = file_writer(&mut receiver, path).await {
-                        error_state(receiver, e.to_string()).await;
-                    }
-                });
-                Ok(sender)
-            } else {
-                anyhow::bail!("Job {} is not registered for streaming", job_id);
-            }
+            anyhow::bail!("Job {} is not registered for streaming", job_id);
         }
     }
 }
@@ -201,7 +199,7 @@ async fn handle_connection(state_ref: &StreamServerStateRef, connection: Connect
 
     tokio::select! {
         r = snd_loop => { log::debug!("Send queue for stream closed {:?}", r); },
-        r = receive_loop(&state_ref, connection.receiver, connection.opener, &sender) => {
+        r = receive_loop(state_ref, connection.receiver, connection.opener, &sender) => {
             log::debug!("Connection for stream closed {:?}", r);
             if let Err(e) = r {
                 send_error(sender, e.to_string());
@@ -210,9 +208,7 @@ async fn handle_connection(state_ref: &StreamServerStateRef, connection: Connect
     }
 }
 
-async fn stream_server_main(
-    mut control_receiver: UnboundedReceiver<StreamServerControlMessage>,
-) -> () {
+async fn stream_server_main(mut control_receiver: UnboundedReceiver<StreamServerControlMessage>) {
     /*let mut registrations: Map<StreamId, PathBuf> = Map::new();
     let mut streams: Map<StreamId, Sender<FromStreamerMessage>>;*/
     let state_ref = StreamServerStateRef::new();

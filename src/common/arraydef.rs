@@ -69,7 +69,7 @@ impl FromStr for ArrayDef {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_array_def(&s)
+        parse_array_def(s)
     }
 }
 
