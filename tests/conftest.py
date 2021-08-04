@@ -153,16 +153,20 @@ class HqEnv(Env):
     def kill_worker(self, worker_id):
         self.kill_process(f"worker{worker_id}")
 
-    def command(self, args, as_table=False, as_lines=False, cwd=None):
+    def command(self, args, as_table=False, as_lines=False, cwd=None, wait=True):
         if isinstance(args, str):
             args = [args]
         else:
             args = list(args)
 
         args = [HQ_BINARY, "--server-dir", self.server_dir] + args
+        cwd = cwd or self.work_path
         try:
+            if not wait:
+                return subprocess.Popen(args, stderr=subprocess.STDOUT, cwd=cwd)
+
             output = subprocess.check_output(
-                args, stderr=subprocess.STDOUT, cwd=cwd or self.work_path
+                args, stderr=subprocess.STDOUT, cwd=cwd
             )
             output = output.decode()
             if as_table:

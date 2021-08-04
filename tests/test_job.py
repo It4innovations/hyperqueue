@@ -1,9 +1,9 @@
 import os
 import socket
-import time
 from datetime import datetime
 
 import pytest
+import time
 
 from .conftest import HqEnv
 from .utils import JOB_TABLE_ROWS, wait_for_job_state
@@ -594,8 +594,10 @@ def test_job_wait(hq_env: HqEnv):
     hq_env.command(["submit", "sleep", "1"])
     r = hq_env.command(["wait", "1"])
     assert "Waiting for 1 job(s)" in r
+
     table = hq_env.command(["job", "1"], as_table=True)
     table.check_value_row("State", "FINISHED")
+
     r = hq_env.command(["wait", "all"])
     assert "There are no jobs to wait for" in r
 
@@ -605,5 +607,36 @@ def test_job_submit_wait(hq_env: HqEnv):
     hq_env.start_worker()
     r = hq_env.command(["submit", "sleep", "1", "--wait"])
     assert "Waiting for 1 job(s)" in r
+
     table = hq_env.command(["job", "1"], as_table=True)
     table.check_value_row("State", "FINISHED")
+
+
+def test_job_wait_failure_exit_code(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    process = hq_env.command([
+        "submit",
+        "--array", "1-100",
+        "--stdout", "none",
+        "--stderr", "none",
+        "--max-fails", "1",
+        "--wait",
+        "--",
+        "bash", "-c", "if [ $HQ_TASK_ID == 100 ]; then exit 1; fi",
+    ], wait=False)
+    assert process.wait() == 1
+
+
+def test_job_wait_cancellation_exit_code(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["submit", "sleep", "100"])
+
+    process = hq_env.command(["wait", "last"], wait=False)
+    time.sleep(0.1)  # Let the process start
+
+    hq_env.command(["cancel", "last"])
+
+    assert process.wait() == 1
