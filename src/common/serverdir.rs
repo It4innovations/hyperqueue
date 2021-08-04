@@ -38,7 +38,7 @@ impl ServerDir {
         let server_dir = ServerDir::open(&dir_path)?;
         let access_file_path = server_dir.access_filename();
         log::info!("Saving access file as '{:?}'", access_file_path);
-        store_access_record(&record, access_file_path)?;
+        store_access_record(record, access_file_path)?;
         create_symlink(&directory.join(SYMLINK_PATH), &dir_path)?;
 
         Ok(server_dir)
@@ -84,7 +84,7 @@ fn serde_serialize_key<S: Serializer>(
     key: &Arc<SecretKey>,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
-    let str = serialize_key(&key);
+    let str = serialize_key(key);
     serializer.serialize_str(&str)
 }
 

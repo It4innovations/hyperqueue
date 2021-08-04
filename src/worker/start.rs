@@ -185,7 +185,7 @@ async fn launcher_main(streamer_ref: StreamerRef, task_ref: TaskRef) -> tako::Re
         let mut program = body.program;
 
         if body.pin {
-            pin_program(&mut program, &allocation);
+            pin_program(&mut program, allocation);
             program.env.insert(HQ_PIN.into(), "1".into());
         }
 
@@ -228,7 +228,7 @@ async fn launcher_main(streamer_ref: StreamerRef, task_ref: TaskRef) -> tako::Re
             let stderr = child.stderr.take();
 
             let response = tokio::try_join!(
-                child.wait().map_err(|e| DsError::from(e)),
+                child.wait().map_err(DsError::from),
                 resend_stdio(job_id, job_task_id, 0, stdout, stream.clone())
                     .map_err(streamer_error),
                 resend_stdio(job_id, job_task_id, 1, stderr, stream.clone())

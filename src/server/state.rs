@@ -150,7 +150,7 @@ impl State {
         log::debug!("Task id={} failed", msg.id);
 
         let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
-        job.set_failed_state(msg.id, msg.info.message, &tako_ref);
+        job.set_failed_state(msg.id, msg.info.message, tako_ref);
 
         if let Some(max_fails) = job.max_fails {
             if job.counters.n_failed_tasks > max_fails {
