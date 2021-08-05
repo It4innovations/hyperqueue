@@ -1,4 +1,19 @@
 
+# v0.4.0
+
+## New features
+
+  * Streaming - streaming stdout/stderr of all tasks in a job into one file
+    to avoid creating many files.
+  * Setting a priority via ``hq submit --priority <P>``
+  * Option ``hq submit --wait ...`` to wait until the submitted job finishes
+  * Command ``hq wait <id> / all / last`` to wait for a given job(s)
+  * Command ``hq resubmit <job-id>`` to resubmit a previous job
+  * Command ``hq cancel all`` / ``hq cancel last`` to cancel all jobs / last job
+  * Command ``hq worker stop all`` to cancel all workers
+  * Command ``hq server info`` to get an information about server
+
+
 # v0.3.0
 
 ## New features
@@ -11,7 +26,6 @@
   * New placeholders in paths: ``%{CWD}``, ``%{DATE}``, and ``%{SUBMIT_DIR}``
   * Added a progressbar in a job array detail.
   * ``hq server start --host=xxx`` allows to specify hostname/address under which the server is visible
-
 
 
 # v0.2.1
