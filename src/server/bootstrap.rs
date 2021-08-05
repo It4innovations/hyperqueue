@@ -10,7 +10,7 @@ use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::common::serverdir::{AccessRecord, ServerDir};
+use crate::common::serverdir::{AccessRecord, ServerDir, SYMLINK_PATH};
 use crate::common::setup::setup_interrupt;
 use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
@@ -85,7 +85,7 @@ async fn initialize_server(
     gsettings: &GlobalSettings,
     end_flag: Arc<Notify>,
     server_cfg: ServerConfig,
-) -> anyhow::Result<impl Future<Output = anyhow::Result<()>>> {
+) -> anyhow::Result<(impl Future<Output = anyhow::Result<()>>, ServerDir)> {
     let server_directory = gsettings.server_directory();
     let client_listener = TcpListener::bind("0.0.0.0:0")
         .await
@@ -111,7 +111,7 @@ async fn initialize_server(
         tako_secret_key.clone(),
     );
 
-    ServerDir::create(server_directory, &record)?;
+    let server_dir = ServerDir::create(server_directory, &record)?;
     print_access_record(gsettings, server_directory, &record);
 
     let stop_notify = Rc::new(Notify::new());
@@ -138,7 +138,7 @@ async fn initialize_server(
             r = tako_future => { r.map_err(|e| e.into()) }
         }
     };
-    Ok(fut)
+    Ok((fut, server_dir))
 }
 
 async fn start_server(
@@ -146,9 +146,18 @@ async fn start_server(
     server_config: ServerConfig,
 ) -> anyhow::Result<()> {
     let end_flag = setup_interrupt();
-    let fut = initialize_server(gsettings, end_flag, server_config).await?;
+    let (fut, server_dir) = initialize_server(gsettings, end_flag, server_config).await?;
     let local_set = LocalSet::new();
-    local_set.run_until(fut).await
+    local_set.run_until(fut).await?;
+
+    log::info!(
+        "Deleting access file {}",
+        server_dir.access_filename().display()
+    );
+    std::fs::remove_file(server_dir.access_filename()).ok();
+    std::fs::remove_file(gsettings.server_directory().join(SYMLINK_PATH)).ok();
+
+    Ok(())
 }
 
 pub fn print_access_record(gsettings: &GlobalSettings, server_dir: &Path, record: &AccessRecord) {
@@ -216,7 +225,8 @@ mod tests {
         (
             initialize_server(&gsettings, notify.clone(), server_cfg)
                 .await
-                .unwrap(),
+                .unwrap()
+                .0,
             notify,
         )
     }
