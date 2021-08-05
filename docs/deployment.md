@@ -78,7 +78,13 @@ State of workers:
 
 ## Stopping worker
 
+Stop a specific worker:
+
 ``hq worker stop <id>``
+
+Stop all workers:
+
+``hq worker stop all``
 
 
 ## CPUs configuration

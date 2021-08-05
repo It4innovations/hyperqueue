@@ -76,6 +76,7 @@ Currently, you can use the following placeholders:
 | ----------- | ------------------------------------ |
 | `%{JOB_ID}`     | Job ID. |
 | `%{TASK_ID}`    | Task ID. |
+| `%{INSTANCE_ID}` | Instance ID (see below)  |
 | `%{SUBMIT_DIR}` | Directory from which the job was submitted. |
 | `%{CWD}`        | Working directory of the job.<br/><br/>This placeholder is only available for `stdout` and `stderr` paths. |
 | `%{DATE}`       | Current date when the job was executed in the RFC3339 format. |
@@ -137,6 +138,11 @@ Finished    Failed   Canceled
 * *Canceled* -  The task has been canceled by a user.
 
 
+## Task instance
+
+It may happen that a task is started more than once when a worker crashes during execution of a task and the task is rescheduled to another worker. Instance IDs exist to distinguish each run when necessary. Instance ID is 32b non-negative number and it is guarantted that the newer execution has a bigger value. HyperQueue explicitly does *not* guarantee any specific value or differences between two ids. Instance ID is valid only for a particular task. Two different tasks may have the same instance ID.
+
+
 ## Job states
 
 In simple jobs, job state corresponds directly to the state of its single task. In the case of task arrays, see the chapter
@@ -144,18 +150,50 @@ about [task arrays](arrays.md).
 
 ## Canceling jobs
 
-``hq cancel <job-id>``
-
 A job cannot be canceled if it is already finished, failed, or canceled.
+
+
+* Cancel specific job:
+
+  ``hq cancel <job-id>``
+
+* Cancel all jobs:
+
+  ``hq cancel all``
+
+* Cancel last submitted job:
+
+  ``hq cancel last``
+
+
+## Waiting for jobs
+
+You can submit a job with flag ``--wait`` and HQ will wait until the submitted job is not terminated (until all tasks are either finished, failed or canceled).
+
+You can also use ``hq wait <job_id>`` to wait for a specific job or ``hq wait last`` to wait for the last submitted job or ``hq wait all`` to wait for all jobs.
 
 
 ## Priorities
 
-Priorities affect the order in which the "waiting" tasks are executed. Specifically, tasks are executed in descending order from highest priority to lowest.
+Priorities affect the order in which the "waiting" tasks are executed. Priority can be any 32b *signed* integer. A lowest number marks the lowest priority, e.g. when task A with priority 5 and task B with priority 3 are scheduled to the same worker, and only one of them may be executed, then A will be executed first.
 
-In a submit of a task, you can set variable named `priority` with the value `VAL` by:
+In a submit of a task, you can set priority as follows
 
-``--priority=VAL``
+``hq submit --priority=<PRIORITY>``
 
-Default value is 0.
+If no priority is specified, then task has priority 0.
 
+
+## Resubmit
+
+If you want to recompute a previous job, jou can use:
+
+``hq resubmit <job-id>``
+
+that creates a new job with the exact the same configuration as the source job.
+
+By default, it submits all tasks of the original job; however, you can specify only a subset of tasks, e.g.
+
+``hq resubmit <job-id> --status=failed,canceled``
+
+Resubmits only tasks that failed or were canceled.

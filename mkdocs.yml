@@ -15,6 +15,7 @@ nav:
   - Jobs (Basics): jobs.md
   - Task Arrays: arrays.md
   - CPU management: cpus.md
+  - Streaming stdio/stderr: streaming.md
 
 
 theme:
