@@ -100,6 +100,7 @@ async fn file_writer(receiver: &mut Receiver<StreamMessage>, path: PathBuf) -> a
     buffer.put_u64(0); // Reserved bytes
     buffer.put_u64(0); // Reserved bytes
     file.write_all(&buffer).await?;
+    file.flush().await?; // Make sure that header is written to avoid empty files for long time
 
     while let Some(msg) = receiver.recv().await {
         buffer.clear();
