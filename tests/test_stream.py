@@ -227,3 +227,23 @@ def test_stream_partial(hq_env: HqEnv):
 
     with open("task-1-0-0.out") as f:
         assert f.read() == "Ok\n"
+
+
+def test_stream_unfinished_small(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(
+        [
+            "submit",
+            "--log",
+            "mylog",
+            "--",
+            "bash",
+            "-c",
+            "echo Start; sleep 2; echo End",
+        ]
+    )
+    hq_env.start_workers(2)
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    hq_env.command(["log", "mylog", "cat", "stdout"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    check_no_stream_connections(hq_env)

@@ -165,9 +165,7 @@ class HqEnv(Env):
             if not wait:
                 return subprocess.Popen(args, stderr=subprocess.STDOUT, cwd=cwd)
 
-            output = subprocess.check_output(
-                args, stderr=subprocess.STDOUT, cwd=cwd
-            )
+            output = subprocess.check_output(args, stderr=subprocess.STDOUT, cwd=cwd)
             output = output.decode()
             if as_table:
                 return parse_table(output)

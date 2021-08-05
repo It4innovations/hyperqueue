@@ -1,9 +1,9 @@
 import os
 import socket
+import time
 from datetime import datetime
 
 import pytest
-import time
 
 from .conftest import HqEnv
 from .utils import JOB_TABLE_ROWS, wait_for_job_state
@@ -615,9 +615,7 @@ def test_job_submit_wait(hq_env: HqEnv):
 def test_job_wait_failure_exit_code(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
-    process = hq_env.command([
-        "submit", "--wait", "non-existent-program"
-    ], wait=False)
+    process = hq_env.command(["submit", "--wait", "non-existent-program"], wait=False)
     assert process.wait() == 1
 
 
