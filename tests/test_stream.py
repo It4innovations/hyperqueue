@@ -27,11 +27,21 @@ def test_stream_submit(hq_env: HqEnv):
     hq_env.start_workers(2, cpus="2")
     wait_for_job_state(hq_env, 1, "FINISHED")
 
-    result = hq_env.command(["log", "mylog", "show"])
-    lines = set(result.split("\n"))
-    assert len(lines) == 41
+    lines = set(hq_env.command(["log", "mylog", "show"], as_lines=True))
     for i in range(1, 21):
         assert "{0:02}:0> Hello from {0}".format(i) in lines
+        assert "{0:02}: > stream closed".format(i) in lines
+    assert len(lines) == 40
+
+    result = hq_env.command(["log", "mylog", "show", "--channel=stderr"])
+    assert result == ""
+
+    lines = set(
+        hq_env.command(
+            ["log", "mylog", "show", "--channel=stderr", "--show-empty"], as_lines=True
+        )
+    )
+    for i in range(1, 21):
         assert "{0:02}: > stream closed".format(i) in lines
 
     table = hq_env.command(["log", "mylog", "summary"], as_table=True)
@@ -234,6 +244,7 @@ def test_stream_partial(hq_env: HqEnv):
 
 
 def test_stream_unfinished_small(hq_env: HqEnv):
+    # Test if valid header is created even the rest of log is still in buffer
     hq_env.start_server()
     hq_env.command(
         [
@@ -248,7 +259,7 @@ def test_stream_unfinished_small(hq_env: HqEnv):
     )
     hq_env.start_workers(2)
     wait_for_job_state(hq_env, 1, "RUNNING")
-    hq_env.command(["log", "mylog", "cat", "stdout"])
+    hq_env.command(["log", "mylog", "cat", "stdout", "--allow-unfinished"])
     wait_for_job_state(hq_env, 1, "FINISHED")
     check_no_stream_connections(hq_env)
 

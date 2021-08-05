@@ -1,6 +1,6 @@
 use crate::client::commands::log::{CatOpts, Channel, ShowOpts};
 use crate::transfer::stream::ChannelId;
-use crate::{JobTaskCount, JobTaskId, Map};
+use crate::{JobTaskCount, JobTaskId, Map, Set};
 use byteorder::ReadBytesExt;
 use colored::{Color, Colorize};
 use smallvec::SmallVec;
@@ -301,6 +301,8 @@ impl LogFile {
             .map(|(job_id, info)| (*job_id, info.last_instance().instance_id))
             .collect();
 
+        let mut has_content = Set::new();
+
         loop {
             match Self::read_block(&mut self.file)? {
                 Some(Block::StreamStart { .. }) => {}
@@ -329,6 +331,7 @@ impl LogFile {
                             header.on_color(color),
                             String::from_utf8_lossy(&buffer)
                         )?;
+                        has_content.insert(task_id);
                     } else {
                         self.file.seek_relative(size as i64)?;
                     }
@@ -338,6 +341,9 @@ impl LogFile {
                     instance_id,
                 }) => {
                     if *active_instances.get(&task_id).unwrap() == instance_id {
+                        if !opts.show_empty && !has_content.contains(&task_id) {
+                            continue;
+                        }
                         let color = colors[task_id as usize % colors.len()];
                         writeln!(
                             stdout_buf,
