@@ -1,6 +1,7 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::size::human_size;
 use crate::stream::reader::logfile::{LogFile, Summary};
+use crate::JobTaskId;
 use clap::Clap;
 use cli_table::{print_stdout, Cell, Style, Table};
 use std::path::{Path, PathBuf};
@@ -33,6 +34,14 @@ pub struct ShowOpts {
 pub struct CatOpts {
     /// Channel name: "stdout" or "stderr"
     pub channel: Channel,
+
+    /// Print only specific task output
+    #[clap(long)]
+    pub task: Option<JobTaskId>,
+
+    /// Allow unfinished channel
+    #[clap(long)]
+    pub allow_unfinished: bool,
 }
 
 #[derive(Clap)]
