@@ -5,6 +5,7 @@
 
   * Streaming - streaming stdout/stderr of all tasks in a job into one file
     to avoid creating many files.
+  * Better reporting where job is running.
   * Setting a priority via ``hq submit --priority <P>``
   * Option ``hq submit --wait ...`` to wait until the submitted job finishes
   * Command ``hq wait <id> / all / last`` to wait for a given job(s)

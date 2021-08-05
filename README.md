@@ -16,6 +16,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 - **Performance**
     - The inner scheduler can scale to hundreds of nodes
     - The overhead for one task is below 0.1ms.
+    - HQ allows to stream outputs from tasks to avoid creating many small files on a distributed filesystem
 
 - **Easy deployment**
     - HQ is provided as a single, statically linked binary without any dependencies
@@ -84,7 +85,9 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 * **How many jobs may I submit into HQ?**
 
   Our preliminary benchmarks show that overhead of HQ is around 0.1 ms per task.
-  
+  We also support streaming of task outputs into a single file (this file contains metadata, hence outputs for each task can be filtered or ordered).
+  This avoids creating many small files for each task on a distributed file system that may have a large impact on scaling.
+
 * **Does HQ support multi-CPU jobs?**
 
   Yes. You can define number of CPUs for each job. HQ is NUMA aware and you can choose the allocation strategy.
@@ -188,26 +191,22 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 ## 0.4
 
-* [ ] Handling stdout/stderr when a large number of jobs is submitted
+* [x] Handling stdout/stderr when a large number of jobs is submitted
+* [x] Reporting improvements
+* [x] Resubmit
+* [x] Priorities
 
-## 0.5
+## Next releases
 
-* [ ] Reporting improvements
-* [ ] Resubmit
-
-## 0.6
-
+* [ ] Auto-allocation of jobs in PBS/SLURM
 * [ ] Time constraints
-* [ ] Priorities
 
-
-## Next releases (unordered)
+## Bigger horizon (unordered)
 
 * [ ] API for dependencies
 * [ ] Generic resource management
 * [ ] Python API
 * [ ] "hq top" -- an analogue to "top" but over all cluster
-* [ ] Auto-submit into SLURM/PBS
 
 # Acknowledgement
 
