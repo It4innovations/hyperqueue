@@ -190,21 +190,41 @@ impl LogFile {
         let stdout = std::io::stdout();
         let mut stdout_buf = BufWriter::new(stdout.lock());
 
-        for task_info in self.index.values() {
-            let instance = task_info.last_instance();
-            if !instance.finished {
-                continue;
+        let mut print_instance =
+            |file: &mut BufReader<File>, instance: &InstanceInfo| -> anyhow::Result<()> {
+                for chunk in &instance.channels[selected_channel_id] {
+                    // We are using seek_relative which makes things slightly
+                    // more complicated, but it does drop caches if it is not necessary
+                    // in comparison to self.file.seek
+                    let diff = chunk.position as i64 - last_pos;
+                    file.seek_relative(diff)?;
+                    buffer.resize(chunk.size as usize, 0u8);
+                    file.read_exact(&mut buffer)?;
+                    stdout_buf.write_all(&buffer)?;
+                    last_pos = chunk.position as i64 + chunk.size as i64;
+                }
+                Ok(())
+            };
+
+        if let Some(task_id) = opts.task {
+            if let Some(task_info) = self.index.get(&task_id) {
+                let instance = task_info.last_instance();
+                if !instance.finished && opts.allow_unfinished {
+                    anyhow::bail!("Stream for task {} is not finished", task_id);
+                }
+                print_instance(&mut self.file, instance)?;
             }
-            for chunk in &instance.channels[selected_channel_id] {
-                // We are using seek_relative which makes things slightly
-                // more complicated, but it does drop caches if it is not necessary
-                // in comparison to self.file.seek
-                let diff = chunk.position as i64 - last_pos;
-                self.file.seek_relative(diff)?;
-                buffer.resize(chunk.size as usize, 0u8);
-                self.file.read_exact(&mut buffer)?;
-                stdout_buf.write_all(&buffer)?;
-                last_pos = chunk.position as i64 + chunk.size as i64;
+        } else {
+            if !opts.allow_unfinished {
+                for (task_id, task_info) in &self.index {
+                    if !task_info.last_instance().finished {
+                        anyhow::bail!("Stream for task {} is not finished", task_id);
+                    }
+                }
+            }
+            for task_info in self.index.values() {
+                let instance = task_info.last_instance();
+                print_instance(&mut self.file, instance)?;
             }
         }
         Ok(())

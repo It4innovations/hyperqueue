@@ -43,6 +43,10 @@ def test_stream_submit(hq_env: HqEnv):
 
     result = hq_env.command(["log", "mylog", "cat", "stdout"])
     assert result == "".join(["Hello from {}\n".format(i) for i in range(1, 21)])
+
+    result = hq_env.command(["log", "mylog", "cat", "stdout", "--task=3"])
+    assert result == "Hello from 3\n"
+
     check_no_stream_connections(hq_env)
 
 
@@ -247,3 +251,33 @@ def test_stream_unfinished_small(hq_env: HqEnv):
     hq_env.command(["log", "mylog", "cat", "stdout"])
     wait_for_job_state(hq_env, 1, "FINISHED")
     check_no_stream_connections(hq_env)
+
+
+def test_stream_unfinished_large(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(
+        [
+            "submit",
+            "--log",
+            "mylog",
+            "--",
+            "python3",
+            "-c",
+            "import time; import sys; sys.stdout.write('ab' * (16 * 1024 + 3)); sys.stdout.flush(); time.sleep(2); print('end')",
+        ]
+    )
+    hq_env.start_workers(1)
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    time.sleep(1.0)
+    hq_env.command(
+        ["log", "mylog", "cat", "stdout"],
+        expect_fail="Stream for task 0 is not finished",
+    )
+    result = hq_env.command(["log", "mylog", "cat", "stdout", "--allow-unfinished"])
+    assert ("ab" * (16 * 1024 + 3)).startswith(result)
+    assert len(result) >= 8 * 1024
+
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    check_no_stream_connections(hq_env)
+    result = hq_env.command(["log", "mylog", "cat", "stdout"])
+    assert "ab" * (16 * 1024 + 3) + "end\n" == result

@@ -159,7 +159,15 @@ class HqEnv(Env):
     def kill_worker(self, worker_id):
         self.kill_process(f"worker{worker_id}")
 
-    def command(self, args, as_table=False, as_lines=False, cwd=None, wait=True):
+    def command(
+        self,
+        args,
+        as_table=False,
+        as_lines=False,
+        cwd=None,
+        wait=True,
+        expect_fail=None,
+    ):
         if isinstance(args, str):
             args = [args]
         else:
@@ -172,6 +180,8 @@ class HqEnv(Env):
                 return subprocess.Popen(args, stderr=subprocess.STDOUT, cwd=cwd)
 
             output = subprocess.check_output(args, stderr=subprocess.STDOUT, cwd=cwd)
+            if expect_fail is not None:
+                raise Exception("Command should failed")
             output = output.decode()
             if as_table:
                 return parse_table(output)
@@ -180,6 +190,13 @@ class HqEnv(Env):
             return output
         except subprocess.CalledProcessError as e:
             stdout = e.stdout.decode()
+            if expect_fail:
+                if expect_fail not in stdout:
+                    raise Exception(
+                        f"Command should failed with message '{expect_fail}' but got:\n{stdout}"
+                    )
+                else:
+                    return
             print(f"Process output: {stdout}")
             raise Exception(f"Process failed with exit-code {e.returncode}\n\n{stdout}")
 
