@@ -25,8 +25,13 @@ pub struct SummaryOpts {}
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 pub struct ShowOpts {
+    /// Filter only specific channel
     #[clap(long)]
     pub channel: Option<Channel>,
+
+    /// Show close message even for tasks with empty stream
+    #[clap(long)]
+    pub show_empty: bool,
 }
 
 #[derive(Clap)]
