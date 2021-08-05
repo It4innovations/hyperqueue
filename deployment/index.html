@@ -114,6 +114,10 @@
                     <li class="toctree-l1"><a class="reference internal" href="../cpus/">CPU management</a>
                     </li>
                 </ul>
+                <ul>
+                    <li class="toctree-l1"><a class="reference internal" href="../streaming/">Streaming stdio/stderr</a>
+                    </li>
+                </ul>
       </div>
     </div>
     </nav>
@@ -198,7 +202,10 @@ all commands need to use the <code>--server-dir</code> settings.</p>
 <li><strong>Idle timeout</strong> - Idle timeout is enabled on server and worker did not received any task for more then the limit.</li>
 </ul>
 <h2 id="stopping-worker">Stopping worker<a class="headerlink" href="#stopping-worker" title="Permanent link">#</a></h2>
+<p>Stop a specific worker:</p>
 <p><code>hq worker stop &lt;id&gt;</code></p>
+<p>Stop all workers:</p>
+<p><code>hq worker stop all</code></p>
 <h2 id="cpus-configuration">CPUs configuration<a class="headerlink" href="#cpus-configuration" title="Permanent link">#</a></h2>
 <p>Worker automatically detect number of CPUs and on Linux system it also detects partitioning into sockets.
 In most cases, it should work without need of any touch. If you want to see how is your seen by

@@ -7,9 +7,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
   <meta name="author" content="Stanislav Böhm">
-  <link rel="canonical" href="https://spirali.github.io/hyperqueue/install/">
+  <link rel="canonical" href="https://spirali.github.io/hyperqueue/streaming/">
   <link rel="shortcut icon" href="../img/favicon.ico">
-  <title>Installation - Hyperqueue</title>
+  <title>Streaming stdio/stderr - Hyperqueue</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700" />
 
   <link rel="stylesheet" href="../css/theme.css" />
@@ -18,9 +18,9 @@
   
   <script>
     // Current page data
-    var mkdocs_page_name = "Installation";
-    var mkdocs_page_input_path = "install.md";
-    var mkdocs_page_url = "/hyperqueue/install/";
+    var mkdocs_page_name = "Streaming stdio/stderr";
+    var mkdocs_page_input_path = "streaming.md";
+    var mkdocs_page_url = "/hyperqueue/streaming/";
   </script>
   
   <script src="../js/jquery-2.1.1.min.js" defer></script>
@@ -60,14 +60,8 @@
                     <li class="toctree-l1"><a class="reference internal" href="..">Overview</a>
                     </li>
                 </ul>
-                <ul class="current">
-                    <li class="toctree-l1 current"><a class="reference internal current" href="./">Installation</a>
-    <ul class="current">
-    <li class="toctree-l2"><a class="reference internal" href="#binary-distribution">Binary distribution</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#compilation-from-source-codes">Compilation from source codes</a>
-    </li>
-    </ul>
+                <ul>
+                    <li class="toctree-l1"><a class="reference internal" href="../install/">Installation</a>
                     </li>
                 </ul>
                 <ul>
@@ -90,8 +84,10 @@
                     <li class="toctree-l1"><a class="reference internal" href="../cpus/">CPU management</a>
                     </li>
                 </ul>
-                <ul>
-                    <li class="toctree-l1"><a class="reference internal" href="../streaming/">Streaming stdio/stderr</a>
+                <ul class="current">
+                    <li class="toctree-l1 current"><a class="reference internal current" href="./">Streaming stdio/stderr</a>
+    <ul class="current">
+    </ul>
                     </li>
                 </ul>
       </div>
@@ -115,10 +111,10 @@
     
       
     
-    <li>Installation</li>
+    <li>Streaming stdio/stderr</li>
     <li class="wy-breadcrumbs-aside">
       
-        <a href="https://github.com/spirali/hyperqueue/blob/main/docs/install.md"
+        <a href="https://github.com/spirali/hyperqueue/blob/main/docs/streaming.md"
           class="icon icon-github"> Edit on GitHub</a>
       
     </li>
@@ -129,30 +125,48 @@
           <div role="main">
             <div class="section">
               
-                <h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">#</a></h1>
-<h2 id="binary-distribution">Binary distribution<a class="headerlink" href="#binary-distribution" title="Permanent link">#</a></h2>
-<ul>
-<li>Download latest binary distribution from https://github.com/It4innovations/hyperqueue/releases/latest</li>
-<li>Unpack the downloaded archive:</li>
-</ul>
-<p><code>$ tar -xvzf hq-&lt;version&gt;-linux-x64.tar.gz</code></p>
-<h2 id="compilation-from-source-codes">Compilation from source codes<a class="headerlink" href="#compilation-from-source-codes" title="Permanent link">#</a></h2>
-<ul>
-<li>
-<p>Requirements: Git, <a href="https://www.rust-lang.org/tools/install">Rust</a></p>
-</li>
-<li>
-<p>Clone HyperQueue repository:</p>
-</li>
-</ul>
-<p><code>$ git clone https://github.com/It4innovations/hyperqueue/</code></p>
-<ul>
-<li>Build project:</li>
-</ul>
-<p><code>$ cargo build --release</code></p>
-<ul>
-<li>Final executable file will in <code>./target/release/hq</code></li>
-</ul>
+                <h1 id="streaming">Streaming<a class="headerlink" href="#streaming" title="Permanent link">#</a></h1>
+<p>The main goal of streaming is to avoid creating many files when a large array job is submitted. For example
+when you submit:</p>
+<p><code>hq submit --array=1-10000 my-computation.sh</code></p>
+<p>will create 20000 files (10000 for stdout and 10000 for stderr).</p>
+<p>This can be solved by using <code>--log</code> option:</p>
+<p><code>hq submit --log=&lt;LOG_FILENAME&gt; --array=1-10000 my-computation.sh</code></p>
+<p>All stdout and stderr streams will be streamed into server and into a single file specified via <LOG_FILENAME>.
+The streamed data is stored with additional metadata, so the resulting file can be filtered/sorted by tasks or type of stream.</p>
+<h1 id="superseded-streams">Superseded streams<a class="headerlink" href="#superseded-streams" title="Permanent link">#</a></h1>
+<p>It may happen that a task started a stream but the worker where the task is running crashed.
+In such situation, the scheduler starts a task on another worker and it produces a new stream.
+To avoid mixing outputs from different runs, HyperQueue automatically marks all previous runs as superseded and ignores them by default.</p>
+<h1 id="log-summary">Log <code>summary</code><a class="headerlink" href="#log-summary" title="Permanent link">#</a></h1>
+<p><code>hq log &lt;LOG_FILENAME&gt; summary</code></p>
+<p>Displays summary of the log.</p>
+<h1 id="log-show">Log <code>show</code><a class="headerlink" href="#log-show" title="Permanent link">#</a></h1>
+<p><code>hq log &lt;LOG_FILENAME&gt; show</code> show the content of the log with metadata printed in the order how it was received by the server.</p>
+<p>Prompt has form <code>X:Y&gt;</code> where X is task id and Y is 0 for stdout and 1 for stderr.</p>
+<p>You can filter only stdout/stderr stream via <code>--channel=X</code> where X is <code>stdout</code> or <code>stderr</code>.</p>
+<p>By default, HQ does not show closing information from streams that are empty, you can change that with the flag <code>--show-empty</code>.</p>
+<p>Note: Superseded streams are completely ignored by <code>show</code> command.</p>
+<h1 id="log-cat">Log <code>cat</code><a class="headerlink" href="#log-cat" title="Permanent link">#</a></h1>
+<p><code>hq log &lt;LOG_FILENAME&gt; cat &lt;stdout/stderr&gt;</code></p>
+<p>prints raw content of stdout or stderr ordered by task id.
+All outputs are concatenated one after another.</p>
+<p>By default, this command will fail if there is an unfinished stream (i.e. a task is still running). If you want to use <code>cat</code> even with running tasks, use option <code>--allow-unfinished</code>.</p>
+<p>If you want to see only output of a specific task, use option <code>--task=&lt;task_id&gt;</code></p>
+<p>Note: Superseded streams are completely ignored by <code>cat</code> command.</p>
+<h1 id="partial-redirection">Partial redirection<a class="headerlink" href="#partial-redirection" title="Permanent link">#</a></h1>
+<p>If you want to stream only one channel and redirect the other one into a file, you can still use <code>--stdout</code> / <code>--stderr</code> options.</p>
+<p>Redirecting stdout into a file, stderr will be streamed into <code>my-log</code>.</p>
+<p><code>hq submit --log=my-log --stdout=stdout-%{TASK_ID} ...</code></p>
+<p>Disabling stderr and streaming only stdout into log file.</p>
+<p><code>hq submit --log=my-log --stderr=none ...</code></p>
+<h1 id="current-limitations">Current limitations<a class="headerlink" href="#current-limitations" title="Permanent link">#</a></h1>
+<p>The current version does not support streaming of more jobs into the same file,</p>
+<p>In other words, if you submit more jobs with the same log filename, like this:</p>
+<pre><code>hq submit --log=my-log ...
+hq submit --log=my-log ...
+</code></pre>
+<p>Then log will contain only data from one job and other will be overwritten.</p>
               
             </div>
           </div>
@@ -160,10 +174,8 @@
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../cheatsheet/" class="btn btn-neutral float-right" title="Cheatsheet">Next <span class="icon icon-circle-arrow-right"></span></a>
       
-      
-        <a href=".." class="btn btn-neutral" title="Overview"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../cpus/" class="btn btn-neutral" title="CPU management"><span class="icon icon-circle-arrow-left"></span> Previous</a>
       
     </div>
   
@@ -191,10 +203,8 @@
           <a href="https://github.com/spirali/hyperqueue/" class="fa fa-github" style="float: left; color: #fcfcfc"> GitHub</a>
       
       
-        <span><a href=".." style="color: #fcfcfc;">&laquo; Previous</a></span>
+        <span><a href="../cpus/" style="color: #fcfcfc;">&laquo; Previous</a></span>
       
-      
-        <span style="margin-left: 15px"><a href="../cheatsheet/" style="color: #fcfcfc">Next &raquo;</a></span>
       
     </span>
 </div>

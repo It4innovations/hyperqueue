@@ -86,6 +86,10 @@
                     <li class="toctree-l1"><a class="reference internal" href="../cpus/">CPU management</a>
                     </li>
                 </ul>
+                <ul>
+                    <li class="toctree-l1"><a class="reference internal" href="../streaming/">Streaming stdio/stderr</a>
+                    </li>
+                </ul>
       </div>
     </div>
     </nav>
@@ -180,6 +184,10 @@ a percent sign.</p>
 <td>Task ID.</td>
 </tr>
 <tr>
+<td><code>%{INSTANCE_ID}</code></td>
+<td>Instance ID (see below)</td>
+</tr>
+<tr>
 <td><code>%{SUBMIT_DIR}</code></td>
 <td>Directory from which the job was submitted.</td>
 </tr>
@@ -233,17 +241,40 @@ Finished    Failed   Canceled
 <li><em>Failed</em> - The task has failed. The error can be shown by <code>hq job &lt;job-id&gt;</code>.</li>
 <li><em>Canceled</em> -  The task has been canceled by a user.</li>
 </ul>
+<h2 id="task-instance">Task instance<a class="headerlink" href="#task-instance" title="Permanent link">#</a></h2>
+<p>It may happen that a task is started more than once when a worker crashes during execution of a task and the task is rescheduled to another worker. Instance IDs exist to distinguish each run when necessary. Instance ID is 32b non-negative number and it is guarantted that the newer execution has a bigger value. HyperQueue explicitly does <em>not</em> guarantee any specific value or differences between two ids. Instance ID is valid only for a particular task. Two different tasks may have the same instance ID.</p>
 <h2 id="job-states">Job states<a class="headerlink" href="#job-states" title="Permanent link">#</a></h2>
 <p>In simple jobs, job state corresponds directly to the state of its single task. In the case of task arrays, see the chapter
 about <a href="../arrays/">task arrays</a>.</p>
 <h2 id="canceling-jobs">Canceling jobs<a class="headerlink" href="#canceling-jobs" title="Permanent link">#</a></h2>
-<p><code>hq cancel &lt;job-id&gt;</code></p>
 <p>A job cannot be canceled if it is already finished, failed, or canceled.</p>
+<ul>
+<li>Cancel specific job:</li>
+</ul>
+<p><code>hq cancel &lt;job-id&gt;</code></p>
+<ul>
+<li>Cancel all jobs:</li>
+</ul>
+<p><code>hq cancel all</code></p>
+<ul>
+<li>Cancel last submitted job:</li>
+</ul>
+<p><code>hq cancel last</code></p>
+<h2 id="waiting-for-jobs">Waiting for jobs<a class="headerlink" href="#waiting-for-jobs" title="Permanent link">#</a></h2>
+<p>You can submit a job with flag <code>--wait</code> and HQ will wait until the submitted job is not terminated (until all tasks are either finished, failed or canceled).</p>
+<p>You can also use <code>hq wait &lt;job_id&gt;</code> to wait for a specific job or <code>hq wait last</code> to wait for the last submitted job or <code>hq wait all</code> to wait for all jobs.</p>
 <h2 id="priorities">Priorities<a class="headerlink" href="#priorities" title="Permanent link">#</a></h2>
-<p>Priorities affect the order in which the "waiting" tasks are executed. Specifically, tasks are executed in descending order from highest priority to lowest.</p>
-<p>In a submit of a task, you can set variable named <code>priority</code> with the value <code>VAL</code> by:</p>
-<p><code>--priority=VAL</code></p>
-<p>Default value is 0.</p>
+<p>Priorities affect the order in which the "waiting" tasks are executed. Priority can be any 32b <em>signed</em> integer. A lowest number marks the lowest priority, e.g. when task A with priority 5 and task B with priority 3 are scheduled to the same worker, and only one of them may be executed, then A will be executed first.</p>
+<p>In a submit of a task, you can set priority as follows</p>
+<p><code>hq submit --priority=&lt;PRIORITY&gt;</code></p>
+<p>If no priority is specified, then task has priority 0.</p>
+<h2 id="resubmit">Resubmit<a class="headerlink" href="#resubmit" title="Permanent link">#</a></h2>
+<p>If you want to recompute a previous job, jou can use:</p>
+<p><code>hq resubmit &lt;job-id&gt;</code></p>
+<p>that creates a new job with the exact the same configuration as the source job.</p>
+<p>By default, it submits all tasks of the original job; however, you can specify only a subset of tasks, e.g.</p>
+<p><code>hq resubmit &lt;job-id&gt; --status=failed,canceled</code></p>
+<p>Resubmits only tasks that failed or were canceled.</p>
               
             </div>
           </div>
