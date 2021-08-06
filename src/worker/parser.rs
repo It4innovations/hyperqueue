@@ -1,4 +1,4 @@
-use crate::common::parser::{p_uint, NomResult};
+use crate::common::parser::{p_u32, NomResult};
 use anyhow::anyhow;
 use nom::bytes::complete::tag;
 use nom::combinator::{all_consuming, map, opt};
@@ -7,7 +7,7 @@ use tako::common::resources::ResourceDescriptor;
 
 fn p_cpu_definition(input: &str) -> NomResult<ResourceDescriptor> {
     map(
-        tuple((p_uint, opt(preceded(tag("x"), p_uint)))),
+        tuple((p_u32, opt(preceded(tag("x"), p_u32)))),
         |r| match r {
             (c1, None) => ResourceDescriptor::new_with_socket_size(1, c1),
             (c1, Some(c2)) => ResourceDescriptor::new_with_socket_size(c1, c2),

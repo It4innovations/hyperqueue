@@ -15,7 +15,7 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::{get_worker_map, print_job_detail};
 use crate::client::resources::parse_cpu_request;
 use crate::client::status::StatusList;
-use crate::common::arraydef::ArrayDef;
+use crate::common::arraydef::IntArray;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
     FromClientMessage, JobType, ResubmitRequest, SubmitRequest, ToClientMessage,
@@ -129,7 +129,7 @@ pub struct SubmitOpts {
     /// `--array=5` - create task array with one job with task ID 5
     ///
     /// `--array=3-5` - create task array with three jobs with task IDs 3, 4, 5
-    array: Option<ArrayDef>,
+    array: Option<IntArray>,
 
     #[clap(long)]
     max_fails: Option<JobTaskCount>,
@@ -160,7 +160,7 @@ pub async fn submit_computation(
     resources.validate()?;
     let (job_type, entries) = if let Some(filename) = opts.each_line {
         let lines = read_lines(&filename)?;
-        let def = ArrayDef::simple_range(0, lines.len() as JobTaskCount);
+        let def = IntArray::from_range(0, lines.len() as JobTaskCount);
         (JobType::Array(def), Some(lines))
     } else {
         (

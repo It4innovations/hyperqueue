@@ -1,4 +1,4 @@
-use crate::common::parser::{format_parse_error, p_uint, NomResult};
+use crate::common::parser::{format_parse_error, p_u32, NomResult};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::multispace1;
@@ -11,7 +11,7 @@ fn p_cpu_request(input: &str) -> NomResult<CpuRequest> {
         map(tag("all"), |_| CpuRequest::All),
         map_res(
             tuple((
-                p_uint,
+                p_u32,
                 opt(preceded(
                     multispace1,
                     alt((tag("compact!"), tag("compact"), tag("scatter"))),
