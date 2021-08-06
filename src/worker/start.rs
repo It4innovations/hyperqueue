@@ -210,9 +210,9 @@ async fn launcher_main(streamer_ref: StreamerRef, task_ref: TaskRef) -> tako::Re
 async fn run_task(
     _streamer_ref: StreamerRef,
     _program: &ProgramDefinition,
-    _job_id: u64,
-    _job_task_id: u32,
-    _instance_id: u32,
+    _job_id: JobId,
+    _job_task_id: JobTaskId,
+    _instance_id: InstanceId,
 ) -> tako::Result<()> {
     Ok(())
 }
@@ -221,9 +221,9 @@ async fn run_task(
 async fn run_task(
     streamer_ref: StreamerRef,
     program: &ProgramDefinition,
-    job_id: u64,
-    job_task_id: u32,
-    instance_id: u32,
+    job_id: JobId,
+    job_task_id: JobTaskId,
+    instance_id: InstanceId,
 ) -> tako::Result<()> {
     let mut command = command_from_definitions(program)?;
 
