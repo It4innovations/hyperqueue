@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use crate::common::resources::{ResourceAllocation, ResourceRequest};
 use crate::common::Map;
 use crate::messages::common::{SubworkerDefinition, TaskFailInfo, WorkerConfiguration};
+use crate::messages::gateway::OverviewRequest;
+use crate::worker::hwmonitor::WorkerHwState;
 use crate::{InstanceId, Priority};
 use crate::{OutputId, TaskId, TaskTypeId, WorkerId};
 
@@ -70,7 +72,7 @@ pub enum ToWorkerMessage {
     CancelTasks(TaskIdsMsg),
     NewWorker(NewWorkerMsg),
     RegisterSubworker(SubworkerDefinition),
-    GetOverview,
+    GetOverview(OverviewRequest),
     Stop,
 }
 
@@ -110,11 +112,17 @@ pub struct StealResponseMsg {
     pub responses: Vec<(TaskId, StealResponse)>,
 }
 
+#[derive(Deserialize, Serialize, Debug)]
+pub struct WorkerHwStateMessage {
+    pub state: WorkerHwState,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerOverview {
     pub id: WorkerId,
     pub running_tasks: Vec<(TaskId, ResourceAllocation)>,
     pub placed_data: Vec<TaskId>,
+    pub hw_state: Option<WorkerHwStateMessage>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

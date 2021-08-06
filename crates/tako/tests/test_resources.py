@@ -14,22 +14,22 @@ def test_submit_2_sleeps_on_1(tako_env):
 
     time.sleep(0.2)
     overview1 = session.overview()
-    assert len(overview1["workers"][0]["running_tasks"]) == 1
+    assert len(overview1["worker_overviews"][0]["running_tasks"]) == 1
 
     time.sleep(0.5)
     overview2 = session.overview()
-    assert len(overview2["workers"][0]["running_tasks"]) == 1
+    assert len(overview2["worker_overviews"][0]["running_tasks"]) == 1
     assert (
-        overview1["workers"][0]["running_tasks"]
-        == overview2["workers"][0]["running_tasks"]
+        overview1["worker_overviews"][0]["running_tasks"]
+        == overview2["worker_overviews"][0]["running_tasks"]
     )
 
     time.sleep(0.5)
     overview2 = session.overview()
-    assert len(overview2["workers"][0]["running_tasks"]) == 1
+    assert len(overview2["worker_overviews"][0]["running_tasks"]) == 1
     assert (
-        overview1["workers"][0]["running_tasks"]
-        != overview2["workers"][0]["running_tasks"]
+        overview1["worker_overviews"][0]["running_tasks"]
+        != overview2["worker_overviews"][0]["running_tasks"]
     )
 
     session.wait_all([t1, t2])
@@ -47,7 +47,7 @@ def test_submit_2_sleeps_on_2(tako_env):
 
     time.sleep(0.2)
     overview = session.overview()
-    assert len(overview["workers"][0]["running_tasks"]) == 2
+    assert len(overview["worker_overviews"][0]["running_tasks"]) == 2
 
     session.wait_all([t1, t2])
     end = time.time()
@@ -65,14 +65,14 @@ def test_submit_2_sleeps_on_separated_2(tako_env):
     time.sleep(0.2)
     overview = session.overview()
 
-    for w in overview["workers"]:
+    for w in overview["worker_overviews"]:
         if len(w["running_tasks"]) == 0:
             empty = w["id"]
             break
     else:
         assert 0
 
-    for w in overview["workers"]:
+    for w in overview["worker_overviews"]:
         if w["id"] != empty:
             assert len(w["running_tasks"]) == 1
 
@@ -95,9 +95,9 @@ def test_submit_sleeps_more_cpus1(tako_env):
 
     time.sleep(0.2)
     overview = session.overview()
-    print([overview["workers"]])
+    print([overview["worker_overviews"]])
     # print([w["running_tasks"] for w in overview["workers"]])
-    rts = [len(w["running_tasks"]) for w in overview["workers"]]
+    rts = [len(w["running_tasks"]) for w in overview["worker_overviews"]]
     rts.sort()
     assert rts == [1, 2]
     session.wait_all([t1, t2, t3])

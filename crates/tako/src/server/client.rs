@@ -6,8 +6,8 @@ use tokio::sync::oneshot;
 
 use crate::common::rpc::forward_queue_to_sink_with_map;
 use crate::messages::gateway::{
-    CancelTasksResponse, ErrorResponse, FromGatewayMessage, NewTasksResponse, Overview, TaskInfo,
-    TaskState, TaskUpdate, TasksInfoResponse, ToGatewayMessage,
+    CancelTasksResponse, CollectedOverview, ErrorResponse, FromGatewayMessage, NewTasksResponse,
+    TaskInfo, TaskState, TaskUpdate, TasksInfoResponse, ToGatewayMessage,
 };
 use crate::messages::worker::{ToWorkerMessage, WorkerOverview};
 use crate::server::comm::{Comm, CommSenderRef};
@@ -179,29 +179,33 @@ pub async fn process_client_message(
                 .is_ok());
             None
         }
-        FromGatewayMessage::GetOverview => {
+        FromGatewayMessage::GetOverview(overview_request) => {
             log::debug!("Client ask for overview");
-            let receivers = {
+            let overview_receivers = {
                 let mut core = core_ref.get_mut();
-                let mut receivers = Vec::with_capacity(core.get_worker_map().len());
-                for w in core.get_workers_mut() {
+
+                let mut overview_receivers = Vec::with_capacity(core.get_worker_map().len());
+                for worker in core.get_workers_mut() {
+                    //for each worker, create a one-shot channel, pass it to the worker and store it's receiver
                     let (sender, receiver) = oneshot::channel();
-                    w.overview_callbacks.push(sender);
-                    receivers.push(receiver.into_future());
+                    worker.overview_callbacks.push(sender);
+                    overview_receivers.push(receiver.into_future());
                 }
                 comm_ref
                     .get_mut()
-                    .broadcast_worker_message(&ToWorkerMessage::GetOverview);
-                receivers
+                    .broadcast_worker_message(&ToWorkerMessage::GetOverview(overview_request));
+                overview_receivers
             };
-            let workers: Vec<WorkerOverview> = join_all(receivers)
+            let worker_overviews: Vec<WorkerOverview> = join_all(overview_receivers)
                 .await
                 .into_iter()
                 .filter_map(|r| r.ok())
                 .collect();
             log::debug!("Gathering overview finished");
             assert!(client_sender
-                .send(ToGatewayMessage::Overview(Overview { workers }))
+                .send(ToGatewayMessage::Overview(CollectedOverview {
+                    worker_overviews
+                }))
                 .is_ok());
             None
         }

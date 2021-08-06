@@ -56,6 +56,11 @@ pub struct StopWorkerRequest {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct OverviewRequest {
+    pub enable_hw_overview: bool,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "op")]
 pub enum FromGatewayMessage {
     NewTasks(NewTasksMessage),
@@ -64,7 +69,7 @@ pub enum FromGatewayMessage {
     RegisterSubworker(SubworkerDefinition),
     GetTaskInfo(TaskInfoRequest),
     ServerInfo,
-    GetOverview,
+    GetOverview(OverviewRequest),
     StopWorker(StopWorkerRequest),
 }
 
@@ -134,8 +139,8 @@ pub struct TasksInfoResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Overview {
-    pub workers: Vec<WorkerOverview>,
+pub struct CollectedOverview {
+    pub worker_overviews: Vec<WorkerOverview>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -196,7 +201,7 @@ pub enum ToGatewayMessage {
     TaskInfo(TasksInfoResponse),
     Error(ErrorResponse),
     ServerInfo(ServerInfo),
-    Overview(Overview),
+    Overview(CollectedOverview),
     NewWorker(NewWorkerMessage),
     LostWorker(LostWorkerMessage),
     WorkerStopped,
