@@ -23,10 +23,10 @@ use crate::server::reactor::{
     on_task_running,
 };
 use crate::server::task::TaskRef;
-use crate::server::worker::{Worker, WorkerId};
+use crate::server::worker::Worker;
 use crate::server::worker_load::WorkerLoad;
 use crate::transfer::auth::{deserialize, serialize};
-use crate::{OutputId, TaskId};
+use crate::{OutputId, TaskId, WorkerId};
 
 /// Memory stream for reading and writing at the same time.
 pub struct MemoryStream {
