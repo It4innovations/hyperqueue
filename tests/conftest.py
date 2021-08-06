@@ -110,7 +110,7 @@ class HqEnv(Env):
         return env
 
     @staticmethod
-    def server_args(server_dir="./hq-server", debug=True):
+    def server_args(server_dir="hq-server", debug=True):
         return [
             get_hq_binary(debug=debug),
             "--colors",
@@ -121,7 +121,7 @@ class HqEnv(Env):
             "start",
         ]
 
-    def start_server(self, server_dir="./hq-server", args=None) -> subprocess.Popen:
+    def start_server(self, server_dir="hq-server", args=None) -> subprocess.Popen:
         self.server_dir = os.path.join(self.work_path, server_dir)
         env = self.make_default_env()
         server_args = self.server_args(self.server_dir, debug=self.debug)

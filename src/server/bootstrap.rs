@@ -85,7 +85,7 @@ async fn initialize_server(
     gsettings: &GlobalSettings,
     end_flag: Arc<Notify>,
     server_cfg: ServerConfig,
-) -> anyhow::Result<(impl Future<Output = anyhow::Result<()>>, ServerDir)> {
+) -> anyhow::Result<impl Future<Output = anyhow::Result<()>>> {
     let server_directory = gsettings.server_directory();
     let client_listener = TcpListener::bind("0.0.0.0:0")
         .await
@@ -111,7 +111,7 @@ async fn initialize_server(
         tako_secret_key.clone(),
     );
 
-    let server_dir = ServerDir::create(server_directory, &record)?;
+    ServerDir::create(server_directory, &record)?;
     print_access_record(gsettings, server_directory, &record);
 
     let stop_notify = Rc::new(Notify::new());
@@ -138,7 +138,7 @@ async fn initialize_server(
             r = tako_future => { r.map_err(|e| e.into()) }
         }
     };
-    Ok((fut, server_dir))
+    Ok(fut)
 }
 
 async fn start_server(
@@ -146,15 +146,11 @@ async fn start_server(
     server_config: ServerConfig,
 ) -> anyhow::Result<()> {
     let end_flag = setup_interrupt();
-    let (fut, server_dir) = initialize_server(gsettings, end_flag, server_config).await?;
+    let fut = initialize_server(gsettings, end_flag, server_config).await?;
     let local_set = LocalSet::new();
     local_set.run_until(fut).await?;
 
-    log::info!(
-        "Deleting access file {}",
-        server_dir.access_filename().display()
-    );
-    std::fs::remove_file(server_dir.access_filename()).ok();
+    // Delete symlink to mark that the server is no longer active
     std::fs::remove_file(gsettings.server_directory().join(SYMLINK_PATH)).ok();
 
     Ok(())
@@ -225,8 +221,7 @@ mod tests {
         (
             initialize_server(&gsettings, notify.clone(), server_cfg)
                 .await
-                .unwrap()
-                .0,
+                .unwrap(),
             notify,
         )
     }
