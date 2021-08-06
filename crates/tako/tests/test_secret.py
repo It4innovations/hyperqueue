@@ -10,7 +10,7 @@ def test_set_secret_key(tako_env):
     tako_env.start_worker(1, secret_file="../secret")
 
     time.sleep(0.3)
-    assert len(session.overview()["workers"]) == 1
+    assert len(session.overview()["worker_overviews"]) == 1
 
     tako_env.expect_worker_fail(0)
 
@@ -29,7 +29,7 @@ def test_server_no_auth_worker_auth(tako_env):
     session = tako_env.start()
     tako_env.start_worker(1, secret_file="../secret")
     time.sleep(0.3)
-    assert len(session.overview()["workers"]) == 0
+    assert len(session.overview()["worker_overviews"]) == 0
     tako_env.expect_worker_fail(0)
 
 
@@ -38,5 +38,5 @@ def test_server_auth_worker_no_auth(tako_env):
     session = tako_env.start(secret_file="secret")
     tako_env.start_worker(1)
     time.sleep(0.3)
-    assert len(session.overview()["workers"]) == 0
+    assert len(session.overview()["worker_overviews"]) == 0
     tako_env.expect_worker_fail(0)

@@ -20,6 +20,7 @@ use crate::messages::worker::{
 use crate::transfer::auth::serialize;
 use crate::transfer::DataConnection;
 use crate::worker::data::{DataObject, DataObjectRef, DataObjectState, LocalData, RemoteData};
+use crate::worker::hwmonitor::WorkerHwState;
 use crate::worker::launcher::InnerTaskLauncher;
 use crate::worker::rqueue::ResourceWaitQueue;
 use crate::worker::subworker::{SubworkerId, SubworkerRef};
@@ -54,6 +55,8 @@ pub struct WorkerState {
     pub configuration: WorkerConfiguration,
     pub inner_task_launcher: InnerTaskLauncher,
     pub secret_key: Option<Arc<SecretKey>>,
+
+    pub hardware_state: WorkerHwState,
 }
 
 impl WorkerState {
@@ -432,6 +435,7 @@ impl WorkerStateRef {
             start_task_scheduled: false,
             start_task_notify: Rc::new(Notify::new()),
             running_tasks: Default::default(),
+            hardware_state: Default::default(),
         });
         self_ref.get_mut().self_ref = Some(self_ref.clone());
         self_ref

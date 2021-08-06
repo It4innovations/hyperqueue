@@ -9,7 +9,7 @@ def test_lost_worker_without_tasks(tako_env):
     tako_env.kill_worker(0)
     time.sleep(0.2)
     overview = session.overview()
-    assert len(overview["workers"]) == 1
+    assert len(overview["worker_overviews"]) == 1
 
 
 def test_lost_worker_with_tasks_continue(tako_env):
@@ -24,7 +24,7 @@ def test_lost_worker_with_tasks_continue(tako_env):
     session.submit([t1])
     time.sleep(0.4)
     overview = session.overview()
-    for w in overview["workers"]:
+    for w in overview["worker_overviews"]:
         if len(w["running_tasks"]) == 1:
             break
     else:
@@ -34,7 +34,7 @@ def test_lost_worker_with_tasks_continue(tako_env):
     session.wait(t1)
 
     overview = session.overview()
-    assert len(overview["workers"]) == 1
+    assert len(overview["worker_overviews"]) == 1
 
     end = time.time()
     assert 1.4 <= end - start <= 1.8
@@ -62,8 +62,8 @@ def test_lost_worker_with_tasks_restarts(tako_env):
     assert 1.0 <= end - start <= 1.2
 
     overview = session.overview()
-    assert len(overview["workers"]) == 1
-    assert overview["workers"][0]["id"] == 6
+    assert len(overview["worker_overviews"]) == 1
+    assert overview["worker_overviews"][0]["id"] == 6
 
 
 def test_frozen_worker1(tako_env):
@@ -73,14 +73,14 @@ def test_frozen_worker1(tako_env):
     time.sleep(0.5)
 
     overview = session.overview()
-    assert len(overview["workers"]) == 1
+    assert len(overview["worker_overviews"]) == 1
 
     tako_env.pause_worker(0)
 
     time.sleep(1.5)
 
     overview = session.overview()
-    assert len(overview["workers"]) == 0
+    assert len(overview["worker_overviews"]) == 0
 
 
 def test_frozen_worker2(tako_env):
@@ -88,12 +88,12 @@ def test_frozen_worker2(tako_env):
         workers=[1], worker_start_delay=0.4, panic_on_worker_lost=False, heartbeat=500
     )
     overview = session.overview()
-    assert len(overview["workers"]) == 1
+    assert len(overview["worker_overviews"]) == 1
 
     tako_env.pause_worker(0)
     start = time.time()
     overview = session.overview()
-    assert len(overview["workers"]) == 0
+    assert len(overview["worker_overviews"]) == 0
     end = time.time()
     assert 0.5 < (end - start) < 1.5
 
@@ -107,10 +107,10 @@ def test_worker_idle_timeout_no_tasks(tako_env):
         idle_timeout=1,
     )
     overview = session.overview()
-    assert len(overview["workers"]) == 1
+    assert len(overview["worker_overviews"]) == 1
     time.sleep(2)
     overview = session.overview()
-    assert len(overview["workers"]) == 0
+    assert len(overview["worker_overviews"]) == 0
 
     tako_env.expect_worker_exit(0)
 
@@ -127,11 +127,11 @@ def test_worker_idle_timeout_tasks(tako_env):
     session.submit([t1])
 
     overview = session.overview()
-    assert len(overview["workers"]) == 1
+    assert len(overview["worker_overviews"]) == 1
     time.sleep(2)
     overview = session.overview()
-    assert len(overview["workers"]) == 1
+    assert len(overview["worker_overviews"]) == 1
     time.sleep(2.5)
     overview = session.overview()
-    assert len(overview["workers"]) == 0
+    assert len(overview["worker_overviews"]) == 0
     tako_env.expect_worker_exit(0)

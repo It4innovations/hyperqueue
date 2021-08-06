@@ -711,6 +711,7 @@ mod tests {
             work_dir: Default::default(),
             log_dir: Default::default(),
             heartbeat_interval: Duration::from_millis(1000),
+            hw_state_poll_interval: Some(Duration::from_millis(1000)),
             idle_timeout: None,
             extra: Default::default(),
         };
@@ -742,6 +743,7 @@ mod tests {
             work_dir: Default::default(),
             log_dir: Default::default(),
             heartbeat_interval: Duration::from_millis(1000),
+            hw_state_poll_interval: Some(Duration::from_millis(1000)),
             idle_timeout: None,
             extra: Default::default(),
         };

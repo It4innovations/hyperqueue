@@ -118,7 +118,7 @@ class Session:
         loop.run_until_complete(self._send_receive(message, "Ok"))
 
     def overview(self):
-        message = {"op": "GetOverview"}
+        message = {"op": "GetOverview", "enable_hw_overview": True}
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(self._send_receive(message, "Overview"))
 

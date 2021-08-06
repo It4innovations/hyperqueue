@@ -17,7 +17,7 @@ use crate::common::resources::ResourceAllocation;
 use crate::messages::common::WorkerConfiguration;
 use crate::messages::worker::{
     ConnectionRegistration, FromWorkerMessage, RegisterWorker, StealResponseMsg, ToWorkerMessage,
-    WorkerOverview, WorkerRegistrationResponse,
+    WorkerHwStateMessage, WorkerOverview, WorkerRegistrationResponse,
 };
 use crate::server::rpc::ConnectionDescriptor;
 use crate::transfer::auth::{
@@ -27,12 +27,14 @@ use crate::transfer::fetch::fetch_data;
 use crate::transfer::transport::{connect_to_worker, make_protocol_builder};
 use crate::transfer::DataConnection;
 use crate::worker::data::{DataObjectRef, DataObjectState};
+use crate::worker::hwmonitor::HwSampler;
 use crate::worker::launcher::InnerTaskLauncher;
 use crate::worker::reactor::assign_task;
 use crate::worker::state::WorkerStateRef;
 use crate::worker::task::TaskRef;
 use crate::PriorityTuple;
 use crate::{Priority, WorkerId};
+use futures::future::Either;
 
 async fn start_listener() -> crate::Result<(TcpListener, String)> {
     let address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
@@ -122,6 +124,7 @@ pub async fn run_worker(
     let (download_sender, download_reader) =
         tokio::sync::mpsc::unbounded_channel::<(DataObjectRef, (Priority, Priority))>();
     let heartbeat_interval = configuration.heartbeat_interval;
+    let hw_state_poll_interval = configuration.hw_state_poll_interval;
 
     let (worker_id, state) = {
         match timeout(Duration::from_secs(15), receiver.next()).await {
@@ -169,9 +172,6 @@ pub async fn run_worker(
 
     let heartbeat = async move {
         let mut interval = tokio::time::interval(heartbeat_interval);
-        /*let data: Bytes = serialize(&FromWorkerMessage::Heartbeat)
-        .unwrap()
-        .into();*/
 
         loop {
             interval.tick().await;
@@ -182,12 +182,13 @@ pub async fn run_worker(
         }
     };
 
-    /*log::info!("Starting {} subworkers", ncpus);
-    let (subworkers, sw_processes) =
-        start_subworkers(&state, subworker_paths, "python3", ncpus).await?;
-    log::debug!("Subworkers started");
-
-    state.get_mut().set_subworkers(subworkers);*/
+    let hw_polling_process = match hw_state_poll_interval {
+        Some(interval) => {
+            let sampler = HwSampler::init()?;
+            Either::Right(update_hw_state(state.clone(), interval, sampler))
+        }
+        None => Either::Left(futures::future::pending()),
+    };
 
     Ok(((worker_id, configuration), async move {
         tokio::select! {
@@ -203,19 +204,43 @@ pub async fn run_worker(
             _result = taskset.run_until(connection_initiator(listener, state.clone())) => {
                 panic!("Taskset failed");
             }
-            /*idx = sw_processes => {
-                panic!("Subworker process {} failed", idx);
-            }*/
             _ = worker_data_downloader(state, download_reader) => {
                 unreachable!()
             }
             _ = heartbeat => { unreachable!() }
+            _ = hw_polling_process => { unreachable!() }
         }
     }))
 }
 
 const MAX_RUNNING_DOWNLOADS: usize = 32;
 const MAX_ATTEMPTS: u32 = 8;
+
+async fn update_hw_state(
+    state_ref: WorkerStateRef,
+    hw_poll_interval: Duration,
+    mut sampler: HwSampler,
+) {
+    let mut poll_interval = tokio::time::interval(hw_poll_interval);
+    loop {
+        poll_interval.tick().await;
+        let hw_state = sampler.fetch_hw_state();
+        match hw_state {
+            Ok(new_state) => {
+                state_ref.get_mut().hardware_state = new_state;
+            }
+            Err(error) => {
+                state_ref
+                    .get_mut()
+                    .hardware_state
+                    .worker_cpu_usage
+                    .cpu_per_core_percent_usage
+                    .clear();
+                log::warn!("Error reading hw state! {:?}", error);
+            }
+        }
+    }
+}
 
 async fn download_data(state_ref: WorkerStateRef, data_ref: DataObjectRef) {
     for attempt in 0..MAX_ATTEMPTS {
@@ -363,7 +388,7 @@ async fn worker_message_loop(
             ToWorkerMessage::RegisterSubworker(sw_def) => {
                 state.subworker_definitions.insert(sw_def.id, sw_def);
             }
-            ToWorkerMessage::GetOverview => {
+            ToWorkerMessage::GetOverview(overview_request) => {
                 let message = FromWorkerMessage::Overview(WorkerOverview {
                     id: state.worker_id,
                     running_tasks: state
@@ -378,6 +403,13 @@ async fn worker_message_loop(
                         })
                         .collect(),
                     placed_data: state.data_objects.keys().copied().collect(),
+
+                    hw_state: match overview_request.enable_hw_overview {
+                        true => Some(WorkerHwStateMessage {
+                            state: state.hardware_state.clone(),
+                        }),
+                        false => None,
+                    },
                 });
                 state.send_message_to_server(message);
             }

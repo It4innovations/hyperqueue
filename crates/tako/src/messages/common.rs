@@ -105,7 +105,29 @@ pub struct WorkerConfiguration {
     pub work_dir: PathBuf,
     pub log_dir: PathBuf,
     pub heartbeat_interval: Duration,
+    pub hw_state_poll_interval: Option<Duration>,
     pub idle_timeout: Option<Duration>,
 
     pub extra: Map<String, String>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Default, Clone)]
+pub struct CpuStats {
+    pub cpu_per_core_percent_usage: Vec<f32>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Default, Clone)]
+pub struct MemoryStats {
+    pub total: u64,
+    pub free: u64,
+}
+
+#[derive(Deserialize, Serialize, Debug, Default, Clone)]
+pub struct NetworkStats {
+    pub rx_bytes: u64,
+    pub tx_bytes: u64,
+    pub rx_packets: u64,
+    pub tx_packets: u64,
+    pub rx_errors: u64,
+    pub tx_errors: u64,
 }

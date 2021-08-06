@@ -37,6 +37,9 @@ struct Opts {
     heartbeat: u32,
 
     #[clap(long)]
+    hw_state_poll_interval: Option<u32>,
+
+    #[clap(long)]
     cpus: Option<u32>,
 
     #[clap(long)]
@@ -134,6 +137,9 @@ async fn main() -> tako::Result<()> {
     )?;
 
     let heartbeat_interval = Duration::from_millis(opts.heartbeat as u64);
+    let hw_state_poll_interval = opts
+        .hw_state_poll_interval
+        .map(|interval| Duration::from_millis(interval as u64));
 
     let resources = match (opts.cpus, opts.sockets) {
         (Some(c), s) => ResourceDescriptor::new_with_socket_size(s.unwrap_or(1), c),
@@ -150,6 +156,7 @@ async fn main() -> tako::Result<()> {
         work_dir,
         log_dir,
         heartbeat_interval,
+        hw_state_poll_interval,
         idle_timeout: None,
         extra: Default::default(),
     };

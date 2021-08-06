@@ -1,4 +1,5 @@
 pub mod data;
+pub(crate) mod hwmonitor;
 pub mod launcher;
 mod messages;
 pub mod paths;
