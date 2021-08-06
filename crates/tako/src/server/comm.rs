@@ -11,9 +11,8 @@ use crate::messages::gateway::{
     TaskUpdate, ToGatewayMessage,
 };
 use crate::messages::worker::ToWorkerMessage;
-use crate::server::worker::WorkerId;
 use crate::transfer::auth::serialize;
-use crate::TaskId;
+use crate::{TaskId, WorkerId};
 
 pub trait Comm {
     fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage);

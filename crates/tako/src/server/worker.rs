@@ -9,8 +9,7 @@ use crate::messages::common::WorkerConfiguration;
 use crate::messages::worker::WorkerOverview;
 use crate::server::task::{Task, TaskRef};
 use crate::server::worker_load::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
-
-pub type WorkerId = u64;
+use crate::WorkerId;
 
 bitflags::bitflags! {
     pub struct WorkerFlags: u32 {

@@ -9,11 +9,10 @@ use crate::common::Map;
 use crate::server::comm::CommSenderRef;
 use crate::server::core::CoreRef;
 use crate::server::task::{TaskRef, TaskRuntimeState};
-use crate::server::worker::WorkerId;
 use crate::transfer::fetch::fetch_data;
 use crate::transfer::messages::{DataRequest, DataResponse, UploadDataMsg};
 use crate::transfer::transport::connect_to_worker;
-use crate::TaskId;
+use crate::{TaskId, WorkerId};
 
 pub async fn gather(
     core_ref: &CoreRef,

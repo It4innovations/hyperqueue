@@ -6,7 +6,7 @@ use orion::aead::SecretKey;
 use crate::common::error::DsError;
 use crate::common::resources::ResourceRequest;
 use crate::common::trace::trace_task_remove;
-use crate::common::{IdCounter, Map, Set, WrappedRcRefCell};
+use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::common::SubworkerDefinition;
 use crate::messages::gateway::ServerInfo;
 use crate::server::rpc::ConnectionDescriptor;
@@ -30,7 +30,7 @@ pub struct Core {
     sleeping_tasks: Vec<TaskRef>, // Tasks that cannot be scheduled to any available worker
 
     maximal_task_id: TaskId,
-    worker_id_counter: IdCounter,
+    worker_id_counter: WorkerId,
     scatter_counter: usize,
     worker_listen_port: u16,
 
@@ -66,7 +66,8 @@ impl CoreRef {
 
 impl Core {
     pub fn new_worker_id(&mut self) -> WorkerId {
-        self.worker_id_counter.next_id()
+        self.worker_id_counter += 1;
+        self.worker_id_counter
     }
 
     #[inline]

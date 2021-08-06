@@ -20,7 +20,6 @@ use crate::messages::worker::{
     WorkerOverview, WorkerRegistrationResponse,
 };
 use crate::server::rpc::ConnectionDescriptor;
-use crate::server::worker::WorkerId;
 use crate::transfer::auth::{
     do_authentication, forward_queue_to_sealed_sink, open_message, seal_message, serialize,
 };
@@ -32,8 +31,8 @@ use crate::worker::launcher::InnerTaskLauncher;
 use crate::worker::reactor::assign_task;
 use crate::worker::state::WorkerStateRef;
 use crate::worker::task::TaskRef;
-use crate::Priority;
 use crate::PriorityTuple;
+use crate::{Priority, WorkerId};
 
 async fn start_listener() -> crate::Result<(TcpListener, String)> {
     let address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
