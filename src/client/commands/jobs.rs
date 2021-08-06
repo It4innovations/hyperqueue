@@ -4,14 +4,14 @@ use crate::client::status::{job_status, Status};
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    CancelJobResponse, CancelRequest, FromClientMessage, JobDetailRequest, JobInfoRequest,
-    JobSelector, ToClientMessage,
+    CancelJobResponse, CancelRequest, FromClientMessage, JobDetailRequest, JobDetailResponse,
+    JobInfoRequest, Selector, ToClientMessage,
 };
 use crate::JobId;
 
 pub async fn get_last_job_id(connection: &mut ClientConnection) -> crate::Result<Option<JobId>> {
     let message = FromClientMessage::JobInfo(JobInfoRequest {
-        selector: JobSelector::LastN(1),
+        selector: Selector::LastN(1),
     });
     let response = rpc_call!(connection, message, ToClientMessage::JobInfoResponse(r) => r).await?;
 
@@ -20,7 +20,7 @@ pub async fn get_last_job_id(connection: &mut ClientConnection) -> crate::Result
 
 pub async fn get_job_ids(connection: &mut ClientConnection) -> crate::Result<Option<Vec<JobId>>> {
     let message = FromClientMessage::JobInfo(JobInfoRequest {
-        selector: JobSelector::All,
+        selector: Selector::All,
     });
     let response = rpc_call!(connection, message, ToClientMessage::JobInfoResponse(r) => r).await?;
 
@@ -37,7 +37,7 @@ pub async fn output_job_list(
     job_filters: Vec<Status>,
 ) -> crate::Result<()> {
     let message = FromClientMessage::JobInfo(JobInfoRequest {
-        selector: JobSelector::All,
+        selector: Selector::All,
     });
     let mut response =
         rpc_call!(connection, message, ToClientMessage::JobInfoResponse(r) => r).await?;
@@ -55,26 +55,28 @@ pub async fn output_job_list(
 pub async fn output_job_detail(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
-    job_id: JobId,
+    selector: Selector,
     show_tasks: bool,
 ) -> crate::Result<()> {
     let message = FromClientMessage::JobDetail(JobDetailRequest {
-        job_id,
+        selector,
         include_tasks: true,
     });
-    let response =
+    let mut responses =
         rpc_call!(connection, message, ToClientMessage::JobDetailResponse(r) => r).await?;
+    responses.sort_unstable_by_key(|x| x.0);
 
-    if let Some(job) = response {
-        print_job_detail(
-            gsettings,
-            job,
-            false,
-            show_tasks,
-            get_worker_map(connection).await?,
-        );
-    } else {
-        log::error!("Job {} not found", job_id);
+    for (job_id, response) in responses {
+        match response {
+            JobDetailResponse::Detail(detail) => print_job_detail(
+                gsettings,
+                detail,
+                false,
+                show_tasks,
+                get_worker_map(connection).await?,
+            ),
+            JobDetailResponse::InvalidJob => log::error!("Job {} not found", job_id),
+        }
     }
     Ok(())
 }
@@ -82,7 +84,7 @@ pub async fn output_job_detail(
 pub async fn cancel_job(
     _gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
-    selector: JobSelector,
+    selector: Selector,
 ) -> crate::Result<()> {
     let mut responses = rpc_call!(connection, FromClientMessage::Cancel(CancelRequest {
          selector,

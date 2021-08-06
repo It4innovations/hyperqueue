@@ -4,51 +4,50 @@ use std::str::FromStr;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::common::arrayparser::parse_array_def;
-use crate::{JobTaskCount, JobTaskId, JobTaskStep};
+use crate::common::arrayparser::parse_array;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct TaskIdRange {
-    pub start: JobTaskId,
-    pub count: JobTaskCount,
-    pub step: JobTaskStep,
+pub struct IntRange {
+    pub start: u32,
+    pub count: u32,
+    pub step: u32,
 }
 
-impl TaskIdRange {
-    pub fn new(start: JobTaskId, count: JobTaskCount, step: JobTaskStep) -> TaskIdRange {
-        TaskIdRange { start, count, step }
+impl IntRange {
+    pub fn new(start: u32, count: u32, step: u32) -> IntRange {
+        IntRange { start, count, step }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = JobTaskId> {
+    pub fn iter(&self) -> impl Iterator<Item = u32> {
         (self.start..self.start + self.count).step_by(self.step as usize)
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ArrayDef {
-    ranges: Vec<TaskIdRange>,
+pub struct IntArray {
+    ranges: Vec<IntRange>,
 }
 
-impl ArrayDef {
-    pub fn new(ranges: Vec<TaskIdRange>) -> ArrayDef {
-        ArrayDef { ranges }
+impl IntArray {
+    pub fn new(ranges: Vec<IntRange>) -> IntArray {
+        IntArray { ranges }
     }
 
-    pub fn new_tasks(task_ids: Vec<JobTaskId>) -> ArrayDef {
-        let mut ranges: Vec<TaskIdRange> = Vec::new();
-        for task_id in task_ids {
-            if let Some(pos) = ranges.iter().position(|x| task_id == (x.start + x.count)) {
+    pub fn from_ids(ids: Vec<u32>) -> IntArray {
+        let mut ranges: Vec<IntRange> = Vec::new();
+        for id in ids {
+            if let Some(pos) = ranges.iter().position(|x| id == (x.start + x.count)) {
                 ranges[pos].count += 1;
             } else {
-                ranges.push(TaskIdRange::new(task_id, 1, 1));
+                ranges.push(IntRange::new(id, 1, 1));
             }
         }
-        ArrayDef { ranges }
+        IntArray { ranges }
     }
 
-    pub fn simple_range(start: JobTaskId, count: JobTaskCount) -> Self {
-        ArrayDef {
-            ranges: vec![TaskIdRange {
+    pub fn from_range(start: u32, count: u32) -> Self {
+        IntArray {
+            ranges: vec![IntRange {
                 start,
                 count,
                 step: 1,
@@ -56,24 +55,28 @@ impl ArrayDef {
         }
     }
 
-    pub fn task_count(&self) -> JobTaskCount {
+    pub fn count_ids(&self) -> u32 {
         self.ranges.iter().map(|x| x.count).sum()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = JobTaskId> + '_ {
+    pub fn get_ids(&self) -> Vec<u32> {
+        self.ranges.iter().flat_map(|x| x.iter()).collect()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
         self.ranges.iter().flat_map(|x| x.iter())
     }
 }
 
-impl FromStr for ArrayDef {
+impl FromStr for IntArray {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_array_def(s)
+        parse_array(s)
     }
 }
 
-impl fmt::Display for ArrayDef {
+impl fmt::Display for IntArray {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut str = String::new();
         for x in &self.ranges {

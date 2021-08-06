@@ -218,7 +218,7 @@ impl StateRef {
 mod tests {
     use tako::messages::common::{ProgramDefinition, StdioDef};
 
-    use crate::common::arraydef::ArrayDef;
+    use crate::common::arraydef::IntArray;
     use crate::server::job::Job;
     use crate::server::state::StateRef;
     use crate::transfer::messages::JobType;
@@ -239,7 +239,7 @@ mod tests {
         let state_ref = StateRef::new();
         let mut state = state_ref.get_mut();
         state.add_job(Job::new(
-            JobType::Array(ArrayDef::simple_range(0, 10)),
+            JobType::Array(IntArray::from_range(0, 10)),
             223,
             100,
             "".to_string(),
@@ -252,7 +252,7 @@ mod tests {
             None,
         ));
         state.add_job(Job::new(
-            JobType::Array(ArrayDef::simple_range(0, 15)),
+            JobType::Array(IntArray::from_range(0, 15)),
             224,
             110,
             "".to_string(),

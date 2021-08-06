@@ -1,8 +1,8 @@
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    FromClientMessage, StopWorkerMessage, StopWorkerResponse, ToClientMessage, WorkerInfo,
-    WorkerInfoRequest, WorkerSelector,
+    FromClientMessage, Selector, StopWorkerMessage, StopWorkerResponse, ToClientMessage,
+    WorkerInfo, WorkerInfoRequest,
 };
 use crate::WorkerId;
 
@@ -48,7 +48,7 @@ pub async fn get_worker_info(
 
 pub async fn stop_worker(
     connection: &mut ClientConnection,
-    selector: WorkerSelector,
+    selector: Selector,
 ) -> crate::Result<()> {
     let message = FromClientMessage::StopWorker(StopWorkerMessage { selector });
     let mut responses =

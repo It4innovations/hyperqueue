@@ -1,7 +1,7 @@
 use crate::client::status::is_terminated;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    FromClientMessage, JobInfo, JobInfoRequest, JobSelector, ToClientMessage,
+    FromClientMessage, JobInfo, JobInfoRequest, Selector, ToClientMessage,
 };
 use crate::{rpc_call, JobId, JobTaskCount, Set};
 
@@ -9,6 +9,7 @@ use crate::client::utils::{
     job_progress_bar, TASK_COLOR_CANCELED, TASK_COLOR_FAILED, TASK_COLOR_FINISHED,
     TASK_COLOR_RUNNING,
 };
+use crate::common::arraydef::IntArray;
 use crate::server::job::JobTaskCounters;
 use anyhow::bail;
 use colored::Colorize;
@@ -25,7 +26,7 @@ pub async fn wait_for_job_with_info(
 
 pub async fn wait_for_job_with_selector(
     connection: &mut ClientConnection,
-    selector: JobSelector,
+    selector: Selector,
 ) -> anyhow::Result<()> {
     let response = rpc_call!(
         connection,
@@ -66,7 +67,7 @@ async fn wait_for_jobs(
             let response = rpc_call!(
                 connection,
                 FromClientMessage::JobInfo(JobInfoRequest {
-                    selector: JobSelector::Specific(ids_ref.iter().copied().collect()),
+                    selector: Selector::Specific(IntArray::from_ids(ids_ref.iter().copied().collect())),
                 }),
                 ToClientMessage::JobInfoResponse(r) => r
             )

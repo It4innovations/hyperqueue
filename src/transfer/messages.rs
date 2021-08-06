@@ -4,7 +4,7 @@ use serde::Serialize;
 use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 
 use crate::client::status::Status;
-use crate::common::arraydef::ArrayDef;
+use crate::common::arraydef::IntArray;
 use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 use bstr::BString;
@@ -22,7 +22,7 @@ pub struct TaskBody {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum JobType {
     Simple,
-    Array(ArrayDef),
+    Array(IntArray),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -39,6 +39,13 @@ pub struct SubmitRequest {
     pub log: Option<PathBuf>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum Selector {
+    All,
+    LastN(u32),
+    Specific(IntArray),
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ResubmitRequest {
     pub job_id: JobId,
@@ -47,30 +54,23 @@ pub struct ResubmitRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CancelRequest {
-    pub selector: JobSelector,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum JobSelector {
-    All,
-    LastN(JobId),
-    Specific(Vec<JobId>),
+    pub selector: Selector,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JobInfoRequest {
-    pub selector: JobSelector,
+    pub selector: Selector,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JobDetailRequest {
-    pub job_id: JobId,
+    pub selector: Selector,
     pub include_tasks: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StopWorkerMessage {
-    pub selector: WorkerSelector,
+    pub selector: Selector,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -114,9 +114,14 @@ pub struct StatsResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct SubmitResponse {
+    pub job: JobDetail,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ToClientMessage {
     JobInfoResponse(JobInfoResponse),
-    JobDetailResponse(Option<JobDetail>),
+    JobDetailResponse(Vec<(JobId, JobDetailResponse)>),
     SubmitResponse(SubmitResponse),
     WorkerListResponse(WorkerListResponse),
     WorkerInfoResponse(Option<WorkerInfo>),
@@ -174,6 +179,12 @@ pub struct JobInfoResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub enum JobDetailResponse {
+    Detail(JobDetail),
+    InvalidJob,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JobDetail {
     pub info: JobInfo,
     pub job_type: JobType,
@@ -190,17 +201,6 @@ pub struct JobDetail {
 
     // Time when job was completed or now if job is not completed
     pub completion_date_or_now: DateTime<Utc>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct SubmitResponse {
-    pub job: JobDetail,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum WorkerSelector {
-    All,
-    Specific(Vec<WorkerId>),
 }
 
 #[derive(Serialize, Deserialize, Debug)]

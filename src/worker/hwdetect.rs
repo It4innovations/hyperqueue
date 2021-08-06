@@ -1,4 +1,4 @@
-use crate::common::parser::{format_parse_error, p_uint, NomResult};
+use crate::common::parser::{format_parse_error, p_u32, NomResult};
 
 use tako::common::resources::{CpuId, NumOfCpus, ResourceDescriptor};
 
@@ -12,9 +12,9 @@ use nom::sequence::{preceded, terminated, tuple};
 fn p_cpu_range(input: &str) -> NomResult<Vec<CpuId>> {
     map_res(
         tuple((
-            terminated(p_uint, space0),
+            terminated(p_u32, space0),
             opt(terminated(
-                preceded(tuple((tag("-"), space0)), p_uint),
+                preceded(tuple((tag("-"), space0)), p_u32),
                 space0,
             )),
         )),

@@ -47,6 +47,6 @@ pub(crate) fn format_parse_error<I: Debug>(error: nom::Err<ParserError<I>>) -> a
 
 pub type NomResult<'a, Ret> = IResult<&'a str, Ret, ParserError<&'a str>>;
 
-pub fn p_uint(input: &str) -> NomResult<u32> {
+pub fn p_u32(input: &str) -> NomResult<u32> {
     map_res(digit1, |digit_str: &str| digit_str.parse::<u32>())(input)
 }

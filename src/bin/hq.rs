@@ -5,9 +5,7 @@ use clap::{Clap, ValueHint};
 use cli_table::ColorChoice;
 
 use anyhow::bail;
-use hyperqueue::client::commands::jobs::{
-    cancel_job, get_last_job_id, output_job_detail, output_job_list,
-};
+use hyperqueue::client::commands::jobs::{cancel_job, output_job_detail, output_job_list};
 use hyperqueue::client::commands::log::{command_log, LogOpts};
 use hyperqueue::client::commands::stats::print_server_stats;
 use hyperqueue::client::commands::stop::stop_server;
@@ -19,17 +17,18 @@ use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, sto
 use hyperqueue::client::globalsettings::GlobalSettings;
 use hyperqueue::client::status::Status;
 use hyperqueue::client::worker::print_worker_info;
+use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::timeutils::ArgDuration;
 use hyperqueue::server::bootstrap::{
     get_client_connection, init_hq_server, print_server_info, ServerConfig,
 };
-use hyperqueue::transfer::messages::{JobSelector, WorkerSelector};
+use hyperqueue::transfer::messages::Selector;
 use hyperqueue::worker::hwdetect::{detect_resource, print_resource_descriptor};
 use hyperqueue::worker::output::print_worker_configuration;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
-use hyperqueue::{JobId, WorkerId};
+use hyperqueue::WorkerId;
 
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -124,42 +123,45 @@ enum ServerCommand {
     Info(ServerInfoOpts),
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
-pub struct WaitOpts {
-    selector: JobSelectorArg,
-}
-
-enum WorkerSelectorArg {
+enum SelectorArg {
     All,
-    Id(WorkerId),
+    Last,
+    Id(IntArray),
 }
 
-impl FromStr for WorkerSelectorArg {
+impl FromStr for SelectorArg {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "all" => Ok(WorkerSelectorArg::All),
-            _ => Ok(WorkerSelectorArg::Id(FromStr::from_str(s)?)),
+            "last" => Ok(SelectorArg::Last),
+            "all" => Ok(SelectorArg::All),
+            _ => Ok(SelectorArg::Id(IntArray::from_str(s)?)),
         }
     }
 }
 
-impl From<WorkerSelectorArg> for WorkerSelector {
-    fn from(selector: WorkerSelectorArg) -> Self {
-        match selector {
-            WorkerSelectorArg::Id(job_id) => WorkerSelector::Specific(vec![job_id]),
-            WorkerSelectorArg::All => WorkerSelector::All,
+impl Into<Selector> for SelectorArg {
+    fn into(self) -> Selector {
+        match self {
+            SelectorArg::Id(array) => Selector::Specific(array),
+            SelectorArg::Last => Selector::LastN(1),
+            SelectorArg::All => Selector::All,
         }
     }
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+pub struct WaitOpts {
+    selector_arg: SelectorArg,
 }
 
 // Worker CLI options
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct WorkerStopOpts {
-    selector: WorkerSelectorArg,
+    selector_arg: SelectorArg,
 }
 
 #[derive(Clap)]
@@ -217,29 +219,11 @@ struct JobListOpts {
     job_filters: Vec<Status>,
 }
 
-enum JobSelectorArg {
-    All,
-    Last,
-    Id(JobId),
-}
-
-impl FromStr for JobSelectorArg {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "last" => Ok(JobSelectorArg::Last),
-            "all" => Ok(JobSelectorArg::All),
-            _ => Ok(JobSelectorArg::Id(FromStr::from_str(s)?)),
-        }
-    }
-}
-
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct JobDetailOpts {
     /// Numeric job id or `last` to display the most recently submitted job
-    job_specifier: JobSelectorArg,
+    selector_arg: SelectorArg,
 
     // Include task info in the output
     #[clap(long)]
@@ -249,7 +233,7 @@ struct JobDetailOpts {
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct CancelOpts {
-    job_specifier: JobSelectorArg,
+    selector_arg: SelectorArg,
 }
 
 // Commands
@@ -295,28 +279,19 @@ async fn command_job_list(gsettings: GlobalSettings, opts: JobListOpts) -> anyho
 }
 
 async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> anyhow::Result<()> {
+    if matches!(opts.selector_arg, SelectorArg::All) {
+        bail!("Specifier all is not implemented for job details, did you mean: job list?");
+    }
+
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
-
-    let job_id = match opts.job_specifier {
-        JobSelectorArg::Id(job_id) => job_id,
-        JobSelectorArg::Last => {
-            let id = get_last_job_id(&mut connection).await?;
-            match id {
-                Some(id) => id,
-                None => {
-                    log::warn!("No jobs were found");
-                    return Ok(());
-                }
-            }
-        }
-        JobSelectorArg::All => {
-            bail!("Specifier all is not implemented for job details, did you mean: job list?")
-        }
-    };
-
-    output_job_detail(&gsettings, &mut connection, job_id, opts.tasks)
-        .await
-        .map_err(|e| e.into())
+    output_job_detail(
+        &gsettings,
+        &mut connection,
+        opts.selector_arg.into(),
+        opts.tasks,
+    )
+    .await
+    .map_err(|e| e.into())
 }
 
 async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> anyhow::Result<()> {
@@ -327,13 +302,7 @@ async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> anyhow::
 async fn command_cancel(gsettings: GlobalSettings, opts: CancelOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
 
-    let selector: JobSelector = match opts.job_specifier {
-        JobSelectorArg::Id(job_id) => JobSelector::Specific(vec![job_id]),
-        JobSelectorArg::Last => JobSelector::LastN(1),
-        JobSelectorArg::All => JobSelector::All,
-    };
-
-    cancel_job(&gsettings, &mut connection, selector)
+    cancel_job(&gsettings, &mut connection, opts.selector_arg.into())
         .await
         .map_err(|e| e.into())
 }
@@ -350,7 +319,8 @@ async fn command_worker_stop(
     opts: WorkerStopOpts,
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    stop_worker(&mut connection, opts.selector.into()).await?;
+
+    stop_worker(&mut connection, opts.selector_arg.into()).await?;
     Ok(())
 }
 
@@ -415,13 +385,7 @@ async fn command_worker_address(
 async fn command_wait(gsettings: GlobalSettings, opts: WaitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
 
-    let selector: JobSelector = match opts.selector {
-        JobSelectorArg::Id(job_id) => JobSelector::Specific(vec![job_id]),
-        JobSelectorArg::Last => JobSelector::LastN(1),
-        JobSelectorArg::All => JobSelector::All,
-    };
-
-    wait_for_job_with_selector(&mut connection, selector).await
+    wait_for_job_with_selector(&mut connection, opts.selector_arg.into()).await
 }
 
 pub enum ColorPolicy {
