@@ -15,7 +15,7 @@ pub type TakoTaskId = tako::TaskId;
 pub type TaskTypeId = tako::TaskTypeId;
 pub type Priority = tako::Priority;
 
-pub type JobId = u64;
+pub type JobId = u32;
 pub type JobTaskId = u32;
 pub type JobTaskCount = u32;
 pub type JobTaskStep = u32;

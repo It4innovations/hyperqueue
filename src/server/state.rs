@@ -30,7 +30,7 @@ pub struct State {
     // The actual base_task_id_to_job will be 1 -> 1, 3 -> 2
     // Therefore we need to find biggest key that is lower then a given task id
     // To make this query efficient, we use BTreeMap and not Map
-    base_task_id_to_job_id: BTreeMap<TakoTaskId, WorkerId>,
+    base_task_id_to_job_id: BTreeMap<TakoTaskId, JobId>,
     job_id_counter: JobId,
     task_id_counter: TakoTaskId,
 }

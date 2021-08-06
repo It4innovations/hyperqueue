@@ -132,7 +132,7 @@ pub struct WaitOpts {
 
 enum WorkerSelectorArg {
     All,
-    Id(JobId),
+    Id(WorkerId),
 }
 
 impl FromStr for WorkerSelectorArg {
