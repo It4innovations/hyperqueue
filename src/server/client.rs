@@ -19,9 +19,9 @@ use crate::server::state::StateRef;
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
-    CancelJobResponse, FromClientMessage, JobDetailResponse, JobInfoResponse, JobType,
-    ResubmitRequest, Selector, StatsResponse, StopWorkerResponse, SubmitRequest, SubmitResponse,
-    TaskBody, ToClientMessage, WorkerListResponse,
+    CancelJobResponse, FromClientMessage, JobDetail, JobInfoResponse, JobType, ResubmitRequest,
+    Selector, StatsResponse, StopWorkerResponse, SubmitRequest, SubmitResponse, TaskBody,
+    ToClientMessage, WorkerListResponse,
 };
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 use bstr::BString;
@@ -129,7 +129,7 @@ async fn handle_worker_stop(
     let mut responses: Vec<(WorkerId, StopWorkerResponse)> = Vec::new();
 
     let worker_ids: Vec<WorkerId> = match selector {
-        Selector::Specific(array) => array.get_ids(),
+        Selector::Specific(array) => array.iter().collect(),
         Selector::All => state_ref
             .get()
             .get_workers()
@@ -187,26 +187,21 @@ fn compute_job_detail(
     let state = state_ref.get();
 
     let job_ids: Vec<JobId> = match selector {
-        Selector::All => state_ref
-            .get()
-            .jobs()
-            .map(|job| job.make_job_info())
-            .map(|job_info| job_info.id)
-            .collect(),
+        Selector::All => state_ref.get().jobs().map(|job| job.job_id).collect(),
         Selector::LastN(n) => state_ref.get().last_n_ids(n).collect(),
-        Selector::Specific(array) => array.get_ids(),
+        Selector::Specific(array) => array.iter().collect(),
     };
 
-    let mut responses: Vec<(JobId, JobDetailResponse)> = Vec::new();
+    let mut responses: Vec<(JobId, Option<JobDetail>)> = Vec::new();
     for job_id in job_ids {
         let opt_detail = state
             .get_job(job_id)
             .map(|j| j.make_job_detail(include_tasks));
 
         if let Some(detail) = opt_detail {
-            responses.push((job_id, JobDetailResponse::Detail(detail)));
+            responses.push((job_id, Some(detail)));
         } else {
-            responses.push((job_id, JobDetailResponse::InvalidJob));
+            responses.push((job_id, None));
         }
     }
     ToClientMessage::JobDetailResponse(responses)
@@ -232,9 +227,8 @@ fn compute_job_info(state_ref: &StateRef, selector: Selector) -> ToClientMessage
             .map(|j| j.make_job_info())
             .collect(),
         Selector::Specific(array) => array
-            .get_ids()
             .iter()
-            .filter_map(|&id| state.get_job(id))
+            .filter_map(|id| state.get_job(id))
             .map(|j| j.make_job_info())
             .collect(),
     };
@@ -255,7 +249,7 @@ async fn handle_job_cancel(
             .map(|job_info| job_info.id)
             .collect(),
         Selector::LastN(n) => state_ref.get().last_n_ids(n).collect(),
-        Selector::Specific(array) => array.get_ids(),
+        Selector::Specific(array) => array.iter().collect(),
     };
 
     let mut responses: Vec<(JobId, CancelJobResponse)> = Vec::new();
@@ -370,7 +364,7 @@ async fn handle_submit(
         let job_id = state.new_job_id();
         let task_count = match &message.job_type {
             JobType::Simple => 1,
-            JobType::Array(a) => a.count_ids(),
+            JobType::Array(a) => a.id_count(),
         };
         let tako_base_id = state.new_task_id(task_count);
         let task_defs = match (&message.job_type, message.entries.clone()) {
