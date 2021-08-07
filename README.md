@@ -2,9 +2,6 @@
 <img src="docs/imgs/hq.png">
 </p>
 
-**Warning** this project is under heavy development; it works on a basic level, but we are still working on some
-important features.
-
 [Documentation](https://it4innovations.github.io/hyperqueue/)
 
 **HyperQueue** (HQ) lets you build a computation plan consisting of a large amount of tasks and then
