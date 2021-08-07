@@ -121,7 +121,7 @@ pub struct SubmitResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ToClientMessage {
     JobInfoResponse(JobInfoResponse),
-    JobDetailResponse(Vec<(JobId, JobDetailResponse)>),
+    JobDetailResponse(Vec<(JobId, Option<JobDetail>)>),
     SubmitResponse(SubmitResponse),
     WorkerListResponse(WorkerListResponse),
     WorkerInfoResponse(Option<WorkerInfo>),
@@ -176,12 +176,6 @@ pub struct WorkerInfo {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JobInfoResponse {
     pub jobs: Vec<JobInfo>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum JobDetailResponse {
-    Detail(JobDetail),
-    InvalidJob,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

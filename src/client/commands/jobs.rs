@@ -4,8 +4,8 @@ use crate::client::status::{job_status, Status};
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    CancelJobResponse, CancelRequest, FromClientMessage, JobDetailRequest, JobDetailResponse,
-    JobInfoRequest, Selector, ToClientMessage,
+    CancelJobResponse, CancelRequest, FromClientMessage, JobDetailRequest, JobInfoRequest,
+    Selector, ToClientMessage,
 };
 use crate::JobId;
 
@@ -58,24 +58,29 @@ pub async fn output_job_detail(
     selector: Selector,
     show_tasks: bool,
 ) -> crate::Result<()> {
+    if matches!(selector, Selector::All) {
+        log::warn!("Job detail doesn't support --all specifier, did you mean: job list?");
+        return Ok(());
+    };
+
     let message = FromClientMessage::JobDetail(JobDetailRequest {
         selector,
         include_tasks: true,
     });
-    let mut responses =
+    let responses =
         rpc_call!(connection, message, ToClientMessage::JobDetailResponse(r) => r).await?;
-    responses.sort_unstable_by_key(|x| x.0);
 
-    for (job_id, response) in responses {
-        match response {
-            JobDetailResponse::Detail(detail) => print_job_detail(
+    for response in responses {
+        if let Some(job) = response.1 {
+            print_job_detail(
                 gsettings,
-                detail,
+                job,
                 false,
                 show_tasks,
                 get_worker_map(connection).await?,
-            ),
-            JobDetailResponse::InvalidJob => log::error!("Job {} not found", job_id),
+            );
+        } else {
+            log::error!("Job {} not found", response.0);
         }
     }
     Ok(())

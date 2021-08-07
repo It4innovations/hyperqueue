@@ -127,7 +127,7 @@ impl Job {
     ) -> Self {
         let state = match &job_type {
             JobType::Simple => JobState::SingleTask(JobTaskState::Waiting),
-            JobType::Array(m) if m.count_ids() == 1 => JobState::SingleTask(JobTaskState::Waiting),
+            JobType::Array(m) if m.id_count() == 1 => JobState::SingleTask(JobTaskState::Waiting),
             JobType::Array(m) => JobState::ManyTasks(
                 m.iter()
                     .enumerate()

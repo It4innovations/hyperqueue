@@ -291,6 +291,21 @@ def test_cancel_last(hq_env: HqEnv):
     assert "Canceling job 2 failed" in r
 
 
+def test_cancel_some(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus=1)
+    hq_env.command(["submit", "sleep", "100"])
+    hq_env.command(["submit", "hostname"])
+    hq_env.command(["submit", "/invalid"])
+
+    r = hq_env.command(["cancel", "1-4"])
+    assert "Canceling job 4 failed" in r
+
+    table = hq_env.command(["jobs"], as_table=True)
+    for i in range(3):
+        table.check_value_column("State", i, "CANCELED")
+
+
 def test_cancel_all(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus=1)

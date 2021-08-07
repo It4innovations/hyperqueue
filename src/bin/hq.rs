@@ -4,7 +4,6 @@ use std::str::FromStr;
 use clap::{Clap, ValueHint};
 use cli_table::ColorChoice;
 
-use anyhow::bail;
 use hyperqueue::client::commands::jobs::{cancel_job, output_job_detail, output_job_list};
 use hyperqueue::client::commands::log::{command_log, LogOpts};
 use hyperqueue::client::commands::stats::print_server_stats;
@@ -141,9 +140,9 @@ impl FromStr for SelectorArg {
     }
 }
 
-impl Into<Selector> for SelectorArg {
-    fn into(self) -> Selector {
-        match self {
+impl From<SelectorArg> for Selector {
+    fn from(selector_arg: SelectorArg) -> Self {
+        match selector_arg {
             SelectorArg::Id(array) => Selector::Specific(array),
             SelectorArg::Last => Selector::LastN(1),
             SelectorArg::All => Selector::All,
@@ -154,6 +153,7 @@ impl Into<Selector> for SelectorArg {
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 pub struct WaitOpts {
+    /// Select job(s) to wait for
     selector_arg: SelectorArg,
 }
 
@@ -161,6 +161,7 @@ pub struct WaitOpts {
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct WorkerStopOpts {
+    /// Select worker(s) to stop
     selector_arg: SelectorArg,
 }
 
@@ -233,6 +234,7 @@ struct JobDetailOpts {
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 struct CancelOpts {
+    /// Select job(s) to cancel
     selector_arg: SelectorArg,
 }
 
@@ -280,7 +282,8 @@ async fn command_job_list(gsettings: GlobalSettings, opts: JobListOpts) -> anyho
 
 async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> anyhow::Result<()> {
     if matches!(opts.selector_arg, SelectorArg::All) {
-        bail!("Specifier all is not implemented for job details, did you mean: job list?");
+        log::warn!("Specifier all is not implemented for job details, did you mean: job list?");
+        return Ok(());
     }
 
     let mut connection = get_client_connection(gsettings.server_directory()).await?;

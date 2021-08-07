@@ -55,12 +55,8 @@ impl IntArray {
         }
     }
 
-    pub fn count_ids(&self) -> u32 {
+    pub fn id_count(&self) -> u32 {
         self.ranges.iter().map(|x| x.count).sum()
-    }
-
-    pub fn get_ids(&self) -> Vec<u32> {
-        self.ranges.iter().flat_map(|x| x.iter()).collect()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
