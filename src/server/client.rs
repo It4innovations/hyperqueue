@@ -332,7 +332,7 @@ async fn handle_submit(
                 resources: resources.clone(),
                 n_outputs: 0,
                 type_id: 0,
-                body
+                body,
             },
             keep: false,
             observe: true,

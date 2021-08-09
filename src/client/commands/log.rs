@@ -1,5 +1,5 @@
 use crate::client::globalsettings::GlobalSettings;
-use crate::common::size::human_size;
+use crate::common::format::human_size;
 use crate::stream::reader::logfile::{LogFile, Summary};
 use crate::JobTaskId;
 use clap::Clap;

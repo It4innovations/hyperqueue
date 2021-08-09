@@ -6,23 +6,36 @@ use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{JobDetail, JobInfo, JobType};
 use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
 use bstr::BString;
+use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 use tako::common::resources::ResourceRequest;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum JobTaskState {
     Waiting,
-    Running { worker: WorkerId },
-    Finished { worker: WorkerId },
-    Failed { worker: WorkerId, error: String },
+    Running {
+        worker: WorkerId,
+        start_date: DateTime<Utc>,
+    },
+    Finished {
+        worker: WorkerId,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+    },
+    Failed {
+        worker: WorkerId,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+        error: String,
+    },
     Canceled,
 }
 
 impl JobTaskState {
     pub fn get_worker(&self) -> Option<WorkerId> {
         match self {
-            JobTaskState::Running { worker }
-            | JobTaskState::Finished { worker }
+            JobTaskState::Running { worker, .. }
+            | JobTaskState::Finished { worker, .. }
             | JobTaskState::Failed { worker, .. } => Some(*worker),
             _ => None,
         }
@@ -90,6 +103,9 @@ pub struct Job {
 
     pub entries: Option<Vec<BString>>,
     pub priority: tako::Priority,
+
+    pub submission_date: DateTime<Utc>,
+    pub completion_date: Option<DateTime<Utc>>,
 }
 
 impl Job {
@@ -142,6 +158,8 @@ impl Job {
             entries,
             priority,
             log: job_log,
+            submission_date: Utc::now(),
+            completion_date: None,
         }
     }
 
@@ -168,6 +186,8 @@ impl Job {
             entries: self.entries.clone(),
             max_fails: self.max_fails,
             priority: self.priority,
+            submission_date: self.submission_date,
+            completion_date_or_now: self.completion_date.unwrap_or_else(Utc::now),
         }
     }
 
@@ -245,24 +265,40 @@ impl Job {
         let (_, state) = self.get_task_state_mut(tako_task_id);
 
         if matches!(state, JobTaskState::Waiting) {
-            *state = JobTaskState::Running { worker };
+            *state = JobTaskState::Running {
+                worker,
+                start_date: Utc::now(),
+            };
             self.counters.n_running_tasks += 1;
+        }
+    }
+
+    pub fn check_termination(&mut self, backend: &Backend, now: DateTime<Utc>) {
+        if self.is_terminated() {
+            self.completion_date = Some(now);
+            if self.log.is_some() {
+                backend
+                    .send_stream_control(StreamServerControlMessage::UnregisterStream(self.job_id));
+            }
         }
     }
 
     pub fn set_finished_state(&mut self, tako_task_id: TakoTaskId, backend: &Backend) {
         let (_, state) = self.get_task_state_mut(tako_task_id);
+        let now = Utc::now();
         match state {
-            JobTaskState::Running { worker } => {
-                *state = JobTaskState::Finished { worker: *worker };
+            JobTaskState::Running { worker, start_date } => {
+                *state = JobTaskState::Finished {
+                    worker: *worker,
+                    start_date: *start_date,
+                    end_date: now,
+                };
                 self.counters.n_running_tasks -= 1;
                 self.counters.n_finished_tasks += 1;
             }
             _ => panic!("Invalid worker state, expected Running, got {:?}", state),
         }
-        if self.log.is_some() && self.is_terminated() {
-            backend.send_stream_control(StreamServerControlMessage::UnregisterStream(self.job_id));
-        }
+        self.check_termination(backend, now);
     }
 
     pub fn set_waiting_state(&mut self, tako_task_id: TakoTaskId) {
@@ -274,11 +310,13 @@ impl Job {
 
     pub fn set_failed_state(&mut self, tako_task_id: TakoTaskId, error: String, backend: &Backend) {
         let (_, state) = self.get_task_state_mut(tako_task_id);
-
+        let now = Utc::now();
         match state {
-            JobTaskState::Running { worker } => {
+            JobTaskState::Running { worker, start_date } => {
                 *state = JobTaskState::Failed {
                     error,
+                    start_date: *start_date,
+                    end_date: now,
                     worker: *worker,
                 };
                 self.counters.n_running_tasks -= 1;
@@ -286,15 +324,13 @@ impl Job {
             }
             _ => panic!("Invalid worker state, expected Running, got {:?}", state),
         }
-
-        if self.log.is_some() && self.is_terminated() {
-            backend.send_stream_control(StreamServerControlMessage::UnregisterStream(self.job_id));
-        }
+        self.check_termination(backend, now);
     }
 
     pub fn set_cancel_state(&mut self, tako_task_id: TakoTaskId, backend: &Backend) -> JobTaskId {
         let (task_id, state) = self.get_task_state_mut(tako_task_id);
         let old_state = std::mem::replace(state, JobTaskState::Canceled);
+        let now = Utc::now();
         assert!(matches!(
             old_state,
             JobTaskState::Running { .. } | JobTaskState::Waiting
@@ -303,11 +339,7 @@ impl Job {
             self.counters.n_running_tasks -= 1;
         }
         self.counters.n_canceled_tasks += 1;
-
-        if self.log.is_some() && self.is_terminated() {
-            backend.send_stream_control(StreamServerControlMessage::UnregisterStream(self.job_id));
-        }
-
+        self.check_termination(backend, now);
         task_id
         //assert!(matches!(
         //    old_state,

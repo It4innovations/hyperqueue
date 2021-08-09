@@ -11,11 +11,13 @@ use crate::client::resources::cpu_request_to_string;
 use crate::client::status::{job_status, status_cell, task_status};
 use crate::client::utils;
 use crate::common::env::is_hq_env;
+use crate::common::format::human_duration;
 use crate::rpc_call;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, JobDetail, JobInfo, JobType, ToClientMessage};
 use crate::{JobTaskCount, Map, WorkerId};
+use chrono::SubsecRound;
 
 /// Maps worker IDs to hostnames.
 type WorkerMap = Map<WorkerId, String>;
@@ -202,12 +204,23 @@ pub fn print_job_detail(
             .cell(),
     ]);
 
+    rows.push(vec![
+        "Submission date".cell().bold(true),
+        job.submission_date.round_subsecs(0).cell(),
+    ]);
+
+    rows.push(vec![
+        "Makespan".cell().bold(true),
+        human_duration(job.completion_date_or_now - job.submission_date).cell(),
+    ]);
+
     let table = rows.table().color_choice(gsettings.color_policy());
     assert!(print_stdout(table).is_ok());
 
     if !job.tasks.is_empty() {
         print_job_tasks(
             gsettings,
+            job.completion_date_or_now,
             job.tasks,
             show_tasks,
             &job.info.counters,
@@ -248,8 +261,30 @@ fn format_worker(id: WorkerId, worker_map: &WorkerMap) -> &str {
         .unwrap_or_else(|| "N/A")
 }
 
+fn format_task_duration(
+    completion_date_or_now: &chrono::DateTime<chrono::Utc>,
+    state: &JobTaskState,
+) -> String {
+    let duration = match state {
+        JobTaskState::Canceled | JobTaskState::Waiting => return "".to_string(),
+        JobTaskState::Running { start_date, .. } => *completion_date_or_now - *start_date,
+        JobTaskState::Finished {
+            start_date,
+            end_date,
+            ..
+        }
+        | JobTaskState::Failed {
+            start_date,
+            end_date,
+            ..
+        } => *end_date - *start_date,
+    };
+    human_duration(duration)
+}
+
 fn print_job_tasks(
     gsettings: &GlobalSettings,
+    completion_date_or_now: chrono::DateTime<chrono::Utc>,
     mut tasks: Vec<JobTaskInfo>,
     show_tasks: bool,
     counters: &JobTaskCounters,
@@ -258,7 +293,7 @@ fn print_job_tasks(
     tasks.sort_unstable_by_key(|t| t.task_id);
 
     let make_error_row = |t: &JobTaskInfo| match &t.state {
-        JobTaskState::Failed { worker, error } => Some(vec![
+        JobTaskState::Failed { worker, error, .. } => Some(vec![
             t.task_id.cell(),
             format_worker(*worker, worker_map).cell(),
             error.to_owned().cell().foreground_color(Some(Color::Red)),
@@ -278,6 +313,7 @@ fn print_job_tasks(
                         _ => "",
                     }
                     .cell(),
+                    format_task_duration(&completion_date_or_now, &t.state).cell(),
                     match &t.state {
                         JobTaskState::Failed { error, .. } => {
                             error.to_owned().cell().foreground_color(Some(Color::Red))
@@ -294,6 +330,7 @@ fn print_job_tasks(
                 "Task Id".cell().bold(true),
                 "State".cell().bold(true),
                 "Worker".cell().bold(true),
+                "Time".cell().bold(true),
                 "Message".cell().bold(true),
             ]);
         assert!(print_stdout(table).is_ok());

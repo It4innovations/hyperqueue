@@ -184,6 +184,12 @@ pub struct JobDetail {
     pub entries: Option<Vec<BString>>,
     pub max_fails: Option<JobTaskCount>,
     pub priority: tako::Priority,
+
+    // Date when job was submitted
+    pub submission_date: DateTime<Utc>,
+
+    // Time when job was completed or now if job is not completed
+    pub completion_date_or_now: DateTime<Utc>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -146,7 +146,13 @@ class HqEnv(Env):
         worker_env = self.make_default_env()
         if env:
             worker_env.update(env)
-        worker_args = [get_hq_binary(self.debug), "--server-dir", self.server_dir, "worker", "start"]
+        worker_args = [
+            get_hq_binary(self.debug),
+            "--server-dir",
+            self.server_dir,
+            "worker",
+            "start",
+        ]
         if cpus is not None:
             worker_args += ["--cpus", str(cpus)]
         if args:
