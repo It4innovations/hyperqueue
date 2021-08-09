@@ -629,3 +629,29 @@ def test_job_wait_cancellation_exit_code(hq_env: HqEnv):
     hq_env.command(["cancel", "last"])
 
     assert process.wait() == 1
+
+
+def test_job_completion_time(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    table = hq_env.command(["submit", "sleep", "1"], as_table=True)
+    table.check_value_row("Makespan", "0s")
+    wait_for_job_state(hq_env, 1, "RUNNING")
+
+    table = hq_env.command(["job", "1"], as_table=True)
+    assert table.get_row_value("Makespan") != "0s"
+    assert not table.get_row_value("Makespan").startswith("1s")
+
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    time.sleep(
+        1.2
+    )  # This sleep is not redundant, we check that after finished time is not moving
+
+    table = hq_env.command(["job", "1"], as_table=True)
+    assert table.get_row_value("Makespan").startswith("1s")
+
+    table = hq_env.command(["job", "1", "--tasks"], as_table=True)
+
+    offset = JOB_TABLE_ROWS
+    assert table[offset + 1][3].startswith("1s")

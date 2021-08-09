@@ -3,7 +3,7 @@ import os
 import time
 
 from .conftest import HqEnv
-from .utils import JOB_TABLE_ROWS, wait_for_job_state, print_table
+from .utils import JOB_TABLE_ROWS, print_table, wait_for_job_state
 
 
 def test_job_array_submit(hq_env: HqEnv):
@@ -88,8 +88,8 @@ def test_job_array_error_some(hq_env: HqEnv):
 
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
     for i, s in enumerate(
-            ["FINISHED", "FAILED", "FAILED", "FINISHED", "FINISHED", "FINISHED", "FAILED"]
-            + 3 * ["FINISHED"]
+        ["FINISHED", "FAILED", "FAILED", "FINISHED", "FINISHED", "FINISHED", "FAILED"]
+        + 3 * ["FINISHED"]
     ):
         assert table[offset + 1 + i][0] == str(i)
 
@@ -123,7 +123,7 @@ def test_job_array_error_all(hq_env: HqEnv):
     for i in range(10):
         assert table[offset + i][0] == str(i)
         assert table[offset + i][1] == "FAILED"
-        assert "No such file or directory" in table[offset + i][3]
+        assert "No such file or directory" in table[offset + i][4]
 
 
 def test_job_array_cancel(hq_env: HqEnv):

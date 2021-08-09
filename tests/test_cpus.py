@@ -4,7 +4,7 @@ import subprocess
 import pytest
 
 from .conftest import RUNNING_IN_CI, HqEnv
-from .utils import wait_for_job_state, print_table
+from .utils import print_table, wait_for_job_state
 
 
 def read_list(filename):

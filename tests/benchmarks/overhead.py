@@ -2,19 +2,25 @@ import multiprocessing
 
 import pytest
 
-from ..conftest import run_hq_env, HqEnv
+from ..conftest import HqEnv, run_hq_env
 
 
 def task_overhead(env: HqEnv, task_count: int):
-    env.command([
-        "submit",
-        "--stdout", "none",
-        "--stderr", "none",
-        "--wait",
-        "--array", f"1-{task_count}",
-        "--",
-        "sleep", "0"
-    ])
+    env.command(
+        [
+            "submit",
+            "--stdout",
+            "none",
+            "--stderr",
+            "none",
+            "--wait",
+            "--array",
+            f"1-{task_count}",
+            "--",
+            "sleep",
+            "0",
+        ]
+    )
 
 
 @pytest.mark.parametrize("task_count", (100, 1000, 10000))

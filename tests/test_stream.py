@@ -274,7 +274,8 @@ def test_stream_unfinished_large(hq_env: HqEnv):
             "--",
             "python3",
             "-c",
-            "import time; import sys; sys.stdout.write('ab' * (16 * 1024 + 3)); sys.stdout.flush(); time.sleep(2); print('end')",
+            "import time; import sys; sys.stdout.write('ab' * (16 * 1024 + 3));"
+            "sys.stdout.flush(); time.sleep(2); print('end')",
         ]
     )
     hq_env.start_workers(1)
