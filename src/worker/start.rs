@@ -167,7 +167,7 @@ async fn launcher_main(streamer_ref: StreamerRef, task_ref: TaskRef) -> tako::Re
     log::debug!(
         "Starting program launcher {} {:?} {:?}",
         task_ref.get().id,
-        &task_ref.get().resources,
+        &task_ref.get().configuration.resources,
         task_ref.get().resource_allocation()
     );
 
@@ -178,7 +178,7 @@ async fn launcher_main(streamer_ref: StreamerRef, task_ref: TaskRef) -> tako::Re
         InstanceId,
     ) = {
         let task = task_ref.get();
-        let body: TaskBody = tako::transfer::auth::deserialize(&task.spec)?;
+        let body: TaskBody = tako::transfer::auth::deserialize(&task.configuration.body)?;
         let allocation = task
             .resource_allocation()
             .expect("Missing resource allocation for running task");

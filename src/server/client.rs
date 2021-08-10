@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
-use tako::messages::common::ProgramDefinition;
+use tako::messages::common::{ProgramDefinition, TaskConfiguration};
 use tako::messages::gateway::{
     CancelTasks, FromGatewayMessage, NewTasksMessage, StopWorkerRequest, TaskDef, ToGatewayMessage,
 };
@@ -328,13 +328,15 @@ async fn handle_submit(
         let body = tako::transfer::auth::serialize(&body_msg).unwrap();
         TaskDef {
             id: tako_id,
-            type_id: 0,
-            body,
+            conf: TaskConfiguration {
+                resources: resources.clone(),
+                n_outputs: 0,
+                type_id: 0,
+                body
+            },
             keep: false,
             observe: true,
-            n_outputs: 0,
             priority,
-            resources: resources.clone(),
         }
     };
     let (task_defs, job_detail, job_id) = {
