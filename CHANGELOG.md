@@ -3,11 +3,12 @@
 ## New features
 
   * Time limit for tasks (option ``--time-limit``)
-  * Job and task times are shown
-  * Integers anywhere can be now written with underscore (e.g. ``--array=1-1_000``)
+  * Job and task times are shown in job information tables
+  * Integers in command line options can be now written with an underscore separator (e.g. ``--array=1-1_000``)
+  * The default path of stdout and stderr has been changed to Storing tasks default stdout by new rule `` job-%{JOB_ID}/[stdout/stderr].%{TASK_ID}``
 
 ## Changes
-  * Job id is now u32
+  * Job id is now represented as u32
   * Normalization of stream's end behavior when job is canceled
 
 

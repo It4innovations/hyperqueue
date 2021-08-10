@@ -24,7 +24,7 @@ def test_entries_no_newline(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     for i, test in enumerate(["One\n", "Two\n", "Three\n", "Four\n"]):
-        with open(f"stdout.1.{i}") as f:
+        with open(f"job-{1}/stdout.{i}") as f:
             line = f.read()
         assert line == test
     assert not os.path.isfile("stdout.0.4")
@@ -53,7 +53,7 @@ def test_entries_with_newline(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     for i, test in enumerate(["One\n", "Two\n", "Three\n", "Four\n"]):
-        with open(f"stdout.1.{i}") as f:
+        with open(f"job-1/stdout.{i}") as f:
             line = f.read()
         assert line == test
     assert not os.path.isfile("stdout.0.4")
