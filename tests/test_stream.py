@@ -8,6 +8,7 @@ def check_no_stream_connections(hq_env: HqEnv):
     table = hq_env.command(["server", "info", "--stats"], as_table=True)
     table.check_value_row("Stream connections", "")
     table.check_value_row("Stream registrations", "")
+    table.check_value_row("Open files", "")
 
 
 def test_stream_submit(hq_env: HqEnv):
@@ -165,8 +166,10 @@ def test_stream_stats(hq_env: HqEnv):
     hq_env.command(["submit", "--log", "mylog", "--array=1-4", "--", "sleep", "2"])
 
     table = hq_env.command(["server", "info", "--stats"], as_table=True)
+    print(table)
     table.check_value_row("Stream connections", "")
     assert table.get_row_value("Stream registrations").startswith("1:")
+    table.check_value_row("Open files", "")
 
     hq_env.start_workers(2, cpus="2")
     time.sleep(1)
@@ -174,6 +177,8 @@ def test_stream_stats(hq_env: HqEnv):
     table = hq_env.command(["server", "info", "--stats"], as_table=True)
     assert table.get_row_value("Stream registrations").startswith("1:")
     assert 2 == len(table.get_row_value("Stream connections").split("\n"))
+    assert table.get_row_value("Open files").endswith("/mylog")
+
     time.sleep(1.2)
     check_no_stream_connections(hq_env)
 
@@ -293,3 +298,89 @@ def test_stream_unfinished_large(hq_env: HqEnv):
     check_no_stream_connections(hq_env)
     result = hq_env.command(["log", "mylog", "cat", "stdout"])
     assert "ab" * (16 * 1024 + 3) + "end\n" == result
+
+
+def test_stream_task_fail(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_workers(1)
+
+    hq_env.command(
+        [
+            "submit",
+            "--log",
+            "mylog",
+            "--",
+            "bash",
+            "-c",
+            "echo Start; exit 1",
+        ]
+    )
+
+    wait_for_job_state(hq_env, 1, "FAILED")
+
+    result = hq_env.command(["log", "mylog", "show"])
+    assert result == "0:0> Start\n0: > stream closed\n"
+
+    check_no_stream_connections(hq_env)
+
+
+def test_stream_task_cancel(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_workers(1)
+
+    hq_env.command(
+        [
+            "submit",
+            "--log",
+            "mylog",
+            "--",
+            "bash",
+            "-c",
+            "echo Start; sleep 2; echo End",
+        ]
+    )
+
+    wait_for_job_state(hq_env, 1, "RUNNING")
+
+    hq_env.command(["cancel", "1"])
+
+    wait_for_job_state(hq_env, 1, "CANCELED")
+
+    time.sleep(0.5)
+
+    result = hq_env.command(["log", "mylog", "show"])
+    assert result == "0:0> Start\n0: > stream closed\n"
+
+    check_no_stream_connections(hq_env)
+
+
+def test_stream_worker_killed(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_workers(1, args=["--heartbeat", "500ms"])
+
+    hq_env.command(
+        [
+            "submit",
+            "--log",
+            "mylog",
+            "--",
+            "bash",
+            "-c",
+            "echo Start; sleep 2; echo End",
+        ]
+    )
+
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    time.sleep(0.2)
+    hq_env.kill_worker(1)
+    wait_for_job_state(hq_env, 1, "WAITING")
+
+    time.sleep(0.5)
+
+    result = hq_env.command(["log", "mylog", "show"])
+    assert result == "0:0> Start\n0: > stream closed\n"
+
+    table = hq_env.command(["server", "info", "--stats"], as_table=True)
+    table.check_value_row("Stream connections", "")
+    assert table.get_row_value("Stream registrations") != ""
+    assert table.get_row_value("Open files") != ""

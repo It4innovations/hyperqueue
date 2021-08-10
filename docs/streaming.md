@@ -68,6 +68,14 @@ Disabling stderr and streaming only stdout into log file.
 ``hq submit --log=my-log --stderr=none ...``
 
 
+# Guarantees
+
+When a task is *finished* or *failed* with a non-streaming error then it is guaranteed that its stream is fully flushed into the log file.
+
+When a task is *canceled* or *failed* with a streaming error, then the stream is not necessarily fully written into the log file in the moment when the state occurs
+ and some part may be written later, but the stream will be eventually closed. In this case, HQ is also allowed to drop any suffix of the buffered part of the stream.
+
+
 # Current limitations
 
 The current version does not support streaming of more jobs into the same file,

@@ -70,7 +70,7 @@ def assert_equals(a, b):
     Without this it won't show the differing values if an assert error happens inside some method.
     """
     if a != b:
-        raise Exception(f"{a} does not equal {b}")
+        raise Exception(f"{a!r} does not equal {b!r}")
 
 
 def parse_table(table_string: str) -> Table:
