@@ -24,8 +24,8 @@ use crate::transfer::messages::{
 use crate::{rpc_call, JobId, JobTaskCount};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
-const DEFAULT_STDOUT_PATH: &str = "stdout.%{JOB_ID}.%{TASK_ID}";
-const DEFAULT_STDERR_PATH: &str = "stderr.%{JOB_ID}.%{TASK_ID}";
+const DEFAULT_STDOUT_PATH: &str = "job-%{JOB_ID}/stdout.%{TASK_ID}";
+const DEFAULT_STDERR_PATH: &str = "job-%{JOB_ID}/stderr.%{TASK_ID}";
 
 struct ArgCpuRequest(CpuRequest);
 

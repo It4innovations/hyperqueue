@@ -1,5 +1,7 @@
 import os
 import socket
+from os.path import isdir, isfile
+
 import time
 from datetime import datetime
 
@@ -103,7 +105,7 @@ def test_custom_working_dir(hq_env: HqEnv, tmpdir):
     hq_env.start_worker(cpus=1)
     wait_for_job_state(hq_env, 1, ["FINISHED"])
 
-    with open(os.path.join(tmpdir, "submit_dir", "stdout.1.0")) as f:
+    with open(os.path.join(tmpdir, "submit_dir", "job-1/stdout.0")) as f:
         assert f.read() == test_string
 
 
@@ -116,22 +118,39 @@ def test_job_output_default(hq_env: HqEnv, tmp_path):
 
     wait_for_job_state(hq_env, [1, 2, 3], ["FINISHED", "FAILED"])
 
-    with open(os.path.join(tmp_path, "stdout.1.0")) as f:
+    with open(os.path.join(tmp_path, "job-1/stdout.0")) as f:
         assert f.read() == "hello\n"
-    with open(os.path.join(tmp_path, "stderr.1.0")) as f:
+    with open(os.path.join(tmp_path, "job-1/stderr.0")) as f:
         assert f.read() == ""
 
-    with open(os.path.join(tmp_path, "stdout.2.0")) as f:
+    with open(os.path.join(tmp_path, "job-2/stdout.0")) as f:
         assert f.read() == ""
-    with open(os.path.join(tmp_path, "stderr.2.0")) as f:
+    with open(os.path.join(tmp_path, "job-2/stderr.0")) as f:
         data = f.read()
         assert "No such file or directory" in data
         assert data.startswith("ls:")
 
-    with open(os.path.join(tmp_path, "stdout.3.0")) as f:
+    with open(os.path.join(tmp_path, "job-3/stdout.0")) as f:
         assert f.read() == ""
-    with open(os.path.join(tmp_path, "stderr.3.0")) as f:
+    with open(os.path.join(tmp_path, "job-3/stderr.0")) as f:
         assert f.read() == ""
+
+
+def test_create_output_folders(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.command([
+        "submit",
+        "--stdout", "foo/1/job.out",
+        "--stderr", "foo/1/job.err",
+        "--",
+        "echo", "hi"
+    ])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    assert isdir("foo/1")
+    assert isfile("foo/1/job.out")
+    assert isfile("foo/1/job.err")
 
 
 def test_job_output_configured(hq_env: HqEnv, tmp_path):
@@ -375,7 +394,7 @@ def test_set_env(hq_env: HqEnv):
     )
     wait_for_job_state(hq_env, 1, "FINISHED")
 
-    with open(f"{hq_env.work_path}/stdout.1.0") as f:
+    with open(f"{hq_env.work_path}/job-1/stdout.0") as f:
         assert f.read().strip() == "BAR BAR2"
 
     table = hq_env.command(["job", "1"], as_table=True)
@@ -574,7 +593,7 @@ def test_job_priority(hq_env: HqEnv, tmp_path):
     wait_for_job_state(hq_env, 4, "FINISHED")
 
     dates = []
-    for file in ["stdout.1.0", "stdout.2.0", "stdout.3.0", "stdout.4.0"]:
+    for file in ["job-1/stdout.0", "job-2/stdout.0", "job-3/stdout.0", "job-4/stdout.0"]:
         with open(os.path.join(tmp_path, file)) as f:
             dates.append(datetime.fromisoformat(f.read().strip()))
 

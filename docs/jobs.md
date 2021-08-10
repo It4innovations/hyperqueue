@@ -61,7 +61,7 @@ You can also disable creating stdout/stderr completely by setting value ``none``
 $ hq submit --stdout=none ...
 ```
 
-The default values for these paths are ``stdout.%{JOB_ID}.%{TASK_ID}`` and ``stderr.%{JOB_ID}.%{TASK_ID}``. You can read
+The default values for these paths are ``job-%{JOB_ID}/stdout.%{TASK_ID}`` and ``job-%{JOB_ID}/stderr.%{TASK_ID}``. You can read
 about the `%{JOB_ID}` and `%{TASK_ID}` placeholders [below](#placeholders).
 
 !!! Hint

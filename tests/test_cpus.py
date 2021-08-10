@@ -38,27 +38,27 @@ def test_job_num_of_cpus(hq_env: HqEnv):
 
     table = hq_env.command(["job", "1"], as_table=True)
     table.check_value_row("Resources", "1 compact")
-    assert len(read_list("stdout.1.0")) == 1
+    assert len(read_list("job-1/stdout.0")) == 1
 
     table = hq_env.command(["job", "2"], as_table=True)
     table.check_value_row("Resources", "2 scatter")
-    assert len(set(x // 4 for x in read_list("stdout.2.0"))) == 2
+    assert len(set(x // 4 for x in read_list("job-2/stdout.0"))) == 2
 
     table = hq_env.command(["job", "4"], as_table=True)
     table.check_value_row("Resources", "4 compact!")
-    lst = read_list("stdout.4.0")
+    lst = read_list("job-4/stdout.0")
     assert len(set(x // 4 for x in lst)) == 1
     assert len(lst) == 4
 
     table = hq_env.command(["job", "5"], as_table=True)
     table.check_value_row("Resources", "5 compact!")
-    lst = read_list("stdout.5.0")
+    lst = read_list("job-5/stdout.0")
     assert len(set(x // 4 for x in lst)) == 2
     assert len(lst) == 5
 
     table = hq_env.command(["job", "6"], as_table=True)
     table.check_value_row("Resources", "all")
-    lst = read_list("stdout.6.0")
+    lst = read_list("job-6/stdout.0")
     assert list(range(12)) == lst
 
 
@@ -114,7 +114,7 @@ def test_job_no_pin(hq_env: HqEnv):
     table.check_value_row("State", "FINISHED")
     table.check_value_row("Resources", "2 compact!")
 
-    with open("stdout.1.0", "rb") as f:
+    with open("job-1/stdout.0", "rb") as f:
         f.readline()  # skip line
         line = f.readline().split()
         del line[1]  # Remove actual PID
@@ -143,6 +143,6 @@ def test_job_pin(hq_env: HqEnv):
     table.check_value_row("State", "FINISHED")
     table.check_value_row("Resources", "2 compact! [pin]")
 
-    with open("stdout.1.0") as f:
+    with open("job-1/stdout.0") as f:
         hq_cpus = f.readline().rstrip()
         assert hq_cpus == f.readline().rstrip().split(" ")[5]

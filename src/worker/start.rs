@@ -33,6 +33,7 @@ use crate::worker::streamer::StreamerRef;
 use crate::{JobId, JobTaskId};
 use hashbrown::HashMap;
 use std::future::Future;
+use std::io;
 use std::pin::Pin;
 use std::process::ExitStatus;
 use std::rc::Rc;
@@ -66,7 +67,7 @@ impl FromStr for ManagerOpts {
                 return error(
                     "Invalid manager value. Allowed values are 'detect', 'none', 'pbs', 'slurm'"
                         .to_string(),
-                )
+                );
             }
         })
     }
@@ -87,7 +88,7 @@ pub struct WorkerStartOpts {
     idle_timeout: Option<ArgDuration>,
 
     /// What HPC job manager should be used by the worker.
-    #[clap(long, default_value = "detect", possible_values = &["detect", "slurm", "pbs", "none"])]
+    #[clap(long, default_value = "detect", possible_values = & ["detect", "slurm", "pbs", "none"])]
     manager: ManagerOpts,
 }
 
@@ -142,6 +143,7 @@ fn replace_placeholders(program: &mut ProgramDefinition) {
 
     program.stdout = std::mem::take(&mut program.stdout)
         .map_filename(|path| submit_dir.join(replace(&placeholder_map, &path)));
+
     program.stderr = std::mem::take(&mut program.stderr)
         .map_filename(|path| submit_dir.join(replace(&placeholder_map, &path)));
 }
@@ -163,6 +165,15 @@ async fn resend_stdio(
             };
             buffer.truncate(size);
             stream.send_data(channel, buffer).await?;
+        }
+    }
+    Ok(())
+}
+
+fn create_directory_if_needed(file: &StdioDef) -> io::Result<()> {
+    if let StdioDef::File(path) = file {
+        if let Some(path) = path.parent() {
+            std::fs::create_dir_all(path)?;
         }
     }
     Ok(())
@@ -207,6 +218,10 @@ async fn launcher_main(
             .insert(HQ_INSTANCE_ID.into(), task.instance_id.to_string().into());
 
         replace_placeholders(&mut program);
+
+        create_directory_if_needed(&program.stdout)?;
+        create_directory_if_needed(&program.stderr)?;
+
         (program, body.job_id, body.task_id, task.instance_id)
     };
 

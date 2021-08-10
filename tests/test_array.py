@@ -7,6 +7,7 @@ from .utils import JOB_TABLE_ROWS
 from .utils import wait_for_job_state
 
 
+
 def test_job_array_submit(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus=4)
@@ -16,13 +17,13 @@ def test_job_array_submit(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     for i in list(range(0, 30)) + list(range(37, 40)):
-        assert not os.path.isfile(os.path.join(hq_env.work_path, f"stdout.1.{i}"))
-        assert not os.path.isfile(os.path.join(hq_env.work_path, f"stderr.1.{i}"))
+        assert not os.path.isfile(os.path.join(hq_env.work_path, f"job-1/stdout.{i}"))
+        assert not os.path.isfile(os.path.join(hq_env.work_path, f"job-1/stderr.{i}"))
 
     for i in range(36, 37):
-        stdout = os.path.join(hq_env.work_path, f"stdout.1.{i}")
+        stdout = os.path.join(hq_env.work_path, f"job-1/stdout.{i}")
         assert os.path.isfile(stdout)
-        assert os.path.isfile(os.path.join(hq_env.work_path, f"stderr.1.{i}"))
+        assert os.path.isfile(os.path.join(hq_env.work_path, f"job-1/stderr.{i}"))
         with open(stdout) as f:
             assert f.read() == f"1-{i}\n"
 
