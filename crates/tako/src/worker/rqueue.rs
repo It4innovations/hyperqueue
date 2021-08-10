@@ -30,15 +30,15 @@ impl ResourceWaitQueue {
             let task = task_ref.get();
             let priority = task.priority;
             (
-                if let Some(queue) = self.queues.get_mut(&task.resources) {
+                if let Some(queue) = self.queues.get_mut(&task.configuration.resources) {
                     queue
                 } else {
-                    self.requests.push(task.resources.clone());
+                    self.requests.push(task.configuration.resources.clone());
                     self.requests
                         .sort_unstable_by_key(|r| Reverse(r.sort_key()));
                     self.queues
-                        .insert(task.resources.clone(), Default::default());
-                    self.queues.get_mut(&task.resources).unwrap()
+                        .insert(task.configuration.resources.clone(), Default::default());
+                    self.queues.get_mut(&task.configuration.resources).unwrap()
                 },
                 priority,
             )
@@ -71,8 +71,9 @@ impl ResourceWaitQueue {
                     break;
                 }
                 let allocation = {
-                    if let Some(allocation) =
-                        self.pool.try_allocate_resources(&task_ref.get().resources)
+                    if let Some(allocation) = self
+                        .pool
+                        .try_allocate_resources(&task_ref.get().configuration.resources)
                     {
                         allocation
                     } else {

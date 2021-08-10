@@ -1,9 +1,10 @@
-use crate::common::resources::{ResourceAllocation, ResourceRequest};
+use crate::common::resources::ResourceAllocation;
 use crate::common::WrappedRcRefCell;
+use crate::messages::common::TaskConfiguration;
 use crate::messages::worker::ComputeTaskMsg;
 use crate::worker::data::DataObjectRef;
 use crate::worker::taskenv::TaskEnv;
-use crate::{InstanceId, OutputId, Priority, TaskId, TaskTypeId};
+use crate::{InstanceId, Priority, TaskId};
 
 pub enum TaskState {
     Waiting(u32),
@@ -14,13 +15,10 @@ pub enum TaskState {
 
 pub struct Task {
     pub id: TaskId,
-    pub type_id: TaskTypeId,
     pub state: TaskState,
     pub priority: (Priority, Priority),
     pub deps: Vec<DataObjectRef>,
-    pub resources: ResourceRequest,
-    pub n_outputs: OutputId,
-    pub spec: Vec<u8>,
+    pub configuration: TaskConfiguration,
     pub instance_id: InstanceId,
 }
 
@@ -86,13 +84,10 @@ impl TaskRef {
     pub fn new(message: ComputeTaskMsg) -> Self {
         TaskRef::wrap(Task {
             id: message.id,
-            type_id: message.type_id,
-            n_outputs: message.n_outputs,
-            spec: message.spec,
             priority: (message.user_priority, message.scheduler_priority),
             state: TaskState::Waiting(0),
+            configuration: message.configuration,
             deps: Default::default(),
-            resources: message.resources,
             instance_id: message.instance_id,
         })
     }

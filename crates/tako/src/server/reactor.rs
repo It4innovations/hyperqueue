@@ -269,7 +269,7 @@ pub fn on_task_finished(
 
             let mut placement = Set::new();
 
-            if task.n_outputs > 0 {
+            if task.configuration.n_outputs > 0 {
                 placement.insert(worker_id);
             }
 

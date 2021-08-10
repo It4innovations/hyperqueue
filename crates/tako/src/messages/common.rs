@@ -4,9 +4,9 @@ use std::time::Duration;
 use bstr::BString;
 use serde::{Deserialize, Serialize};
 
-use crate::common::resources::ResourceDescriptor;
+use crate::common::resources::{ResourceDescriptor, ResourceRequest};
 use crate::common::Map;
-use crate::TaskTypeId;
+use crate::{OutputId, TaskTypeId};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskFailInfo {
@@ -130,4 +130,18 @@ pub struct NetworkStats {
     pub tx_packets: u64,
     pub rx_errors: u64,
     pub tx_errors: u64,
+}
+
+#[derive(Deserialize, Serialize, Debug, Default, Clone)]
+pub struct TaskConfiguration {
+    #[serde(default)]
+    pub resources: ResourceRequest,
+
+    #[serde(default)]
+    pub n_outputs: OutputId,
+
+    pub type_id: TaskTypeId,
+
+    #[serde(with = "serde_bytes")]
+    pub body: Vec<u8>,
 }

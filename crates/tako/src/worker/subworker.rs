@@ -87,7 +87,7 @@ impl Subworker {
         // Send message to subworker
         let message = ToSubworkerMessage::ComputeTask(ComputeTaskMsg {
             id: task.id,
-            spec: &task.spec,
+            spec: &task.configuration.body,
         });
         let data = rmp_serde::to_vec_named(&message).unwrap();
         self.sender.send(data.into()).unwrap();

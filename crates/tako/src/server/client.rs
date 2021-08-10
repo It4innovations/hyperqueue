@@ -106,22 +106,19 @@ pub async fn process_client_message(
                 if core.is_used_task_id(task.id) {
                     return Some(format!("Task id={} is already taken", task.id));
                 }
-                assert!(task.n_outputs == 0 || task.n_outputs == 1); // TODO: Implementation for more outputs
+                assert!(task.conf.n_outputs == 0 || task.conf.n_outputs == 1); // TODO: Implementation for more outputs
 
-                if task.type_id == 0 {
-                    assert_eq!(task.n_outputs, 0);
+                if task.conf.type_id == 0 {
+                    assert_eq!(task.conf.n_outputs, 0);
                 } else {
                     todo!(); // Check that task type exists
                 }
 
                 let task_ref = TaskRef::new(
                     task.id,
-                    task.type_id,
-                    task.body,
                     Vec::new(),
-                    task.n_outputs,
+                    task.conf,
                     task.priority,
-                    task.resources,
                     task.keep,
                     task.observe,
                 );

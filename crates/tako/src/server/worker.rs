@@ -63,19 +63,21 @@ impl Worker {
 
     pub fn insert_task(&mut self, task: &Task, task_ref: TaskRef) {
         assert!(self.tasks.insert(task_ref));
-        self.load.add_request(&task.resources, &self.resources);
+        self.load
+            .add_request(&task.configuration.resources, &self.resources);
     }
 
     pub fn remove_task(&mut self, task: &Task, task_ref: &TaskRef) {
         assert!(self.tasks.remove(task_ref));
-        self.load.remove_request(&task.resources, &self.resources);
+        self.load
+            .remove_request(&task.configuration.resources, &self.resources);
     }
 
     pub fn sanity_check(&self) {
         let mut check_load = WorkerLoad::default();
         for task_ref in &self.tasks {
             let task = task_ref.get();
-            check_load.add_request(&task.resources, &self.resources);
+            check_load.add_request(&task.configuration.resources, &self.resources);
         }
         assert_eq!(self.load, check_load);
     }
