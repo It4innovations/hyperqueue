@@ -31,6 +31,10 @@ pub async fn print_server_stats(
                 .join("\n")
                 .cell(),
         ],
+        vec![
+            "Open files".cell().bold(true),
+            response.stream_stats.files.join("\n").cell(),
+        ],
     ];
     let table = rows.table().color_choice(gsettings.color_policy());
     assert!(print_stdout(table).is_ok());

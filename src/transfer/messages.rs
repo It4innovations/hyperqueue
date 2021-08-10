@@ -106,6 +106,7 @@ pub enum StopWorkerResponse {
 pub struct StreamStats {
     pub connections: Vec<String>,
     pub registrations: Vec<(JobId, PathBuf)>,
+    pub files: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

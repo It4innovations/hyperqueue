@@ -32,6 +32,7 @@ use crate::{JobId, JobTaskId, Map};
 use hashbrown::HashMap;
 use std::future::Future;
 use std::pin::Pin;
+use std::rc::Rc;
 use std::time::Duration;
 use tako::common::error::DsError;
 use tako::InstanceId;
@@ -146,7 +147,7 @@ async fn resend_stdio(
     job_task_id: JobTaskId,
     channel: ChannelId,
     stdio: Option<impl tokio::io::AsyncRead + Unpin>,
-    stream: StreamSender,
+    stream: Rc<StreamSender>,
 ) -> tako::Result<()> {
     if let Some(mut stdio) = stdio {
         log::debug!("Starting stream {}/{}/1", job_id, job_task_id);
@@ -234,13 +235,13 @@ async fn run_task(
             |e: DsError| DsError::GenericError(format!("Streamer: {:?}", e.to_string()));
         let mut child = command.spawn()?;
         let (close_sender, close_responder) = oneshot::channel();
-        let stream = streamer_ref.get_mut().get_stream(
+        let stream = Rc::new(streamer_ref.get_mut().get_stream(
             &streamer_ref,
             job_id,
             job_task_id,
             instance_id,
             close_sender,
-        );
+        ));
 
         stream.send_stream_start().await.map_err(streamer_error)?;
 

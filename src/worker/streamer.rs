@@ -8,6 +8,7 @@ use futures::stream::SplitStream;
 use futures::{SinkExt, StreamExt};
 use orion::aead::streaming::StreamOpener;
 use orion::aead::SecretKey;
+use std::cell::Cell;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -111,6 +112,7 @@ impl Streamer {
                 task_id: job_task_id,
                 instance_id,
                 sender: info.sender.clone(),
+                finished: Cell::new(false),
             }
         } else {
             log::debug!("Starting a new stream connection for job_id = {}", job_id);
@@ -198,6 +200,7 @@ impl Streamer {
                 task_id: job_task_id,
                 sender: queue_sender,
                 instance_id,
+                finished: Cell::new(false),
             }
         }
     }
@@ -232,15 +235,47 @@ impl StreamerRef {
     }
 }
 
-#[derive(Clone)]
 pub struct StreamSender {
     sender: Sender<FromStreamerMessage>,
     task_id: JobTaskId,
     instance_id: InstanceId,
+    finished: Cell<bool>,
+}
+
+impl Drop for StreamSender {
+    fn drop(&mut self) {
+        if !self.finished.get() {
+            log::debug!(
+                "Clean up a unfinished StreamSender job_task_id={}",
+                self.task_id
+            );
+            let sender = self.sender.clone();
+            let task = self.task_id;
+            let instance = self.instance_id;
+
+            tokio::task::spawn_local(async move {
+                log::debug!(
+                    "Clean up task of a unfinished StreamSender job_task_id={}",
+                    task
+                );
+                if sender
+                    .send(FromStreamerMessage::End(EndTaskStreamMsg {
+                        task,
+                        instance,
+                    }))
+                    .await
+                    .is_err()
+                {
+                    log::debug!("Closing stream in drop failed");
+                }
+            });
+        }
+    }
 }
 
 impl StreamSender {
     pub async fn close(&self) -> tako::Result<()> {
+        self.finished.set(true);
         if self
             .sender
             .send(FromStreamerMessage::End(EndTaskStreamMsg {
