@@ -329,11 +329,11 @@ impl Core {
             let task = task_ref.get();
             assert_eq!(task.id, *task_id);
             assert!(
-                task.type_id == 0
+                task.configuration.type_id == 0
                     || self
                         .subworker_definitions
                         .iter()
-                        .any(|d| d.id == task.type_id)
+                        .any(|d| d.id == task.configuration.type_id)
             );
             match &task.state {
                 TaskRuntimeState::Waiting(winfo) => {

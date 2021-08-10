@@ -11,7 +11,7 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::common::resources::{CpuRequest, NumOfCpus, ResourceDescriptor, ResourceRequest};
 use crate::common::{Map, WrappedRcRefCell};
-use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
+use crate::messages::common::{TaskConfiguration, TaskFailInfo, WorkerConfiguration};
 use crate::messages::gateway::LostWorkerReason;
 use crate::messages::worker::{StealResponse, StealResponseMsg, TaskFinishedMsg, ToWorkerMessage};
 use crate::scheduler::state::tests::create_test_scheduler;
@@ -200,7 +200,7 @@ impl TestEnv {
                 worker
                     .tasks()
                     .iter()
-                    .map(|t| format!("{}:{:?}", t.get().id(), &t.get().resources))
+                    .map(|t| format!("{}:{:?}", t.get().id(), &t.get().configuration.resources))
                     .collect::<Vec<String>>()
                     .join(", ")
             );
@@ -254,12 +254,14 @@ impl TaskBuilder {
     pub fn build(self) -> TaskRef {
         TaskRef::new(
             self.id,
-            0,
-            Vec::new(),
             self.inputs,
-            self.n_outputs,
+            TaskConfiguration {
+                resources: self.resources,
+                n_outputs: self.n_outputs,
+                type_id: 0,
+                body: Default::default(),
+            },
             Default::default(),
-            self.resources,
             false,
             false,
         )

@@ -77,13 +77,13 @@ async fn launcher_main(task_ref: TaskRef) -> tako::Result<()> {
     log::debug!(
         "Starting program launcher {} {:?} {:?}",
         task_ref.get().id,
-        &task_ref.get().resources,
+        &task_ref.get().configuration.resources,
         task_ref.get().resource_allocation()
     );
 
     let program: ProgramDefinition = {
         let task = task_ref.get();
-        rmp_serde::from_slice(&task.spec)?
+        rmp_serde::from_slice(&task.configuration.body)?
     };
 
     let mut command = command_from_definitions(&program)?;

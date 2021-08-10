@@ -93,15 +93,18 @@ class Session:
             assert task.deps is None
             task_id = self._new_task_id()
             task._id = task_id
+            conf = {
+                "type_id": 0,
+                "body": task.body,
+            }
             task_def = {
                 "id": task_id,
-                "body": task.body,
-                "type_id": task.type_id,
+                "conf": conf,
             }
             if task.keep:
                 task_def["keep"] = True
             if task.resources:
-                task_def["resources"] = task.resources.to_dict()
+                task_def["conf"]["resources"] = task.resources.to_dict()
             task_defs.append(task_def)
             self.tasks[task_id] = task
         loop = asyncio.get_event_loop()

@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::cmp::{Ordering, Reverse};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -36,7 +36,7 @@ fn choose_worker_for_task(
 ) -> Option<WorkerId> {
     let mut costs = u64::MAX;
     for worker in worker_map.values() {
-        if !worker.is_capable_to_run(&task.resources) {
+        if !worker.is_capable_to_run(&task.configuration.resources) {
             continue;
         }
         let c = task_transfer_cost(task, worker.id);
@@ -131,7 +131,7 @@ impl SchedulerState {
         for (worker_id, mut task_refs) in task_computes {
             task_refs.sort_unstable_by_key(|tr| {
                 let t = tr.get();
-                (-t.user_priority, -t.scheduler_priority)
+                Reverse((t.user_priority, t.scheduler_priority))
             });
             for task_ref in task_refs {
                 let mut task = task_ref.get_mut();
@@ -220,7 +220,7 @@ impl SchedulerState {
             for tr in ready_tasks.into_iter() {
                 let mut task = tr.get_mut();
                 assert!(task.is_waiting());
-                core.try_wakeup_parked_resources(&task.resources);
+                core.try_wakeup_parked_resources(&task.configuration.resources);
                 let worker_id = choose_worker_for_task(
                     &task,
                     core.get_worker_map(),
@@ -263,7 +263,7 @@ impl SchedulerState {
                     continue;
                 }
                 task.set_take_flag(false);
-                min_resource.include(&task.resources);
+                min_resource.include(&task.configuration.resources);
                 balanced_tasks.push(tr.clone());
                 offered += 1;
             }
@@ -307,7 +307,10 @@ impl SchedulerState {
                         worker.id,
                         cost
                     );
-                    (u64::MAX - cost, worker.resources.n_cpus(&task.resources))
+                    (
+                        u64::MAX - cost,
+                        worker.resources.n_cpus(&task.configuration.resources),
+                    )
                 });
                 /*for tr in &ts {
                     println!("LIST {} {}", tr.get().id(), tr.get().resources.get_n_cpus());
@@ -345,7 +348,7 @@ impl SchedulerState {
                     if task.is_taken() {
                         continue;
                     }
-                    if !worker.have_immediate_resources_for_rq(&task.resources) {
+                    if !worker.have_immediate_resources_for_rq(&task.configuration.resources) {
                         continue;
                     }
                     let worker2_id = task.get_assigned_worker().unwrap();

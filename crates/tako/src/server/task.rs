@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 use std::fmt;
 
-use crate::common::resources::ResourceRequest;
 use crate::common::{Map, Set, WrappedRcRefCell};
+use crate::messages::common::TaskConfiguration;
 use crate::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
+use crate::TaskId;
 use crate::WorkerId;
 use crate::{InstanceId, Priority};
-use crate::{OutputId, TaskId, TaskTypeId};
 
 #[derive(Debug)]
 pub struct DataInfo {
@@ -66,16 +66,10 @@ pub struct Task {
 
     pub flags: TaskFlags,
 
-    pub n_outputs: OutputId,
-
-    pub resources: ResourceRequest,
-
-    pub instance_id: InstanceId,
-    pub type_id: TaskTypeId,
-    pub spec: Vec<u8>, // Serialized TaskSpec
-
+    pub configuration: TaskConfiguration,
     pub user_priority: Priority,
     pub scheduler_priority: Priority,
+    pub instance_id: InstanceId,
 }
 
 impl fmt::Debug for Task {
@@ -89,7 +83,7 @@ pub type TaskRef = WrappedRcRefCell<Task>;
 impl Task {
     pub fn clear(&mut self) {
         self.inputs = Default::default();
-        self.spec = Default::default();
+        self.configuration.body = Default::default();
     }
 
     #[inline]
@@ -222,13 +216,10 @@ impl Task {
         ToWorkerMessage::ComputeTask(ComputeTaskMsg {
             id: self.id,
             instance_id: self.instance_id,
-            type_id: self.type_id,
-            n_outputs: self.n_outputs,
             dep_info,
-            spec: self.spec.clone(),
+            configuration: self.configuration.clone(),
             user_priority: self.user_priority,
             scheduler_priority: self.scheduler_priority,
-            resources: self.resources.clone(),
         })
     }
 
@@ -351,33 +342,26 @@ impl Task {
 }
 
 impl TaskRef {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: TaskId,
-        type_id: TaskTypeId,
-        spec: Vec<u8>,
         inputs: Vec<TaskRef>,
-        n_outputs: OutputId,
+        configuration: TaskConfiguration,
         user_priority: Priority,
-        resources: ResourceRequest,
         keep: bool,
         observe: bool,
     ) -> Self {
         let mut flags = TaskFlags::empty();
-        log::debug!("New task {} {:?}", id, &resources);
+        log::debug!("New task {} {:?}", id, &configuration.resources);
         flags.set(TaskFlags::KEEP, keep);
         flags.set(TaskFlags::OBSERVE, observe);
         flags.set(TaskFlags::FRESH, true);
         Self::wrap(Task {
             id,
             inputs,
-            n_outputs,
             flags,
-            type_id,
-            spec,
+            configuration,
             user_priority,
             scheduler_priority: Default::default(),
-            resources,
             state: TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 }),
             consumers: Default::default(),
             instance_id: 0,

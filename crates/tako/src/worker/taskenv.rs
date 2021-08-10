@@ -19,7 +19,7 @@ pub enum TaskEnv {
 
 impl TaskEnv {
     pub fn create(state: &mut WorkerState, task: &Task) -> Option<Self> {
-        if task.type_id == 0 {
+        if task.configuration.type_id == 0 {
             Some(TaskEnv::Inner(None))
         } else {
             let subworker_ref = choose_subworker(state, task).unwrap();
@@ -126,7 +126,7 @@ impl TaskEnv {
                 sw.send_start_task(task)
             }
             TaskEnv::Inner(ref mut cancel_sender) => {
-                assert_eq!(task.n_outputs, 0);
+                assert_eq!(task.configuration.n_outputs, 0);
                 assert!(cancel_sender.is_none());
                 let (sender, receiver) = oneshot::channel();
                 *cancel_sender = Some(sender);

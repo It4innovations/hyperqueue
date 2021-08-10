@@ -1,12 +1,14 @@
 use serde::{Deserialize, Serialize};
 
-use crate::common::resources::{ResourceAllocation, ResourceRequest};
+use crate::common::resources::ResourceAllocation;
 use crate::common::Map;
-use crate::messages::common::{SubworkerDefinition, TaskFailInfo, WorkerConfiguration};
+use crate::messages::common::{
+    SubworkerDefinition, TaskConfiguration, TaskFailInfo, WorkerConfiguration,
+};
 use crate::messages::gateway::OverviewRequest;
 use crate::worker::hwmonitor::WorkerHwState;
 use crate::{InstanceId, Priority};
-use crate::{OutputId, TaskId, TaskTypeId, WorkerId};
+use crate::{TaskId, WorkerId};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ConnectionRegistration {
@@ -32,19 +34,12 @@ pub struct ComputeTaskMsg {
 
     pub instance_id: InstanceId,
 
-    pub type_id: TaskTypeId,
-
-    pub n_outputs: OutputId,
-
     pub dep_info: Vec<(TaskId, u64, Vec<WorkerId>)>,
 
-    #[serde(with = "serde_bytes")]
-    pub spec: Vec<u8>,
+    pub configuration: TaskConfiguration,
 
     pub user_priority: Priority,
     pub scheduler_priority: Priority,
-
-    pub resources: ResourceRequest,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
