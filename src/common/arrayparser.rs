@@ -60,14 +60,6 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_parse_uint() {
-        assert_eq!(all_consuming(p_u32)("1019").unwrap().1, 1019);
-        assert_eq!(all_consuming(p_u32)("0").unwrap().1, 0);
-        assert!(all_consuming(p_u32)("").is_err());
-        assert!(all_consuming(p_u32)("x").is_err());
-    }
-
-    #[test]
     fn test_parse_array_def() {
         assert_eq!(
             parse_array("34").unwrap().iter().collect::<Vec<_>>(),
