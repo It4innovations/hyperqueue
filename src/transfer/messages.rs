@@ -118,6 +118,7 @@ pub struct SubmitResponse {
     pub job: JobDetail,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ToClientMessage {
     JobInfoResponse(JobInfoResponse),
