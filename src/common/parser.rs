@@ -1,9 +1,11 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use nom::character::complete::digit1;
+use nom::character::complete::satisfy;
 use nom::combinator::map_res;
 use nom::error::{ErrorKind, FromExternalError, ParseError};
-use nom::IResult;
+use nom::multi::many0;
+use nom::sequence::tuple;
+use nom::{AsChar, IResult};
 
 pub enum ParserError<I> {
     Custom(anyhow::Error),
@@ -48,5 +50,56 @@ pub(crate) fn format_parse_error<I: Debug>(error: nom::Err<ParserError<I>>) -> a
 pub type NomResult<'a, Ret> = IResult<&'a str, Ret, ParserError<&'a str>>;
 
 pub fn p_u32(input: &str) -> NomResult<u32> {
-    map_res(digit1, |digit_str: &str| digit_str.parse::<u32>())(input)
+    let parser = tuple((
+        satisfy(|c| c.is_dec_digit()),
+        many0(satisfy(|c| c.is_dec_digit() || c == '_')),
+    ));
+
+    map_res(parser, |(first, rest)| {
+        let mut number = first.to_string();
+        number.extend(rest.into_iter().filter(|c| c.is_dec_digit()));
+        number.parse::<u32>()
+    })(input)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::p_u32;
+    use nom::combinator::all_consuming;
+
+    #[test]
+    fn test_parse_u32() {
+        assert_eq!(all_consuming(p_u32)("0").unwrap().1, 0);
+        assert_eq!(all_consuming(p_u32)("1").unwrap().1, 1);
+        assert_eq!(all_consuming(p_u32)("1019").unwrap().1, 1019);
+    }
+
+    #[test]
+    fn test_parse_u32_empty() {
+        assert!(all_consuming(p_u32)("").is_err());
+    }
+
+    #[test]
+    fn test_parse_u32_invalid() {
+        assert!(all_consuming(p_u32)("x").is_err());
+    }
+
+    #[test]
+    fn test_parse_u32_underscores() {
+        assert_eq!(all_consuming(p_u32)("0_1").unwrap().1, 1);
+        assert_eq!(all_consuming(p_u32)("1_").unwrap().1, 1);
+        assert_eq!(all_consuming(p_u32)("100_100").unwrap().1, 100100);
+        assert_eq!(all_consuming(p_u32)("123_456_789").unwrap().1, 123456789);
+    }
+
+    #[test]
+    fn test_parse_u32_repeated_underscore() {
+        assert_eq!(all_consuming(p_u32)("1___0__0_0").unwrap().1, 1000);
+    }
+
+    #[test]
+    fn test_parse_u32_starts_with_underscore() {
+        assert!(all_consuming(p_u32)("_").is_err());
+        assert!(all_consuming(p_u32)("_1").is_err());
+    }
 }
