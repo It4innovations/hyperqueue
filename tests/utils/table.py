@@ -46,7 +46,7 @@ class Table:
     def check_value_column(self, key: str, index: int, value: str):
         column = self.get_column_value(key)
         if not column:
-            raise Exception(f"Key {key} not found in\n{self}")
+            raise Exception(f"Value for key {key} not found in\n{self}")
         row = column[index]
         assert_equals(row, value)
 
