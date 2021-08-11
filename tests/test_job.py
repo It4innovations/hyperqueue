@@ -6,7 +6,7 @@ from datetime import datetime
 import pytest
 
 from .conftest import HqEnv
-from .utils import JOB_TABLE_ROWS, wait_for_job_state
+from .utils import wait_for_job_state, JOB_TABLE_ROWS
 
 
 def test_job_submit(hq_env: HqEnv):

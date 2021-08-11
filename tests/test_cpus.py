@@ -4,7 +4,7 @@ import subprocess
 import pytest
 
 from .conftest import RUNNING_IN_CI, HqEnv
-from .utils import print_table, wait_for_job_state
+from .utils import wait_for_job_state
 
 
 def read_list(filename):
@@ -110,7 +110,7 @@ def test_job_no_pin(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "FINISHED")
     table = hq_env.command(["job", "1"], as_table=True)
-    print_table(table)
+    table.print()
     table.check_value_row("State", "FINISHED")
     table.check_value_row("Resources", "2 compact!")
 
@@ -139,7 +139,7 @@ def test_job_pin(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "FINISHED")
     table = hq_env.command(["job", "1"], as_table=True)
-    print_table(table)
+    table.print()
     table.check_value_row("State", "FINISHED")
     table.check_value_row("Resources", "2 compact! [pin]")
 
