@@ -6,6 +6,7 @@ import time
 
 import pytest
 
+from .utils.mock import ProgramMock
 from .utils import parse_table
 
 PYTEST_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -91,8 +92,9 @@ class Env:
 class HqEnv(Env):
     default_listen_port = 17002
 
-    def __init__(self, work_dir, debug=True):
+    def __init__(self, work_dir, mock: ProgramMock, debug=True):
         Env.__init__(self, work_dir)
+        self.mock = mock
         self.server = None
         self.workers = {}
         self.id_counter = 0
@@ -107,6 +109,7 @@ class HqEnv(Env):
         env = os.environ.copy()
         env["RUST_LOG"] = "trace"
         env["RUST_BACKTRACE"] = "full"
+        self.mock.update_env(env)
         return env
 
     @staticmethod
@@ -224,7 +227,9 @@ def run_hq_env(tmp_path, debug=True):
     """Fixture that allows to start HQ test environment"""
     print("Working dir", tmp_path)
     os.chdir(tmp_path)
-    env = HqEnv(tmp_path, debug=debug)
+
+    mock = ProgramMock(tmp_path.joinpath("mock"))
+    env = HqEnv(tmp_path, debug=debug, mock=mock)
     yield env
     try:
         env.final_check()
