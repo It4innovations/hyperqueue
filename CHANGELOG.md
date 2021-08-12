@@ -1,3 +1,14 @@
+# DEV
+
+## New features
+
+  * Job and task times are shown
+  * Integers anywhere can be now written with underscore (e.g. ``--array=1-1_000``)
+
+## Changes
+  * Job id is now u32
+  * Normalization of stream's end behavior when job is canceled
+
 
 # v0.4.0
 
