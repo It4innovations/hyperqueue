@@ -160,6 +160,10 @@ All outputs are concatenated one after another.</p>
 <p><code>hq submit --log=my-log --stdout=stdout-%{TASK_ID} ...</code></p>
 <p>Disabling stderr and streaming only stdout into log file.</p>
 <p><code>hq submit --log=my-log --stderr=none ...</code></p>
+<h1 id="guarantees">Guarantees<a class="headerlink" href="#guarantees" title="Permanent link">#</a></h1>
+<p>When a task is <em>finished</em> or <em>failed</em> with a non-streaming error then it is guaranteed that its stream is fully flushed into the log file.</p>
+<p>When a task is <em>canceled</em> or <em>failed</em> with a streaming error, then the stream is not necessarily fully written into the log file in the moment when the state occurs
+ and some part may be written later, but the stream will be eventually closed. In this case, HQ is also allowed to drop any suffix of the buffered part of the stream.</p>
 <h1 id="current-limitations">Current limitations<a class="headerlink" href="#current-limitations" title="Permanent link">#</a></h1>
 <p>The current version does not support streaming of more jobs into the same file,</p>
 <p>In other words, if you submit more jobs with the same log filename, like this:</p>
