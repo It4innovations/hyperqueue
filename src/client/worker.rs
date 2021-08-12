@@ -2,6 +2,7 @@ use cli_table::format::Justify;
 use cli_table::{print_stdout, Cell, CellStruct, Color, Style, Table};
 
 use crate::client::globalsettings::GlobalSettings;
+use crate::common::manager::info::GetManagerInfo;
 use crate::transfer::messages::{LostWorkerReasonInfo, WorkerExitInfo, WorkerInfo};
 
 pub enum WorkerState {
@@ -36,21 +37,20 @@ pub fn print_worker_info(workers: Vec<WorkerInfo>, gsettings: &GlobalSettings) {
     let rows: Vec<_> = workers
         .into_iter()
         .map(|w| {
+            let manager_info = w.configuration.get_manager_info();
             vec![
                 w.id.cell().justify(Justify::Right),
                 worker_state(&w),
                 w.configuration.hostname.cell(),
                 w.configuration.resources.summary().cell(),
-                w.configuration
-                    .extra
-                    .get("MANAGER")
-                    .map(|x| x.as_str())
-                    .unwrap_or("None")
+                manager_info
+                    .as_ref()
+                    .map(|info| info.manager.to_string())
+                    .unwrap_or_else(|| "None".to_string())
                     .cell(),
-                w.configuration
-                    .extra
-                    .get("MANAGER_JOB_ID")
-                    .map(|x| x.as_str())
+                manager_info
+                    .as_ref()
+                    .map(|info| info.job_id.as_str())
                     .unwrap_or("N/A")
                     .cell(),
             ]

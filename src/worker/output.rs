@@ -3,6 +3,7 @@ use humantime::format_duration;
 use tako::messages::common::WorkerConfiguration;
 
 use crate::client::globalsettings::GlobalSettings;
+use crate::common::manager::info::GetManagerInfo;
 use crate::WorkerId;
 
 pub fn print_worker_configuration(
@@ -10,6 +11,7 @@ pub fn print_worker_configuration(
     worker_id: WorkerId,
     configuration: WorkerConfiguration,
 ) {
+    let manager_info = configuration.get_manager_info();
     let rows = vec![
         vec!["Worker ID".cell().bold(true), worker_id.cell()],
         vec!["Hostname".cell().bold(true), configuration.hostname.cell()],
@@ -45,19 +47,17 @@ pub fn print_worker_configuration(
         ],
         vec![
             "Manager".cell().bold(true),
-            configuration
-                .extra
-                .get("MANAGER")
-                .map(|x| x.as_str())
-                .unwrap_or("None")
+            manager_info
+                .as_ref()
+                .map(|info| info.manager.to_string())
+                .unwrap_or_else(|| "None".to_string())
                 .cell(),
         ],
         vec![
             "Manager Job Id".cell().bold(true),
-            configuration
-                .extra
-                .get("MANAGER_JOB_ID")
-                .map(|x| x.as_str())
+            manager_info
+                .as_ref()
+                .map(|info| info.job_id.as_str())
                 .unwrap_or("N/A")
                 .cell(),
         ],

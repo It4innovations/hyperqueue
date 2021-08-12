@@ -12,18 +12,25 @@ fn parse_duration(raw_time: &str) -> anyhow::Result<Duration> {
     Ok(duration.to_std()?)
 }
 
-fn get_time(job_id: &str, data: &str) -> Option<Duration> {
-    let data_json: Value = serde_json::from_str(data).ok()?;
+fn get_time(job_id: &str, data: &str) -> anyhow::Result<Duration> {
+    let data_json: Value = serde_json::from_str(data)?;
 
-    let walltime =
-        parse_duration(data_json["Jobs"][job_id]["Resource_List"]["walltime"].as_str()?).ok()?;
-    let used =
-        parse_duration(data_json["Jobs"][job_id]["resources_used"]["walltime"].as_str()?).ok()?;
+    let walltime = parse_duration(
+        data_json["Jobs"][job_id]["Resource_List"]["walltime"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Could not find walltime key for job {}", job_id))?,
+    )?;
+    let used = parse_duration(
+        data_json["Jobs"][job_id]["resources_used"]["walltime"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Could not find used time key for job {}", job_id))?,
+    )?;
 
-    Some(walltime - used)
+    Ok(walltime - used)
 }
 
-pub fn get_remaining_walltime(job_id: &str) -> anyhow::Result<Duration> {
+/// Calculates how much time is left for the given job using `qstat`.
+pub fn get_remaining_timelimit(job_id: &str) -> anyhow::Result<Duration> {
     let result = Command::new("qstat")
         .args(&["-f", "-F", "json", job_id])
         .output()?;
@@ -39,8 +46,5 @@ pub fn get_remaining_walltime(job_id: &str) -> anyhow::Result<Duration> {
     let output = String::from_utf8_lossy(&result.stdout).into_owned();
     log::debug!("qstat output: {}", output.trim());
 
-    match get_time(job_id, output.as_str()) {
-        Some(duration) => Ok(duration),
-        None => Err(anyhow::anyhow!("Could not parse walltime from {}", output)),
-    }
+    get_time(job_id, output.as_str())
 }
