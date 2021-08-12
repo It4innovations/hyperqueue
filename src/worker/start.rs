@@ -19,6 +19,8 @@ use tokio::task::LocalSet;
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::env::{HQ_CPUS, HQ_INSTANCE_ID, HQ_JOB_ID, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::error::error;
+use crate::common::manager::info::{ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY};
+use crate::common::manager::pbs;
 use crate::common::serverdir::ServerDir;
 use crate::common::timeutils::ArgDuration;
 use crate::transfer::messages::TaskBody;
@@ -28,7 +30,7 @@ use crate::worker::output::print_worker_configuration;
 use crate::worker::parser::parse_cpu_definition;
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
-use crate::{JobId, JobTaskId, Map};
+use crate::{JobId, JobTaskId};
 use hashbrown::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -340,7 +342,7 @@ pub async fn start_hq_worker(
     Ok(())
 }
 
-fn try_get_pbs_info() -> anyhow::Result<Map<String, String>> {
+fn try_get_pbs_info() -> anyhow::Result<ManagerInfo> {
     log::debug!("Detecting PBS environment");
 
     std::env::var("PBS_ENVIRONMENT")
@@ -349,15 +351,18 @@ fn try_get_pbs_info() -> anyhow::Result<Map<String, String>> {
     let manager_job_id =
         std::env::var("PBS_JOBID").expect("PBS_JOBID not found in environment variables");
 
-    let mut result = Map::with_capacity(3);
-    result.insert("MANAGER".to_string(), "PBS".to_string());
-    result.insert("MANAGER_JOB_ID".to_string(), manager_job_id.clone());
+    let time_limit = pbs::get_remaining_timelimit(&manager_job_id).unwrap();
 
     log::info!("PBS environment detected");
-    Ok(result)
+
+    Ok(ManagerInfo::new(
+        ManagerType::Pbs,
+        manager_job_id,
+        time_limit,
+    ))
 }
 
-fn try_get_slurm_info() -> anyhow::Result<Map<String, String>> {
+fn try_get_slurm_info() -> anyhow::Result<ManagerInfo> {
     log::debug!("Detecting SLURM environment");
 
     let manager_job_id = std::env::var("SLURM_JOB_ID")
@@ -366,30 +371,29 @@ fn try_get_slurm_info() -> anyhow::Result<Map<String, String>> {
             anyhow!("SLURM_JOB_ID/SLURM_JOBID not found. The process is not running under SLURM")
         })?;
 
-    let mut result = Map::with_capacity(2);
-    result.insert("MANAGER".to_string(), "SLURM".to_string());
-    result.insert("MANAGER_JOB_ID".to_string(), manager_job_id);
+    log::info!("SLURM environment detected");
 
     // TODO: Get walltime info
-
-    log::info!("SLURM environment detected");
-    Ok(result)
+    let duration = Duration::from_secs(1);
+    Ok(ManagerInfo::new(
+        ManagerType::Slurm,
+        manager_job_id,
+        duration,
+    ))
 }
 
-fn gather_manager_info(opts: ManagerOpts) -> anyhow::Result<Map<String, String>> {
+fn gather_manager_info(opts: ManagerOpts) -> anyhow::Result<Option<ManagerInfo>> {
     match opts {
         ManagerOpts::Detect => {
             log::debug!("Trying to detect manager");
-            try_get_pbs_info()
-                .or_else(|_| try_get_slurm_info())
-                .or_else(|_| Ok(Map::new()))
+            Ok(try_get_pbs_info().or_else(|_| try_get_slurm_info()).ok())
         }
         ManagerOpts::None => {
             log::debug!("Manager detection disabled");
-            Ok(Map::new())
+            Ok(None)
         }
-        ManagerOpts::Pbs => try_get_pbs_info(),
-        ManagerOpts::Slurm => try_get_slurm_info(),
+        ManagerOpts::Pbs => Ok(Some(try_get_pbs_info()?)),
+        ManagerOpts::Slurm => Ok(Some(try_get_slurm_info()?)),
     }
 }
 
@@ -410,7 +414,14 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         (tmpdir.join("work"), tmpdir.join("logs"))
     };
 
-    let extra = gather_manager_info(opts.manager)?;
+    let manager_info = gather_manager_info(opts.manager)?;
+    let mut extra = HashMap::new();
+    if let Some(manager_info) = manager_info {
+        extra.insert(
+            WORKER_EXTRA_MANAGER_KEY.to_string(),
+            serde_json::to_string(&manager_info)?,
+        );
+    }
 
     Ok(WorkerConfiguration {
         resources,
