@@ -23,6 +23,7 @@ use crate::transfer::messages::{
 };
 use crate::{rpc_call, JobId, JobTaskCount};
 
+const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 const DEFAULT_STDOUT_PATH: &str = "stdout.%{JOB_ID}.%{TASK_ID}";
 const DEFAULT_STDERR_PATH: &str = "stderr.%{JOB_ID}.%{TASK_ID}";
 
@@ -163,6 +164,7 @@ pub async fn submit_computation(
 ) -> anyhow::Result<()> {
     let resources = opts.resource_request();
     resources.validate()?;
+
     let (job_type, entries) = if let Some(filename) = opts.each_line {
         let lines = read_lines(&filename)?;
         let def = IntArray::from_range(0, lines.len() as JobTaskCount);
@@ -173,6 +175,30 @@ pub async fn submit_computation(
             None,
         )
     };
+
+    let log = opts.log;
+    let is_dir_some =
+        |dir: Option<&StdioArg>| -> bool { dir.map_or(true, |x| !matches!(x.0, StdioDef::Null)) };
+    if let JobType::Array(ref array) = job_type {
+        let mut task_files = 0;
+        let mut active_dirs = String::new();
+        if is_dir_some(opts.stdout.as_ref()) {
+            task_files += array.id_count();
+            active_dirs.push_str(" stdout");
+        }
+        if is_dir_some(opts.stderr.as_ref()) {
+            task_files += array.id_count();
+            active_dirs.push_str(" stderr");
+        }
+        if task_files > SUBMIT_ARRAY_LIMIT && log.is_none() {
+            log::warn!(
+                "The job will create {} number of files for{}. \
+                You may consider using --log option to stream all outputs into one file",
+                task_files,
+                active_dirs
+            );
+        }
+    }
 
     let name = if let Some(name) = opts.name {
         validate_name(name)?
@@ -191,7 +217,6 @@ pub async fn submit_computation(
     args.insert(0, opts.command.into());
 
     let cwd = Some(opts.cwd);
-    let log = opts.log;
     let stdout = opts.stdout.map(|x| x.0).unwrap_or_else(|| {
         if log.is_none() {
             StdioDef::File(DEFAULT_STDOUT_PATH.into())
