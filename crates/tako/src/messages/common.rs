@@ -140,6 +140,10 @@ pub struct TaskConfiguration {
     #[serde(default)]
     pub n_outputs: OutputId,
 
+    #[serde(default)]
+    pub time_limit: Option<Duration>,
+
+    #[serde(default)]
     pub type_id: TaskTypeId,
 
     #[serde(with = "serde_bytes")]

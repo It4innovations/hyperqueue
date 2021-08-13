@@ -16,6 +16,7 @@ class Task:
         keep: bool,
         deps: Optional[List["Task"]] = None,
         resources: ResourceRequest = None,
+        time_limit: float = None,
         name=None,
     ):
         self._id = None
@@ -23,6 +24,7 @@ class Task:
         self.body = body
         self.deps = deps
         self.keep = keep
+        self.time_limit = time_limit
         self.name = name
         self.finished = False
         self.error = None
@@ -43,6 +45,7 @@ def make_program_task(
     program_def: ProgramDefinition,
     keep: bool = False,
     resources: ResourceRequest = None,
+    time_limit: float = None,
 ):
     body = msgpack.dumps(program_def.as_dict())
-    return Task(0, body, keep, resources=resources)
+    return Task(0, body, keep, resources=resources, time_limit=time_limit)

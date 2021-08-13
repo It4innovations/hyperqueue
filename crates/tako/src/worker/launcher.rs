@@ -10,9 +10,14 @@ use tokio::process::Command;
 use crate::common::resources::ResourceAllocation;
 use crate::messages::common::{ProgramDefinition, StdioDef};
 use crate::worker::task::TaskRef;
+use crate::worker::taskenv::{StopReason, TaskResult};
 
-pub type InnerTaskLauncher =
-    Box<dyn Fn(&TaskRef) -> Pin<Box<dyn Future<Output = crate::Result<()>> + 'static>>>;
+pub type InnerTaskLauncher = Box<
+    dyn Fn(
+        &TaskRef,
+        tokio::sync::oneshot::Receiver<StopReason>,
+    ) -> Pin<Box<dyn Future<Output = crate::Result<TaskResult>> + 'static>>,
+>;
 
 pub fn pin_program(program: &mut ProgramDefinition, allocation: &ResourceAllocation) {
     program.args.insert(0, "taskset".into());

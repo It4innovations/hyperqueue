@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use futures::future::Either;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::Sender;
 
@@ -11,9 +12,29 @@ use crate::worker::task::Task;
 use crate::worker::task::TaskRef;
 use crate::TaskId;
 
+pub enum TaskResult {
+    Finished,
+    Canceled,
+    Timeouted,
+}
+
+impl From<StopReason> for TaskResult {
+    fn from(r: StopReason) -> Self {
+        match r {
+            StopReason::Cancel => TaskResult::Canceled,
+            StopReason::Timeout => TaskResult::Timeouted,
+        }
+    }
+}
+
+pub enum StopReason {
+    Cancel,
+    Timeout,
+}
+
 pub enum TaskEnv {
     Subworker(SubworkerRef),
-    Inner(Option<Sender<()>>),
+    Inner(Option<Sender<StopReason>>),
     Invalid,
 }
 
@@ -61,16 +82,17 @@ impl TaskEnv {
         }
     }
 
-    pub fn cancel_task(&mut self) {
-        match std::mem::replace(self, TaskEnv::Invalid) {
+    fn send_stop(&mut self, reason: StopReason) {
+        match self {
             TaskEnv::Subworker(_) => {
                 todo!()
             }
-            TaskEnv::Inner(Some(cancel_sender)) => {
-                assert!(cancel_sender.send(()).is_ok());
-            }
-            TaskEnv::Inner(None) => {
-                panic!("Canceling uninitialized launcher")
+            TaskEnv::Inner(ref mut cancel_sender) => {
+                if let Some(sender) = std::mem::take(cancel_sender) {
+                    assert!(sender.send(reason).is_ok());
+                } else {
+                    log::debug!("Stopping a task in stopping process");
+                }
             }
             TaskEnv::Invalid => {
                 unreachable!()
@@ -78,43 +100,76 @@ impl TaskEnv {
         }
     }
 
+    pub fn cancel_task(&mut self) {
+        self.send_stop(StopReason::Cancel);
+    }
+
     fn start_inner_task(
         &mut self,
         state: &WorkerState,
         task_ref: TaskRef,
-        end_receiver: oneshot::Receiver<()>,
+        end_receiver: oneshot::Receiver<StopReason>,
     ) {
-        let task_fut = (*state.inner_task_launcher)(&task_ref);
+        let task_fut = (*state.inner_task_launcher)(&task_ref, end_receiver);
         let state_ref = state.self_ref();
 
         tokio::task::spawn_local(async move {
-            if task_ref.get().is_removed() {
-                // Task was canceled in between start of the task and this spawn_local
-                return;
-            }
-
-            tokio::select! {
-                biased;
-                _ = end_receiver => {
-                    let task_id = task_ref.get().id;
-                    log::debug!("Inner task cancelled id={}", task_id);
+            let time_limit = {
+                let task = task_ref.get();
+                if task.is_removed() {
+                    // Task was canceled in between start of the task and this spawn_local
+                    return;
                 }
-                r = task_fut => {
-                    match r {
-                        Ok(()) => {
-                            let mut state = state_ref.get_mut();
-                            let task_id = task_ref.get().id;
-                            log::debug!("Inner task finished id={}", task_id);
-                            state.finish_task(task_ref, 0);
+                task.configuration.time_limit
+            };
+            let result = if let Some(duration) = time_limit {
+                let sleep = tokio::time::sleep(duration);
+                tokio::pin!(sleep);
+                match futures::future::select(task_fut, sleep).await {
+                    Either::Left((r, _)) => r,
+                    Either::Right((_, task_fut)) => {
+                        {
+                            let mut task = task_ref.get_mut();
+                            log::debug!("Task {} timeouted", task.id);
+                            task.task_env_mut().unwrap().send_stop(StopReason::Timeout)
                         }
-                        Err(e) => {
-                            log::debug!("Inner task failed id={}", task_ref.get().id);
-                            let mut state = state_ref.get_mut();
-                            state.finish_task_failed(task_ref, TaskFailInfo::from_string(e.to_string()));
-                        }
+                        task_fut.await
                     }
                 }
+            } else {
+                task_fut.await
+            };
+            let mut state = state_ref.get_mut();
+            match result {
+                Ok(TaskResult::Finished) => {
+                    let task_id = task_ref.get().id;
+                    log::debug!("Inner task finished id={}", task_id);
+                    state.finish_task(task_ref, 0);
+                }
+                Ok(TaskResult::Canceled) => {
+                    log::debug!("Inner task canceled id={}", task_ref.get().id);
+                    state.finish_task_cancel(task_ref);
+                }
+                Ok(TaskResult::Timeouted) => {
+                    log::debug!("Inner task timeouted id={}", task_ref.get().id);
+                    state.finish_task_failed(
+                        task_ref,
+                        TaskFailInfo::from_string("Time limit reached".to_string()),
+                    );
+                }
+                Err(e) => {
+                    log::debug!("Inner task failed id={}", task_ref.get().id);
+                    state.finish_task_failed(task_ref, TaskFailInfo::from_string(e.to_string()));
+                }
             }
+
+            /*            tokio::select! {
+                            biased;
+            /*                _ = end_receiver => {
+                                let task_id = task_ref.get().id;
+                                log::debug!("Inner task cancelled id={}", task_id);
+                            }*/
+                        }*/
         });
     }
 
