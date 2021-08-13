@@ -50,6 +50,13 @@ impl Task {
         }
     }
 
+    pub fn task_env_mut(&mut self) -> Option<&mut TaskEnv> {
+        match self.state {
+            TaskState::Running(ref mut env, _) => Some(env),
+            _ => None,
+        }
+    }
+
     pub fn get_waiting(&self) -> u32 {
         match self.state {
             TaskState::Waiting(x) => x,

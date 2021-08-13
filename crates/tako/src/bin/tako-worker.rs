@@ -20,6 +20,7 @@ use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 use tako::worker::launcher::command_from_definitions;
 use tako::worker::rpc::run_worker;
 use tako::worker::task::TaskRef;
+use tako::worker::taskenv::{StopReason, TaskResult};
 use tokio::net::lookup_host;
 
 #[derive(Clap)]
@@ -98,14 +99,29 @@ async fn launcher_main(task_ref: TaskRef) -> tako::Result<()> {
     Ok(())
 }
 
-fn launcher(task_ref: &TaskRef) -> Pin<Box<dyn Future<Output = tako::Result<()>> + 'static>> {
+fn launcher(
+    task_ref: &TaskRef,
+    end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
+) -> Pin<Box<dyn Future<Output = tako::Result<TaskResult>> + 'static>> {
     /*let mut program = def.program;
     if def.pin {
         pin_program(&mut program, task.resource_allocation().unwrap());
     }
     Ok(program)*/
     let task_ref = task_ref.clone();
-    Box::pin(async move { launcher_main(task_ref).await })
+
+    Box::pin(async move {
+        tokio::select! {
+            biased;
+                r = end_receiver => {
+                    return Ok(r.unwrap().into())
+                }
+                r = launcher_main(task_ref) => {
+                    r?;
+                    Ok(TaskResult::Finished)
+                }
+        }
+    })
 }
 
 async fn worker_main(

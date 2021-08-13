@@ -24,7 +24,7 @@ use crate::worker::hwmonitor::WorkerHwState;
 use crate::worker::launcher::InnerTaskLauncher;
 use crate::worker::rqueue::ResourceWaitQueue;
 use crate::worker::subworker::{SubworkerId, SubworkerRef};
-use crate::worker::task::{TaskRef, TaskState};
+use crate::worker::task::{Task, TaskRef, TaskState};
 use crate::TaskId;
 use crate::{PriorityTuple, WorkerId};
 
@@ -251,14 +251,13 @@ impl WorkerState {
         }
     }
 
-    pub fn remove_task(&mut self, task_ref: TaskRef, just_finished: bool) {
-        let mut task = task_ref.get_mut();
+    fn remove_task(&mut self, task: &mut Task, task_ref: &TaskRef, just_finished: bool) {
         match std::mem::replace(&mut task.state, TaskState::Removed) {
             TaskState::Waiting(x) => {
                 log::debug!("Removing waiting task id={}", task.id);
                 assert!(!just_finished);
                 if x == 0 {
-                    self.ready_task_queue.remove_task(&task_ref);
+                    self.ready_task_queue.remove_task(task_ref);
                 }
             }
             TaskState::Uploading(_, _, _) => {
@@ -282,12 +281,10 @@ impl WorkerState {
                     }
                 }*/
             }
-            TaskState::Running(mut env, allocation) => {
+            TaskState::Running(_, allocation) => {
                 log::debug!("Removing running task id={}", task.id);
-                if !just_finished {
-                    env.cancel_task();
-                }
-                assert!(self.running_tasks.remove(&task_ref));
+                assert!(just_finished);
+                assert!(self.running_tasks.remove(task_ref));
                 self.schedule_task_start();
                 self.ready_task_queue.release_allocation(allocation);
             }
@@ -299,7 +296,7 @@ impl WorkerState {
         assert!(self.tasks.remove(&task.id).is_some());
         for data_ref in std::mem::take(&mut task.deps) {
             let mut data = data_ref.get_mut();
-            assert!(data.consumers.remove(&task_ref));
+            assert!(data.consumers.remove(task_ref));
             if data.consumers.is_empty() {
                 match data.state {
                     DataObjectState::Remote(_) => {
@@ -346,7 +343,16 @@ impl WorkerState {
                 self.remove_data_by_id(task_id);
             }
             Some(task_ref) => {
-                self.remove_task(task_ref, false);
+                let mut task = task_ref.get_mut();
+                match &mut task.state {
+                    TaskState::Uploading(_, _, _) | TaskState::Waiting(_) => {
+                        self.remove_task(&mut task, &task_ref, false);
+                    }
+                    TaskState::Running(ref mut env, _) => {
+                        env.cancel_task();
+                    }
+                    TaskState::Removed => unreachable!(),
+                }
             }
         }
     }
@@ -355,18 +361,17 @@ impl WorkerState {
         match self.tasks.get(&task_id).cloned() {
             None => StealResponse::NotHere,
             Some(task_ref) => {
-                {
-                    let task = task_ref.get_mut();
-                    match task.state {
-                        TaskState::Waiting(_) => { /* Continue */ }
-                        TaskState::Running(_, _) | TaskState::Uploading(_, _, _) => {
-                            return StealResponse::Running
-                        }
-                        TaskState::Removed => unreachable!(),
+                let mut task = task_ref.get_mut();
+                match task.state {
+                    TaskState::Waiting(_) => {
+                        self.remove_task(&mut task, &task_ref, false);
+                        StealResponse::Ok
                     }
+                    TaskState::Running(_, _) | TaskState::Uploading(_, _, _) => {
+                        StealResponse::Running
+                    }
+                    TaskState::Removed => unreachable!(),
                 }
-                self.remove_task(task_ref, false);
-                StealResponse::Ok
             }
         }
     }
@@ -384,17 +389,22 @@ impl WorkerState {
     }
 
     pub fn finish_task(&mut self, task_ref: TaskRef, size: u64) {
-        let id = task_ref.get().id;
-        self.remove_task(task_ref, true);
-        let message = FromWorkerMessage::TaskFinished(TaskFinishedMsg { id, size });
+        let mut task = task_ref.get_mut();
+        self.remove_task(&mut task, &task_ref, true);
+        let message = FromWorkerMessage::TaskFinished(TaskFinishedMsg { id: task.id, size });
         self.send_message_to_server(message);
     }
 
     pub fn finish_task_failed(&mut self, task_ref: TaskRef, info: TaskFailInfo) {
-        let id = task_ref.get().id;
-        self.remove_task(task_ref, true);
-        let message = FromWorkerMessage::TaskFailed(TaskFailedMsg { id, info });
+        let mut task = task_ref.get_mut();
+        self.remove_task(&mut task, &task_ref, true);
+        let message = FromWorkerMessage::TaskFailed(TaskFailedMsg { id: task.id, info });
         self.send_message_to_server(message);
+    }
+
+    pub fn finish_task_cancel(&mut self, task_ref: TaskRef) {
+        let mut task = task_ref.get_mut();
+        self.remove_task(&mut task, &task_ref, true);
     }
 }
 

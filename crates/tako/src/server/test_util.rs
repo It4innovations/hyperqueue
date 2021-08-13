@@ -258,6 +258,7 @@ impl TaskBuilder {
             TaskConfiguration {
                 resources: self.resources,
                 n_outputs: self.n_outputs,
+                time_limit: None,
                 type_id: 0,
                 body: Default::default(),
             },

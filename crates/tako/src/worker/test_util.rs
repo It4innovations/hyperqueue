@@ -16,6 +16,7 @@ pub fn worker_task(task_id: TaskId, resources: ResourceRequest, u_priority: Prio
         configuration: TaskConfiguration {
             resources,
             n_outputs: 0,
+            time_limit: None,
             type_id: 0,
             body: vec![],
         },

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 import weakref
 from typing import List
 
@@ -104,7 +105,10 @@ class Session:
             if task.keep:
                 task_def["keep"] = True
             if task.resources:
-                task_def["conf"]["resources"] = task.resources.to_dict()
+                conf["resources"] = task.resources.to_dict()
+            if task.time_limit:
+                fractional, secs = math.modf(task.time_limit)
+                conf["time_limit"] = {"secs": int(secs), "nanos": int(fractional * 1000_000_000)}
             task_defs.append(task_def)
             self.tasks[task_id] = task
         loop = asyncio.get_event_loop()
