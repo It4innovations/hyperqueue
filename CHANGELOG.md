@@ -2,6 +2,7 @@
 
 ## New features
 
+  * Time limit for tasks (option ``--time-limit``)
   * Job and task times are shown
   * Integers anywhere can be now written with underscore (e.g. ``--array=1-1_000``)
 

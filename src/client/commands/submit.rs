@@ -16,6 +16,7 @@ use crate::client::job::{get_worker_map, print_job_detail};
 use crate::client::resources::parse_cpu_request;
 use crate::client::status::StatusList;
 use crate::common::arraydef::IntArray;
+use crate::common::timeutils::ArgDuration;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
     FromClientMessage, JobType, ResubmitRequest, SubmitRequest, ToClientMessage,
@@ -137,6 +138,10 @@ pub struct SubmitOpts {
     #[clap(long, default_value = "0")]
     priority: tako::Priority,
 
+    #[clap(long)]
+    /// Time limit per task. E.g. --time-limit=10min
+    time_limit: Option<ArgDuration>,
+
     /// Wait on the job(s) execution.
     #[clap(long)]
     wait: bool,
@@ -231,6 +236,7 @@ pub async fn submit_computation(
         max_fails: opts.max_fails,
         submit_dir: std::env::current_dir().unwrap().to_str().unwrap().into(),
         priority: opts.priority,
+        time_limit: opts.time_limit.map(|x| x.into()),
         log,
     });
 

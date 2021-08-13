@@ -47,6 +47,11 @@ from which was the job submitted.
 
 ### Output of the job
 
+!!! Warning
+
+If you want to avoid creating many files, see the section about streaming
+
+
 By default, each job will produce two files containing the standard output and standard error output, respectively.
 
 The paths where these files will be created can be changed via the parameters ``--stdout=<path>`` and ``--stderr=<path>``.
@@ -111,6 +116,7 @@ Detailed information about a job:
 
     You can also use `hq job last` to get information about the most recently submitted job.
 
+
 ## Task states
 
 ```
@@ -136,6 +142,31 @@ Finished    Failed   Canceled
 * *Finished* - The task has successfully finished.
 * *Failed* - The task has failed. The error can be shown by ``hq job <job-id>``.
 * *Canceled* -  The task has been canceled by a user.
+
+
+## Time limit
+
+Time limit is set as follows:
+
+``hq submit --time-limit=TIME ...``
+
+Where ``TIME`` is a number followed by units (e.g. ``10 min``)
+
+You can use the following units:
+
+* msec, ms -- milliseconds
+* seconds, second, sec, s
+* minutes, minute, min, m
+* hours, hour, hr, h
+* days, day, d
+* weeks, week, w
+* months, month, M -- defined as 30.44 days
+* years, year, y -- defined as 365.25 days
+
+
+Time can be also a combination of more units:
+
+``hq submit --time-limit="1h 30min" ...``
 
 
 ## Task instance

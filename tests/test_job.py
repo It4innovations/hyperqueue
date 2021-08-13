@@ -670,3 +670,37 @@ def test_job_completion_time(hq_env: HqEnv):
 
     offset = JOB_TABLE_ROWS
     assert table[offset + 1][3].startswith("1s")
+
+
+def test_job_timeout(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus="3")
+
+    hq_env.command(["submit", "--time-limit=500ms", "sleep", "2"])
+    hq_env.command(["submit", "--time-limit=3s", "sleep", "2"])
+    hq_env.command(["submit", "sleep", "2"])
+
+    table = hq_env.command(["job", "1"], as_table=True)
+    table.check_value_row("Task time limit", "500ms")
+
+    table = hq_env.command(["job", "2"], as_table=True)
+    table.check_value_row("Task time limit", "3s")
+
+    table = hq_env.command(["job", "3"], as_table=True)
+    table.check_value_row("Task time limit", "None")
+
+    wait_for_job_state(hq_env, 1, "FAILED")
+    table = hq_env.command(["job", "1"], as_table=True)
+    table.check_value_row("Task time limit", "500ms")
+    offset = JOB_TABLE_ROWS
+    assert table[offset + 1][2] == "Time limit reached"
+    assert table.get_row_value("Makespan").startswith("5")
+    assert table.get_row_value("Makespan").endswith("ms")
+
+    wait_for_job_state(hq_env, 2, "FINISHED")
+    table = hq_env.command(["job", "2"], as_table=True)
+    assert table.get_row_value("Makespan").startswith("2")
+
+    wait_for_job_state(hq_env, 3, "FINISHED")
+    table = hq_env.command(["job", "3"], as_table=True)
+    assert table.get_row_value("Makespan").startswith("2")
