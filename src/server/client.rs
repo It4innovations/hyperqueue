@@ -13,7 +13,7 @@ use tokio::sync::{oneshot, Notify};
 use crate::client::status::{job_status, task_status, Status};
 use crate::common::arraydef::IntArray;
 use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
-use crate::server::job::Job;
+use crate::server::job::{Job, JobState};
 use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
 use crate::stream::server::control::StreamServerControlMessage;
@@ -431,58 +431,74 @@ async fn handle_resubmit(
     tako_ref: &Backend,
     message: ResubmitRequest,
 ) -> ToClientMessage {
-    let response = state_ref
-        .get_mut()
-        .get_job(message.job_id)
-        .map(|j| j.make_job_detail(true));
-
-    if let Some(job) = response {
-        let mut ids: Vec<JobTaskId> = job
-            .tasks
-            .iter()
-            .filter(|&x| {
-                if let Some(filter) = &message.status {
-                    filter.contains(&task_status(&x.state))
-                } else {
-                    true
+    let msg_submit: SubmitRequest = {
+        let state = state_ref.get_mut();
+        let job = state.get_job(message.job_id);
+        if let Some(job) = job {
+            let job_type: Option<JobType> = match &job.state {
+                JobState::SingleTask(s) => {
+                    if let Some(filter) = &message.status {
+                        if filter.contains(&task_status(s)) {
+                            Some(JobType::Simple)
+                        } else {
+                            None
+                        }
+                    } else {
+                        Some(JobType::Simple)
+                    }
                 }
-            })
-            .map(|x| x.task_id)
-            .collect();
-        ids.sort_unstable();
-
-        if !ids.is_empty() {
-            let job_type = match &job.job_type {
-                JobType::Simple => job.job_type.clone(),
-                JobType::Array(_) => JobType::Array(IntArray::from_ids(ids)),
+                JobState::ManyTasks(s) => {
+                    let mut ids: Vec<_> = if let Some(filter) = &message.status {
+                        s.values()
+                            .filter_map(|v| {
+                                if filter.contains(&task_status(&v.state)) {
+                                    Some(v.task_id)
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect()
+                    } else {
+                        s.values().map(|x| x.task_id).collect()
+                    };
+                    if ids.is_empty() {
+                        None
+                    } else {
+                        ids.sort_unstable();
+                        Some(JobType::Array(IntArray::from_ids(ids)))
+                    }
+                }
             };
-            let spec = job.program_def.clone();
-            let name = job.info.name.clone();
-            let resources = job.resources.clone();
-            let pin = job.pin;
-            let entries = job.entries.clone();
-            let max_fails = job.max_fails;
-            let priority = job.priority;
 
-            let msg_submit = SubmitRequest {
-                job_type,
-                name,
-                max_fails,
-                spec,
-                resources,
-                pin,
-                entries,
-                submit_dir: std::env::current_dir().unwrap().to_str().unwrap().into(),
-                priority,
-                log: None, // TODO: Reuse log configuration
-            };
-            handle_submit(&state_ref.clone(), &tako_ref.clone(), msg_submit).await
+            if let Some(job_type) = job_type {
+                let spec = job.program_def.clone();
+                let name = job.name.clone();
+                let resources = job.resources.clone();
+                let pin = job.pin;
+                let entries = job.entries.clone();
+                let max_fails = job.max_fails;
+                let priority = job.priority;
+
+                SubmitRequest {
+                    job_type,
+                    name,
+                    max_fails,
+                    spec,
+                    resources,
+                    pin,
+                    entries,
+                    submit_dir: std::env::current_dir().unwrap().to_str().unwrap().into(),
+                    priority,
+                    log: None, // TODO: Reuse log configuration
+                }
+            } else {
+                return ToClientMessage::Error("Nothing was resubmitted".to_string());
+            }
         } else {
-            ToClientMessage::Error("Nothing was resubmitted".to_string())
+            return ToClientMessage::Error("Invalid job_id".to_string());
         }
-    } else {
-        ToClientMessage::Error("Invalid job_id".to_string())
-    }
+    };
+    handle_submit(&state_ref.clone(), &tako_ref.clone(), msg_submit).await
 }
 
 async fn handle_worker_list(state_ref: &StateRef) -> ToClientMessage {

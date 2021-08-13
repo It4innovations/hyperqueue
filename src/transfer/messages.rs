@@ -188,7 +188,6 @@ pub struct JobDetail {
     pub tasks: Vec<JobTaskInfo>,
     pub resources: ResourceRequest,
     pub pin: bool,
-    pub entries: Option<Vec<BString>>,
     pub max_fails: Option<JobTaskCount>,
     pub priority: tako::Priority,
 

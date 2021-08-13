@@ -5,7 +5,7 @@ use std::str;
 use std::time::Duration;
 
 fn parse_duration(raw_time: &str) -> anyhow::Result<Duration> {
-    let numbers: Vec<&str> = raw_time.split(":").collect();
+    let numbers: Vec<&str> = raw_time.split(':').collect();
     let duration = ChronoDuration::hours(numbers[0].parse()?)
         + ChronoDuration::minutes(numbers[1].parse()?)
         + ChronoDuration::seconds(numbers[2].parse()?);

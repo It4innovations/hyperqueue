@@ -183,7 +183,6 @@ impl Job {
                 Vec::new()
             },
             pin: self.pin,
-            entries: self.entries.clone(),
             max_fails: self.max_fails,
             priority: self.priority,
             submission_date: self.submission_date,
