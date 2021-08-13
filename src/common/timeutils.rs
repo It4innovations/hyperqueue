@@ -16,3 +16,9 @@ impl FromStr for ArgDuration {
         Ok(Self(humantime::parse_duration(s)?))
     }
 }
+
+impl From<ArgDuration> for Duration {
+    fn from(x: ArgDuration) -> Self {
+        x.0
+    }
+}

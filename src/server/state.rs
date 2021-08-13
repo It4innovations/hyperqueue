@@ -222,6 +222,7 @@ mod tests {
     use crate::server::job::Job;
     use crate::server::state::StateRef;
     use crate::transfer::messages::JobType;
+    use crate::{JobId, TakoTaskId};
     use tako::common::resources::ResourceRequest;
 
     fn dummy_program_definition() -> ProgramDefinition {
@@ -234,14 +235,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_find_job_id_by_task_id() {
-        let state_ref = StateRef::new();
-        let mut state = state_ref.get_mut();
-        state.add_job(Job::new(
-            JobType::Array(IntArray::from_range(0, 10)),
-            223,
-            100,
+    fn test_job(job_type: JobType, job_id: JobId, base_task_id: TakoTaskId) -> Job {
+        Job::new(
+            job_type,
+            job_id,
+            base_task_id,
             "".to_string(),
             dummy_program_definition(),
             ResourceRequest::default(),
@@ -250,59 +248,27 @@ mod tests {
             Some(Vec::new()),
             0,
             None,
+            None,
+        )
+    }
+
+    #[test]
+    fn test_find_job_id_by_task_id() {
+        let state_ref = StateRef::new();
+        let mut state = state_ref.get_mut();
+        state.add_job(test_job(
+            JobType::Array(IntArray::from_range(0, 10)),
+            223,
+            100,
         ));
-        state.add_job(Job::new(
+        state.add_job(test_job(
             JobType::Array(IntArray::from_range(0, 15)),
             224,
             110,
-            "".to_string(),
-            dummy_program_definition(),
-            ResourceRequest::default(),
-            false,
-            None,
-            Some(Vec::new()),
-            1,
-            None,
         ));
-        state.add_job(Job::new(
-            JobType::Simple,
-            225,
-            125,
-            "".to_string(),
-            dummy_program_definition(),
-            ResourceRequest::default(),
-            false,
-            None,
-            Some(Vec::new()),
-            5,
-            None,
-        ));
-        state.add_job(Job::new(
-            JobType::Simple,
-            226,
-            126,
-            "".to_string(),
-            dummy_program_definition(),
-            ResourceRequest::default(),
-            false,
-            None,
-            Some(Vec::new()),
-            1,
-            None,
-        ));
-        state.add_job(Job::new(
-            JobType::Simple,
-            227,
-            130,
-            "".to_string(),
-            dummy_program_definition(),
-            ResourceRequest::default(),
-            false,
-            None,
-            Some(Vec::new()),
-            2,
-            None,
-        ));
+        state.add_job(test_job(JobType::Simple, 225, 125));
+        state.add_job(test_job(JobType::Simple, 226, 126));
+        state.add_job(test_job(JobType::Simple, 227, 130));
 
         assert!(state.get_job_mut_by_tako_task_id(99).is_none());
         assert_eq!(state.get_job_mut_by_tako_task_id(100).unwrap().job_id, 223);

@@ -1159,7 +1159,7 @@ dependencies = [
 [[package]]
 name = "tako"
 version = "0.1.0"
-source = "git+https://github.com/spirali/tako?branch=main#0abf0dac51230c2e626208563d0fcb3c1583cb59"
+source = "git+https://github.com/spirali/tako?branch=main#14b24c91f250efba515739bf0efb902e69e6bb04"
 dependencies = [
  "bincode",
  "bitflags",

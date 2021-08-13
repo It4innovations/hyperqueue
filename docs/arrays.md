@@ -59,6 +59,10 @@ By default, when a task fails the computation of job continues.
 You can change it by ``--max-fails=X`` where ``X`` is non-negative integer.
 If more tasks then ``X`` fails, then the rest of non-finished tasks are canceled.
 
+## Time limit
+
+Time limit (``--time-limit``) is counted for each task separatatelly.
+
 ## Job canceling
 
 When a job with more tasks is canceled then all non-finished tasks is canceled.

@@ -384,3 +384,30 @@ def test_stream_worker_killed(hq_env: HqEnv):
     table.check_value_row("Stream connections", "")
     assert table.get_row_value("Stream registrations") != ""
     assert table.get_row_value("Open files") != ""
+
+
+def test_stream_timeout(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_workers(1, args=["--heartbeat", "500ms"])
+
+    hq_env.command(
+        [
+            "submit",
+            "--log",
+            "mylog",
+            "--time-limit=1s",
+            "--",
+            "bash",
+            "-c",
+            "echo Start; sleep 2; echo End",
+        ]
+    )
+
+    wait_for_job_state(hq_env, 1, "FAILED")
+
+    time.sleep(0.5)
+
+    result = hq_env.command(["log", "mylog", "show"])
+    assert result == "0:0> Start\n0: > stream closed\n"
+
+    check_no_stream_connections(hq_env)

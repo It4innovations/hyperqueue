@@ -333,6 +333,7 @@ async fn handle_submit(
     let pin = message.pin;
     let submit_dir = message.submit_dir;
     let priority = message.priority;
+    let time_limit = message.time_limit;
 
     let make_task = |job_id, task_id, tako_id, entry: Option<BString>| {
         let mut program = make_program_def_for_task(&spec, job_id, task_id, &submit_dir);
@@ -351,6 +352,7 @@ async fn handle_submit(
             conf: TaskConfiguration {
                 resources: resources.clone(),
                 n_outputs: 0,
+                time_limit,
                 type_id: 0,
                 body,
             },
@@ -391,7 +393,8 @@ async fn handle_submit(
             pin,
             message.max_fails,
             message.entries.clone(),
-            message.priority,
+            priority,
+            time_limit,
             message.log.clone(),
         );
         let job_detail = job.make_job_detail(false);
@@ -474,21 +477,19 @@ async fn handle_resubmit(
                 let spec = job.program_def.clone();
                 let name = job.name.clone();
                 let resources = job.resources.clone();
-                let pin = job.pin;
                 let entries = job.entries.clone();
-                let max_fails = job.max_fails;
-                let priority = job.priority;
 
                 SubmitRequest {
                     job_type,
                     name,
-                    max_fails,
+                    max_fails: job.max_fails,
                     spec,
                     resources,
-                    pin,
+                    pin: job.pin,
                     entries,
                     submit_dir: std::env::current_dir().unwrap().to_str().unwrap().into(),
-                    priority,
+                    priority: job.priority,
+                    time_limit: job.time_limit,
                     log: None, // TODO: Reuse log configuration
                 }
             } else {

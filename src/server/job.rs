@@ -103,6 +103,7 @@ pub struct Job {
 
     pub entries: Option<Vec<BString>>,
     pub priority: tako::Priority,
+    pub time_limit: Option<std::time::Duration>,
 
     pub submission_date: DateTime<Utc>,
     pub completion_date: Option<DateTime<Utc>>,
@@ -123,6 +124,7 @@ impl Job {
         max_fails: Option<JobTaskCount>,
         entries: Option<Vec<BString>>,
         priority: tako::Priority,
+        time_limit: Option<std::time::Duration>,
         job_log: Option<PathBuf>,
     ) -> Self {
         let state = match &job_type {
@@ -158,6 +160,7 @@ impl Job {
             entries,
             priority,
             log: job_log,
+            time_limit,
             submission_date: Utc::now(),
             completion_date: None,
         }
@@ -185,6 +188,7 @@ impl Job {
             pin: self.pin,
             max_fails: self.max_fails,
             priority: self.priority,
+            time_limit: self.time_limit,
             submission_date: self.submission_date,
             completion_date_or_now: self.completion_date.unwrap_or_else(Utc::now),
         }

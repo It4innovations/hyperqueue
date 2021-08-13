@@ -34,9 +34,11 @@ use crate::{JobId, JobTaskId};
 use hashbrown::HashMap;
 use std::future::Future;
 use std::pin::Pin;
+use std::process::ExitStatus;
 use std::rc::Rc;
 use std::time::Duration;
 use tako::common::error::DsError;
+use tako::worker::taskenv::{StopReason, TaskResult};
 use tako::InstanceId;
 use tokio::io::AsyncReadExt;
 use tokio::sync::oneshot;
@@ -166,7 +168,11 @@ async fn resend_stdio(
     Ok(())
 }
 
-async fn launcher_main(streamer_ref: StreamerRef, task_ref: TaskRef) -> tako::Result<()> {
+async fn launcher_main(
+    streamer_ref: StreamerRef,
+    task_ref: TaskRef,
+    end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
+) -> tako::Result<TaskResult> {
     log::debug!(
         "Starting program launcher {} {:?} {:?}",
         task_ref.get().id,
@@ -204,7 +210,15 @@ async fn launcher_main(streamer_ref: StreamerRef, task_ref: TaskRef) -> tako::Re
         (program, body.job_id, body.task_id, task.instance_id)
     };
 
-    run_task(streamer_ref, &program, job_id, job_task_id, instance_id).await
+    run_task(
+        streamer_ref,
+        &program,
+        job_id,
+        job_task_id,
+        instance_id,
+        end_receiver,
+    )
+    .await
 }
 
 /// Zero-worker mode measures pure overhead of HyperQueue.
@@ -216,8 +230,9 @@ async fn run_task(
     _job_id: JobId,
     _job_task_id: JobTaskId,
     _instance_id: InstanceId,
-) -> tako::Result<()> {
-    Ok(())
+    _end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
+) -> tako::Result<TaskResult> {
+    Ok(TaskResult::Finished)
 }
 
 #[cfg(not(feature = "zero-worker"))]
@@ -227,12 +242,23 @@ async fn run_task(
     job_id: JobId,
     job_task_id: JobTaskId,
     instance_id: InstanceId,
-) -> tako::Result<()> {
+    end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
+) -> tako::Result<TaskResult> {
     let mut command = command_from_definitions(program)?;
 
-    let status = if matches!(program.stdout, StdioDef::Pipe)
-        || matches!(program.stderr, StdioDef::Pipe)
-    {
+    let status_to_result = |status: ExitStatus| {
+        if !status.success() {
+            let code = status.code().unwrap_or(-1);
+            return tako::Result::Err(DsError::GenericError(format!(
+                "Program terminated with exit code {}",
+                code
+            )));
+        } else {
+            Ok(TaskResult::Finished)
+        }
+    };
+
+    if matches!(program.stdout, StdioDef::Pipe) || matches!(program.stderr, StdioDef::Pipe) {
         let streamer_error =
             |e: DsError| DsError::GenericError(format!("Streamer: {:?}", e.to_string()));
         let mut child = command.spawn()?;
@@ -247,47 +273,58 @@ async fn run_task(
 
         stream.send_stream_start().await.map_err(streamer_error)?;
 
+        let stream2 = stream.clone();
+
         let main_fut = async move {
             let stdout = child.stdout.take();
             let stderr = child.stderr.take();
-
             let response = tokio::try_join!(
                 child.wait().map_err(DsError::from),
-                resend_stdio(job_id, job_task_id, 0, stdout, stream.clone())
+                resend_stdio(job_id, job_task_id, 0, stdout, stream2.clone())
                     .map_err(streamer_error),
-                resend_stdio(job_id, job_task_id, 1, stderr, stream.clone())
-                    .map_err(streamer_error),
+                resend_stdio(job_id, job_task_id, 1, stderr, stream2).map_err(streamer_error),
             );
-            stream.close().await.map_err(streamer_error)?;
-            Ok(response?.0)
+            status_to_result(response?.0)
         };
-        tokio::try_join!(
-            main_fut,
+
+        let guard_fut = async move {
+            let result = tokio::select! {
+                biased;
+                    r = end_receiver => {
+                        Ok(r.unwrap().into())
+                    }
+                    r = main_fut => r
+            };
+            stream.close().await.map_err(streamer_error)?;
+            result
+        };
+
+        Ok(tokio::try_join!(
+            guard_fut,
             close_responder.map(|r| r
                 .map_err(|_| DsError::GenericError("Connection to stream server closed".into()))?
                 .map_err(streamer_error))
         )?
-        .0
+        .0)
     } else {
-        command.status().await?
-    };
-    if !status.success() {
-        let code = status.code().unwrap_or(-1);
-        return tako::Result::Err(DsError::GenericError(format!(
-            "Program terminated with exit code {}",
-            code
-        )));
+        tokio::select! {
+            biased;
+                r = end_receiver => {
+                    Ok(r.unwrap().into())
+                }
+                r = command.status() => status_to_result(r?)
+        }
     }
-    Ok(())
 }
 
 fn launcher(
     streamer_ref: &StreamerRef,
     task_ref: &TaskRef,
-) -> Pin<Box<dyn Future<Output = tako::Result<()>> + 'static>> {
+    end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
+) -> Pin<Box<dyn Future<Output = tako::Result<TaskResult>> + 'static>> {
     let task_ref = task_ref.clone();
     let streamer_ref = streamer_ref.clone();
-    Box::pin(async move { launcher_main(streamer_ref, task_ref).await })
+    Box::pin(async move { launcher_main(streamer_ref, task_ref, end_receiver).await })
 }
 
 pub async fn start_hq_worker(
@@ -325,7 +362,7 @@ pub async fn start_hq_worker(
         server_addr,
         configuration,
         Some(record.tako_secret_key().clone()),
-        Box::new(move |task_ref| launcher(&streamer_ref, task_ref)),
+        Box::new(move |task_ref, end_receiver| launcher(&streamer_ref, task_ref, end_receiver)),
     )
     .await?;
     print_worker_configuration(gsettings, worker_id, configuration);

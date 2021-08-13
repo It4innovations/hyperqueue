@@ -1,6 +1,6 @@
 from typing import Optional, List
 
-JOB_TABLE_ROWS = 14
+JOB_TABLE_ROWS = 15
 
 
 # TODO: create a pandas dataframe instead?
@@ -63,7 +63,7 @@ class Table:
         return len(self.rows)
 
     def __repr__(self):
-        return "\n".join(" ".join(val) for val in self.rows)
+        return "\n".join(" | ".join(val) for val in self.rows)
 
 
 def assert_equals(a, b):

@@ -70,10 +70,13 @@ Disabling stderr and streaming only stdout into log file.
 
 # Guarantees
 
-When a task is *finished* or *failed* with a non-streaming error then it is guaranteed that its stream is fully flushed into the log file.
+When a task is *finished* or *failed* (except fail of streaming, see below) then it is guaranteed that its stream is fully flushed into the log file.
 
-When a task is *canceled* or *failed* with a streaming error, then the stream is not necessarily fully written into the log file in the moment when the state occurs
- and some part may be written later, but the stream will be eventually closed. In this case, HQ is also allowed to drop any suffix of the buffered part of the stream.
+When a task is *canceled* then the stream is not necessarily fully written into the log file in the moment when the state occurs and some parts may be written later, but the stream will be eventually closed.
+
+When a task is *canceled* or the time limit is reached then part of the stream buffered in the worker is dropped to void spending additional resources for this task. In practice, this should be only part that is produced immediately before the event, because data are sent to the server as soon as possible.
+
+If streaming failed (e.g. insufficient disk space for the log file) then task fails with an error prefixed "Streamer:" and no guarantees for streaming are provided.
 
 
 # Current limitations

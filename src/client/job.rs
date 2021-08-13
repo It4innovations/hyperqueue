@@ -210,6 +210,14 @@ pub fn print_job_detail(
     ]);
 
     rows.push(vec![
+        "Task time limit".cell().bold(true),
+        job.time_limit
+            .map(|duration| humantime::format_duration(duration).to_string())
+            .unwrap_or_else(|| "None".to_string())
+            .cell(),
+    ]);
+
+    rows.push(vec![
         "Makespan".cell().bold(true),
         human_duration(job.completion_date_or_now - job.submission_date).cell(),
     ]);
