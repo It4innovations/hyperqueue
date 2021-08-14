@@ -87,6 +87,8 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#task-fail-in-array-job">Task fail in array job</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#time-limit">Time limit</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#job-canceling">Job canceling</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#task-for-each-line-of-a-file">Task for each line of a file</a>
@@ -177,6 +179,8 @@ following list of rules:</p>
 <p>By default, when a task fails the computation of job continues.</p>
 <p>You can change it by <code>--max-fails=X</code> where <code>X</code> is non-negative integer.
 If more tasks then <code>X</code> fails, then the rest of non-finished tasks are canceled.</p>
+<h2 id="time-limit">Time limit<a class="headerlink" href="#time-limit" title="Permanent link">#</a></h2>
+<p>Time limit (<code>--time-limit</code>) is counted for each task separatatelly.</p>
 <h2 id="job-canceling">Job canceling<a class="headerlink" href="#job-canceling" title="Permanent link">#</a></h2>
 <p>When a job with more tasks is canceled then all non-finished tasks is canceled.</p>
 <h2 id="task-for-each-line-of-a-file">Task for each line of a file<a class="headerlink" href="#task-for-each-line-of-a-file" title="Permanent link">#</a></h2>

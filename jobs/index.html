@@ -151,6 +151,10 @@ from which was the job submitted.</p>
 <p>You can use <a href="#placeholders">placeholders</a> in the working directory path.</p>
 </div>
 <h3 id="output-of-the-job">Output of the job<a class="headerlink" href="#output-of-the-job" title="Permanent link">#</a></h3>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+</div>
+<p>If you want to avoid creating many files, see the section about streaming</p>
 <p>By default, each job will produce two files containing the standard output and standard error output, respectively.</p>
 <p>The paths where these files will be created can be changed via the parameters <code>--stdout=&lt;path&gt;</code> and <code>--stderr=&lt;path&gt;</code>.
 You can also disable creating stdout/stderr completely by setting value <code>none</code>.</p>
@@ -241,6 +245,23 @@ Finished    Failed   Canceled
 <li><em>Failed</em> - The task has failed. The error can be shown by <code>hq job &lt;job-id&gt;</code>.</li>
 <li><em>Canceled</em> -  The task has been canceled by a user.</li>
 </ul>
+<h2 id="time-limit">Time limit<a class="headerlink" href="#time-limit" title="Permanent link">#</a></h2>
+<p>Time limit is set as follows:</p>
+<p><code>hq submit --time-limit=TIME ...</code></p>
+<p>Where <code>TIME</code> is a number followed by units (e.g. <code>10 min</code>)</p>
+<p>You can use the following units:</p>
+<ul>
+<li>msec, ms -- milliseconds</li>
+<li>seconds, second, sec, s</li>
+<li>minutes, minute, min, m</li>
+<li>hours, hour, hr, h</li>
+<li>days, day, d</li>
+<li>weeks, week, w</li>
+<li>months, month, M -- defined as 30.44 days</li>
+<li>years, year, y -- defined as 365.25 days</li>
+</ul>
+<p>Time can be also a combination of more units:</p>
+<p><code>hq submit --time-limit="1h 30min" ...</code></p>
 <h2 id="task-instance">Task instance<a class="headerlink" href="#task-instance" title="Permanent link">#</a></h2>
 <p>It may happen that a task is started more than once when a worker crashes during execution of a task and the task is rescheduled to another worker. Instance IDs exist to distinguish each run when necessary. Instance ID is 32b non-negative number and it is guarantted that the newer execution has a bigger value. HyperQueue explicitly does <em>not</em> guarantee any specific value or differences between two ids. Instance ID is valid only for a particular task. Two different tasks may have the same instance ID.</p>
 <h2 id="job-states">Job states<a class="headerlink" href="#job-states" title="Permanent link">#</a></h2>
