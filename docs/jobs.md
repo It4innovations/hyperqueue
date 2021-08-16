@@ -49,7 +49,7 @@ from which was the job submitted.
 
 !!! Warning
 
-If you want to avoid creating many files, see the section about streaming
+    If you want to avoid creating many files, see the section about streaming
 
 
 By default, each job will produce two files containing the standard output and standard error output, respectively.
