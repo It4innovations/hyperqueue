@@ -160,7 +160,7 @@ from which was the job submitted.</p>
 You can also disable creating stdout/stderr completely by setting value <code>none</code>.</p>
 <pre><code class="language-bash">$ hq submit --stdout=none ...
 </code></pre>
-<p>The default values for these paths are <code>stdout.%{JOB_ID}.%{TASK_ID}</code> and <code>stderr.%{JOB_ID}.%{TASK_ID}</code>. You can read
+<p>The default values for these paths are <code>job-%{JOB_ID}/stdout.%{TASK_ID}</code> and <code>job-%{JOB_ID}/stderr.%{TASK_ID}</code>. You can read
 about the <code>%{JOB_ID}</code> and <code>%{TASK_ID}</code> placeholders <a href="#placeholders">below</a>.</p>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
