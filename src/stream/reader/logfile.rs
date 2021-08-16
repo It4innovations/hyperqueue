@@ -213,7 +213,7 @@ impl LogFile {
                     if let Some(task_info) = self.index.get(&task_id) {
                         infos.push((task_id, task_info.last_instance()));
                     } else {
-                        log::warn!("Task {} not found", task_id);
+                        anyhow::bail!("Task {} not found", task_id);
                     }
                 }
                 infos
