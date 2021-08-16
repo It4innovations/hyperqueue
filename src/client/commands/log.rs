@@ -1,7 +1,7 @@
 use crate::client::globalsettings::GlobalSettings;
+use crate::common::arraydef::IntArray;
 use crate::common::format::human_size;
 use crate::stream::reader::logfile::{LogFile, Summary};
-use crate::JobTaskId;
 use clap::Clap;
 use cli_table::{print_stdout, Cell, Style, Table};
 use std::path::{Path, PathBuf};
@@ -40,9 +40,9 @@ pub struct CatOpts {
     /// Channel name: "stdout" or "stderr"
     pub channel: Channel,
 
-    /// Print only specific task output
+    /// Print only the specified task(s) output. You can use the array syntax to specify multiple tasks.
     #[clap(long)]
-    pub task: Option<JobTaskId>,
+    pub task: Option<IntArray>,
 
     /// Allow unfinished channel
     #[clap(long)]

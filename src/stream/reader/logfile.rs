@@ -206,27 +206,37 @@ impl LogFile {
                 Ok(())
             };
 
-        if let Some(task_id) = opts.task {
-            if let Some(task_info) = self.index.get(&task_id) {
-                let instance = task_info.last_instance();
-                if !instance.finished && opts.allow_unfinished {
-                    anyhow::bail!("Stream for task {} is not finished", task_id);
-                }
-                print_instance(&mut self.file, instance)?;
-            }
-        } else {
-            if !opts.allow_unfinished {
-                for (task_id, task_info) in &self.index {
-                    if !task_info.last_instance().finished {
-                        anyhow::bail!("Stream for task {} is not finished", task_id);
+        let task_infos = match opts.task {
+            Some(ref array) => {
+                let mut infos = Vec::new();
+                for task_id in array.iter() {
+                    if let Some(task_info) = self.index.get(&task_id) {
+                        infos.push((task_id, task_info.last_instance()));
+                    } else {
+                        anyhow::bail!("Task {} not found", task_id);
                     }
                 }
+                infos
             }
-            for task_info in self.index.values() {
-                let instance = task_info.last_instance();
-                print_instance(&mut self.file, instance)?;
+            None => self
+                .index
+                .iter()
+                .map(|(&task_id, task_info)| (task_id, task_info.last_instance()))
+                .collect(),
+        };
+
+        if !opts.allow_unfinished {
+            for (task_id, instance) in &task_infos {
+                if !instance.finished {
+                    anyhow::bail!("Stream for task {} is not finished", task_id);
+                }
             }
         }
+
+        for (_, instance) in &task_infos {
+            print_instance(&mut self.file, instance)?;
+        }
+
         Ok(())
     }
 

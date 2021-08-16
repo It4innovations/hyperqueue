@@ -55,9 +55,10 @@ def test_stream_submit(hq_env: HqEnv):
     result = hq_env.command(["log", "mylog", "cat", "stdout"])
     assert result == "".join(["Hello from {}\n".format(i) for i in range(1, 21)])
 
-    result = hq_env.command(["log", "mylog", "cat", "stdout", "--task=3"])
-    assert result == "Hello from 3\n"
-
+    result = hq_env.command(["log", "mylog", "cat", "stdout", "--task=3-4,2"]).splitlines()
+    assert result[0] == "Hello from 3"
+    assert result[1] == "Hello from 4"
+    assert result[2] == "Hello from 2"
     check_no_stream_connections(hq_env)
 
 
