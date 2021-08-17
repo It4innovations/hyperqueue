@@ -13,9 +13,25 @@ macro_rules! get_or_return {
     };
 }
 
-pub async fn autoalloc_check(state_ref: &StateRef) {
+/// The main entrypoint of the autoalloc background process.
+/// It invokes the autoalloc logic in fixed time intervals.
+pub async fn autoalloc_process(state_ref: StateRef) {
+    let duration = state_ref
+        .get()
+        .get_autoalloc_state()
+        .get()
+        .refresh_interval();
+    let mut interval = tokio::time::interval(duration);
+    loop {
+        interval.tick().await;
+        autoalloc_tick(&state_ref).await;
+    }
+}
+
+async fn autoalloc_tick(state_ref: &StateRef) {
     log::debug!("Running autoalloc");
 
+    // The descriptor names are copied out to avoid holding state reference across `await`
     let autoalloc_ref = state_ref.get().get_autoalloc_state().clone();
     let descriptors: Vec<_> = autoalloc_ref
         .get()
@@ -34,6 +50,9 @@ async fn process_descriptor(name: &str, state: &WrappedRcRefCell<AutoAllocState>
     schedule_new_allocations(name, state).await
 }
 
+/// Go through the allocations of descriptor with the given name and refresh their status.
+/// Queue allocations might become running or finished, running allocations might become finished,
+/// etc.
 #[allow(clippy::await_holding_refcell_ref)]
 async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocState>) {
     let allocations = {
@@ -77,6 +96,7 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
     }
 }
 
+/// Schedule new allocations for the descriptor with the given name.
 #[allow(clippy::await_holding_refcell_ref)]
 async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocState>) {
     let (mut remaining, max_workers_per_alloc) = {
@@ -127,19 +147,6 @@ async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoA
     }
 }
 
-pub async fn autoalloc_process(state_ref: StateRef) {
-    let duration = state_ref
-        .get()
-        .get_autoalloc_state()
-        .get()
-        .refresh_interval();
-    let mut interval = tokio::time::interval(duration);
-    loop {
-        interval.tick().await;
-        autoalloc_check(&state_ref).await;
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::future::Future;
@@ -149,7 +156,7 @@ mod tests {
 
     use crate::common::WrappedRcRefCell;
     use crate::server::autoalloc::descriptor::QueueDescriptor;
-    use crate::server::autoalloc::process::autoalloc_check;
+    use crate::server::autoalloc::process::autoalloc_tick;
     use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
     use crate::server::autoalloc::{AutoAllocError, AutoAllocResult};
     use crate::server::state::StateRef;
@@ -178,8 +185,8 @@ mod tests {
         )
         .await;
 
-        autoalloc_check(&state).await;
-        autoalloc_check(&state).await;
+        autoalloc_tick(&state).await;
+        autoalloc_tick(&state).await;
 
         assert_eq!(*call_count.get(), 1);
     }
@@ -215,7 +222,7 @@ mod tests {
         )
         .await;
 
-        autoalloc_check(&state).await;
+        autoalloc_tick(&state).await;
 
         assert_eq!(call_count.get().requests.len(), 0);
     }
@@ -238,7 +245,7 @@ mod tests {
         )
         .await;
 
-        autoalloc_check(&state).await;
+        autoalloc_tick(&state).await;
 
         let state = state.get();
         let state = state.get_autoalloc_state().get();
@@ -272,13 +279,13 @@ mod tests {
         )
         .await;
 
-        autoalloc_check(&state).await;
+        autoalloc_tick(&state).await;
         custom_state.get_mut().status = Some(AllocationStatus::Queued {
             queued_at: Instant::now(),
         });
-        autoalloc_check(&state).await;
+        autoalloc_tick(&state).await;
         custom_state.get_mut().status = None;
-        autoalloc_check(&state).await;
+        autoalloc_tick(&state).await;
 
         assert_eq!(custom_state.get().job_id, 2);
     }

@@ -10,6 +10,7 @@ const MAX_EVENT_QUEUE_LENGTH: usize = 20;
 pub type DescriptorName = String;
 
 pub struct AutoAllocState {
+    /// How often should the auto alloc process be invoked?
     refresh_interval: Duration,
     descriptors: Map<DescriptorName, DescriptorState>,
 }
@@ -51,9 +52,12 @@ impl AutoAllocState {
     }
 }
 
+/// Represents the state of a single allocation queue.
 pub struct DescriptorState {
     pub descriptor: WrappedRcRefCell<dyn QueueDescriptor>,
+    /// Allocations that are currently running or are in the queue.
     pub allocations: Vec<Allocation>,
+    /// Records events that have occurred on this queue.
     events: VecDeque<AllocationEventHolder>,
 }
 
