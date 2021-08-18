@@ -58,10 +58,13 @@ pub async fn init_hq_server(
 }
 
 pub async fn get_client_connection(server_directory: &Path) -> anyhow::Result<ClientConnection> {
-    let sd = ServerDir::open(server_directory).context("No running instance of HQ found")?;
-    let access_record = sd
-        .read_access_record()
-        .with_context(|| format!("Cannot read access record from {:?}", sd.access_filename()))?;
+    let sd = ServerDir::open(server_directory).context("Invalid server directory")?;
+    let access_record = sd.read_access_record().with_context(|| {
+        format!(
+            "No running instance of HQ found (cannot read access record from {:?})",
+            sd.access_filename()
+        )
+    })?;
     let connection = HqConnection::connect_to_server(&access_record)
         .await
         .with_context(|| {
