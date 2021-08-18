@@ -19,9 +19,10 @@ use crate::server::state::StateRef;
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
-    CancelJobResponse, FromClientMessage, JobDetail, JobInfoResponse, JobType, ResubmitRequest,
-    Selector, StatsResponse, StopWorkerResponse, SubmitRequest, SubmitResponse, TaskBody,
-    ToClientMessage, WorkerListResponse,
+    AutoAllocInfoResponse, AutoAllocRequest, AutoAllocResponse, CancelJobResponse,
+    FromClientMessage, JobDetail, JobInfoResponse, JobType, ResubmitRequest, Selector,
+    StatsResponse, StopWorkerResponse, SubmitRequest, SubmitResponse, TaskBody, ToClientMessage,
+    WorkerListResponse,
 };
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 use bstr::BString;
@@ -102,6 +103,9 @@ pub async fn client_rpc_loop<
                         compute_job_detail(&state_ref, msg.selector, msg.include_tasks)
                     }
                     FromClientMessage::Stats => compose_server_stats(&state_ref, &tako_ref).await,
+                    FromClientMessage::AutoAlloc(msg) => {
+                        handle_autoalloc_message(&state_ref, msg).await
+                    }
                 };
                 assert!(tx.send(response).await.is_ok());
             }
@@ -116,6 +120,24 @@ pub async fn client_rpc_loop<
                     .is_ok());
                 return;
             }
+        }
+    }
+}
+
+async fn handle_autoalloc_message(
+    state_ref: &StateRef,
+    request: AutoAllocRequest,
+) -> ToClientMessage {
+    match request {
+        AutoAllocRequest::Info => {
+            let refresh_interval = state_ref
+                .get()
+                .get_autoalloc_state()
+                .get()
+                .refresh_interval();
+            ToClientMessage::AutoAllocResponse(AutoAllocResponse::Info(AutoAllocInfoResponse {
+                refresh_interval,
+            }))
         }
     }
 }

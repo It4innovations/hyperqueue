@@ -12,6 +12,22 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tako::common::resources::ResourceRequest;
 
+// Messages client -> server
+#[derive(Serialize, Deserialize, Debug)]
+pub enum FromClientMessage {
+    Submit(SubmitRequest),
+    Resubmit(ResubmitRequest),
+    Cancel(CancelRequest),
+    JobDetail(JobDetailRequest),
+    JobInfo(JobInfoRequest),
+    WorkerList,
+    WorkerInfo(WorkerInfoRequest),
+    Stats,
+    StopWorker(StopWorkerMessage),
+    Stop,
+    AutoAlloc(AutoAllocRequest),
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskBody {
     pub program: ProgramDefinition,
@@ -76,17 +92,29 @@ pub struct StopWorkerMessage {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum FromClientMessage {
-    Submit(SubmitRequest),
-    Resubmit(ResubmitRequest),
-    Cancel(CancelRequest),
-    JobDetail(JobDetailRequest),
-    JobInfo(JobInfoRequest),
-    WorkerList,
-    WorkerInfo(WorkerInfoRequest),
-    Stats,
-    StopWorker(StopWorkerMessage),
-    Stop,
+pub struct WorkerInfoRequest {
+    pub worker_id: WorkerId,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum AutoAllocRequest {
+    Info,
+}
+
+// Messages server -> client
+#[allow(clippy::large_enum_variant)]
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ToClientMessage {
+    JobInfoResponse(JobInfoResponse),
+    JobDetailResponse(Vec<(JobId, Option<JobDetail>)>),
+    SubmitResponse(SubmitResponse),
+    WorkerListResponse(WorkerListResponse),
+    WorkerInfoResponse(Option<WorkerInfo>),
+    StatsResponse(StatsResponse),
+    StopWorkerResponse(Vec<(WorkerId, StopWorkerResponse)>),
+    CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
+    AutoAllocResponse(AutoAllocResponse),
+    Error(String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -119,20 +147,6 @@ pub struct StatsResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitResponse {
     pub job: JobDetail,
-}
-
-#[allow(clippy::large_enum_variant)]
-#[derive(Serialize, Deserialize, Debug)]
-pub enum ToClientMessage {
-    JobInfoResponse(JobInfoResponse),
-    JobDetailResponse(Vec<(JobId, Option<JobDetail>)>),
-    SubmitResponse(SubmitResponse),
-    WorkerListResponse(WorkerListResponse),
-    WorkerInfoResponse(Option<WorkerInfo>),
-    StatsResponse(StatsResponse),
-    StopWorkerResponse(Vec<(WorkerId, StopWorkerResponse)>),
-    CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
-    Error(String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -207,11 +221,16 @@ pub struct WorkerListResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct WorkerInfoRequest {
-    pub worker_id: WorkerId,
+pub struct WorkerInfoResponse {
+    pub worker: WorkerInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct WorkerInfoResponse {
-    pub worker: WorkerInfo,
+pub enum AutoAllocResponse {
+    Info(AutoAllocInfoResponse),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct AutoAllocInfoResponse {
+    pub refresh_interval: Duration,
 }
