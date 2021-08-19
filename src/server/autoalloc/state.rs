@@ -98,13 +98,13 @@ pub enum AllocationStatus {
     Running { started_at: Instant },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AllocationEventHolder {
     pub date: Instant,
     pub event: AllocationEvent,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum AllocationEvent {
     QueueSuccess(AllocationId),
     QueueFail(AutoAllocError),
@@ -138,7 +138,7 @@ mod tests {
 
         #[async_trait(?Send)]
         impl QueueDescriptor for () {
-            fn target_scale(&self) -> u64 {
+            fn target_scale(&self) -> u32 {
                 0
             }
 

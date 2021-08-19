@@ -1,3 +1,5 @@
+pub mod pbs;
+
 use async_trait::async_trait;
 
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
@@ -9,10 +11,10 @@ use crate::server::autoalloc::AutoAllocResult;
 #[async_trait(?Send)]
 pub trait QueueDescriptor {
     /// How many workers should be ideally active (both running and in allocation queue).
-    fn target_scale(&self) -> u64;
+    fn target_scale(&self) -> u32;
 
     /// How many workers can be created in a single allocation.
-    fn max_workers_per_alloc(&self) -> u64 {
+    fn max_workers_per_alloc(&self) -> u32 {
         1
     }
 
