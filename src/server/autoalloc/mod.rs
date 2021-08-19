@@ -13,12 +13,18 @@ mod descriptor;
 mod process;
 mod state;
 
-#[derive(Debug, Error, Clone)]
+#[derive(Debug, Error)]
 pub enum AutoAllocError {
     #[error("Descriptor named {0} already exists")]
     DescriptorAlreadyExists(String),
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+    #[error("Submit failed: {0}")]
+    SubmitFailed(String),
     #[error("{0}")]
     Custom(String),
 }
 
 pub type AutoAllocResult<T> = Result<T, AutoAllocError>;
+
+pub use descriptor::pbs::PbsDescriptor;

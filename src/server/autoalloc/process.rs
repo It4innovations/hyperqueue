@@ -99,10 +99,10 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
 /// Schedule new allocations for the descriptor with the given name.
 #[allow(clippy::await_holding_refcell_ref)]
 async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocState>) {
-    let (mut remaining, max_workers_per_alloc) = {
+    let (mut remaining, max_workers_per_alloc): (u64, u64) = {
         let state = state_ref.get();
         let descriptor = get_or_return!(state.get_descriptor(name));
-        let active_workers = descriptor
+        let active_workers: u64 = descriptor
             .allocations
             .iter()
             .map(|alloc| alloc.worker_count)
@@ -111,8 +111,8 @@ async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoA
         let descriptor_impl = descriptor.descriptor.get();
         let scale = descriptor_impl.target_scale();
         (
-            scale.saturating_sub(active_workers),
-            descriptor_impl.max_workers_per_alloc(),
+            scale.saturating_sub(active_workers as u32) as u64,
+            descriptor_impl.max_workers_per_alloc() as u64,
         )
     };
     while remaining > 0 {
@@ -250,8 +250,10 @@ mod tests {
         let state = state.get();
         let state = state.get_autoalloc_state().get();
         let descriptor = state.get_descriptor("foo").unwrap();
-        let event = descriptor.get_events()[0].clone();
-        matches!(event.event, AllocationEvent::QueueFail(_));
+        matches!(
+            descriptor.get_events()[0].event,
+            AllocationEvent::QueueFail(_)
+        );
     }
 
     #[tokio::test]
@@ -301,12 +303,12 @@ mod tests {
         custom_state: WrappedRcRefCell<State>,
         schedule_fn: ScheduleFn,
         status_fn: StatusFn,
-        target_scale: u64,
-        max_workers_per_alloc: u64,
+        target_scale: u32,
+        max_workers_per_alloc: u32,
     ) {
         struct Queue<ScheduleFn, StatusFn, State> {
-            target_scale: u64,
-            max_workers_per_alloc: u64,
+            target_scale: u32,
+            max_workers_per_alloc: u32,
             schedule_fn: ScheduleFn,
             status_fn: StatusFn,
             custom_state: WrappedRcRefCell<State>,
@@ -321,11 +323,11 @@ mod tests {
                 StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationStatus>>>,
             > QueueDescriptor for Queue<ScheduleFn, StatusFn, State>
         {
-            fn target_scale(&self) -> u64 {
+            fn target_scale(&self) -> u32 {
                 self.target_scale
             }
 
-            fn max_workers_per_alloc(&self) -> u64 {
+            fn max_workers_per_alloc(&self) -> u32 {
                 self.max_workers_per_alloc
             }
 

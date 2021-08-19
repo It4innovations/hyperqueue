@@ -30,6 +30,7 @@ fn get_time(job_id: &str, data: &str) -> anyhow::Result<Duration> {
 }
 
 /// Calculates how much time is left for the given job using `qstat`.
+/// TODO: make this async
 pub fn get_remaining_timelimit(job_id: &str) -> anyhow::Result<Duration> {
     let result = Command::new("qstat")
         .args(&["-f", "-F", "json", job_id])
@@ -47,4 +48,28 @@ pub fn get_remaining_timelimit(job_id: &str) -> anyhow::Result<Duration> {
     log::debug!("qstat output: {}", output.trim());
 
     get_time(job_id, output.as_str())
+}
+
+/// Format a duration as a PBS time string, e.g. 01:05:02
+pub fn format_pbs_duration(duration: &Duration) -> String {
+    let mut seconds = duration.as_secs();
+    let hours = seconds / 3600;
+    seconds %= 3600;
+    let minutes = seconds / 60;
+    seconds %= 60;
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+}
+
+#[cfg(test)]
+mod test {
+    use crate::common::manager::pbs::format_pbs_duration;
+    use std::time::Duration;
+
+    #[test]
+    fn test_format_pbs_duration() {
+        assert_eq!(format_pbs_duration(&Duration::from_secs(0)), "00:00:00");
+        assert_eq!(format_pbs_duration(&Duration::from_secs(1)), "00:00:01");
+        assert_eq!(format_pbs_duration(&Duration::from_secs(61)), "00:01:01");
+        assert_eq!(format_pbs_duration(&Duration::from_secs(3661)), "01:01:01");
+    }
 }

@@ -99,6 +99,21 @@ pub struct WorkerInfoRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AutoAllocRequest {
     Info,
+    AddQueue(AddQueueRequest),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum AddQueueRequest {
+    Pbs(AddQueueParams),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct AddQueueParams {
+    pub name: String,
+    pub max_workers_per_alloc: u32,
+    pub target_worker_count: u32,
+    pub queue: String,
+    pub walltime: Option<Duration>,
 }
 
 // Messages server -> client
@@ -227,10 +242,12 @@ pub struct WorkerInfoResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AutoAllocResponse {
+    Ok,
     Info(AutoAllocInfoResponse),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AutoAllocInfoResponse {
     pub refresh_interval: Duration,
+    pub descriptors: Vec<String>,
 }

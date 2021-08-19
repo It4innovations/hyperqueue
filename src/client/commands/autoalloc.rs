@@ -1,9 +1,11 @@
 use crate::client::globalsettings::GlobalSettings;
+use crate::common::timeutils::ArgDuration;
 use crate::rpc_call;
 use crate::server::bootstrap::get_client_connection;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    AutoAllocRequest, AutoAllocResponse, FromClientMessage, ToClientMessage,
+    AddQueueParams, AddQueueRequest, AutoAllocRequest, AutoAllocResponse, FromClientMessage,
+    ToClientMessage,
 };
 use clap::Clap;
 use cli_table::{print_stdout, Cell, Style, Table};
@@ -20,6 +22,42 @@ pub struct AutoAllocOpts {
 enum AutoAllocCommand {
     /// Display information about autoalloc state
     Info,
+    /// Add new allocation queue
+    Add(AddQueueOpts),
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+pub struct AddQueueOpts {
+    /// Name of the allocation queue
+    name: String,
+
+    #[clap(subcommand)]
+    subcmd: AddQueueCommand,
+}
+
+#[derive(Clap)]
+pub enum AddQueueCommand {
+    /// Create a PBS allocation queue
+    Pbs(AddPbsQueueOpts),
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+pub struct AddPbsQueueOpts {
+    /// PBS queue into which the allocations will be queued
+    queue: String,
+
+    /// How many workers should be kept active in this queue
+    target_worker_count: u32,
+
+    /// Maximum timelimit of allocated jobs
+    #[clap(long)]
+    walltime: Option<ArgDuration>,
+
+    /// How many workers at most can be allocated in a single allocation
+    #[clap(long, default_value = "1")]
+    max_workers_per_alloc: u32,
 }
 
 pub async fn command_autoalloc(
@@ -31,7 +69,34 @@ pub async fn command_autoalloc(
         AutoAllocCommand::Info => {
             print_autoalloc_info(gsettings, connection).await?;
         }
+        AutoAllocCommand::Add(opts) => {
+            add_queue(connection, opts).await?;
+        }
     }
+    Ok(())
+}
+
+async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyhow::Result<()> {
+    let AddQueueOpts { name, subcmd } = opts;
+
+    let message = match subcmd {
+        AddQueueCommand::Pbs(params) => FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(
+            AddQueueRequest::Pbs(AddQueueParams {
+                name: name.clone(),
+                max_workers_per_alloc: params.max_workers_per_alloc,
+                target_worker_count: params.target_worker_count,
+                queue: params.queue,
+                walltime: params.walltime.map(|v| v.into_duration()),
+            }),
+        )),
+    };
+
+    rpc_call!(connection, message,
+        ToClientMessage::AutoAllocResponse(AutoAllocResponse::Ok) => ()
+    )
+    .await?;
+
+    log::info!("Allocation queue {} was successfully created", name);
     Ok(())
 }
 
@@ -49,6 +114,12 @@ async fn print_autoalloc_info(
         "Refresh interval".cell().bold(true),
         humantime::format_duration(response.refresh_interval).cell(),
     ]];
+    let table = rows.table().color_choice(gsettings.color_policy());
+    assert!(print_stdout(table).is_ok());
+
+    let mut rows = vec![vec!["Descriptor name".cell().bold(true)]];
+    rows.extend(response.descriptors.into_iter().map(|d| vec![d.cell()]));
+
     let table = rows.table().color_choice(gsettings.color_policy());
     assert!(print_stdout(table).is_ok());
     Ok(())
