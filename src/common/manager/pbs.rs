@@ -60,9 +60,16 @@ pub fn format_pbs_duration(duration: &Duration) -> String {
     format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
 }
 
+pub fn parse_pbs_datetime(datetime: &str) -> anyhow::Result<chrono::NaiveDateTime> {
+    Ok(chrono::NaiveDateTime::parse_from_str(
+        datetime,
+        "%a %b %d %H:%M:%S %Y",
+    )?)
+}
+
 #[cfg(test)]
 mod test {
-    use crate::common::manager::pbs::format_pbs_duration;
+    use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
     use std::time::Duration;
 
     #[test]
@@ -71,5 +78,14 @@ mod test {
         assert_eq!(format_pbs_duration(&Duration::from_secs(1)), "00:00:01");
         assert_eq!(format_pbs_duration(&Duration::from_secs(61)), "00:01:01");
         assert_eq!(format_pbs_duration(&Duration::from_secs(3661)), "01:01:01");
+    }
+
+    #[test]
+    fn test_parse_pbs_datetime() {
+        let date = parse_pbs_datetime("Thu Aug 19 13:05:17 2021").unwrap();
+        assert_eq!(
+            date.format("%d.%m.%Y %H:%M:%S").to_string(),
+            "19.08.2021 13:05:17"
+        );
     }
 }

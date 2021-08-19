@@ -1,6 +1,7 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::timeutils::ArgDuration;
 use crate::rpc_call;
+use crate::server::autoalloc::{AllocationEvent, AllocationEventHolder};
 use crate::server::bootstrap::get_client_connection;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
@@ -8,7 +9,7 @@ use crate::transfer::messages::{
     ToClientMessage,
 };
 use clap::Clap;
-use cli_table::{print_stdout, Cell, Style, Table};
+use cli_table::{print_stdout, Cell, CellStruct, Color, Style, Table};
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
@@ -22,6 +23,8 @@ pub struct AutoAllocOpts {
 enum AutoAllocCommand {
     /// Display information about autoalloc state
     Info,
+    /// Display event log for a specified allocation queue
+    Log(LogOpts),
     /// Add new allocation queue
     Add(AddQueueOpts),
 }
@@ -60,6 +63,13 @@ pub struct AddPbsQueueOpts {
     max_workers_per_alloc: u32,
 }
 
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+pub struct LogOpts {
+    /// Name of the allocation queue
+    name: String,
+}
+
 pub async fn command_autoalloc(
     gsettings: GlobalSettings,
     opts: AutoAllocOpts,
@@ -67,10 +77,13 @@ pub async fn command_autoalloc(
     let connection = get_client_connection(gsettings.server_directory()).await?;
     match opts.subcmd {
         AutoAllocCommand::Info => {
-            print_autoalloc_info(gsettings, connection).await?;
+            print_info(gsettings, connection).await?;
         }
         AutoAllocCommand::Add(opts) => {
             add_queue(connection, opts).await?;
+        }
+        AutoAllocCommand::Log(opts) => {
+            print_log(gsettings, connection, opts).await?;
         }
     }
     Ok(())
@@ -100,7 +113,7 @@ async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyh
     Ok(())
 }
 
-async fn print_autoalloc_info(
+async fn print_info(
     gsettings: GlobalSettings,
     mut connection: ClientConnection,
 ) -> anyhow::Result<()> {
@@ -119,6 +132,71 @@ async fn print_autoalloc_info(
 
     let mut rows = vec![vec!["Descriptor name".cell().bold(true)]];
     rows.extend(response.descriptors.into_iter().map(|d| vec![d.cell()]));
+
+    let table = rows.table().color_choice(gsettings.color_policy());
+    assert!(print_stdout(table).is_ok());
+    Ok(())
+}
+
+async fn print_log(
+    gsettings: GlobalSettings,
+    mut connection: ClientConnection,
+    opts: LogOpts,
+) -> anyhow::Result<()> {
+    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::GetLog {
+        descriptor: opts.name,
+    });
+    let response = rpc_call!(connection, message,
+        ToClientMessage::AutoAllocResponse(AutoAllocResponse::Logs(logs)) => logs
+    )
+    .await?;
+
+    let event_name = |event: &AllocationEventHolder| -> CellStruct {
+        match event.event {
+            AllocationEvent::AllocationQueued(..) => "Allocation queued"
+                .cell()
+                .foreground_color(Some(Color::Yellow)),
+            AllocationEvent::AllocationStarted(..) => "Allocation started"
+                .cell()
+                .foreground_color(Some(Color::Green)),
+            AllocationEvent::AllocationFinished(..) => "Allocation finished"
+                .cell()
+                .foreground_color(Some(Color::Blue)),
+            AllocationEvent::AllocationFailed(..) => "Allocation failed"
+                .cell()
+                .foreground_color(Some(Color::Red)),
+            AllocationEvent::QueueFail { .. } => "Allocation submission failed"
+                .cell()
+                .foreground_color(Some(Color::Red)),
+            AllocationEvent::StatusFail { .. } => "Allocation status check failed"
+                .cell()
+                .foreground_color(Some(Color::Red)),
+        }
+    };
+
+    let event_message = |event: &AllocationEventHolder| -> CellStruct {
+        match &event.event {
+            AllocationEvent::AllocationQueued(id) => id.cell(),
+            AllocationEvent::AllocationStarted(id) => id.cell(),
+            AllocationEvent::AllocationFinished(id) => id.cell(),
+            AllocationEvent::AllocationFailed(id) => id.cell(),
+            AllocationEvent::QueueFail { error } => error.cell(),
+            AllocationEvent::StatusFail { error } => error.cell(),
+        }
+    };
+
+    let mut rows = vec![vec![
+        "Event".cell().bold(true),
+        "Time".cell().bold(true),
+        "Message".cell().bold(true),
+    ]];
+    rows.extend(response.into_iter().map(|event| {
+        vec![
+            event_name(&event),
+            humantime::format_rfc3339_seconds(event.date).cell(),
+            event_message(&event),
+        ]
+    }));
 
     let table = rows.table().color_choice(gsettings.color_policy());
     assert!(print_stdout(table).is_ok());
