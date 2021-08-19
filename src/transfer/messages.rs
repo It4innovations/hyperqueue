@@ -5,6 +5,7 @@ use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
+use crate::server::autoalloc::AllocationEventHolder;
 use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 use bstr::BString;
@@ -99,6 +100,7 @@ pub struct WorkerInfoRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AutoAllocRequest {
     Info,
+    GetLog { descriptor: String },
     AddQueue(AddQueueRequest),
 }
 
@@ -243,6 +245,7 @@ pub struct WorkerInfoResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AutoAllocResponse {
     Ok,
+    Logs(Vec<AllocationEventHolder>),
     Info(AutoAllocInfoResponse),
 }
 

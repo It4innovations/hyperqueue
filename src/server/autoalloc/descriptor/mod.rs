@@ -23,8 +23,6 @@ pub trait QueueDescriptor {
     async fn schedule_allocation(&self, worker_count: u64) -> AutoAllocResult<AllocationId>;
 
     /// Get status of an existing allocation
-    async fn get_allocation_status(
-        &self,
-        allocation_id: &str,
-    ) -> AutoAllocResult<Option<AllocationStatus>>;
+    async fn get_allocation_status(&self, allocation_id: &str)
+        -> AutoAllocResult<AllocationStatus>;
 }

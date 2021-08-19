@@ -2,12 +2,15 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 
-use crate::common::manager::pbs::format_pbs_duration;
+use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
+use crate::common::timeutils::local_datetime_to_system_time;
 use crate::server::autoalloc::descriptor::QueueDescriptor;
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
-use crate::server::autoalloc::{AutoAllocError, AutoAllocResult};
+use crate::server::autoalloc::AutoAllocResult;
+use anyhow::Context;
 use bstr::ByteSlice;
 use std::path::PathBuf;
+use std::process::Output;
 use tokio::process::Command;
 
 pub struct PbsDescriptor {
@@ -82,6 +85,7 @@ impl QueueDescriptor for PbsDescriptor {
         }
 
         // `hq worker` arguments
+        command.arg("--");
         command.arg(self.hq_path.display().to_string());
         command.args([
             "worker",
@@ -96,30 +100,85 @@ impl QueueDescriptor for PbsDescriptor {
 
         log::debug!("Running PBS command {:?}", command);
 
-        let output = command.output().await?;
-        let status = output.status;
-        if !status.success() {
-            return AutoAllocResult::Err(AutoAllocError::SubmitFailed(format!(
-                "Exit code {}, stderr: {}, stdout: {}",
-                status.code().unwrap(),
-                output.stderr.to_str().unwrap(),
-                output.stdout.to_str().unwrap()
-            )));
-        }
+        let output = command.output().await.context("qsub start failed")?;
+        let output = check_command_output(output).context("qsub execution failed")?;
 
         let job_id = output
             .stdout
             .to_str()
-            .map_err(|e| AutoAllocError::Custom(format!("Invalid UTF-8 qsub output: {:?}", e)))?
+            .map_err(|e| anyhow::anyhow!("Invalid UTF-8 qsub output: {:?}", e))?
             .trim();
+        let job_id = job_id.to_string();
 
-        AutoAllocResult::Ok(job_id.to_string())
+        // Write the PBS job id to the folder as a debug information
+        std::fs::write(directory.join("jobid"), &job_id)?;
+
+        AutoAllocResult::Ok(job_id)
     }
 
     async fn get_allocation_status(
         &self,
-        _allocation_id: &str,
-    ) -> AutoAllocResult<Option<AllocationStatus>> {
-        todo!()
+        allocation_id: &str,
+    ) -> AutoAllocResult<AllocationStatus> {
+        let mut command = Command::new("qstat");
+        // -x will also display finished jobs
+        command.args(["-f", allocation_id, "-F", "json", "-x"]);
+
+        let output = command.output().await.context("qstat start failed")?;
+        let output = check_command_output(output).context("qstat execution failed")?;
+        let data: serde_json::Value =
+            serde_json::from_slice(&output.stdout).context("Cannot parse qstat JSON output")?;
+        let job = &data["Jobs"][allocation_id];
+        let state = get_json_str(&job["job_state"], "Job state")?;
+
+        let status = match state {
+            "Q" => {
+                let queue_time = get_json_str(&job["qtime"], "Queue time")?;
+                AllocationStatus::Queued {
+                    queued_at: local_datetime_to_system_time(parse_pbs_datetime(queue_time)?),
+                }
+            }
+            "R" => {
+                let start_time = get_json_str(&job["stime"], "Start time")?;
+                AllocationStatus::Running {
+                    started_at: local_datetime_to_system_time(parse_pbs_datetime(start_time)?),
+                }
+            }
+            "F" => {
+                let exit_status = get_json_number(&job["Exit_status"], "Exit status")?;
+                if exit_status == 0 {
+                    AllocationStatus::Finished
+                } else {
+                    AllocationStatus::Failed
+                }
+            }
+            status => anyhow::bail!("Unknown PBS job status {}", status),
+        };
+
+        Ok(status)
     }
+}
+
+fn get_json_str<'a>(value: &'a serde_json::Value, context: &str) -> AutoAllocResult<&'a str> {
+    value
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("JSON key {} not found", context))
+}
+fn get_json_number(value: &serde_json::Value, context: &str) -> AutoAllocResult<u64> {
+    value
+        .as_u64()
+        .ok_or_else(|| anyhow::anyhow!("JSON key {} not found", context))
+}
+
+fn check_command_output(output: Output) -> AutoAllocResult<Output> {
+    let status = output.status;
+    if !status.success() {
+        return Err(anyhow::anyhow!(
+            "Exit code {}, stderr: {}, stdout: {}",
+            status.code().unwrap(),
+            output.stderr.to_str().unwrap(),
+            output.stdout.to_str().unwrap()
+        ));
+    }
+    Ok(output)
 }
