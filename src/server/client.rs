@@ -185,7 +185,7 @@ fn create_queue(
                 params.queue.clone(),
                 params.max_workers_per_alloc,
                 params.target_worker_count,
-                params.timelimit.clone(),
+                params.timelimit,
             );
             let handler = Box::new(PbsHandler::new(
                 params.queue,

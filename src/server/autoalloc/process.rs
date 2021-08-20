@@ -53,7 +53,6 @@ async fn process_descriptor(name: &str, state: &WrappedRcRefCell<AutoAllocState>
 /// Go through the allocations of descriptor with the given name and refresh their status.
 /// Queue allocations might become running or finished, running allocations might become finished,
 /// etc.
-#[allow(clippy::await_holding_refcell_ref)]
 async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocState>) {
     let allocations = {
         let mut state = state_ref.get_mut();
@@ -63,15 +62,12 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
         std::mem::replace(&mut descriptor_state.allocations, next_allocations)
     };
     for allocation in allocations {
-        let descriptor = &get_or_return!(state_ref.get().get_descriptor(name))
+        let status_fut = get_or_return!(state_ref.get().get_descriptor(name))
             .descriptor
-            .clone();
-
-        let result = descriptor
-            .get()
             .handler()
-            .get_allocation_status(&allocation.id)
-            .await;
+            .get_allocation_status(allocation.id.clone());
+
+        let result = status_fut.await;
 
         let mut state = state_ref.get_mut();
         let descriptor = get_or_return!(state.get_descriptor_mut(name));
@@ -119,7 +115,6 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
 }
 
 /// Schedule new allocations for the descriptor with the given name.
-#[allow(clippy::await_holding_refcell_ref)]
 async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocState>) {
     let (mut remaining, max_workers_per_alloc): (u64, u64) = {
         let state = state_ref.get();
@@ -130,7 +125,7 @@ async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoA
             .map(|alloc| alloc.worker_count)
             .sum();
 
-        let descriptor_impl = descriptor.descriptor.get();
+        let descriptor_impl = &descriptor.descriptor;
         let scale = descriptor_impl.info().target_worker_count();
         (
             scale.saturating_sub(active_workers as u32) as u64,
@@ -139,15 +134,12 @@ async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoA
     };
     while remaining > 0 {
         let to_schedule = std::cmp::min(remaining, max_workers_per_alloc);
-        let descriptor = get_or_return!(state_ref.get().get_descriptor(name))
+        let schedule_fut = get_or_return!(state_ref.get().get_descriptor(name))
             .descriptor
-            .clone();
-
-        let result = descriptor
-            .get()
             .handler()
-            .schedule_allocation(to_schedule)
-            .await;
+            .schedule_allocation(to_schedule);
+
+        let result = schedule_fut.await;
 
         let mut state = state_ref.get_mut();
         let descriptor = get_or_return!(state.get_descriptor_mut(name));
@@ -189,8 +181,6 @@ mod tests {
     use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
     use crate::server::autoalloc::AutoAllocResult;
     use crate::server::state::StateRef;
-    
-    
 
     #[tokio::test]
     async fn test_do_not_overallocate_queue() {
