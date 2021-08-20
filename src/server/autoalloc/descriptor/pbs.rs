@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
-use crate::common::timeutils::local_datetime_to_system_time;
+use crate::common::timeutils::local_to_system_time;
 use crate::server::autoalloc::descriptor::{CreatedAllocation, QueueHandler};
-use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
+use crate::server::autoalloc::state::{AllocationId, AllocationStatus, AllocationTimeInfo};
 use crate::server::autoalloc::AutoAllocResult;
 use anyhow::Context;
 use bstr::ByteSlice;
@@ -13,8 +13,8 @@ use std::pin::Pin;
 use std::process::Output;
 use tokio::process::Command;
 
-// TODO: pass as queue info in trait
 pub struct PbsHandler {
+    // TODO: pass as queue info in trait
     queue: String,
     timelimit: Option<Duration>,
     server_directory: PathBuf,
@@ -136,32 +136,37 @@ impl QueueHandler for PbsHandler {
             let data: serde_json::Value =
                 serde_json::from_slice(&output.stdout).context("Cannot parse qstat JSON output")?;
             let job = &data["Jobs"][&allocation_id];
+
+            // Job was not found
             if job.is_null() {
-                // Job not found
                 return Ok(None);
             }
 
             let state = get_json_str(&job["job_state"], "Job state")?;
+            let queue_time = get_json_str(&job["qtime"], "Queue time")?;
+            let start_time = &job["stime"];
+            let finish_time = &job["mtime"];
+            let times = AllocationTimeInfo {
+                queued_at: local_to_system_time(parse_pbs_datetime(queue_time)?),
+                started_at: start_time
+                    .as_str()
+                    .map(|v| AutoAllocResult::Ok(local_to_system_time(parse_pbs_datetime(v)?)))
+                    .transpose()?,
+                finished_at: finish_time
+                    .as_str()
+                    .map(|v| AutoAllocResult::Ok(local_to_system_time(parse_pbs_datetime(v)?)))
+                    .transpose()?,
+            };
 
             let status = match state {
-                "Q" => {
-                    let queue_time = get_json_str(&job["qtime"], "Queue time")?;
-                    AllocationStatus::Queued {
-                        queued_at: local_datetime_to_system_time(parse_pbs_datetime(queue_time)?),
-                    }
-                }
-                "R" => {
-                    let start_time = get_json_str(&job["stime"], "Start time")?;
-                    AllocationStatus::Running {
-                        started_at: local_datetime_to_system_time(parse_pbs_datetime(start_time)?),
-                    }
-                }
+                "Q" => AllocationStatus::Queued(times),
+                "R" => AllocationStatus::Running(times),
                 "F" => {
                     let exit_status = get_json_number(&job["Exit_status"], "Exit status")?;
                     if exit_status == 0 {
-                        AllocationStatus::Finished
+                        AllocationStatus::Finished(times)
                     } else {
-                        AllocationStatus::Failed
+                        AllocationStatus::Failed(times)
                     }
                 }
                 status => anyhow::bail!("Unknown PBS job status {}", status),
