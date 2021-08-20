@@ -53,7 +53,6 @@ async fn process_descriptor(name: &str, state: &WrappedRcRefCell<AutoAllocState>
 /// Go through the allocations of descriptor with the given name and refresh their status.
 /// Queue allocations might become running or finished, running allocations might become finished,
 /// etc.
-#[allow(clippy::await_holding_refcell_ref)]
 async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocState>) {
     let allocations = {
         let mut state = state_ref.get_mut();
@@ -63,15 +62,12 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
         std::mem::replace(&mut descriptor_state.allocations, next_allocations)
     };
     for allocation in allocations {
-        let descriptor = &get_or_return!(state_ref.get().get_descriptor(name))
+        let status_fut = get_or_return!(state_ref.get().get_descriptor(name))
             .descriptor
-            .clone();
-
-        let result = descriptor
-            .get()
             .handler()
-            .get_allocation_status(&allocation.id)
-            .await;
+            .get_allocation_status(allocation.id.clone());
+
+        let result = status_fut.await;
 
         let mut state = state_ref.get_mut();
         let descriptor = get_or_return!(state.get_descriptor_mut(name));
@@ -119,7 +115,6 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
 }
 
 /// Schedule new allocations for the descriptor with the given name.
-#[allow(clippy::await_holding_refcell_ref)]
 async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocState>) {
     let (mut remaining, max_workers_per_alloc): (u64, u64) = {
         let state = state_ref.get();
@@ -130,7 +125,7 @@ async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoA
             .map(|alloc| alloc.worker_count)
             .sum();
 
-        let descriptor_impl = descriptor.descriptor.get();
+        let descriptor_impl = &descriptor.descriptor;
         let scale = descriptor_impl.info().target_worker_count();
         (
             scale.saturating_sub(active_workers as u32) as u64,
@@ -139,15 +134,12 @@ async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoA
     };
     while remaining > 0 {
         let to_schedule = std::cmp::min(remaining, max_workers_per_alloc);
-        let descriptor = get_or_return!(state_ref.get().get_descriptor(name))
+        let schedule_fut = get_or_return!(state_ref.get().get_descriptor(name))
             .descriptor
-            .clone();
-
-        let result = descriptor
-            .get()
             .handler()
-            .schedule_allocation(to_schedule)
-            .await;
+            .schedule_allocation(to_schedule);
+
+        let result = schedule_fut.await;
 
         let mut state = state_ref.get_mut();
         let descriptor = get_or_return!(state.get_descriptor_mut(name));
@@ -180,8 +172,6 @@ mod tests {
     use std::future::Future;
     use std::time::{Duration, SystemTime};
 
-    use async_trait::async_trait;
-
     use crate::common::manager::info::ManagerType;
     use crate::common::WrappedRcRefCell;
     use crate::server::autoalloc::descriptor::{QueueDescriptor, QueueHandler, QueueInfo};
@@ -189,8 +179,7 @@ mod tests {
     use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
     use crate::server::autoalloc::AutoAllocResult;
     use crate::server::state::StateRef;
-    
-    
+    use std::pin::Pin;
 
     #[tokio::test]
     async fn test_do_not_overallocate_queue() {
@@ -312,8 +301,8 @@ mod tests {
     }
 
     struct Handler<ScheduleFn, StatusFn, State> {
-        schedule_fn: ScheduleFn,
-        status_fn: StatusFn,
+        schedule_fn: WrappedRcRefCell<ScheduleFn>,
+        status_fn: WrappedRcRefCell<StatusFn>,
         custom_state: WrappedRcRefCell<State>,
     }
 
@@ -321,7 +310,7 @@ mod tests {
             State: 'static,
             ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
             ScheduleFnFut: Future<Output = AutoAllocResult<AllocationId>>,
-            StatusFn: 'static + Fn(WrappedRcRefCell<State>, &str) -> StatusFnFut,
+            StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
             StatusFnFut: Future<Output = AutoAllocResult<AllocationStatus>>,
         > Handler<ScheduleFn, StatusFn, State>
     {
@@ -331,31 +320,39 @@ mod tests {
             status_fn: StatusFn,
         ) -> Box<dyn QueueHandler> {
             Box::new(Self {
-                schedule_fn,
-                status_fn,
+                schedule_fn: WrappedRcRefCell::wrap(schedule_fn),
+                status_fn: WrappedRcRefCell::wrap(status_fn),
                 custom_state,
             })
         }
     }
 
-    #[async_trait(?Send)]
     impl<
             State: 'static,
             ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
             ScheduleFnFut: Future<Output = AutoAllocResult<AllocationId>>,
-            StatusFn: 'static + Fn(WrappedRcRefCell<State>, &str) -> StatusFnFut,
+            StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
             StatusFnFut: Future<Output = AutoAllocResult<AllocationStatus>>,
         > QueueHandler for Handler<ScheduleFn, StatusFn, State>
     {
-        async fn schedule_allocation(&self, worker_count: u64) -> AutoAllocResult<AllocationId> {
-            (self.schedule_fn)(self.custom_state.clone(), worker_count).await
+        fn schedule_allocation(
+            &self,
+            worker_count: u64,
+        ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationId>>>> {
+            let schedule_fn = self.schedule_fn.clone();
+            let custom_state = self.custom_state.clone();
+
+            Box::pin(async move { (schedule_fn.get())(custom_state.clone(), worker_count).await })
         }
 
-        async fn get_allocation_status(
+        fn get_allocation_status(
             &self,
-            allocation_id: &str,
-        ) -> AutoAllocResult<AllocationStatus> {
-            (self.status_fn)(self.custom_state.clone(), allocation_id).await
+            allocation_id: AllocationId,
+        ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationStatus>>>> {
+            let status_fn = self.status_fn.clone();
+            let custom_state = self.custom_state.clone();
+
+            Box::pin(async move { (status_fn.get())(custom_state.clone(), allocation_id).await })
         }
     }
 
