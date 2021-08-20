@@ -64,37 +64,40 @@ impl QueueHandler for PbsHandler {
         Box::pin(async move {
             let directory = create_allocation_dir(server_directory.clone(), &name)?;
 
-            let mut command = Command::new("qsub");
-            command
-                .arg("-q")
-                .arg(queue.as_str())
-                .arg("-wd")
-                .arg(directory.display().to_string())
-                .arg("-o")
-                .arg(directory.join("stdout").display().to_string())
-                .arg("-e")
-                .arg(directory.join("stderr").display().to_string())
-                .arg(format!("-lselect={}", worker_count));
+            let mut arguments = vec![
+                "qsub".to_string(),
+                "-q".to_string(),
+                queue,
+                "-wd".to_string(),
+                directory.display().to_string(),
+                "-o".to_string(),
+                directory.join("stdout").display().to_string(),
+                "-e".to_string(),
+                directory.join("stderr").display().to_string(),
+                format!("-lselect={}", worker_count),
+            ];
 
             if let Some(ref timelimit) = timelimit {
-                command.arg(format!("-lwalltime={}", format_pbs_duration(timelimit)));
+                arguments.push(format!("-lwalltime={}", format_pbs_duration(timelimit)));
             }
 
             // `hq worker` arguments
-            command.arg("--");
-            command.arg(hq_path);
-            command.args([
-                "worker",
-                "start",
-                "--idle-timeout",
-                "10m",
-                "--manager",
-                "pbs",
-                "--server-dir",
-                &server_directory.display().to_string(),
+            arguments.extend([
+                "--".to_string(),
+                hq_path,
+                "worker".to_string(),
+                "start".to_string(),
+                "--idle-timeout".to_string(),
+                "10m".to_string(),
+                "--manager".to_string(),
+                "pbs".to_string(),
+                "--server-dir".to_string(),
+                server_directory.display().to_string(),
             ]);
 
-            log::debug!("Running PBS command {:?}", command);
+            log::debug!("Running PBS command `{}`", arguments.join(" "));
+            let mut command = Command::new(arguments[0].clone());
+            command.args(&arguments[1..]);
 
             let output = command.output().await.context("qsub start failed")?;
             let output = check_command_output(output).context("qsub execution failed")?;
@@ -109,7 +112,7 @@ impl QueueHandler for PbsHandler {
             // Write the PBS job id to the folder as a debug information
             std::fs::write(directory.join("jobid"), &job_id)?;
 
-            AutoAllocResult::Ok(CreatedAllocation {
+            Ok(CreatedAllocation {
                 id: job_id,
                 working_dir: directory,
             })
@@ -121,9 +124,12 @@ impl QueueHandler for PbsHandler {
         allocation_id: AllocationId,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>> {
         Box::pin(async move {
-            let mut command = Command::new("qstat");
             // -x will also display finished jobs
-            command.args(["-f", &allocation_id, "-F", "json", "-x"]);
+            let arguments = vec!["qstat", "-f", &allocation_id, "-F", "json", "-x"];
+            log::debug!("Running PBS command `{}`", arguments.join(" "));
+
+            let mut command = Command::new(arguments[0]);
+            command.args(&arguments[1..]);
 
             let output = command.output().await.context("qstat start failed")?;
             let output = check_command_output(output).context("qstat execution failed")?;
