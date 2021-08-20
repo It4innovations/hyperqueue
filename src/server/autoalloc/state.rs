@@ -1,5 +1,4 @@
-use crate::common::WrappedRcRefCell;
-use crate::server::autoalloc::descriptor::{QueueDescriptor};
+use crate::server::autoalloc::descriptor::QueueDescriptor;
 use crate::server::autoalloc::AutoAllocResult;
 use crate::Map;
 use serde::{Deserialize, Serialize};
@@ -39,8 +38,7 @@ impl AutoAllocState {
                 name
             )));
         }
-        self.descriptors
-            .insert(name, WrappedRcRefCell::wrap(descriptor).into());
+        self.descriptors.insert(name, descriptor.into());
         Ok(())
     }
 
@@ -59,15 +57,15 @@ impl AutoAllocState {
 
 /// Represents the state of a single allocation queue.
 pub struct DescriptorState {
-    pub descriptor: WrappedRcRefCell<QueueDescriptor>,
+    pub descriptor: QueueDescriptor,
     /// Allocations that are currently running or are in the queue.
     pub allocations: Vec<Allocation>,
     /// Records events that have occurred on this queue.
     events: VecDeque<AllocationEventHolder>,
 }
 
-impl From<WrappedRcRefCell<QueueDescriptor>> for DescriptorState {
-    fn from(descriptor: WrappedRcRefCell<QueueDescriptor>) -> Self {
+impl From<QueueDescriptor> for DescriptorState {
+    fn from(descriptor: QueueDescriptor) -> Self {
         Self {
             descriptor,
             allocations: Default::default(),
@@ -133,14 +131,6 @@ impl From<AllocationEvent> for AllocationEventHolder {
 
 #[cfg(test)]
 mod tests {
-    
-    
-    
-    
-    
-    
-    
-    
 
     /*#[test]
     fn test_add_descriptor_with_same_name_twice() {
