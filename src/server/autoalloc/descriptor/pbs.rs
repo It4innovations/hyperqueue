@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
 use crate::common::timeutils::local_datetime_to_system_time;
-use crate::server::autoalloc::descriptor::QueueHandler;
+use crate::server::autoalloc::descriptor::{CreatedAllocation, QueueHandler};
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
 use crate::server::autoalloc::AutoAllocResult;
 use anyhow::Context;
@@ -54,7 +54,7 @@ impl QueueHandler for PbsHandler {
     fn schedule_allocation(
         &self,
         worker_count: u64,
-    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationId>>>> {
+    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>> {
         let queue = self.queue.clone();
         let timelimit = self.timelimit;
         let hq_path = self.hq_path.display().to_string();
@@ -109,14 +109,17 @@ impl QueueHandler for PbsHandler {
             // Write the PBS job id to the folder as a debug information
             std::fs::write(directory.join("jobid"), &job_id)?;
 
-            AutoAllocResult::Ok(job_id)
+            AutoAllocResult::Ok(CreatedAllocation {
+                id: job_id,
+                working_dir: directory,
+            })
         })
     }
 
     fn get_allocation_status(
         &self,
         allocation_id: AllocationId,
-    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationStatus>>>> {
+    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>> {
         Box::pin(async move {
             let mut command = Command::new("qstat");
             // -x will also display finished jobs
@@ -127,6 +130,11 @@ impl QueueHandler for PbsHandler {
             let data: serde_json::Value =
                 serde_json::from_slice(&output.stdout).context("Cannot parse qstat JSON output")?;
             let job = &data["Jobs"][&allocation_id];
+            if job.is_null() {
+                // Job not found
+                return Ok(None);
+            }
+
             let state = get_json_str(&job["job_state"], "Job state")?;
 
             let status = match state {
@@ -153,7 +161,7 @@ impl QueueHandler for PbsHandler {
                 status => anyhow::bail!("Unknown PBS job status {}", status),
             };
 
-            Ok(status)
+            Ok(Some(status))
         })
     }
 }

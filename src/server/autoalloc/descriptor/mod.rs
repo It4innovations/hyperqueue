@@ -5,6 +5,7 @@ use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
 use crate::server::autoalloc::AutoAllocResult;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -73,6 +74,24 @@ impl QueueInfo {
     }
 }
 
+pub struct CreatedAllocation {
+    id: AllocationId,
+    working_dir: PathBuf,
+}
+
+impl CreatedAllocation {
+    pub fn new(id: AllocationId, working_dir: PathBuf) -> Self {
+        Self { id, working_dir }
+    }
+
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+    pub fn working_dir(&self) -> &Path {
+        self.working_dir.as_path()
+    }
+}
+
 /// Handler that can communicate with some allocation queue (e.g. PBS/Slurm queue)
 pub trait QueueHandler {
     /// Schedule an allocation that will start the corresponding number of workers.
@@ -80,11 +99,11 @@ pub trait QueueHandler {
     fn schedule_allocation(
         &self,
         worker_count: u64,
-    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationId>>>>;
+    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>>;
 
     /// Get status of an existing allocation
     fn get_allocation_status(
         &self,
         allocation_id: AllocationId,
-    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationStatus>>>>;
+    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>>;
 }

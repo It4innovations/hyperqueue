@@ -187,6 +187,9 @@ async fn print_event_log(
             AllocationEvent::AllocationFailed(..) => "Allocation failed"
                 .cell()
                 .foreground_color(Some(Color::Red)),
+            AllocationEvent::AllocationDisappeared(..) => "Allocation disappeared"
+                .cell()
+                .foreground_color(Some(Color::Red)),
             AllocationEvent::QueueFail { .. } => "Allocation submission failed"
                 .cell()
                 .foreground_color(Some(Color::Red)),
@@ -198,12 +201,14 @@ async fn print_event_log(
 
     let event_message = |event: &AllocationEventHolder| -> CellStruct {
         match &event.event {
-            AllocationEvent::AllocationQueued(id) => id.cell(),
-            AllocationEvent::AllocationStarted(id) => id.cell(),
-            AllocationEvent::AllocationFinished(id) => id.cell(),
-            AllocationEvent::AllocationFailed(id) => id.cell(),
-            AllocationEvent::QueueFail { error } => error.cell(),
-            AllocationEvent::StatusFail { error } => error.cell(),
+            AllocationEvent::AllocationQueued(id)
+            | AllocationEvent::AllocationStarted(id)
+            | AllocationEvent::AllocationFailed(id)
+            | AllocationEvent::AllocationFinished(id)
+            | AllocationEvent::AllocationDisappeared(id) => id.cell(),
+            AllocationEvent::QueueFail { error } | AllocationEvent::StatusFail { error } => {
+                error.cell()
+            }
         }
     };
 

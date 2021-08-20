@@ -13,6 +13,15 @@ macro_rules! get_or_return {
     };
 }
 
+macro_rules! get_or_continue {
+    ($e:expr) => {
+        match $e {
+            Some(v) => v,
+            _ => continue,
+        }
+    };
+}
+
 /// The main entrypoint of the autoalloc background process.
 /// It invokes the autoalloc logic in fixed time intervals.
 pub async fn autoalloc_process(state_ref: StateRef) {
@@ -53,56 +62,61 @@ async fn process_descriptor(name: &str, state: &WrappedRcRefCell<AutoAllocState>
 /// Go through the allocations of descriptor with the given name and refresh their status.
 /// Queue allocations might become running or finished, running allocations might become finished,
 /// etc.
+#[allow(clippy::needless_collect)]
 async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocState>) {
-    let allocations = {
-        let mut state = state_ref.get_mut();
-        let descriptor_state = get_or_return!(state.get_descriptor_mut(name));
-
-        let next_allocations = Vec::with_capacity(descriptor_state.allocations.len());
-        std::mem::replace(&mut descriptor_state.allocations, next_allocations)
-    };
-    for allocation in allocations {
+    let allocation_ids: Vec<_> = get_or_return!(state_ref.get().get_descriptor(name))
+        .active_allocations()
+        .map(|alloc| alloc.id.clone())
+        .collect();
+    for allocation_id in allocation_ids.into_iter() {
         let status_fut = get_or_return!(state_ref.get().get_descriptor(name))
             .descriptor
             .handler()
-            .get_allocation_status(allocation.id.clone());
+            .get_allocation_status(allocation_id.clone());
 
         let result = status_fut.await;
 
         let mut state = state_ref.get_mut();
-        let descriptor = get_or_return!(state.get_descriptor_mut(name));
+        let descriptor = get_or_continue!(state.get_descriptor_mut(name));
         match result {
             Ok(status) => {
-                let allocation_id = allocation.id.clone();
-                match &status {
-                    AllocationStatus::NotFound => {
+                match status {
+                    Some(status) => {
+                        let id = allocation_id.clone();
+                        match status {
+                            AllocationStatus::Running { .. } => {
+                                let allocation =
+                                    get_or_continue!(descriptor.get_allocation_mut(&allocation_id));
+                                if let AllocationStatus::Queued { .. } = allocation.status {
+                                    descriptor.add_event(AllocationEvent::AllocationStarted(
+                                        allocation_id,
+                                    ));
+                                }
+                            }
+                            AllocationStatus::Finished => {
+                                descriptor
+                                    .add_event(AllocationEvent::AllocationFinished(allocation_id));
+                            }
+                            AllocationStatus::Failed => {
+                                descriptor
+                                    .add_event(AllocationEvent::AllocationFailed(allocation_id));
+                            }
+                            AllocationStatus::Queued { .. } => {}
+                        };
+                        get_or_continue!(descriptor.get_allocation_mut(&id)).status = status;
+                    }
+                    None => {
                         log::warn!("Allocation {} was not found", allocation_id);
+                        get_or_continue!(state_ref.get_mut().get_descriptor_mut(name))
+                            .remove_allocation(&allocation_id);
+                        descriptor.add_event(AllocationEvent::AllocationDisappeared(allocation_id));
                     }
-                    AllocationStatus::Running { .. } => {
-                        if let AllocationStatus::Queued { .. } = allocation.status {
-                            descriptor.add_event(AllocationEvent::AllocationStarted(allocation_id));
-                        }
-                    }
-                    AllocationStatus::Finished => {
-                        descriptor.add_event(AllocationEvent::AllocationFinished(allocation_id));
-                    }
-                    AllocationStatus::Failed => {
-                        descriptor.add_event(AllocationEvent::AllocationFailed(allocation_id));
-                    }
-                    AllocationStatus::Queued { .. } => {}
                 };
-                if let AllocationStatus::Queued { .. } | AllocationStatus::Running { .. } = status {
-                    descriptor.allocations.push(Allocation {
-                        id: allocation.id,
-                        worker_count: allocation.worker_count,
-                        status,
-                    });
-                }
             }
             Err(err) => {
                 log::error!(
                     "Failed to get allocation {} status from {}: {}",
-                    allocation.id,
+                    allocation_id,
                     name,
                     err
                 );
@@ -120,8 +134,7 @@ async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoA
         let state = state_ref.get();
         let descriptor = get_or_return!(state.get_descriptor(name));
         let active_workers: u64 = descriptor
-            .allocations
-            .iter()
+            .active_allocations()
             .map(|alloc| alloc.worker_count)
             .sum();
 
@@ -144,16 +157,20 @@ async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoA
         let mut state = state_ref.get_mut();
         let descriptor = get_or_return!(state.get_descriptor_mut(name));
         match result {
-            Ok(id) => {
+            Ok(created) => {
                 log::info!("Queued {} workers into {}", to_schedule, name);
-                descriptor.add_event(AllocationEvent::AllocationQueued(id.clone()));
-                descriptor.allocations.push(Allocation {
-                    id,
-                    worker_count: to_schedule,
-                    status: AllocationStatus::Queued {
-                        queued_at: SystemTime::now(),
+                descriptor.add_event(AllocationEvent::AllocationQueued(created.id().to_string()));
+                descriptor.add_allocation(
+                    created.id().to_string(),
+                    Allocation {
+                        id: created.id().to_string(),
+                        worker_count: to_schedule,
+                        status: AllocationStatus::Queued {
+                            queued_at: SystemTime::now(),
+                        },
+                        working_dir: created.working_dir().to_path_buf(),
                     },
-                });
+                );
             }
             Err(err) => {
                 log::error!("Failed to queue allocation into {}: {}", name, err);
@@ -174,7 +191,9 @@ mod tests {
 
     use crate::common::manager::info::ManagerType;
     use crate::common::WrappedRcRefCell;
-    use crate::server::autoalloc::descriptor::{QueueDescriptor, QueueHandler, QueueInfo};
+    use crate::server::autoalloc::descriptor::{
+        CreatedAllocation, QueueDescriptor, QueueHandler, QueueInfo,
+    };
     use crate::server::autoalloc::process::autoalloc_tick;
     use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
     use crate::server::autoalloc::AutoAllocResult;
@@ -190,12 +209,12 @@ mod tests {
             call_count.clone(),
             move |s, _| async move {
                 *s.get_mut() += 1;
-                Ok("1".to_string())
+                Ok(CreatedAllocation::new("1".to_string(), "".into()))
             },
             move |_, _| async move {
-                Ok(AllocationStatus::Queued {
+                Ok(Some(AllocationStatus::Queued {
                     queued_at: SystemTime::now(),
-                })
+                }))
             },
         );
         add_descriptor(&state, handler, 1, 1);
@@ -224,12 +243,15 @@ mod tests {
                 let mut state = s.get_mut();
                 assert_eq!(worker_count, state.requests[0]);
                 state.requests.remove(0);
-                Ok(state.requests.len().to_string())
+                Ok(CreatedAllocation::new(
+                    state.requests.len().to_string(),
+                    "".into(),
+                ))
             },
             move |_, _| async move {
-                Ok(AllocationStatus::Queued {
+                Ok(Some(AllocationStatus::Queued {
                     queued_at: SystemTime::now(),
-                })
+                }))
             },
         );
         add_descriptor(&state, handler, 10, 3);
@@ -247,9 +269,9 @@ mod tests {
             WrappedRcRefCell::wrap(()),
             move |_, _| async move { anyhow::bail!("foo") },
             move |_, _| async move {
-                Ok(AllocationStatus::Queued {
+                Ok(Some(AllocationStatus::Queued {
                     queued_at: SystemTime::now(),
-                })
+                }))
             },
         );
         add_descriptor(&state, handler, 1, 1);
@@ -271,30 +293,33 @@ mod tests {
 
         struct State {
             job_id: u64,
-            status: AllocationStatus,
+            status: Option<AllocationStatus>,
         }
 
         let custom_state = WrappedRcRefCell::wrap(State {
             job_id: 0,
-            status: AllocationStatus::NotFound,
+            status: None,
         });
 
         let handler = Handler::new(
             custom_state.clone(),
             move |s, _| async move {
                 s.get_mut().job_id += 1;
-                Ok(s.get().job_id.to_string())
+                Ok(CreatedAllocation::new(
+                    s.get().job_id.to_string(),
+                    "".into(),
+                ))
             },
             move |s, _| async move { Ok(s.get().status.clone()) },
         );
         add_descriptor(&state, handler, 1, 1);
 
         autoalloc_tick(&state).await;
-        custom_state.get_mut().status = AllocationStatus::Queued {
+        custom_state.get_mut().status = Some(AllocationStatus::Queued {
             queued_at: SystemTime::now(),
-        };
+        });
         autoalloc_tick(&state).await;
-        custom_state.get_mut().status = AllocationStatus::Finished;
+        custom_state.get_mut().status = Some(AllocationStatus::Finished);
         autoalloc_tick(&state).await;
 
         assert_eq!(custom_state.get().job_id, 2);
@@ -309,9 +334,9 @@ mod tests {
     impl<
             State: 'static,
             ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
-            ScheduleFnFut: Future<Output = AutoAllocResult<AllocationId>>,
+            ScheduleFnFut: Future<Output = AutoAllocResult<CreatedAllocation>>,
             StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
-            StatusFnFut: Future<Output = AutoAllocResult<AllocationStatus>>,
+            StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationStatus>>>,
         > Handler<ScheduleFn, StatusFn, State>
     {
         fn new(
@@ -330,15 +355,15 @@ mod tests {
     impl<
             State: 'static,
             ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
-            ScheduleFnFut: Future<Output = AutoAllocResult<AllocationId>>,
+            ScheduleFnFut: Future<Output = AutoAllocResult<CreatedAllocation>>,
             StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
-            StatusFnFut: Future<Output = AutoAllocResult<AllocationStatus>>,
+            StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationStatus>>>,
         > QueueHandler for Handler<ScheduleFn, StatusFn, State>
     {
         fn schedule_allocation(
             &self,
             worker_count: u64,
-        ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationId>>>> {
+        ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>> {
             let schedule_fn = self.schedule_fn.clone();
             let custom_state = self.custom_state.clone();
 
@@ -348,7 +373,7 @@ mod tests {
         fn get_allocation_status(
             &self,
             allocation_id: AllocationId,
-        ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationStatus>>>> {
+        ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>> {
             let status_fn = self.status_fn.clone();
             let custom_state = self.custom_state.clone();
 
