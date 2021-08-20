@@ -115,7 +115,7 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
             }
             Err(err) => {
                 log::error!(
-                    "Failed to get allocation {} status from {}: {}",
+                    "Failed to get allocation {} status from {}: {:?}",
                     allocation_id,
                     name,
                     err
