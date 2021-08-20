@@ -53,6 +53,10 @@ impl AutoAllocState {
     pub fn descriptor_names(&self) -> impl Iterator<Item = &str> {
         self.descriptors.keys().map(|s| s.as_str())
     }
+
+    pub fn descriptors(&self) -> impl Iterator<Item = (&str, &DescriptorState)> {
+        self.descriptors.iter().map(|(k, v)| (k.as_str(), v))
+    }
 }
 
 /// Represents the state of a single allocation queue.

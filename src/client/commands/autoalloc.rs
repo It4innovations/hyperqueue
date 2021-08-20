@@ -24,7 +24,7 @@ enum AutoAllocCommand {
     /// Display information about autoalloc state
     Info,
     /// Display event log for a specified allocation queue
-    Log(LogOpts),
+    Events(EventsOpts),
     /// Add new allocation queue
     Add(AddQueueOpts),
 }
@@ -65,7 +65,7 @@ pub struct AddPbsQueueOpts {
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
-pub struct LogOpts {
+pub struct EventsOpts {
     /// Name of the allocation queue
     name: String,
 }
@@ -82,8 +82,8 @@ pub async fn command_autoalloc(
         AutoAllocCommand::Add(opts) => {
             add_queue(connection, opts).await?;
         }
-        AutoAllocCommand::Log(opts) => {
-            print_log(gsettings, connection, opts).await?;
+        AutoAllocCommand::Events(opts) => {
+            print_event_log(gsettings, connection, opts).await?;
         }
     }
     Ok(())
@@ -130,24 +130,46 @@ async fn print_info(
     let table = rows.table().color_choice(gsettings.color_policy());
     assert!(print_stdout(table).is_ok());
 
-    let mut rows = vec![vec!["Descriptor name".cell().bold(true)]];
-    rows.extend(response.descriptors.into_iter().map(|d| vec![d.cell()]));
+    let mut rows = vec![vec![
+        "Name".cell().bold(true),
+        "Target worker count".cell().bold(true),
+        "Max workers per allocation".cell().bold(true),
+        "Queue".cell().bold(true),
+        "Timelimit".cell().bold(true),
+    ]];
+
+    let mut descriptors: Vec<_> = response.descriptors.into_iter().collect();
+    descriptors.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+
+    rows.extend(descriptors.into_iter().map(|(name, data)| {
+        vec![
+            name.cell(),
+            data.info.target_worker_count().cell(),
+            data.info.max_workers_per_alloc().cell(),
+            data.info.queue().cell(),
+            data.info
+                .timelimit()
+                .map(|d| humantime::format_duration(d).to_string())
+                .unwrap_or_else(|| "N/A".to_string())
+                .cell(),
+        ]
+    }));
 
     let table = rows.table().color_choice(gsettings.color_policy());
     assert!(print_stdout(table).is_ok());
     Ok(())
 }
 
-async fn print_log(
+async fn print_event_log(
     gsettings: GlobalSettings,
     mut connection: ClientConnection,
-    opts: LogOpts,
+    opts: EventsOpts,
 ) -> anyhow::Result<()> {
-    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::GetLog {
+    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::Events {
         descriptor: opts.name,
     });
     let response = rpc_call!(connection, message,
-        ToClientMessage::AutoAllocResponse(AutoAllocResponse::Logs(logs)) => logs
+        ToClientMessage::AutoAllocResponse(AutoAllocResponse::Events(logs)) => logs
     )
     .await?;
 

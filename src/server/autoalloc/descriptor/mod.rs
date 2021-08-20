@@ -3,10 +3,13 @@ pub mod pbs;
 use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
 use crate::server::autoalloc::AutoAllocResult;
+use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
 
+/// Describes an allocation queue. Holds both input parameters of the queue (`info`) and a handler
+/// that can communicate with the queue.
 pub struct QueueDescriptor {
     manager: ManagerType,
     info: QueueInfo,
@@ -33,7 +36,7 @@ impl QueueDescriptor {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueueInfo {
     queue: String,
     max_workers_per_alloc: u32,
@@ -70,7 +73,7 @@ impl QueueInfo {
     }
 }
 
-/// This trait represents a job manager queue into which new allocations can be scheduled.
+/// Handler that can communicate with some allocation queue (e.g. PBS/Slurm queue)
 pub trait QueueHandler {
     /// Schedule an allocation that will start the corresponding number of workers.
     /// Returns the string ID of the created allocation.

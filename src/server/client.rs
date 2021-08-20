@@ -24,9 +24,9 @@ use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
     AddQueueRequest, AutoAllocInfoResponse, AutoAllocRequest, AutoAllocResponse, CancelJobResponse,
-    FromClientMessage, JobDetail, JobInfoResponse, JobType, ResubmitRequest, Selector,
-    StatsResponse, StopWorkerResponse, SubmitRequest, SubmitResponse, TaskBody, ToClientMessage,
-    WorkerListResponse,
+    FromClientMessage, JobDetail, JobInfoResponse, JobType, QueueDescriptorData, ResubmitRequest,
+    Selector, StatsResponse, StopWorkerResponse, SubmitRequest, SubmitResponse, TaskBody,
+    ToClientMessage, WorkerListResponse,
 };
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 use bstr::BString;
@@ -149,13 +149,20 @@ async fn handle_autoalloc_message(
             ToClientMessage::AutoAllocResponse(AutoAllocResponse::Info(AutoAllocInfoResponse {
                 refresh_interval,
                 descriptors: autoalloc
-                    .descriptor_names()
-                    .map(|s| s.to_string())
+                    .descriptors()
+                    .map(|(name, descriptor)| {
+                        (
+                            name.to_string(),
+                            QueueDescriptorData {
+                                info: descriptor.descriptor.info().clone(),
+                            },
+                        )
+                    })
                     .collect(),
             }))
         }
         AutoAllocRequest::AddQueue(params) => create_queue(server_dir, state_ref, params),
-        AutoAllocRequest::GetLog { descriptor } => get_logs(state_ref, descriptor),
+        AutoAllocRequest::Events { descriptor } => get_logs(state_ref, descriptor),
     }
 }
 
@@ -164,7 +171,7 @@ fn get_logs(state_ref: &StateRef, descriptor: String) -> ToClientMessage {
     let autoalloc = state.get_autoalloc_state().get();
 
     match autoalloc.get_descriptor(&descriptor) {
-        Some(descriptor) => ToClientMessage::AutoAllocResponse(AutoAllocResponse::Logs(
+        Some(descriptor) => ToClientMessage::AutoAllocResponse(AutoAllocResponse::Events(
             descriptor.get_events().iter().cloned().collect(),
         )),
         None => ToClientMessage::Error(format!("Descriptor {} not found", descriptor)),
