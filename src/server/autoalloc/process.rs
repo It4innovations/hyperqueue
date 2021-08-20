@@ -1,8 +1,9 @@
 use crate::common::WrappedRcRefCell;
-use crate::server::autoalloc::state::{Allocation, AllocationEvent, AllocationStatus};
+use crate::server::autoalloc::state::{
+    Allocation, AllocationEvent, AllocationStatus, AllocationTimeInfo,
+};
 use crate::server::autoalloc::AutoAllocState;
 use crate::server::state::StateRef;
-use std::time::SystemTime;
 
 macro_rules! get_or_return {
     ($e:expr) => {
@@ -84,7 +85,7 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
                     Some(status) => {
                         let id = allocation_id.clone();
                         match status {
-                            AllocationStatus::Running { .. } => {
+                            AllocationStatus::Running(..) => {
                                 let allocation =
                                     get_or_continue!(descriptor.get_allocation_mut(&allocation_id));
                                 if let AllocationStatus::Queued { .. } = allocation.status {
@@ -93,15 +94,15 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
                                     ));
                                 }
                             }
-                            AllocationStatus::Finished => {
+                            AllocationStatus::Finished(..) => {
                                 descriptor
                                     .add_event(AllocationEvent::AllocationFinished(allocation_id));
                             }
-                            AllocationStatus::Failed => {
+                            AllocationStatus::Failed(..) => {
                                 descriptor
                                     .add_event(AllocationEvent::AllocationFailed(allocation_id));
                             }
-                            AllocationStatus::Queued { .. } => {}
+                            AllocationStatus::Queued(..) => {}
                         };
                         get_or_continue!(descriptor.get_allocation_mut(&id)).status = status;
                     }
@@ -165,9 +166,7 @@ async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoA
                     Allocation {
                         id: created.id().to_string(),
                         worker_count: to_schedule,
-                        status: AllocationStatus::Queued {
-                            queued_at: SystemTime::now(),
-                        },
+                        status: AllocationStatus::Queued(AllocationTimeInfo::queued_now()),
                         working_dir: created.working_dir().to_path_buf(),
                     },
                 );
@@ -187,7 +186,7 @@ async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoA
 #[cfg(test)]
 mod tests {
     use std::future::Future;
-    use std::time::{Duration, SystemTime};
+    use std::time::Duration;
 
     use crate::common::manager::info::ManagerType;
     use crate::common::WrappedRcRefCell;
@@ -195,7 +194,9 @@ mod tests {
         CreatedAllocation, QueueDescriptor, QueueHandler, QueueInfo,
     };
     use crate::server::autoalloc::process::autoalloc_tick;
-    use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
+    use crate::server::autoalloc::state::{
+        AllocationEvent, AllocationId, AllocationStatus, AllocationTimeInfo,
+    };
     use crate::server::autoalloc::AutoAllocResult;
     use crate::server::state::StateRef;
     use std::pin::Pin;
@@ -212,9 +213,9 @@ mod tests {
                 Ok(CreatedAllocation::new("1".to_string(), "".into()))
             },
             move |_, _| async move {
-                Ok(Some(AllocationStatus::Queued {
-                    queued_at: SystemTime::now(),
-                }))
+                Ok(Some(AllocationStatus::Queued(
+                    AllocationTimeInfo::queued_now(),
+                )))
             },
         );
         add_descriptor(&state, handler, 1, 1);
@@ -249,9 +250,9 @@ mod tests {
                 ))
             },
             move |_, _| async move {
-                Ok(Some(AllocationStatus::Queued {
-                    queued_at: SystemTime::now(),
-                }))
+                Ok(Some(AllocationStatus::Queued(
+                    AllocationTimeInfo::queued_now(),
+                )))
             },
         );
         add_descriptor(&state, handler, 10, 3);
@@ -269,9 +270,9 @@ mod tests {
             WrappedRcRefCell::wrap(()),
             move |_, _| async move { anyhow::bail!("foo") },
             move |_, _| async move {
-                Ok(Some(AllocationStatus::Queued {
-                    queued_at: SystemTime::now(),
-                }))
+                Ok(Some(AllocationStatus::Queued(
+                    AllocationTimeInfo::queued_now(),
+                )))
             },
         );
         add_descriptor(&state, handler, 1, 1);
@@ -315,11 +316,11 @@ mod tests {
         add_descriptor(&state, handler, 1, 1);
 
         autoalloc_tick(&state).await;
-        custom_state.get_mut().status = Some(AllocationStatus::Queued {
-            queued_at: SystemTime::now(),
-        });
+        custom_state.get_mut().status =
+            Some(AllocationStatus::Queued(AllocationTimeInfo::queued_now()));
         autoalloc_tick(&state).await;
-        custom_state.get_mut().status = Some(AllocationStatus::Finished);
+        custom_state.get_mut().status =
+            Some(AllocationStatus::Finished(AllocationTimeInfo::queued_now()));
         autoalloc_tick(&state).await;
 
         assert_eq!(custom_state.get().job_id, 2);

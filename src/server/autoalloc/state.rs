@@ -103,6 +103,10 @@ impl DescriptorState {
         self.allocations.values().filter(|alloc| alloc.is_active())
     }
 
+    pub fn all_allocations(&self) -> impl Iterator<Item = &Allocation> {
+        self.allocations.values()
+    }
+
     pub fn add_allocation(&mut self, key: AllocationId, allocation: Allocation) {
         if let Some(allocation) = self.allocations.insert(key, allocation) {
             log::warn!("Duplicate allocation detected: {}", allocation.id);
@@ -118,6 +122,7 @@ impl DescriptorState {
 
 pub type AllocationId = String;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Allocation {
     pub id: AllocationId,
     pub worker_count: u64,
@@ -136,11 +141,40 @@ impl Allocation {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AllocationTimeInfo {
+    pub queued_at: SystemTime,
+    pub started_at: Option<SystemTime>,
+    pub finished_at: Option<SystemTime>,
+}
+
+impl AllocationTimeInfo {
+    pub fn queued_now() -> Self {
+        Self {
+            queued_at: SystemTime::now(),
+            started_at: None,
+            finished_at: None,
+        }
+    }
+}
+
+// TODO: represent the state in a better way
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AllocationStatus {
-    Queued { queued_at: SystemTime },
-    Running { started_at: SystemTime },
-    Finished,
-    Failed,
+    Queued(AllocationTimeInfo),
+    Running(AllocationTimeInfo),
+    Finished(AllocationTimeInfo),
+    Failed(AllocationTimeInfo),
+}
+
+impl AllocationStatus {
+    pub fn get_time_info(&self) -> AllocationTimeInfo {
+        match self {
+            AllocationStatus::Queued(times)
+            | AllocationStatus::Running(times)
+            | AllocationStatus::Finished(times)
+            | AllocationStatus::Failed(times) => times.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

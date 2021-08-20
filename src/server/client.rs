@@ -162,11 +162,24 @@ async fn handle_autoalloc_message(
             }))
         }
         AutoAllocRequest::AddQueue(params) => create_queue(server_dir, state_ref, params),
-        AutoAllocRequest::Events { descriptor } => get_logs(state_ref, descriptor),
+        AutoAllocRequest::Events { descriptor } => get_event_log(state_ref, descriptor),
+        AutoAllocRequest::Allocations { descriptor } => get_allocations(state_ref, descriptor),
     }
 }
 
-fn get_logs(state_ref: &StateRef, descriptor: String) -> ToClientMessage {
+fn get_allocations(state_ref: &StateRef, descriptor: String) -> ToClientMessage {
+    let state = state_ref.get();
+    let autoalloc = state.get_autoalloc_state().get();
+
+    match autoalloc.get_descriptor(&descriptor) {
+        Some(descriptor) => ToClientMessage::AutoAllocResponse(AutoAllocResponse::Allocations(
+            descriptor.all_allocations().cloned().collect(),
+        )),
+        None => ToClientMessage::Error(format!("Descriptor {} not found", descriptor)),
+    }
+}
+
+fn get_event_log(state_ref: &StateRef, descriptor: String) -> ToClientMessage {
     let state = state_ref.get();
     let autoalloc = state.get_autoalloc_state().get();
 

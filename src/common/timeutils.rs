@@ -24,6 +24,6 @@ impl From<ArgDuration> for Duration {
     }
 }
 
-pub fn local_datetime_to_system_time(datetime: chrono::NaiveDateTime) -> SystemTime {
+pub fn local_to_system_time(datetime: chrono::NaiveDateTime) -> SystemTime {
     chrono::Local.from_local_datetime(&datetime).unwrap().into()
 }
