@@ -2,8 +2,8 @@ import json
 import time
 from os.path import join
 
-from .utils.check import check_error_log
 from .conftest import HqEnv
+from .utils.check import check_error_log
 
 
 def test_autoalloc_info(hq_env: HqEnv):
@@ -12,13 +12,34 @@ def test_autoalloc_info(hq_env: HqEnv):
     table.check_value_row("Refresh interval", "1m 5s")
 
 
-def test_add_pbs_queue(hq_env: HqEnv):
+def test_autoalloc_descriptor_info(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["auto-alloc", "add", "foo", "pbs", "queue", "5"])
+
+    table = hq_env.command(["auto-alloc", "info"], as_table=True)[1:]
+    table.check_value_columns(("Name", "Target worker count", "Max workers per allocation", "Queue", "Timelimit"), 0,
+                              ("foo", "5", "1", "queue", "N/A"))
+
+    hq_env.command(
+        ["auto-alloc", "add", "bar", "pbs", "qexp", "1", "--max-workers-per-alloc", "2", "--timelimit", "1h"])
+    table = hq_env.command(["auto-alloc", "info"], as_table=True)[1:]
+    table.check_value_columns(("Name", "Target worker count", "Max workers per allocation", "Queue", "Timelimit"), 0,
+                              ("bar", "1", "2", "qexp", "1h"))
+
+
+def test_autoalloc_descriptor_name_collision(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["auto-alloc", "add", "foo", "pbs", "queue", "5"])
+    hq_env.command(["auto-alloc", "add", "foo", "pbs", "queue", "5"], expect_fail="Descriptor foo already exists")
+
+
+def test_add_pbs_descriptor(hq_env: HqEnv):
     hq_env.start_server(args=["--autoalloc-interval", "500ms"])
     output = hq_env.command(["auto-alloc", "add", "foo", "pbs", "queue", "5", "--max-workers-per-alloc", "2"])
     assert "Allocation queue foo was successfully created" in output
 
     info = hq_env.command(["auto-alloc", "info"], as_table=True)[1:]
-    info.check_value_column("Descriptor name", 0, "foo")
+    info.check_value_column("Name", 0, "foo")
 
 
 def test_pbs_queue_qsub_fail(hq_env: HqEnv):
@@ -28,7 +49,7 @@ def test_pbs_queue_qsub_fail(hq_env: HqEnv):
         hq_env.start_server(args=["--autoalloc-interval", "100ms"])
         hq_env.command(["auto-alloc", "add", "foo", "pbs", "queue", "1"])
         time.sleep(0.2)
-        table = hq_env.command(["auto-alloc", "log", "foo"], as_table=True)
+        table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
         table.check_value_column("Event", 0, "Allocation submission failed")
         table.check_value_column("Message", 0, "qsub execution failed")
 
@@ -40,7 +61,7 @@ def test_pbs_queue_qsub_success(hq_env: HqEnv):
         hq_env.start_server(args=["--autoalloc-interval", "100ms"])
         hq_env.command(["auto-alloc", "add", "foo", "pbs", "queue", "1"])
         time.sleep(0.2)
-        table = hq_env.command(["auto-alloc", "log", "foo"], as_table=True)
+        table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
         table.check_value_column("Event", 0, "Allocation queued")
         table.check_value_column("Message", 0, "123.job")
 
@@ -122,19 +143,19 @@ print(json.dumps(data))
 
             # Queued
             time.sleep(0.5)
-            table = hq_env.command(["auto-alloc", "log", "foo"], as_table=True)
+            table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
             table.check_value_column("Event", -1, "Allocation queued")
 
             # Started
             write_status(status="R", stime="Thu Aug 19 13:05:39 2021")
             time.sleep(0.5)
-            table = hq_env.command(["auto-alloc", "log", "foo"], as_table=True)
+            table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
             table.check_value_column("Event", -1, "Allocation started")
 
             # Finished
             write_status(status="F", Exit_status=0)
             time.sleep(0.5)
-            table = hq_env.command(["auto-alloc", "log", "foo"], as_table=True)
+            table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
             assert "Allocation finished" in table.get_column_value("Event")
 
 
@@ -164,6 +185,6 @@ print(json.dumps(data))
             hq_env.command(["auto-alloc", "add", "foo", "pbs", "queue", "1"])
 
             time.sleep(0.5)
-            table = hq_env.command(["auto-alloc", "log", "foo"], as_table=True)
+            table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
             column = table.get_column_value("Event")
             assert "Allocation failed" in column
