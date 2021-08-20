@@ -3,9 +3,10 @@ use crate::server::autoalloc::AutoAllocResult;
 use crate::Map;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
-const MAX_EVENT_QUEUE_LENGTH: usize = 20;
+const MAX_EVENT_QUEUE_LENGTH: usize = 100;
 
 pub type DescriptorName = String;
 
@@ -62,8 +63,8 @@ impl AutoAllocState {
 /// Represents the state of a single allocation queue.
 pub struct DescriptorState {
     pub descriptor: QueueDescriptor,
-    /// Allocations that are currently running or are in the queue.
-    pub allocations: Vec<Allocation>,
+    /// Active allocations
+    allocations: Map<AllocationId, Allocation>,
     /// Records events that have occurred on this queue.
     events: VecDeque<AllocationEventHolder>,
 }
@@ -89,6 +90,30 @@ impl DescriptorState {
     pub fn get_events(&self) -> &VecDeque<AllocationEventHolder> {
         &self.events
     }
+
+    pub fn get_allocation(&self, id: &str) -> Option<&Allocation> {
+        self.allocations.get(id)
+    }
+
+    pub fn get_allocation_mut(&mut self, id: &str) -> Option<&mut Allocation> {
+        self.allocations.get_mut(id)
+    }
+
+    pub fn active_allocations(&self) -> impl Iterator<Item = &Allocation> {
+        self.allocations.values().filter(|alloc| alloc.is_active())
+    }
+
+    pub fn add_allocation(&mut self, key: AllocationId, allocation: Allocation) {
+        if let Some(allocation) = self.allocations.insert(key, allocation) {
+            log::warn!("Duplicate allocation detected: {}", allocation.id);
+        }
+    }
+
+    pub fn remove_allocation(&mut self, key: &str) {
+        if self.allocations.remove(key).is_none() {
+            log::warn!("Trying to remove non-existent allocation {}", key);
+        }
+    }
 }
 
 pub type AllocationId = String;
@@ -97,11 +122,21 @@ pub struct Allocation {
     pub id: AllocationId,
     pub worker_count: u64,
     pub status: AllocationStatus,
+    pub working_dir: PathBuf,
+}
+
+impl Allocation {
+    /// Returns true if the allocation is currently in queue or running
+    pub fn is_active(&self) -> bool {
+        matches!(
+            self.status,
+            AllocationStatus::Queued { .. } | AllocationStatus::Running { .. }
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AllocationStatus {
-    NotFound,
     Queued { queued_at: SystemTime },
     Running { started_at: SystemTime },
     Finished,
@@ -120,6 +155,7 @@ pub enum AllocationEvent {
     AllocationStarted(AllocationId),
     AllocationFinished(AllocationId),
     AllocationFailed(AllocationId),
+    AllocationDisappeared(AllocationId),
     QueueFail { error: String },
     StatusFail { error: String },
 }
@@ -135,40 +171,48 @@ impl From<AllocationEvent> for AllocationEventHolder {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::manager::info::ManagerType;
+    use crate::server::autoalloc::descriptor::{CreatedAllocation, QueueHandler};
+    use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
+    use crate::server::autoalloc::{AutoAllocResult, AutoAllocState, QueueDescriptor, QueueInfo};
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::time::Duration;
 
-    /*#[test]
+    #[test]
     fn test_add_descriptor_with_same_name_twice() {
         let mut state = AutoAllocState::new(Duration::from_secs(1));
 
-        #[async_trait(?Send)]
         impl QueueHandler for () {
-            async fn schedule_allocation(
+            fn schedule_allocation(
                 &self,
                 _worker_count: u64,
-            ) -> AutoAllocResult<AllocationId> {
+            ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>> {
                 todo!()
             }
 
-            async fn get_allocation_status(
+            fn get_allocation_status(
                 &self,
-                _allocation_id: &str,
-            ) -> AutoAllocResult<AllocationStatus> {
+                _allocation_id: AllocationId,
+            ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>>
+            {
                 todo!()
             }
         }
 
+        let info = QueueInfo::new("".to_string(), 1, 1, None);
         let name = "foo".to_string();
         assert!(state
             .add_descriptor(
                 name.clone(),
-                Box::new()
+                QueueDescriptor::new(ManagerType::Pbs, info.clone(), Box::new(()))
             )
             .is_ok());
         assert!(state
             .add_descriptor(
                 name,
-                WrappedRcRefCell::new_wrapped(Rc::new(RefCell::new(())))
+                QueueDescriptor::new(ManagerType::Pbs, info.clone(), Box::new(()))
             )
             .is_err());
-    }*/
+    }
 }
