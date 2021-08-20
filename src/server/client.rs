@@ -13,9 +13,10 @@ use tokio::sync::{oneshot, Notify};
 use crate::client::status::{job_status, task_status, Status};
 use crate::common::arraydef::IntArray;
 use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
+use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::ServerDir;
-use crate::common::WrappedRcRefCell;
-use crate::server::autoalloc::PbsDescriptor;
+
+use crate::server::autoalloc::{PbsHandler, QueueDescriptor, QueueInfo};
 use crate::server::job::{Job, JobState};
 use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
@@ -29,7 +30,7 @@ use crate::transfer::messages::{
 };
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 use bstr::BString;
-use std::cell::RefCell;
+
 use std::path::Path;
 
 pub async fn handle_client_connections(
@@ -179,17 +180,22 @@ fn create_queue(
         AddQueueRequest::Pbs(params) => {
             let state = state_ref.get();
             let mut autoalloc = state.get_autoalloc_state().get_mut();
-            autoalloc.add_descriptor(
+
+            let queue_info = QueueInfo::new(
+                params.queue.clone(),
+                params.max_workers_per_alloc,
+                params.target_worker_count,
+                params.timelimit.clone(),
+            );
+            let handler = Box::new(PbsHandler::new(
+                params.queue,
+                params.timelimit,
                 params.name.clone(),
-                WrappedRcRefCell::new_wrapped(Rc::new(RefCell::new(PbsDescriptor::new(
-                    params.max_workers_per_alloc,
-                    params.target_worker_count,
-                    params.queue,
-                    params.walltime,
-                    params.name,
-                    server_dir.directory().to_path_buf(),
-                )))),
-            )
+                server_dir.directory().to_path_buf(),
+            ));
+            let descriptor = QueueDescriptor::new(ManagerType::Pbs, queue_info, handler);
+
+            autoalloc.add_descriptor(params.name, descriptor)
         }
     };
 

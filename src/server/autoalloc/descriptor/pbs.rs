@@ -4,7 +4,7 @@ use async_trait::async_trait;
 
 use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
 use crate::common::timeutils::local_datetime_to_system_time;
-use crate::server::autoalloc::descriptor::QueueDescriptor;
+use crate::server::autoalloc::descriptor::QueueHandler;
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
 use crate::server::autoalloc::AutoAllocResult;
 use anyhow::Context;
@@ -13,31 +13,26 @@ use std::path::PathBuf;
 use std::process::Output;
 use tokio::process::Command;
 
-pub struct PbsDescriptor {
-    max_workers_per_alloc: u32,
-    target_worker_count: u32,
+// TODO: pass as queue info in trait
+pub struct PbsHandler {
     queue: String,
-    walltime: Option<Duration>,
+    timelimit: Option<Duration>,
     server_directory: PathBuf,
     name: String,
     hq_path: PathBuf,
 }
 
-impl PbsDescriptor {
+impl PbsHandler {
     pub fn new(
-        max_workers_per_alloc: u32,
-        target_worker_count: u32,
         queue: String,
-        walltime: Option<Duration>,
+        timelimit: Option<Duration>,
         name: String,
         server_directory: PathBuf,
     ) -> Self {
-        let hq_path = std::env::current_exe().unwrap();
+        let hq_path = std::env::current_exe().expect("Cannot get HyperQueue path");
         Self {
-            max_workers_per_alloc,
-            target_worker_count,
             queue,
-            walltime,
+            timelimit,
             server_directory,
             name,
             hq_path,
@@ -56,15 +51,7 @@ impl PbsDescriptor {
 }
 
 #[async_trait(?Send)]
-impl QueueDescriptor for PbsDescriptor {
-    fn target_scale(&self) -> u32 {
-        self.target_worker_count
-    }
-
-    fn max_workers_per_alloc(&self) -> u32 {
-        self.max_workers_per_alloc
-    }
-
+impl QueueHandler for PbsHandler {
     async fn schedule_allocation(&self, worker_count: u64) -> AutoAllocResult<AllocationId> {
         let directory = self.create_allocation_dir()?;
 
@@ -80,7 +67,7 @@ impl QueueDescriptor for PbsDescriptor {
             .arg(directory.join("stderr").display().to_string())
             .arg(format!("-lselect={}", worker_count));
 
-        if let Some(ref walltime) = self.walltime {
+        if let Some(ref walltime) = self.timelimit {
             command.arg(format!("-lwalltime={}", format_pbs_duration(walltime)));
         }
 

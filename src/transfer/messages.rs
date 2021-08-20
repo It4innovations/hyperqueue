@@ -115,7 +115,7 @@ pub struct AddQueueParams {
     pub max_workers_per_alloc: u32,
     pub target_worker_count: u32,
     pub queue: String,
-    pub walltime: Option<Duration>,
+    pub timelimit: Option<Duration>,
 }
 
 // Messages server -> client
