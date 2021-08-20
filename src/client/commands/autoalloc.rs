@@ -56,7 +56,7 @@ pub struct AddPbsQueueOpts {
 
     /// Maximum timelimit of allocated jobs
     #[clap(long)]
-    walltime: Option<ArgDuration>,
+    timelimit: Option<ArgDuration>,
 
     /// How many workers at most can be allocated in a single allocation
     #[clap(long, default_value = "1")]
@@ -99,7 +99,7 @@ async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyh
                 max_workers_per_alloc: params.max_workers_per_alloc,
                 target_worker_count: params.target_worker_count,
                 queue: params.queue,
-                walltime: params.walltime.map(|v| v.into_duration()),
+                timelimit: params.timelimit.map(|v| v.into_duration()),
             }),
         )),
     };
