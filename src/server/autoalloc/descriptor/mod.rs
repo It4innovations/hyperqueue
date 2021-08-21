@@ -102,6 +102,7 @@ pub trait QueueHandler {
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>>;
 
     /// Get status of an existing allocation
+    /// TODO: get status of multiple allocations to amortize qstat cost
     fn get_allocation_status(
         &self,
         allocation_id: AllocationId,

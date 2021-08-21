@@ -177,6 +177,7 @@ impl AllocationStatus {
     }
 }
 
+// TODO: decide if events are actually useful
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocationEventHolder {
     pub date: SystemTime,

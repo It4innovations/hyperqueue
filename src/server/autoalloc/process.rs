@@ -84,6 +84,7 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
                 match status {
                     Some(status) => {
                         let id = allocation_id.clone();
+                        log::debug!("Status of allocation {}: {:?}", allocation_id, status);
                         match status {
                             AllocationStatus::Running(..) => {
                                 let allocation =

@@ -1,6 +1,9 @@
+import contextlib
 import json
-import time
 from os.path import join
+from typing import List
+
+import time
 
 from .conftest import HqEnv
 from .utils.check import check_error_log
@@ -105,86 +108,161 @@ except:
             time.sleep(0.2)
 
 
-def test_pbs_qstat_status(hq_env: HqEnv):
-    status_path = join(hq_env.work_path, "status")
+def test_pbs_events_job_lifecycle(hq_env: HqEnv):
+    mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021")
 
-    qsub_code = """print("jobid")"""
+    with mock.activate():
+        mock.set_job_data("Q")
+        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.command(["auto-alloc", "add", "foo", "pbs", "queue", "1"])
 
-    qstat_code = f"""
+        # Queued
+        time.sleep(0.5)
+        table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
+        table.check_value_column("Event", -1, "Allocation queued")
+
+        # Started
+        mock.set_job_data("R", stime="Thu Aug 19 13:05:39 2021")
+        time.sleep(0.5)
+        table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
+        table.check_value_column("Event", -1, "Allocation started")
+
+        # Finished
+        mock.set_job_data("F", exit_code=0)
+        time.sleep(0.5)
+        table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
+        assert "Allocation finished" in table.get_column_value("Event")
+
+
+def test_pbs_events_job_failed(hq_env: HqEnv):
+    mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021")
+    mock.set_job_data("F", exit_code=1)
+
+    with mock.activate():
+        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.command(["auto-alloc", "add", "foo", "pbs", "queue", "1"])
+
+        time.sleep(0.5)
+        table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
+        column = table.get_column_value("Event")
+        assert "Allocation failed" in column
+
+
+def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
+    mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021")
+    mock.set_job_data("Q")
+
+    with mock.activate():
+        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.command(["auto-alloc", "add", "foo", "pbs", "queue", "1"])
+        time.sleep(0.2)
+
+        table = hq_env.command(["auto-alloc", "allocations", "foo"], as_table=True)
+        table.check_value_columns(("Id", "State", "Worker count"), 0,
+                                  ("123.jobid", "Queued", "1"))
+
+        mock.set_job_data("R")
+        time.sleep(0.2)
+
+        table = hq_env.command(["auto-alloc", "allocations", "foo"], as_table=True)
+        table.check_value_column("State", 0, "Running")
+
+        mock.set_job_data("F", exit_code=0)
+        time.sleep(0.2)
+
+        table = hq_env.command(["auto-alloc", "allocations", "foo"], as_table=True)
+        table.check_value_column("State", 0, "Finished")
+
+
+def test_pbs_allocations_ignore_job_changes_after_finish(hq_env: HqEnv):
+    mock = PbsMock(hq_env, jobs=["1", "2"], qtime="Thu Aug 19 13:05:38 2021")
+    mock.set_job_data("F", exit_code=0)
+
+    with mock.activate():
+        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.command(["auto-alloc", "add", "foo", "pbs", "queue", "1"])
+        time.sleep(0.2)
+
+        table = hq_env.command(["auto-alloc", "allocations", "foo"], as_table=True)
+        table.check_value_column("State", 0, "Finished")
+
+        mock.set_job_data("R")
+        time.sleep(0.2)
+
+        table = hq_env.command(["auto-alloc", "allocations", "foo"], as_table=True)
+        table.check_value_column("State", 0, "Finished")
+
+
+class PbsMock:
+    def __init__(self, hq_env: HqEnv, jobs: List[str] = None, **data):
+        if jobs is None:
+            jobs = ["1"]
+        self.hq_env = hq_env
+        self.jobs = jobs
+        self.qstat_path = join(self.hq_env.work_path, "pbs-qstat")
+        self.qsub_path = join(self.hq_env.work_path, "pbs-qsub")
+        self.data = data
+
+        with open(self.qsub_path, "w") as f:
+            f.write(json.dumps(self.jobs))
+
+        self.qsub_code = f"""
+import json
+
+with open("{self.qsub_path}") as f:
+    jobs = json.loads(f.read())
+
+if not jobs:
+    raise Exception("No more jobs can be scheduled")
+
+job = jobs.pop(0)
+with open("{self.qsub_path}", "w") as f:
+    f.write(json.dumps(jobs))
+
+print(job)
+"""
+        self.qstat_code = f"""
 import sys
 import json
 
-assert "jobid" in sys.argv
+jobid = None
+args = sys.argv[1:]
+for (index, arg) in enumerate(args[:-1]):
+    if arg == "-f":
+        jobid = args[index + 1]
+        break
 
-with open("{status_path}") as f:
+assert jobid is not None
+
+with open("{self.qstat_path}") as f:
     jobdata = json.loads(f.read())
 
 data = {{
     "Jobs": {{
-        "jobid": jobdata
+        jobid: jobdata
     }}
 }}
 print(json.dumps(data))
 """
 
-    def write_status(status: str, **args):
-        data = {
+    @contextlib.contextmanager
+    def activate(self):
+        with self.hq_env.mock.mock_program("qsub", self.qsub_code):
+            with self.hq_env.mock.mock_program("qstat", self.qstat_code):
+                yield
+
+    def set_job_data(self, status: str, qtime: str = None, stime: str = None, mtime: str = None, exit_code: int = None):
+        jobdata = dict(self.data)
+        jobdata.update({
             "job_state": status,
-            **args
-        }
-        with open(status_path, "w") as f:
-            f.write(json.dumps(data))
-
-    with hq_env.mock.mock_program("qsub", qsub_code):
-        with hq_env.mock.mock_program("qstat", qstat_code):
-            write_status("Q", qtime="Thu Aug 19 13:05:38 2021")
-            hq_env.start_server(args=["--autoalloc-interval", "100ms"])
-            hq_env.command(["auto-alloc", "add", "foo", "pbs", "queue", "1"])
-
-            # Queued
-            time.sleep(0.5)
-            table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
-            table.check_value_column("Event", -1, "Allocation queued")
-
-            # Started
-            write_status(status="R", stime="Thu Aug 19 13:05:39 2021")
-            time.sleep(0.5)
-            table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
-            table.check_value_column("Event", -1, "Allocation started")
-
-            # Finished
-            write_status(status="F", Exit_status=0)
-            time.sleep(0.5)
-            table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
-            assert "Allocation finished" in table.get_column_value("Event")
-
-
-def test_pbs_qstat_allocation_failed(hq_env: HqEnv):
-    qsub_code = """print("jobid")"""
-
-    qstat_code = """
-import sys
-import json
-
-assert "jobid" in sys.argv
-
-data = {
-    "Jobs": {
-        "jobid": {
-            "job_state": "F",
-            "Exit_status": 1
-        }
-    }
-}
-print(json.dumps(data))
-"""
-
-    with hq_env.mock.mock_program("qsub", qsub_code):
-        with hq_env.mock.mock_program("qstat", qstat_code):
-            hq_env.start_server(args=["--autoalloc-interval", "100ms"])
-            hq_env.command(["auto-alloc", "add", "foo", "pbs", "queue", "1"])
-
-            time.sleep(0.5)
-            table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
-            column = table.get_column_value("Event")
-            assert "Allocation failed" in column
+        })
+        if qtime is not None:
+            jobdata["qtime"] = qtime
+        if stime is not None:
+            jobdata["stime"] = stime
+        if mtime is not None:
+            jobdata["mtime"] = mtime
+        if exit_code is not None:
+            jobdata["Exit_status"] = exit_code
+        with open(self.qstat_path, "w") as f:
+            f.write(json.dumps(jobdata))
