@@ -31,6 +31,7 @@ use crate::transfer::messages::{
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 use bstr::BString;
 
+use crate::common::placeholders::replace_placeholders_server;
 use crate::transfer::messages::WaitForJobsResponse;
 use std::path::Path;
 
@@ -576,7 +577,9 @@ async fn handle_submit(
         (task_defs, job_detail, job_id)
     };
 
-    if let Some(log) = message.log {
+    if let Some(mut log) = message.log {
+        replace_placeholders_server(&mut log, job_id, submit_dir.clone());
+
         let (sender, receiver) = oneshot::channel();
         tako_ref.send_stream_control(StreamServerControlMessage::RegisterStream {
             job_id,
