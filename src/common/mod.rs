@@ -8,6 +8,7 @@ pub mod format;
 pub mod fsutils;
 pub mod manager;
 pub mod parser;
+pub mod placeholders;
 pub mod serverdir;
 pub mod setup;
 pub mod timeutils;

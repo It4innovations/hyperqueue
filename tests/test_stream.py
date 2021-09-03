@@ -62,6 +62,27 @@ def test_stream_submit(hq_env: HqEnv):
     check_no_stream_connections(hq_env)
 
 
+def test_stream_submit_placeholder(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(
+        [
+            "submit",
+            "--log",
+            "log-%{JOB_ID}",
+            "--",
+            "bash",
+            "-c",
+            "echo Hello"
+        ]
+    )
+    hq_env.start_workers(1)
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    lines = set(hq_env.command(["log", "log-1", "show"], as_lines=True))
+    assert "0:0> Hello" in lines
+    assert "0: > stream closed" in lines
+
+
 def test_stream_overlap(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(

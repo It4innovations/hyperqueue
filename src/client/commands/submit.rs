@@ -15,12 +15,12 @@ use crate::client::job::{get_worker_map, print_job_detail};
 use crate::client::resources::parse_cpu_request;
 use crate::client::status::StatusList;
 use crate::common::arraydef::IntArray;
+use crate::common::placeholders::{JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER};
 use crate::common::timeutils::ArgDuration;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
     FromClientMessage, JobType, ResubmitRequest, Selector, SubmitRequest, ToClientMessage,
 };
-use crate::worker::placeholders::{JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER};
 use crate::{rpc_call, JobId, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;

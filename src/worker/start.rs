@@ -31,6 +31,7 @@ use crate::common::error::error;
 use crate::common::manager::info::{ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::manager::pbs;
 use crate::common::manager::pbs::PbsContext;
+use crate::common::placeholders::replace_placeholders_worker;
 use crate::common::serverdir::ServerDir;
 use crate::common::timeutils::ArgDuration;
 use crate::transfer::messages::TaskBody;
@@ -38,7 +39,6 @@ use crate::transfer::stream::ChannelId;
 use crate::worker::hwdetect::detect_resource;
 use crate::worker::output::print_worker_configuration;
 use crate::worker::parser::parse_cpu_definition;
-use crate::worker::placeholders;
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use crate::Map;
@@ -162,7 +162,7 @@ async fn launcher_main(
             .env
             .insert(HQ_INSTANCE_ID.into(), task.instance_id.to_string().into());
 
-        placeholders::replace_placeholders(&mut program);
+        replace_placeholders_worker(&mut program);
 
         create_directory_if_needed(&program.stdout)?;
         create_directory_if_needed(&program.stderr)?;
@@ -448,101 +448,4 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         extra,
         hw_state_poll_interval: None,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use tako::messages::common::{ProgramDefinition, StdioDef};
-
-    use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
-    use crate::worker::placeholders::replace_placeholders;
-    use crate::{JobId, JobTaskId, Map};
-
-    #[test]
-    fn test_replace_task_id() {
-        let mut program = program_def(
-            "dir-%{TASK_ID}",
-            Some("%{TASK_ID}.out"),
-            Some("%{TASK_ID}.err"),
-            "",
-            0,
-            1,
-        );
-        replace_placeholders(&mut program);
-        assert_eq!(program.cwd, Some("dir-1".into()));
-        assert_eq!(program.stdout, StdioDef::File("1.out".into()));
-        assert_eq!(program.stderr, StdioDef::File("1.err".into()));
-    }
-
-    #[test]
-    fn test_replace_job_id() {
-        let mut program = program_def(
-            "dir-%{JOB_ID}-%{TASK_ID}",
-            Some("%{JOB_ID}-%{TASK_ID}.out"),
-            Some("%{JOB_ID}-%{TASK_ID}.err"),
-            "",
-            5,
-            1,
-        );
-        replace_placeholders(&mut program);
-        assert_eq!(program.cwd, Some("dir-5-1".into()));
-        assert_eq!(program.stdout, StdioDef::File("5-1.out".into()));
-        assert_eq!(program.stderr, StdioDef::File("5-1.err".into()));
-    }
-
-    #[test]
-    fn test_replace_submit_dir() {
-        let mut program = program_def(
-            "%{SUBMIT_DIR}",
-            Some("%{SUBMIT_DIR}/out"),
-            Some("%{SUBMIT_DIR}/err"),
-            "/submit-dir",
-            5,
-            1,
-        );
-        replace_placeholders(&mut program);
-
-        assert_eq!(program.cwd, Some("/submit-dir".into()));
-        assert_eq!(program.stdout, StdioDef::File("/submit-dir/out".into()));
-        assert_eq!(program.stderr, StdioDef::File("/submit-dir/err".into()));
-    }
-
-    #[test]
-    fn test_replace_cwd() {
-        let mut program = program_def(
-            "dir-%{JOB_ID}-%{TASK_ID}",
-            Some("%{CWD}.out"),
-            Some("%{CWD}.err"),
-            "",
-            5,
-            1,
-        );
-        replace_placeholders(&mut program);
-        assert_eq!(program.cwd, Some("dir-5-1".into()));
-        assert_eq!(program.stdout, StdioDef::File("dir-5-1.out".into()));
-        assert_eq!(program.stderr, StdioDef::File("dir-5-1.err".into()));
-    }
-
-    fn program_def(
-        cwd: &str,
-        stdout: Option<&str>,
-        stderr: Option<&str>,
-        submit_dir: &str,
-        job_id: JobId,
-        task_id: JobTaskId,
-    ) -> ProgramDefinition {
-        let mut env = Map::new();
-        env.insert(HQ_SUBMIT_DIR.into(), submit_dir.into());
-        env.insert(HQ_JOB_ID.into(), job_id.to_string().into());
-        env.insert(HQ_TASK_ID.into(), task_id.to_string().into());
-        env.insert(HQ_INSTANCE_ID.into(), "0".into());
-
-        ProgramDefinition {
-            args: vec![],
-            env,
-            stdout: stdout.map(|v| StdioDef::File(v.into())).unwrap_or_default(),
-            stderr: stderr.map(|v| StdioDef::File(v.into())).unwrap_or_default(),
-            cwd: Some(cwd.into()),
-        }
-    }
 }
