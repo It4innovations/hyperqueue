@@ -38,9 +38,6 @@ enum AutoAllocCommand {
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 pub struct AddQueueOpts {
-    /// Name of the allocation queue
-    name: String,
-
     #[clap(subcommand)]
     subcmd: AddQueueCommand,
 }
@@ -54,15 +51,21 @@ pub enum AddQueueCommand {
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 pub struct AddPbsQueueOpts {
+    /// Name of the allocation queue
+    #[clap(long)]
+    name: String,
+
     /// PBS queue into which the allocations will be queued
+    #[clap(long)]
     queue: String,
 
     /// How many workers should be kept active in this queue
+    #[clap(long("workers"))]
     target_worker_count: u32,
 
-    /// Maximum timelimit of allocated jobs
+    /// Time limit (walltime) of PBS allocations
     #[clap(long)]
-    timelimit: Option<ArgDuration>,
+    time_limit: Option<ArgDuration>,
 
     /// How many workers at most can be allocated in a single allocation
     #[clap(long, default_value = "1")]
@@ -131,18 +134,22 @@ pub async fn command_autoalloc(
 }
 
 async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyhow::Result<()> {
-    let AddQueueOpts { name, subcmd } = opts;
+    let AddQueueOpts { subcmd } = opts;
 
-    let message = match subcmd {
-        AddQueueCommand::Pbs(params) => FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(
-            AddQueueRequest::Pbs(AddQueueParams {
-                name: name.clone(),
-                max_workers_per_alloc: params.max_workers_per_alloc,
-                target_worker_count: params.target_worker_count,
-                queue: params.queue,
-                timelimit: params.timelimit.map(|v| v.into_duration()),
-            }),
-        )),
+    let (message, name) = match subcmd {
+        AddQueueCommand::Pbs(params) => {
+            let name = params.name;
+            let msg = FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(
+                AddQueueRequest::Pbs(AddQueueParams {
+                    name: name.clone(),
+                    max_workers_per_alloc: params.max_workers_per_alloc,
+                    target_worker_count: params.target_worker_count,
+                    queue: params.queue,
+                    timelimit: params.time_limit.map(|v| v.into_duration()),
+                }),
+            ));
+            (msg, name)
+        }
     };
 
     rpc_call!(connection, message,
