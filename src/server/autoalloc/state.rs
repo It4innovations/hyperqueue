@@ -107,8 +107,8 @@ impl DescriptorState {
         self.allocations.values()
     }
 
-    pub fn add_allocation(&mut self, key: AllocationId, allocation: Allocation) {
-        if let Some(allocation) = self.allocations.insert(key, allocation) {
+    pub fn add_allocation(&mut self, allocation: Allocation) {
+        if let Some(allocation) = self.allocations.insert(allocation.id.clone(), allocation) {
             log::warn!("Duplicate allocation detected: {}", allocation.id);
         }
     }
@@ -126,6 +126,7 @@ pub type AllocationId = String;
 pub struct Allocation {
     pub id: AllocationId,
     pub worker_count: u64,
+    pub queued_at: SystemTime,
     pub status: AllocationStatus,
     pub working_dir: PathBuf,
 }
@@ -135,49 +136,27 @@ impl Allocation {
     pub fn is_active(&self) -> bool {
         matches!(
             self.status,
-            AllocationStatus::Queued { .. } | AllocationStatus::Running { .. }
+            AllocationStatus::Queued | AllocationStatus::Running { .. }
         )
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AllocationTimeInfo {
-    pub queued_at: SystemTime,
-    pub started_at: Option<SystemTime>,
-    pub finished_at: Option<SystemTime>,
-}
-
-impl AllocationTimeInfo {
-    pub fn queued_now() -> Self {
-        Self {
-            queued_at: SystemTime::now(),
-            started_at: None,
-            finished_at: None,
-        }
-    }
-}
-
-// TODO: represent the state in a better way
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AllocationStatus {
-    Queued(AllocationTimeInfo),
-    Running(AllocationTimeInfo),
-    Finished(AllocationTimeInfo),
-    Failed(AllocationTimeInfo),
+    Queued,
+    Running {
+        started_at: SystemTime,
+    },
+    Finished {
+        started_at: SystemTime,
+        finished_at: SystemTime,
+    },
+    Failed {
+        started_at: SystemTime,
+        finished_at: SystemTime,
+    },
 }
 
-impl AllocationStatus {
-    pub fn get_time_info(&self) -> AllocationTimeInfo {
-        match self {
-            AllocationStatus::Queued(times)
-            | AllocationStatus::Running(times)
-            | AllocationStatus::Finished(times)
-            | AllocationStatus::Failed(times) => times.clone(),
-        }
-    }
-}
-
-// TODO: decide if events are actually useful
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocationEventHolder {
     pub date: SystemTime,

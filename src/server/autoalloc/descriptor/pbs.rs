@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
 use crate::common::timeutils::local_to_system_time;
 use crate::server::autoalloc::descriptor::{CreatedAllocation, QueueHandler};
-use crate::server::autoalloc::state::{AllocationId, AllocationStatus, AllocationTimeInfo};
+use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
 use crate::server::autoalloc::AutoAllocResult;
 use anyhow::Context;
 use bstr::ByteSlice;
@@ -141,30 +141,37 @@ impl QueueHandler for PbsHandler {
             }
 
             let state = get_json_str(&job["job_state"], "Job state")?;
-            let queue_time = get_json_str(&job["qtime"], "Queue time")?;
-            let start_time = &job["stime"];
-            let finish_time = &job["mtime"];
-            let times = AllocationTimeInfo {
-                queued_at: local_to_system_time(parse_pbs_datetime(queue_time)?),
-                started_at: start_time
+            let start_time_key = "stime";
+            let modification_time_key = "mtime";
+
+            let parse_time = |key: &str| {
+                let value = &job[key];
+                value
                     .as_str()
-                    .map(|v| AutoAllocResult::Ok(local_to_system_time(parse_pbs_datetime(v)?)))
-                    .transpose()?,
-                finished_at: finish_time
-                    .as_str()
-                    .map(|v| AutoAllocResult::Ok(local_to_system_time(parse_pbs_datetime(v)?)))
-                    .transpose()?,
+                    .ok_or_else(|| anyhow::anyhow!("Missing time key {} in PBS", key))
+                    .and_then(|v| AutoAllocResult::Ok(local_to_system_time(parse_pbs_datetime(v)?)))
             };
 
             let status = match state {
-                "Q" => AllocationStatus::Queued(times),
-                "R" => AllocationStatus::Running(times),
+                "Q" => AllocationStatus::Queued,
+                "R" => AllocationStatus::Running {
+                    started_at: parse_time(start_time_key)?,
+                },
                 "F" => {
                     let exit_status = get_json_number(&job["Exit_status"], "Exit status")?;
+                    let started_at = parse_time(start_time_key)?;
+                    let finished_at = parse_time(modification_time_key)?;
+
                     if exit_status == 0 {
-                        AllocationStatus::Finished(times)
+                        AllocationStatus::Finished {
+                            started_at,
+                            finished_at,
+                        }
                     } else {
-                        AllocationStatus::Failed(times)
+                        AllocationStatus::Failed {
+                            started_at,
+                            finished_at,
+                        }
                     }
                 }
                 status => anyhow::bail!("Unknown PBS job status {}", status),

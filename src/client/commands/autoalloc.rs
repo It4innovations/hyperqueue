@@ -277,6 +277,40 @@ async fn print_event_log(
     Ok(())
 }
 
+struct AllocationTimes {
+    queued_at: SystemTime,
+    started_at: Option<SystemTime>,
+    finished_at: Option<SystemTime>,
+}
+
+fn get_allocation_times(allocation: &Allocation) -> AllocationTimes {
+    let mut started = None;
+    let mut finished = None;
+
+    match &allocation.status {
+        AllocationStatus::Queued => {}
+        AllocationStatus::Running { started_at } => {
+            started = Some(started_at);
+        }
+        AllocationStatus::Finished {
+            started_at,
+            finished_at,
+        }
+        | AllocationStatus::Failed {
+            started_at,
+            finished_at,
+        } => {
+            started = Some(started_at);
+            finished = Some(finished_at);
+        }
+    }
+    AllocationTimes {
+        queued_at: allocation.queued_at,
+        started_at: started.cloned(),
+        finished_at: finished.cloned(),
+    }
+}
+
 async fn print_allocations(
     gsettings: GlobalSettings,
     mut connection: ClientConnection,
@@ -309,7 +343,7 @@ async fn print_allocations(
 
     allocations.sort_unstable_by(|a, b| a.id.cmp(&b.id));
     rows.extend(allocations.into_iter().map(|allocation| {
-        let times = allocation.status.get_time_info();
+        let times = get_allocation_times(&allocation);
         vec![
             allocation.id.cell(),
             format_allocation_status(&allocation.status),
@@ -329,16 +363,16 @@ async fn print_allocations(
 
 fn format_allocation_status(status: &AllocationStatus) -> CellStruct {
     match status {
-        AllocationStatus::Queued(..) => "Queued"
+        AllocationStatus::Queued => "Queued"
             .cell()
             .foreground_color(Some(cli_table::Color::Yellow)),
-        AllocationStatus::Running(..) => "Running"
+        AllocationStatus::Running { .. } => "Running"
             .cell()
             .foreground_color(Some(cli_table::Color::Blue)),
-        AllocationStatus::Finished(..) => "Finished"
+        AllocationStatus::Finished { .. } => "Finished"
             .cell()
             .foreground_color(Some(cli_table::Color::Green)),
-        AllocationStatus::Failed(..) => "Failed"
+        AllocationStatus::Failed { .. } => "Failed"
             .cell()
             .foreground_color(Some(cli_table::Color::Red)),
     }
@@ -349,12 +383,14 @@ fn filter_allocations(allocations: &mut Vec<Allocation>, filter: Option<Allocati
         allocations.retain(|allocation| {
             let status = &allocation.status;
             match filter {
-                AllocationStateFilter::Queued => matches!(status, AllocationStatus::Queued(..)),
+                AllocationStateFilter::Queued => matches!(status, AllocationStatus::Queued),
                 AllocationStateFilter::Running => {
-                    matches!(status, AllocationStatus::Running(..))
+                    matches!(status, AllocationStatus::Running { .. })
                 }
-                AllocationStateFilter::Finished => matches!(status, AllocationStatus::Finished(..)),
-                AllocationStateFilter::Failed => matches!(status, AllocationStatus::Failed(..)),
+                AllocationStateFilter::Finished => {
+                    matches!(status, AllocationStatus::Finished { .. })
+                }
+                AllocationStateFilter::Failed => matches!(status, AllocationStatus::Failed { .. }),
             }
         })
     }

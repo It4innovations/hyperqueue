@@ -132,7 +132,7 @@ def test_pbs_events_job_lifecycle(hq_env: HqEnv):
         table.check_value_column("Event", -1, "Allocation started")
 
         # Finished
-        mock.set_job_data("F", exit_code=0)
+        mock.set_job_data("F", stime="Thu Aug 19 13:05:39 2021", mtime="Thu Aug 19 13:05:39 2021", exit_code=0)
         time.sleep(0.5)
         table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
         assert "Allocation finished" in table.get_column_value("Event")
@@ -140,7 +140,7 @@ def test_pbs_events_job_lifecycle(hq_env: HqEnv):
 
 def test_pbs_events_job_failed(hq_env: HqEnv):
     mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021")
-    mock.set_job_data("F", exit_code=1)
+    mock.set_job_data("F", stime="Thu Aug 19 13:05:39 2021", mtime="Thu Aug 19 13:05:39 2021", exit_code=1)
 
     with mock.activate():
         hq_env.start_server(args=["--autoalloc-interval", "100ms"])
@@ -153,7 +153,8 @@ def test_pbs_events_job_failed(hq_env: HqEnv):
 
 
 def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
-    mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021")
+    mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021", stime="Thu Aug 19 13:05:39 2021",
+                   mtime="Thu Aug 19 13:05:39 2021")
     mock.set_job_data("Q")
 
     with mock.activate():
@@ -179,7 +180,8 @@ def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
 
 
 def test_pbs_allocations_ignore_job_changes_after_finish(hq_env: HqEnv):
-    mock = PbsMock(hq_env, jobs=["1", "2"], qtime="Thu Aug 19 13:05:38 2021")
+    mock = PbsMock(hq_env, jobs=["1", "2"], qtime="Thu Aug 19 13:05:38 2021", stime="Thu Aug 19 13:05:39 2021",
+                   mtime="Thu Aug 19 13:05:39 2021")
     mock.set_job_data("F", exit_code=0)
 
     with mock.activate():
