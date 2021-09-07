@@ -126,7 +126,7 @@ async fn initialize_server(
 
     let key = hq_secret_key;
     let fut = async move {
-        tokio::select! {
+        let result = tokio::select! {
             _ = end_flag.notified() => {
                 log::info!("Received SIGINT");
                 Ok(())
@@ -143,9 +143,11 @@ async fn initialize_server(
                 stop_cloned,
                 key
             ) => { Ok(()) }
-            _ = crate::server::autoalloc::autoalloc_process(state_ref) => { Ok(()) }
+            _ = crate::server::autoalloc::autoalloc_process(state_ref.clone()) => { Ok(()) }
             r = tako_future => { r.map_err(|e| e.into()) }
-        }
+        };
+        crate::server::autoalloc::autoalloc_shutdown(state_ref).await;
+        result
     };
     Ok(fut)
 }

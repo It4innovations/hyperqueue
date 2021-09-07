@@ -107,4 +107,10 @@ pub trait QueueHandler {
         &self,
         allocation_id: AllocationId,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>>;
+
+    /// Remove allocation, if it still exists.
+    fn remove_allocation(
+        &self,
+        allocation_id: AllocationId,
+    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<()>>>>;
 }

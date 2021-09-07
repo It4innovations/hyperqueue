@@ -180,6 +180,22 @@ impl QueueHandler for PbsHandler {
             Ok(Some(status))
         })
     }
+
+    fn remove_allocation(
+        &self,
+        allocation_id: AllocationId,
+    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<()>>>> {
+        Box::pin(async move {
+            let arguments = vec!["qdel".to_string(), allocation_id];
+            log::debug!("Running PBS command `{}`", arguments.join(" "));
+            let mut command = Command::new(&arguments[0]);
+            command.args(&arguments[1..]);
+
+            let output = command.output().await?;
+            check_command_output(output)?;
+            Ok(())
+        })
+    }
 }
 
 fn get_json_str<'a>(value: &'a serde_json::Value, context: &str) -> AutoAllocResult<&'a str> {
