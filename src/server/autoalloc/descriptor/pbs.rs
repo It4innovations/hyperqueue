@@ -68,8 +68,6 @@ impl QueueHandler for PbsHandler {
                 "qsub".to_string(),
                 "-q".to_string(),
                 queue,
-                "-wd".to_string(),
-                directory.display().to_string(),
                 "-o".to_string(),
                 directory.join("stdout").display().to_string(),
                 "-e".to_string(),
