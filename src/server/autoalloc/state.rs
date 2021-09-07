@@ -212,6 +212,13 @@ mod tests {
             {
                 todo!()
             }
+
+            fn remove_allocation(
+                &self,
+                _allocation_id: AllocationId,
+            ) -> Pin<Box<dyn Future<Output = AutoAllocResult<()>>>> {
+                todo!()
+            }
         }
 
         let info = QueueInfo::new("".to_string(), 1, 1, None);

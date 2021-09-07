@@ -37,6 +37,40 @@ pub async fn autoalloc_process(state_ref: StateRef) {
     }
 }
 
+/// Removes all remaining active allocations
+pub async fn autoalloc_shutdown(state_ref: StateRef) {
+    let futures: Vec<_> = {
+        state_ref
+            .get()
+            .get_autoalloc_state()
+            .get()
+            .descriptors()
+            .flat_map(|(_, descriptor)| {
+                let handler = descriptor.descriptor.handler();
+                descriptor
+                    .all_allocations()
+                    .filter(|alloc| alloc.is_active())
+                    .map(move |alloc| {
+                        let fut = handler.remove_allocation(alloc.id.clone());
+                        let id = alloc.id.clone();
+                        async move { (fut.await, id) }
+                    })
+            })
+            .collect()
+    };
+
+    for (result, allocation_id) in futures::future::join_all(futures).await {
+        match result {
+            Ok(_) => {
+                log::info!("Allocation {} was removed", allocation_id);
+            }
+            Err(e) => {
+                log::error!("Failed to remove allocation {}: {:?}", allocation_id, e);
+            }
+        }
+    }
+}
+
 async fn autoalloc_tick(state_ref: &StateRef) {
     log::debug!("Running autoalloc");
 
@@ -209,6 +243,7 @@ mod tests {
                 Ok(CreatedAllocation::new("1".to_string(), "".into()))
             },
             move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
+            |_, _| async move { Ok(()) },
         );
         add_descriptor(&state, handler, 1, 1);
 
@@ -242,6 +277,7 @@ mod tests {
                 ))
             },
             move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
+            |_, _| async move { Ok(()) },
         );
         add_descriptor(&state, handler, 10, 3);
 
@@ -258,6 +294,7 @@ mod tests {
             WrappedRcRefCell::wrap(()),
             move |_, _| async move { anyhow::bail!("foo") },
             move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
+            |_, _| async move { Ok(()) },
         );
         add_descriptor(&state, handler, 1, 1);
 
@@ -296,6 +333,7 @@ mod tests {
                 ))
             },
             move |s, _| async move { Ok(s.get().status.clone()) },
+            |_, _| async move { Ok(()) },
         );
         add_descriptor(&state, handler, 1, 1);
 
@@ -311,9 +349,10 @@ mod tests {
         assert_eq!(custom_state.get().job_id, 2);
     }
 
-    struct Handler<ScheduleFn, StatusFn, State> {
+    struct Handler<ScheduleFn, StatusFn, RemoveFn, State> {
         schedule_fn: WrappedRcRefCell<ScheduleFn>,
         status_fn: WrappedRcRefCell<StatusFn>,
+        remove_fn: WrappedRcRefCell<RemoveFn>,
         custom_state: WrappedRcRefCell<State>,
     }
 
@@ -323,16 +362,20 @@ mod tests {
             ScheduleFnFut: Future<Output = AutoAllocResult<CreatedAllocation>>,
             StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
             StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationStatus>>>,
-        > Handler<ScheduleFn, StatusFn, State>
+            RemoveFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> RemoveFnFut,
+            RemoveFnFut: Future<Output = AutoAllocResult<()>>,
+        > Handler<ScheduleFn, StatusFn, RemoveFn, State>
     {
         fn new(
             custom_state: WrappedRcRefCell<State>,
             schedule_fn: ScheduleFn,
             status_fn: StatusFn,
+            remove_fn: RemoveFn,
         ) -> Box<dyn QueueHandler> {
             Box::new(Self {
                 schedule_fn: WrappedRcRefCell::wrap(schedule_fn),
                 status_fn: WrappedRcRefCell::wrap(status_fn),
+                remove_fn: WrappedRcRefCell::wrap(remove_fn),
                 custom_state,
             })
         }
@@ -344,7 +387,9 @@ mod tests {
             ScheduleFnFut: Future<Output = AutoAllocResult<CreatedAllocation>>,
             StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
             StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationStatus>>>,
-        > QueueHandler for Handler<ScheduleFn, StatusFn, State>
+            RemoveFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> RemoveFnFut,
+            RemoveFnFut: Future<Output = AutoAllocResult<()>>,
+        > QueueHandler for Handler<ScheduleFn, StatusFn, RemoveFn, State>
     {
         fn schedule_allocation(
             &self,
@@ -364,6 +409,16 @@ mod tests {
             let custom_state = self.custom_state.clone();
 
             Box::pin(async move { (status_fn.get())(custom_state.clone(), allocation_id).await })
+        }
+
+        fn remove_allocation(
+            &self,
+            allocation_id: AllocationId,
+        ) -> Pin<Box<dyn Future<Output = AutoAllocResult<()>>>> {
+            let remove_fn = self.remove_fn.clone();
+            let custom_state = self.custom_state.clone();
+
+            Box::pin(async move { (remove_fn.get())(custom_state.clone(), allocation_id).await })
         }
     }
 

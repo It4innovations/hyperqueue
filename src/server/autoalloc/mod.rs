@@ -4,7 +4,7 @@
 //!
 //! The term `allocation` represents a PBS/Slurm job in this module, to distinguish itself from
 //! HQ jobs.
-pub use process::autoalloc_process;
+pub use process::{autoalloc_process, autoalloc_shutdown};
 pub use state::AutoAllocState;
 
 mod descriptor;
