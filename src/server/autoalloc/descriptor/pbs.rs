@@ -192,7 +192,7 @@ fn check_command_output(output: Output) -> AutoAllocResult<Output> {
     let status = output.status;
     if !status.success() {
         return Err(anyhow::anyhow!(
-            "Exit code {}, stderr: {}, stdout: {}",
+            "Exit code {}\nstderr: {}\nstdout: {}",
             status.code().unwrap(),
             output.stderr.to_str().unwrap(),
             output.stdout.to_str().unwrap()

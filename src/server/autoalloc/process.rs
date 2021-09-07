@@ -173,7 +173,7 @@ async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoA
                 );
             }
             Err(err) => {
-                log::error!("Failed to queue allocation into {}: {}", name, err);
+                log::error!("Failed to queue allocation into {}: {:?}", name, err);
                 descriptor.add_event(AllocationEvent::QueueFail {
                     error: err.to_string(),
                 });
