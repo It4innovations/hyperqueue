@@ -1,9 +1,8 @@
 use crate::common::WrappedRcRefCell;
-use crate::server::autoalloc::state::{
-    Allocation, AllocationEvent, AllocationStatus, AllocationTimeInfo,
-};
+use crate::server::autoalloc::state::{Allocation, AllocationEvent, AllocationStatus};
 use crate::server::autoalloc::AutoAllocState;
 use crate::server::state::StateRef;
+use std::time::SystemTime;
 
 macro_rules! get_or_return {
     ($e:expr) => {
@@ -86,24 +85,24 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
                         let id = allocation_id.clone();
                         log::debug!("Status of allocation {}: {:?}", allocation_id, status);
                         match status {
-                            AllocationStatus::Running(..) => {
+                            AllocationStatus::Running { .. } => {
                                 let allocation =
                                     get_or_continue!(descriptor.get_allocation_mut(&allocation_id));
-                                if let AllocationStatus::Queued { .. } = allocation.status {
+                                if let AllocationStatus::Queued = allocation.status {
                                     descriptor.add_event(AllocationEvent::AllocationStarted(
                                         allocation_id,
                                     ));
                                 }
                             }
-                            AllocationStatus::Finished(..) => {
+                            AllocationStatus::Finished { .. } => {
                                 descriptor
                                     .add_event(AllocationEvent::AllocationFinished(allocation_id));
                             }
-                            AllocationStatus::Failed(..) => {
+                            AllocationStatus::Failed { .. } => {
                                 descriptor
                                     .add_event(AllocationEvent::AllocationFailed(allocation_id));
                             }
-                            AllocationStatus::Queued(..) => {}
+                            AllocationStatus::Queued => {}
                         };
                         get_or_continue!(descriptor.get_allocation_mut(&id)).status = status;
                     }
@@ -162,15 +161,13 @@ async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoA
             Ok(created) => {
                 log::info!("Queued {} workers into {}", to_schedule, name);
                 descriptor.add_event(AllocationEvent::AllocationQueued(created.id().to_string()));
-                descriptor.add_allocation(
-                    created.id().to_string(),
-                    Allocation {
-                        id: created.id().to_string(),
-                        worker_count: to_schedule,
-                        status: AllocationStatus::Queued(AllocationTimeInfo::queued_now()),
-                        working_dir: created.working_dir().to_path_buf(),
-                    },
-                );
+                descriptor.add_allocation(Allocation {
+                    id: created.id().to_string(),
+                    worker_count: to_schedule,
+                    queued_at: SystemTime::now(),
+                    status: AllocationStatus::Queued,
+                    working_dir: created.working_dir().to_path_buf(),
+                });
             }
             Err(err) => {
                 log::error!("Failed to queue allocation into {}: {:?}", name, err);
@@ -187,7 +184,7 @@ async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoA
 #[cfg(test)]
 mod tests {
     use std::future::Future;
-    use std::time::Duration;
+    use std::time::{Duration, SystemTime};
 
     use crate::common::manager::info::ManagerType;
     use crate::common::WrappedRcRefCell;
@@ -195,9 +192,7 @@ mod tests {
         CreatedAllocation, QueueDescriptor, QueueHandler, QueueInfo,
     };
     use crate::server::autoalloc::process::autoalloc_tick;
-    use crate::server::autoalloc::state::{
-        AllocationEvent, AllocationId, AllocationStatus, AllocationTimeInfo,
-    };
+    use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
     use crate::server::autoalloc::AutoAllocResult;
     use crate::server::state::StateRef;
     use std::pin::Pin;
@@ -213,11 +208,7 @@ mod tests {
                 *s.get_mut() += 1;
                 Ok(CreatedAllocation::new("1".to_string(), "".into()))
             },
-            move |_, _| async move {
-                Ok(Some(AllocationStatus::Queued(
-                    AllocationTimeInfo::queued_now(),
-                )))
-            },
+            move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
         );
         add_descriptor(&state, handler, 1, 1);
 
@@ -250,11 +241,7 @@ mod tests {
                     "".into(),
                 ))
             },
-            move |_, _| async move {
-                Ok(Some(AllocationStatus::Queued(
-                    AllocationTimeInfo::queued_now(),
-                )))
-            },
+            move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
         );
         add_descriptor(&state, handler, 10, 3);
 
@@ -270,11 +257,7 @@ mod tests {
         let handler = Handler::new(
             WrappedRcRefCell::wrap(()),
             move |_, _| async move { anyhow::bail!("foo") },
-            move |_, _| async move {
-                Ok(Some(AllocationStatus::Queued(
-                    AllocationTimeInfo::queued_now(),
-                )))
-            },
+            move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
         );
         add_descriptor(&state, handler, 1, 1);
 
@@ -317,11 +300,12 @@ mod tests {
         add_descriptor(&state, handler, 1, 1);
 
         autoalloc_tick(&state).await;
-        custom_state.get_mut().status =
-            Some(AllocationStatus::Queued(AllocationTimeInfo::queued_now()));
+        custom_state.get_mut().status = Some(AllocationStatus::Queued);
         autoalloc_tick(&state).await;
-        custom_state.get_mut().status =
-            Some(AllocationStatus::Finished(AllocationTimeInfo::queued_now()));
+        custom_state.get_mut().status = Some(AllocationStatus::Finished {
+            started_at: SystemTime::now(),
+            finished_at: SystemTime::now(),
+        });
         autoalloc_tick(&state).await;
 
         assert_eq!(custom_state.get().job_id, 2);
