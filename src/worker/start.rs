@@ -1,23 +1,33 @@
-use futures::FutureExt;
-use std::path::PathBuf;
+use std::future::Future;
+use std::io;
+
+use std::pin::Pin;
+use std::process::ExitStatus;
+use std::rc::Rc;
 use std::str::FromStr;
+use std::time::Duration;
 
 use anyhow::{anyhow, Context};
-use bstr::{BString, ByteSlice};
 use clap::Clap;
+use futures::FutureExt;
 use futures::TryFutureExt;
-use humantime::format_rfc3339;
+
+use tako::common::error::DsError;
 use tako::messages::common::WorkerConfiguration;
 use tako::messages::common::{ProgramDefinition, StdioDef};
 use tako::worker::launcher::{command_from_definitions, pin_program};
 use tako::worker::rpc::run_worker;
 use tako::worker::task::TaskRef;
+use tako::worker::taskenv::{StopReason, TaskResult};
+use tako::InstanceId;
 use tempdir::TempDir;
+use tokio::io::AsyncReadExt;
 use tokio::net::lookup_host;
+use tokio::sync::oneshot;
 use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::common::env::{HQ_CPUS, HQ_INSTANCE_ID, HQ_JOB_ID, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_ID};
+use crate::common::env::{HQ_CPUS, HQ_INSTANCE_ID, HQ_PIN};
 use crate::common::error::error;
 use crate::common::manager::info::{ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::manager::pbs;
@@ -29,21 +39,11 @@ use crate::transfer::stream::ChannelId;
 use crate::worker::hwdetect::detect_resource;
 use crate::worker::output::print_worker_configuration;
 use crate::worker::parser::parse_cpu_definition;
+use crate::worker::placeholders;
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use crate::Map;
 use crate::{JobId, JobTaskId};
-use std::future::Future;
-use std::io;
-use std::pin::Pin;
-use std::process::ExitStatus;
-use std::rc::Rc;
-use std::time::Duration;
-use tako::common::error::DsError;
-use tako::worker::taskenv::{StopReason, TaskResult};
-use tako::InstanceId;
-use tokio::io::AsyncReadExt;
-use tokio::sync::oneshot;
 
 const STDIO_BUFFER_SIZE: usize = 16 * 1024; // 16kB
 
@@ -92,62 +92,6 @@ pub struct WorkerStartOpts {
     /// What HPC job manager should be used by the worker.
     #[clap(long, default_value = "detect", possible_values = & ["detect", "slurm", "pbs", "none"])]
     manager: ManagerOpts,
-}
-
-/// Replace placeholders in user-defined program attributes
-fn replace_placeholders(program: &mut ProgramDefinition) {
-    let date = format_rfc3339(std::time::SystemTime::now()).to_string();
-    let submit_dir = PathBuf::from(
-        program.env[&BString::from(HQ_SUBMIT_DIR)]
-            .to_os_str()
-            .unwrap_or_default(),
-    );
-
-    let mut placeholder_map = Map::new();
-    placeholder_map.insert(
-        "%{JOB_ID}",
-        program.env[&BString::from(HQ_JOB_ID)].to_string(),
-    );
-    placeholder_map.insert(
-        "%{TASK_ID}",
-        program.env[&BString::from(HQ_TASK_ID)].to_string(),
-    );
-    placeholder_map.insert(
-        "%{INSTANCE_ID}",
-        program.env[&BString::from(HQ_INSTANCE_ID)].to_string(),
-    );
-    placeholder_map.insert(
-        "%{SUBMIT_DIR}",
-        program.env[&BString::from(HQ_SUBMIT_DIR)].to_string(),
-    );
-    placeholder_map.insert("%{DATE}", date);
-
-    let replace = |replacement_map: &Map<&str, String>, path: &PathBuf| -> PathBuf {
-        let mut result: String = path.to_str().unwrap().into();
-        for (placeholder, replacement) in replacement_map.iter() {
-            result = result.replace(placeholder, replacement);
-        }
-        result.into()
-    };
-
-    // Replace CWD
-    program.cwd = program
-        .cwd
-        .as_ref()
-        .map(|cwd| submit_dir.join(replace(&placeholder_map, cwd)))
-        .or_else(|| Some(std::env::current_dir().unwrap()));
-
-    // Replace STDOUT and STDERR
-    placeholder_map.insert(
-        "%{CWD}",
-        program.cwd.as_ref().unwrap().to_str().unwrap().to_string(),
-    );
-
-    program.stdout = std::mem::take(&mut program.stdout)
-        .map_filename(|path| submit_dir.join(replace(&placeholder_map, &path)));
-
-    program.stderr = std::mem::take(&mut program.stderr)
-        .map_filename(|path| submit_dir.join(replace(&placeholder_map, &path)));
 }
 
 async fn resend_stdio(
@@ -219,7 +163,7 @@ async fn launcher_main(
             .env
             .insert(HQ_INSTANCE_ID.into(), task.instance_id.to_string().into());
 
-        replace_placeholders(&mut program);
+        placeholders::replace_placeholders(&mut program);
 
         create_directory_if_needed(&program.stdout)?;
         create_directory_if_needed(&program.stderr)?;
@@ -497,9 +441,8 @@ mod tests {
     use tako::messages::common::{ProgramDefinition, StdioDef};
 
     use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
+    use crate::worker::placeholders::replace_placeholders;
     use crate::{JobId, JobTaskId, Map};
-
-    use super::replace_placeholders;
 
     #[test]
     fn test_replace_task_id() {
