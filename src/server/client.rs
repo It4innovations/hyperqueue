@@ -353,7 +353,6 @@ async fn handle_submit(
                 resources: resources.clone(),
                 n_outputs: 0,
                 time_limit,
-                type_id: 0,
                 body,
             },
             keep: false,
