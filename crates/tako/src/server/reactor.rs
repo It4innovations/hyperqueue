@@ -3,7 +3,7 @@ use crate::common::trace::{
     trace_worker_steal_response, trace_worker_steal_response_missing,
 };
 use crate::common::{Map, Set};
-use crate::messages::common::{SubworkerDefinition, TaskFailInfo};
+use crate::messages::common::TaskFailInfo;
 use crate::messages::gateway::LostWorkerReason;
 use crate::messages::worker::{
     NewWorkerMsg, StealResponse, StealResponseMsg, TaskFinishedMsg, TaskIdMsg, TaskIdsMsg,
@@ -620,22 +620,6 @@ pub fn on_tasks_transferred(
         }));*/
     }
 }
-
-pub fn on_register_subworker(
-    core: &mut Core,
-    comm: &mut impl Comm,
-    sw_def: SubworkerDefinition,
-) -> crate::Result<()> {
-    core.add_subworker_definition(sw_def.clone())?;
-    comm.broadcast_worker_message(&ToWorkerMessage::RegisterSubworker(sw_def));
-    Ok(())
-}
-
-/*#[inline]
-fn send_compute(core: &mut Core, comm: &mut impl Comm, task: &Task, worker_id: WorkerId) {
-    trace_task_assign(task.id, worker_id);
-    comm.send_worker_message(worker_id, &task.make_compute_message(core));
-}*/
 
 fn unregister_as_consumer(
     core: &mut Core,

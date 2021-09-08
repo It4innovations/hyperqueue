@@ -28,7 +28,7 @@ use crate::transfer::transport::{connect_to_worker, make_protocol_builder};
 use crate::transfer::DataConnection;
 use crate::worker::data::{DataObjectRef, DataObjectState};
 use crate::worker::hwmonitor::HwSampler;
-use crate::worker::launcher::InnerTaskLauncher;
+use crate::worker::launcher::TaskLauncher;
 use crate::worker::reactor::assign_task;
 use crate::worker::state::WorkerStateRef;
 use crate::worker::task::TaskRef;
@@ -100,7 +100,7 @@ pub async fn run_worker(
     scheduler_address: SocketAddr,
     mut configuration: WorkerConfiguration,
     secret_key: Option<Arc<SecretKey>>,
-    launcher_setup: InnerTaskLauncher,
+    launcher_setup: TaskLauncher,
 ) -> crate::Result<((WorkerId, WorkerConfiguration), impl Future<Output = ()>)> {
     let (listener, address) = start_listener().await?;
     configuration.listen_address = address;
@@ -139,7 +139,6 @@ pub async fn run_worker(
                         queue_sender,
                         download_sender,
                         message.worker_addresses,
-                        message.subworker_definitions,
                         launcher_setup,
                     ),
                 )
@@ -248,10 +247,7 @@ async fn download_data(state_ref: WorkerStateRef, data_ref: DataObjectRef) {
             let data_obj = data_ref.get();
             let workers = match &data_obj.state {
                 DataObjectState::Remote(rs) => &rs.workers,
-                DataObjectState::Local(_)
-                | DataObjectState::Removed
-                | DataObjectState::InSubworkers(_)
-                | DataObjectState::LocalDownloading(_) => {
+                DataObjectState::Local(_) | DataObjectState::Removed => {
                     /* It is already finished */
                     return;
                 }
@@ -384,9 +380,6 @@ async fn worker_message_loop(
                     .worker_addresses
                     .insert(msg.worker_id, msg.address)
                     .is_none())
-            }
-            ToWorkerMessage::RegisterSubworker(sw_def) => {
-                state.subworker_definitions.insert(sw_def.id, sw_def);
             }
             ToWorkerMessage::GetOverview(overview_request) => {
                 let message = FromWorkerMessage::Overview(WorkerOverview {

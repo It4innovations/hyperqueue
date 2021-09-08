@@ -12,7 +12,7 @@ tokio = { version= "1.7", features = ["full"] }
 tokio-util = { version = "0.6", features = ["codec"] }
 bytes = "1.0"
 byteorder = "1.4"
-smallvec = { version = "1.0", features = ["serde"] }
+smallvec = { version = "1.6", features = ["serde"] }
 rmp-serde = "0.15.4"
 rmpv = { version = "0.4", features = ["with-serde"] }
 serde = { version = "1.0", features = ["derive"] }

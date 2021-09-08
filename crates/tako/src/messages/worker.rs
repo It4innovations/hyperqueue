@@ -2,9 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::common::resources::ResourceAllocation;
 use crate::common::Map;
-use crate::messages::common::{
-    SubworkerDefinition, TaskConfiguration, TaskFailInfo, WorkerConfiguration,
-};
+use crate::messages::common::{TaskConfiguration, TaskFailInfo, WorkerConfiguration};
 use crate::messages::gateway::OverviewRequest;
 use crate::worker::hwmonitor::WorkerHwState;
 use crate::{InstanceId, Priority};
@@ -25,7 +23,6 @@ pub struct RegisterWorker {
 pub struct WorkerRegistrationResponse {
     pub worker_id: WorkerId,
     pub worker_addresses: Map<WorkerId, String>,
-    pub subworker_definitions: Vec<SubworkerDefinition>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -66,7 +63,6 @@ pub enum ToWorkerMessage {
     StealTasks(TaskIdsMsg),
     CancelTasks(TaskIdsMsg),
     NewWorker(NewWorkerMsg),
-    RegisterSubworker(SubworkerDefinition),
     GetOverview(OverviewRequest),
     Stop,
 }

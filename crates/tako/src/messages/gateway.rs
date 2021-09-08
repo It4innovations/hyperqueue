@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::messages::common::{
-    SubworkerDefinition, TaskConfiguration, TaskFailInfo, WorkerConfiguration,
-};
+use crate::messages::common::{TaskConfiguration, TaskFailInfo, WorkerConfiguration};
 use crate::messages::worker::WorkerOverview;
 use crate::{Priority, TaskId, WorkerId};
 
@@ -57,7 +55,6 @@ pub enum FromGatewayMessage {
     NewTasks(NewTasksMessage),
     ObserveTasks(ObserveTasksMessage),
     CancelTasks(CancelTasks),
-    RegisterSubworker(SubworkerDefinition),
     GetTaskInfo(TaskInfoRequest),
     ServerInfo,
     GetOverview(OverviewRequest),
