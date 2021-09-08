@@ -51,7 +51,7 @@ pub async fn init_hq_server(
         }
         Ok(ServerStatus::Online(_)) => anyhow::bail!(
             "Server at {0} is already online, please stop it first using \
-            `hq stop --server-dir {0}`",
+            `hq server stop --server-dir {0}`",
             gsettings.server_directory().display()
         ),
     }
