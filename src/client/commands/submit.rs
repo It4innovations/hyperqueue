@@ -20,11 +20,14 @@ use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
     FromClientMessage, JobType, ResubmitRequest, SubmitRequest, ToClientMessage,
 };
+use crate::worker::placeholders::{JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER};
 use crate::{rpc_call, JobId, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
-const DEFAULT_STDOUT_PATH: &str = "job-%{JOB_ID}/stdout.%{TASK_ID}";
-const DEFAULT_STDERR_PATH: &str = "job-%{JOB_ID}/stderr.%{TASK_ID}";
+const DEFAULT_STDOUT_PATH: &str =
+    const_format::concatcp!("job-", JOB_ID_PLACEHOLDER, "/stdout.", TASK_ID_PLACEHOLDER);
+const DEFAULT_STDERR_PATH: &str =
+    const_format::concatcp!("job-", JOB_ID_PLACEHOLDER, "/stderr.", TASK_ID_PLACEHOLDER);
 
 struct ArgCpuRequest(CpuRequest);
 
@@ -167,40 +170,22 @@ pub async fn submit_computation(
     let resources = opts.resource_request();
     resources.validate()?;
 
-    let (job_type, entries) = if let Some(filename) = opts.each_line {
-        let lines = read_lines(&filename)?;
+    let (job_type, entries) = if let Some(ref filename) = opts.each_line {
+        let lines = read_lines(filename)?;
         let def = IntArray::from_range(0, lines.len() as JobTaskCount);
         (JobType::Array(def), Some(lines))
     } else {
         (
-            opts.array.map(JobType::Array).unwrap_or(JobType::Simple),
+            opts.array
+                .as_ref()
+                .cloned()
+                .map(JobType::Array)
+                .unwrap_or(JobType::Simple),
             None,
         )
     };
 
-    let log = opts.log;
-    let is_dir_some =
-        |dir: Option<&StdioArg>| -> bool { dir.map_or(true, |x| !matches!(x.0, StdioDef::Null)) };
-    if let JobType::Array(ref array) = job_type {
-        let mut task_files = 0;
-        let mut active_dirs = String::new();
-        if is_dir_some(opts.stdout.as_ref()) {
-            task_files += array.id_count();
-            active_dirs.push_str(" stdout");
-        }
-        if is_dir_some(opts.stderr.as_ref()) {
-            task_files += array.id_count();
-            active_dirs.push_str(" stderr");
-        }
-        if task_files > SUBMIT_ARRAY_LIMIT && log.is_none() {
-            log::warn!(
-                "The job will create {} number of files for{}. \
-                You may consider using --log option to stream all outputs into one file",
-                task_files,
-                active_dirs
-            );
-        }
-    }
+    check_suspicious_options(&opts, &job_type);
 
     let name = if let Some(name) = opts.name {
         validate_name(name)?
@@ -218,6 +203,7 @@ pub async fn submit_computation(
         .collect();
     args.insert(0, opts.command.into());
 
+    let log = opts.log;
     let cwd = Some(opts.cwd);
     let stdout = opts.stdout.map(|x| x.0).unwrap_or_else(|| {
         if log.is_none() {
@@ -281,6 +267,46 @@ pub async fn submit_computation(
         wait_for_job_with_info(connection, info).await?;
     }
     Ok(())
+}
+
+/// Warn user about suspicious submit parameters
+fn check_suspicious_options(opts: &SubmitOpts, job_type: &JobType) {
+    let is_path_some =
+        |path: Option<&StdioArg>| -> bool { path.map_or(true, |x| !matches!(x.0, StdioDef::Null)) };
+    let check_path = |path: Option<&StdioArg>, stream: &str| {
+        let path = path.and_then(|stdio| match &stdio.0 {
+            StdioDef::File(path) => path.to_str(),
+            _ => None,
+        });
+        if let Some(path) = path {
+            if !path.contains(TASK_ID_PLACEHOLDER) {
+                log::warn!("You have submitted an array job, but the `{}` path does not contain task ID placeholder.\n\
+                Individual tasks might thus overwrite the file. Consider adding `{}` to the `--{}` value.", stream, TASK_ID_PLACEHOLDER, stream);
+            }
+        }
+    };
+    if let JobType::Array(ref array) = job_type {
+        let mut task_files = 0;
+        let mut active_dirs = String::new();
+        if is_path_some(opts.stdout.as_ref()) {
+            task_files += array.id_count();
+            active_dirs.push_str(" stdout");
+            check_path(opts.stdout.as_ref(), "stdout");
+        }
+        if is_path_some(opts.stderr.as_ref()) {
+            task_files += array.id_count();
+            active_dirs.push_str(" stderr");
+            check_path(opts.stderr.as_ref(), "stderr");
+        }
+        if task_files > SUBMIT_ARRAY_LIMIT && opts.log.is_none() {
+            log::warn!(
+                "The job will create {} files for{}. \
+                You may consider using --log option to stream all outputs into one file",
+                task_files,
+                active_dirs
+            );
+        }
+    }
 }
 
 #[derive(Clap)]

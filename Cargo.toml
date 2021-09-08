@@ -52,6 +52,7 @@ bstr = { version = "0.2", features = ["serde1"] }
 colored = "2"
 byteorder = "1.4"
 smallvec = "1.6.1"
+const_format = "0.2.19"
 
 [features]
 # Mode that does not execute tasks, useful for benchmarking HQ overhead

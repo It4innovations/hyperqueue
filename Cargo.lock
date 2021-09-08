@@ -196,6 +196,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "const_format"
+version = "0.2.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae592b8ddbf42b388f8211f0fd4d0985768ed7316348277c250dca4513695492"
+dependencies = [
+ "const_format_proc_macros",
+]
+
+[[package]]
+name = "const_format_proc_macros"
+version = "0.2.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98b53b21a34874c03f4ee8fe5a5dbd977fbe09cfa43b7e2362d94f33e42d56af"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-xid",
+]
+
+[[package]]
 name = "ct-codecs"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -468,6 +488,7 @@ dependencies = [
  "clap",
  "cli-table",
  "colored",
+ "const_format",
  "dirs",
  "env_logger",
  "futures",
