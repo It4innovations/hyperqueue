@@ -1,6 +1,5 @@
 use std::future::Future;
 use std::path::Path;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -11,11 +10,11 @@ use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::serverdir::{AccessRecord, ServerDir, SYMLINK_PATH};
-use crate::common::setup::setup_interrupt;
 use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
 use crate::transfer::connection::{ClientConnection, HqConnection};
+use std::rc::Rc;
 use std::time::Duration;
 
 const DEFAULT_AUTOALLOC_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
@@ -86,9 +85,8 @@ async fn get_server_status(server_directory: &Path) -> crate::Result<ServerStatu
 
 async fn initialize_server(
     gsettings: &GlobalSettings,
-    end_flag: Arc<Notify>,
     server_cfg: ServerConfig,
-) -> anyhow::Result<impl Future<Output = anyhow::Result<()>>> {
+) -> anyhow::Result<(impl Future<Output = anyhow::Result<()>>, Rc<Notify>)> {
     let server_directory = gsettings.server_directory();
     let client_listener = TcpListener::bind("0.0.0.0:0")
         .await
@@ -121,26 +119,34 @@ async fn initialize_server(
     let server_dir = ServerDir::create(server_directory, &record)?;
     print_access_record(gsettings, server_directory, &record);
 
-    let stop_notify = Rc::new(Notify::new());
-    let stop_cloned = stop_notify.clone();
+    let end_flag = Rc::new(Notify::new());
+    let end_flag_check = end_flag.clone();
+    let end_flag_ret = end_flag.clone();
+
+    let stop_check = async move {
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                log::info!("Received SIGINT, attempting to stop");
+            }
+            _ = end_flag_check.notified() => {
+                log::info!("Received Stop command from client");
+            }
+        };
+        log::info!("Stopping server");
+    };
 
     let key = hq_secret_key;
     let fut = async move {
         let result = tokio::select! {
-            _ = end_flag.notified() => {
-                log::info!("Received SIGINT");
+            _ = stop_check => {
                 Ok(())
-            },
-            _ = stop_notify.notified() => {
-                log::info!("Stopping after Stop command from client");
-                Ok(())
-            },
+            }
             _ = crate::server::client::handle_client_connections(
                 state_ref.clone(),
                 tako_server,
                 server_dir,
                 client_listener,
-                stop_cloned,
+                end_flag,
                 key
             ) => { Ok(()) }
             _ = crate::server::autoalloc::autoalloc_process(state_ref.clone()) => { Ok(()) }
@@ -149,15 +155,14 @@ async fn initialize_server(
         crate::server::autoalloc::autoalloc_shutdown(state_ref).await;
         result
     };
-    Ok(fut)
+    Ok((fut, end_flag_ret))
 }
 
 async fn start_server(
     gsettings: &GlobalSettings,
     server_config: ServerConfig,
 ) -> anyhow::Result<()> {
-    let end_flag = setup_interrupt();
-    let fut = initialize_server(gsettings, end_flag, server_config).await?;
+    let (fut, _) = initialize_server(gsettings, server_config).await?;
     let local_set = LocalSet::new();
     local_set.run_until(fut).await?;
 
@@ -202,8 +207,6 @@ pub async fn print_server_info(gsettings: &GlobalSettings) -> anyhow::Result<()>
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use tempdir::TempDir;
     use tokio::sync::Notify;
 
@@ -219,23 +222,18 @@ mod tests {
     use cli_table::ColorChoice;
     use std::future::Future;
     use std::path::Path;
+    use std::rc::Rc;
 
     pub async fn init_test_server(
         tmp_dir: &Path,
-    ) -> (impl Future<Output = anyhow::Result<()>>, Arc<Notify>) {
+    ) -> (impl Future<Output = anyhow::Result<()>>, Rc<Notify>) {
         let gsettings = GlobalSettings::new(tmp_dir.to_path_buf(), ColorChoice::Never);
         let server_cfg = ServerConfig {
             host: "localhost".to_string(),
             idle_timeout: None,
             autoalloc_interval: None,
         };
-        let notify = Arc::new(Notify::new());
-        (
-            initialize_server(&gsettings, notify.clone(), server_cfg)
-                .await
-                .unwrap(),
-            notify,
-        )
+        initialize_server(&gsettings, server_cfg).await.unwrap()
     }
 
     #[tokio::test]

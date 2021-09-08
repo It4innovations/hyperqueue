@@ -468,7 +468,6 @@ dependencies = [
  "clap",
  "cli-table",
  "colored",
- "ctrlc",
  "dirs",
  "env_logger",
  "futures",
