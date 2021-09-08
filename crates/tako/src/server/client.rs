@@ -108,12 +108,6 @@ pub async fn process_client_message(
                 }
                 assert!(task.conf.n_outputs == 0 || task.conf.n_outputs == 1); // TODO: Implementation for more outputs
 
-                if task.conf.type_id == 0 {
-                    assert_eq!(task.conf.n_outputs, 0);
-                } else {
-                    todo!(); // Check that task type exists
-                }
-
                 let task_ref = TaskRef::new(
                     task.id,
                     Vec::new(),
@@ -133,9 +127,6 @@ pub async fn process_client_message(
                 }))
                 .is_ok());
             None
-        }
-        FromGatewayMessage::RegisterSubworker(_sw_def) => {
-            todo!()
         }
         FromGatewayMessage::ServerInfo => {
             let core = core_ref.get();

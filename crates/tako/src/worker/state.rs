@@ -13,7 +13,7 @@ use tokio::sync::Notify;
 
 use crate::common::data::SerializationType;
 use crate::common::{Map, Set, WrappedRcRefCell};
-use crate::messages::common::{SubworkerDefinition, TaskFailInfo, WorkerConfiguration};
+use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
 use crate::messages::worker::{
     DataDownloadedMsg, FromWorkerMessage, StealResponse, TaskFailedMsg, TaskFinishedMsg,
 };
@@ -21,9 +21,8 @@ use crate::transfer::auth::serialize;
 use crate::transfer::DataConnection;
 use crate::worker::data::{DataObject, DataObjectRef, DataObjectState, LocalData, RemoteData};
 use crate::worker::hwmonitor::WorkerHwState;
-use crate::worker::launcher::InnerTaskLauncher;
+use crate::worker::launcher::TaskLauncher;
 use crate::worker::rqueue::ResourceWaitQueue;
-use crate::worker::subworker::{SubworkerId, SubworkerRef};
 use crate::worker::task::{Task, TaskRef, TaskState};
 use crate::TaskId;
 use crate::{PriorityTuple, WorkerId};
@@ -32,8 +31,6 @@ pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
 
 pub struct WorkerState {
     pub sender: UnboundedSender<Bytes>,
-    pub subworkers: HashMap<SubworkerId, SubworkerRef>,
-    pub free_subworkers: Vec<SubworkerRef>,
     pub tasks: HashMap<TaskId, TaskRef>,
     pub ready_task_queue: ResourceWaitQueue,
     pub data_objects: HashMap<TaskId, DataObjectRef>,
@@ -49,11 +46,8 @@ pub struct WorkerState {
 
     pub self_ref: Option<WorkerStateRef>,
 
-    pub subworker_id_counter: SubworkerId,
-    pub subworker_definitions: Map<SubworkerId, SubworkerDefinition>,
-
     pub configuration: WorkerConfiguration,
-    pub inner_task_launcher: InnerTaskLauncher,
+    pub task_launcher: TaskLauncher,
     pub secret_key: Option<Arc<SecretKey>>,
 
     pub hardware_state: WorkerHwState,
@@ -71,12 +65,6 @@ impl WorkerState {
             })
             .collect();
     }*/
-
-    pub fn new_subworker_id(&mut self) -> SubworkerId {
-        let id = self.subworker_id_counter;
-        self.subworker_id_counter += 1;
-        id
-    }
 
     pub fn add_data_object(&mut self, data_ref: DataObjectRef) {
         let id = data_ref.get().id;
@@ -109,14 +97,10 @@ impl WorkerState {
                     log::debug!("Data clash, data is already in worker, ignoring download");
                     return;
                 }
-                DataObjectState::InSubworkers(_) | DataObjectState::LocalDownloading(_) => {
-                    log::debug!("Data is also in subworker, but not local, accepting download");
-                }
             }
             data_obj.state = DataObjectState::Local(LocalData {
                 serializer,
                 bytes: data.into(),
-                subworkers: Default::default(),
             });
 
             let message = FromWorkerMessage::DataDownloaded(DataDownloadedMsg { id: data_obj.id });
@@ -180,9 +164,7 @@ impl WorkerState {
                             is_remote = true;
                             data_obj.state = DataObjectState::Remote(RemoteData { workers })
                         }
-                        DataObjectState::Local(_)
-                        | DataObjectState::InSubworkers(_)
-                        | DataObjectState::LocalDownloading(_) => { /* Do nothing */ }
+                        DataObjectState::Local(_) => { /* Do nothing */ }
                         DataObjectState::Removed => {
                             unreachable!();
                         }
@@ -236,11 +218,6 @@ impl WorkerState {
             todo!(); // What should happen when server removes data but there are tasks that needs it?
         }
         data_obj.state = DataObjectState::Removed;
-        if let Some(sw_refs) = data_obj.get_placement() {
-            for sw_ref in sw_refs {
-                sw_ref.get().send_remove_data(data_obj.id);
-            }
-        }
     }
 
     pub fn random_choice<'a, T>(&mut self, items: &'a [T]) -> &'a T {
@@ -259,27 +236,6 @@ impl WorkerState {
                 if x == 0 {
                     self.ready_task_queue.remove_task(task_ref);
                 }
-            }
-            TaskState::Uploading(_, _, _) => {
-                todo!()
-                /* This should not happen in this version, but in case of need:
-                   TODO: The following code
-                   TODO: Free subworker
-                   TODO: Try to schedule new task
-                  for data_ref in std::mem::take(&mut task.deps) {
-                    let data_obj = data_ref.get_mut();
-                    if let DataObjectState::LocalDownloading(mut ld) = &mut data_obj.state {
-                        let pos = ld.subscribers.iter().position(|s| {
-                            match s {
-                                Subscriber::Task(t_ref) => { t_ref == &task_ref }
-                                _ => false
-                            }
-                        });
-                        if let Some(p) = pos {
-                            ld.subscribers.remove(p);
-                        }
-                    }
-                }*/
             }
             TaskState::Running(_, allocation) => {
                 log::debug!("Removing running task id={}", task.id);
@@ -304,9 +260,7 @@ impl WorkerState {
                         assert!(!just_finished);
                         self.remove_data(&mut data);
                     }
-                    DataObjectState::InSubworkers(_)
-                    | DataObjectState::Local(_)
-                    | DataObjectState::LocalDownloading(_) => { /* Do nothing */ }
+                    DataObjectState::Local(_) => { /* Do nothing */ }
                     DataObjectState::Removed => {
                         unreachable!()
                     }
@@ -345,11 +299,11 @@ impl WorkerState {
             Some(task_ref) => {
                 let mut task = task_ref.get_mut();
                 match &mut task.state {
-                    TaskState::Uploading(_, _, _) | TaskState::Waiting(_) => {
-                        self.remove_task(&mut task, &task_ref, false);
-                    }
                     TaskState::Running(ref mut env, _) => {
                         env.cancel_task();
+                    }
+                    TaskState::Waiting(_) => {
+                        self.remove_task(&mut task, &task_ref, false);
                     }
                     TaskState::Removed => unreachable!(),
                 }
@@ -367,9 +321,7 @@ impl WorkerState {
                         self.remove_task(&mut task, &task_ref, false);
                         StealResponse::Ok
                     }
-                    TaskState::Running(_, _) | TaskState::Uploading(_, _, _) => {
-                        StealResponse::Running
-                    }
+                    TaskState::Running(_, _) => StealResponse::Running,
                     TaskState::Removed => unreachable!(),
                 }
             }
@@ -417,8 +369,7 @@ impl WorkerStateRef {
         sender: UnboundedSender<Bytes>,
         download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, PriorityTuple)>,
         worker_addresses: Map<WorkerId, String>,
-        subworker_definitions: Vec<SubworkerDefinition>,
-        inner_task_launcher: InnerTaskLauncher,
+        task_launcher: TaskLauncher,
     ) -> Self {
         let ready_task_queue = ResourceWaitQueue::new(&configuration.resources);
         let self_ref = Self::wrap(WorkerState {
@@ -427,20 +378,13 @@ impl WorkerStateRef {
             sender,
             download_sender,
             configuration,
-            inner_task_launcher,
+            task_launcher,
             secret_key,
-            subworker_definitions: subworker_definitions
-                .into_iter()
-                .map(|x| (x.id, x))
-                .collect(),
             tasks: Default::default(),
-            subworkers: Default::default(),
-            free_subworkers: Default::default(),
             ready_task_queue,
             data_objects: Default::default(),
             random: SmallRng::from_entropy(),
             worker_connections: Default::default(),
-            subworker_id_counter: 1, // 0 is reserved for "dummy" subworkers
             self_ref: None,
             start_task_scheduled: false,
             start_task_notify: Rc::new(Notify::new()),

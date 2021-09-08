@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::common::resources::{ResourceDescriptor, ResourceRequest};
 use crate::common::Map;
-use crate::{OutputId, TaskTypeId};
+use crate::OutputId;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskFailInfo {
@@ -30,19 +30,6 @@ impl TaskFailInfo {
             error_data: Default::default(),
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum SubworkerKind {
-    Stateless,
-    Stateful,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SubworkerDefinition {
-    pub id: TaskTypeId,
-    pub kind: SubworkerKind,
-    pub program: ProgramDefinition,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
@@ -142,9 +129,6 @@ pub struct TaskConfiguration {
 
     #[serde(default)]
     pub time_limit: Option<Duration>,
-
-    #[serde(default)]
-    pub type_id: TaskTypeId,
 
     #[serde(with = "serde_bytes")]
     pub body: Vec<u8>,

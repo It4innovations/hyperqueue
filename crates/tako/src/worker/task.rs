@@ -8,7 +8,6 @@ use crate::{InstanceId, Priority, TaskId};
 
 pub enum TaskState {
     Waiting(u32),
-    Uploading(TaskEnv, u32, ResourceAllocation),
     Running(TaskEnv, ResourceAllocation),
     Removed,
 }
@@ -44,7 +43,7 @@ impl Task {
 
     pub fn resource_allocation(&self) -> Option<&ResourceAllocation> {
         match &self.state {
-            TaskState::Uploading(_, _, a) | TaskState::Running(_, a) => Some(a),
+            TaskState::Running(_, a) => Some(a),
             TaskState::Waiting(_) => None,
             TaskState::Removed => unreachable!(),
         }

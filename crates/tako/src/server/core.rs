@@ -3,11 +3,9 @@ use std::time::Duration;
 
 use orion::aead::SecretKey;
 
-use crate::common::error::DsError;
 use crate::common::resources::ResourceRequest;
 use crate::common::trace::trace_task_remove;
 use crate::common::{Map, Set, WrappedRcRefCell};
-use crate::messages::common::SubworkerDefinition;
 use crate::messages::gateway::ServerInfo;
 use crate::server::rpc::ConnectionDescriptor;
 use crate::server::task::{Task, TaskRef, TaskRuntimeState};
@@ -36,7 +34,6 @@ pub struct Core {
 
     idle_timeout: Option<Duration>,
 
-    subworker_definitions: Vec<SubworkerDefinition>,
     secret_key: Option<Arc<SecretKey>>,
 
     custom_conn_handler: Option<CustomConnectionHandler>,
@@ -116,10 +113,6 @@ impl Core {
 
     pub fn get_worker_listen_port(&self) -> u16 {
         self.worker_listen_port
-    }
-
-    pub fn get_subworker_definitions(&self) -> &Vec<SubworkerDefinition> {
-        &self.subworker_definitions
     }
 
     pub fn update_max_task_id(&mut self, task_id: TaskId) {
@@ -274,27 +267,6 @@ impl Core {
         &self.custom_conn_handler
     }
 
-    pub fn add_subworker_definition(
-        &mut self,
-        subworker_def: SubworkerDefinition,
-    ) -> crate::Result<()> {
-        if subworker_def.id == 0 {
-            return Err(DsError::GenericError("Subworker id 0 is reserved".into()));
-        }
-        if self
-            .subworker_definitions
-            .iter()
-            .any(|d| d.id == subworker_def.id)
-        {
-            return Err(DsError::GenericError(format!(
-                "Subworker id {} is already reserved",
-                subworker_def.id
-            )));
-        }
-        self.subworker_definitions.push(subworker_def);
-        Ok(())
-    }
-
     pub fn sanity_check(&self) {
         let fw_check = |task: &Task| {
             for t in &task.inputs {
@@ -328,13 +300,6 @@ impl Core {
         for (task_id, task_ref) in &self.tasks {
             let task = task_ref.get();
             assert_eq!(task.id, *task_id);
-            assert!(
-                task.configuration.type_id == 0
-                    || self
-                        .subworker_definitions
-                        .iter()
-                        .any(|d| d.id == task.configuration.type_id)
-            );
             match &task.state {
                 TaskRuntimeState::Waiting(winfo) => {
                     let mut count = 0;

@@ -12,7 +12,7 @@ use crate::messages::common::{ProgramDefinition, StdioDef};
 use crate::worker::task::TaskRef;
 use crate::worker::taskenv::{StopReason, TaskResult};
 
-pub type InnerTaskLauncher = Box<
+pub type TaskLauncher = Box<
     dyn Fn(
         &TaskRef,
         tokio::sync::oneshot::Receiver<StopReason>,

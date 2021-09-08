@@ -7,11 +7,10 @@ from tako.client.resources import ResourceRequest
 
 class Task:
 
-    # __slots__ = ["_id", "type_id", "body", "deps", "keep", "name", "error", "finished"]
+    # __slots__ = ["_id", "body", "deps", "keep", "name", "error", "finished"]
 
     def __init__(
         self,
-        type_id: int,
         body: bytes,
         keep: bool,
         deps: Optional[List["Task"]] = None,
@@ -20,7 +19,6 @@ class Task:
         name=None,
     ):
         self._id = None
-        self.type_id = type_id
         self.body = body
         self.deps = deps
         self.keep = keep
@@ -48,4 +46,4 @@ def make_program_task(
     time_limit: float = None,
 ):
     body = msgpack.dumps(program_def.as_dict())
-    return Task(0, body, keep, resources=resources, time_limit=time_limit)
+    return Task(body, keep, resources=resources, time_limit=time_limit)

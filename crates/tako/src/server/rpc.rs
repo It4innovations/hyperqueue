@@ -147,7 +147,6 @@ async fn worker_rpc_loop(
     let message = WorkerRegistrationResponse {
         worker_id,
         worker_addresses: core_ref.get().get_worker_addresses(),
-        subworker_definitions: core_ref.get().get_subworker_definitions().clone(),
     };
     queue_sender
         .send(serialize(&message).unwrap().into())
