@@ -1,5 +1,6 @@
 import contextlib
 import json
+import os
 from os.path import join
 from typing import List
 
@@ -224,14 +225,12 @@ class PbsMock:
         self.jobs = jobs
         self.qstat_path = join(self.hq_env.work_path, "pbs-qstat")
         self.qsub_path = join(self.hq_env.work_path, "pbs-qsub")
-        self.qdel_path = join(self.hq_env.work_path, "pbs-qdel")
+        self.qdel_dir = join(self.hq_env.work_path, "pbs-qdel")
+        os.makedirs(self.qdel_dir)
         self.data = data
 
         with open(self.qsub_path, "w") as f:
             f.write(json.dumps(self.jobs))
-
-        with open(self.qdel_path, "w") as f:
-            f.write(json.dumps([]))
 
         self.qsub_code = f"""
 import json
@@ -274,16 +273,12 @@ print(json.dumps(data))
         self.qdel_code = f"""
 import sys
 import json
+import os
 
 jobid = sys.argv[1]
 
-with open("{self.qdel_path}") as f:
-    data = json.loads(f.read())
-
-data.append(jobid)
-
-with open("{self.qdel_path}", "w") as f:
-    f.write(json.dumps(data))
+with open(os.path.join("{self.qdel_dir}", jobid), "w") as f:
+    pass
 """
 
     @contextlib.contextmanager
@@ -310,8 +305,7 @@ with open("{self.qdel_path}", "w") as f:
             f.write(json.dumps(jobdata))
 
     def deleted_jobs(self) -> List[str]:
-        with open(self.qdel_path) as f:
-            return json.load(f)
+        return list(os.listdir(self.qdel_dir))
 
 
 def add_queue(hq_env, type="pbs", name="foo", queue="queue", workers=1, max_workers_per_alloc=1):
