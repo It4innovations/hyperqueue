@@ -17,37 +17,49 @@ def test_autoalloc_info(hq_env: HqEnv):
 
 
 def test_autoalloc_descriptor_info(hq_env: HqEnv):
-    hq_env.start_server()
-    add_queue(hq_env, name="foo", queue="queue", workers=5)
+    mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021")
 
-    table = hq_env.command(["auto-alloc", "info"], as_table=True)[1:]
-    table.check_value_columns(("Name", "Target worker count", "Max workers per allocation", "Queue", "Timelimit"), 0,
-                              ("foo", "5", "1", "queue", "N/A"))
+    with mock.activate():
+        hq_env.start_server()
+        add_queue(hq_env, name="foo", queue="queue", workers=5)
 
-    hq_env.command(
-        ["auto-alloc", "add", "pbs", "--name", "bar", "--queue", "qexp", "--workers", "1", "--max-workers-per-alloc",
-         "2", "--time-limit", "1h"])
-    table = hq_env.command(["auto-alloc", "info"], as_table=True)[1:]
-    table.check_value_columns(("Name", "Target worker count", "Max workers per allocation", "Queue", "Timelimit"), 0,
-                              ("bar", "1", "2", "qexp", "1h"))
+        table = hq_env.command(["auto-alloc", "info"], as_table=True)[1:]
+        table.check_value_columns(("Name", "Target worker count", "Max workers per allocation", "Queue", "Timelimit"),
+                                  0,
+                                  ("foo", "5", "1", "queue", "N/A"))
+
+        hq_env.command(
+            ["auto-alloc", "add", "pbs", "--name", "bar", "--queue", "qexp", "--workers", "1",
+             "--max-workers-per-alloc",
+             "2", "--time-limit", "1h"])
+        table = hq_env.command(["auto-alloc", "info"], as_table=True)[1:]
+        table.check_value_columns(("Name", "Target worker count", "Max workers per allocation", "Queue", "Timelimit"),
+                                  0,
+                                  ("bar", "1", "2", "qexp", "1h"))
 
 
 def test_autoalloc_descriptor_name_collision(hq_env: HqEnv):
-    hq_env.start_server()
-    add_queue(hq_env, name="foo")
-    hq_env.command(["auto-alloc", "add", "pbs", "--name", "foo", "--queue", "queue", "--workers", "1"],
-                   expect_fail="Descriptor foo already exists")
+    mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021")
+
+    with mock.activate():
+        hq_env.start_server()
+        add_queue(hq_env, name="foo")
+        hq_env.command(["auto-alloc", "add", "pbs", "--name", "foo", "--queue", "queue", "--workers", "1"],
+                       expect_fail="Descriptor foo already exists")
 
 
 def test_add_pbs_descriptor(hq_env: HqEnv):
-    hq_env.start_server(args=["--autoalloc-interval", "500ms"])
-    output = hq_env.command(
-        ["auto-alloc", "add", "pbs", "--name", "foo", "--queue", "queue", "--workers", "5", "--max-workers-per-alloc",
-         "2"])
-    assert "Allocation queue foo was successfully created" in output
+    mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021")
 
-    info = hq_env.command(["auto-alloc", "info"], as_table=True)[1:]
-    info.check_value_column("Name", 0, "foo")
+    with mock.activate():
+        hq_env.start_server(args=["--autoalloc-interval", "500ms"])
+        output = hq_env.command(
+            ["auto-alloc", "add", "pbs", "--name", "foo", "--queue", "queue", "--workers", "5",
+             "--max-workers-per-alloc", "2"])
+        assert "Allocation queue foo was successfully created" in output
+
+        info = hq_env.command(["auto-alloc", "info"], as_table=True)[1:]
+        info.check_value_column("Name", 0, "foo")
 
 
 def test_pbs_fail_without_qstat(hq_env: HqEnv):
@@ -60,24 +72,26 @@ def test_pbs_queue_qsub_fail(hq_env: HqEnv):
     qsub_code = "exit(1)"
 
     with hq_env.mock.mock_program("qsub", qsub_code):
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
-        add_queue(hq_env)
-        time.sleep(0.2)
-        table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
-        table.check_value_column("Event", 0, "Allocation submission failed")
-        table.check_value_column("Message", 0, "qsub execution failed")
+        with hq_env.mock.mock_program("qstat", ""):
+            hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+            add_queue(hq_env)
+            time.sleep(0.2)
+            table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
+            table.check_value_column("Event", 0, "Allocation submission failed")
+            table.check_value_column("Message", 0, "qsub execution failed")
 
 
 def test_pbs_queue_qsub_success(hq_env: HqEnv):
     qsub_code = """print("123.job")"""
 
     with hq_env.mock.mock_program("qsub", qsub_code):
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
-        add_queue(hq_env)
-        time.sleep(0.2)
-        table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
-        table.check_value_column("Event", 0, "Allocation queued")
-        table.check_value_column("Message", 0, "123.job")
+        with hq_env.mock.mock_program("qstat", ""):
+            hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+            add_queue(hq_env)
+            time.sleep(0.2)
+            table = hq_env.command(["auto-alloc", "events", "foo"], as_table=True)
+            table.check_value_column("Event", 0, "Allocation queued")
+            table.check_value_column("Message", 0, "123.job")
 
 
 def test_pbs_queue_qsub_check_args(hq_env: HqEnv):
@@ -113,10 +127,11 @@ except:
 """
 
     with hq_env.mock.mock_program("qsub", qsub_code):
-        with check_error_log(output_log):
-            hq_env.start_server(args=["--autoalloc-interval", "100ms"])
-            add_queue(hq_env)
-            time.sleep(0.2)
+        with hq_env.mock.mock_program("qstat", ""):
+            with check_error_log(output_log):
+                hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+                add_queue(hq_env)
+                time.sleep(0.2)
 
 
 def test_pbs_events_job_lifecycle(hq_env: HqEnv):
