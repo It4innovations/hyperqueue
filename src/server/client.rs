@@ -161,7 +161,7 @@ async fn handle_autoalloc_message(
                     .collect(),
             }))
         }
-        AutoAllocRequest::AddQueue(params) => create_queue(server_dir, state_ref, params),
+        AutoAllocRequest::AddQueue(params) => create_queue(server_dir, state_ref, params).await,
         AutoAllocRequest::Events { descriptor } => get_event_log(state_ref, descriptor),
         AutoAllocRequest::Allocations { descriptor } => get_allocations(state_ref, descriptor),
     }
@@ -191,31 +191,38 @@ fn get_event_log(state_ref: &StateRef, descriptor: String) -> ToClientMessage {
     }
 }
 
-fn create_queue(
+async fn create_queue(
     server_dir: &ServerDir,
     state_ref: &StateRef,
     request: AddQueueRequest,
 ) -> ToClientMessage {
     let result = match request {
         AddQueueRequest::Pbs(params) => {
-            let mut state = state_ref.get_mut();
-            let autoalloc = state.get_autoalloc_state_mut();
-
             let queue_info = QueueInfo::new(
                 params.queue.clone(),
                 params.max_workers_per_alloc,
                 params.target_worker_count,
                 params.timelimit,
             );
-            let handler = Box::new(PbsHandler::new(
+            let handler = PbsHandler::new(
                 params.queue,
                 params.timelimit,
                 params.name.clone(),
                 server_dir.directory().to_path_buf(),
-            ));
-            let descriptor = QueueDescriptor::new(ManagerType::Pbs, queue_info, handler);
+            )
+            .await;
+            match handler {
+                Ok(handler) => {
+                    let descriptor =
+                        QueueDescriptor::new(ManagerType::Pbs, queue_info, Box::new(handler));
 
-            autoalloc.add_descriptor(params.name, descriptor)
+                    state_ref
+                        .get_mut()
+                        .get_autoalloc_state_mut()
+                        .add_descriptor(params.name, descriptor)
+                }
+                Err(e) => Err(e),
+            }
         }
     };
 

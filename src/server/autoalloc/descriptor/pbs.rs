@@ -1,12 +1,13 @@
 use std::time::Duration;
 
+use crate::common::env::HQ_QSTAT_PATH;
 use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
 use crate::common::timeutils::local_to_system_time;
 use crate::server::autoalloc::descriptor::{CreatedAllocation, QueueHandler};
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
 use crate::server::autoalloc::AutoAllocResult;
 use anyhow::Context;
-use bstr::ByteSlice;
+use bstr::{ByteSlice, ByteVec};
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -20,23 +21,29 @@ pub struct PbsHandler {
     server_directory: PathBuf,
     name: String,
     hq_path: PathBuf,
+    qstat_path: PathBuf,
 }
 
 impl PbsHandler {
-    pub fn new(
+    pub async fn new(
         queue: String,
         timelimit: Option<Duration>,
         name: String,
         server_directory: PathBuf,
-    ) -> Self {
-        let hq_path = std::env::current_exe().expect("Cannot get HyperQueue path");
-        Self {
+    ) -> anyhow::Result<Self> {
+        let hq_path = std::env::current_exe().context("Cannot get HyperQueue path")?;
+        let qstat_path = check_command_output(Command::new("which").arg("qstat").output().await?)
+            .context("Cannot get qstat path")?
+            .stdout
+            .into_path_buf_lossy();
+        Ok(Self {
             queue,
             timelimit,
             server_directory,
             name,
             hq_path,
-        }
+            qstat_path,
+        })
     }
 }
 
@@ -58,6 +65,7 @@ impl QueueHandler for PbsHandler {
         let queue = self.queue.clone();
         let timelimit = self.timelimit;
         let hq_path = self.hq_path.display().to_string();
+        let qstat_path = self.qstat_path.display().to_string();
         let server_directory = self.server_directory.clone();
         let name = self.name.clone();
 
@@ -72,6 +80,7 @@ impl QueueHandler for PbsHandler {
                 directory.join("stdout").display().to_string(),
                 "-e".to_string(),
                 directory.join("stderr").display().to_string(),
+                format!("-v{}={}", HQ_QSTAT_PATH, qstat_path),
                 format!("-lselect={}", worker_count),
             ];
 

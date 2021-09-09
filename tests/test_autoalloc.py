@@ -50,6 +50,12 @@ def test_add_pbs_descriptor(hq_env: HqEnv):
     info.check_value_column("Name", 0, "foo")
 
 
+def test_pbs_fail_without_qstat(hq_env: HqEnv):
+    hq_env.start_server(args=["--autoalloc-interval", "500ms"])
+    hq_env.command(["auto-alloc", "add", "pbs", "--name", "foo", "--queue", "queue", "--workers", "1"],
+                   expect_fail="qstat")
+
+
 def test_pbs_queue_qsub_fail(hq_env: HqEnv):
     qsub_code = "exit(1)"
 
