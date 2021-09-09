@@ -57,29 +57,59 @@ def test_manager_set_none(hq_env: HqEnv):
         table.check_value_columns(["Manager", "Manager Job Id"], i, ["None", "N/A"])
 
 
-def test_manager_set_pbs(hq_env: HqEnv):
+def test_manager_pbs_no_env(hq_env: HqEnv):
     hq_env.start_server()
-    args = ["--manager", "pbs"]
-    p = hq_env.start_worker(cpus=1, args=args)
+    p = hq_env.start_worker(cpus=1, args=["--manager", "pbs"])
     time.sleep(1)
     hq_env.check_process_exited(p, 1)
 
+
+def test_manager_pbs(hq_env: HqEnv):
+    hq_env.start_server()
+
     with hq_env.mock.mock_program("qstat", qstat_return_walltime("x1234")):
         hq_env.start_worker(
-            cpus=1, args=args, env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"}
+            cpus=1, args=["--manager", "pbs"], env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"}
         )
 
         table = hq_env.command(["worker", "list"], as_table=True)
         table.check_value_columns(["Manager", "Manager Job Id"], 0, ["PBS", "x1234"])
 
 
-def test_manager_set_slurm(hq_env: HqEnv):
+def test_manager_pbs_qstat_path_from_env(hq_env: HqEnv):
     hq_env.start_server()
-    args = ["--manager", "slurm"]
-    p = hq_env.start_worker(cpus=1, args=args)
+
+    with hq_env.mock.mock_program("foo", qstat_return_walltime("x1234")):
+        hq_env.start_worker(
+            cpus=1, args=["--manager", "pbs"],
+            env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234", "HQ_QSTAT_PATH": "foo"}
+        )
+
+        table = hq_env.command(["worker", "list"], as_table=True)
+        table.check_value_columns(["Manager", "Manager Job Id"], 0, ["PBS", "x1234"])
+
+
+def test_manager_pbs_no_qstat(hq_env: HqEnv):
+    hq_env.start_server()
+
+    process = hq_env.start_worker(
+        cpus=1, args=["--manager", "pbs"],
+        env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"}
+    )
+    process.wait()
+    hq_env.check_process_exited(process, expected_code=1)
+
+
+def test_manager_slurm_no_env(hq_env: HqEnv):
+    hq_env.start_server()
+    p = hq_env.start_worker(cpus=1, args=["--manager", "slurm"])
     time.sleep(1)
     hq_env.check_process_exited(p, 1)
 
-    hq_env.start_worker(cpus=1, args=args, env={"SLURM_JOB_ID": "abcd"})
+
+def test_manager_slurm(hq_env: HqEnv):
+    hq_env.start_server()
+
+    hq_env.start_worker(cpus=1, args=["--manager", "slurm"], env={"SLURM_JOB_ID": "abcd"})
     table = hq_env.command(["worker", "list"], as_table=True)
     table.check_value_columns(["Manager", "Manager Job Id"], 0, ["SLURM", "abcd"])

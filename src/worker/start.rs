@@ -21,6 +21,7 @@ use crate::common::env::{HQ_CPUS, HQ_INSTANCE_ID, HQ_JOB_ID, HQ_PIN, HQ_SUBMIT_D
 use crate::common::error::error;
 use crate::common::manager::info::{ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::manager::pbs;
+use crate::common::manager::pbs::PbsContext;
 use crate::common::serverdir::ServerDir;
 use crate::common::timeutils::ArgDuration;
 use crate::transfer::messages::TaskBody;
@@ -404,7 +405,9 @@ fn try_get_pbs_info() -> anyhow::Result<ManagerInfo> {
     let manager_job_id =
         std::env::var("PBS_JOBID").expect("PBS_JOBID not found in environment variables");
 
-    let time_limit = pbs::get_remaining_timelimit(&manager_job_id).unwrap();
+    let pbs_context = PbsContext::create()?;
+    let time_limit = pbs::get_remaining_timelimit(&pbs_context, &manager_job_id)
+        .expect("Could not get PBS timelimit");
 
     log::info!("PBS environment detected");
 
