@@ -144,7 +144,7 @@ async fn handle_autoalloc_message(
     match request {
         AutoAllocRequest::Info => {
             let state = state_ref.get();
-            let autoalloc = state.get_autoalloc_state().get();
+            let autoalloc = state.get_autoalloc_state();
             let refresh_interval = autoalloc.refresh_interval();
             ToClientMessage::AutoAllocResponse(AutoAllocResponse::Info(AutoAllocInfoResponse {
                 refresh_interval,
@@ -169,7 +169,7 @@ async fn handle_autoalloc_message(
 
 fn get_allocations(state_ref: &StateRef, descriptor: String) -> ToClientMessage {
     let state = state_ref.get();
-    let autoalloc = state.get_autoalloc_state().get();
+    let autoalloc = state.get_autoalloc_state();
 
     match autoalloc.get_descriptor(&descriptor) {
         Some(descriptor) => ToClientMessage::AutoAllocResponse(AutoAllocResponse::Allocations(
@@ -181,7 +181,7 @@ fn get_allocations(state_ref: &StateRef, descriptor: String) -> ToClientMessage 
 
 fn get_event_log(state_ref: &StateRef, descriptor: String) -> ToClientMessage {
     let state = state_ref.get();
-    let autoalloc = state.get_autoalloc_state().get();
+    let autoalloc = state.get_autoalloc_state();
 
     match autoalloc.get_descriptor(&descriptor) {
         Some(descriptor) => ToClientMessage::AutoAllocResponse(AutoAllocResponse::Events(
@@ -198,8 +198,8 @@ fn create_queue(
 ) -> ToClientMessage {
     let result = match request {
         AddQueueRequest::Pbs(params) => {
-            let state = state_ref.get();
-            let mut autoalloc = state.get_autoalloc_state().get_mut();
+            let mut state = state_ref.get_mut();
+            let autoalloc = state.get_autoalloc_state_mut();
 
             let queue_info = QueueInfo::new(
                 params.queue.clone(),
