@@ -1,6 +1,4 @@
-use crate::common::WrappedRcRefCell;
 use crate::server::autoalloc::state::{Allocation, AllocationEvent, AllocationStatus};
-use crate::server::autoalloc::AutoAllocState;
 use crate::server::state::StateRef;
 use std::time::SystemTime;
 
@@ -25,11 +23,7 @@ macro_rules! get_or_continue {
 /// The main entrypoint of the autoalloc background process.
 /// It invokes the autoalloc logic in fixed time intervals.
 pub async fn autoalloc_process(state_ref: StateRef) {
-    let duration = state_ref
-        .get()
-        .get_autoalloc_state()
-        .get()
-        .refresh_interval();
+    let duration = state_ref.get().get_autoalloc_state().refresh_interval();
     let mut interval = tokio::time::interval(duration);
     loop {
         interval.tick().await;
@@ -43,7 +37,6 @@ pub async fn autoalloc_shutdown(state_ref: StateRef) {
         state_ref
             .get()
             .get_autoalloc_state()
-            .get()
             .descriptors()
             .flat_map(|(_, descriptor)| {
                 let handler = descriptor.descriptor.handler();
@@ -75,19 +68,19 @@ async fn autoalloc_tick(state_ref: &StateRef) {
     log::debug!("Running autoalloc");
 
     // The descriptor names are copied out to avoid holding state reference across `await`
-    let autoalloc_ref = state_ref.get().get_autoalloc_state().clone();
-    let descriptors: Vec<_> = autoalloc_ref
+    let descriptors: Vec<_> = state_ref
         .get()
+        .get_autoalloc_state()
         .descriptor_names()
         .map(|v| v.to_string())
         .collect();
 
     for name in descriptors {
-        process_descriptor(&name, &autoalloc_ref).await;
+        process_descriptor(&name, state_ref).await;
     }
 }
 
-async fn process_descriptor(name: &str, state: &WrappedRcRefCell<AutoAllocState>) {
+async fn process_descriptor(name: &str, state: &StateRef) {
     // TODO: check only once in a while
     refresh_allocations(name, state).await;
     schedule_new_allocations(name, state).await
@@ -97,13 +90,14 @@ async fn process_descriptor(name: &str, state: &WrappedRcRefCell<AutoAllocState>
 /// Queue allocations might become running or finished, running allocations might become finished,
 /// etc.
 #[allow(clippy::needless_collect)]
-async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocState>) {
-    let allocation_ids: Vec<_> = get_or_return!(state_ref.get().get_descriptor(name))
-        .active_allocations()
-        .map(|alloc| alloc.id.clone())
-        .collect();
+async fn refresh_allocations(name: &str, state_ref: &StateRef) {
+    let allocation_ids: Vec<_> =
+        get_or_return!(state_ref.get().get_autoalloc_state().get_descriptor(name))
+            .active_allocations()
+            .map(|alloc| alloc.id.clone())
+            .collect();
     for allocation_id in allocation_ids.into_iter() {
-        let status_fut = get_or_return!(state_ref.get().get_descriptor(name))
+        let status_fut = get_or_return!(state_ref.get().get_autoalloc_state().get_descriptor(name))
             .descriptor
             .handler()
             .get_allocation_status(allocation_id.clone());
@@ -111,11 +105,12 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
         let result = status_fut.await;
 
         let mut state = state_ref.get_mut();
-        let descriptor = get_or_continue!(state.get_descriptor_mut(name));
+        let state = state.get_autoalloc_state_mut();
         match result {
             Ok(status) => {
                 match status {
                     Some(status) => {
+                        let descriptor = get_or_continue!(state.get_descriptor_mut(name));
                         let id = allocation_id.clone();
                         log::debug!("Status of allocation {}: {:?}", allocation_id, status);
                         match status {
@@ -142,8 +137,8 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
                     }
                     None => {
                         log::warn!("Allocation {} was not found", allocation_id);
-                        get_or_continue!(state_ref.get_mut().get_descriptor_mut(name))
-                            .remove_allocation(&allocation_id);
+                        let descriptor = get_or_continue!(state.get_descriptor_mut(name));
+                        descriptor.remove_allocation(&allocation_id);
                         descriptor.add_event(AllocationEvent::AllocationDisappeared(allocation_id));
                     }
                 };
@@ -155,6 +150,7 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
                     name,
                     err
                 );
+                let descriptor = get_or_continue!(state.get_descriptor_mut(name));
                 descriptor.add_event(AllocationEvent::StatusFail {
                     error: err.to_string(),
                 });
@@ -164,10 +160,10 @@ async fn refresh_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocS
 }
 
 /// Schedule new allocations for the descriptor with the given name.
-async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoAllocState>) {
+async fn schedule_new_allocations(name: &str, state_ref: &StateRef) {
     let (mut remaining, max_workers_per_alloc): (u64, u64) = {
         let state = state_ref.get();
-        let descriptor = get_or_return!(state.get_descriptor(name));
+        let descriptor = get_or_return!(state.get_autoalloc_state().get_descriptor(name));
         let active_workers: u64 = descriptor
             .active_allocations()
             .map(|alloc| alloc.worker_count)
@@ -182,14 +178,16 @@ async fn schedule_new_allocations(name: &str, state_ref: &WrappedRcRefCell<AutoA
     };
     while remaining > 0 {
         let to_schedule = std::cmp::min(remaining, max_workers_per_alloc);
-        let schedule_fut = get_or_return!(state_ref.get().get_descriptor(name))
-            .descriptor
-            .handler()
-            .schedule_allocation(to_schedule);
+        let schedule_fut =
+            get_or_return!(state_ref.get().get_autoalloc_state().get_descriptor(name))
+                .descriptor
+                .handler()
+                .schedule_allocation(to_schedule);
 
         let result = schedule_fut.await;
 
         let mut state = state_ref.get_mut();
+        let state = state.get_autoalloc_state_mut();
         let descriptor = get_or_return!(state.get_descriptor_mut(name));
         match result {
             Ok(created) => {
@@ -301,7 +299,7 @@ mod tests {
         autoalloc_tick(&state).await;
 
         let state = state.get();
-        let state = state.get_autoalloc_state().get();
+        let state = state.get_autoalloc_state();
         let descriptor = state.get_descriptor("foo").unwrap();
         matches!(
             descriptor.get_events()[0].event,
@@ -440,9 +438,8 @@ mod tests {
         );
 
         state_ref
-            .get()
-            .get_autoalloc_state()
             .get_mut()
+            .get_autoalloc_state_mut()
             .add_descriptor("foo".to_string(), descriptor)
             .unwrap();
     }
