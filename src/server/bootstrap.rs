@@ -3,7 +3,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
-use cli_table::{print_stdout, Cell, Style, Table};
 use tokio::net::TcpListener;
 use tokio::sync::Notify;
 use tokio::task::LocalSet;
@@ -120,7 +119,9 @@ async fn initialize_server(
     );
 
     let server_dir = ServerDir::create(server_directory, &record)?;
-    print_access_record(gsettings, server_directory, &record);
+    gsettings
+        .printer()
+        .print_server_record(server_directory, &record);
 
     let end_flag = Rc::new(Notify::new());
     let end_flag_check = end_flag.clone();
@@ -175,35 +176,12 @@ async fn start_server(
     Ok(())
 }
 
-pub fn print_access_record(gsettings: &GlobalSettings, server_dir: &Path, record: &AccessRecord) {
-    let rows = vec![
-        vec![
-            "Server directory".cell().bold(true),
-            server_dir.display().cell(),
-        ],
-        vec!["Host".cell().bold(true), record.host().cell()],
-        vec!["Pid".cell().bold(true), record.pid().cell()],
-        vec!["HQ port".cell().bold(true), record.server_port().cell()],
-        vec![
-            "Workers port".cell().bold(true),
-            record.worker_port().cell(),
-        ],
-        vec![
-            "Start date".cell().bold(true),
-            record.start_date().format("%F %T %Z").cell(),
-        ],
-        vec!["Version".cell().bold(true), record.version().cell()],
-    ];
-    let table = rows.table().color_choice(gsettings.color_policy());
-    assert!(print_stdout(table).is_ok());
-}
-
 pub async fn print_server_info(gsettings: &GlobalSettings) -> anyhow::Result<()> {
     match get_server_status(gsettings.server_directory()).await {
         Err(_) | Ok(ServerStatus::Offline(_)) => anyhow::bail!("No online server found"),
-        Ok(ServerStatus::Online(record)) => {
-            print_access_record(gsettings, gsettings.server_directory(), &record)
-        }
+        Ok(ServerStatus::Online(record)) => gsettings
+            .printer()
+            .print_server_record(gsettings.server_directory(), &record),
     }
     Ok(())
 }
@@ -222,6 +200,7 @@ mod tests {
 
     use super::ServerStatus;
     use crate::client::globalsettings::GlobalSettings;
+    use crate::client::output::cli::CliOutput;
     use cli_table::ColorChoice;
     use std::future::Future;
     use std::path::Path;
@@ -230,7 +209,11 @@ mod tests {
     pub async fn init_test_server(
         tmp_dir: &Path,
     ) -> (impl Future<Output = anyhow::Result<()>>, Rc<Notify>) {
-        let gsettings = GlobalSettings::new(tmp_dir.to_path_buf(), ColorChoice::Never);
+        // Create global settings with CliOutput
+        let gsettings = GlobalSettings::new(
+            tmp_dir.to_path_buf(),
+            Box::new(CliOutput::new(ColorChoice::Never)),
+        );
         let server_cfg = ServerConfig {
             host: "localhost".to_string(),
             idle_timeout: None,

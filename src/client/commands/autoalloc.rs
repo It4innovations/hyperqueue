@@ -1,9 +1,7 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::timeutils::ArgDuration;
 use crate::rpc_call;
-use crate::server::autoalloc::{
-    Allocation, AllocationEvent, AllocationEventHolder, AllocationStatus,
-};
+use crate::server::autoalloc::{Allocation, AllocationStatus};
 use crate::server::bootstrap::get_client_connection;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
@@ -11,9 +9,7 @@ use crate::transfer::messages::{
     ToClientMessage,
 };
 use clap::Clap;
-use cli_table::{print_stdout, Cell, CellStruct, Color, Style, Table};
 use std::str::FromStr;
-use std::time::SystemTime;
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
@@ -118,16 +114,16 @@ pub async fn command_autoalloc(
     let connection = get_client_connection(gsettings.server_directory()).await?;
     match opts.subcmd {
         AutoAllocCommand::Info => {
-            print_info(gsettings, connection).await?;
+            print_info(&gsettings, connection).await?;
         }
         AutoAllocCommand::Add(opts) => {
             add_queue(connection, opts).await?;
         }
         AutoAllocCommand::Events(opts) => {
-            print_event_log(gsettings, connection, opts).await?;
+            print_event_log(&gsettings, connection, opts).await?;
         }
         AutoAllocCommand::Allocations(opts) => {
-            print_allocations(gsettings, connection, opts).await?;
+            print_allocations(&gsettings, connection, opts).await?;
         }
     }
     Ok(())
@@ -162,7 +158,7 @@ async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyh
 }
 
 async fn print_info(
-    gsettings: GlobalSettings,
+    gsettings: &GlobalSettings,
     mut connection: ClientConnection,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::Info);
@@ -171,45 +167,12 @@ async fn print_info(
     )
     .await?;
 
-    let rows = vec![vec![
-        "Refresh interval".cell().bold(true),
-        humantime::format_duration(response.refresh_interval).cell(),
-    ]];
-    let table = rows.table().color_choice(gsettings.color_policy());
-    assert!(print_stdout(table).is_ok());
-
-    let mut rows = vec![vec![
-        "Name".cell().bold(true),
-        "Target worker count".cell().bold(true),
-        "Max workers per allocation".cell().bold(true),
-        "Queue".cell().bold(true),
-        "Timelimit".cell().bold(true),
-    ]];
-
-    let mut descriptors: Vec<_> = response.descriptors.into_iter().collect();
-    descriptors.sort_unstable_by(|a, b| a.0.cmp(&b.0));
-
-    rows.extend(descriptors.into_iter().map(|(name, data)| {
-        vec![
-            name.cell(),
-            data.info.target_worker_count().cell(),
-            data.info.max_workers_per_alloc().cell(),
-            data.info.queue().cell(),
-            data.info
-                .timelimit()
-                .map(|d| humantime::format_duration(d).to_string())
-                .unwrap_or_else(|| "N/A".to_string())
-                .cell(),
-        ]
-    }));
-
-    let table = rows.table().color_choice(gsettings.color_policy());
-    assert!(print_stdout(table).is_ok());
+    gsettings.printer().print_autoalloc_info(response);
     Ok(())
 }
 
 async fn print_event_log(
-    gsettings: GlobalSettings,
+    gsettings: &GlobalSettings,
     mut connection: ClientConnection,
     opts: EventsOpts,
 ) -> anyhow::Result<()> {
@@ -221,98 +184,12 @@ async fn print_event_log(
     )
     .await?;
 
-    let event_name = |event: &AllocationEventHolder| -> CellStruct {
-        match event.event {
-            AllocationEvent::AllocationQueued(..) => "Allocation queued"
-                .cell()
-                .foreground_color(Some(Color::Yellow)),
-            AllocationEvent::AllocationStarted(..) => "Allocation started"
-                .cell()
-                .foreground_color(Some(Color::Green)),
-            AllocationEvent::AllocationFinished(..) => "Allocation finished"
-                .cell()
-                .foreground_color(Some(Color::Blue)),
-            AllocationEvent::AllocationFailed(..) => "Allocation failed"
-                .cell()
-                .foreground_color(Some(Color::Red)),
-            AllocationEvent::AllocationDisappeared(..) => "Allocation disappeared"
-                .cell()
-                .foreground_color(Some(Color::Red)),
-            AllocationEvent::QueueFail { .. } => "Allocation submission failed"
-                .cell()
-                .foreground_color(Some(Color::Red)),
-            AllocationEvent::StatusFail { .. } => "Allocation status check failed"
-                .cell()
-                .foreground_color(Some(Color::Red)),
-        }
-    };
-    let event_message = |event: &AllocationEventHolder| -> CellStruct {
-        match &event.event {
-            AllocationEvent::AllocationQueued(id)
-            | AllocationEvent::AllocationStarted(id)
-            | AllocationEvent::AllocationFailed(id)
-            | AllocationEvent::AllocationFinished(id)
-            | AllocationEvent::AllocationDisappeared(id) => id.cell(),
-            AllocationEvent::QueueFail { error } | AllocationEvent::StatusFail { error } => {
-                error.cell()
-            }
-        }
-    };
-
-    let mut rows = vec![vec![
-        "Event".cell().bold(true),
-        "Time".cell().bold(true),
-        "Message".cell().bold(true),
-    ]];
-    rows.extend(response.into_iter().map(|event| {
-        vec![
-            event_name(&event),
-            humantime::format_rfc3339_seconds(event.date).cell(),
-            event_message(&event),
-        ]
-    }));
-
-    let table = rows.table().color_choice(gsettings.color_policy());
-    assert!(print_stdout(table).is_ok());
+    gsettings.printer().print_event_log(response);
     Ok(())
 }
 
-struct AllocationTimes {
-    queued_at: SystemTime,
-    started_at: Option<SystemTime>,
-    finished_at: Option<SystemTime>,
-}
-
-fn get_allocation_times(allocation: &Allocation) -> AllocationTimes {
-    let mut started = None;
-    let mut finished = None;
-
-    match &allocation.status {
-        AllocationStatus::Queued => {}
-        AllocationStatus::Running { started_at } => {
-            started = Some(started_at);
-        }
-        AllocationStatus::Finished {
-            started_at,
-            finished_at,
-        }
-        | AllocationStatus::Failed {
-            started_at,
-            finished_at,
-        } => {
-            started = Some(started_at);
-            finished = Some(finished_at);
-        }
-    }
-    AllocationTimes {
-        queued_at: allocation.queued_at,
-        started_at: started.cloned(),
-        finished_at: finished.cloned(),
-    }
-}
-
 async fn print_allocations(
-    gsettings: GlobalSettings,
+    gsettings: &GlobalSettings,
     mut connection: ClientConnection,
     opts: AllocationsOpts,
 ) -> anyhow::Result<()> {
@@ -323,59 +200,9 @@ async fn print_allocations(
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::Allocations(allocs)) => allocs
     )
     .await?;
-
     filter_allocations(&mut allocations, opts.filter);
-
-    let mut rows = vec![vec![
-        "Id".cell().bold(true),
-        "State".cell().bold(true),
-        "Working directory".cell().bold(true),
-        "Worker count".cell().bold(true),
-        "Queue time".cell().bold(true),
-        "Start time".cell().bold(true),
-        "Finish time".cell().bold(true),
-    ]];
-
-    let format_time = |time: Option<SystemTime>| match time {
-        Some(time) => humantime::format_rfc3339_seconds(time).cell(),
-        None => "".cell(),
-    };
-
-    allocations.sort_unstable_by(|a, b| a.id.cmp(&b.id));
-    rows.extend(allocations.into_iter().map(|allocation| {
-        let times = get_allocation_times(&allocation);
-        vec![
-            allocation.id.cell(),
-            format_allocation_status(&allocation.status),
-            allocation.working_dir.display().cell(),
-            allocation.worker_count.cell(),
-            format_time(Some(times.queued_at)),
-            format_time(times.started_at),
-            format_time(times.finished_at),
-        ]
-    }));
-
-    let table = rows.table().color_choice(gsettings.color_policy());
-    assert!(print_stdout(table).is_ok());
-
+    gsettings.printer().print_allocations(allocations);
     Ok(())
-}
-
-fn format_allocation_status(status: &AllocationStatus) -> CellStruct {
-    match status {
-        AllocationStatus::Queued => "Queued"
-            .cell()
-            .foreground_color(Some(cli_table::Color::Yellow)),
-        AllocationStatus::Running { .. } => "Running"
-            .cell()
-            .foreground_color(Some(cli_table::Color::Blue)),
-        AllocationStatus::Finished { .. } => "Finished"
-            .cell()
-            .foreground_color(Some(cli_table::Color::Green)),
-        AllocationStatus::Failed { .. } => "Failed"
-            .cell()
-            .foreground_color(Some(cli_table::Color::Red)),
-    }
 }
 
 fn filter_allocations(allocations: &mut Vec<Allocation>, filter: Option<AllocationStateFilter>) {
