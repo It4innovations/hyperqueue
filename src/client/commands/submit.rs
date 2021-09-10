@@ -9,7 +9,7 @@ use clap::Clap;
 use tako::common::resources::{CpuRequest, ResourceRequest};
 use tako::messages::common::{ProgramDefinition, StdioDef};
 
-use crate::client::commands::wait::wait_for_job_with_info;
+use crate::client::commands::wait::wait_for_jobs;
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::{get_worker_map, print_job_detail};
 use crate::client::resources::parse_cpu_request;
@@ -18,7 +18,7 @@ use crate::common::arraydef::IntArray;
 use crate::common::timeutils::ArgDuration;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    FromClientMessage, JobType, ResubmitRequest, SubmitRequest, ToClientMessage,
+    FromClientMessage, JobType, ResubmitRequest, Selector, SubmitRequest, ToClientMessage,
 };
 use crate::worker::placeholders::{JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER};
 use crate::{rpc_call, JobId, JobTaskCount, Map};
@@ -264,7 +264,7 @@ pub async fn submit_computation(
         get_worker_map(connection).await?,
     );
     if opts.wait {
-        wait_for_job_with_info(connection, info).await?;
+        wait_for_jobs(connection, Selector::Specific(IntArray::from_id(info.id))).await?;
     }
     Ok(())
 }

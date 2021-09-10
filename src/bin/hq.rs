@@ -12,7 +12,7 @@ use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{
     resubmit_computation, submit_computation, ResubmitOpts, SubmitOpts,
 };
-use hyperqueue::client::commands::wait::wait_for_job_with_selector;
+use hyperqueue::client::commands::wait::wait_for_jobs;
 use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
 use hyperqueue::client::status::Status;
@@ -391,7 +391,7 @@ async fn command_worker_address(
 async fn command_wait(gsettings: GlobalSettings, opts: WaitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
 
-    wait_for_job_with_selector(&mut connection, opts.selector_arg.into()).await
+    wait_for_jobs(&mut connection, opts.selector_arg.into()).await
 }
 
 pub enum ColorPolicy {

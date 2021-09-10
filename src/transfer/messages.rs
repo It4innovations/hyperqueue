@@ -27,6 +27,7 @@ pub enum FromClientMessage {
     StopWorker(StopWorkerMessage),
     Stop,
     AutoAlloc(AutoAllocRequest),
+    WaitForJobs(WaitForJobsRequest),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -119,6 +120,11 @@ pub struct AddQueueParams {
     pub timelimit: Option<Duration>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct WaitForJobsRequest {
+    pub selector: Selector,
+}
+
 // Messages server -> client
 #[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
@@ -132,6 +138,7 @@ pub enum ToClientMessage {
     StopWorkerResponse(Vec<(WorkerId, StopWorkerResponse)>),
     CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
     AutoAllocResponse(AutoAllocResponse),
+    WaitForJobsResponse(WaitForJobsResponse),
     Error(String),
 }
 
@@ -260,4 +267,12 @@ pub struct AutoAllocInfoResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QueueDescriptorData {
     pub info: QueueInfo,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct WaitForJobsResponse {
+    pub finished: u32,
+    pub failed: u32,
+    pub skipped: u32,
+    pub invalid: u32,
 }

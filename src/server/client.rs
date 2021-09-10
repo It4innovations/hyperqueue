@@ -19,7 +19,7 @@ use crate::common::serverdir::ServerDir;
 use crate::server::autoalloc::{PbsHandler, QueueDescriptor, QueueInfo};
 use crate::server::job::{Job, JobState};
 use crate::server::rpc::Backend;
-use crate::server::state::StateRef;
+use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
@@ -31,6 +31,7 @@ use crate::transfer::messages::{
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 use bstr::BString;
 
+use crate::transfer::messages::WaitForJobsResponse;
 use std::path::Path;
 
 pub async fn handle_client_connections(
@@ -118,6 +119,9 @@ pub async fn client_rpc_loop<
                     FromClientMessage::AutoAlloc(msg) => {
                         handle_autoalloc_message(&server_dir, &state_ref, msg).await
                     }
+                    FromClientMessage::WaitForJobs(msg) => {
+                        handle_wait_for_jobs_message(&state_ref, msg.selector).await
+                    }
                 };
                 assert!(tx.send(response).await.is_ok());
             }
@@ -134,6 +138,58 @@ pub async fn client_rpc_loop<
             }
         }
     }
+}
+
+async fn handle_wait_for_jobs_message(state_ref: &StateRef, selector: Selector) -> ToClientMessage {
+    let (receivers, mut response) = {
+        let mut state = state_ref.get_mut();
+        let job_ids: Vec<JobId> = get_job_ids(&state, selector);
+
+        let mut response = WaitForJobsResponse::default();
+        let mut receivers = vec![];
+
+        for job_id in job_ids {
+            match state.get_job_mut(job_id) {
+                Some(job) => {
+                    if job.is_terminated() {
+                        if job.counters.has_unsuccessful_tasks() {
+                            response.failed += 1;
+                        } else {
+                            response.skipped += 1;
+                        }
+                    } else {
+                        let rx = job.subscribe_to_completion();
+                        receivers.push(rx);
+                    }
+                }
+                None => response.invalid += 1,
+            }
+        }
+        (receivers, response)
+    };
+
+    let results = futures::future::join_all(receivers).await;
+    let state = state_ref.get();
+
+    for result in results {
+        match result {
+            Ok(job_id) => {
+                match state.get_job(job_id) {
+                    Some(job) => {
+                        if job.counters.has_unsuccessful_tasks() {
+                            response.failed += 1;
+                        } else {
+                            response.finished += 1;
+                        }
+                    }
+                    None => continue,
+                };
+            }
+            Err(err) => log::error!("Error while waiting on job(s): {:?}", err),
+        };
+    }
+
+    ToClientMessage::WaitForJobsResponse(response)
 }
 
 async fn handle_autoalloc_message(
@@ -298,11 +354,7 @@ fn compute_job_detail(
 ) -> ToClientMessage {
     let state = state_ref.get();
 
-    let job_ids: Vec<JobId> = match selector {
-        Selector::All => state_ref.get().jobs().map(|job| job.job_id).collect(),
-        Selector::LastN(n) => state_ref.get().last_n_ids(n).collect(),
-        Selector::Specific(array) => array.iter().collect(),
-    };
+    let job_ids: Vec<JobId> = get_job_ids(&state, selector);
 
     let mut responses: Vec<(JobId, Option<JobDetail>)> = Vec::new();
     for job_id in job_ids {
@@ -317,6 +369,14 @@ fn compute_job_detail(
         }
     }
     ToClientMessage::JobDetailResponse(responses)
+}
+
+fn get_job_ids(state: &State, selector: Selector) -> Vec<JobId> {
+    match selector {
+        Selector::All => state.jobs().map(|job| job.job_id).collect(),
+        Selector::LastN(n) => state.last_n_ids(n).collect(),
+        Selector::Specific(array) => array.iter().collect(),
+    }
 }
 
 async fn compose_server_stats(_state_ref: &StateRef, backend: &Backend) -> ToClientMessage {

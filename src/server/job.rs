@@ -9,6 +9,7 @@ use bstr::BString;
 use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 use tako::common::resources::ResourceRequest;
+use tokio::sync::oneshot;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum JobTaskState {
@@ -82,6 +83,10 @@ impl JobTaskCounters {
             - self.n_failed_tasks
             - self.n_canceled_tasks
     }
+
+    pub fn has_unsuccessful_tasks(&self) -> bool {
+        self.n_failed_tasks > 0 || self.n_canceled_tasks > 0
+    }
 }
 
 pub struct Job {
@@ -107,6 +112,12 @@ pub struct Job {
 
     pub submission_date: DateTime<Utc>,
     pub completion_date: Option<DateTime<Utc>>,
+
+    /// Holds channels that will receive information about the job task counters after the job
+    /// finishes in any way.
+    ///
+    /// You can subscribe to the completion message with [`Self::subscribe_to_completion`].
+    completion_callbacks: Vec<oneshot::Sender<JobId>>,
 }
 
 impl Job {
@@ -163,6 +174,7 @@ impl Job {
             time_limit,
             submission_date: Utc::now(),
             completion_date: None,
+            completion_callbacks: Default::default(),
         }
     }
 
@@ -283,6 +295,10 @@ impl Job {
                 backend
                     .send_stream_control(StreamServerControlMessage::UnregisterStream(self.job_id));
             }
+
+            for handler in self.completion_callbacks.drain(..) {
+                handler.send(self.job_id).ok();
+            }
         }
     }
 
@@ -348,5 +364,14 @@ impl Job {
         //    old_state,
         //    JobTaskState::Running | JobTaskState::Waiting
         //));
+    }
+
+    /// Subscribes to the completion event of this job.
+    /// When the job finishes in any way (completion, failure, cancellation), the channel will
+    /// receive a single message.
+    pub fn subscribe_to_completion(&mut self) -> oneshot::Receiver<JobId> {
+        let (tx, rx) = oneshot::channel();
+        self.completion_callbacks.push(tx);
+        rx
     }
 }
