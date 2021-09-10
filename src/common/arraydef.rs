@@ -44,6 +44,9 @@ impl IntArray {
         }
         IntArray { ranges }
     }
+    pub fn from_id(id: u32) -> IntArray {
+        Self::from_ids(vec![id])
+    }
 
     pub fn from_range(start: u32, count: u32) -> Self {
         IntArray {

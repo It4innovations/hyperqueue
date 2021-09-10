@@ -627,20 +627,20 @@ def test_job_wait(hq_env: HqEnv):
     hq_env.start_worker()
     hq_env.command(["submit", "sleep", "1"])
     r = hq_env.command(["wait", "1"])
-    assert "Waiting for 1 job(s)" in r
+    assert "1 job finished" in r
 
     table = hq_env.command(["job", "1"], as_table=True)
     table.check_value_row("State", "FINISHED")
 
     r = hq_env.command(["wait", "all"])
-    assert "There are no jobs to wait for" in r
+    assert "1 job skipped" in r
 
 
 def test_job_submit_wait(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
     r = hq_env.command(["submit", "sleep", "1", "--wait"])
-    assert "Waiting for 1 job(s)" in r
+    assert "1 job finished" in r
 
     table = hq_env.command(["job", "1"], as_table=True)
     table.check_value_row("State", "FINISHED")
