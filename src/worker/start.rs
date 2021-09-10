@@ -37,7 +37,6 @@ use crate::common::timeutils::ArgDuration;
 use crate::transfer::messages::TaskBody;
 use crate::transfer::stream::ChannelId;
 use crate::worker::hwdetect::detect_resource;
-use crate::worker::output::print_worker_configuration;
 use crate::worker::parser::parse_cpu_definition;
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
@@ -340,8 +339,10 @@ pub async fn start_hq_worker(
         Box::new(move |task_ref, end_receiver| launcher(&streamer_ref, task_ref, end_receiver)),
     )
     .await?;
-    print_worker_configuration(gsettings, worker_id, configuration);
 
+    gsettings
+        .printer()
+        .print_worker_info(worker_id, configuration);
     let local_set = LocalSet::new();
     local_set
         .run_until(async move {

@@ -1,7 +1,6 @@
 use crate::common::parser::{format_parse_error, NomResult};
 use crate::server::job::JobTaskState;
 use crate::transfer::messages::JobInfo;
-use cli_table::{Cell, CellStruct, Color, Style};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::space0;
@@ -81,16 +80,6 @@ pub fn task_status(status: &JobTaskState) -> Status {
         JobTaskState::Finished { .. } => Status::Finished,
         JobTaskState::Failed { .. } => Status::Failed,
         JobTaskState::Canceled => Status::Canceled,
-    }
-}
-
-pub fn status_cell(status: Status) -> CellStruct {
-    match status {
-        Status::Waiting => "WAITING".cell().foreground_color(Some(Color::Cyan)),
-        Status::Finished => "FINISHED".cell().foreground_color(Some(Color::Green)),
-        Status::Failed => "FAILED".cell().foreground_color(Some(Color::Red)),
-        Status::Running => "RUNNING".cell().foreground_color(Some(Color::Yellow)),
-        Status::Canceled => "CANCELED".cell().foreground_color(Some(Color::Magenta)),
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::job::{get_worker_map, print_job_detail, print_job_list};
+use crate::client::job::get_worker_map;
 use crate::client::status::{job_status, Status};
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
@@ -48,7 +48,7 @@ pub async fn output_job_list(
             .retain(|j| job_filters.contains(&job_status(j)));
     }
     response.jobs.sort_unstable_by_key(|j| j.id);
-    print_job_list(gsettings, response.jobs);
+    gsettings.printer().print_job_list(response.jobs);
     Ok(())
 }
 
@@ -72,8 +72,7 @@ pub async fn output_job_detail(
 
     for response in responses {
         if let Some(job) = response.1 {
-            print_job_detail(
-                gsettings,
+            gsettings.printer().print_job_detail(
                 job,
                 false,
                 show_tasks,

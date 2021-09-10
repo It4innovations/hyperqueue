@@ -15,8 +15,9 @@ use hyperqueue::client::commands::submit::{
 use hyperqueue::client::commands::wait::wait_for_jobs;
 use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
+use hyperqueue::client::output::cli::CliOutput;
+use hyperqueue::client::output::outputs::Outputs;
 use hyperqueue::client::status::Status;
-use hyperqueue::client::worker::print_worker_info;
 use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
@@ -25,8 +26,7 @@ use hyperqueue::server::bootstrap::{
     get_client_connection, init_hq_server, print_server_info, ServerConfig,
 };
 use hyperqueue::transfer::messages::Selector;
-use hyperqueue::worker::hwdetect::{detect_resource, print_resource_descriptor};
-use hyperqueue::worker::output::print_worker_configuration;
+use hyperqueue::worker::hwdetect::detect_resource;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::WorkerId;
 
@@ -43,6 +43,10 @@ struct CommonOpts {
     /// Console color policy.
     #[clap(long, default_value = "auto", possible_values = & ["auto", "always", "never"])]
     colors: ColorPolicy,
+
+    /// Output selection
+    #[clap(long, default_value = "cli", possible_values = & ["cli"])]
+    output_type: Outputs,
 }
 
 // Root CLI options
@@ -257,6 +261,7 @@ async fn command_server_start(
         idle_timeout: opts.idle_timeout.map(|x| x.into_duration()),
         autoalloc_interval: opts.autoalloc_interval.map(|x| x.into_duration()),
     };
+
     init_hq_server(&gsettings, server_cfg).await
 }
 
@@ -343,7 +348,7 @@ async fn command_worker_list(
         (opts.running, opts.offline)
     };
     let workers = get_worker_list(&mut connection, online, offline).await?;
-    print_worker_info(workers, &gsettings);
+    gsettings.printer().print_worker_list(workers);
     Ok(())
 }
 
@@ -355,7 +360,9 @@ async fn command_worker_info(
     let response = get_worker_info(&mut connection, opts.worker_id).await?;
 
     if let Some(worker) = response {
-        print_worker_configuration(&gsettings, opts.worker_id, worker.configuration);
+        gsettings
+            .printer()
+            .print_worker_info(opts.worker_id, worker.configuration);
     } else {
         log::error!("Worker {} not found", opts.worker_id);
     }
@@ -367,9 +374,9 @@ async fn command_resubmit(gsettings: GlobalSettings, opts: ResubmitOpts) -> anyh
     resubmit_computation(&gsettings, &mut connection, opts).await
 }
 
-fn command_worker_hwdetect() -> anyhow::Result<()> {
+fn command_worker_hwdetect(gsettings: GlobalSettings) -> anyhow::Result<()> {
     let descriptor = detect_resource()?;
-    print_resource_descriptor(&descriptor);
+    gsettings.printer().print_hw(&descriptor);
     Ok(())
 }
 
@@ -391,7 +398,7 @@ async fn command_worker_address(
 async fn command_wait(gsettings: GlobalSettings, opts: WaitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
 
-    wait_for_jobs(&mut connection, opts.selector_arg.into()).await
+    wait_for_jobs(&gsettings, &mut connection, opts.selector_arg.into()).await
 }
 
 pub enum ColorPolicy {
@@ -420,6 +427,11 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
         home
     }
 
+    let server_dir = absolute_path(
+        opts.server_dir
+            .unwrap_or_else(default_server_directory_path),
+    );
+
     let color_policy = match opts.colors {
         ColorPolicy::Always => ColorChoice::AlwaysAnsi,
         ColorPolicy::Auto => {
@@ -432,20 +444,23 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
         ColorPolicy::Never => ColorChoice::Never,
     };
 
-    let server_dir = absolute_path(
-        opts.server_dir
-            .unwrap_or_else(default_server_directory_path),
-    );
+    // Create Printer
+    let printer = match opts.output_type {
+        Outputs::CLI => {
+            // Set colored settings for CLI
+            match color_policy {
+                ColorChoice::Always | ColorChoice::AlwaysAnsi => {
+                    colored::control::set_override(true)
+                }
+                ColorChoice::Never => colored::control::set_override(false),
+                _ => {}
+            }
 
-    GlobalSettings::new(server_dir, color_policy)
-}
+            Box::new(CliOutput::new(color_policy))
+        }
+    };
 
-fn set_colored_settings(settings: &GlobalSettings) {
-    match settings.color_policy() {
-        ColorChoice::Always | ColorChoice::AlwaysAnsi => colored::control::set_override(true),
-        ColorChoice::Never => colored::control::set_override(false),
-        _ => {}
-    }
+    GlobalSettings::new(server_dir, printer)
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -454,7 +469,6 @@ async fn main() -> hyperqueue::Result<()> {
     setup_logging();
 
     let gsettings = make_global_settings(top_opts.common);
-    set_colored_settings(&gsettings);
 
     let result = match top_opts.subcmd {
         SubCommand::Server(ServerOpts {
@@ -481,7 +495,7 @@ async fn main() -> hyperqueue::Result<()> {
         }) => command_worker_info(gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Hwdetect,
-        }) => command_worker_hwdetect(),
+        }) => command_worker_hwdetect(gsettings),
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Address(opts),
         }) => command_worker_address(gsettings, opts).await,

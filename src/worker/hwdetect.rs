@@ -58,11 +58,6 @@ pub fn detect_resource() -> anyhow::Result<ResourceDescriptor> {
     Ok(ResourceDescriptor::new_with_socket_size(1, n_cpus))
 }
 
-pub fn print_resource_descriptor(descriptor: &ResourceDescriptor) {
-    println!("Summary: {}", descriptor.summary());
-    println!("Cpu Ids: {}", descriptor.full_describe());
-}
-
 #[cfg(test)]
 mod tests {
     use super::{parse_range, read_linux_numa};

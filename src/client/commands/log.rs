@@ -1,10 +1,8 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::arraydef::IntArray;
-use crate::common::format::human_size;
-use crate::stream::reader::logfile::{LogFile, Summary};
+use crate::stream::reader::logfile::LogFile;
 use clap::Clap;
-use cli_table::{print_stdout, Cell, Style, Table};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 #[derive(Clap)]
@@ -79,49 +77,13 @@ impl FromStr for Channel {
     }
 }
 
-fn print_summary(gsettings: &GlobalSettings, filename: &Path, summary: Summary) {
-    let rows = vec![
-        vec!["Filename".cell().bold(true), filename.display().cell()],
-        vec![
-            "Tasks".cell().bold(true),
-            summary.n_tasks.to_string().cell(),
-        ],
-        vec![
-            "Opened streams".cell().bold(true),
-            summary.n_opened.to_string().cell(),
-        ],
-        vec![
-            "Stdout/stderr size".cell().bold(true),
-            format!(
-                "{} / {}",
-                human_size(summary.stdout_size),
-                human_size(summary.stderr_size)
-            )
-            .cell(),
-        ],
-        vec![
-            "Superseded streams".cell().bold(true),
-            summary.n_superseded.to_string().cell(),
-        ],
-        vec![
-            "Superseded stdout/stderr size".cell().bold(true),
-            format!(
-                "{} / {}",
-                human_size(summary.superseded_stdout_size),
-                human_size(summary.superseded_stderr_size)
-            )
-            .cell(),
-        ],
-    ];
-    let table = rows.table().color_choice(gsettings.color_policy());
-    assert!(print_stdout(table).is_ok());
-}
-
 pub fn command_log(gsettings: GlobalSettings, opts: LogOpts) -> anyhow::Result<()> {
     let mut log_file = LogFile::open(&opts.filename)?;
     match opts.command {
         LogCommand::Summary(_) => {
-            print_summary(&gsettings, &opts.filename, log_file.summary());
+            gsettings
+                .printer()
+                .print_summary(&opts.filename, log_file.summary());
         }
         LogCommand::Show(show_opts) => {
             log_file.show(&show_opts)?;
