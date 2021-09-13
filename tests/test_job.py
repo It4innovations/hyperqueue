@@ -633,7 +633,7 @@ def test_job_wait(hq_env: HqEnv):
     table.check_value_row("State", "FINISHED")
 
     r = hq_env.command(["wait", "all"])
-    assert "1 job skipped" in r
+    assert "1 job finished" in r
 
 
 def test_job_submit_wait(hq_env: HqEnv):

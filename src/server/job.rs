@@ -113,9 +113,7 @@ pub struct Job {
     pub submission_date: DateTime<Utc>,
     pub completion_date: Option<DateTime<Utc>>,
 
-    /// Holds channels that will receive information about the job task counters after the job
-    /// finishes in any way.
-    ///
+    /// Holds channels that will receive information about the job after the it finishes in any way.
     /// You can subscribe to the completion message with [`Self::subscribe_to_completion`].
     completion_callbacks: Vec<oneshot::Sender<JobId>>,
 }

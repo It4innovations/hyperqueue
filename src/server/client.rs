@@ -17,7 +17,7 @@ use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::ServerDir;
 
 use crate::server::autoalloc::{PbsHandler, QueueDescriptor, QueueInfo};
-use crate::server::job::{Job, JobState};
+use crate::server::job::{Job, JobState, JobTaskCounters};
 use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
@@ -140,7 +140,19 @@ pub async fn client_rpc_loop<
     }
 }
 
+/// Waits until all jobs matched by the `selector` are finished (either by completing successfully,
+/// failing or being canceled).
 async fn handle_wait_for_jobs_message(state_ref: &StateRef, selector: Selector) -> ToClientMessage {
+    let update_counters = |response: &mut WaitForJobsResponse, counters: &JobTaskCounters| {
+        if counters.n_canceled_tasks > 0 {
+            response.canceled += 1;
+        } else if counters.n_failed_tasks > 0 {
+            response.failed += 1;
+        } else {
+            response.finished += 1;
+        }
+    };
+
     let (receivers, mut response) = {
         let mut state = state_ref.get_mut();
         let job_ids: Vec<JobId> = get_job_ids(&state, selector);
@@ -152,11 +164,7 @@ async fn handle_wait_for_jobs_message(state_ref: &StateRef, selector: Selector) 
             match state.get_job_mut(job_id) {
                 Some(job) => {
                     if job.is_terminated() {
-                        if job.counters.has_unsuccessful_tasks() {
-                            response.failed += 1;
-                        } else {
-                            response.skipped += 1;
-                        }
+                        update_counters(&mut response, &job.counters);
                     } else {
                         let rx = job.subscribe_to_completion();
                         receivers.push(rx);
@@ -175,13 +183,7 @@ async fn handle_wait_for_jobs_message(state_ref: &StateRef, selector: Selector) 
         match result {
             Ok(job_id) => {
                 match state.get_job(job_id) {
-                    Some(job) => {
-                        if job.counters.has_unsuccessful_tasks() {
-                            response.failed += 1;
-                        } else {
-                            response.finished += 1;
-                        }
-                    }
+                    Some(job) => update_counters(&mut response, &job.counters),
                     None => continue,
                 };
             }
