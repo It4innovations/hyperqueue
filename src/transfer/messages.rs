@@ -273,6 +273,6 @@ pub struct QueueDescriptorData {
 pub struct WaitForJobsResponse {
     pub finished: u32,
     pub failed: u32,
-    pub skipped: u32,
+    pub canceled: u32,
     pub invalid: u32,
 }
