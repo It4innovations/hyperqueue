@@ -95,22 +95,22 @@ pub struct SubmitOpts {
     #[clap(long)]
     pin: bool,
 
-    /// Working directory for the submitted job
+    /// Working directory for the submitted job.
     /// The path must be accessible from a worker node
     #[clap(long, default_value("%{SUBMIT_DIR}"))]
     cwd: PathBuf,
 
-    /// Path where the standard output of the job will be stored
+    /// Path where the standard output of the job will be stored.
     /// The path must be accessible from a worker node
     #[clap(long)]
     stdout: Option<StdioArg>,
 
-    /// Path where the standard error of the job will be stored
+    /// Path where the standard error of the job will be stored.
     /// The path must be accessible from a worker node
     #[clap(long)]
     stderr: Option<StdioArg>,
 
-    /// Specify additional environment variable for the job
+    /// Specify additional environment variable for the job.
     /// You can pass this flag multiple times to pass multiple variables
     ///
     /// `--env=KEY=VAL` - set an environment variable named `KEY` with the value `VAL`
@@ -123,15 +123,17 @@ pub struct SubmitOpts {
     #[clap(long, conflicts_with("array"), value_hint = clap::ValueHint::FilePath)]
     each_line: Option<PathBuf>,
 
-    #[clap(long)]
     /// Create a task array where a task will be created for each number in the specified number range.
     /// Each task will be passed an environment variable `HQ_TASK_ID`.
     ///
     /// `--array=5` - create task array with one job with task ID 5
     ///
     /// `--array=3-5` - create task array with three jobs with task IDs 3, 4, 5
+    #[clap(long)]
     array: Option<IntArray>,
 
+    /// Maximum number of permitted task failures.
+    /// If this limit is reached, the job will fail immediately.
     #[clap(long)]
     max_fails: Option<JobTaskCount>,
 
@@ -146,6 +148,7 @@ pub struct SubmitOpts {
     #[clap(long)]
     wait: bool,
 
+    /// Stream the output of tasks into this log file.
     #[clap(long)]
     log: Option<PathBuf>,
 }
@@ -285,7 +288,7 @@ pub async fn submit_computation(
 pub struct ResubmitOpts {
     job_id: JobId,
 
-    ///  Filter only tasks in a given status
+    /// Filter only tasks in a given state
     #[clap(long)]
     status: Option<StatusList>,
 }
