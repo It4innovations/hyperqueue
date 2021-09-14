@@ -18,7 +18,8 @@ use super::control::StreamServerControlMessage;
 
 use crate::common::WrappedRcRefCell;
 use crate::stream::reader::logfile::{
-    BLOCK_STREAM_CHUNK, BLOCK_STREAM_END, BLOCK_STREAM_START, HQ_LOG_HEADER, HQ_LOG_VERSION,
+    BLOCK_STREAM_CHUNK, BLOCK_STREAM_END, BLOCK_STREAM_OVERVIEW, BLOCK_STREAM_START, HQ_LOG_HEADER,
+    HQ_LOG_VERSION,
 };
 use crate::transfer::messages::StreamStats;
 use crate::transfer::stream::{
@@ -62,16 +63,21 @@ impl StreamServerStateRef {
         })
     }
 
+    /// Returns a stream to be used by the job
+    /// Starts a new stream if it doesn't exist if the job has been registered.
     fn get_stream(&self, job_id: JobId) -> anyhow::Result<Sender<StreamMessage>> {
         let mut state = self.get_mut();
-        if let Some(s) = state.streams.get(&job_id) {
-            Ok(s.clone())
+        if let Some(sender) = state.streams.get(&job_id) {
+            Ok(sender.clone())
         } else if let Some(path) = state.registrations.get(&job_id).cloned() {
             log::debug!("Starting new stream for job {}", job_id);
             let (sender, mut receiver) = channel(STREAM_BUFFER_SIZE);
+            // Insert the new stream into the state
             state.streams.insert(job_id, sender.clone());
             state.files.insert(path.clone());
+
             let state_ref = self.clone();
+
             tokio::task::spawn_local(async move {
                 if let Err(e) = file_writer(&mut receiver, &path).await {
                     error_state(receiver, e.to_string()).await;
@@ -106,6 +112,9 @@ async fn error_state(mut receiver: Receiver<StreamMessage>, message: String) {
     }
 }
 
+/// Registers a file writer that takes the data from the stream and persists it
+/// //todo: use it to write overview right here
+/// //todo: get the path from hyperqueue
 async fn file_writer(receiver: &mut Receiver<StreamMessage>, path: &Path) -> anyhow::Result<()> {
     let mut file = BufWriter::new(File::create(path).await?);
     let mut buffer = BytesMut::with_capacity(24);
@@ -161,6 +170,10 @@ async fn file_writer(receiver: &mut Receiver<StreamMessage>, path: &Path) -> any
                     let _ = response_sender.send(data.into());
                 }
             } //StreamMessage::Close => break,
+            StreamMessage::Message(FromStreamerMessage::WorkerHwOverview(overview), sender) => {
+                buffer.put_u8(BLOCK_STREAM_OVERVIEW);
+                //todo: write the hw_overview to file
+            }
         }
     }
     Ok(())
@@ -181,6 +194,7 @@ pub fn start_stream_server() -> UnboundedSender<StreamServerControlMessage> {
     sender
 }
 
+/// Receives the messages from the streamers and performs the correct action
 async fn receive_loop(
     stream: &Sender<StreamMessage>,
     opened_ids: &mut Set<(JobTaskId, InstanceId)>,
@@ -199,6 +213,9 @@ async fn receive_loop(
 
             FromStreamerMessage::End(m) => {
                 opened_ids.remove(&(m.task, m.instance));
+            }
+            FromStreamerMessage::WorkerHwOverview(hw_overview) => {
+                //todo: what happens when you get it
             }
         };
 
@@ -260,6 +277,7 @@ async fn handle_connection(
     Ok(())
 }
 
+/// Enables Registration of streamers
 async fn stream_server_main(mut control_receiver: UnboundedReceiver<StreamServerControlMessage>) {
     /*let mut registrations: Map<StreamId, PathBuf> = Map::new();
     let mut streams: Map<StreamId, Sender<FromStreamerMessage>>;*/
@@ -267,6 +285,7 @@ async fn stream_server_main(mut control_receiver: UnboundedReceiver<StreamServer
 
     while let Some(msg) = control_receiver.recv().await {
         match msg {
+            // Sent when a new job is added
             StreamServerControlMessage::RegisterStream {
                 job_id,
                 path,
@@ -290,6 +309,7 @@ async fn stream_server_main(mut control_receiver: UnboundedReceiver<StreamServer
             StreamServerControlMessage::AddConnection(connection) => {
                 log::debug!("New connection for stream server");
                 let state_ref = state_ref.clone();
+
                 tokio::task::spawn_local(async move {
                     let address = connection.address.to_string();
                     state_ref.get_mut().connections.insert(address.clone());
@@ -315,6 +335,9 @@ async fn stream_server_main(mut control_receiver: UnboundedReceiver<StreamServer
                         .map(|path| path.to_string_lossy().into())
                         .collect(),
                 });
+            }
+            StreamServerControlMessage::StreamHwOverview(overview) => {
+                //todo: use file writer to write to overview's file
             }
         }
     }

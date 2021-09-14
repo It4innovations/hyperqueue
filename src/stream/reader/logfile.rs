@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::path::Path;
+use tako::messages::gateway::CollectedOverview;
 use tako::InstanceId;
 
 pub const HQ_LOG_HEADER: &[u8] = b"HQ:log";
@@ -15,6 +16,7 @@ pub const HQ_LOG_VERSION: u32 = 0;
 
 pub const BLOCK_STREAM_START: u8 = 0;
 pub const BLOCK_STREAM_CHUNK: u8 = 1;
+pub const BLOCK_STREAM_OVERVIEW: u8 = 3;
 pub const BLOCK_STREAM_END: u8 = 2;
 
 pub struct ChunkInfo {
@@ -105,6 +107,10 @@ enum Block {
     StreamEnd {
         task_id: JobTaskId,
         instance_id: InstanceId,
+    },
+    StreamOverview {
+        hw_overview: CollectedOverview,
+        storage_path: Path, //Storage path comes from hq
     },
 }
 
@@ -263,6 +269,12 @@ impl LogFile {
                     size,
                 }))
             }
+
+            Ok(BLOCK_STREAM_OVERVIEW) => {
+                //todo: output the correct structure
+                //todo: read the file
+            }
+
             Ok(BLOCK_STREAM_END) => {
                 let task_id = file.read_u32::<byteorder::BigEndian>()?;
                 let instance_id = file.read_u32::<byteorder::BigEndian>()?;
@@ -279,6 +291,7 @@ impl LogFile {
         }
     }
 
+    /// Shows the content of the logfile
     pub fn show(&mut self, opts: &ShowOpts) -> anyhow::Result<()> {
         let id_width = if let Some(max_id) = self.index.keys().max() {
             max_id.to_string().len()
@@ -363,6 +376,7 @@ impl LogFile {
                         )?;
                     }
                 }
+                //todo: handle the overview block
                 None => break,
             }
         }

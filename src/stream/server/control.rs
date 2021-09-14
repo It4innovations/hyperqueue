@@ -1,6 +1,7 @@
 use crate::transfer::messages::StreamStats;
 use crate::JobId;
 use std::path::PathBuf;
+use tako::messages::gateway::CollectedOverview;
 use tako::server::rpc::ConnectionDescriptor;
 use tokio::sync::oneshot;
 
@@ -13,4 +14,5 @@ pub enum StreamServerControlMessage {
     UnregisterStream(JobId),
     AddConnection(ConnectionDescriptor),
     Stats(oneshot::Sender<StreamStats>),
+    StreamHwOverview(CollectedOverview),
 }

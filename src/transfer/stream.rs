@@ -1,6 +1,7 @@
 use crate::{JobId, JobTaskId};
 use serde::Deserialize;
 use serde::Serialize;
+use tako::messages::gateway::CollectedOverview;
 use tako::InstanceId;
 
 pub type ChannelId = u32;
@@ -30,11 +31,13 @@ pub struct EndTaskStreamMsg {
     pub instance: InstanceId,
 }
 
+/// To Stream Server
 #[derive(Serialize, Deserialize, Debug)]
 pub enum FromStreamerMessage {
     Start(StartTaskStreamMsg),
     Data(DataMsg),
     End(EndTaskStreamMsg),
+    WorkerHwOverview(CollectedOverview),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -42,6 +45,7 @@ pub struct EndTaskStreamResponseMsg {
     pub task: JobTaskId,
 }
 
+/// From Stream Server
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ToStreamerMessage {
     Error(String),
