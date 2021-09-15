@@ -102,7 +102,7 @@ async fn resend_stdio(
     stream: Rc<StreamSender>,
 ) -> tako::Result<()> {
     if let Some(mut stdio) = stdio {
-        log::debug!("Starting stream {}/{}/1", job_id, job_task_id);
+        log::debug!("Starting stream {}/{}/{}", job_id, job_task_id, channel);
         loop {
             let mut buffer = vec![0; STDIO_BUFFER_SIZE];
             let size = stdio.read(&mut buffer[..]).await?;
@@ -256,6 +256,7 @@ async fn run_task(
                     }
                     r = main_fut => r
             };
+            log::debug!("Waiting for stream termination");
             stream.close().await.map_err(streamer_error)?;
             result
         };
