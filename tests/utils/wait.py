@@ -4,6 +4,10 @@ from typing import Union, List
 DEFAULT_TIMEOUT = 5
 
 
+class TimeoutException(BaseException):
+    pass
+
+
 def wait_until(fn, sleep_s=0.2, timeout_s=DEFAULT_TIMEOUT):
     end = time.time() + timeout_s
 
@@ -12,7 +16,7 @@ def wait_until(fn, sleep_s=0.2, timeout_s=DEFAULT_TIMEOUT):
         if value is not None and value is not False:
             return value
         time.sleep(sleep_s)
-    raise Exception(f"Wait timeouted after {timeout_s} seconds")
+    raise TimeoutException(f"Wait timeouted after {timeout_s} seconds")
 
 
 def wait_for_state(
@@ -33,14 +37,24 @@ def wait_for_state(
     else:
         target_states = set(state.lower() for state in target_states)
 
+    last_table = None
+
     def check():
+        nonlocal last_table
+
         table = env.command(commands, as_table=True)
+        last_table = table
         jobs = [row for row in table[1:] if row[0] in ids]
         return len(jobs) >= len(ids) and all(
             j[state_index].lower() in target_states for j in jobs
         )
 
-    wait_until(check, **kwargs)
+    try:
+        wait_until(check, **kwargs)
+    except TimeoutException as e:
+        if last_table is not None:
+            raise Exception(f"{e}, most recent table:\n{last_table}")
+        raise e
 
 
 def wait_for_job_state(
