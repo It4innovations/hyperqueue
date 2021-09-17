@@ -9,7 +9,6 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Context};
 use clap::Clap;
-use futures::FutureExt;
 use futures::TryFutureExt;
 
 use tako::common::error::DsError;
@@ -102,7 +101,7 @@ async fn resend_stdio(
     stream: Rc<StreamSender>,
 ) -> tako::Result<()> {
     if let Some(mut stdio) = stdio {
-        log::debug!("Starting stream {}/{}/1", job_id, job_task_id);
+        log::debug!("Starting stream {}/{}/{}", job_id, job_task_id, channel);
         loop {
             let mut buffer = vec![0; STDIO_BUFFER_SIZE];
             let size = stdio.read(&mut buffer[..]).await?;
@@ -256,17 +255,32 @@ async fn run_task(
                     }
                     r = main_fut => r
             };
-            stream.close().await.map_err(streamer_error)?;
             result
         };
 
-        Ok(tokio::try_join!(
-            guard_fut,
-            close_responder.map(|r| r
-                .map_err(|_| DsError::GenericError("Connection to stream server closed".into()))?
-                .map_err(streamer_error))
-        )?
-        .0)
+        futures::pin_mut!(guard_fut);
+
+        match futures::future::select(guard_fut, close_responder).await {
+            futures::future::Either::Left((result, close_responder)) => {
+                log::debug!("Waiting for stream termination");
+                stream.close().await.map_err(streamer_error)?;
+                close_responder
+                    .await
+                    .map_err(|_| {
+                        DsError::GenericError("Connection to stream failed while closing".into())
+                    })?
+                    .map_err(streamer_error)?;
+                result
+            }
+            futures::future::Either::Right((result, _)) => Err(match result {
+                Ok(_) => streamer_error(DsError::GenericError(
+                    "Internal error: Stream closed without calling close()".into(),
+                )),
+                Err(_) => streamer_error(DsError::GenericError(
+                    "Connection to stream server closed".into(),
+                )),
+            }),
+        }
     } else {
         tokio::select! {
             biased;
