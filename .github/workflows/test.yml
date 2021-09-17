@@ -47,14 +47,19 @@ jobs:
           python -m pip install pytest
 
       - name: Test Python
+        id: python_test
         run: python -m pytest tests
 
       - name: Archive test artifacts
+        if: always() && steps.python_test.outcome != 'success'
+        run: tar -cvf artifacts.tar /tmp/pytest-*
+
+      - name: Upload test artifacts
         uses: actions/upload-artifact@v2
-        if: ${{ failure() }}
+        if: always() && steps.python_test.outcome != 'success'
         with:
-          name: pytest results
-          path: /tmp/pytest-*
+          name: pytest artifacts
+          path: artifacts.tar
 
       - name: Lint
         uses: actions-rs/cargo@v1
