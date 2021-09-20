@@ -1,13 +1,13 @@
 import contextlib
 import json
 import os
+import time
 from os.path import join
 from typing import List
 
-import time
-
 from .conftest import HqEnv
 from .utils.check import check_error_log
+from .utils.wait import wait_until
 
 
 def test_autoalloc_info(hq_env: HqEnv):
@@ -222,19 +222,28 @@ def test_pbs_allocations_ignore_job_changes_after_finish(hq_env: HqEnv):
 
 
 def test_pbs_delete_active_jobs(hq_env: HqEnv):
-    mock = PbsMock(hq_env, jobs=["1", "2"], qtime="Thu Aug 19 13:05:38 2021", stime="Thu Aug 19 13:05:39 2021",
+    mock = PbsMock(hq_env,
+                   jobs=["1", "2"],
+                   qtime="Thu Aug 19 13:05:38 2021",
+                   stime="Thu Aug 19 13:05:39 2021",
                    mtime="Thu Aug 19 13:05:39 2021")
     mock.set_job_data("R")
 
     with mock.activate():
         process = hq_env.start_server(args=["--autoalloc-interval", "100ms"])
-        add_queue(hq_env, workers=2, max_workers_per_alloc=1)
-        time.sleep(0.3)
+        add_queue(hq_env, name="foo", workers=2, max_workers_per_alloc=1)
+
+        def allocations_up():
+            table = hq_env.command(["auto-alloc", "allocations", "foo"], as_table=True)
+            return len(table) == 3
+
+        wait_until(allocations_up)
 
         hq_env.command(["server", "stop"])
         process.wait()
         hq_env.check_process_exited(process)
 
+        wait_until(lambda: len(mock.deleted_jobs()) == 2)
         assert sorted(mock.deleted_jobs()) == ["1", "2"]
 
 
@@ -299,7 +308,8 @@ import os
 jobid = sys.argv[1]
 
 with open(os.path.join("{self.qdel_dir}", jobid), "w") as f:
-    pass
+    f.write(jobid)
+    f.flush()
 """
 
     @contextlib.contextmanager
