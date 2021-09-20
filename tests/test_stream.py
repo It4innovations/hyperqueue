@@ -164,8 +164,7 @@ def test_stream_stderr(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     result = hq_env.command(["log", "mylog", "show"], as_lines=True)
-    assert result[0] == "0:0> Ok"
-    assert result[1] == "0:1> Error"
+    assert set(result[0:2]) == {"0:0> Ok", "0:1> Error"}
 
     result = hq_env.command(["log", "mylog", "show", "--channel=stdout"], as_lines=True)
     assert result[0] == "0:0> Ok"
