@@ -134,6 +134,7 @@ class TakoEnv(Env):
         secret_file=None,
         nsockets=None,
         hw_interval=None,
+        time_limit=None,
     ):
         port = port or self.default_listen_port
         worker_id = self.id_counter
@@ -167,6 +168,10 @@ class TakoEnv(Env):
         if heartbeat:
             args.append("--heartbeat")
             args.append(str(heartbeat))
+
+        if time_limit:
+            args.append("--time-limit")
+            args.append(str(time_limit))
 
         if secret_file:
             args.append("--secret-file")
@@ -222,6 +227,7 @@ class TakoEnv(Env):
         secret_file=None,
         idle_timeout=None,
         hw_interval=None,
+        time_limit=None,
     ):
         print("Starting tako env in ", self.work_path)
 
@@ -246,7 +252,7 @@ class TakoEnv(Env):
 
         for cpus in workers:
             self.start_worker(
-                cpus, port=port, heartbeat=heartbeat, hw_interval=hw_interval
+                cpus, port=port, heartbeat=heartbeat, hw_interval=hw_interval, time_limit=time_limit
             )
             if worker_start_delay:
                 time.sleep(worker_start_delay)

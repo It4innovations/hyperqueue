@@ -94,6 +94,7 @@ pub struct WorkerConfiguration {
     pub heartbeat_interval: Duration,
     pub hw_state_poll_interval: Option<Duration>,
     pub idle_timeout: Option<Duration>,
+    pub time_limit: Option<Duration>,
 
     pub extra: Map<String, String>,
 }

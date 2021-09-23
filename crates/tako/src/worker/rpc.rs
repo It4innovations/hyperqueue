@@ -125,6 +125,7 @@ pub async fn run_worker(
         tokio::sync::mpsc::unbounded_channel::<(DataObjectRef, (Priority, Priority))>();
     let heartbeat_interval = configuration.heartbeat_interval;
     let hw_state_poll_interval = configuration.hw_state_poll_interval;
+    let time_limit = configuration.time_limit;
 
     let (worker_id, state) = {
         match timeout(Duration::from_secs(15), receiver.next()).await {
@@ -182,11 +183,16 @@ pub async fn run_worker(
     };
 
     let hw_polling_process = match hw_state_poll_interval {
+        None => Either::Left(futures::future::pending()),
         Some(interval) => {
             let sampler = HwSampler::init()?;
             Either::Right(update_hw_state(state.clone(), interval, sampler))
         }
-        None => Either::Left(futures::future::pending()),
+    };
+
+    let time_limit_fut = match time_limit {
+        None => Either::Left(futures::future::pending::<()>()),
+        Some(d) => Either::Right(tokio::time::sleep(d)),
     };
 
     Ok(((worker_id, configuration), async move {
@@ -208,6 +214,9 @@ pub async fn run_worker(
             }
             _ = heartbeat => { unreachable!() }
             _ = hw_polling_process => { unreachable!() }
+            _ = time_limit_fut => {
+                log::info!("Time limit reached");
+            }
         }
     }))
 }
