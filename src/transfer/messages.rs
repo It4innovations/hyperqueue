@@ -255,7 +255,7 @@ pub struct WorkerInfoResponse {
 pub enum AutoAllocResponse {
     QueueCreated(DescriptorId),
     Events(Vec<AllocationEventHolder>),
-    Allocations(Vec<Allocation>),
+    Info(Vec<Allocation>),
     List(AutoAllocListResponse),
 }
 

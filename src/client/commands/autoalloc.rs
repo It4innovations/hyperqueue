@@ -193,7 +193,7 @@ async fn print_allocations(
         descriptor: opts.queue,
     });
     let mut allocations = rpc_call!(connection, message,
-        ToClientMessage::AutoAllocResponse(AutoAllocResponse::Allocations(allocs)) => allocs
+        ToClientMessage::AutoAllocResponse(AutoAllocResponse::Info(allocs)) => allocs
     )
     .await?;
     filter_allocations(&mut allocations, opts.filter);

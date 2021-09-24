@@ -55,199 +55,6 @@ impl CliOutput {
         let table = rows.table().color_choice(self.color_policy);
         assert!(print_stdout(table).is_ok());
     }
-
-    fn stdio_to_cell(stdio: &StdioDef) -> CellStruct {
-        match stdio {
-            StdioDef::Null => "<None>".cell(),
-            StdioDef::File(filename) => filename.display().cell(),
-            StdioDef::Pipe => "<Stream>".cell(),
-        }
-    }
-
-    /// Allocation
-    fn allocation_status_to_cell(status: &AllocationStatus) -> CellStruct {
-        match status {
-            AllocationStatus::Queued => "Queued"
-                .cell()
-                .foreground_color(Some(cli_table::Color::Yellow)),
-            AllocationStatus::Running { .. } => "Running"
-                .cell()
-                .foreground_color(Some(cli_table::Color::Blue)),
-            AllocationStatus::Finished { .. } => "Finished"
-                .cell()
-                .foreground_color(Some(cli_table::Color::Green)),
-            AllocationStatus::Failed { .. } => "Failed"
-                .cell()
-                .foreground_color(Some(cli_table::Color::Red)),
-        }
-    }
-
-    fn allocation_times_from_alloc(allocation: &Allocation) -> AllocationTimes {
-        let mut started = None;
-        let mut finished = None;
-
-        match &allocation.status {
-            AllocationStatus::Queued => {}
-            AllocationStatus::Running { started_at } => {
-                started = Some(started_at);
-            }
-            AllocationStatus::Finished {
-                started_at,
-                finished_at,
-            }
-            | AllocationStatus::Failed {
-                started_at,
-                finished_at,
-            } => {
-                started = Some(started_at);
-                finished = Some(finished_at);
-            }
-        }
-        AllocationTimes {
-            queued_at: allocation.queued_at,
-            started_at: started.cloned(),
-            finished_at: finished.cloned(),
-        }
-    }
-
-    /// Jobs & Tasks
-    fn job_status_to_cell(info: &JobInfo) -> String {
-        let row = |result: &mut String, string, value, color| {
-            if value > 0 {
-                let text = format!("{} ({})", string, value).color(color);
-                writeln!(result, "{}", text).unwrap();
-            }
-        };
-        let mut result = format!(
-            "{}\n",
-            CliOutput::job_progress_bar(info.counters, info.n_tasks, 40)
-        );
-        row(
-            &mut result,
-            "RUNNING",
-            info.counters.n_running_tasks,
-            colored::Color::Yellow,
-        );
-        row(
-            &mut result,
-            "FAILED",
-            info.counters.n_failed_tasks,
-            colored::Color::Red,
-        );
-        row(
-            &mut result,
-            "FINISHED",
-            info.counters.n_finished_tasks,
-            colored::Color::Green,
-        );
-        row(
-            &mut result,
-            "CANCELED",
-            info.counters.n_canceled_tasks,
-            colored::Color::Magenta,
-        );
-        row(
-            &mut result,
-            "WAITING",
-            info.counters.n_waiting_tasks(info.n_tasks),
-            colored::Color::Cyan,
-        );
-        result
-    }
-
-    fn job_progress_bar(counters: JobTaskCounters, n_tasks: JobTaskCount, width: usize) -> String {
-        let mut buffer = String::from("[");
-
-        let parts = vec![
-            (counters.n_canceled_tasks, TASK_COLOR_CANCELED),
-            (counters.n_failed_tasks, TASK_COLOR_FAILED),
-            (counters.n_finished_tasks, TASK_COLOR_FINISHED),
-            (counters.n_running_tasks, TASK_COLOR_RUNNING),
-        ];
-
-        let chars = |count: JobTaskCount| {
-            let ratio = count as f64 / n_tasks as f64;
-            (ratio * width as f64).ceil() as usize
-        };
-
-        let mut total_char_count: usize = 0;
-        for (count, color) in parts {
-            let char_count = std::cmp::min(width - total_char_count, chars(count));
-            write!(buffer, "{}", "#".repeat(char_count).color(color)).unwrap();
-            total_char_count += char_count;
-        }
-        write!(
-            buffer,
-            "{}",
-            ".".repeat(width.saturating_sub(total_char_count))
-        )
-        .unwrap();
-
-        buffer.push(']');
-        buffer
-    }
-
-    fn task_status_to_cell(status: Status) -> CellStruct {
-        match status {
-            Status::Waiting => "WAITING".cell().foreground_color(Some(Color::Cyan)),
-            Status::Finished => "FINISHED".cell().foreground_color(Some(Color::Green)),
-            Status::Failed => "FAILED".cell().foreground_color(Some(Color::Red)),
-            Status::Running => "RUNNING".cell().foreground_color(Some(Color::Yellow)),
-            Status::Canceled => "CANCELED".cell().foreground_color(Some(Color::Magenta)),
-        }
-    }
-
-    /// Formatting
-    fn format_job_workers(job: &JobDetail, worker_map: &WorkerMap) -> String {
-        // BTreeSet is used to both filter duplicates and keep a stable order
-        let worker_set: BTreeSet<_> = job
-            .tasks
-            .iter()
-            .filter_map(|task| task.state.get_worker())
-            .collect();
-        let worker_count = worker_set.len();
-
-        let mut result = worker_set
-            .into_iter()
-            .take(MAX_DISPLAYED_WORKERS)
-            .map(|id| CliOutput::format_worker(id, worker_map))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        if worker_count > MAX_DISPLAYED_WORKERS {
-            write!(result, ", … ({} total)", worker_count).unwrap();
-        }
-
-        result
-    }
-
-    fn format_worker(id: WorkerId, worker_map: &WorkerMap) -> &str {
-        worker_map
-            .get(&id)
-            .map(|s| s.as_str())
-            .unwrap_or_else(|| "N/A")
-    }
-
-    fn format_task_duration(
-        completion_date_or_now: &chrono::DateTime<chrono::Utc>,
-        state: &JobTaskState,
-    ) -> String {
-        let duration = match state {
-            JobTaskState::Canceled | JobTaskState::Waiting => return "".to_string(),
-            JobTaskState::Running { start_date, .. } => *completion_date_or_now - *start_date,
-            JobTaskState::Finished {
-                start_date,
-                end_date,
-                ..
-            }
-            | JobTaskState::Failed {
-                start_date,
-                end_date,
-                ..
-            } => *end_date - *start_date,
-        };
-        human_duration(duration)
-    }
 }
 
 impl Output for CliOutput {
@@ -255,25 +62,41 @@ impl Output for CliOutput {
         let rows: Vec<_> = workers
             .into_iter()
             .map(|worker| {
-                let w = WorkerDetails::from_info(&worker);
+                let manager_info = worker.configuration.get_manager_info();
                 [
-                    w.id.cell().justify(Justify::Right),
-                    match &*w.state {
-                        "RUNNING" => "RUNNING".cell().foreground_color(Some(Color::Green)),
-                        "CONNECTION LOST" => {
-                            "CONNECTION LOST".cell().foreground_color(Some(Color::Red))
-                        }
-                        "HEARTBEAT LOST" => {
-                            "HEARTBEAT LOST".cell().foreground_color(Some(Color::Red))
-                        }
-                        "IDLE TIMEOUT" => "IDLE TIMEOUT".cell().foreground_color(Some(Color::Cyan)),
-                        "STOPPED" => "STOPPED".cell().foreground_color(Some(Color::Magenta)),
-                        _ => "UNKNOWN".cell().foreground_color(Some(Color::White)),
+                    worker.id.cell().justify(Justify::Right),
+                    match worker.ended.as_ref() {
+                        None => "RUNNING".cell().foreground_color(Some(Color::Green)),
+                        Some(WorkerExitInfo {
+                            reason: LostWorkerReasonInfo::ConnectionLost,
+                            ..
+                        }) => "CONNECTION LOST".cell().foreground_color(Some(Color::Red)),
+                        Some(WorkerExitInfo {
+                            reason: LostWorkerReasonInfo::HeartbeatLost,
+                            ..
+                        }) => "HEARTBEAT LOST".cell().foreground_color(Some(Color::Red)),
+                        Some(WorkerExitInfo {
+                            reason: LostWorkerReasonInfo::IdleTimeout,
+                            ..
+                        }) => "IDLE TIMEOUT".cell().foreground_color(Some(Color::Cyan)),
+                        Some(WorkerExitInfo {
+                            reason: LostWorkerReasonInfo::Stopped,
+                            ..
+                        }) => "STOPPED".cell().foreground_color(Some(Color::Magenta)),
                     },
-                    w.hostname.clone().cell(),
-                    w.resources.clone().cell(),
-                    w.manager.clone().cell(),
-                    w.manager_job_id.clone().cell(),
+                    worker.configuration.hostname.cell(),
+                    worker.configuration.resources.summary().cell(),
+                    manager_info
+                        .as_ref()
+                        .map(|info| info.manager.to_string())
+                        .unwrap_or_else(|| "None".to_string())
+                        .cell(),
+                    manager_info
+                        .as_ref()
+                        .map(|info| info.job_id.as_str())
+                        .unwrap_or("N/A")
+                        .to_string()
+                        .cell(),
                 ]
             })
             .collect();
@@ -395,7 +218,7 @@ impl Output for CliOutput {
         let rows: Vec<_> = tasks
             .into_iter()
             .map(|t| {
-                let status = CliOutput::task_status_to_cell(job_status(&t));
+                let status = task_status_to_cell(job_status(&t));
                 vec![
                     t.id.cell().justify(Justify::Right),
                     t.name.cell(),
@@ -429,9 +252,9 @@ impl Output for CliOutput {
         let status = if just_submitted {
             "SUBMITTED".cell().foreground_color(Some(Color::Cyan))
         } else if job.info.n_tasks == 1 {
-            CliOutput::task_status_to_cell(job_status(&job.info))
+            task_status_to_cell(job_status(&job.info))
         } else {
-            CliOutput::job_status_to_cell(&job.info).cell()
+            job_status_to_cell(&job.info).cell()
         };
 
         let state_label = "State".cell().bold(true);
@@ -445,7 +268,7 @@ impl Output for CliOutput {
         rows.push(vec!["Tasks".cell().bold(true), n_tasks.cell()]);
         rows.push(vec![
             "Workers".cell().bold(true),
-            CliOutput::format_job_workers(&job, &worker_map).cell(),
+            format_job_workers(&job, &worker_map).cell(),
         ]);
 
         let resources = cpu_request_to_string(job.resources.cpus());
@@ -475,11 +298,11 @@ impl Output for CliOutput {
         ]);
         rows.push(vec![
             "Stdout".cell().bold(true),
-            CliOutput::stdio_to_cell(&program_def.stdout),
+            stdio_to_cell(&program_def.stdout),
         ]);
         rows.push(vec![
             "Stderr".cell().bold(true),
-            CliOutput::stdio_to_cell(&program_def.stderr),
+            stdio_to_cell(&program_def.stderr),
         ]);
         let mut env_vars: Vec<(_, _)> = program_def
             .env
@@ -548,7 +371,7 @@ impl Output for CliOutput {
         let make_error_row = |t: &JobTaskInfo| match &t.state {
             JobTaskState::Failed { worker, error, .. } => Some(vec![
                 t.task_id.cell(),
-                CliOutput::format_worker(*worker, worker_map).cell(),
+                format_worker(*worker, worker_map).cell(),
                 error.to_owned().cell().foreground_color(Some(Color::Red)),
             ]),
             _ => None,
@@ -560,13 +383,13 @@ impl Output for CliOutput {
                 .map(|t| {
                     vec![
                         t.task_id.cell(),
-                        CliOutput::task_status_to_cell(task_status(&t.state)),
+                        task_status_to_cell(task_status(&t.state)),
                         match t.state.get_worker() {
-                            Some(worker) => CliOutput::format_worker(worker, worker_map),
+                            Some(worker) => format_worker(worker, worker_map),
                             _ => "",
                         }
                         .cell(),
-                        CliOutput::format_task_duration(&completion_date_or_now, &t.state).cell(),
+                        format_task_duration(&completion_date_or_now, &t.state).cell(),
                         match &t.state {
                             JobTaskState::Failed { error, .. } => {
                                 error.to_owned().cell().foreground_color(Some(Color::Red))
@@ -783,10 +606,10 @@ impl Output for CliOutput {
 
         allocations.sort_unstable_by(|a, b| a.id.cmp(&b.id));
         rows.extend(allocations.into_iter().map(|allocation| {
-            let times = CliOutput::allocation_times_from_alloc(&allocation);
+            let times = allocation_times_from_alloc(&allocation);
             vec![
                 allocation.id.cell(),
-                CliOutput::allocation_status_to_cell(&allocation.status),
+                allocation_status_to_cell(&allocation.status),
                 allocation.working_dir.display().cell(),
                 allocation.worker_count.cell(),
                 format_time(Some(times.get_queued_at())),
@@ -800,56 +623,6 @@ impl Output for CliOutput {
     fn print_hw(&self, descriptor: &ResourceDescriptor) {
         println!("Summary: {}", descriptor.summary());
         println!("Cpu Ids: {}", descriptor.full_describe());
-    }
-}
-
-struct WorkerDetails {
-    id: WorkerId,
-    state: String,
-    hostname: String,
-    resources: String,
-    manager: String,
-    manager_job_id: String,
-}
-
-impl WorkerDetails {
-    fn from_info(worker: &WorkerInfo) -> WorkerDetails {
-        let manager_info = worker.configuration.get_manager_info();
-        WorkerDetails {
-            id: worker.id,
-            state: match worker.ended {
-                None => "RUNNING",
-                Some(WorkerExitInfo {
-                    reason: LostWorkerReasonInfo::ConnectionLost,
-                    ..
-                }) => "CONNECTION LOST",
-                Some(WorkerExitInfo {
-                    reason: LostWorkerReasonInfo::HeartbeatLost,
-                    ..
-                }) => "HEARTBEAT LOST",
-                Some(WorkerExitInfo {
-                    reason: LostWorkerReasonInfo::IdleTimeout,
-                    ..
-                }) => "IDLE TIMEOUT",
-                Some(WorkerExitInfo {
-                    reason: LostWorkerReasonInfo::Stopped,
-                    ..
-                }) => "STOPPED",
-            }
-            .parse()
-            .unwrap(),
-            hostname: worker.configuration.hostname.clone(),
-            resources: worker.configuration.resources.summary(),
-            manager: manager_info
-                .as_ref()
-                .map(|info| info.manager.to_string())
-                .unwrap_or_else(|| "None".to_string()),
-            manager_job_id: manager_info
-                .as_ref()
-                .map(|info| info.job_id.as_str())
-                .unwrap_or("N/A")
-                .to_string(),
-        }
     }
 }
 
@@ -869,4 +642,194 @@ impl AllocationTimes {
     fn get_finished_at(&self) -> Option<SystemTime> {
         self.finished_at
     }
+}
+
+fn stdio_to_cell(stdio: &StdioDef) -> CellStruct {
+    match stdio {
+        StdioDef::Null => "<None>".cell(),
+        StdioDef::File(filename) => filename.display().cell(),
+        StdioDef::Pipe => "<Stream>".cell(),
+    }
+}
+
+/// Allocation
+fn allocation_status_to_cell(status: &AllocationStatus) -> CellStruct {
+    match status {
+        AllocationStatus::Queued => "Queued"
+            .cell()
+            .foreground_color(Some(cli_table::Color::Yellow)),
+        AllocationStatus::Running { .. } => "Running"
+            .cell()
+            .foreground_color(Some(cli_table::Color::Blue)),
+        AllocationStatus::Finished { .. } => "Finished"
+            .cell()
+            .foreground_color(Some(cli_table::Color::Green)),
+        AllocationStatus::Failed { .. } => "Failed"
+            .cell()
+            .foreground_color(Some(cli_table::Color::Red)),
+    }
+}
+
+fn allocation_times_from_alloc(allocation: &Allocation) -> AllocationTimes {
+    let mut started = None;
+    let mut finished = None;
+
+    match &allocation.status {
+        AllocationStatus::Queued => {}
+        AllocationStatus::Running { started_at } => {
+            started = Some(started_at);
+        }
+        AllocationStatus::Finished {
+            started_at,
+            finished_at,
+        }
+        | AllocationStatus::Failed {
+            started_at,
+            finished_at,
+        } => {
+            started = Some(started_at);
+            finished = Some(finished_at);
+        }
+    }
+    AllocationTimes {
+        queued_at: allocation.queued_at,
+        started_at: started.cloned(),
+        finished_at: finished.cloned(),
+    }
+}
+
+/// Jobs & Tasks
+fn job_status_to_cell(info: &JobInfo) -> String {
+    let row = |result: &mut String, string, value, color| {
+        if value > 0 {
+            let text = format!("{} ({})", string, value).color(color);
+            writeln!(result, "{}", text).unwrap();
+        }
+    };
+    let mut result = format!("{}\n", job_progress_bar(info.counters, info.n_tasks, 40));
+    row(
+        &mut result,
+        "RUNNING",
+        info.counters.n_running_tasks,
+        colored::Color::Yellow,
+    );
+    row(
+        &mut result,
+        "FAILED",
+        info.counters.n_failed_tasks,
+        colored::Color::Red,
+    );
+    row(
+        &mut result,
+        "FINISHED",
+        info.counters.n_finished_tasks,
+        colored::Color::Green,
+    );
+    row(
+        &mut result,
+        "CANCELED",
+        info.counters.n_canceled_tasks,
+        colored::Color::Magenta,
+    );
+    row(
+        &mut result,
+        "WAITING",
+        info.counters.n_waiting_tasks(info.n_tasks),
+        colored::Color::Cyan,
+    );
+    result
+}
+
+fn job_progress_bar(counters: JobTaskCounters, n_tasks: JobTaskCount, width: usize) -> String {
+    let mut buffer = String::from("[");
+
+    let parts = vec![
+        (counters.n_canceled_tasks, TASK_COLOR_CANCELED),
+        (counters.n_failed_tasks, TASK_COLOR_FAILED),
+        (counters.n_finished_tasks, TASK_COLOR_FINISHED),
+        (counters.n_running_tasks, TASK_COLOR_RUNNING),
+    ];
+
+    let chars = |count: JobTaskCount| {
+        let ratio = count as f64 / n_tasks as f64;
+        (ratio * width as f64).ceil() as usize
+    };
+
+    let mut total_char_count: usize = 0;
+    for (count, color) in parts {
+        let char_count = std::cmp::min(width - total_char_count, chars(count));
+        write!(buffer, "{}", "#".repeat(char_count).color(color)).unwrap();
+        total_char_count += char_count;
+    }
+    write!(
+        buffer,
+        "{}",
+        ".".repeat(width.saturating_sub(total_char_count))
+    )
+    .unwrap();
+
+    buffer.push(']');
+    buffer
+}
+
+fn task_status_to_cell(status: Status) -> CellStruct {
+    match status {
+        Status::Waiting => "WAITING".cell().foreground_color(Some(Color::Cyan)),
+        Status::Finished => "FINISHED".cell().foreground_color(Some(Color::Green)),
+        Status::Failed => "FAILED".cell().foreground_color(Some(Color::Red)),
+        Status::Running => "RUNNING".cell().foreground_color(Some(Color::Yellow)),
+        Status::Canceled => "CANCELED".cell().foreground_color(Some(Color::Magenta)),
+    }
+}
+
+/// Formatting
+fn format_job_workers(job: &JobDetail, worker_map: &WorkerMap) -> String {
+    // BTreeSet is used to both filter duplicates and keep a stable order
+    let worker_set: BTreeSet<_> = job
+        .tasks
+        .iter()
+        .filter_map(|task| task.state.get_worker())
+        .collect();
+    let worker_count = worker_set.len();
+
+    let mut result = worker_set
+        .into_iter()
+        .take(MAX_DISPLAYED_WORKERS)
+        .map(|id| format_worker(id, worker_map))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    if worker_count > MAX_DISPLAYED_WORKERS {
+        write!(result, ", … ({} total)", worker_count).unwrap();
+    }
+
+    result
+}
+
+fn format_worker(id: WorkerId, worker_map: &WorkerMap) -> &str {
+    worker_map
+        .get(&id)
+        .map(|s| s.as_str())
+        .unwrap_or_else(|| "N/A")
+}
+
+fn format_task_duration(
+    completion_date_or_now: &chrono::DateTime<chrono::Utc>,
+    state: &JobTaskState,
+) -> String {
+    let duration = match state {
+        JobTaskState::Canceled | JobTaskState::Waiting => return "".to_string(),
+        JobTaskState::Running { start_date, .. } => *completion_date_or_now - *start_date,
+        JobTaskState::Finished {
+            start_date,
+            end_date,
+            ..
+        }
+        | JobTaskState::Failed {
+            start_date,
+            end_date,
+            ..
+        } => *end_date - *start_date,
+    };
+    human_duration(duration)
 }
