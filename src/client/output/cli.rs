@@ -679,14 +679,7 @@ impl Output for CliOutput {
         self.print_table(rows);
     }
 
-    fn print_autoalloc_info(&self, info: AutoAllocInfoResponse) {
-        let rows = vec![vec![
-            "Refresh interval".cell().bold(true),
-            humantime::format_duration(info.refresh_interval).cell(),
-        ]];
-        let table = rows.table().color_choice(self.color_policy);
-        assert!(print_stdout(table).is_ok());
-
+    fn print_autoalloc_queues(&self, info: AutoAllocInfoResponse) {
         let mut rows = vec![vec![
             "Name".cell().bold(true),
             "Target worker count".cell().bold(true),
