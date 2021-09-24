@@ -5,7 +5,7 @@ use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
-use crate::server::autoalloc::{Allocation, AllocationEventHolder, QueueInfo};
+use crate::server::autoalloc::{Allocation, AllocationEventHolder, DescriptorId, QueueInfo};
 use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
 use bstr::BString;
@@ -100,9 +100,9 @@ pub struct WorkerInfoRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AutoAllocRequest {
-    Info,
-    Events { descriptor: String },
-    Allocations { descriptor: String },
+    List,
+    Events { descriptor: DescriptorId },
+    Info { descriptor: DescriptorId },
     AddQueue(AddQueueRequest),
 }
 
@@ -113,11 +113,11 @@ pub enum AddQueueRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AddQueueParams {
-    pub name: String,
     pub max_workers_per_alloc: u32,
     pub target_worker_count: u32,
     pub queue: String,
     pub timelimit: Option<Duration>,
+    pub name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -252,7 +252,7 @@ pub struct WorkerInfoResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AutoAllocResponse {
-    Ok,
+    QueueCreated(DescriptorId),
     Events(Vec<AllocationEventHolder>),
     Allocations(Vec<Allocation>),
     Info(AutoAllocInfoResponse),
@@ -261,7 +261,7 @@ pub enum AutoAllocResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AutoAllocInfoResponse {
     pub refresh_interval: Duration,
-    pub descriptors: Map<String, QueueDescriptorData>,
+    pub descriptors: Map<DescriptorId, QueueDescriptorData>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

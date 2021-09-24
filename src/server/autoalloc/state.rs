@@ -1,19 +1,22 @@
-use crate::server::autoalloc::descriptor::QueueDescriptor;
-use crate::server::autoalloc::AutoAllocResult;
-use crate::Map;
-use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
+use serde::{Deserialize, Serialize};
+
+use crate::common::idcounter::IdCounter;
+use crate::server::autoalloc::descriptor::QueueDescriptor;
+use crate::Map;
+
 const MAX_EVENT_QUEUE_LENGTH: usize = 100;
 
-pub type DescriptorName = String;
+pub type DescriptorId = u32;
 
 pub struct AutoAllocState {
     /// How often should the auto alloc process be invoked?
     refresh_interval: Duration,
-    descriptors: Map<DescriptorName, DescriptorState>,
+    descriptors: Map<DescriptorId, DescriptorState>,
+    descriptor_id_counter: IdCounter,
 }
 
 impl AutoAllocState {
@@ -21,6 +24,7 @@ impl AutoAllocState {
         Self {
             refresh_interval,
             descriptors: Default::default(),
+            descriptor_id_counter: IdCounter::new(1),
         }
     }
 
@@ -28,35 +32,28 @@ impl AutoAllocState {
         self.refresh_interval
     }
 
-    pub fn add_descriptor(
-        &mut self,
-        name: DescriptorName,
-        descriptor: QueueDescriptor,
-    ) -> AutoAllocResult<()> {
-        if self.descriptors.contains_key(&name) {
-            return Err(anyhow::anyhow!(format!(
-                "Descriptor {} already exists",
-                name
-            )));
-        }
-        self.descriptors.insert(name, descriptor.into());
-        Ok(())
+    pub fn create_id(&mut self) -> DescriptorId {
+        self.descriptor_id_counter.increment()
     }
 
-    pub fn get_descriptor(&self, key: &str) -> Option<&DescriptorState> {
-        self.descriptors.get(key)
+    pub fn add_descriptor(&mut self, id: DescriptorId, descriptor: QueueDescriptor) {
+        assert!(self.descriptors.insert(id, descriptor.into()).is_none());
     }
 
-    pub fn get_descriptor_mut(&mut self, key: &str) -> Option<&mut DescriptorState> {
-        self.descriptors.get_mut(key)
+    pub fn get_descriptor(&self, key: DescriptorId) -> Option<&DescriptorState> {
+        self.descriptors.get(&key)
     }
 
-    pub fn descriptor_names(&self) -> impl Iterator<Item = &str> {
-        self.descriptors.keys().map(|s| s.as_str())
+    pub fn get_descriptor_mut(&mut self, key: DescriptorId) -> Option<&mut DescriptorState> {
+        self.descriptors.get_mut(&key)
     }
 
-    pub fn descriptors(&self) -> impl Iterator<Item = (&str, &DescriptorState)> {
-        self.descriptors.iter().map(|(k, v)| (k.as_str(), v))
+    pub fn descriptor_ids(&self) -> impl Iterator<Item = DescriptorId> + '_ {
+        self.descriptors.keys().copied()
+    }
+
+    pub fn descriptors(&self) -> impl Iterator<Item = (DescriptorId, &DescriptorState)> {
+        self.descriptors.iter().map(|(k, v)| (*k, v))
     }
 }
 
@@ -180,60 +177,5 @@ impl From<AllocationEvent> for AllocationEventHolder {
             date: SystemTime::now(),
             event,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::common::manager::info::ManagerType;
-    use crate::server::autoalloc::descriptor::{CreatedAllocation, QueueHandler};
-    use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
-    use crate::server::autoalloc::{AutoAllocResult, AutoAllocState, QueueDescriptor, QueueInfo};
-    use std::future::Future;
-    use std::pin::Pin;
-    use std::time::Duration;
-
-    #[test]
-    fn test_add_descriptor_with_same_name_twice() {
-        let mut state = AutoAllocState::new(Duration::from_secs(1));
-
-        impl QueueHandler for () {
-            fn schedule_allocation(
-                &self,
-                _worker_count: u64,
-            ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>> {
-                todo!()
-            }
-
-            fn get_allocation_status(
-                &self,
-                _allocation_id: AllocationId,
-            ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>>
-            {
-                todo!()
-            }
-
-            fn remove_allocation(
-                &self,
-                _allocation_id: AllocationId,
-            ) -> Pin<Box<dyn Future<Output = AutoAllocResult<()>>>> {
-                todo!()
-            }
-        }
-
-        let info = QueueInfo::new("".to_string(), 1, 1, None);
-        let name = "foo".to_string();
-        assert!(state
-            .add_descriptor(
-                name.clone(),
-                QueueDescriptor::new(ManagerType::Pbs, info.clone(), Box::new(()))
-            )
-            .is_ok());
-        assert!(state
-            .add_descriptor(
-                name,
-                QueueDescriptor::new(ManagerType::Pbs, info.clone(), Box::new(()))
-            )
-            .is_err());
     }
 }

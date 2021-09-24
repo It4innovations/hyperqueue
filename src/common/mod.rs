@@ -6,6 +6,7 @@ pub mod env;
 pub mod error;
 pub mod format;
 pub mod fsutils;
+pub mod idcounter;
 pub mod manager;
 pub mod parser;
 pub mod placeholders;

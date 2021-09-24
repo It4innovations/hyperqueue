@@ -5,7 +5,7 @@ use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
 use crate::common::timeutils::local_to_system_time;
 use crate::server::autoalloc::descriptor::{CreatedAllocation, QueueHandler};
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
-use crate::server::autoalloc::AutoAllocResult;
+use crate::server::autoalloc::{AutoAllocResult, DescriptorId};
 use anyhow::Context;
 use bstr::{ByteSlice, ByteVec};
 use std::future::Future;
@@ -19,7 +19,7 @@ pub struct PbsHandler {
     queue: String,
     timelimit: Option<Duration>,
     server_directory: PathBuf,
-    name: String,
+    id: DescriptorId,
     hq_path: PathBuf,
     qstat_path: PathBuf,
 }
@@ -28,7 +28,7 @@ impl PbsHandler {
     pub async fn new(
         queue: String,
         timelimit: Option<Duration>,
-        name: String,
+        id: DescriptorId,
         server_directory: PathBuf,
     ) -> anyhow::Result<Self> {
         let hq_path = std::env::current_exe().context("Cannot get HyperQueue path")?;
@@ -40,7 +40,7 @@ impl PbsHandler {
             queue,
             timelimit,
             server_directory,
-            name,
+            id,
             hq_path,
             qstat_path,
         })
@@ -67,7 +67,7 @@ impl QueueHandler for PbsHandler {
         let hq_path = self.hq_path.display().to_string();
         let qstat_path = self.qstat_path.display().to_string();
         let server_directory = self.server_directory.clone();
-        let name = self.name.clone();
+        let name = self.id.to_string();
 
         Box::pin(async move {
             let directory = create_allocation_dir(server_directory.clone(), &name)?;

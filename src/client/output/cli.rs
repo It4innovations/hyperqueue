@@ -681,7 +681,7 @@ impl Output for CliOutput {
 
     fn print_autoalloc_queues(&self, info: AutoAllocInfoResponse) {
         let mut rows = vec![vec![
-            "Name".cell().bold(true),
+            "ID".cell().bold(true),
             "Target worker count".cell().bold(true),
             "Max workers per allocation".cell().bold(true),
             "Queue".cell().bold(true),
@@ -691,9 +691,9 @@ impl Output for CliOutput {
         let mut descriptors: Vec<_> = info.descriptors.into_iter().collect();
         descriptors.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
-        rows.extend(descriptors.into_iter().map(|(name, data)| {
+        rows.extend(descriptors.into_iter().map(|(id, data)| {
             vec![
-                name.cell(),
+                id.cell(),
                 data.info.target_worker_count().cell(),
                 data.info.max_workers_per_alloc().cell(),
                 data.info.queue().cell(),

@@ -16,7 +16,7 @@ use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::ServerDir;
 
-use crate::server::autoalloc::{PbsHandler, QueueDescriptor, QueueInfo};
+use crate::server::autoalloc::{DescriptorId, PbsHandler, QueueDescriptor, QueueInfo};
 use crate::server::job::{Job, JobState, JobTaskCounters};
 use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
@@ -201,7 +201,7 @@ async fn handle_autoalloc_message(
     request: AutoAllocRequest,
 ) -> ToClientMessage {
     match request {
-        AutoAllocRequest::Info => {
+        AutoAllocRequest::List => {
             let state = state_ref.get();
             let autoalloc = state.get_autoalloc_state();
             let refresh_interval = autoalloc.refresh_interval();
@@ -209,9 +209,9 @@ async fn handle_autoalloc_message(
                 refresh_interval,
                 descriptors: autoalloc
                     .descriptors()
-                    .map(|(name, descriptor)| {
+                    .map(|(id, descriptor)| {
                         (
-                            name.to_string(),
+                            id,
                             QueueDescriptorData {
                                 info: descriptor.descriptor.info().clone(),
                             },
@@ -222,15 +222,15 @@ async fn handle_autoalloc_message(
         }
         AutoAllocRequest::AddQueue(params) => create_queue(server_dir, state_ref, params).await,
         AutoAllocRequest::Events { descriptor } => get_event_log(state_ref, descriptor),
-        AutoAllocRequest::Allocations { descriptor } => get_allocations(state_ref, descriptor),
+        AutoAllocRequest::Info { descriptor } => get_allocations(state_ref, descriptor),
     }
 }
 
-fn get_allocations(state_ref: &StateRef, descriptor: String) -> ToClientMessage {
+fn get_allocations(state_ref: &StateRef, descriptor: DescriptorId) -> ToClientMessage {
     let state = state_ref.get();
     let autoalloc = state.get_autoalloc_state();
 
-    match autoalloc.get_descriptor(&descriptor) {
+    match autoalloc.get_descriptor(descriptor) {
         Some(descriptor) => ToClientMessage::AutoAllocResponse(AutoAllocResponse::Allocations(
             descriptor.all_allocations().cloned().collect(),
         )),
@@ -238,11 +238,11 @@ fn get_allocations(state_ref: &StateRef, descriptor: String) -> ToClientMessage 
     }
 }
 
-fn get_event_log(state_ref: &StateRef, descriptor: String) -> ToClientMessage {
+fn get_event_log(state_ref: &StateRef, descriptor: DescriptorId) -> ToClientMessage {
     let state = state_ref.get();
     let autoalloc = state.get_autoalloc_state();
 
-    match autoalloc.get_descriptor(&descriptor) {
+    match autoalloc.get_descriptor(descriptor) {
         Some(descriptor) => ToClientMessage::AutoAllocResponse(AutoAllocResponse::Events(
             descriptor.get_events().iter().cloned().collect(),
         )),
@@ -263,10 +263,12 @@ async fn create_queue(
                 params.target_worker_count,
                 params.timelimit,
             );
+
+            let id = state_ref.get_mut().get_autoalloc_state_mut().create_id();
             let handler = PbsHandler::new(
                 params.queue,
                 params.timelimit,
-                params.name.clone(),
+                id,
                 server_dir.directory().to_path_buf(),
             )
             .await;
@@ -278,7 +280,8 @@ async fn create_queue(
                     state_ref
                         .get_mut()
                         .get_autoalloc_state_mut()
-                        .add_descriptor(params.name, descriptor)
+                        .add_descriptor(id, descriptor);
+                    Ok(id)
                 }
                 Err(e) => Err(e),
             }
@@ -286,7 +289,7 @@ async fn create_queue(
     };
 
     match result {
-        Ok(_) => ToClientMessage::AutoAllocResponse(AutoAllocResponse::Ok),
+        Ok(id) => ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreated(id)),
         Err(err) => ToClientMessage::Error(format!("Could not create autoalloc queue: {}", err)),
     }
 }
