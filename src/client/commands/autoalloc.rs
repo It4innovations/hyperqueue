@@ -48,23 +48,23 @@ pub enum AddQueueCommand {
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 pub struct AddPbsQueueOpts {
     /// Name of the allocation queue
-    #[clap(long)]
+    #[clap(long, short)]
     name: String,
 
     /// PBS queue into which the allocations will be queued
-    #[clap(long)]
+    #[clap(long, short)]
     queue: String,
 
     /// How many workers should be kept active in this queue
-    #[clap(long("workers"))]
+    #[clap(long("workers"), short('w'))]
     target_worker_count: u32,
 
     /// Time limit (walltime) of PBS allocations
-    #[clap(long)]
+    #[clap(long, short('t'))]
     time_limit: Option<ArgDuration>,
 
     /// How many workers at most can be allocated in a single allocation
-    #[clap(long, default_value = "1")]
+    #[clap(long, short('m'), default_value = "1")]
     max_workers_per_alloc: u32,
 }
 
