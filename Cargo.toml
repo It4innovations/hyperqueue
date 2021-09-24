@@ -23,7 +23,6 @@ futures = "0.3"
 tokio = { version = "1.8", features = ["full"] }
 tokio-util = { version = "0.6", features = ["codec"] }
 clap = "3.0.0-beta.2"
-jemallocator = "0.3.2"
 rmp-serde = "0.15.4"
 rmpv = { version = "0.4", features = ["with-serde"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -41,8 +40,6 @@ gethostname = "0.2.1"
 chrono = { version = "0.4.19", features = ["serde"] }
 orion = "0.16.0"
 hex = "0.4.3"
-# tako = { path = "../tako" }
-tako = { git = "https://github.com/spirali/tako", branch = "main" }
 tempdir = "0.3.7"
 humantime = "2.1.0"
 num_cpus = "1.13.0"
@@ -54,6 +51,16 @@ byteorder = "1.4"
 smallvec = "1.6.1"
 const_format = "0.2.19"
 
+# Tako
+#tako = { path = "../tako", default-features = false }
+tako = { git = "https://github.com/spirali/tako", branch = "main", default-features = false }
+
+# Optional dependencies
+jemallocator = { version = "0.3.2", optional = true }
+
 [features]
+default = ["jemalloc"]
 # Mode that does not execute tasks, useful for benchmarking HQ overhead
 zero-worker = []
+# Use the jemalloc allocator
+jemalloc = ["jemallocator", "tako/jemalloc"]
