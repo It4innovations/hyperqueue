@@ -231,7 +231,7 @@ fn get_allocations(state_ref: &StateRef, descriptor: DescriptorId) -> ToClientMe
     let autoalloc = state.get_autoalloc_state();
 
     match autoalloc.get_descriptor(descriptor) {
-        Some(descriptor) => ToClientMessage::AutoAllocResponse(AutoAllocResponse::Allocations(
+        Some(descriptor) => ToClientMessage::AutoAllocResponse(AutoAllocResponse::Info(
             descriptor.all_allocations().cloned().collect(),
         )),
         None => ToClientMessage::Error(format!("Descriptor {} not found", descriptor)),
