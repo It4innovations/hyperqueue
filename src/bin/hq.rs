@@ -84,6 +84,7 @@ enum SubCommand {
     /// Operations with log
     Log(LogOpts),
     /// Auto allocation management
+    #[clap(name = "alloc")]
     AutoAlloc(AutoAllocOpts),
 }
 
