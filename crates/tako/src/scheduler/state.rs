@@ -21,6 +21,9 @@ use crate::{TaskId, WorkerId};
 use super::metrics::compute_b_level_metric;
 use super::utils::task_transfer_cost;
 
+// Long duration - 1 year
+const LONG_DURATION: std::time::Duration = std::time::Duration::from_secs(365 * 24 * 60 * 60);
+
 pub(crate) struct SchedulerState {
     // Which tasks has modified state, this map holds the original state
     dirty_tasks: Map<TaskRef, TaskRuntimeState>,
@@ -33,12 +36,14 @@ fn choose_worker_for_task(
     worker_map: &Map<WorkerId, Worker>,
     random: &mut SmallRng,
     workers: &mut Vec<WorkerId>,
+    now: std::time::Instant,
 ) -> Option<WorkerId> {
     let mut costs = u64::MAX;
     for worker in worker_map.values() {
-        if !worker.is_capable_to_run(&task.configuration.resources) {
+        if !worker.is_capable_to_run(&task.configuration.resources, now) {
             continue;
         }
+
         let c = task_transfer_cost(task, worker.id);
         match c.cmp(&costs) {
             Ordering::Less => {
@@ -216,6 +221,7 @@ impl SchedulerState {
 
         let ready_tasks = core.take_ready_to_assign();
         if !ready_tasks.is_empty() {
+            let now = std::time::Instant::now();
             let mut tmp_workers = Vec::with_capacity(core.get_worker_map().len());
             for tr in ready_tasks.into_iter() {
                 let mut task = tr.get_mut();
@@ -226,6 +232,7 @@ impl SchedulerState {
                     core.get_worker_map(),
                     &mut self.random,
                     &mut tmp_workers,
+                    now,
                 );
                 //log::debug!("Task {} initially assigned to {}", task.id, worker_id);
                 if let Some(worker_id) = worker_id {
@@ -251,6 +258,7 @@ impl SchedulerState {
 
         let mut balanced_tasks = Vec::new();
         let mut min_resource = ResourceRequestLowerBound::default();
+        let now = std::time::Instant::now();
 
         for worker in core.get_workers() {
             let mut offered = 0;
@@ -258,7 +266,9 @@ impl SchedulerState {
             for tr in worker.tasks() {
                 let mut task = tr.get_mut();
                 if task.is_running()
-                    || (not_overloaded && (task.is_fresh() || !task.inputs.is_empty()))
+                    || (not_overloaded
+                        && (task.is_fresh() || !task.inputs.is_empty())
+                        && worker.has_time_to_run(task.configuration.resources.min_time(), now))
                 {
                     continue;
                 }
@@ -316,7 +326,12 @@ impl SchedulerState {
                     println!("LIST {} {}", tr.get().id(), tr.get().resources.get_n_cpus());
                 }*/
                 let len = ts.len();
-                underload_workers.push((worker.id, ts, len));
+                underload_workers.push((
+                    worker.id,
+                    ts,
+                    len,
+                    worker.remaining_time(now).unwrap_or(LONG_DURATION),
+                ));
             }
         }
 
@@ -327,8 +342,9 @@ impl SchedulerState {
             return;
         }
 
-        /* Micro heuristic, give small priority to workers with less tasks */
-        underload_workers.sort_unstable_by_key(|(_, ts, _)| ts.len());
+        /* Micro heuristic, give small priority to workers with less tasks and with less remaining time */
+        underload_workers
+            .sort_unstable_by_key(|(_, ts, _, remaining_time)| (ts.len(), *remaining_time));
 
         /* Iteration 1 - try to assign tasks so workers are not longer underutilized */
         /* This should be always relatively quick even with million of tasks and many workers,
@@ -337,7 +353,7 @@ impl SchedulerState {
         */
         loop {
             let mut changed = false;
-            for (worker_id, ts, pos) in underload_workers.iter_mut() {
+            for (worker_id, ts, pos, _) in underload_workers.iter_mut() {
                 let worker = core.get_worker_by_id_or_panic(*worker_id);
                 if !worker.have_immediate_resources_for_lb(&min_resource) {
                     continue;
@@ -346,6 +362,9 @@ impl SchedulerState {
                     *pos -= 1;
                     let mut task = ts[*pos].get_mut();
                     if task.is_taken() {
+                        continue;
+                    }
+                    if !worker.has_time_to_run(task.configuration.resources.min_time(), now) {
                         continue;
                     }
                     if !worker.have_immediate_resources_for_rq(&task.configuration.resources) {
@@ -380,22 +399,19 @@ impl SchedulerState {
 
         loop {
             let mut changed = false;
-            for (worker_id, ts, _) in underload_workers.iter_mut() {
+            for (worker_id, ts, _, _) in underload_workers.iter_mut() {
                 let worker = core.get_worker_by_id_or_panic(*worker_id);
                 while let Some(tr) = ts.pop() {
                     let mut task = tr.get_mut();
                     if task.is_taken() {
                         continue;
                     }
+                    if !worker.has_time_to_run(task.configuration.resources.min_time(), now) {
+                        continue;
+                    }
+
                     let worker2_id = task.get_assigned_worker().unwrap();
                     let worker2 = core.get_worker_by_id_or_panic(worker2_id);
-
-                    /*dbg!(&worker.id);
-                    dbg!(&worker.load);
-                    dbg!(&worker.configuration.resources);
-                    dbg!(&worker2.id);
-                    dbg!(&worker2.load);
-                    dbg!(&worker2.configuration.resources);*/
 
                     if !worker2.is_overloaded() || !worker2.is_more_loaded_then(worker) {
                         continue;

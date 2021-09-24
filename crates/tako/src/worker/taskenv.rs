@@ -32,6 +32,7 @@ pub struct TaskEnv {
 }
 
 impl TaskEnv {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         TaskEnv { stop_sender: None }
     }
@@ -54,7 +55,7 @@ impl TaskEnv {
         let (end_sender, end_receiver) = oneshot::channel();
         self.stop_sender = Some(end_sender);
 
-        let task_fut = (*state.task_launcher)(&task_ref, end_receiver);
+        let task_fut = (*state.task_launcher)(task_ref, end_receiver);
         let state_ref = state.self_ref();
         let task_ref = task_ref.clone();
 

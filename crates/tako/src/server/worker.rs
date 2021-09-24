@@ -2,14 +2,15 @@ use std::fmt;
 
 use tokio::sync::oneshot;
 
-use crate::common::resources::NumOfCpus;
 use crate::common::resources::ResourceRequest;
+use crate::common::resources::{NumOfCpus, TimeRequest};
 use crate::common::Set;
 use crate::messages::common::WorkerConfiguration;
 use crate::messages::worker::WorkerOverview;
 use crate::server::task::{Task, TaskRef};
 use crate::server::worker_load::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
 use crate::WorkerId;
+use std::time::Duration;
 
 bitflags::bitflags! {
     pub struct WorkerFlags: u32 {
@@ -26,12 +27,14 @@ pub struct Worker {
     pub id: WorkerId,
 
     // This is list of assigned tasks
-    // !! In case of stealinig T from W1 to W2, T is in "tasks" of W2, even T was not yet canceled from W1.
+    // !! In case of stealing T from W1 to W2, T is in "tasks" of W2, even T was not yet canceled from W1.
     tasks: Set<TaskRef>,
 
     pub load: WorkerLoad,
     pub resources: WorkerResources,
     pub flags: WorkerFlags,
+    // When the worker will be terminated
+    pub termination_time: Option<std::time::Instant>,
 
     // COLD DATA move it into a box (?)
     pub last_heartbeat: std::time::Instant,
@@ -131,8 +134,22 @@ impl Worker {
         self.flags.contains(WorkerFlags::PARKED)
     }
 
-    pub fn is_capable_to_run(&self, request: &ResourceRequest) -> bool {
-        self.resources.is_capable_to_run(request)
+    pub fn is_capable_to_run(&self, request: &ResourceRequest, now: std::time::Instant) -> bool {
+        self.has_time_to_run(request.min_time(), now) && self.resources.is_capable_to_run(request)
+    }
+
+    // Returns None if there is no time limit for a worker or time limit was passed
+    pub fn remaining_time(&self, now: std::time::Instant) -> Option<Duration> {
+        self.termination_time
+            .map(|time| if time < now { Duration::default() } else { time - now })
+    }
+
+    pub fn has_time_to_run(&self, time_request: TimeRequest, now: std::time::Instant) -> bool {
+        if let Some(time) = self.termination_time {
+            now + time_request < time
+        } else {
+            true
+        }
     }
 
     pub fn set_stopping_flag(&mut self, value: bool) {
@@ -144,14 +161,13 @@ impl Worker {
     }
 }
 
-//pub type WorkerRef = WrappedRcRefCell<Worker>;
-
 impl Worker {
     pub fn new(id: WorkerId, configuration: WorkerConfiguration) -> Self {
         let resources = WorkerResources::from_description(&configuration.resources);
         let now = std::time::Instant::now();
         Worker {
             id,
+            termination_time: configuration.time_limit.map(|duration| now + duration),
             configuration,
             resources,
             tasks: Default::default(),

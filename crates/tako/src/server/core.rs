@@ -85,6 +85,7 @@ impl Core {
     pub fn park_workers(&mut self) {
         for worker in self.workers.values_mut() {
             if worker.is_underloaded() && worker.tasks().iter().all(|t| t.get().is_running()) {
+                log::debug!("Parking worker {}", worker.id);
                 worker.set_parked_flag(true);
                 self.parked_resources.insert(worker.resources.clone());
             }
@@ -208,6 +209,7 @@ impl Core {
 
     #[inline(never)]
     fn wakeup_parked_resources(&mut self) {
+        log::debug!("Waking up parked resources");
         for worker in self.workers.values_mut() {
             worker.set_parked_flag(false);
         }
@@ -290,10 +292,9 @@ impl Core {
 
         for (worker_id, worker) in &self.workers {
             assert_eq!(worker.id, *worker_id);
-            assert_eq!(
-                self.parked_resources.contains(&worker.resources),
-                worker.is_parked()
-            );
+            if worker.is_parked() {
+                assert!(self.parked_resources.contains(&worker.resources));
+            }
             worker.sanity_check();
         }
 

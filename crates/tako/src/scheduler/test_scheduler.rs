@@ -11,6 +11,7 @@ use crate::server::test_util::{
     submit_example_1, submit_test_tasks, task, TaskBuilder, TestEnv,
 };
 use crate::TaskId;
+use std::time::Duration;
 
 #[test]
 fn test_no_deps_distribute() {
@@ -437,4 +438,45 @@ fn test_resources_no_workers2() {
     let s = rt.core().take_sleeping_tasks();
     assert_eq!(s.len(), 1);
     assert_eq!(s[0].get().id, 12);
+}
+
+#[test]
+fn test_resource_time_assign() {
+    let mut rt = TestEnv::new();
+
+    rt.new_workers_ext(&[(1, Some(Duration::new(100, 0)))]);
+
+    rt.new_task(TaskBuilder::new(10).time_request(170));
+    rt.new_task(TaskBuilder::new(11));
+    rt.new_task(TaskBuilder::new(12).time_request(99));
+
+    rt.schedule();
+    rt.finish_scheduling();
+    rt.check_worker_tasks(100, &[11, 12]);
+}
+
+#[test]
+fn test_resource_time_balance1() {
+    let _ = env_logger::builder().is_test(true).try_init();
+    let mut rt = TestEnv::new();
+
+    rt.new_workers_ext(&[
+        (1, Some(Duration::new(50, 0))),
+        (1, Some(Duration::new(200, 0))),
+        (1, Some(Duration::new(100, 0))),
+    ]);
+
+    rt.new_task(TaskBuilder::new(10).time_request(170));
+    rt.new_task(TaskBuilder::new(11));
+    rt.new_task(TaskBuilder::new(12).time_request(99));
+
+    rt.test_assign(10, 101);
+    rt.test_assign(11, 101);
+    rt.test_assign(12, 102);
+
+    //rt.schedule();
+    rt.balance();
+    rt.check_worker_tasks(100, &[11]);
+    rt.check_worker_tasks(101, &[10]);
+    rt.check_worker_tasks(102, &[12]);
 }

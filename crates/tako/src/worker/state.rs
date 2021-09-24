@@ -50,6 +50,7 @@ pub struct WorkerState {
     pub task_launcher: TaskLauncher,
     pub secret_key: Option<Arc<SecretKey>>,
 
+    pub start_time: std::time::Instant,
     pub hardware_state: WorkerHwState,
 }
 
@@ -390,6 +391,7 @@ impl WorkerStateRef {
             start_task_notify: Rc::new(Notify::new()),
             running_tasks: Default::default(),
             hardware_state: Default::default(),
+            start_time: std::time::Instant::now(),
         });
         self_ref.get_mut().self_ref = Some(self_ref.clone());
         self_ref

@@ -158,11 +158,22 @@ pub async fn run_worker(
             notify.notified().await;
             let mut state = state_ref2.get_mut();
             state.start_task_scheduled = false;
+            let remaining_time = if let Some(limit) = state.configuration.time_limit {
+                let life_time = std::time::Instant::now() - state.start_time;
+                if life_time >= limit {
+                    log::debug!("Trying to start a task after time limit");
+                    break;
+                }
+                Some(limit - life_time)
+            } else {
+                None
+            };
             loop {
-                let allocations = state.ready_task_queue.try_start_tasks();
+                let allocations = state.ready_task_queue.try_start_tasks(remaining_time);
                 if allocations.is_empty() {
                     break;
                 }
+
                 for (task_ref, allocation) in allocations {
                     assign_task(&mut state, task_ref, allocation);
                 }

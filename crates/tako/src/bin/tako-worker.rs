@@ -117,7 +117,7 @@ fn launcher(
         tokio::select! {
             biased;
                 r = end_receiver => {
-                    return Ok(r.unwrap().into())
+                    Ok(r.unwrap().into())
                 }
                 r = launcher_main(task_ref) => {
                     r?;
