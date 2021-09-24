@@ -65,7 +65,7 @@ pub trait Output {
     fn print_summary(&self, filename: &Path, summary: Summary);
 
     // Autoalloc
-    fn print_autoalloc_info(&self, info: AutoAllocInfoResponse);
+    fn print_autoalloc_queues(&self, info: AutoAllocInfoResponse);
     fn print_event_log(&self, events: Vec<AllocationEventHolder>);
     fn print_allocations(&self, allocations: Vec<Allocation>);
 

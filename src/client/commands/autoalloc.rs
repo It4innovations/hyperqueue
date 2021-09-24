@@ -21,8 +21,8 @@ pub struct AutoAllocOpts {
 
 #[derive(Clap)]
 enum AutoAllocCommand {
-    /// Display information about autoalloc state
-    Info,
+    /// Displays allocation queues
+    List,
     /// Display event log for a specified allocation queue
     Events(EventsOpts),
     /// Display information about allocations
@@ -113,8 +113,8 @@ pub async fn command_autoalloc(
 ) -> anyhow::Result<()> {
     let connection = get_client_connection(gsettings.server_directory()).await?;
     match opts.subcmd {
-        AutoAllocCommand::Info => {
-            print_info(&gsettings, connection).await?;
+        AutoAllocCommand::List => {
+            print_allocation_queues(&gsettings, connection).await?;
         }
         AutoAllocCommand::Add(opts) => {
             add_queue(connection, opts).await?;
@@ -157,7 +157,7 @@ async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyh
     Ok(())
 }
 
-async fn print_info(
+async fn print_allocation_queues(
     gsettings: &GlobalSettings,
     mut connection: ClientConnection,
 ) -> anyhow::Result<()> {
@@ -167,7 +167,7 @@ async fn print_info(
     )
     .await?;
 
-    gsettings.printer().print_autoalloc_info(response);
+    gsettings.printer().print_autoalloc_queues(response);
     Ok(())
 }
 
