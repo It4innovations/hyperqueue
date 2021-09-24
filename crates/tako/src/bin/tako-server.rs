@@ -13,6 +13,7 @@ use tako::common::setup::{setup_interrupt, setup_logging};
 use tako::messages::gateway::ToGatewayMessage;
 use tako::server::client::client_connection_handler;
 
+#[cfg(feature = "jemalloc")]
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
