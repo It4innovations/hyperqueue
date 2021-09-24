@@ -25,8 +25,8 @@ enum AutoAllocCommand {
     List,
     /// Display event log for a specified allocation queue
     Events(EventsOpts),
-    /// Display information about allocations
-    Allocations(AllocationsOpts),
+    /// Display allocations of the specified allocation queue
+    Info(AllocationsOpts),
     /// Add new allocation queue
     Add(AddQueueOpts),
 }
@@ -122,7 +122,7 @@ pub async fn command_autoalloc(
         AutoAllocCommand::Events(opts) => {
             print_event_log(&gsettings, connection, opts).await?;
         }
-        AutoAllocCommand::Allocations(opts) => {
+        AutoAllocCommand::Info(opts) => {
             print_allocations(&gsettings, connection, opts).await?;
         }
     }

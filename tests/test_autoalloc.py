@@ -178,20 +178,20 @@ def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
         add_queue(hq_env, name="foo")
         time.sleep(0.2)
 
-        table = hq_env.command(["alloc", "allocations", "foo"], as_table=True)
+        table = hq_env.command(["alloc", "info", "foo"], as_table=True)
         table.check_value_columns(("Id", "State", "Worker count"), 0,
                                   ("1", "Queued", "1"))
 
         mock.set_job_data("R")
         time.sleep(0.2)
 
-        table = hq_env.command(["alloc", "allocations", "foo"], as_table=True)
+        table = hq_env.command(["alloc", "info", "foo"], as_table=True)
         table.check_value_column("State", 0, "Running")
 
         mock.set_job_data("F", exit_code=0)
         time.sleep(0.2)
 
-        table = hq_env.command(["alloc", "allocations", "foo"], as_table=True)
+        table = hq_env.command(["alloc", "info", "foo"], as_table=True)
         table.check_value_column("State", 0, "Finished")
 
 
@@ -205,13 +205,13 @@ def test_pbs_allocations_ignore_job_changes_after_finish(hq_env: HqEnv):
         add_queue(hq_env)
         time.sleep(0.3)
 
-        table = hq_env.command(["alloc", "allocations", "foo"], as_table=True)
+        table = hq_env.command(["alloc", "info", "foo"], as_table=True)
         table.check_value_column("State", 0, "Finished")
 
         mock.set_job_data("R")
         time.sleep(0.3)
 
-        table = hq_env.command(["alloc", "allocations", "foo"], as_table=True)
+        table = hq_env.command(["alloc", "info", "foo"], as_table=True)
         table.check_value_column("State", 0, "Finished")
 
 
@@ -228,7 +228,7 @@ def test_pbs_delete_active_jobs(hq_env: HqEnv):
         add_queue(hq_env, name="foo", workers=2, max_workers_per_alloc=1)
 
         def allocations_up():
-            table = hq_env.command(["alloc", "allocations", "foo"], as_table=True)
+            table = hq_env.command(["alloc", "info", "foo"], as_table=True)
             return len(table) == 3
 
         wait_until(allocations_up)
