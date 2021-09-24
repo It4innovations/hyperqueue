@@ -159,7 +159,7 @@ async fn print_allocation_queues(
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::List);
     let response = rpc_call!(connection, message,
-        ToClientMessage::AutoAllocResponse(AutoAllocResponse::Info(r)) => r
+        ToClientMessage::AutoAllocResponse(AutoAllocResponse::List(r)) => r
     )
     .await?;
 

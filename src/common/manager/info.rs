@@ -5,7 +5,7 @@ use tako::messages::common::WorkerConfiguration;
 
 pub const WORKER_EXTRA_MANAGER_KEY: &str = "JobManager";
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ManagerType {
     Pbs,
     Slurm,

@@ -5,6 +5,7 @@ use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
+use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::{Allocation, AllocationEventHolder, DescriptorId, QueueInfo};
 use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
@@ -255,18 +256,19 @@ pub enum AutoAllocResponse {
     QueueCreated(DescriptorId),
     Events(Vec<AllocationEventHolder>),
     Allocations(Vec<Allocation>),
-    Info(AutoAllocInfoResponse),
+    List(AutoAllocListResponse),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct AutoAllocInfoResponse {
-    pub refresh_interval: Duration,
+pub struct AutoAllocListResponse {
     pub descriptors: Map<DescriptorId, QueueDescriptorData>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QueueDescriptorData {
     pub info: QueueInfo,
+    pub name: Option<String>,
+    pub manager_type: ManagerType,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]

@@ -3,7 +3,7 @@ import json
 import os
 import time
 from os.path import join
-from typing import List
+from typing import List, Optional
 
 from .conftest import HqEnv
 from .utils.check import check_error_log
@@ -15,21 +15,23 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
 
     with mock.activate():
         hq_env.start_server()
-        add_queue(hq_env, name="foo", queue="queue", workers=5)
+        add_queue(hq_env, name=None, queue="queue", workers=5)
 
         table = hq_env.command(["alloc", "list"], as_table=True)
-        table.check_value_columns(("ID", "Target worker count", "Max workers per allocation", "Queue", "Timelimit"),
-                                  0,
-                                  ("1", "5", "1", "queue", "N/A"))
+        table.check_value_columns(
+            ("ID", "Target worker count", "Max workers per allocation", "Queue", "Timelimit", "Manager", "Name"),
+            0,
+            ("1", "5", "1", "queue", "N/A", "PBS", ""))
 
         hq_env.command(
             ["alloc", "add", "pbs", "--name", "bar", "--queue", "qexp", "--workers", "1",
              "--max-workers-per-alloc",
              "2", "--time-limit", "1h"])
         table = hq_env.command(["alloc", "list"], as_table=True)
-        table.check_value_columns(("ID", "Target worker count", "Max workers per allocation", "Queue", "Timelimit"),
-                                  1,
-                                  ("2", "1", "2", "qexp", "1h"))
+        table.check_value_columns(
+            ("ID", "Target worker count", "Max workers per allocation", "Queue", "Timelimit", "Name"),
+            1,
+            ("2", "1", "2", "qexp", "1h", "bar"))
 
 
 def test_add_pbs_descriptor(hq_env: HqEnv):
@@ -323,6 +325,11 @@ with open(os.path.join("{self.qdel_dir}", jobid), "w") as f:
         return list(os.listdir(self.qdel_dir))
 
 
-def add_queue(hq_env, type="pbs", name="foo", queue="queue", workers=1, max_workers_per_alloc=1):
-    return hq_env.command(["alloc", "add", type, "--name", name, "--queue", queue, "--workers", str(workers),
-                           "--max-workers-per-alloc", str(max_workers_per_alloc)])
+def add_queue(hq_env, type="pbs", name: Optional[str] = "foo", queue="queue", workers=1, max_workers_per_alloc=1):
+    args = ["alloc", "add", type]
+    if name is not None:
+        args.extend(["--name", name])
+    args.extend(["--queue", queue, "--workers", str(workers),
+                 "--max-workers-per-alloc", str(max_workers_per_alloc)])
+
+    return hq_env.command(args)

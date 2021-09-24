@@ -433,6 +433,7 @@ mod tests {
                 target_worker_count,
                 None,
             ),
+            None,
             handler,
         );
 
