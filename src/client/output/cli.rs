@@ -17,7 +17,7 @@ use crate::server::autoalloc::{
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocInfoResponse, JobDetail, JobInfo, JobType, LostWorkerReasonInfo, StatsResponse,
+    AutoAllocListResponse, JobDetail, JobInfo, JobType, LostWorkerReasonInfo, StatsResponse,
     WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
 };
 use crate::{JobTaskCount, WorkerId};
@@ -679,13 +679,15 @@ impl Output for CliOutput {
         self.print_table(rows);
     }
 
-    fn print_autoalloc_queues(&self, info: AutoAllocInfoResponse) {
+    fn print_autoalloc_queues(&self, info: AutoAllocListResponse) {
         let mut rows = vec![vec![
             "ID".cell().bold(true),
             "Target worker count".cell().bold(true),
             "Max workers per allocation".cell().bold(true),
             "Queue".cell().bold(true),
             "Timelimit".cell().bold(true),
+            "Manager".cell().bold(true),
+            "Name".cell().bold(true),
         ]];
 
         let mut descriptors: Vec<_> = info.descriptors.into_iter().collect();
@@ -702,6 +704,8 @@ impl Output for CliOutput {
                     .map(|d| humantime::format_duration(d).to_string())
                     .unwrap_or_else(|| "N/A".to_string())
                     .cell(),
+                data.manager_type.cell(),
+                data.name.unwrap_or_else(|| "".to_string()).cell(),
             ]
         }));
         self.print_table(rows);

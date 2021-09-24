@@ -14,14 +14,21 @@ use std::time::Duration;
 pub struct QueueDescriptor {
     manager: ManagerType,
     info: QueueInfo,
+    name: Option<String>,
     handler: Box<dyn QueueHandler>,
 }
 
 impl QueueDescriptor {
-    pub fn new(manager: ManagerType, info: QueueInfo, handler: Box<dyn QueueHandler>) -> Self {
+    pub fn new(
+        manager: ManagerType,
+        info: QueueInfo,
+        name: Option<String>,
+        handler: Box<dyn QueueHandler>,
+    ) -> Self {
         Self {
             manager,
             info,
+            name,
             handler,
         }
     }
@@ -31,6 +38,9 @@ impl QueueDescriptor {
     }
     pub fn info(&self) -> &QueueInfo {
         &self.info
+    }
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
     }
     pub fn handler(&self) -> &dyn QueueHandler {
         self.handler.as_ref()

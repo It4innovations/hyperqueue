@@ -23,7 +23,7 @@ use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
-    AddQueueRequest, AutoAllocInfoResponse, AutoAllocRequest, AutoAllocResponse, CancelJobResponse,
+    AddQueueRequest, AutoAllocListResponse, AutoAllocRequest, AutoAllocResponse, CancelJobResponse,
     FromClientMessage, JobDetail, JobInfoResponse, JobType, QueueDescriptorData, ResubmitRequest,
     Selector, StatsResponse, StopWorkerResponse, SubmitRequest, SubmitResponse, TaskBody,
     ToClientMessage, WorkerListResponse,
@@ -204,9 +204,7 @@ async fn handle_autoalloc_message(
         AutoAllocRequest::List => {
             let state = state_ref.get();
             let autoalloc = state.get_autoalloc_state();
-            let refresh_interval = autoalloc.refresh_interval();
-            ToClientMessage::AutoAllocResponse(AutoAllocResponse::Info(AutoAllocInfoResponse {
-                refresh_interval,
+            ToClientMessage::AutoAllocResponse(AutoAllocResponse::List(AutoAllocListResponse {
                 descriptors: autoalloc
                     .descriptors()
                     .map(|(id, descriptor)| {
@@ -214,6 +212,8 @@ async fn handle_autoalloc_message(
                             id,
                             QueueDescriptorData {
                                 info: descriptor.descriptor.info().clone(),
+                                name: descriptor.descriptor.name().map(|v| v.to_string()),
+                                manager_type: descriptor.descriptor.manager().clone(),
                             },
                         )
                     })
@@ -274,8 +274,12 @@ async fn create_queue(
             .await;
             match handler {
                 Ok(handler) => {
-                    let descriptor =
-                        QueueDescriptor::new(ManagerType::Pbs, queue_info, Box::new(handler));
+                    let descriptor = QueueDescriptor::new(
+                        ManagerType::Pbs,
+                        queue_info,
+                        params.name,
+                        Box::new(handler),
+                    );
 
                     state_ref
                         .get_mut()
