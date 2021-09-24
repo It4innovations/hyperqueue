@@ -2,6 +2,7 @@ use crate::common::resources::{
     CpuId, CpuRequest, NumOfCpus, ResourceAllocation, ResourceDescriptor, ResourceRequest,
 };
 use crate::common::Map;
+use std::time::Duration;
 
 pub type SocketId = CpuId;
 
@@ -178,11 +179,17 @@ impl ResourcePool {
     pub fn try_allocate_resources(
         &mut self,
         request: &ResourceRequest,
+        remaining_time: Option<Duration>,
     ) -> Option<ResourceAllocation> {
         let n_cpus = self.n_cpus(request);
         let total_cpus = self.n_free_cpus();
         if total_cpus < n_cpus {
             return None;
+        }
+        if let Some(remaining_time) = remaining_time {
+            if remaining_time < request.min_time() {
+                return None;
+            }
         }
         let mut cpus = match request.cpus() {
             CpuRequest::Compact(_) => self._try_allocate_resources_compact(n_cpus, total_cpus),
@@ -203,6 +210,7 @@ mod tests {
     use crate::common::Set;
     use crate::server::test_util::sorted_vec;
     use crate::worker::pool::{ResourcePool, SocketId};
+    use std::time::Duration;
 
     impl ResourcePool {
         fn get_sockets(&self, allocation: &ResourceAllocation) -> Vec<SocketId> {
@@ -222,24 +230,24 @@ mod tests {
     fn test_pool_single_socket() {
         let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(1, 4));
 
-        let rq = ResourceRequest::new(CpuRequest::Compact(2));
-        let al = pool.try_allocate_resources(&rq).unwrap();
+        let rq = ResourceRequest::new(CpuRequest::Compact(2), Duration::default());
+        let al = pool.try_allocate_resources(&rq, None).unwrap();
 
         assert_eq!(pool.n_free_cpus(), 2);
         assert_eq!(al.cpus.len(), 2);
         assert!(al.cpus[0] < al.cpus[1]);
         assert!(0 < al.cpus[0] && al.cpus[0] < al.cpus[1] && al.cpus[1] < 4);
 
-        let rq2 = ResourceRequest::new(CpuRequest::Compact(4));
-        assert!(pool.try_allocate_resources(&rq2).is_none());
-        let rq2 = ResourceRequest::new(CpuRequest::Compact(3));
-        assert!(pool.try_allocate_resources(&rq2).is_none());
+        let rq2 = ResourceRequest::new(CpuRequest::Compact(4), Duration::default());
+        assert!(pool.try_allocate_resources(&rq2, None).is_none());
+        let rq2 = ResourceRequest::new(CpuRequest::Compact(3), Duration::default());
+        assert!(pool.try_allocate_resources(&rq2, None).is_none());
 
         pool.release_allocation(al);
         assert_eq!(pool.n_free_cpus(), 4);
 
-        let rq = ResourceRequest::new(CpuRequest::Compact(4));
-        let al = pool.try_allocate_resources(&rq).unwrap();
+        let rq = ResourceRequest::new(CpuRequest::Compact(4), Duration::default());
+        let al = pool.try_allocate_resources(&rq, None).unwrap();
         assert_eq!(al.cpus, vec![0, 1, 2, 3]);
 
         assert_eq!(pool.n_free_cpus(), 0);
@@ -248,17 +256,17 @@ mod tests {
 
         assert_eq!(pool.n_free_cpus(), 4);
 
-        let rq = ResourceRequest::new(CpuRequest::Compact(1));
-        let rq2 = ResourceRequest::new(CpuRequest::Compact(2));
-        let rq3 = ResourceRequest::new(CpuRequest::Compact(3));
-        let al1 = pool.try_allocate_resources(&rq).unwrap();
+        let rq = ResourceRequest::new(CpuRequest::Compact(1), Duration::default());
+        let rq2 = ResourceRequest::new(CpuRequest::Compact(2), Duration::default());
+        let rq3 = ResourceRequest::new(CpuRequest::Compact(3), Duration::default());
+        let al1 = pool.try_allocate_resources(&rq, None).unwrap();
         assert_eq!(pool.n_free_cpus(), 3);
-        let al2 = pool.try_allocate_resources(&rq).unwrap();
+        let al2 = pool.try_allocate_resources(&rq, None).unwrap();
         assert_eq!(pool.n_free_cpus(), 2);
-        assert!(pool.try_allocate_resources(&rq3).is_none());
-        let al3 = pool.try_allocate_resources(&rq2).unwrap();
+        assert!(pool.try_allocate_resources(&rq3, None).is_none());
+        let al3 = pool.try_allocate_resources(&rq2, None).unwrap();
         assert_eq!(pool.n_free_cpus(), 0);
-        assert!(pool.try_allocate_resources(&rq).is_none());
+        assert!(pool.try_allocate_resources(&rq, None).is_none());
 
         assert_eq!(al1.cpus.len(), 1);
         assert_eq!(al2.cpus.len(), 1);
@@ -270,38 +278,38 @@ mod tests {
     fn test_pool_compact1() {
         let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(4, 6));
 
-        let rq1 = ResourceRequest::new(CpuRequest::Compact(4));
-        let al1 = pool.try_allocate_resources(&rq1).unwrap();
+        let rq1 = CpuRequest::Compact(4).into();
+        let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(pool.get_sockets(&al1).len(), 1);
-        let al2 = pool.try_allocate_resources(&rq1).unwrap();
+        let al2 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(pool.get_sockets(&al2).len(), 1);
         assert_ne!(pool.get_sockets(&al1), pool.get_sockets(&al2));
 
-        let rq2 = ResourceRequest::new(CpuRequest::Compact(3));
+        let rq2 = CpuRequest::Compact(3).into();
 
-        let al3 = pool.try_allocate_resources(&rq2).unwrap();
+        let al3 = pool.try_allocate_resources(&rq2, None).unwrap();
         assert_eq!(pool.get_sockets(&al3).len(), 1);
-        let al4 = pool.try_allocate_resources(&rq2).unwrap();
+        let al4 = pool.try_allocate_resources(&rq2, None).unwrap();
         assert_eq!(pool.get_sockets(&al4).len(), 1);
         assert_eq!(pool.get_sockets(&al3), pool.get_sockets(&al4));
 
-        let rq3 = ResourceRequest::new(CpuRequest::Compact(6));
-        let al = pool.try_allocate_resources(&rq3).unwrap();
+        let rq3 = CpuRequest::Compact(6).into();
+        let al = pool.try_allocate_resources(&rq3, None).unwrap();
         assert_eq!(pool.get_sockets(&al).len(), 1);
         pool.release_allocation(al);
 
-        let rq3 = ResourceRequest::new(CpuRequest::Compact(7));
-        let al = pool.try_allocate_resources(&rq3).unwrap();
+        let rq3 = CpuRequest::Compact(7).into();
+        let al = pool.try_allocate_resources(&rq3, None).unwrap();
         assert_eq!(pool.get_sockets(&al).len(), 2);
         pool.release_allocation(al);
 
-        let rq3 = ResourceRequest::new(CpuRequest::Compact(8));
-        let al = pool.try_allocate_resources(&rq3).unwrap();
+        let rq3 = CpuRequest::Compact(8).into();
+        let al = pool.try_allocate_resources(&rq3, None).unwrap();
         assert_eq!(pool.get_sockets(&al).len(), 2);
         pool.release_allocation(al);
 
-        let rq3 = ResourceRequest::new(CpuRequest::Compact(9));
-        let al = pool.try_allocate_resources(&rq3).unwrap();
+        let rq3 = CpuRequest::Compact(9).into();
+        let al = pool.try_allocate_resources(&rq3, None).unwrap();
         assert_eq!(pool.get_sockets(&al).len(), 3);
         pool.release_allocation(al);
     }
@@ -310,8 +318,8 @@ mod tests {
     fn test_pool_allocate_compact_all() {
         let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(4, 6));
 
-        let rq = ResourceRequest::new(CpuRequest::Compact(24));
-        let al = pool.try_allocate_resources(&rq).unwrap();
+        let rq = CpuRequest::Compact(24).into();
+        let al = pool.try_allocate_resources(&rq, None).unwrap();
         assert_eq!(al.cpus, (0..24).collect::<Vec<_>>());
         assert_eq!(pool.n_free_cpus(), 0);
         pool.release_allocation(al);
@@ -322,34 +330,34 @@ mod tests {
     fn test_pool_allocate_all() {
         let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(4, 6));
 
-        let rq = ResourceRequest::new(CpuRequest::All);
-        let al = pool.try_allocate_resources(&rq).unwrap();
+        let rq = CpuRequest::All.into();
+        let al = pool.try_allocate_resources(&rq, None).unwrap();
         assert_eq!(al.cpus, (0..24).collect::<Vec<_>>());
         assert_eq!(pool.n_free_cpus(), 0);
         pool.release_allocation(al);
         assert_eq!(pool.n_free_cpus(), 24);
 
-        let rq2 = ResourceRequest::new(CpuRequest::Compact(1));
-        assert!(pool.try_allocate_resources(&rq2).is_some());
-        assert!(pool.try_allocate_resources(&rq).is_none());
+        let rq2 = CpuRequest::Compact(1).into();
+        assert!(pool.try_allocate_resources(&rq2, None).is_some());
+        assert!(pool.try_allocate_resources(&rq, None).is_none());
     }
 
     #[test]
     fn test_pool_force_compact1() {
         let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(2, 4));
 
-        let rq1 = ResourceRequest::new(CpuRequest::ForceCompact(9));
-        assert!(pool.try_allocate_resources(&rq1).is_none());
+        let rq1 = CpuRequest::ForceCompact(9).into();
+        assert!(pool.try_allocate_resources(&rq1, None).is_none());
 
         for _ in 0..4 {
-            let rq1 = ResourceRequest::new(CpuRequest::ForceCompact(2));
-            let al1 = pool.try_allocate_resources(&rq1).unwrap();
+            let rq1 = CpuRequest::ForceCompact(2).into();
+            let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
             assert_eq!(al1.cpus.len(), 2);
             assert_eq!(pool.get_sockets(&al1).len(), 1);
         }
 
-        let rq1 = ResourceRequest::new(CpuRequest::ForceCompact(2));
-        assert!(pool.try_allocate_resources(&rq1).is_none());
+        let rq1 = CpuRequest::ForceCompact(2).into();
+        assert!(pool.try_allocate_resources(&rq1, None).is_none());
     }
 
     #[test]
@@ -357,37 +365,37 @@ mod tests {
         let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(2, 4));
 
         for _ in 0..2 {
-            let rq1 = ResourceRequest::new(CpuRequest::ForceCompact(3));
-            let al1 = pool.try_allocate_resources(&rq1).unwrap();
+            let rq1 = CpuRequest::ForceCompact(3).into();
+            let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
             assert_eq!(al1.cpus.len(), 3);
             assert_eq!(pool.get_sockets(&al1).len(), 1);
         }
 
-        let rq1 = ResourceRequest::new(CpuRequest::ForceCompact(2));
-        assert!(pool.try_allocate_resources(&rq1).is_none());
+        let rq1 = CpuRequest::ForceCompact(2).into();
+        assert!(pool.try_allocate_resources(&rq1, None).is_none());
 
-        let rq1 = ResourceRequest::new(CpuRequest::Compact(2));
-        assert!(pool.try_allocate_resources(&rq1).is_some());
+        let rq1 = CpuRequest::Compact(2).into();
+        assert!(pool.try_allocate_resources(&rq1, None).is_some());
     }
 
     #[test]
     fn test_pool_force_compact3() {
         let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(3, 4));
 
-        let rq1 = ResourceRequest::new(CpuRequest::ForceCompact(8));
-        let al1 = pool.try_allocate_resources(&rq1).unwrap();
+        let rq1 = CpuRequest::ForceCompact(8).into();
+        let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(al1.cpus.len(), 8);
         assert_eq!(pool.get_sockets(&al1).len(), 2);
         pool.release_allocation(al1);
 
-        let rq1 = ResourceRequest::new(CpuRequest::ForceCompact(5));
-        let al1 = pool.try_allocate_resources(&rq1).unwrap();
+        let rq1 = CpuRequest::ForceCompact(5).into();
+        let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(al1.cpus.len(), 5);
         assert_eq!(pool.get_sockets(&al1).len(), 2);
         pool.release_allocation(al1);
 
-        let rq1 = ResourceRequest::new(CpuRequest::ForceCompact(10));
-        let al1 = pool.try_allocate_resources(&rq1).unwrap();
+        let rq1 = CpuRequest::ForceCompact(10).into();
+        let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(al1.cpus.len(), 10);
         assert_eq!(pool.get_sockets(&al1).len(), 3);
         pool.release_allocation(al1);
@@ -397,13 +405,13 @@ mod tests {
     fn test_pool_force_scatter1() {
         let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(3, 4));
 
-        let rq1 = ResourceRequest::new(CpuRequest::Scatter(3));
-        let al1 = pool.try_allocate_resources(&rq1).unwrap();
+        let rq1 = CpuRequest::Scatter(3).into();
+        let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(al1.cpus.len(), 3);
         assert_eq!(pool.get_sockets(&al1).len(), 3);
 
-        let rq1 = ResourceRequest::new(CpuRequest::Scatter(4));
-        let al1 = pool.try_allocate_resources(&rq1).unwrap();
+        let rq1 = CpuRequest::Scatter(4).into();
+        let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(al1.cpus.len(), 4);
         assert_eq!(pool.get_sockets(&al1).len(), 3);
     }
@@ -412,11 +420,11 @@ mod tests {
     fn test_pool_force_scatter2() {
         let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(3, 4));
 
-        let rq1 = ResourceRequest::new(CpuRequest::ForceCompact(4));
-        pool.try_allocate_resources(&rq1).unwrap();
+        let rq1 = CpuRequest::ForceCompact(4).into();
+        pool.try_allocate_resources(&rq1, None).unwrap();
 
-        let rq1 = ResourceRequest::new(CpuRequest::Scatter(5));
-        let al1 = pool.try_allocate_resources(&rq1).unwrap();
+        let rq1 = CpuRequest::Scatter(5).into();
+        let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(al1.cpus.len(), 5);
         assert_eq!(pool.get_sockets(&al1).len(), 2);
     }

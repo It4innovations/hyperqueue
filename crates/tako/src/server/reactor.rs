@@ -697,6 +697,7 @@ mod tests {
             heartbeat_interval: Duration::from_millis(1000),
             hw_state_poll_interval: Some(Duration::from_millis(1000)),
             idle_timeout: None,
+            time_limit: None,
             extra: Default::default(),
         };
 
@@ -729,6 +730,7 @@ mod tests {
             heartbeat_interval: Duration::from_millis(1000),
             hw_state_poll_interval: Some(Duration::from_millis(1000)),
             idle_timeout: None,
+            time_limit: None,
             extra: Default::default(),
         };
 

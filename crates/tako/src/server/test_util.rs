@@ -89,9 +89,10 @@ impl TestEnv {
         self.core.get_task_by_id_or_panic(task_id).clone()
     }
 
-    pub fn new_task(&mut self, builder: TaskBuilder) {
+    pub fn new_task(&mut self, builder: TaskBuilder) -> TaskRef {
         let tr = builder.build();
         submit_test_tasks(&mut self.core, &[&tr]);
+        tr
     }
 
     pub fn new_task_assigned(&mut self, builder: TaskBuilder, worker_id: WorkerId) {
@@ -112,8 +113,8 @@ impl TestEnv {
         self.core.get_worker_by_id_or_panic(worker_id)
     }
 
-    pub fn new_workers(&mut self, cpus: &[u32]) {
-        for (i, c) in cpus.iter().enumerate() {
+    pub fn new_workers_ext(&mut self, defs: &[(u32, Option<Duration>)]) {
+        for (i, (c, time_limit)) in defs.iter().enumerate() {
             let worker_id = self.worker_id_counter;
             self.worker_id_counter += 1;
 
@@ -126,12 +127,18 @@ impl TestEnv {
                 heartbeat_interval: Duration::from_millis(1000),
                 hw_state_poll_interval: Some(Duration::from_millis(1000)),
                 idle_timeout: None,
+                time_limit: time_limit.clone(),
                 extra: Default::default(),
             };
 
             let worker = Worker::new(worker_id, wcfg);
             on_new_worker(&mut self.core, &mut TestComm::default(), worker);
         }
+    }
+
+    pub fn new_workers(&mut self, cpus: &[u32]) {
+        let defs: Vec<_> = cpus.iter().map(|c| (*c, None)).collect();
+        self.new_workers_ext(&defs);
     }
 
     pub fn new_ready_tasks_cpus(&mut self, tasks: &[NumOfCpus]) -> Vec<TaskRef> {
@@ -148,13 +155,22 @@ impl TestEnv {
         trs
     }
 
+    pub fn _test_assign(&mut self, task_ref: &TaskRef, worker_id: WorkerId) {
+        self.scheduler
+            .test_assign(&mut self.core, &task_ref, worker_id);
+        self.core.remove_from_ready_to_assign(task_ref);
+    }
+
+    pub fn test_assign(&mut self, task_id: TaskId, worker_id: WorkerId) {
+        self._test_assign(&self.task(task_id), worker_id);
+    }
+
     pub fn new_assigned_tasks_cpus(&mut self, tasks: &[&[NumOfCpus]]) {
         for (i, tdefs) in tasks.iter().enumerate() {
             let w_id = 100 + i as WorkerId;
             let trs = self.new_ready_tasks_cpus(tdefs);
             for tr in &trs {
-                self.scheduler.test_assign(&mut self.core, tr, w_id);
-                self.core.remove_from_ready_to_assign(tr);
+                self._test_assign(tr, w_id);
             }
         }
     }
@@ -248,6 +264,11 @@ impl TaskBuilder {
 
     pub fn cpus_compact(mut self, cpu_request: NumOfCpus) -> TaskBuilder {
         self.resources.set_cpus(CpuRequest::Compact(cpu_request));
+        self
+    }
+
+    pub fn time_request(mut self, time: u64) -> TaskBuilder {
+        self.resources.set_time(Duration::new(time, 0));
         self
     }
 
@@ -441,6 +462,7 @@ pub fn create_test_workers(core: &mut Core, cpus: &[u32]) {
             heartbeat_interval: Duration::from_millis(1000),
             hw_state_poll_interval: Some(Duration::from_millis(1000)),
             idle_timeout: None,
+            time_limit: None,
             extra: Default::default(),
         };
 

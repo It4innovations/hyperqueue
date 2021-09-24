@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::common::error::DsError;
 use crate::common::{Map, Set};
+use std::time::Duration;
 
 pub type NumOfCpus = u32;
 pub type CpuId = u32;
@@ -39,22 +40,31 @@ impl CpuRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+pub type TimeRequest = Duration;
+
+#[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct ResourceRequest {
     cpus: CpuRequest,
-}
 
-impl Default for ResourceRequest {
-    fn default() -> Self {
-        ResourceRequest {
-            cpus: CpuRequest::default(),
-        }
-    }
+    /// Minimal remaining time of the worker life time needed to START the task
+    /// !!! Do not confuse with time_limit.
+    /// If task is started and task is running, it is not stopped if
+    /// it consumes more. If you need this, see time_limit in task configuration
+    /// On worker with not defined life time, this resource is always satisfied.
+    #[serde(default)]
+    min_time: TimeRequest,
 }
 
 impl ResourceRequest {
-    pub fn new(cpu_request: CpuRequest) -> ResourceRequest {
-        ResourceRequest { cpus: cpu_request }
+    pub fn new(cpu_request: CpuRequest, time: TimeRequest) -> ResourceRequest {
+        ResourceRequest {
+            cpus: cpu_request,
+            min_time: time,
+        }
+    }
+
+    pub fn min_time(&self) -> TimeRequest {
+        self.min_time
     }
 
     pub fn cpus(&self) -> &CpuRequest {
@@ -66,12 +76,17 @@ impl ResourceRequest {
         self.cpus = cpus;
     }
 
-    pub fn sort_key(&self) -> (NumOfCpus, NumOfCpus) {
+    #[cfg(test)]
+    pub fn set_time(&mut self, time: Duration) {
+        self.min_time = time;
+    }
+
+    pub fn sort_key(&self) -> (NumOfCpus, NumOfCpus, TimeRequest) {
         match &self.cpus {
-            CpuRequest::Compact(n_cpus) => (*n_cpus, 1),
-            CpuRequest::ForceCompact(n_cpus) => (*n_cpus, 2),
-            CpuRequest::Scatter(n_cpus) => (*n_cpus, 0),
-            CpuRequest::All => (NumOfCpus::MAX, NumOfCpus::MAX),
+            CpuRequest::Compact(n_cpus) => (*n_cpus, 1, self.min_time),
+            CpuRequest::ForceCompact(n_cpus) => (*n_cpus, 2, self.min_time),
+            CpuRequest::Scatter(n_cpus) => (*n_cpus, 0, self.min_time),
+            CpuRequest::All => (NumOfCpus::MAX, NumOfCpus::MAX, self.min_time),
         }
     }
 
@@ -178,6 +193,12 @@ impl ResourceAllocation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl From<CpuRequest> for ResourceRequest {
+        fn from(cpu_request: CpuRequest) -> Self {
+            ResourceRequest::new(cpu_request, Duration::default())
+        }
+    }
 
     #[test]
     fn test_resources_to_summary() {

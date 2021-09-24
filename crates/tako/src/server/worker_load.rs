@@ -43,6 +43,10 @@ impl WorkerResources {
 }
 
 // This represents a current worker load from server perspective
+// Note: It ignores time request, as "remaining time" is "always changing" resource
+// while this structure is also used in hashset for parking resources
+// It is solved in scheduler by directly calling worker.has_time_to_run
+
 #[derive(Debug, Eq, PartialEq, Default)]
 pub struct WorkerLoad {
     n_cpus: NumOfCpus,
@@ -133,27 +137,40 @@ impl ResourceRequestLowerBound {
 mod tests {
     use crate::common::resources::{CpuRequest, ResourceRequest};
     use crate::server::worker_load::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
+    use std::time::Duration;
 
     #[test]
     pub fn worker_lb_include1() {
         let mut lb = ResourceRequestLowerBound::default();
-        lb.include(&ResourceRequest::new(CpuRequest::Compact(4)));
+        lb.include(&ResourceRequest::new(
+            CpuRequest::Compact(4),
+            Duration::default(),
+        ));
         assert_eq!(lb.n_cpus, Some(4));
         assert!(!lb.all);
 
-        lb.include(&ResourceRequest::new(CpuRequest::Compact(2)));
+        lb.include(&ResourceRequest::new(
+            CpuRequest::Compact(2),
+            Duration::default(),
+        ));
         assert_eq!(lb.n_cpus, Some(2));
         assert!(!lb.all);
 
-        lb.include(&ResourceRequest::new(CpuRequest::Compact(4)));
+        lb.include(&ResourceRequest::new(
+            CpuRequest::Compact(4),
+            Duration::default(),
+        ));
         assert_eq!(lb.n_cpus, Some(2));
         assert!(!lb.all);
 
-        lb.include(&ResourceRequest::new(CpuRequest::All));
+        lb.include(&ResourceRequest::new(CpuRequest::All, Duration::default()));
         assert_eq!(lb.n_cpus, Some(2));
         assert!(lb.all);
 
-        lb.include(&ResourceRequest::new(CpuRequest::Compact(1)));
+        lb.include(&ResourceRequest::new(
+            CpuRequest::Compact(1),
+            Duration::default(),
+        ));
         assert_eq!(lb.n_cpus, Some(1));
         assert!(lb.all);
     }
@@ -161,7 +178,7 @@ mod tests {
     #[test]
     pub fn worker_lb_include2() {
         let mut lb = ResourceRequestLowerBound::default();
-        lb.include(&ResourceRequest::new(CpuRequest::All));
+        lb.include(&ResourceRequest::new(CpuRequest::All, Duration::default()));
         assert_eq!(lb.n_cpus, None);
         assert!(lb.all);
     }
