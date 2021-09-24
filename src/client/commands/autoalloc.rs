@@ -47,10 +47,6 @@ pub enum AddQueueCommand {
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 pub struct AddPbsQueueOpts {
-    /// Name of the allocation queue
-    #[clap(long, short)]
-    name: String,
-
     /// PBS queue into which the allocations will be queued
     #[clap(long, short)]
     queue: String,
@@ -66,20 +62,24 @@ pub struct AddPbsQueueOpts {
     /// How many workers at most can be allocated in a single allocation
     #[clap(long, short('m'), default_value = "1")]
     max_workers_per_alloc: u32,
+
+    /// Name of the allocation queue (for debug purposes only)
+    #[clap(long, short)]
+    name: Option<String>,
 }
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 pub struct EventsOpts {
-    /// Name of the allocation queue
-    name: String,
+    /// ID of the allocation queue
+    queue: u32,
 }
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 pub struct AllocationsOpts {
-    /// Name of the allocation queue
-    name: String,
+    /// ID of the allocation queue
+    queue: u32,
 
     /// Display only allocations with the given state
     #[clap(long)]
@@ -132,28 +132,24 @@ pub async fn command_autoalloc(
 async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyhow::Result<()> {
     let AddQueueOpts { subcmd } = opts;
 
-    let (message, name) = match subcmd {
-        AddQueueCommand::Pbs(params) => {
-            let name = params.name;
-            let msg = FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(
-                AddQueueRequest::Pbs(AddQueueParams {
-                    name: name.clone(),
-                    max_workers_per_alloc: params.max_workers_per_alloc,
-                    target_worker_count: params.target_worker_count,
-                    queue: params.queue,
-                    timelimit: params.time_limit.map(|v| v.into_duration()),
-                }),
-            ));
-            (msg, name)
-        }
+    let message = match subcmd {
+        AddQueueCommand::Pbs(params) => FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(
+            AddQueueRequest::Pbs(AddQueueParams {
+                max_workers_per_alloc: params.max_workers_per_alloc,
+                target_worker_count: params.target_worker_count,
+                queue: params.queue,
+                timelimit: params.time_limit.map(|v| v.into_duration()),
+                name: params.name,
+            }),
+        )),
     };
 
-    rpc_call!(connection, message,
-        ToClientMessage::AutoAllocResponse(AutoAllocResponse::Ok) => ()
+    let queue_id = rpc_call!(connection, message,
+        ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreated(id)) => id
     )
     .await?;
 
-    log::info!("Allocation queue {} was successfully created", name);
+    log::info!("Allocation queue {} successfully created", queue_id);
     Ok(())
 }
 
@@ -161,7 +157,7 @@ async fn print_allocation_queues(
     gsettings: &GlobalSettings,
     mut connection: ClientConnection,
 ) -> anyhow::Result<()> {
-    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::Info);
+    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::List);
     let response = rpc_call!(connection, message,
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::Info(r)) => r
     )
@@ -177,7 +173,7 @@ async fn print_event_log(
     opts: EventsOpts,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::Events {
-        descriptor: opts.name,
+        descriptor: opts.queue,
     });
     let response = rpc_call!(connection, message,
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::Events(logs)) => logs
@@ -193,8 +189,8 @@ async fn print_allocations(
     mut connection: ClientConnection,
     opts: AllocationsOpts,
 ) -> anyhow::Result<()> {
-    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::Allocations {
-        descriptor: opts.name,
+    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::Info {
+        descriptor: opts.queue,
     });
     let mut allocations = rpc_call!(connection, message,
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::Allocations(allocs)) => allocs

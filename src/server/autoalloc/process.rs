@@ -1,4 +1,5 @@
 use crate::server::autoalloc::state::{Allocation, AllocationEvent, AllocationStatus};
+use crate::server::autoalloc::DescriptorId;
 use crate::server::state::StateRef;
 use std::time::SystemTime;
 
@@ -68,36 +69,35 @@ async fn autoalloc_tick(state_ref: &StateRef) {
     log::debug!("Running autoalloc");
 
     // The descriptor names are copied out to avoid holding state reference across `await`
-    let descriptors: Vec<_> = state_ref
+    let descriptor_ids: Vec<DescriptorId> = state_ref
         .get()
         .get_autoalloc_state()
-        .descriptor_names()
-        .map(|v| v.to_string())
+        .descriptor_ids()
         .collect();
 
-    for name in descriptors {
-        process_descriptor(&name, state_ref).await;
+    for id in descriptor_ids {
+        process_descriptor(id, state_ref).await;
     }
 }
 
-async fn process_descriptor(name: &str, state: &StateRef) {
+async fn process_descriptor(id: DescriptorId, state: &StateRef) {
     // TODO: check only once in a while
-    refresh_allocations(name, state).await;
-    schedule_new_allocations(name, state).await
+    refresh_allocations(id, state).await;
+    schedule_new_allocations(id, state).await
 }
 
 /// Go through the allocations of descriptor with the given name and refresh their status.
 /// Queue allocations might become running or finished, running allocations might become finished,
 /// etc.
 #[allow(clippy::needless_collect)]
-async fn refresh_allocations(name: &str, state_ref: &StateRef) {
+async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
     let allocation_ids: Vec<_> =
-        get_or_return!(state_ref.get().get_autoalloc_state().get_descriptor(name))
+        get_or_return!(state_ref.get().get_autoalloc_state().get_descriptor(id))
             .active_allocations()
             .map(|alloc| alloc.id.clone())
             .collect();
     for allocation_id in allocation_ids.into_iter() {
-        let status_fut = get_or_return!(state_ref.get().get_autoalloc_state().get_descriptor(name))
+        let status_fut = get_or_return!(state_ref.get().get_autoalloc_state().get_descriptor(id))
             .descriptor
             .handler()
             .get_allocation_status(allocation_id.clone());
@@ -110,7 +110,7 @@ async fn refresh_allocations(name: &str, state_ref: &StateRef) {
             Ok(status) => {
                 match status {
                     Some(status) => {
-                        let descriptor = get_or_continue!(state.get_descriptor_mut(name));
+                        let descriptor = get_or_continue!(state.get_descriptor_mut(id));
                         let id = allocation_id.clone();
                         log::debug!("Status of allocation {}: {:?}", allocation_id, status);
                         match status {
@@ -137,7 +137,7 @@ async fn refresh_allocations(name: &str, state_ref: &StateRef) {
                     }
                     None => {
                         log::warn!("Allocation {} was not found", allocation_id);
-                        let descriptor = get_or_continue!(state.get_descriptor_mut(name));
+                        let descriptor = get_or_continue!(state.get_descriptor_mut(id));
                         descriptor.remove_allocation(&allocation_id);
                         descriptor.add_event(AllocationEvent::AllocationDisappeared(allocation_id));
                     }
@@ -147,10 +147,10 @@ async fn refresh_allocations(name: &str, state_ref: &StateRef) {
                 log::error!(
                     "Failed to get allocation {} status from {}: {:?}",
                     allocation_id,
-                    name,
+                    id,
                     err
                 );
-                let descriptor = get_or_continue!(state.get_descriptor_mut(name));
+                let descriptor = get_or_continue!(state.get_descriptor_mut(id));
                 descriptor.add_event(AllocationEvent::StatusFail {
                     error: err.to_string(),
                 });
@@ -160,10 +160,10 @@ async fn refresh_allocations(name: &str, state_ref: &StateRef) {
 }
 
 /// Schedule new allocations for the descriptor with the given name.
-async fn schedule_new_allocations(name: &str, state_ref: &StateRef) {
+async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
     let (mut remaining, max_workers_per_alloc): (u64, u64) = {
         let state = state_ref.get();
-        let descriptor = get_or_return!(state.get_autoalloc_state().get_descriptor(name));
+        let descriptor = get_or_return!(state.get_autoalloc_state().get_descriptor(id));
         let active_workers: u64 = descriptor
             .active_allocations()
             .map(|alloc| alloc.worker_count)
@@ -178,20 +178,19 @@ async fn schedule_new_allocations(name: &str, state_ref: &StateRef) {
     };
     while remaining > 0 {
         let to_schedule = std::cmp::min(remaining, max_workers_per_alloc);
-        let schedule_fut =
-            get_or_return!(state_ref.get().get_autoalloc_state().get_descriptor(name))
-                .descriptor
-                .handler()
-                .schedule_allocation(to_schedule);
+        let schedule_fut = get_or_return!(state_ref.get().get_autoalloc_state().get_descriptor(id))
+            .descriptor
+            .handler()
+            .schedule_allocation(to_schedule);
 
         let result = schedule_fut.await;
 
         let mut state = state_ref.get_mut();
         let state = state.get_autoalloc_state_mut();
-        let descriptor = get_or_return!(state.get_descriptor_mut(name));
+        let descriptor = get_or_return!(state.get_descriptor_mut(id));
         match result {
             Ok(created) => {
-                log::info!("Queued {} workers into {}", to_schedule, name);
+                log::info!("Queued {} workers into {}", to_schedule, id);
                 descriptor.add_event(AllocationEvent::AllocationQueued(created.id().to_string()));
                 descriptor.add_allocation(Allocation {
                     id: created.id().to_string(),
@@ -202,7 +201,7 @@ async fn schedule_new_allocations(name: &str, state_ref: &StateRef) {
                 });
             }
             Err(err) => {
-                log::error!("Failed to queue allocation into {}: {:?}", name, err);
+                log::error!("Failed to queue allocation into {}: {:?}", id, err);
                 descriptor.add_event(AllocationEvent::QueueFail {
                     error: err.to_string(),
                 });
@@ -300,7 +299,7 @@ mod tests {
 
         let state = state.get();
         let state = state.get_autoalloc_state();
-        let descriptor = state.get_descriptor("foo").unwrap();
+        let descriptor = state.get_descriptor(0).unwrap();
         matches!(
             descriptor.get_events()[0].event,
             AllocationEvent::QueueFail { .. }
@@ -440,8 +439,7 @@ mod tests {
         state_ref
             .get_mut()
             .get_autoalloc_state_mut()
-            .add_descriptor("foo".to_string(), descriptor)
-            .unwrap();
+            .add_descriptor(0, descriptor)
     }
 
     fn create_state() -> StateRef {

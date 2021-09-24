@@ -15,4 +15,6 @@ pub type AutoAllocResult<T> = anyhow::Result<T>;
 
 pub use descriptor::pbs::PbsHandler;
 pub use descriptor::{QueueDescriptor, QueueInfo};
-pub use state::{Allocation, AllocationEvent, AllocationEventHolder, AllocationStatus};
+pub use state::{
+    Allocation, AllocationEvent, AllocationEventHolder, AllocationStatus, DescriptorId,
+};
