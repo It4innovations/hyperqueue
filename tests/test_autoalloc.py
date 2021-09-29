@@ -33,6 +33,13 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
             1,
             ("2", "1", "2", "qexp", "1h", "bar"))
 
+        add_queue(hq_env, manager="slurm", queue="partition", workers=1)
+        table = hq_env.command(["alloc", "list"], as_table=True)
+        table.check_value_columns(
+            ("ID", "Queue", "Manager"),
+            2,
+            ("3", "partition", "SLURM"))
+
 
 def test_add_pbs_descriptor(hq_env: HqEnv):
     mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021")
@@ -46,6 +53,17 @@ def test_add_pbs_descriptor(hq_env: HqEnv):
 
         info = hq_env.command(["alloc", "list"], as_table=True)
         info.check_value_column("ID", 0, "1")
+
+
+def test_add_slurm_descriptor(hq_env: HqEnv):
+    hq_env.start_server(args=["--autoalloc-interval", "500ms"])
+    output = hq_env.command(
+        ["alloc", "add", "slurm", "--name", "foo", "--partition", "queue", "--workers", "5",
+         "--max-workers-per-alloc", "2"])
+    assert "Allocation queue 1 successfully created" in output
+
+    info = hq_env.command(["alloc", "list"], as_table=True)
+    info.check_value_column("ID", 0, "1")
 
 
 def test_pbs_fail_without_qstat(hq_env: HqEnv):
@@ -67,18 +85,34 @@ def test_pbs_queue_qsub_fail(hq_env: HqEnv):
             table.check_value_column("Message", 0, "qsub execution failed")
 
 
-def test_pbs_queue_qsub_args(hq_env: HqEnv):
-    path = join(hq_env.work_path, "qsub.out")
-    qsub_code = f"""
-import os
+def test_slurm_queue_sbatch_fail(hq_env: HqEnv):
+    sbatch_code = "exit(1)"
+
+    with hq_env.mock.mock_program("sbatch", sbatch_code):
+        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        add_queue(hq_env, manager="slurm")
+        time.sleep(0.2)
+        table = hq_env.command(["alloc", "events", "1"], as_table=True)
+        table.check_value_column("Event", 0, "Allocation submission failed")
+        table.check_value_column("Message", 0, "sbatch execution failed")
+
+
+def program_code_store_args_json(path: str) -> str:
+    """
+    Creates program code that stores its cmd arguments as JSON into the specified `path`.
+    """
+    return f"""
 import sys
 import json
 
-args = sys.argv
-
 with open("{path}", "w") as f:
-    f.write(json.dumps(args))
+    f.write(json.dumps(sys.argv))
 """
+
+
+def test_pbs_queue_qsub_args(hq_env: HqEnv):
+    path = join(hq_env.work_path, "qsub.out")
+    qsub_code = program_code_store_args_json(path)
 
     with hq_env.mock.mock_program("qsub", qsub_code):
         with hq_env.mock.mock_program("qstat", ""):
@@ -93,6 +127,22 @@ with open("{path}", "w") as f:
                 assert args == ["--foo=bar", "a", "b", "--baz", "42"]
 
 
+def test_slurm_queue_sbatch_args(hq_env: HqEnv):
+    path = join(hq_env.work_path, "sbatch.out")
+    sbatch_code = program_code_store_args_json(path)
+
+    with hq_env.mock.mock_program("sbatch", sbatch_code):
+        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        add_queue(hq_env, manager="slurm", additional_args="--foo=bar a b --baz 42")
+        wait_until(lambda: os.path.exists(path))
+        with open(path) as f:
+            args = json.loads(f.read())
+            start = args.index("--foo=bar")
+            end = args.index("--wrap")
+            args = args[start:end]
+            assert args == ["--foo=bar", "a", "b", "--baz", "42"]
+
+
 def test_pbs_queue_qsub_success(hq_env: HqEnv):
     qsub_code = """print("123.job")"""
 
@@ -104,6 +154,18 @@ def test_pbs_queue_qsub_success(hq_env: HqEnv):
             table = hq_env.command(["alloc", "events", "1"], as_table=True)
             table.check_value_column("Event", 0, "Allocation queued")
             table.check_value_column("Message", 0, "123.job")
+
+
+def test_slurm_queue_sbatch_success(hq_env: HqEnv):
+    sbatch_code = """print("Submitted batch job 123.job")"""
+
+    with hq_env.mock.mock_program("sbatch", sbatch_code):
+        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        add_queue(hq_env, manager="slurm")
+        time.sleep(0.2)
+        table = hq_env.command(["alloc", "events", "1"], as_table=True)
+        table.check_value_column("Event", 0, "Allocation queued")
+        table.check_value_column("Message", 0, "123.job")
 
 
 def test_pbs_queue_qsub_check_args(hq_env: HqEnv):
@@ -213,7 +275,7 @@ def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
         table.check_value_column("State", 0, "Finished")
 
 
-def test_pbs_allocations_ignore_job_changes_after_finish(hq_env: HqEnv):
+def test_allocations_ignore_job_changes_after_finish(hq_env: HqEnv):
     mock = PbsMock(hq_env, jobs=["1", "2"], qtime="Thu Aug 19 13:05:38 2021", stime="Thu Aug 19 13:05:39 2021",
                    mtime="Thu Aug 19 13:05:39 2021")
     mock.set_job_data("F", exit_code=0)
@@ -351,12 +413,13 @@ with open(os.path.join("{self.qdel_dir}", jobid), "w") as f:
         return list(os.listdir(self.qdel_dir))
 
 
-def add_queue(hq_env, type="pbs", name: Optional[str] = "foo", queue="queue", workers=1, max_workers_per_alloc=1,
+def add_queue(hq_env, manager="pbs", name: Optional[str] = "foo", queue="queue", workers=1, max_workers_per_alloc=1,
               additional_args=None):
-    args = ["alloc", "add", type]
+    args = ["alloc", "add", manager]
     if name is not None:
         args.extend(["--name", name])
-    args.extend(["--queue", queue, "--workers", str(workers),
+    queue_key = "queue" if manager == "pbs" else "partition"
+    args.extend([f"--{queue_key}", queue, "--workers", str(workers),
                  "--max-workers-per-alloc", str(max_workers_per_alloc)])
     if additional_args is not None:
         args.append("--")
