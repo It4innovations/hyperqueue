@@ -258,12 +258,13 @@ async fn create_queue(
     request: AddQueueRequest,
 ) -> ToClientMessage {
     let server_directory = server_dir.directory().to_path_buf();
-    let (handler, params) = match request {
+    let (handler, params, manager_type) = match request {
         AddQueueRequest::Pbs(params) => {
             let handler = PbsHandler::new(server_directory, params.additional_args.clone()).await;
             (
                 handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler)),
                 params,
+                ManagerType::Pbs,
             )
         }
         AddQueueRequest::Slurm(params) => {
@@ -271,6 +272,7 @@ async fn create_queue(
             (
                 handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler)),
                 params,
+                ManagerType::Slurm,
             )
         }
     };
@@ -284,8 +286,7 @@ async fn create_queue(
 
     match handler {
         Ok(handler) => {
-            let descriptor =
-                QueueDescriptor::new(ManagerType::Pbs, queue_info, params.name, handler);
+            let descriptor = QueueDescriptor::new(manager_type, queue_info, params.name, handler);
             let id = state_ref.get_mut().get_autoalloc_state_mut().create_id();
             state_ref
                 .get_mut()
