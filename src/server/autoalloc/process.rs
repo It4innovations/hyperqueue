@@ -178,10 +178,16 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
     };
     while remaining > 0 {
         let to_schedule = std::cmp::min(remaining, max_workers_per_alloc);
-        let schedule_fut = get_or_return!(state_ref.get().get_autoalloc_state().get_descriptor(id))
-            .descriptor
-            .handler()
-            .schedule_allocation(to_schedule);
+
+        let schedule_fut = {
+            let state = state_ref.get();
+            let descriptor = get_or_return!(state.get_autoalloc_state().get_descriptor(id));
+            let info = descriptor.descriptor.info();
+            descriptor
+                .descriptor
+                .handler()
+                .schedule_allocation(id, info, to_schedule)
+        };
 
         let result = schedule_fut.await;
 

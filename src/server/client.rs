@@ -258,21 +258,14 @@ async fn create_queue(
     let result = match request {
         AddQueueRequest::Pbs(params) => {
             let queue_info = QueueInfo::new(
-                params.queue.clone(),
+                params.queue,
                 params.max_workers_per_alloc,
                 params.target_worker_count,
                 params.timelimit,
             );
 
-            let id = state_ref.get_mut().get_autoalloc_state_mut().create_id();
-            let handler = PbsHandler::new(
-                params.queue,
-                params.timelimit,
-                id,
-                server_dir.directory().to_path_buf(),
-                params.qsub_args,
-            )
-            .await;
+            let handler =
+                PbsHandler::new(server_dir.directory().to_path_buf(), params.qsub_args).await;
             match handler {
                 Ok(handler) => {
                     let descriptor = QueueDescriptor::new(
@@ -281,6 +274,7 @@ async fn create_queue(
                         params.name,
                         Box::new(handler),
                     );
+                    let id = state_ref.get_mut().get_autoalloc_state_mut().create_id();
 
                     state_ref
                         .get_mut()

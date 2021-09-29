@@ -2,7 +2,7 @@ pub mod pbs;
 
 use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
-use crate::server::autoalloc::AutoAllocResult;
+use crate::server::autoalloc::{AutoAllocResult, DescriptorId};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -84,6 +84,7 @@ impl QueueInfo {
     }
 }
 
+#[derive(Debug)]
 pub struct CreatedAllocation {
     id: AllocationId,
     working_dir: PathBuf,
@@ -105,9 +106,10 @@ impl CreatedAllocation {
 /// Handler that can communicate with some allocation queue (e.g. PBS/Slurm queue)
 pub trait QueueHandler {
     /// Schedule an allocation that will start the corresponding number of workers.
-    /// Returns the string ID of the created allocation.
     fn schedule_allocation(
         &self,
+        descriptor_id: DescriptorId,
+        queue_info: &QueueInfo,
         worker_count: u64,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>>;
 
