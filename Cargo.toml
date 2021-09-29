@@ -58,6 +58,12 @@ tako = { git = "https://github.com/spirali/tako", branch = "main", default-featu
 # Optional dependencies
 jemallocator = { version = "0.3.2", optional = true }
 
+#dashboard
+tui = { version = "0.14" }
+termion = "1.5"
+indicatif = "0.16.2"
+textwrap = "0.14"
+
 [features]
 default = ["jemalloc"]
 # Mode that does not execute tasks, useful for benchmarking HQ overhead
