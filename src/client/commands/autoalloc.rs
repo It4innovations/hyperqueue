@@ -46,6 +46,7 @@ pub enum AddQueueCommand {
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
+#[clap(setting = clap::AppSettings::TrailingVarArg)]
 pub struct AddPbsQueueOpts {
     /// PBS queue into which the allocations will be queued
     #[clap(long, short)]
@@ -66,6 +67,10 @@ pub struct AddPbsQueueOpts {
     /// Name of the allocation queue (for debug purposes only)
     #[clap(long, short)]
     name: Option<String>,
+
+    /// Additional arguments passed to `qsub`
+    #[clap()]
+    qsub_args: Vec<String>,
 }
 
 #[derive(Clap)]
@@ -140,6 +145,7 @@ async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyh
                 queue: params.queue,
                 timelimit: params.time_limit.map(|v| v.into_duration()),
                 name: params.name,
+                qsub_args: params.qsub_args,
             }),
         )),
     };

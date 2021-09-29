@@ -270,6 +270,7 @@ async fn create_queue(
                 params.timelimit,
                 id,
                 server_dir.directory().to_path_buf(),
+                params.qsub_args,
             )
             .await;
             match handler {
