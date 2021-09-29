@@ -119,6 +119,7 @@ pub struct AddQueueParams {
     pub queue: String,
     pub timelimit: Option<Duration>,
     pub name: Option<String>,
+    pub qsub_args: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

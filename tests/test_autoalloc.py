@@ -67,6 +67,32 @@ def test_pbs_queue_qsub_fail(hq_env: HqEnv):
             table.check_value_column("Message", 0, "qsub execution failed")
 
 
+def test_pbs_queue_qsub_args(hq_env: HqEnv):
+    path = join(hq_env.work_path, "qsub.out")
+    qsub_code = f"""
+import os
+import sys
+import json
+
+args = sys.argv
+
+with open("{path}", "w") as f:
+    f.write(json.dumps(args))
+"""
+
+    with hq_env.mock.mock_program("qsub", qsub_code):
+        with hq_env.mock.mock_program("qstat", ""):
+            hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+            add_queue(hq_env, additional_args="--foo=bar a b --baz 42")
+            wait_until(lambda: os.path.exists(path))
+            with open(path) as f:
+                args = json.loads(f.read())
+                start = args.index("--foo=bar")
+                end = args.index("--")
+                args = args[start:end]
+                assert args == ["--foo=bar", "a", "b", "--baz", "42"]
+
+
 def test_pbs_queue_qsub_success(hq_env: HqEnv):
     qsub_code = """print("123.job")"""
 
@@ -325,11 +351,15 @@ with open(os.path.join("{self.qdel_dir}", jobid), "w") as f:
         return list(os.listdir(self.qdel_dir))
 
 
-def add_queue(hq_env, type="pbs", name: Optional[str] = "foo", queue="queue", workers=1, max_workers_per_alloc=1):
+def add_queue(hq_env, type="pbs", name: Optional[str] = "foo", queue="queue", workers=1, max_workers_per_alloc=1,
+              additional_args=None):
     args = ["alloc", "add", type]
     if name is not None:
         args.extend(["--name", name])
     args.extend(["--queue", queue, "--workers", str(workers),
                  "--max-workers-per-alloc", str(max_workers_per_alloc)])
+    if additional_args is not None:
+        args.append("--")
+        args.extend(additional_args.split(" "))
 
     return hq_env.command(args)

@@ -190,7 +190,7 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
         let descriptor = get_or_return!(state.get_descriptor_mut(id));
         match result {
             Ok(created) => {
-                log::info!("Queued {} workers into {}", to_schedule, id);
+                log::info!("Queued {} workers into queue {}", to_schedule, id);
                 descriptor.add_event(AllocationEvent::AllocationQueued(created.id().to_string()));
                 descriptor.add_allocation(Allocation {
                     id: created.id().to_string(),
@@ -201,7 +201,7 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
                 });
             }
             Err(err) => {
-                log::error!("Failed to queue allocation into {}: {:?}", id, err);
+                log::error!("Failed to queue allocation into queue {}: {:?}", id, err);
                 descriptor.add_event(AllocationEvent::QueueFail {
                     error: err.to_string(),
                 });

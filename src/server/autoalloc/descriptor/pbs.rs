@@ -22,6 +22,7 @@ pub struct PbsHandler {
     id: DescriptorId,
     hq_path: PathBuf,
     qstat_path: PathBuf,
+    qsub_args: Vec<String>,
 }
 
 impl PbsHandler {
@@ -30,6 +31,7 @@ impl PbsHandler {
         timelimit: Option<Duration>,
         id: DescriptorId,
         server_directory: PathBuf,
+        qsub_args: Vec<String>,
     ) -> anyhow::Result<Self> {
         let hq_path = std::env::current_exe().context("Cannot get HyperQueue path")?;
         let qstat_path = check_command_output(Command::new("which").arg("qstat").output().await?)
@@ -43,6 +45,7 @@ impl PbsHandler {
             id,
             hq_path,
             qstat_path,
+            qsub_args,
         })
     }
 }
@@ -68,6 +71,7 @@ impl QueueHandler for PbsHandler {
         let qstat_path = self.qstat_path.display().to_string();
         let server_directory = self.server_directory.clone();
         let name = self.id.to_string();
+        let qsub_args = self.qsub_args.clone();
 
         Box::pin(async move {
             let directory = create_allocation_dir(server_directory.clone(), &name)?;
@@ -87,6 +91,8 @@ impl QueueHandler for PbsHandler {
             if let Some(ref timelimit) = timelimit {
                 arguments.push(format!("-lwalltime={}", format_pbs_duration(timelimit)));
             }
+
+            arguments.extend(qsub_args);
 
             // `hq worker` arguments
             arguments.extend([
