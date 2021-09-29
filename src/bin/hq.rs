@@ -22,6 +22,8 @@ use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::timeutils::ArgDuration;
+use hyperqueue::dashboard::start::start_ui_loop;
+use hyperqueue::dashboard::ui::painter::DashboardPainter;
 use hyperqueue::server::bootstrap::{
     get_client_connection, init_hq_server, print_server_info, ServerConfig,
 };
@@ -31,6 +33,7 @@ use hyperqueue::transfer::messages::{
 use hyperqueue::worker::hwdetect::detect_resource;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::WorkerId;
+use tokio::task::LocalSet;
 
 #[cfg(feature = "jemalloc")]
 #[global_allocator]
@@ -65,7 +68,11 @@ struct Opts {
     subcmd: SubCommand,
 }
 
+///HyperQueue Dashboard
 #[allow(clippy::large_enum_variant)]
+#[derive(Clap)]
+struct DashboardOpts {}
+
 #[derive(Clap)]
 enum SubCommand {
     /// Commands for controlling the HyperQueue server
@@ -91,6 +98,8 @@ enum SubCommand {
     /// Auto allocation management
     #[clap(name = "alloc")]
     AutoAlloc(AutoAllocOpts),
+    ///Commands for the dashboard
+    Dashboard(DashboardOpts),
 }
 
 // Server CLI options
@@ -427,6 +436,21 @@ async fn command_progress(gsettings: GlobalSettings, opts: ProgressOpts) -> anyh
     .await?;
     wait_for_jobs_with_progress(&mut connection, response.jobs).await
 }
+///Starts the hq Dashboard
+async fn command_dashboard_start(
+    gsettings: GlobalSettings,
+    _opts: DashboardOpts,
+) -> anyhow::Result<()> {
+    let _lset = LocalSet::new()
+        .run_until(start_ui_loop(
+            DashboardPainter::init()?,
+            Default::default(),
+            &gsettings,
+        ))
+        .await;
+
+    Ok(())
+}
 
 pub enum ColorPolicy {
     Auto,
@@ -531,6 +555,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Submit(opts) => command_submit(gsettings, opts).await,
         SubCommand::Cancel(opts) => command_cancel(gsettings, opts).await,
         SubCommand::Resubmit(opts) => command_resubmit(gsettings, opts).await,
+        SubCommand::Dashboard(opts) => command_dashboard_start(gsettings, opts).await,
         SubCommand::Wait(opts) => command_wait(gsettings, opts).await,
         SubCommand::Progress(opts) => command_progress(gsettings, opts).await,
         SubCommand::Log(opts) => command_log(gsettings, opts),
