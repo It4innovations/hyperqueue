@@ -1,16 +1,18 @@
-use crate::common::env::HQ_QSTAT_PATH;
-use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
-use crate::common::timeutils::local_to_system_time;
-use crate::server::autoalloc::descriptor::{CreatedAllocation, QueueHandler};
-use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
-use crate::server::autoalloc::{AutoAllocResult, DescriptorId, QueueInfo};
-use anyhow::Context;
-use bstr::{ByteSlice, ByteVec};
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::process::Output;
+
+use anyhow::Context;
+use bstr::{ByteSlice, ByteVec};
 use tokio::process::Command;
+
+use crate::common::env::HQ_QSTAT_PATH;
+use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
+use crate::common::timeutils::local_to_system_time;
+use crate::server::autoalloc::descriptor::common::{check_command_output, create_allocation_dir};
+use crate::server::autoalloc::descriptor::{CreatedAllocation, QueueHandler};
+use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
+use crate::server::autoalloc::{AutoAllocResult, DescriptorId, QueueInfo};
 
 pub struct PbsHandler {
     server_directory: PathBuf,
@@ -33,16 +35,6 @@ impl PbsHandler {
             qsub_args,
         })
     }
-}
-
-fn create_allocation_dir(server_directory: PathBuf, name: &str) -> Result<PathBuf, std::io::Error> {
-    let mut dir = server_directory;
-    dir.push("autoalloc");
-    dir.push(name);
-
-    std::fs::create_dir_all(&dir)?;
-
-    Ok(tempdir::TempDir::new_in(dir, "allocation")?.into_path())
 }
 
 impl QueueHandler for PbsHandler {
@@ -96,7 +88,7 @@ impl QueueHandler for PbsHandler {
             ]);
 
             log::debug!("Running PBS command `{}`", arguments.join(" "));
-            let mut command = Command::new(arguments[0].clone());
+            let mut command = Command::new(&arguments[0]);
             command.args(&arguments[1..]);
 
             let output = command.output().await.context("qsub start failed")?;
@@ -209,17 +201,4 @@ fn get_json_number(value: &serde_json::Value, context: &str) -> AutoAllocResult<
     value
         .as_u64()
         .ok_or_else(|| anyhow::anyhow!("JSON key {} not found", context))
-}
-
-fn check_command_output(output: Output) -> AutoAllocResult<Output> {
-    let status = output.status;
-    if !status.success() {
-        return Err(anyhow::anyhow!(
-            "Exit code {}\nstderr: {}\nstdout: {}",
-            status.code().unwrap(),
-            output.stderr.to_str().unwrap(),
-            output.stdout.to_str().unwrap()
-        ));
-    }
-    Ok(output)
 }

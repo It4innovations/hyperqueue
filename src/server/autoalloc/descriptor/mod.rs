@@ -1,4 +1,6 @@
+mod common;
 pub mod pbs;
+pub mod slurm;
 
 use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
