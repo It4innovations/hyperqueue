@@ -230,7 +230,7 @@ mod tests {
     };
     use crate::server::autoalloc::process::autoalloc_tick;
     use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
-    use crate::server::autoalloc::AutoAllocResult;
+    use crate::server::autoalloc::{AutoAllocResult, DescriptorId};
     use crate::server::state::StateRef;
     use std::pin::Pin;
 
@@ -396,6 +396,8 @@ mod tests {
     {
         fn schedule_allocation(
             &self,
+            _descriptor_id: DescriptorId,
+            _queue_info: &QueueInfo,
             worker_count: u64,
         ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>> {
             let schedule_fn = self.schedule_fn.clone();

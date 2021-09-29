@@ -110,6 +110,7 @@ pub enum AutoAllocRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AddQueueRequest {
     Pbs(AddQueueParams),
+    Slurm(AddQueueParams),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -119,7 +120,7 @@ pub struct AddQueueParams {
     pub queue: String,
     pub timelimit: Option<Duration>,
     pub name: Option<String>,
-    pub qsub_args: Vec<String>,
+    pub additional_args: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

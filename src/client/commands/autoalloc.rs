@@ -42,6 +42,8 @@ pub struct AddQueueOpts {
 pub enum AddQueueCommand {
     /// Create a PBS allocation queue
     Pbs(AddPbsQueueOpts),
+    /// Create a SLURM allocation queue
+    Slurm(AddSlurmQueueOpts),
 }
 
 #[derive(Clap)]
@@ -71,6 +73,35 @@ pub struct AddPbsQueueOpts {
     /// Additional arguments passed to `qsub`
     #[clap()]
     qsub_args: Vec<String>,
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[clap(setting = clap::AppSettings::TrailingVarArg)]
+pub struct AddSlurmQueueOpts {
+    /// SLURM partition into which the allocations will be queued
+    #[clap(long, short)]
+    partition: String,
+
+    /// How many workers should be kept active in this queue
+    #[clap(long("workers"), short('w'))]
+    target_worker_count: u32,
+
+    /// Time limit (walltime) of Slurm allocations
+    #[clap(long, short('t'))]
+    time_limit: Option<ArgDuration>,
+
+    /// How many workers at most can be allocated in a single allocation
+    #[clap(long, short('m'), default_value = "1")]
+    max_workers_per_alloc: u32,
+
+    /// Name of the allocation queue (for debug purposes only)
+    #[clap(long, short)]
+    name: Option<String>,
+
+    /// Additional arguments passed to `sbatch`
+    #[clap()]
+    sbatch_args: Vec<String>,
 }
 
 #[derive(Clap)]
@@ -145,7 +176,17 @@ async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyh
                 queue: params.queue,
                 timelimit: params.time_limit.map(|v| v.into_duration()),
                 name: params.name,
-                qsub_args: params.qsub_args,
+                additional_args: params.qsub_args,
+            }),
+        )),
+        AddQueueCommand::Slurm(params) => FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(
+            AddQueueRequest::Slurm(AddQueueParams {
+                max_workers_per_alloc: params.max_workers_per_alloc,
+                target_worker_count: params.target_worker_count,
+                queue: params.partition,
+                timelimit: params.time_limit.map(|v| v.into_duration()),
+                name: params.name,
+                additional_args: params.sbatch_args,
             }),
         )),
     };

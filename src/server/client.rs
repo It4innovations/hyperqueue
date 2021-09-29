@@ -16,7 +16,9 @@ use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::ServerDir;
 
-use crate::server::autoalloc::{DescriptorId, PbsHandler, QueueDescriptor, QueueInfo};
+use crate::server::autoalloc::{
+    DescriptorId, PbsHandler, QueueDescriptor, QueueHandler, QueueInfo, SlurmHandler,
+};
 use crate::server::job::{Job, JobState, JobTaskCounters};
 use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
@@ -255,40 +257,42 @@ async fn create_queue(
     state_ref: &StateRef,
     request: AddQueueRequest,
 ) -> ToClientMessage {
-    let result = match request {
+    let server_directory = server_dir.directory().to_path_buf();
+    let (handler, params) = match request {
         AddQueueRequest::Pbs(params) => {
-            let queue_info = QueueInfo::new(
-                params.queue,
-                params.max_workers_per_alloc,
-                params.target_worker_count,
-                params.timelimit,
-            );
-
-            let handler =
-                PbsHandler::new(server_dir.directory().to_path_buf(), params.qsub_args).await;
-            match handler {
-                Ok(handler) => {
-                    let descriptor = QueueDescriptor::new(
-                        ManagerType::Pbs,
-                        queue_info,
-                        params.name,
-                        Box::new(handler),
-                    );
-                    let id = state_ref.get_mut().get_autoalloc_state_mut().create_id();
-
-                    state_ref
-                        .get_mut()
-                        .get_autoalloc_state_mut()
-                        .add_descriptor(id, descriptor);
-                    Ok(id)
-                }
-                Err(e) => Err(e),
-            }
+            let handler = PbsHandler::new(server_directory, params.additional_args.clone()).await;
+            (
+                handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler)),
+                params,
+            )
+        }
+        AddQueueRequest::Slurm(params) => {
+            let handler = SlurmHandler::new(server_directory, params.additional_args.clone()).await;
+            (
+                handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler)),
+                params,
+            )
         }
     };
 
-    match result {
-        Ok(id) => ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreated(id)),
+    let queue_info = QueueInfo::new(
+        params.queue,
+        params.max_workers_per_alloc,
+        params.target_worker_count,
+        params.timelimit,
+    );
+
+    match handler {
+        Ok(handler) => {
+            let descriptor =
+                QueueDescriptor::new(ManagerType::Pbs, queue_info, params.name, handler);
+            let id = state_ref.get_mut().get_autoalloc_state_mut().create_id();
+            state_ref
+                .get_mut()
+                .get_autoalloc_state_mut()
+                .add_descriptor(id, descriptor);
+            ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreated(id))
+        }
         Err(err) => ToClientMessage::Error(format!("Could not create autoalloc queue: {}", err)),
     }
 }
