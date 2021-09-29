@@ -7,7 +7,6 @@ from .utils import JOB_TABLE_ROWS
 from .utils import wait_for_job_state
 
 
-
 def test_job_array_submit(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus=4)

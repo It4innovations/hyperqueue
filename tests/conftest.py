@@ -107,7 +107,7 @@ class HqEnv(Env):
 
     def make_default_env(self):
         env = os.environ.copy()
-        env["RUST_LOG"] = "trace"
+        env["RUST_LOG"] = "tako=trace,hyperqueue=trace"
         env["RUST_BACKTRACE"] = "full"
         self.mock.update_env(env)
         return env
