@@ -2,13 +2,8 @@ use chrono::TimeZone;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
+#[derive(Clone)]
 pub struct ArgDuration(Duration);
-
-impl ArgDuration {
-    pub fn into_duration(self) -> Duration {
-        self.0
-    }
-}
 
 impl FromStr for ArgDuration {
     type Err = anyhow::Error;

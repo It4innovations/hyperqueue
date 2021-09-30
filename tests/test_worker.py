@@ -159,6 +159,19 @@ def test_idle_timeout_worker_cfg(hq_env: HqEnv):
     table.check_value_column("State", 0, "IDLE TIMEOUT")
 
 
+def test_worker_time_limit(hq_env: HqEnv):
+    hq_env.start_server()
+    w = hq_env.start_worker(args=["--time-limit", "1s 200ms"])
+    time.sleep(0.5)
+    table = hq_env.command(["worker", "list"], as_table=True)
+    table.check_value_column("State", 0, "RUNNING")
+
+    time.sleep(1.0)
+    hq_env.check_process_exited(w, expected_code=None)
+    table = hq_env.command(["worker", "list"], as_table=True)
+    table.check_value_column("State", 0, "CONNECTION LOST")
+
+
 def test_worker_info(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus="10", args=["--heartbeat", "10s", "--manager", "none"])

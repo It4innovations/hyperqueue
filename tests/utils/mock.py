@@ -1,7 +1,7 @@
 import contextlib
 import os
 import sys
-from os.path import join, isfile
+from os.path import isfile, join
 from typing import Dict
 
 

@@ -19,19 +19,49 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
 
         table = hq_env.command(["alloc", "list"], as_table=True)
         table.check_value_columns(
-            ("ID", "Target worker count", "Max workers per allocation", "Queue", "Timelimit", "Manager", "Name"),
+            (
+                "ID",
+                "Target worker count",
+                "Max workers per allocation",
+                "Queue",
+                "Timelimit",
+                "Manager",
+                "Name",
+            ),
             0,
-            ("1", "5", "1", "queue", "N/A", "PBS", ""))
+            ("1", "5", "1", "queue", "N/A", "PBS", ""),
+        )
 
         hq_env.command(
-            ["alloc", "add", "pbs", "--name", "bar", "--queue", "qexp", "--workers", "1",
-             "--max-workers-per-alloc",
-             "2", "--time-limit", "1h"])
+            [
+                "alloc",
+                "add",
+                "pbs",
+                "--name",
+                "bar",
+                "--queue",
+                "qexp",
+                "--workers",
+                "1",
+                "--max-workers-per-alloc",
+                "2",
+                "--time-limit",
+                "1h",
+            ]
+        )
         table = hq_env.command(["alloc", "list"], as_table=True)
         table.check_value_columns(
-            ("ID", "Target worker count", "Max workers per allocation", "Queue", "Timelimit", "Name"),
+            (
+                "ID",
+                "Target worker count",
+                "Max workers per allocation",
+                "Queue",
+                "Timelimit",
+                "Name",
+            ),
             1,
-            ("2", "1", "2", "qexp", "1h", "bar"))
+            ("2", "1", "2", "qexp", "1h", "bar"),
+        )
 
         add_queue(hq_env, manager="slurm", queue="partition", workers=1)
         table = hq_env.command(["alloc", "list"], as_table=True)
@@ -47,8 +77,20 @@ def test_add_pbs_descriptor(hq_env: HqEnv):
     with mock.activate():
         hq_env.start_server(args=["--autoalloc-interval", "500ms"])
         output = hq_env.command(
-            ["alloc", "add", "pbs", "--name", "foo", "--queue", "queue", "--workers", "5",
-             "--max-workers-per-alloc", "2"])
+            [
+                "alloc",
+                "add",
+                "pbs",
+                "--name",
+                "foo",
+                "--queue",
+                "queue",
+                "--workers",
+                "5",
+                "--max-workers-per-alloc",
+                "2",
+            ]
+        )
         assert "Allocation queue 1 successfully created" in output
 
         info = hq_env.command(["alloc", "list"], as_table=True)
@@ -68,8 +110,10 @@ def test_add_slurm_descriptor(hq_env: HqEnv):
 
 def test_pbs_fail_without_qstat(hq_env: HqEnv):
     hq_env.start_server(args=["--autoalloc-interval", "500ms"])
-    hq_env.command(["alloc", "add", "pbs", "--name", "foo", "--queue", "queue", "--workers", "1"],
-                   expect_fail="qstat")
+    hq_env.command(
+        ["alloc", "add", "pbs", "--name", "foo", "--queue", "queue", "--workers", "1"],
+        expect_fail="qstat",
+    )
 
 
 def test_pbs_queue_qsub_fail(hq_env: HqEnv):
@@ -228,7 +272,12 @@ def test_pbs_events_job_lifecycle(hq_env: HqEnv):
         table.check_value_column("Event", -1, "Allocation started")
 
         # Finished
-        mock.set_job_data("F", stime="Thu Aug 19 13:05:39 2021", mtime="Thu Aug 19 13:05:39 2021", exit_code=0)
+        mock.set_job_data(
+            "F",
+            stime="Thu Aug 19 13:05:39 2021",
+            mtime="Thu Aug 19 13:05:39 2021",
+            exit_code=0,
+        )
         time.sleep(0.5)
         table = hq_env.command(["alloc", "events", "1"], as_table=True)
         assert "Allocation finished" in table.get_column_value("Event")
@@ -236,7 +285,12 @@ def test_pbs_events_job_lifecycle(hq_env: HqEnv):
 
 def test_pbs_events_job_failed(hq_env: HqEnv):
     mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021")
-    mock.set_job_data("F", stime="Thu Aug 19 13:05:39 2021", mtime="Thu Aug 19 13:05:39 2021", exit_code=1)
+    mock.set_job_data(
+        "F",
+        stime="Thu Aug 19 13:05:39 2021",
+        mtime="Thu Aug 19 13:05:39 2021",
+        exit_code=1,
+    )
 
     with mock.activate():
         hq_env.start_server(args=["--autoalloc-interval", "100ms"])
@@ -249,8 +303,12 @@ def test_pbs_events_job_failed(hq_env: HqEnv):
 
 
 def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
-    mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021", stime="Thu Aug 19 13:05:39 2021",
-                   mtime="Thu Aug 19 13:05:39 2021")
+    mock = PbsMock(
+        hq_env,
+        qtime="Thu Aug 19 13:05:38 2021",
+        stime="Thu Aug 19 13:05:39 2021",
+        mtime="Thu Aug 19 13:05:39 2021",
+    )
     mock.set_job_data("Q")
 
     with mock.activate():
@@ -259,8 +317,9 @@ def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
         time.sleep(0.2)
 
         table = hq_env.command(["alloc", "info", "1"], as_table=True)
-        table.check_value_columns(("Id", "State", "Worker count"), 0,
-                                  ("1", "Queued", "1"))
+        table.check_value_columns(
+            ("Id", "State", "Worker count"), 0, ("1", "Queued", "1")
+        )
 
         mock.set_job_data("R")
         time.sleep(0.2)
@@ -296,11 +355,13 @@ def test_allocations_ignore_job_changes_after_finish(hq_env: HqEnv):
 
 
 def test_pbs_delete_active_jobs(hq_env: HqEnv):
-    mock = PbsMock(hq_env,
-                   jobs=["1", "2"],
-                   qtime="Thu Aug 19 13:05:38 2021",
-                   stime="Thu Aug 19 13:05:39 2021",
-                   mtime="Thu Aug 19 13:05:39 2021")
+    mock = PbsMock(
+        hq_env,
+        jobs=["1", "2"],
+        qtime="Thu Aug 19 13:05:38 2021",
+        stime="Thu Aug 19 13:05:39 2021",
+        mtime="Thu Aug 19 13:05:39 2021",
+    )
     mock.set_job_data("R")
 
     with mock.activate():
@@ -393,11 +454,20 @@ with open(os.path.join("{self.qdel_dir}", jobid), "w") as f:
                 with self.hq_env.mock.mock_program("qdel", self.qdel_code):
                     yield
 
-    def set_job_data(self, status: str, qtime: str = None, stime: str = None, mtime: str = None, exit_code: int = None):
+    def set_job_data(
+        self,
+        status: str,
+        qtime: str = None,
+        stime: str = None,
+        mtime: str = None,
+        exit_code: int = None,
+    ):
         jobdata = dict(self.data)
-        jobdata.update({
-            "job_state": status,
-        })
+        jobdata.update(
+            {
+                "job_state": status,
+            }
+        )
         if qtime is not None:
             jobdata["qtime"] = qtime
         if stime is not None:

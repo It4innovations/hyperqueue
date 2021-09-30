@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import List, Optional
 
 JOB_TABLE_ROWS = 15
 

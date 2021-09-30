@@ -6,8 +6,8 @@ import time
 
 import pytest
 
-from .utils.mock import ProgramMock
 from .utils import parse_table
+from .utils.mock import ProgramMock
 
 PYTEST_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(PYTEST_DIR)
@@ -155,6 +155,8 @@ class HqEnv(Env):
             self.server_dir,
             "worker",
             "start",
+            "--hostname",
+            f"worker{worker_id}",
         ]
         if cpus is not None:
             worker_args += ["--cpus", str(cpus)]

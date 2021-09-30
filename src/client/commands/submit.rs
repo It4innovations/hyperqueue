@@ -90,6 +90,10 @@ pub struct SubmitOpts {
     #[clap(long, default_value = "1")]
     cpus: ArgCpuRequest,
 
+    /// Minimal lifetime of the worker needed to start the job
+    #[clap(long, default_value = "0ms")]
+    time_request: ArgDuration,
+
     /// Name of the job
     #[clap(long)]
     name: Option<String>,
@@ -158,7 +162,7 @@ pub struct SubmitOpts {
 
 impl SubmitOpts {
     fn resource_request(&self) -> ResourceRequest {
-        ResourceRequest::new(self.cpus.0.clone())
+        ResourceRequest::new(self.cpus.0.clone(), self.time_request.clone().into())
     }
 }
 
