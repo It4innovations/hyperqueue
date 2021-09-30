@@ -174,7 +174,7 @@ async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyh
                 max_workers_per_alloc: params.max_workers_per_alloc,
                 target_worker_count: params.target_worker_count,
                 queue: params.queue,
-                timelimit: params.time_limit.map(|v| v.into_duration()),
+                timelimit: params.time_limit.map(|v| v.into()),
                 name: params.name,
                 additional_args: params.qsub_args,
             }),

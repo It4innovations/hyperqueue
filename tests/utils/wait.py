@@ -1,5 +1,5 @@
 import time
-from typing import Union, List
+from typing import List, Union
 
 DEFAULT_TIMEOUT = 5
 

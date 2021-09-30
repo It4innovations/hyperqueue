@@ -87,9 +87,17 @@ pub struct WorkerStartOpts {
     #[clap(long)]
     idle_timeout: Option<ArgDuration>,
 
+    /// Worker time limit. Worker exits after given time.
+    #[clap(long)]
+    time_limit: Option<ArgDuration>,
+
     /// What HPC job manager should be used by the worker.
     #[clap(long, default_value = "detect", possible_values = & ["detect", "slurm", "pbs", "none"])]
     manager: ManagerOpts,
+
+    /// Overwrite worker hostname
+    #[clap(long)]
+    hostname: Option<String>,
 }
 
 async fn resend_stdio(
@@ -415,9 +423,11 @@ fn gather_manager_info(opts: ManagerOpts) -> anyhow::Result<Option<ManagerInfo>>
 fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfiguration> {
     log::debug!("Gathering worker configuration information");
 
-    let hostname = gethostname::gethostname()
-        .into_string()
-        .expect("Invalid hostname");
+    let hostname = opts.hostname.unwrap_or_else(|| {
+        gethostname::gethostname()
+            .into_string()
+            .expect("Invalid hostname")
+    });
 
     let resources = opts
         .cpus
@@ -441,11 +451,12 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
     Ok(WorkerConfiguration {
         resources,
         listen_address: Default::default(), // Will be filled during init
+        time_limit: opts.time_limit.map(|x| x.into()),
         hostname,
         work_dir,
         log_dir,
-        heartbeat_interval: opts.heartbeat.into_duration(),
-        idle_timeout: opts.idle_timeout.map(|x| x.into_duration()),
+        heartbeat_interval: opts.heartbeat.into(),
+        idle_timeout: opts.idle_timeout.map(|x| x.into()),
         extra,
         hw_state_poll_interval: None,
     })

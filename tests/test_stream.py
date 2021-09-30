@@ -55,7 +55,9 @@ def test_stream_submit(hq_env: HqEnv):
     result = hq_env.command(["log", "mylog", "cat", "stdout"])
     assert result == "".join(["Hello from {}\n".format(i) for i in range(1, 21)])
 
-    result = hq_env.command(["log", "mylog", "cat", "stdout", "--task=3-4,2"]).splitlines()
+    result = hq_env.command(
+        ["log", "mylog", "cat", "stdout", "--task=3-4,2"]
+    ).splitlines()
     assert result[0] == "Hello from 3"
     assert result[1] == "Hello from 4"
     assert result[2] == "Hello from 2"
@@ -65,15 +67,7 @@ def test_stream_submit(hq_env: HqEnv):
 def test_stream_submit_placeholder(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(
-        [
-            "submit",
-            "--log",
-            "log-%{JOB_ID}",
-            "--",
-            "bash",
-            "-c",
-            "echo Hello"
-        ]
+        ["submit", "--log", "log-%{JOB_ID}", "--", "bash", "-c", "echo Hello"]
     )
     hq_env.start_workers(1)
     wait_for_job_state(hq_env, 1, "FINISHED")

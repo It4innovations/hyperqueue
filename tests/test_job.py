@@ -1,14 +1,13 @@
 import os
 import socket
-from os.path import isdir, isfile
-
 import time
 from datetime import datetime
+from os.path import isdir, isfile
 
 import pytest
 
 from .conftest import HqEnv
-from .utils import wait_for_job_state, JOB_TABLE_ROWS
+from .utils import JOB_TABLE_ROWS, wait_for_job_state
 
 
 def test_job_submit(hq_env: HqEnv):
@@ -139,13 +138,18 @@ def test_job_output_default(hq_env: HqEnv, tmp_path):
 def test_create_output_folders(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
-    hq_env.command([
-        "submit",
-        "--stdout", "foo/1/job.out",
-        "--stderr", "foo/1/job.err",
-        "--",
-        "echo", "hi"
-    ])
+    hq_env.command(
+        [
+            "submit",
+            "--stdout",
+            "foo/1/job.out",
+            "--stderr",
+            "foo/1/job.err",
+            "--",
+            "echo",
+            "hi",
+        ]
+    )
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     assert isdir("foo/1")
@@ -593,7 +597,12 @@ def test_job_priority(hq_env: HqEnv, tmp_path):
     wait_for_job_state(hq_env, 4, "FINISHED")
 
     dates = []
-    for file in ["job-1/stdout.0", "job-2/stdout.0", "job-3/stdout.0", "job-4/stdout.0"]:
+    for file in [
+        "job-1/stdout.0",
+        "job-2/stdout.0",
+        "job-3/stdout.0",
+        "job-4/stdout.0",
+    ]:
         with open(os.path.join(tmp_path, file)) as f:
             dates.append(datetime.fromisoformat(f.read().strip()))
 

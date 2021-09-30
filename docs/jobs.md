@@ -143,14 +143,34 @@ Finished    Failed   Canceled
 * *Failed* - The task has failed. The error can be shown by ``hq job <job-id>``.
 * *Canceled* -  The task has been canceled by a user.
 
+## Time management
 
-## Time limit
+Time management is split into two settings:
+
+* **time limit** - It is maximal running time of a task.
+               If it is reached then task is terminated and set into FAILED state.
+               This setting does not have any impact on scheduling.
+* **time request** - The minimal remaining lifetime of a worker needed to start the task.
+                     The settings has impact only on the scheduling,
+                     When task is started, it has no effect
+                     if the task takes more/less computational time.
+
+
+### Time limit
 
 Time limit is set as follows:
 
 ``hq submit --time-limit=TIME ...``
 
 Where ``TIME`` is a number followed by units (e.g. ``10 min``)
+
+### Time request
+
+Time request is set as follows:
+
+``hq submit --time-request=TIME``
+
+### Time Units
 
 You can use the following units:
 
