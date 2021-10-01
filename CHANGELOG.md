@@ -11,7 +11,8 @@
 ## Changes
   * Job id is now represented as u32
   * Normalization of stream's end behavior when job is canceled
-
+  * `hq submit --wait` and `hq wait` will no longer display a progress bar while waiting for the job(s) to finish.
+  The progress bar was moved to `hq submit --progress` and `hq progress`.
 
 # v0.4.0
 

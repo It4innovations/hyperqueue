@@ -32,15 +32,16 @@ use std::time::SystemTime;
 use tako::common::resources::ResourceDescriptor;
 use tako::messages::common::{StdioDef, WorkerConfiguration};
 
+use crate::common::strutils::pluralize;
 use colored::Color as Colorization;
 use colored::Colorize;
 use std::collections::BTreeSet;
 
-const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
-const TASK_COLOR_FAILED: Colorization = Colorization::Red;
-const TASK_COLOR_FINISHED: Colorization = Colorization::Green;
-const TASK_COLOR_RUNNING: Colorization = Colorization::Yellow;
-const TASK_COLOR_INVALID: Colorization = Colorization::BrightRed;
+pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
+pub const TASK_COLOR_FAILED: Colorization = Colorization::Red;
+pub const TASK_COLOR_FINISHED: Colorization = Colorization::Green;
+pub const TASK_COLOR_RUNNING: Colorization = Colorization::Yellow;
+pub const TASK_COLOR_INVALID: Colorization = Colorization::BrightRed;
 
 pub struct CliOutput {
     color_policy: ColorChoice,
@@ -452,7 +453,7 @@ impl Output for CliOutput {
 
         let mut format = |count: u32, action: &str, color| {
             if count > 0 {
-                let job = if count == 1 { "job" } else { "jobs" };
+                let job = pluralize("job", count as usize);
                 msgs.push(
                     format!("{} {} {}", count, job, action)
                         .color(color)
@@ -748,7 +749,11 @@ fn job_status_to_cell(info: &JobInfo) -> String {
     result
 }
 
-fn job_progress_bar(counters: JobTaskCounters, n_tasks: JobTaskCount, width: usize) -> String {
+pub(crate) fn job_progress_bar(
+    counters: JobTaskCounters,
+    n_tasks: JobTaskCount,
+    width: usize,
+) -> String {
     let mut buffer = String::from("[");
 
     let parts = vec![

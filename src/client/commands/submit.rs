@@ -9,7 +9,7 @@ use clap::Clap;
 use tako::common::resources::{CpuRequest, ResourceRequest};
 use tako::messages::common::{ProgramDefinition, StdioDef};
 
-use crate::client::commands::wait::wait_for_jobs;
+use crate::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
 use crate::client::resources::parse_cpu_request;
@@ -151,9 +151,13 @@ pub struct SubmitOpts {
     /// Time limit per task. E.g. --time-limit=10min
     time_limit: Option<ArgDuration>,
 
-    /// Wait on the job(s) execution.
-    #[clap(long)]
+    /// Wait for the job to finish.
+    #[clap(long, conflicts_with("progress"))]
     wait: bool,
+
+    /// Interactively observe the progress of the submitted job.
+    #[clap(long, conflicts_with("wait"))]
+    progress: bool,
 
     /// Stream the output of tasks into this log file.
     #[clap(long)]
@@ -273,6 +277,8 @@ pub async fn submit_computation(
             Selector::Specific(IntArray::from_id(info.id)),
         )
         .await?;
+    } else if opts.progress {
+        wait_for_jobs_with_progress(connection, vec![info]).await?;
     }
     Ok(())
 }
