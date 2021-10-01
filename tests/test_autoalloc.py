@@ -229,7 +229,7 @@ def test_pbs_queue_qsub_check_args(hq_env: HqEnv):
 import sys
 import traceback
 
-args = sys.argv[1:]    
+args = sys.argv[1:]
 
 def check_arg(key, val):
     for (index, arg) in enumerate(args):
