@@ -148,6 +148,14 @@ impl Output for CliOutput {
                 configuration.resources.summary().cell(),
             ],
             vec![
+                "Time Limit".cell().bold(true),
+                configuration
+                    .time_limit
+                    .map(|x| format_duration(x).to_string())
+                    .unwrap_or_else(|| "None".to_string())
+                    .cell(),
+            ],
+            vec![
                 "Manager".cell().bold(true),
                 manager_info
                     .as_ref()

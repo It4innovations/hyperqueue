@@ -147,13 +147,20 @@ Finished    Failed   Canceled
 
 Time management is split into two settings:
 
-* **time limit** - It is maximal running time of a task.
+* **time limit** - It is the maximal running time of a task.
                If it is reached then task is terminated and set into FAILED state.
                This setting does not have any impact on scheduling.
 * **time request** - The minimal remaining lifetime of a worker needed to start the task.
-                     The settings has impact only on the scheduling,
-                     When task is started, it has no effect
-                     if the task takes more/less computational time.
+                     Workers that do not have enough remaining lifetime will not be scheduled to run this task.
+                     Once the task is scheduled and starts executing, it does not matter w.r.t this setting for how long it will actually run.
+                     Workers without known remaining lifetime is always assumed that it may execute any time request. 
+
+We have separated these settings to solve the following scenario. Lets us assume that we have a collection of task
+where the vast majority of tasks usually finish within 10 minutes but some of them run 30 minutes. We do not know in advance which tasks are slow.
+In this situation, we want to set the time limit to 35 minutes
+to protect us against an error. However, we want to schedule the task to worker as long as it has at least 10 minutes of lifetime despite
+we are risking of rare losing some computation time when worker dies before the computation is finished. 
+(Note that in this situation, a task is rescheduled to another worker; we have only lost some computational power and not the whole task.)
 
 
 ### Time limit

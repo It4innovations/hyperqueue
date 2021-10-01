@@ -66,9 +66,8 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
         add_queue(hq_env, manager="slurm", queue="partition", workers=1)
         table = hq_env.command(["alloc", "list"], as_table=True)
         table.check_value_columns(
-            ("ID", "Queue", "Manager"),
-            2,
-            ("3", "partition", "SLURM"))
+            ("ID", "Queue", "Manager"), 2, ("3", "partition", "SLURM")
+        )
 
 
 def test_add_pbs_descriptor(hq_env: HqEnv):
@@ -100,8 +99,20 @@ def test_add_pbs_descriptor(hq_env: HqEnv):
 def test_add_slurm_descriptor(hq_env: HqEnv):
     hq_env.start_server(args=["--autoalloc-interval", "500ms"])
     output = hq_env.command(
-        ["alloc", "add", "slurm", "--name", "foo", "--partition", "queue", "--workers", "5",
-         "--max-workers-per-alloc", "2"])
+        [
+            "alloc",
+            "add",
+            "slurm",
+            "--name",
+            "foo",
+            "--partition",
+            "queue",
+            "--workers",
+            "5",
+            "--max-workers-per-alloc",
+            "2",
+        ]
+    )
     assert "Allocation queue 1 successfully created" in output
 
     info = hq_env.command(["alloc", "list"], as_table=True)
@@ -335,8 +346,13 @@ def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
 
 
 def test_allocations_ignore_job_changes_after_finish(hq_env: HqEnv):
-    mock = PbsMock(hq_env, jobs=["1", "2"], qtime="Thu Aug 19 13:05:38 2021", stime="Thu Aug 19 13:05:39 2021",
-                   mtime="Thu Aug 19 13:05:39 2021")
+    mock = PbsMock(
+        hq_env,
+        jobs=["1", "2"],
+        qtime="Thu Aug 19 13:05:38 2021",
+        stime="Thu Aug 19 13:05:39 2021",
+        mtime="Thu Aug 19 13:05:39 2021",
+    )
     mock.set_job_data("F", exit_code=0)
 
     with mock.activate():
@@ -483,14 +499,29 @@ with open(os.path.join("{self.qdel_dir}", jobid), "w") as f:
         return list(os.listdir(self.qdel_dir))
 
 
-def add_queue(hq_env, manager="pbs", name: Optional[str] = "foo", queue="queue", workers=1, max_workers_per_alloc=1,
-              additional_args=None):
+def add_queue(
+    hq_env,
+    manager="pbs",
+    name: Optional[str] = "foo",
+    queue="queue",
+    workers=1,
+    max_workers_per_alloc=1,
+    additional_args=None,
+):
     args = ["alloc", "add", manager]
     if name is not None:
         args.extend(["--name", name])
     queue_key = "queue" if manager == "pbs" else "partition"
-    args.extend([f"--{queue_key}", queue, "--workers", str(workers),
-                 "--max-workers-per-alloc", str(max_workers_per_alloc)])
+    args.extend(
+        [
+            f"--{queue_key}",
+            queue,
+            "--workers",
+            str(workers),
+            "--max-workers-per-alloc",
+            str(max_workers_per_alloc),
+        ]
+    )
     if additional_args is not None:
         args.append("--")
         args.extend(additional_args.split(" "))

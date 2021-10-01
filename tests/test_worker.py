@@ -162,14 +162,15 @@ def test_idle_timeout_worker_cfg(hq_env: HqEnv):
 def test_worker_time_limit(hq_env: HqEnv):
     hq_env.start_server()
     w = hq_env.start_worker(args=["--time-limit", "1s 200ms"])
-    time.sleep(0.5)
-    table = hq_env.command(["worker", "list"], as_table=True)
-    table.check_value_column("State", 0, "RUNNING")
-
-    time.sleep(1.0)
+    wait_for_worker_state(hq_env, 1, "RUNNING")
+    start = time.time()
+    wait_for_worker_state(hq_env, 1, "CONNECTION LOST")
     hq_env.check_process_exited(w, expected_code=None)
-    table = hq_env.command(["worker", "list"], as_table=True)
-    table.check_value_column("State", 0, "CONNECTION LOST")
+    duration = time.time() - start
+    assert 0.9 < duration < 1.5
+
+    table = hq_env.command(["worker", "info", "1"], as_table=True)
+    table.check_value_row("Time Limit", "1s 200ms")
 
 
 def test_worker_info(hq_env: HqEnv):
@@ -186,6 +187,10 @@ def test_worker_info(hq_env: HqEnv):
 def test_worker_address(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
+    hq_env.start_worker(set_hostname=False)
 
     output = hq_env.command(["worker", "address", "1"]).strip()
+    assert output == "worker1"
+
+    output = hq_env.command(["worker", "address", "2"]).strip()
     assert output == gethostname()
