@@ -245,10 +245,31 @@ Finished    Failed   Canceled
 <li><em>Failed</em> - The task has failed. The error can be shown by <code>hq job &lt;job-id&gt;</code>.</li>
 <li><em>Canceled</em> -  The task has been canceled by a user.</li>
 </ul>
-<h2 id="time-limit">Time limit<a class="headerlink" href="#time-limit" title="Permanent link">#</a></h2>
+<h2 id="time-management">Time management<a class="headerlink" href="#time-management" title="Permanent link">#</a></h2>
+<p>Time management is split into two settings:</p>
+<ul>
+<li><strong>time limit</strong> - It is the maximal running time of a task.
+               If it is reached then task is terminated and set into FAILED state.
+               This setting does not have any impact on scheduling.</li>
+<li><strong>time request</strong> - The minimal remaining lifetime of a worker needed to start the task.
+                     Workers that do not have enough remaining lifetime will not be scheduled to run this task.
+                     Once the task is scheduled and starts executing, it does not matter w.r.t this setting for how long it will actually run.
+                     Workers without known remaining lifetime is always assumed that it may execute any time request. </li>
+</ul>
+<p>We have separated these settings to solve the following scenario. Lets us assume that we have a collection of task
+where the vast majority of tasks usually finish within 10 minutes but some of them run 30 minutes. We do not know in advance which tasks are slow.
+In this situation, we want to set the time limit to 35 minutes
+to protect us against an error. However, we want to schedule the task to worker as long as it has at least 10 minutes of lifetime despite
+we are risking of rare losing some computation time when worker dies before the computation is finished. 
+(Note that in this situation, a task is rescheduled to another worker; we have only lost some computational power and not the whole task.)</p>
+<h3 id="time-limit">Time limit<a class="headerlink" href="#time-limit" title="Permanent link">#</a></h3>
 <p>Time limit is set as follows:</p>
 <p><code>hq submit --time-limit=TIME ...</code></p>
 <p>Where <code>TIME</code> is a number followed by units (e.g. <code>10 min</code>)</p>
+<h3 id="time-request">Time request<a class="headerlink" href="#time-request" title="Permanent link">#</a></h3>
+<p>Time request is set as follows:</p>
+<p><code>hq submit --time-request=TIME</code></p>
+<h3 id="time-units">Time Units<a class="headerlink" href="#time-units" title="Permanent link">#</a></h3>
 <p>You can use the following units:</p>
 <ul>
 <li>msec, ms -- milliseconds</li>
