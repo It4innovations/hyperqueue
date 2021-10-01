@@ -623,12 +623,12 @@ def test_job_tasks_table(hq_env: HqEnv):
 
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)[JOB_TABLE_ROWS:]
     wait_for_job_state(hq_env, 1, "FINISHED")
-    table.check_value_column("Worker", 0, socket.gethostname())
+    table.check_value_column("Worker", 0, "worker1")
 
     hq_env.command(["submit", "non-existent-program", "test"])
     table = hq_env.command(["job", "2", "--tasks"], as_table=True)[JOB_TABLE_ROWS:]
     wait_for_job_state(hq_env, 2, "FAILED")
-    table.check_value_column("Worker", 0, socket.gethostname())
+    table.check_value_column("Worker", 0, "worker1")
 
 
 def test_job_wait(hq_env: HqEnv):

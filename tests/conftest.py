@@ -142,7 +142,13 @@ class HqEnv(Env):
             time.sleep(0.2)
 
     def start_worker(
-        self, *, cpus="1", env=None, args=None, sleep=True
+        self,
+        *,
+        cpus="1",
+        env=None,
+        args=None,
+        sleep=True,
+        set_hostname=True,
     ) -> subprocess.Popen:
         self.id_counter += 1
         worker_id = self.id_counter
@@ -155,9 +161,9 @@ class HqEnv(Env):
             self.server_dir,
             "worker",
             "start",
-            "--hostname",
-            f"worker{worker_id}",
         ]
+        if set_hostname:
+            worker_args += ["--hostname", f"worker{worker_id}"]
         if cpus is not None:
             worker_args += ["--cpus", str(cpus)]
         if args:

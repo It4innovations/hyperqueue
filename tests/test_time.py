@@ -5,6 +5,7 @@ from .utils import wait_for_job_state
 
 
 def test_job_time_request1(hq_env: HqEnv):
+    # Tests that tasks are send only to worker3 and worker 4 (because of time requests)
     hq_env.start_server()
     hq_env.start_worker(args=["--time-limit", "2s"])
     hq_env.start_worker(args=["--time-limit", "4s"])
@@ -18,6 +19,7 @@ def test_job_time_request1(hq_env: HqEnv):
 
 
 def test_job_time_request2(hq_env: HqEnv):
+    # Test that a tasks with time request is not sent to worker without remaining lifetime
     hq_env.start_server()
     hq_env.start_worker(args=["--time-limit", "4s"])
     hq_env.command(["submit", "--time-request=2s", "--", "ls"])

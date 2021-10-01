@@ -94,8 +94,7 @@ impl QueueHandler for SlurmHandler {
                 .trim();
             let job_id = output
                 .split(' ')
-                .skip(3)
-                .next()
+                .nth(3)
                 .ok_or_else(|| anyhow::anyhow!("Missing job id in sbatch output"))?;
 
             let job_id = job_id.to_string();
