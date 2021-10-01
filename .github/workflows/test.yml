@@ -66,8 +66,14 @@ jobs:
         with:
           command: clippy
 
-      - name: Check formatting
+      - name: Check Rust formatting
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
+
+      - name: Check Python formatting
+        run: |
+          python -m pip install black==21.9b0 flake8==3.9.2
+          python -m black --check tests
+          python -m flake8 tests
