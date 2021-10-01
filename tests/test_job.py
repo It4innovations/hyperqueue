@@ -1,5 +1,4 @@
 import os
-import socket
 import time
 from datetime import datetime
 from os.path import isdir, isfile
