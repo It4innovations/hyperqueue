@@ -12,7 +12,7 @@ use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{
     resubmit_computation, submit_computation, ResubmitOpts, SubmitOpts,
 };
-use hyperqueue::client::commands::wait::wait_for_jobs;
+use hyperqueue::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
 use hyperqueue::client::output::cli::CliOutput;
@@ -25,7 +25,9 @@ use hyperqueue::common::timeutils::ArgDuration;
 use hyperqueue::server::bootstrap::{
     get_client_connection, init_hq_server, print_server_info, ServerConfig,
 };
-use hyperqueue::transfer::messages::Selector;
+use hyperqueue::transfer::messages::{
+    FromClientMessage, JobInfoRequest, Selector, ToClientMessage,
+};
 use hyperqueue::worker::hwdetect::detect_resource;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::WorkerId;
@@ -82,6 +84,8 @@ enum SubCommand {
     Resubmit(ResubmitOpts),
     /// Waits until a job is ended
     Wait(WaitOpts),
+    /// Interactively observe the execution of a job
+    Progress(ProgressOpts),
     /// Operations with log
     Log(LogOpts),
     /// Auto allocation management
@@ -167,6 +171,13 @@ impl From<SelectorArg> for Selector {
 #[clap(setting = clap::AppSettings::ColoredHelp)]
 pub struct WaitOpts {
     /// Select job(s) to wait for
+    selector_arg: SelectorArg,
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+pub struct ProgressOpts {
+    /// Select job(s) to observe
     selector_arg: SelectorArg,
 }
 
@@ -403,6 +414,20 @@ async fn command_wait(gsettings: GlobalSettings, opts: WaitOpts) -> anyhow::Resu
     wait_for_jobs(&gsettings, &mut connection, opts.selector_arg.into()).await
 }
 
+async fn command_progress(gsettings: GlobalSettings, opts: ProgressOpts) -> anyhow::Result<()> {
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    let selector = opts.selector_arg.into();
+    let response = hyperqueue::rpc_call!(
+        connection,
+        FromClientMessage::JobInfo(JobInfoRequest {
+            selector,
+        }),
+        ToClientMessage::JobInfoResponse(r) => r
+    )
+    .await?;
+    wait_for_jobs_with_progress(&mut connection, response.jobs).await
+}
+
 pub enum ColorPolicy {
     Auto,
     Always,
@@ -507,6 +532,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Cancel(opts) => command_cancel(gsettings, opts).await,
         SubCommand::Resubmit(opts) => command_resubmit(gsettings, opts).await,
         SubCommand::Wait(opts) => command_wait(gsettings, opts).await,
+        SubCommand::Progress(opts) => command_progress(gsettings, opts).await,
         SubCommand::Log(opts) => command_log(gsettings, opts),
         SubCommand::AutoAlloc(opts) => command_autoalloc(gsettings, opts).await,
     };

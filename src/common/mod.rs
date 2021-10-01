@@ -12,5 +12,6 @@ pub mod parser;
 pub mod placeholders;
 pub mod serverdir;
 pub mod setup;
+pub mod strutils;
 pub mod timeutils;
 pub mod wrapped;

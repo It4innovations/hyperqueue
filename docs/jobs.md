@@ -201,7 +201,10 @@ A job cannot be canceled if it is already finished, failed, or canceled.
 
 You can submit a job with flag ``--wait`` and HQ will wait until the submitted job is not terminated (until all tasks are either finished, failed or canceled).
 
-You can also use ``hq wait <job_id>`` to wait for a specific job or ``hq wait last`` to wait for the last submitted job or ``hq wait all`` to wait for all jobs.
+You can also use ``hq wait <job-id>`` to wait for a specific job or ``hq wait last`` to wait for the last submitted job or ``hq wait all`` to wait for all jobs.
+
+If you want to interactively observe the status of the jobs while waiting for them to finish, use `hq submit --progress`
+or `hq progress <job-id>` instead.
 
 
 ## Priorities
