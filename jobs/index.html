@@ -304,7 +304,9 @@ about <a href="../arrays/">task arrays</a>.</p>
 <p><code>hq cancel last</code></p>
 <h2 id="waiting-for-jobs">Waiting for jobs<a class="headerlink" href="#waiting-for-jobs" title="Permanent link">#</a></h2>
 <p>You can submit a job with flag <code>--wait</code> and HQ will wait until the submitted job is not terminated (until all tasks are either finished, failed or canceled).</p>
-<p>You can also use <code>hq wait &lt;job_id&gt;</code> to wait for a specific job or <code>hq wait last</code> to wait for the last submitted job or <code>hq wait all</code> to wait for all jobs.</p>
+<p>You can also use <code>hq wait &lt;job-id&gt;</code> to wait for a specific job or <code>hq wait last</code> to wait for the last submitted job or <code>hq wait all</code> to wait for all jobs.</p>
+<p>If you want to interactively observe the status of the jobs while waiting for them to finish, use <code>hq submit --progress</code>
+or <code>hq progress &lt;job-id&gt;</code> instead.</p>
 <h2 id="priorities">Priorities<a class="headerlink" href="#priorities" title="Permanent link">#</a></h2>
 <p>Priorities affect the order in which the "waiting" tasks are executed. Priority can be any 32b <em>signed</em> integer. A lowest number marks the lowest priority, e.g. when task A with priority 5 and task B with priority 3 are scheduled to the same worker, and only one of them may be executed, then A will be executed first.</p>
 <p>In a submit of a task, you can set priority as follows</p>
