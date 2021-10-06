@@ -15,14 +15,14 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
 
     with mock.activate():
         hq_env.start_server()
-        add_queue(hq_env, name=None, queue="queue", workers=5)
+        add_queue(hq_env, name=None, queue="queue", backlog=5)
 
         table = hq_env.command(["alloc", "list"], as_table=True)
         table.check_value_columns(
             (
                 "ID",
-                "Target worker count",
-                "Max workers per allocation",
+                "Backlog size",
+                "Workers per alloc",
                 "Queue",
                 "Timelimit",
                 "Manager",
@@ -32,29 +32,13 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
             ("1", "5", "1", "queue", "N/A", "PBS", ""),
         )
 
-        hq_env.command(
-            [
-                "alloc",
-                "add",
-                "pbs",
-                "--name",
-                "bar",
-                "--queue",
-                "qexp",
-                "--workers",
-                "1",
-                "--max-workers-per-alloc",
-                "2",
-                "--time-limit",
-                "1h",
-            ]
-        )
+        add_queue(hq_env, manager="pbs", name="bar", queue="qexp", backlog=1, workers_per_alloc=2, time_limit="1h")
         table = hq_env.command(["alloc", "list"], as_table=True)
         table.check_value_columns(
             (
                 "ID",
-                "Target worker count",
-                "Max workers per allocation",
+                "Backlog size",
+                "Workers per alloc",
                 "Queue",
                 "Timelimit",
                 "Name",
@@ -63,7 +47,7 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
             ("2", "1", "2", "qexp", "1h", "bar"),
         )
 
-        add_queue(hq_env, manager="slurm", queue="partition", workers=1)
+        add_queue(hq_env, manager="slurm", queue="partition", backlog=1)
         table = hq_env.command(["alloc", "list"], as_table=True)
         table.check_value_columns(
             ("ID", "Queue", "Manager"), 2, ("3", "partition", "SLURM")
@@ -75,21 +59,7 @@ def test_add_pbs_descriptor(hq_env: HqEnv):
 
     with mock.activate():
         hq_env.start_server(args=["--autoalloc-interval", "500ms"])
-        output = hq_env.command(
-            [
-                "alloc",
-                "add",
-                "pbs",
-                "--name",
-                "foo",
-                "--queue",
-                "queue",
-                "--workers",
-                "5",
-                "--max-workers-per-alloc",
-                "2",
-            ]
-        )
+        output = add_queue(hq_env, manager="pbs", name="foo", queue="queue", backlog=5, workers_per_alloc=2)
         assert "Allocation queue 1 successfully created" in output
 
         info = hq_env.command(["alloc", "list"], as_table=True)
@@ -98,21 +68,7 @@ def test_add_pbs_descriptor(hq_env: HqEnv):
 
 def test_add_slurm_descriptor(hq_env: HqEnv):
     hq_env.start_server(args=["--autoalloc-interval", "500ms"])
-    output = hq_env.command(
-        [
-            "alloc",
-            "add",
-            "slurm",
-            "--name",
-            "foo",
-            "--partition",
-            "queue",
-            "--workers",
-            "5",
-            "--max-workers-per-alloc",
-            "2",
-        ]
-    )
+    output = add_queue(hq_env, manager="slurm", name="foo", queue="queue", backlog=5, workers_per_alloc=2)
     assert "Allocation queue 1 successfully created" in output
 
     info = hq_env.command(["alloc", "list"], as_table=True)
@@ -122,7 +78,7 @@ def test_add_slurm_descriptor(hq_env: HqEnv):
 def test_pbs_fail_without_qstat(hq_env: HqEnv):
     hq_env.start_server(args=["--autoalloc-interval", "500ms"])
     hq_env.command(
-        ["alloc", "add", "pbs", "--name", "foo", "--queue", "queue", "--workers", "1"],
+        ["alloc", "add", "pbs", "--name", "foo", "--queue", "queue", "--backlog", "1"],
         expect_fail="qstat",
     )
 
@@ -272,15 +228,15 @@ def test_pbs_events_job_lifecycle(hq_env: HqEnv):
         add_queue(hq_env)
 
         # Queued
-        time.sleep(0.5)
+        time.sleep(0.2)
         table = hq_env.command(["alloc", "events", "1"], as_table=True)
         table.check_value_column("Event", -1, "Allocation queued")
 
         # Started
         mock.set_job_data("R", stime="Thu Aug 19 13:05:39 2021")
-        time.sleep(0.5)
+        time.sleep(0.2)
         table = hq_env.command(["alloc", "events", "1"], as_table=True)
-        table.check_value_column("Event", -1, "Allocation started")
+        assert "Allocation started" in table.get_column_value("Event")
 
         # Finished
         mock.set_job_data(
@@ -289,7 +245,7 @@ def test_pbs_events_job_lifecycle(hq_env: HqEnv):
             mtime="Thu Aug 19 13:05:39 2021",
             exit_code=0,
         )
-        time.sleep(0.5)
+        time.sleep(0.2)
         table = hq_env.command(["alloc", "events", "1"], as_table=True)
         assert "Allocation finished" in table.get_column_value("Event")
 
@@ -329,7 +285,7 @@ def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
 
         table = hq_env.command(["alloc", "info", "1"], as_table=True)
         table.check_value_columns(
-            ("Id", "State", "Worker count"), 0, ("1", "Queued", "1")
+            ("Id", "State", "Worker count"), 0, ("0", "Queued", "1")
         )
 
         mock.set_job_data("R")
@@ -382,7 +338,7 @@ def test_pbs_delete_active_jobs(hq_env: HqEnv):
 
     with mock.activate():
         process = hq_env.start_server(args=["--autoalloc-interval", "100ms"])
-        add_queue(hq_env, name="foo", workers=2, max_workers_per_alloc=1)
+        add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
 
         def allocations_up():
             table = hq_env.command(["alloc", "info", "1"], as_table=True)
@@ -401,7 +357,7 @@ def test_pbs_delete_active_jobs(hq_env: HqEnv):
 class PbsMock:
     def __init__(self, hq_env: HqEnv, jobs: List[str] = None, **data):
         if jobs is None:
-            jobs = ["1"]
+            jobs = list(str(i) for i in range(1000))
         self.hq_env = hq_env
         self.jobs = jobs
         self.qstat_path = join(self.hq_env.work_path, "pbs-qstat")
@@ -504,10 +460,11 @@ def add_queue(
     manager="pbs",
     name: Optional[str] = "foo",
     queue="queue",
-    workers=1,
-    max_workers_per_alloc=1,
+    backlog=1,
+    workers_per_alloc=1,
     additional_args=None,
-):
+    time_limit=None,
+) -> str:
     args = ["alloc", "add", manager]
     if name is not None:
         args.extend(["--name", name])
@@ -516,12 +473,14 @@ def add_queue(
         [
             f"--{queue_key}",
             queue,
-            "--workers",
-            str(workers),
-            "--max-workers-per-alloc",
-            str(max_workers_per_alloc),
+            "--backlog",
+            str(backlog),
+            "--workers-per-alloc",
+            str(workers_per_alloc),
         ]
     )
+    if time_limit is not None:
+        args.extend(["--time-limit", time_limit])
     if additional_args is not None:
         args.append("--")
         args.extend(additional_args.split(" "))

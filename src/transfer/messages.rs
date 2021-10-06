@@ -115,8 +115,8 @@ pub enum AddQueueRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AddQueueParams {
-    pub max_workers_per_alloc: u32,
-    pub target_worker_count: u32,
+    pub workers_per_alloc: u32,
+    pub backlog: u32,
     pub queue: String,
     pub timelimit: Option<Duration>,
     pub name: Option<String>,

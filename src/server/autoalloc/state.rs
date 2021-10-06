@@ -100,6 +100,12 @@ impl DescriptorState {
         self.allocations.values().filter(|alloc| alloc.is_active())
     }
 
+    pub fn queued_allocations(&self) -> impl Iterator<Item = &Allocation> {
+        self.allocations
+            .values()
+            .filter(|alloc| matches!(alloc.status, AllocationStatus::Queued))
+    }
+
     pub fn all_allocations(&self) -> impl Iterator<Item = &Allocation> {
         self.allocations.values()
     }
