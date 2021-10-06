@@ -1,7 +1,8 @@
+use std::time::SystemTime;
+
 use crate::server::autoalloc::state::{Allocation, AllocationEvent, AllocationStatus};
 use crate::server::autoalloc::DescriptorId;
 use crate::server::state::StateRef;
-use std::time::SystemTime;
 
 macro_rules! get_or_return {
     ($e:expr) => {
@@ -68,16 +69,13 @@ pub async fn autoalloc_shutdown(state_ref: StateRef) {
 async fn autoalloc_tick(state_ref: &StateRef) {
     log::debug!("Running autoalloc");
 
-    // The descriptor names are copied out to avoid holding state reference across `await`
-    let descriptor_ids: Vec<DescriptorId> = state_ref
+    let futures: Vec<_> = state_ref
         .get()
         .get_autoalloc_state()
         .descriptor_ids()
+        .map(|id| process_descriptor(id, state_ref))
         .collect();
-
-    for id in descriptor_ids {
-        process_descriptor(id, state_ref).await;
-    }
+    futures::future::join_all(futures).await;
 }
 
 async fn process_descriptor(id: DescriptorId, state: &StateRef) {
@@ -161,24 +159,18 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
 
 /// Schedule new allocations for the descriptor with the given name.
 async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
-    let (mut remaining, max_workers_per_alloc): (u64, u64) = {
+    let (allocations_to_create, workers_per_alloc): (u32, u32) = {
         let state = state_ref.get();
         let descriptor = get_or_return!(state.get_autoalloc_state().get_descriptor(id));
-        let active_workers: u64 = descriptor
-            .active_allocations()
-            .map(|alloc| alloc.worker_count)
-            .sum();
+        let allocs_in_queue = descriptor.queued_allocations().count();
 
-        let descriptor_impl = &descriptor.descriptor;
-        let scale = descriptor_impl.info().target_worker_count();
+        let info = descriptor.descriptor.info();
         (
-            scale.saturating_sub(active_workers as u32) as u64,
-            descriptor_impl.info().max_workers_per_alloc() as u64,
+            info.backlog().saturating_sub(allocs_in_queue as u32),
+            info.workers_per_alloc(),
         )
     };
-    while remaining > 0 {
-        let to_schedule = std::cmp::min(remaining, max_workers_per_alloc);
-
+    for _ in 0..allocations_to_create {
         let schedule_fut = {
             let state = state_ref.get();
             let descriptor = get_or_return!(state.get_autoalloc_state().get_descriptor(id));
@@ -186,7 +178,7 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
             descriptor
                 .descriptor
                 .handler()
-                .schedule_allocation(id, info, to_schedule)
+                .schedule_allocation(id, info, workers_per_alloc as u64)
         };
 
         let result = schedule_fut.await;
@@ -196,11 +188,11 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
         let descriptor = get_or_return!(state.get_descriptor_mut(id));
         match result {
             Ok(created) => {
-                log::info!("Queued {} workers into queue {}", to_schedule, id);
+                log::info!("Queued {} workers into queue {}", workers_per_alloc, id);
                 descriptor.add_event(AllocationEvent::AllocationQueued(created.id().to_string()));
                 descriptor.add_allocation(Allocation {
                     id: created.id().to_string(),
-                    worker_count: to_schedule,
+                    worker_count: workers_per_alloc as u64,
                     queued_at: SystemTime::now(),
                     status: AllocationStatus::Queued,
                     working_dir: created.working_dir().to_path_buf(),
@@ -213,15 +205,16 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
                 });
             }
         }
-
-        remaining -= to_schedule;
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::future::Future;
+    use std::pin::Pin;
     use std::time::{Duration, SystemTime};
+
+    use hashbrown::HashMap;
 
     use crate::common::manager::info::ManagerType;
     use crate::common::WrappedRcRefCell;
@@ -230,64 +223,8 @@ mod tests {
     };
     use crate::server::autoalloc::process::autoalloc_tick;
     use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
-    use crate::server::autoalloc::{AutoAllocResult, DescriptorId};
+    use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId};
     use crate::server::state::StateRef;
-    use std::pin::Pin;
-
-    #[tokio::test]
-    async fn test_do_not_overallocate_queue() {
-        let state = create_state();
-        let call_count = WrappedRcRefCell::wrap(0);
-
-        let handler = Handler::new(
-            call_count.clone(),
-            move |s, _| async move {
-                *s.get_mut() += 1;
-                Ok(CreatedAllocation::new("1".to_string(), "".into()))
-            },
-            move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
-            |_, _| async move { Ok(()) },
-        );
-        add_descriptor(&state, handler, 1, 1);
-
-        autoalloc_tick(&state).await;
-        autoalloc_tick(&state).await;
-
-        assert_eq!(*call_count.get(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_split_allocations_per_max_job_size() {
-        let state = create_state();
-
-        struct State {
-            requests: Vec<u64>,
-        }
-
-        let call_count = WrappedRcRefCell::wrap(State {
-            requests: vec![3, 3, 3, 1],
-        });
-
-        let handler = Handler::new(
-            call_count.clone(),
-            move |s, worker_count| async move {
-                let mut state = s.get_mut();
-                assert_eq!(worker_count, state.requests[0]);
-                state.requests.remove(0);
-                Ok(CreatedAllocation::new(
-                    state.requests.len().to_string(),
-                    "".into(),
-                ))
-            },
-            move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
-            |_, _| async move { Ok(()) },
-        );
-        add_descriptor(&state, handler, 10, 3);
-
-        autoalloc_tick(&state).await;
-
-        assert_eq!(call_count.get().requests.len(), 0);
-    }
 
     #[tokio::test]
     async fn test_log_failed_allocation_attempt() {
@@ -313,43 +250,85 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_reschedule_after_job_ends() {
+    async fn test_fill_backlog() {
         let state = create_state();
 
-        struct State {
-            job_id: u64,
-            status: Option<AllocationStatus>,
-        }
+        let handler = always_queued_handler();
+        add_descriptor(&state, handler, 4, 2);
 
-        let custom_state = WrappedRcRefCell::wrap(State {
-            job_id: 0,
-            status: None,
-        });
+        autoalloc_tick(&state).await;
+
+        let allocations = get_allocations(&state, 0);
+        assert_eq!(allocations.len(), 4);
+        assert!(allocations.iter().all(|alloc| alloc.worker_count == 2));
+    }
+
+    #[tokio::test]
+    async fn test_do_nothing_on_full_backlog() {
+        let state = create_state();
+
+        let handler = always_queued_handler();
+        add_descriptor(&state, handler, 4, 1);
+
+        autoalloc_tick(&state).await;
+        autoalloc_tick(&state).await;
+        autoalloc_tick(&state).await;
+        autoalloc_tick(&state).await;
+
+        assert_eq!(get_allocations(&state, 0).len(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_keep_backlog_filled() {
+        let state = create_state();
+
+        let mut queue = HashMap::<AllocationId, isize>::new();
+        queue.insert("0".to_string(), 0); // run immediately
+        queue.insert("1".to_string(), 2); // run after two checks
+        queue.insert("2".to_string(), 3); // run after three checks
 
         let handler = Handler::new(
-            custom_state.clone(),
-            move |s, _| async move {
-                s.get_mut().job_id += 1;
-                Ok(CreatedAllocation::new(
-                    s.get().job_id.to_string(),
-                    "".into(),
-                ))
+            WrappedRcRefCell::wrap((0, queue)),
+            move |state, _| async move {
+                let id_state = &mut state.get_mut().0;
+                let id = *id_state;
+                *id_state += 1;
+                Ok(CreatedAllocation::new(id.to_string(), Default::default()))
             },
-            move |s, _| async move { Ok(s.get().status.clone()) },
+            move |state, id| async move {
+                let queue_state = &mut state.get_mut().1;
+                let queue_time = *queue_state.get(&id).unwrap_or(&1000);
+                queue_state.insert(id, queue_time - 1);
+
+                let status = if queue_time <= 0 {
+                    AllocationStatus::Running {
+                        started_at: SystemTime::now(),
+                    }
+                } else {
+                    AllocationStatus::Queued
+                };
+                Ok(Some(status))
+            },
             |_, _| async move { Ok(()) },
         );
-        add_descriptor(&state, handler, 1, 1);
+        add_descriptor(&state, handler, 3, 1);
+
+        // schedule allocations
+        autoalloc_tick(&state).await;
+        check_allocation_count(get_allocations(&state, 0), 3, 0);
+
+        // add new job to queue
+        autoalloc_tick(&state).await;
+        check_allocation_count(get_allocations(&state, 0), 3, 1);
 
         autoalloc_tick(&state).await;
-        custom_state.get_mut().status = Some(AllocationStatus::Queued);
-        autoalloc_tick(&state).await;
-        custom_state.get_mut().status = Some(AllocationStatus::Finished {
-            started_at: SystemTime::now(),
-            finished_at: SystemTime::now(),
-        });
-        autoalloc_tick(&state).await;
+        check_allocation_count(get_allocations(&state, 0), 3, 1);
 
-        assert_eq!(custom_state.get().job_id, 2);
+        autoalloc_tick(&state).await;
+        check_allocation_count(get_allocations(&state, 0), 3, 2);
+
+        autoalloc_tick(&state).await;
+        check_allocation_count(get_allocations(&state, 0), 3, 3);
     }
 
     struct Handler<ScheduleFn, StatusFn, RemoveFn, State> {
@@ -430,28 +409,64 @@ mod tests {
     fn add_descriptor(
         state_ref: &StateRef,
         handler: Box<dyn QueueHandler>,
-        target_worker_count: u32,
-        max_workers_per_alloc: u32,
+        backlog: u32,
+        workers_per_alloc: u32,
     ) {
         let descriptor = QueueDescriptor::new(
             ManagerType::Pbs,
-            QueueInfo::new(
-                "queue".to_string(),
-                max_workers_per_alloc,
-                target_worker_count,
-                None,
-            ),
+            QueueInfo::new("queue".to_string(), backlog, workers_per_alloc, None),
             None,
             handler,
         );
 
-        state_ref
-            .get_mut()
-            .get_autoalloc_state_mut()
-            .add_descriptor(0, descriptor)
+        let mut state = state_ref.get_mut();
+        let state = state.get_autoalloc_state_mut();
+        state.add_descriptor(state.descriptors().count() as DescriptorId, descriptor)
     }
 
     fn create_state() -> StateRef {
         StateRef::new(Duration::from_millis(100))
+    }
+
+    fn always_queued_handler() -> Box<dyn QueueHandler> {
+        Handler::new(
+            WrappedRcRefCell::wrap(0),
+            move |state, _| async move {
+                let mut s = state.get_mut();
+                let id = *s;
+                *s += 1;
+                Ok(CreatedAllocation::new(id.to_string(), Default::default()))
+            },
+            move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
+            |_, _| async move { Ok(()) },
+        )
+    }
+
+    fn get_allocations(state: &StateRef, descriptor: DescriptorId) -> Vec<Allocation> {
+        let state = state.get();
+        let state = state.get_autoalloc_state();
+        state
+            .get_descriptor(descriptor)
+            .unwrap()
+            .all_allocations()
+            .cloned()
+            .collect()
+    }
+
+    fn check_allocation_count(allocations: Vec<Allocation>, queued: usize, running: usize) {
+        assert_eq!(
+            queued,
+            allocations
+                .iter()
+                .filter(|a| matches!(a.status, AllocationStatus::Queued))
+                .count()
+        );
+        assert_eq!(
+            running,
+            allocations
+                .iter()
+                .filter(|a| matches!(a.status, AllocationStatus::Running { .. }))
+                .count()
+        );
     }
 }

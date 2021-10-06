@@ -284,8 +284,8 @@ async fn create_queue(
 
     let queue_info = QueueInfo::new(
         params.queue,
-        params.max_workers_per_alloc,
-        params.target_worker_count,
+        params.backlog,
+        params.workers_per_alloc,
         params.timelimit,
     );
 

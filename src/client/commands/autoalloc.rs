@@ -54,21 +54,8 @@ pub struct AddPbsQueueOpts {
     #[clap(long, short)]
     queue: String,
 
-    /// How many workers should be kept active in this queue
-    #[clap(long("workers"), short('w'))]
-    target_worker_count: u32,
-
-    /// Time limit (walltime) of PBS allocations
-    #[clap(long, short('t'))]
-    time_limit: Option<ArgDuration>,
-
-    /// How many workers at most can be allocated in a single allocation
-    #[clap(long, short('m'), default_value = "1")]
-    max_workers_per_alloc: u32,
-
-    /// Name of the allocation queue (for debug purposes only)
-    #[clap(long, short)]
-    name: Option<String>,
+    #[clap(flatten)]
+    shared: SharedQueueOpts,
 
     /// Additional arguments passed to `qsub`
     #[clap()]
@@ -83,25 +70,32 @@ pub struct AddSlurmQueueOpts {
     #[clap(long, short)]
     partition: String,
 
-    /// How many workers should be kept active in this queue
-    #[clap(long("workers"), short('w'))]
-    target_worker_count: u32,
-
-    /// Time limit (walltime) of Slurm allocations
-    #[clap(long, short('t'))]
-    time_limit: Option<ArgDuration>,
-
-    /// How many workers at most can be allocated in a single allocation
-    #[clap(long, short('m'), default_value = "1")]
-    max_workers_per_alloc: u32,
-
-    /// Name of the allocation queue (for debug purposes only)
-    #[clap(long, short)]
-    name: Option<String>,
+    #[clap(flatten)]
+    shared: SharedQueueOpts,
 
     /// Additional arguments passed to `sbatch`
     #[clap()]
     sbatch_args: Vec<String>,
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+struct SharedQueueOpts {
+    /// How many jobs should be waiting in the queue to be started
+    #[clap(long, short, default_value = "4")]
+    backlog: u32,
+
+    /// Time limit (walltime) of PBS allocations
+    #[clap(long, short('t'))]
+    time_limit: Option<ArgDuration>,
+
+    /// How many workers (nodes) should be spawned in each allocation
+    #[clap(long, short, default_value = "1")]
+    workers_per_alloc: u32,
+
+    /// Name of the allocation queue (for debug purposes only)
+    #[clap(long, short)]
+    name: Option<String>,
 }
 
 #[derive(Clap)]
@@ -171,21 +165,21 @@ async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyh
     let message = match subcmd {
         AddQueueCommand::Pbs(params) => FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(
             AddQueueRequest::Pbs(AddQueueParams {
-                max_workers_per_alloc: params.max_workers_per_alloc,
-                target_worker_count: params.target_worker_count,
+                workers_per_alloc: params.shared.workers_per_alloc,
+                backlog: params.shared.backlog,
                 queue: params.queue,
-                timelimit: params.time_limit.map(|v| v.into()),
-                name: params.name,
+                timelimit: params.shared.time_limit.map(|v| v.into()),
+                name: params.shared.name,
                 additional_args: params.qsub_args,
             }),
         )),
         AddQueueCommand::Slurm(params) => FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(
             AddQueueRequest::Slurm(AddQueueParams {
-                max_workers_per_alloc: params.max_workers_per_alloc,
-                target_worker_count: params.target_worker_count,
+                workers_per_alloc: params.shared.workers_per_alloc,
+                backlog: params.shared.backlog,
                 queue: params.partition,
-                timelimit: params.time_limit.map(|v| v.into()),
-                name: params.name,
+                timelimit: params.shared.time_limit.map(|v| v.into()),
+                name: params.shared.name,
                 additional_args: params.sbatch_args,
             }),
         )),
