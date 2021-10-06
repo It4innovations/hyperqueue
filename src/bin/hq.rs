@@ -74,6 +74,7 @@ struct Opts {
 #[clap(setting = clap::AppSettings::Hidden)]
 struct DashboardOpts {}
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clap)]
 enum SubCommand {
     /// Commands for controlling the HyperQueue server

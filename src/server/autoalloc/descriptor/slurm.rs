@@ -7,12 +7,13 @@ use anyhow::Context;
 use bstr::ByteSlice;
 use tokio::process::Command;
 
-use crate::common::manager::slurm::{format_slurm_duration, parse_slurm_datetime};
+use crate::common::manager::slurm::{
+    format_slurm_duration, get_scontrol_items, parse_slurm_datetime,
+};
 use crate::common::timeutils::local_to_system_time;
 use crate::server::autoalloc::descriptor::{common, CreatedAllocation, QueueHandler};
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
 use crate::server::autoalloc::{AutoAllocResult, DescriptorId, QueueInfo};
-use crate::Map;
 
 pub struct SlurmHandler {
     server_directory: PathBuf,
@@ -188,21 +189,4 @@ impl QueueHandler for SlurmHandler {
             Ok(())
         })
     }
-}
-
-/// Parse <key>=<value> pairs from the output of `scontrol show job <job-id>`.
-fn get_scontrol_items(output: &str) -> Map<&str, &str> {
-    let mut map = Map::new();
-    for line in output.lines() {
-        for item in line.trim().split(' ') {
-            let iter: Vec<_> = item.split('=').take(2).collect();
-            if iter.len() < 2 {
-                continue;
-            }
-            let (key, value) = (iter[0], iter[1]);
-            map.insert(key, value);
-        }
-    }
-
-    map
 }
