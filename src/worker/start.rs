@@ -29,8 +29,8 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::common::env::{HQ_CPUS, HQ_INSTANCE_ID, HQ_PIN};
 use crate::common::error::error;
 use crate::common::manager::info::{ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY};
-use crate::common::manager::pbs;
 use crate::common::manager::pbs::PbsContext;
+use crate::common::manager::{pbs, slurm};
 use crate::common::placeholders::replace_placeholders_worker;
 use crate::common::serverdir::ServerDir;
 use crate::common::timeutils::ArgDuration;
@@ -394,10 +394,11 @@ fn try_get_slurm_info() -> anyhow::Result<ManagerInfo> {
             anyhow!("SLURM_JOB_ID/SLURM_JOBID not found. The process is not running under SLURM")
         })?;
 
+    let duration = slurm::get_remaining_timelimit(&manager_job_id)
+        .expect("Could not get remaining time from scontrol");
+
     log::info!("SLURM environment detected");
 
-    // TODO: Get walltime info
-    let duration = Duration::from_secs(1);
     Ok(ManagerInfo::new(
         ManagerType::Slurm,
         manager_job_id,
@@ -441,7 +442,8 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
 
     let manager_info = gather_manager_info(opts.manager)?;
     let mut extra = Map::new();
-    if let Some(manager_info) = manager_info {
+
+    if let Some(manager_info) = &manager_info {
         extra.insert(
             WORKER_EXTRA_MANAGER_KEY.to_string(),
             serde_json::to_string(&manager_info)?,
@@ -451,7 +453,10 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
     Ok(WorkerConfiguration {
         resources,
         listen_address: Default::default(), // Will be filled during init
-        time_limit: opts.time_limit.map(|x| x.into()),
+        time_limit: opts
+            .time_limit
+            .map(|x| x.into())
+            .or_else(|| manager_info.map(|m| m.time_limit)),
         hostname,
         work_dir,
         log_dir,

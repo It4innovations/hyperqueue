@@ -4,11 +4,10 @@ use std::str;
 use std::time::Duration;
 
 use anyhow::Context;
-use chrono::Duration as ChronoDuration;
 use serde_json::Value;
 
 use crate::common::env::HQ_QSTAT_PATH;
-use crate::common::manager::common::format_duration;
+use crate::common::manager::common::{format_duration, parse_hms_duration};
 
 pub struct PbsContext {
     pub qstat_path: PathBuf,
@@ -37,27 +36,23 @@ impl PbsContext {
     }
 }
 
-fn parse_duration(raw_time: &str) -> anyhow::Result<Duration> {
-    let numbers: Vec<&str> = raw_time.split(':').collect();
-    let duration = ChronoDuration::hours(numbers[0].parse()?)
-        + ChronoDuration::minutes(numbers[1].parse()?)
-        + ChronoDuration::seconds(numbers[2].parse()?);
-    Ok(duration.to_std()?)
-}
-
-fn get_time(job_id: &str, data: &str) -> anyhow::Result<Duration> {
+fn parse_pbs_job_remaining_time(job_id: &str, data: &str) -> anyhow::Result<Duration> {
     let data_json: Value = serde_json::from_str(data)?;
 
-    let walltime = parse_duration(
+    let walltime = parse_hms_duration(
         data_json["Jobs"][job_id]["Resource_List"]["walltime"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Could not find walltime key for job {}", job_id))?,
     )?;
-    let used = parse_duration(
+    let used = parse_hms_duration(
         data_json["Jobs"][job_id]["resources_used"]["walltime"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Could not find used time key for job {}", job_id))?,
     )?;
+
+    if walltime < used {
+        anyhow::bail!("Pbs: Used time is bigger then walltime");
+    }
 
     Ok(walltime - used)
 }
@@ -80,7 +75,7 @@ pub fn get_remaining_timelimit(ctx: &PbsContext, job_id: &str) -> anyhow::Result
     let output = String::from_utf8_lossy(&result.stdout).into_owned();
     log::debug!("qstat output: {}", output.trim());
 
-    get_time(job_id, output.as_str())
+    parse_pbs_job_remaining_time(job_id, output.as_str())
 }
 
 /// Format a duration as a PBS time string, e.g. 01:05:02
