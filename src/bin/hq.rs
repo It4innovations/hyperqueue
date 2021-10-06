@@ -71,6 +71,7 @@ struct Opts {
 ///HyperQueue Dashboard
 #[allow(clippy::large_enum_variant)]
 #[derive(Clap)]
+#[clap(setting = clap::AppSettings::Hidden)]
 struct DashboardOpts {}
 
 #[derive(Clap)]
