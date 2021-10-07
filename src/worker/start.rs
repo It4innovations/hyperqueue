@@ -43,6 +43,8 @@ use crate::worker::streamer::StreamerRef;
 use crate::Map;
 use crate::{JobId, JobTaskId};
 
+pub const WORKER_EXTRA_PROCESS_PID: &str = "ProcessPid";
+
 const STDIO_BUFFER_SIZE: usize = 16 * 1024; // 16kB
 
 #[derive(Clap)]
@@ -449,6 +451,11 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
             serde_json::to_string(&manager_info)?,
         );
     }
+
+    extra.insert(
+        WORKER_EXTRA_PROCESS_PID.to_string(),
+        std::process::id().to_string(),
+    );
 
     Ok(WorkerConfiguration {
         resources,

@@ -33,6 +33,7 @@ use tako::common::resources::ResourceDescriptor;
 use tako::messages::common::{StdioDef, WorkerConfiguration};
 
 use crate::common::strutils::pluralize;
+use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
 use colored::Color as Colorization;
 use colored::Colorize;
 use std::collections::BTreeSet;
@@ -154,6 +155,15 @@ impl Output for CliOutput {
                     .time_limit
                     .map(|x| format_duration(x).to_string())
                     .unwrap_or_else(|| "None".to_string())
+                    .cell(),
+            ],
+            vec![
+                "Process pid".cell().bold(true),
+                configuration
+                    .extra
+                    .get(WORKER_EXTRA_PROCESS_PID)
+                    .cloned()
+                    .unwrap_or_else(|| "N/A".to_string())
                     .cell(),
             ],
             vec![
