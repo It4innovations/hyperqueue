@@ -12,32 +12,40 @@ on:
   push:
     tags:
       - 'v*'
-
 jobs:
-  create-release:
+  set-env:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ env.SHA }}
+      tag: ${{ env.TAG }}
+    steps:
+      - name: Set env on push
+        if: github.event_name == 'push'
+        run: |
+          echo "SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
+          echo "TAG=$(git tag --points-at HEAD)" >> $GITHUB_ENV
+      - name: Set env on trigger
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "SHA=${{ github.event.inputs.sha }}" >> $GITHUB_ENV
+          echo "TAG=${{ github.event.inputs.tag }}" >> $GITHUB_ENV
+      - name: Check values
+        run: |
+          echo "sha: ${{ env.SHA }}"
+          echo "tag: ${{ env.TAG }}"
+
+  build-binaries-x86:
     runs-on: ubuntu-latest
     # Use a container with GLIBC 2.17
     container: quay.io/pypa/manylinux2014_x86_64
+    needs: [set-env]
     steps:
       - name: Show GLIBC
         run: ldd --version
       - name: Checkout sources
         uses: actions/checkout@v2
         with:
-          ref: ${{ github.event.inputs.sha || env.GITHUB_SHA }}
-
-      - name: Set env on push
-        if: github.event_name == 'push'
-        run: |
-          echo "INPUT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
-          echo "INPUT_TAG=$(git tag --points-at HEAD)" >> $GITHUB_ENV
-
-      - name: Set env on trigger
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          echo "INPUT_SHA=${{ github.event.inputs.sha }}" >> $GITHUB_ENV
-          echo "INPUT_TAG=${{ github.event.inputs.tag }}" >> $GITHUB_ENV
-
+          ref: ${{ needs.set-env.outputs.sha }}
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -46,42 +54,112 @@ jobs:
           override: true
 
       - uses: Swatinem/rust-cache@v1
+        with:
+          key: x86
 
-      - name: Build
+      - name: Compile
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --release
 
+      - name: Strip binary
+        run: strip target/release/hq
+
       - name: Prepare archive
+        id: archive
         run: |
-          strip target/release/hq
-          export ARCHIVE_NAME=hq-${{ env.INPUT_TAG }}-linux-x64.tar.gz
-          echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> $GITHUB_ENV
+          export ARCHIVE_NAME=hq-${{ needs.set-env.outputs.tag }}-linux-x86.tar.gz
           tar -czvf $ARCHIVE_NAME -C target/release hq
+          echo "::set-output name=archive-name::$ARCHIVE_NAME"
+
+      - name: Store archive
+        uses: actions/upload-artifact@v2
+        with:
+          name: archive-x86
+          path: ${{ steps.archive.outputs.archive-name }}
+
+  build-binaries-powerpc:
+    runs-on: ubuntu-latest
+    needs: [ set-env ]
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ needs.set-env.outputs.sha }}
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - uses: Swatinem/rust-cache@v1
+        with:
+          key: powerpc64le-unknown-linux-gnu
+
+      - name: Compile
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --target powerpc64le-unknown-linux-gnu --no-default-features --release
+          use-cross: true
+
+      - name: Prepare archive
+        id: archive
+        run: |
+          export ARCHIVE_NAME=hq-${{ needs.set-env.outputs.tag }}-linux-powerpc64.tar.gz
+          tar -czvf $ARCHIVE_NAME -C target/powerpc64le-unknown-linux-gnu/release hq
+          echo "::set-output name=archive-name::$ARCHIVE_NAME"
+
+      - name: Store archive
+        uses: actions/upload-artifact@v2
+        with:
+          name: archive-powerpc64
+          path: ${{ steps.archive.outputs.archive-name }}
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [ set-env, build-binaries-x86, build-binaries-powerpc ]
+    outputs:
+      upload_url: ${{ steps.create-release.outputs.upload_url }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ needs.set-env.outputs.sha }}
 
       - name: Generate changelog
-        run: /opt/python/cp38-cp38/bin/python scripts/extract_changelog.py ${{ env.INPUT_TAG }} > generated-changelog.md
+        run: python3 scripts/extract_changelog.py ${{ needs.set-env.outputs.tag }} > generated-changelog.md
 
       - name: Create release
-        id: create_release
+        id: create-release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ env.INPUT_TAG }}
-          release_name: ${{ env.INPUT_TAG }}
+          tag_name: ${{ needs.set-env.outputs.tag }}
+          release_name: ${{ needs.set-env.outputs.tag }}
           body_path: generated-changelog.md
-          commitish: ${{ env.INPUT_SHA }}
+          commitish: ${{ needs.set-env.outputs.sha }}
           draft: false
           prerelease: false
-
-      - name: Upload scheduler binary
+  upload-binaries:
+    runs-on: ubuntu-latest
+    needs: [set-env, create-release]
+    strategy:
+      matrix:
+        arch: [x86, powerpc64]
+    steps:
+      - name: Download archive
+        uses: actions/download-artifact@v2
+        with:
+          name: archive-${{ matrix.arch }}
+      - name: Upload HQ binary
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ env.ARCHIVE_NAME }}
-          asset_name: ${{ env.ARCHIVE_NAME }}
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: hq-${{ needs.set-env.outputs.tag }}-linux-${{ matrix.arch }}.tar.gz
+          asset_name: hq-${{ needs.set-env.outputs.tag }}-linux-${{ matrix.arch }}.tar.gz
           asset_content_type: application/tar+gzip
