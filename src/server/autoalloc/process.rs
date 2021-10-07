@@ -159,17 +159,28 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
 
 /// Schedule new allocations for the descriptor with the given name.
 async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
-    let (allocations_to_create, workers_per_alloc): (u32, u32) = {
+    let (allocations_to_create, workers_per_alloc, mut waiting_tasks) = {
         let state = state_ref.get();
         let descriptor = get_or_return!(state.get_autoalloc_state().get_descriptor(id));
         let allocs_in_queue = descriptor.queued_allocations().count();
 
+        let waiting_tasks: u64 = state
+            .jobs()
+            .map(|j| j.counters.n_waiting_tasks(j.n_tasks()) as u64)
+            .sum();
+
         let info = descriptor.descriptor.info();
         (
             info.backlog().saturating_sub(allocs_in_queue as u32),
-            info.workers_per_alloc(),
+            info.workers_per_alloc() as u64,
+            waiting_tasks,
         )
     };
+
+    if waiting_tasks == 0 {
+        return;
+    }
+
     for _ in 0..allocations_to_create {
         let schedule_fut = {
             let state = state_ref.get();
@@ -178,7 +189,7 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
             descriptor
                 .descriptor
                 .handler()
-                .schedule_allocation(id, info, workers_per_alloc as u64)
+                .schedule_allocation(id, info, workers_per_alloc)
         };
 
         let result = schedule_fut.await;
@@ -192,11 +203,18 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
                 descriptor.add_event(AllocationEvent::AllocationQueued(created.id().to_string()));
                 descriptor.add_allocation(Allocation {
                     id: created.id().to_string(),
-                    worker_count: workers_per_alloc as u64,
+                    worker_count: workers_per_alloc,
                     queued_at: SystemTime::now(),
                     status: AllocationStatus::Queued,
                     working_dir: created.working_dir().to_path_buf(),
                 });
+
+                // If there are no more waiting tasks, stop creating allocations
+                // Assume that each worker will handle at least a single task
+                waiting_tasks = waiting_tasks.saturating_sub(workers_per_alloc);
+                if waiting_tasks == 0 {
+                    break;
+                }
             }
             Err(err) => {
                 log::error!("Failed to queue allocation into queue {}: {:?}", id, err);
@@ -214,7 +232,10 @@ mod tests {
     use std::pin::Pin;
     use std::time::{Duration, SystemTime};
 
+    use crate::common::arraydef::IntArray;
     use hashbrown::HashMap;
+    use tako::common::resources::ResourceRequest;
+    use tako::messages::common::ProgramDefinition;
 
     use crate::common::manager::info::ManagerType;
     use crate::common::WrappedRcRefCell;
@@ -224,11 +245,13 @@ mod tests {
     use crate::server::autoalloc::process::autoalloc_tick;
     use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
     use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId};
+    use crate::server::job::Job;
     use crate::server::state::StateRef;
+    use crate::transfer::messages::JobType;
 
     #[tokio::test]
     async fn test_log_failed_allocation_attempt() {
-        let state = create_state();
+        let state = create_state(1000);
 
         let handler = Handler::new(
             WrappedRcRefCell::wrap(()),
@@ -251,7 +274,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fill_backlog() {
-        let state = create_state();
+        let state = create_state(1000);
 
         let handler = always_queued_handler();
         add_descriptor(&state, handler, 4, 2);
@@ -265,7 +288,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_do_nothing_on_full_backlog() {
-        let state = create_state();
+        let state = create_state(1000);
 
         let handler = always_queued_handler();
         add_descriptor(&state, handler, 4, 1);
@@ -280,7 +303,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_keep_backlog_filled() {
-        let state = create_state();
+        let state = create_state(1000);
 
         let mut queue = HashMap::<AllocationId, isize>::new();
         queue.insert("0".to_string(), 0); // run immediately
@@ -329,6 +352,29 @@ mod tests {
 
         autoalloc_tick(&state).await;
         check_allocation_count(get_allocations(&state, 0), 3, 3);
+    }
+
+    #[tokio::test]
+    async fn test_do_not_create_allocations_without_tasks() {
+        let state = create_state(0);
+
+        let handler = always_queued_handler();
+        add_descriptor(&state, handler, 3, 1);
+
+        autoalloc_tick(&state).await;
+        assert_eq!(get_allocations(&state, 0).len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_do_not_fill_backlog_when_tasks_run_out() {
+        let state = create_state(5);
+
+        let handler = always_queued_handler();
+        add_descriptor(&state, handler, 5, 2);
+
+        // 5 tasks, 3 * 2 workers -> last two allocations should be ignored
+        autoalloc_tick(&state).await;
+        assert_eq!(get_allocations(&state, 0).len(), 3);
     }
 
     struct Handler<ScheduleFn, StatusFn, RemoveFn, State> {
@@ -424,8 +470,30 @@ mod tests {
         state.add_descriptor(state.descriptors().count() as DescriptorId, descriptor)
     }
 
-    fn create_state() -> StateRef {
-        StateRef::new(Duration::from_millis(100))
+    fn create_state(waiting_tasks: u32) -> StateRef {
+        let state = StateRef::new(Duration::from_millis(100));
+        state.get_mut().add_job(Job::new(
+            JobType::Array(IntArray::from_range(0, waiting_tasks)),
+            0,
+            0,
+            "job".to_string(),
+            ProgramDefinition {
+                args: vec![],
+                env: Default::default(),
+                stdout: Default::default(),
+                stderr: Default::default(),
+                cwd: None,
+            },
+            ResourceRequest::default(),
+            false,
+            None,
+            None,
+            0,
+            None,
+            None,
+        ));
+
+        state
     }
 
     fn always_queued_handler() -> Box<dyn QueueHandler> {
