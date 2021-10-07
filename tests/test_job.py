@@ -7,6 +7,7 @@ import pytest
 
 from .conftest import HqEnv
 from .utils import JOB_TABLE_ROWS, wait_for_job_state
+from .utils.job import default_task_output
 
 
 def test_job_submit(hq_env: HqEnv):
@@ -103,7 +104,7 @@ def test_custom_working_dir(hq_env: HqEnv, tmpdir):
     hq_env.start_worker(cpus=1)
     wait_for_job_state(hq_env, 1, ["FINISHED"])
 
-    with open(os.path.join(tmpdir, "submit_dir", "job-1/stdout.0")) as f:
+    with open(os.path.join(tmpdir, "submit_dir", default_task_output())) as f:
         assert f.read() == test_string
 
 
@@ -116,21 +117,33 @@ def test_job_output_default(hq_env: HqEnv, tmp_path):
 
     wait_for_job_state(hq_env, [1, 2, 3], ["FINISHED", "FAILED"])
 
-    with open(os.path.join(tmp_path, "job-1/stdout.0")) as f:
+    with open(
+        os.path.join(tmp_path, default_task_output(job_id=1, type="stdout"))
+    ) as f:
         assert f.read() == "hello\n"
-    with open(os.path.join(tmp_path, "job-1/stderr.0")) as f:
+    with open(
+        os.path.join(tmp_path, default_task_output(job_id=1, type="stderr"))
+    ) as f:
         assert f.read() == ""
 
-    with open(os.path.join(tmp_path, "job-2/stdout.0")) as f:
+    with open(
+        os.path.join(tmp_path, default_task_output(job_id=2, type="stdout"))
+    ) as f:
         assert f.read() == ""
-    with open(os.path.join(tmp_path, "job-2/stderr.0")) as f:
+    with open(
+        os.path.join(tmp_path, default_task_output(job_id=2, type="stderr"))
+    ) as f:
         data = f.read()
         assert "No such file or directory" in data
         assert data.startswith("ls:")
 
-    with open(os.path.join(tmp_path, "job-3/stdout.0")) as f:
+    with open(
+        os.path.join(tmp_path, default_task_output(job_id=3, type="stdout"))
+    ) as f:
         assert f.read() == ""
-    with open(os.path.join(tmp_path, "job-3/stderr.0")) as f:
+    with open(
+        os.path.join(tmp_path, default_task_output(job_id=3, type="stderr"))
+    ) as f:
         assert f.read() == ""
 
 
@@ -179,8 +192,12 @@ def test_job_output_none(hq_env: HqEnv, tmp_path):
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     assert not os.path.exists(os.path.join(tmp_path, "none"))
-    assert not os.path.exists(os.path.join(tmp_path, "stdout.1.0"))
-    assert not os.path.exists(os.path.join(tmp_path, "stderr.1.0"))
+    assert not os.path.exists(
+        os.path.join(tmp_path, default_task_output(job_id=1, task_id=0, type="stdout"))
+    )
+    assert not os.path.exists(
+        os.path.join(tmp_path, default_task_output(job_id=1, task_id=0, type="stderr"))
+    )
 
 
 def test_job_filters(hq_env: HqEnv):
@@ -397,7 +414,7 @@ def test_set_env(hq_env: HqEnv):
     )
     wait_for_job_state(hq_env, 1, "FINISHED")
 
-    with open(f"{hq_env.work_path}/job-1/stdout.0") as f:
+    with open(os.path.join(hq_env.work_path, default_task_output())) as f:
         assert f.read().strip() == "BAR BAR2"
 
     table = hq_env.command(["job", "1"], as_table=True)
@@ -596,12 +613,7 @@ def test_job_priority(hq_env: HqEnv, tmp_path):
     wait_for_job_state(hq_env, 4, "FINISHED")
 
     dates = []
-    for file in [
-        "job-1/stdout.0",
-        "job-2/stdout.0",
-        "job-3/stdout.0",
-        "job-4/stdout.0",
-    ]:
+    for file in [default_task_output(job_id=id, type="stdout") for id in range(1, 5)]:
         with open(os.path.join(tmp_path, file)) as f:
             dates.append(datetime.fromisoformat(f.read().strip()))
 

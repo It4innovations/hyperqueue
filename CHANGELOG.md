@@ -6,13 +6,13 @@
   * Time limit for workers
   * Job and task times are shown in job information tables
   * Integers in command line options can be now written with an underscore separator (e.g. ``--array=1-1_000``)
-  * The default path of stdout and stderr has been changed to Storing tasks default stdout by new rule `` job-%{JOB_ID}/[stdout/stderr].%{TASK_ID}``
 
 ## Changes
   * Job id is now represented as u32
   * Normalization of stream's end behavior when job is canceled
   * `hq submit --wait` and `hq wait` will no longer display a progress bar while waiting for the job(s) to finish.
   The progress bar was moved to `hq submit --progress` and `hq progress`.
+  * The default path of job stdout and stderr has been changed to ``job-%{JOB_ID}/%{TASK_ID}.[stdout/stderr]``
 
 # v0.4.0
 

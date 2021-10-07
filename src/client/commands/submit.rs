@@ -24,10 +24,22 @@ use crate::transfer::messages::{
 use crate::{rpc_call, JobId, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
-const DEFAULT_STDOUT_PATH: &str =
-    const_format::concatcp!("job-", JOB_ID_PLACEHOLDER, "/stdout.", TASK_ID_PLACEHOLDER);
-const DEFAULT_STDERR_PATH: &str =
-    const_format::concatcp!("job-", JOB_ID_PLACEHOLDER, "/stderr.", TASK_ID_PLACEHOLDER);
+
+// Keep in sync with tests/util/job.py::default_task_output
+const DEFAULT_STDOUT_PATH: &str = const_format::concatcp!(
+    "job-",
+    JOB_ID_PLACEHOLDER,
+    "/",
+    TASK_ID_PLACEHOLDER,
+    ".stdout"
+);
+const DEFAULT_STDERR_PATH: &str = const_format::concatcp!(
+    "job-",
+    JOB_ID_PLACEHOLDER,
+    "/",
+    TASK_ID_PLACEHOLDER,
+    ".stderr"
+);
 
 struct ArgCpuRequest(CpuRequest);
 
