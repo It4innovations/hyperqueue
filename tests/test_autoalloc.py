@@ -32,7 +32,15 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
             ("1", "5", "1", "queue", "N/A", "PBS", ""),
         )
 
-        add_queue(hq_env, manager="pbs", name="bar", queue="qexp", backlog=1, workers_per_alloc=2, time_limit="1h")
+        add_queue(
+            hq_env,
+            manager="pbs",
+            name="bar",
+            queue="qexp",
+            backlog=1,
+            workers_per_alloc=2,
+            time_limit="1h",
+        )
         table = hq_env.command(["alloc", "list"], as_table=True)
         table.check_value_columns(
             (
@@ -59,7 +67,14 @@ def test_add_pbs_descriptor(hq_env: HqEnv):
 
     with mock.activate():
         hq_env.start_server(args=["--autoalloc-interval", "500ms"])
-        output = add_queue(hq_env, manager="pbs", name="foo", queue="queue", backlog=5, workers_per_alloc=2)
+        output = add_queue(
+            hq_env,
+            manager="pbs",
+            name="foo",
+            queue="queue",
+            backlog=5,
+            workers_per_alloc=2,
+        )
         assert "Allocation queue 1 successfully created" in output
 
         info = hq_env.command(["alloc", "list"], as_table=True)
@@ -68,7 +83,14 @@ def test_add_pbs_descriptor(hq_env: HqEnv):
 
 def test_add_slurm_descriptor(hq_env: HqEnv):
     hq_env.start_server(args=["--autoalloc-interval", "500ms"])
-    output = add_queue(hq_env, manager="slurm", name="foo", queue="queue", backlog=5, workers_per_alloc=2)
+    output = add_queue(
+        hq_env,
+        manager="slurm",
+        name="foo",
+        queue="queue",
+        backlog=5,
+        workers_per_alloc=2,
+    )
     assert "Allocation queue 1 successfully created" in output
 
     info = hq_env.command(["alloc", "list"], as_table=True)
@@ -89,6 +111,8 @@ def test_pbs_queue_qsub_fail(hq_env: HqEnv):
     with hq_env.mock.mock_program("qsub", qsub_code):
         with hq_env.mock.mock_program("qstat", ""):
             hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+            prepare_tasks(hq_env)
+
             add_queue(hq_env)
             time.sleep(0.2)
             table = hq_env.command(["alloc", "events", "1"], as_table=True)
@@ -101,6 +125,8 @@ def test_slurm_queue_sbatch_fail(hq_env: HqEnv):
 
     with hq_env.mock.mock_program("sbatch", sbatch_code):
         hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        prepare_tasks(hq_env)
+
         add_queue(hq_env, manager="slurm")
         time.sleep(0.2)
         table = hq_env.command(["alloc", "events", "1"], as_table=True)
@@ -128,6 +154,8 @@ def test_pbs_queue_qsub_args(hq_env: HqEnv):
     with hq_env.mock.mock_program("qsub", qsub_code):
         with hq_env.mock.mock_program("qstat", ""):
             hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+            prepare_tasks(hq_env)
+
             add_queue(hq_env, additional_args="--foo=bar a b --baz 42")
             wait_until(lambda: os.path.exists(path))
             with open(path) as f:
@@ -144,6 +172,8 @@ def test_slurm_queue_sbatch_args(hq_env: HqEnv):
 
     with hq_env.mock.mock_program("sbatch", sbatch_code):
         hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        prepare_tasks(hq_env)
+
         add_queue(hq_env, manager="slurm", additional_args="--foo=bar a b --baz 42")
         wait_until(lambda: os.path.exists(path))
         with open(path) as f:
@@ -160,6 +190,8 @@ def test_pbs_queue_qsub_success(hq_env: HqEnv):
     with hq_env.mock.mock_program("qsub", qsub_code):
         with hq_env.mock.mock_program("qstat", ""):
             hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+            prepare_tasks(hq_env)
+
             add_queue(hq_env)
             time.sleep(0.2)
             table = hq_env.command(["alloc", "events", "1"], as_table=True)
@@ -172,6 +204,8 @@ def test_slurm_queue_sbatch_success(hq_env: HqEnv):
 
     with hq_env.mock.mock_program("sbatch", sbatch_code):
         hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        prepare_tasks(hq_env)
+
         add_queue(hq_env, manager="slurm")
         time.sleep(0.2)
         table = hq_env.command(["alloc", "events", "1"], as_table=True)
@@ -225,6 +259,8 @@ def test_pbs_events_job_lifecycle(hq_env: HqEnv):
     with mock.activate():
         mock.set_job_data("Q")
         hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        prepare_tasks(hq_env)
+
         add_queue(hq_env)
 
         # Queued
@@ -261,6 +297,8 @@ def test_pbs_events_job_failed(hq_env: HqEnv):
 
     with mock.activate():
         hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        prepare_tasks(hq_env)
+
         add_queue(hq_env)
 
         time.sleep(0.5)
@@ -280,6 +318,8 @@ def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
 
     with mock.activate():
         hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        prepare_tasks(hq_env)
+
         add_queue(hq_env, name="foo")
         time.sleep(0.2)
 
@@ -313,6 +353,8 @@ def test_allocations_ignore_job_changes_after_finish(hq_env: HqEnv):
 
     with mock.activate():
         hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        prepare_tasks(hq_env)
+
         add_queue(hq_env)
         time.sleep(0.3)
 
@@ -338,6 +380,8 @@ def test_pbs_delete_active_jobs(hq_env: HqEnv):
 
     with mock.activate():
         process = hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        prepare_tasks(hq_env)
+
         add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
 
         def allocations_up():
@@ -456,7 +500,7 @@ with open(os.path.join("{self.qdel_dir}", jobid), "w") as f:
 
 
 def add_queue(
-    hq_env,
+    hq_env: HqEnv,
     manager="pbs",
     name: Optional[str] = "foo",
     queue="queue",
@@ -486,3 +530,7 @@ def add_queue(
         args.extend(additional_args.split(" "))
 
     return hq_env.command(args)
+
+
+def prepare_tasks(hq_env: HqEnv, count=1000):
+    hq_env.command(["submit", f"--array=0-{count}", "sleep", "1"])
