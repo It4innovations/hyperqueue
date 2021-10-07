@@ -1,7 +1,7 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::timeutils::ArgDuration;
 use crate::rpc_call;
-use crate::server::autoalloc::{Allocation, AllocationStatus};
+use crate::server::autoalloc::{Allocation, AllocationStatus, DescriptorId};
 use crate::server::bootstrap::get_client_connection;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
@@ -29,6 +29,8 @@ enum AutoAllocCommand {
     Info(AllocationsOpts),
     /// Add new allocation queue
     Add(AddQueueOpts),
+    /// Removes an allocation queue with the given ID
+    Remove(RemoveQueueOpts),
 }
 
 #[derive(Clap)]
@@ -36,6 +38,13 @@ enum AutoAllocCommand {
 pub struct AddQueueOpts {
     #[clap(subcommand)]
     subcmd: AddQueueCommand,
+}
+
+#[derive(Clap)]
+#[clap(setting = clap::AppSettings::ColoredHelp)]
+pub struct RemoveQueueOpts {
+    /// ID of the allocation queue that should be removed
+    queue_id: DescriptorId,
 }
 
 #[derive(Clap)]
@@ -155,6 +164,9 @@ pub async fn command_autoalloc(
         AutoAllocCommand::Info(opts) => {
             print_allocations(&gsettings, connection, opts).await?;
         }
+        AutoAllocCommand::Remove(descriptor_id) => {
+            remove_queue(connection, descriptor_id.queue_id).await?;
+        }
     }
     Ok(())
 }
@@ -191,6 +203,21 @@ async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyh
     .await?;
 
     log::info!("Allocation queue {} successfully created", queue_id);
+    Ok(())
+}
+
+async fn remove_queue(
+    mut connection: ClientConnection,
+    descriptor_id: DescriptorId,
+) -> anyhow::Result<()> {
+    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::RemoveQueue(descriptor_id));
+
+    rpc_call!(connection, message,
+        ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueRemoved(_)) => ()
+    )
+    .await?;
+
+    log::info!("Allocation queue {} successfully removed", descriptor_id);
     Ok(())
 }
 
