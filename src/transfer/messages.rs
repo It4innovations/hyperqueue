@@ -107,6 +107,7 @@ pub enum AutoAllocRequest {
     Events { descriptor: DescriptorId },
     Info { descriptor: DescriptorId },
     AddQueue(AddQueueRequest),
+    RemoveQueue(DescriptorId),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -259,6 +260,7 @@ pub struct WorkerInfoResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AutoAllocResponse {
     QueueCreated(DescriptorId),
+    QueueRemoved(DescriptorId),
     Events(Vec<AllocationEventHolder>),
     Info(Vec<Allocation>),
     List(AutoAllocListResponse),

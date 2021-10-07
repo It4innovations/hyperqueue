@@ -230,7 +230,45 @@ async fn handle_autoalloc_message(
         AutoAllocRequest::AddQueue(params) => create_queue(server_dir, state_ref, params).await,
         AutoAllocRequest::Events { descriptor } => get_event_log(state_ref, descriptor),
         AutoAllocRequest::Info { descriptor } => get_allocations(state_ref, descriptor),
+        AutoAllocRequest::RemoveQueue(id) => remove_queue(state_ref, id).await,
     }
+}
+
+async fn remove_queue(state_ref: &StateRef, id: DescriptorId) -> ToClientMessage {
+    let remove_alloc_fut = {
+        let mut server_state = state_ref.get_mut();
+        let descriptor_state = server_state
+            .get_autoalloc_state_mut()
+            .get_descriptor_mut(id);
+
+        let fut = match descriptor_state {
+            Some(state) => {
+                let handler = state.descriptor.handler();
+                let futures: Vec<_> = state
+                    .active_allocations()
+                    .map(move |alloc| {
+                        let id = alloc.id.clone();
+                        let future = handler.remove_allocation(alloc.id.clone());
+                        async move { (future.await, id) }
+                    })
+                    .collect();
+                futures
+            }
+            None => return ToClientMessage::Error("Descriptor not found".to_string()),
+        };
+
+        server_state.get_autoalloc_state_mut().remove_descriptor(id);
+        fut
+    };
+
+    for (result, allocation_id) in futures::future::join_all(remove_alloc_fut).await {
+        match result {
+            Ok(_) => log::info!("Allocation {} was removed", allocation_id),
+            Err(e) => log::error!("Failed to remove allocation {}: {:?}", allocation_id, e),
+        }
+    }
+
+    ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueRemoved(id))
 }
 
 fn get_allocations(state_ref: &StateRef, descriptor: DescriptorId) -> ToClientMessage {

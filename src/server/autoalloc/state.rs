@@ -39,6 +39,9 @@ impl AutoAllocState {
     pub fn add_descriptor(&mut self, id: DescriptorId, descriptor: QueueDescriptor) {
         assert!(self.descriptors.insert(id, descriptor.into()).is_none());
     }
+    pub fn remove_descriptor(&mut self, id: DescriptorId) {
+        assert!(self.descriptors.remove(&id).is_some());
+    }
 
     pub fn get_descriptor(&self, key: DescriptorId) -> Option<&DescriptorState> {
         self.descriptors.get(&key)

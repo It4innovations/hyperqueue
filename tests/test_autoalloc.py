@@ -398,6 +398,52 @@ def test_pbs_delete_active_jobs(hq_env: HqEnv):
         assert sorted(mock.deleted_jobs()) == ["1", "2"]
 
 
+def test_remove_descriptor(hq_env: HqEnv):
+    mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021")
+
+    with mock.activate():
+        hq_env.start_server()
+        add_queue(hq_env)
+        add_queue(hq_env)
+        add_queue(hq_env)
+
+        result = remove_queue(hq_env, queue_id=2)
+        assert "Allocation queue 2 successfully removed" in result
+
+        table = hq_env.command(["alloc", "list"], as_table=True)
+        table.check_value_columns(["ID"], 0, ["1"])
+        table.check_value_columns(["ID"], 1, ["3"])
+
+
+def test_pbs_remove_descriptor_cancel_allocations(hq_env: HqEnv):
+    mock = PbsMock(
+        hq_env,
+        jobs=["1", "2"],
+        qtime="Thu Aug 19 13:05:38 2021",
+        stime="Thu Aug 19 13:05:39 2021",
+        mtime="Thu Aug 19 13:05:39 2021",
+    )
+    mock.set_job_data("R")
+
+    with mock.activate():
+        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        prepare_tasks(hq_env)
+
+        add_queue(hq_env, backlog=2, workers_per_alloc=1)
+
+        def allocations_up():
+            table = hq_env.command(["alloc", "info", "1"], as_table=True)
+            return len(table) == 3
+
+        wait_until(allocations_up)
+
+        remove_queue(hq_env, 1)
+
+        wait_until(lambda: len(hq_env.command(["alloc", "list"], as_table=True)) == 1)
+
+        assert sorted(mock.deleted_jobs()) == ["1", "2"]
+
+
 class PbsMock:
     def __init__(self, hq_env: HqEnv, jobs: List[str] = None, **data):
         if jobs is None:
@@ -534,3 +580,8 @@ def add_queue(
 
 def prepare_tasks(hq_env: HqEnv, count=1000):
     hq_env.command(["submit", f"--array=0-{count}", "sleep", "1"])
+
+
+def remove_queue(hq_env: HqEnv, queue_id: int):
+    args = ["alloc", "remove", str(queue_id)]
+    return hq_env.command(args)
