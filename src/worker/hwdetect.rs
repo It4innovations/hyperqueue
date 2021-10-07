@@ -9,6 +9,40 @@ use nom::combinator::{map_res, opt};
 use nom::multi::separated_list1;
 use nom::sequence::{preceded, terminated, tuple};
 
+pub fn detect_resource() -> anyhow::Result<ResourceDescriptor> {
+    if let Ok(cpus) = read_linux_numa() {
+        log::debug!("Linux numa detection is successful");
+        return Ok(ResourceDescriptor { cpus });
+    }
+
+    let n_cpus = num_cpus::get() as NumOfCpus;
+    if n_cpus < 1 {
+        anyhow::bail!("Cpu detection failed".to_string());
+    };
+    Ok(ResourceDescriptor::new_with_socket_size(1, n_cpus))
+}
+
+/// Try to find out how many Nvidia GPUs are available on the current node.
+#[allow(unused)]
+fn read_linux_gpu_count() -> anyhow::Result<usize> {
+    Ok(std::fs::read_dir("/proc/driver/nvidia/gpus")?.count())
+}
+
+/// Try to find the CPU NUMA configuration.
+///
+/// Returns a list of NUMA nodes, each node contains a list of assigned CPUs.
+fn read_linux_numa() -> anyhow::Result<Vec<Vec<CpuId>>> {
+    let nodes = parse_range(&std::fs::read_to_string(
+        "/sys/devices/system/node/possible",
+    )?)?;
+    let mut numa_nodes: Vec<Vec<CpuId>> = Vec::new();
+    for numa_index in nodes {
+        let filename = format!("/sys/devices/system/node/node{}/cpulist", numa_index);
+        numa_nodes.push(parse_range(&std::fs::read_to_string(filename)?)?);
+    }
+    Ok(numa_nodes)
+}
+
 fn p_cpu_range(input: &str) -> NomResult<Vec<CpuId>> {
     map_res(
         tuple((
@@ -27,35 +61,10 @@ fn p_cpu_ranges(input: &str) -> NomResult<Vec<CpuId>> {
         .map(|(a, b)| (a, b.into_iter().flatten().collect()))
 }
 
-pub fn parse_range(input: &str) -> anyhow::Result<Vec<CpuId>> {
+fn parse_range(input: &str) -> anyhow::Result<Vec<CpuId>> {
     all_consuming(terminated(p_cpu_ranges, opt(newline)))(input)
         .map(|r| r.1)
         .map_err(format_parse_error)
-}
-
-pub fn read_linux_numa() -> anyhow::Result<Vec<Vec<CpuId>>> {
-    let nodes = parse_range(&std::fs::read_to_string(
-        "/sys/devices/system/node/possible",
-    )?)?;
-    let mut cpus: Vec<Vec<CpuId>> = Vec::new();
-    for numa_index in nodes {
-        let filename = format!("/sys/devices/system/node/node{}/cpulist", numa_index);
-        cpus.push(parse_range(&std::fs::read_to_string(filename)?)?);
-    }
-    Ok(cpus)
-}
-
-pub fn detect_resource() -> anyhow::Result<ResourceDescriptor> {
-    if let Ok(cpus) = read_linux_numa() {
-        log::debug!("Linux numa detection is successful");
-        return Ok(ResourceDescriptor { cpus });
-    }
-
-    let n_cpus = num_cpus::get() as NumOfCpus;
-    if n_cpus < 1 {
-        anyhow::bail!("Cpu detection failed".to_string());
-    };
-    Ok(ResourceDescriptor::new_with_socket_size(1, n_cpus))
 }
 
 #[cfg(test)]
