@@ -5,4 +5,4 @@ rule benchmark:
 	output: 
 		"{sample}"
 	shell: 
-		"sleep 0 > {output}"
+		"echo {wildcards.sample} > {output}"

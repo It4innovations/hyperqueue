@@ -1,1 +1,0 @@
-snakemake --quiet --cores all

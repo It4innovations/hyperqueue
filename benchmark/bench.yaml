@@ -5,7 +5,7 @@ description:
 merlin:
    samples: 
       generate: 
-         cmd: python3 $(SPECROOT)/make_samples.py --filepath=$(MERLIN_INFO)/samples.csv --number=100
+         cmd: python3 $(SPECROOT)/merliner/make_samples.py --filepath=$(MERLIN_INFO)/samples.csv --number=100
       file: $(MERLIN_INFO)/samples.csv
       column_labels: [ID]
 
@@ -14,5 +14,4 @@ study:
       description: benchmark
       run:
           cmd: |
-                foo = "$(ID)"
-                sleep 0
+                echo 'files/$(ID)'

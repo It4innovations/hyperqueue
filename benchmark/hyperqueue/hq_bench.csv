@@ -1,4 +1,0 @@
-,cmd,time
-0,for 1000 submit sleep 0 --stderr=none,0:00:01.849604
-1,"submit echo ""wait"" --array=1-10 --stderr=none --stdout=none --wait",0:00:00.035459
-2,"submit echo ""wait"" --array=1-100 --stderr=none --stdout=none --wait",0:00:00.144667

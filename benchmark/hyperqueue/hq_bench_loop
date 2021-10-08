@@ -1,4 +1,0 @@
-for i in {1..10}
-do
-   ./hq submit sleep 0 --stderr=none --wait --cpus=1 --stdout=./test
-done
