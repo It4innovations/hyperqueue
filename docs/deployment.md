@@ -42,6 +42,7 @@ A worker can be started by command. It reads server directory and connectes to t
 
 ``hq worker start``
 
+
 ### Starting worker in PBS
 
 * Start worker on the first node of a PBS job
@@ -52,6 +53,7 @@ A worker can be started by command. It reads server directory and connectes to t
 
   ``$ qsub <your-params-of-qsub> -- `which pbsdsh` hq worker start``
 
+
 ### Starting worker in SLURM
 
 * Start worker on the first node of a SLURM job
@@ -61,6 +63,16 @@ A worker can be started by command. It reads server directory and connectes to t
 * Start worker on all nodes of a SLURM job``
 
   ``$ sbatch <your-params-of-sbatch> --wrap "srun hq worker start"``
+
+
+### Worker's Time limit
+
+ When a worker is started in PBS or SLURM, it automatically gets the time limit
+ from the outer system and propages it into HQ scheduler. If you want to set
+ time limit for workers outside of PBS or SLURM (or you want to override the
+ detected settings), then there is an option ``--time-limit=DURATION`` (e.g.
+ ``hq worker start --time-limit=2h``). If time limit is reached, the worker is
+ terminated.
 
 
 ## List of workers
