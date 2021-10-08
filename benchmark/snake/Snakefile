@@ -1,0 +1,8 @@
+rule all:
+	input: 
+		expand("files/{sample}", sample=range(100))
+rule benchmark:
+	output: 
+		"{sample}"
+	shell: 
+		"sleep 0 > {output}"

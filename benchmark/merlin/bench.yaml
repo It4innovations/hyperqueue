@@ -1,0 +1,18 @@
+description:
+   name: Merlin Benchmark
+   description: Simple bench
+
+merlin:
+   samples: 
+      generate: 
+         cmd: python3 $(SPECROOT)/make_samples.py --filepath=$(MERLIN_INFO)/samples.csv --number=100
+      file: $(MERLIN_INFO)/samples.csv
+      column_labels: [ID]
+
+study:
+    - name: step_1
+      description: benchmark
+      run:
+          cmd: |
+                foo = "$(ID)"
+                sleep 0

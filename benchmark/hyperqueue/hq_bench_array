@@ -1,0 +1,1 @@
+./hq submit sleep 0 --array=1-1000 --stderr=none --wait --cpus=1
