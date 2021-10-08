@@ -2,6 +2,8 @@ import contextlib
 import os
 import signal
 import subprocess
+from typing import Tuple, Optional
+
 import time
 
 import pytest
@@ -173,8 +175,20 @@ class HqEnv(Env):
             time.sleep(0.2)
         return r
 
-    def kill_worker(self, worker_id):
-        self.kill_process(f"worker{worker_id}")
+    def kill_worker(self, worker_id: int):
+        table = self.command(["worker", "info", str(worker_id)], as_table=True)
+        pid = table.get_row_value("Process pid")
+        process = self.find_process_by_pid(int(pid))
+        if process is None:
+            raise Exception(f"Worker {worker_id} not found")
+
+        self.kill_process(process[0])
+
+    def find_process_by_pid(self, pid: int) -> Optional[Tuple[str, subprocess.Popen]]:
+        for (name, process) in self.processes:
+            if process.pid == pid:
+                return (name, process)
+        return None
 
     def command(
         self,
