@@ -178,6 +178,7 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
     };
 
     if waiting_tasks == 0 {
+        log::debug!("No waiting tasks found, no new allocations will be created");
         return;
     }
 
