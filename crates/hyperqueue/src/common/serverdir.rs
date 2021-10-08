@@ -17,6 +17,12 @@ pub struct ServerDir {
     path: PathBuf,
 }
 
+pub fn default_server_directory() -> PathBuf {
+    let mut home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
+    home.push(".hq-server");
+    home
+}
+
 pub const SYMLINK_PATH: &str = "hq-current";
 const ACCESS_FILE: &str = "access.json";
 

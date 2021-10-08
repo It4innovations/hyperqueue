@@ -8,7 +8,7 @@ use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::common::serverdir::{AccessRecord, ServerDir, SYMLINK_PATH};
+use crate::common::serverdir::{default_server_directory, AccessRecord, ServerDir, SYMLINK_PATH};
 use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
@@ -56,22 +56,34 @@ pub async fn init_hq_server(
 }
 
 pub async fn get_client_connection(server_directory: &Path) -> anyhow::Result<ClientConnection> {
+    let default_home = default_server_directory();
     let sd = ServerDir::open(server_directory).context("Invalid server directory")?;
+    let server_dir_msg = if default_home != server_directory {
+        format!(" --server-dir {}", server_directory.to_str().unwrap())
+    } else {
+        String::new()
+    };
     let access_record = sd.read_access_record().with_context(|| {
         format!(
-            "No running instance of HQ found (cannot read access record from {:?})",
-            sd.access_filename()
+            "No running instance of HQ found at {:?}.\n\
+            Try to start the server: `hq server start{}` or use a different server directory.",
+            sd.access_filename(),
+            server_dir_msg,
         )
     })?;
+
     let connection = HqConnection::connect_to_server(&access_record)
         .await
         .with_context(|| {
             format!(
-                "Cannot connect to HQ server at port {}:{}",
+                "Access token found but HQ server {}:{} is unreachable.\n\
+                Try to (re)start the server using `hq server start{}`",
                 access_record.host(),
-                access_record.server_port()
+                access_record.server_port(),
+                server_dir_msg,
             )
         })?;
+
     Ok(connection)
 }
 
