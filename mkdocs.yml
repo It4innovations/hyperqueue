@@ -16,6 +16,7 @@ nav:
   - Task Arrays: arrays.md
   - CPU management: cpus.md
   - Streaming stdio/stderr: streaming.md
+  - Automatic allocation: alloc.md
 
 
 theme:
