@@ -68,7 +68,7 @@ A worker can be started by command. It reads server directory and connectes to t
 ### Worker's Time limit
 
  When a worker is started in PBS or SLURM, it automatically gets the time limit
- from the outer system and propages it into HQ scheduler. If you want to set
+ from the outer system and propagates it into HQ scheduler. If you want to set
  time limit for workers outside of PBS or SLURM (or you want to override the
  detected settings), then there is an option ``--time-limit=DURATION`` (e.g.
  ``hq worker start --time-limit=2h``). If time limit is reached, the worker is
