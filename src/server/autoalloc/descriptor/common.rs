@@ -1,6 +1,7 @@
 use bstr::ByteSlice;
 use std::path::PathBuf;
 use std::process::Output;
+use std::time::Duration;
 
 use crate::server::autoalloc::AutoAllocResult;
 
@@ -28,4 +29,8 @@ pub fn check_command_output(output: Output) -> AutoAllocResult<Output> {
         ));
     }
     Ok(output)
+}
+
+pub fn get_default_worker_idle_time() -> Duration {
+    Duration::from_secs(5 * 60)
 }

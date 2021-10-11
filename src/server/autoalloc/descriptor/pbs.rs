@@ -9,7 +9,9 @@ use tokio::process::Command;
 use crate::common::env::HQ_QSTAT_PATH;
 use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
 use crate::common::timeutils::local_to_system_time;
-use crate::server::autoalloc::descriptor::common::{check_command_output, create_allocation_dir};
+use crate::server::autoalloc::descriptor::common::{
+    check_command_output, create_allocation_dir, get_default_worker_idle_time,
+};
 use crate::server::autoalloc::descriptor::{CreatedAllocation, QueueHandler};
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
 use crate::server::autoalloc::{AutoAllocResult, DescriptorId, QueueInfo};
@@ -80,7 +82,7 @@ impl QueueHandler for PbsHandler {
                 "worker".to_string(),
                 "start".to_string(),
                 "--idle-timeout".to_string(),
-                "10m".to_string(),
+                humantime::format_duration(get_default_worker_idle_time()).to_string(),
                 "--manager".to_string(),
                 "pbs".to_string(),
                 "--server-dir".to_string(),

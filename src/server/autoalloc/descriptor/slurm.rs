@@ -11,6 +11,7 @@ use crate::common::manager::slurm::{
     format_slurm_duration, get_scontrol_items, parse_slurm_datetime,
 };
 use crate::common::timeutils::local_to_system_time;
+use crate::server::autoalloc::descriptor::common::get_default_worker_idle_time;
 use crate::server::autoalloc::descriptor::{common, CreatedAllocation, QueueHandler};
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
 use crate::server::autoalloc::{AutoAllocResult, DescriptorId, QueueInfo};
@@ -73,7 +74,7 @@ impl QueueHandler for SlurmHandler {
                 "worker".to_string(),
                 "start".to_string(),
                 "--idle-timeout".to_string(),
-                "10m".to_string(),
+                humantime::format_duration(get_default_worker_idle_time()).to_string(),
                 "--manager".to_string(),
                 "slurm".to_string(),
                 "--server-dir".to_string(),
