@@ -83,6 +83,8 @@
     </li>
     <li class="toctree-l3"><a class="reference internal" href="#starting-worker-in-slurm">Starting worker in SLURM</a>
     </li>
+    <li class="toctree-l3"><a class="reference internal" href="#workers-time-limit">Worker's Time limit</a>
+    </li>
         </ul>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#list-of-workers">List of workers</a>
@@ -116,6 +118,10 @@
                 </ul>
                 <ul>
                     <li class="toctree-l1"><a class="reference internal" href="../streaming/">Streaming stdio/stderr</a>
+                    </li>
+                </ul>
+                <ul>
+                    <li class="toctree-l1"><a class="reference internal" href="../alloc/">Automatic allocation</a>
                     </li>
                 </ul>
       </div>
@@ -191,6 +197,13 @@ all commands need to use the <code>--server-dir</code> settings.</p>
 <li>Start worker on all nodes of a SLURM job``</li>
 </ul>
 <p><code>$ sbatch &lt;your-params-of-sbatch&gt; --wrap "srun hq worker start"</code></p>
+<h3 id="workers-time-limit">Worker's Time limit<a class="headerlink" href="#workers-time-limit" title="Permanent link">#</a></h3>
+<p>When a worker is started in PBS or SLURM, it automatically gets the time limit
+ from the outer system and propagates it into HQ scheduler. If you want to set
+ time limit for workers outside of PBS or SLURM (or you want to override the
+ detected settings), then there is an option <code>--time-limit=DURATION</code> (e.g.
+ <code>hq worker start --time-limit=2h</code>). If time limit is reached, the worker is
+ terminated.</p>
 <h2 id="list-of-workers">List of workers<a class="headerlink" href="#list-of-workers" title="Permanent link">#</a></h2>
 <p><code>hq worker list</code></p>
 <p>State of workers:</p>
