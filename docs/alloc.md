@@ -4,7 +4,7 @@
 The goal of automatic allocation is to autonomously allocate resources for workers in HPC scheduler (PBS/SLURM). In other words, it submits SLURM/PBS jobs as needed.
 
 
-**Note:** This is feature is in a preview mode. It works but semantics, default configuration, or API could changed in future versions.
+**Note:** This is feature is in a preview mode. It works but semantics, default configuration, or API could be changed in future versions.
 
 To solve the terminology clash between HQ jobs and PBS/SLURM jobs, we will call the latter as "mjobs" (= manager jobs, where we use manager as an umbrella term for PBS or SLURM).
 
