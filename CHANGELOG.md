@@ -1,4 +1,4 @@
-# DEV
+# v0.5.0
 
 ## New features
 
@@ -6,13 +6,17 @@
   * Time limit for workers
   * Job and task times are shown in job information tables
   * Integers in command line options can be now written with an underscore separator (e.g. ``--array=1-1_000``)
+  * Placeholders in log file paths
+  * Preview version of PBS and SLURM auto allocation
 
 ## Changes
-  * Job id is now represented as u32
-  * Normalization of stream's end behavior when job is canceled
+
   * `hq submit --wait` and `hq wait` will no longer display a progress bar while waiting for the job(s) to finish.
   The progress bar was moved to `hq submit --progress` and `hq progress`.
   * The default path of job stdout and stderr has been changed to ``job-%{JOB_ID}/%{TASK_ID}.[stdout/stderr]``
+  * Normalization of stream's end behavior when job is canceled
+  * Job id is now represented as u32
+
 
 # v0.4.0
 

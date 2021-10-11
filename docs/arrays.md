@@ -1,8 +1,6 @@
 
 # Task arrays
 
-[Added in 0.2]
-
 Task arrays is a mechanism for submitting many tasks at once.
 It allows to create a job with many tasks in a single submit and monitor and manage them as a single group.
 

@@ -83,9 +83,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="1"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.7"
-     inkscape:cx="223.57143"
-     inkscape:cy="481.42857"
+     inkscape:zoom="0.49497475"
+     inkscape:cx="464.67017"
+     inkscape:cy="741.45197"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      inkscape:document-rotation="0"
@@ -373,79 +373,79 @@
        width="64.327171"
        height="36.238678"
        x="135.17941"
-       y="169.17851"
+       y="162.38184"
        ry="0"
        rx="0" />
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.81398px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#f2f2f2;fill-opacity:1;stroke:none;stroke-width:0.136213px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="140.20433"
-       y="174.72639"
+       y="167.92972"
        id="text2147-9-6"><tspan
          sodipodi:role="line"
          id="tspan2145-3-7"
          x="140.20433"
-         y="174.72639"
+         y="167.92972"
          style="fill:#f2f2f2;stroke-width:0.136213px">summary</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.81398px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#f2f2f2;fill-opacity:1;stroke:none;stroke-width:0.136213px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="140.18344"
-       y="185.12457"
+       y="178.3279"
        id="text2151-6-5"><tspan
          sodipodi:role="line"
          id="tspan2149-0-3"
          x="140.18344"
-         y="185.12457"
+         y="178.3279"
          style="fill:#f2f2f2;stroke-width:0.136213px">show [--channel=stdout/stderr]</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.14311px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#b3b3b3;fill-opacity:1;stroke:none;stroke-width:0.112254px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="139.75307"
-       y="179.25351"
+       y="172.45683"
        id="text2155-6-5"><tspan
          sodipodi:role="line"
          id="tspan2153-2-6"
          x="139.75307"
-         y="179.25351"
+         y="172.45683"
          style="fill:#b3b3b3;stroke-width:0.112254px">show summary of file</tspan><tspan
          sodipodi:role="line"
          x="139.75307"
-         y="183.1824"
+         y="176.38573"
          style="fill:#b3b3b3;stroke-width:0.112254px"
          id="tspan2239-2" /></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.14311px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#b3b3b3;fill-opacity:1;stroke:none;stroke-width:0.112254px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="140.15344"
-       y="189.94719"
+       y="183.15051"
        id="text2159-6-9"><tspan
          sodipodi:role="line"
          id="tspan2157-1-1"
          x="140.15344"
-         y="189.94719"
+         y="183.15051"
          style="fill:#b3b3b3;stroke-width:0.112254px">show log info time ordered</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.81398px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#f2f2f2;fill-opacity:1;stroke:none;stroke-width:0.136213px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="140.28665"
-       y="197.27792"
+       y="190.48125"
        id="text2231-2"><tspan
          sodipodi:role="line"
          id="tspan2229-7"
          x="140.28665"
-         y="197.27792"
+         y="190.48125"
          style="fill:#f2f2f2;stroke-width:0.136213px">cat &lt;stdout/stderr&gt; [--task=id]</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.14311px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#b3b3b3;fill-opacity:1;stroke:none;stroke-width:0.112254px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="140.26984"
-       y="201.86363"
+       y="195.06696"
        id="text2235-9"><tspan
          sodipodi:role="line"
          id="tspan2233-3"
          x="140.26984"
-         y="201.86363"
+         y="195.06696"
          style="fill:#b3b3b3;stroke-width:0.112254px">Raw output of channels (by task id)</tspan></text>
     <rect
        style="color:#000000;font-variation-settings:normal;overflow:visible;opacity:1;vector-effect:none;fill:#2569a7;fill-opacity:1;stroke:none;stroke-width:0.364744px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;stop-color:#000000;stop-opacity:1"
@@ -645,8 +645,8 @@
     <rect
        style="color:#000000;font-variation-settings:normal;overflow:visible;opacity:1;vector-effect:none;fill:#4d4d4d;fill-opacity:1;stroke:none;stroke-width:1.02965;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:0.419608;stop-color:#000000;stop-opacity:1"
        id="rect141"
-       width="55.762165"
-       height="72.438477"
+       width="55.762169"
+       height="82.140045"
        x="17.942223"
        y="160.13541"
        ry="0"
@@ -704,11 +704,11 @@
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.81398px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#f2f2f2;fill-opacity:1;stroke:none;stroke-width:0.136213px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="22.013268"
-       y="214.8054"
+       y="223.64525"
        id="text7546"><tspan
          sodipodi:role="line"
          x="22.013268"
-         y="214.8054"
+         y="223.64525"
          style="fill:#f2f2f2;stroke-width:0.136213px"
          id="tspan7544">--cpus=<tspan
    style="font-style:italic;stroke-width:0.136213px"
@@ -719,39 +719,39 @@
        width="53.142715"
        height="31.839621"
        x="58.74358"
-       y="218.28174" />
+       y="223.29355" />
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.14311px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#b3b3b3;fill-opacity:1;stroke:none;stroke-width:0.112254px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="22.238926"
-       y="219.20653"
+       y="228.04637"
        id="text13942"><tspan
          sodipodi:role="line"
          id="tspan13940"
          x="22.238926"
-         y="219.20653"
+         y="228.04637"
          style="fill:#b3b3b3;stroke-width:0.112254px">CPUs configuration</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.81398px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#f2f2f2;fill-opacity:1;stroke:none;stroke-width:0.136213px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="21.494051"
-       y="225.21187"
+       y="234.05171"
        id="text14424"><tspan
          sodipodi:role="line"
          x="21.494051"
-         y="225.21187"
+         y="234.05171"
          style="fill:#f2f2f2;stroke-width:0.136213px"
          id="tspan14422">--pin</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.14311px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#b3b3b3;fill-opacity:1;stroke:none;stroke-width:0.112254px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="21.889477"
-       y="229.30736"
+       y="238.1472"
        id="text14728"><tspan
          sodipodi:role="line"
          id="tspan14726"
          x="21.889477"
-         y="229.30736"
+         y="238.1472"
          style="fill:#b3b3b3;stroke-width:0.112254px">Pin process to CPUs</tspan></text>
     <text
        xml:space="preserve"
@@ -768,95 +768,100 @@
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.97873px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#f2f2f2;fill-opacity:1;stroke:none;stroke-width:0.106383px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="60.179226"
-       y="236.57198"
+       y="241.58379"
        id="text20012"><tspan
          sodipodi:role="line"
          x="60.179226"
-         y="236.57198"
+         y="241.58379"
          style="fill:#f2f2f2;stroke-width:0.106383px"
          id="tspan20010">--cpus=&quot;8 compact!&quot;</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.97873px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#f2f2f2;fill-opacity:1;stroke:none;stroke-width:0.106383px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="60.179226"
-       y="222.20724"
+       y="227.21906"
        id="text22514"><tspan
          sodipodi:role="line"
          x="60.179226"
-         y="222.20724"
+         y="227.21906"
          style="fill:#f2f2f2;stroke-width:0.106383px"
          id="tspan22512">--cpus=all </tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.97873px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#f2f2f2;fill-opacity:1;stroke:none;stroke-width:0.106383px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="60.179226"
-       y="229.00758"
+       y="234.01939"
        id="text31691"><tspan
          sodipodi:role="line"
          x="60.179226"
-         y="229.00758"
+         y="234.01939"
          style="fill:#f2f2f2;stroke-width:0.106383px"
          id="tspan31689">--cpus=8  / --cpus=&quot;8 compact&quot;</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.45478px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#b3b3b3;fill-opacity:1;stroke:none;stroke-width:0.0876705px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="60.319424"
-       y="225.14842"
+       y="230.16023"
        id="text44081"><tspan
          sodipodi:role="line"
          id="tspan44079"
          x="60.319424"
-         y="225.14842"
+         y="230.16023"
          style="fill:#b3b3b3;stroke-width:0.0876705px">All cpus</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.45478px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#b3b3b3;fill-opacity:1;stroke:none;stroke-width:0.0876705px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="60.319424"
-       y="232.19127"
+       y="237.20308"
        id="text44187"><tspan
          sodipodi:role="line"
          id="tspan44185"
          x="60.319424"
-         y="232.19127"
+         y="237.20308"
          style="fill:#b3b3b3;stroke-width:0.0876705px">8 cpus, minimize no. of sockets</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.45478px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#b3b3b3;fill-opacity:1;stroke:none;stroke-width:0.0876705px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="60.319424"
-       y="239.80902"
+       y="244.82083"
        id="text48854"><tspan
          sodipodi:role="line"
          id="tspan48852"
          x="60.319424"
-         y="239.80902"
+         y="244.82083"
          style="fill:#b3b3b3;stroke-width:0.0876705px">8 cpus, enforce minimal no. of sockets</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.97873px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#f2f2f2;fill-opacity:1;stroke:none;stroke-width:0.106383px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="60.179226"
-       y="244.58974"
+       y="249.60155"
        id="text56035"><tspan
          sodipodi:role="line"
          x="60.179226"
-         y="244.58974"
+         y="249.60155"
          style="fill:#f2f2f2;stroke-width:0.106383px"
          id="tspan56033">--cpus=&quot;8 scatter&quot;</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.45478px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#b3b3b3;fill-opacity:1;stroke:none;stroke-width:0.0876705px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="60.319424"
-       y="247.82678"
+       y="252.83859"
        id="text56039"><tspan
          sodipodi:role="line"
          id="tspan56037"
          x="60.319424"
-         y="247.82678"
+         y="252.83859"
          style="fill:#b3b3b3;stroke-width:0.0876705px">8 cpus, scatter across sockets</tspan></text>
     <path
        style="fill:none;fill-rule:evenodd;stroke:#2569a7;stroke-width:1.02965;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="M 139.653,157.68443 V 127.64919 H 69.35054"
+       d="m 139.653,149.89805 0,-22.24886 H 69.35054"
        id="path43122"
        sodipodi:nodetypes="ccc" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#2569a7;stroke-width:1.02965;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       d="M 126.72751,208.17777 H 115.77964"
+       id="path43122-5"
+       sodipodi:nodetypes="cc" />
     <path
        style="fill:none;fill-rule:evenodd;stroke:#2569a7;stroke-width:1.02965;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
        d="m 83.351598,204.42779 v -76.7786 H 69.35054"
@@ -972,35 +977,65 @@
          x="84.537338"
          y="212.39018"
          style="font-weight:normal;text-align:start;text-anchor:start;fill:#f9f9f9;stroke-width:0.112254px"
-         id="tspan17059">cancel a job</tspan></text>
+         id="tspan17059">wait for end of job</tspan></text>
+    <rect
+       style="color:#000000;font-variation-settings:normal;overflow:visible;vector-effect:none;fill:#2569a7;fill-opacity:1;stroke:none;stroke-width:0.364744px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;stop-color:#000000"
+       id="rect17051-3"
+       width="55.869839"
+       height="15.381363"
+       x="124.29762"
+       y="200.72151"
+       ry="3.4104841" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:5.81271px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.207596px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="128.22231"
+       y="207.15396"
+       id="text17057-6"><tspan
+         sodipodi:role="line"
+         id="tspan17055-7"
+         x="128.22231"
+         y="207.15396"
+         style="fill:#ffffff;stroke-width:0.207596px">progress &lt;job_id&gt;</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.14311px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#f9f9f9;fill-opacity:1;stroke:none;stroke-width:0.112254px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="128.24115"
+       y="212.75011"
+       id="text17061-5"><tspan
+         sodipodi:role="line"
+         x="128.24115"
+         y="212.75011"
+         style="font-weight:normal;text-align:start;text-anchor:start;fill:#f9f9f9;stroke-width:0.112254px"
+         id="tspan17059-3">same as &quot;wait&quot; + show progress bar</tspan></text>
     <rect
        style="color:#000000;font-variation-settings:normal;overflow:visible;opacity:1;vector-effect:none;fill:#2569a7;fill-opacity:1;stroke:none;stroke-width:0.364744px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;stop-color:#000000;stop-opacity:1"
        id="rect19303"
        width="67.025719"
        height="15.22692"
        x="134.39041"
-       y="154.92088"
+       y="148.12421"
        ry="3.4104841" />
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:5.81271px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.207596px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="139.16605"
-       y="161.35332"
+       y="154.55664"
        id="text19307"><tspan
          sodipodi:role="line"
          id="tspan19305"
          x="139.16605"
-         y="161.35332"
+         y="154.55664"
          style="fill:#ffffff;stroke-width:0.207596px">log &lt;log&gt; &lt;command&gt;</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.14311px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#f9f9f9;fill-opacity:1;stroke:none;stroke-width:0.112254px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="139.23964"
-       y="166.94945"
+       y="160.15277"
        id="text19311"><tspan
          sodipodi:role="line"
          x="139.23964"
-         y="166.94945"
+         y="160.15277"
          style="font-weight:normal;text-align:start;text-anchor:start;fill:#f9f9f9;stroke-width:0.112254px"
          id="tspan19309">Display log file</tspan></text>
     <rect
@@ -1014,8 +1049,30 @@
        rx="0.64637405" />
     <path
        style="fill:none;fill-rule:evenodd;stroke:#87aade;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:1, 1;stroke-dashoffset:0;stroke-opacity:1;marker-end:url(#marker61948)"
-       d="M 42.826874,189.65884 H 78.439438 V 131.8288 h 77.633072 v 25.01637"
+       d="M 42.826874,189.65884 H 78.439438 V 131.8288 h 77.633072 l 0,15.13973"
        id="path61782"
        sodipodi:nodetypes="ccccc" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.81398px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#f2f2f2;fill-opacity:1;stroke:none;stroke-width:0.136213px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="22.497612"
+       y="213.88867"
+       id="text1120"><tspan
+         sodipodi:role="line"
+         id="tspan1118"
+         x="22.497612"
+         y="213.88867"
+         style="fill:#f2f2f2;stroke-width:0.136213px">--progress</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.14311px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#b3b3b3;fill-opacity:1;stroke:none;stroke-width:0.112254px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="44.808086"
+       y="218.4158"
+       id="text1124"><tspan
+         sodipodi:role="line"
+         x="44.808086"
+         y="218.4158"
+         style="font-weight:normal;text-align:center;text-anchor:middle;fill:#b3b3b3;stroke-width:0.112254px"
+         id="tspan1122">Same as --wait + show progress</tspan></text>
   </g>
 </svg>

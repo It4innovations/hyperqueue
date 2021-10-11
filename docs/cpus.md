@@ -2,8 +2,6 @@
 
 # CPU management
 
-[Added in 0.2]
-
 **Note:** In this text we use term **CPU** as a resource that is provided by operating system (e.g. what you get from /proc/cpuinfo). In this meaning, it is usually a core of a physical CPU. In the text related to NUMA we use term **socket** to refer to a physical CPU.
 
 
