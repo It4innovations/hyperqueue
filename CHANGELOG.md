@@ -8,7 +8,8 @@
   * Integers in command line options can be now written with an underscore separator (e.g. ``--array=1-1_000``)
   * Placeholders in log file paths
   * Preview version of PBS and SLURM auto allocation
-  * An option to compile HQ without jmalloc (this enables PowerPC build)
+  * HyperQueue can be now compiled without `jemalloc` (this enables PowerPC builds).
+    To remove dependency on `jemalloc`, build HyperQueue with `--no-default-features`.
 
 ## Changes
 
