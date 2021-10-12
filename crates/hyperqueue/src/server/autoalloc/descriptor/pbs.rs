@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::Duration;
 
+use crate::common::manager::info::ManagerType;
 use anyhow::Context;
 use bstr::ByteSlice;
 use tokio::process::Command;
@@ -10,7 +11,8 @@ use tokio::process::Command;
 use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
 use crate::common::timeutils::local_to_system_time;
 use crate::server::autoalloc::descriptor::common::{
-    check_command_output, create_allocation_dir, get_default_worker_idle_time,
+    build_worker_args, check_command_output, create_allocation_dir, JOBID_FILE_NAME,
+    SUBMIT_SCRIPT_NAME,
 };
 use crate::server::autoalloc::descriptor::{CreatedAllocation, QueueHandler};
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
@@ -42,24 +44,17 @@ impl QueueHandler for PbsHandler {
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>> {
         let queue = queue_info.queue.clone();
         let timelimit = queue_info.timelimit;
-        let hq_path = self.hq_path.display().to_string();
+        let hq_path = self.hq_path.clone();
         let server_directory = self.server_directory.clone();
         let name = descriptor_id.to_string();
         let qsub_args = self.qsub_args.clone();
 
         Box::pin(async move {
             let directory = create_allocation_dir(server_directory.clone(), &name)?;
-            let script_path = directory.join("hq_submit.sh");
+            let script_path = directory.join(SUBMIT_SCRIPT_NAME);
             let script_path = script_path.to_str().unwrap();
 
-            let mut worker_args = hq_path.clone();
-            worker_args.push_str(" worker start ");
-            worker_args.push_str(&format!(
-                "--idle-timeout {} ",
-                humantime::format_duration(get_default_worker_idle_time())
-            ));
-            worker_args.push_str("--manager pbs ");
-            worker_args.push_str(&format!("--server-dir {}", server_directory.display()));
+            let worker_args = build_worker_args(&hq_path, ManagerType::Pbs, &server_directory);
 
             let script = build_pbs_submit_script(
                 worker_count,
@@ -91,7 +86,7 @@ impl QueueHandler for PbsHandler {
             let job_id = job_id.to_string();
 
             // Write the PBS job id to the folder as a debug information
-            std::fs::write(directory.join("jobid"), &job_id)?;
+            std::fs::write(directory.join(JOBID_FILE_NAME), &job_id)?;
 
             Ok(CreatedAllocation {
                 id: job_id,
