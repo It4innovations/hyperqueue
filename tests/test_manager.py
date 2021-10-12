@@ -1,5 +1,3 @@
-import time
-
 from .conftest import HqEnv
 
 
@@ -118,24 +116,6 @@ def test_manager_pbs(hq_env: HqEnv):
         table.check_columns_value(["Manager", "Manager Job Id"], 0, ["PBS", "x1234"])
 
 
-def test_manager_pbs_qstat_path_from_env(hq_env: HqEnv):
-    hq_env.start_server()
-
-    with hq_env.mock.mock_program("foo", qstat_return_walltime("x1234")):
-        hq_env.start_worker(
-            cpus=1,
-            args=["--manager", "pbs"],
-            env={
-                "PBS_ENVIRONMENT": "PBS_BATCH",
-                "PBS_JOBID": "x1234",
-                "HQ_QSTAT_PATH": "foo",
-            },
-        )
-
-        table = hq_env.command(["worker", "list"], as_table=True)
-        table.check_columns_value(["Manager", "Manager Job Id"], 0, ["PBS", "x1234"])
-
-
 def test_manager_pbs_no_qstat(hq_env: HqEnv):
     hq_env.start_server()
 
@@ -146,7 +126,7 @@ def test_manager_pbs_no_qstat(hq_env: HqEnv):
         wait_for_start=False,
     )
     process.wait(5)
-    hq_env.check_process_exited(process, expected_code=1)
+    hq_env.check_process_exited(process, expected_code="error")
 
 
 def test_manager_slurm_no_env(hq_env: HqEnv):
