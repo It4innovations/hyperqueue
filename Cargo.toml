@@ -1,11 +1,8 @@
-[package]
-name = "hyperqueue"
-version = "0.5.0"
-authors = ["Stanislav Bohm <spirali@kreatrix.org>"]
-edition = "2018"
-description = "Job execution system"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace]
+members = [
+    "crates/hyperqueue"
+]
+default-members = ["crates/hyperqueue"]
 
 [profile.dev]
 panic = "abort"
@@ -15,58 +12,3 @@ lto = true
 codegen-units = 1
 opt-level = 3
 panic = "abort"
-
-[dependencies]
-log = "0.4"
-env_logger = "0.9"
-futures = "0.3"
-tokio = { version = "1.8", features = ["full"] }
-tokio-util = { version = "0.6", features = ["codec"] }
-clap = "3.0.0-beta.2"
-rmp-serde = "0.15.4"
-rmpv = { version = "0.4", features = ["with-serde"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.64"
-serde_bytes = "0.11"
-serde-tuple-vec-map = "1"
-bytes = "1.0.1"
-atty = "0.2"
-cli-table = { version = "0.4.6", default-features = false }
-hashbrown = { version = "0.11", features = ["serde"] }
-thiserror = "1"
-anyhow = "1"
-dirs = "3.0.1"
-gethostname = "0.2.1"
-chrono = { version = "0.4.19", features = ["serde"] }
-orion = "0.16.0"
-hex = "0.4.3"
-tempdir = "0.3.7"
-humantime = "2.1.0"
-num_cpus = "1.13.0"
-bincode = "1.3.3"
-nom = "6.2"
-bstr = { version = "0.2", features = ["serde1"] }
-colored = "2"
-byteorder = "1.4"
-smallvec = "1.6.1"
-const_format = "0.2.19"
-
-# Tako
-#tako = { path = "../tako", default-features = false }
-tako = { git = "https://github.com/spirali/tako", branch = "main", default-features = false }
-
-# Optional dependencies
-jemallocator = { version = "0.3.2", optional = true }
-
-#dashboard
-tui = { version = "0.14" }
-termion = "1.5"
-indicatif = "0.16.2"
-textwrap = "0.14"
-
-[features]
-default = ["jemalloc"]
-# Mode that does not execute tasks, useful for benchmarking HQ overhead
-zero-worker = []
-# Use the jemalloc allocator
-jemalloc = ["jemallocator", "tako/jemalloc"]
