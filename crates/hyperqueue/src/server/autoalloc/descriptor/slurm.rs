@@ -1,17 +1,18 @@
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use anyhow::Context;
 use bstr::ByteSlice;
 use tokio::process::Command;
 
+use crate::common::manager::info::ManagerType;
 use crate::common::manager::slurm::{
     format_slurm_duration, get_scontrol_items, parse_slurm_datetime,
 };
 use crate::common::timeutils::local_to_system_time;
-use crate::server::autoalloc::descriptor::common::get_default_worker_idle_time;
+use crate::server::autoalloc::descriptor::common::{build_worker_args, SUBMIT_SCRIPT_NAME};
 use crate::server::autoalloc::descriptor::{common, CreatedAllocation, QueueHandler};
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
 use crate::server::autoalloc::{AutoAllocResult, DescriptorId, QueueInfo};
@@ -42,45 +43,33 @@ impl QueueHandler for SlurmHandler {
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>> {
         let partition = queue_info.queue.clone();
         let timelimit = queue_info.timelimit;
-        let hq_path = self.hq_path.display().to_string();
+        let hq_path = self.hq_path.clone();
         let server_directory = self.server_directory.clone();
         let name = descriptor_id.to_string();
         let sbatch_args = self.sbatch_args.clone();
 
         Box::pin(async move {
+            // TODO: unify code with PBS
             let directory = common::create_allocation_dir(server_directory.clone(), &name)?;
+            let script_path = directory.join(SUBMIT_SCRIPT_NAME);
+            let script_path = script_path.to_str().unwrap();
 
-            let mut arguments = vec![
-                "sbatch".to_string(),
-                "--partition".to_string(),
-                partition,
-                "--output".to_string(),
-                directory.join("stdout").display().to_string(),
-                "--error".to_string(),
-                directory.join("stderr").display().to_string(),
-                format!("--nodes={}", worker_count),
-            ];
+            let worker_args = build_worker_args(&hq_path, ManagerType::Slurm, &server_directory);
+            let script = build_slurm_submit_script(
+                worker_count,
+                timelimit.as_ref(),
+                &partition,
+                &format!("hq-alloc-{}", descriptor_id),
+                &directory.join("stdout").display().to_string(),
+                &directory.join("stderr").display().to_string(),
+                &sbatch_args.join(" "),
+                &worker_args,
+            );
+            std::fs::write(&script_path, script).with_context(|| {
+                anyhow::anyhow!("Cannot write Slurm script into {}", script_path)
+            })?;
 
-            if let Some(ref timelimit) = timelimit {
-                arguments.push(format!("--time={}", format_slurm_duration(timelimit)));
-            }
-
-            arguments.extend(sbatch_args);
-
-            // TODO: unify somehow with PBS
-            // `hq worker` arguments
-            let worker_args = vec![
-                hq_path,
-                "worker".to_string(),
-                "start".to_string(),
-                "--idle-timeout".to_string(),
-                humantime::format_duration(get_default_worker_idle_time()).to_string(),
-                "--manager".to_string(),
-                "slurm".to_string(),
-                "--server-dir".to_string(),
-                server_directory.display().to_string(),
-            ];
-            arguments.extend(["--wrap".to_string(), worker_args.join(" ")]);
+            let arguments = vec!["sbatch", script_path];
 
             log::debug!("Running Slurm command `{}`", arguments.join(" "));
             let mut command = Command::new(&arguments[0]);
@@ -190,4 +179,45 @@ impl QueueHandler for SlurmHandler {
             Ok(())
         })
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_slurm_submit_script(
+    nodes: u64,
+    timelimit: Option<&Duration>,
+    partition: &str,
+    name: &str,
+    stdout: &str,
+    stderr: &str,
+    sbatch_args: &str,
+    worker_cmd: &str,
+) -> String {
+    let mut script = format!(
+        r##"#!/bin/bash
+#SBATCH --nodes={nodes}
+#SBATCH --partition={partition}
+#SBATCH --job-name={name}
+#SBATCH --output={stdout}
+#SBATCH --error={stderr}
+"##,
+        nodes = nodes,
+        partition = partition,
+        name = name,
+        stdout = stdout,
+        stderr = stderr,
+    );
+
+    if let Some(timelimit) = timelimit {
+        script.push_str(&format!(
+            "#SBATCH --time={}\n",
+            format_slurm_duration(timelimit)
+        ));
+    }
+
+    if !sbatch_args.is_empty() {
+        script.push_str(&format!("#SBATCH {}\n", sbatch_args));
+    }
+
+    script.push_str(&format!("\n{}", worker_cmd));
+    script
 }
