@@ -1,40 +1,10 @@
-use std::path::PathBuf;
 use std::process::Command;
 use std::str;
 use std::time::Duration;
 
-use anyhow::Context;
 use serde_json::Value;
 
-use crate::common::env::HQ_QSTAT_PATH;
 use crate::common::manager::common::{format_duration, parse_hms_duration};
-
-pub struct PbsContext {
-    pub qstat_path: PathBuf,
-}
-
-impl PbsContext {
-    pub fn create() -> anyhow::Result<Self> {
-        let qstat_path = match Command::new("qstat").spawn() {
-            Ok(mut process) => {
-                process.wait().ok();
-                PathBuf::from("qstat")
-            }
-            Err(e) => {
-                log::warn!(
-                    "Couldn't get qstat path directly ({}), trying to get it from environment variable {}",
-                    e,
-                    HQ_QSTAT_PATH
-                );
-                let path = std::env::var(HQ_QSTAT_PATH)
-                    .context("Cannot get qstat path from environment variable")?;
-                path.into()
-            }
-        };
-
-        Ok(Self { qstat_path })
-    }
-}
 
 fn parse_pbs_job_remaining_time(job_id: &str, data: &str) -> anyhow::Result<Duration> {
     let data_json: Value = serde_json::from_str(data)?;
@@ -58,9 +28,8 @@ fn parse_pbs_job_remaining_time(job_id: &str, data: &str) -> anyhow::Result<Dura
 }
 
 /// Calculates how much time is left for the given job using `qstat`.
-/// TODO: make this async
-pub fn get_remaining_timelimit(ctx: &PbsContext, job_id: &str) -> anyhow::Result<Duration> {
-    let result = Command::new(&ctx.qstat_path)
+pub fn get_remaining_timelimit(job_id: &str) -> anyhow::Result<Duration> {
+    let result = Command::new("qstat")
         .args(&["-f", "-F", "json", job_id])
         .output()?;
     if !result.status.success() {

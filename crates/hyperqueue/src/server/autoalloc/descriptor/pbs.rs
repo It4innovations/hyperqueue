@@ -1,12 +1,12 @@
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
+use std::time::Duration;
 
 use anyhow::Context;
-use bstr::{ByteSlice, ByteVec};
+use bstr::ByteSlice;
 use tokio::process::Command;
 
-use crate::common::env::HQ_QSTAT_PATH;
 use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
 use crate::common::timeutils::local_to_system_time;
 use crate::server::autoalloc::descriptor::common::{
@@ -19,21 +19,15 @@ use crate::server::autoalloc::{AutoAllocResult, DescriptorId, QueueInfo};
 pub struct PbsHandler {
     server_directory: PathBuf,
     hq_path: PathBuf,
-    qstat_path: PathBuf,
     qsub_args: Vec<String>,
 }
 
 impl PbsHandler {
     pub async fn new(server_directory: PathBuf, qsub_args: Vec<String>) -> anyhow::Result<Self> {
         let hq_path = std::env::current_exe().context("Cannot get HyperQueue path")?;
-        let qstat_path = check_command_output(Command::new("which").arg("qstat").output().await?)
-            .context("Cannot get qstat path")?
-            .stdout
-            .into_path_buf_lossy();
         Ok(Self {
             server_directory,
             hq_path,
-            qstat_path,
             qsub_args,
         })
     }
@@ -49,45 +43,38 @@ impl QueueHandler for PbsHandler {
         let queue = queue_info.queue.clone();
         let timelimit = queue_info.timelimit;
         let hq_path = self.hq_path.display().to_string();
-        let qstat_path = self.qstat_path.display().to_string();
         let server_directory = self.server_directory.clone();
         let name = descriptor_id.to_string();
         let qsub_args = self.qsub_args.clone();
 
         Box::pin(async move {
             let directory = create_allocation_dir(server_directory.clone(), &name)?;
+            let script_path = directory.join("hq_submit.sh");
+            let script_path = script_path.to_str().unwrap();
 
-            let mut arguments = vec![
-                "qsub".to_string(),
-                "-q".to_string(),
-                queue,
-                "-o".to_string(),
-                directory.join("stdout").display().to_string(),
-                "-e".to_string(),
-                directory.join("stderr").display().to_string(),
-                format!("-v{}={}", HQ_QSTAT_PATH, qstat_path),
-                format!("-lselect={}", worker_count),
-            ];
+            let mut worker_args = hq_path.clone();
+            worker_args.push_str(" worker start ");
+            worker_args.push_str(&format!(
+                "--idle-timeout {} ",
+                humantime::format_duration(get_default_worker_idle_time())
+            ));
+            worker_args.push_str("--manager pbs ");
+            worker_args.push_str(&format!("--server-dir {}", server_directory.display()));
 
-            if let Some(ref timelimit) = timelimit {
-                arguments.push(format!("-lwalltime={}", format_pbs_duration(timelimit)));
-            }
+            let script = build_pbs_submit_script(
+                worker_count,
+                timelimit.as_ref(),
+                &queue,
+                &format!("hq-alloc-{}", descriptor_id),
+                &directory.join("stdout").display().to_string(),
+                &directory.join("stderr").display().to_string(),
+                &qsub_args.join(" "),
+                &worker_args,
+            );
+            std::fs::write(&script_path, script)
+                .with_context(|| anyhow::anyhow!("Cannot write PBS script into {}", script_path))?;
 
-            arguments.extend(qsub_args);
-
-            // `hq worker` arguments
-            arguments.extend([
-                "--".to_string(),
-                hq_path,
-                "worker".to_string(),
-                "start".to_string(),
-                "--idle-timeout".to_string(),
-                humantime::format_duration(get_default_worker_idle_time()).to_string(),
-                "--manager".to_string(),
-                "pbs".to_string(),
-                "--server-dir".to_string(),
-                server_directory.display().to_string(),
-            ]);
+            let arguments = vec!["qsub", script_path];
 
             log::debug!("Running PBS command `{}`", arguments.join(" "));
             let mut command = Command::new(&arguments[0]);
@@ -192,6 +179,47 @@ impl QueueHandler for PbsHandler {
             Ok(())
         })
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_pbs_submit_script(
+    nodes: u64,
+    timelimit: Option<&Duration>,
+    queue: &str,
+    name: &str,
+    stdout: &str,
+    stderr: &str,
+    qsub_args: &str,
+    worker_cmd: &str,
+) -> String {
+    let mut script = format!(
+        r##"#!/bin/bash
+#PBS -l select={nodes}
+#PBS -q {queue}
+#PBS -N {name}
+#PBS -o {stdout}
+#PBS -e {stderr}
+"##,
+        nodes = nodes,
+        queue = queue,
+        name = name,
+        stdout = stdout,
+        stderr = stderr,
+    );
+
+    if let Some(timelimit) = timelimit {
+        script.push_str(&format!(
+            "#PBS -l walltime={}\n",
+            format_pbs_duration(timelimit)
+        ));
+    }
+
+    if !qsub_args.is_empty() {
+        script.push_str(&format!("#PBS {}\n", qsub_args));
+    }
+
+    script.push_str(&format!("\n{}", worker_cmd));
+    script
 }
 
 fn get_json_str<'a>(value: &'a serde_json::Value, context: &str) -> AutoAllocResult<&'a str> {
