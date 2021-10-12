@@ -350,9 +350,10 @@ def test_cancel_all(hq_env: HqEnv):
     hq_env.start_worker(cpus=1)
     hq_env.command(["submit", "hostname"])
     hq_env.command(["submit", "/invalid"])
-    hq_env.command(["submit", "sleep", "100"])
 
     wait_for_job_state(hq_env, [1, 2], ["FINISHED", "FAILED"])
+
+    hq_env.command(["submit", "sleep", "100"])
 
     r = hq_env.command(["cancel", "all"]).splitlines()
     assert len(r) == 1
