@@ -194,15 +194,19 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 * [x] Resubmit
 * [x] Priorities
 
-## Next releases
+## v0.5
 
-* [ ] Auto-allocation of jobs in PBS/SLURM
-* [ ] Time constraints
+* [x] Auto-allocation of jobs in PBS/SLURM
+* [x] Time constraints
+
+## Next release
+
+* [ ] Generic resource management
+
 
 ## Bigger horizon (unordered)
 
 * [ ] API for dependencies
-* [ ] Generic resource management
 * [ ] Python API
 * [ ] "hq top" -- an analogue to "top" but over all cluster
 
