@@ -6,8 +6,9 @@ use tokio::sync::oneshot;
 
 use crate::common::rpc::forward_queue_to_sink_with_map;
 use crate::messages::gateway::{
-    CancelTasksResponse, CollectedOverview, ErrorResponse, FromGatewayMessage, NewTasksResponse,
-    TaskInfo, TaskState, TaskUpdate, TasksInfoResponse, ToGatewayMessage,
+    CancelTasksResponse, CollectedOverview, ErrorResponse, FromGatewayMessage,
+    GenericResourceNames, NewTasksResponse, TaskInfo, TaskState, TaskUpdate, TasksInfoResponse,
+    ToGatewayMessage,
 };
 use crate::messages::worker::{ToWorkerMessage, WorkerOverview};
 use crate::server::comm::{Comm, CommSenderRef};
@@ -102,6 +103,7 @@ pub async fn process_client_message(
             }
             let mut tasks: Vec<TaskRef> = Vec::with_capacity(msg.tasks.len());
             let mut core = core_ref.get_mut();
+
             for task in msg.tasks {
                 if core.is_used_task_id(task.id) {
                     return Some(format!("Task id={} is already taken", task.id));
@@ -222,6 +224,17 @@ pub async fn process_client_message(
             } else {
                 Some(format!("Worker with id {} not found", msg.worker_id))
             }
+        }
+        FromGatewayMessage::GetGenericResourceNames(msg) => {
+            let mut core = core_ref.get_mut();
+            for name in msg.resource_names {
+                core.get_or_create_generic_resource_id(&name);
+            }
+            let message = ToGatewayMessage::GenericResourceNames(GenericResourceNames {
+                resource_names: core.generic_resource_names().to_vec(),
+            });
+            assert!(client_sender.send(message).is_ok());
+            None
         }
     }
 }

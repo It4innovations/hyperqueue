@@ -140,6 +140,7 @@ pub async fn run_worker(
                         queue_sender,
                         download_sender,
                         message.worker_addresses,
+                        message.resource_names,
                         launcher_setup,
                     ),
                 )

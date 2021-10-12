@@ -52,6 +52,8 @@ pub struct WorkerState {
 
     pub start_time: std::time::Instant,
     pub hardware_state: WorkerHwState,
+
+    pub resource_names: Vec<String>,
 }
 
 impl WorkerState {
@@ -370,12 +372,14 @@ impl WorkerStateRef {
         sender: UnboundedSender<Bytes>,
         download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, PriorityTuple)>,
         worker_addresses: Map<WorkerId, String>,
+        resource_names: Vec<String>,
         task_launcher: TaskLauncher,
     ) -> Self {
-        let ready_task_queue = ResourceWaitQueue::new(&configuration.resources);
+        let ready_task_queue = ResourceWaitQueue::new(&configuration.resources, &resource_names);
         let self_ref = Self::wrap(WorkerState {
             worker_id,
             worker_addresses,
+            resource_names,
             sender,
             download_sender,
             configuration,

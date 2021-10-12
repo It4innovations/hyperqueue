@@ -144,19 +144,30 @@ async fn worker_rpc_loop(
 
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
 
+    {
+        let mut core = core_ref.get_mut();
+
+        /* Make sure that all resources provided by Worker has an Id */
+        for descriptor in &configuration.resources.generic {
+            core.get_or_create_generic_resource_id(&descriptor.name);
+        }
+        let worker = Worker::new(worker_id, configuration, core.generic_resource_names());
+
+        on_new_worker(&mut core, &mut *comm_ref.get_mut(), worker);
+    }
+
+    /* Send registration message, this has to be after on_new_worker
+    because of registration of resources */
     let message = WorkerRegistrationResponse {
         worker_id,
         worker_addresses: core_ref.get().get_worker_addresses(),
+        resource_names: core_ref.get().generic_resource_names().to_vec(),
     };
     queue_sender
         .send(serialize(&message).unwrap().into())
         .unwrap();
 
-    let worker = Worker::new(worker_id, configuration);
-
-    on_new_worker(&mut core_ref.get_mut(), &mut *comm_ref.get_mut(), worker);
     comm_ref.get_mut().add_worker(worker_id, queue_sender);
-
     let snd_loop =
         forward_queue_to_sealed_sink(queue_receiver, connection.sender, connection.sealer);
 

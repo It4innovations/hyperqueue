@@ -135,6 +135,7 @@ class TakoEnv(Env):
         nsockets=None,
         hw_interval=None,
         time_limit=None,
+        extra_args=None,
     ):
         port = port or self.default_listen_port
         worker_id = self.id_counter
@@ -158,6 +159,10 @@ class TakoEnv(Env):
             "--work-dir",
             work_dir,
         ]
+
+        if extra_args:
+            args += extra_args
+
         if hw_interval is not None:
             args.extend(["--hw-state-poll-interval", str(hw_interval)])
 
@@ -252,7 +257,11 @@ class TakoEnv(Env):
 
         for cpus in workers:
             self.start_worker(
-                cpus, port=port, heartbeat=heartbeat, hw_interval=hw_interval, time_limit=time_limit
+                cpus,
+                port=port,
+                heartbeat=heartbeat,
+                hw_interval=hw_interval,
+                time_limit=time_limit,
             )
             if worker_start_delay:
                 time.sleep(worker_start_delay)

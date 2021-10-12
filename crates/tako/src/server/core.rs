@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use orion::aead::SecretKey;
 
-use crate::common::resources::ResourceRequest;
+use crate::common::resources::{GenericResourceId, ResourceRequest};
 use crate::common::trace::trace_task_remove;
 use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::gateway::ServerInfo;
@@ -29,7 +29,7 @@ pub struct Core {
 
     maximal_task_id: TaskId,
     worker_id_counter: WorkerId,
-    scatter_counter: usize,
+    resource_names: Vec<String>, // "Map" from GenericResourceId -> to its name
     worker_listen_port: u16,
 
     idle_timeout: Option<Duration>,
@@ -74,12 +74,6 @@ impl Core {
 
     pub fn idle_timeout(&self) -> &Option<Duration> {
         &self.idle_timeout
-    }
-
-    pub fn get_and_move_scatter_counter(&mut self, size: usize) -> usize {
-        let c = self.scatter_counter;
-        self.scatter_counter += size;
-        c
     }
 
     pub fn park_workers(&mut self) {
@@ -128,8 +122,10 @@ impl Core {
     }
 
     pub fn new_worker(&mut self, worker: Worker) {
+        /* Wake up sleeping tasks */
         let mut sleeping_tasks = self.take_sleeping_tasks();
         self.ready_to_assign.append(&mut sleeping_tasks);
+
         let worker_id = worker.id;
         self.workers.insert(worker_id, worker);
     }
@@ -339,6 +335,21 @@ impl Core {
                     unreachable!()
                 }
             }
+        }
+    }
+
+    pub fn generic_resource_names(&self) -> &[String] {
+        &self.resource_names
+    }
+
+    pub fn get_or_create_generic_resource_id(&mut self, name: &str) -> GenericResourceId {
+        if let Some(p) = self.resource_names.iter().position(|n| name == n) {
+            p as GenericResourceId
+        } else {
+            let p = self.resource_names.len();
+            log::debug!("New generic resource registered '{}' as {}", name, p);
+            self.resource_names.push(name.to_string());
+            p as GenericResourceId
         }
     }
 

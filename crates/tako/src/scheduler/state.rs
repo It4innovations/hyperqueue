@@ -257,7 +257,7 @@ impl SchedulerState {
         log::debug!("Balancing started");
 
         let mut balanced_tasks = Vec::new();
-        let mut min_resource = ResourceRequestLowerBound::default();
+        let mut min_resource = ResourceRequestLowerBound::new(core.generic_resource_names().len());
         let now = std::time::Instant::now();
 
         for worker in core.get_workers() {
@@ -292,6 +292,8 @@ impl SchedulerState {
             return;
         }
 
+        log::debug!("Min resources {:?}", min_resource);
+
         let mut underload_workers = Vec::new();
         for worker in core.get_workers() {
             // We could here also testing park flag, but it is already solved in the next condition
@@ -323,7 +325,7 @@ impl SchedulerState {
                     )
                 });
                 /*for tr in &ts {
-                    println!("LIST {} {}", tr.get().id(), tr.get().resources.get_n_cpus());
+                    println!("LIST {} {}", tr.get().id(), tr.get().request.get_n_cpus());
                 }*/
                 let len = ts.len();
                 underload_workers.push((
@@ -389,7 +391,7 @@ impl SchedulerState {
             }
         }
 
-        log::debug!("Balacing phase 2");
+        log::debug!("Balancing phase 2");
 
         /* Iteration 2 - balance number of tasks per node */
         /* After Iteration 1 we know that workers are not underutilized,

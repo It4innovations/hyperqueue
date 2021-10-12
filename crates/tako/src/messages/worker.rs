@@ -23,6 +23,7 @@ pub struct RegisterWorker {
 pub struct WorkerRegistrationResponse {
     pub worker_id: WorkerId,
     pub worker_addresses: Map<WorkerId, String>,
+    pub resource_names: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

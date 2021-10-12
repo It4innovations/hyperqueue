@@ -1,5 +1,6 @@
 #![cfg(test)]
 
+use crate::common::resources::GenericResourceDescriptor;
 use crate::common::Set;
 use crate::messages::worker::{StealResponse, StealResponseMsg, ToWorkerMessage};
 use crate::scheduler::state::tests::create_test_scheduler;
@@ -444,7 +445,7 @@ fn test_resources_no_workers2() {
 fn test_resource_time_assign() {
     let mut rt = TestEnv::new();
 
-    rt.new_workers_ext(&[(1, Some(Duration::new(100, 0)))]);
+    rt.new_workers_ext(&[(1, Some(Duration::new(100, 0)), Vec::new())]);
 
     rt.new_task(TaskBuilder::new(10).time_request(170));
     rt.new_task(TaskBuilder::new(11));
@@ -461,9 +462,9 @@ fn test_resource_time_balance1() {
     let mut rt = TestEnv::new();
 
     rt.new_workers_ext(&[
-        (1, Some(Duration::new(50, 0))),
-        (1, Some(Duration::new(200, 0))),
-        (1, Some(Duration::new(100, 0))),
+        (1, Some(Duration::new(50, 0)), Vec::new()),
+        (1, Some(Duration::new(200, 0)), Vec::new()),
+        (1, Some(Duration::new(100, 0)), Vec::new()),
     ]);
 
     rt.new_task(TaskBuilder::new(10).time_request(170));
@@ -479,4 +480,138 @@ fn test_resource_time_balance1() {
     rt.check_worker_tasks(100, &[11]);
     rt.check_worker_tasks(101, &[10]);
     rt.check_worker_tasks(102, &[12]);
+}
+
+#[test]
+fn test_generic_resource_assign2() {
+    let mut rt = TestEnv::new();
+    rt.new_generic_resource(2);
+    rt.new_workers_ext(&[
+        // Worker 100
+        (
+            10,
+            None,
+            vec![GenericResourceDescriptor::indices("Res0", 10)],
+        ),
+        // Worker 101
+        (10, None, vec![]),
+        // Worker 102
+        (
+            10,
+            None,
+            vec![
+                GenericResourceDescriptor::indices("Res0", 10),
+                GenericResourceDescriptor::sum("Res1", 1000_000),
+            ],
+        ),
+    ]);
+    for i in 0..50 {
+        rt.new_task(TaskBuilder::new(i).generic_res(0, 1));
+    }
+    for i in 50..100 {
+        rt.new_task(TaskBuilder::new(i).generic_res(1, 2));
+    }
+    rt.schedule();
+    assert_eq!(rt.core().get_worker_by_id(101).unwrap().tasks().len(), 0);
+    assert!(rt.core().get_worker_by_id(100).unwrap().tasks().len() > 10);
+    assert!(rt.core().get_worker_by_id(102).unwrap().tasks().len() > 10);
+    assert_eq!(
+        rt.core().get_worker_by_id(100).unwrap().tasks().len()
+            + rt.core().get_worker_by_id(102).unwrap().tasks().len(),
+        100
+    );
+    assert!(rt
+        .core()
+        .get_worker_by_id(100)
+        .unwrap()
+        .tasks()
+        .iter()
+        .all(|t| t.get().id < 50));
+
+    assert!(!rt.worker(100).is_parked());
+    assert!(rt.worker(101).is_parked());
+    assert!(!rt.worker(102).is_parked());
+}
+
+#[test]
+fn test_generic_resource_balance1() {
+    let mut rt = TestEnv::new();
+    rt.new_generic_resource(2);
+    rt.new_workers_ext(&[
+        // Worker 100
+        (
+            10,
+            None,
+            vec![GenericResourceDescriptor::indices("Res0", 10)],
+        ),
+        // Worker 101
+        (10, None, vec![]),
+        // Worker 102
+        (
+            10,
+            None,
+            vec![
+                GenericResourceDescriptor::indices("Res0", 10),
+                GenericResourceDescriptor::sum("Res1", 1000_000),
+            ],
+        ),
+    ]);
+
+    rt.new_task(TaskBuilder::new(1).cpus_compact(1).generic_res(0, 5));
+    rt.new_task(TaskBuilder::new(2).cpus_compact(1).generic_res(0, 5));
+    rt.new_task(TaskBuilder::new(3).cpus_compact(1).generic_res(0, 5));
+    rt.new_task(TaskBuilder::new(4).cpus_compact(1).generic_res(0, 5));
+    rt.schedule();
+
+    assert_eq!(rt.core().get_worker_by_id_or_panic(100).tasks().len(), 2);
+    assert_eq!(rt.core().get_worker_by_id_or_panic(101).tasks().len(), 0);
+    assert_eq!(rt.core().get_worker_by_id_or_panic(102).tasks().len(), 2);
+}
+
+#[test]
+fn test_generic_resource_balance2() {
+    let _ = env_logger::init();
+    let mut rt = TestEnv::new();
+    rt.new_generic_resource(2);
+    rt.new_workers_ext(&[
+        // Worker 100
+        (
+            10,
+            None,
+            vec![GenericResourceDescriptor::indices("Res0", 10)],
+        ),
+        // Worker 101
+        (10, None, vec![]),
+        // Worker 102
+        (
+            10,
+            None,
+            vec![
+                GenericResourceDescriptor::indices("Res0", 10),
+                GenericResourceDescriptor::sum("Res1", 1000_000),
+            ],
+        ),
+    ]);
+
+    rt.new_task(TaskBuilder::new(1).cpus_compact(1).generic_res(0, 5));
+    rt.new_task(
+        TaskBuilder::new(2)
+            .cpus_compact(1)
+            .generic_res(0, 5)
+            .generic_res(1, 500_000),
+    );
+    rt.new_task(TaskBuilder::new(3).cpus_compact(1).generic_res(0, 5));
+    rt.new_task(
+        TaskBuilder::new(4)
+            .cpus_compact(1)
+            .generic_res(0, 5)
+            .generic_res(1, 500_000),
+    );
+    rt.schedule();
+
+    dbg!(rt.core().get_worker_by_id_or_panic(102).tasks().len());
+
+    assert_eq!(rt.core().get_worker_by_id_or_panic(100).tasks().len(), 2);
+    assert_eq!(rt.core().get_worker_by_id_or_panic(101).tasks().len(), 0);
+    assert_eq!(rt.core().get_worker_by_id_or_panic(102).tasks().len(), 2);
 }
