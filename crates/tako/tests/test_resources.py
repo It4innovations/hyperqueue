@@ -88,7 +88,7 @@ def test_submit_sleeps_more_cpus1(tako_env):
     t1 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq1)
     t2 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq2)
     t3 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq2)
-    # t4 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq1)
+    # t4 = make_program_task(ProgramDefinition(["sleep", "1"]), request=rq1)
 
     start = time.time()
     session.submit([t1, t2, t3])
@@ -147,3 +147,21 @@ def test_force_compact(tako_env):
     t1 = make_program_task(ProgramDefinition(["hostname"]), resources=rq1)
     session.submit([t1])
     session.wait_all([t1])
+
+
+def test_submit_generic_resources1(tako_env):
+    session = tako_env.start()
+    tako_env.start_worker(
+        10, extra_args=["--resources-i", "Res0=2:Res1=5", "--resources-s", "Res3=2000"]
+    )
+    rq1 = ResourceRequest(cpus=1)
+    # rq1 = ResourceRequest(cpus=1, generic_resources={"Res0": 1})
+    t1 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq1)
+    t2 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq1)
+    t3 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq1)
+    t4 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq1)
+    start = time.time()
+    session.submit([t1, t2, t3, t4])
+    session.wait_all([t1, t2, t3, t4])
+    end = time.time()
+    assert 2.0 <= (end - start) <= 2.3

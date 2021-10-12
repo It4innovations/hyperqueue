@@ -6,10 +6,10 @@ pub type Set<T> = hashbrown::HashSet<T>;
 
 pub mod data;
 pub mod error;
+pub mod resources;
 pub mod rpc;
 mod wrapped;
 #[macro_use]
 pub mod trace;
-pub mod resources;
 pub mod secret;
 pub mod setup;

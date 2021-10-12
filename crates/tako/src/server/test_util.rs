@@ -9,7 +9,10 @@ use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-use crate::common::resources::{CpuRequest, NumOfCpus, ResourceDescriptor, ResourceRequest};
+use crate::common::resources::{
+    CpuRequest, GenericResourceAmount, GenericResourceDescriptor, GenericResourceId,
+    GenericResourceRequest, NumOfCpus, ResourceDescriptor, ResourceRequest,
+};
 use crate::common::{Map, WrappedRcRefCell};
 use crate::messages::common::{TaskConfiguration, TaskFailInfo, WorkerConfiguration};
 use crate::messages::gateway::LostWorkerReason;
@@ -95,6 +98,13 @@ impl TestEnv {
         tr
     }
 
+    pub fn new_generic_resource(&mut self, count: usize) {
+        for i in 0..count {
+            self.core
+                .get_or_create_generic_resource_id(&format!("Res{}", i));
+        }
+    }
+
     pub fn new_task_assigned(&mut self, builder: TaskBuilder, worker_id: WorkerId) {
         let tr = builder.build();
         submit_test_tasks(&mut self.core, &[&tr]);
@@ -113,13 +123,21 @@ impl TestEnv {
         self.core.get_worker_by_id_or_panic(worker_id)
     }
 
-    pub fn new_workers_ext(&mut self, defs: &[(u32, Option<Duration>)]) {
-        for (i, (c, time_limit)) in defs.iter().enumerate() {
+    pub fn new_workers_ext(
+        &mut self,
+        defs: &[(u32, Option<Duration>, Vec<GenericResourceDescriptor>)],
+    ) {
+        for (i, (c, time_limit, grds)) in defs.iter().enumerate() {
             let worker_id = self.worker_id_counter;
             self.worker_id_counter += 1;
 
+            let mut rd = ResourceDescriptor::simple(*c);
+            for grd in grds {
+                rd.add_generic_resource(grd.clone())
+            }
+
             let wcfg = WorkerConfiguration {
-                resources: ResourceDescriptor::simple(*c),
+                resources: rd,
                 listen_address: format!("1.1.1.{}:123", i),
                 hostname: format!("test{}", i),
                 work_dir: Default::default(),
@@ -131,13 +149,13 @@ impl TestEnv {
                 extra: Default::default(),
             };
 
-            let worker = Worker::new(worker_id, wcfg);
+            let worker = Worker::new(worker_id, wcfg, self.core.generic_resource_names());
             on_new_worker(&mut self.core, &mut TestComm::default(), worker);
         }
     }
 
     pub fn new_workers(&mut self, cpus: &[u32]) {
-        let defs: Vec<_> = cpus.iter().map(|c| (*c, None)).collect();
+        let defs: Vec<_> = cpus.iter().map(|c| (*c, None, Vec::new())).collect();
         self.new_workers_ext(&defs);
     }
 
@@ -272,7 +290,21 @@ impl TaskBuilder {
         self
     }
 
-    pub fn build(self) -> TaskRef {
+    pub fn generic_res(
+        mut self,
+        idx: GenericResourceId,
+        amount: GenericResourceAmount,
+    ) -> TaskBuilder {
+        self.resources.add_generic_request(GenericResourceRequest {
+            resource: idx,
+            amount,
+        });
+        self
+    }
+
+    pub fn build(mut self) -> TaskRef {
+        self.resources.normalize();
+        self.resources.validate().unwrap();
         TaskRef::new(
             self.id,
             self.inputs,
@@ -466,7 +498,7 @@ pub fn create_test_workers(core: &mut Core, cpus: &[u32]) {
             extra: Default::default(),
         };
 
-        let worker = Worker::new(worker_id, wcfg);
+        let worker = Worker::new(worker_id, wcfg, &[]);
         on_new_worker(core, &mut TestComm::default(), worker);
     }
 }

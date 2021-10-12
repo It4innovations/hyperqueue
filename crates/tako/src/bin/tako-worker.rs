@@ -13,12 +13,17 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
 use tako::common::error::DsError;
-use tako::common::resources::ResourceDescriptor;
+use tako::common::resources::descriptor::{GenericResourceKindIndices, GenericResourceKindSum};
+use tako::common::resources::{
+    GenericResourceAmount, GenericResourceDescriptor, GenericResourceDescriptorKind,
+    ResourceDescriptor,
+};
 use tako::common::secret::read_secret_file;
 use tako::common::setup::setup_logging;
 use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 use tako::worker::launcher::command_from_definitions;
 use tako::worker::rpc::run_worker;
+use tako::worker::state::WorkerState;
 use tako::worker::task::TaskRef;
 use tako::worker::taskenv::{StopReason, TaskResult};
 use tokio::net::lookup_host;
@@ -49,8 +54,28 @@ struct Opts {
     #[clap(long)]
     sockets: Option<u32>,
 
+    #[clap(long, default_value = "")]
+    resources_i: String,
+
+    #[clap(long, default_value = "")]
+    resources_s: String,
+
     #[clap(long)]
     secret_file: Option<PathBuf>,
+}
+
+fn parse_resource_def(input: &str) -> tako::Result<Vec<(String, GenericResourceAmount)>> {
+    let mut result = Vec::new();
+    for s in input.split(':') {
+        let (key, value) = s
+            .split_once('=')
+            .ok_or_else(|| DsError::from("Invalid resource definition"))?;
+        let value: GenericResourceAmount = value
+            .parse()
+            .map_err(|_| DsError::from("Invalid resource definition"))?;
+        result.push((key.to_string(), value))
+    }
+    Ok(result)
 }
 
 fn create_local_directory(prefix: PathBuf) -> Result<PathBuf, std::io::Error> {
@@ -103,6 +128,7 @@ async fn launcher_main(task_ref: TaskRef) -> tako::Result<()> {
 }
 
 fn launcher(
+    _state: &WorkerState,
     task_ref: &TaskRef,
     end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
 ) -> Pin<Box<dyn Future<Output = tako::Result<TaskResult>> + 'static>> {
@@ -163,11 +189,28 @@ async fn main() -> tako::Result<()> {
         .time_limit
         .map(|interval| Duration::from_secs(interval as u64));
 
-    let resources = match (opts.cpus, opts.sockets) {
+    let mut resources = match (opts.cpus, opts.sockets) {
         (Some(c), s) => ResourceDescriptor::new_with_socket_size(s.unwrap_or(1), c),
         (None, Some(_)) => todo!(),
         (None, None) => todo!(),
     };
+
+    for (name, value) in parse_resource_def(&opts.resources_i)? {
+        resources.add_generic_resource(GenericResourceDescriptor {
+            name,
+            kind: GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
+                start: 0,
+                end: value as u32 - 1,
+            }),
+        })
+    }
+
+    for (name, value) in parse_resource_def(&opts.resources_s)? {
+        resources.add_generic_resource(GenericResourceDescriptor {
+            name,
+            kind: GenericResourceDescriptorKind::Sum(GenericResourceKindSum { size: value }),
+        })
+    }
 
     let configuration = WorkerConfiguration {
         resources,

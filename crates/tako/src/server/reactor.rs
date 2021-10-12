@@ -701,7 +701,7 @@ mod tests {
             extra: Default::default(),
         };
 
-        let worker = Worker::new(402, wcfg);
+        let worker = Worker::new(402, wcfg, &[]);
         on_new_worker(&mut core, &mut comm, worker);
 
         let new_w = comm.take_new_workers();
@@ -720,9 +720,7 @@ mod tests {
         assert_eq!(core.get_workers().count(), 1);
 
         let wcfg2 = WorkerConfiguration {
-            resources: ResourceDescriptor {
-                cpus: vec![vec![2, 3, 4], vec![100, 150]],
-            },
+            resources: ResourceDescriptor::new_with_cpus(vec![vec![2, 3, 4], vec![100, 150]]),
             listen_address: "test2:123".into(),
             hostname: "test2".to_string(),
             work_dir: Default::default(),
@@ -734,7 +732,7 @@ mod tests {
             extra: Default::default(),
         };
 
-        let worker = Worker::new(502, wcfg2);
+        let worker = Worker::new(502, wcfg2, &[]);
         on_new_worker(&mut core, &mut comm, worker);
 
         let new_w = comm.take_new_workers();

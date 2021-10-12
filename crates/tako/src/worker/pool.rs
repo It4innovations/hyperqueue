@@ -1,19 +1,80 @@
 use crate::common::resources::{
-    CpuId, CpuRequest, NumOfCpus, ResourceAllocation, ResourceDescriptor, ResourceRequest,
+    CpuId, CpuRequest, GenericResourceAllocation, GenericResourceAllocationValue,
+    GenericResourceAllocations, GenericResourceAmount, GenericResourceDescriptorKind,
+    GenericResourceIndex, GenericResourceRequest, NumOfCpus, ResourceAllocation,
+    ResourceDescriptor, ResourceRequest,
 };
 use crate::common::Map;
 use std::time::Duration;
 
 pub type SocketId = CpuId;
 
+#[derive(Debug)]
+pub enum GenericResourcePool {
+    Empty,
+    Indices(Vec<GenericResourceIndex>),
+    Sum(GenericResourceAmount),
+}
+
+impl GenericResourcePool {
+    pub fn size(&self) -> GenericResourceAmount {
+        match self {
+            GenericResourcePool::Empty => 0,
+            GenericResourcePool::Indices(indices) => indices.len() as GenericResourceAmount,
+            GenericResourcePool::Sum(size) => *size,
+        }
+    }
+
+    pub fn claim_resources(
+        &mut self,
+        amount: GenericResourceAmount,
+    ) -> GenericResourceAllocationValue {
+        match self {
+            GenericResourcePool::Empty => unreachable!(),
+            GenericResourcePool::Indices(ref mut indices) => {
+                GenericResourceAllocationValue::new_indices(
+                    (0..amount).map(|_| indices.pop().unwrap()).collect(),
+                )
+            }
+            GenericResourcePool::Sum(ref mut size) => {
+                assert!(*size >= amount);
+                *size -= amount;
+                GenericResourceAllocationValue::new_sum(amount)
+            }
+        }
+    }
+
+    pub fn release_allocation(&mut self, allocation: GenericResourceAllocationValue) {
+        match self {
+            GenericResourcePool::Empty => unreachable!(),
+            GenericResourcePool::Indices(ref mut indices) => match allocation {
+                GenericResourceAllocationValue::Indices(alloc_indices) => {
+                    indices.extend_from_slice(&alloc_indices[..]);
+                }
+                _ => unreachable!(),
+            },
+            GenericResourcePool::Sum(ref mut size) => match allocation {
+                GenericResourceAllocationValue::Sum(amount) => {
+                    *size += amount;
+                }
+                _ => unreachable!(),
+            },
+        };
+    }
+}
+
 pub struct ResourcePool {
     free_cpus: Vec<Vec<CpuId>>,
     cpu_id_to_socket: Map<CpuId, SocketId>,
     socket_size: NumOfCpus,
+
+    free_generic_resources: Vec<GenericResourcePool>,
+    generic_resource_sizes: Vec<GenericResourceAmount>,
 }
 
 impl ResourcePool {
-    pub fn new(desc: &ResourceDescriptor) -> Self {
+    pub fn new(desc: &ResourceDescriptor, resource_names: &[String]) -> Self {
+        /* Construct CPU pool */
         assert!(desc.validate());
         let cpu_ids = desc
             .cpus
@@ -23,10 +84,41 @@ impl ResourcePool {
             .flatten()
             .collect();
         let socket_size = desc.cpus.iter().map(|v| v.len()).max().unwrap() as NumOfCpus;
+
+        /* Construct generic resource pool */
+        let mut generic_resources = Vec::new();
+        generic_resources.resize_with(resource_names.len(), || GenericResourcePool::Empty);
+
+        for descriptor in &desc.generic {
+            let idx = resource_names
+                .iter()
+                .position(|name| name == &descriptor.name)
+                .expect("Internal error, resource name not received");
+            generic_resources[idx] = match &descriptor.kind {
+                GenericResourceDescriptorKind::Indices(idx) => {
+                    GenericResourcePool::Indices((idx.start..=idx.end).collect())
+                }
+                GenericResourceDescriptorKind::Sum(v) => GenericResourcePool::Sum(v.size),
+            }
+        }
+
+        let sizes: Vec<_> = generic_resources.iter().map(|pool| pool.size()).collect();
+
         ResourcePool {
             free_cpus: desc.cpus.clone(),
             cpu_id_to_socket: cpu_ids,
             socket_size,
+            free_generic_resources: generic_resources,
+            generic_resource_sizes: sizes,
+        }
+    }
+
+    pub fn fraction_of_resource(&self, generic_request: &GenericResourceRequest) -> f32 {
+        let size = self.generic_resource_sizes[generic_request.resource as usize];
+        if size == 0 {
+            0.0f32
+        } else {
+            generic_request.amount as f32 / size as f32
         }
     }
 
@@ -41,6 +133,9 @@ impl ResourcePool {
         for cpu_id in allocation.cpus {
             let socket_id = *self.cpu_id_to_socket.get(&cpu_id).unwrap();
             self.free_cpus[socket_id as usize].push(cpu_id);
+        }
+        for ga in allocation.generic_allocations {
+            self.free_generic_resources[ga.resource as usize].release_allocation(ga.value);
         }
     }
 
@@ -191,6 +286,19 @@ impl ResourcePool {
                 return None;
             }
         }
+
+        let empty = GenericResourcePool::Empty;
+
+        for gr in request.generic_requests() {
+            let pool: &GenericResourcePool = self
+                .free_generic_resources
+                .get(gr.resource as usize)
+                .unwrap_or(&empty);
+            if pool.size() < gr.amount {
+                return None;
+            }
+        }
+
         let mut cpus = match request.cpus() {
             CpuRequest::Compact(_) => self._try_allocate_resources_compact(n_cpus, total_cpus),
             CpuRequest::ForceCompact(_) => self._try_allocate_resources_force_compact(n_cpus)?,
@@ -198,19 +306,32 @@ impl ResourcePool {
             CpuRequest::All => self._take_all_free_cpus(),
         };
         cpus.sort_unstable();
-        Some(ResourceAllocation::new(cpus))
+        let mut generic_allocations = GenericResourceAllocations::new();
+
+        for gr in request.generic_requests() {
+            let pool: &mut GenericResourcePool = self
+                .free_generic_resources
+                .get_mut(gr.resource as usize)
+                .unwrap();
+            generic_allocations.push(GenericResourceAllocation {
+                resource: gr.resource,
+                value: pool.claim_resources(gr.amount),
+            })
+        }
+        Some(ResourceAllocation::new(cpus, generic_allocations))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::common::resources::{
-        CpuRequest, ResourceAllocation, ResourceDescriptor, ResourceRequest,
+        CpuRequest, GenericResourceAllocationValue, GenericResourceDescriptor,
+        GenericResourceDescriptorKind, GenericResourceRequest, ResourceAllocation,
+        ResourceDescriptor, ResourceRequest,
     };
     use crate::common::Set;
     use crate::server::test_util::sorted_vec;
-    use crate::worker::pool::{ResourcePool, SocketId};
-    use std::time::Duration;
+    use crate::worker::pool::{GenericResourcePool, ResourcePool, SocketId};
 
     impl ResourcePool {
         fn get_sockets(&self, allocation: &ResourceAllocation) -> Vec<SocketId> {
@@ -228,9 +349,9 @@ mod tests {
 
     #[test]
     fn test_pool_single_socket() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(1, 4));
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(1, 4), &[]);
 
-        let rq = ResourceRequest::new(CpuRequest::Compact(2), Duration::default());
+        let rq = CpuRequest::Compact(2).into();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
 
         assert_eq!(pool.n_free_cpus(), 2);
@@ -238,15 +359,15 @@ mod tests {
         assert!(al.cpus[0] < al.cpus[1]);
         assert!(0 < al.cpus[0] && al.cpus[0] < al.cpus[1] && al.cpus[1] < 4);
 
-        let rq2 = ResourceRequest::new(CpuRequest::Compact(4), Duration::default());
+        let rq2 = CpuRequest::Compact(4).into();
         assert!(pool.try_allocate_resources(&rq2, None).is_none());
-        let rq2 = ResourceRequest::new(CpuRequest::Compact(3), Duration::default());
+        let rq2 = CpuRequest::Compact(3).into();
         assert!(pool.try_allocate_resources(&rq2, None).is_none());
 
         pool.release_allocation(al);
         assert_eq!(pool.n_free_cpus(), 4);
 
-        let rq = ResourceRequest::new(CpuRequest::Compact(4), Duration::default());
+        let rq = CpuRequest::Compact(4).into();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
         assert_eq!(al.cpus, vec![0, 1, 2, 3]);
 
@@ -256,9 +377,9 @@ mod tests {
 
         assert_eq!(pool.n_free_cpus(), 4);
 
-        let rq = ResourceRequest::new(CpuRequest::Compact(1), Duration::default());
-        let rq2 = ResourceRequest::new(CpuRequest::Compact(2), Duration::default());
-        let rq3 = ResourceRequest::new(CpuRequest::Compact(3), Duration::default());
+        let rq = CpuRequest::Compact(1).into();
+        let rq2 = CpuRequest::Compact(2).into();
+        let rq3 = CpuRequest::Compact(3).into();
         let al1 = pool.try_allocate_resources(&rq, None).unwrap();
         assert_eq!(pool.n_free_cpus(), 3);
         let al2 = pool.try_allocate_resources(&rq, None).unwrap();
@@ -276,7 +397,7 @@ mod tests {
 
     #[test]
     fn test_pool_compact1() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(4, 6));
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(4, 6), &[]);
 
         let rq1 = CpuRequest::Compact(4).into();
         let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
@@ -316,7 +437,7 @@ mod tests {
 
     #[test]
     fn test_pool_allocate_compact_all() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(4, 6));
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(4, 6), &[]);
 
         let rq = CpuRequest::Compact(24).into();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
@@ -328,7 +449,7 @@ mod tests {
 
     #[test]
     fn test_pool_allocate_all() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(4, 6));
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(4, 6), &[]);
 
         let rq = CpuRequest::All.into();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
@@ -344,7 +465,7 @@ mod tests {
 
     #[test]
     fn test_pool_force_compact1() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(2, 4));
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(2, 4), &[]);
 
         let rq1 = CpuRequest::ForceCompact(9).into();
         assert!(pool.try_allocate_resources(&rq1, None).is_none());
@@ -362,7 +483,7 @@ mod tests {
 
     #[test]
     fn test_pool_force_compact2() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(2, 4));
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(2, 4), &[]);
 
         for _ in 0..2 {
             let rq1 = CpuRequest::ForceCompact(3).into();
@@ -380,7 +501,7 @@ mod tests {
 
     #[test]
     fn test_pool_force_compact3() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(3, 4));
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(3, 4), &[]);
 
         let rq1 = CpuRequest::ForceCompact(8).into();
         let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
@@ -403,7 +524,7 @@ mod tests {
 
     #[test]
     fn test_pool_force_scatter1() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(3, 4));
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(3, 4), &[]);
 
         let rq1 = CpuRequest::Scatter(3).into();
         let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
@@ -418,7 +539,7 @@ mod tests {
 
     #[test]
     fn test_pool_force_scatter2() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(3, 4));
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(3, 4), &[]);
 
         let rq1 = CpuRequest::ForceCompact(4).into();
         pool.try_allocate_resources(&rq1, None).unwrap();
@@ -427,5 +548,110 @@ mod tests {
         let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(al1.cpus.len(), 5);
         assert_eq!(pool.get_sockets(&al1).len(), 2);
+    }
+
+    #[test]
+    fn test_pool_generic_resources() {
+        let mut descriptor = ResourceDescriptor::new_with_socket_size(1, 4);
+
+        descriptor.add_generic_resource(GenericResourceDescriptor {
+            name: "Res0".to_string(),
+            kind: GenericResourceDescriptorKind::Indices(5, 100),
+        });
+
+        descriptor.add_generic_resource(GenericResourceDescriptor {
+            name: "Res1".to_string(),
+            kind: GenericResourceDescriptorKind::Sum(100_000_000),
+        });
+
+        descriptor.add_generic_resource(GenericResourceDescriptor {
+            name: "Res2".to_string(),
+            kind: GenericResourceDescriptorKind::Indices(0, 1),
+        });
+
+        descriptor.add_generic_resource(GenericResourceDescriptor {
+            name: "Res3".to_string(),
+            kind: GenericResourceDescriptorKind::Indices(0, 1),
+        });
+
+        descriptor.normalize();
+
+        let mut pool = ResourcePool::new(
+            &descriptor,
+            &["Res0".into(), "Res1".into(), "Res2".into(), "Res3".into()],
+        );
+
+        assert!(
+            matches!(&pool.free_generic_resources[2], GenericResourcePool::Indices(indices) if indices.len() == 2)
+        );
+
+        let mut rq: ResourceRequest = CpuRequest::Compact(1).into();
+        rq.add_generic_request(GenericResourceRequest {
+            resource: 3,
+            amount: 1,
+        });
+        rq.add_generic_request(GenericResourceRequest {
+            resource: 0,
+            amount: 12,
+        });
+        rq.add_generic_request(GenericResourceRequest {
+            resource: 1,
+            amount: 1000_000,
+        });
+        rq.normalize();
+        rq.validate().unwrap();
+        let al = pool.try_allocate_resources(&rq, None).unwrap();
+        assert_eq!(al.generic_allocations.len(), 3);
+        assert_eq!(al.generic_allocations[0].resource, 0);
+        assert!(matches!(
+            &al.generic_allocations[0].value,
+            GenericResourceAllocationValue::Indices(indices) if indices.len() == 12
+        ));
+        assert_eq!(al.generic_allocations[1].resource, 1);
+        assert!(matches!(
+            &al.generic_allocations[1].value,
+            GenericResourceAllocationValue::Sum(1000_000)
+        ));
+        assert_eq!(al.generic_allocations[2].resource, 3);
+        assert!(matches!(
+            &al.generic_allocations[2].value,
+            GenericResourceAllocationValue::Indices(indices) if indices.len() == 1
+        ));
+        assert!(
+            matches!(&pool.free_generic_resources[0], GenericResourcePool::Indices(indices) if indices.len() == 84)
+        );
+        assert!(matches!(
+            pool.free_generic_resources[1],
+            GenericResourcePool::Sum(99_000_000)
+        ));
+        assert!(
+            matches!(&pool.free_generic_resources[2], GenericResourcePool::Indices(indices) if indices.len() == 2)
+        );
+        assert!(
+            matches!(&pool.free_generic_resources[3], GenericResourcePool::Indices(indices) if indices.len() == 1)
+        );
+
+        let mut rq: ResourceRequest = CpuRequest::Compact(1).into();
+        rq.add_generic_request(GenericResourceRequest {
+            resource: 3,
+            amount: 2,
+        });
+        assert!(pool.try_allocate_resources(&rq, None).is_none());
+
+        pool.release_allocation(al);
+
+        assert!(
+            matches!(&pool.free_generic_resources[0], GenericResourcePool::Indices(indices) if indices.len() == 96)
+        );
+        assert!(matches!(
+            pool.free_generic_resources[1],
+            GenericResourcePool::Sum(100_000_000)
+        ));
+        assert!(
+            matches!(&pool.free_generic_resources[2], GenericResourcePool::Indices(indices) if indices.len() == 2)
+        );
+        assert!(
+            matches!(&pool.free_generic_resources[3], GenericResourcePool::Indices(indices) if indices.len() == 2)
+        );
     }
 }

@@ -77,7 +77,7 @@ impl Worker {
     }
 
     pub fn sanity_check(&self) {
-        let mut check_load = WorkerLoad::default();
+        let mut check_load = WorkerLoad::new(&self.resources);
         for task_ref in &self.tasks {
             let task = task_ref.get();
             check_load.add_request(&task.configuration.resources, &self.resources);
@@ -140,8 +140,13 @@ impl Worker {
 
     // Returns None if there is no time limit for a worker or time limit was passed
     pub fn remaining_time(&self, now: std::time::Instant) -> Option<Duration> {
-        self.termination_time
-            .map(|time| if time < now { Duration::default() } else { time - now })
+        self.termination_time.map(|time| {
+            if time < now {
+                Duration::default()
+            } else {
+                time - now
+            }
+        })
     }
 
     pub fn has_time_to_run(&self, time_request: TimeRequest, now: std::time::Instant) -> bool {
@@ -162,20 +167,25 @@ impl Worker {
 }
 
 impl Worker {
-    pub fn new(id: WorkerId, configuration: WorkerConfiguration) -> Self {
-        let resources = WorkerResources::from_description(&configuration.resources);
+    pub fn new(
+        id: WorkerId,
+        configuration: WorkerConfiguration,
+        resource_names: &[String],
+    ) -> Self {
+        let resources = WorkerResources::from_description(&configuration.resources, resource_names);
+        let load = WorkerLoad::new(&resources);
         let now = std::time::Instant::now();
         Worker {
             id,
             termination_time: configuration.time_limit.map(|duration| now + duration),
             configuration,
             resources,
+            load,
             tasks: Default::default(),
             flags: WorkerFlags::empty(),
             overview_callbacks: Default::default(),
             last_heartbeat: now,
             last_occupied: now,
-            load: Default::default(),
         }
     }
 }

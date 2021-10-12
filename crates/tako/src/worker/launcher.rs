@@ -9,11 +9,13 @@ use tokio::process::Command;
 
 use crate::common::resources::ResourceAllocation;
 use crate::messages::common::{ProgramDefinition, StdioDef};
+use crate::worker::state::WorkerState;
 use crate::worker::task::TaskRef;
 use crate::worker::taskenv::{StopReason, TaskResult};
 
 pub type TaskLauncher = Box<
     dyn Fn(
+        &WorkerState,
         &TaskRef,
         tokio::sync::oneshot::Receiver<StopReason>,
     ) -> Pin<Box<dyn Future<Output = crate::Result<TaskResult>> + 'static>>,

@@ -87,6 +87,19 @@ class Session:
         return self.task_id_counter
 
     def submit(self, tasks: List[Task]):
+        resource_names = set()
+        for task in tasks:
+            resource_names.update(task.resources.resource_names())
+        resource_names = sorted(resource_names)
+
+        loop = asyncio.get_event_loop()
+        response = loop.run_until_complete(
+            self._send_receive(
+                {"op": "GetGenericResourceIds", "resources": resource_names},
+                "GenericResourceIds",
+            )
+        )
+        resource_name_map = dict(zip(resource_names, response["resource_ids"]))
         task_defs = []
         for task in tasks:
             if task._id is not None:
@@ -105,16 +118,23 @@ class Session:
             if task.keep:
                 task_def["keep"] = True
             if task.resources:
-                conf["resources"] = task.resources.to_dict()
+                conf["resources"] = task.resources.to_dict(resource_name_map)
             if task.time_limit:
                 fractional, secs = math.modf(task.time_limit)
-                conf["time_limit"] = {"secs": int(secs), "nanos": int(fractional * 1000_000_000)}
+                conf["time_limit"] = {
+                    "secs": int(secs),
+                    "nanos": int(fractional * 1000_000_000),
+                }
             task_defs.append(task_def)
             self.tasks[task_id] = task
-        loop = asyncio.get_event_loop()
-        response = loop.run_until_complete(
+        _response = loop.run_until_complete(
             self._send_receive(
-                {"op": "NewTasks", "tasks": task_defs}, "NewTasksResponse"
+                {
+                    "op": "NewTasks",
+                    "tasks": task_defs,
+                    "resource_names": resource_names,
+                },
+                "NewTasksResponse",
             )
         )
 

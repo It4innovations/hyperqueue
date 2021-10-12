@@ -6,7 +6,7 @@ pub mod pool;
 mod reactor;
 pub mod rpc;
 pub mod rqueue;
-mod state;
+pub mod state;
 pub mod task;
 pub mod taskenv;
 mod test_util;
