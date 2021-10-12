@@ -1,9 +1,10 @@
 import contextlib
 import json
 import os
-import time
-from os.path import join
+from os.path import join, dirname
 from typing import List, Optional
+
+import time
 
 from .conftest import HqEnv
 from .utils.check import check_error_log
@@ -97,14 +98,6 @@ def test_add_slurm_descriptor(hq_env: HqEnv):
     info.check_column_value("ID", 0, "1")
 
 
-def test_pbs_fail_without_qstat(hq_env: HqEnv):
-    hq_env.start_server(args=["--autoalloc-interval", "500ms"])
-    hq_env.command(
-        ["alloc", "add", "pbs", "--name", "foo", "--queue", "queue", "--backlog", "1"],
-        expect_fail="qstat",
-    )
-
-
 def test_pbs_queue_qsub_fail(hq_env: HqEnv):
     qsub_code = "exit(1)"
 
@@ -156,14 +149,24 @@ def test_pbs_queue_qsub_args(hq_env: HqEnv):
             hq_env.start_server(args=["--autoalloc-interval", "100ms"])
             prepare_tasks(hq_env)
 
-            add_queue(hq_env, additional_args="--foo=bar a b --baz 42")
+            add_queue(hq_env, time_limit="3m", additional_args="--foo=bar a b --baz 42")
             wait_until(lambda: os.path.exists(path))
+
             with open(path) as f:
                 args = json.loads(f.read())
-                start = args.index("--foo=bar")
-                end = args.index("--")
-                args = args[start:end]
-                assert args == ["--foo=bar", "a", "b", "--baz", "42"]
+                qsub_script_path = args[1]
+            with open(qsub_script_path) as f:
+                data = f.read()
+                pbs_args = [l[5:] for l in data.splitlines(keepends=False) if l.startswith("#PBS")]
+                assert pbs_args == [
+                    "-l select=1",
+                    "-q queue",
+                    "-N hq-alloc-1",
+                    f"-o {join(dirname(qsub_script_path), 'stdout')}",
+                    f"-e {join(dirname(qsub_script_path), 'stderr')}",
+                    "-l walltime=00:03:00",
+                    "--foo=bar a b --baz 42",
+                ]
 
 
 def test_slurm_queue_sbatch_args(hq_env: HqEnv):
@@ -517,12 +520,12 @@ with open(os.path.join("{self.qdel_dir}", jobid), "w") as f:
                     yield
 
     def set_job_data(
-        self,
-        status: str,
-        qtime: str = None,
-        stime: str = None,
-        mtime: str = None,
-        exit_code: int = None,
+            self,
+            status: str,
+            qtime: str = None,
+            stime: str = None,
+            mtime: str = None,
+            exit_code: int = None,
     ):
         jobdata = dict(self.data)
         jobdata.update(
@@ -546,14 +549,14 @@ with open(os.path.join("{self.qdel_dir}", jobid), "w") as f:
 
 
 def add_queue(
-    hq_env: HqEnv,
-    manager="pbs",
-    name: Optional[str] = "foo",
-    queue="queue",
-    backlog=1,
-    workers_per_alloc=1,
-    additional_args=None,
-    time_limit=None,
+        hq_env: HqEnv,
+        manager="pbs",
+        name: Optional[str] = "foo",
+        queue="queue",
+        backlog=1,
+        workers_per_alloc=1,
+        additional_args=None,
+        time_limit=None,
 ) -> str:
     args = ["alloc", "add", manager]
     if name is not None:
