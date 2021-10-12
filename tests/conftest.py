@@ -7,9 +7,9 @@ from typing import Optional, Tuple
 
 import pytest
 
-from .utils.wait import wait_until
 from .utils import parse_table
 from .utils.mock import ProgramMock
+from .utils.wait import wait_until
 
 PYTEST_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(PYTEST_DIR)
@@ -52,7 +52,9 @@ class Env:
             if p is process:
                 if process.poll() is None:
                     raise Exception(f"Process with pid {process.pid} is still running")
-                if expected_code is not None:
+                if expected_code == "error":
+                    assert process.returncode != 0
+                elif expected_code is not None:
                     assert process.returncode == expected_code
 
                 self.processes = [
@@ -179,6 +181,7 @@ class HqEnv(Env):
                 table = self.command(["worker", "list"], as_table=True)
                 print(table)
                 return hostname in table.get_column_value("Hostname")
+
             wait_until(wait_for_worker)
         return r
 
