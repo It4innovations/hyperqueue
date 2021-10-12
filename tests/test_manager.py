@@ -79,7 +79,7 @@ def test_manager_autodetect(hq_env: HqEnv):
 
             table = hq_env.command(["worker", "info", "3"], as_table=True)
             table.check_value_row("Manager", "SLURM")
-            table.check_value_row("Time Limit", "13m 26s")
+            table.check_value_row("Time Limit", "15m")
 
 
 def test_manager_set_none(hq_env: HqEnv):

@@ -1,7 +1,8 @@
-use crate::common::manager::common::{format_duration, parse_hms_duration};
-use crate::Map;
 use std::process::Command;
 use std::time::Duration;
+
+use crate::common::manager::common::format_duration;
+use crate::Map;
 
 /// Format a duration as a SLURM time string, e.g. 01:05:02
 pub fn format_slurm_duration(duration: &Duration) -> String {
@@ -17,23 +18,24 @@ pub fn parse_slurm_datetime(datetime: &str) -> anyhow::Result<chrono::NaiveDateT
 
 pub fn parse_remaining_timelimit(output: &str) -> anyhow::Result<Duration> {
     let items = get_scontrol_items(output);
-    let run_time = parse_hms_duration(
+    let start_time = parse_slurm_datetime(
         items
-            .get("RunTime")
-            .ok_or_else(|| anyhow::anyhow!("RunTime entry not found"))?,
+            .get("StartTime")
+            .ok_or_else(|| anyhow::anyhow!("StartTime entry not found"))?,
     )?;
 
-    let time_limit = parse_hms_duration(
+    let end_time = parse_slurm_datetime(
         items
-            .get("TimeLimit")
-            .ok_or_else(|| anyhow::anyhow!("TimeLimit entry not found"))?,
+            .get("EndTime")
+            .ok_or_else(|| anyhow::anyhow!("EndTime entry not found"))?,
     )?;
 
-    if time_limit < run_time {
-        anyhow::bail!("Slurm: TimeLimit is smaller than RunTime");
+    let duration = end_time - start_time;
+    if duration.num_seconds() < 0 {
+        anyhow::bail!("Slurm: EndTime is smaller than StartTime");
     }
 
-    Ok(time_limit - run_time)
+    Ok(duration.to_std().unwrap())
 }
 
 /// Calculates how much time is left for the given job using `scontrol`.
@@ -76,8 +78,9 @@ pub fn get_scontrol_items(output: &str) -> Map<&str, &str> {
 
 #[cfg(test)]
 mod test {
-    use crate::common::manager::slurm::{parse_remaining_timelimit, parse_slurm_datetime};
     use std::time::Duration;
+
+    use crate::common::manager::slurm::{parse_remaining_timelimit, parse_slurm_datetime};
 
     #[test]
     fn test_parse_slurm_datetime() {
@@ -116,7 +119,7 @@ mod test {
    Power=";
         assert_eq!(
             parse_remaining_timelimit(output).unwrap(),
-            Duration::from_secs(15 * 60 - 60 - 34)
+            Duration::from_secs(900)
         )
     }
 }

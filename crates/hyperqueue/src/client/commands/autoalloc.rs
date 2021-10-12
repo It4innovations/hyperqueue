@@ -23,7 +23,7 @@ pub struct AutoAllocOpts {
 enum AutoAllocCommand {
     /// Displays allocation queues
     List,
-    /// Display event log for a specified allocation queue
+    /// Display event log for the specified allocation queue
     Events(EventsOpts),
     /// Display allocations of the specified allocation queue
     Info(AllocationsOpts),
