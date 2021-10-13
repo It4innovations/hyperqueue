@@ -11,13 +11,13 @@ pub(super) fn format_duration(duration: &Duration) -> String {
 }
 
 /// Parse duration from string
-pub fn parse_hms_duration(raw_time: &str) -> anyhow::Result<Duration> {
+pub fn parse_hms_duration(raw_time: &str) -> anyhow::Result<chrono::Duration> {
     use chrono::Duration as ChronoDuration;
     let numbers: Vec<&str> = raw_time.split(':').collect();
     let duration = ChronoDuration::hours(numbers[0].parse()?)
         + ChronoDuration::minutes(numbers[1].parse()?)
         + ChronoDuration::seconds(numbers[2].parse()?);
-    Ok(duration.to_std()?)
+    Ok(duration)
 }
 
 #[cfg(test)]
@@ -36,6 +36,6 @@ mod test {
     #[test]
     fn test_parse_hms_duration() {
         let date = parse_hms_duration("03:01:34").unwrap();
-        assert_eq!(date, Duration::from_secs(3 * 3600 + 60 + 34));
+        assert_eq!(date, chrono::Duration::seconds(3 * 3600 + 60 + 34));
     }
 }

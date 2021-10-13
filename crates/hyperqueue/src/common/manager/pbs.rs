@@ -54,7 +54,7 @@ fn parse_pbs_job_remaining_time(job_id: &str, data: &str) -> anyhow::Result<Dura
         anyhow::bail!("Pbs: Used time is bigger then walltime");
     }
 
-    Ok(walltime - used)
+    Ok((walltime - used).to_std()?)
 }
 
 /// Calculates how much time is left for the given job using `qstat`.

@@ -15,15 +15,25 @@ pub fn parse_slurm_datetime(datetime: &str) -> anyhow::Result<chrono::NaiveDateT
     )?)
 }
 
+fn parse_slurm_duration(value: &str) -> anyhow::Result<chrono::Duration> {
+    if let Some(p) = value.find('-') {
+        let days = value[..p].parse()?;
+        let datetime = parse_hms_duration(&value[p + 1..])?;
+        Ok(datetime + chrono::Duration::days(days))
+    } else {
+        parse_hms_duration(value)
+    }
+}
+
 pub fn parse_remaining_timelimit(output: &str) -> anyhow::Result<Duration> {
     let items = get_scontrol_items(output);
-    let run_time = parse_hms_duration(
+    let run_time = parse_slurm_duration(
         items
             .get("RunTime")
             .ok_or_else(|| anyhow::anyhow!("RunTime entry not found"))?,
     )?;
 
-    let time_limit = parse_hms_duration(
+    let time_limit = parse_slurm_duration(
         items
             .get("TimeLimit")
             .ok_or_else(|| anyhow::anyhow!("TimeLimit entry not found"))?,
@@ -33,7 +43,7 @@ pub fn parse_remaining_timelimit(output: &str) -> anyhow::Result<Duration> {
         anyhow::bail!("Slurm: TimeLimit is smaller than RunTime");
     }
 
-    Ok(time_limit - run_time)
+    Ok((time_limit - run_time).to_std()?)
 }
 
 /// Calculates how much time is left for the given job using `scontrol`.
@@ -76,7 +86,9 @@ pub fn get_scontrol_items(output: &str) -> Map<&str, &str> {
 
 #[cfg(test)]
 mod test {
-    use crate::common::manager::slurm::{parse_remaining_timelimit, parse_slurm_datetime};
+    use crate::common::manager::slurm::{
+        parse_remaining_timelimit, parse_slurm_datetime, parse_slurm_duration,
+    };
     use std::time::Duration;
 
     #[test]
@@ -86,6 +98,22 @@ mod test {
             date.format("%d.%m.%Y %H:%M:%S").to_string(),
             "29.09.2021 09:36:56"
         );
+    }
+
+    #[test]
+    fn test_parse_slurm_duration() {
+        let date = parse_slurm_duration("10:20:30").unwrap();
+        assert_eq!(
+            date,
+            chrono::Duration::hours(10)
+                + chrono::Duration::minutes(20)
+                + chrono::Duration::seconds(30)
+        );
+        let date = parse_slurm_duration("17-01:00:11").unwrap();
+        assert_eq!(
+            date,
+            chrono::Duration::days(17) + chrono::Duration::hours(1) + chrono::Duration::seconds(11)
+        )
     }
 
     #[test]
