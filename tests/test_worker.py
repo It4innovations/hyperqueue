@@ -187,7 +187,8 @@ def test_worker_info(hq_env: HqEnv):
 def test_worker_address(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
-    hq_env.start_worker(set_hostname=False)
+    hq_env.start_worker(set_hostname=False, wait_for_start=False)
+    wait_for_worker_state(hq_env, [1, 2], "RUNNING")
 
     output = hq_env.command(["worker", "address", "1"]).strip()
     assert output == "worker1"

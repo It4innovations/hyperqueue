@@ -99,8 +99,8 @@ def test_manager_set_none(hq_env: HqEnv):
 
 def test_manager_pbs_no_env(hq_env: HqEnv):
     hq_env.start_server()
-    p = hq_env.start_worker(cpus=1, args=["--manager", "pbs"])
-    time.sleep(1)
+    p = hq_env.start_worker(cpus=1, args=["--manager", "pbs"], wait_for_start=False)
+    p.wait(5)
     hq_env.check_process_exited(p, 1)
 
 
@@ -143,15 +143,16 @@ def test_manager_pbs_no_qstat(hq_env: HqEnv):
         cpus=1,
         args=["--manager", "pbs"],
         env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"},
+        wait_for_start=False,
     )
-    process.wait()
+    process.wait(5)
     hq_env.check_process_exited(process, expected_code=1)
 
 
 def test_manager_slurm_no_env(hq_env: HqEnv):
     hq_env.start_server()
-    p = hq_env.start_worker(cpus=1, args=["--manager", "slurm"])
-    time.sleep(1)
+    p = hq_env.start_worker(cpus=1, args=["--manager", "slurm"], wait_for_start=False)
+    p.wait(5)
     hq_env.check_process_exited(p, 1)
 
 

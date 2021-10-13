@@ -7,6 +7,7 @@ from typing import Optional, Tuple
 
 import pytest
 
+from .utils.wait import wait_until
 from .utils import parse_table
 from .utils.mock import ProgramMock
 
@@ -136,11 +137,9 @@ class HqEnv(Env):
         self.check_running_processes()
         return process
 
-    def start_workers(self, count, *, sleep=True, **kwargs):
+    def start_workers(self, count, **kwargs):
         for _ in range(count):
-            self.start_worker(sleep=False, **kwargs)
-        if sleep:
-            time.sleep(0.2)
+            self.start_worker(**kwargs)
 
     def start_worker(
         self,
@@ -148,8 +147,8 @@ class HqEnv(Env):
         cpus="1",
         env=None,
         args=None,
-        sleep=True,
         set_hostname=True,
+        wait_for_start=True,
     ) -> subprocess.Popen:
         self.id_counter += 1
         worker_id = self.id_counter
@@ -163,15 +162,24 @@ class HqEnv(Env):
             "worker",
             "start",
         ]
+        hostname = f"worker{worker_id}"
         if set_hostname:
-            worker_args += ["--hostname", f"worker{worker_id}"]
+            worker_args += ["--hostname", hostname]
         if cpus is not None:
             worker_args += ["--cpus", str(cpus)]
         if args:
             worker_args += list(args)
-        r = self.start_process(f"worker{worker_id}", worker_args, env=worker_env)
-        if sleep:
-            time.sleep(0.2)
+        r = self.start_process(hostname, worker_args, env=worker_env)
+
+        if wait_for_start:
+            print(wait_for_start)
+            assert set_hostname
+
+            def wait_for_worker():
+                table = self.command(["worker", "list"], as_table=True)
+                print(table)
+                return hostname in table.get_column_value("Hostname")
+            wait_until(wait_for_worker)
         return r
 
     def kill_worker(self, worker_id: int):
