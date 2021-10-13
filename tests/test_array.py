@@ -47,10 +47,10 @@ def test_job_array_report(hq_env: HqEnv):
     hq_env.command(["submit", "--array=10-19", "--", "sleep", "1"])
     time.sleep(1.6)
     table = hq_env.command(["jobs"], as_table=True)
-    table.check_value_column("State", 0, "RUNNING")
+    table.check_column_value("State", 0, "RUNNING")
 
     table = hq_env.command(["job", "1"], as_table=True)
-    table.check_value_row("Tasks", "10; Ids: 10-19")
+    table.check_row_value("Tasks", "10; Ids: 10-19")
 
     states = table.get_row_value("State").split("\n")
     assert "RUNNING (4)" in states
@@ -80,7 +80,7 @@ def test_job_array_error_some(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["jobs"], as_table=True)
-    table.check_value_column("State", 0, "FAILED")
+    table.check_column_value("State", 0, "FAILED")
 
     table = hq_env.command(["job", "1"], as_table=True)
     states = table.get_row_value("State").split("\n")
@@ -117,7 +117,7 @@ def test_job_array_error_all(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["jobs"], as_table=True)
-    table.check_value_column("State", 0, "FAILED")
+    table.check_column_value("State", 0, "FAILED")
 
     table = hq_env.command(["job", "1"], as_table=True)
     states = table.get_row_value("State").split("\n")
@@ -161,7 +161,7 @@ def test_job_array_cancel(hq_env: HqEnv):
     assert c.get("CANCELED") == 6
 
     table = hq_env.command(["jobs"], as_table=True)
-    table.check_value_column("State", 0, "CANCELED")
+    table.check_column_value("State", 0, "CANCELED")
 
 
 def test_array_reporting_state_after_worker_lost(hq_env: HqEnv):

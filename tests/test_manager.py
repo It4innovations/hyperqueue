@@ -65,21 +65,21 @@ def test_manager_autodetect(hq_env: HqEnv):
             hq_env.start_worker(cpus=1, env={"SLURM_JOB_ID": "y5678"})
 
             table = hq_env.command(["worker", "list"], as_table=True)
-            table.check_value_columns(["Manager", "Manager Job Id"], 0, ["None", "N/A"])
-            table.check_value_columns(
+            table.check_columns_value(["Manager", "Manager Job Id"], 0, ["None", "N/A"])
+            table.check_columns_value(
                 ["Manager", "Manager Job Id"], 1, ["PBS", "x1234"]
             )
-            table.check_value_columns(
+            table.check_columns_value(
                 ["Manager", "Manager Job Id"], 2, ["SLURM", "y5678"]
             )
 
             table = hq_env.command(["worker", "info", "2"], as_table=True)
-            table.check_value_row("Manager", "PBS")
-            table.check_value_row("Time Limit", "58m 49s")
+            table.check_row_value("Manager", "PBS")
+            table.check_row_value("Time Limit", "58m 49s")
 
             table = hq_env.command(["worker", "info", "3"], as_table=True)
-            table.check_value_row("Manager", "SLURM")
-            table.check_value_row("Time Limit", "13m 26s")
+            table.check_row_value("Manager", "SLURM")
+            table.check_row_value("Time Limit", "13m 26s")
 
 
 def test_manager_set_none(hq_env: HqEnv):
@@ -94,7 +94,7 @@ def test_manager_set_none(hq_env: HqEnv):
     table = hq_env.command(["worker", "list"], as_table=True)
 
     for i in [0, 1, 2]:
-        table.check_value_columns(["Manager", "Manager Job Id"], i, ["None", "N/A"])
+        table.check_columns_value(["Manager", "Manager Job Id"], i, ["None", "N/A"])
 
 
 def test_manager_pbs_no_env(hq_env: HqEnv):
@@ -115,7 +115,7 @@ def test_manager_pbs(hq_env: HqEnv):
         )
 
         table = hq_env.command(["worker", "list"], as_table=True)
-        table.check_value_columns(["Manager", "Manager Job Id"], 0, ["PBS", "x1234"])
+        table.check_columns_value(["Manager", "Manager Job Id"], 0, ["PBS", "x1234"])
 
 
 def test_manager_pbs_qstat_path_from_env(hq_env: HqEnv):
@@ -133,7 +133,7 @@ def test_manager_pbs_qstat_path_from_env(hq_env: HqEnv):
         )
 
         table = hq_env.command(["worker", "list"], as_table=True)
-        table.check_value_columns(["Manager", "Manager Job Id"], 0, ["PBS", "x1234"])
+        table.check_columns_value(["Manager", "Manager Job Id"], 0, ["PBS", "x1234"])
 
 
 def test_manager_pbs_no_qstat(hq_env: HqEnv):
@@ -164,4 +164,4 @@ def test_manager_slurm(hq_env: HqEnv):
         )
 
     table = hq_env.command(["worker", "list"], as_table=True)
-    table.check_value_columns(["Manager", "Manager Job Id"], 0, ["SLURM", "abcd"])
+    table.check_columns_value(["Manager", "Manager Job Id"], 0, ["SLURM", "abcd"])

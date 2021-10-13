@@ -26,7 +26,7 @@ class Table:
         assert len(row) == 1
         return row[0][1]
 
-    def check_value_row(self, key: str, value: str):
+    def check_row_value(self, key: str, value: str):
         row = self.get_row_value(key)
         if row is None:
             raise Exception(f"Key `{key!r}` not found in\n{self}")
@@ -43,17 +43,17 @@ class Table:
         index = header.index(key)
         return [row[index] for row in self.rows[1:]]
 
-    def check_value_column(self, key: str, index: int, value: str):
+    def check_column_value(self, key: str, index: int, value: str):
         column = self.get_column_value(key)
         if not column:
             raise Exception(f"Value for key `{key!r}` not found in\n{self}")
         row = column[index]
         assert_equals(row, value)
 
-    def check_value_columns(self, keys: List[str], index: int, values: List[str]):
+    def check_columns_value(self, keys: List[str], index: int, values: List[str]):
         assert len(keys) == len(values)
         for (key, val) in zip(keys, values):
-            self.check_value_column(key, index, val)
+            self.check_column_value(key, index, val)
 
     def print(self):
         for i, row in enumerate(self):

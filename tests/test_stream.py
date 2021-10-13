@@ -6,9 +6,9 @@ from .utils import wait_for_job_state
 
 def check_no_stream_connections(hq_env: HqEnv):
     table = hq_env.command(["server", "info", "--stats"], as_table=True)
-    table.check_value_row("Stream connections", "")
-    table.check_value_row("Stream registrations", "")
-    table.check_value_row("Open files", "")
+    table.check_row_value("Stream connections", "")
+    table.check_row_value("Stream registrations", "")
+    table.check_row_value("Open files", "")
 
 
 def test_stream_submit(hq_env: HqEnv):
@@ -46,11 +46,11 @@ def test_stream_submit(hq_env: HqEnv):
         assert "{0:02}: > stream closed".format(i) in lines
 
     table = hq_env.command(["log", "mylog", "summary"], as_table=True)
-    table.check_value_row("Tasks", "20")
-    table.check_value_row("Opened streams", "0")
-    table.check_value_row("Stdout/stderr size", "271 B / 0 B")
-    table.check_value_row("Superseded streams", "0")
-    table.check_value_row("Superseded stdout/stderr size", "0 B / 0 B")
+    table.check_row_value("Tasks", "20")
+    table.check_row_value("Opened streams", "0")
+    table.check_row_value("Stdout/stderr size", "271 B / 0 B")
+    table.check_row_value("Superseded streams", "0")
+    table.check_row_value("Superseded stdout/stderr size", "0 B / 0 B")
 
     result = hq_env.command(["log", "mylog", "cat", "stdout"])
     assert result == "".join(["Hello from {}\n".format(i) for i in range(1, 21)])
@@ -182,9 +182,9 @@ def test_stream_stats(hq_env: HqEnv):
 
     table = hq_env.command(["server", "info", "--stats"], as_table=True)
     print(table)
-    table.check_value_row("Stream connections", "")
+    table.check_row_value("Stream connections", "")
     assert table.get_row_value("Stream registrations").startswith("1:")
-    table.check_value_row("Open files", "")
+    table.check_row_value("Open files", "")
 
     hq_env.start_workers(2, cpus="2")
     time.sleep(1)
@@ -396,7 +396,7 @@ def test_stream_worker_killed(hq_env: HqEnv):
     assert result == "0:0> Start\n0: > stream closed\n"
 
     table = hq_env.command(["server", "info", "--stats"], as_table=True)
-    table.check_value_row("Stream connections", "")
+    table.check_row_value("Stream connections", "")
     assert table.get_row_value("Stream registrations") != ""
     assert table.get_row_value("Open files") != ""
 

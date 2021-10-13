@@ -21,7 +21,7 @@ def test_server_host(hq_env: HqEnv):
         stdout, stderr = p.communicate()
     stdout = stdout.decode()
     table = parse_table(stdout)
-    table.check_value_row("Host", "abcd123")
+    table.check_row_value("Host", "abcd123")
 
 
 def test_version_mismatch(hq_env: HqEnv):
@@ -53,9 +53,9 @@ def test_server_info(hq_env: HqEnv):
     process = hq_env.start_server()
 
     table = hq_env.command(["server", "info"], as_table=True)
-    table.check_value_row("Server directory", hq_env.server_dir)
-    table.check_value_row("Host", socket.gethostname())
-    table.check_value_row("Pid", str(process.pid))
+    table.check_row_value("Server directory", hq_env.server_dir)
+    table.check_row_value("Host", socket.gethostname())
+    table.check_row_value("Pid", str(process.pid))
 
     assert len(table) == 7
 

@@ -18,7 +18,7 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
         add_queue(hq_env, name=None, queue="queue", backlog=5)
 
         table = hq_env.command(["alloc", "list"], as_table=True)
-        table.check_value_columns(
+        table.check_columns_value(
             (
                 "ID",
                 "Backlog size",
@@ -42,7 +42,7 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
             time_limit="1h",
         )
         table = hq_env.command(["alloc", "list"], as_table=True)
-        table.check_value_columns(
+        table.check_columns_value(
             (
                 "ID",
                 "Backlog size",
@@ -57,7 +57,7 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
 
         add_queue(hq_env, manager="slurm", queue="partition", backlog=1)
         table = hq_env.command(["alloc", "list"], as_table=True)
-        table.check_value_columns(
+        table.check_columns_value(
             ("ID", "Queue", "Manager"), 2, ("3", "partition", "SLURM")
         )
 
@@ -78,7 +78,7 @@ def test_add_pbs_descriptor(hq_env: HqEnv):
         assert "Allocation queue 1 successfully created" in output
 
         info = hq_env.command(["alloc", "list"], as_table=True)
-        info.check_value_column("ID", 0, "1")
+        info.check_column_value("ID", 0, "1")
 
 
 def test_add_slurm_descriptor(hq_env: HqEnv):
@@ -94,7 +94,7 @@ def test_add_slurm_descriptor(hq_env: HqEnv):
     assert "Allocation queue 1 successfully created" in output
 
     info = hq_env.command(["alloc", "list"], as_table=True)
-    info.check_value_column("ID", 0, "1")
+    info.check_column_value("ID", 0, "1")
 
 
 def test_pbs_fail_without_qstat(hq_env: HqEnv):
@@ -116,8 +116,8 @@ def test_pbs_queue_qsub_fail(hq_env: HqEnv):
             add_queue(hq_env)
             time.sleep(0.2)
             table = hq_env.command(["alloc", "events", "1"], as_table=True)
-            table.check_value_column("Event", 0, "Allocation submission failed")
-            table.check_value_column("Message", 0, "qsub execution failed")
+            table.check_column_value("Event", 0, "Allocation submission failed")
+            table.check_column_value("Message", 0, "qsub execution failed")
 
 
 def test_slurm_queue_sbatch_fail(hq_env: HqEnv):
@@ -130,8 +130,8 @@ def test_slurm_queue_sbatch_fail(hq_env: HqEnv):
         add_queue(hq_env, manager="slurm")
         time.sleep(0.2)
         table = hq_env.command(["alloc", "events", "1"], as_table=True)
-        table.check_value_column("Event", 0, "Allocation submission failed")
-        table.check_value_column("Message", 0, "sbatch execution failed")
+        table.check_column_value("Event", 0, "Allocation submission failed")
+        table.check_column_value("Message", 0, "sbatch execution failed")
 
 
 def program_code_store_args_json(path: str) -> str:
@@ -195,8 +195,8 @@ def test_pbs_queue_qsub_success(hq_env: HqEnv):
             add_queue(hq_env)
             time.sleep(0.2)
             table = hq_env.command(["alloc", "events", "1"], as_table=True)
-            table.check_value_column("Event", 0, "Allocation queued")
-            table.check_value_column("Message", 0, "123.job")
+            table.check_column_value("Event", 0, "Allocation queued")
+            table.check_column_value("Message", 0, "123.job")
 
 
 def test_slurm_queue_sbatch_success(hq_env: HqEnv):
@@ -209,8 +209,8 @@ def test_slurm_queue_sbatch_success(hq_env: HqEnv):
         add_queue(hq_env, manager="slurm")
         time.sleep(0.2)
         table = hq_env.command(["alloc", "events", "1"], as_table=True)
-        table.check_value_column("Event", 0, "Allocation queued")
-        table.check_value_column("Message", 0, "123.job")
+        table.check_column_value("Event", 0, "Allocation queued")
+        table.check_column_value("Message", 0, "123.job")
 
 
 def test_pbs_queue_qsub_check_args(hq_env: HqEnv):
@@ -266,7 +266,7 @@ def test_pbs_events_job_lifecycle(hq_env: HqEnv):
         # Queued
         time.sleep(0.2)
         table = hq_env.command(["alloc", "events", "1"], as_table=True)
-        table.check_value_column("Event", -1, "Allocation queued")
+        table.check_column_value("Event", -1, "Allocation queued")
 
         # Started
         mock.set_job_data("R", stime="Thu Aug 19 13:05:39 2021")
@@ -324,7 +324,7 @@ def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
         time.sleep(0.2)
 
         table = hq_env.command(["alloc", "info", "1"], as_table=True)
-        table.check_value_columns(
+        table.check_columns_value(
             ("Id", "State", "Worker count"), 0, ("0", "Queued", "1")
         )
 
@@ -332,13 +332,13 @@ def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
         time.sleep(0.2)
 
         table = hq_env.command(["alloc", "info", "1"], as_table=True)
-        table.check_value_column("State", 0, "Running")
+        table.check_column_value("State", 0, "Running")
 
         mock.set_job_data("F", exit_code=0)
         time.sleep(0.2)
 
         table = hq_env.command(["alloc", "info", "1"], as_table=True)
-        table.check_value_column("State", 0, "Finished")
+        table.check_column_value("State", 0, "Finished")
 
 
 def test_allocations_ignore_job_changes_after_finish(hq_env: HqEnv):
@@ -359,13 +359,13 @@ def test_allocations_ignore_job_changes_after_finish(hq_env: HqEnv):
         time.sleep(0.3)
 
         table = hq_env.command(["alloc", "info", "1"], as_table=True)
-        table.check_value_column("State", 0, "Finished")
+        table.check_column_value("State", 0, "Finished")
 
         mock.set_job_data("R")
         time.sleep(0.3)
 
         table = hq_env.command(["alloc", "info", "1"], as_table=True)
-        table.check_value_column("State", 0, "Finished")
+        table.check_column_value("State", 0, "Finished")
 
 
 def test_pbs_delete_active_jobs(hq_env: HqEnv):
@@ -411,8 +411,8 @@ def test_remove_descriptor(hq_env: HqEnv):
         assert "Allocation queue 2 successfully removed" in result
 
         table = hq_env.command(["alloc", "list"], as_table=True)
-        table.check_value_columns(["ID"], 0, ["1"])
-        table.check_value_columns(["ID"], 1, ["3"])
+        table.check_columns_value(["ID"], 0, ["1"])
+        table.check_columns_value(["ID"], 1, ["3"])
 
 
 def test_pbs_remove_descriptor_cancel_allocations(hq_env: HqEnv):

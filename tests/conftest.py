@@ -2,9 +2,8 @@ import contextlib
 import os
 import signal
 import subprocess
-from typing import Tuple, Optional
-
 import time
+from typing import Optional, Tuple
 
 import pytest
 

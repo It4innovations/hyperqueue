@@ -23,8 +23,8 @@ def test_job_submit(hq_env: HqEnv):
 
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 3
-    table.check_value_columns(["Id", "Name", "State"], 0, ["1", "bash", "WAITING"])
-    table.check_value_columns(["Id", "Name", "State"], 1, ["2", "bash", "WAITING"])
+    table.check_columns_value(["Id", "Name", "State"], 0, ["1", "bash", "WAITING"])
+    table.check_columns_value(["Id", "Name", "State"], 1, ["2", "bash", "WAITING"])
 
     hq_env.start_worker(cpus=1)
 
@@ -32,8 +32,8 @@ def test_job_submit(hq_env: HqEnv):
 
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 3
-    table.check_value_columns(["Id", "Name", "State"], 0, ["1", "bash", "FINISHED"])
-    table.check_value_columns(["Id", "Name", "State"], 1, ["2", "bash", "FINISHED"])
+    table.check_columns_value(["Id", "Name", "State"], 0, ["1", "bash", "FINISHED"])
+    table.check_columns_value(["Id", "Name", "State"], 1, ["2", "bash", "FINISHED"])
 
     hq_env.command(["submit", "--", "sleep", "1"])
 
@@ -41,17 +41,17 @@ def test_job_submit(hq_env: HqEnv):
 
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 4
-    table.check_value_columns(["Id", "Name", "State"], 0, ["1", "bash", "FINISHED"])
-    table.check_value_columns(["Id", "Name", "State"], 1, ["2", "bash", "FINISHED"])
-    table.check_value_columns(["Id", "Name", "State"], 2, ["3", "sleep", "RUNNING"])
+    table.check_columns_value(["Id", "Name", "State"], 0, ["1", "bash", "FINISHED"])
+    table.check_columns_value(["Id", "Name", "State"], 1, ["2", "bash", "FINISHED"])
+    table.check_columns_value(["Id", "Name", "State"], 2, ["3", "sleep", "RUNNING"])
 
     wait_for_job_state(hq_env, 3, "FINISHED")
 
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 4
-    table.check_value_columns(["Id", "Name", "State"], 0, ["1", "bash", "FINISHED"])
-    table.check_value_columns(["Id", "Name", "State"], 1, ["2", "bash", "FINISHED"])
-    table.check_value_columns(["Id", "Name", "State"], 2, ["3", "sleep", "FINISHED"])
+    table.check_columns_value(["Id", "Name", "State"], 0, ["1", "bash", "FINISHED"])
+    table.check_columns_value(["Id", "Name", "State"], 1, ["2", "bash", "FINISHED"])
+    table.check_columns_value(["Id", "Name", "State"], 2, ["3", "sleep", "FINISHED"])
 
 
 def test_custom_name(hq_env: HqEnv, tmp_path):
@@ -62,7 +62,7 @@ def test_custom_name(hq_env: HqEnv, tmp_path):
 
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 2
-    table.check_value_columns(
+    table.check_columns_value(
         ["Id", "Name", "State"], 0, ["1", "sleep_prog", "WAITING"]
     )
 
@@ -99,7 +99,7 @@ def test_custom_working_dir(hq_env: HqEnv, tmpdir):
         as_table=True,
         cwd=submit_dir,
     )
-    cwd_submit_tbl.check_value_row("Working Dir", str(test_path))
+    cwd_submit_tbl.check_row_value("Working Dir", str(test_path))
 
     hq_env.start_worker(cpus=1)
     wait_for_job_state(hq_env, 1, ["FINISHED"])
@@ -216,9 +216,9 @@ def test_job_filters(hq_env: HqEnv):
     assert "Job 1 canceled" in r
 
     table = hq_env.command(["jobs"], as_table=True)
-    table.check_value_column("State", 0, "CANCELED")
-    table.check_value_column("State", 1, "WAITING")
-    table.check_value_column("State", 2, "WAITING")
+    table.check_column_value("State", 0, "CANCELED")
+    table.check_column_value("State", 1, "WAITING")
+    table.check_column_value("State", 2, "WAITING")
     assert len(table) == 4
 
     table_canceled = hq_env.command(["jobs", "canceled"], as_table=True)
@@ -250,16 +250,16 @@ def test_job_fail(hq_env: HqEnv):
 
     table = hq_env.command("jobs", as_table=True)
     assert len(table) == 2
-    table.check_value_column("Id", 0, "1")
-    table.check_value_column("Name", 0, "non-existent-program")
-    table.check_value_column("State", 0, "FAILED")
+    table.check_column_value("Id", 0, "1")
+    table.check_column_value("Name", 0, "non-existent-program")
+    table.check_column_value("State", 0, "FAILED")
 
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
-    table.check_value_row("Id", "1")
-    table.check_value_row("State", "FAILED")
+    table.check_row_value("Id", "1")
+    table.check_row_value("State", "FAILED")
 
     table = table[JOB_TABLE_ROWS:]
-    table.check_value_column("Task Id", 0, "0")
+    table.check_column_value("Task Id", 0, "0")
     assert "No such file or directory" in table.get_column_value("Message")[0]
 
 
@@ -276,10 +276,10 @@ def test_cancel_without_workers(hq_env: HqEnv):
     r = hq_env.command(["cancel", "1"])
     assert "Job 1 canceled" in r
     table = hq_env.command(["jobs"], as_table=True)
-    table.check_value_column("State", 0, "CANCELED")
+    table.check_column_value("State", 0, "CANCELED")
     hq_env.start_worker(cpus=1)
     table = hq_env.command(["jobs"], as_table=True)
-    table.check_value_column("State", 0, "CANCELED")
+    table.check_column_value("State", 0, "CANCELED")
 
 
 def test_cancel_running(hq_env: HqEnv):
@@ -290,11 +290,11 @@ def test_cancel_running(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "RUNNING")
 
     table = hq_env.command(["jobs"], as_table=True)
-    table.check_value_column("State", 0, "RUNNING")
+    table.check_column_value("State", 0, "RUNNING")
     r = hq_env.command(["cancel", "1"])
     assert "Job 1 canceled" in r
     table = hq_env.command(["jobs"], as_table=True)
-    table.check_value_column("State", 0, "CANCELED")
+    table.check_column_value("State", 0, "CANCELED")
 
     r = hq_env.command(["cancel", "1"])
     assert "Canceling job 1 failed" in r
@@ -314,8 +314,8 @@ def test_cancel_finished(hq_env: HqEnv):
     assert "Canceling job 2 failed" in r
 
     table = hq_env.command(["jobs"], as_table=True)
-    table.check_value_column("State", 0, "FINISHED")
-    table.check_value_column("State", 1, "FAILED")
+    table.check_column_value("State", 0, "FINISHED")
+    table.check_column_value("State", 1, "FAILED")
 
 
 def test_cancel_last(hq_env: HqEnv):
@@ -342,7 +342,7 @@ def test_cancel_some(hq_env: HqEnv):
 
     table = hq_env.command(["jobs"], as_table=True)
     for i in range(3):
-        table.check_value_column("State", i, "CANCELED")
+        table.check_column_value("State", i, "CANCELED")
 
 
 def test_cancel_all(hq_env: HqEnv):
@@ -419,7 +419,7 @@ def test_set_env(hq_env: HqEnv):
         assert f.read().strip() == "BAR BAR2"
 
     table = hq_env.command(["job", "1"], as_table=True)
-    table.check_value_row("Environment", "FOO=BAR\nFOO2=BAR2")
+    table.check_row_value("Environment", "FOO=BAR\nFOO2=BAR2")
 
 
 def test_max_fails_0(hq_env: HqEnv):
@@ -521,13 +521,13 @@ def test_job_last(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     table = hq_env.command(["job", "last"], as_table=True)
-    table.check_value_row("Id", "1")
+    table.check_row_value("Id", "1")
 
     hq_env.command(["submit", "ls"])
     wait_for_job_state(hq_env, 2, "FINISHED")
 
     table = hq_env.command(["job", "last"], as_table=True)
-    table.check_value_row("Id", "2")
+    table.check_row_value("Id", "2")
 
 
 def test_job_resubmit_with_status(hq_env: HqEnv):
@@ -546,10 +546,10 @@ def test_job_resubmit_with_status(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["resubmit", "1", "--status=failed"], as_table=True)
-    table.check_value_row("Tasks", "4; Ids: 4-6, 8")
+    table.check_row_value("Tasks", "4; Ids: 4-6, 8")
 
     table = hq_env.command(["resubmit", "1", "--status=finished"], as_table=True)
-    table.check_value_row("Tasks", "3; Ids: 3, 7, 9")
+    table.check_row_value("Tasks", "3; Ids: 3, 7, 9")
 
 
 def test_job_resubmit_all(hq_env: HqEnv):
@@ -559,7 +559,7 @@ def test_job_resubmit_all(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     table = hq_env.command(["resubmit", "1"], as_table=True)
-    table.check_value_row("Tasks", "3; Ids: 2, 7, 9")
+    table.check_row_value("Tasks", "3; Ids: 2, 7, 9")
 
 
 def test_job_priority(hq_env: HqEnv, tmp_path):
@@ -629,18 +629,18 @@ def test_job_tasks_table(hq_env: HqEnv):
     hq_env.command(["submit", "echo", "test"])
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)[JOB_TABLE_ROWS:]
     wait_for_job_state(hq_env, 1, "WAITING")
-    table.check_value_column("Worker", 0, "")
+    table.check_column_value("Worker", 0, "")
 
     hq_env.start_worker()
 
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)[JOB_TABLE_ROWS:]
     wait_for_job_state(hq_env, 1, "FINISHED")
-    table.check_value_column("Worker", 0, "worker1")
+    table.check_column_value("Worker", 0, "worker1")
 
     hq_env.command(["submit", "non-existent-program", "test"])
     table = hq_env.command(["job", "2", "--tasks"], as_table=True)[JOB_TABLE_ROWS:]
     wait_for_job_state(hq_env, 2, "FAILED")
-    table.check_value_column("Worker", 0, "worker1")
+    table.check_column_value("Worker", 0, "worker1")
 
 
 def test_job_wait(hq_env: HqEnv):
@@ -651,7 +651,7 @@ def test_job_wait(hq_env: HqEnv):
     assert "1 job finished" in r
 
     table = hq_env.command(["job", "1"], as_table=True)
-    table.check_value_row("State", "FINISHED")
+    table.check_row_value("State", "FINISHED")
 
     r = hq_env.command(["wait", "all"])
     assert "1 job finished" in r
@@ -664,7 +664,7 @@ def test_job_submit_wait(hq_env: HqEnv):
     assert "1 job finished" in r
 
     table = hq_env.command(["job", "1"], as_table=True)
-    table.check_value_row("State", "FINISHED")
+    table.check_row_value("State", "FINISHED")
 
 
 def test_job_wait_failure_exit_code(hq_env: HqEnv):
@@ -691,7 +691,7 @@ def test_job_completion_time(hq_env: HqEnv):
     hq_env.start_worker()
 
     table = hq_env.command(["submit", "sleep", "1"], as_table=True)
-    table.check_value_row("Makespan", "0s")
+    table.check_row_value("Makespan", "0s")
     wait_for_job_state(hq_env, 1, "RUNNING")
 
     table = hq_env.command(["job", "1"], as_table=True)
@@ -721,17 +721,17 @@ def test_job_timeout(hq_env: HqEnv):
     hq_env.command(["submit", "sleep", "2"])
 
     table = hq_env.command(["job", "1"], as_table=True)
-    table.check_value_row("Task time limit", "500ms")
+    table.check_row_value("Task time limit", "500ms")
 
     table = hq_env.command(["job", "2"], as_table=True)
-    table.check_value_row("Task time limit", "3s")
+    table.check_row_value("Task time limit", "3s")
 
     table = hq_env.command(["job", "3"], as_table=True)
-    table.check_value_row("Task time limit", "None")
+    table.check_row_value("Task time limit", "None")
 
     wait_for_job_state(hq_env, 1, "FAILED")
     table = hq_env.command(["job", "1"], as_table=True)
-    table.check_value_row("Task time limit", "500ms")
+    table.check_row_value("Task time limit", "500ms")
     offset = JOB_TABLE_ROWS
     assert table[offset + 1][2] == "Time limit reached"
     assert table.get_row_value("Makespan").startswith("5")
