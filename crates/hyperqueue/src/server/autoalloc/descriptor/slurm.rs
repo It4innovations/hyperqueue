@@ -147,7 +147,7 @@ impl QueueHandler for SlurmHandler {
             let status = get_key("JobState")?;
             let status = match status {
                 "PENDING" | "CONFIGURING" => AllocationStatus::Queued,
-                "RUNNING" => {
+                "RUNNING" | "COMPLETING" => {
                     let started_at = parse_time(get_key("StartTime")?)?;
                     AllocationStatus::Running { started_at }
                 }
