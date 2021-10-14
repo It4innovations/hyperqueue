@@ -227,7 +227,7 @@ async fn handle_autoalloc_message(
                     .collect(),
             }))
         }
-        AutoAllocRequest::AddQueue(params) => create_queue(server_dir, state_ref, params).await,
+        AutoAllocRequest::AddQueue(params) => create_queue(server_dir, state_ref, params),
         AutoAllocRequest::Events { descriptor } => get_event_log(state_ref, descriptor),
         AutoAllocRequest::Info { descriptor } => get_allocations(state_ref, descriptor),
         AutoAllocRequest::RemoveQueue(id) => remove_queue(state_ref, id).await,
@@ -295,7 +295,7 @@ fn get_event_log(state_ref: &StateRef, descriptor: DescriptorId) -> ToClientMess
     }
 }
 
-async fn create_queue(
+fn create_queue(
     server_dir: &ServerDir,
     state_ref: &StateRef,
     request: AddQueueRequest,
@@ -303,7 +303,11 @@ async fn create_queue(
     let server_directory = server_dir.directory().to_path_buf();
     let (handler, params, manager_type) = match request {
         AddQueueRequest::Pbs(params) => {
-            let handler = PbsHandler::new(server_directory, params.additional_args.clone()).await;
+            let handler = PbsHandler::new(
+                server_directory,
+                params.additional_args.clone(),
+                params.name.clone(),
+            );
             (
                 handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler)),
                 params,
@@ -311,7 +315,11 @@ async fn create_queue(
             )
         }
         AddQueueRequest::Slurm(params) => {
-            let handler = SlurmHandler::new(server_directory, params.additional_args.clone()).await;
+            let handler = SlurmHandler::new(
+                server_directory,
+                params.additional_args.clone(),
+                params.name.clone(),
+            );
             (
                 handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler)),
                 params,

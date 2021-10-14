@@ -184,13 +184,13 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
 
     for _ in 0..allocations_to_create {
         let schedule_fut = {
-            let state = state_ref.get();
-            let descriptor = get_or_return!(state.get_autoalloc_state().get_descriptor(id));
-            let info = descriptor.descriptor.info();
+            let mut state = state_ref.get_mut();
+            let descriptor = get_or_return!(state.get_autoalloc_state_mut().get_descriptor_mut(id));
+            let info = descriptor.descriptor.info().clone();
             descriptor
                 .descriptor
-                .handler()
-                .schedule_allocation(id, info, workers_per_alloc)
+                .handler_mut()
+                .schedule_allocation(id, &info, workers_per_alloc)
         };
 
         let result = schedule_fut.await;
@@ -421,7 +421,7 @@ mod tests {
         > QueueHandler for Handler<ScheduleFn, StatusFn, RemoveFn, State>
     {
         fn schedule_allocation(
-            &self,
+            &mut self,
             _descriptor_id: DescriptorId,
             _queue_info: &QueueInfo,
             worker_count: u64,
