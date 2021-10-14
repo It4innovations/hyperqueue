@@ -104,18 +104,10 @@ impl TaskEnv {
                     );
                 }
                 Err(e) => {
-                    log::debug!("Inner task failed id={}", task_ref.get().id);
+                    log::debug!("Inner task failed id={}, error={:?}", task_ref.get().id, e);
                     state.finish_task_failed(task_ref, TaskFailInfo::from_string(e.to_string()));
                 }
             }
-
-            /*            tokio::select! {
-                            biased;
-            /*                _ = end_receiver => {
-                                let task_id = task_ref.get().id;
-                                log::debug!("Inner task cancelled id={}", task_id);
-                            }*/
-                        }*/
         });
     }
 }
