@@ -3,57 +3,57 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::Duration;
 
-use crate::common::manager::info::ManagerType;
 use anyhow::Context;
-use bstr::ByteSlice;
 use tokio::process::Command;
 
+use crate::common::manager::info::ManagerType;
 use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
 use crate::common::timeutils::local_to_system_time;
 use crate::server::autoalloc::descriptor::common::{
-    build_worker_args, check_command_output, create_allocation_dir, JOBID_FILE_NAME,
-    SUBMIT_SCRIPT_NAME,
+    build_worker_args, check_command_output, create_allocation_dir, submit_script, ExternalHandler,
 };
 use crate::server::autoalloc::descriptor::{CreatedAllocation, QueueHandler};
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
 use crate::server::autoalloc::{AutoAllocResult, DescriptorId, QueueInfo};
 
 pub struct PbsHandler {
-    server_directory: PathBuf,
-    hq_path: PathBuf,
+    handler: ExternalHandler,
     qsub_args: Vec<String>,
 }
 
 impl PbsHandler {
-    pub async fn new(server_directory: PathBuf, qsub_args: Vec<String>) -> anyhow::Result<Self> {
-        let hq_path = std::env::current_exe().context("Cannot get HyperQueue path")?;
-        Ok(Self {
-            server_directory,
-            hq_path,
-            qsub_args,
-        })
+    pub fn new(
+        server_directory: PathBuf,
+        qsub_args: Vec<String>,
+        name: Option<String>,
+    ) -> anyhow::Result<Self> {
+        let handler = ExternalHandler::new(server_directory, name)?;
+        Ok(Self { handler, qsub_args })
     }
 }
 
 impl QueueHandler for PbsHandler {
     fn schedule_allocation(
-        &self,
+        &mut self,
         descriptor_id: DescriptorId,
         queue_info: &QueueInfo,
         worker_count: u64,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>> {
         let queue = queue_info.queue.clone();
         let timelimit = queue_info.timelimit;
-        let hq_path = self.hq_path.clone();
-        let server_directory = self.server_directory.clone();
-        let name = descriptor_id.to_string();
+        let hq_path = self.handler.hq_path.clone();
+        let server_directory = self.handler.server_directory.clone();
+        let name = self.handler.name.clone();
+        let allocation_num = self.handler.create_allocation_id();
         let qsub_args = self.qsub_args.clone();
 
         Box::pin(async move {
-            let directory = create_allocation_dir(server_directory.clone(), &name)?;
-            let script_path = directory.join(SUBMIT_SCRIPT_NAME);
-            let script_path = script_path.to_str().unwrap();
-
+            let directory = create_allocation_dir(
+                server_directory.clone(),
+                descriptor_id,
+                name.as_ref(),
+                allocation_num,
+            )?;
             let worker_args = build_worker_args(&hq_path, ManagerType::Pbs, &server_directory);
 
             let script = build_pbs_submit_script(
@@ -66,27 +66,8 @@ impl QueueHandler for PbsHandler {
                 &qsub_args.join(" "),
                 &worker_args,
             );
-            std::fs::write(&script_path, script)
-                .with_context(|| anyhow::anyhow!("Cannot write PBS script into {}", script_path))?;
-
-            let arguments = vec!["qsub", script_path];
-
-            log::debug!("Running PBS command `{}`", arguments.join(" "));
-            let mut command = Command::new(&arguments[0]);
-            command.args(&arguments[1..]);
-
-            let output = command.output().await.context("qsub start failed")?;
-            let output = check_command_output(output).context("qsub execution failed")?;
-
-            let job_id = output
-                .stdout
-                .to_str()
-                .map_err(|e| anyhow::anyhow!("Invalid UTF-8 qsub output: {:?}", e))?
-                .trim();
-            let job_id = job_id.to_string();
-
-            // Write the PBS job id to the folder as a debug information
-            std::fs::write(directory.join(JOBID_FILE_NAME), &job_id)?;
+            let job_id =
+                submit_script(script, "qsub", &directory, |output| Ok(output.to_string())).await?;
 
             Ok(CreatedAllocation {
                 id: job_id,

@@ -47,6 +47,9 @@ impl QueueDescriptor {
     pub fn handler(&self) -> &dyn QueueHandler {
         self.handler.as_ref()
     }
+    pub fn handler_mut(&mut self) -> &mut dyn QueueHandler {
+        self.handler.as_mut()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,7 +112,7 @@ impl CreatedAllocation {
 pub trait QueueHandler {
     /// Schedule an allocation that will start the corresponding number of workers.
     fn schedule_allocation(
-        &self,
+        &mut self,
         descriptor_id: DescriptorId,
         queue_info: &QueueInfo,
         worker_count: u64,
