@@ -19,6 +19,8 @@ jobs:
       sha: ${{ env.SHA }}
       tag: ${{ env.TAG }}
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
       - name: Set env on push
         if: github.event_name == 'push'
         run: |
