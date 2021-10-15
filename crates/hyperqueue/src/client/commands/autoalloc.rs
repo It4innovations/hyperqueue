@@ -13,7 +13,6 @@ use std::str::FromStr;
 
 #[derive(Clap)]
 #[clap(setting = clap::AppSettings::ColoredHelp)]
-#[clap(setting = clap::AppSettings::Hidden)] // TODO: remove once autoalloc is ready to be used
 pub struct AutoAllocOpts {
     #[clap(subcommand)]
     subcmd: AutoAllocCommand,

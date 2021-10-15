@@ -22,5 +22,30 @@ Each worker submited through auto allocation is configured that it will terminat
 
 Start auto allocation over PBS in queue "qexp":
 
-$ hq alloc add pbs --queue qexp
+``$ hq alloc add pbs --queue qexp``
 
+Start auto allocation over SLURM in queue "qexp":
+
+``$ hq alloc add slurm --partition qexp``
+
+
+## Information about allocations
+
+
+List of allocations:
+
+``$ hq alloc list``
+
+Allocation details:
+
+``$ hq alloc info <ID>``
+
+
+Events for a queue:
+
+``$ hq alloc events <ID>``
+
+
+## Removing allocation
+
+``$ hq alloc remove <ID>``

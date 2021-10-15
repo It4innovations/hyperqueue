@@ -97,7 +97,7 @@ enum SubCommand {
     Progress(ProgressOpts),
     /// Operations with log
     Log(LogOpts),
-    /// Auto allocation management
+    /// Automatic allocation management
     #[clap(name = "alloc")]
     AutoAlloc(AutoAllocOpts),
     ///Commands for the dashboard
