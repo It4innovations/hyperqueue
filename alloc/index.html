@@ -95,6 +95,10 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#example">Example</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#information-about-allocations">Information about allocations</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#removing-allocation">Removing allocation</a>
+    </li>
     </ul>
                     </li>
                 </ul>
@@ -143,7 +147,18 @@
 <p>Each worker submited through auto allocation is configured that it will terminates after 5 minutes without tasks.</p>
 <h2 id="example">Example<a class="headerlink" href="#example" title="Permanent link">#</a></h2>
 <p>Start auto allocation over PBS in queue "qexp":</p>
-<p>$ hq alloc add pbs --queue qexp</p>
+<p><code>$ hq alloc add pbs --queue qexp</code></p>
+<p>Start auto allocation over SLURM in queue "qexp":</p>
+<p><code>$ hq alloc add slurm --partition qexp</code></p>
+<h2 id="information-about-allocations">Information about allocations<a class="headerlink" href="#information-about-allocations" title="Permanent link">#</a></h2>
+<p>List of allocations:</p>
+<p><code>$ hq alloc list</code></p>
+<p>Allocation details:</p>
+<p><code>$ hq alloc info &lt;ID&gt;</code></p>
+<p>Events for a queue:</p>
+<p><code>$ hq alloc events &lt;ID&gt;</code></p>
+<h2 id="removing-allocation">Removing allocation<a class="headerlink" href="#removing-allocation" title="Permanent link">#</a></h2>
+<p><code>$ hq alloc remove &lt;ID&gt;</code></p>
               
             </div>
           </div>
