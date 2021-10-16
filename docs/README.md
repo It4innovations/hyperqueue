@@ -27,10 +27,6 @@ Project repository: [https://github.com/It4innovations/hyperqueue](https://githu
 
       ``$ hq worker start &``
 
-    * Automatic resource request
-
-      [Not implemented yet]
-
     * Manual request in PBS
 
       - Start worker on the first node of a PBS job
@@ -50,6 +46,17 @@ Project repository: [https://github.com/It4innovations/hyperqueue](https://githu
       - Start worker on all nodes of a Slurm job
 
         ``$ sbatch <your-params-of-sbatch> --wrap "srun hq worker start"``
+
+    * Automatic submission of workers into PBS/SLURM
+
+      - Slurm:
+
+        ``$ hq alloc add slurm --partition <partition>``
+
+      - PBS:
+
+        ``$ hq alloc add pbs --queue <queue>``
+
 
 * Monitor the state of jobs
 

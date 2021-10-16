@@ -138,10 +138,6 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
       ``$ hq worker start &``
 
-    * Automatic resource request
-
-      [Not implemented yet]
-
     * Manual request in PBS
 
       - Start worker on the first node of a PBS job
@@ -161,6 +157,17 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
       - Start worker on all nodes of a Slurm job
 
         ``$ sbatch <your-params-of-sbatch> --wrap "srun hq worker start"``
+
+    * Automatic submission of workers into PBS/SLURM
+
+      - Slurm:
+
+        ``$ hq alloc add slurm --partition <partition>``
+
+      - PBS:
+
+        ``$ hq alloc add pbs --queue <queue>``
+
 
 * Monitor the state of jobs
 
