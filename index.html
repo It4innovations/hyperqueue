@@ -154,10 +154,6 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 </ul>
 <p><code>$ hq worker start &amp;</code></p>
 <ul>
-<li>Automatic resource request</li>
-</ul>
-<p>[Not implemented yet]</p>
-<ul>
 <li>
 <p>Manual request in PBS</p>
 </li>
@@ -179,6 +175,17 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 <li>
 <p>Start worker on all nodes of a Slurm job</p>
 <p><code>$ sbatch &lt;your-params-of-sbatch&gt; --wrap "srun hq worker start"</code></p>
+</li>
+<li>
+<p>Automatic submission of workers into PBS/SLURM</p>
+</li>
+<li>
+<p>Slurm:</p>
+<p><code>$ hq alloc add slurm --partition &lt;partition&gt;</code></p>
+</li>
+<li>
+<p>PBS:</p>
+<p><code>$ hq alloc add pbs --queue &lt;queue&gt;</code></p>
 </li>
 </ul>
 </li>
@@ -242,5 +249,5 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 <!--
 MkDocs version : 1.1.2
-Build Date UTC : 2021-10-16 10:00:39.123669+00:00
+Build Date UTC : 2021-10-16 21:05:57.205730+00:00
 -->
