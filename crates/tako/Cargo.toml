@@ -8,13 +8,13 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3"
-tokio = { version= "1.7", features = ["full"] }
+tokio = { version= "1.12", features = ["full"] }
 tokio-util = { version = "0.6", features = ["codec"] }
 bytes = "1.0"
 byteorder = "1.4"
 smallvec = { version = "1.6", features = ["serde"] }
 rmp-serde = "0.15.4"
-rmpv = { version = "0.4", features = ["with-serde"] }
+rmpv = { version = "1.0", features = ["with-serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_bytes = "0.11"
 serde-tuple-vec-map = "1"
@@ -23,7 +23,7 @@ thiserror = "1"
 rand = { version = "0.8", features = ["small_rng"] }
 hashbrown = { version = "0.11", features = ["serde"] }
 ctrlc = "3"
-clap = "3.0.0-beta.2"
+clap = "3.0.0-beta.4"
 gethostname = "0.2"
 log = "0.4"
 env_logger = "0.9"
