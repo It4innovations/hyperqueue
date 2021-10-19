@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use clap::Clap;
+use clap::Parser;
 use tokio::net::UnixListener;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::task::LocalSet;
@@ -17,7 +17,7 @@ use tako::server::client::client_connection_handler;
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(version = "1.0")]
 struct Opts {
     socket_path: String,
