@@ -126,7 +126,7 @@ pub struct TasksInfoResponse {
     pub tasks: Vec<TaskInfo>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CollectedOverview {
     pub worker_overviews: Vec<WorkerOverview>,
 }
