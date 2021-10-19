@@ -1,12 +1,11 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::arraydef::IntArray;
 use crate::stream::reader::logfile::LogFile;
-use clap::Clap;
+use clap::Parser;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct LogOpts {
     /// Path of log file
     filename: PathBuf,
@@ -16,12 +15,10 @@ pub struct LogOpts {
     command: LogCommand,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct SummaryOpts {}
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct ShowOpts {
     /// Filter only specific channel
     #[clap(long)]
@@ -32,8 +29,7 @@ pub struct ShowOpts {
     pub show_empty: bool,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct CatOpts {
     /// Channel name: "stdout" or "stderr"
     pub channel: Channel,
@@ -47,7 +43,7 @@ pub struct CatOpts {
     pub allow_unfinished: bool,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum LogCommand {
     /// Prints summary of log file
     Summary(SummaryOpts),
@@ -59,7 +55,7 @@ pub enum LogCommand {
     Cat(CatOpts),
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum Channel {
     Stdout,
     Stderr,

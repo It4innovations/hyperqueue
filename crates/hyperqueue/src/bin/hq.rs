@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use clap::{Clap, ValueHint};
+use clap::{Parser, ValueHint};
 use cli_table::ColorChoice;
 
 use hyperqueue::client::commands::autoalloc::{command_autoalloc, AutoAllocOpts};
@@ -40,7 +40,7 @@ use tokio::task::LocalSet;
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 // Common CLI options
-#[derive(Clap)]
+#[derive(Parser)]
 struct CommonOpts {
     /// Path to a directory that stores HyperQueue access files
     #[clap(long, global = true, value_hint = ValueHint::DirPath)]
@@ -56,10 +56,8 @@ struct CommonOpts {
 }
 
 // Root CLI options
-#[derive(Clap)]
-#[clap(about = "HyperQueue CLI")]
+#[derive(Parser)]
 #[clap(author, about, version)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
 struct Opts {
     #[clap(flatten)]
     common: CommonOpts,
@@ -70,12 +68,12 @@ struct Opts {
 
 ///HyperQueue Dashboard
 #[allow(clippy::large_enum_variant)]
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(setting = clap::AppSettings::Hidden)]
 struct DashboardOpts {}
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Clap)]
+#[derive(Parser)]
 enum SubCommand {
     /// Commands for controlling the HyperQueue server
     Server(ServerOpts),
@@ -105,8 +103,7 @@ enum SubCommand {
 }
 
 // Server CLI options
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct ServerStartOpts {
     /// Hostname/IP of the machine under which is visible to others, default: hostname
     #[clap(long)]
@@ -121,26 +118,23 @@ struct ServerStartOpts {
     autoalloc_interval: Option<ArgDuration>,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct ServerStopOpts {}
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct ServerInfoOpts {
     /// Show internal internal state of server
     #[clap(long)]
     stats: bool,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct ServerOpts {
     #[clap(subcommand)]
     subcmd: ServerCommand,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 enum ServerCommand {
     /// Start the HyperQueue server
     Start(ServerStartOpts),
@@ -178,30 +172,26 @@ impl From<SelectorArg> for Selector {
     }
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct WaitOpts {
     /// Select job(s) to wait for
     selector_arg: SelectorArg,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct ProgressOpts {
     /// Select job(s) to observe
     selector_arg: SelectorArg,
 }
 
 // Worker CLI options
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct WorkerStopOpts {
     /// Select worker(s) to stop
     selector_arg: SelectorArg,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct WorkerListOpts {
     /// shows running workers
     #[clap(long)]
@@ -212,26 +202,23 @@ struct WorkerListOpts {
     offline: bool,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct WorkerAddressOpts {
     worker_id: WorkerId,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct WorkerOpts {
     #[clap(subcommand)]
     subcmd: WorkerCommand,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct WorkerInfoOpts {
     worker_id: WorkerId,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 enum WorkerCommand {
     /// Start worker
     Start(WorkerStartOpts),
@@ -249,14 +236,12 @@ enum WorkerCommand {
 
 // Job CLI options
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct JobListOpts {
     job_filters: Vec<Status>,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct JobDetailOpts {
     /// Numeric job id or `last` to display the most recently submitted job
     selector_arg: SelectorArg,
@@ -266,8 +251,7 @@ struct JobDetailOpts {
     tasks: bool,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct CancelOpts {
     /// Select job(s) to cancel
     selector_arg: SelectorArg,

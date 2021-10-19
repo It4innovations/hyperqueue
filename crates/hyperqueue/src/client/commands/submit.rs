@@ -5,7 +5,7 @@ use std::{fs, io};
 
 use anyhow::anyhow;
 use bstr::BString;
-use clap::Clap;
+use clap::Parser;
 use tako::common::resources::{CpuRequest, ResourceRequest};
 use tako::messages::common::{ProgramDefinition, StdioDef};
 
@@ -92,8 +92,7 @@ impl FromStr for StdioArg {
     }
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct SubmitOpts {
     command: String,
     args: Vec<String>,
@@ -335,8 +334,7 @@ fn check_suspicious_options(opts: &SubmitOpts, job_type: &JobType) {
     }
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct ResubmitOpts {
     job_id: JobId,
 

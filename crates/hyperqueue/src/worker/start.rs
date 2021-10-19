@@ -8,7 +8,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context};
-use clap::Clap;
+use clap::Parser;
 use futures::TryFutureExt;
 
 use tako::common::error::DsError;
@@ -46,7 +46,7 @@ pub const WORKER_EXTRA_PROCESS_PID: &str = "ProcessPid";
 
 const STDIO_BUFFER_SIZE: usize = 16 * 1024; // 16kB
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum ManagerOpts {
     Detect,
     None,
@@ -73,8 +73,7 @@ impl FromStr for ManagerOpts {
     }
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct WorkerStartOpts {
     /// How many cores should be allocated for the worker
     #[clap(long)]

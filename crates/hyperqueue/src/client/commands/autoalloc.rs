@@ -8,17 +8,16 @@ use crate::transfer::messages::{
     AddQueueParams, AddQueueRequest, AutoAllocRequest, AutoAllocResponse, FromClientMessage,
     ToClientMessage,
 };
-use clap::Clap;
+use clap::Parser;
 use std::str::FromStr;
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct AutoAllocOpts {
     #[clap(subcommand)]
     subcmd: AutoAllocCommand,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 enum AutoAllocCommand {
     /// Displays allocation queues
     List,
@@ -32,21 +31,19 @@ enum AutoAllocCommand {
     Remove(RemoveQueueOpts),
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct AddQueueOpts {
     #[clap(subcommand)]
     subcmd: AddQueueCommand,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct RemoveQueueOpts {
     /// ID of the allocation queue that should be removed
     queue_id: DescriptorId,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum AddQueueCommand {
     /// Create a PBS allocation queue
     Pbs(AddPbsQueueOpts),
@@ -54,8 +51,7 @@ pub enum AddQueueCommand {
     Slurm(AddSlurmQueueOpts),
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 #[clap(setting = clap::AppSettings::TrailingVarArg)]
 pub struct AddPbsQueueOpts {
     /// PBS queue into which the allocations will be queued
@@ -70,8 +66,7 @@ pub struct AddPbsQueueOpts {
     qsub_args: Vec<String>,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 #[clap(setting = clap::AppSettings::TrailingVarArg)]
 pub struct AddSlurmQueueOpts {
     /// SLURM partition into which the allocations will be queued
@@ -86,8 +81,7 @@ pub struct AddSlurmQueueOpts {
     sbatch_args: Vec<String>,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct SharedQueueOpts {
     /// How many jobs should be waiting in the queue to be started
     #[clap(long, short, default_value = "4")]
@@ -106,15 +100,13 @@ struct SharedQueueOpts {
     name: Option<String>,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct EventsOpts {
     /// ID of the allocation queue
     queue: u32,
 }
 
-#[derive(Clap)]
-#[clap(setting = clap::AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct AllocationsOpts {
     /// ID of the allocation queue
     queue: u32,
