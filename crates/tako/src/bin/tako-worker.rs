@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use clap::Clap;
+use clap::Parser;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use tokio::task::LocalSet;
@@ -23,7 +23,7 @@ use tako::worker::task::TaskRef;
 use tako::worker::taskenv::{StopReason, TaskResult};
 use tokio::net::lookup_host;
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(version = "1.0")]
 struct Opts {
     server_address: String,

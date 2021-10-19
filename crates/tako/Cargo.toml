@@ -23,7 +23,7 @@ thiserror = "1"
 rand = { version = "0.8", features = ["small_rng"] }
 hashbrown = { version = "0.11", features = ["serde"] }
 ctrlc = "3"
-clap = "3.0.0-beta.4"
+clap = "3.0.0-beta.5"
 gethostname = "0.2"
 log = "0.4"
 env_logger = "0.9"
