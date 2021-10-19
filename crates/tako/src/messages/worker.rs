@@ -103,12 +103,12 @@ pub struct StealResponseMsg {
     pub responses: Vec<(TaskId, StealResponse)>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct WorkerHwStateMessage {
     pub state: WorkerHwState,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerOverview {
     pub id: WorkerId,
     pub running_tasks: Vec<(TaskId, ResourceAllocation)>,
