@@ -2,7 +2,7 @@
 name = "hyperqueue"
 version = "0.5.0"
 authors = ["Stanislav Bohm <spirali@kreatrix.org>"]
-edition = "2018"
+edition = "2021"
 description = "Job execution system"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
