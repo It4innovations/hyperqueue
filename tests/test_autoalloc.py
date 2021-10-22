@@ -97,6 +97,18 @@ def test_add_slurm_descriptor(hq_env: HqEnv):
     info.check_column_value("ID", 0, "1")
 
 
+def test_too_large_backlog(hq_env: HqEnv):
+    mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021")
+
+    with mock.activate():
+        hq_env.start_server(args=["--autoalloc-interval", "500ms"])
+        add_queue(
+            hq_env,
+            backlog=500,
+            expect_fail="Backlog size is limited to 100 to avoid overloading the job manager",
+        )
+
+
 def test_pbs_queue_qsub_fail(hq_env: HqEnv):
     qsub_code = "exit(1)"
 
@@ -578,6 +590,7 @@ def add_queue(
     workers_per_alloc=1,
     additional_args=None,
     time_limit=None,
+    **kwargs,
 ) -> str:
     args = ["alloc", "add", manager]
     if name is not None:
@@ -599,7 +612,7 @@ def add_queue(
         args.append("--")
         args.extend(additional_args.split(" "))
 
-    return hq_env.command(args)
+    return hq_env.command(args, **kwargs)
 
 
 def prepare_tasks(hq_env: HqEnv, count=1000):

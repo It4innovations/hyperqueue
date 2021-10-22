@@ -1,4 +1,9 @@
+use std::str::FromStr;
+
+use clap::Parser;
+
 use crate::client::globalsettings::GlobalSettings;
+use crate::common::manager::info::ManagerType;
 use crate::common::timeutils::ArgDuration;
 use crate::rpc_call;
 use crate::server::autoalloc::{Allocation, AllocationStatus, DescriptorId};
@@ -8,8 +13,6 @@ use crate::transfer::messages::{
     AddQueueParams, AddQueueRequest, AutoAllocRequest, AutoAllocResponse, FromClientMessage,
     ToClientMessage,
 };
-use clap::Parser;
-use std::str::FromStr;
 
 #[derive(Parser)]
 pub struct AutoAllocOpts {
@@ -162,30 +165,46 @@ pub async fn command_autoalloc(
     Ok(())
 }
 
+fn create_queue_params(cmd: AddQueueCommand) -> (AddQueueParams, ManagerType) {
+    let (queue, shared, additional_args, manager_type) = match cmd {
+        AddQueueCommand::Pbs(opts) => (opts.queue, opts.shared, opts.qsub_args, ManagerType::Pbs),
+        AddQueueCommand::Slurm(opts) => (
+            opts.partition,
+            opts.shared,
+            opts.sbatch_args,
+            ManagerType::Slurm,
+        ),
+    };
+    (
+        AddQueueParams {
+            workers_per_alloc: shared.workers_per_alloc,
+            backlog: shared.backlog,
+            queue,
+            timelimit: shared.time_limit.map(|v| v.into()),
+            name: shared.name,
+            additional_args,
+        },
+        manager_type,
+    )
+}
+
 async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyhow::Result<()> {
     let AddQueueOpts { subcmd } = opts;
+    let (params, manager) = create_queue_params(subcmd);
 
-    let message = match subcmd {
-        AddQueueCommand::Pbs(params) => FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(
-            AddQueueRequest::Pbs(AddQueueParams {
-                workers_per_alloc: params.shared.workers_per_alloc,
-                backlog: params.shared.backlog,
-                queue: params.queue,
-                timelimit: params.shared.time_limit.map(|v| v.into()),
-                name: params.shared.name,
-                additional_args: params.qsub_args,
-            }),
-        )),
-        AddQueueCommand::Slurm(params) => FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(
-            AddQueueRequest::Slurm(AddQueueParams {
-                workers_per_alloc: params.shared.workers_per_alloc,
-                backlog: params.shared.backlog,
-                queue: params.partition,
-                timelimit: params.shared.time_limit.map(|v| v.into()),
-                name: params.shared.name,
-                additional_args: params.sbatch_args,
-            }),
-        )),
+    if params.backlog > 100 {
+        return Err(anyhow::anyhow!(
+            "Backlog size is limited to 100 to avoid overloading the job manager"
+        ));
+    }
+
+    let message = match manager {
+        ManagerType::Pbs => {
+            FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(AddQueueRequest::Pbs(params)))
+        }
+        ManagerType::Slurm => {
+            FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(AddQueueRequest::Slurm(params)))
+        }
     };
 
     let queue_id = rpc_call!(connection, message,
