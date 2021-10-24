@@ -1,2 +1,4 @@
-pub mod painter;
-mod screens;
+pub mod screen;
+pub mod screens;
+pub mod terminal;
+pub mod widgets;

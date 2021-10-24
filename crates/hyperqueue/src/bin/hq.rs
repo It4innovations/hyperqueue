@@ -22,8 +22,8 @@ use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::timeutils::ArgDuration;
-use hyperqueue::dashboard::start::start_ui_loop;
-use hyperqueue::dashboard::ui::painter::DashboardPainter;
+use hyperqueue::dashboard::state::DashboardState;
+use hyperqueue::dashboard::ui_loop::start_ui_loop;
 use hyperqueue::server::bootstrap::{
     get_client_connection, init_hq_server, print_server_info, ServerConfig,
 };
@@ -33,7 +33,6 @@ use hyperqueue::transfer::messages::{
 use hyperqueue::worker::hwdetect::detect_resource;
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::WorkerId;
-use tokio::task::LocalSet;
 
 #[cfg(feature = "jemalloc")]
 #[global_allocator]
@@ -427,14 +426,7 @@ async fn command_dashboard_start(
     gsettings: GlobalSettings,
     _opts: DashboardOpts,
 ) -> anyhow::Result<()> {
-    let _lset = LocalSet::new()
-        .run_until(start_ui_loop(
-            DashboardPainter::init()?,
-            Default::default(),
-            &gsettings,
-        ))
-        .await;
-
+    start_ui_loop(DashboardState::new(), &gsettings).await?;
     Ok(())
 }
 

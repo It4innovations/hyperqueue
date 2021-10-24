@@ -216,7 +216,7 @@ pub struct WorkerExitInfo {
     pub reason: LostWorkerReasonInfo,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerInfo {
     pub id: WorkerId,
     pub configuration: WorkerConfiguration,
