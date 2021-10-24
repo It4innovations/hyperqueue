@@ -426,7 +426,7 @@ async fn command_dashboard_start(
     gsettings: GlobalSettings,
     _opts: DashboardOpts,
 ) -> anyhow::Result<()> {
-    start_ui_loop(DashboardState::new(), &gsettings).await?;
+    start_ui_loop(DashboardState::default(), &gsettings).await?;
     Ok(())
 }
 

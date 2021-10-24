@@ -6,16 +6,18 @@ pub struct DashboardState {
     current_screen: usize, // TODO: usize newtype wrapper or enum
 }
 
-impl DashboardState {
-    pub fn new() -> Self {
-        let screens: Vec<Box<dyn Screen>> = vec![Box::new(HomeScreen::new())];
+impl Default for DashboardState {
+    fn default() -> Self {
+        let screens: Vec<Box<dyn Screen>> = vec![Box::new(HomeScreen::default())];
         DashboardState {
             screens,
             current_screen: 0,
         }
     }
+}
 
-    pub fn get_current_screen(&self) -> &dyn Screen {
-        self.screens[self.current_screen].as_ref()
+impl DashboardState {
+    pub fn get_current_screen_mut(&mut self) -> &mut dyn Screen {
+        self.screens[self.current_screen].as_mut()
     }
 }

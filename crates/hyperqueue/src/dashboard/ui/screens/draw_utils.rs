@@ -1,4 +1,3 @@
-use tui::widgets::{Table, TableState};
 use tui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
@@ -7,48 +6,6 @@ use tui::{
     widgets::{Block, Borders, Paragraph, Row},
     Frame,
 };
-
-static HIGHLIGHT: &str = "=> ";
-
-pub struct ResourceTableProps<'a, T> {
-    pub title: String,
-    pub inline_help: String,
-    pub resource: &'a mut StatefulTable<T>,
-    pub table_headers: Vec<&'a str>,
-    pub column_widths: Vec<Constraint>,
-}
-
-#[derive(Clone)]
-pub struct StatefulTable<T> {
-    pub state: TableState,
-    pub items: Vec<T>,
-}
-
-impl<T> StatefulTable<T> {
-    pub fn new() -> StatefulTable<T> {
-        StatefulTable {
-            state: TableState::default(),
-            items: Vec::new(),
-        }
-    }
-
-    pub fn set_items(&mut self, items: Vec<T>) {
-        let item_len = items.len();
-        self.items = items;
-        if !self.items.is_empty() {
-            let i = self.state.selected().map_or(0, |i| {
-                if i > 0 && i < item_len {
-                    i
-                } else if i >= item_len {
-                    item_len - 1
-                } else {
-                    0
-                }
-            });
-            self.state.select(Some(i));
-        }
-    }
-}
 
 pub fn draw_loading_screen<B: Backend>(
     f: &mut Frame<B>,
@@ -66,34 +23,6 @@ pub fn draw_loading_screen<B: Backend>(
         f.render_widget(paragraph, area);
     } else {
         f.render_widget(block, area)
-    }
-}
-
-pub(crate) fn draw_table<'a, B, T, F>(
-    f: &mut Frame<B>,
-    area: Rect,
-    table_props: ResourceTableProps<'a, T>,
-    row_cell_mapper: F,
-    is_loading: bool,
-) where
-    B: Backend,
-    F: Fn(&T) -> Row<'a>,
-{
-    let title = title_with_dual_style(table_props.title, table_props.inline_help);
-    let body_block = draw_body_with_title(title);
-
-    if !table_props.resource.items.is_empty() {
-        let rows = table_props.resource.items.iter().map(row_cell_mapper);
-
-        let table = Table::new(rows)
-            .header(table_header_style(table_props.table_headers))
-            .block(body_block)
-            .highlight_style(style_highlight())
-            .highlight_symbol(HIGHLIGHT)
-            .widths(&table_props.column_widths);
-        f.render_stateful_widget(table, area, &mut table_props.resource.state);
-    } else {
-        draw_loading_screen(f, body_block, area, is_loading);
     }
 }
 

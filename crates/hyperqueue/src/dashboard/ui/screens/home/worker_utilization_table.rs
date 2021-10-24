@@ -1,46 +1,36 @@
 use tako::messages::gateway::CollectedOverview;
 use tako::WorkerId;
-use tui::layout::Rect;
+use tui::layout::{Constraint, Rect};
+use tui::widgets::{Cell, Row};
 
-use crate::dashboard::ui::screens::draw_utils::StatefulTable;
 use crate::dashboard::ui::terminal::DashboardFrame;
+use crate::dashboard::ui::widgets::table::{ResourceTableProps, StatefulTable};
 use crate::dashboard::utils::{calculate_memory_usage_percent, get_average_cpu_usage_for_worker};
 
-pub struct HwUtilTable {
-    stateful_table: StatefulTable<WorkerUtilTableCols>,
+#[derive(Default)]
+pub struct WorkerUtilTable {
+    table: StatefulTable<WorkerUtilRow>,
 }
 
-struct WorkerUtilTableCols {
-    id: WorkerId,
-    num_tasks: i32,
-    average_cpu_usage: f32,
-    memory_usage: u64,
-    collection_timestamp: u64,
-}
-
-impl HwUtilTable {
-    pub fn new() -> Self {
-        let stateful_table: StatefulTable<WorkerUtilTableCols> = StatefulTable::new();
-        Self { stateful_table }
-    }
-
-    fn draw(&self, rect: Rect, frame: &mut DashboardFrame, data: Option<CollectedOverview>) {
-        //fixme: don't unwrap
-        /*let table_columns = WorkerUtilTableCols::from(data.unwrap());
-        self.stateful_table.set_items(table_columns);
-
-        draw_table(
-            frame,
+impl WorkerUtilTable {
+    pub fn draw(
+        &mut self,
+        rect: Rect,
+        frame: &mut DashboardFrame,
+        overview: Option<&CollectedOverview>,
+    ) {
+        let rows = create_rows(overview);
+        self.table.draw(
             rect,
+            frame,
             ResourceTableProps {
                 title: "worker hardware utilization".to_string(),
                 inline_help: "".to_string(),
-                resource: &mut self.stateful_table.clone(),
                 table_headers: vec![
                     "worker_id",
                     "#tasks",
                     "cpu_util (%)",
-                    "mem_util(%)",
+                    "mem_util (%)",
                     "timestamp",
                 ],
                 column_widths: vec![
@@ -51,40 +41,61 @@ impl HwUtilTable {
                     Constraint::Percentage(20),
                 ],
             },
+            &rows,
             |data| {
                 Row::new(vec![
                     Cell::from(data.id.to_string()),
                     Cell::from(data.num_tasks.to_string()),
-                    Cell::from(data.average_cpu_usage.to_string()),
-                    Cell::from(data.memory_usage.to_string()),
-                    Cell::from(data.collection_timestamp.to_string()),
+                    Cell::from(
+                        data.average_cpu_usage
+                            .map(|v| v.to_string())
+                            .unwrap_or_else(|| "N/A".to_string()),
+                    ),
+                    Cell::from(
+                        data.memory_usage
+                            .map(|v| v.to_string())
+                            .unwrap_or_else(|| "N/A".to_string()),
+                    ),
+                    Cell::from(
+                        data.collection_timestamp
+                            .map(|v| v.to_string())
+                            .unwrap_or_else(|| "N/A".to_string()),
+                    ),
                 ])
             },
-            true,
-        );*/
+        );
     }
 }
 
-/// The columns in the Worker Utilization Table from Overview
-impl WorkerUtilTableCols {
-    fn from(overview: CollectedOverview) -> Vec<Self> {
-        let mut util_vec: Vec<WorkerUtilTableCols> = vec![];
+struct WorkerUtilRow {
+    id: WorkerId,
+    num_tasks: u32,
+    average_cpu_usage: Option<f32>,
+    memory_usage: Option<u64>,
+    collection_timestamp: Option<u64>,
+}
 
-        for overview in overview.worker_overviews {
-            if let Some(hw_overview) = overview.hw_state {
-                let avg_cpu_usage = get_average_cpu_usage_for_worker(hw_overview.clone());
+fn create_rows(overview: Option<&CollectedOverview>) -> Vec<WorkerUtilRow> {
+    match overview {
+        Some(overview) => overview
+            .worker_overviews
+            .iter()
+            .map(|worker| {
+                let hw_state = worker.hw_state.as_ref();
+                let average_cpu_usage = hw_state.map(|s| get_average_cpu_usage_for_worker(s));
+                let memory_usage =
+                    hw_state.map(|s| calculate_memory_usage_percent(&s.state.worker_memory_usage));
+                let collection_timestamp = hw_state.map(|s| s.state.timestamp);
 
-                util_vec.push(WorkerUtilTableCols {
-                    id: overview.id,
-                    num_tasks: overview.running_tasks.len() as i32,
-                    average_cpu_usage: avg_cpu_usage,
-                    memory_usage: calculate_memory_usage_percent(
-                        hw_overview.state.worker_memory_usage,
-                    ),
-                    collection_timestamp: hw_overview.state.timestamp,
-                });
-            }
-        }
-        util_vec
+                WorkerUtilRow {
+                    id: worker.id,
+                    num_tasks: worker.running_tasks.len() as u32,
+                    average_cpu_usage,
+                    memory_usage,
+                    collection_timestamp,
+                }
+            })
+            .collect(),
+        None => vec![],
     }
 }

@@ -9,14 +9,15 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::dashboard::events::DashboardEvent;
 use crate::dashboard::state::DashboardState;
 use crate::dashboard::ui::terminal::initialize_terminal;
+use crate::dashboard::utils::get_hw_overview;
 use crate::server::bootstrap::get_client_connection;
 
 /// Starts the dashboard UI with a keyboard listener and tick provider
 pub async fn start_ui_loop(
-    state: DashboardState,
+    mut state: DashboardState,
     gsettings: &GlobalSettings,
 ) -> anyhow::Result<()> {
-    let connection = get_client_connection(gsettings.server_directory()).await?;
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     start_key_event_listener(tx.clone());
 
@@ -41,14 +42,16 @@ pub async fn start_ui_loop(
                     DashboardEvent::UiTick => {
                         terminal
                             .draw(|frame| {
-                                let screen = state.get_current_screen();
+                                let screen = state.get_current_screen_mut();
                                 screen.draw(frame);
                             })
                             .expect("An error occurred while drawing the dashboard");
                     }
+                    // TODO: move to another thread in order to not block UI
                     DashboardEvent::DataTick => {
-                        // home_data.refresh_data(connection).await?;
-                        // home_painter.update_data(home_data.clone());
+                        let overview = get_hw_overview(&mut connection).await?;
+                        let screen = state.get_current_screen_mut();
+                        screen.update(overview);
                     }
                 }
             }

@@ -1,26 +1,28 @@
+use tako::messages::gateway::CollectedOverview;
 use tui::layout::{Constraint, Rect};
 
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::screens::draw_utils::vertical_chunks;
-use crate::dashboard::ui::screens::home::worker_utilization_table::HwUtilTable;
+use crate::dashboard::ui::screens::home::worker_utilization_table::WorkerUtilTable;
 use crate::dashboard::ui::terminal::DashboardFrame;
-use crate::dashboard::ui::widgets::header::draw_header;
+use crate::dashboard::ui::widgets::text::draw_text;
 
+#[derive(Default)]
 pub struct HomeScreen {
-    worker_table: HwUtilTable,
-}
-
-impl HomeScreen {
-    pub fn new() -> Self {
-        let worker_table = HwUtilTable::new();
-        Self { worker_table }
-    }
+    worker_table: WorkerUtilTable,
+    overview: Option<CollectedOverview>,
 }
 
 impl Screen for HomeScreen {
-    fn draw(&self, frame: &mut DashboardFrame) {
+    fn draw(&mut self, frame: &mut DashboardFrame) {
         let layout = Layout::new(frame);
-        draw_header(layout.header_chunk, frame, "HQ top");
+        draw_text(layout.header_chunk, frame, "HQ top");
+        self.worker_table
+            .draw(layout.body_chunk, frame, self.overview.as_ref());
+    }
+
+    fn update(&mut self, overview: CollectedOverview) {
+        self.overview = Some(overview);
     }
 }
 
