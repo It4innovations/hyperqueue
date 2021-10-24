@@ -1,3 +1,4 @@
+use std::ops::ControlFlow;
 use std::{io, thread};
 
 use termion::event::Key;
@@ -8,9 +9,10 @@ use tokio::time::Duration;
 use crate::client::globalsettings::GlobalSettings;
 use crate::dashboard::events::DashboardEvent;
 use crate::dashboard::state::DashboardState;
-use crate::dashboard::ui::terminal::initialize_terminal;
+use crate::dashboard::ui::terminal::{initialize_terminal, DashboardTerminal};
 use crate::dashboard::utils::get_hw_overview;
 use crate::server::bootstrap::get_client_connection;
+use crate::transfer::connection::ClientConnection;
 
 /// Starts the dashboard UI with a keyboard listener and tick provider
 pub async fn start_ui_loop(
@@ -21,7 +23,7 @@ pub async fn start_ui_loop(
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     start_key_event_listener(tx.clone());
 
-    let ui_ticker = send_event_every(250, tx.clone(), DashboardEvent::UiTick);
+    let ui_ticker = send_event_every(100, tx.clone(), DashboardEvent::UiTick);
     let data_ticker = send_event_every(500, tx, DashboardEvent::DataTick);
 
     let mut terminal = initialize_terminal()?;
@@ -31,28 +33,13 @@ pub async fn start_ui_loop(
             if let Some(dashboard_event) = rx.recv().await {
                 match dashboard_event {
                     DashboardEvent::KeyPressEvent(input) => {
-                        //todo: handle all low level events
-                        if input == Key::Char('q') {
-                            // Quits the dashboard
-                            break Ok(());
-                        } else {
-                            //home_data.dispatch_key_event(input);
+                        if let ControlFlow::Break(res) = handle_key(&mut state, input) {
+                            break res;
                         }
                     }
-                    DashboardEvent::UiTick => {
-                        terminal
-                            .draw(|frame| {
-                                let screen = state.get_current_screen_mut();
-                                screen.draw(frame);
-                            })
-                            .expect("An error occurred while drawing the dashboard");
-                    }
+                    DashboardEvent::UiTick => draw(&mut state, &mut terminal),
                     // TODO: move to another thread in order to not block UI
-                    DashboardEvent::DataTick => {
-                        let overview = get_hw_overview(&mut connection).await?;
-                        let screen = state.get_current_screen_mut();
-                        screen.update(overview);
-                    }
+                    DashboardEvent::DataTick => update(&mut state, &mut connection).await?,
                 }
             }
         }
@@ -62,6 +49,36 @@ pub async fn start_ui_loop(
         _ = data_ticker => {Ok(()) }
         result = event_loop => { result }
     }
+}
+
+async fn update(
+    state: &mut DashboardState,
+    mut connection: &mut ClientConnection,
+) -> anyhow::Result<()> {
+    let overview = get_hw_overview(&mut connection).await?;
+    let screen = state.get_current_screen_mut();
+    screen.update(overview);
+    Ok(())
+}
+
+fn handle_key(state: &mut DashboardState, input: Key) -> ControlFlow<anyhow::Result<()>> {
+    if input == Key::Char('q') {
+        // Quits the dashboard
+        ControlFlow::Break(Ok(()))
+    } else {
+        let screen = state.get_current_screen_mut();
+        screen.handle_key(input);
+        ControlFlow::Continue(())
+    }
+}
+
+fn draw(state: &mut DashboardState, terminal: &mut DashboardTerminal) {
+    terminal
+        .draw(|frame| {
+            let screen = state.get_current_screen_mut();
+            screen.draw(frame);
+        })
+        .expect("An error occurred while drawing the dashboard");
 }
 
 ///Handles key press events when the dashboard_ui is active

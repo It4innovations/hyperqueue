@@ -13,13 +13,20 @@ pub struct WorkerUtilTable {
 }
 
 impl WorkerUtilTable {
-    pub fn draw(
-        &mut self,
-        rect: Rect,
-        frame: &mut DashboardFrame,
-        overview: Option<&CollectedOverview>,
-    ) {
+    pub fn update(&mut self, overview: CollectedOverview) {
         let rows = create_rows(overview);
+        self.table.set_items(rows);
+    }
+
+    pub fn select_next_worker(&mut self) {
+        self.table.select_next_wrap();
+    }
+
+    pub fn select_previous_worker(&mut self) {
+        self.table.select_previous_wrap();
+    }
+
+    pub fn draw(&mut self, rect: Rect, frame: &mut DashboardFrame) {
         self.table.draw(
             rect,
             frame,
@@ -41,7 +48,6 @@ impl WorkerUtilTable {
                     Constraint::Percentage(20),
                 ],
             },
-            &rows,
             |data| {
                 Row::new(vec![
                     Cell::from(data.id.to_string()),
@@ -75,27 +81,24 @@ struct WorkerUtilRow {
     collection_timestamp: Option<u64>,
 }
 
-fn create_rows(overview: Option<&CollectedOverview>) -> Vec<WorkerUtilRow> {
-    match overview {
-        Some(overview) => overview
-            .worker_overviews
-            .iter()
-            .map(|worker| {
-                let hw_state = worker.hw_state.as_ref();
-                let average_cpu_usage = hw_state.map(|s| get_average_cpu_usage_for_worker(s));
-                let memory_usage =
-                    hw_state.map(|s| calculate_memory_usage_percent(&s.state.worker_memory_usage));
-                let collection_timestamp = hw_state.map(|s| s.state.timestamp);
+fn create_rows(overview: CollectedOverview) -> Vec<WorkerUtilRow> {
+    overview
+        .worker_overviews
+        .iter()
+        .map(|worker| {
+            let hw_state = worker.hw_state.as_ref();
+            let average_cpu_usage = hw_state.map(|s| get_average_cpu_usage_for_worker(s));
+            let memory_usage =
+                hw_state.map(|s| calculate_memory_usage_percent(&s.state.worker_memory_usage));
+            let collection_timestamp = hw_state.map(|s| s.state.timestamp);
 
-                WorkerUtilRow {
-                    id: worker.id,
-                    num_tasks: worker.running_tasks.len() as u32,
-                    average_cpu_usage,
-                    memory_usage,
-                    collection_timestamp,
-                }
-            })
-            .collect(),
-        None => vec![],
-    }
+            WorkerUtilRow {
+                id: worker.id,
+                num_tasks: worker.running_tasks.len() as u32,
+                average_cpu_usage,
+                memory_usage,
+                collection_timestamp,
+            }
+        })
+        .collect()
 }
