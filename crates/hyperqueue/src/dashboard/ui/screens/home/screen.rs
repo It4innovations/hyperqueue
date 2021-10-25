@@ -1,10 +1,10 @@
 use tako::messages::gateway::CollectedOverview;
 use termion::event::Key;
-use tui::layout::{Constraint, Rect};
+use tui::layout::{Constraint, Direction, Rect};
 
 use crate::dashboard::ui::screen::Screen;
-use crate::dashboard::ui::screens::draw_utils::vertical_chunks;
 use crate::dashboard::ui::screens::home::worker_utilization_table::WorkerUtilTable;
+use crate::dashboard::ui::screens::styles::style_header_text;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
 
@@ -16,7 +16,7 @@ pub struct HomeScreen {
 impl Screen for HomeScreen {
     fn draw(&mut self, frame: &mut DashboardFrame) {
         let layout = Layout::new(frame);
-        draw_text(layout.header_chunk, frame, "HQ top");
+        draw_text("HQ top", layout.header_chunk, frame, style_header_text());
         self.worker_table.draw(layout.body_chunk, frame);
     }
 
@@ -56,4 +56,11 @@ impl Layout {
             body_chunk: base_chunks[1],
         }
     }
+}
+
+pub fn vertical_chunks(constraints: Vec<Constraint>, size: Rect) -> Vec<Rect> {
+    tui::layout::Layout::default()
+        .constraints(constraints.as_ref())
+        .direction(Direction::Vertical)
+        .split(size)
 }

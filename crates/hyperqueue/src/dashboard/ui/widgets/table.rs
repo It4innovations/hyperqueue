@@ -1,13 +1,13 @@
 use tui::layout::{Alignment, Constraint, Rect};
 use tui::widgets::{Paragraph, Row, Table, TableState, Wrap};
 
-use crate::dashboard::ui::screens::draw_utils;
+use crate::dashboard::ui::screens::styles;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use tui::text::Spans;
 
 static HIGHLIGHT: &str = "=> ";
 
-pub struct ResourceTableProps {
+pub struct TableColumnHeaders {
     pub title: String,
     pub inline_help: String,
     pub table_headers: Vec<&'static str>,
@@ -81,22 +81,23 @@ impl<T> StatefulTable<T> {
         &mut self,
         rect: Rect,
         frame: &mut DashboardFrame,
-        props: ResourceTableProps,
+        columns: TableColumnHeaders,
         row_cell_mapper: F,
     ) where
         F: Fn(&T) -> Row<'a>,
     {
-        let title = draw_utils::title_with_dual_style(props.title, props.inline_help);
-        let body_block = draw_utils::draw_body_with_title(title);
+        let title = styles::table_title(columns.title);
+        let body_block = styles::table_block_with_title(title);
 
         if self.has_items() {
             let rows = self.items.iter().map(row_cell_mapper);
             let table = Table::new(rows)
-                .header(draw_utils::table_header_style(props.table_headers))
+                .header(styles::style_column_headers(columns.table_headers))
                 .block(body_block)
-                .highlight_style(draw_utils::style_highlight())
+                .highlight_style(styles::style_table_highlight())
+                .style(styles::style_table_row())
                 .highlight_symbol(HIGHLIGHT)
-                .widths(&props.column_widths);
+                .widths(&columns.column_widths);
             frame.render_stateful_widget(table, rect, &mut self.state);
         } else {
             let header_text = vec![Spans::from("No data")];
