@@ -20,6 +20,7 @@ pub const MAX_DISPLAYED_WORKERS: usize = 2;
 
 pub enum Outputs {
     CLI,
+    JSON,
 }
 
 impl FromStr for Outputs {
@@ -28,6 +29,7 @@ impl FromStr for Outputs {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "cli" => Ok(Outputs::CLI),
+            "json" => Ok(Outputs::JSON),
             _ => anyhow::bail!("Invalid output"),
         }
     }
