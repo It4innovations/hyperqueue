@@ -16,7 +16,8 @@ use hyperqueue::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progr
 use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, stop_worker};
 use hyperqueue::client::globalsettings::GlobalSettings;
 use hyperqueue::client::output::cli::CliOutput;
-use hyperqueue::client::output::outputs::Outputs;
+use hyperqueue::client::output::json::JsonOutput;
+use hyperqueue::client::output::outputs::{Output, Outputs};
 use hyperqueue::client::status::Status;
 use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::fsutils::absolute_path;
@@ -51,7 +52,7 @@ struct CommonOpts {
     colors: ColorPolicy,
 
     /// Output selection
-    #[clap(long, default_value = "cli", possible_values = &["cli"])]
+    #[clap(long, default_value = "cli", possible_values = &["cli","json"])]
     output_type: Outputs,
 }
 
@@ -468,7 +469,7 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
     };
 
     // Create Printer
-    let printer = match opts.output_type {
+    let printer: Box<dyn Output> = match opts.output_type {
         Outputs::CLI => {
             // Set colored settings for CLI
             match color_policy {
@@ -481,6 +482,7 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
 
             Box::new(CliOutput::new(color_policy))
         }
+        Outputs::JSON => Box::new(JsonOutput::default()),
     };
 
     GlobalSettings::new(server_dir, printer)

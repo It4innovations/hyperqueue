@@ -832,7 +832,7 @@ fn format_cpu_request(cr: &CpuRequest) -> String {
 }
 
 /// Formatting
-fn format_job_workers(job: &JobDetail, worker_map: &WorkerMap) -> String {
+pub fn format_job_workers(job: &JobDetail, worker_map: &WorkerMap) -> String {
     // BTreeSet is used to both filter duplicates and keep a stable order
     let worker_set: BTreeSet<_> = job
         .tasks
@@ -862,7 +862,7 @@ fn format_worker(id: WorkerId, worker_map: &WorkerMap) -> &str {
         .unwrap_or_else(|| "N/A")
 }
 
-fn format_task_duration(
+pub fn format_task_duration(
     completion_date_or_now: &chrono::DateTime<chrono::Utc>,
     state: &JobTaskState,
 ) -> String {

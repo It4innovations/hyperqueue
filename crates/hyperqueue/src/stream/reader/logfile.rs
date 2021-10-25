@@ -3,6 +3,7 @@ use crate::transfer::stream::ChannelId;
 use crate::{JobTaskCount, JobTaskId, Map, Set};
 use byteorder::ReadBytesExt;
 use colored::{Color, Colorize};
+use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -79,6 +80,7 @@ pub struct LogFile {
     start_pos: u64,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Summary {
     pub n_tasks: JobTaskCount,
     pub n_streams: u64,

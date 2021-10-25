@@ -3,3 +3,4 @@ pytest-benchmark==3.4.1
 flake8==3.9.2
 black==21.9b0
 isort==5.9.3
+iso8601==1.0.0
