@@ -4,7 +4,7 @@ use tui::layout::{Constraint, Rect};
 use tui::widgets::{Cell, Row};
 
 use crate::dashboard::ui::terminal::DashboardFrame;
-use crate::dashboard::ui::widgets::table::{ResourceTableProps, StatefulTable};
+use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumns};
 use crate::dashboard::utils::{calculate_memory_usage_percent, get_average_cpu_usage_for_worker};
 
 #[derive(Default)]
@@ -30,7 +30,7 @@ impl WorkerUtilTable {
         self.table.draw(
             rect,
             frame,
-            ResourceTableProps {
+            TableColumns {
                 title: "worker hardware utilization".to_string(),
                 inline_help: "".to_string(),
                 table_headers: vec![
