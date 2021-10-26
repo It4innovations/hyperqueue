@@ -38,8 +38,7 @@ impl ServerDir {
     }
 
     pub fn create(directory: &Path, record: &AccessRecord) -> crate::Result<ServerDir> {
-        let dir_path = directory.join(record.start_date().format("%Y-%m-%d-%H-%M-%S").to_string());
-        std::fs::create_dir_all(&dir_path)?;
+        let dir_path = create_new_server_dir(directory)?;
 
         let server_dir = ServerDir::open(&dir_path)?;
         let access_file_path = server_dir.access_filename();
@@ -101,6 +100,38 @@ fn serde_deserialize_key<'de, D: Deserializer<'de>>(
     deserialize_key(&key)
         .map(Arc::new)
         .map_err(|e| D::Error::custom(format!("Could not load secret key {}", e)))
+}
+
+/// Finds all child directories in the given directory.
+/// For each directory, tries to parse its name as an integer.
+/// Returns the maximum found successfully parsed integer or [`None`] if no integer was found.
+fn find_max_id_in_dir(directory: &Path) -> Option<u64> {
+    if let Ok(entries) = std::fs::read_dir(directory) {
+        entries
+            .filter_map(|entry| {
+                entry.ok().and_then(|entry| {
+                    match entry.metadata().ok().map(|m| m.is_dir()).unwrap_or(false) {
+                        true => entry
+                            .file_name()
+                            .to_str()
+                            .and_then(|f| f.parse::<u64>().ok()),
+                        false => None,
+                    }
+                })
+            })
+            .max()
+    } else {
+        None
+    }
+}
+
+fn create_new_server_dir(directory: &Path) -> crate::Result<PathBuf> {
+    let max_id = find_max_id_in_dir(directory).unwrap_or(0);
+    let new_id = max_id + 1;
+
+    let dir_path = directory.join(format!("{:03}", new_id));
+    std::fs::create_dir_all(&dir_path)?;
+    Ok(dir_path)
 }
 
 /// This data structure represents information required to connect to a running instance of
@@ -198,9 +229,13 @@ pub fn load_access_file<P: AsRef<Path>>(path: P) -> crate::Result<AccessRecord> 
 
 #[cfg(test)]
 mod tests {
+    use std::fs::DirEntry;
+    use std::path::PathBuf;
     use tempdir::TempDir;
 
-    use crate::common::serverdir::{load_access_file, store_access_record, AccessRecord};
+    use crate::common::serverdir::{
+        create_new_server_dir, load_access_file, store_access_record, AccessRecord,
+    };
 
     #[test]
     fn test_roundtrip() {
@@ -210,5 +245,55 @@ mod tests {
         store_access_record(&record, path.clone()).unwrap();
         let loaded = load_access_file(path).unwrap();
         assert!(record == loaded);
+    }
+
+    #[test]
+    fn test_server_dir_start_at_one() {
+        let path = TempDir::new("foo").unwrap();
+        create_new_server_dir(path.as_ref()).unwrap();
+        let entry = std::fs::read_dir(&path).unwrap().next().unwrap().unwrap();
+        assert_eq!(entry.file_name().to_str().unwrap(), "001");
+    }
+
+    #[test]
+    fn test_server_dir_find_max_id() {
+        let path = TempDir::new("foo").unwrap();
+        std::fs::create_dir_all(PathBuf::from(path.path()).join("001")).unwrap();
+        std::fs::create_dir_all(PathBuf::from(path.path()).join("002")).unwrap();
+        std::fs::create_dir_all(PathBuf::from(path.path()).join("003")).unwrap();
+        std::fs::create_dir_all(PathBuf::from(path.path()).join("004")).unwrap();
+
+        let created = create_new_server_dir(path.as_ref()).unwrap();
+        assert_eq!(created.file_name().unwrap().to_str().unwrap(), "005");
+
+        let entry: Result<Vec<DirEntry>, _> = std::fs::read_dir(&path).unwrap().collect();
+        assert!(entry
+            .unwrap()
+            .into_iter()
+            .find(|p| p.file_name().to_str() == Some("005"))
+            .is_some());
+    }
+
+    #[test]
+    fn test_server_dir_find_max_id_without_zero_padding() {
+        let path = TempDir::new("foo").unwrap();
+        std::fs::create_dir_all(PathBuf::from(path.path()).join("1")).unwrap();
+        std::fs::create_dir_all(PathBuf::from(path.path()).join("3")).unwrap();
+        std::fs::create_dir_all(PathBuf::from(path.path()).join("8")).unwrap();
+        std::fs::create_dir_all(PathBuf::from(path.path()).join("136")).unwrap();
+
+        let created = create_new_server_dir(path.as_ref()).unwrap();
+        assert_eq!(created.file_name().unwrap().to_str().unwrap(), "137");
+    }
+
+    #[test]
+    fn test_server_dir_find_max_id_no_number() {
+        let path = TempDir::new("foo").unwrap();
+        std::fs::create_dir_all(PathBuf::from(path.path()).join("a")).unwrap();
+        std::fs::create_dir_all(PathBuf::from(path.path()).join("b")).unwrap();
+        std::fs::create_dir_all(PathBuf::from(path.path()).join("c")).unwrap();
+
+        let created = create_new_server_dir(path.as_ref()).unwrap();
+        assert_eq!(created.file_name().unwrap().to_str().unwrap(), "001");
     }
 }
