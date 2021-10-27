@@ -26,7 +26,6 @@ RUNNING_IN_CI = "CI" in os.environ
 class Env:
     def __init__(self, work_path):
         self.processes = []
-        self.cleanups = []
         self.work_path = work_path
 
     def start_process(self, name, args, env=None, catch_io=True, cwd=None):
@@ -74,12 +73,11 @@ class Env:
                 )
 
     def kill_all(self):
-        for fn in self.cleanups:
-            fn()
-        for n, p in self.processes:
+        self.sort_processes_for_kill()
+        for _, process in self.processes:
             # Kill the whole group since the process may spawn a child
-            if not p.poll():
-                os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+            if not process.poll():
+                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
 
     def kill_process(self, name):
         for i, (n, p) in enumerate(self.processes):
@@ -91,6 +89,9 @@ class Env:
                 return
         else:
             raise Exception("Process not found")
+
+    def sort_processes_for_kill(self):
+        pass
 
 
 class HqEnv(Env):
@@ -246,6 +247,10 @@ class HqEnv(Env):
 
     def close(self):
         pass
+
+    def sort_processes_for_kill(self):
+        # Kill server last to avoid workers ending too soon
+        self.processes.sort(key=lambda process: 1 if "server" in process[0] else 0)
 
 
 @pytest.fixture(autouse=False, scope="function")
