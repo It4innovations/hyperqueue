@@ -27,6 +27,11 @@ impl WorkerUtilTable {
         self.table.select_previous_wrap();
     }
 
+    pub fn get_selected_item(&self) -> Option<WorkerId> {
+        let selection = self.table.current_selection();
+        selection.map(|row| row.id)
+    }
+
     pub fn draw(&mut self, rect: Rect, frame: &mut DashboardFrame) {
         self.table.draw(
             rect,
@@ -34,13 +39,13 @@ impl WorkerUtilTable {
             TableColumnHeaders {
                 title: "worker hardware utilization".to_string(),
                 inline_help: "".to_string(),
-                table_headers: vec![
+                table_headers: Some(vec![
                     "worker_id",
                     "#tasks",
                     "cpu_util (%)",
                     "mem_util (%)",
                     "timestamp",
-                ],
+                ]),
                 column_widths: vec![
                     Constraint::Percentage(20),
                     Constraint::Percentage(20),

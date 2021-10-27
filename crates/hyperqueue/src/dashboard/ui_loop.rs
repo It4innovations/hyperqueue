@@ -6,9 +6,11 @@ use termion::input::TermRead;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Duration;
 
+use crate::client::commands::worker::get_worker_list;
 use crate::client::globalsettings::GlobalSettings;
 use crate::dashboard::events::DashboardEvent;
 use crate::dashboard::state::DashboardState;
+use crate::dashboard::ui::screen::ClusterState;
 use crate::dashboard::ui::terminal::{initialize_terminal, DashboardTerminal};
 use crate::dashboard::utils::get_hw_overview;
 use crate::server::bootstrap::get_client_connection;
@@ -53,11 +55,16 @@ pub async fn start_ui_loop(
 
 async fn update(
     state: &mut DashboardState,
-    mut connection: &mut ClientConnection,
+    connection: &mut ClientConnection,
 ) -> anyhow::Result<()> {
-    let overview = get_hw_overview(&mut connection).await?;
+    let overview = get_hw_overview(connection).await?;
+    let worker_info = get_worker_list(connection, true, false).await?;
+
     let screen = state.get_current_screen_mut();
-    screen.update(overview);
+    screen.update(ClusterState {
+        overview,
+        worker_info,
+    });
     Ok(())
 }
 
