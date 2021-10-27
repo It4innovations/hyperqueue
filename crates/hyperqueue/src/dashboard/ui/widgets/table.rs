@@ -10,7 +10,7 @@ static HIGHLIGHT: &str = "=> ";
 pub struct TableColumnHeaders {
     pub title: String,
     pub inline_help: String,
-    pub table_headers: Vec<&'static str>,
+    pub table_headers: Option<Vec<&'static str>>,
     pub column_widths: Vec<Constraint>,
 }
 
@@ -43,6 +43,13 @@ impl<T> StatefulTable<T> {
                 self.select_last();
             }
         }
+    }
+
+    pub fn current_selection(&self) -> Option<&T> {
+        if let Some(selection_index) = self.state.selected() {
+            return self.items.get(selection_index);
+        }
+        None
     }
 
     /// Select next item in the table, wrapping to the beginning if the selection was at the last
@@ -91,13 +98,17 @@ impl<T> StatefulTable<T> {
 
         if self.has_items() {
             let rows = self.items.iter().map(row_cell_mapper);
-            let table = Table::new(rows)
-                .header(styles::style_column_headers(columns.table_headers))
+            let mut table = Table::new(rows)
                 .block(body_block)
                 .highlight_style(styles::style_table_highlight())
                 .style(styles::style_table_row())
                 .highlight_symbol(HIGHLIGHT)
                 .widths(&columns.column_widths);
+
+            if let Some(column_headers) = columns.table_headers {
+                table = table.header(styles::style_column_headers(column_headers));
+            }
+
             frame.render_stateful_widget(table, rect, &mut self.state);
         } else {
             let header_text = vec![Spans::from("No data")];
