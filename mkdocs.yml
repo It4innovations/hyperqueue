@@ -52,11 +52,16 @@ plugins:
       type: date
       fallback_to_build_date: true
       enable_creation_date: true
+  - mike:
+      canonical_version: stable
 
 extra:
   analytics:
     provider: google
     property: G-TM8J8R5GJ9
+  version:
+    provider: mike
+    default: stable
 
 extra_css:
   - stylesheets/extra.css
