@@ -1,5 +1,6 @@
 mkdocs==1.2.3
 mkdocs-material==7.3.2
-mkdocs-linkcheck==1.0.6
 mkdocs-minify-plugin==0.5.0
 mkdocs-git-revision-date-localized-plugin==0.10.0
+mike==1.1.2
+requests==2.26.0

@@ -57,6 +57,9 @@ extra:
   analytics:
     provider: google
     property: G-TM8J8R5GJ9
+  version:
+    provider: mike
+    default: stable
 
 extra_css:
   - stylesheets/extra.css

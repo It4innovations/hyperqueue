@@ -7,6 +7,8 @@ large number of tasks in a simple way, without having to manually submit jobs in
 You just specify what you want to compute – HyperQueue will automatically ask for computational resources and dynamically
 load-balance tasks across all allocated nodes and cores.
 
+v0.4
+
 ## Useful links
 - [Installation](install.md)
 - [Quick start](quickstart.md)
