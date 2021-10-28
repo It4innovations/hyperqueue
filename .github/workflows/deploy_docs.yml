@@ -19,9 +19,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip wheel setuptools
-          python -m pip install mkdocs==1.1.2
+          python -m pip install -r docs/requirements.txt
       - name: Build documentation
         run: mkdocs build
+      - name: Check links
+        run: mkdocs-linkcheck docs
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@3.7.1
         with:

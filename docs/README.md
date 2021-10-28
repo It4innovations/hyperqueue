@@ -1,66 +1,40 @@
-<p align="center">
-<img src="imgs/hq.png">
-</p>
+<div style="display: flex; justify-content: center;">
+  <img src="imgs/hq.png">
+</div>
 
+**HyperQueue** is a tool designed to simplify execution of large workflows on HPC clusters. It allows you to execute a
+large number of tasks in a simple way, without having to manually submit jobs into batch schedulers like PBS or Slurm.
+You just specify what you want to compute – HyperQueue will automatically ask for computational resources and dynamically
+load-balance tasks across all allocated nodes and cores.
 
-**HyperQueue** lets you build a computation plan consisting of a large amount of tasks and then
-execute it transparently over a system like SLURM/PBS. It dynamically groups jobs into SLURM/PBS jobs and distributes
-them to fully utilize allocated notes. You thus do not have to manually aggregate your tasks into SLURM/PBS jobs.
+## Useful links
+- [Installation](install.md)
+- [Quick start](quickstart.md)
+- [Repository](https://github.com/It4innovations/hyperqueue)
 
+## Features
+- Automatic management of batch jobs
+  - *HQ* automatically asks for computing resources
+  - Computation is distributed amongst all a
 
-Project repository: [https://github.com/It4innovations/hyperqueue](https://github.com/It4innovations/hyperqueue)
+- **Performance**
+  - The inner scheduler can scale to hundreds of nodes
+  - The overhead for one task is below 0.1ms.
+  - *HQ* allows to stream outputs from tasks to avoid creating many small files on a distributed filesystem
 
+- **Easy deployment**
+  - *HQ* is provided as a single, statically linked [binary](install.md) without any dependencies
+  - No admin access to a cluster is needed to use *HQ*
 
-## Submiting a simple task
+## Architecture
+HyperQueue has two runtime components:
 
-* Start server (e.g. on a login node or in a cluster partition)
+- **Server**: a long-lived component which can run e.g. on a login node of a computing cluster. It handles task
+  submitted by the user, manages and asks for HPC resources (PBS/Slurm jobs) and distributes tasks to available workers.
+- **Worker**: runs on a computing node and actually executes submitted tasks.
 
-  ``$ hq server start &``
+<div style="display: flex; justify-content: center;">
+  <img src="imgs/architecture.png" style="width: 500px;">
+</div>
 
-* Submit a job (command ``echo 'Hello world'`` in this case)
-
-  ``$ hq submit echo 'Hello world'``
-
-* Ask for computing resources
-
-    * Start worker manually
-
-      ``$ hq worker start &``
-
-    * Manual request in PBS
-
-      - Start worker on the first node of a PBS job
-
-        ``$ qsub <your-params-of-qsub> -- hq worker start``
-
-      - Start worker on all nodes of a PBS job
-
-        ``$ qsub <your-params-of-qsub> -- `which pbsdsh` hq worker start``
-
-    * Manual request in SLURM
-
-      - Start worker on the first node of a Slurm job
-
-        ``$ sbatch <your-params-of-sbatch> --wrap "hq worker start"``
-
-      - Start worker on all nodes of a Slurm job
-
-        ``$ sbatch <your-params-of-sbatch> --wrap "srun hq worker start"``
-
-    * Automatic submission of workers into PBS/SLURM
-
-      - Slurm:
-
-        ``$ hq alloc add slurm --partition <partition>``
-
-      - PBS:
-
-        ``$ hq alloc add pbs --queue <queue>``
-
-
-* Monitor the state of jobs
-
-  ``$ hq jobs``
-
-
-
+You can find more information about the architecture of HyperQueue [here](deployment.md).
