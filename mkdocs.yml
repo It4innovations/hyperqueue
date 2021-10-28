@@ -10,23 +10,53 @@ site_author: Stanislav Böhm
 nav:
   - Overview: README.md
   - Installation: install.md
-  - Cheatsheet: cheatsheet.md
+  - Getting Started:
+    - Quickstart: quickstart.md
+    - Cheatsheet: cheatsheet.md
   - Deployment: deployment.md
-  - Jobs (Basics): jobs.md
-  - Task Arrays: arrays.md
-  - CPU management: cpus.md
-  - Streaming stdio/stderr: streaming.md
+  - Jobs:
+    - Submitting jobs: jobs.md
+    - Task Arrays: arrays.md
+    - CPU management: cpus.md
   - Automatic allocation: alloc.md
-
+  - Tips:
+    - Reducing amount of output files: streaming.md
+  - FAQ: faq.md
+  - Comparison with other tools: other-tools.md
 
 theme:
-  name: readthedocs
-  custom_dir: docs/theme
+  name: material
+  custom_dir: docs/overrides
+  features:
+    - header.autohide
+    - navigation.instant
+    - navigation.top
+  icon:
+    repo: fontawesome/brands/github
 
 markdown_extensions:
   - toc:
       permalink: "#"
-  - admonition
+  - pymdownx.details
+  - footnotes
 
 plugins:
   - search
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+      htmlmin_opts:
+        remove_comments: true
+  - git-revision-date-localized:
+      type: date
+      fallback_to_build_date: true
+      enable_creation_date: true
+
+extra:
+  analytics:
+    provider: google
+    property: G-TM8J8R5GJ9
+
+extra_css:
+  - stylesheets/extra.css

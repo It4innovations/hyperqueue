@@ -28,6 +28,12 @@ Start auto allocation over SLURM in queue "qexp":
 
 ``$ hq alloc add slurm --partition qexp``
 
+## Passing additional arguments
+You can also add arbitrary arguments to the `hq alloc add` command, which will be forwarded to `qsub` or `sbatch`:
+
+```bash
+$ hq alloc add pbs --queue qprod -- -A PROJ-1
+```
 
 ## Information about allocations
 
