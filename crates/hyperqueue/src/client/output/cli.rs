@@ -1,5 +1,5 @@
 use cli_table::format::Justify;
-use cli_table::{print_stdout, Cell, CellStruct, Color, ColorChoice, Style, Table};
+use cli_table::{print_stdout, Cell, CellStruct, Color, ColorChoice, Style, Table, TableStruct};
 
 use std::fmt::Write;
 
@@ -53,9 +53,15 @@ impl CliOutput {
         CliOutput { color_policy }
     }
 
-    fn print_table(&self, rows: Vec<Vec<CellStruct>>) {
-        let table = rows.table().color_choice(self.color_policy);
-        assert!(print_stdout(table).is_ok());
+    fn print_rows(&self, rows: Vec<Vec<CellStruct>>) {
+        self.print_table(rows.table())
+    }
+
+    fn print_table(&self, table: TableStruct) {
+        let table = table.color_choice(self.color_policy);
+        if let Err(e) = print_stdout(table) {
+            log::error!("Cannot print table to stdout: {:?}", e);
+        }
     }
 }
 
@@ -103,7 +109,7 @@ impl Output for CliOutput {
             })
             .collect();
 
-        let table = rows.table().color_choice(self.color_policy).title(vec![
+        let table = rows.table().title(vec![
             "Id".cell(),
             "State".cell().bold(true),
             "Hostname".cell().bold(true),
@@ -111,7 +117,7 @@ impl Output for CliOutput {
             "Manager".cell().bold(true),
             "Manager Job Id".cell().bold(true),
         ]);
-        assert!(print_stdout(table).is_ok())
+        self.print_table(table);
     }
 
     fn print_worker_info(&self, worker_id: WorkerId, configuration: WorkerConfiguration) {
@@ -183,7 +189,7 @@ impl Output for CliOutput {
                     .cell(),
             ],
         ];
-        self.print_table(rows);
+        self.print_rows(rows);
     }
 
     fn print_server_record(&self, server_dir: &Path, record: &AccessRecord) {
@@ -205,7 +211,7 @@ impl Output for CliOutput {
             ],
             vec!["Version".cell().bold(true), record.version().cell()],
         ];
-        self.print_table(rows);
+        self.print_rows(rows);
     }
 
     fn print_server_stats(&self, stats: StatsResponse) {
@@ -230,7 +236,7 @@ impl Output for CliOutput {
                 stats.stream_stats.files.join("\n").cell(),
             ],
         ];
-        self.print_table(rows);
+        self.print_rows(rows);
     }
 
     fn print_job_list(&self, tasks: Vec<JobInfo>) {
@@ -247,13 +253,13 @@ impl Output for CliOutput {
             })
             .collect();
 
-        let table = rows.table().color_choice(self.color_policy).title(vec![
+        let table = rows.table().title(vec![
             "Id".cell().bold(true),
             "Name".cell().bold(true),
             "State".cell().bold(true),
             "Tasks".cell().bold(true),
         ]);
-        assert!(print_stdout(table).is_ok());
+        self.print_table(table);
     }
 
     fn print_job_detail(
@@ -365,7 +371,7 @@ impl Output for CliOutput {
             "Makespan".cell().bold(true),
             human_duration(job.completion_date_or_now - job.submission_date).cell(),
         ]);
-        self.print_table(rows);
+        self.print_rows(rows);
 
         if !job.tasks.is_empty() {
             self.print_job_tasks(
@@ -418,14 +424,14 @@ impl Output for CliOutput {
                     ]
                 })
                 .collect();
-            let table = rows.table().color_choice(self.color_policy).title(vec![
+            let table = rows.table().title(vec![
                 "Task Id".cell().bold(true),
                 "State".cell().bold(true),
                 "Worker".cell().bold(true),
                 "Time".cell().bold(true),
                 "Message".cell().bold(true),
             ]);
-            assert!(print_stdout(table).is_ok());
+            self.print_table(table);
         } else {
             const SHOWN_TASKS: usize = 5;
             let fail_rows: Vec<_> = tasks
@@ -436,15 +442,12 @@ impl Output for CliOutput {
 
             if !fail_rows.is_empty() {
                 let count = fail_rows.len() as JobTaskCount;
-                let table = fail_rows
-                    .table()
-                    .color_choice(self.color_policy)
-                    .title(vec![
-                        "Task Id".cell().bold(true),
-                        "Worker".cell().bold(true),
-                        "Error".cell().bold(true),
-                    ]);
-                assert!(print_stdout(table).is_ok());
+                let table = fail_rows.table().title(vec![
+                    "Task Id".cell().bold(true),
+                    "Worker".cell().bold(true),
+                    "Error".cell().bold(true),
+                ]);
+                self.print_table(table);
 
                 if count < counters.n_failed_tasks {
                     println!(
@@ -518,7 +521,7 @@ impl Output for CliOutput {
                 .cell(),
             ],
         ];
-        self.print_table(rows);
+        self.print_rows(rows);
     }
 
     fn print_autoalloc_queues(&self, info: AutoAllocListResponse) {
@@ -550,7 +553,7 @@ impl Output for CliOutput {
                 data.name.unwrap_or_else(|| "".to_string()).cell(),
             ]
         }));
-        self.print_table(rows);
+        self.print_rows(rows);
     }
 
     fn print_event_log(&self, events: Vec<AllocationEventHolder>) {
@@ -604,7 +607,7 @@ impl Output for CliOutput {
                 event_message(&event),
             ]
         }));
-        self.print_table(rows);
+        self.print_rows(rows);
     }
 
     fn print_allocations(&self, mut allocations: Vec<Allocation>) {
@@ -636,7 +639,7 @@ impl Output for CliOutput {
                 format_time(times.get_finished_at()),
             ]
         }));
-        self.print_table(rows);
+        self.print_rows(rows);
     }
 
     fn print_hw(&self, descriptor: &ResourceDescriptor) {
