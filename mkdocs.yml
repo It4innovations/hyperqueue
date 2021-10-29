@@ -13,14 +13,15 @@ nav:
   - Getting Started:
     - Quickstart: quickstart.md
     - Cheatsheet: cheatsheet.md
-  - Deployment: deployment.md
-  - Jobs:
-    - Submitting jobs: jobs.md
+  - Deployment:
+    - Setup: setup.md
+    - Automatic allocation: allocation.md
+  - Task computation:
+    - Jobs: jobs.md
     - Task Arrays: arrays.md
-    - CPU management: cpus.md
-  - Automatic allocation: alloc.md
+    - Resource Requirements: resource-requirements.md
   - Tips:
-    - Reducing amount of output files: streaming.md
+    - Output streaming: streaming.md
   - FAQ: faq.md
   - Comparison with other tools: other-tools.md
 
@@ -39,6 +40,7 @@ markdown_extensions:
       permalink: "#"
   - pymdownx.details
   - footnotes
+  - admonition
 
 plugins:
   - search

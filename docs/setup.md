@@ -1,8 +1,13 @@
+## Architecture
+HyperQueue has two runtime components:
 
-# Deployment
+- **Server**: a long-lived component which can run e.g. on a login node of a computing cluster. It handles task
+  submitted by the user, manages and asks for HPC resources (PBS/Slurm jobs) and distributes tasks to available workers.
+- **Worker**: runs on a computing node and actually executes submitted tasks.
 
-This section describes, how to HyperQueue server
-
+<div style="display: flex; justify-content: center;">
+  <img src="imgs/architecture.png" style="width: 500px;">
+</div>
 
 ## Starting server
 
