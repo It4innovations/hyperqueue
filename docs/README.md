@@ -13,28 +13,19 @@ load-balance tasks across all allocated nodes and cores.
 - [Repository](https://github.com/It4innovations/hyperqueue)
 
 ## Features
-- Automatic management of batch jobs
-  - *HQ* automatically asks for computing resources
-  - Computation is distributed amongst all a
+**Resource management**
 
-- **Performance**
-  - The inner scheduler can scale to hundreds of nodes
-  - The overhead for one task is below 0.1ms.
-  - *HQ* allows to stream outputs from tasks to avoid creating many small files on a distributed filesystem
+- Batch jobs are submitted and managed [automatically](allocation.md)
+- Computation is distributed amongst all allocated nodes and cores
+- Tasks can specify [resource requirements](resource-requirements.md) (# of cores, GPUs, memory, ...)
 
-- **Easy deployment**
-  - *HQ* is provided as a single, statically linked [binary](install.md) without any dependencies
-  - No admin access to a cluster is needed to use *HQ*
+**Performance**
 
-## Architecture
-HyperQueue has two runtime components:
+- Scales to millions of tasks and hundreds of nodes
+- Overhead per task is around 0.1 ms
+- Task output can be [streamed](streaming.md) to a single file to avoid overloading distributed filesystems
 
-- **Server**: a long-lived component which can run e.g. on a login node of a computing cluster. It handles task
-  submitted by the user, manages and asks for HPC resources (PBS/Slurm jobs) and distributes tasks to available workers.
-- **Worker**: runs on a computing node and actually executes submitted tasks.
+**Simple deployment**
 
-<div style="display: flex; justify-content: center;">
-  <img src="imgs/architecture.png" style="width: 500px;">
-</div>
-
-You can find more information about the architecture of HyperQueue [here](deployment.md).
+- *HQ* is provided as a single, statically linked [binary](install.md) without any dependencies
+- No admin access to a cluster is needed
