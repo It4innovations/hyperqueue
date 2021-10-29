@@ -38,27 +38,27 @@ def test_job_num_of_cpus(hq_env: HqEnv):
     wait_for_job_state(hq_env, [1, 2, 4, 5, 6], "FINISHED")
 
     table = hq_env.command(["job", "1"], as_table=True)
-    table.check_row_value("Resources", "1 compact")
+    table.check_row_value("Resources", "cpus: 1 compact")
     assert len(read_list(default_task_output(job_id=1))) == 1
 
     table = hq_env.command(["job", "2"], as_table=True)
-    table.check_row_value("Resources", "2 scatter")
+    table.check_row_value("Resources", "cpus: 2 scatter")
     assert len(set(x // 4 for x in read_list(default_task_output(job_id=2)))) == 2
 
     table = hq_env.command(["job", "4"], as_table=True)
-    table.check_row_value("Resources", "4 compact!")
+    table.check_row_value("Resources", "cpus: 4 compact!")
     lst = read_list(default_task_output(job_id=4))
     assert len(set(x // 4 for x in lst)) == 1
     assert len(lst) == 4
 
     table = hq_env.command(["job", "5"], as_table=True)
-    table.check_row_value("Resources", "5 compact!")
+    table.check_row_value("Resources", "cpus: 5 compact!")
     lst = read_list(default_task_output(job_id=5))
     assert len(set(x // 4 for x in lst)) == 2
     assert len(lst) == 5
 
     table = hq_env.command(["job", "6"], as_table=True)
-    table.check_row_value("Resources", "all")
+    table.check_row_value("Resources", "cpus: all")
     lst = read_list(default_task_output(job_id=6))
     assert list(range(12)) == lst
 
@@ -113,7 +113,7 @@ def test_job_no_pin(hq_env: HqEnv):
     table = hq_env.command(["job", "1"], as_table=True)
     table.print()
     table.check_row_value("State", "FINISHED")
-    table.check_row_value("Resources", "2 compact!")
+    table.check_row_value("Resources", "cpus: 2 compact!")
 
     with open(default_task_output(), "rb") as f:
         f.readline()  # skip line
@@ -142,7 +142,7 @@ def test_job_pin(hq_env: HqEnv):
     table = hq_env.command(["job", "1"], as_table=True)
     table.print()
     table.check_row_value("State", "FINISHED")
-    table.check_row_value("Resources", "2 compact! [pin]")
+    table.check_row_value("Resources", "cpus: 2 compact! [pin]")
 
     with open(default_task_output()) as f:
         hq_cpus = f.readline().rstrip()

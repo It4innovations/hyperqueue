@@ -50,6 +50,7 @@ pub trait Output {
         just_submitted: bool,
         show_tasks: bool,
         worker_map: WorkerMap,
+        resource_names: &[String],
     );
     fn print_job_tasks(
         &self,

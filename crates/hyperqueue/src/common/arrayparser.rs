@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use nom::bytes::complete::tag;
+use nom::character::complete::char;
 use nom::combinator::all_consuming;
 use nom::combinator::{map_res, opt};
 use nom::multi::separated_list1;
@@ -13,8 +13,8 @@ fn p_range(input: &str) -> NomResult<IntRange> {
     map_res(
         tuple((
             p_u32,
-            opt(preceded(tag("-"), p_u32)),
-            opt(preceded(tag(":"), p_u32)),
+            opt(preceded(char('-'), p_u32)),
+            opt(preceded(char(':'), p_u32)),
         )),
         |r| match r {
             (v, None, None) => Ok(IntRange::new(v, 1, 1)),
@@ -28,7 +28,7 @@ fn p_range(input: &str) -> NomResult<IntRange> {
 }
 
 fn p_ranges(input: &str) -> NomResult<Vec<IntRange>> {
-    separated_list1(tag(","), p_range)(input)
+    separated_list1(char(','), p_range)(input)
 }
 
 fn p_array(input: &str) -> NomResult<IntArray> {
