@@ -13,7 +13,7 @@ use bstr::BString;
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::common::resources::ResourceRequest;
-use tako::messages::gateway::{CollectedOverview, OverviewRequest};
+use tako::messages::gateway::{CollectedOverview, GenericResourceNames, OverviewRequest};
 
 // Messages client -> server
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,6 +31,7 @@ pub enum FromClientMessage {
     AutoAlloc(AutoAllocRequest),
     WaitForJobs(WaitForJobsRequest),
     Overview(OverviewRequest),
+    GetGenericResourceNames(GenericResourceNames),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -146,6 +147,7 @@ pub enum ToClientMessage {
     WaitForJobsResponse(WaitForJobsResponse),
     OverviewResponse(CollectedOverview),
     Error(String),
+    GenericResourceNames(GenericResourceNames),
 }
 
 #[derive(Serialize, Deserialize, Debug)]

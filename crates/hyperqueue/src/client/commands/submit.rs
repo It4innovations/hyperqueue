@@ -6,13 +6,15 @@ use std::{fs, io};
 use anyhow::anyhow;
 use bstr::BString;
 use clap::Parser;
-use tako::common::resources::{CpuRequest, ResourceRequest};
+use tako::common::resources::{
+    CpuRequest, GenericResourceAmount, GenericResourceId, GenericResourceRequest, ResourceRequest,
+};
 use tako::messages::common::{ProgramDefinition, StdioDef};
 
 use crate::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
-use crate::client::resources::parse_cpu_request;
+use crate::client::resources::{get_resource_names, parse_cpu_request, parse_resource_request};
 use crate::client::status::StatusList;
 use crate::common::arraydef::IntArray;
 use crate::common::placeholders::{JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER};
@@ -22,6 +24,7 @@ use crate::transfer::messages::{
     FromClientMessage, JobType, ResubmitRequest, Selector, SubmitRequest, ToClientMessage,
 };
 use crate::{rpc_call, JobId, JobTaskCount, Map};
+use tako::common::resources::request::GenericResourceRequests;
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 
@@ -100,6 +103,10 @@ pub struct SubmitOpts {
     /// Number and placement of CPUs for each job
     #[clap(long, default_value = "1")]
     cpus: ArgCpuRequest,
+
+    /// Generic resource request in form <NAME>=<AMOUNT>
+    #[clap(long, setting = clap::ArgSettings::MultipleOccurrences)]
+    resource: Vec<String>,
 
     /// Minimal lifetime of the worker needed to start the job
     #[clap(long, default_value = "0ms")]
@@ -183,8 +190,21 @@ pub struct SubmitOpts {
 }
 
 impl SubmitOpts {
-    fn resource_request(&self) -> ResourceRequest {
-        ResourceRequest::new(self.cpus.0.clone(), self.time_request.clone().into())
+    fn parse_generic_resource_requests(
+        &self,
+    ) -> anyhow::Result<Vec<(String, GenericResourceAmount)>> {
+        self.resource
+            .iter()
+            .map(|r| parse_resource_request(r))
+            .collect::<anyhow::Result<Vec<_>>>()
+    }
+
+    fn resource_request(&self, generic_resources: GenericResourceRequests) -> ResourceRequest {
+        ResourceRequest::new(
+            self.cpus.0.clone(),
+            self.time_request.clone().into(),
+            generic_resources,
+        )
     }
 }
 
@@ -193,7 +213,26 @@ pub async fn submit_computation(
     connection: &mut ClientConnection,
     opts: SubmitOpts,
 ) -> anyhow::Result<()> {
-    let resources = opts.resource_request();
+    let generic_resources = opts.parse_generic_resource_requests()?;
+    let generic_resource_names = get_resource_names(
+        connection,
+        generic_resources.iter().map(|x| x.0.clone()).collect(),
+    )
+    .await?;
+
+    let resources = opts.resource_request(
+        generic_resources
+            .into_iter()
+            .map(|gr| GenericResourceRequest {
+                resource: generic_resource_names
+                    .iter()
+                    .position(|name| name == &gr.0)
+                    .expect("Server does not return requested name")
+                    as GenericResourceId,
+                amount: gr.1,
+            })
+            .collect(),
+    );
     resources.validate()?;
 
     let (job_type, entries) = if let Some(ref filename) = opts.each_line {
@@ -291,6 +330,7 @@ pub async fn submit_computation(
         true,
         false,
         get_worker_map(connection).await?,
+        &generic_resource_names,
     );
     if opts.wait {
         wait_for_jobs(
@@ -364,11 +404,13 @@ pub async fn resubmit_computation(
         status: opts.status.map(|x| x.to_vec()),
     });
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
+    let resource_names = get_resource_names(connection, Vec::new()).await?;
     gsettings.printer().print_job_detail(
         response.job,
         true,
         false,
         get_worker_map(connection).await?,
+        &resource_names,
     );
     Ok(())
 }

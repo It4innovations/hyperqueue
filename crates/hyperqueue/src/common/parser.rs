@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 
 use nom::character::complete::satisfy;
-use nom::combinator::map_res;
+use nom::combinator::{map, map_res};
 use nom::error::{ErrorKind, FromExternalError, ParseError};
 use nom::multi::many0;
 use nom::sequence::tuple;
@@ -49,17 +49,24 @@ pub(crate) fn format_parse_error<I: Debug>(error: nom::Err<ParserError<I>>) -> a
 
 pub type NomResult<'a, Ret> = IResult<&'a str, Ret, ParserError<&'a str>>;
 
-pub fn p_u32(input: &str) -> NomResult<u32> {
+fn p_integer_string(input: &str) -> NomResult<String> {
     let parser = tuple((
         satisfy(|c| c.is_dec_digit()),
         many0(satisfy(|c| c.is_dec_digit() || c == '_')),
     ));
-
-    map_res(parser, |(first, rest)| {
+    map(parser, |(first, rest)| {
         let mut number = first.to_string();
         number.extend(rest.into_iter().filter(|c| c.is_dec_digit()));
-        number.parse::<u32>()
+        number
     })(input)
+}
+
+pub fn p_u32(input: &str) -> NomResult<u32> {
+    map_res(p_integer_string, |number| number.parse::<u32>())(input)
+}
+
+pub fn p_u64(input: &str) -> NomResult<u64> {
+    map_res(p_integer_string, |number| number.parse::<u64>())(input)
 }
 
 #[cfg(test)]

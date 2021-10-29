@@ -30,9 +30,10 @@ use hyperqueue::server::bootstrap::{
 use hyperqueue::transfer::messages::{
     FromClientMessage, JobInfoRequest, Selector, ToClientMessage,
 };
-use hyperqueue::worker::hwdetect::detect_resource;
+use hyperqueue::worker::hwdetect::{detect_cpus, detect_generic_resource};
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::WorkerId;
+use tako::common::resources::ResourceDescriptor;
 
 #[cfg(feature = "jemalloc")]
 #[global_allocator]
@@ -372,8 +373,11 @@ async fn command_resubmit(gsettings: GlobalSettings, opts: ResubmitOpts) -> anyh
 }
 
 fn command_worker_hwdetect(gsettings: GlobalSettings) -> anyhow::Result<()> {
-    let descriptor = detect_resource()?;
-    gsettings.printer().print_hw(&descriptor);
+    let cpus = detect_cpus()?;
+    let generic = detect_generic_resource()?;
+    gsettings
+        .printer()
+        .print_hw(&ResourceDescriptor::new(cpus, generic));
     Ok(())
 }
 

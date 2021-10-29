@@ -35,12 +35,14 @@ use crate::common::serverdir::ServerDir;
 use crate::common::timeutils::ArgDuration;
 use crate::transfer::messages::TaskBody;
 use crate::transfer::stream::ChannelId;
-use crate::worker::hwdetect::detect_resource;
-use crate::worker::parser::parse_cpu_definition;
+use crate::worker::hwdetect::{detect_cpus, detect_generic_resource};
+use crate::worker::parser::{parse_cpu_definition, parse_resource_definition};
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use crate::Map;
 use crate::{JobId, JobTaskId};
+use tako::common::resources::ResourceDescriptor;
+use tako::worker::state::{WorkerState, WorkerStateRef};
 
 pub const WORKER_EXTRA_PROCESS_PID: &str = "ProcessPid";
 
@@ -78,6 +80,10 @@ pub struct WorkerStartOpts {
     /// How many cores should be allocated for the worker
     #[clap(long)]
     cpus: Option<String>,
+
+    /// Resources
+    #[clap(long, setting = clap::ArgSettings::MultipleOccurrences)]
+    resource: Vec<String>,
 
     /// How often should the worker announce its existence to the server. (default: "8s")
     #[clap(long, default_value = "8s")]
@@ -132,6 +138,7 @@ fn create_directory_if_needed(file: &StdioDef) -> io::Result<()> {
 }
 
 async fn launcher_main(
+    state_ref: WorkerStateRef,
     streamer_ref: StreamerRef,
     task_ref: TaskRef,
     end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
@@ -165,9 +172,43 @@ async fn launcher_main(
             .env
             .insert(HQ_CPUS.into(), allocation.comma_delimited_cpu_ids().into());
 
+        {
+            let state = state_ref.get();
+            let resource_names = &state.resource_names;
+
+            for rq in task_ref.get().configuration.resources.generic_requests() {
+                let resource_name = &resource_names[rq.resource as usize];
+                program.env.insert(
+                    format!("HQ_RESOURCE_REQUEST_{}", resource_name).into(),
+                    rq.amount.to_string().into(),
+                );
+            }
+
+            for alloc in &allocation.generic_allocations {
+                let resource_name = &resource_names[alloc.resource as usize];
+                if let Some(indices) = alloc.value.to_comma_delimited_list() {
+                    if resource_name == "gpus" {
+                        /* Extra hack for GPUS */
+                        program
+                            .env
+                            .insert("CUDA_VISIBLE_DEVICES".into(), indices.clone().into());
+                        program
+                            .env
+                            .insert("CUDA_DEVICE_ORDER".into(), "PCI_BUS_ID".into());
+                    }
+                    program.env.insert(
+                        format!("HQ_RESOURCE_INDICES_{}", resource_name).into(),
+                        indices.into(),
+                    );
+                }
+            }
+        }
+
         program
             .env
             .insert(HQ_INSTANCE_ID.into(), task.instance_id.to_string().into());
+
+        dbg!(&program.env);
 
         replace_placeholders_worker(&mut program);
 
@@ -300,13 +341,15 @@ async fn run_task(
 }
 
 fn launcher(
+    state: &WorkerState,
     streamer_ref: &StreamerRef,
     task_ref: &TaskRef,
     end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
 ) -> Pin<Box<dyn Future<Output = tako::Result<TaskResult>> + 'static>> {
+    let state_ref = state.self_ref.clone().unwrap();
     let task_ref = task_ref.clone();
     let streamer_ref = streamer_ref.clone();
-    Box::pin(async move { launcher_main(streamer_ref, task_ref, end_receiver).await })
+    Box::pin(async move { launcher_main(state_ref, streamer_ref, task_ref, end_receiver).await })
 }
 
 pub async fn start_hq_worker(
@@ -344,7 +387,9 @@ pub async fn start_hq_worker(
         server_addr,
         configuration,
         Some(record.tako_secret_key().clone()),
-        Box::new(move |task_ref, end_receiver| launcher(&streamer_ref, task_ref, end_receiver)),
+        Box::new(move |state, task_ref, end_receiver| {
+            launcher(state, &streamer_ref, task_ref, end_receiver)
+        }),
     )
     .await?;
 
@@ -429,10 +474,19 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
             .expect("Invalid hostname")
     });
 
-    let resources = opts
+    let cpus = opts
         .cpus
         .map(|cpus| parse_cpu_definition(&cpus))
-        .unwrap_or_else(detect_resource)?;
+        .unwrap_or_else(detect_cpus)?;
+
+    let mut generic = detect_generic_resource()?;
+    for resource_def in opts.resource {
+        generic.push(parse_resource_definition(&resource_def)?)
+    }
+
+    let resources = ResourceDescriptor::new(cpus, generic);
+
+    resources.validate()?;
 
     let (work_dir, log_dir) = {
         let tmpdir = TempDir::new("hq-worker").unwrap().into_path();

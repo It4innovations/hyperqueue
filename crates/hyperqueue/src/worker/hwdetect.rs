@@ -1,6 +1,8 @@
 use crate::common::parser::{format_parse_error, p_u32, NomResult};
 
-use tako::common::resources::{CpuId, NumOfCpus, ResourceDescriptor};
+use tako::common::resources::{
+    CpuId, CpusDescriptor, GenericResourceDescriptor, GenericResourceDescriptorKind, NumOfCpus,
+};
 
 use nom::bytes::complete::tag;
 use nom::character::complete::{newline, space0};
@@ -8,22 +10,39 @@ use nom::combinator::all_consuming;
 use nom::combinator::{map_res, opt};
 use nom::multi::separated_list1;
 use nom::sequence::{preceded, terminated, tuple};
+use tako::common::resources::descriptor::{
+    cpu_descriptor_from_socket_size, GenericResourceKindIndices,
+};
 
-pub fn detect_resource() -> anyhow::Result<ResourceDescriptor> {
-    if let Ok(cpus) = read_linux_numa() {
-        log::debug!("Linux numa detection is successful");
-        return Ok(ResourceDescriptor { cpus });
+pub fn detect_cpus() -> anyhow::Result<CpusDescriptor> {
+    read_linux_numa().or_else(|e| {
+        log::debug!("Detecting linux failed: {}", e);
+        let n_cpus = num_cpus::get() as NumOfCpus;
+        if n_cpus < 1 {
+            anyhow::bail!("Cpu detection failed".to_string());
+        };
+        Ok(cpu_descriptor_from_socket_size(1, n_cpus))
+    })
+}
+
+pub fn detect_generic_resource() -> anyhow::Result<Vec<GenericResourceDescriptor>> {
+    let mut generic = Vec::new();
+    if let Ok(count) = read_linux_gpu_count() {
+        if count > 0 {
+            log::debug!("Gpus detected: {}", count);
+            generic.push(GenericResourceDescriptor {
+                name: "gpus".to_string(),
+                kind: GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
+                    start: 0,
+                    end: count as u32 - 1,
+                }),
+            })
+        }
     }
-
-    let n_cpus = num_cpus::get() as NumOfCpus;
-    if n_cpus < 1 {
-        anyhow::bail!("Cpu detection failed".to_string());
-    };
-    Ok(ResourceDescriptor::new_with_socket_size(1, n_cpus))
+    Ok(generic)
 }
 
 /// Try to find out how many Nvidia GPUs are available on the current node.
-#[allow(unused)]
 fn read_linux_gpu_count() -> anyhow::Result<usize> {
     Ok(std::fs::read_dir("/proc/driver/nvidia/gpus")?.count())
 }
@@ -40,6 +59,7 @@ fn read_linux_numa() -> anyhow::Result<Vec<Vec<CpuId>>> {
         let filename = format!("/sys/devices/system/node/node{}/cpulist", numa_index);
         numa_nodes.push(parse_range(&std::fs::read_to_string(filename)?)?);
     }
+    log::debug!("Linux numa detection is successful");
     Ok(numa_nodes)
 }
 

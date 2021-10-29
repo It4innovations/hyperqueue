@@ -5,7 +5,7 @@ use std::fmt::{Display, Write};
 
 use crate::client::job::WorkerMap;
 use crate::client::output::outputs::{Output, MAX_DISPLAYED_WORKERS};
-use crate::client::resources::cpu_request_to_string;
+use crate::client::resources::resource_request_to_string;
 use crate::client::status::{job_status, task_status, Status};
 use crate::common::env::is_hq_env;
 use crate::common::format::{human_duration, human_size};
@@ -93,7 +93,7 @@ impl Output for CliOutput {
                         }) => "STOPPED".cell().foreground_color(Some(Color::Magenta)),
                     },
                     worker.configuration.hostname.cell(),
-                    worker.configuration.resources.summary().cell(),
+                    worker.configuration.resources.summary(false).cell(),
                     manager_info
                         .as_ref()
                         .map(|info| info.manager.to_string())
@@ -153,7 +153,7 @@ impl Output for CliOutput {
             ],
             vec![
                 "Resources".cell().bold(true),
-                configuration.resources.summary().cell(),
+                configuration.resources.summary(true).cell(),
             ],
             vec![
                 "Time Limit".cell().bold(true),
@@ -268,6 +268,7 @@ impl Output for CliOutput {
         just_submitted: bool,
         show_tasks: bool,
         worker_map: WorkerMap,
+        resource_names: &[String],
     ) {
         let mut rows = vec![
             vec!["Id".cell().bold(true), job.info.id.cell()],
@@ -296,7 +297,7 @@ impl Output for CliOutput {
             format_job_workers(&job, &worker_map).cell(),
         ]);
 
-        let resources = cpu_request_to_string(job.resources.cpus());
+        let resources = resource_request_to_string(&job.resources, resource_names);
 
         rows.push(vec![
             "Resources".cell().bold(true),
@@ -643,7 +644,7 @@ impl Output for CliOutput {
     }
 
     fn print_hw(&self, descriptor: &ResourceDescriptor) {
-        println!("Summary: {}", descriptor.summary());
+        println!("Summary: {}", descriptor.summary(true));
         println!("Cpu Ids: {}", descriptor.full_describe());
     }
 }
