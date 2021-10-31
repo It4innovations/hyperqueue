@@ -133,13 +133,20 @@ pub struct SubmitOpts {
     ///
     /// `--env=KEY=VAL` - set an environment variable named `KEY` with the value `VAL`
     #[clap(long, multiple_occurrences(true))]
-    pub env: Vec<ArgEnvironmentVar>,
+    env: Vec<ArgEnvironmentVar>,
 
     // Parameters for creating array jobs
     /// Create a task array where a task will be created for each line of the given file.
     /// The corresponding line will be passed to the task in environment variable `HQ_ENTRY`.
     #[clap(long, conflicts_with("array"), value_hint = clap::ValueHint::FilePath)]
     each_line: Option<PathBuf>,
+
+    /// Create a task array where a task will be created for each item of a JSON array stored in
+    /// the given file.
+    /// The corresponding item from the array will be passed as a JSON string to the task in
+    /// environment variable `HQ_ENTRY`.
+    #[clap(long, conflicts_with("array"), conflicts_with("each-line"), value_hint = clap::ValueHint::FilePath)]
+    from_json: Option<PathBuf>,
 
     /// Create a task array where a task will be created for each number in the specified number range.
     /// Each task will be passed an environment variable `HQ_TASK_ID`.
@@ -190,9 +197,13 @@ pub async fn submit_computation(
     resources.validate()?;
 
     let (job_type, entries) = if let Some(ref filename) = opts.each_line {
-        let lines = read_lines(filename)?;
-        let def = IntArray::from_range(0, lines.len() as JobTaskCount);
-        (JobType::Array(def), Some(lines))
+        let entries = read_lines(filename)?;
+        let def = IntArray::from_range(0, entries.len() as JobTaskCount);
+        (JobType::Array(def), Some(entries))
+    } else if let Some(ref filename) = opts.from_json {
+        let entries = make_entries_from_json(filename)?;
+        let def = IntArray::from_range(0, entries.len() as JobTaskCount);
+        (JobType::Array(def), Some(entries))
     } else {
         (
             opts.array
@@ -384,6 +395,31 @@ fn read_lines(filename: &Path) -> anyhow::Result<Vec<BString>> {
         .map(|x| x.map(BString::from))
         .collect();
     Ok(results?)
+}
+
+fn make_entries_from_json(filename: &Path) -> anyhow::Result<Vec<BString>> {
+    log::info!("Reading json file: {}", filename.display());
+    if fs::metadata(filename)?.len() > 100 << 20 {
+        log::warn!("Reading file bigger then 100MB");
+    };
+    let file = std::fs::File::open(filename)?;
+    let root = serde_json::from_reader(file)?;
+
+    if let serde_json::Value::Array(values) = root {
+        values
+            .iter()
+            .map(|element| {
+                serde_json::to_string(element)
+                    .map(BString::from)
+                    .map_err(|e| e.into())
+            })
+            .collect()
+    } else {
+        anyhow::bail!(
+            "{}: The top element of the provided JSON file has to be an array",
+            filename.display()
+        )
+    }
 }
 
 #[cfg(test)]
