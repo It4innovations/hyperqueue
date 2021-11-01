@@ -15,7 +15,7 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
 
     with mock.activate():
         hq_env.start_server()
-        add_queue(hq_env, name=None, queue="queue", backlog=5)
+        add_queue(hq_env, name=None, backlog=5)
 
         table = hq_env.command(["alloc", "list"], as_table=True)
         table.check_columns_value(
@@ -23,20 +23,18 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
                 "ID",
                 "Backlog size",
                 "Workers per alloc",
-                "Queue",
                 "Timelimit",
                 "Manager",
                 "Name",
             ),
             0,
-            ("1", "5", "1", "queue", "N/A", "PBS", ""),
+            ("1", "5", "1", "N/A", "PBS", ""),
         )
 
         add_queue(
             hq_env,
             manager="pbs",
             name="bar",
-            queue="qexp",
             backlog=1,
             workers_per_alloc=2,
             time_limit="1h",
@@ -47,19 +45,16 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
                 "ID",
                 "Backlog size",
                 "Workers per alloc",
-                "Queue",
                 "Timelimit",
                 "Name",
             ),
             1,
-            ("2", "1", "2", "qexp", "1h", "bar"),
+            ("2", "1", "2", "1h", "bar"),
         )
 
-        add_queue(hq_env, manager="slurm", queue="partition", backlog=1)
+        add_queue(hq_env, manager="slurm", backlog=1)
         table = hq_env.command(["alloc", "list"], as_table=True)
-        table.check_columns_value(
-            ("ID", "Queue", "Manager"), 2, ("3", "partition", "SLURM")
-        )
+        table.check_columns_value(("ID", "Manager"), 2, ("3", "SLURM"))
 
 
 def test_add_pbs_descriptor(hq_env: HqEnv):
@@ -71,7 +66,6 @@ def test_add_pbs_descriptor(hq_env: HqEnv):
             hq_env,
             manager="pbs",
             name="foo",
-            queue="queue",
             backlog=5,
             workers_per_alloc=2,
         )
@@ -87,7 +81,6 @@ def test_add_slurm_descriptor(hq_env: HqEnv):
         hq_env,
         manager="slurm",
         name="foo",
-        queue="queue",
         backlog=5,
         workers_per_alloc=2,
     )
@@ -167,7 +160,6 @@ def test_pbs_queue_qsub_args(hq_env: HqEnv):
                 pbs_args = extract_script_args(data, "#PBS")
                 assert pbs_args == [
                     "-l select=1",
-                    "-q queue",
                     "-N hq-alloc-1",
                     f"-o {join(dirname(qsub_script_path), 'stdout')}",
                     f"-e {join(dirname(qsub_script_path), 'stderr')}",
@@ -199,7 +191,6 @@ def test_slurm_queue_sbatch_args(hq_env: HqEnv):
             pbs_args = extract_script_args(data, "#SBATCH")
             assert pbs_args == [
                 "--nodes=1",
-                "--partition=queue",
                 "--job-name=hq-alloc-1",
                 f"--output={join(dirname(sbatch_script_path), 'stdout')}",
                 f"--error={join(dirname(sbatch_script_path), 'stderr')}",
@@ -573,7 +564,6 @@ def add_queue(
     hq_env: HqEnv,
     manager="pbs",
     name: Optional[str] = "foo",
-    queue="queue",
     backlog=1,
     workers_per_alloc=1,
     additional_args=None,
@@ -582,11 +572,8 @@ def add_queue(
     args = ["alloc", "add", manager]
     if name is not None:
         args.extend(["--name", name])
-    queue_key = "queue" if manager == "pbs" else "partition"
     args.extend(
         [
-            f"--{queue_key}",
-            queue,
             "--backlog",
             str(backlog),
             "--workers-per-alloc",

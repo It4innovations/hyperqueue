@@ -54,38 +54,41 @@ impl QueueDescriptor {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueueInfo {
-    queue: String,
     backlog: u32,
     workers_per_alloc: u32,
     timelimit: Option<Duration>,
+    additional_args: Vec<String>,
 }
 
 impl QueueInfo {
     pub fn new(
-        queue: String,
         backlog: u32,
         workers_per_alloc: u32,
         timelimit: Option<Duration>,
+        additional_args: Vec<String>,
     ) -> Self {
         QueueInfo {
-            queue,
             backlog,
             workers_per_alloc,
             timelimit,
+            additional_args,
         }
     }
 
-    pub fn queue(&self) -> &str {
-        &self.queue
-    }
     pub fn backlog(&self) -> u32 {
         self.backlog
     }
+
     pub fn workers_per_alloc(&self) -> u32 {
         self.workers_per_alloc
     }
+
     pub fn timelimit(&self) -> Option<Duration> {
         self.timelimit
+    }
+
+    pub fn additional_args(&self) -> &[String] {
+        &self.additional_args
     }
 }
 

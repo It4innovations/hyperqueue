@@ -46,43 +46,14 @@ pub struct RemoveQueueOpts {
 #[derive(Parser)]
 pub enum AddQueueCommand {
     /// Create a PBS allocation queue
-    Pbs(AddPbsQueueOpts),
+    Pbs(SharedQueueOpts),
     /// Create a SLURM allocation queue
-    Slurm(AddSlurmQueueOpts),
+    Slurm(SharedQueueOpts),
 }
 
 #[derive(Parser)]
 #[clap(setting = clap::AppSettings::TrailingVarArg)]
-pub struct AddPbsQueueOpts {
-    /// PBS queue into which the allocations will be queued
-    #[clap(long, short)]
-    queue: String,
-
-    #[clap(flatten)]
-    shared: SharedQueueOpts,
-
-    /// Additional arguments passed to `qsub`
-    #[clap()]
-    qsub_args: Vec<String>,
-}
-
-#[derive(Parser)]
-#[clap(setting = clap::AppSettings::TrailingVarArg)]
-pub struct AddSlurmQueueOpts {
-    /// SLURM partition into which the allocations will be queued
-    #[clap(long, short)]
-    partition: String,
-
-    #[clap(flatten)]
-    shared: SharedQueueOpts,
-
-    /// Additional arguments passed to `sbatch`
-    #[clap()]
-    sbatch_args: Vec<String>,
-}
-
-#[derive(Parser)]
-struct SharedQueueOpts {
+pub struct SharedQueueOpts {
     /// How many jobs should be waiting in the queue to be started
     #[clap(long, short, default_value = "4")]
     backlog: u32,
@@ -98,6 +69,10 @@ struct SharedQueueOpts {
     /// Name of the allocation queue (for debug purposes only)
     #[clap(long, short)]
     name: Option<String>,
+
+    /// Additional arguments passed to the submit command
+    #[clap()]
+    additional_args: Vec<String>,
 }
 
 #[derive(Parser)]
@@ -162,29 +137,25 @@ pub async fn command_autoalloc(
     Ok(())
 }
 
+fn args_to_params(args: SharedQueueOpts) -> AddQueueParams {
+    AddQueueParams {
+        workers_per_alloc: args.workers_per_alloc,
+        backlog: args.backlog,
+        timelimit: args.time_limit.map(|v| v.into()),
+        name: args.name,
+        additional_args: args.additional_args,
+    }
+}
+
 async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyhow::Result<()> {
     let AddQueueOpts { subcmd } = opts;
 
     let message = match subcmd {
         AddQueueCommand::Pbs(params) => FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(
-            AddQueueRequest::Pbs(AddQueueParams {
-                workers_per_alloc: params.shared.workers_per_alloc,
-                backlog: params.shared.backlog,
-                queue: params.queue,
-                timelimit: params.shared.time_limit.map(|v| v.into()),
-                name: params.shared.name,
-                additional_args: params.qsub_args,
-            }),
+            AddQueueRequest::Pbs(args_to_params(params)),
         )),
         AddQueueCommand::Slurm(params) => FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(
-            AddQueueRequest::Slurm(AddQueueParams {
-                workers_per_alloc: params.shared.workers_per_alloc,
-                backlog: params.shared.backlog,
-                queue: params.partition,
-                timelimit: params.shared.time_limit.map(|v| v.into()),
-                name: params.shared.name,
-                additional_args: params.sbatch_args,
-            }),
+            AddQueueRequest::Slurm(args_to_params(params)),
         )),
     };
 

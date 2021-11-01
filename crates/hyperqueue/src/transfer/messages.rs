@@ -120,7 +120,6 @@ pub enum AddQueueRequest {
 pub struct AddQueueParams {
     pub workers_per_alloc: u32,
     pub backlog: u32,
-    pub queue: String,
     pub timelimit: Option<Duration>,
     pub name: Option<String>,
     pub additional_args: Vec<String>,

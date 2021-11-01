@@ -529,10 +529,10 @@ impl Output for CliOutput {
             "ID".cell().bold(true),
             "Backlog size".cell().bold(true),
             "Workers per alloc".cell().bold(true),
-            "Queue".cell().bold(true),
             "Timelimit".cell().bold(true),
             "Manager".cell().bold(true),
             "Name".cell().bold(true),
+            "Args".cell().bold(true),
         ]];
 
         let mut descriptors: Vec<_> = info.descriptors.into_iter().collect();
@@ -543,7 +543,6 @@ impl Output for CliOutput {
                 id.cell(),
                 data.info.backlog().cell(),
                 data.info.workers_per_alloc().cell(),
-                data.info.queue().cell(),
                 data.info
                     .timelimit()
                     .map(|d| humantime::format_duration(d).to_string())
@@ -551,6 +550,7 @@ impl Output for CliOutput {
                     .cell(),
                 data.manager_type.cell(),
                 data.name.unwrap_or_else(|| "".to_string()).cell(),
+                data.info.additional_args().join(",").cell(),
             ]
         }));
         self.print_rows(rows);

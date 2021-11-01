@@ -18,17 +18,12 @@ use crate::server::autoalloc::{AutoAllocResult, DescriptorId, QueueInfo};
 
 pub struct PbsHandler {
     handler: ExternalHandler,
-    qsub_args: Vec<String>,
 }
 
 impl PbsHandler {
-    pub fn new(
-        server_directory: PathBuf,
-        qsub_args: Vec<String>,
-        name: Option<String>,
-    ) -> anyhow::Result<Self> {
+    pub fn new(server_directory: PathBuf, name: Option<String>) -> anyhow::Result<Self> {
         let handler = ExternalHandler::new(server_directory, name)?;
-        Ok(Self { handler, qsub_args })
+        Ok(Self { handler })
     }
 }
 
@@ -39,13 +34,12 @@ impl QueueHandler for PbsHandler {
         queue_info: &QueueInfo,
         worker_count: u64,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>> {
-        let queue = queue_info.queue.clone();
         let timelimit = queue_info.timelimit;
         let hq_path = self.handler.hq_path.clone();
         let server_directory = self.handler.server_directory.clone();
         let name = self.handler.name.clone();
         let allocation_num = self.handler.create_allocation_id();
-        let qsub_args = self.qsub_args.clone();
+        let qsub_args: Vec<_> = queue_info.additional_args.to_vec();
 
         Box::pin(async move {
             let directory = create_allocation_dir(
@@ -59,7 +53,6 @@ impl QueueHandler for PbsHandler {
             let script = build_pbs_submit_script(
                 worker_count,
                 timelimit.as_ref(),
-                &queue,
                 &format!("hq-alloc-{}", descriptor_id),
                 &directory.join("stdout").display().to_string(),
                 &directory.join("stderr").display().to_string(),
@@ -161,7 +154,6 @@ impl QueueHandler for PbsHandler {
 fn build_pbs_submit_script(
     nodes: u64,
     timelimit: Option<&Duration>,
-    queue: &str,
     name: &str,
     stdout: &str,
     stderr: &str,
@@ -171,13 +163,11 @@ fn build_pbs_submit_script(
     let mut script = format!(
         r##"#!/bin/bash
 #PBS -l select={nodes}
-#PBS -q {queue}
 #PBS -N {name}
 #PBS -o {stdout}
 #PBS -e {stderr}
 "##,
         nodes = nodes,
-        queue = queue,
         name = name,
         stdout = stdout,
         stderr = stderr,
