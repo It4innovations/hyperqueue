@@ -461,7 +461,7 @@ mod tests {
     ) {
         let descriptor = QueueDescriptor::new(
             ManagerType::Pbs,
-            QueueInfo::new("queue".to_string(), backlog, workers_per_alloc, None),
+            QueueInfo::new(backlog, workers_per_alloc, None, vec![]),
             None,
             handler,
         );

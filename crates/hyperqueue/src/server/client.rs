@@ -303,11 +303,7 @@ fn create_queue(
     let server_directory = server_dir.directory().to_path_buf();
     let (handler, params, manager_type) = match request {
         AddQueueRequest::Pbs(params) => {
-            let handler = PbsHandler::new(
-                server_directory,
-                params.additional_args.clone(),
-                params.name.clone(),
-            );
+            let handler = PbsHandler::new(server_directory, params.name.clone());
             (
                 handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler)),
                 params,
@@ -315,11 +311,7 @@ fn create_queue(
             )
         }
         AddQueueRequest::Slurm(params) => {
-            let handler = SlurmHandler::new(
-                server_directory,
-                params.additional_args.clone(),
-                params.name.clone(),
-            );
+            let handler = SlurmHandler::new(server_directory, params.name.clone());
             (
                 handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler)),
                 params,
@@ -329,10 +321,10 @@ fn create_queue(
     };
 
     let queue_info = QueueInfo::new(
-        params.queue,
         params.backlog,
         params.workers_per_alloc,
         params.timelimit,
+        params.additional_args,
     );
 
     match handler {

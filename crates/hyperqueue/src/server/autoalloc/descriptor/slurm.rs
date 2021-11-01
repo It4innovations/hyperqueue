@@ -21,20 +21,12 @@ use crate::server::autoalloc::{AutoAllocResult, DescriptorId, QueueInfo};
 
 pub struct SlurmHandler {
     handler: ExternalHandler,
-    sbatch_args: Vec<String>,
 }
 
 impl SlurmHandler {
-    pub fn new(
-        server_directory: PathBuf,
-        sbatch_args: Vec<String>,
-        name: Option<String>,
-    ) -> anyhow::Result<Self> {
+    pub fn new(server_directory: PathBuf, name: Option<String>) -> anyhow::Result<Self> {
         let handler = ExternalHandler::new(server_directory, name)?;
-        Ok(Self {
-            handler,
-            sbatch_args,
-        })
+        Ok(Self { handler })
     }
 }
 
@@ -45,13 +37,12 @@ impl QueueHandler for SlurmHandler {
         queue_info: &QueueInfo,
         worker_count: u64,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>> {
-        let partition = queue_info.queue.clone();
         let timelimit = queue_info.timelimit;
         let hq_path = self.handler.hq_path.clone();
         let server_directory = self.handler.server_directory.clone();
         let name = self.handler.name.clone();
         let allocation_num = self.handler.create_allocation_id();
-        let sbatch_args = self.sbatch_args.clone();
+        let sbatch_args: Vec<_> = queue_info.additional_args.to_vec();
 
         Box::pin(async move {
             let directory = create_allocation_dir(
@@ -65,7 +56,6 @@ impl QueueHandler for SlurmHandler {
             let script = build_slurm_submit_script(
                 worker_count,
                 timelimit.as_ref(),
-                &partition,
                 &format!("hq-alloc-{}", descriptor_id),
                 &directory.join("stdout").display().to_string(),
                 &directory.join("stderr").display().to_string(),
@@ -173,7 +163,6 @@ impl QueueHandler for SlurmHandler {
 fn build_slurm_submit_script(
     nodes: u64,
     timelimit: Option<&Duration>,
-    partition: &str,
     name: &str,
     stdout: &str,
     stderr: &str,
@@ -183,13 +172,11 @@ fn build_slurm_submit_script(
     let mut script = format!(
         r##"#!/bin/bash
 #SBATCH --nodes={nodes}
-#SBATCH --partition={partition}
 #SBATCH --job-name={name}
 #SBATCH --output={stdout}
 #SBATCH --error={stderr}
 "##,
         nodes = nodes,
-        partition = partition,
         name = name,
         stdout = stdout,
         stderr = stderr,
