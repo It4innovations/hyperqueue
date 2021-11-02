@@ -242,10 +242,10 @@ struct JobListOpts {
 
 #[derive(Parser)]
 struct JobDetailOpts {
-    /// Numeric job id or `last` to display the most recently submitted job
+    /// Single ID, ID range or `last` to display the most recently submitted job
     selector_arg: SelectorArg,
 
-    // Include task info in the output
+    /// Include detailed task information in the output
     #[clap(long)]
     tasks: bool,
 }
@@ -300,7 +300,7 @@ async fn command_job_list(gsettings: GlobalSettings, opts: JobListOpts) -> anyho
 
 async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> anyhow::Result<()> {
     if matches!(opts.selector_arg, SelectorArg::All) {
-        log::warn!("Specifier all is not implemented for job details, did you mean: job list?");
+        log::warn!("Job detail doesn't support the `all` selector, did you mean to use `hq jobs`?");
         return Ok(());
     }
 

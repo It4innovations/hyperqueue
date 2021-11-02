@@ -58,11 +58,6 @@ pub async fn output_job_detail(
     selector: Selector,
     show_tasks: bool,
 ) -> anyhow::Result<()> {
-    if matches!(selector, Selector::All) {
-        log::warn!("Job detail doesn't support --all specifier, did you mean: job list?");
-        return Ok(());
-    };
-
     let message = FromClientMessage::JobDetail(JobDetailRequest {
         selector,
         include_tasks: true,
