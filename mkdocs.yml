@@ -14,12 +14,14 @@ nav:
     - Quickstart: quickstart.md
     - Cheatsheet: cheatsheet.md
   - Deployment:
-    - Setup: setup.md
-    - Automatic allocation: allocation.md
+    - deployment/index.md
+    - Server: deployment/server.md
+    - Workers: deployment/worker.md
+    - Automatic allocation: deployment/allocation.md
   - Task computation:
     - Jobs: jobs.md
     - Task Arrays: arrays.md
-    - Resource Requirements: resource-requirements.md
+    - Resource Requirements: resources.md
   - Tips:
     - Output streaming: tips/streaming.md
     - CLI shortcuts: tips/cli-shortcuts.md
@@ -33,6 +35,9 @@ theme:
     - header.autohide
     - navigation.instant
     - navigation.top
+#    - navigation.sections
+#    - navigation.tabs
+#    - navigation.indexes
   icon:
     repo: fontawesome/brands/github
 
@@ -40,6 +45,9 @@ markdown_extensions:
   - toc:
       permalink: "#"
   - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
   - footnotes
   - admonition
 

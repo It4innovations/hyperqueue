@@ -15,7 +15,7 @@
       <img width="600" src="../imgs/schema.png">
     </p>
 
-??? question "What is a job in HQ"
+??? question "What is a job in HQ?"
 
     Right now, we support running arbitrary external programs or bash scripts. We plan to support Python defined
     workflows (with a Dask-like API).

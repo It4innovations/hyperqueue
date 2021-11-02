@@ -104,3 +104,20 @@ The default policy is the compact policy, i.e. ``--cpus=XX`` is equivalent to ``
 
 Resource requests are applied to each task of job. For example, if you submit the following: ``hq --cpus=2 --array=1-10`` it will create 10 tasks where each task needs two CPUs.
 
+
+## CPUs configuration
+
+Worker automatically detect number of CPUs and on Linux system it also detects partitioning into sockets. In most cases,
+it should work without need of any touch. If you want to see how is your seen by a worker without actually starting it,
+you can start ``$ hq worker hwdetect`` that only prints CPUs layout.
+
+### Manual specification of CPU configration
+
+If automatic detection fails, or you want to manually configure set CPU configuration, you can use
+``--cpus`` parameter; for example as follows:
+
+- 8 CPUs for worker
+  ``$ hq worker start --cpus=8``
+
+- 2 sockets with 12 cores per socket
+  ``$ hq worker --cpus=2x12``
