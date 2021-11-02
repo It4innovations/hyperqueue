@@ -9,7 +9,7 @@ site_author: Stanislav Böhm
 
 nav:
   - Overview: README.md
-  - Installation: install.md
+  - Installation: installation.md
   - Getting Started:
     - Quickstart: quickstart.md
     - Cheatsheet: cheatsheet.md
