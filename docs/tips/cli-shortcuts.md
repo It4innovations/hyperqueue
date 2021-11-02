@@ -9,6 +9,7 @@ select multiple IDs at once or to reference the most recently created ID:
     - `hq worker stop 1` - stop a worker with ID `1`
     - `hq cancel 5` - cancel a job with ID `5`
 - `<start>-<end>:<step>` Inclusive range of IDs, starting at `start` and ending at `end` with step `step`
+    - `hq submit --array=1-10` - create a task array with `10` tasks
     - `hq worker stop 1-3` - stop workers with IDs `1`, `2` and `3`
     - `hq cancel 2-10:2` - cancel jobs with IDs `2`, `4`, `6`, `8` and `10`
 - `all` All valid IDs
@@ -26,8 +27,14 @@ $ hq worker stop 1,3,5-8
 would stop workers with IDs `1`, `3`, `5`, `6`, `7` and `8`.
 
 ### Supported commands and options
+- `hq submit --array=<selector>`
 - `hq worker stop <selector>`
-- TODO
+    - does not support `last`
+- `hq job <selector>`
+    - does not support `all` (use `hq jobs` instead)
+- `hq cancel <selector>`
+- `hq wait <selector>`
+- `hq progress <selector>`
 
 ## Duration
 You can enter durations using various time suffixes, for example:
@@ -44,3 +51,5 @@ suffixed can be found [here](https://docs.rs/humantime/2.1.0/humantime/fn.parse_
 - `hq worker start --time-limit=<duration>`
 - `hq worker start --idle-timeout=<duration>`
 - `hq alloc add pbs --time-limit=<duration>`
+- `hq submit --time-limit=<duration> ...`
+- `hq submit --time-request=<duration> ...`

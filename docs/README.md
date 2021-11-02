@@ -17,13 +17,13 @@ load-balance tasks across all allocated nodes and cores.
 
 - Batch jobs are submitted and managed [automatically](deployment/allocation.md)
 - Computation is distributed amongst all allocated nodes and cores
-- Tasks can specify [resource requirements](resources.md) (# of cores, GPUs, memory, ...)
+- Tasks can specify [resource requirements](jobs/resources.md) (# of cores, GPUs, memory, ...)
 
 **Performance**
 
 - Scales to millions of tasks and hundreds of nodes
 - Overhead per task is around 0.1 ms
-- Task output can be [streamed](tips/streaming.md) to a single file to avoid overloading distributed filesystems
+- Task output can be [streamed](jobs/streaming.md) to a single file to avoid overloading distributed filesystems
 
 **Simple deployment**
 

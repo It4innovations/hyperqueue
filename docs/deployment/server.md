@@ -1,4 +1,4 @@
-The server is a crucial component of HyperQueue which manages [workers](worker.md) and [jobs](../jobs.md). Before running
+The server is a crucial component of HyperQueue which manages [workers](worker.md) and [jobs](../jobs/jobs.md). Before running
 any computations or deploying workers, you must first start the server.
 
 ## Starting the server
@@ -15,7 +15,7 @@ $ hq server start --host=HOST
 ```
 
 ## Server directory
-When the server is started, it creates a **server directory** where it stores information needed for submitting [jobs](../jobs.md)
+When the server is started, it creates a **server directory** where it stores information needed for submitting [jobs](../jobs/jobs.md)
 and connecting [workers](worker.md). This directory is then used to select a running HyperQueue instance.
 
 By default, the server directory will be stored in `$HOME/.hq-server`. This location may be changed with the option
@@ -54,7 +54,7 @@ $ hq server start
 ```
 
 The server will quit when your SSH session ends, because it will receive a SIGHUP signal. You can use established Unix
-approaches to avoid this behaviour, for example prepending the command with [nohup](https://en.wikipedia.org/wiki/Nohup)
+approaches to avoid this behavior, for example prepending the command with [nohup](https://en.wikipedia.org/wiki/Nohup)
 or using a terminal multiplexer like [tmux](https://en.wikipedia.org/wiki/Tmux).
 
 ## Stopping server
