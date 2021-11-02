@@ -8,8 +8,7 @@ use crate::WorkerId;
 
 pub async fn get_worker_list(
     connection: &mut ClientConnection,
-    get_online: bool,
-    get_offline: bool,
+    include_offline: bool,
 ) -> crate::Result<Vec<WorkerInfo>> {
     let mut msg = rpc_call!(
         connection,
@@ -19,13 +18,10 @@ pub async fn get_worker_list(
     .await?;
 
     msg.workers.sort_unstable_by_key(|w| w.id);
-    msg.workers.retain(|w| {
-        if w.ended.is_none() {
-            get_online
-        } else {
-            get_offline
-        }
-    });
+
+    if !include_offline {
+        msg.workers.retain(|w| w.ended.is_none());
+    }
 
     Ok(msg.workers)
 }

@@ -192,13 +192,9 @@ struct WorkerStopOpts {
 
 #[derive(Parser)]
 struct WorkerListOpts {
-    /// shows running workers
+    /// Include offline workers in the list
     #[clap(long)]
-    running: bool,
-
-    /// shows offline workers
-    #[clap(long)]
-    offline: bool,
+    all: bool,
 }
 
 #[derive(Parser)]
@@ -223,13 +219,13 @@ enum WorkerCommand {
     Start(WorkerStartOpts),
     /// Stop worker
     Stop(WorkerStopOpts),
-    /// Display information about all workers
+    /// Display information about workers
     List(WorkerListOpts),
     /// Hwdetect
     Hwdetect,
-    /// Display info about worker
+    /// Display information about a specific worker
     Info(WorkerInfoOpts),
-    /// Print worker's hostname
+    /// Display worker's hostname
     Address(WorkerAddressOpts),
 }
 
@@ -348,13 +344,7 @@ async fn command_worker_list(
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
 
-    // If --running and --offline was not set then show all workers
-    let (online, offline) = if !opts.running && !opts.offline {
-        (true, true)
-    } else {
-        (opts.running, opts.offline)
-    };
-    let workers = get_worker_list(&mut connection, online, offline).await?;
+    let workers = get_worker_list(&mut connection, opts.all).await?;
     gsettings.printer().print_worker_list(workers);
     Ok(())
 }
