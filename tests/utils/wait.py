@@ -66,4 +66,4 @@ def wait_for_job_state(
 def wait_for_worker_state(
     env, ids: Union[int, List[int]], target_states: Union[str, List[str]], **kwargs
 ):
-    wait_for_state(env, ids, target_states, ["worker", "list"], 1, **kwargs)
+    wait_for_state(env, ids, target_states, ["worker", "list", "--all"], 1, **kwargs)

@@ -3,17 +3,18 @@ from socket import gethostname
 
 from .conftest import HqEnv
 from .utils import wait_for_worker_state
+from .utils.table import Table
 
 
 def test_worker_list(hq_env: HqEnv):
     hq_env.start_server()
-    table = hq_env.command(["worker", "list"], as_table=True)
+    table = list_all_workers(hq_env)
     assert len(table) == 1
     assert table[0][:2] == ["Id", "State"]
 
     hq_env.start_workers(2)
 
-    table = hq_env.command(["worker", "list"], as_table=True)
+    table = list_all_workers(hq_env)
     assert len(table) == 3
     table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
     table.check_columns_value(["Id", "State"], 1, ["2", "RUNNING"])
@@ -21,7 +22,7 @@ def test_worker_list(hq_env: HqEnv):
     hq_env.kill_worker(2)
     wait_for_worker_state(hq_env, 2, "CONNECTION LOST")
 
-    table = hq_env.command(["worker", "list"], as_table=True)
+    table = list_all_workers(hq_env)
     assert len(table) == 3
     table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
     table.check_columns_value(["Id", "State"], 1, ["2", "CONNECTION LOST"])
@@ -29,7 +30,7 @@ def test_worker_list(hq_env: HqEnv):
     hq_env.kill_worker(1)
     wait_for_worker_state(hq_env, 1, "CONNECTION LOST")
 
-    table = hq_env.command(["worker", "list"], as_table=True)
+    table = list_all_workers(hq_env)
     assert len(table) == 3
     table.check_columns_value(["Id", "State"], 0, ["1", "CONNECTION LOST"])
     table.check_columns_value(["Id", "State"], 1, ["2", "CONNECTION LOST"])
@@ -37,7 +38,7 @@ def test_worker_list(hq_env: HqEnv):
     hq_env.start_worker()
     wait_for_worker_state(hq_env, 3, "RUNNING")
 
-    table = hq_env.command(["worker", "list"], as_table=True)
+    table = list_all_workers(hq_env)
 
     assert len(table) == 4
     table.check_columns_value(["Id", "State"], 0, ["1", "CONNECTION LOST"])
@@ -85,29 +86,25 @@ def test_worker_stop_all(hq_env: HqEnv):
         hq_env.check_process_exited(process)
 
 
-def test_worker_list_online_offline_state(hq_env: HqEnv):
+def test_worker_list_only_online(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_workers(2)
 
     wait_for_worker_state(hq_env, [1, 2], "RUNNING")
 
-    table = hq_env.command(["worker", "list"], as_table=True)
+    table = list_all_workers(hq_env)
     assert len(table) == 3
     table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
     table.check_columns_value(["Id", "State"], 1, ["2", "RUNNING"])
     hq_env.kill_worker(2)
 
     wait_for_worker_state(hq_env, 2, "CONNECTION LOST")
-    table = hq_env.command(["worker", "list"], as_table=True)
+    table = list_all_workers(hq_env)
     assert len(table) == 3
     table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
     table.check_columns_value(["Id", "State"], 1, ["2", "CONNECTION LOST"])
 
-    table = hq_env.command(["worker", "list", "--offline"], as_table=True)
-    assert len(table) == 2
-    table.check_columns_value(["Id", "State"], 0, ["2", "CONNECTION LOST"])
-
-    table = hq_env.command(["worker", "list", "--running"], as_table=True)
+    table = hq_env.command(["worker", "list"], as_table=True)
     assert len(table) == 2
     table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
 
@@ -119,7 +116,7 @@ def test_worker_list_resources(hq_env: HqEnv):
 
     wait_for_worker_state(hq_env, [1, 2], "RUNNING")
 
-    table = hq_env.command(["worker", "list"], as_table=True)
+    table = list_all_workers(hq_env)
     assert len(table) == 3
     table.check_columns_value(
         ["Id", "State", "Resources"], 0, ["1", "RUNNING", "1x10 cpus"]
@@ -135,12 +132,12 @@ def test_idle_timeout_server_cfg(hq_env: HqEnv):
     time.sleep(0.5)
     hq_env.command(["submit", "--", "sleep", "1"])
     time.sleep(1.0)
-    table = hq_env.command(["worker", "list"], as_table=True)
+    table = list_all_workers(hq_env)
     table.check_column_value("State", 0, "RUNNING")
 
     time.sleep(1.5)
     hq_env.check_process_exited(w, expected_code=None)
-    table = hq_env.command(["worker", "list"], as_table=True)
+    table = list_all_workers(hq_env)
     table.check_column_value("State", 0, "IDLE TIMEOUT")
 
 
@@ -150,12 +147,12 @@ def test_idle_timeout_worker_cfg(hq_env: HqEnv):
     time.sleep(0.5)
     hq_env.command(["submit", "--", "sleep", "1"])
     time.sleep(1.0)
-    table = hq_env.command(["worker", "list"], as_table=True)
+    table = list_all_workers(hq_env)
     table.check_column_value("State", 0, "RUNNING")
 
     time.sleep(1.5)
     hq_env.check_process_exited(w, expected_code=None)
-    table = hq_env.command(["worker", "list"], as_table=True)
+    table = list_all_workers(hq_env)
     table.check_column_value("State", 0, "IDLE TIMEOUT")
 
 
@@ -195,3 +192,7 @@ def test_worker_address(hq_env: HqEnv):
 
     output = hq_env.command(["worker", "address", "2"]).strip()
     assert output == gethostname()
+
+
+def list_all_workers(hq_env: HqEnv) -> Table:
+    return hq_env.command(["worker", "list", "--all"], as_table=True)

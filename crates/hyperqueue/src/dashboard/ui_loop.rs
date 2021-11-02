@@ -58,7 +58,7 @@ async fn update(
     connection: &mut ClientConnection,
 ) -> anyhow::Result<()> {
     let overview = get_hw_overview(connection).await?;
-    let worker_info = get_worker_list(connection, true, false).await?;
+    let worker_info = get_worker_list(connection, false).await?;
 
     let screen = state.get_current_screen_mut();
     screen.update(ClusterState {
