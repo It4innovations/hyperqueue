@@ -16,7 +16,7 @@ Using this mechanism, you can submit computations into HyperQueue without caring
 To enable automatic allocation, you have to create an `Allocation queue`. It describes a specific configuration that
 will be used by HyperQueue to request computing resources from the job manager on your behalf.
 
-Each allocation queue has a set of [parameters](#parameters). You can use them to modify the behaviour of automatic
+Each allocation queue has a set of [parameters](#parameters). You can use them to modify the behavior of automatic
 allocation, but for start you can simply use the defaults. However, you will almost certainly need to specify some
 credentials to be able to ask for computing resources using PBS/Slurm.
 
@@ -46,7 +46,7 @@ account ID, etc.) after `--`. These trailing arguments will then be passed direc
     These parameters are configured using other means, see [below](#parameters).
 
 Once the queue is created, HyperQueue will start asking for allocations in order to provide computing resources
-(HyperQueue workers). The exact behaviour of the automatic allocation process is described [below](#behaviour). You can
+(HyperQueue workers). The exact behavior of the automatic allocation process is described [below](#behavior). You can
 create multiple allocation queues, and you can even combine PBS queues with Slurm queues.
 
 ### Parameters
@@ -61,7 +61,7 @@ PBS queue or Slurm partition will be used.
 
 [^1]: You can use various [shortcuts](../tips/cli-shortcuts.md#duration) for the duration value.
 
-## Behaviour
+## Behavior
 The automatic allocator is a periodic process that runs every few seconds and does the following:
 
 1. If there are no waiting tasks in HQ, it immediately ends. This avoids queuing allocations if there is nothing to
@@ -96,7 +96,7 @@ This will also stop and remove any running or queued allocations created by the 
 
 ## Debugging automatic allocation
 Since the automatic allocator is a "background" process that interacts with an external job manager, it can be challenging
-to debug its behaviour. To aid with this process, HyperQueue provides various sources of information that can help you
+to debug its behavior. To aid with this process, HyperQueue provides various sources of information that can help you
 find out what is going on.
 
 - [`Basic queue information`](#display-information-about-an-allocation-queue) This command will show you details about

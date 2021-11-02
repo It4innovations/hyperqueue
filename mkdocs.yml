@@ -17,16 +17,17 @@ nav:
     - deployment/index.md
     - Server: deployment/server.md
     - Workers: deployment/worker.md
-    - Automatic allocation: deployment/allocation.md
+    - Automatic Allocation: deployment/allocation.md
   - Task computation:
-    - Jobs: jobs.md
-    - Task Arrays: arrays.md
-    - Resource Requirements: resources.md
+    - Jobs and Tasks: jobs/jobs.md
+    - Task Arrays: jobs/arrays.md
+    - Resources: jobs/resources.md
+    - Handling Failure: jobs/failure.md
+    - Output Streaming: jobs/streaming.md
   - Tips:
-    - Output streaming: tips/streaming.md
-    - CLI shortcuts: tips/cli-shortcuts.md
+    - CLI Shortcuts: tips/cli-shortcuts.md
   - FAQ: faq.md
-  - Comparison with other tools: other-tools.md
+  - Comparison With Other Tools: other-tools.md
 
 theme:
   name: material

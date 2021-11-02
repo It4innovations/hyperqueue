@@ -89,8 +89,8 @@ $ hq worker stop all
 HyperQueue workers are designed to be volatile, i.e. it is expected that they will be stopped from time to time, because
 they are often started inside PBS/Slurm jobs that have a limited duration.
 
-It is very useful for the workers to know how much remaining time do they have until they will be stopped. This duration
-is called the `Worker time limit`.
+It is very useful for the workers to know how much remaining time ("lifetime") do they have until they will be stopped.
+This duration is called the `Worker time limit`.
 
 When a worker is started inside a PBS or Slurm job, it will automatically calculate the time limit from the job's
 metadata. If you want to set time limit manually for workers started outside of PBS/Slurm jobs or if you want to
@@ -113,7 +113,7 @@ You can set the idle timeout using the `--idle-timeout` option[^1] when starting
 
 !!! tip
 
-    Workers started [automatically](allocation.md#behaviour) have the idle timeout set to five minutes.
+    Workers started [automatically](allocation.md#behavior) have the idle timeout set to five minutes.
 
 Idle timeout can also be configured globally for all workers using the `--idle-timeout` option when starting a server:
 

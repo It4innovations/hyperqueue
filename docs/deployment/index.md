@@ -13,4 +13,6 @@ Server and the workers communicate over encrypted TCP/IP channels. The server ma
 are able to connect to it over TCP/IP. Connecting in the other direction (from the server machine to the worker nodes) is
 not required. A common use-case is to start the server on a login of an HPC system.
 
+[comment]: <> (TODO: describe scheduler)
+
 Learn more about deploying [server](server.md) and the [workers](worker.md).
