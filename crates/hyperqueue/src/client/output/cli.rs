@@ -1,7 +1,7 @@
 use cli_table::format::Justify;
 use cli_table::{print_stdout, Cell, CellStruct, Color, ColorChoice, Style, Table, TableStruct};
 
-use std::fmt::Write;
+use std::fmt::{Display, Write};
 
 use crate::client::job::WorkerMap;
 use crate::client::output::outputs::{Output, MAX_DISPLAYED_WORKERS};
@@ -22,7 +22,7 @@ use crate::transfer::messages::{
 };
 use crate::{JobTaskCount, WorkerId};
 
-use chrono::{DateTime, SubsecRound, Utc};
+use chrono::{DateTime, Local, SubsecRound, Utc};
 use core::time::Duration;
 use humantime::format_duration;
 
@@ -603,7 +603,7 @@ impl Output for CliOutput {
         rows.extend(events.into_iter().map(|event| {
             vec![
                 event_name(&event),
-                humantime::format_rfc3339_seconds(event.date).cell(),
+                format_time(event.date).cell(),
                 event_message(&event),
             ]
         }));
@@ -622,7 +622,7 @@ impl Output for CliOutput {
         ]];
 
         let format_time = |time: Option<SystemTime>| match time {
-            Some(time) => humantime::format_rfc3339_seconds(time).cell(),
+            Some(time) => format_time(time).cell(),
             None => "".cell(),
         };
 
@@ -858,4 +858,9 @@ fn format_task_duration(
         } => *end_date - *start_date,
     };
     human_duration(duration)
+}
+
+fn format_time(time: SystemTime) -> impl Display {
+    let datetime: DateTime<Local> = time.into();
+    datetime.format("%d.%m.%Y %H:%M:%S")
 }

@@ -150,7 +150,7 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
                 );
                 let descriptor = get_or_continue!(state.get_descriptor_mut(id));
                 descriptor.add_event(AllocationEvent::StatusFail {
-                    error: err.to_string(),
+                    error: format!("{:?}", err),
                 });
             }
         }
@@ -220,7 +220,7 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
             Err(err) => {
                 log::error!("Failed to queue allocation into queue {}: {:?}", id, err);
                 descriptor.add_event(AllocationEvent::QueueFail {
-                    error: err.to_string(),
+                    error: format!("{:?}", err),
                 });
             }
         }

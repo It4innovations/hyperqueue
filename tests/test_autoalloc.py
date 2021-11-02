@@ -102,7 +102,7 @@ def test_pbs_queue_qsub_fail(hq_env: HqEnv):
             time.sleep(0.2)
             table = hq_env.command(["alloc", "events", "1"], as_table=True)
             table.check_column_value("Event", 0, "Allocation submission failed")
-            table.check_column_value("Message", 0, "qsub execution failed")
+            table.check_column_value("Message", 0, "qsub execution failed\nCaused by:\nExit code: 1\nStderr:\nStdout:")
 
 
 def test_slurm_queue_sbatch_fail(hq_env: HqEnv):
@@ -116,7 +116,7 @@ def test_slurm_queue_sbatch_fail(hq_env: HqEnv):
         time.sleep(0.2)
         table = hq_env.command(["alloc", "events", "1"], as_table=True)
         table.check_column_value("Event", 0, "Allocation submission failed")
-        table.check_column_value("Message", 0, "sbatch execution failed")
+        table.check_column_value("Message", 0, "sbatch execution failed\nCaused by:\nExit code: 1\nStderr:\nStdout:")
 
 
 def program_code_store_args_json(path: str) -> str:

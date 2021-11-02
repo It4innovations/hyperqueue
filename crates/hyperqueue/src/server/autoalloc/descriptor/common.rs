@@ -34,9 +34,8 @@ impl ExternalHandler {
     }
 
     pub fn create_allocation_id(&mut self) -> u64 {
-        let id = self.allocation_counter;
         self.allocation_counter += 1;
-        id
+        self.allocation_counter
     }
 }
 
@@ -53,7 +52,7 @@ pub fn create_allocation_dir(
     } else {
         dir.push(id.to_string());
     }
-    dir.push(allocation_num.to_string());
+    dir.push(format!("{:03}", allocation_num));
 
     std::fs::create_dir_all(&dir)?;
 
@@ -108,8 +107,8 @@ pub fn check_command_output(output: Output) -> AutoAllocResult<Output> {
         return Err(anyhow::anyhow!(
             "Exit code: {}\nStderr: {}\nStdout: {}",
             status.code().unwrap_or(-1),
-            output.stderr.to_str().unwrap_or("Invalid UTF-8"),
-            output.stdout.to_str().unwrap_or("Invalid UTF-8")
+            output.stderr.to_str_lossy().trim(),
+            output.stdout.to_str_lossy().trim()
         ));
     }
     Ok(output)
