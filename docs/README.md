@@ -8,7 +8,7 @@ You just specify what you want to compute – HyperQueue will automatically ask 
 load-balance tasks across all allocated nodes and cores.
 
 ## Useful links
-- [Installation](install.md)
+- [Installation](installation.md)
 - [Quick start](quickstart.md)
 - [Repository](https://github.com/It4innovations/hyperqueue)
 
@@ -27,5 +27,5 @@ load-balance tasks across all allocated nodes and cores.
 
 **Simple deployment**
 
-- *HQ* is provided as a single, statically linked [binary](install.md) without any dependencies
+- *HQ* is provided as a single, statically linked [binary](installation.md) without any dependencies
 - No admin access to a cluster is needed
