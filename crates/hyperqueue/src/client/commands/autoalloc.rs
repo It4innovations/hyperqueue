@@ -87,7 +87,7 @@ pub struct AllocationsOpts {
     queue: u32,
 
     /// Display only allocations with the given state
-    #[clap(long)]
+    #[clap(long, possible_values = &["queued", "running", "finished", "failed"])]
     filter: Option<AllocationStateFilter>,
 }
 

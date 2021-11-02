@@ -46,11 +46,11 @@ struct CommonOpts {
     server_dir: Option<PathBuf>,
 
     /// Console color policy.
-    #[clap(long, default_value = "auto", possible_values = & ["auto", "always", "never"])]
+    #[clap(long, default_value = "auto", possible_values = &["auto", "always", "never"])]
     colors: ColorPolicy,
 
     /// Output selection
-    #[clap(long, default_value = "cli", possible_values = & ["cli"])]
+    #[clap(long, default_value = "cli", possible_values = &["cli"])]
     output_type: Outputs,
 }
 

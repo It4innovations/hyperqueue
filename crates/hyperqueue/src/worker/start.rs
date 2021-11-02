@@ -92,7 +92,7 @@ pub struct WorkerStartOpts {
     time_limit: Option<ArgDuration>,
 
     /// What HPC job manager should be used by the worker.
-    #[clap(long, default_value = "detect", possible_values = & ["detect", "slurm", "pbs", "none"])]
+    #[clap(long, default_value = "detect", possible_values = &["detect", "slurm", "pbs", "none"])]
     manager: ManagerOpts,
 
     /// Overwrite worker hostname
