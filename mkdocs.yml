@@ -21,7 +21,8 @@ nav:
     - Task Arrays: arrays.md
     - Resource Requirements: resource-requirements.md
   - Tips:
-    - Output streaming: streaming.md
+    - Output streaming: tips/streaming.md
+    - CLI shortcuts: tips/cli-shortcuts.md
   - FAQ: faq.md
   - Comparison with other tools: other-tools.md
 
