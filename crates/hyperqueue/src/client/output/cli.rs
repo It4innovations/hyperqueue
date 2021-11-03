@@ -241,6 +241,14 @@ impl Output for CliOutput {
         self.print_rows(rows);
     }
 
+    fn print_job_submitted(&self, job: JobDetail) {
+        println!(
+            "Job submitted {}, job ID: {}",
+            "successfully".color(colored::Color::Green),
+            job.info.id
+        );
+    }
+
     fn print_job_list(&self, tasks: Vec<JobInfo>) {
         let rows: Vec<_> = tasks
             .into_iter()
@@ -267,7 +275,6 @@ impl Output for CliOutput {
     fn print_job_detail(
         &self,
         job: JobDetail,
-        just_submitted: bool,
         show_tasks: bool,
         worker_map: WorkerMap,
         resource_names: &[String],
@@ -277,9 +284,7 @@ impl Output for CliOutput {
             vec!["Name".cell().bold(true), job.info.name.as_str().cell()],
         ];
 
-        let status = if just_submitted {
-            "SUBMITTED".cell().foreground_color(Some(Color::Cyan))
-        } else if job.info.n_tasks == 1 {
+        let status = if job.info.n_tasks == 1 {
             task_status_to_cell(job_status(&job.info))
         } else {
             job_status_to_cell(&job.info).cell()

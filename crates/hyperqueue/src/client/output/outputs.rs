@@ -43,11 +43,11 @@ pub trait Output {
     fn print_server_stats(&self, stats: StatsResponse);
 
     // Jobs
+    fn print_job_submitted(&self, job: JobDetail);
     fn print_job_list(&self, tasks: Vec<JobInfo>);
     fn print_job_detail(
         &self,
         job: JobDetail,
-        just_submitted: bool,
         show_tasks: bool,
         worker_map: WorkerMap,
         resource_names: &[String],
