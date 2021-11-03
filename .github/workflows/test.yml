@@ -80,5 +80,5 @@ jobs:
 
       - name: Build docs
         run: |
-          python -m pip install docs/requirements.txt
+          python -m pip install -r docs/requirements.txt
           mkdocs build --strict
