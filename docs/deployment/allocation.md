@@ -7,7 +7,7 @@ Using this mechanism, you can submit computations into HyperQueue without caring
 !!! Note "Job terminology"
 
     It is common to use the term "job" for jobs created by an HPC job manager, such as PBS or Slurm, which are used to
-    perform computations on HPC clusters. However, HyperQueue also uses the term "job" for [ensembles of tasks](../jobs.md).
+    perform computations on HPC clusters. However, HyperQueue also uses the term "job" for [ensembles of tasks](../jobs/jobs.md).
 
     To differentiate between these two, we will refer to jobs created by PBS or Slurm as `allocations`. We will also refer
     to PBS/Slurm as a `job manager`.
