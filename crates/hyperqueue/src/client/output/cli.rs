@@ -44,6 +44,8 @@ pub const TASK_COLOR_FINISHED: Colorization = Colorization::Green;
 pub const TASK_COLOR_RUNNING: Colorization = Colorization::Yellow;
 pub const TASK_COLOR_INVALID: Colorization = Colorization::BrightRed;
 
+const TERMINAL_WIDTH: usize = 80;
+
 pub struct CliOutput {
     color_policy: ColorChoice,
 }
@@ -316,7 +318,7 @@ impl Output for CliOutput {
             program_def
                 .args
                 .iter()
-                .map(|x| x.to_string())
+                .map(|x| textwrap::fill(&x.to_string(), TERMINAL_WIDTH))
                 .collect::<Vec<String>>()
                 .join("\n")
                 .cell(),
