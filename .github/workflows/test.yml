@@ -77,3 +77,8 @@ jobs:
           python -m pip install black==21.9b0 flake8==3.9.2
           python -m black --check tests
           python -m flake8 tests
+
+      - name: Build docs
+        run: |
+          python -m pip install docs/requirements.txt
+          mkdocs build --strict
