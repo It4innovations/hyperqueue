@@ -86,6 +86,17 @@ def test_worker_stop_all(hq_env: HqEnv):
         hq_env.check_process_exited(process)
 
 
+def test_worker_stop_last(hq_env: HqEnv):
+    hq_env.start_server()
+    processes = [hq_env.start_worker() for i in range(4)]
+
+    wait_for_worker_state(hq_env, [1, 2, 3, 4], ["RUNNING" for i in range(4)]),
+    hq_env.command(["worker", "stop", "last"])
+    wait_for_worker_state(hq_env, [4], ["STOPPED" for i in range(4)]),
+
+    hq_env.check_process_exited(processes[3])
+
+
 def test_worker_list_only_online(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_workers(2)

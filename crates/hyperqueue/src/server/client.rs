@@ -358,7 +358,12 @@ async fn handle_worker_stop(
             .filter(|(_, worker)| worker.make_info().ended.is_none())
             .map(|(_, worker)| worker.worker_id())
             .collect(),
-        _ => return ToClientMessage::Error("Invalid command was provided".parse().unwrap()),
+        Selector::LastN(n) => {
+            let mut ids: Vec<_> = state_ref.get().get_workers().keys().copied().collect();
+            ids.sort_by_key(|&k| std::cmp::Reverse(k));
+            ids.truncate(n as usize);
+            ids
+        }
     };
 
     for worker_id in worker_ids {

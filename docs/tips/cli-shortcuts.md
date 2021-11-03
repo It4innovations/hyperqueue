@@ -16,6 +16,7 @@ select multiple IDs at once or to reference the most recently created ID:
     - `hq worker stop all` - stop all workers
     - `hq cancel all` - cancel all jobs
 - `last` The most recently created ID
+    - `hq worker stop last` - stop most recently connected worker 
     - `hq cancel last` - cancel most recently submitted job
 
 You can also combine the first two types of selectors with a comma. For example, the command
@@ -29,7 +30,6 @@ would stop workers with IDs `1`, `3`, `5`, `6`, `7` and `8`.
 ### Supported commands and options
 - `hq submit --array=<selector>`
 - `hq worker stop <selector>`
-    - does not support `last`
 - `hq job <selector>`
     - does not support `all` (use `hq jobs` instead)
 - `hq cancel <selector>`
