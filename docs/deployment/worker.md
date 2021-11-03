@@ -137,12 +137,14 @@ Each worker can be in one of the following states:
 ## Useful worker commands
 Here is a list of useful worker commands:
 
-### Display all workers
+### Display worker list
+This command will display a list of workers that are currently connected to the server:
 ```bash
 $ hq worker list
 ```
 
-You can filter workers by their state (`running`, `offline`) using the `--filter` option.
+If you also want to include workers that are offline (i.e. that have crashed or disconnected in the past), pass the
+`--all` flag to the `list` command.
 
 ### Display information about a specific worker
 ```bash
