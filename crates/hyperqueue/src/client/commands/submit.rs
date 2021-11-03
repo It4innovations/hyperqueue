@@ -315,13 +315,7 @@ pub async fn submit_computation(
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
     let info = response.job.info.clone();
 
-    gsettings.printer().print_job_detail(
-        response.job,
-        true,
-        false,
-        get_worker_map(connection).await?,
-        &generic_resource_names,
-    );
+    gsettings.printer().print_job_submitted(response.job);
     if opts.wait {
         wait_for_jobs(
             gsettings,
@@ -397,7 +391,6 @@ pub async fn resubmit_computation(
     let resource_names = get_resource_names(connection, Vec::new()).await?;
     gsettings.printer().print_job_detail(
         response.job,
-        true,
         false,
         get_worker_map(connection).await?,
         &resource_names,

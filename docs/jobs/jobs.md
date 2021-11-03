@@ -210,14 +210,10 @@ can query the state of a job with the following commands[^1]:
 [^1]: You can use various [shortcuts](../tips/cli-shortcuts.md#id-selector) to select multiple jobs at once.
 
 ### Task state
-Each task starts in the `Submitted` state and can end up in one of the terminal states: `Finished`, `Failed`
+Each task starts in the `Waiting` state and can end up in one of the terminal states: `Finished`, `Failed`
 or `Canceled`.
 
 ```
-Submitted
-   |
-   |
-   v
 Waiting-----------------\
    | ^                  |
    | |                  |
@@ -230,8 +226,7 @@ Running-----------------|
 Finished    Failed   Canceled
 ```
 
-- **Submitted** Only an informative state that a submission was successful; it is only shown immediately after a submit.
-- **Waiting** The task is waiting to be executed.
+- **Waiting** The task was submitted and is now waiting to be executed.
 - **Running** The task is running on a worker. It may become `Waiting` again when the worker where the task is running
   crashes.
 - **Finished** The task has successfully finished.

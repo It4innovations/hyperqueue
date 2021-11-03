@@ -54,7 +54,14 @@ def test_job_submit(hq_env: HqEnv):
     table.check_columns_value(["Id", "Name", "State"], 2, ["3", "sleep", "FINISHED"])
 
 
-def test_custom_name(hq_env: HqEnv, tmp_path):
+def test_job_submit_output(hq_env: HqEnv):
+    hq_env.start_server()
+
+    output = hq_env.command(["submit", "--", "bash", "-c", "echo 'hello'"])
+    assert output.strip() == "Job submitted successfully, job ID: 1"
+
+
+def test_custom_name(hq_env: HqEnv):
     hq_env.start_server()
 
     hq_env.command(["submit", "sleep", "1", "--name=sleep_prog"])
@@ -94,12 +101,12 @@ def test_custom_working_dir(hq_env: HqEnv, tmpdir):
 
     submit_dir = tmpdir.mkdir("submit_dir")
 
-    cwd_submit_tbl = hq_env.command(
+    hq_env.command(
         ["submit", "--cwd=" + str(test_path), "--", "bash", "-c", "cat testfile"],
-        as_table=True,
         cwd=submit_dir,
     )
-    cwd_submit_tbl.check_row_value("Working Dir", str(test_path))
+    table = hq_env.command(["job", "1"], as_table=True)
+    table.check_row_value("Working Dir", str(test_path))
 
     hq_env.start_worker(cpus=1)
     wait_for_job_state(hq_env, 1, ["FINISHED"])
@@ -691,8 +698,7 @@ def test_job_completion_time(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
 
-    table = hq_env.command(["submit", "sleep", "1"], as_table=True)
-    table.check_row_value("Makespan", "0s")
+    hq_env.command(["submit", "sleep", "1"])
     wait_for_job_state(hq_env, 1, "RUNNING")
 
     table = hq_env.command(["job", "1"], as_table=True)

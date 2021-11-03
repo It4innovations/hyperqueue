@@ -72,7 +72,6 @@ pub async fn output_job_detail(
         if let Some(job) = response.1 {
             gsettings.printer().print_job_detail(
                 job,
-                false,
                 show_tasks,
                 get_worker_map(connection).await?,
                 &resource_names,
