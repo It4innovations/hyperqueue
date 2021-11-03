@@ -76,11 +76,7 @@ the option `--manager <pbs/slurm>` to tell the worker that it should expect a sp
 If you have started a worker manually, and you want to stop it, you can use the `hq worker stop` command[^2]:
 
 ```bash
-# Stop a specific worker
-$ hq worker stop <worker-id>
-
-# Stop all workers
-$ hq worker stop all
+$ hq worker stop <selector>
 ```
 
 [^2]: You can use various [shortcuts](../tips/cli-shortcuts.md#id-selector) to select multiple workers at once.
