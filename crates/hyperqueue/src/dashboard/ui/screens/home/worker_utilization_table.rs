@@ -14,7 +14,7 @@ pub struct WorkerUtilTable {
 }
 
 impl WorkerUtilTable {
-    pub fn update(&mut self, overview: CollectedOverview) {
+    pub fn update(&mut self, overview: &CollectedOverview) {
         let rows = create_rows(overview);
         self.table.set_items(rows);
     }
@@ -91,7 +91,7 @@ struct WorkerUtilRow {
     collection_timestamp: Option<u64>,
 }
 
-fn create_rows(overview: CollectedOverview) -> Vec<WorkerUtilRow> {
+fn create_rows(overview: &CollectedOverview) -> Vec<WorkerUtilRow> {
     overview
         .worker_overviews
         .iter()
