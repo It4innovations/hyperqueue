@@ -4,9 +4,11 @@ use tako::messages::gateway::OverviewRequest;
 use tako::messages::worker::WorkerHwStateMessage;
 
 use crate::common::error::HqError;
-use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
-use crate::transfer::messages::{FromClientMessage, ToClientMessage};
+use crate::transfer::messages::{
+    FromClientMessage, JobDetail, JobDetailRequest, Selector, ToClientMessage,
+};
+use crate::{rpc_call, JobId};
 
 pub async fn get_hw_overview(
     connection: &mut ClientConnection,
@@ -19,6 +21,44 @@ pub async fn get_hw_overview(
         ToClientMessage::OverviewResponse(response) => response
     )
     .await;
+    response
+}
+
+pub async fn get_running_job_info(
+    connection: &mut ClientConnection,
+) -> Result<Vec<(u32, JobDetail)>, HqError> {
+    let overview = get_hw_overview(connection).await?;
+    let all_jobs = get_job_list(connection).await?;
+    let mut worker_task_list: Vec<(u32, JobDetail)> = vec![];
+
+    for worker_overview in overview.worker_overviews {
+        for (_job_id, job_detail) in all_jobs.clone() {
+            if let Some(detail) = job_detail.clone() {
+                for task in &detail.clone().tasks {
+                    let task_worker_id = task.state.get_worker().unwrap_or(999);
+                    if task_worker_id == worker_overview.id {
+                        &worker_task_list.push((task_worker_id, detail.clone()));
+                    }
+                }
+            }
+        }
+    }
+    Ok(worker_task_list)
+}
+
+pub async fn get_job_list(
+    connection: &mut ClientConnection,
+) -> Result<Vec<(JobId, Option<JobDetail>)>, HqError> {
+    let response = rpc_call!(
+        connection,
+        FromClientMessage::JobDetail(JobDetailRequest {
+        selector: Selector::All,
+        include_tasks: true
+    }),
+        ToClientMessage::JobDetailResponse(response) => response
+    )
+    .await;
+
     response
 }
 

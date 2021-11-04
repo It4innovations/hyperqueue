@@ -7,7 +7,7 @@ use tui::{
 /// The Style associated with the hyperqueue logo text
 pub fn style_header_text() -> Style {
     Style::default()
-        .fg(Color::White)
+        .fg(Color::Green)
         .bg(Color::Black)
         .add_modifier(Modifier::BOLD)
 }
@@ -48,4 +48,11 @@ pub fn style_table_highlight() -> Style {
 
 pub fn style_table_row() -> Style {
     Style::default().fg(Color::Gray).bg(Color::Black)
+}
+
+pub fn style_footer_text() -> Style {
+    Style::default()
+        .fg(Color::Green)
+        .bg(Color::Black)
+        .add_modifier(Modifier::BOLD)
 }

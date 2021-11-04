@@ -12,7 +12,7 @@ use crate::dashboard::events::DashboardEvent;
 use crate::dashboard::state::DashboardState;
 use crate::dashboard::ui::screen::ClusterState;
 use crate::dashboard::ui::terminal::{initialize_terminal, DashboardTerminal};
-use crate::dashboard::utils::get_hw_overview;
+use crate::dashboard::utils::{get_hw_overview, get_running_job_info};
 use crate::server::bootstrap::get_client_connection;
 use crate::transfer::connection::ClientConnection;
 
@@ -58,12 +58,14 @@ async fn update(
     connection: &mut ClientConnection,
 ) -> anyhow::Result<()> {
     let overview = get_hw_overview(connection).await?;
-    let worker_info = get_worker_list(connection, false).await?;
+    let worker_info = get_worker_list(connection, true).await?;
+    let worker_task_data = get_running_job_info(connection).await?;
 
     let screen = state.get_current_screen_mut();
     screen.update(ClusterState {
         overview,
         worker_info,
+        worker_jobs_info: worker_task_data,
     });
     Ok(())
 }

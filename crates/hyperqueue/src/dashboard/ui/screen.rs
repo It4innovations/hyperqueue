@@ -2,7 +2,7 @@ use tako::messages::gateway::CollectedOverview;
 use termion::event::Key;
 
 use crate::dashboard::ui::terminal::DashboardFrame;
-use crate::transfer::messages::WorkerInfo;
+use crate::transfer::messages::{JobDetail, WorkerInfo};
 
 pub trait Screen {
     fn draw(&mut self, frame: &mut DashboardFrame);
@@ -16,4 +16,5 @@ pub trait Screen {
 pub struct ClusterState {
     pub overview: CollectedOverview,
     pub worker_info: Vec<WorkerInfo>,
+    pub worker_jobs_info: Vec<(u32, JobDetail)>,
 }

@@ -45,6 +45,10 @@ impl<T> StatefulTable<T> {
         }
     }
 
+    pub fn clear_selection(&mut self) {
+        self.state.select(None);
+    }
+
     pub fn current_selection(&self) -> Option<&T> {
         if let Some(selection_index) = self.state.selected() {
             return self.items.get(selection_index);

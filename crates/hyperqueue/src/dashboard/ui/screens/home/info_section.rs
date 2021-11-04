@@ -46,23 +46,25 @@ impl WorkerInfoTable {
         }
     }
 
-    pub fn draw(&mut self, rect: Rect, frame: &mut DashboardFrame) {
-        self.table.draw(
-            rect,
-            frame,
-            TableColumnHeaders {
-                title: "Worker Info".to_string(),
-                inline_help: "".to_string(),
-                table_headers: None,
-                column_widths: vec![Constraint::Percentage(30), Constraint::Percentage(70)],
-            },
-            |data| {
-                Row::new(vec![
-                    Cell::from(data.label.to_string()),
-                    Cell::from(data.data.to_string()),
-                ])
-            },
-        );
+    pub fn draw(&mut self, rect: Rect, frame: &mut DashboardFrame, worker_id: Option<u32>) {
+        if let Some(worker_id) = worker_id {
+            self.table.draw(
+                rect,
+                frame,
+                TableColumnHeaders {
+                    title: format!("Worker Info for worker_id = ({})", worker_id).to_string(),
+                    inline_help: "".to_string(),
+                    table_headers: None,
+                    column_widths: vec![Constraint::Percentage(30), Constraint::Percentage(70)],
+                },
+                |data| {
+                    Row::new(vec![
+                        Cell::from(data.label.to_string()),
+                        Cell::from(data.data.to_string()),
+                    ])
+                },
+            );
+        }
     }
 }
 
