@@ -89,17 +89,18 @@ class Session:
     def submit(self, tasks: List[Task]):
         resource_names = set()
         for task in tasks:
-            resource_names.update(task.resources.resource_names())
+            if task.resources:
+                resource_names.update(task.resources.resource_names())
         resource_names = sorted(resource_names)
 
         loop = asyncio.get_event_loop()
         response = loop.run_until_complete(
             self._send_receive(
-                {"op": "GetGenericResourceIds", "resources": resource_names},
-                "GenericResourceIds",
+                {"op": "GetGenericResourceNames", "resource_names": resource_names},
+                "GenericResourceNames",
             )
         )
-        resource_name_map = dict(zip(resource_names, response["resource_ids"]))
+        resource_name_map = dict((r[1], r[0]) for r in enumerate(response["resource_names"]))
         task_defs = []
         for task in tasks:
             if task._id is not None:
