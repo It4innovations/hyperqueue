@@ -54,11 +54,11 @@ struct Opts {
     #[clap(long)]
     sockets: Option<u32>,
 
-    #[clap(long, default_value = "")]
-    resources_i: String,
+    #[clap(long)]
+    resources_i: Option<String>,
 
-    #[clap(long, default_value = "")]
-    resources_s: String,
+    #[clap(long)]
+    resources_s: Option<String>,
 
     #[clap(long)]
     secret_file: Option<PathBuf>,
@@ -69,10 +69,10 @@ fn parse_resource_def(input: &str) -> tako::Result<Vec<(String, GenericResourceA
     for s in input.split(':') {
         let (key, value) = s
             .split_once('=')
-            .ok_or_else(|| DsError::from("Invalid resource definition"))?;
+            .ok_or_else(|| DsError::from("Invalid resource definition ('=' not found)"))?;
         let value: GenericResourceAmount = value
             .parse()
-            .map_err(|_| DsError::from("Invalid resource definition"))?;
+            .map_err(|e| DsError::from(format!("Invalid resource definition: {}", e)))?;
         result.push((key.to_string(), value))
     }
     Ok(result)
@@ -195,21 +195,25 @@ async fn main() -> tako::Result<()> {
         (None, None) => todo!(),
     };
 
-    for (name, value) in parse_resource_def(&opts.resources_i)? {
-        resources.add_generic_resource(GenericResourceDescriptor {
-            name,
-            kind: GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
-                start: 0,
-                end: value as u32 - 1,
-            }),
-        })
+    if let Some(def) = &opts.resources_i {
+        for (name, value) in parse_resource_def(def)? {
+            resources.add_generic_resource(GenericResourceDescriptor {
+                name,
+                kind: GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
+                    start: 0,
+                    end: value as u32 - 1,
+                }),
+            })
+        }
     }
 
-    for (name, value) in parse_resource_def(&opts.resources_s)? {
-        resources.add_generic_resource(GenericResourceDescriptor {
-            name,
-            kind: GenericResourceDescriptorKind::Sum(GenericResourceKindSum { size: value }),
-        })
+    if let Some(def) = &opts.resources_s {
+        for (name, value) in parse_resource_def(def)? {
+            resources.add_generic_resource(GenericResourceDescriptor {
+                name,
+                kind: GenericResourceDescriptorKind::Sum(GenericResourceKindSum { size: value }),
+            })
+        }
     }
 
     let configuration = WorkerConfiguration {

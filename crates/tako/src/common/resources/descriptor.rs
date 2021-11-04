@@ -49,23 +49,6 @@ pub struct GenericResourceDescriptor {
     pub kind: GenericResourceDescriptorKind,
 }
 
-impl GenericResourceDescriptor {
-    #[cfg(test)]
-    pub fn indices(name: &str, count: GenericResourceIndex) -> Self {
-        GenericResourceDescriptor {
-            name: name.to_string(),
-            kind: GenericResourceDescriptorKind::Indices(1, count),
-        }
-    }
-    #[cfg(test)]
-    pub fn sum(name: &str, amount: GenericResourceAmount) -> Self {
-        GenericResourceDescriptor {
-            name: name.to_string(),
-            kind: GenericResourceDescriptorKind::Sum(amount),
-        }
-    }
-}
-
 pub type CpusDescriptor = Vec<Vec<CpuId>>;
 
 /// Most precise description of request provided by a worker (without time resource)
@@ -181,6 +164,22 @@ impl ResourceDescriptor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl GenericResourceDescriptor {
+        pub fn indices(name: &str, count: GenericResourceIndex) -> Self {
+            GenericResourceDescriptor {
+                name: name.to_string(),
+                kind: GenericResourceDescriptorKind::Indices(GenericResourceKindIndices { start: 1, end: count }),
+            }
+        }
+        pub fn sum(name: &str, size: GenericResourceAmount) -> Self {
+            GenericResourceDescriptor {
+                name: name.to_string(),
+                kind: GenericResourceDescriptorKind::Sum(GenericResourceKindSum { size }),
+            }
+        }
+    }
+
 
     #[test]
     fn test_resources_to_summary() {
