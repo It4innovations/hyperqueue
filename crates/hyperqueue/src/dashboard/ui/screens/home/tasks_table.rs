@@ -2,7 +2,7 @@ use tui::layout::{Constraint, Rect};
 use tui::widgets::{Cell, Row};
 
 use crate::dashboard::ui::terminal::DashboardFrame;
-use crate::dashboard::ui::widgets::progressbar::{render_progress_bar_at, ProgressPrintStyle};
+use crate::dashboard::ui::widgets::progressbar::{ProgressPrintStyle, render_job_task_progress_bar};
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::server::job::JobTaskCounters;
 use crate::transfer::messages::{JobDetail, JobType};
@@ -55,10 +55,7 @@ impl WorkerJobsTable {
                         "id",
                         "program",
                         "job_type",
-                        "running",
-                        "finished",
-                        "failed",
-                        "cancelled",
+                        "status",
                         "max_fails",
                         "time_limit",
                     ]),
@@ -75,33 +72,11 @@ impl WorkerJobsTable {
                     ],
                 },
                 |data| {
-                    let progress =
-                        (data.counters.n_running_tasks / get_num_tasks(data.counters)) as f32;
-                    let progress =
-                        render_progress_bar_at(progress, 12, ProgressPrintStyle::default());
-
-                    let finished =
-                        (data.counters.n_finished_tasks / get_num_tasks(data.counters)) as f32;
-                    let finished =
-                        render_progress_bar_at(finished, 12, ProgressPrintStyle::default());
-
-                    let failed =
-                        (data.counters.n_failed_tasks / get_num_tasks(data.counters)) as f32;
-                    let failed = render_progress_bar_at(failed, 12, ProgressPrintStyle::default());
-
-                    let cancelled =
-                        (data.counters.n_canceled_tasks / get_num_tasks(data.counters)) as f32;
-                    let cancelled =
-                        render_progress_bar_at(cancelled, 12, ProgressPrintStyle::default());
-
                     Row::new(vec![
                         Cell::from(data.id.to_string()),
                         Cell::from(data.info.to_string()),
                         Cell::from(data.job_type.to_string()),
-                        Cell::from(progress),
-                        Cell::from(finished),
-                        Cell::from(failed),
-                        Cell::from(cancelled),
+                        Cell::from(render_job_task_progress_bar(&data.counters, ProgressPrintStyle::default())),
                         Cell::from(data.max_fails.to_string()),
                         Cell::from(data.time_limit.to_string()),
                     ])
@@ -115,10 +90,8 @@ struct WorkerJobRow {
     pub id: u32,
     pub info: String,
     pub job_type: String,
-    pub tasks: String,
     pub counters: JobTaskCounters,
     pub max_fails: String,
-    pub priority: String,
     pub time_limit: String,
 }
 
@@ -131,10 +104,8 @@ fn create_rows(detail: Vec<(u32, JobDetail)>, for_worker: u32) -> Vec<WorkerJobR
                     id: detail.clone().info.id,
                     info: detail.clone().info.name,
                     job_type: create_job_type_string(detail.clone()),
-                    tasks: create_task_ids_string(detail.clone()),
                     counters: detail.clone().info.counters,
                     max_fails: create_max_fails_string(detail.clone()),
-                    priority: create_priority_string(detail.clone()),
                     time_limit: create_time_limit_string(detail.clone()),
                 })
             } else {
@@ -172,11 +143,4 @@ fn create_priority_string(detail: JobDetail) -> String {
 fn create_time_limit_string(detail: JobDetail) -> String {
     let v = serde_json::to_value(&detail.time_limit).unwrap();
     v.to_string()
-}
-
-fn get_num_tasks(counters: JobTaskCounters) -> u32 {
-    counters.n_canceled_tasks
-        + counters.n_failed_tasks
-        + counters.n_finished_tasks
-        + counters.n_running_tasks
 }
