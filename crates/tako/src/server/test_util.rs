@@ -132,7 +132,8 @@ impl TestEnv {
             let worker_id = self.worker_id_counter;
             self.worker_id_counter += 1;
 
-            let rd = ResourceDescriptor::new(cpu_descriptor_from_socket_size(1, *c), grds.clone());
+            let cpus = cpu_descriptor_from_socket_size(1, *c);
+            let rd = ResourceDescriptor::new(cpus, grds.clone());
 
             let wcfg = WorkerConfiguration {
                 resources: rd,
