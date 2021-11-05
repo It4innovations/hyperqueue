@@ -8,12 +8,17 @@ use orion::auth::SecretKey;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::task::{JoinHandle, LocalSet};
 
-use crate::messages::gateway::{FromGatewayMessage, OverviewRequest, ToGatewayMessage};
+use super::worker::WorkerConfigBuilder;
+use crate::common::Map;
+use crate::messages::gateway::{FromGatewayMessage, ToGatewayMessage};
 use crate::server::client::process_client_message;
 use crate::server::comm::CommSenderRef;
 use crate::server::core::CoreRef;
+use crate::tests::integration::utils::worker::{start_worker, WorkerContext, WorkerHandle};
+use crate::WorkerId;
 
 #[derive(Builder, Default)]
+#[builder(pattern = "owned")]
 pub struct ServerConfig {
     #[builder(default = "Duration::from_millis(20)")]
     msd: Duration,
@@ -23,14 +28,16 @@ pub struct ServerConfig {
     idle_timeout: Option<Duration>,
 }
 
+const RECV_TIMEOUT: Duration = Duration::from_secs(5);
+
 pub struct ServerHandle {
     server_to_client: UnboundedReceiver<ToGatewayMessage>,
     client_sender: UnboundedSender<ToGatewayMessage>,
-    core_ref: CoreRef,
+    pub(super) core_ref: CoreRef,
     comm_ref: CommSenderRef,
+    pub(super) secret_key: Option<Arc<SecretKey>>,
+    workers: Map<WorkerId, WorkerContext>,
 }
-
-const RECV_TIMEOUT: Duration = Duration::from_secs(5);
 
 impl ServerHandle {
     pub async fn send(&self, msg: FromGatewayMessage) {
@@ -67,6 +74,14 @@ impl ServerHandle {
             Err(_) => panic!("Timeout reached when waiting for a specific message"),
         }
     }
+
+    pub async fn start_worker(&mut self, config: WorkerConfigBuilder) -> WorkerHandle {
+        let (handle, ctx) = start_worker(self.core_ref.clone(), self.secret_key.clone(), config)
+            .await
+            .expect("Could not start worker");
+        assert!(self.workers.insert(handle.id, ctx).is_none());
+        handle
+    }
 }
 
 async fn create_handle(
@@ -81,7 +96,7 @@ async fn create_handle(
 
     let (core_ref, comm_ref, server_future) = crate::server::server_start(
         listen_address,
-        secret_key,
+        secret_key.clone(),
         env.msd,
         client_sender.clone(),
         env.panic_on_worker_lost,
@@ -97,6 +112,8 @@ async fn create_handle(
             client_sender,
             core_ref,
             comm_ref,
+            secret_key,
+            workers: Default::default(),
         },
         server_future,
     )
@@ -116,24 +133,4 @@ pub async fn run_test<
     let handle = set.spawn_local(server_future);
     set.run_until(test_future).await;
     (set, handle)
-}
-
-/// Helper macro that simplifies the usage of [`ServerHandle::recv_msg`]
-macro_rules! wait_for_msg {
-    ($handler: expr, $matcher:pat $(=> $result:expr)?) => {
-        $handler.recv_msg(|msg| match msg {
-            $matcher => ::std::option::Option::Some(($($result),*)),
-            _ => None,
-        }).await
-    };
-}
-pub(super) use wait_for_msg;
-
-/// Helper utilities for common client messages
-pub async fn request_get_overview(handler: &ServerHandle) {
-    handler
-        .send(FromGatewayMessage::GetOverview(OverviewRequest {
-            enable_hw_overview: false,
-        }))
-        .await;
 }
