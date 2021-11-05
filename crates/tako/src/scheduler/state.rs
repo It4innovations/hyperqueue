@@ -408,10 +408,9 @@ impl SchedulerState {
                     if task.is_taken() {
                         continue;
                     }
-                    if !worker.has_time_to_run(task.configuration.resources.min_time(), now) {
+                    if !worker.is_capable_to_run(&task.configuration.resources, now) {
                         continue;
                     }
-
                     let worker2_id = task.get_assigned_worker().unwrap();
                     let worker2 = core.get_worker_by_id_or_panic(worker2_id);
 

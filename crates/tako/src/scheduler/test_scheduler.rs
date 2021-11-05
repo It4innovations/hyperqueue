@@ -484,6 +484,7 @@ fn test_resource_time_balance1() {
 
 #[test]
 fn test_generic_resource_assign2() {
+    //let _ = env_logger::init();
     let mut rt = TestEnv::new();
     rt.new_generic_resource(2);
     rt.new_workers_ext(&[
@@ -570,7 +571,6 @@ fn test_generic_resource_balance1() {
 
 #[test]
 fn test_generic_resource_balance2() {
-    let _ = env_logger::init();
     let mut rt = TestEnv::new();
     rt.new_generic_resource(2);
     rt.new_workers_ext(&[
