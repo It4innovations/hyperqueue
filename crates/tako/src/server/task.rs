@@ -375,7 +375,7 @@ mod tests {
 
     use crate::server::core::Core;
     use crate::server::task::{Task, TaskRuntimeState};
-    use crate::server::test_util::{submit_test_tasks, task, task_with_deps};
+    use crate::tests::utils::{submit_test_tasks, task, task_with_deps};
 
     //use crate::test_util::{submit_test_tasks, task, task_with_deps};
 

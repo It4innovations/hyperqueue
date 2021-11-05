@@ -382,7 +382,7 @@ fn get_task_duration(msg: &TaskFinishedMsg) -> (u64, u64) {
 mod tests {
     use crate::server::core::Core;
     use crate::server::task::{TaskRef, TaskRuntimeState};
-    use crate::server::test_util::task;
+    use crate::tests::utils::task;
 
     impl Core {
         pub fn remove_from_ready_to_assign(&mut self, task_ref: &TaskRef) {

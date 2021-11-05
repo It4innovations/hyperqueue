@@ -30,8 +30,6 @@ pub async fn server_start(
     log::debug!("Waiting for workers on {:?}", listen_address);
     let listener = TcpListener::bind(listen_address).await?;
     let listener_port = listener.local_addr().unwrap().port();
-    /*let (comm, scheduler_sender, scheduler_receiver) = prepare_scheduler_comm();
-    let scheduler_thread = start_scheduler(comm, scheduler_builder, msd);*/
 
     let scheduler_wakeup = Rc::new(Notify::new());
 
@@ -41,7 +39,6 @@ pub async fn server_start(
         panic_on_worker_lost,
     );
     let core_ref = CoreRef::new(listener_port, secret_key, idle_timeout, custom_conn_handler);
-    //let scheduler = observe_scheduler(core_ref.clone(), comm_ref.clone(), scheduler_receiver);
     let connections =
         crate::server::rpc::connection_initiator(listener, core_ref.clone(), comm_ref.clone());
 
@@ -53,7 +50,6 @@ pub async fn server_start(
             r = connections => r ?,
         };
         log::debug!("Waiting for scheduler to shut down...");
-        //scheduler_thread.join().expect("Scheduler thread failed");
         log::info!("tako ends");
         Ok(())
     };

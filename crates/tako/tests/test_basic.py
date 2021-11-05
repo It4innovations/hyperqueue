@@ -7,11 +7,6 @@ from tako.client.program import ProgramDefinition
 from tako.client.task import make_program_task
 
 
-def test_server_without_workers(tako_env):
-    session = tako_env.start()
-    assert len(session.overview()["worker_overviews"]) == 0
-
-
 def test_submit_simple_task_ok(tako_env):
     session = tako_env.start(workers=[1])
 
