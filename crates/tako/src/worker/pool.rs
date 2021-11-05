@@ -75,7 +75,7 @@ pub struct ResourcePool {
 impl ResourcePool {
     pub fn new(desc: &ResourceDescriptor, resource_names: &[String]) -> Self {
         /* Construct CPU pool */
-        assert!(desc.validate());
+        desc.validate().unwrap();
         let cpu_ids = desc
             .cpus
             .iter()
@@ -324,10 +324,10 @@ impl ResourcePool {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::resources::descriptor::cpu_descriptor_from_socket_size;
     use crate::common::resources::{
         CpuRequest, GenericResourceAllocationValue, GenericResourceDescriptor,
-        GenericResourceDescriptorKind, GenericResourceRequest, ResourceAllocation,
-        ResourceDescriptor, ResourceRequest,
+        GenericResourceRequest, ResourceAllocation, ResourceDescriptor, ResourceRequest,
     };
     use crate::common::Set;
     use crate::server::test_util::sorted_vec;
@@ -349,7 +349,8 @@ mod tests {
 
     #[test]
     fn test_pool_single_socket() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(1, 4), &[]);
+        let cpus = cpu_descriptor_from_socket_size(1, 4);
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
 
         let rq = CpuRequest::Compact(2).into();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
@@ -397,7 +398,8 @@ mod tests {
 
     #[test]
     fn test_pool_compact1() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(4, 6), &[]);
+        let cpus = cpu_descriptor_from_socket_size(4, 6);
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
 
         let rq1 = CpuRequest::Compact(4).into();
         let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
@@ -437,7 +439,8 @@ mod tests {
 
     #[test]
     fn test_pool_allocate_compact_all() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(4, 6), &[]);
+        let cpus = cpu_descriptor_from_socket_size(4, 6);
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
 
         let rq = CpuRequest::Compact(24).into();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
@@ -449,7 +452,8 @@ mod tests {
 
     #[test]
     fn test_pool_allocate_all() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(4, 6), &[]);
+        let cpus = cpu_descriptor_from_socket_size(4, 6);
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
 
         let rq = CpuRequest::All.into();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
@@ -465,7 +469,8 @@ mod tests {
 
     #[test]
     fn test_pool_force_compact1() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(2, 4), &[]);
+        let cpus = cpu_descriptor_from_socket_size(2, 4);
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
 
         let rq1 = CpuRequest::ForceCompact(9).into();
         assert!(pool.try_allocate_resources(&rq1, None).is_none());
@@ -483,7 +488,8 @@ mod tests {
 
     #[test]
     fn test_pool_force_compact2() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(2, 4), &[]);
+        let cpus = cpu_descriptor_from_socket_size(2, 4);
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
 
         for _ in 0..2 {
             let rq1 = CpuRequest::ForceCompact(3).into();
@@ -501,7 +507,8 @@ mod tests {
 
     #[test]
     fn test_pool_force_compact3() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(3, 4), &[]);
+        let cpus = cpu_descriptor_from_socket_size(3, 4);
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
 
         let rq1 = CpuRequest::ForceCompact(8).into();
         let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
@@ -524,7 +531,8 @@ mod tests {
 
     #[test]
     fn test_pool_force_scatter1() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(3, 4), &[]);
+        let cpus = cpu_descriptor_from_socket_size(3, 4);
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
 
         let rq1 = CpuRequest::Scatter(3).into();
         let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
@@ -539,7 +547,8 @@ mod tests {
 
     #[test]
     fn test_pool_force_scatter2() {
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new_with_socket_size(3, 4), &[]);
+        let cpus = cpu_descriptor_from_socket_size(3, 4);
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
 
         let rq1 = CpuRequest::ForceCompact(4).into();
         pool.try_allocate_resources(&rq1, None).unwrap();
@@ -552,29 +561,14 @@ mod tests {
 
     #[test]
     fn test_pool_generic_resources() {
-        let mut descriptor = ResourceDescriptor::new_with_socket_size(1, 4);
-
-        descriptor.add_generic_resource(GenericResourceDescriptor {
-            name: "Res0".to_string(),
-            kind: GenericResourceDescriptorKind::Indices(5, 100),
-        });
-
-        descriptor.add_generic_resource(GenericResourceDescriptor {
-            name: "Res1".to_string(),
-            kind: GenericResourceDescriptorKind::Sum(100_000_000),
-        });
-
-        descriptor.add_generic_resource(GenericResourceDescriptor {
-            name: "Res2".to_string(),
-            kind: GenericResourceDescriptorKind::Indices(0, 1),
-        });
-
-        descriptor.add_generic_resource(GenericResourceDescriptor {
-            name: "Res3".to_string(),
-            kind: GenericResourceDescriptorKind::Indices(0, 1),
-        });
-
-        descriptor.normalize();
+        let cpus = cpu_descriptor_from_socket_size(1, 4);
+        let generic = vec![
+            GenericResourceDescriptor::indices("Res0", 5, 100),
+            GenericResourceDescriptor::sum("Res1", 100_000_000),
+            GenericResourceDescriptor::indices("Res2", 0, 1),
+            GenericResourceDescriptor::indices("Res3", 0, 1),
+        ];
+        let descriptor = ResourceDescriptor::new(cpus, generic);
 
         let mut pool = ResourcePool::new(
             &descriptor,

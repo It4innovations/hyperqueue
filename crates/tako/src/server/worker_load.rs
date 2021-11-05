@@ -147,10 +147,13 @@ impl WorkerLoad {
         wr: &WorkerResources,
     ) -> bool {
         wr.n_cpus(request) + self.n_cpus <= wr.n_cpus
-            && request
-                .generic_requests()
-                .iter()
-                .all(|r| r.amount <= self.n_generic_resources[r.resource as usize])
+            && request.generic_requests().iter().all(|r| {
+                r.amount
+                    <= *self
+                        .n_generic_resources
+                        .get(r.resource as usize)
+                        .unwrap_or(&0)
+            })
     }
 
     pub fn have_immediate_resources_for_lb(
