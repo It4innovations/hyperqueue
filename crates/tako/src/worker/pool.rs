@@ -330,7 +330,7 @@ mod tests {
         GenericResourceRequest, ResourceAllocation, ResourceDescriptor, ResourceRequest,
     };
     use crate::common::Set;
-    use crate::server::test_util::sorted_vec;
+    use crate::tests::utils::sorted_vec;
     use crate::worker::pool::{GenericResourcePool, ResourcePool, SocketId};
 
     impl ResourcePool {

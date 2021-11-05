@@ -41,6 +41,9 @@ psutil = "3.2.1"
 # Optional depencies
 jemallocator = { version = "0.3.2", optional = true }
 
+[dev-dependencies]
+derive_builder = "0.10.2"
+
 [profile.release]
 lto = true
 codegen-units = 1

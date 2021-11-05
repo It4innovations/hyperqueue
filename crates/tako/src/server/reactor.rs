@@ -666,7 +666,7 @@ mod tests {
     use crate::messages::common::WorkerConfiguration;
     use crate::messages::worker::ComputeTaskMsg;
     use crate::scheduler::state::tests::create_test_scheduler;
-    use crate::server::test_util::{
+    use crate::tests::utils::{
         cancel_tasks, create_test_comm, create_test_workers, fail_steal, finish_on_worker,
         force_assign, force_reassign, sorted_vec, start_and_finish_on_worker, start_on_worker,
         start_stealing, submit_example_1, submit_test_tasks, task, task_with_deps,
