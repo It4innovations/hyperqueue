@@ -13,7 +13,9 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
 use tako::common::error::DsError;
-use tako::common::resources::descriptor::{GenericResourceKindIndices, GenericResourceKindSum};
+use tako::common::resources::descriptor::{
+    cpu_descriptor_from_socket_size, GenericResourceKindIndices, GenericResourceKindSum,
+};
 use tako::common::resources::{
     GenericResourceAmount, GenericResourceDescriptor, GenericResourceDescriptorKind,
     ResourceDescriptor,
@@ -189,15 +191,11 @@ async fn main() -> tako::Result<()> {
         .time_limit
         .map(|interval| Duration::from_secs(interval as u64));
 
-    let mut resources = match (opts.cpus, opts.sockets) {
-        (Some(c), s) => ResourceDescriptor::new_with_socket_size(s.unwrap_or(1), c),
-        (None, Some(_)) => todo!(),
-        (None, None) => todo!(),
-    };
+    let mut generic_resources = Vec::new();
 
     if let Some(def) = &opts.resources_i {
         for (name, value) in parse_resource_def(def)? {
-            resources.add_generic_resource(GenericResourceDescriptor {
+            generic_resources.push(GenericResourceDescriptor {
                 name,
                 kind: GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
                     start: 0,
@@ -209,12 +207,21 @@ async fn main() -> tako::Result<()> {
 
     if let Some(def) = &opts.resources_s {
         for (name, value) in parse_resource_def(def)? {
-            resources.add_generic_resource(GenericResourceDescriptor {
+            generic_resources.push(GenericResourceDescriptor {
                 name,
                 kind: GenericResourceDescriptorKind::Sum(GenericResourceKindSum { size: value }),
             })
         }
     }
+
+    let resources = match (opts.cpus, opts.sockets) {
+        (Some(c), s) => ResourceDescriptor::new(
+            cpu_descriptor_from_socket_size(s.unwrap_or(1), c),
+            generic_resources,
+        ),
+        (None, Some(_)) => todo!(),
+        (None, None) => todo!(),
+    };
 
     let configuration = WorkerConfiguration {
         resources,

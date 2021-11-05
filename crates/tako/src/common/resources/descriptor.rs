@@ -51,6 +51,24 @@ pub struct GenericResourceDescriptor {
 
 pub type CpusDescriptor = Vec<Vec<CpuId>>;
 
+pub fn cpu_descriptor_from_socket_size(
+    n_sockets: NumOfCpus,
+    n_cpus_per_socket: NumOfCpus,
+) -> CpusDescriptor {
+    let mut cpu_id_counter = 0;
+    (0..n_sockets)
+        .map(|_| {
+            (0..n_cpus_per_socket)
+                .map(|_| {
+                    let id = cpu_id_counter;
+                    cpu_id_counter += 1;
+                    id
+                })
+                .collect::<Vec<CpuId>>()
+        })
+        .collect()
+}
+
 /// Most precise description of request provided by a worker (without time resource)
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ResourceDescriptor {
@@ -59,53 +77,10 @@ pub struct ResourceDescriptor {
 }
 
 impl ResourceDescriptor {
-    #[cfg(test)]
-    pub fn simple(n_cpus: NumOfCpus) -> Self {
-        ResourceDescriptor::new_with_socket_size(1, n_cpus)
-    }
+    pub fn new(cpus: CpusDescriptor, mut generic: Vec<GenericResourceDescriptor>) -> Self {
+        generic.sort_by(|x, y| x.name.cmp(&y.name));
 
-    pub fn new_with_cpus(cpus: CpusDescriptor) -> Self {
-        ResourceDescriptor {
-            cpus,
-            generic: Default::default(),
-        }
-    }
-
-    pub fn new_with_socket_size(n_sockets: NumOfCpus, n_cpus_per_socket: NumOfCpus) -> Self {
-        let mut cpu_id_counter = 0;
-        let cpus = (0..n_sockets)
-            .map(|_| {
-                (0..n_cpus_per_socket)
-                    .map(|_| {
-                        let id = cpu_id_counter;
-                        cpu_id_counter += 1;
-                        id
-                    })
-                    .collect::<Vec<CpuId>>()
-            })
-            .collect();
-        Self::new_with_cpus(cpus)
-    }
-
-    pub fn add_generic_resource(&mut self, descriptor: GenericResourceDescriptor) {
-        assert!(self
-            .generic
-            .iter()
-            .find(|d| d.name == descriptor.name)
-            .is_none());
-        self.generic.push(descriptor);
-    }
-
-    pub fn normalize(&mut self) {
-        self.generic.sort_by(|x, y| x.name.cmp(&y.name))
-    }
-
-    pub fn validate(&self) -> bool {
-        if self.cpus.is_empty() || !self.cpus.iter().all(|g| !g.is_empty()) {
-            return false;
-        }
-        let s: Set<CpuId> = self.cpus.iter().flatten().copied().collect();
-        s.len() == self.cpus.iter().flatten().count()
+        ResourceDescriptor { cpus, generic }
     }
 
     pub fn full_describe(&self) -> String {
@@ -123,6 +98,26 @@ impl ResourceDescriptor {
             })
             .collect::<Vec<_>>()
             .join(", ")
+    }
+
+    pub fn validate(&self) -> crate::Result<()> {
+        if self.cpus.is_empty() || !self.cpus.iter().all(|g| !g.is_empty()) {
+            return Err(crate::Error::GenericError("Invalid number of cpus".into()));
+        }
+        let s: Set<CpuId> = self.cpus.iter().flatten().copied().collect();
+        if s.len() != self.cpus.iter().flatten().count() {
+            return Err(crate::Error::GenericError(
+                "Same CPU id in two sockets".into(),
+            ));
+        }
+
+        let s: Set<String> = self.generic.iter().map(|g| g.name.clone()).collect();
+        if s.len() != self.generic.len() {
+            return Err(crate::Error::GenericError(
+                "Same resource defined twice".into(),
+            ));
+        }
+        Ok(())
     }
 
     pub fn summary(&self, multiline: bool) -> String {
@@ -165,11 +160,23 @@ impl ResourceDescriptor {
 mod tests {
     use super::*;
 
+    impl ResourceDescriptor {
+        pub fn simple(n_cpus: NumOfCpus) -> Self {
+            Self::new(
+                cpu_descriptor_from_socket_size(1, n_cpus),
+                Default::default(),
+            )
+        }
+    }
+
     impl GenericResourceDescriptor {
-        pub fn indices(name: &str, count: GenericResourceIndex) -> Self {
+        pub fn indices(name: &str, start: GenericResourceIndex, end: GenericResourceIndex) -> Self {
             GenericResourceDescriptor {
                 name: name.to_string(),
-                kind: GenericResourceDescriptorKind::Indices(GenericResourceKindIndices { start: 1, end: count }),
+                kind: GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
+                    start,
+                    end,
+                }),
             }
         }
         pub fn sum(name: &str, size: GenericResourceAmount) -> Self {
@@ -180,54 +187,48 @@ mod tests {
         }
     }
 
-
     #[test]
     fn test_resources_to_summary() {
-        let d = ResourceDescriptor::new_with_cpus(vec![vec![0]]);
-        assert_eq!(&d.summary(), "1x1 cpus");
+        let d = ResourceDescriptor::new(vec![vec![0]], Vec::new());
+        assert_eq!(&d.summary(false), "1x1 cpus");
 
-        let d = ResourceDescriptor::new_with_cpus(vec![vec![0, 1, 2]]);
-        assert_eq!(&d.summary(), "1x3 cpus");
+        let d = ResourceDescriptor::new(vec![vec![0, 1, 2]], Vec::new());
+        assert_eq!(&d.summary(true), "1x3 cpus");
 
-        let d = ResourceDescriptor::new_with_cpus(vec![vec![0, 1, 2, 4], vec![10, 11, 12, 14]]);
-        assert_eq!(&d.summary(), "2x4 cpus");
+        let d = ResourceDescriptor::new(vec![vec![0, 1, 2, 4], vec![10, 11, 12, 14]], Vec::new());
+        assert_eq!(&d.summary(true), "2x4 cpus");
 
-        let d = ResourceDescriptor::new_with_cpus(vec![
-            vec![0, 1],
-            vec![10, 11],
-            vec![20, 21],
-            vec![30, 31],
-            vec![40, 41],
-            vec![50, 51, 52, 53, 54, 55],
-        ]);
-        assert_eq!(&d.summary(), "5x2 1x6 cpus");
+        let d = ResourceDescriptor::new(
+            vec![
+                vec![0, 1],
+                vec![10, 11],
+                vec![20, 21],
+                vec![30, 31],
+                vec![40, 41],
+                vec![50, 51, 52, 53, 54, 55],
+            ],
+            Vec::new(),
+        );
+        assert_eq!(&d.summary(true), "5x2 1x6 cpus");
 
-        let mut d = ResourceDescriptor::new_with_cpus(vec![vec![0, 1]]);
-        d.add_generic_resource(GenericResourceDescriptor {
-            name: "Aaa".to_string(),
-            kind: GenericResourceDescriptorKind::Indices(0, 9),
-        });
-        d.add_generic_resource(GenericResourceDescriptor {
-            name: "Ccc".to_string(),
-            kind: GenericResourceDescriptorKind::Indices(1, 132),
-        });
-        d.add_generic_resource(GenericResourceDescriptor {
-            name: "Bbb".to_string(),
-            kind: GenericResourceDescriptorKind::Sum(100_000_000),
-        });
-        d.normalize();
+        let generic = vec![
+            GenericResourceDescriptor::indices("Aaa", 0, 9),
+            GenericResourceDescriptor::indices("Ccc", 1, 132),
+            GenericResourceDescriptor::sum("Bbb", 100_000_000),
+        ];
+        let d = ResourceDescriptor::new(vec![vec![0, 1]], generic);
         assert_eq!(
-            &d.summary(),
-            "1x2 cpus\nAaa = Indices(0-9)\nBbb = Sum(100000000)\nCcc = Indices(1-132)"
+            &d.summary(true),
+            "1x2 cpus\nAaa: Indices(0-9)\nBbb: Sum(100000000)\nCcc: Indices(1-132)"
         );
     }
 
     #[test]
     fn test_resources_to_describe() {
-        let d = ResourceDescriptor::new_with_cpus(vec![vec![0]]);
+        let d = ResourceDescriptor::new(vec![vec![0]], Vec::new());
         assert_eq!(&d.full_describe(), "[0]");
 
-        let d = ResourceDescriptor::new_with_cpus(vec![vec![0, 1, 2, 4], vec![10, 11, 12, 14]]);
+        let d = ResourceDescriptor::new(vec![vec![0, 1, 2, 4], vec![10, 11, 12, 14]], Vec::new());
         assert_eq!(&d.full_describe(), "[0, 1, 2, 4], [10, 11, 12, 14]");
     }
 }

@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
+use crate::common::resources::descriptor::cpu_descriptor_from_socket_size;
 use crate::common::resources::{
     CpuRequest, GenericResourceAmount, GenericResourceDescriptor, GenericResourceId,
     GenericResourceRequest, NumOfCpus, ResourceDescriptor, ResourceRequest,
@@ -131,10 +132,7 @@ impl TestEnv {
             let worker_id = self.worker_id_counter;
             self.worker_id_counter += 1;
 
-            let mut rd = ResourceDescriptor::simple(*c);
-            for grd in grds {
-                rd.add_generic_resource(grd.clone())
-            }
+            let rd = ResourceDescriptor::new(cpu_descriptor_from_socket_size(1, *c), grds.clone());
 
             let wcfg = WorkerConfiguration {
                 resources: rd,

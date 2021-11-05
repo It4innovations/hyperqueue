@@ -720,7 +720,7 @@ mod tests {
         assert_eq!(core.get_workers().count(), 1);
 
         let wcfg2 = WorkerConfiguration {
-            resources: ResourceDescriptor::new_with_cpus(vec![vec![2, 3, 4], vec![100, 150]]),
+            resources: ResourceDescriptor::new(vec![vec![2, 3, 4], vec![100, 150]], Vec::new()),
             listen_address: "test2:123".into(),
             hostname: "test2".to_string(),
             work_dir: Default::default(),

@@ -491,7 +491,7 @@ fn test_generic_resource_assign2() {
         (
             10,
             None,
-            vec![GenericResourceDescriptor::indices("Res0", 10)],
+            vec![GenericResourceDescriptor::indices("Res0", 1, 10)],
         ),
         // Worker 101
         (10, None, vec![]),
@@ -500,7 +500,7 @@ fn test_generic_resource_assign2() {
             10,
             None,
             vec![
-                GenericResourceDescriptor::indices("Res0", 10),
+                GenericResourceDescriptor::indices("Res0", 1, 10),
                 GenericResourceDescriptor::sum("Res1", 1000_000),
             ],
         ),
@@ -542,7 +542,7 @@ fn test_generic_resource_balance1() {
         (
             10,
             None,
-            vec![GenericResourceDescriptor::indices("Res0", 10)],
+            vec![GenericResourceDescriptor::indices("Res0", 1, 10)],
         ),
         // Worker 101
         (10, None, vec![]),
@@ -551,7 +551,7 @@ fn test_generic_resource_balance1() {
             10,
             None,
             vec![
-                GenericResourceDescriptor::indices("Res0", 10),
+                GenericResourceDescriptor::indices("Res0", 1, 10),
                 GenericResourceDescriptor::sum("Res1", 1000_000),
             ],
         ),
@@ -578,7 +578,7 @@ fn test_generic_resource_balance2() {
         (
             10,
             None,
-            vec![GenericResourceDescriptor::indices("Res0", 10)],
+            vec![GenericResourceDescriptor::indices("Res0", 1, 10)],
         ),
         // Worker 101
         (10, None, vec![]),
@@ -587,7 +587,7 @@ fn test_generic_resource_balance2() {
             10,
             None,
             vec![
-                GenericResourceDescriptor::indices("Res0", 10),
+                GenericResourceDescriptor::indices("Res0", 1, 10),
                 GenericResourceDescriptor::sum("Res1", 1000_000),
             ],
         ),

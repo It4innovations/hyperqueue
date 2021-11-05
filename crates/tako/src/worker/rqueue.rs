@@ -100,9 +100,10 @@ impl ResourceWaitQueue {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::resources::descriptor::cpu_descriptor_from_socket_size;
     use crate::common::resources::{
-        CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind,
-        GenericResourceRequest, ResourceAllocation, ResourceDescriptor, ResourceRequest,
+        CpuRequest, GenericResourceDescriptor, GenericResourceRequest, ResourceAllocation,
+        ResourceDescriptor, ResourceRequest,
     };
     use crate::common::Map;
     use crate::worker::rqueue::ResourceWaitQueue;
@@ -129,7 +130,8 @@ mod tests {
 
     #[test]
     fn test_rqueue_resource_priority() {
-        let mut rq = ResourceWaitQueue::new(&ResourceDescriptor::new_with_socket_size(1, 5), &[]);
+        let cpus = cpu_descriptor_from_socket_size(1, 5);
+        let mut rq = ResourceWaitQueue::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
         let t = worker_task(10, CpuRequest::Scatter(4).into(), 1);
         rq.add_task(t);
         let t = worker_task(11, CpuRequest::Compact(4).into(), 1);
@@ -158,7 +160,8 @@ mod tests {
 
     #[test]
     fn test_rqueue1() {
-        let mut rq = ResourceWaitQueue::new(&ResourceDescriptor::new_with_socket_size(3, 5), &[]);
+        let cpus = cpu_descriptor_from_socket_size(3, 5);
+        let mut rq = ResourceWaitQueue::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
         let t = worker_task(10, CpuRequest::Compact(2).into(), 1);
         rq.add_task(t);
         let t = worker_task(11, CpuRequest::Compact(5).into(), 1);
@@ -174,7 +177,8 @@ mod tests {
 
     #[test]
     fn test_rqueue2() {
-        let mut rq = ResourceWaitQueue::new(&ResourceDescriptor::new_with_socket_size(1, 4), &[]);
+        let cpus = cpu_descriptor_from_socket_size(1, 4);
+        let mut rq = ResourceWaitQueue::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
         let t = worker_task(10, CpuRequest::Compact(2).into(), 1);
         rq.add_task(t);
         let t = worker_task(11, CpuRequest::Compact(1).into(), 2);
@@ -193,7 +197,8 @@ mod tests {
 
     #[test]
     fn test_rqueue3() {
-        let mut rq = ResourceWaitQueue::new(&ResourceDescriptor::new_with_socket_size(1, 4), &[]);
+        let cpus = cpu_descriptor_from_socket_size(1, 4);
+        let mut rq = ResourceWaitQueue::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
         let t = worker_task(10, CpuRequest::Compact(2).into(), 1);
         rq.add_task(t);
         let t = worker_task(11, CpuRequest::Compact(1).into(), 1);
@@ -217,7 +222,8 @@ mod tests {
 
     #[test]
     fn test_rqueue_time_request() {
-        let mut rq = ResourceWaitQueue::new(&ResourceDescriptor::new_with_socket_size(1, 4), &[]);
+        let cpus = cpu_descriptor_from_socket_size(1, 4);
+        let mut rq = ResourceWaitQueue::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
         let t = worker_task(
             10,
             ResourceRequest::new(
@@ -238,7 +244,8 @@ mod tests {
 
     #[test]
     fn test_rqueue_time_request_priority1() {
-        let mut rq = ResourceWaitQueue::new(&ResourceDescriptor::new_with_socket_size(1, 4), &[]);
+        let cpus = cpu_descriptor_from_socket_size(1, 4);
+        let mut rq = ResourceWaitQueue::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
         let t = worker_task(
             10,
             ResourceRequest::new(
@@ -288,7 +295,8 @@ mod tests {
 
     #[test]
     fn test_rqueue_time_request_priority2() {
-        let mut rq = ResourceWaitQueue::new(&ResourceDescriptor::new_with_socket_size(1, 4), &[]);
+        let cpus = cpu_descriptor_from_socket_size(1, 4);
+        let mut rq = ResourceWaitQueue::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
         let t = worker_task(
             10,
             ResourceRequest::new(
@@ -338,25 +346,15 @@ mod tests {
 
     #[test]
     fn test_rqueue_generic_resource1_priorities() {
-        let mut descriptor = ResourceDescriptor::new_with_socket_size(1, 4);
-
-        descriptor.add_generic_resource(GenericResourceDescriptor {
-            name: "Res0".to_string(),
-            kind: GenericResourceDescriptorKind::Indices(1, 20),
-        });
-
-        descriptor.add_generic_resource(GenericResourceDescriptor {
-            name: "Res1".to_string(),
-            kind: GenericResourceDescriptorKind::Sum(100_000_000),
-        });
-
-        descriptor.add_generic_resource(GenericResourceDescriptor {
-            name: "Res3".to_string(),
-            kind: GenericResourceDescriptorKind::Indices(1, 50),
-        });
-
+        let cpus = cpu_descriptor_from_socket_size(1, 4);
+        let generic = vec![
+            GenericResourceDescriptor::indices("Res0", 1, 20),
+            GenericResourceDescriptor::sum("Res1", 100_000_000),
+            GenericResourceDescriptor::indices("Res2", 1, 50),
+        ];
+        let descriptor = ResourceDescriptor::new(cpus, generic);
         let mut rq =
-            ResourceWaitQueue::new(&descriptor, &["Res0".into(), "Res1".into(), "Res3".into()]);
+            ResourceWaitQueue::new(&descriptor, &["Res0".into(), "Res1".into(), "Res2".into()]);
 
         let mut request: ResourceRequest = CpuRequest::Compact(2).into();
 
@@ -377,25 +375,16 @@ mod tests {
 
     #[test]
     fn test_rqueue_generic_resource2_priorities() {
-        let mut descriptor = ResourceDescriptor::new_with_socket_size(1, 4);
-
-        descriptor.add_generic_resource(GenericResourceDescriptor {
-            name: "Res0".to_string(),
-            kind: GenericResourceDescriptorKind::Indices(1, 20),
-        });
-
-        descriptor.add_generic_resource(GenericResourceDescriptor {
-            name: "Res1".to_string(),
-            kind: GenericResourceDescriptorKind::Sum(100_000_000),
-        });
-
-        descriptor.add_generic_resource(GenericResourceDescriptor {
-            name: "Res3".to_string(),
-            kind: GenericResourceDescriptorKind::Indices(1, 50),
-        });
+        let cpus = cpu_descriptor_from_socket_size(1, 4);
+        let generic = vec![
+            GenericResourceDescriptor::indices("Res0", 1, 20),
+            GenericResourceDescriptor::sum("Res1", 100_000_000),
+            GenericResourceDescriptor::indices("Res2", 1, 50),
+        ];
+        let descriptor = ResourceDescriptor::new(cpus, generic);
 
         let mut rq =
-            ResourceWaitQueue::new(&descriptor, &["Res0".into(), "Res1".into(), "Res3".into()]);
+            ResourceWaitQueue::new(&descriptor, &["Res0".into(), "Res1".into(), "Res2".into()]);
 
         let mut request: ResourceRequest = CpuRequest::Compact(2).into();
         request.add_generic_request(GenericResourceRequest {
@@ -429,25 +418,16 @@ mod tests {
 
     #[test]
     fn test_rqueue_generic_resource3_priorities() {
-        let mut descriptor = ResourceDescriptor::new_with_socket_size(1, 4);
-
-        descriptor.add_generic_resource(GenericResourceDescriptor {
-            name: "Res0".to_string(),
-            kind: GenericResourceDescriptorKind::Indices(1, 20),
-        });
-
-        descriptor.add_generic_resource(GenericResourceDescriptor {
-            name: "Res1".to_string(),
-            kind: GenericResourceDescriptorKind::Sum(100_000_000),
-        });
-
-        descriptor.add_generic_resource(GenericResourceDescriptor {
-            name: "Res3".to_string(),
-            kind: GenericResourceDescriptorKind::Indices(1, 50),
-        });
+        let cpus = cpu_descriptor_from_socket_size(1, 4);
+        let generic = vec![
+            GenericResourceDescriptor::indices("Res0", 1, 20),
+            GenericResourceDescriptor::sum("Res1", 100_000_000),
+            GenericResourceDescriptor::indices("Res2", 1, 50),
+        ];
+        let descriptor = ResourceDescriptor::new(cpus, generic);
 
         let mut rq =
-            ResourceWaitQueue::new(&descriptor, &["Res0".into(), "Res1".into(), "Res3".into()]);
+            ResourceWaitQueue::new(&descriptor, &["Res0".into(), "Res1".into(), "Res2".into()]);
 
         let mut request: ResourceRequest = CpuRequest::Compact(2).into();
         request.add_generic_request(GenericResourceRequest {
