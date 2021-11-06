@@ -26,6 +26,8 @@ use crate::WorkerId;
 pub struct WorkerConfig {
     #[builder(default)]
     idle_timeout: Option<Duration>,
+    #[builder(default)]
+    hw_state_poll_interval: Option<Duration>,
 }
 
 pub(crate) fn create_worker_configuration(builder: WorkerConfigBuilder) -> WorkerConfiguration {
@@ -41,7 +43,7 @@ pub(crate) fn create_worker_configuration(builder: WorkerConfigBuilder) -> Worke
         work_dir: Default::default(),
         log_dir: Default::default(),
         heartbeat_interval: Duration::from_secs(1),
-        hw_state_poll_interval: None,
+        hw_state_poll_interval: config.hw_state_poll_interval,
         idle_timeout: config.idle_timeout,
         time_limit: None,
         extra: Default::default(),
