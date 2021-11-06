@@ -4,14 +4,6 @@ from tako.client.program import ProgramDefinition
 from tako.client.task import make_program_task
 
 
-def test_lost_worker_without_tasks(tako_env):
-    session = tako_env.start(workers=[1, 1], panic_on_worker_lost=False)
-    tako_env.kill_worker(0)
-    time.sleep(0.2)
-    overview = session.overview()
-    assert len(overview["worker_overviews"]) == 1
-
-
 def test_lost_worker_with_tasks_continue(tako_env):
     # We use delay to ensure that worker_id matches to kill the right one
     session = tako_env.start(

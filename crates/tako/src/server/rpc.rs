@@ -43,12 +43,12 @@ pub async fn connection_initiator(
     loop {
         let (socket, address) = listener.accept().await?;
         socket.set_nodelay(true)?;
-        let core_ref = core_ref.clone();
+        let core_ref2 = core_ref.clone();
         let comm_ref = comm_ref.clone();
-        tokio::task::spawn_local(async move {
+        let rpc_task = tokio::task::spawn_local(async move {
             log::debug!("New connection: {}", address);
             let (connection, message) =
-                match worker_authentication(&core_ref, socket, address).await {
+                match worker_authentication(&core_ref2, socket, address).await {
                     Ok(r) => r,
                     Err(e) => {
                         log::warn!("Worker connection ended with: {:?}", e);
@@ -57,22 +57,19 @@ pub async fn connection_initiator(
                 };
             match message {
                 ConnectionRegistration::Worker(msg) => {
-                    match worker_rpc_loop(&core_ref, &comm_ref, connection, msg).await {
-                        Ok(_) => {
-                            log::debug!("Connection ended: {}", address);
-                        }
-                        Err(e) => {
-                            log::warn!("Worker connection ended with: {:?}", e);
-                        }
+                    match worker_rpc_loop(&core_ref2, &comm_ref, connection, msg).await {
+                        Ok(_) => log::debug!("Connection ended: {}", address),
+                        Err(e) => log::warn!("Worker connection ended with: {:?}", e),
                     }
                 }
                 ConnectionRegistration::Custom => {
-                    if let Some(handler) = core_ref.get().custom_conn_handler() {
+                    if let Some(handler) = core_ref2.get().custom_conn_handler() {
                         handler(connection);
                     }
                 }
             }
         });
+        core_ref.get_mut().add_rpc_handle(rpc_task);
     }
 }
 

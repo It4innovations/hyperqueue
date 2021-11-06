@@ -648,3 +648,8 @@ pub fn sorted_vec<T: Ord>(mut vec: Vec<T>) -> Vec<T> {
     vec.sort();
     vec
 }
+
+#[allow(unused)]
+pub fn enable_test_logging() {
+    env_logger::builder().is_test(false).init()
+}
