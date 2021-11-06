@@ -82,6 +82,11 @@ impl ServerHandle {
         assert!(self.workers.insert(handle.id, ctx).is_none());
         handle
     }
+
+    pub async fn kill_worker(&mut self, id: WorkerId) {
+        let ctx = self.workers.remove(&id).unwrap();
+        ctx.abort().await;
+    }
 }
 
 async fn create_handle(
@@ -119,18 +124,50 @@ async fn create_handle(
     )
 }
 
+pub struct ServerCompletion {
+    core_ref: CoreRef,
+    set: LocalSet,
+    server_handle: JoinHandle<crate::Result<()>>,
+}
+
+impl ServerCompletion {
+    /// Waits until all RPC connections (workers, custom connections) are finished.
+    pub async fn finish_rpc(&mut self) {
+        let handles = self.core_ref.get_mut().take_rpc_handles();
+        for handle in handles {
+            self.set.run_until(handle).await.unwrap();
+        }
+    }
+
+    /// Finish the main server future.
+    pub async fn finish(self) {
+        self.set
+            .run_until(self.server_handle)
+            .await
+            .unwrap()
+            .unwrap();
+        self.set.await;
+    }
+}
+
 pub async fn run_test<
     CreateTestFut: FnOnce(ServerHandle) -> TestFut,
     TestFut: Future<Output = ()>,
 >(
     builder: ServerConfigBuilder,
     create_fut: CreateTestFut,
-) -> (LocalSet, JoinHandle<crate::Result<()>>) {
+) -> ServerCompletion {
     let (handle, server_future) = create_handle(builder).await;
+    let core_ref = handle.core_ref.clone();
     let test_future = create_fut(handle);
 
     let set = tokio::task::LocalSet::new();
-    let handle = set.spawn_local(server_future);
+    let server_handle = set.spawn_local(server_future);
     set.run_until(test_future).await;
-    (set, handle)
+
+    ServerCompletion {
+        core_ref,
+        server_handle,
+        set,
+    }
 }

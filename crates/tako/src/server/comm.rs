@@ -161,13 +161,15 @@ impl Comm for CommSender {
         running_tasks: Vec<TaskId>,
         reason: LostWorkerReason,
     ) {
-        assert!(self
+        if let Err(e) = self
             .client_sender
             .send(ToGatewayMessage::LostWorker(LostWorkerMessage {
                 worker_id,
                 running_tasks,
                 reason,
             }))
-            .is_ok());
+        {
+            log::error!("Error while sending worker lost message to client: {:?}", e);
+        }
     }
 }

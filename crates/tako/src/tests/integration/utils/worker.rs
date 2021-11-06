@@ -3,9 +3,9 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::thread::JoinHandle;
 use std::time::Duration;
 use tempdir::TempDir;
-use tokio::task::JoinHandle;
 
 use crate::common::error::DsError;
 use crate::common::resources::ResourceDescriptor;
@@ -57,8 +57,17 @@ pub struct WorkerHandle {
 
 /// This data has to live as long as the worker lives
 pub struct WorkerContext {
+    #[allow(dead_code)]
     tmpdir: TempDir,
-    task_handle: JoinHandle<()>,
+    end_flag: tokio::sync::oneshot::Sender<()>,
+    thread_handle: JoinHandle<()>,
+}
+
+impl WorkerContext {
+    pub(super) async fn abort(self) {
+        self.end_flag.send(()).unwrap();
+        self.thread_handle.join().unwrap();
+    }
 }
 
 pub(super) async fn start_worker(
@@ -77,13 +86,31 @@ pub(super) async fn start_worker(
 
     let server_address: SocketAddr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
 
-    let ((worker_id, _), worker_future) = run_worker(
-        server_address,
-        configuration,
-        secret_key,
-        Box::new(launcher),
-    )
-    .await?;
+    let (id_tx, id_rx) = tokio::sync::oneshot::channel();
+    let (end_tx, end_rx) = tokio::sync::oneshot::channel();
+    let thread_handle = std::thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let future = async move {
+            let ((worker_id, _), worker_future) = run_worker(
+                server_address,
+                configuration,
+                secret_key,
+                Box::new(launcher),
+            )
+            .await
+            .unwrap();
+            id_tx.send(worker_id).unwrap();
+            tokio::select! {
+                _ = worker_future => {},
+                _ = end_rx => {}
+            }
+        };
+        runtime.block_on(future);
+    });
+    let worker_id = id_rx.await.unwrap();
 
     let handle = WorkerHandle {
         workdir,
@@ -92,7 +119,8 @@ pub(super) async fn start_worker(
     };
     let ctx = WorkerContext {
         tmpdir,
-        task_handle: tokio::task::spawn_local(worker_future),
+        thread_handle,
+        end_flag: end_tx,
     };
     Ok((handle, ctx))
 }

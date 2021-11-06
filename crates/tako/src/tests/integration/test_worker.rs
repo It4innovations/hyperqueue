@@ -1,3 +1,4 @@
+use super::utils::server::ServerConfigBuilder;
 use super::utils::worker::WorkerConfigBuilder;
 use crate::tests::integration::utils::api::get_overview;
 use crate::tests::integration::utils::server::run_test;
@@ -34,4 +35,29 @@ async fn test_worker_timeout() {
         assert!(handler.worker_overviews.is_empty());
     })
     .await;
+}
+
+#[tokio::test]
+async fn test_kill_worker() {
+    run_test(Default::default(), |mut handler| async move {
+        let worker = handler.start_worker(Default::default()).await;
+        handler.kill_worker(worker.id).await;
+
+        let handler = get_overview(&mut handler).await;
+        assert!(handler.worker_overviews.is_empty());
+    })
+    .await;
+}
+
+#[tokio::test]
+#[should_panic]
+async fn test_panic_on_worker_lost() {
+    let config = ServerConfigBuilder::default().panic_on_worker_lost(true);
+    let mut completion = run_test(config, |mut handler| async move {
+        let worker = handler.start_worker(Default::default()).await;
+        handler.kill_worker(worker.id).await;
+    })
+    .await;
+    completion.finish_rpc().await;
+    completion.finish().await;
 }
