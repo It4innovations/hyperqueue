@@ -25,11 +25,11 @@ async fn test_overview_single_worker() {
 }
 
 #[tokio::test]
-async fn test_worker_timeout() {
+async fn test_worker_idle_timeout_no_tasks() {
     run_test(Default::default(), |mut handler| async move {
         let builder = WorkerConfigBuilder::default().idle_timeout(Some(Duration::from_millis(10)));
         handler.start_worker(builder).await.unwrap();
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
 
         let handler = get_overview(&mut handler).await;
         assert!(handler.worker_overviews.is_empty());
@@ -60,4 +60,18 @@ async fn test_panic_on_worker_lost() {
     .await;
     completion.finish_rpc().await;
     completion.finish().await;
+}
+
+#[tokio::test]
+async fn test_worker_heartbeat_expired() {
+    run_test(Default::default(), |mut handler| async move {
+        let config = WorkerConfigBuilder::default().heartbeat_interval(Duration::from_millis(200));
+        let worker = handler.start_worker(config).await.unwrap();
+        worker.pause().await;
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let overview = get_overview(&mut handler).await;
+        assert!(overview.worker_overviews.is_empty());
+    })
+    .await;
 }
