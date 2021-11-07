@@ -17,6 +17,17 @@ use crate::server::core::CoreRef;
 use crate::tests::integration::utils::worker::{start_worker, WorkerContext, WorkerHandle};
 use crate::WorkerId;
 
+pub enum ServerSecretKey {
+    AutoGenerate,
+    Custom(Option<SecretKey>),
+}
+
+impl Default for ServerSecretKey {
+    fn default() -> Self {
+        Self::AutoGenerate
+    }
+}
+
 #[derive(Builder, Default)]
 #[builder(pattern = "owned")]
 pub struct ServerConfig {
@@ -26,6 +37,8 @@ pub struct ServerConfig {
     panic_on_worker_lost: bool,
     #[builder(default)]
     idle_timeout: Option<Duration>,
+    #[builder(default)]
+    secret_key: ServerSecretKey,
 }
 
 const RECV_TIMEOUT: Duration = Duration::from_secs(5);
@@ -75,12 +88,14 @@ impl ServerHandle {
         }
     }
 
-    pub async fn start_worker(&mut self, config: WorkerConfigBuilder) -> WorkerHandle {
-        let (handle, ctx) = start_worker(self.core_ref.clone(), self.secret_key.clone(), config)
-            .await
-            .expect("Could not start worker");
+    pub async fn start_worker(
+        &mut self,
+        config: WorkerConfigBuilder,
+    ) -> anyhow::Result<WorkerHandle> {
+        let (handle, ctx) =
+            start_worker(self.core_ref.clone(), self.secret_key.clone(), config).await?;
         assert!(self.workers.insert(handle.id, ctx).is_none());
-        handle
+        Ok(handle)
     }
 
     pub async fn kill_worker(&mut self, id: WorkerId) {
@@ -92,20 +107,23 @@ impl ServerHandle {
 async fn create_handle(
     builder: ServerConfigBuilder,
 ) -> (ServerHandle, impl Future<Output = crate::Result<()>>) {
-    let env: ServerConfig = builder.build().unwrap();
+    let config: ServerConfig = builder.build().unwrap();
 
     let listen_address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
-    let secret_key = Some(Arc::new(SecretKey::default()));
+    let secret_key = match config.secret_key {
+        ServerSecretKey::AutoGenerate => Some(Arc::new(Default::default())),
+        ServerSecretKey::Custom(key) => key.map(Arc::new),
+    };
 
     let (client_sender, client_receiver) = unbounded_channel::<ToGatewayMessage>();
 
     let (core_ref, comm_ref, server_future) = crate::server::server_start(
         listen_address,
         secret_key.clone(),
-        env.msd,
+        config.msd,
         client_sender.clone(),
-        env.panic_on_worker_lost,
-        env.idle_timeout,
+        config.panic_on_worker_lost,
+        config.idle_timeout,
         None,
     )
     .await

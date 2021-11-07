@@ -8,7 +8,7 @@ async fn test_hw_monitoring() {
     run_test(Default::default(), |mut handler| async move {
         let config =
             WorkerConfigBuilder::default().hw_state_poll_interval(Some(Duration::from_millis(10)));
-        handler.start_worker(config).await;
+        handler.start_worker(config).await.unwrap();
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 

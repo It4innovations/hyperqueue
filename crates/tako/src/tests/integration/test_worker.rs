@@ -16,7 +16,7 @@ async fn test_overview_server_without_workers() {
 #[tokio::test]
 async fn test_overview_single_worker() {
     run_test(Default::default(), |mut handler| async move {
-        let worker = handler.start_worker(Default::default()).await;
+        let worker = handler.start_worker(Default::default()).await.unwrap();
         let overview = get_overview(&mut handler).await;
         assert_eq!(overview.worker_overviews.len(), 1);
         assert_eq!(overview.worker_overviews[0].id, worker.id);
@@ -28,7 +28,7 @@ async fn test_overview_single_worker() {
 async fn test_worker_timeout() {
     run_test(Default::default(), |mut handler| async move {
         let builder = WorkerConfigBuilder::default().idle_timeout(Some(Duration::from_millis(10)));
-        handler.start_worker(builder).await;
+        handler.start_worker(builder).await.unwrap();
         tokio::time::sleep(Duration::from_secs(1)).await;
 
         let handler = get_overview(&mut handler).await;
@@ -40,7 +40,7 @@ async fn test_worker_timeout() {
 #[tokio::test]
 async fn test_kill_worker() {
     run_test(Default::default(), |mut handler| async move {
-        let worker = handler.start_worker(Default::default()).await;
+        let worker = handler.start_worker(Default::default()).await.unwrap();
         handler.kill_worker(worker.id).await;
 
         let handler = get_overview(&mut handler).await;
@@ -54,7 +54,7 @@ async fn test_kill_worker() {
 async fn test_panic_on_worker_lost() {
     let config = ServerConfigBuilder::default().panic_on_worker_lost(true);
     let mut completion = run_test(config, |mut handler| async move {
-        let worker = handler.start_worker(Default::default()).await;
+        let worker = handler.start_worker(Default::default()).await.unwrap();
         handler.kill_worker(worker.id).await;
     })
     .await;

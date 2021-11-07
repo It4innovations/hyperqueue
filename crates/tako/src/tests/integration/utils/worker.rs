@@ -21,6 +21,17 @@ use crate::worker::task::TaskRef;
 use crate::worker::taskenv::{StopReason, TaskResult};
 use crate::WorkerId;
 
+pub enum WorkerSecretKey {
+    Server,
+    Custom(Option<SecretKey>),
+}
+
+impl Default for WorkerSecretKey {
+    fn default() -> Self {
+        Self::Server
+    }
+}
+
 #[derive(Builder, Default)]
 #[builder(pattern = "owned")]
 pub struct WorkerConfig {
@@ -28,26 +39,34 @@ pub struct WorkerConfig {
     idle_timeout: Option<Duration>,
     #[builder(default)]
     hw_state_poll_interval: Option<Duration>,
+    #[builder(default)]
+    secret_key: WorkerSecretKey,
 }
 
-pub(crate) fn create_worker_configuration(builder: WorkerConfigBuilder) -> WorkerConfiguration {
+pub(super) fn create_worker_configuration(
+    builder: WorkerConfigBuilder,
+) -> (WorkerConfiguration, WorkerSecretKey) {
     let config: WorkerConfig = builder.build().unwrap();
+    let secret_key = config.secret_key;
 
-    WorkerConfiguration {
-        resources: ResourceDescriptor {
-            cpus: vec![vec![1]],
-            generic: vec![],
+    (
+        WorkerConfiguration {
+            resources: ResourceDescriptor {
+                cpus: vec![vec![1]],
+                generic: vec![],
+            },
+            listen_address: "".to_string(),
+            hostname: "".to_string(),
+            work_dir: Default::default(),
+            log_dir: Default::default(),
+            heartbeat_interval: Duration::from_secs(1),
+            hw_state_poll_interval: config.hw_state_poll_interval,
+            idle_timeout: config.idle_timeout,
+            time_limit: None,
+            extra: Default::default(),
         },
-        listen_address: "".to_string(),
-        hostname: "".to_string(),
-        work_dir: Default::default(),
-        log_dir: Default::default(),
-        heartbeat_interval: Duration::from_secs(1),
-        hw_state_poll_interval: config.hw_state_poll_interval,
-        idle_timeout: config.idle_timeout,
-        time_limit: None,
-        extra: Default::default(),
-    }
+        secret_key,
+    )
 }
 
 /// This data is available for tests
@@ -74,11 +93,11 @@ impl WorkerContext {
 
 pub(super) async fn start_worker(
     core_ref: CoreRef,
-    secret_key: Option<Arc<SecretKey>>,
+    server_secret_key: Option<Arc<SecretKey>>,
     config: WorkerConfigBuilder,
-) -> crate::Result<(WorkerHandle, WorkerContext)> {
+) -> anyhow::Result<(WorkerHandle, WorkerContext)> {
     let port = core_ref.get().get_worker_listen_port();
-    let mut configuration = create_worker_configuration(config);
+    let (mut configuration, worker_secret_key) = create_worker_configuration(config);
     let tmpdir = TempDir::new("tako").unwrap();
     let workdir = tmpdir.path().to_path_buf().join("work");
     let logdir = tmpdir.path().to_path_buf().join("logs");
@@ -90,29 +109,40 @@ pub(super) async fn start_worker(
 
     let (id_tx, id_rx) = tokio::sync::oneshot::channel();
     let (end_tx, end_rx) = tokio::sync::oneshot::channel();
+    let secret_key = match worker_secret_key {
+        WorkerSecretKey::Server => server_secret_key,
+        WorkerSecretKey::Custom(key) => key.map(Arc::new),
+    };
+
     let thread_handle = std::thread::spawn(move || {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .unwrap();
         let future = async move {
-            let ((worker_id, _), worker_future) = run_worker(
+            let result = run_worker(
                 server_address,
                 configuration,
                 secret_key,
                 Box::new(launcher),
             )
-            .await
-            .unwrap();
-            id_tx.send(worker_id).unwrap();
-            tokio::select! {
-                _ = worker_future => {},
-                _ = end_rx => {}
+            .await;
+            match result {
+                Ok(((worker_id, _), worker_future)) => {
+                    id_tx.send(Ok(worker_id)).unwrap();
+                    tokio::select! {
+                        _ = worker_future => {},
+                        _ = end_rx => {}
+                    }
+                }
+                Err(e) => {
+                    id_tx.send(Err(e)).unwrap();
+                }
             }
         };
         runtime.block_on(future);
     });
-    let worker_id = id_rx.await.unwrap();
+    let worker_id = id_rx.await??;
 
     let handle = WorkerHandle {
         workdir,
