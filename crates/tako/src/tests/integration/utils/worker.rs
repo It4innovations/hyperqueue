@@ -41,13 +41,19 @@ pub struct WorkerConfig {
     hw_state_poll_interval: Option<Duration>,
     #[builder(default)]
     secret_key: WorkerSecretKey,
+    #[builder(default = "Duration::from_millis(250)")]
+    heartbeat_interval: Duration,
 }
 
 pub(super) fn create_worker_configuration(
     builder: WorkerConfigBuilder,
 ) -> (WorkerConfiguration, WorkerSecretKey) {
-    let config: WorkerConfig = builder.build().unwrap();
-    let secret_key = config.secret_key;
+    let WorkerConfig {
+        idle_timeout,
+        hw_state_poll_interval,
+        secret_key,
+        heartbeat_interval,
+    } = builder.build().unwrap();
 
     (
         WorkerConfiguration {
@@ -59,9 +65,9 @@ pub(super) fn create_worker_configuration(
             hostname: "".to_string(),
             work_dir: Default::default(),
             log_dir: Default::default(),
-            heartbeat_interval: Duration::from_secs(1),
-            hw_state_poll_interval: config.hw_state_poll_interval,
-            idle_timeout: config.idle_timeout,
+            heartbeat_interval,
+            hw_state_poll_interval,
+            idle_timeout,
             time_limit: None,
             extra: Default::default(),
         },
@@ -74,6 +80,28 @@ pub struct WorkerHandle {
     pub workdir: PathBuf,
     pub logdir: PathBuf,
     pub id: WorkerId,
+    control_tx: tokio::sync::mpsc::Sender<WorkerControlMessage>,
+}
+
+impl WorkerHandle {
+    pub async fn pause(&self) -> WorkerPauseToken {
+        let (unpause_tx, unpause_rx) = tokio::sync::oneshot::channel();
+        self.control_tx
+            .send(WorkerControlMessage::Pause(unpause_rx))
+            .await
+            .unwrap_or_else(|_| panic!("Could not send pause message"));
+        WorkerPauseToken { unpause_tx }
+    }
+}
+
+pub struct WorkerPauseToken {
+    unpause_tx: tokio::sync::oneshot::Sender<()>,
+}
+
+impl WorkerPauseToken {
+    pub fn resume(self) {
+        self.unpause_tx.send(()).unwrap();
+    }
 }
 
 /// This data has to live as long as the worker lives
@@ -89,6 +117,10 @@ impl WorkerContext {
         self.end_flag.send(()).unwrap();
         self.thread_handle.join().unwrap();
     }
+}
+
+enum WorkerControlMessage {
+    Pause(tokio::sync::oneshot::Receiver<()>),
 }
 
 pub(super) async fn start_worker(
@@ -108,7 +140,9 @@ pub(super) async fn start_worker(
     let server_address: SocketAddr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
 
     let (id_tx, id_rx) = tokio::sync::oneshot::channel();
-    let (end_tx, end_rx) = tokio::sync::oneshot::channel();
+    let (end_tx, mut end_rx) = tokio::sync::oneshot::channel();
+    let (control_tx, mut control_rx) = tokio::sync::mpsc::channel::<WorkerControlMessage>(32);
+
     let secret_key = match worker_secret_key {
         WorkerSecretKey::Server => server_secret_key,
         WorkerSecretKey::Custom(key) => key.map(Arc::new),
@@ -127,12 +161,30 @@ pub(super) async fn start_worker(
                 Box::new(launcher),
             )
             .await;
+
             match result {
                 Ok(((worker_id, _), worker_future)) => {
                     id_tx.send(Ok(worker_id)).unwrap();
-                    tokio::select! {
-                        _ = worker_future => {},
-                        _ = end_rx => {}
+
+                    tokio::pin! {
+                        let worker_future = worker_future;
+                    }
+
+                    loop {
+                        tokio::select! {
+                            _ = &mut worker_future => break,
+                            _ = &mut end_rx => break,
+                            msg = control_rx.recv() => {
+                                match msg {
+                                    Some(msg) => {
+                                        match msg {
+                                            WorkerControlMessage::Pause(until) => until.await.unwrap()
+                                        }
+                                    }
+                                    None => {}
+                                }
+                            }
+                        }
                     }
                 }
                 Err(e) => {
@@ -148,6 +200,7 @@ pub(super) async fn start_worker(
         workdir,
         logdir,
         id: worker_id,
+        control_tx,
     };
     let ctx = WorkerContext {
         tmpdir,
