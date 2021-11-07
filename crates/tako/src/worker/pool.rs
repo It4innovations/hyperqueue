@@ -592,7 +592,6 @@ mod tests {
             resource: 1,
             amount: 1000_000,
         });
-        rq.normalize();
         rq.validate().unwrap();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
         assert_eq!(al.generic_allocations.len(), 3);
