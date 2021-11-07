@@ -36,7 +36,7 @@ use crate::common::timeutils::ArgDuration;
 use crate::transfer::messages::TaskBody;
 use crate::transfer::stream::ChannelId;
 use crate::worker::hwdetect::{detect_cpus, detect_generic_resource};
-use crate::worker::parser::{parse_cpu_definition, parse_resource_definition};
+use crate::worker::parser::{ArgCpuDef, ArgGenericResourceDef};
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use crate::Map;
@@ -79,11 +79,11 @@ impl FromStr for ManagerOpts {
 pub struct WorkerStartOpts {
     /// How many cores should be allocated for the worker
     #[clap(long)]
-    cpus: Option<String>,
+    cpus: Option<ArgCpuDef>,
 
     /// Resources
     #[clap(long, setting = clap::ArgSettings::MultipleOccurrences)]
-    resource: Vec<String>,
+    resource: Vec<ArgGenericResourceDef>,
 
     #[clap(long = "no-detect-resources")]
     /// Disable auto-detection of resources
@@ -480,7 +480,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
 
     let cpus = opts
         .cpus
-        .map(|cpus| parse_cpu_definition(&cpus))
+        .map(|x| Ok(x.unpack()))
         .unwrap_or_else(detect_cpus)?;
 
     let mut generic = if opts.no_detect_resources {
@@ -488,8 +488,8 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
     } else {
         detect_generic_resource()?
     };
-    for resource_def in opts.resource {
-        let descriptor = parse_resource_definition(&resource_def)?;
+    for def in opts.resource {
+        let descriptor = def.unpack();
         generic.retain(|desc| desc.name != descriptor.name);
         generic.push(descriptor)
     }

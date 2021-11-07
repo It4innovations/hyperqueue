@@ -14,3 +14,26 @@ macro_rules! rpc_call {
         }
     };
 }
+
+#[macro_export]
+macro_rules! arg_wrapper {
+    ($name:ident, $wrapped_type:ty, $parser:ident) => {
+        pub struct $name($wrapped_type);
+        impl std::str::FromStr for $name {
+            type Err = anyhow::Error;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                $parser(s).map(Self)
+            }
+        }
+
+        impl $name {
+            pub fn get(&self) -> &$wrapped_type {
+                &self.0
+            }
+            pub fn unpack(self) -> $wrapped_type {
+                self.0
+            }
+        }
+    };
+}

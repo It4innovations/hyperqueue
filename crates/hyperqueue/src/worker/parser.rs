@@ -1,3 +1,4 @@
+use crate::arg_wrapper;
 use crate::common::parser::{p_u32, p_u64, NomResult};
 use anyhow::anyhow;
 use nom::branch::alt;
@@ -21,11 +22,18 @@ fn p_cpu_definition(input: &str) -> NomResult<CpusDescriptor> {
     )(input)
 }
 
-pub fn parse_cpu_definition(input: &str) -> anyhow::Result<CpusDescriptor> {
+fn parse_cpu_definition(input: &str) -> anyhow::Result<CpusDescriptor> {
     all_consuming(p_cpu_definition)(input)
         .map(|r| r.1)
         .map_err(|e| anyhow!(e.to_string()))
 }
+
+arg_wrapper!(ArgCpuDef, CpusDescriptor, parse_cpu_definition);
+arg_wrapper!(
+    ArgGenericResourceDef,
+    GenericResourceDescriptor,
+    parse_resource_definition
+);
 
 fn p_kind_indices(input: &str) -> NomResult<GenericResourceDescriptorKind> {
     map(
@@ -67,7 +75,7 @@ fn p_resource_definition(input: &str) -> NomResult<GenericResourceDescriptor> {
     })(input)
 }
 
-pub fn parse_resource_definition(input: &str) -> anyhow::Result<GenericResourceDescriptor> {
+fn parse_resource_definition(input: &str) -> anyhow::Result<GenericResourceDescriptor> {
     all_consuming(p_resource_definition)(input)
         .map(|r| r.1)
         .map_err(|e| anyhow!(e.to_string()))
