@@ -301,8 +301,7 @@ impl TaskBuilder {
         self
     }
 
-    pub fn build(mut self) -> TaskRef {
-        self.resources.normalize();
+    pub fn build(self) -> TaskRef {
         self.resources.validate().unwrap();
         TaskRef::new(
             self.id,

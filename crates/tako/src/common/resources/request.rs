@@ -69,8 +69,9 @@ impl ResourceRequest {
     pub fn new(
         cpu_request: CpuRequest,
         time: TimeRequest,
-        generic_resources: GenericResourceRequests,
+        mut generic_resources: GenericResourceRequests,
     ) -> ResourceRequest {
+        generic_resources.sort_unstable_by_key(|r| r.resource);
         ResourceRequest {
             cpus: cpu_request,
             generic: generic_resources,
@@ -88,21 +89,6 @@ impl ResourceRequest {
 
     pub fn cpus(&self) -> &CpuRequest {
         &self.cpus
-    }
-
-    #[cfg(test)]
-    pub fn add_generic_request(&mut self, request: GenericResourceRequest) {
-        self.generic.push(request);
-    }
-
-    #[cfg(test)]
-    pub fn set_cpus(&mut self, cpus: CpuRequest) {
-        self.cpus = cpus;
-    }
-
-    #[cfg(test)]
-    pub fn set_time(&mut self, time: Duration) {
-        self.min_time = time;
     }
 
     pub fn sort_key(
@@ -130,10 +116,6 @@ impl ResourceRequest {
         }
     }
 
-    pub fn normalize(&mut self) {
-        self.generic.sort_by_key(|r| r.resource);
-    }
-
     pub fn validate(&self) -> crate::Result<()> {
         self.cpus.validate()?;
         for pair in self.generic.windows(2) {
@@ -148,6 +130,21 @@ impl ResourceRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl ResourceRequest {
+        pub fn add_generic_request(&mut self, request: GenericResourceRequest) {
+            self.generic.push(request);
+            self.generic.sort_unstable_by_key(|r| r.resource);
+        }
+
+        pub fn set_cpus(&mut self, cpus: CpuRequest) {
+            self.cpus = cpus;
+        }
+
+        pub fn set_time(&mut self, time: Duration) {
+            self.min_time = time;
+        }
+    }
 
     impl From<CpuRequest> for ResourceRequest {
         fn from(cpu_request: CpuRequest) -> Self {
@@ -170,7 +167,6 @@ mod tests {
             resource: 10,
             amount: 6,
         });
-        rq.normalize();
         assert!(rq.validate().is_err())
     }
 }
