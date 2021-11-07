@@ -154,8 +154,8 @@ def test_submit_generic_resources1(tako_env):
     tako_env.start_worker(
         10, extra_args=["--resources-i", "Res0=2:Res1=5", "--resources-s", "Res3=2000"]
     )
-    rq1 = ResourceRequest(cpus=1)
-    # rq1 = ResourceRequest(cpus=1, generic_resources={"Res0": 1})
+    #rq1 = ResourceRequest(cpus=1)
+    rq1 = ResourceRequest(cpus=1, generic_resources={"Res0": 1})
     t1 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq1)
     t2 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq1)
     t3 = make_program_task(ProgramDefinition(["sleep", "1"]), resources=rq1)

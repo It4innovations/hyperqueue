@@ -11,7 +11,7 @@ pub enum GenericResourceAllocationValue {
 
 impl GenericResourceAllocationValue {
     pub fn new_indices(mut indices: SmallVec<[GenericResourceIndex; 2]>) -> Self {
-        indices.sort();
+        indices.sort_unstable();
         GenericResourceAllocationValue::Indices(indices)
     }
 
