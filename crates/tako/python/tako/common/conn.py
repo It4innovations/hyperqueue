@@ -37,7 +37,7 @@ class SocketWrapper:
         data = await self.read_raw_message()
         # print("MESSAGE", data)
         # logger.info("MESSAGE %s", data)
-        return msgpack.loads(data, strict)
+        return msgpack.loads(data, strict_map_key=False)
 
     async def write_raw_message(self, message):
         header = SocketWrapper.header.pack(len(message))
