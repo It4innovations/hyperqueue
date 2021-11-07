@@ -85,6 +85,10 @@ pub struct WorkerStartOpts {
     #[clap(long, setting = clap::ArgSettings::MultipleOccurrences)]
     resource: Vec<String>,
 
+    #[clap(long = "no-detect-resources")]
+    /// Disable auto-detection of resources
+    no_detect_resources: bool,
+
     /// How often should the worker announce its existence to the server. (default: "8s")
     #[clap(long, default_value = "8s")]
     heartbeat: ArgDuration,
@@ -479,9 +483,15 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         .map(|cpus| parse_cpu_definition(&cpus))
         .unwrap_or_else(detect_cpus)?;
 
-    let mut generic = detect_generic_resource()?;
+    let mut generic = if opts.no_detect_resources {
+        Vec::new()
+    } else {
+        detect_generic_resource()?
+    };
     for resource_def in opts.resource {
-        generic.push(parse_resource_definition(&resource_def)?)
+        let descriptor = parse_resource_definition(&resource_def)?;
+        generic.retain(|desc| desc.name != descriptor.name);
+        generic.push(descriptor)
     }
 
     let resources = ResourceDescriptor::new(cpus, generic);
