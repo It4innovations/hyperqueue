@@ -164,6 +164,7 @@ class HqEnv(Env):
             self.server_dir,
             "worker",
             "start",
+            "--no-detect-resources",  # Ignore resources on testing machine
         ]
         hostname = f"worker{worker_id}"
         if set_hostname:
