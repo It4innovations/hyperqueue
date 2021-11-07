@@ -24,7 +24,6 @@ use crate::transfer::messages::{
     FromClientMessage, JobType, ResubmitRequest, Selector, SubmitRequest, ToClientMessage,
 };
 use crate::{rpc_call, JobId, JobTaskCount, Map};
-use tako::common::resources::request::GenericResourceRequests;
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 
@@ -44,15 +43,12 @@ const DEFAULT_STDERR_PATH: &str = const_format::concatcp!(
     ".stderr"
 );
 
-struct ArgCpuRequest(CpuRequest);
-
-impl FromStr for ArgCpuRequest {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_cpu_request(s).map(ArgCpuRequest)
-    }
-}
+crate::arg_wrapper!(ArgCpuRequest, CpuRequest, parse_cpu_request);
+crate::arg_wrapper!(
+    ArgNamedResourceRequest,
+    (String, GenericResourceAmount),
+    parse_resource_request
+);
 
 #[derive(Debug)]
 pub struct ArgEnvironmentVar {
@@ -106,7 +102,7 @@ pub struct SubmitOpts {
 
     /// Generic resource request in form <NAME>=<AMOUNT>
     #[clap(long, setting = clap::ArgSettings::MultipleOccurrences)]
-    resource: Vec<String>,
+    resource: Vec<ArgNamedResourceRequest>,
 
     /// Minimal lifetime of the worker needed to start the job
     #[clap(long, default_value = "0ms")]
@@ -190,16 +186,23 @@ pub struct SubmitOpts {
 }
 
 impl SubmitOpts {
-    fn parse_generic_resource_requests(
-        &self,
-    ) -> anyhow::Result<Vec<(String, GenericResourceAmount)>> {
-        self.resource
+    fn resource_request(&self, generic_resource_names: &[String]) -> ResourceRequest {
+        let generic_resources = self
+            .resource
             .iter()
-            .map(|r| parse_resource_request(r))
-            .collect::<anyhow::Result<Vec<_>>>()
-    }
+            .map(|gr| {
+                let rq = gr.get();
+                GenericResourceRequest {
+                    resource: generic_resource_names
+                        .iter()
+                        .position(|name| name == &rq.0)
+                        .expect("Server does not return requested name")
+                        as GenericResourceId,
+                    amount: rq.1,
+                }
+            })
+            .collect();
 
-    fn resource_request(&self, generic_resources: GenericResourceRequests) -> ResourceRequest {
         ResourceRequest::new(
             self.cpus.0.clone(),
             self.time_request.clone().into(),
@@ -213,26 +216,13 @@ pub async fn submit_computation(
     connection: &mut ClientConnection,
     opts: SubmitOpts,
 ) -> anyhow::Result<()> {
-    let generic_resources = opts.parse_generic_resource_requests()?;
     let generic_resource_names = get_resource_names(
         connection,
-        generic_resources.iter().map(|x| x.0.clone()).collect(),
+        opts.resource.iter().map(|x| x.get().0.clone()).collect(),
     )
     .await?;
 
-    let resources = opts.resource_request(
-        generic_resources
-            .into_iter()
-            .map(|gr| GenericResourceRequest {
-                resource: generic_resource_names
-                    .iter()
-                    .position(|name| name == &gr.0)
-                    .expect("Server does not return requested name")
-                    as GenericResourceId,
-                amount: gr.1,
-            })
-            .collect(),
-    );
+    let resources = opts.resource_request(&generic_resource_names);
     resources.validate()?;
 
     let (job_type, entries) = if let Some(ref filename) = opts.each_line {
