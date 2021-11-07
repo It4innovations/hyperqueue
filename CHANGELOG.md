@@ -1,3 +1,18 @@
+# v0.6.0
+
+## New features
+
+  * Generic resource management
+  * Detecting GPUs
+  * Submit a task array where task is create per element in JSON array (--from-json)
+  * Minor polishing in CLI interface
+
+## Changes
+
+  * Semi-Internal: Numeric IDs for generated server subdirectories
+
+
+
 # v0.5.0
 
 ## New features
