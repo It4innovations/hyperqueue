@@ -94,11 +94,13 @@ impl WorkerHandle {
     }
 }
 
+#[allow(unused)]
 pub struct WorkerPauseToken {
     unpause_tx: tokio::sync::oneshot::Sender<()>,
 }
 
 impl WorkerPauseToken {
+    #[allow(unused)]
     pub fn resume(self) {
         self.unpause_tx.send(()).unwrap();
     }

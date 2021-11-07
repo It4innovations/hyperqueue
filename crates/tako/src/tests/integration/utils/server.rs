@@ -148,23 +148,33 @@ pub struct ServerCompletion {
     server_handle: JoinHandle<crate::Result<()>>,
 }
 
+const WAIT_TIMEOUT: Duration = Duration::from_secs(5);
+
 impl ServerCompletion {
     /// Waits until all RPC connections (workers, custom connections) are finished.
     pub async fn finish_rpc(&mut self) {
-        let handles = self.core_ref.get_mut().take_rpc_handles();
-        for handle in handles {
-            self.set.run_until(handle).await.unwrap();
-        }
+        tokio::time::timeout(WAIT_TIMEOUT, async move {
+            let handles = self.core_ref.get_mut().take_rpc_handles();
+            for handle in handles {
+                self.set.run_until(handle).await.unwrap();
+            }
+        })
+        .await
+        .unwrap();
     }
 
     /// Finish the main server future.
     pub async fn finish(self) {
-        self.set
-            .run_until(self.server_handle)
-            .await
-            .unwrap()
-            .unwrap();
-        self.set.await;
+        tokio::time::timeout(WAIT_TIMEOUT, async move {
+            self.set
+                .run_until(self.server_handle)
+                .await
+                .unwrap()
+                .unwrap();
+            self.set.await;
+        })
+        .await
+        .unwrap();
     }
 }
 
