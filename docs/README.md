@@ -17,7 +17,7 @@ load-balance tasks across all allocated nodes and cores.
 
 - Batch jobs are submitted and managed [automatically](deployment/allocation.md)
 - Computation is distributed amongst all allocated nodes and cores
-- Tasks can specify [resource requirements](jobs/resources.md) (# of cores, GPUs, memory, ...)
+- Tasks can specify [resource requirements](jobs/cresources.md) (# of cores, GPUs, memory, ...)
 
 **Performance**
 
