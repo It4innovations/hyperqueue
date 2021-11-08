@@ -24,6 +24,8 @@ use crate::{TaskId, WorkerId};
 use super::macros::wait_for_msg;
 use super::worker::WorkerConfigBuilder;
 
+const WAIT_TIMEOUT: Duration = Duration::from_secs(5);
+
 pub enum ServerSecretKey {
     AutoGenerate,
     Custom(Option<SecretKey>),
@@ -48,8 +50,6 @@ pub struct ServerConfig {
     secret_key: ServerSecretKey,
 }
 
-const RECV_TIMEOUT: Duration = Duration::from_secs(5);
-
 pub struct ServerHandle {
     server_to_client: UnboundedReceiver<ToGatewayMessage>,
     client_sender: UnboundedSender<ToGatewayMessage>,
@@ -67,7 +67,7 @@ impl ServerHandle {
         process_client_message(&self.core_ref, &self.comm_ref, &self.client_sender, msg).await
     }
     pub async fn recv(&mut self) -> ToGatewayMessage {
-        match tokio::time::timeout(RECV_TIMEOUT, self.server_to_client.recv()).await {
+        match timeout(WAIT_TIMEOUT, self.server_to_client.recv()).await {
             Ok(result) => result.expect("Expected message to be received"),
             Err(_) => panic!("Timeout reached when receiving a message"),
         }
@@ -84,12 +84,14 @@ impl ServerHandle {
         let fut = async move {
             loop {
                 let msg = self.recv().await;
+                let formatted = format!("{:?}", msg);
                 if let Some(result) = check_fn(msg) {
                     break result;
                 }
+                println!("Received out-of-band message {}", formatted);
             }
         };
-        match tokio::time::timeout(RECV_TIMEOUT, fut).await {
+        match timeout(WAIT_TIMEOUT, fut).await {
             Ok(result) => result,
             Err(_) => panic!("Timeout reached when waiting for a specific message"),
         }
@@ -173,12 +175,10 @@ pub struct ServerCompletion {
     server_handle: JoinHandle<crate::Result<()>>,
 }
 
-const WAIT_TIMEOUT: Duration = Duration::from_secs(5);
-
 impl ServerCompletion {
     /// Waits until all RPC connections (workers, custom connections) are finished.
     pub async fn finish_rpc(&mut self) {
-        tokio::time::timeout(WAIT_TIMEOUT, async move {
+        timeout(WAIT_TIMEOUT, async move {
             let handles = self.core_ref.get_mut().take_rpc_handles();
             for handle in handles {
                 self.set.run_until(handle).await.unwrap();
@@ -190,7 +190,7 @@ impl ServerCompletion {
 
     /// Finish the main server future.
     pub async fn finish(self) {
-        tokio::time::timeout(WAIT_TIMEOUT, async move {
+        timeout(WAIT_TIMEOUT, async move {
             self.set
                 .run_until(self.server_handle)
                 .await

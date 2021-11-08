@@ -5,6 +5,6 @@ macro_rules! wait_for_msg {
             $matcher => ::std::option::Option::Some(($($result),*)),
             _ => None,
         }).await
-    };
+    }
 }
 pub(in crate::tests::integration) use wait_for_msg;
