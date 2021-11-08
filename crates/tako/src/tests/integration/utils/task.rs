@@ -1,0 +1,116 @@
+use std::path::PathBuf;
+
+use derive_builder::Builder;
+
+use crate::common::Map;
+use crate::messages::common::{ProgramDefinition, StdioDef, TaskConfiguration};
+use crate::messages::gateway::TaskDef;
+use crate::TaskId;
+
+pub struct GraphBuilder {
+    id_counter: u64,
+    tasks: Vec<TaskDef>,
+}
+
+impl Default for GraphBuilder {
+    fn default() -> Self {
+        Self {
+            id_counter: 1,
+            tasks: Default::default(),
+        }
+    }
+}
+
+impl GraphBuilder {
+    pub fn task(mut self, builder: TaskConfigBuilder) -> Self {
+        let mut config: TaskConfig = builder.build().unwrap();
+        config.id = config.id.or_else(|| {
+            let id = self.id_counter;
+            self.id_counter += 1;
+            Some(id)
+        });
+
+        let def = build_task(config);
+        self.tasks.push(def);
+        self
+    }
+
+    pub fn simple_task(self, args: &[&'static str]) -> Self {
+        self.task(TaskConfigBuilder::default().args(simple_args(args)))
+    }
+
+    pub fn build(self) -> Vec<TaskDef> {
+        self.tasks
+    }
+}
+
+fn build_task(config: TaskConfig) -> TaskDef {
+    let TaskConfig {
+        id,
+        keep,
+        observe,
+        args,
+        env,
+        stdout,
+        stderr,
+        cwd,
+    }: TaskConfig = config;
+    let program_def = ProgramDefinition {
+        args: args.into_iter().map(|v| v.into()).collect(),
+        env: env.into_iter().map(|(k, v)| (k.into(), v.into())).collect(),
+        stdout,
+        stderr,
+        cwd,
+    };
+    let body = rmp_serde::to_vec(&program_def).unwrap();
+
+    let conf = TaskConfiguration {
+        resources: Default::default(),
+        n_outputs: 0,
+        time_limit: None,
+        body,
+    };
+    TaskDef {
+        id: id.unwrap(),
+        conf,
+        priority: 0,
+        keep,
+        observe: observe.unwrap_or(true),
+    }
+}
+
+#[derive(Builder, Default, Clone)]
+#[builder(pattern = "owned")]
+pub struct TaskConfig {
+    #[builder(default)]
+    id: Option<TaskId>,
+
+    #[builder(default)]
+    keep: bool,
+    #[builder(default)]
+    observe: Option<bool>,
+
+    #[builder(default)]
+    args: Vec<String>,
+    #[builder(default)]
+    env: Map<String, String>,
+    #[builder(default)]
+    stdout: StdioDef,
+    #[builder(default)]
+    stderr: StdioDef,
+    #[builder(default)]
+    cwd: Option<PathBuf>,
+}
+
+pub fn simple_args(args: &[&'static str]) -> Vec<String> {
+    args.iter().map(|&v| v.to_string()).collect()
+}
+
+pub fn simple_task(args: &[&'static str], id: TaskId) -> TaskDef {
+    let config = TaskConfigBuilder::default()
+        .args(simple_args(args))
+        .id(Some(id))
+        .build()
+        .unwrap();
+    build_task(config)
+}

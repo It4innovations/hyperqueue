@@ -13,6 +13,7 @@ use crate::messages::common::{ProgramDefinition, WorkerConfiguration};
 use crate::server::core::CoreRef;
 use derive_builder::Builder;
 use orion::auth::SecretKey;
+use tokio::task::LocalSet;
 
 use crate::worker::launcher::command_from_definitions;
 use crate::worker::rpc::run_worker;
@@ -137,7 +138,9 @@ pub(super) async fn start_worker(
     let logdir = tmpdir.path().to_path_buf().join("logs");
 
     configuration.work_dir = workdir.clone();
+    std::fs::create_dir_all(&configuration.work_dir).unwrap();
     configuration.log_dir = logdir.clone();
+    std::fs::create_dir_all(&configuration.log_dir).unwrap();
 
     let server_address: SocketAddr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
 
@@ -194,7 +197,12 @@ pub(super) async fn start_worker(
                 }
             }
         };
-        runtime.block_on(future);
+
+        let set = LocalSet::default();
+        let set_future = set.run_until(future);
+
+        runtime.block_on(set_future);
+        runtime.block_on(set);
     });
     let worker_id = id_rx.await??;
 
