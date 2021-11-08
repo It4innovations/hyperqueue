@@ -334,6 +334,7 @@ pub fn load_bin_test_data(path: &str) -> Vec<u8> {
     std::fs::read(path).unwrap()
 }*/
 
+#[allow(unused)]
 pub fn get_test_path(path: &str) -> String {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")

@@ -7,15 +7,22 @@ use derive_builder::Builder;
 use orion::auth::SecretKey;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::task::{JoinHandle, LocalSet};
+use tokio::time::timeout;
 
-use super::worker::WorkerConfigBuilder;
 use crate::common::Map;
-use crate::messages::gateway::{FromGatewayMessage, ToGatewayMessage};
+use crate::messages::gateway::{
+    FromGatewayMessage, NewTasksMessage, NewTasksResponse, ObserveTasksMessage, TaskDef,
+    ToGatewayMessage,
+};
 use crate::server::client::process_client_message;
 use crate::server::comm::CommSenderRef;
 use crate::server::core::CoreRef;
+use crate::tests::integration::utils::api::{wait_for_tasks, TaskWaitResultMap};
 use crate::tests::integration::utils::worker::{start_worker, WorkerContext, WorkerHandle};
-use crate::WorkerId;
+use crate::{TaskId, WorkerId};
+
+use super::macros::wait_for_msg;
+use super::worker::WorkerConfigBuilder;
 
 pub enum ServerSecretKey {
     AutoGenerate,
@@ -101,6 +108,24 @@ impl ServerHandle {
     pub async fn kill_worker(&mut self, id: WorkerId) {
         let ctx = self.workers.remove(&id).unwrap();
         ctx.abort().await;
+    }
+
+    pub async fn submit(&mut self, tasks: Vec<TaskDef>) -> Vec<TaskId> {
+        let ids = tasks.iter().map(|t| t.id).collect();
+        let msg = NewTasksMessage { tasks };
+        self.send(FromGatewayMessage::NewTasks(msg)).await;
+        wait_for_msg!(self, ToGatewayMessage::NewTasksResponse(NewTasksResponse { .. }) => ());
+        ids
+    }
+
+    pub async fn wait(&mut self, tasks: &[TaskId]) -> TaskWaitResultMap {
+        let msg = ObserveTasksMessage {
+            tasks: tasks.iter().map(|&v| v).collect(),
+        };
+        self.send(FromGatewayMessage::ObserveTasks(msg)).await;
+        timeout(WAIT_TIMEOUT, wait_for_tasks(self, tasks.to_vec()))
+            .await
+            .unwrap()
     }
 }
 
