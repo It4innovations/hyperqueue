@@ -2,7 +2,8 @@ use super::macros::wait_for_msg;
 use crate::common::{Map, Set};
 use crate::messages::common::TaskFailInfo;
 use crate::messages::gateway::{
-    CollectedOverview, FromGatewayMessage, OverviewRequest, TaskState, ToGatewayMessage,
+    CancelTasks, CancelTasksResponse, CollectedOverview, FromGatewayMessage, OverviewRequest,
+    TaskState, ToGatewayMessage,
 };
 use crate::tests::integration::utils::server::ServerHandle;
 use crate::TaskId;
@@ -32,6 +33,10 @@ impl TaskResult {
         matches!(self, TaskResult::Update(TaskState::Finished))
     }
 
+    pub fn is_invalid(&self) -> bool {
+        matches!(self, TaskResult::Update(TaskState::Invalid))
+    }
+
     pub fn is_failed(&self) -> bool {
         matches!(self, TaskResult::Fail { .. })
     }
@@ -54,6 +59,10 @@ impl TaskWaitResult {
     fn is_failed(&self) -> bool {
         self.events.iter().any(|v| v.is_failed())
     }
+
+    pub(crate) fn is_invalid(&self) -> bool {
+        self.events.iter().any(|v| v.is_invalid())
+    }
 }
 
 #[derive(Default)]
@@ -69,19 +78,28 @@ impl TaskWaitResultMap {
             }
         }
     }
+
     pub fn is_failed(&self, id: TaskId) -> bool {
         self.tasks[&id].is_failed()
+    }
+
+    pub fn get(&self, id: TaskId) -> &TaskWaitResult {
+        &self.tasks[&id]
     }
 }
 
 pub async fn wait_for_tasks(handle: &mut ServerHandle, tasks: Vec<TaskId>) -> TaskWaitResultMap {
     let mut tasks: Set<_> = tasks.into_iter().collect();
+    let tasks_orig = tasks.clone();
     let mut result = TaskWaitResultMap::default();
 
     while !tasks.is_empty() {
         match handle.recv().await {
             ToGatewayMessage::TaskUpdate(msg) => {
-                if let TaskState::Finished = msg.state {
+                if !tasks_orig.contains(&msg.id) {
+                    continue;
+                }
+                if let TaskState::Finished | TaskState::Invalid = msg.state {
                     assert!(tasks.remove(&msg.id));
                 }
                 result
@@ -91,6 +109,9 @@ pub async fn wait_for_tasks(handle: &mut ServerHandle, tasks: Vec<TaskId>) -> Ta
                     .add(TaskResult::Update(msg.state));
             }
             ToGatewayMessage::TaskFailed(msg) => {
+                if !tasks_orig.contains(&msg.id) {
+                    continue;
+                }
                 assert!(tasks.remove(&msg.id));
                 result
                     .tasks
@@ -109,4 +130,16 @@ pub async fn wait_for_tasks(handle: &mut ServerHandle, tasks: Vec<TaskId>) -> Ta
         };
     }
     result
+}
+
+// Cancellation
+pub async fn cancel(handle: &mut ServerHandle, tasks: &[TaskId]) -> CancelTasksResponse {
+    let msg = FromGatewayMessage::CancelTasks(CancelTasks {
+        tasks: tasks.to_vec(),
+    });
+    handle.send(msg).await;
+    wait_for_msg!(
+        handle,
+        ToGatewayMessage::CancelTasksResponse(msg) => msg
+    )
 }
