@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum GenericResourceAllocationValue {
     Indices(SmallVec<[GenericResourceIndex; 2]>),
     Sum(GenericResourceAmount),
@@ -34,6 +35,7 @@ impl GenericResourceAllocationValue {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct GenericResourceAllocation {
     pub resource: GenericResourceId,
     pub value: GenericResourceAllocationValue,
@@ -42,6 +44,7 @@ pub struct GenericResourceAllocation {
 pub type GenericResourceAllocations = SmallVec<[GenericResourceAllocation; 2]>;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct ResourceAllocation {
     pub cpus: Vec<CpuId>,
     pub generic_allocations: GenericResourceAllocations,
