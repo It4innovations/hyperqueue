@@ -41,17 +41,15 @@ impl WorkerUtilTable {
                 inline_help: "".to_string(),
                 table_headers: Some(vec![
                     "worker_id",
-                    "#tasks",
+                    "#running tasks",
                     "cpu_util (%)",
                     "mem_util (%)",
-                    "timestamp",
                 ]),
                 column_widths: vec![
-                    Constraint::Percentage(20),
-                    Constraint::Percentage(20),
-                    Constraint::Percentage(20),
-                    Constraint::Percentage(20),
-                    Constraint::Percentage(20),
+                    Constraint::Percentage(25),
+                    Constraint::Percentage(25),
+                    Constraint::Percentage(25),
+                    Constraint::Percentage(25),
                 ],
             },
             |data| {
@@ -72,11 +70,6 @@ impl WorkerUtilTable {
                     Cell::from(data.num_tasks.to_string()),
                     Cell::from(cpu_prog_bar),
                     Cell::from(mem_prog_bar),
-                    Cell::from(
-                        data.collection_timestamp
-                            .map(|v| v.to_string())
-                            .unwrap_or_else(|| "N/A".to_string()),
-                    ),
                 ])
             },
         );
@@ -88,7 +81,6 @@ struct WorkerUtilRow {
     num_tasks: u32,
     average_cpu_usage: Option<f32>,
     memory_usage: Option<u64>,
-    collection_timestamp: Option<u64>,
 }
 
 fn create_rows(overview: &CollectedOverview) -> Vec<WorkerUtilRow> {
@@ -100,14 +92,12 @@ fn create_rows(overview: &CollectedOverview) -> Vec<WorkerUtilRow> {
             let average_cpu_usage = hw_state.map(|s| get_average_cpu_usage_for_worker(s));
             let memory_usage =
                 hw_state.map(|s| calculate_memory_usage_percent(&s.state.worker_memory_usage));
-            let collection_timestamp = hw_state.map(|s| s.state.timestamp);
 
             WorkerUtilRow {
                 id: worker.id,
                 num_tasks: worker.running_tasks.len() as u32,
                 average_cpu_usage,
                 memory_usage,
-                collection_timestamp,
             }
         })
         .collect()
