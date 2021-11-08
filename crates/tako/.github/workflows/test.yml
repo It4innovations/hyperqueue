@@ -36,28 +36,6 @@ jobs:
         with:
           command: test
 
-      - name: Setup Python
-        uses: actions/setup-python@v1
-        with:
-          python-version: "3.8"
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip wheel setuptools
-          python -m pip install -e python
-
-      - name: Test Python
-        run: python -m pytest -v --timeout=20 tests
-
-      - name: Archive test artifacts
-        uses: actions/upload-artifact@v2
-        if: ${{ failure() }}
-        with:
-          name: pytest results
-          path: |
-            /tmp/pytest-*
-            !/tmp/**/*.sock
-
       - name: Lint
         uses: actions-rs/cargo@v1
         with:
