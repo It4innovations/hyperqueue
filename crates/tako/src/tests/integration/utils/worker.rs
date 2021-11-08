@@ -118,7 +118,9 @@ pub struct WorkerContext {
 impl WorkerContext {
     pub(super) async fn abort(self) {
         self.end_flag.send(()).unwrap();
-        self.thread_handle.join().unwrap();
+        tokio::task::spawn_blocking(|| self.thread_handle.join().unwrap())
+            .await
+            .unwrap();
     }
 }
 

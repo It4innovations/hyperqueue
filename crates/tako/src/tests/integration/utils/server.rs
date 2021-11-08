@@ -107,6 +107,18 @@ impl ServerHandle {
         Ok(handle)
     }
 
+    pub async fn start_workers<InitFn: Fn() -> WorkerConfigBuilder>(
+        &mut self,
+        init_fn: InitFn,
+        count: usize,
+    ) -> anyhow::Result<Vec<WorkerHandle>> {
+        let mut handles = vec![];
+        for _ in 0..count {
+            handles.push(self.start_worker(init_fn()).await);
+        }
+        handles.into_iter().collect()
+    }
+
     pub async fn kill_worker(&mut self, id: WorkerId) {
         let ctx = self.workers.remove(&id).unwrap();
         ctx.abort().await;
