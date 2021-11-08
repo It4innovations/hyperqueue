@@ -177,45 +177,13 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 [Documentation](https://it4innovations.github.io/hyperqueue/)
 
-# Roadmap
+# Future work
 
-## 0.1
+* API for dependencies
+* Python API
+* Dashboard
+* Multi-node tasks
 
-* [x] Basic worker management
-* [x] Submitting, observing and canceling simple jobs
-* [x] Encryption and authentication
-
-## 0.2
-
-* [x] jobs that take more than 1 cpu
-* [x] Job arrays
-
-## 0.3
-
-* [x] Automatic stopping of idling workers
-
-## 0.4
-
-* [x] Handling stdout/stderr when a large number of jobs is submitted
-* [x] Reporting improvements
-* [x] Resubmit
-* [x] Priorities
-
-## v0.5
-
-* [x] Auto-allocation of jobs in PBS/SLURM
-* [x] Time constraints
-
-## Next release
-
-* [ ] Generic resource management
-
-
-## Bigger horizon (unordered)
-
-* [ ] API for dependencies
-* [ ] Python API
-* [ ] "hq top" -- an analogue to "top" but over all cluster
 
 # Acknowledgement
 
