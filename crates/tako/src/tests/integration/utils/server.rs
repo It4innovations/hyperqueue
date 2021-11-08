@@ -9,7 +9,7 @@ use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::task::{JoinHandle, LocalSet};
 use tokio::time::timeout;
 
-use crate::common::Map;
+use crate::common::{Map, Set};
 use crate::messages::gateway::{
     FromGatewayMessage, NewTasksMessage, NewTasksResponse, ObserveTasksMessage, TaskDef,
     ToGatewayMessage,
@@ -113,7 +113,8 @@ impl ServerHandle {
     }
 
     pub async fn submit(&mut self, tasks: Vec<TaskDef>) -> Vec<TaskId> {
-        let ids = tasks.iter().map(|t| t.id).collect();
+        let ids: Vec<TaskId> = tasks.iter().map(|t| t.id).collect();
+        assert_eq!(ids.iter().collect::<Set<_>>().len(), ids.len());
         let msg = NewTasksMessage { tasks };
         self.send(FromGatewayMessage::NewTasks(msg)).await;
         wait_for_msg!(self, ToGatewayMessage::NewTasksResponse(NewTasksResponse { .. }) => ());

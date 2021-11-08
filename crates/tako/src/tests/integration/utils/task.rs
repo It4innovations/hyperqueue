@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
 use derive_builder::Builder;
 
@@ -30,7 +31,7 @@ impl GraphBuilder {
             Some(id)
         });
 
-        let def = build_task(config);
+        let def = build_task_from_config(config);
         self.tasks.push(def);
         self
     }
@@ -44,11 +45,12 @@ impl GraphBuilder {
     }
 }
 
-fn build_task(config: TaskConfig) -> TaskDef {
+fn build_task_from_config(config: TaskConfig) -> TaskDef {
     let TaskConfig {
         id,
         keep,
         observe,
+        time_limit,
         args,
         env,
         stdout,
@@ -67,16 +69,20 @@ fn build_task(config: TaskConfig) -> TaskDef {
     let conf = TaskConfiguration {
         resources: Default::default(),
         n_outputs: 0,
-        time_limit: None,
+        time_limit,
         body,
     };
     TaskDef {
-        id: id.unwrap(),
+        id: id.unwrap_or(1),
         conf,
         priority: 0,
         keep,
         observe: observe.unwrap_or(true),
     }
+}
+
+pub fn build_task(config: TaskConfigBuilder) -> TaskDef {
+    build_task_from_config(config.build().unwrap())
 }
 
 #[derive(Builder, Default, Clone)]
@@ -89,6 +95,9 @@ pub struct TaskConfig {
     keep: bool,
     #[builder(default)]
     observe: Option<bool>,
+
+    #[builder(default)]
+    time_limit: Option<Duration>,
 
     #[builder(default)]
     args: Vec<String>,
@@ -109,8 +118,6 @@ pub fn simple_args(args: &[&'static str]) -> Vec<String> {
 pub fn simple_task(args: &[&'static str], id: TaskId) -> TaskDef {
     let config = TaskConfigBuilder::default()
         .args(simple_args(args))
-        .id(Some(id))
-        .build()
-        .unwrap();
+        .id(Some(id));
     build_task(config)
 }

@@ -60,8 +60,21 @@ impl TaskWaitResult {
         self.events.iter().any(|v| v.is_failed())
     }
 
-    pub(crate) fn is_invalid(&self) -> bool {
+    pub fn is_invalid(&self) -> bool {
         self.events.iter().any(|v| v.is_invalid())
+    }
+
+    pub fn assert_error_message(&self, needle: &str) {
+        for event in &self.events {
+            match event {
+                TaskResult::Fail { info, .. } => {
+                    assert!(info.message.contains(needle));
+                    return;
+                }
+                _ => {}
+            }
+        }
+        panic!("Did not find error result for the current task");
     }
 }
 

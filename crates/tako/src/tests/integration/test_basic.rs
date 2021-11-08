@@ -3,7 +3,7 @@ use crate::tests::integration::utils::api::cancel;
 use crate::tests::integration::utils::check_file_contents;
 use crate::tests::integration::utils::server::run_test;
 use crate::tests::integration::utils::task::{
-    simple_args, simple_task, GraphBuilder, TaskConfigBuilder,
+    build_task, simple_args, simple_task, GraphBuilder, TaskConfigBuilder,
 };
 use std::time::Duration;
 use tokio::time::sleep;
@@ -112,6 +112,44 @@ async fn test_cancel_error_task() {
         assert_eq!(response.already_finished, vec![1]);
 
         assert!(handle.wait(&[1]).await.get(1).is_invalid());
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn test_task_time_limit_fail() {
+    run_test(Default::default(), |mut handle| async move {
+        handle.start_worker(Default::default()).await.unwrap();
+
+        handle
+            .submit(vec![build_task(
+                TaskConfigBuilder::default()
+                    .args(simple_args(&["sleep", "2"]))
+                    .time_limit(Some(Duration::from_millis(600))),
+            )])
+            .await;
+        handle
+            .wait(&[1])
+            .await
+            .get(1)
+            .assert_error_message("Time limit reached");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn test_task_time_limit_pass() {
+    run_test(Default::default(), |mut handle| async move {
+        handle.start_worker(Default::default()).await.unwrap();
+
+        handle
+            .submit(vec![build_task(
+                TaskConfigBuilder::default()
+                    .args(simple_args(&["sleep", "1"]))
+                    .time_limit(Some(Duration::from_millis(1600))),
+            )])
+            .await;
+        handle.wait(&[1]).await.assert_all_finished();
     })
     .await;
 }
