@@ -139,7 +139,7 @@ pub async fn wait_for_tasks(handle: &mut ServerHandle, tasks: Vec<TaskId>) -> Ta
                 "Received error message {:?} while waiting for tasks",
                 msg.message
             ),
-            msg => log::warn!("Received message {:?} while waiting for tasks", msg),
+            msg => println!("Received message {:?} while waiting for tasks", msg),
         };
     }
     result
