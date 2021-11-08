@@ -121,7 +121,7 @@ impl ServerHandle {
 
     pub async fn kill_worker(&mut self, id: WorkerId) {
         let ctx = self.workers.remove(&id).unwrap();
-        ctx.abort().await;
+        ctx.kill().await;
     }
 
     pub async fn submit(&mut self, tasks: Vec<TaskDef>) -> Vec<TaskId> {

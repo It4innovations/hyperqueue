@@ -3,6 +3,8 @@ use std::time::Duration;
 
 use derive_builder::Builder;
 
+use crate::common::resources::request::GenericResourceRequests;
+use crate::common::resources::{CpuRequest, ResourceRequest};
 use crate::common::Map;
 use crate::messages::common::{ProgramDefinition, StdioDef, TaskConfiguration};
 use crate::messages::gateway::TaskDef;
@@ -51,12 +53,15 @@ fn build_task_from_config(config: TaskConfig) -> TaskDef {
         keep,
         observe,
         time_limit,
+        resources,
         args,
         env,
         stdout,
         stderr,
         cwd,
     }: TaskConfig = config;
+    let ResourceRequestConfig { cpus, generic }: ResourceRequestConfig = resources.build().unwrap();
+
     let program_def = ProgramDefinition {
         args: args.into_iter().map(|v| v.into()).collect(),
         env: env.into_iter().map(|(k, v)| (k.into(), v.into())).collect(),
@@ -67,7 +72,7 @@ fn build_task_from_config(config: TaskConfig) -> TaskDef {
     let body = rmp_serde::to_vec(&program_def).unwrap();
 
     let conf = TaskConfiguration {
-        resources: Default::default(),
+        resources: ResourceRequest::new(cpus, Default::default(), generic),
         n_outputs: 0,
         time_limit,
         body,
@@ -100,6 +105,9 @@ pub struct TaskConfig {
     time_limit: Option<Duration>,
 
     #[builder(default)]
+    resources: ResourceRequestConfigBuilder,
+
+    #[builder(default)]
     args: Vec<String>,
     #[builder(default)]
     env: Map<String, String>,
@@ -109,6 +117,15 @@ pub struct TaskConfig {
     stderr: StdioDef,
     #[builder(default)]
     cwd: Option<PathBuf>,
+}
+
+#[derive(Builder, Default, Clone)]
+#[builder(pattern = "owned", derive(Clone))]
+pub struct ResourceRequestConfig {
+    #[builder(default)]
+    cpus: CpuRequest,
+    #[builder(default)]
+    generic: GenericResourceRequests,
 }
 
 pub fn simple_args(args: &[&'static str]) -> Vec<String> {

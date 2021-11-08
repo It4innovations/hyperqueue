@@ -8,7 +8,8 @@ use std::time::Duration;
 use tempdir::TempDir;
 
 use crate::common::error::DsError;
-use crate::common::resources::ResourceDescriptor;
+use crate::common::resources::descriptor::cpu_descriptor_from_socket_size;
+use crate::common::resources::{CpusDescriptor, GenericResourceDescriptor, ResourceDescriptor};
 use crate::messages::common::{ProgramDefinition, WorkerConfiguration};
 use crate::server::core::CoreRef;
 use derive_builder::Builder;
@@ -35,6 +36,15 @@ impl Default for WorkerSecretKey {
 
 #[derive(Builder, Default)]
 #[builder(pattern = "owned")]
+pub struct ResourceConfig {
+    #[builder(default = "vec![vec![1]]")]
+    cpus: CpusDescriptor,
+    #[builder(default)]
+    generic: Vec<GenericResourceDescriptor>,
+}
+
+#[derive(Builder, Default)]
+#[builder(pattern = "owned")]
 pub struct WorkerConfig {
     #[builder(default)]
     idle_timeout: Option<Duration>,
@@ -44,6 +54,8 @@ pub struct WorkerConfig {
     secret_key: WorkerSecretKey,
     #[builder(default = "Duration::from_millis(250)")]
     heartbeat_interval: Duration,
+    #[builder(default)]
+    resources: ResourceConfigBuilder,
 }
 
 pub(super) fn create_worker_configuration(
@@ -54,13 +66,15 @@ pub(super) fn create_worker_configuration(
         hw_state_poll_interval,
         secret_key,
         heartbeat_interval,
+        resources,
     } = builder.build().unwrap();
+    let resources = resources.build().unwrap();
 
     (
         WorkerConfiguration {
             resources: ResourceDescriptor {
-                cpus: vec![vec![1]],
-                generic: vec![],
+                cpus: resources.cpus,
+                generic: resources.generic,
             },
             listen_address: "".to_string(),
             hostname: "".to_string(),
@@ -116,7 +130,7 @@ pub struct WorkerContext {
 }
 
 impl WorkerContext {
-    pub(super) async fn abort(self) {
+    pub(super) async fn kill(self) {
         self.end_flag.send(()).unwrap();
         tokio::task::spawn_blocking(|| self.thread_handle.join().unwrap())
             .await
@@ -266,4 +280,13 @@ fn launcher(
                 }
         }
     })
+}
+
+// Resource helpers
+pub fn cpus(count: u32) -> ResourceConfigBuilder {
+    ResourceConfigBuilder::default().cpus(vec![(0..count).collect()])
+}
+pub fn numa_cpus(cpu_per_socket: u32, sockets: u32) -> ResourceConfigBuilder {
+    let descriptor = cpu_descriptor_from_socket_size(sockets, cpu_per_socket);
+    ResourceConfigBuilder::default().cpus(descriptor)
 }
