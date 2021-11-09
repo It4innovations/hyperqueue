@@ -5,12 +5,12 @@ use tako::messages::gateway::{
     TaskFailedMessage, TaskState, TaskUpdate, ToGatewayMessage,
 };
 
-use crate::common::WrappedRcRefCell;
 use crate::server::autoalloc::AutoAllocState;
 use crate::server::job::Job;
 use crate::server::rpc::Backend;
 use crate::server::worker::Worker;
 use crate::transfer::messages::LostWorkerReasonInfo;
+use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
 use std::cmp::min;
 use std::time::Duration;

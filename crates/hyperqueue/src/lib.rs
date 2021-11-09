@@ -11,17 +11,21 @@ pub mod worker;
 pub type Map<K, V> = hashbrown::HashMap<K, V>;
 pub type Set<T> = hashbrown::HashSet<T>;
 
+pub type Error = crate::common::error::HqError;
+pub type Result<T> = std::result::Result<T, Error>;
+
+// ID types
+use tako::common::macros::define_id_type;
+
 pub type WorkerId = tako::WorkerId;
 pub type TakoTaskId = tako::TaskId;
 pub type Priority = tako::Priority;
 
-pub type JobTaskId = u32;
+define_id_type!(JobId);
+define_id_type!(JobTaskId);
+
 pub type JobTaskCount = u32;
 pub type JobTaskStep = u32;
 
-pub type Error = crate::common::error::HqError;
-pub type Result<T> = std::result::Result<T, Error>;
-
 // Reexports
-pub use common::JobId;
-pub use common::WrappedRcRefCell;
+pub use tako::common::WrappedRcRefCell;

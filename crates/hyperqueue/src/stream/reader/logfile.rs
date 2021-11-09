@@ -210,8 +210,8 @@ impl LogFile {
             Some(ref array) => {
                 let mut infos = Vec::new();
                 for task_id in array.iter() {
-                    if let Some(task_info) = self.index.get(&task_id) {
-                        infos.push((task_id, task_info.last_instance()));
+                    if let Some(task_info) = self.index.get(&JobTaskId::new(task_id)) {
+                        infos.push((JobTaskId::new(task_id), task_info.last_instance()));
                     } else {
                         anyhow::bail!("Task {} not found", task_id);
                     }
@@ -243,7 +243,7 @@ impl LogFile {
     fn read_block(file: &mut BufReader<File>) -> anyhow::Result<Option<Block>> {
         match file.read_u8() {
             Ok(BLOCK_STREAM_START) => {
-                let task_id = file.read_u32::<byteorder::BigEndian>()?;
+                let task_id: JobTaskId = file.read_u32::<byteorder::BigEndian>()?.into();
                 let instance_id = file.read_u32::<byteorder::BigEndian>()?;
                 Ok(Some(Block::StreamStart {
                     task_id,
@@ -252,7 +252,7 @@ impl LogFile {
             }
             Ok(BLOCK_STREAM_CHUNK) => {
                 // Job task stream data
-                let task_id = file.read_u32::<byteorder::BigEndian>()?;
+                let task_id: JobTaskId = file.read_u32::<byteorder::BigEndian>()?.into();
                 let instance_id = file.read_u32::<byteorder::BigEndian>()?;
                 let channel_id = file.read_u32::<byteorder::BigEndian>()?;
                 let size = file.read_u32::<byteorder::BigEndian>()?;
@@ -264,7 +264,7 @@ impl LogFile {
                 }))
             }
             Ok(BLOCK_STREAM_END) => {
-                let task_id = file.read_u32::<byteorder::BigEndian>()?;
+                let task_id: JobTaskId = file.read_u32::<byteorder::BigEndian>()?.into();
                 let instance_id = file.read_u32::<byteorder::BigEndian>()?;
                 Ok(Some(Block::StreamEnd {
                     task_id,
@@ -332,7 +332,7 @@ impl LogFile {
                         if buffer.last() != Some(&b'\n') {
                             buffer.push(b'\n');
                         }
-                        let color = colors[task_id as usize % colors.len()];
+                        let color = colors[task_id.as_u32() as usize % colors.len()];
                         let header =
                             format!("{:0width$}:{}>", task_id, channel_id, width = id_width,);
                         write!(
@@ -354,7 +354,7 @@ impl LogFile {
                         if !opts.show_empty && !has_content.contains(&task_id) {
                             continue;
                         }
-                        let color = colors[task_id as usize % colors.len()];
+                        let color = colors[task_id.as_u32() as usize % colors.len()];
                         writeln!(
                             stdout_buf,
                             "{}",

@@ -617,17 +617,19 @@ async fn handle_submit(
         };
         let tako_base_id = state.new_task_id(task_count);
         let task_defs = match (&message.job_type, message.entries.clone()) {
-            (JobType::Simple, _) => vec![make_task(job_id, 0, tako_base_id, None)],
+            (JobType::Simple, _) => vec![make_task(job_id, 0.into(), tako_base_id, None)],
             (JobType::Array(a), None) => a
                 .iter()
                 .zip(tako_base_id..)
-                .map(|(task_id, tako_id)| make_task(job_id, task_id, tako_id, None))
+                .map(|(task_id, tako_id)| make_task(job_id, task_id.into(), tako_id, None))
                 .collect(),
             (JobType::Array(a), Some(entries)) => a
                 .iter()
                 .zip(tako_base_id..)
                 .zip(entries.into_iter())
-                .map(|((task_id, tako_id), entry)| make_task(job_id, task_id, tako_id, Some(entry)))
+                .map(|((task_id, tako_id), entry)| {
+                    make_task(job_id, task_id.into(), tako_id, Some(entry))
+                })
                 .collect(),
         };
         let job = Job::new(
@@ -717,7 +719,9 @@ async fn handle_resubmit(
                         None
                     } else {
                         ids.sort_unstable();
-                        Some(JobType::Array(IntArray::from_ids(ids)))
+                        Some(JobType::Array(IntArray::from_ids(
+                            ids.into_iter().map(|v| v.into()).collect(),
+                        )))
                     }
                 }
             };

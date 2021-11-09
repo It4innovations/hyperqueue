@@ -83,7 +83,7 @@ mod tests {
 
     use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
     use crate::common::placeholders::replace_placeholders_worker;
-    use crate::{JobId, JobTaskId, Map};
+    use crate::Map;
 
     #[test]
     fn test_replace_task_id() {
@@ -92,7 +92,7 @@ mod tests {
             Some("%{TASK_ID}.out"),
             Some("%{TASK_ID}.err"),
             "",
-            0.into(),
+            0,
             1,
         );
         replace_placeholders_worker(&mut program);
@@ -108,7 +108,7 @@ mod tests {
             Some("%{JOB_ID}-%{TASK_ID}.out"),
             Some("%{JOB_ID}-%{TASK_ID}.err"),
             "",
-            5.into(),
+            5,
             1,
         );
         replace_placeholders_worker(&mut program);
@@ -124,7 +124,7 @@ mod tests {
             Some("%{SUBMIT_DIR}/out"),
             Some("%{SUBMIT_DIR}/err"),
             "/submit-dir",
-            5.into(),
+            5,
             1,
         );
         replace_placeholders_worker(&mut program);
@@ -141,7 +141,7 @@ mod tests {
             Some("%{CWD}.out"),
             Some("%{CWD}.err"),
             "",
-            5.into(),
+            5,
             1,
         );
         replace_placeholders_worker(&mut program);
@@ -155,8 +155,8 @@ mod tests {
         stdout: Option<&str>,
         stderr: Option<&str>,
         submit_dir: &str,
-        job_id: JobId,
-        task_id: JobTaskId,
+        job_id: u32,
+        task_id: u32,
     ) -> ProgramDefinition {
         let mut env = Map::new();
         env.insert(HQ_SUBMIT_DIR.into(), submit_dir.into());
