@@ -21,8 +21,8 @@ pub type WorkerId = tako::WorkerId;
 pub type TakoTaskId = tako::TaskId;
 pub type Priority = tako::Priority;
 
-define_id_type!(JobId);
-define_id_type!(JobTaskId);
+define_id_type!(JobId, u32);
+define_id_type!(JobTaskId, u32);
 
 pub type JobTaskCount = u32;
 pub type JobTaskStep = u32;
