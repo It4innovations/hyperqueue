@@ -368,7 +368,7 @@ async fn handle_worker_stop(
     let mut responses: Vec<(WorkerId, StopWorkerResponse)> = Vec::new();
 
     let worker_ids: Vec<WorkerId> = match selector {
-        Selector::Specific(array) => array.iter().collect(),
+        Selector::Specific(array) => array.iter().map(|id| id.into()).collect(),
         Selector::All => state_ref
             .get()
             .get_workers()

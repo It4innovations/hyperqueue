@@ -5,6 +5,7 @@ use tokio::time::sleep;
 use crate::tests::integration::utils::api::get_overview;
 use crate::tests::integration::utils::server::run_test;
 use crate::tests::integration::utils::task::simple_task;
+use crate::WorkerId;
 
 use super::utils::server::ServerConfigBuilder;
 use super::utils::worker::WorkerConfigBuilder;
@@ -145,7 +146,7 @@ async fn test_lost_worker_with_tasks_restarts() {
         handle.wait(&[1]).await.assert_all_finished();
         let overview = get_overview(&mut handle).await;
         assert_eq!(overview.worker_overviews.len(), 1);
-        assert_eq!(overview.worker_overviews[0].id, 6);
+        assert_eq!(overview.worker_overviews[0].id, WorkerId(6));
     })
     .await;
 }
