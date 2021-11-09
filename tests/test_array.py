@@ -209,6 +209,11 @@ def test_array_mix_with_simple_jobs(hq_env: HqEnv):
 @pytest.mark.parametrize("channel", ("stdout", "stderr"))
 def test_warning_missing_placeholder_in_output(hq_env: HqEnv, channel: str):
     hq_env.start_server()
-    output = hq_env.command(["submit", "--array=1-4", f"--{channel}=foo", "/bin/hostname"])
-    assert f"You have submitted an array job, but the `{channel}` path does not contain task ID placeholder." in output
+    output = hq_env.command(
+        ["submit", "--array=1-4", f"--{channel}=foo", "/bin/hostname"]
+    )
+    assert (
+        f"You have submitted an array job, but the `{channel}` path does not contain task ID placeholder."
+        in output
+    )
     assert f"Consider adding `%{{TASK_ID}}` to the `--{channel}` value."
