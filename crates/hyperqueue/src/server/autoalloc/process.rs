@@ -239,7 +239,6 @@ mod tests {
     use tako::messages::common::ProgramDefinition;
 
     use crate::common::manager::info::ManagerType;
-    use crate::common::WrappedRcRefCell;
     use crate::server::autoalloc::descriptor::{
         CreatedAllocation, QueueDescriptor, QueueHandler, QueueInfo,
     };
@@ -249,6 +248,7 @@ mod tests {
     use crate::server::job::Job;
     use crate::server::state::StateRef;
     use crate::transfer::messages::JobType;
+    use crate::WrappedRcRefCell;
 
     #[tokio::test]
     async fn test_log_failed_allocation_attempt() {

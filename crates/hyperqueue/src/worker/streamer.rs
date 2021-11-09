@@ -1,8 +1,8 @@
-use crate::common::WrappedRcRefCell;
 use crate::transfer::stream::{
     ChannelId, DataMsg, EndTaskStreamMsg, FromStreamerMessage, StartTaskStreamMsg,
     StreamRegistration, ToStreamerMessage,
 };
+use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskId, Map};
 use futures::stream::SplitStream;
 use futures::{SinkExt, StreamExt};

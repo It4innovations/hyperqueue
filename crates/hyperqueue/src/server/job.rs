@@ -147,7 +147,7 @@ impl Job {
                             base_task_id + i as TakoTaskId,
                             JobTaskInfo {
                                 state: JobTaskState::Waiting,
-                                task_id,
+                                task_id: task_id.into(),
                             },
                         )
                     })
@@ -186,7 +186,7 @@ impl Job {
                 match &self.state {
                     JobState::SingleTask(s) => {
                         vec![JobTaskInfo {
-                            task_id: 0,
+                            task_id: 0.into(),
                             state: s.clone(),
                         }]
                     }
@@ -241,7 +241,7 @@ impl Job {
         match &mut self.state {
             JobState::SingleTask(ref mut s) => {
                 debug_assert_eq!(tako_task_id, self.base_task_id);
-                (0, s)
+                (0.into(), s)
             }
             JobState::ManyTasks(m) => {
                 let state = m.get_mut(&tako_task_id).unwrap();
@@ -254,7 +254,9 @@ impl Job {
         &'a self,
     ) -> Box<dyn Iterator<Item = (TakoTaskId, JobTaskId, &'a JobTaskState)> + 'a> {
         match self.state {
-            JobState::SingleTask(ref s) => Box::new(Some((self.base_task_id, 0, s)).into_iter()),
+            JobState::SingleTask(ref s) => {
+                Box::new(Some((self.base_task_id, JobTaskId::new(0), s)).into_iter())
+            }
             JobState::ManyTasks(ref m) => {
                 Box::new(m.iter().map(|(k, v)| (*k, v.task_id, &v.state)))
             }

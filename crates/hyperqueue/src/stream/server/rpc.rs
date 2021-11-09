@@ -16,7 +16,6 @@ use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 use super::control::StreamServerControlMessage;
 
-use crate::common::WrappedRcRefCell;
 use crate::stream::reader::logfile::{
     BLOCK_STREAM_CHUNK, BLOCK_STREAM_END, BLOCK_STREAM_START, HQ_LOG_HEADER, HQ_LOG_VERSION,
 };
@@ -25,6 +24,7 @@ use crate::transfer::stream::{
     EndTaskStreamMsg, EndTaskStreamResponseMsg, FromStreamerMessage, StreamRegistration,
     ToStreamerMessage,
 };
+use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskId, Map, Set};
 use tako::{define_wrapped_type, InstanceId};
 use tokio::io::BufWriter;
@@ -121,7 +121,7 @@ async fn file_writer(receiver: &mut Receiver<StreamMessage>, path: &Path) -> any
         match msg {
             StreamMessage::Message(FromStreamerMessage::Start(s), response_sender) => {
                 buffer.put_u8(BLOCK_STREAM_START);
-                buffer.put_u32(s.task);
+                buffer.put_u32(s.task.into());
                 buffer.put_u32(s.instance);
                 if let Err(e) = file.write_all(&buffer).await {
                     send_error(response_sender, e.to_string());
@@ -130,7 +130,7 @@ async fn file_writer(receiver: &mut Receiver<StreamMessage>, path: &Path) -> any
             }
             StreamMessage::Message(FromStreamerMessage::Data(s), response_sender) => {
                 buffer.put_u8(BLOCK_STREAM_CHUNK);
-                buffer.put_u32(s.task);
+                buffer.put_u32(s.task.into());
                 buffer.put_u32(s.instance);
                 buffer.put_u32(s.channel);
                 buffer.put_u32(s.data.len() as u32);
@@ -145,7 +145,7 @@ async fn file_writer(receiver: &mut Receiver<StreamMessage>, path: &Path) -> any
             }
             StreamMessage::Message(FromStreamerMessage::End(s), response_sender) => {
                 buffer.put_u8(BLOCK_STREAM_END);
-                buffer.put_u32(s.task);
+                buffer.put_u32(s.task.into());
                 buffer.put_u32(s.instance);
                 if let Err(e) = file.write_all(&buffer).await {
                     send_error(response_sender, e.to_string());

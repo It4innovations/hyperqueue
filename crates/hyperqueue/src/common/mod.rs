@@ -12,9 +12,3 @@ pub mod serverdir;
 pub mod setup;
 pub mod strutils;
 pub mod timeutils;
-
-use tako::common::macros::define_id_type;
-
-define_id_type!(JobId);
-
-pub use tako::common::WrappedRcRefCell;
