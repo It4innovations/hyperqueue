@@ -1,7 +1,7 @@
 /// Create a newtype that will contain an index represented by an integer.
 #[macro_export]
 macro_rules! define_id_type {
-    ($name: ident) => {
+    ($name: ident, $type: ident) => {
         #[derive(
             ::std::marker::Copy,
             ::std::clone::Clone,
@@ -15,28 +15,33 @@ macro_rules! define_id_type {
             ::std::cmp::PartialEq,
         )]
         #[repr(transparent)]
-        pub struct $name(u32);
+        pub struct $name($type);
 
         impl $name {
             #[inline]
-            pub fn new(value: u32) -> Self {
+            pub fn new(value: $type) -> Self {
                 Self(value)
             }
 
             #[inline]
             pub fn as_u32(&self) -> u32 {
-                self.0
+                self.0 as u32
+            }
+
+            #[inline]
+            pub fn as_u64(&self) -> u64 {
+                self.0 as u64
             }
         }
 
-        impl ::std::convert::From<u32> for $name {
+        impl ::std::convert::From<$type> for $name {
             #[inline]
-            fn from(value: u32) -> Self {
+            fn from(value: $type) -> Self {
                 Self::new(value)
             }
         }
 
-        impl ::std::convert::From<$name> for u32 {
+        impl ::std::convert::From<$name> for $type {
             #[inline]
             fn from(id: $name) -> Self {
                 id.0
@@ -54,7 +59,7 @@ macro_rules! define_id_type {
             type Err = ::std::num::ParseIntError;
 
             fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-                Ok($name(s.parse::<u32>()?))
+                Ok($name(s.parse::<$type>()?))
             }
         }
     };
