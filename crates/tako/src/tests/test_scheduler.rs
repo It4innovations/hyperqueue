@@ -11,7 +11,7 @@ use crate::tests::utils::{
     create_test_comm, create_test_workers, finish_on_worker, start_and_finish_on_worker,
     submit_example_1, submit_test_tasks, task, TaskBuilder, TestEnv,
 };
-use crate::TaskId;
+use crate::{TaskId, WorkerId};
 use std::time::Duration;
 
 #[test]
@@ -64,15 +64,15 @@ fn test_no_deps_distribute() {
     finish_all(&mut core, m1, 100);
     finish_all(&mut core, m3, 102);
 
-    assert!(core.get_worker_by_id_or_panic(100).is_underloaded());
-    assert!(!core.get_worker_by_id_or_panic(101).is_underloaded());
-    assert!(core.get_worker_by_id_or_panic(102).is_underloaded());
+    assert!(core.get_worker_by_id_or_panic(100.into()).is_underloaded());
+    assert!(!core.get_worker_by_id_or_panic(101.into()).is_underloaded());
+    assert!(core.get_worker_by_id_or_panic(102.into()).is_underloaded());
 
     scheduler.run_scheduling(&mut core, &mut comm);
 
-    assert!(!core.get_worker_by_id_or_panic(100).is_underloaded());
-    assert!(!core.get_worker_by_id_or_panic(101).is_underloaded());
-    assert!(!core.get_worker_by_id_or_panic(102).is_underloaded());
+    assert!(!core.get_worker_by_id_or_panic(100.into()).is_underloaded());
+    assert!(!core.get_worker_by_id_or_panic(101.into()).is_underloaded());
+    assert!(!core.get_worker_by_id_or_panic(102.into()).is_underloaded());
 
     // TODO: Finish stealing
 
@@ -91,7 +91,7 @@ fn test_no_deps_distribute() {
     on_steal_response(
         &mut core,
         &mut comm,
-        101,
+        101.into(),
         StealResponseMsg {
             responses: stealing.iter().map(|t| (*t, StealResponse::Ok)).collect(),
         },
@@ -104,9 +104,9 @@ fn test_no_deps_distribute() {
     assert!(n3.len() > 5);
     assert_eq!(n1.len() + n3.len(), stealing.len());
 
-    assert!(!core.get_worker_by_id_or_panic(100).is_underloaded());
-    assert!(!core.get_worker_by_id_or_panic(101).is_underloaded());
-    assert!(!core.get_worker_by_id_or_panic(102).is_underloaded());
+    assert!(!core.get_worker_by_id_or_panic(100.into()).is_underloaded());
+    assert!(!core.get_worker_by_id_or_panic(101.into()).is_underloaded());
+    assert!(!core.get_worker_by_id_or_panic(102.into()).is_underloaded());
 
     comm.emptiness_check();
     core.sanity_check();
@@ -115,7 +115,7 @@ fn test_no_deps_distribute() {
     finish_all(&mut core, n3, 102);
     assert_eq!(
         active_ids.len(),
-        core.get_worker_by_id_or_panic(101).tasks().len()
+        core.get_worker_by_id_or_panic(101.into()).tasks().len()
     );
 
     comm.emptiness_check();
@@ -150,14 +150,14 @@ fn test_minimal_transfer_no_balance1() {
             .get()
             .get_assigned_worker()
             .unwrap(),
-        100
+        WorkerId(100)
     );
     assert_eq!(
         core.get_task_by_id_or_panic(14)
             .get()
             .get_assigned_worker()
             .unwrap(),
-        101
+        WorkerId(101)
     );
 
     comm.emptiness_check();
@@ -191,14 +191,14 @@ fn test_minimal_transfer_no_balance2() {
             .get()
             .get_assigned_worker()
             .unwrap(),
-        101
+        WorkerId(101)
     );
     assert_eq!(
         core.get_task_by_id_or_panic(14)
             .get()
             .get_assigned_worker()
             .unwrap(),
-        101
+        WorkerId(101)
     );
 
     comm.emptiness_check();
@@ -236,14 +236,14 @@ fn test_minimal_transfer_after_balance() {
             .get()
             .get_assigned_worker()
             .unwrap(),
-        100
+        WorkerId(100)
     );
     assert_eq!(
         core.get_task_by_id_or_panic(14)
             .get()
             .get_assigned_worker()
             .unwrap(),
-        101
+        WorkerId(101)
     );
 
     comm.emptiness_check();
@@ -513,17 +513,46 @@ fn test_generic_resource_assign2() {
         rt.new_task(TaskBuilder::new(i).generic_res(1, 2));
     }
     rt.schedule();
-    assert_eq!(rt.core().get_worker_by_id(101).unwrap().tasks().len(), 0);
-    assert!(rt.core().get_worker_by_id(100).unwrap().tasks().len() > 10);
-    assert!(rt.core().get_worker_by_id(102).unwrap().tasks().len() > 10);
     assert_eq!(
-        rt.core().get_worker_by_id(100).unwrap().tasks().len()
-            + rt.core().get_worker_by_id(102).unwrap().tasks().len(),
+        rt.core()
+            .get_worker_by_id(101.into())
+            .unwrap()
+            .tasks()
+            .len(),
+        0
+    );
+    assert!(
+        rt.core()
+            .get_worker_by_id(100.into())
+            .unwrap()
+            .tasks()
+            .len()
+            > 10
+    );
+    assert!(
+        rt.core()
+            .get_worker_by_id(102.into())
+            .unwrap()
+            .tasks()
+            .len()
+            > 10
+    );
+    assert_eq!(
+        rt.core()
+            .get_worker_by_id(100.into())
+            .unwrap()
+            .tasks()
+            .len()
+            + rt.core()
+                .get_worker_by_id(102.into())
+                .unwrap()
+                .tasks()
+                .len(),
         100
     );
     assert!(rt
         .core()
-        .get_worker_by_id(100)
+        .get_worker_by_id(100.into())
         .unwrap()
         .tasks()
         .iter()
@@ -564,9 +593,27 @@ fn test_generic_resource_balance1() {
     rt.new_task(TaskBuilder::new(4).cpus_compact(1).generic_res(0, 5));
     rt.schedule();
 
-    assert_eq!(rt.core().get_worker_by_id_or_panic(100).tasks().len(), 2);
-    assert_eq!(rt.core().get_worker_by_id_or_panic(101).tasks().len(), 0);
-    assert_eq!(rt.core().get_worker_by_id_or_panic(102).tasks().len(), 2);
+    assert_eq!(
+        rt.core()
+            .get_worker_by_id_or_panic(100.into())
+            .tasks()
+            .len(),
+        2
+    );
+    assert_eq!(
+        rt.core()
+            .get_worker_by_id_or_panic(101.into())
+            .tasks()
+            .len(),
+        0
+    );
+    assert_eq!(
+        rt.core()
+            .get_worker_by_id_or_panic(102.into())
+            .tasks()
+            .len(),
+        2
+    );
 }
 
 #[test]
@@ -609,9 +656,31 @@ fn test_generic_resource_balance2() {
     );
     rt.schedule();
 
-    dbg!(rt.core().get_worker_by_id_or_panic(102).tasks().len());
+    dbg!(rt
+        .core()
+        .get_worker_by_id_or_panic(102.into())
+        .tasks()
+        .len());
 
-    assert_eq!(rt.core().get_worker_by_id_or_panic(100).tasks().len(), 2);
-    assert_eq!(rt.core().get_worker_by_id_or_panic(101).tasks().len(), 0);
-    assert_eq!(rt.core().get_worker_by_id_or_panic(102).tasks().len(), 2);
+    assert_eq!(
+        rt.core()
+            .get_worker_by_id_or_panic(100.into())
+            .tasks()
+            .len(),
+        2
+    );
+    assert_eq!(
+        rt.core()
+            .get_worker_by_id_or_panic(101.into())
+            .tasks()
+            .len(),
+        0
+    );
+    assert_eq!(
+        rt.core()
+            .get_worker_by_id_or_panic(102.into())
+            .tasks()
+            .len(),
+        2
+    );
 }

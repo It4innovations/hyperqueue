@@ -29,7 +29,7 @@ pub struct Core {
     sleeping_tasks: Vec<TaskRef>, // Tasks that cannot be scheduled to any available worker
 
     maximal_task_id: TaskId,
-    worker_id_counter: WorkerId,
+    worker_id_counter: u32,
     resource_names: Vec<String>, // "Map" from GenericResourceId -> to its name
     worker_listen_port: u16,
 
@@ -68,7 +68,7 @@ impl CoreRef {
 impl Core {
     pub fn new_worker_id(&mut self) -> WorkerId {
         self.worker_id_counter += 1;
-        self.worker_id_counter
+        WorkerId::new(self.worker_id_counter)
     }
 
     #[inline]
@@ -313,7 +313,7 @@ impl Core {
                         assert!(t.get().is_waiting());
                     }
                     assert_eq!(winfo.unfinished_deps, count);
-                    worker_check(self, task_ref, 0);
+                    worker_check(self, task_ref, 0.into());
                     assert!(task.is_fresh());
                 }
 
@@ -326,7 +326,7 @@ impl Core {
                 TaskRuntimeState::Stealing(_, target) => {
                     assert!(!task.is_fresh());
                     fw_check(&task);
-                    worker_check(self, task_ref, target.unwrap_or(0));
+                    worker_check(self, task_ref, target.unwrap_or(WorkerId::new(0)));
                 }
 
                 TaskRuntimeState::Finished(_) => {

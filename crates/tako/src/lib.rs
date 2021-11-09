@@ -8,7 +8,8 @@ pub mod server;
 pub mod transfer;
 pub mod worker;
 
-pub type WorkerId = u32; // Maybe non-zero type for optimizing Option<WorkerId>?
+define_id_type!(WorkerId);
+
 pub type TaskId = u64;
 pub type OutputId = u32;
 pub type InstanceId = u32;

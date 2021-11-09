@@ -71,8 +71,8 @@ impl AsyncWrite for MemoryStream {
 pub struct TestEnv {
     core: Core,
     scheduler: SchedulerState,
-    task_id_counter: TaskId,
-    worker_id_counter: WorkerId,
+    task_id_counter: u64,
+    worker_id_counter: u32,
 }
 
 impl TestEnv {
@@ -106,22 +106,22 @@ impl TestEnv {
         }
     }
 
-    pub fn new_task_assigned(&mut self, builder: TaskBuilder, worker_id: WorkerId) {
+    pub fn new_task_assigned<W: Into<WorkerId>>(&mut self, builder: TaskBuilder, worker_id: W) {
         let tr = builder.build();
         submit_test_tasks(&mut self.core, &[&tr]);
         let task_id = tr.get().id();
-        start_on_worker(&mut self.core, task_id, worker_id);
+        start_on_worker(&mut self.core, task_id, worker_id.into());
     }
 
-    pub fn new_task_running(&mut self, builder: TaskBuilder, worker_id: WorkerId) {
+    pub fn new_task_running<W: Into<WorkerId>>(&mut self, builder: TaskBuilder, worker_id: W) {
         let tr = builder.build();
         submit_test_tasks(&mut self.core, &[&tr]);
         let task_id = tr.get().id();
-        start_on_worker_running(&mut self.core, task_id, worker_id);
+        start_on_worker_running(&mut self.core, task_id, worker_id.into());
     }
 
-    pub fn worker(&self, worker_id: WorkerId) -> &Worker {
-        self.core.get_worker_by_id_or_panic(worker_id)
+    pub fn worker<W: Into<WorkerId>>(&self, worker_id: W) -> &Worker {
+        self.core.get_worker_by_id_or_panic(worker_id.into())
     }
 
     pub fn new_workers_ext(
@@ -129,7 +129,7 @@ impl TestEnv {
         defs: &[(u32, Option<Duration>, Vec<GenericResourceDescriptor>)],
     ) {
         for (i, (c, time_limit, grds)) in defs.iter().enumerate() {
-            let worker_id = self.worker_id_counter;
+            let worker_id = WorkerId::new(self.worker_id_counter);
             self.worker_id_counter += 1;
 
             let cpus = cpu_descriptor_from_socket_size(1, *c);
@@ -178,13 +178,13 @@ impl TestEnv {
         self.core.remove_from_ready_to_assign(task_ref);
     }
 
-    pub fn test_assign(&mut self, task_id: TaskId, worker_id: WorkerId) {
-        self._test_assign(&self.task(task_id), worker_id);
+    pub fn test_assign<W: Into<WorkerId>>(&mut self, task_id: TaskId, worker_id: W) {
+        self._test_assign(&self.task(task_id), worker_id.into());
     }
 
     pub fn new_assigned_tasks_cpus(&mut self, tasks: &[&[NumOfCpus]]) {
         for (i, tdefs) in tasks.iter().enumerate() {
-            let w_id = 100 + i as WorkerId;
+            let w_id = WorkerId::new(100 + i as u32);
             let trs = self.new_ready_tasks_cpus(tdefs);
             for tr in &trs {
                 self._test_assign(tr, w_id);
@@ -192,7 +192,8 @@ impl TestEnv {
         }
     }
 
-    pub fn check_worker_tasks(&self, worker_id: WorkerId, tasks: &[TaskId]) {
+    pub fn check_worker_tasks<W: Into<WorkerId>>(&self, worker_id: W, tasks: &[TaskId]) {
+        let worker_id = worker_id.into();
         let ids = sorted_vec(
             self.core
                 .get_worker_by_id_or_panic(worker_id)
@@ -204,8 +205,8 @@ impl TestEnv {
         assert_eq!(ids, sorted_vec(tasks.to_vec()));
     }
 
-    pub fn worker_load(&self, worker_id: WorkerId) -> &WorkerLoad {
-        &self.core.get_worker_by_id_or_panic(worker_id).load
+    pub fn worker_load<W: Into<WorkerId>>(&self, worker_id: W) -> &WorkerLoad {
+        &self.core.get_worker_by_id_or_panic(worker_id.into()).load
     }
 
     pub fn check_worker_load_lower_bounds(&self, cpus: &[NumOfCpus]) {
@@ -360,7 +361,12 @@ pub struct TestComm {
 }
 
 impl TestComm {
-    pub fn take_worker_msgs(&mut self, worker_id: WorkerId, len: usize) -> Vec<ToWorkerMessage> {
+    pub fn take_worker_msgs<T: Into<WorkerId>>(
+        &mut self,
+        worker_id: T,
+        len: usize,
+    ) -> Vec<ToWorkerMessage> {
+        let worker_id: WorkerId = worker_id.into();
         let msgs = match self.worker_msgs.remove(&worker_id) {
             None => {
                 panic!("No messages for worker {}", worker_id)
@@ -482,7 +488,7 @@ pub fn create_test_comm() -> TestComm {
 
 pub fn create_test_workers(core: &mut Core, cpus: &[u32]) {
     for (i, c) in cpus.iter().enumerate() {
-        let worker_id = 100 + i as WorkerId;
+        let worker_id = WorkerId::new((100 + i) as u32);
 
         let wcfg = WorkerConfiguration {
             resources: ResourceDescriptor::simple(*c),
@@ -510,36 +516,40 @@ pub fn submit_test_tasks(core: &mut Core, tasks: &[&TaskRef]) {
     );
 }
 
-pub(crate) fn force_assign(
+pub(crate) fn force_assign<T: Into<WorkerId>>(
     core: &mut Core,
     scheduler: &mut SchedulerState,
     task_id: TaskId,
-    worker_id: WorkerId,
+    worker_id: T,
 ) {
     let task_ref = core.get_task_by_id_or_panic(task_id).clone();
     core.remove_from_ready_to_assign(&task_ref);
     let mut task = task_ref.get_mut();
-    scheduler.assign(core, &mut task, task_ref.clone(), worker_id);
+    scheduler.assign(core, &mut task, task_ref.clone(), worker_id.into());
 }
 
-pub(crate) fn force_reassign(
+pub(crate) fn force_reassign<W: Into<WorkerId>>(
     core: &mut Core,
     scheduler: &mut SchedulerState,
     task_id: TaskId,
-    worker_id: WorkerId,
+    worker_id: W,
 ) {
+    let worker_id = worker_id.into();
+
     // The same as force_assign, but do not expect that task in ready_to_assign array
     let task_ref = core.get_task_by_id_or_panic(task_id).clone();
     let mut task = task_ref.get_mut();
     scheduler.assign(core, &mut task, task_ref.clone(), worker_id);
 }
 
-pub fn fail_steal(
+pub fn fail_steal<W: Into<WorkerId>>(
     core: &mut Core,
     task_id: TaskId,
-    worker_id: WorkerId,
-    target_worker_id: WorkerId,
+    worker_id: W,
+    target_worker_id: W,
 ) {
+    let worker_id = worker_id.into();
+    let target_worker_id = target_worker_id.into();
     start_stealing(core, task_id, target_worker_id);
     let mut comm = create_test_comm();
     on_steal_response(
@@ -552,21 +562,24 @@ pub fn fail_steal(
     )
 }
 
-pub fn start_stealing(core: &mut Core, task_id: TaskId, new_worker_id: WorkerId) {
+pub fn start_stealing<W: Into<WorkerId>>(core: &mut Core, task_id: TaskId, new_worker_id: W) {
+    let new_worker_id = new_worker_id.into();
     let mut scheduler = create_test_scheduler();
     force_reassign(core, &mut scheduler, task_id, new_worker_id);
     let mut comm = create_test_comm();
     scheduler.finish_scheduling(&mut comm);
 }
 
-pub fn start_on_worker(core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
+pub fn start_on_worker<W: Into<WorkerId>>(core: &mut Core, task_id: TaskId, worker_id: W) {
+    let worker_id = worker_id.into();
     let mut scheduler = create_test_scheduler();
     let mut comm = TestComm::default();
     force_assign(core, &mut scheduler, task_id, worker_id);
     scheduler.finish_scheduling(&mut comm);
 }
 
-pub fn start_on_worker_running(core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
+pub fn start_on_worker_running<W: Into<WorkerId>>(core: &mut Core, task_id: TaskId, worker_id: W) {
+    let worker_id = worker_id.into();
     let mut scheduler = create_test_scheduler();
     let mut comm = TestComm::default();
     force_assign(core, &mut scheduler, task_id, worker_id);
@@ -579,7 +592,13 @@ pub fn cancel_tasks(core: &mut Core, task_ids: &[TaskId]) {
     on_cancel_tasks(core, &mut comm, task_ids);
 }
 
-pub fn finish_on_worker(core: &mut Core, task_id: TaskId, worker_id: WorkerId, size: u64) {
+pub fn finish_on_worker<W: Into<WorkerId>>(
+    core: &mut Core,
+    task_id: TaskId,
+    worker_id: W,
+    size: u64,
+) {
+    let worker_id = worker_id.into();
     let mut comm = TestComm::default();
     on_task_finished(
         core,
@@ -589,12 +608,13 @@ pub fn finish_on_worker(core: &mut Core, task_id: TaskId, worker_id: WorkerId, s
     );
 }
 
-pub fn start_and_finish_on_worker(
+pub fn start_and_finish_on_worker<W: Into<WorkerId>>(
     core: &mut Core,
     task_id: TaskId,
-    worker_id: WorkerId,
+    worker_id: W,
     size: u64,
 ) {
+    let worker_id = worker_id.into();
     start_on_worker(core, task_id, worker_id);
     finish_on_worker(core, task_id, worker_id, size);
 }

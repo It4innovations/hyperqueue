@@ -117,7 +117,7 @@ pub fn on_remove_worker(
     comm.send_client_worker_lost(worker_id, running_tasks, reason);
     comm.ask_for_scheduling();
 
-    //let worker = core.get_worker_by_id_or_panic(worker_id);
+    //let worker = core.get_worker_by_id_or_panic(.into()worker_id);
 }
 
 pub fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec<TaskRef>) {
@@ -332,7 +332,7 @@ pub fn on_steal_response(
                     let task = task_ref.get();
                     if task.is_done_or_running() {
                         log::debug!("Received trace response for finished task={}", task_id);
-                        trace_worker_steal_response(task.id, worker_id, 0, "done");
+                        trace_worker_steal_response(task.id, worker_id, 0.into(), "done");
                         continue;
                     }
                     let (from_worker_id, to_worker_id) =
@@ -358,7 +358,7 @@ pub fn on_steal_response(
                     trace_worker_steal_response(
                         task_id,
                         worker_id,
-                        to_worker_id.unwrap_or(0),
+                        to_worker_id.unwrap_or_else(|| WorkerId::new(0)),
                         match response {
                             StealResponse::Ok => "ok",
                             StealResponse::NotHere => "nothere",
@@ -369,7 +369,10 @@ pub fn on_steal_response(
                     match response {
                         StealResponse::Ok => {
                             log::debug!("Task stealing was successful task={}", task_id);
-                            trace_task_assign(task_id, to_worker_id.unwrap_or(0));
+                            trace_task_assign(
+                                task_id,
+                                to_worker_id.unwrap_or_else(|| WorkerId::new(0)),
+                            );
                             if let Some(w_id) = to_worker_id {
                                 comm.send_worker_message(w_id, &task.make_compute_message());
                                 TaskRuntimeState::Assigned(w_id)
@@ -701,17 +704,17 @@ mod tests {
             extra: Default::default(),
         };
 
-        let worker = Worker::new(402, wcfg, &[]);
+        let worker = Worker::new(402.into(), wcfg, &[]);
         on_new_worker(&mut core, &mut comm, worker);
 
         let new_w = comm.take_new_workers();
         assert_eq!(new_w.len(), 1);
-        assert_eq!(new_w[0].0, 402);
+        assert_eq!(new_w[0].0.as_u32(), 402);
         assert_eq!(new_w[0].1.resources.cpus, vec![vec![0, 1, 2, 3]]);
 
         assert!(
             matches!(comm.take_broadcasts(1)[0], ToWorkerMessage::NewWorker(NewWorkerMsg {
-            worker_id: 402, address: ref a
+            worker_id: WorkerId(402), address: ref a
         }) if a == "test1:123")
         );
 
@@ -732,12 +735,12 @@ mod tests {
             extra: Default::default(),
         };
 
-        let worker = Worker::new(502, wcfg2, &[]);
+        let worker = Worker::new(502.into(), wcfg2, &[]);
         on_new_worker(&mut core, &mut comm, worker);
 
         let new_w = comm.take_new_workers();
         assert_eq!(new_w.len(), 1);
-        assert_eq!(new_w[0].0, 502);
+        assert_eq!(new_w[0].0.as_u32(), 502);
         assert_eq!(
             new_w[0].1.resources.cpus,
             vec![vec![2, 3, 4], vec![100, 150]]
@@ -745,7 +748,7 @@ mod tests {
 
         assert!(
             matches!(comm.take_broadcasts(1)[0], ToWorkerMessage::NewWorker(NewWorkerMsg {
-            worker_id: 502, address: ref a
+            worker_id: WorkerId(502), address: ref a
         }) if a == "test2:123")
         );
         comm.check_need_scheduling();
@@ -838,12 +841,21 @@ mod tests {
         assert!(!t1.get().is_fresh());
         assert!(t3.get().is_fresh());
 
-        assert_eq!(core.get_worker_by_id_or_panic(100).tasks().len(), 2);
-        assert!(core.get_worker_by_id_or_panic(100).tasks().contains(&t1));
-        assert!(core.get_worker_by_id_or_panic(100).tasks().contains(&t5));
-        assert_eq!(core.get_worker_by_id_or_panic(101).tasks().len(), 1);
-        assert!(core.get_worker_by_id_or_panic(101).tasks().contains(&t2));
-        assert_eq!(core.get_worker_by_id_or_panic(102).tasks().len(), 0);
+        assert_eq!(core.get_worker_by_id_or_panic(100.into()).tasks().len(), 2);
+        assert!(core
+            .get_worker_by_id_or_panic(100.into())
+            .tasks()
+            .contains(&t1));
+        assert!(core
+            .get_worker_by_id_or_panic(100.into())
+            .tasks()
+            .contains(&t5));
+        assert_eq!(core.get_worker_by_id_or_panic(101.into()).tasks().len(), 1);
+        assert!(core
+            .get_worker_by_id_or_panic(101.into())
+            .tasks()
+            .contains(&t2));
+        assert_eq!(core.get_worker_by_id_or_panic(102.into()).tasks().len(), 0);
 
         let msgs = comm.take_worker_msgs(100, 2);
         dbg!(&msgs[0]);
@@ -883,16 +895,22 @@ mod tests {
         on_task_finished(
             &mut core,
             &mut comm,
-            100,
+            100.into(),
             TaskFinishedMsg { id: 15, size: 301 },
         );
 
         assert!(matches!(t5.get().state, TaskRuntimeState::Released));
-        assert_eq!(core.get_worker_by_id_or_panic(100).tasks().len(), 1);
-        assert!(core.get_worker_by_id_or_panic(100).tasks().contains(&t1));
-        assert_eq!(core.get_worker_by_id_or_panic(101).tasks().len(), 1);
-        assert!(core.get_worker_by_id_or_panic(101).tasks().contains(&t2));
-        assert_eq!(core.get_worker_by_id_or_panic(102).tasks().len(), 0);
+        assert_eq!(core.get_worker_by_id_or_panic(100.into()).tasks().len(), 1);
+        assert!(core
+            .get_worker_by_id_or_panic(100.into())
+            .tasks()
+            .contains(&t1));
+        assert_eq!(core.get_worker_by_id_or_panic(101.into()).tasks().len(), 1);
+        assert!(core
+            .get_worker_by_id_or_panic(101.into())
+            .tasks()
+            .contains(&t2));
+        assert_eq!(core.get_worker_by_id_or_panic(102.into()).tasks().len(), 0);
 
         let msgs = comm.take_worker_msgs(100, 1);
         assert!(matches!(
@@ -914,16 +932,19 @@ mod tests {
         on_task_finished(
             &mut core,
             &mut comm,
-            101,
+            101.into(),
             TaskFinishedMsg { id: 12, size: 5000 },
         );
 
         assert!(t2.get().is_finished());
         assert!(matches!(t5.get().state, TaskRuntimeState::Released));
-        assert_eq!(core.get_worker_by_id_or_panic(100).tasks().len(), 1);
-        assert!(core.get_worker_by_id_or_panic(100).tasks().contains(&t1));
-        assert_eq!(core.get_worker_by_id_or_panic(101).tasks().len(), 0);
-        assert_eq!(core.get_worker_by_id_or_panic(102).tasks().len(), 0);
+        assert_eq!(core.get_worker_by_id_or_panic(100.into()).tasks().len(), 1);
+        assert!(core
+            .get_worker_by_id_or_panic(100.into())
+            .tasks()
+            .contains(&t1));
+        assert_eq!(core.get_worker_by_id_or_panic(101.into()).tasks().len(), 0);
+        assert_eq!(core.get_worker_by_id_or_panic(102.into()).tasks().len(), 0);
 
         comm.check_need_scheduling();
         //assert_eq!(comm.take_client_task_finished(1), vec![12]);
@@ -934,7 +955,7 @@ mod tests {
         on_task_finished(
             &mut core,
             &mut comm,
-            100,
+            100.into(),
             TaskFinishedMsg { id: 11, size: 1000 },
         );
 
@@ -958,7 +979,7 @@ mod tests {
         on_task_finished(
             &mut core,
             &mut comm,
-            101,
+            101.into(),
             TaskFinishedMsg { id: 13, size: 1000 },
         );
 
@@ -1004,13 +1025,16 @@ mod tests {
         start_on_worker(&mut core, 13, 102);
         let t13 = core.get_task_by_id_or_panic(13).clone();
         assert!(t13.get().is_assigned());
-        assert!(core.get_worker_by_id_or_panic(102).tasks().contains(&t13));
+        assert!(core
+            .get_worker_by_id_or_panic(102.into())
+            .tasks()
+            .contains(&t13));
 
         let mut comm = create_test_comm();
         on_task_error(
             &mut core,
             &mut comm,
-            102,
+            102.into(),
             13,
             TaskFailInfo {
                 message: "".to_string(),
@@ -1018,7 +1042,10 @@ mod tests {
                 error_data: vec![],
             },
         );
-        assert!(!core.get_worker_by_id_or_panic(102).tasks().contains(&t13));
+        assert!(!core
+            .get_worker_by_id_or_panic(102.into())
+            .tasks()
+            .contains(&t13));
 
         let msgs = comm.take_worker_msgs(100, 1);
         assert!(matches!(
@@ -1041,7 +1068,7 @@ mod tests {
         let mut core = Core::default();
         create_test_workers(&mut core, &[1, 1, 1]);
         let mut comm = create_test_comm();
-        on_tasks_transferred(&mut core, &mut comm, 102, 42);
+        on_tasks_transferred(&mut core, &mut comm, 102.into(), 42);
         let msgs = comm.take_worker_msgs(102, 1);
         assert!(matches!(
             msgs[0],
@@ -1061,7 +1088,7 @@ mod tests {
         start_on_worker(&mut core, 13, 101);
 
         let mut comm = create_test_comm();
-        on_tasks_transferred(&mut core, &mut comm, 101, 11);
+        on_tasks_transferred(&mut core, &mut comm, 101.into(), 11);
 
         comm.emptiness_check();
 
@@ -1072,8 +1099,8 @@ mod tests {
             .unwrap()
             .clone();
         let mut set = Set::new();
-        set.insert(100);
-        set.insert(101);
+        set.insert(WorkerId::new(100));
+        set.insert(WorkerId::new(101));
         assert_eq!(ws, set);
         core.sanity_check();
     }
@@ -1088,8 +1115,14 @@ mod tests {
         start_on_worker(&mut core, 13, 101);
 
         let t3 = core.get_task_by_id_or_panic(13).clone();
-        assert!(core.get_worker_by_id_or_panic(101).tasks().contains(&t3));
-        assert!(!core.get_worker_by_id_or_panic(100).tasks().contains(&t3));
+        assert!(core
+            .get_worker_by_id_or_panic(101.into())
+            .tasks()
+            .contains(&t3));
+        assert!(!core
+            .get_worker_by_id_or_panic(100.into())
+            .tasks()
+            .contains(&t3));
 
         let mut comm = create_test_comm();
         let mut scheduler = create_test_scheduler();
@@ -1097,8 +1130,14 @@ mod tests {
         force_reassign(&mut core, &mut scheduler, 13, 100);
         scheduler.finish_scheduling(&mut comm);
 
-        assert!(!core.get_worker_by_id_or_panic(101).tasks().contains(&t3));
-        assert!(core.get_worker_by_id_or_panic(100).tasks().contains(&t3));
+        assert!(!core
+            .get_worker_by_id_or_panic(101.into())
+            .tasks()
+            .contains(&t3));
+        assert!(core
+            .get_worker_by_id_or_panic(100.into())
+            .tasks()
+            .contains(&t3));
 
         let msgs = comm.take_worker_msgs(101, 1);
         assert!(matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![13]));
@@ -1107,7 +1146,7 @@ mod tests {
         on_steal_response(
             &mut core,
             &mut comm,
-            101,
+            101.into(),
             StealResponseMsg {
                 responses: vec![
                     (13, StealResponse::Ok),
@@ -1117,8 +1156,14 @@ mod tests {
             },
         );
 
-        assert!(!core.get_worker_by_id_or_panic(101).tasks().contains(&t3));
-        assert!(core.get_worker_by_id_or_panic(100).tasks().contains(&t3));
+        assert!(!core
+            .get_worker_by_id_or_panic(101.into())
+            .tasks()
+            .contains(&t3));
+        assert!(core
+            .get_worker_by_id_or_panic(100.into())
+            .tasks()
+            .contains(&t3));
 
         let msgs = comm.take_worker_msgs(100, 1);
         assert!(matches!(
@@ -1149,20 +1194,32 @@ mod tests {
         comm.emptiness_check();
 
         let t3 = core.get_task_by_id_or_panic(13).clone();
-        assert!(!core.get_worker_by_id_or_panic(101).tasks().contains(&t3));
-        assert!(core.get_worker_by_id_or_panic(100).tasks().contains(&t3));
+        assert!(!core
+            .get_worker_by_id_or_panic(101.into())
+            .tasks()
+            .contains(&t3));
+        assert!(core
+            .get_worker_by_id_or_panic(100.into())
+            .tasks()
+            .contains(&t3));
 
         on_steal_response(
             &mut core,
             &mut comm,
-            101,
+            101.into(),
             StealResponseMsg {
                 responses: vec![(13, StealResponse::Running)],
             },
         );
 
-        assert!(core.get_worker_by_id_or_panic(101).tasks().contains(&t3));
-        assert!(!core.get_worker_by_id_or_panic(100).tasks().contains(&t3));
+        assert!(core
+            .get_worker_by_id_or_panic(101.into())
+            .tasks()
+            .contains(&t3));
+        assert!(!core
+            .get_worker_by_id_or_panic(100.into())
+            .tasks()
+            .contains(&t3));
 
         comm.check_need_scheduling();
         comm.emptiness_check();
@@ -1190,7 +1247,7 @@ mod tests {
         on_task_finished(
             &mut core,
             &mut comm,
-            100,
+            100.into(),
             TaskFinishedMsg { id: 1, size: 0 },
         );
         comm.check_need_scheduling();
@@ -1263,19 +1320,30 @@ mod tests {
         on_set_observe_flag(&mut core, &mut comm, 1, true);
         comm.emptiness_check();
 
-        on_task_running(&mut core, &mut comm, 101, 1);
+        on_task_running(&mut core, &mut comm, 101.into(), 1);
         assert_eq!(comm.take_client_task_running(1), vec![1]);
         comm.emptiness_check();
 
-        on_task_running(&mut core, &mut comm, 101, 2);
+        on_task_running(&mut core, &mut comm, 101.into(), 2);
         comm.emptiness_check();
 
-        assert!(matches!(t1.get().state, TaskRuntimeState::Running(101)));
-        assert!(matches!(t2.get().state, TaskRuntimeState::Running(101)));
+        assert!(matches!(
+            t1.get().state,
+            TaskRuntimeState::Running(WorkerId(101))
+        ));
+        assert!(matches!(
+            t2.get().state,
+            TaskRuntimeState::Running(WorkerId(101))
+        ));
 
-        on_remove_worker(&mut core, &mut comm, 101, LostWorkerReason::HeartbeatLost);
+        on_remove_worker(
+            &mut core,
+            &mut comm,
+            101.into(),
+            LostWorkerReason::HeartbeatLost,
+        );
         let mut lw = comm.take_lost_workers();
-        assert_eq!(lw[0].0, 101);
+        assert_eq!(lw[0].0, WorkerId::new(101));
         assert_eq!(sorted_vec(std::mem::take(&mut lw[0].1)), vec![1, 2]);
         comm.check_need_scheduling();
         comm.emptiness_check();
@@ -1290,7 +1358,7 @@ mod tests {
         start_on_worker(&mut core, 1, 101);
         start_stealing(&mut core, 1, 102);
         assert!(core
-            .get_worker_mut_by_id_or_panic(102)
+            .get_worker_mut_by_id_or_panic(102.into())
             .tasks()
             .contains(&t1));
 
@@ -1298,7 +1366,7 @@ mod tests {
         on_task_finished(
             &mut core,
             &mut comm,
-            101,
+            101.into(),
             TaskFinishedMsg { id: 1, size: 0 },
         );
         let msgs = comm.take_worker_msgs(101, 1);
@@ -1310,18 +1378,18 @@ mod tests {
         comm.emptiness_check();
 
         assert!(!core
-            .get_worker_mut_by_id_or_panic(101)
+            .get_worker_mut_by_id_or_panic(101.into())
             .tasks()
             .contains(&t1));
         assert!(!core
-            .get_worker_mut_by_id_or_panic(102)
+            .get_worker_mut_by_id_or_panic(102.into())
             .tasks()
             .contains(&t1));
 
         on_steal_response(
             &mut core,
             &mut comm,
-            101,
+            101.into(),
             StealResponseMsg {
                 responses: vec![(1, StealResponse::NotHere)],
             },
@@ -1330,11 +1398,11 @@ mod tests {
         comm.emptiness_check();
 
         assert!(!core
-            .get_worker_mut_by_id_or_panic(101)
+            .get_worker_mut_by_id_or_panic(101.into())
             .tasks()
             .contains(&t1));
         assert!(!core
-            .get_worker_mut_by_id_or_panic(102)
+            .get_worker_mut_by_id_or_panic(102.into())
             .tasks()
             .contains(&t1));
     }
@@ -1348,28 +1416,28 @@ mod tests {
         start_on_worker(&mut core, 1, 101);
         start_stealing(&mut core, 1, 102);
         assert!(core
-            .get_worker_mut_by_id_or_panic(102)
+            .get_worker_mut_by_id_or_panic(102.into())
             .tasks()
             .contains(&t1));
 
         let mut comm = create_test_comm();
-        on_task_running(&mut core, &mut comm, 101, 1);
+        on_task_running(&mut core, &mut comm, 101.into(), 1);
         comm.check_need_scheduling();
         comm.emptiness_check();
 
         assert!(core
-            .get_worker_mut_by_id_or_panic(101)
+            .get_worker_mut_by_id_or_panic(101.into())
             .tasks()
             .contains(&t1));
         assert!(!core
-            .get_worker_mut_by_id_or_panic(102)
+            .get_worker_mut_by_id_or_panic(102.into())
             .tasks()
             .contains(&t1));
 
         on_steal_response(
             &mut core,
             &mut comm,
-            101,
+            101.into(),
             StealResponseMsg {
                 responses: vec![(1, StealResponse::Running)],
             },
@@ -1377,11 +1445,11 @@ mod tests {
 
         comm.emptiness_check();
         assert!(core
-            .get_worker_mut_by_id_or_panic(101)
+            .get_worker_mut_by_id_or_panic(101.into())
             .tasks()
             .contains(&t1));
         assert!(!core
-            .get_worker_mut_by_id_or_panic(102)
+            .get_worker_mut_by_id_or_panic(102.into())
             .tasks()
             .contains(&t1));
     }
@@ -1415,7 +1483,7 @@ mod tests {
         on_task_finished(
             &mut core,
             &mut comm,
-            101,
+            101.into(),
             TaskFinishedMsg { id: 1, size: 100 },
         );
         comm.emptiness_check();
@@ -1423,7 +1491,7 @@ mod tests {
         on_steal_response(
             &mut core,
             &mut comm,
-            101,
+            101.into(),
             StealResponseMsg {
                 responses: vec![(2, StealResponse::Ok)],
             },
@@ -1433,7 +1501,7 @@ mod tests {
         on_steal_response(
             &mut core,
             &mut comm,
-            101,
+            101.into(),
             StealResponseMsg {
                 responses: vec![(2, StealResponse::Running)],
             },
@@ -1443,7 +1511,7 @@ mod tests {
         on_task_error(
             &mut core,
             &mut comm,
-            101,
+            101.into(),
             3,
             TaskFailInfo {
                 message: "".to_string(),
@@ -1453,7 +1521,7 @@ mod tests {
         );
         comm.emptiness_check();
 
-        on_task_running(&mut core, &mut comm, 101, 4);
+        on_task_running(&mut core, &mut comm, 101.into(), 4);
         comm.emptiness_check();
     }
 
@@ -1485,9 +1553,17 @@ mod tests {
         assert!(!core.get_task_by_id_or_panic(41).get().is_fresh());
 
         let mut comm = create_test_comm();
-        on_remove_worker(&mut core, &mut comm, 101, LostWorkerReason::HeartbeatLost);
+        on_remove_worker(
+            &mut core,
+            &mut comm,
+            101.into(),
+            LostWorkerReason::HeartbeatLost,
+        );
 
-        assert_eq!(comm.take_lost_workers(), vec![(101, vec![12])]);
+        assert_eq!(
+            comm.take_lost_workers(),
+            vec![(WorkerId::new(101), vec![12])]
+        );
 
         assert_eq!(core.take_ready_to_assign().len(), 3);
         assert!(core.get_task_by_id_or_panic(11).get().is_ready());
@@ -1499,7 +1575,7 @@ mod tests {
         assert!(core.get_task_by_id_or_panic(40).get().is_fresh());
         assert!(matches!(
             core.get_task_by_id_or_panic(41).get().state,
-            TaskRuntimeState::Stealing(100, None)
+            TaskRuntimeState::Stealing(WorkerId(100), None)
         ));
 
         comm.check_need_scheduling();
@@ -1508,7 +1584,7 @@ mod tests {
         on_steal_response(
             &mut core,
             &mut comm,
-            100,
+            100.into(),
             StealResponseMsg {
                 responses: vec![(41, StealResponse::Ok)],
             },

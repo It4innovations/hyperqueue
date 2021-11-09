@@ -49,6 +49,14 @@ macro_rules! define_id_type {
                 self.0.fmt(f)
             }
         }
+
+        impl ::std::str::FromStr for $name {
+            type Err = ::std::num::ParseIntError;
+
+            fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+                Ok($name(s.parse::<u32>()?))
+            }
+        }
     };
 }
 
