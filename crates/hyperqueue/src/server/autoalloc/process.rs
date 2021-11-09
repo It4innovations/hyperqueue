@@ -475,7 +475,7 @@ mod tests {
         let state = StateRef::new(Duration::from_millis(100));
         state.get_mut().add_job(Job::new(
             JobType::Array(IntArray::from_range(0, waiting_tasks)),
-            0,
+            0.into(),
             0,
             "job".to_string(),
             ProgramDefinition {

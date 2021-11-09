@@ -92,7 +92,7 @@ mod tests {
             Some("%{TASK_ID}.out"),
             Some("%{TASK_ID}.err"),
             "",
-            0,
+            0.into(),
             1,
         );
         replace_placeholders_worker(&mut program);
@@ -108,7 +108,7 @@ mod tests {
             Some("%{JOB_ID}-%{TASK_ID}.out"),
             Some("%{JOB_ID}-%{TASK_ID}.err"),
             "",
-            5,
+            5.into(),
             1,
         );
         replace_placeholders_worker(&mut program);
@@ -124,7 +124,7 @@ mod tests {
             Some("%{SUBMIT_DIR}/out"),
             Some("%{SUBMIT_DIR}/err"),
             "/submit-dir",
-            5,
+            5.into(),
             1,
         );
         replace_placeholders_worker(&mut program);
@@ -141,7 +141,7 @@ mod tests {
             Some("%{CWD}.out"),
             Some("%{CWD}.err"),
             "",
-            5,
+            5.into(),
             1,
         );
         replace_placeholders_worker(&mut program);

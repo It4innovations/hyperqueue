@@ -33,7 +33,7 @@ pub struct State {
     // Therefore we need to find biggest key that is lower then a given task id
     // To make this query efficient, we use BTreeMap and not Map
     base_task_id_to_job_id: BTreeMap<TakoTaskId, JobId>,
-    job_id_counter: JobId,
+    job_id_counter: u32,
     task_id_counter: TakoTaskId,
 
     autoalloc_state: AutoAllocState,
@@ -119,12 +119,12 @@ impl State {
     pub fn new_job_id(&mut self) -> JobId {
         let id = self.job_id_counter;
         self.job_id_counter += 1;
-        id
+        id.into()
     }
 
-    pub fn last_n_ids(&self, n: JobId) -> impl Iterator<Item = JobId> {
+    pub fn last_n_ids(&self, n: u32) -> impl Iterator<Item = JobId> {
         let n = min(n, self.job_id_counter - 1);
-        (self.job_id_counter - n)..self.job_id_counter
+        ((self.job_id_counter - n)..self.job_id_counter).map(|id| id.into())
     }
 
     pub fn new_task_id(&mut self, task_count: JobTaskCount) -> TakoTaskId {
@@ -272,29 +272,85 @@ mod tests {
         let mut state = state_ref.get_mut();
         state.add_job(test_job(
             JobType::Array(IntArray::from_range(0, 10)),
-            223,
+            223.into(),
             100,
         ));
         state.add_job(test_job(
             JobType::Array(IntArray::from_range(0, 15)),
-            224,
+            224.into(),
             110,
         ));
-        state.add_job(test_job(JobType::Simple, 225, 125));
-        state.add_job(test_job(JobType::Simple, 226, 126));
-        state.add_job(test_job(JobType::Simple, 227, 130));
+        state.add_job(test_job(JobType::Simple, 225.into(), 125));
+        state.add_job(test_job(JobType::Simple, 226.into(), 126));
+        state.add_job(test_job(JobType::Simple, 227.into(), 130));
 
         assert!(state.get_job_mut_by_tako_task_id(99).is_none());
-        assert_eq!(state.get_job_mut_by_tako_task_id(100).unwrap().job_id, 223);
-        assert_eq!(state.get_job_mut_by_tako_task_id(101).unwrap().job_id, 223);
-        assert_eq!(state.get_job_mut_by_tako_task_id(109).unwrap().job_id, 223);
-        assert_eq!(state.get_job_mut_by_tako_task_id(110).unwrap().job_id, 224);
-        assert_eq!(state.get_job_mut_by_tako_task_id(124).unwrap().job_id, 224);
-        assert_eq!(state.get_job_mut_by_tako_task_id(125).unwrap().job_id, 225);
-        assert_eq!(state.get_job_mut_by_tako_task_id(126).unwrap().job_id, 226);
+        assert_eq!(
+            state
+                .get_job_mut_by_tako_task_id(100)
+                .unwrap()
+                .job_id
+                .as_u32(),
+            223
+        );
+        assert_eq!(
+            state
+                .get_job_mut_by_tako_task_id(101)
+                .unwrap()
+                .job_id
+                .as_u32(),
+            223
+        );
+        assert_eq!(
+            state
+                .get_job_mut_by_tako_task_id(109)
+                .unwrap()
+                .job_id
+                .as_u32(),
+            223
+        );
+        assert_eq!(
+            state
+                .get_job_mut_by_tako_task_id(110)
+                .unwrap()
+                .job_id
+                .as_u32(),
+            224
+        );
+        assert_eq!(
+            state
+                .get_job_mut_by_tako_task_id(124)
+                .unwrap()
+                .job_id
+                .as_u32(),
+            224
+        );
+        assert_eq!(
+            state
+                .get_job_mut_by_tako_task_id(125)
+                .unwrap()
+                .job_id
+                .as_u32(),
+            225
+        );
+        assert_eq!(
+            state
+                .get_job_mut_by_tako_task_id(126)
+                .unwrap()
+                .job_id
+                .as_u32(),
+            226
+        );
         assert!(state.get_job_mut_by_tako_task_id(127).is_none());
         assert!(state.get_job_mut_by_tako_task_id(129).is_none());
-        assert_eq!(state.get_job_mut_by_tako_task_id(130).unwrap().job_id, 227);
+        assert_eq!(
+            state
+                .get_job_mut_by_tako_task_id(130)
+                .unwrap()
+                .job_id
+                .as_u32(),
+            227
+        );
         assert!(state.get_job_mut_by_tako_task_id(131).is_none());
     }
 }

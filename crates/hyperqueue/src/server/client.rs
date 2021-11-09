@@ -451,7 +451,7 @@ fn get_job_ids(state: &State, selector: Selector) -> Vec<JobId> {
     match selector {
         Selector::All => state.jobs().map(|job| job.job_id).collect(),
         Selector::LastN(n) => state.last_n_ids(n).collect(),
-        Selector::Specific(array) => array.iter().collect(),
+        Selector::Specific(array) => array.iter().map(|id| id.into()).collect(),
     }
 }
 
@@ -476,7 +476,7 @@ fn compute_job_info(state_ref: &StateRef, selector: Selector) -> ToClientMessage
             .collect(),
         Selector::Specific(array) => array
             .iter()
-            .filter_map(|id| state.get_job(id))
+            .filter_map(|id| state.get_job(JobId::new(id)))
             .map(|j| j.make_job_info())
             .collect(),
     };
@@ -497,7 +497,7 @@ async fn handle_job_cancel(
             .map(|job_info| job_info.id)
             .collect(),
         Selector::LastN(n) => state_ref.get().last_n_ids(n).collect(),
-        Selector::Specific(array) => array.iter().collect(),
+        Selector::Specific(array) => array.iter().map(|id| id.into()).collect(),
     };
 
     let mut responses: Vec<(JobId, CancelJobResponse)> = Vec::new();
