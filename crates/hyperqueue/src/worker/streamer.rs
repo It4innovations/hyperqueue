@@ -16,7 +16,7 @@ use tako::messages::worker::ConnectionRegistration;
 use tako::server::rpc::ConnectionDescriptor;
 use tako::transfer::auth::{open_message, seal_message, serialize};
 use tako::worker::rpc::connect_to_server_and_authenticate;
-use tako::InstanceId;
+use tako::{define_wrapped_type, InstanceId};
 use tokio::sync::mpsc::channel;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::oneshot;
@@ -203,7 +203,7 @@ impl Streamer {
     }
 }
 
-pub type StreamerRef = WrappedRcRefCell<Streamer>;
+define_wrapped_type!(StreamerRef, Streamer, pub);
 
 impl StreamerRef {
     pub fn start(
@@ -228,7 +228,7 @@ impl StreamerRef {
                     .retain(|_, info| !info.responses.is_empty());
             }
         };
-        (streamer_ref, streamer_future)
+        (Self(streamer_ref), streamer_future)
     }
 }
 

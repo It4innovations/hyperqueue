@@ -26,7 +26,7 @@ use crate::transfer::stream::{
     ToStreamerMessage,
 };
 use crate::{JobId, JobTaskId, Map, Set};
-use tako::InstanceId;
+use tako::{define_wrapped_type, InstanceId};
 use tokio::io::BufWriter;
 
 const STREAM_BUFFER_SIZE: usize = 32;
@@ -50,16 +50,16 @@ struct StreamServerState {
     files: Set<PathBuf>,
 }
 
-type StreamServerStateRef = WrappedRcRefCell<StreamServerState>;
+define_wrapped_type!(StreamServerStateRef, StreamServerState);
 
 impl StreamServerStateRef {
     fn new() -> Self {
-        WrappedRcRefCell::wrap(StreamServerState {
+        Self(WrappedRcRefCell::wrap(StreamServerState {
             streams: Default::default(),
             registrations: Default::default(),
             connections: Default::default(),
             files: Default::default(),
-        })
+        }))
     }
 
     fn get_stream(&self, job_id: JobId) -> anyhow::Result<Sender<StreamMessage>> {

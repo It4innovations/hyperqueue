@@ -14,6 +14,7 @@ use crate::transfer::messages::LostWorkerReasonInfo;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
 use std::cmp::min;
 use std::time::Duration;
+use tako::define_wrapped_type;
 
 pub struct State {
     jobs: crate::Map<JobId, Job>,
@@ -39,7 +40,7 @@ pub struct State {
     autoalloc_state: AutoAllocState,
 }
 
-pub type StateRef = WrappedRcRefCell<State>;
+define_wrapped_type!(StateRef, State, pub);
 
 fn cancel_tasks_from_callback(
     state_ref: &StateRef,
@@ -216,14 +217,14 @@ impl State {
 
 impl StateRef {
     pub fn new(autoalloc_interval: Duration) -> StateRef {
-        WrappedRcRefCell::wrap(State {
+        Self(WrappedRcRefCell::wrap(State {
             jobs: Default::default(),
             workers: Default::default(),
             base_task_id_to_job_id: Default::default(),
             job_id_counter: 1,
             task_id_counter: 1,
             autoalloc_state: AutoAllocState::new(autoalloc_interval),
-        })
+        }))
     }
 }
 
