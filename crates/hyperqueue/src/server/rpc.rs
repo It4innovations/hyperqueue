@@ -10,10 +10,10 @@ use tokio::sync::oneshot;
 use tokio::time::Duration;
 
 use crate::common::error::error;
-use crate::common::WrappedRcRefCell;
 use crate::server::state::StateRef;
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::stream::server::rpc::start_stream_server;
+use crate::WrappedRcRefCell;
 
 struct Inner {
     tako_sender: UnboundedSender<FromGatewayMessage>,

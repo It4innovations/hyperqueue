@@ -15,10 +15,13 @@ pub type WorkerId = tako::WorkerId;
 pub type TakoTaskId = tako::TaskId;
 pub type Priority = tako::Priority;
 
-pub type JobId = u32;
 pub type JobTaskId = u32;
 pub type JobTaskCount = u32;
 pub type JobTaskStep = u32;
 
 pub type Error = crate::common::error::HqError;
 pub type Result<T> = std::result::Result<T, Error>;
+
+// Reexports
+pub use common::JobId;
+pub use common::WrappedRcRefCell;

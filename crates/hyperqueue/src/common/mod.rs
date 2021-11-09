@@ -1,5 +1,3 @@
-pub use wrapped::WrappedRcRefCell;
-
 pub mod arraydef;
 pub mod arrayparser;
 pub mod env;
@@ -15,3 +13,9 @@ pub mod setup;
 pub mod strutils;
 pub mod timeutils;
 pub mod wrapped;
+
+use tako::common::macros::define_id_type;
+
+define_id_type!(JobId);
+
+pub use wrapped::WrappedRcRefCell;

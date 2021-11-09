@@ -23,7 +23,7 @@ use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
     FromClientMessage, JobType, ResubmitRequest, Selector, SubmitRequest, ToClientMessage,
 };
-use crate::{rpc_call, JobId, JobTaskCount, Map};
+use crate::{rpc_call, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 
@@ -320,7 +320,7 @@ pub async fn submit_computation(
         wait_for_jobs(
             gsettings,
             connection,
-            Selector::Specific(IntArray::from_id(info.id)),
+            Selector::Specific(IntArray::from_id(info.id.into())),
         )
         .await?;
     } else if opts.progress {
@@ -371,7 +371,7 @@ fn check_suspicious_options(opts: &SubmitOpts, job_type: &JobType) {
 
 #[derive(Parser)]
 pub struct ResubmitOpts {
-    job_id: JobId,
+    job_id: u32,
 
     /// Filter only tasks in a given state
     #[clap(long)]
@@ -384,7 +384,7 @@ pub async fn resubmit_computation(
     opts: ResubmitOpts,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::Resubmit(ResubmitRequest {
-        job_id: opts.job_id,
+        job_id: opts.job_id.into(),
         status: opts.status.map(|x| x.to_vec()),
     });
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
