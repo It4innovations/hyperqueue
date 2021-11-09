@@ -47,8 +47,7 @@ indicatif = "0.16.2"
 textwrap = "0.14"
 
 # Tako
-# tako = { path = "../../../tako", default-features = false }
-tako = { git = "https://github.com/spirali/tako", branch = "main", default-features = false }
+tako = { path = "../tako" }
 
 # Optional dependencies
 jemallocator = { version = "0.3.2", optional = true }
@@ -58,4 +57,4 @@ default = ["jemalloc"]
 # Mode that does not execute tasks, useful for benchmarking HQ overhead
 zero-worker = []
 # Use the jemalloc allocator
-jemalloc = ["jemallocator", "tako/jemalloc"]
+jemalloc = ["jemallocator"]

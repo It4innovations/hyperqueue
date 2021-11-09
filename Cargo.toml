@@ -1,8 +1,12 @@
 [workspace]
 members = [
-    "crates/hyperqueue"
+    "crates/hyperqueue",
+    "crates/tako"
 ]
-default-members = ["crates/hyperqueue"]
+default-members = [
+    "crates/hyperqueue",
+    "crates/tako"
+]
 
 [profile.dev]
 panic = "abort"
