@@ -27,6 +27,13 @@ $ hq worker stop 1,3,5-8
 
 would stop workers with IDs `1`, `3`, `5`, `6`, `7` and `8`.
 
+!!! tip
+    You can add underscore (`_`) separators to any of the entered numeric values to improve readability:
+
+    ```bash
+    $ hq submit --array=1-1000_000 ...
+    ```
+
 ### Supported commands and options
 - `hq submit --array=<selector>`
 - `hq worker stop <selector>`
