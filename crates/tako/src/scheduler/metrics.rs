@@ -58,43 +58,43 @@ mod tests {
         compute_b_level_metric(core.get_task_map());
 
         assert_eq!(
-            core.get_task_by_id_or_panic(7)
+            core.get_task_by_id_or_panic(7.into())
                 .get()
                 .get_scheduler_priority(),
             1
         );
         assert_eq!(
-            core.get_task_by_id_or_panic(6)
+            core.get_task_by_id_or_panic(6.into())
                 .get()
                 .get_scheduler_priority(),
             2
         );
         assert_eq!(
-            core.get_task_by_id_or_panic(5)
+            core.get_task_by_id_or_panic(5.into())
                 .get()
                 .get_scheduler_priority(),
             1
         );
         assert_eq!(
-            core.get_task_by_id_or_panic(4)
+            core.get_task_by_id_or_panic(4.into())
                 .get()
                 .get_scheduler_priority(),
             2
         );
         assert_eq!(
-            core.get_task_by_id_or_panic(3)
+            core.get_task_by_id_or_panic(3.into())
                 .get()
                 .get_scheduler_priority(),
             3
         );
         assert_eq!(
-            core.get_task_by_id_or_panic(2)
+            core.get_task_by_id_or_panic(2.into())
                 .get()
                 .get_scheduler_priority(),
             3
         );
         assert_eq!(
-            core.get_task_by_id_or_panic(1)
+            core.get_task_by_id_or_panic(1.into())
                 .get()
                 .get_scheduler_priority(),
             4

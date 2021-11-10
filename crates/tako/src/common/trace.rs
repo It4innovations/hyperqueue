@@ -61,7 +61,7 @@ pub fn trace_task_new(task_id: TaskId, inputs: impl Iterator<Item = u64>) {
     tracing::info!(
         action = "task",
         event = "create",
-        task = task_id,
+        task = task_id.as_u64(),
         inputs = make_inputs().as_str()
     );
 }
@@ -70,7 +70,7 @@ pub fn trace_task_new_finished(task_id: TaskId, size: u64, worker_id: WorkerId) 
     tracing::info!(
         action = "task",
         event = "create",
-        task = task_id,
+        task = task_id.as_u64(),
         worker = worker_id.as_u32(),
         size = size
     );
@@ -81,7 +81,7 @@ pub fn trace_task_assign(task_id: TaskId, worker_id: WorkerId) {
         action = "task",
         event = "assign",
         worker = worker_id.as_u32(),
-        task = task_id
+        task = task_id.as_u64()
     );
 }
 #[inline(always)]
@@ -89,7 +89,7 @@ pub fn trace_task_send(task_id: TaskId, worker_id: WorkerId) {
     tracing::info!(
         action = "task",
         event = "send",
-        task = task_id,
+        task = task_id.as_u64(),
         worker = worker_id.as_u32(),
     );
 }
@@ -98,7 +98,7 @@ pub fn trace_task_place(task_id: TaskId, worker_id: WorkerId) {
     tracing::info!(
         action = "task",
         event = "place",
-        task = task_id,
+        task = task_id.as_u64(),
         worker = worker_id.as_u32(),
     );
 }
@@ -107,7 +107,7 @@ pub fn trace_task_finish(task_id: TaskId, worker_id: WorkerId, size: u64, durati
     tracing::info!(
         action = "task",
         event = "finish",
-        task = task_id,
+        task = task_id.as_u64(),
         worker = worker_id.as_u32(),
         start = duration.0,
         stop = duration.1,
@@ -116,7 +116,7 @@ pub fn trace_task_finish(task_id: TaskId, worker_id: WorkerId, size: u64, durati
 }
 #[inline(always)]
 pub fn trace_task_remove(task_id: TaskId) {
-    tracing::info!(action = "task", event = "remove", task = task_id,);
+    tracing::info!(action = "task", event = "remove", task = task_id.as_u64(),);
 }
 #[inline(always)]
 pub fn trace_worker_new(worker_id: WorkerId, configuration: &WorkerConfiguration) {
@@ -131,7 +131,7 @@ pub fn trace_worker_new(worker_id: WorkerId, configuration: &WorkerConfiguration
 pub fn trace_worker_steal(task_id: TaskId, from: WorkerId, to: WorkerId) {
     tracing::info!(
         action = "steal",
-        task = task_id,
+        task = task_id.as_u64(),
         from = from.as_u32(),
         to = to.as_u32()
     );
@@ -140,7 +140,7 @@ pub fn trace_worker_steal(task_id: TaskId, from: WorkerId, to: WorkerId) {
 pub fn trace_worker_steal_response(task_id: TaskId, from: WorkerId, to: WorkerId, result: &str) {
     tracing::info!(
         action = "steal-response",
-        task = task_id,
+        task = task_id.as_u64(),
         from = from.as_u32(),
         to = to.as_u32(),
         result = result
@@ -150,7 +150,7 @@ pub fn trace_worker_steal_response(task_id: TaskId, from: WorkerId, to: WorkerId
 pub fn trace_worker_steal_response_missing(task_id: TaskId, from: WorkerId) {
     tracing::info!(
         action = "steal-response",
-        task = task_id,
+        task = task_id.as_u64(),
         from = from.as_u32(),
         to = 0,
         result = "missing"

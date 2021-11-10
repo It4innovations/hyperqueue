@@ -769,8 +769,8 @@ mod tests {
         comm.check_need_scheduling();
         comm.emptiness_check();
 
-        let t1 = core.get_task_by_id_or_panic(501).clone();
-        let t2 = core.get_task_by_id_or_panic(502).clone();
+        let t1 = core.get_task_by_id_or_panic(501.into()).clone();
+        let t2 = core.get_task_by_id_or_panic(502.into()).clone();
         assert_eq!(t1.get().get_unfinished_deps(), 0);
         assert_eq!(t2.get().get_unfinished_deps(), 1);
         assert_eq!(t1.get().get_consumers().len(), 1);
@@ -785,8 +785,8 @@ mod tests {
         comm.check_need_scheduling();
         comm.emptiness_check();
 
-        let t4 = core.get_task_by_id_or_panic(602).clone();
-        let t6 = core.get_task_by_id_or_panic(601).clone();
+        let t4 = core.get_task_by_id_or_panic(602.into()).clone();
+        let t6 = core.get_task_by_id_or_panic(601.into()).clone();
 
         assert_eq!(t1.get().get_consumers().len(), 2);
         assert!(t1.get().get_consumers().contains(&t2));
@@ -862,7 +862,7 @@ mod tests {
         assert!(matches!(
             msgs[0],
             ToWorkerMessage::ComputeTask(ComputeTaskMsg {
-                id: 11,
+                id: TaskId(11),
                 user_priority: 12,
                 ..
             })
@@ -870,7 +870,7 @@ mod tests {
         assert!(matches!(
             msgs[1],
             ToWorkerMessage::ComputeTask(ComputeTaskMsg {
-                id: 15,
+                id: TaskId(15),
                 scheduler_priority: 0,
                 ..
             })
@@ -878,16 +878,16 @@ mod tests {
         let msgs = comm.take_worker_msgs(101, 1);
         assert!(matches!(
             msgs[0],
-            ToWorkerMessage::ComputeTask(ComputeTaskMsg { id: 12, .. })
+            ToWorkerMessage::ComputeTask(ComputeTaskMsg { id: TaskId(12), .. })
         ));
         comm.emptiness_check();
 
-        assert!(core.get_task_by_id_or_panic(11).get().is_assigned());
-        assert!(core.get_task_by_id_or_panic(12).get().is_assigned());
-        assert!(core.get_task_by_id_or_panic(13).get().is_waiting());
-        assert!(core.get_task_by_id_or_panic(17).get().is_waiting());
+        assert!(core.get_task_by_id_or_panic(11.into()).get().is_assigned());
+        assert!(core.get_task_by_id_or_panic(12.into()).get().is_assigned());
+        assert!(core.get_task_by_id_or_panic(13.into()).get().is_waiting());
+        assert!(core.get_task_by_id_or_panic(17.into()).get().is_waiting());
 
-        let t5 = core.get_task_by_id_or_panic(15).clone();
+        let t5 = core.get_task_by_id_or_panic(15.into()).clone();
 
         assert!(t5.get().is_assigned());
 
@@ -896,7 +896,10 @@ mod tests {
             &mut core,
             &mut comm,
             100.into(),
-            TaskFinishedMsg { id: 15, size: 301 },
+            TaskFinishedMsg {
+                id: 15.into(),
+                size: 301,
+            },
         );
 
         assert!(matches!(t5.get().state, TaskRuntimeState::Released));
@@ -915,7 +918,7 @@ mod tests {
         let msgs = comm.take_worker_msgs(100, 1);
         assert!(matches!(
             msgs[0],
-            ToWorkerMessage::DeleteData(TaskIdMsg { id: 15 })
+            ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(15) })
         ));
 
         comm.check_need_scheduling();
@@ -923,17 +926,20 @@ mod tests {
         //assert_eq!(comm.take_client_task_finished(1), vec![15]);
         comm.emptiness_check();
 
-        assert!(core.get_task_by_id(15).is_none());
+        assert!(core.get_task_by_id(15.into()).is_none());
 
-        // FINISHE TASK WITH CONSUMERS
-        let t2 = core.get_task_by_id_or_panic(12).clone();
+        // FINISHED TASK WITH CONSUMERS
+        let t2 = core.get_task_by_id_or_panic(12.into()).clone();
         assert!(t2.get().is_assigned());
 
         on_task_finished(
             &mut core,
             &mut comm,
             101.into(),
-            TaskFinishedMsg { id: 12, size: 5000 },
+            TaskFinishedMsg {
+                id: 12.into(),
+                size: 5000,
+            },
         );
 
         assert!(t2.get().is_finished());
@@ -950,13 +956,16 @@ mod tests {
         //assert_eq!(comm.take_client_task_finished(1), vec![12]);
         comm.emptiness_check();
 
-        assert!(core.get_task_by_id(12).is_some());
+        assert!(core.get_task_by_id(12.into()).is_some());
 
         on_task_finished(
             &mut core,
             &mut comm,
             100.into(),
-            TaskFinishedMsg { id: 11, size: 1000 },
+            TaskFinishedMsg {
+                id: 11.into(),
+                size: 1000,
+            },
         );
 
         comm.check_need_scheduling();
@@ -968,48 +977,51 @@ mod tests {
         let msgs = comm.take_worker_msgs(101, 1);
         assert!(matches!(
             msgs[0],
-            ToWorkerMessage::ComputeTask(ComputeTaskMsg { id: 13, .. })
+            ToWorkerMessage::ComputeTask(ComputeTaskMsg { id: TaskId(13), .. })
         ));
 
         comm.emptiness_check();
         core.sanity_check();
 
-        on_set_observe_flag(&mut core, &mut comm, 13, true);
+        on_set_observe_flag(&mut core, &mut comm, 13.into(), true);
 
         on_task_finished(
             &mut core,
             &mut comm,
             101.into(),
-            TaskFinishedMsg { id: 13, size: 1000 },
+            TaskFinishedMsg {
+                id: 13.into(),
+                size: 1000,
+            },
         );
 
         comm.check_need_scheduling();
 
-        assert_eq!(comm.take_client_task_finished(1), vec![13]);
+        assert_eq!(comm.take_client_task_finished(1), vec![13.into()]);
 
         let msgs = comm.take_worker_msgs(100, 1);
         assert!(matches!(
             msgs[0],
-            ToWorkerMessage::DeleteData(TaskIdMsg { id: 11 })
+            ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(11) })
         ));
 
         let msgs = comm.take_worker_msgs(101, 1);
         assert!(matches!(
             msgs[0],
-            ToWorkerMessage::DeleteData(TaskIdMsg { id: 12 })
+            ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(12) })
         ));
         comm.emptiness_check();
 
-        on_reset_keep_flag(&mut core, &mut comm, 13);
+        on_reset_keep_flag(&mut core, &mut comm, 13.into());
         let msgs = comm.take_worker_msgs(101, 1);
         assert!(matches!(
             msgs[0],
-            ToWorkerMessage::DeleteData(TaskIdMsg { id: 13 })
+            ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(13) })
         ));
         comm.emptiness_check();
         core.sanity_check();
 
-        on_reset_keep_flag(&mut core, &mut comm, 17);
+        on_reset_keep_flag(&mut core, &mut comm, 17.into());
         comm.emptiness_check();
         core.sanity_check();
     }
@@ -1023,7 +1035,7 @@ mod tests {
         start_and_finish_on_worker(&mut core, 12, 101, 1000);
 
         start_on_worker(&mut core, 13, 102);
-        let t13 = core.get_task_by_id_or_panic(13).clone();
+        let t13 = core.get_task_by_id_or_panic(13.into()).clone();
         assert!(t13.get().is_assigned());
         assert!(core
             .get_worker_by_id_or_panic(102.into())
@@ -1035,7 +1047,7 @@ mod tests {
             &mut core,
             &mut comm,
             102.into(),
-            13,
+            13.into(),
             TaskFailInfo {
                 message: "".to_string(),
                 data_type: "".to_string(),
@@ -1050,16 +1062,16 @@ mod tests {
         let msgs = comm.take_worker_msgs(100, 1);
         assert!(matches!(
             msgs[0],
-            ToWorkerMessage::DeleteData(TaskIdMsg { id: 11 })
+            ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(11) })
         ));
         let mut msgs = comm.take_client_task_errors(1);
         let (id, cs, _) = msgs.pop().unwrap();
-        assert_eq!(id, 13);
-        assert_eq!(sorted_vec(cs), vec![15, 16, 17]);
+        assert_eq!(id.as_u64(), 13);
+        assert_eq!(sorted_vec(cs), vec![15.into(), 16.into(), 17.into()]);
         comm.emptiness_check();
 
-        assert!(core.get_task_by_id(16).is_none());
-        assert!(core.get_task_by_id(15).is_none());
+        assert!(core.get_task_by_id(16.into()).is_none());
+        assert!(core.get_task_by_id(15.into()).is_none());
         core.sanity_check();
     }
 
@@ -1068,11 +1080,11 @@ mod tests {
         let mut core = Core::default();
         create_test_workers(&mut core, &[1, 1, 1]);
         let mut comm = create_test_comm();
-        on_tasks_transferred(&mut core, &mut comm, 102.into(), 42);
+        on_tasks_transferred(&mut core, &mut comm, 102.into(), 42.into());
         let msgs = comm.take_worker_msgs(102, 1);
         assert!(matches!(
             msgs[0],
-            ToWorkerMessage::DeleteData(TaskIdMsg { id: 42 })
+            ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(42) })
         ));
         comm.emptiness_check();
         core.sanity_check();
@@ -1088,12 +1100,12 @@ mod tests {
         start_on_worker(&mut core, 13, 101);
 
         let mut comm = create_test_comm();
-        on_tasks_transferred(&mut core, &mut comm, 101.into(), 11);
+        on_tasks_transferred(&mut core, &mut comm, 101.into(), 11.into());
 
         comm.emptiness_check();
 
         let ws = core
-            .get_task_by_id_or_panic(11)
+            .get_task_by_id_or_panic(11.into())
             .get()
             .get_placement()
             .unwrap()
@@ -1114,7 +1126,7 @@ mod tests {
         start_and_finish_on_worker(&mut core, 12, 101, 1000);
         start_on_worker(&mut core, 13, 101);
 
-        let t3 = core.get_task_by_id_or_panic(13).clone();
+        let t3 = core.get_task_by_id_or_panic(13.into()).clone();
         assert!(core
             .get_worker_by_id_or_panic(101.into())
             .tasks()
@@ -1140,7 +1152,7 @@ mod tests {
             .contains(&t3));
 
         let msgs = comm.take_worker_msgs(101, 1);
-        assert!(matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![13]));
+        assert!(matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![13.into()]));
         comm.emptiness_check();
 
         on_steal_response(
@@ -1149,9 +1161,9 @@ mod tests {
             101.into(),
             StealResponseMsg {
                 responses: vec![
-                    (13, StealResponse::Ok),
-                    (123, StealResponse::NotHere),
-                    (11, StealResponse::NotHere),
+                    (13.into(), StealResponse::Ok),
+                    (123.into(), StealResponse::NotHere),
+                    (11.into(), StealResponse::NotHere),
                 ],
             },
         );
@@ -1168,7 +1180,7 @@ mod tests {
         let msgs = comm.take_worker_msgs(100, 1);
         assert!(matches!(
             &msgs[0],
-            ToWorkerMessage::ComputeTask(ComputeTaskMsg { id: 13, .. })
+            ToWorkerMessage::ComputeTask(ComputeTaskMsg { id: TaskId(13), .. })
         ));
         comm.emptiness_check();
         core.sanity_check();
@@ -1190,10 +1202,10 @@ mod tests {
         scheduler.finish_scheduling(&mut comm);
 
         let msgs = comm.take_worker_msgs(101, 1);
-        assert!(matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![13]));
+        assert!(matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![13.into()]));
         comm.emptiness_check();
 
-        let t3 = core.get_task_by_id_or_panic(13).clone();
+        let t3 = core.get_task_by_id_or_panic(13.into()).clone();
         assert!(!core
             .get_worker_by_id_or_panic(101.into())
             .tasks()
@@ -1208,7 +1220,7 @@ mod tests {
             &mut comm,
             101.into(),
             StealResponseMsg {
-                responses: vec![(13, StealResponse::Running)],
+                responses: vec![(13.into(), StealResponse::Running)],
             },
         );
 
@@ -1248,7 +1260,10 @@ mod tests {
             &mut core,
             &mut comm,
             100.into(),
-            TaskFinishedMsg { id: 1, size: 0 },
+            TaskFinishedMsg {
+                id: 1.into(),
+                size: 0,
+            },
         );
         comm.check_need_scheduling();
         comm.emptiness_check();
@@ -1277,28 +1292,41 @@ mod tests {
         start_stealing(&mut core, 41, 101);
 
         let mut comm = create_test_comm();
-        let (ct, ft) = on_cancel_tasks(&mut core, &mut comm, &[11, 12, 40, 41, 33]);
+        let (ct, ft) = on_cancel_tasks(
+            &mut core,
+            &mut comm,
+            &vec![11, 12, 40, 41, 33]
+                .into_iter()
+                .map(|id| id.into())
+                .collect::<Vec<_>>(),
+        );
 
-        assert_eq!(sorted_vec(ct), vec![12, 13, 14, 15, 16, 17, 40, 41]);
-        assert_eq!(sorted_vec(ft), vec![11, 33]);
+        assert_eq!(
+            sorted_vec(ct),
+            vec![12, 13, 14, 15, 16, 17, 40, 41]
+                .into_iter()
+                .map(|id| id.into())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(sorted_vec(ft), vec![11.into(), 33.into()]);
 
         let msgs = comm.take_worker_msgs(100, 1);
         assert!(
-            matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ref ids }) if ids == &vec![41])
+            matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ref ids }) if ids == &vec![41.into()])
         );
 
         let msgs = comm.take_worker_msgs(101, 2);
         dbg!(&msgs);
         assert!(matches!(
             &msgs[0],
-            &ToWorkerMessage::DeleteData(TaskIdMsg { id: 11 })
+            &ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(11) })
         ));
         assert!(
-            matches!(&msgs[1], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ref ids }) if sorted_vec(ids.clone()) == vec![12, 40])
+            matches!(&msgs[1], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ref ids }) if sorted_vec(ids.clone()) == vec![12.into(), 40.into()])
         );
 
         assert_eq!(core.get_task_map().len(), 1);
-        assert!(core.get_task_by_id(42).is_some());
+        assert!(core.get_task_by_id(42.into()).is_some());
 
         comm.check_need_scheduling();
         comm.emptiness_check();
@@ -1317,14 +1345,14 @@ mod tests {
 
         let mut comm = create_test_comm();
 
-        on_set_observe_flag(&mut core, &mut comm, 1, true);
+        on_set_observe_flag(&mut core, &mut comm, 1.into(), true);
         comm.emptiness_check();
 
-        on_task_running(&mut core, &mut comm, 101.into(), 1);
-        assert_eq!(comm.take_client_task_running(1), vec![1]);
+        on_task_running(&mut core, &mut comm, 101.into(), 1.into());
+        assert_eq!(comm.take_client_task_running(1), vec![1.into()]);
         comm.emptiness_check();
 
-        on_task_running(&mut core, &mut comm, 101.into(), 2);
+        on_task_running(&mut core, &mut comm, 101.into(), 2.into());
         comm.emptiness_check();
 
         assert!(matches!(
@@ -1344,7 +1372,10 @@ mod tests {
         );
         let mut lw = comm.take_lost_workers();
         assert_eq!(lw[0].0, WorkerId::new(101));
-        assert_eq!(sorted_vec(std::mem::take(&mut lw[0].1)), vec![1, 2]);
+        assert_eq!(
+            sorted_vec(std::mem::take(&mut lw[0].1)),
+            vec![1.into(), 2.into()]
+        );
         comm.check_need_scheduling();
         comm.emptiness_check();
     }
@@ -1367,12 +1398,15 @@ mod tests {
             &mut core,
             &mut comm,
             101.into(),
-            TaskFinishedMsg { id: 1, size: 0 },
+            TaskFinishedMsg {
+                id: 1.into(),
+                size: 0,
+            },
         );
         let msgs = comm.take_worker_msgs(101, 1);
         assert!(matches!(
             msgs[0],
-            ToWorkerMessage::DeleteData(TaskIdMsg { id: 1 })
+            ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(1) })
         ));
         comm.check_need_scheduling();
         comm.emptiness_check();
@@ -1391,7 +1425,7 @@ mod tests {
             &mut comm,
             101.into(),
             StealResponseMsg {
-                responses: vec![(1, StealResponse::NotHere)],
+                responses: vec![(1.into(), StealResponse::NotHere)],
             },
         );
 
@@ -1421,7 +1455,7 @@ mod tests {
             .contains(&t1));
 
         let mut comm = create_test_comm();
-        on_task_running(&mut core, &mut comm, 101.into(), 1);
+        on_task_running(&mut core, &mut comm, 101.into(), 1.into());
         comm.check_need_scheduling();
         comm.emptiness_check();
 
@@ -1439,7 +1473,7 @@ mod tests {
             &mut comm,
             101.into(),
             StealResponseMsg {
-                responses: vec![(1, StealResponse::Running)],
+                responses: vec![(1.into(), StealResponse::Running)],
             },
         );
 
@@ -1484,16 +1518,9 @@ mod tests {
             &mut core,
             &mut comm,
             101.into(),
-            TaskFinishedMsg { id: 1, size: 100 },
-        );
-        comm.emptiness_check();
-
-        on_steal_response(
-            &mut core,
-            &mut comm,
-            101.into(),
-            StealResponseMsg {
-                responses: vec![(2, StealResponse::Ok)],
+            TaskFinishedMsg {
+                id: 1.into(),
+                size: 100,
             },
         );
         comm.emptiness_check();
@@ -1503,7 +1530,17 @@ mod tests {
             &mut comm,
             101.into(),
             StealResponseMsg {
-                responses: vec![(2, StealResponse::Running)],
+                responses: vec![(2.into(), StealResponse::Ok)],
+            },
+        );
+        comm.emptiness_check();
+
+        on_steal_response(
+            &mut core,
+            &mut comm,
+            101.into(),
+            StealResponseMsg {
+                responses: vec![(2.into(), StealResponse::Running)],
             },
         );
         comm.emptiness_check();
@@ -1512,7 +1549,7 @@ mod tests {
             &mut core,
             &mut comm,
             101.into(),
-            3,
+            3.into(),
             TaskFailInfo {
                 message: "".to_string(),
                 data_type: "".to_string(),
@@ -1521,7 +1558,7 @@ mod tests {
         );
         comm.emptiness_check();
 
-        on_task_running(&mut core, &mut comm, 101.into(), 4);
+        on_task_running(&mut core, &mut comm, 101.into(), 4.into());
         comm.emptiness_check();
     }
 
@@ -1544,13 +1581,13 @@ mod tests {
         start_stealing(&mut core, 40, 100);
         start_stealing(&mut core, 41, 101);
 
-        assert!(core.get_task_by_id_or_panic(12).get().is_running());
-        assert_eq!(core.get_task_by_id_or_panic(12).get().instance_id, 0);
+        assert!(core.get_task_by_id_or_panic(12.into()).get().is_running());
+        assert_eq!(core.get_task_by_id_or_panic(12.into()).get().instance_id, 0);
 
-        assert!(!core.get_task_by_id_or_panic(11).get().is_fresh());
-        assert!(!core.get_task_by_id_or_panic(12).get().is_fresh());
-        assert!(!core.get_task_by_id_or_panic(40).get().is_fresh());
-        assert!(!core.get_task_by_id_or_panic(41).get().is_fresh());
+        assert!(!core.get_task_by_id_or_panic(11.into()).get().is_fresh());
+        assert!(!core.get_task_by_id_or_panic(12.into()).get().is_fresh());
+        assert!(!core.get_task_by_id_or_panic(40.into()).get().is_fresh());
+        assert!(!core.get_task_by_id_or_panic(41.into()).get().is_fresh());
 
         let mut comm = create_test_comm();
         on_remove_worker(
@@ -1562,19 +1599,19 @@ mod tests {
 
         assert_eq!(
             comm.take_lost_workers(),
-            vec![(WorkerId::new(101), vec![12])]
+            vec![(WorkerId::new(101), vec![12.into()])]
         );
 
         assert_eq!(core.take_ready_to_assign().len(), 3);
-        assert!(core.get_task_by_id_or_panic(11).get().is_ready());
-        assert!(core.get_task_by_id_or_panic(12).get().is_ready());
-        assert_eq!(core.get_task_by_id_or_panic(12).get().instance_id, 1);
-        assert!(core.get_task_by_id_or_panic(40).get().is_ready());
-        assert!(core.get_task_by_id_or_panic(11).get().is_fresh());
-        assert!(core.get_task_by_id_or_panic(12).get().is_fresh());
-        assert!(core.get_task_by_id_or_panic(40).get().is_fresh());
+        assert!(core.get_task_by_id_or_panic(11.into()).get().is_ready());
+        assert!(core.get_task_by_id_or_panic(12.into()).get().is_ready());
+        assert_eq!(core.get_task_by_id_or_panic(12.into()).get().instance_id, 1);
+        assert!(core.get_task_by_id_or_panic(40.into()).get().is_ready());
+        assert!(core.get_task_by_id_or_panic(11.into()).get().is_fresh());
+        assert!(core.get_task_by_id_or_panic(12.into()).get().is_fresh());
+        assert!(core.get_task_by_id_or_panic(40.into()).get().is_fresh());
         assert!(matches!(
-            core.get_task_by_id_or_panic(41).get().state,
+            core.get_task_by_id_or_panic(41.into()).get().state,
             TaskRuntimeState::Stealing(WorkerId(100), None)
         ));
 
@@ -1586,13 +1623,13 @@ mod tests {
             &mut comm,
             100.into(),
             StealResponseMsg {
-                responses: vec![(41, StealResponse::Ok)],
+                responses: vec![(41.into(), StealResponse::Ok)],
             },
         );
 
         assert_eq!(core.take_ready_to_assign().len(), 1);
-        assert!(core.get_task_by_id_or_panic(41).get().is_ready());
-        assert!(core.get_task_by_id_or_panic(41).get().is_fresh());
+        assert!(core.get_task_by_id_or_panic(41.into()).get().is_ready());
+        assert!(core.get_task_by_id_or_panic(41.into()).get().is_fresh());
 
         comm.check_need_scheduling();
         comm.emptiness_check();

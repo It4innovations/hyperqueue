@@ -476,7 +476,7 @@ mod tests {
         state.get_mut().add_job(Job::new(
             JobType::Array(IntArray::from_range(0, waiting_tasks)),
             0.into(),
-            0,
+            0.into(),
             "job".to_string(),
             ProgramDefinition {
                 args: vec![],

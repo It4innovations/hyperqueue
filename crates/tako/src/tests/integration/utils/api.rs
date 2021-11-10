@@ -92,17 +92,20 @@ impl TaskWaitResultMap {
         }
     }
 
-    pub fn is_failed(&self, id: TaskId) -> bool {
-        self.tasks[&id].is_failed()
+    pub fn is_failed<T: Into<TaskId>>(&self, id: T) -> bool {
+        self.tasks[&id.into()].is_failed()
     }
 
-    pub fn get(&self, id: TaskId) -> &TaskWaitResult {
-        &self.tasks[&id]
+    pub fn get<T: Into<TaskId>>(&self, id: T) -> &TaskWaitResult {
+        &self.tasks[&id.into()]
     }
 }
 
-pub async fn wait_for_tasks(handle: &mut ServerHandle, tasks: Vec<TaskId>) -> TaskWaitResultMap {
-    let mut tasks: Set<_> = tasks.into_iter().collect();
+pub async fn wait_for_tasks<T: Into<TaskId>>(
+    handle: &mut ServerHandle,
+    tasks: Vec<T>,
+) -> TaskWaitResultMap {
+    let mut tasks: Set<TaskId> = tasks.into_iter().map(|v| v.into()).collect();
     let tasks_orig = tasks.clone();
     let mut result = TaskWaitResultMap::default();
 
@@ -146,9 +149,12 @@ pub async fn wait_for_tasks(handle: &mut ServerHandle, tasks: Vec<TaskId>) -> Ta
 }
 
 // Cancellation
-pub async fn cancel(handle: &mut ServerHandle, tasks: &[TaskId]) -> CancelTasksResponse {
+pub async fn cancel<T: Into<TaskId> + Copy>(
+    handle: &mut ServerHandle,
+    tasks: &[T],
+) -> CancelTasksResponse {
     let msg = FromGatewayMessage::CancelTasks(CancelTasks {
-        tasks: tasks.to_vec(),
+        tasks: tasks.iter().map(|&id| id.into()).collect(),
     });
     handle.send(msg).await;
     wait_for_msg!(

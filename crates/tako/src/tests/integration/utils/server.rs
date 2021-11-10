@@ -133,9 +133,9 @@ impl ServerHandle {
         ids
     }
 
-    pub async fn wait(&mut self, tasks: &[TaskId]) -> TaskWaitResultMap {
+    pub async fn wait<T: Into<TaskId> + Copy>(&mut self, tasks: &[T]) -> TaskWaitResultMap {
         let msg = ObserveTasksMessage {
-            tasks: tasks.iter().map(|&v| v).collect(),
+            tasks: tasks.iter().map(|&v| v.into()).collect(),
         };
         self.send(FromGatewayMessage::ObserveTasks(msg)).await;
         timeout(WAIT_TIMEOUT, wait_for_tasks(self, tasks.to_vec()))

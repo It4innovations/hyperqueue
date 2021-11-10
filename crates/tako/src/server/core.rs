@@ -418,12 +418,12 @@ mod tests {
         let mut core = Core::default();
         let t = task(101);
         core.add_task(t.clone());
-        assert_eq!(core.get_task_by_id(101).unwrap(), &t);
+        assert_eq!(core.get_task_by_id(101.into()).unwrap(), &t);
         assert!(match core.remove_task(&mut t.get_mut()) {
             TaskRuntimeState::Waiting(_) => true,
             _ => false,
         });
-        assert_eq!(core.get_task_by_id(101), None);
+        assert_eq!(core.get_task_by_id(101.into()), None);
     }
 
     #[test]

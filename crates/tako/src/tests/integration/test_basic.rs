@@ -74,7 +74,7 @@ async fn test_cancel_immediately() {
 
         let ids = handle.submit(vec![simple_task(&["sleep", "1"], 1)]).await;
         let response = cancel(&mut handle, &ids).await;
-        assert_eq!(response.cancelled_tasks, vec![1]);
+        assert_eq!(response.cancelled_tasks, vec![1.into()]);
     })
     .await;
 }
@@ -109,7 +109,7 @@ async fn test_cancel_error_task() {
         sleep(Duration::from_millis(300)).await;
 
         let response = cancel(&mut handle, &[1]).await;
-        assert_eq!(response.already_finished, vec![1]);
+        assert_eq!(response.already_finished, vec![1.into()]);
 
         assert!(handle.wait(&[1]).await.get(1).is_invalid());
     })

@@ -6,9 +6,13 @@ use crate::messages::worker::ComputeTaskMsg;
 use crate::worker::task::TaskRef;
 use crate::{Priority, TaskId};
 
-pub fn worker_task(task_id: TaskId, resources: ResourceRequest, u_priority: Priority) -> TaskRef {
+pub fn worker_task<T: Into<TaskId>>(
+    task_id: T,
+    resources: ResourceRequest,
+    u_priority: Priority,
+) -> TaskRef {
     TaskRef::new(ComputeTaskMsg {
-        id: task_id,
+        id: task_id.into(),
         instance_id: 0,
         dep_info: vec![],
         user_priority: u_priority,

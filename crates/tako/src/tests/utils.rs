@@ -178,8 +178,8 @@ impl TestEnv {
         self.core.remove_from_ready_to_assign(task_ref);
     }
 
-    pub fn test_assign<W: Into<WorkerId>>(&mut self, task_id: TaskId, worker_id: W) {
-        self._test_assign(&self.task(task_id), worker_id.into());
+    pub fn test_assign<T: Into<TaskId>, W: Into<WorkerId>>(&mut self, task_id: T, worker_id: W) {
+        self._test_assign(&self.task(task_id.into()), worker_id.into());
     }
 
     pub fn new_assigned_tasks_cpus(&mut self, tasks: &[&[NumOfCpus]]) {
@@ -192,7 +192,11 @@ impl TestEnv {
         }
     }
 
-    pub fn check_worker_tasks<W: Into<WorkerId>>(&self, worker_id: W, tasks: &[TaskId]) {
+    pub fn check_worker_tasks<W: Into<WorkerId>, T: Into<TaskId> + Copy>(
+        &self,
+        worker_id: W,
+        tasks: &[T],
+    ) {
         let worker_id = worker_id.into();
         let ids = sorted_vec(
             self.core
@@ -202,7 +206,7 @@ impl TestEnv {
                 .map(|t| t.get().id())
                 .collect(),
         );
-        assert_eq!(ids, sorted_vec(tasks.to_vec()));
+        assert_eq!(ids, sorted_vec(tasks.iter().map(|&id| id.into()).collect()));
     }
 
     pub fn worker_load<W: Into<WorkerId>>(&self, worker_id: W) -> &WorkerLoad {
@@ -261,9 +265,9 @@ pub struct TaskBuilder {
 }
 
 impl TaskBuilder {
-    pub fn new(id: TaskId) -> TaskBuilder {
+    pub fn new<T: Into<TaskId>>(id: T) -> TaskBuilder {
         TaskBuilder {
-            id,
+            id: id.into(),
             inputs: Default::default(),
             n_outputs: 0,
             resources: Default::default(),
@@ -320,13 +324,16 @@ impl TaskBuilder {
     }
 }
 
-pub fn task(id: TaskId) -> TaskRef {
-    TaskBuilder::new(id).outputs(1).build()
+pub fn task<T: Into<TaskId>>(id: T) -> TaskRef {
+    TaskBuilder::new(id.into()).outputs(1).build()
 }
 
 /* Deprecated: Use TaskBuilder directly */
-pub fn task_with_deps(id: TaskId, deps: &[&TaskRef], n_outputs: OutputId) -> TaskRef {
-    TaskBuilder::new(id).deps(deps).outputs(n_outputs).build()
+pub fn task_with_deps<T: Into<TaskId>>(id: T, deps: &[&TaskRef], n_outputs: OutputId) -> TaskRef {
+    TaskBuilder::new(id.into())
+        .deps(deps)
+        .outputs(n_outputs)
+        .build()
 }
 
 /*
@@ -516,70 +523,79 @@ pub fn submit_test_tasks(core: &mut Core, tasks: &[&TaskRef]) {
     );
 }
 
-pub(crate) fn force_assign<T: Into<WorkerId>>(
+pub(crate) fn force_assign<W: Into<WorkerId>, T: Into<TaskId>>(
     core: &mut Core,
     scheduler: &mut SchedulerState,
-    task_id: TaskId,
-    worker_id: T,
+    task_id: T,
+    worker_id: W,
 ) {
-    let task_ref = core.get_task_by_id_or_panic(task_id).clone();
+    let task_ref = core.get_task_by_id_or_panic(task_id.into()).clone();
     core.remove_from_ready_to_assign(&task_ref);
     let mut task = task_ref.get_mut();
     scheduler.assign(core, &mut task, task_ref.clone(), worker_id.into());
 }
 
-pub(crate) fn force_reassign<W: Into<WorkerId>>(
+pub(crate) fn force_reassign<W: Into<WorkerId>, T: Into<TaskId>>(
     core: &mut Core,
     scheduler: &mut SchedulerState,
-    task_id: TaskId,
+    task_id: T,
     worker_id: W,
 ) {
-    let worker_id = worker_id.into();
-
     // The same as force_assign, but do not expect that task in ready_to_assign array
-    let task_ref = core.get_task_by_id_or_panic(task_id).clone();
+    let task_ref = core.get_task_by_id_or_panic(task_id.into()).clone();
     let mut task = task_ref.get_mut();
-    scheduler.assign(core, &mut task, task_ref.clone(), worker_id);
+    scheduler.assign(core, &mut task, task_ref.clone(), worker_id.into());
 }
 
-pub fn fail_steal<W: Into<WorkerId>>(
+pub fn fail_steal<W: Into<WorkerId>, T: Into<TaskId>>(
     core: &mut Core,
-    task_id: TaskId,
+    task_id: T,
     worker_id: W,
     target_worker_id: W,
 ) {
-    let worker_id = worker_id.into();
-    let target_worker_id = target_worker_id.into();
-    start_stealing(core, task_id, target_worker_id);
+    let task_id = task_id.into();
+    start_stealing(core, task_id, target_worker_id.into());
     let mut comm = create_test_comm();
     on_steal_response(
         core,
         &mut comm,
-        worker_id,
+        worker_id.into(),
         StealResponseMsg {
             responses: vec![(task_id, StealResponse::Running)],
         },
     )
 }
 
-pub fn start_stealing<W: Into<WorkerId>>(core: &mut Core, task_id: TaskId, new_worker_id: W) {
-    let new_worker_id = new_worker_id.into();
+pub fn start_stealing<W: Into<WorkerId>, T: Into<TaskId>>(
+    core: &mut Core,
+    task_id: T,
+    new_worker_id: W,
+) {
     let mut scheduler = create_test_scheduler();
-    force_reassign(core, &mut scheduler, task_id, new_worker_id);
+    force_reassign(core, &mut scheduler, task_id.into(), new_worker_id.into());
     let mut comm = create_test_comm();
     scheduler.finish_scheduling(&mut comm);
 }
 
-pub fn start_on_worker<W: Into<WorkerId>>(core: &mut Core, task_id: TaskId, worker_id: W) {
-    let worker_id = worker_id.into();
+pub fn start_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
+    core: &mut Core,
+    task_id: T,
+    worker_id: W,
+) {
     let mut scheduler = create_test_scheduler();
     let mut comm = TestComm::default();
-    force_assign(core, &mut scheduler, task_id, worker_id);
+    force_assign(core, &mut scheduler, task_id.into(), worker_id.into());
     scheduler.finish_scheduling(&mut comm);
 }
 
-pub fn start_on_worker_running<W: Into<WorkerId>>(core: &mut Core, task_id: TaskId, worker_id: W) {
+pub fn start_on_worker_running<W: Into<WorkerId>, T: Into<TaskId>>(
+    core: &mut Core,
+    task_id: T,
+    worker_id: W,
+) {
+    let task_id = task_id.into();
     let worker_id = worker_id.into();
+
     let mut scheduler = create_test_scheduler();
     let mut comm = TestComm::default();
     force_assign(core, &mut scheduler, task_id, worker_id);
@@ -587,34 +603,42 @@ pub fn start_on_worker_running<W: Into<WorkerId>>(core: &mut Core, task_id: Task
     on_task_running(core, &mut comm, worker_id, task_id);
 }
 
-pub fn cancel_tasks(core: &mut Core, task_ids: &[TaskId]) {
+pub fn cancel_tasks<T: Into<TaskId> + Copy>(core: &mut Core, task_ids: &[T]) {
     let mut comm = create_test_comm();
-    on_cancel_tasks(core, &mut comm, task_ids);
+    on_cancel_tasks(
+        core,
+        &mut comm,
+        &task_ids.iter().map(|&v| v.into()).collect::<Vec<_>>(),
+    );
 }
 
-pub fn finish_on_worker<W: Into<WorkerId>>(
+pub fn finish_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
     core: &mut Core,
-    task_id: TaskId,
+    task_id: T,
     worker_id: W,
     size: u64,
 ) {
-    let worker_id = worker_id.into();
     let mut comm = TestComm::default();
     on_task_finished(
         core,
         &mut comm,
-        worker_id,
-        TaskFinishedMsg { id: task_id, size },
+        worker_id.into(),
+        TaskFinishedMsg {
+            id: task_id.into(),
+            size,
+        },
     );
 }
 
-pub fn start_and_finish_on_worker<W: Into<WorkerId>>(
+pub fn start_and_finish_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
     core: &mut Core,
-    task_id: TaskId,
+    task_id: T,
     worker_id: W,
     size: u64,
 ) {
+    let task_id = task_id.into();
     let worker_id = worker_id.into();
+
     start_on_worker(core, task_id, worker_id);
     finish_on_worker(core, task_id, worker_id, size);
 }
