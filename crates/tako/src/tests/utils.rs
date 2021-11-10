@@ -30,7 +30,7 @@ use crate::server::task::TaskRef;
 use crate::server::worker::Worker;
 use crate::server::worker_load::WorkerLoad;
 use crate::transfer::auth::{deserialize, serialize};
-use crate::{OutputId, TaskId, WorkerId};
+use crate::{TaskId, WorkerId};
 
 /// Memory stream for reading and writing at the same time.
 pub struct MemoryStream {
@@ -260,7 +260,7 @@ impl TestEnv {
 pub struct TaskBuilder {
     id: TaskId,
     inputs: Vec<TaskRef>,
-    n_outputs: OutputId,
+    n_outputs: u32,
     resources: ResourceRequest,
 }
 
@@ -279,7 +279,7 @@ impl TaskBuilder {
         self
     }
 
-    pub fn outputs(mut self, value: OutputId) -> TaskBuilder {
+    pub fn outputs(mut self, value: u32) -> TaskBuilder {
         self.n_outputs = value;
         self
     }
@@ -329,7 +329,7 @@ pub fn task<T: Into<TaskId>>(id: T) -> TaskRef {
 }
 
 /* Deprecated: Use TaskBuilder directly */
-pub fn task_with_deps<T: Into<TaskId>>(id: T, deps: &[&TaskRef], n_outputs: OutputId) -> TaskRef {
+pub fn task_with_deps<T: Into<TaskId>>(id: T, deps: &[&TaskRef], n_outputs: u32) -> TaskRef {
     TaskBuilder::new(id.into())
         .deps(deps)
         .outputs(n_outputs)
