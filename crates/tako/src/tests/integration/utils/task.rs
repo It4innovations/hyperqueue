@@ -8,7 +8,6 @@ use crate::common::resources::{CpuRequest, ResourceRequest};
 use crate::common::Map;
 use crate::messages::common::{ProgramDefinition, StdioDef, TaskConfiguration};
 use crate::messages::gateway::TaskDef;
-use crate::TaskId;
 
 pub struct GraphBuilder {
     id_counter: u64,
@@ -78,7 +77,7 @@ fn build_task_from_config(config: TaskConfig) -> TaskDef {
         body,
     };
     TaskDef {
-        id: id.unwrap_or(1),
+        id: id.unwrap_or(1).into(),
         conf,
         priority: 0,
         keep,
@@ -94,7 +93,7 @@ pub fn build_task(config: TaskConfigBuilder) -> TaskDef {
 #[builder(pattern = "owned")]
 pub struct TaskConfig {
     #[builder(default)]
-    id: Option<TaskId>,
+    id: Option<u64>,
 
     #[builder(default)]
     keep: bool,
@@ -132,7 +131,7 @@ pub fn simple_args(args: &[&'static str]) -> Vec<String> {
     args.iter().map(|&v| v.to_string()).collect()
 }
 
-pub fn simple_task(args: &[&'static str], id: TaskId) -> TaskDef {
+pub fn simple_task(args: &[&'static str], id: u64) -> TaskDef {
     let config = TaskConfigBuilder::default()
         .args(simple_args(args))
         .id(Some(id));

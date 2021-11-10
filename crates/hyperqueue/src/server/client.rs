@@ -615,27 +615,27 @@ async fn handle_submit(
             JobType::Simple => 1,
             JobType::Array(a) => a.id_count(),
         };
-        let tako_base_id = state.new_task_id(task_count);
+        let tako_base_id = state.new_task_id(task_count).as_u64();
         let task_defs = match (&message.job_type, message.entries.clone()) {
-            (JobType::Simple, _) => vec![make_task(job_id, 0.into(), tako_base_id, None)],
+            (JobType::Simple, _) => vec![make_task(job_id, 0.into(), tako_base_id.into(), None)],
             (JobType::Array(a), None) => a
                 .iter()
                 .zip(tako_base_id..)
-                .map(|(task_id, tako_id)| make_task(job_id, task_id.into(), tako_id, None))
+                .map(|(task_id, tako_id)| make_task(job_id, task_id.into(), tako_id.into(), None))
                 .collect(),
             (JobType::Array(a), Some(entries)) => a
                 .iter()
                 .zip(tako_base_id..)
                 .zip(entries.into_iter())
                 .map(|((task_id, tako_id), entry)| {
-                    make_task(job_id, task_id.into(), tako_id, Some(entry))
+                    make_task(job_id, task_id.into(), tako_id.into(), Some(entry))
                 })
                 .collect(),
         };
         let job = Job::new(
             message.job_type,
             job_id,
-            tako_base_id,
+            tako_base_id.into(),
             message.name.clone(),
             spec,
             resources,

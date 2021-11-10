@@ -108,23 +108,22 @@ mod tests {
     use crate::common::Map;
     use crate::worker::rqueue::ResourceWaitQueue;
     use crate::worker::test_util::worker_task;
-    use crate::TaskId;
     use std::time::Duration;
 
-    fn start_tasks_map(rq: &mut ResourceWaitQueue) -> Map<TaskId, ResourceAllocation> {
+    fn start_tasks_map(rq: &mut ResourceWaitQueue) -> Map<u64, ResourceAllocation> {
         rq.try_start_tasks(None)
             .into_iter()
-            .map(|(t, a)| (t.get().id, a))
+            .map(|(t, a)| (t.get().id.as_u64(), a))
             .collect()
     }
 
     fn start_tasks_map_time(
         rq: &mut ResourceWaitQueue,
         remaining_time: Duration,
-    ) -> Map<TaskId, ResourceAllocation> {
+    ) -> Map<u64, ResourceAllocation> {
         rq.try_start_tasks(Some(remaining_time))
             .into_iter()
-            .map(|(t, a)| (t.get().id, a))
+            .map(|(t, a)| (t.get().id.as_u64(), a))
             .collect()
     }
 
@@ -141,19 +140,19 @@ mod tests {
 
         let mut tasks = rq.try_start_tasks(None);
         assert_eq!(tasks.len(), 1);
-        assert_eq!(tasks[0].0.get().id, 12);
+        assert_eq!(tasks[0].0.get().id, 12.into());
         assert!(rq.try_start_tasks(None).is_empty());
         rq.release_allocation(tasks.pop().unwrap().1);
 
         let mut tasks = rq.try_start_tasks(None);
         assert_eq!(tasks.len(), 1);
-        assert_eq!(tasks[0].0.get().id, 11);
+        assert_eq!(tasks[0].0.get().id, 11.into());
         assert!(rq.try_start_tasks(None).is_empty());
         rq.release_allocation(tasks.pop().unwrap().1);
 
         let mut tasks = rq.try_start_tasks(None);
         assert_eq!(tasks.len(), 1);
-        assert_eq!(tasks[0].0.get().id, 10);
+        assert_eq!(tasks[0].0.get().id, 10.into());
         assert!(rq.try_start_tasks(None).is_empty());
         rq.release_allocation(tasks.pop().unwrap().1);
     }

@@ -9,8 +9,8 @@ pub mod transfer;
 pub mod worker;
 
 define_id_type!(WorkerId, u32);
+define_id_type!(TaskId, u64);
 
-pub type TaskId = u64;
 pub type OutputId = u32;
 pub type InstanceId = u32;
 

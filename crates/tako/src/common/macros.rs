@@ -5,6 +5,7 @@ macro_rules! define_id_type {
         #[derive(
             ::std::marker::Copy,
             ::std::clone::Clone,
+            ::std::default::Default,
             ::std::fmt::Debug,
             ::std::hash::Hash,
             ::serde::Serialize,

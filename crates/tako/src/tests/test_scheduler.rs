@@ -25,7 +25,7 @@ fn test_no_deps_distribute() {
         assert!(w.is_underloaded());
     }
 
-    let mut active_ids: Set<TaskId> = (1..301).collect();
+    let mut active_ids: Set<TaskId> = (1..301).into_iter().map(|id| id.into()).collect();
     let tasks: Vec<TaskRef> = (1..301).map(|i| task(i)).collect();
     let task_refs: Vec<&TaskRef> = tasks.iter().collect();
     submit_test_tasks(&mut core, &task_refs);
@@ -146,14 +146,14 @@ fn test_minimal_transfer_no_balance1() {
     comm.take_worker_msgs(101, 1);
 
     assert_eq!(
-        core.get_task_by_id_or_panic(13)
+        core.get_task_by_id_or_panic(13.into())
             .get()
             .get_assigned_worker()
             .unwrap(),
         WorkerId(100)
     );
     assert_eq!(
-        core.get_task_by_id_or_panic(14)
+        core.get_task_by_id_or_panic(14.into())
             .get()
             .get_assigned_worker()
             .unwrap(),
@@ -187,14 +187,14 @@ fn test_minimal_transfer_no_balance2() {
     comm.take_worker_msgs(101, 2);
 
     assert_eq!(
-        core.get_task_by_id_or_panic(13)
+        core.get_task_by_id_or_panic(13.into())
             .get()
             .get_assigned_worker()
             .unwrap(),
         WorkerId(101)
     );
     assert_eq!(
-        core.get_task_by_id_or_panic(14)
+        core.get_task_by_id_or_panic(14.into())
             .get()
             .get_assigned_worker()
             .unwrap(),
@@ -232,14 +232,14 @@ fn test_minimal_transfer_after_balance() {
     comm.take_worker_msgs(101, 1);
 
     assert_eq!(
-        core.get_task_by_id_or_panic(13)
+        core.get_task_by_id_or_panic(13.into())
             .get()
             .get_assigned_worker()
             .unwrap(),
         WorkerId(100)
     );
     assert_eq!(
-        core.get_task_by_id_or_panic(14)
+        core.get_task_by_id_or_panic(14.into())
             .get()
             .get_assigned_worker()
             .unwrap(),
@@ -438,7 +438,7 @@ fn test_resources_no_workers2() {
 
     let s = rt.core().take_sleeping_tasks();
     assert_eq!(s.len(), 1);
-    assert_eq!(s[0].get().id, 12);
+    assert_eq!(s[0].get().id, 12.into());
 }
 
 #[test]
@@ -556,7 +556,7 @@ fn test_generic_resource_assign2() {
         .unwrap()
         .tasks()
         .iter()
-        .all(|t| t.get().id < 50));
+        .all(|t| t.get().id.as_u64() < 50));
 
     assert!(!rt.worker(100).is_parked());
     assert!(rt.worker(101).is_parked());
