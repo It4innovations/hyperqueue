@@ -1582,7 +1582,10 @@ mod tests {
         start_stealing(&mut core, 41, 101);
 
         assert!(core.get_task_by_id_or_panic(12.into()).get().is_running());
-        assert_eq!(core.get_task_by_id_or_panic(12.into()).get().instance_id, 0);
+        assert_eq!(
+            core.get_task_by_id_or_panic(12.into()).get().instance_id,
+            0.into()
+        );
 
         assert!(!core.get_task_by_id_or_panic(11.into()).get().is_fresh());
         assert!(!core.get_task_by_id_or_panic(12.into()).get().is_fresh());
@@ -1605,7 +1608,10 @@ mod tests {
         assert_eq!(core.take_ready_to_assign().len(), 3);
         assert!(core.get_task_by_id_or_panic(11.into()).get().is_ready());
         assert!(core.get_task_by_id_or_panic(12.into()).get().is_ready());
-        assert_eq!(core.get_task_by_id_or_panic(12.into()).get().instance_id, 1);
+        assert_eq!(
+            core.get_task_by_id_or_panic(12.into()).get().instance_id,
+            1.into()
+        );
         assert!(core.get_task_by_id_or_panic(40.into()).get().is_ready());
         assert!(core.get_task_by_id_or_panic(11.into()).get().is_fresh());
         assert!(core.get_task_by_id_or_panic(12.into()).get().is_fresh());

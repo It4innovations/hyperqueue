@@ -10,8 +10,7 @@ pub mod worker;
 
 define_id_type!(WorkerId, u32);
 define_id_type!(TaskId, u64);
-
-pub type InstanceId = u32;
+define_id_type!(InstanceId, u32);
 
 // Priority: Bigger number -> Higher priority
 pub type Priority = i32;

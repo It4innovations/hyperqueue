@@ -244,7 +244,7 @@ impl LogFile {
         match file.read_u8() {
             Ok(BLOCK_STREAM_START) => {
                 let task_id: JobTaskId = file.read_u32::<byteorder::BigEndian>()?.into();
-                let instance_id = file.read_u32::<byteorder::BigEndian>()?;
+                let instance_id: InstanceId = file.read_u32::<byteorder::BigEndian>()?.into();
                 Ok(Some(Block::StreamStart {
                     task_id,
                     instance_id,
@@ -253,7 +253,7 @@ impl LogFile {
             Ok(BLOCK_STREAM_CHUNK) => {
                 // Job task stream data
                 let task_id: JobTaskId = file.read_u32::<byteorder::BigEndian>()?.into();
-                let instance_id = file.read_u32::<byteorder::BigEndian>()?;
+                let instance_id: InstanceId = file.read_u32::<byteorder::BigEndian>()?.into();
                 let channel_id = file.read_u32::<byteorder::BigEndian>()?;
                 let size = file.read_u32::<byteorder::BigEndian>()?;
                 Ok(Some(Block::StreamChunk {
@@ -265,7 +265,7 @@ impl LogFile {
             }
             Ok(BLOCK_STREAM_END) => {
                 let task_id: JobTaskId = file.read_u32::<byteorder::BigEndian>()?.into();
-                let instance_id = file.read_u32::<byteorder::BigEndian>()?;
+                let instance_id: InstanceId = file.read_u32::<byteorder::BigEndian>()?.into();
                 Ok(Some(Block::StreamEnd {
                     task_id,
                     instance_id,

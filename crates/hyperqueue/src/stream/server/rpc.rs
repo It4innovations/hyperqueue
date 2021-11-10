@@ -122,7 +122,7 @@ async fn file_writer(receiver: &mut Receiver<StreamMessage>, path: &Path) -> any
             StreamMessage::Message(FromStreamerMessage::Start(s), response_sender) => {
                 buffer.put_u8(BLOCK_STREAM_START);
                 buffer.put_u32(s.task.into());
-                buffer.put_u32(s.instance);
+                buffer.put_u32(s.instance.into());
                 if let Err(e) = file.write_all(&buffer).await {
                     send_error(response_sender, e.to_string());
                     return Err(e.into());
@@ -131,7 +131,7 @@ async fn file_writer(receiver: &mut Receiver<StreamMessage>, path: &Path) -> any
             StreamMessage::Message(FromStreamerMessage::Data(s), response_sender) => {
                 buffer.put_u8(BLOCK_STREAM_CHUNK);
                 buffer.put_u32(s.task.into());
-                buffer.put_u32(s.instance);
+                buffer.put_u32(s.instance.into());
                 buffer.put_u32(s.channel);
                 buffer.put_u32(s.data.len() as u32);
                 if let Err(e) = file.write_all(&buffer).await {
@@ -146,7 +146,7 @@ async fn file_writer(receiver: &mut Receiver<StreamMessage>, path: &Path) -> any
             StreamMessage::Message(FromStreamerMessage::End(s), response_sender) => {
                 buffer.put_u8(BLOCK_STREAM_END);
                 buffer.put_u32(s.task.into());
-                buffer.put_u32(s.instance);
+                buffer.put_u32(s.instance.into());
                 if let Err(e) = file.write_all(&buffer).await {
                     send_error(response_sender, e.to_string());
                     return Err(e.into());
