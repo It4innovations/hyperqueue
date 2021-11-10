@@ -70,6 +70,8 @@ macro_rules! define_id_type {
 #[macro_export]
 macro_rules! define_wrapped_type {
     ($name: ident, $type: ty $(, $visibility: vis)?) => {
+        #[derive(::std::clone::Clone)]
+        #[repr(transparent)]
         $($visibility)* struct $name($crate::common::WrappedRcRefCell<$type>);
 
         impl ::std::ops::Deref for $name {
@@ -78,13 +80,6 @@ macro_rules! define_wrapped_type {
             #[inline]
             fn deref(&self) -> &Self::Target {
                 &self.0
-            }
-        }
-
-        impl ::std::clone::Clone for $name {
-            #[inline]
-            fn clone(&self) -> Self {
-                Self(self.0.clone())
             }
         }
     };
