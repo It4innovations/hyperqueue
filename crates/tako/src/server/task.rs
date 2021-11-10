@@ -198,7 +198,7 @@ impl Task {
     }
 
     pub fn increment_instance_id(&mut self) {
-        self.instance_id += 1;
+        self.instance_id = InstanceId(self.instance_id.as_u32() + 1);
     }
 
     pub fn make_compute_message(&self) -> ToWorkerMessage {
@@ -364,7 +364,7 @@ impl TaskRef {
             scheduler_priority: Default::default(),
             state: TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 }),
             consumers: Default::default(),
-            instance_id: 0,
+            instance_id: InstanceId::new(0),
         })
     }
 }

@@ -13,7 +13,7 @@ pub fn worker_task<T: Into<TaskId>>(
 ) -> TaskRef {
     TaskRef::new(ComputeTaskMsg {
         id: task_id.into(),
-        instance_id: 0,
+        instance_id: 0.into(),
         dep_info: vec![],
         user_priority: u_priority,
         scheduler_priority: 0,
