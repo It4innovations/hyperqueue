@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::common::resources::{ResourceDescriptor, ResourceRequest};
 use crate::common::Map;
-use crate::OutputId;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskFailInfo {
@@ -126,7 +125,7 @@ pub struct TaskConfiguration {
     pub resources: ResourceRequest,
 
     #[serde(default)]
-    pub n_outputs: OutputId,
+    pub n_outputs: u32,
 
     #[serde(default)]
     pub time_limit: Option<Duration>,
