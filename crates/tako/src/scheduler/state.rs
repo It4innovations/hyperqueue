@@ -225,6 +225,9 @@ impl SchedulerState {
             let mut tmp_workers = Vec::with_capacity(core.get_worker_map().len());
             for tr in ready_tasks.into_iter() {
                 let mut task = tr.get_mut();
+                if let TaskRuntimeState::Released = task.state {
+                    continue;
+                }
                 assert!(task.is_waiting());
                 core.try_wakeup_parked_resources(&task.configuration.resources);
                 let worker_id = choose_worker_for_task(

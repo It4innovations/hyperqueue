@@ -556,10 +556,7 @@ pub fn on_cancel_tasks(
         unregister_as_consumer(core, comm, &mut task, task_ref);
     }
 
-    for task_ref in &task_refs {
-        let mut task = task_ref.get_mut();
-        let _ = core.remove_task(&mut task);
-    }
+    core.remove_tasks_batched(&task_refs);
 
     for (w_id, ids) in running_ids {
         comm.send_worker_message(w_id, &ToWorkerMessage::CancelTasks(TaskIdsMsg { ids }));
