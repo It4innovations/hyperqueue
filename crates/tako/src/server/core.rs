@@ -23,6 +23,7 @@ pub struct Core {
 
     /* Scheduler items */
     parked_resources: Set<WorkerResources>, // Resources of workers that has flag NOTHING_TO_LOAD
+    // TODO: benchmark and possibly replace with a set
     ready_to_assign: Vec<TaskRef>,
     has_new_tasks: bool,
 
@@ -231,18 +232,23 @@ impl Core {
         self.ready_to_assign.push(task_ref);
     }
 
+    /// Removes a single task.
+    /// It can still remain in [`ready_to_assign`], where it will remain until the scheduler picks
+    /// it up.
     #[must_use]
     pub fn remove_task(&mut self, task: &mut Task) -> TaskRuntimeState {
         trace_task_remove(task.id);
         assert!(!task.has_consumers());
-        let task_ref = self.tasks.remove(&task.id).unwrap();
-        if task.is_ready() {
-            self.ready_to_assign
-                .iter()
-                .position(|t| t == &task_ref)
-                .map(|idx| self.ready_to_assign.remove(idx));
-        }
+        assert!(self.tasks.remove(&task.id).is_some());
         std::mem::replace(&mut task.state, TaskRuntimeState::Released)
+    }
+
+    /// Removes multiple tasks at once, to reduce memory consumption
+    pub fn remove_tasks_batched(&mut self, tasks: &Set<TaskRef>) {
+        for task in tasks {
+            let _ = self.remove_task(&mut task.get_mut());
+        }
+        self.ready_to_assign.retain(|t| !tasks.contains(t));
     }
 
     pub fn get_tasks(&self) -> impl Iterator<Item = &TaskRef> {
