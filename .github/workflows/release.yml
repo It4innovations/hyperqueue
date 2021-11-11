@@ -36,7 +36,7 @@ jobs:
           echo "sha: ${{ env.SHA }}"
           echo "tag: ${{ env.TAG }}"
 
-  build-binaries-x86:
+  build-binaries-x64:
     runs-on: ubuntu-latest
     # Use a container with GLIBC 2.17
     container: quay.io/pypa/manylinux2014_x86_64
@@ -57,7 +57,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v1
         with:
-          key: x86
+          key: x64
 
       - name: Compile
         uses: actions-rs/cargo@v1
@@ -71,14 +71,14 @@ jobs:
       - name: Prepare archive
         id: archive
         run: |
-          export ARCHIVE_NAME=hq-${{ needs.set-env.outputs.tag }}-linux-x86.tar.gz
+          export ARCHIVE_NAME=hq-${{ needs.set-env.outputs.tag }}-linux-x64.tar.gz
           tar -czvf $ARCHIVE_NAME -C target/release hq
           echo "::set-output name=archive-name::$ARCHIVE_NAME"
 
       - name: Store archive
         uses: actions/upload-artifact@v2
         with:
-          name: archive-x86
+          name: archive-x64
           path: ${{ steps.archive.outputs.archive-name }}
 
   build-binaries-powerpc:
@@ -121,7 +121,7 @@ jobs:
           path: ${{ steps.archive.outputs.archive-name }}
   create-release:
     runs-on: ubuntu-latest
-    needs: [ set-env, build-binaries-x86, build-binaries-powerpc ]
+    needs: [ set-env, build-binaries-x64, build-binaries-powerpc ]
     outputs:
       upload_url: ${{ steps.create-release.outputs.upload_url }}
     steps:
@@ -150,7 +150,7 @@ jobs:
     needs: [set-env, create-release]
     strategy:
       matrix:
-        arch: [x86, powerpc64]
+        arch: [x64, powerpc64]
     steps:
       - name: Download archive
         uses: actions/download-artifact@v2
