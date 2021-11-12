@@ -113,7 +113,7 @@ mod tests {
     fn start_tasks_map(rq: &mut ResourceWaitQueue) -> Map<u64, ResourceAllocation> {
         rq.try_start_tasks(None)
             .into_iter()
-            .map(|(t, a)| (t.get().id.as_u64(), a))
+            .map(|(t, a)| (t.get().id.as_num(), a))
             .collect()
     }
 
@@ -123,7 +123,7 @@ mod tests {
     ) -> Map<u64, ResourceAllocation> {
         rq.try_start_tasks(Some(remaining_time))
             .into_iter()
-            .map(|(t, a)| (t.get().id.as_u64(), a))
+            .map(|(t, a)| (t.get().id.as_num(), a))
             .collect()
     }
 

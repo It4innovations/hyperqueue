@@ -332,7 +332,7 @@ impl LogFile {
                         if buffer.last() != Some(&b'\n') {
                             buffer.push(b'\n');
                         }
-                        let color = colors[task_id.as_u32() as usize % colors.len()];
+                        let color = colors[task_id.as_num() as usize % colors.len()];
                         let header =
                             format!("{:0width$}:{}>", task_id, channel_id, width = id_width,);
                         write!(
@@ -354,7 +354,7 @@ impl LogFile {
                         if !opts.show_empty && !has_content.contains(&task_id) {
                             continue;
                         }
-                        let color = colors[task_id.as_u32() as usize % colors.len()];
+                        let color = colors[task_id.as_num() as usize % colors.len()];
                         writeln!(
                             stdout_buf,
                             "{}",

@@ -556,7 +556,7 @@ fn test_generic_resource_assign2() {
         .unwrap()
         .tasks()
         .iter()
-        .all(|t| t.get().id.as_u64() < 50));
+        .all(|t| t.get().id.as_num() < 50));
 
     assert!(!rt.worker(100).is_parked());
     assert!(rt.worker(101).is_parked());
