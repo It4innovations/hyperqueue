@@ -198,7 +198,7 @@ impl Task {
     }
 
     pub fn increment_instance_id(&mut self) {
-        self.instance_id = InstanceId(self.instance_id.as_u32() + 1);
+        self.instance_id = InstanceId(self.instance_id.as_num() + 1);
     }
 
     pub fn make_compute_message(&self) -> ToWorkerMessage {

@@ -25,16 +25,6 @@ macro_rules! define_id_type {
             }
 
             #[inline]
-            pub fn as_u32(&self) -> u32 {
-                self.0 as u32
-            }
-
-            #[inline]
-            pub fn as_u64(&self) -> u64 {
-                self.0 as u64
-            }
-
-            #[inline]
             pub fn as_num(&self) -> $type {
                 self.0 as $type
             }

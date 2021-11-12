@@ -615,7 +615,7 @@ async fn handle_submit(
             JobType::Simple => 1,
             JobType::Array(a) => a.id_count(),
         };
-        let tako_base_id = state.new_task_id(task_count).as_u64();
+        let tako_base_id = state.new_task_id(task_count).as_num();
         let task_defs = match (&message.job_type, message.entries.clone()) {
             (JobType::Simple, _) => vec![make_task(job_id, 0.into(), tako_base_id.into(), None)],
             (JobType::Array(a), None) => a

@@ -710,7 +710,7 @@ mod tests {
 
         let new_w = comm.take_new_workers();
         assert_eq!(new_w.len(), 1);
-        assert_eq!(new_w[0].0.as_u32(), 402);
+        assert_eq!(new_w[0].0.as_num(), 402);
         assert_eq!(new_w[0].1.resources.cpus, as_cpus(vec![vec![0, 1, 2, 3]]));
 
         assert!(
@@ -744,7 +744,7 @@ mod tests {
 
         let new_w = comm.take_new_workers();
         assert_eq!(new_w.len(), 1);
-        assert_eq!(new_w[0].0.as_u32(), 502);
+        assert_eq!(new_w[0].0.as_num(), 502);
         assert_eq!(
             new_w[0].1.resources.cpus,
             as_cpus(vec![vec![2, 3, 4], vec![100, 150]])
@@ -1070,7 +1070,7 @@ mod tests {
         ));
         let mut msgs = comm.take_client_task_errors(1);
         let (id, cs, _) = msgs.pop().unwrap();
-        assert_eq!(id.as_u64(), 13);
+        assert_eq!(id.as_num(), 13);
         assert_eq!(sorted_vec(cs), vec![15, 16, 17].to_ids());
         comm.emptiness_check();
 

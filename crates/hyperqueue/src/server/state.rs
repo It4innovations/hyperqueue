@@ -110,7 +110,7 @@ impl State {
             .next()?
             .1;
         let job = self.jobs.get_mut(&job_id)?;
-        if task_id < TakoTaskId::new(job.base_task_id.as_u64() + job.n_tasks() as u64) {
+        if task_id < TakoTaskId::new(job.base_task_id.as_num() + job.n_tasks() as u64) {
             Some(job)
         } else {
             None
@@ -295,7 +295,7 @@ mod tests {
                 .get_job_mut_by_tako_task_id(100.into())
                 .unwrap()
                 .job_id
-                .as_u32(),
+                .as_num(),
             223
         );
         assert_eq!(
@@ -303,7 +303,7 @@ mod tests {
                 .get_job_mut_by_tako_task_id(101.into())
                 .unwrap()
                 .job_id
-                .as_u32(),
+                .as_num(),
             223
         );
         assert_eq!(
@@ -311,7 +311,7 @@ mod tests {
                 .get_job_mut_by_tako_task_id(109.into())
                 .unwrap()
                 .job_id
-                .as_u32(),
+                .as_num(),
             223
         );
         assert_eq!(
@@ -319,7 +319,7 @@ mod tests {
                 .get_job_mut_by_tako_task_id(110.into())
                 .unwrap()
                 .job_id
-                .as_u32(),
+                .as_num(),
             224
         );
         assert_eq!(
@@ -327,7 +327,7 @@ mod tests {
                 .get_job_mut_by_tako_task_id(124.into())
                 .unwrap()
                 .job_id
-                .as_u32(),
+                .as_num(),
             224
         );
         assert_eq!(
@@ -335,7 +335,7 @@ mod tests {
                 .get_job_mut_by_tako_task_id(125.into())
                 .unwrap()
                 .job_id
-                .as_u32(),
+                .as_num(),
             225
         );
         assert_eq!(
@@ -343,7 +343,7 @@ mod tests {
                 .get_job_mut_by_tako_task_id(126.into())
                 .unwrap()
                 .job_id
-                .as_u32(),
+                .as_num(),
             226
         );
         assert!(state.get_job_mut_by_tako_task_id(127.into()).is_none());
@@ -353,7 +353,7 @@ mod tests {
                 .get_job_mut_by_tako_task_id(130.into())
                 .unwrap()
                 .job_id
-                .as_u32(),
+                .as_num(),
             227
         );
         assert!(state.get_job_mut_by_tako_task_id(131.into()).is_none());

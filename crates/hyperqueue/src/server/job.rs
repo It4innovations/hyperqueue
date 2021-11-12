@@ -136,7 +136,7 @@ impl Job {
         time_limit: Option<std::time::Duration>,
         job_log: Option<PathBuf>,
     ) -> Self {
-        let base = base_task_id.as_u64();
+        let base = base_task_id.as_num();
         let state = match &job_type {
             JobType::Simple => JobState::SingleTask(JobTaskState::Waiting),
             JobType::Array(m) if m.id_count() == 1 => JobState::SingleTask(JobTaskState::Waiting),
