@@ -8,7 +8,7 @@
 ## Changes
 
 * When a job is submitted, it does not show full details in response
-   but only short message. Details can be still shown by ``hq job <id>``
+   but only a short message. Details can be still shown by `hq job <id>`.
 
 
 # v0.6.0
