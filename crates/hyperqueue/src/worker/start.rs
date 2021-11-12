@@ -523,13 +523,13 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         listen_address: Default::default(), // Will be filled during init
         time_limit: opts
             .time_limit
-            .map(|x| x.into())
+            .map(|x| x.unpack())
             .or_else(|| manager_info.map(|m| m.time_limit)),
         hostname,
         work_dir,
         log_dir,
-        heartbeat_interval: opts.heartbeat.into(),
-        idle_timeout: opts.idle_timeout.map(|x| x.into()),
+        heartbeat_interval: opts.heartbeat.unpack(),
+        idle_timeout: opts.idle_timeout.map(|x| x.unpack()),
         hw_state_poll_interval: Some(Duration::from_millis(1000)),
         extra,
     })
