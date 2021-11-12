@@ -178,10 +178,10 @@ async fn launcher_main(
 
         {
             let state = state_ref.get();
-            let resource_names = &state.resource_names;
+            let resource_map = state.get_resource_map();
 
             for rq in task_ref.get().configuration.resources.generic_requests() {
-                let resource_name = &resource_names[rq.resource.as_num() as usize];
+                let resource_name = resource_map.get_name(rq.resource).unwrap();
                 program.env.insert(
                     format!("HQ_RESOURCE_REQUEST_{}", resource_name).into(),
                     rq.amount.to_string().into(),
@@ -189,7 +189,7 @@ async fn launcher_main(
             }
 
             for alloc in &allocation.generic_allocations {
-                let resource_name = &resource_names[alloc.resource.as_num() as usize];
+                let resource_name = resource_map.get_name(alloc.resource).unwrap();
                 if let Some(indices) = alloc.value.to_comma_delimited_list() {
                     if resource_name == "gpus" {
                         /* Extra hack for GPUS */

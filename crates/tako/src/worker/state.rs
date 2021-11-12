@@ -12,6 +12,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
 
 use crate::common::data::SerializationType;
+use crate::common::resources::map::ResourceMap;
 use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
 use crate::messages::worker::{
@@ -53,7 +54,7 @@ pub struct WorkerState {
     pub start_time: std::time::Instant,
     pub hardware_state: WorkerHwState,
 
-    pub resource_names: Vec<String>,
+    resource_map: ResourceMap,
 }
 
 impl WorkerState {
@@ -361,6 +362,10 @@ impl WorkerState {
         let mut task = task_ref.get_mut();
         self.remove_task(&mut task, &task_ref, true);
     }
+
+    pub fn get_resource_map(&self) -> &ResourceMap {
+        &self.resource_map
+    }
 }
 
 impl WorkerStateRef {
@@ -372,14 +377,13 @@ impl WorkerStateRef {
         sender: UnboundedSender<Bytes>,
         download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, PriorityTuple)>,
         worker_addresses: Map<WorkerId, String>,
-        resource_names: Vec<String>,
+        resource_map: ResourceMap,
         task_launcher: TaskLauncher,
     ) -> Self {
-        let ready_task_queue = ResourceWaitQueue::new(&configuration.resources, &resource_names);
+        let ready_task_queue = ResourceWaitQueue::new(&configuration.resources, &resource_map);
         let self_ref = Self::wrap(WorkerState {
             worker_id,
             worker_addresses,
-            resource_names,
             sender,
             download_sender,
             configuration,
@@ -396,6 +400,7 @@ impl WorkerStateRef {
             running_tasks: Default::default(),
             hardware_state: Default::default(),
             start_time: std::time::Instant::now(),
+            resource_map,
         });
         self_ref.get_mut().self_ref = Some(self_ref.clone());
         self_ref

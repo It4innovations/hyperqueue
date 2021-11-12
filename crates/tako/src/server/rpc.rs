@@ -148,7 +148,7 @@ async fn worker_rpc_loop(
         for descriptor in &configuration.resources.generic {
             core.get_or_create_generic_resource_id(&descriptor.name);
         }
-        let worker = Worker::new(worker_id, configuration, core.generic_resource_names());
+        let worker = Worker::new(worker_id, configuration, core.create_resource_map());
 
         on_new_worker(&mut core, &mut *comm_ref.get_mut(), worker);
     }
@@ -158,7 +158,7 @@ async fn worker_rpc_loop(
     let message = WorkerRegistrationResponse {
         worker_id,
         worker_addresses: core_ref.get().get_worker_addresses(),
-        resource_names: core_ref.get().generic_resource_names().to_vec(),
+        resource_names: core_ref.get().create_resource_map().into_vec(),
     };
     queue_sender
         .send(serialize(&message).unwrap().into())

@@ -1,3 +1,4 @@
+use crate::common::resources::map::ResourceMap;
 use crate::common::resources::{
     CpuRequest, GenericResourceAmount, NumOfCpus, ResourceDescriptor, ResourceRequest,
 };
@@ -13,35 +14,26 @@ pub struct WorkerResources {
 impl WorkerResources {
     #[cfg(test)]
     pub fn simple(n_cpus: NumOfCpus) -> Self {
-        WorkerResources::from_description(&ResourceDescriptor::simple(n_cpus), &[])
+        WorkerResources::from_description(&ResourceDescriptor::simple(n_cpus), Default::default())
     }
 
-    pub fn from_description(resource_desc: &ResourceDescriptor, resource_names: &[String]) -> Self {
+    pub fn from_description(resource_desc: &ResourceDescriptor, resource_map: ResourceMap) -> Self {
         // We only take maximum needed resource id
         // We are doing it for normalization purposes. It is useful later
         // for WorkerLoad structure that hashed
         let n_generic_resources = resource_desc
             .generic
             .iter()
-            .map(|x| resource_names.iter().position(|n| n == &x.name).unwrap() + 1)
+            .map(|x| resource_map.get_index(&x.name).unwrap().as_num() as usize + 1)
             .max()
             .unwrap_or(0);
 
         let mut n_generic_resources = vec![0; n_generic_resources];
 
         for descriptor in &resource_desc.generic {
-            let position = resource_names
-                .iter()
-                .position(|n| n == &descriptor.name)
-                .unwrap();
-            n_generic_resources[position] = descriptor.kind.size()
+            let position = resource_map.get_index(&descriptor.name).unwrap();
+            n_generic_resources[position.as_num() as usize] = descriptor.kind.size()
         }
-        resource_desc
-            .generic
-            .iter()
-            .map(|x| resource_names.iter().position(|n| n == &x.name).unwrap())
-            .max()
-            .unwrap_or(0);
 
         WorkerResources {
             n_cpus: resource_desc
