@@ -102,24 +102,16 @@ impl WorkerLoad {
     #[inline]
     pub fn add_request(&mut self, rq: &ResourceRequest, wr: &WorkerResources) {
         self.n_cpus += wr.n_cpus(rq);
-        for (r, v) in self
-            .n_generic_resources
-            .iter_mut()
-            .zip(wr.n_generic_resources.iter())
-        {
-            *r += v;
+        for r in rq.generic_requests() {
+            self.n_generic_resources[r.resource.as_num() as usize] += r.amount;
         }
     }
 
     #[inline]
     pub fn remove_request(&mut self, rq: &ResourceRequest, wr: &WorkerResources) {
         self.n_cpus -= wr.n_cpus(rq);
-        for (r, v) in self
-            .n_generic_resources
-            .iter_mut()
-            .zip(wr.n_generic_resources.iter())
-        {
-            *r -= v;
+        for r in rq.generic_requests() {
+            self.n_generic_resources[r.resource.as_num() as usize] -= r.amount;
         }
     }
 
