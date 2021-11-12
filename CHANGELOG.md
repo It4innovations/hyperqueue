@@ -1,3 +1,16 @@
+# v0.6.1
+
+## Fixes
+
+* Fixed computation of worker load in scheduler
+* Fixed performance problem when canceling more than 100k tasks
+
+## Changes
+
+* When a job is submitted, it does not show full details in response
+   but only short message. Details can be still shown by ``hq job <id>``
+
+
 # v0.6.0
 
 ## New features
@@ -17,6 +30,7 @@
   * Server subdirectories generated for each run of the HyperQueue server are now named with a numeric ID instead of
   a date.
   * The documentation has been [rewritten](https://it4innovations.github.io/hyperqueue).
+
 
 # v0.5.0
 
