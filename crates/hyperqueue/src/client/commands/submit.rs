@@ -310,7 +310,7 @@ pub async fn submit_computation(
         max_fails: opts.max_fails,
         submit_dir: std::env::current_dir().unwrap().to_str().unwrap().into(),
         priority: opts.priority,
-        time_limit: opts.time_limit.map(|x| x.into()),
+        time_limit: opts.time_limit.map(|x| x.unpack()),
         log,
     });
 

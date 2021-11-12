@@ -17,13 +17,14 @@ macro_rules! rpc_call {
 
 #[macro_export]
 macro_rules! arg_wrapper {
-    ($name:ident, $wrapped_type:ty, $parser:ident) => {
+    ($name:ident, $wrapped_type:ty, $parser:expr) => {
         pub struct $name($wrapped_type);
-        impl std::str::FromStr for $name {
-            type Err = anyhow::Error;
 
-            fn from_str(s: &str) -> Result<Self, Self::Err> {
-                $parser(s).map(Self)
+        impl ::std::str::FromStr for $name {
+            type Err = ::anyhow::Error;
+
+            fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+                ::std::result::Result::Ok(Self($parser(s)?))
             }
         }
 

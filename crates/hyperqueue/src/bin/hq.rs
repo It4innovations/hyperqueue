@@ -262,8 +262,8 @@ async fn command_server_start(
         host: opts
             .host
             .unwrap_or_else(|| gethostname::gethostname().into_string().unwrap()),
-        idle_timeout: opts.idle_timeout.map(|x| x.into()),
-        autoalloc_interval: opts.autoalloc_interval.map(|x| x.into()),
+        idle_timeout: opts.idle_timeout.map(|x| x.unpack()),
+        autoalloc_interval: opts.autoalloc_interval.map(|x| x.unpack()),
     };
 
     init_hq_server(&gsettings, server_cfg).await

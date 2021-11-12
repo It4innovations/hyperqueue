@@ -141,7 +141,7 @@ fn args_to_params(args: SharedQueueOpts) -> AddQueueParams {
     AddQueueParams {
         workers_per_alloc: args.workers_per_alloc,
         backlog: args.backlog,
-        timelimit: args.time_limit.map(|v| v.into()),
+        timelimit: args.time_limit.map(|v| v.unpack()),
         name: args.name,
         additional_args: args.additional_args,
     }
