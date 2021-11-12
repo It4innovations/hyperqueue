@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::messages::common::{TaskConfiguration, TaskFailInfo, WorkerConfiguration};
+use crate::messages::common::{TaskConfigurationMessage, TaskFailInfo, WorkerConfiguration};
 use crate::messages::worker::WorkerOverview;
 use crate::{Priority, TaskId, WorkerId};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskDef {
     pub id: TaskId,
-    pub conf: TaskConfiguration,
+    pub conf: TaskConfigurationMessage,
 
     #[serde(default)]
     pub priority: Priority,

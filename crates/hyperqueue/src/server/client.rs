@@ -1,22 +1,25 @@
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use bstr::BString;
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
-use tako::messages::common::{ProgramDefinition, TaskConfiguration};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::{oneshot, Notify};
+
+use tako::messages::common::{ProgramDefinition, TaskConfigurationMessage};
 use tako::messages::gateway::{
     CancelTasks, FromGatewayMessage, GenericResourceNames, NewTasksMessage, OverviewRequest,
     StopWorkerRequest, TaskDef, ToGatewayMessage,
 };
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{oneshot, Notify};
 
 use crate::client::status::{job_status, task_status, Status};
 use crate::common::arraydef::IntArray;
 use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::manager::info::ManagerType;
+use crate::common::placeholders::replace_placeholders_server;
 use crate::common::serverdir::ServerDir;
-
 use crate::server::autoalloc::{
     DescriptorId, PbsHandler, QueueDescriptor, QueueHandler, QueueInfo, SlurmHandler,
 };
@@ -25,6 +28,7 @@ use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::connection::ServerConnection;
+use crate::transfer::messages::WaitForJobsResponse;
 use crate::transfer::messages::{
     AddQueueRequest, AutoAllocListResponse, AutoAllocRequest, AutoAllocResponse, CancelJobResponse,
     FromClientMessage, JobDetail, JobInfoResponse, JobType, QueueDescriptorData, ResubmitRequest,
@@ -32,11 +36,6 @@ use crate::transfer::messages::{
     ToClientMessage, WorkerListResponse,
 };
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
-use bstr::BString;
-
-use crate::common::placeholders::replace_placeholders_server;
-use crate::transfer::messages::WaitForJobsResponse;
-use std::path::Path;
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
@@ -573,9 +572,6 @@ async fn handle_submit(
     tako_ref: &Backend,
     message: SubmitRequest,
 ) -> ToClientMessage {
-    if message.resources.validate().is_err() {
-        return ToClientMessage::Error("Invalid resource request".to_string());
-    }
     let resources = message.resources;
     let spec = message.spec;
     let pin = message.pin;
@@ -597,7 +593,7 @@ async fn handle_submit(
         let body = tako::transfer::auth::serialize(&body_msg).unwrap();
         TaskDef {
             id: tako_id,
-            conf: TaskConfiguration {
+            conf: TaskConfigurationMessage {
                 resources: resources.clone(),
                 n_outputs: 0,
                 time_limit,

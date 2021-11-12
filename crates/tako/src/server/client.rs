@@ -1,3 +1,4 @@
+use crate::common::resources::{GenericResourceRequest, ResourceRequest};
 use futures::future::join_all;
 use futures::{StreamExt, TryFutureExt};
 use tokio::net::UnixListener;
@@ -5,6 +6,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
 
 use crate::common::rpc::forward_queue_to_sink_with_map;
+use crate::messages::common::{TaskConfiguration, TaskConfigurationMessage};
 use crate::messages::gateway::{
     CancelTasksResponse, CollectedOverview, ErrorResponse, FromGatewayMessage,
     GenericResourceNames, NewTasksResponse, TaskInfo, TaskState, TaskUpdate, TasksInfoResponse,
@@ -12,7 +14,7 @@ use crate::messages::gateway::{
 };
 use crate::messages::worker::{ToWorkerMessage, WorkerOverview};
 use crate::server::comm::{Comm, CommSenderRef};
-use crate::server::core::CoreRef;
+use crate::server::core::{Core, CoreRef};
 use crate::server::reactor::{on_cancel_tasks, on_new_tasks, on_set_observe_flag};
 use crate::server::task::{TaskRef, TaskRuntimeState};
 use crate::transfer::transport::make_protocol_builder;
@@ -65,6 +67,37 @@ pub async fn client_connection_handler(
     log::info!("Client connection terminated");
 }
 
+fn create_task_configuration(
+    core_ref: &mut Core,
+    msg: TaskConfigurationMessage,
+) -> TaskConfiguration {
+    let resources_msg = msg.resources;
+    let generic_resources = resources_msg
+        .generic
+        .into_iter()
+        .map(|req| {
+            let resource = core_ref.get_or_create_generic_resource_id(&req.resource);
+            GenericResourceRequest {
+                resource,
+                amount: req.amount,
+            }
+        })
+        .collect();
+
+    let resources = ResourceRequest::new(
+        resources_msg.cpus,
+        resources_msg.min_time,
+        generic_resources,
+    );
+
+    TaskConfiguration {
+        resources,
+        n_outputs: msg.n_outputs,
+        time_limit: msg.time_limit,
+        body: msg.body,
+    }
+}
+
 pub async fn process_client_message(
     core_ref: &CoreRef,
     comm_ref: &CommSenderRef,
@@ -113,7 +146,7 @@ pub async fn process_client_message(
                 let task_ref = TaskRef::new(
                     task.id,
                     Vec::new(),
-                    task.conf,
+                    create_task_configuration(&mut core, task.conf),
                     task.priority,
                     task.keep,
                     task.observe,

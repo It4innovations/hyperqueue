@@ -45,13 +45,7 @@ pub trait Output {
     // Jobs
     fn print_job_submitted(&self, job: JobDetail);
     fn print_job_list(&self, tasks: Vec<JobInfo>);
-    fn print_job_detail(
-        &self,
-        job: JobDetail,
-        show_tasks: bool,
-        worker_map: WorkerMap,
-        resource_names: &[String],
-    );
+    fn print_job_detail(&self, job: JobDetail, show_tasks: bool, worker_map: WorkerMap);
     fn print_job_tasks(
         &self,
         completion_date_or_now: chrono::DateTime<chrono::Utc>,
