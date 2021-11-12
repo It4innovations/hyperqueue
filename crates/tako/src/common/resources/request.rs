@@ -156,15 +156,15 @@ mod tests {
     fn test_resource_request_validate() {
         let mut rq: ResourceRequest = CpuRequest::All.into();
         rq.add_generic_request(GenericResourceRequest {
-            resource: 10,
+            resource: 10.into(),
             amount: 4,
         });
         rq.add_generic_request(GenericResourceRequest {
-            resource: 7,
+            resource: 7.into(),
             amount: 6,
         });
         rq.add_generic_request(GenericResourceRequest {
-            resource: 10,
+            resource: 10.into(),
             amount: 6,
         });
         assert!(rq.validate().is_err())

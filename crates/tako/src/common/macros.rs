@@ -33,6 +33,11 @@ macro_rules! define_id_type {
             pub fn as_u64(&self) -> u64 {
                 self.0 as u64
             }
+
+            #[inline]
+            pub fn as_num(&self) -> $type {
+                self.0 as $type
+            }
         }
 
         impl ::std::convert::From<$type> for $name {

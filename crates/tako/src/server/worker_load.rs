@@ -65,7 +65,7 @@ impl WorkerResources {
                 r.amount
                     <= *self
                         .n_generic_resources
-                        .get(r.resource as usize)
+                        .get(r.resource.as_num() as usize)
                         .unwrap_or(&0)
             })
     }
@@ -151,7 +151,7 @@ impl WorkerLoad {
                 r.amount
                     <= *self
                         .n_generic_resources
-                        .get(r.resource as usize)
+                        .get(r.resource.as_num() as usize)
                         .unwrap_or(&0)
             })
     }
@@ -240,7 +240,7 @@ impl ResourceRequestLowerBound {
         }
         if self.empty {
             for gr in request.generic_requests() {
-                self.n_generic_resources[gr.resource as usize] = gr.amount;
+                self.n_generic_resources[gr.resource.as_num() as usize] = gr.amount;
             }
             self.empty = false;
         } else {
@@ -251,7 +251,7 @@ impl ResourceRequestLowerBound {
                 if let Some(gr) = request
                     .generic_requests()
                     .iter()
-                    .find(|gr| gr.resource as usize == i)
+                    .find(|gr| gr.resource.as_num() as usize == i)
                 {
                     *n = (*n).min(gr.amount);
                 } else {
@@ -304,7 +304,7 @@ mod tests {
         let mut lb = ResourceRequestLowerBound::new(3);
         let mut rq: ResourceRequest = CpuRequest::Compact(2).into();
         rq.add_generic_request(GenericResourceRequest {
-            resource: 1,
+            resource: 1.into(),
             amount: 10,
         });
         lb.include(&rq);
@@ -313,7 +313,7 @@ mod tests {
 
         let mut rq: ResourceRequest = CpuRequest::Compact(3).into();
         rq.add_generic_request(GenericResourceRequest {
-            resource: 1,
+            resource: 1.into(),
             amount: 5,
         });
         lb.include(&rq);
@@ -321,7 +321,7 @@ mod tests {
         assert_eq!(lb.n_generic_resources, vec![0, 5, 0]);
 
         rq.add_generic_request(GenericResourceRequest {
-            resource: 2,
+            resource: 2.into(),
             amount: 100,
         });
         lb.include(&rq);
@@ -336,11 +336,11 @@ mod tests {
         let mut lb = ResourceRequestLowerBound::new(3);
         let mut rq: ResourceRequest = CpuRequest::Compact(2).into();
         rq.add_generic_request(GenericResourceRequest {
-            resource: 0,
+            resource: 0.into(),
             amount: 10,
         });
         rq.add_generic_request(GenericResourceRequest {
-            resource: 1,
+            resource: 1.into(),
             amount: 20,
         });
         lb.include(&rq);
@@ -349,7 +349,7 @@ mod tests {
 
         let mut rq: ResourceRequest = CpuRequest::Compact(3).into();
         rq.add_generic_request(GenericResourceRequest {
-            resource: 1,
+            resource: 1.into(),
             amount: 25,
         });
         lb.include(&rq);
