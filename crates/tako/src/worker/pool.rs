@@ -95,9 +95,11 @@ impl ResourcePool {
                 .position(|name| name == &descriptor.name)
                 .expect("Internal error, resource name not received");
             generic_resources[idx] = match &descriptor.kind {
-                GenericResourceDescriptorKind::Indices(idx) => {
-                    GenericResourcePool::Indices((idx.start..=idx.end).collect())
-                }
+                GenericResourceDescriptorKind::Indices(idx) => GenericResourcePool::Indices(
+                    (idx.start.as_num()..=idx.end.as_num())
+                        .map(|id| id.into())
+                        .collect(),
+                ),
                 GenericResourceDescriptorKind::Sum(v) => GenericResourcePool::Sum(v.size),
             }
         }
