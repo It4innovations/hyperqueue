@@ -1,7 +1,8 @@
 use crate::common::parser::{format_parse_error, p_u32, NomResult};
 
 use tako::common::resources::{
-    CpuId, CpusDescriptor, GenericResourceDescriptor, GenericResourceDescriptorKind, NumOfCpus,
+    CpuId, CpusDescriptor, GenericResourceDescriptor, GenericResourceDescriptorKind,
+    GenericResourceIndex, NumOfCpus,
 };
 
 use nom::bytes::complete::tag;
@@ -33,8 +34,8 @@ pub fn detect_generic_resource() -> anyhow::Result<Vec<GenericResourceDescriptor
             generic.push(GenericResourceDescriptor {
                 name: "gpus".to_string(),
                 kind: GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
-                    start: 0,
-                    end: count as u32 - 1,
+                    start: GenericResourceIndex::new(0),
+                    end: GenericResourceIndex::new(count as u32 - 1),
                 }),
             })
         }

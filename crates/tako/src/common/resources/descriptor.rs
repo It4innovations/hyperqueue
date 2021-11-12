@@ -24,7 +24,7 @@ impl GenericResourceDescriptorKind {
     pub fn size(&self) -> GenericResourceAmount {
         match self {
             GenericResourceDescriptorKind::Indices(idx) if idx.end >= idx.start => {
-                (idx.end + 1 - idx.start) as u64
+                (idx.end.as_num() + 1 - idx.start.as_num()) as u64
             }
             GenericResourceDescriptorKind::Indices(_) => 0,
             GenericResourceDescriptorKind::Sum(x) => x.size,
@@ -170,12 +170,16 @@ mod tests {
     }
 
     impl GenericResourceDescriptor {
-        pub fn indices(name: &str, start: GenericResourceIndex, end: GenericResourceIndex) -> Self {
+        pub fn indices<Index: Into<GenericResourceIndex>>(
+            name: &str,
+            start: Index,
+            end: Index,
+        ) -> Self {
             GenericResourceDescriptor {
                 name: name.to_string(),
                 kind: GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
-                    start,
-                    end,
+                    start: start.into(),
+                    end: end.into(),
                 }),
             }
         }

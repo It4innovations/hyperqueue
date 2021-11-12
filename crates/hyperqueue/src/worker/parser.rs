@@ -43,7 +43,10 @@ fn p_kind_indices(input: &str) -> NomResult<GenericResourceDescriptorKind> {
             tuple((multispace0, char(')'), multispace0)),
         ),
         |(start, end)| {
-            GenericResourceDescriptorKind::Indices(GenericResourceKindIndices { start, end })
+            GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
+                start: start.into(),
+                end: end.into(),
+            })
         },
     )(input)
 }
@@ -98,13 +101,13 @@ mod test {
     fn test_parse_resource_def() {
         let rd = parse_resource_definition("gpu=indices(10-123)").unwrap();
         assert_eq!(rd.name, "gpu");
-        assert!(matches!(
-            rd.kind,
-            GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
-                start: 10,
-                end: 123
-            })
-        ));
+        match rd.kind {
+            GenericResourceDescriptorKind::Indices(indices) => {
+                assert_eq!(indices.start.as_num(), 10);
+                assert_eq!(indices.end.as_num(), 123);
+            }
+            _ => panic!("Wrong result"),
+        }
 
         let rd = parse_resource_definition("mem=sum(1000_3000_2000)").unwrap();
         assert_eq!(rd.name, "mem");
