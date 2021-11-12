@@ -6,10 +6,10 @@ use std::{fs, io};
 use anyhow::anyhow;
 use bstr::BString;
 use clap::Parser;
-use tako::common::resources::{
-    CpuRequest, GenericResourceAmount, GenericResourceId, GenericResourceRequest, ResourceRequest,
+use tako::common::resources::{CpuRequest, GenericResourceAmount};
+use tako::messages::common::{
+    GenericResourceRequest, ProgramDefinition, ResourceRequest, StdioDef,
 };
-use tako::messages::common::{ProgramDefinition, StdioDef};
 
 use crate::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use crate::client::globalsettings::GlobalSettings;
@@ -186,30 +186,24 @@ pub struct SubmitOpts {
 }
 
 impl SubmitOpts {
-    fn resource_request(&self, generic_resource_names: &[String]) -> ResourceRequest {
+    fn resource_request(&self) -> ResourceRequest {
         let generic_resources = self
             .resource
             .iter()
             .map(|gr| {
-                let rq = gr.get();
+                let rq = gr.get().clone();
                 GenericResourceRequest {
-                    resource: GenericResourceId::new(
-                        generic_resource_names
-                            .iter()
-                            .position(|name| name == &rq.0)
-                            .expect("Server does not return requested name")
-                            as u32,
-                    ),
+                    resource: rq.0,
                     amount: rq.1,
                 }
             })
             .collect();
 
-        ResourceRequest::new(
-            self.cpus.0.clone(),
-            self.time_request.clone().into(),
-            generic_resources,
-        )
+        ResourceRequest {
+            cpus: self.cpus.get().clone(),
+            min_time: self.time_request.get().clone(),
+            generic: generic_resources,
+        }
     }
 }
 
@@ -218,14 +212,7 @@ pub async fn submit_computation(
     connection: &mut ClientConnection,
     opts: SubmitOpts,
 ) -> anyhow::Result<()> {
-    let generic_resource_names = get_resource_names(
-        connection,
-        opts.resource.iter().map(|x| x.get().0.clone()).collect(),
-    )
-    .await?;
-
-    let resources = opts.resource_request(&generic_resource_names);
-    resources.validate()?;
+    let resources = opts.resource_request();
 
     let (job_type, entries) = if let Some(ref filename) = opts.each_line {
         let entries = read_lines(filename)?;

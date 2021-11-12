@@ -3,10 +3,11 @@ use std::time::Duration;
 
 use derive_builder::Builder;
 
-use crate::common::resources::request::GenericResourceRequests;
-use crate::common::resources::{CpuRequest, ResourceRequest};
+use crate::common::resources::CpuRequest;
 use crate::common::Map;
-use crate::messages::common::{ProgramDefinition, StdioDef, TaskConfiguration};
+use crate::messages::common::{
+    GenericResourceRequest, ProgramDefinition, ResourceRequest, StdioDef, TaskConfigurationMessage,
+};
 use crate::messages::gateway::TaskDef;
 
 pub struct GraphBuilder {
@@ -70,8 +71,12 @@ fn build_task_from_config(config: TaskConfig) -> TaskDef {
     };
     let body = rmp_serde::to_vec(&program_def).unwrap();
 
-    let conf = TaskConfiguration {
-        resources: ResourceRequest::new(cpus, Default::default(), generic),
+    let conf = TaskConfigurationMessage {
+        resources: ResourceRequest {
+            cpus,
+            min_time: Default::default(),
+            generic: generic,
+        },
         n_outputs: 0,
         time_limit,
         body,
@@ -124,7 +129,7 @@ pub struct ResourceRequestConfig {
     #[builder(default)]
     cpus: CpuRequest,
     #[builder(default)]
-    generic: GenericResourceRequests,
+    generic: Vec<GenericResourceRequest>,
 }
 
 pub fn simple_args(args: &[&'static str]) -> Vec<String> {

@@ -238,7 +238,6 @@ mod tests {
     use crate::transfer::messages::JobType;
     use crate::{JobId, TakoTaskId};
     use std::time::Duration;
-    use tako::common::resources::ResourceRequest;
 
     fn dummy_program_definition() -> ProgramDefinition {
         ProgramDefinition {
@@ -261,7 +260,7 @@ mod tests {
             base_task_id.into(),
             "".to_string(),
             dummy_program_definition(),
-            ResourceRequest::default(),
+            Default::default(),
             false,
             None,
             Some(Vec::new()),

@@ -235,7 +235,6 @@ mod tests {
 
     use crate::common::arraydef::IntArray;
     use hashbrown::HashMap;
-    use tako::common::resources::ResourceRequest;
     use tako::messages::common::ProgramDefinition;
 
     use crate::common::manager::info::ManagerType;
@@ -485,7 +484,7 @@ mod tests {
                 stderr: Default::default(),
                 cwd: None,
             },
-            ResourceRequest::default(),
+            Default::default(),
             false,
             None,
             None,

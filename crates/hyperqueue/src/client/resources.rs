@@ -1,14 +1,10 @@
 use crate::common::parser::{format_parse_error, p_u32, p_u64, NomResult};
-use crate::transfer::connection::ClientConnection;
-use crate::transfer::messages::FromClientMessage;
-use crate::transfer::messages::ToClientMessage;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alphanumeric1, char, multispace0, multispace1};
 use nom::combinator::{all_consuming, map, map_res, opt};
 use nom::sequence::{preceded, separated_pair, tuple};
-use tako::common::resources::{CpuRequest, GenericResourceAmount, ResourceRequest};
-use tako::messages::gateway::GenericResourceNames;
+use tako::common::resources::{CpuRequest, GenericResourceAmount};
 
 fn p_cpu_request(input: &str) -> NomResult<CpuRequest> {
     alt((
@@ -57,47 +53,6 @@ pub fn parse_resource_request(input: &str) -> anyhow::Result<(String, GenericRes
     all_consuming(p_resource_request)(input)
         .map(|r| r.1)
         .map_err(format_parse_error)
-}
-
-pub fn cpu_request_to_string(cr: &CpuRequest) -> String {
-    match cr {
-        CpuRequest::Compact(n_cpus) => {
-            format!("cpus: {} compact", *n_cpus)
-        }
-        CpuRequest::ForceCompact(n_cpus) => {
-            format!("cpus: {} compact!", *n_cpus)
-        }
-        CpuRequest::Scatter(n_cpus) => {
-            format!("cpus: {} scatter", *n_cpus)
-        }
-        CpuRequest::All => "cpus: all".to_string(),
-    }
-}
-
-pub fn resource_request_to_string(rq: &ResourceRequest, resource_names: &[String]) -> String {
-    let mut result = cpu_request_to_string(rq.cpus());
-    for grq in rq.generic_requests() {
-        result.push_str(&format!(
-            "\n{}: {}",
-            resource_names[grq.resource.as_num() as usize],
-            grq.amount,
-        ))
-    }
-    result
-}
-
-pub async fn get_resource_names(
-    connection: &mut ClientConnection,
-    ensure_resource_names: Vec<String>,
-) -> anyhow::Result<Vec<String>> {
-    let message = FromClientMessage::GetGenericResourceNames(GenericResourceNames {
-        resource_names: ensure_resource_names,
-    });
-    Ok(
-        crate::rpc_call!(connection, message, ToClientMessage::GenericResourceNames(r) => r)
-            .await?
-            .resource_names,
-    )
 }
 
 #[cfg(test)]

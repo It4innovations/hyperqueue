@@ -5,7 +5,6 @@ use std::fmt::{Display, Write};
 
 use crate::client::job::WorkerMap;
 use crate::client::output::outputs::{Output, MAX_DISPLAYED_WORKERS};
-use crate::client::resources::resource_request_to_string;
 use crate::client::status::{job_status, task_status, Status};
 use crate::common::env::is_hq_env;
 use crate::common::format::{human_duration, human_size};
@@ -29,8 +28,8 @@ use humantime::format_duration;
 use std::path::Path;
 use std::time::SystemTime;
 
-use tako::common::resources::ResourceDescriptor;
-use tako::messages::common::{StdioDef, WorkerConfiguration};
+use tako::common::resources::{CpuRequest, ResourceDescriptor};
+use tako::messages::common::{ResourceRequest, StdioDef, WorkerConfiguration};
 
 use crate::common::strutils::pluralize;
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
@@ -272,13 +271,7 @@ impl Output for CliOutput {
         self.print_table(table);
     }
 
-    fn print_job_detail(
-        &self,
-        job: JobDetail,
-        show_tasks: bool,
-        worker_map: WorkerMap,
-        resource_names: &[String],
-    ) {
+    fn print_job_detail(&self, job: JobDetail, show_tasks: bool, worker_map: WorkerMap) {
         let mut rows = vec![
             vec!["Id".cell().bold(true), job.info.id.cell()],
             vec!["Name".cell().bold(true), job.info.name.as_str().cell()],
@@ -304,8 +297,7 @@ impl Output for CliOutput {
             format_job_workers(&job, &worker_map).cell(),
         ]);
 
-        let resources = resource_request_to_string(&job.resources, resource_names);
-
+        let resources = format_resource_request(&job.resources);
         rows.push(vec![
             "Resources".cell().bold(true),
             if job.pin {
@@ -813,6 +805,29 @@ fn task_status_to_cell(status: Status) -> CellStruct {
         Status::Failed => "FAILED".cell().foreground_color(Some(Color::Red)),
         Status::Running => "RUNNING".cell().foreground_color(Some(Color::Yellow)),
         Status::Canceled => "CANCELED".cell().foreground_color(Some(Color::Magenta)),
+    }
+}
+
+fn format_resource_request(rq: &ResourceRequest) -> String {
+    let mut result = format_cpu_request(&rq.cpus);
+    for grq in &rq.generic {
+        result.push_str(&format!("\n{}: {}", grq.resource, grq.amount))
+    }
+    result
+}
+
+fn format_cpu_request(cr: &CpuRequest) -> String {
+    match cr {
+        CpuRequest::Compact(n_cpus) => {
+            format!("cpus: {} compact", *n_cpus)
+        }
+        CpuRequest::ForceCompact(n_cpus) => {
+            format!("cpus: {} compact!", *n_cpus)
+        }
+        CpuRequest::Scatter(n_cpus) => {
+            format!("cpus: {} scatter", *n_cpus)
+        }
+        CpuRequest::All => "cpus: all".to_string(),
     }
 }
 

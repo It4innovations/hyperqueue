@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde::Serialize;
-use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
+use tako::messages::common::{ProgramDefinition, ResourceRequest, WorkerConfiguration};
 
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
@@ -12,7 +12,6 @@ use crate::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
 use bstr::BString;
 use std::path::PathBuf;
 use std::time::Duration;
-use tako::common::resources::ResourceRequest;
 use tako::messages::gateway::{CollectedOverview, GenericResourceNames, OverviewRequest};
 
 // Messages client -> server
