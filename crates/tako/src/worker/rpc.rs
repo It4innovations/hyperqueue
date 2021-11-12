@@ -13,6 +13,7 @@ use tokio::task::LocalSet;
 use tokio::time::sleep;
 use tokio::time::timeout;
 
+use crate::common::resources::map::ResourceMap;
 use crate::common::resources::ResourceAllocation;
 use crate::messages::common::WorkerConfiguration;
 use crate::messages::worker::{
@@ -140,7 +141,7 @@ pub async fn run_worker(
                         queue_sender,
                         download_sender,
                         message.worker_addresses,
-                        message.resource_names,
+                        ResourceMap::from_vec(message.resource_names),
                         launcher_setup,
                     ),
                 )

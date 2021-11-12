@@ -148,7 +148,7 @@ impl TestEnv {
                 extra: Default::default(),
             };
 
-            let worker = Worker::new(worker_id, wcfg, self.core.generic_resource_names());
+            let worker = Worker::new(worker_id, wcfg, self.core.create_resource_map());
             on_new_worker(&mut self.core, &mut TestComm::default(), worker);
         }
     }
@@ -510,7 +510,7 @@ pub fn create_test_workers(core: &mut Core, cpus: &[u32]) {
             extra: Default::default(),
         };
 
-        let worker = Worker::new(worker_id, wcfg, &[]);
+        let worker = Worker::new(worker_id, wcfg, Default::default());
         on_new_worker(core, &mut TestComm::default(), worker);
     }
 }

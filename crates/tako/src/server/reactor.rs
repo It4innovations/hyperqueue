@@ -702,7 +702,7 @@ mod tests {
             extra: Default::default(),
         };
 
-        let worker = Worker::new(402.into(), wcfg, &[]);
+        let worker = Worker::new(402.into(), wcfg, Default::default());
         on_new_worker(&mut core, &mut comm, worker);
 
         let new_w = comm.take_new_workers();
@@ -736,7 +736,7 @@ mod tests {
             extra: Default::default(),
         };
 
-        let worker = Worker::new(502.into(), wcfg2, &[]);
+        let worker = Worker::new(502.into(), wcfg2, Default::default());
         on_new_worker(&mut core, &mut comm, worker);
 
         let new_w = comm.take_new_workers();

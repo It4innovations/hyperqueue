@@ -2,6 +2,7 @@ use std::fmt;
 
 use tokio::sync::oneshot;
 
+use crate::common::resources::map::ResourceMap;
 use crate::common::resources::ResourceRequest;
 use crate::common::resources::{NumOfCpus, TimeRequest};
 use crate::common::Set;
@@ -170,9 +171,9 @@ impl Worker {
     pub fn new(
         id: WorkerId,
         configuration: WorkerConfiguration,
-        resource_names: &[String],
+        resource_map: ResourceMap,
     ) -> Self {
-        let resources = WorkerResources::from_description(&configuration.resources, resource_names);
+        let resources = WorkerResources::from_description(&configuration.resources, resource_map);
         let load = WorkerLoad::new(&resources);
         let now = std::time::Instant::now();
         Worker {

@@ -4,6 +4,7 @@ use std::time::Duration;
 use orion::aead::SecretKey;
 use tokio::task::JoinHandle;
 
+use crate::common::resources::map::{ResourceIdAllocator, ResourceMap};
 use crate::common::resources::{GenericResourceId, ResourceRequest};
 use crate::common::trace::trace_task_remove;
 use crate::common::{Map, Set, WrappedRcRefCell};
@@ -31,7 +32,7 @@ pub struct Core {
 
     maximal_task_id: TaskId,
     worker_id_counter: u32,
-    resource_names: Vec<String>, // "Map" from GenericResourceId -> to its name
+    resource_map: ResourceIdAllocator,
     worker_listen_port: u16,
 
     idle_timeout: Option<Duration>,
@@ -348,19 +349,19 @@ impl Core {
         }
     }
 
-    pub fn generic_resource_names(&self) -> &[String] {
-        &self.resource_names
+    #[inline]
+    pub fn get_or_create_generic_resource_id(&mut self, name: &str) -> GenericResourceId {
+        self.resource_map.get_or_allocate_id(name)
     }
 
-    pub fn get_or_create_generic_resource_id(&mut self, name: &str) -> GenericResourceId {
-        if let Some(p) = self.resource_names.iter().position(|n| name == n) {
-            GenericResourceId::new(p as u32)
-        } else {
-            let p = self.resource_names.len();
-            log::debug!("New generic resource registered '{}' as {}", name, p);
-            self.resource_names.push(name.to_string());
-            GenericResourceId::new(p as u32)
-        }
+    #[inline]
+    pub fn create_resource_map(&self) -> ResourceMap {
+        self.resource_map.create_map()
+    }
+
+    #[inline]
+    pub fn resource_count(&self) -> usize {
+        self.resource_map.resource_count()
     }
 
     pub fn set_secret_key(&mut self, secret_key: Option<Arc<SecretKey>>) {

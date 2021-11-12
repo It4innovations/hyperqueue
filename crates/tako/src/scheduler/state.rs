@@ -260,7 +260,7 @@ impl SchedulerState {
         log::debug!("Balancing started");
 
         let mut balanced_tasks = Vec::new();
-        let mut min_resource = ResourceRequestLowerBound::new(core.generic_resource_names().len());
+        let mut min_resource = ResourceRequestLowerBound::new(core.resource_count());
         let now = std::time::Instant::now();
 
         for worker in core.get_workers() {
