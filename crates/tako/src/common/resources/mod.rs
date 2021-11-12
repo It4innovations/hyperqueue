@@ -13,7 +13,8 @@ pub use descriptor::{
 pub use request::{CpuRequest, GenericResourceRequest, ResourceRequest, TimeRequest};
 
 pub type NumOfCpus = u32;
-pub type CpuId = u32;
+define_id_type!(CpuId, u32);
+define_id_type!(SocketId, u32);
 
 // Identifies a globally unique Resource request stored in Core.
 define_id_type!(GenericResourceId, u32);

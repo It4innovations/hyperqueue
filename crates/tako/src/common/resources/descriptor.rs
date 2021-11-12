@@ -62,7 +62,7 @@ pub fn cpu_descriptor_from_socket_size(
                 .map(|_| {
                     let id = cpu_id_counter;
                     cpu_id_counter += 1;
-                    id
+                    id.into()
                 })
                 .collect::<Vec<CpuId>>()
         })
@@ -159,6 +159,7 @@ impl ResourceDescriptor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::macros::AsIdVec;
 
     impl ResourceDescriptor {
         pub fn simple(n_cpus: NumOfCpus) -> Self {
@@ -193,23 +194,26 @@ mod tests {
 
     #[test]
     fn test_resources_to_summary() {
-        let d = ResourceDescriptor::new(vec![vec![0]], Vec::new());
+        let d = ResourceDescriptor::new(vec![vec![0].to_ids()], Vec::new());
         assert_eq!(&d.summary(false), "1x1 cpus");
 
-        let d = ResourceDescriptor::new(vec![vec![0, 1, 2]], Vec::new());
+        let d = ResourceDescriptor::new(vec![vec![0, 1, 2].to_ids()], Vec::new());
         assert_eq!(&d.summary(true), "1x3 cpus");
 
-        let d = ResourceDescriptor::new(vec![vec![0, 1, 2, 4], vec![10, 11, 12, 14]], Vec::new());
+        let d = ResourceDescriptor::new(
+            vec![vec![0, 1, 2, 4].to_ids(), vec![10, 11, 12, 14].to_ids()],
+            Vec::new(),
+        );
         assert_eq!(&d.summary(true), "2x4 cpus");
 
         let d = ResourceDescriptor::new(
             vec![
-                vec![0, 1],
-                vec![10, 11],
-                vec![20, 21],
-                vec![30, 31],
-                vec![40, 41],
-                vec![50, 51, 52, 53, 54, 55],
+                vec![0, 1].to_ids(),
+                vec![10, 11].to_ids(),
+                vec![20, 21].to_ids(),
+                vec![30, 31].to_ids(),
+                vec![40, 41].to_ids(),
+                vec![50, 51, 52, 53, 54, 55].to_ids(),
             ],
             Vec::new(),
         );
@@ -220,7 +224,7 @@ mod tests {
             GenericResourceDescriptor::indices("Ccc", 1, 132),
             GenericResourceDescriptor::sum("Bbb", 100_000_000),
         ];
-        let d = ResourceDescriptor::new(vec![vec![0, 1]], generic);
+        let d = ResourceDescriptor::new(vec![vec![0, 1].to_ids()], generic);
         assert_eq!(
             &d.summary(true),
             "1x2 cpus\nAaa: Indices(0-9)\nBbb: Sum(100000000)\nCcc: Indices(1-132)"
@@ -229,10 +233,13 @@ mod tests {
 
     #[test]
     fn test_resources_to_describe() {
-        let d = ResourceDescriptor::new(vec![vec![0]], Vec::new());
+        let d = ResourceDescriptor::new(vec![vec![0].to_ids()], Vec::new());
         assert_eq!(&d.full_describe(), "[0]");
 
-        let d = ResourceDescriptor::new(vec![vec![0, 1, 2, 4], vec![10, 11, 12, 14]], Vec::new());
+        let d = ResourceDescriptor::new(
+            vec![vec![0, 1, 2, 4].to_ids(), vec![10, 11, 12, 14].to_ids()],
+            Vec::new(),
+        );
         assert_eq!(&d.full_describe(), "[0, 1, 2, 4], [10, 11, 12, 14]");
     }
 }

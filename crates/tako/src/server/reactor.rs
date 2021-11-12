@@ -663,6 +663,7 @@ fn remove_task_if_possible(core: &mut Core, comm: &mut impl Comm, task: &mut Tas
 
 #[cfg(test)]
 mod tests {
+    use crate::common::macros::AsIdVec;
     use std::time::Duration;
 
     use crate::common::resources::ResourceDescriptor;
@@ -670,7 +671,7 @@ mod tests {
     use crate::messages::worker::ComputeTaskMsg;
     use crate::scheduler::state::tests::create_test_scheduler;
     use crate::tests::utils::{
-        cancel_tasks, create_test_comm, create_test_workers, fail_steal, finish_on_worker,
+        as_cpus, cancel_tasks, create_test_comm, create_test_workers, fail_steal, finish_on_worker,
         force_assign, force_reassign, sorted_vec, start_and_finish_on_worker, start_on_worker,
         start_stealing, submit_example_1, submit_test_tasks, task, task_with_deps,
     };
@@ -710,7 +711,7 @@ mod tests {
         let new_w = comm.take_new_workers();
         assert_eq!(new_w.len(), 1);
         assert_eq!(new_w[0].0.as_u32(), 402);
-        assert_eq!(new_w[0].1.resources.cpus, vec![vec![0, 1, 2, 3]]);
+        assert_eq!(new_w[0].1.resources.cpus, as_cpus(vec![vec![0, 1, 2, 3]]));
 
         assert!(
             matches!(comm.take_broadcasts(1)[0], ToWorkerMessage::NewWorker(NewWorkerMsg {
@@ -723,7 +724,10 @@ mod tests {
         assert_eq!(core.get_workers().count(), 1);
 
         let wcfg2 = WorkerConfiguration {
-            resources: ResourceDescriptor::new(vec![vec![2, 3, 4], vec![100, 150]], Vec::new()),
+            resources: ResourceDescriptor::new(
+                as_cpus(vec![vec![2, 3, 4], vec![100, 150]]),
+                Vec::new(),
+            ),
             listen_address: "test2:123".into(),
             hostname: "test2".to_string(),
             work_dir: Default::default(),
@@ -743,7 +747,7 @@ mod tests {
         assert_eq!(new_w[0].0.as_u32(), 502);
         assert_eq!(
             new_w[0].1.resources.cpus,
-            vec![vec![2, 3, 4], vec![100, 150]]
+            as_cpus(vec![vec![2, 3, 4], vec![100, 150]])
         );
 
         assert!(
@@ -997,7 +1001,7 @@ mod tests {
 
         comm.check_need_scheduling();
 
-        assert_eq!(comm.take_client_task_finished(1), vec![13.into()]);
+        assert_eq!(comm.take_client_task_finished(1), vec![13].to_ids());
 
         let msgs = comm.take_worker_msgs(100, 1);
         assert!(matches!(
@@ -1067,7 +1071,7 @@ mod tests {
         let mut msgs = comm.take_client_task_errors(1);
         let (id, cs, _) = msgs.pop().unwrap();
         assert_eq!(id.as_u64(), 13);
-        assert_eq!(sorted_vec(cs), vec![15.into(), 16.into(), 17.into()]);
+        assert_eq!(sorted_vec(cs), vec![15, 16, 17].to_ids());
         comm.emptiness_check();
 
         assert!(core.get_task_by_id(16.into()).is_none());
@@ -1152,7 +1156,9 @@ mod tests {
             .contains(&t3));
 
         let msgs = comm.take_worker_msgs(101, 1);
-        assert!(matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![13.into()]));
+        assert!(
+            matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![13].to_ids())
+        );
         comm.emptiness_check();
 
         on_steal_response(
@@ -1202,7 +1208,9 @@ mod tests {
         scheduler.finish_scheduling(&mut comm);
 
         let msgs = comm.take_worker_msgs(101, 1);
-        assert!(matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![13.into()]));
+        assert!(
+            matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![13].to_ids())
+        );
         comm.emptiness_check();
 
         let t3 = core.get_task_by_id_or_panic(13.into()).clone();
@@ -1308,11 +1316,11 @@ mod tests {
                 .map(|id| id.into())
                 .collect::<Vec<_>>()
         );
-        assert_eq!(sorted_vec(ft), vec![11.into(), 33.into()]);
+        assert_eq!(sorted_vec(ft), vec![11, 33].to_ids());
 
         let msgs = comm.take_worker_msgs(100, 1);
         assert!(
-            matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ref ids }) if ids == &vec![41.into()])
+            matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ref ids }) if ids == &vec![41].to_ids())
         );
 
         let msgs = comm.take_worker_msgs(101, 2);
@@ -1322,7 +1330,7 @@ mod tests {
             &ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(11) })
         ));
         assert!(
-            matches!(&msgs[1], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ref ids }) if sorted_vec(ids.clone()) == vec![12.into(), 40.into()])
+            matches!(&msgs[1], &ToWorkerMessage::CancelTasks(TaskIdsMsg{ ref ids }) if sorted_vec(ids.clone()) == vec![12, 40].to_ids())
         );
 
         assert_eq!(core.get_task_map().len(), 1);
@@ -1349,7 +1357,7 @@ mod tests {
         comm.emptiness_check();
 
         on_task_running(&mut core, &mut comm, 101.into(), 1.into());
-        assert_eq!(comm.take_client_task_running(1), vec![1.into()]);
+        assert_eq!(comm.take_client_task_running(1), vec![1].to_ids());
         comm.emptiness_check();
 
         on_task_running(&mut core, &mut comm, 101.into(), 2.into());
@@ -1374,7 +1382,7 @@ mod tests {
         assert_eq!(lw[0].0, WorkerId::new(101));
         assert_eq!(
             sorted_vec(std::mem::take(&mut lw[0].1)),
-            vec![1.into(), 2.into()]
+            vec![1, 2].to_ids()
         );
         comm.check_need_scheduling();
         comm.emptiness_check();
@@ -1602,7 +1610,7 @@ mod tests {
 
         assert_eq!(
             comm.take_lost_workers(),
-            vec![(WorkerId::new(101), vec![12.into()])]
+            vec![(WorkerId::new(101), vec![12].to_ids())]
         );
 
         assert_eq!(core.take_ready_to_assign().len(), 3);

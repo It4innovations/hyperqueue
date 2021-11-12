@@ -11,7 +11,7 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::common::resources::descriptor::cpu_descriptor_from_socket_size;
 use crate::common::resources::{
-    CpuRequest, GenericResourceAmount, GenericResourceDescriptor, GenericResourceId,
+    CpuId, CpuRequest, GenericResourceAmount, GenericResourceDescriptor, GenericResourceId,
     GenericResourceRequest, NumOfCpus, ResourceDescriptor, ResourceRequest,
 };
 use crate::common::{Map, WrappedRcRefCell};
@@ -692,6 +692,12 @@ pub fn submit_example_2(core: &mut Core) {
 pub fn sorted_vec<T: Ord>(mut vec: Vec<T>) -> Vec<T> {
     vec.sort();
     vec
+}
+
+pub fn as_cpus(ids: Vec<Vec<u32>>) -> Vec<Vec<CpuId>> {
+    ids.into_iter()
+        .map(|v| v.into_iter().map(|id| id.into()).collect())
+        .collect()
 }
 
 #[allow(unused)]
