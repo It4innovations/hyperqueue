@@ -1,6 +1,5 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
-use crate::client::resources::get_resource_names;
 use crate::client::status::{job_status, Status};
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
@@ -66,15 +65,12 @@ pub async fn output_job_detail(
     let responses =
         rpc_call!(connection, message, ToClientMessage::JobDetailResponse(r) => r).await?;
 
-    let resource_names = get_resource_names(connection, Vec::new()).await?;
-
     for response in responses {
         if let Some(job) = response.1 {
             gsettings.printer().print_job_detail(
                 job,
                 show_tasks,
                 get_worker_map(connection).await?,
-                &resource_names,
             );
         } else {
             log::error!("Job {} not found", response.0);

@@ -50,11 +50,6 @@ pub struct OverviewRequest {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct GenericResourceNames {
-    pub resource_names: Vec<String>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "op")]
 pub enum FromGatewayMessage {
     NewTasks(NewTasksMessage),
@@ -64,10 +59,6 @@ pub enum FromGatewayMessage {
     ServerInfo,
     GetOverview(OverviewRequest),
     StopWorker(StopWorkerRequest),
-
-    // Register names in the request (may be empty) and return ALL names
-    // in message GenericResourceNames
-    GetGenericResourceNames(GenericResourceNames),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -188,11 +179,6 @@ pub struct LostWorkerMessage {
     pub reason: LostWorkerReason,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct GenericResourceNamesResponse {
-    pub resource_names: Vec<String>,
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "op")]
 pub enum ToGatewayMessage {
@@ -207,5 +193,4 @@ pub enum ToGatewayMessage {
     NewWorker(NewWorkerMessage),
     LostWorker(LostWorkerMessage),
     WorkerStopped,
-    GenericResourceNames(GenericResourceNames),
 }

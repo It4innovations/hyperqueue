@@ -10,8 +10,8 @@ use tokio::sync::{oneshot, Notify};
 
 use tako::messages::common::{ProgramDefinition, TaskConfigurationMessage};
 use tako::messages::gateway::{
-    CancelTasks, FromGatewayMessage, GenericResourceNames, NewTasksMessage, OverviewRequest,
-    StopWorkerRequest, TaskDef, ToGatewayMessage,
+    CancelTasks, FromGatewayMessage, NewTasksMessage, OverviewRequest, StopWorkerRequest, TaskDef,
+    ToGatewayMessage,
 };
 
 use crate::client::status::{job_status, task_status, Status};
@@ -129,9 +129,6 @@ pub async fn client_rpc_loop<
                         //todo: take in overview_request as param
                         get_collected_overview(&tako_ref).await
                     }
-                    FromClientMessage::GetGenericResourceNames(msg) => {
-                        handle_get_resource_ids(&tako_ref, msg).await
-                    }
                 };
                 assert!(tx.send(response).await.is_ok());
             }
@@ -233,21 +230,6 @@ async fn handle_autoalloc_message(
         AutoAllocRequest::Events { descriptor } => get_event_log(state_ref, descriptor),
         AutoAllocRequest::Info { descriptor } => get_allocations(state_ref, descriptor),
         AutoAllocRequest::RemoveQueue(id) => remove_queue(state_ref, id).await,
-    }
-}
-
-async fn handle_get_resource_ids(
-    tako_ref: &Backend,
-    message: GenericResourceNames,
-) -> ToClientMessage {
-    let response = tako_ref
-        .send_tako_message(FromGatewayMessage::GetGenericResourceNames(message))
-        .await
-        .unwrap();
-    if let ToGatewayMessage::GenericResourceNames(r) = response {
-        ToClientMessage::GenericResourceNames(r)
-    } else {
-        ToClientMessage::Error("Failed to resource ids".to_string())
     }
 }
 

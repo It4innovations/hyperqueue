@@ -14,7 +14,7 @@ use tako::messages::common::{
 use crate::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
-use crate::client::resources::{get_resource_names, parse_cpu_request, parse_resource_request};
+use crate::client::resources::{parse_cpu_request, parse_resource_request};
 use crate::client::status::StatusList;
 use crate::common::arraydef::IntArray;
 use crate::common::placeholders::{JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER};
@@ -201,7 +201,7 @@ impl SubmitOpts {
 
         ResourceRequest {
             cpus: self.cpus.get().clone(),
-            min_time: self.time_request.get().clone(),
+            min_time: *self.time_request.get(),
             generic: generic_resources,
         }
     }
@@ -377,13 +377,9 @@ pub async fn resubmit_computation(
         status: opts.status.map(|x| x.to_vec()),
     });
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
-    let resource_names = get_resource_names(connection, Vec::new()).await?;
-    gsettings.printer().print_job_detail(
-        response.job,
-        false,
-        get_worker_map(connection).await?,
-        &resource_names,
-    );
+    gsettings
+        .printer()
+        .print_job_detail(response.job, false, get_worker_map(connection).await?);
     Ok(())
 }
 
