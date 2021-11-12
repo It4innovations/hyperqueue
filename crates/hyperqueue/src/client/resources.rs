@@ -79,7 +79,8 @@ pub fn resource_request_to_string(rq: &ResourceRequest, resource_names: &[String
     for grq in rq.generic_requests() {
         result.push_str(&format!(
             "\n{}: {}",
-            resource_names[grq.resource as usize], grq.amount,
+            resource_names[grq.resource.as_num() as usize],
+            grq.amount,
         ))
     }
     result

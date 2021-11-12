@@ -294,13 +294,13 @@ impl TaskBuilder {
         self
     }
 
-    pub fn generic_res(
+    pub fn generic_res<Id: Into<GenericResourceId>>(
         mut self,
-        idx: GenericResourceId,
+        idx: Id,
         amount: GenericResourceAmount,
     ) -> TaskBuilder {
         self.resources.add_generic_request(GenericResourceRequest {
-            resource: idx,
+            resource: idx.into(),
             amount,
         });
         self

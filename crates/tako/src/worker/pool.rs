@@ -114,7 +114,7 @@ impl ResourcePool {
     }
 
     pub fn fraction_of_resource(&self, generic_request: &GenericResourceRequest) -> f32 {
-        let size = self.generic_resource_sizes[generic_request.resource as usize];
+        let size = self.generic_resource_sizes[generic_request.resource.as_num() as usize];
         if size == 0 {
             0.0f32
         } else {
@@ -135,7 +135,7 @@ impl ResourcePool {
             self.free_cpus[socket_id as usize].push(cpu_id);
         }
         for ga in allocation.generic_allocations {
-            self.free_generic_resources[ga.resource as usize].release_allocation(ga.value);
+            self.free_generic_resources[ga.resource.as_num() as usize].release_allocation(ga.value);
         }
     }
 
@@ -292,7 +292,7 @@ impl ResourcePool {
         for gr in request.generic_requests() {
             let pool: &GenericResourcePool = self
                 .free_generic_resources
-                .get(gr.resource as usize)
+                .get(gr.resource.as_num() as usize)
                 .unwrap_or(&empty);
             if pool.size() < gr.amount {
                 return None;
@@ -311,7 +311,7 @@ impl ResourcePool {
         for gr in request.generic_requests() {
             let pool: &mut GenericResourcePool = self
                 .free_generic_resources
-                .get_mut(gr.resource as usize)
+                .get_mut(gr.resource.as_num() as usize)
                 .unwrap();
             generic_allocations.push(GenericResourceAllocation {
                 resource: gr.resource,
@@ -581,31 +581,31 @@ mod tests {
 
         let mut rq: ResourceRequest = CpuRequest::Compact(1).into();
         rq.add_generic_request(GenericResourceRequest {
-            resource: 3,
+            resource: 3.into(),
             amount: 1,
         });
         rq.add_generic_request(GenericResourceRequest {
-            resource: 0,
+            resource: 0.into(),
             amount: 12,
         });
         rq.add_generic_request(GenericResourceRequest {
-            resource: 1,
+            resource: 1.into(),
             amount: 1000_000,
         });
         rq.validate().unwrap();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
         assert_eq!(al.generic_allocations.len(), 3);
-        assert_eq!(al.generic_allocations[0].resource, 0);
+        assert_eq!(al.generic_allocations[0].resource.as_num(), 0);
         assert!(matches!(
             &al.generic_allocations[0].value,
             GenericResourceAllocationValue::Indices(indices) if indices.len() == 12
         ));
-        assert_eq!(al.generic_allocations[1].resource, 1);
+        assert_eq!(al.generic_allocations[1].resource.as_num(), 1);
         assert!(matches!(
             &al.generic_allocations[1].value,
             GenericResourceAllocationValue::Sum(1000_000)
         ));
-        assert_eq!(al.generic_allocations[2].resource, 3);
+        assert_eq!(al.generic_allocations[2].resource.as_num(), 3);
         assert!(matches!(
             &al.generic_allocations[2].value,
             GenericResourceAllocationValue::Indices(indices) if indices.len() == 1
@@ -626,7 +626,7 @@ mod tests {
 
         let mut rq: ResourceRequest = CpuRequest::Compact(1).into();
         rq.add_generic_request(GenericResourceRequest {
-            resource: 3,
+            resource: 3.into(),
             amount: 2,
         });
         assert!(pool.try_allocate_resources(&rq, None).is_none());

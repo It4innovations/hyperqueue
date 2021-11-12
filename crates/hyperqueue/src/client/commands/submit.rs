@@ -193,11 +193,13 @@ impl SubmitOpts {
             .map(|gr| {
                 let rq = gr.get();
                 GenericResourceRequest {
-                    resource: generic_resource_names
-                        .iter()
-                        .position(|name| name == &rq.0)
-                        .expect("Server does not return requested name")
-                        as GenericResourceId,
+                    resource: GenericResourceId::new(
+                        generic_resource_names
+                            .iter()
+                            .position(|name| name == &rq.0)
+                            .expect("Server does not return requested name")
+                            as u32,
+                    ),
                     amount: rq.1,
                 }
             })

@@ -358,7 +358,7 @@ mod tests {
         let mut request: ResourceRequest = CpuRequest::Compact(2).into();
 
         request.add_generic_request(GenericResourceRequest {
-            resource: 0,
+            resource: 0.into(),
             amount: 2,
         });
 
@@ -387,7 +387,7 @@ mod tests {
 
         let mut request: ResourceRequest = CpuRequest::Compact(2).into();
         request.add_generic_request(GenericResourceRequest {
-            resource: 0,
+            resource: 0.into(),
             amount: 8,
         });
         let t = worker_task(10, request, 1);
@@ -395,7 +395,7 @@ mod tests {
 
         let mut request: ResourceRequest = CpuRequest::Compact(2).into();
         request.add_generic_request(GenericResourceRequest {
-            resource: 0,
+            resource: 0.into(),
             amount: 12,
         });
         let t = worker_task(11, request, 1);
@@ -403,7 +403,7 @@ mod tests {
 
         let mut request: ResourceRequest = CpuRequest::Compact(2).into();
         request.add_generic_request(GenericResourceRequest {
-            resource: 1,
+            resource: 1.into(),
             amount: 50_000_000,
         });
         let t = worker_task(12, request, 1);
@@ -430,7 +430,7 @@ mod tests {
 
         let mut request: ResourceRequest = CpuRequest::Compact(2).into();
         request.add_generic_request(GenericResourceRequest {
-            resource: 0,
+            resource: 0.into(),
             amount: 18,
         });
         let t = worker_task(10, request, 1);
@@ -438,11 +438,11 @@ mod tests {
 
         let mut request: ResourceRequest = CpuRequest::Compact(2).into();
         request.add_generic_request(GenericResourceRequest {
-            resource: 0,
+            resource: 0.into(),
             amount: 10,
         });
         request.add_generic_request(GenericResourceRequest {
-            resource: 1,
+            resource: 1.into(),
             amount: 60_000_000,
         });
         let t = worker_task(11, request, 1);
@@ -450,7 +450,7 @@ mod tests {
 
         let mut request: ResourceRequest = CpuRequest::Compact(2).into();
         request.add_generic_request(GenericResourceRequest {
-            resource: 1,
+            resource: 1.into(),
             amount: 99_000_000,
         });
         let t = worker_task(12, request, 1);

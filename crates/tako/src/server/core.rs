@@ -348,12 +348,12 @@ impl Core {
 
     pub fn get_or_create_generic_resource_id(&mut self, name: &str) -> GenericResourceId {
         if let Some(p) = self.resource_names.iter().position(|n| name == n) {
-            p as GenericResourceId
+            GenericResourceId::new(p as u32)
         } else {
             let p = self.resource_names.len();
             log::debug!("New generic resource registered '{}' as {}", name, p);
             self.resource_names.push(name.to_string());
-            p as GenericResourceId
+            GenericResourceId::new(p as u32)
         }
     }
 
