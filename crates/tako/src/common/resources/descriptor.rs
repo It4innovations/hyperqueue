@@ -159,7 +159,7 @@ impl ResourceDescriptor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::macros::AsIdVec;
+    use crate::common::index::AsIdVec;
 
     impl ResourceDescriptor {
         pub fn simple(n_cpus: NumOfCpus) -> Self {

@@ -1,3 +1,57 @@
+use std::ops::{Deref, DerefMut, Index, IndexMut};
+
+/// Vec that can only be indexed by the specified `Idx` type.
+/// Useful in combination with index types created by `define_id_type`.
+#[derive(Debug, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[repr(transparent)]
+pub struct IndexVec<Idx, Value>(Vec<Value>, std::marker::PhantomData<Idx>);
+
+impl<Idx: Into<usize>, Value: Copy> IndexVec<Idx, Value> {
+    #[inline]
+    pub fn filled(value: Value, count: usize) -> Self {
+        Self(vec![value; count], Default::default())
+    }
+}
+
+impl<Idx: Into<usize>, Value> Index<Idx> for IndexVec<Idx, Value> {
+    type Output = Value;
+
+    #[inline]
+    fn index(&self, index: Idx) -> &Self::Output {
+        self.0.index(index.into())
+    }
+}
+
+impl<Idx: Into<usize>, Value> IndexMut<Idx> for IndexVec<Idx, Value> {
+    #[inline]
+    fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
+        self.0.index_mut(index.into())
+    }
+}
+
+impl<Idx, Value> From<Vec<Value>> for IndexVec<Idx, Value> {
+    #[inline]
+    fn from(vec: Vec<Value>) -> Self {
+        Self(vec, Default::default())
+    }
+}
+
+impl<Idx, Value> Deref for IndexVec<Idx, Value> {
+    type Target = Vec<Value>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<Idx, Value> DerefMut for IndexVec<Idx, Value> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 /// Create a newtype that will contain an index represented by an integer.
 #[macro_export]
 macro_rules! define_id_type {
@@ -44,6 +98,13 @@ macro_rules! define_id_type {
             }
         }
 
+        impl ::std::convert::From<$name> for usize {
+            #[inline]
+            fn from(id: $name) -> Self {
+                id.0 as usize
+            }
+        }
+
         impl ::std::fmt::Display for $name {
             #[inline]
             fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -59,7 +120,7 @@ macro_rules! define_id_type {
             }
         }
 
-        impl $crate::common::macros::AsIdVec<$name> for ::std::vec::Vec<$type> {
+        impl $crate::common::index::AsIdVec<$name> for ::std::vec::Vec<$type> {
             #[inline]
             fn to_ids(self) -> ::std::vec::Vec<$name> {
                 self.into_iter().map(|id| id.into()).collect()
@@ -72,24 +133,3 @@ macro_rules! define_id_type {
 pub trait AsIdVec<IdType> {
     fn to_ids(self) -> Vec<IdType>;
 }
-
-/// Create a newtype that will contain a type wrapped inside [`WrappedRcRefCell`].
-#[macro_export]
-macro_rules! define_wrapped_type {
-    ($name: ident, $type: ty $(, $visibility: vis)?) => {
-        #[derive(::std::clone::Clone)]
-        #[repr(transparent)]
-        $($visibility)* struct $name($crate::common::WrappedRcRefCell<$type>);
-
-        impl ::std::ops::Deref for $name {
-            type Target = $crate::common::WrappedRcRefCell<$type>;
-
-            #[inline]
-            fn deref(&self) -> &Self::Target {
-                &self.0
-            }
-        }
-    };
-}
-
-pub use {define_id_type, define_wrapped_type};

@@ -81,3 +81,22 @@ impl<T: ?Sized> PartialEq for WrappedRcRefCell<T> {
 }
 
 impl<T: ?Sized> Eq for WrappedRcRefCell<T> {}
+
+/// Create a newtype that will contain a type wrapped inside [`WrappedRcRefCell`].
+#[macro_export]
+macro_rules! define_wrapped_type {
+    ($name: ident, $type: ty $(, $visibility: vis)?) => {
+        #[derive(::std::clone::Clone)]
+        #[repr(transparent)]
+        $($visibility)* struct $name($crate::common::WrappedRcRefCell<$type>);
+
+        impl ::std::ops::Deref for $name {
+            type Target = $crate::common::WrappedRcRefCell<$type>;
+
+            #[inline]
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+    };
+}

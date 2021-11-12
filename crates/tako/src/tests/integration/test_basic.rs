@@ -1,4 +1,4 @@
-use crate::common::macros::AsIdVec;
+use crate::common::index::AsIdVec;
 use crate::messages::common::StdioDef;
 use crate::tests::integration::utils::api::cancel;
 use crate::tests::integration::utils::check_file_contents;

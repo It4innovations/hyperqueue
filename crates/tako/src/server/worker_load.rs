@@ -1,6 +1,7 @@
+use crate::common::index::IndexVec;
 use crate::common::resources::map::ResourceMap;
 use crate::common::resources::{
-    CpuRequest, GenericResourceAmount, NumOfCpus, ResourceDescriptor, ResourceRequest,
+    CpuRequest, GenericResourceAmount, NumOfCpus, ResourceDescriptor, ResourceRequest, ResourceVec,
 };
 
 // WorkerResources are transformed information from ResourceDescriptor
@@ -8,7 +9,7 @@ use crate::common::resources::{
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct WorkerResources {
     n_cpus: NumOfCpus,
-    n_generic_resources: Vec<GenericResourceAmount>,
+    n_generic_resources: ResourceVec<GenericResourceAmount>,
 }
 
 impl WorkerResources {
@@ -28,11 +29,12 @@ impl WorkerResources {
             .max()
             .unwrap_or(0);
 
-        let mut n_generic_resources = vec![0; n_generic_resources];
+        let mut n_generic_resources: ResourceVec<GenericResourceAmount> =
+            IndexVec::filled(0, n_generic_resources);
 
         for descriptor in &resource_desc.generic {
             let position = resource_map.get_index(&descriptor.name).unwrap();
-            n_generic_resources[position.as_num() as usize] = descriptor.kind.size()
+            n_generic_resources[position] = descriptor.kind.size()
         }
 
         WorkerResources {
@@ -80,14 +82,14 @@ impl WorkerResources {
 #[derive(Debug, Eq, PartialEq)]
 pub struct WorkerLoad {
     n_cpus: NumOfCpus,
-    n_generic_resources: Vec<GenericResourceAmount>,
+    n_generic_resources: ResourceVec<GenericResourceAmount>,
 }
 
 impl WorkerLoad {
     pub fn new(worker_resources: &WorkerResources) -> WorkerLoad {
         WorkerLoad {
             n_cpus: 0,
-            n_generic_resources: vec![0; worker_resources.n_generic_resources.len()],
+            n_generic_resources: IndexVec::filled(0, worker_resources.n_generic_resources.len()),
         }
     }
 
@@ -95,7 +97,7 @@ impl WorkerLoad {
     pub fn add_request(&mut self, rq: &ResourceRequest, wr: &WorkerResources) {
         self.n_cpus += wr.n_cpus(rq);
         for r in rq.generic_requests() {
-            self.n_generic_resources[r.resource.as_num() as usize] += r.amount;
+            self.n_generic_resources[r.resource] += r.amount;
         }
     }
 
@@ -103,7 +105,7 @@ impl WorkerLoad {
     pub fn remove_request(&mut self, rq: &ResourceRequest, wr: &WorkerResources) {
         self.n_cpus -= wr.n_cpus(rq);
         for r in rq.generic_requests() {
-            self.n_generic_resources[r.resource.as_num() as usize] -= r.amount;
+            self.n_generic_resources[r.resource] -= r.amount;
         }
     }
 
@@ -183,18 +185,16 @@ pub struct ResourceRequestLowerBound {
     empty: bool,
     n_cpus: Option<NumOfCpus>,
     all: bool,
-    n_generic_resources: Vec<GenericResourceAmount>,
+    n_generic_resources: ResourceVec<GenericResourceAmount>,
 }
 
 impl ResourceRequestLowerBound {
     pub fn new(n_resource: usize) -> Self {
-        let mut n_generic_resources = Vec::new();
-        n_generic_resources.resize(n_resource, 0);
         ResourceRequestLowerBound {
             empty: true,
             n_cpus: None,
             all: false,
-            n_generic_resources,
+            n_generic_resources: IndexVec::filled(0, n_resource),
         }
     }
 
@@ -224,7 +224,7 @@ impl ResourceRequestLowerBound {
         }
         if self.empty {
             for gr in request.generic_requests() {
-                self.n_generic_resources[gr.resource.as_num() as usize] = gr.amount;
+                self.n_generic_resources[gr.resource] = gr.amount;
             }
             self.empty = false;
         } else {
@@ -293,7 +293,7 @@ mod tests {
         });
         lb.include(&rq);
 
-        assert_eq!(lb.n_generic_resources, vec![0, 10, 0]);
+        assert_eq!(lb.n_generic_resources, vec![0, 10, 0].into());
 
         let mut rq: ResourceRequest = CpuRequest::Compact(3).into();
         rq.add_generic_request(GenericResourceRequest {
@@ -302,7 +302,7 @@ mod tests {
         });
         lb.include(&rq);
 
-        assert_eq!(lb.n_generic_resources, vec![0, 5, 0]);
+        assert_eq!(lb.n_generic_resources, vec![0, 5, 0].into());
 
         rq.add_generic_request(GenericResourceRequest {
             resource: 2.into(),
@@ -312,7 +312,7 @@ mod tests {
 
         assert_eq!(lb.n_cpus, Some(2));
         assert!(!lb.all);
-        assert_eq!(lb.n_generic_resources, vec![0, 5, 0]);
+        assert_eq!(lb.n_generic_resources, vec![0, 5, 0].into());
     }
 
     #[test]
@@ -329,7 +329,7 @@ mod tests {
         });
         lb.include(&rq);
 
-        assert_eq!(lb.n_generic_resources, vec![10, 20, 0]);
+        assert_eq!(lb.n_generic_resources, vec![10, 20, 0].into());
 
         let mut rq: ResourceRequest = CpuRequest::Compact(3).into();
         rq.add_generic_request(GenericResourceRequest {
@@ -338,7 +338,7 @@ mod tests {
         });
         lb.include(&rq);
 
-        assert_eq!(lb.n_generic_resources, vec![0, 20, 0]);
+        assert_eq!(lb.n_generic_resources, vec![0, 20, 0].into());
         assert_eq!(lb.n_cpus, Some(2));
         assert!(!lb.all);
     }
@@ -347,11 +347,11 @@ mod tests {
     pub fn worker_load_check_lb1() {
         let wr = WorkerResources {
             n_cpus: 4,
-            n_generic_resources: Vec::new(),
+            n_generic_resources: Default::default(),
         };
         let load = WorkerLoad {
             n_cpus: 2,
-            n_generic_resources: Vec::new(),
+            n_generic_resources: Default::default(),
         };
 
         let lb = ResourceRequestLowerBound::simple_cpus(Some(2), false);
@@ -377,7 +377,7 @@ mod tests {
     pub fn worker_load_check_lb2() {
         let wr = WorkerResources {
             n_cpus: 2,
-            n_generic_resources: vec![],
+            n_generic_resources: Default::default(),
         };
         let load = WorkerLoad::new(&wr);
 
@@ -404,19 +404,19 @@ mod tests {
     pub fn worker_load_check_lb_generic_resources() {
         let wr = WorkerResources {
             n_cpus: 2,
-            n_generic_resources: vec![10, 100, 5],
+            n_generic_resources: vec![10, 100, 5].into(),
         };
         let load = WorkerLoad::new(&wr);
         let load2 = WorkerLoad {
             n_cpus: 0,
-            n_generic_resources: vec![9, 0, 0, 0, 0],
+            n_generic_resources: vec![9, 0, 0, 0, 0].into(),
         };
 
         let lb = ResourceRequestLowerBound {
             empty: false,
             n_cpus: Some(2),
             all: false,
-            n_generic_resources: vec![2, 100, 0, 0],
+            n_generic_resources: vec![2, 100, 0, 0].into(),
         };
         assert!(load.have_immediate_resources_for_lb(&lb, &wr));
         assert!(!load2.have_immediate_resources_for_lb(&lb, &wr));
@@ -425,7 +425,7 @@ mod tests {
             empty: false,
             n_cpus: Some(2),
             all: false,
-            n_generic_resources: vec![0, 0, 0, 1],
+            n_generic_resources: vec![0, 0, 0, 1].into(),
         };
         assert!(!load.have_immediate_resources_for_lb(&lb, &wr));
 
@@ -433,7 +433,7 @@ mod tests {
             empty: false,
             n_cpus: Some(2),
             all: false,
-            n_generic_resources: vec![2, 101, 0, 0],
+            n_generic_resources: vec![2, 101, 0, 0].into(),
         };
         assert!(!load.have_immediate_resources_for_lb(&lb, &wr));
 
@@ -441,7 +441,7 @@ mod tests {
             empty: false,
             n_cpus: Some(2),
             all: false,
-            n_generic_resources: vec![0, 200, 0],
+            n_generic_resources: vec![0, 200, 0].into(),
         };
         assert!(!load.have_immediate_resources_for_lb(&lb, &wr));
     }
