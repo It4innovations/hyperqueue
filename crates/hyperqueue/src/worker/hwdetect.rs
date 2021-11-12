@@ -73,7 +73,7 @@ fn p_cpu_range(input: &str) -> NomResult<Vec<CpuId>> {
                 space0,
             )),
         )),
-        |(u, v)| crate::Result::Ok((u..=v.unwrap_or(u)).collect()),
+        |(u, v)| crate::Result::Ok((u..=v.unwrap_or(u)).map(|id| id.into()).collect()),
     )(input)
 }
 
@@ -91,20 +91,21 @@ fn parse_range(input: &str) -> anyhow::Result<Vec<CpuId>> {
 #[cfg(test)]
 mod tests {
     use super::{parse_range, read_linux_numa};
+    use tako::common::macros::AsIdVec;
 
     #[test]
     fn test_parse_range() {
-        assert_eq!(parse_range("10").unwrap(), vec![10]);
-        assert_eq!(parse_range("10\n").unwrap(), vec![10]);
-        assert_eq!(parse_range("0-3\n").unwrap(), vec![0, 1, 2, 3]);
+        assert_eq!(parse_range("10").unwrap(), vec![10].to_ids());
+        assert_eq!(parse_range("10\n").unwrap(), vec![10].to_ids());
+        assert_eq!(parse_range("0-3\n").unwrap(), vec![0, 1, 2, 3].to_ids());
         assert_eq!(
             parse_range("111-115\n").unwrap(),
-            vec![111, 112, 113, 114, 115]
+            vec![111, 112, 113, 114, 115].to_ids()
         );
-        assert_eq!(parse_range("2,7, 10").unwrap(), vec![2, 7, 10]);
+        assert_eq!(parse_range("2,7, 10").unwrap(), vec![2, 7, 10].to_ids());
         assert_eq!(
             parse_range("2-7,10-12,20").unwrap(),
-            vec![2, 3, 4, 5, 6, 7, 10, 11, 12, 20]
+            vec![2, 3, 4, 5, 6, 7, 10, 11, 12, 20].to_ids()
         );
         assert!(parse_range("xx\n").is_err());
         assert!(parse_range("-\n").is_err());

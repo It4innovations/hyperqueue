@@ -68,7 +68,19 @@ macro_rules! define_id_type {
                 Ok($name(s.parse::<$type>()?))
             }
         }
+
+        impl $crate::common::macros::AsIdVec<$name> for ::std::vec::Vec<$type> {
+            #[inline]
+            fn to_ids(self) -> ::std::vec::Vec<$name> {
+                self.into_iter().map(|id| id.into()).collect()
+            }
+        }
     };
+}
+
+/// Converts a vector of integers into a vector of a corresponding newtype index
+pub trait AsIdVec<IdType> {
+    fn to_ids(self) -> Vec<IdType>;
 }
 
 /// Create a newtype that will contain a type wrapped inside [`WrappedRcRefCell`].

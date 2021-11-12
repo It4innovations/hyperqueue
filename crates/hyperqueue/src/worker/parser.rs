@@ -87,13 +87,17 @@ fn parse_resource_definition(input: &str) -> anyhow::Result<GenericResourceDescr
 #[cfg(test)]
 mod test {
     use super::*;
+    use tako::common::macros::AsIdVec;
 
     #[test]
     fn test_parse_cpu_def() {
-        assert_eq!(parse_cpu_definition("4").unwrap(), vec![vec![0, 1, 2, 3]]);
+        assert_eq!(
+            parse_cpu_definition("4").unwrap(),
+            vec![vec![0, 1, 2, 3].to_ids()]
+        );
         assert_eq!(
             parse_cpu_definition("2x3").unwrap(),
-            vec![vec![0, 1, 2], vec![3, 4, 5]]
+            vec![vec![0, 1, 2].to_ids(), vec![3, 4, 5].to_ids()]
         );
     }
 

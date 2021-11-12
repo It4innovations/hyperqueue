@@ -37,7 +37,7 @@ impl Default for WorkerSecretKey {
 #[derive(Builder, Default)]
 #[builder(pattern = "owned")]
 pub struct ResourceConfig {
-    #[builder(default = "vec![vec![1]]")]
+    #[builder(default = "vec![vec![1.into()]]")]
     cpus: CpusDescriptor,
     #[builder(default)]
     generic: Vec<GenericResourceDescriptor>,
@@ -284,7 +284,7 @@ fn launcher(
 
 // Resource helpers
 pub fn cpus(count: u32) -> ResourceConfigBuilder {
-    ResourceConfigBuilder::default().cpus(vec![(0..count).collect()])
+    ResourceConfigBuilder::default().cpus(vec![(0..count).map(|id| id.into()).collect()])
 }
 pub fn numa_cpus(cpu_per_socket: u32, sockets: u32) -> ResourceConfigBuilder {
     let descriptor = cpu_descriptor_from_socket_size(sockets, cpu_per_socket);

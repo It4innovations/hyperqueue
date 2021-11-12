@@ -2,12 +2,10 @@ use crate::common::resources::{
     CpuId, CpuRequest, GenericResourceAllocation, GenericResourceAllocationValue,
     GenericResourceAllocations, GenericResourceAmount, GenericResourceDescriptorKind,
     GenericResourceIndex, GenericResourceRequest, NumOfCpus, ResourceAllocation,
-    ResourceDescriptor, ResourceRequest,
+    ResourceDescriptor, ResourceRequest, SocketId,
 };
 use crate::common::Map;
 use std::time::Duration;
-
-pub type SocketId = CpuId;
 
 #[derive(Debug)]
 pub enum GenericResourcePool {
@@ -80,7 +78,7 @@ impl ResourcePool {
             .cpus
             .iter()
             .enumerate()
-            .map(|(i, c)| c.iter().map(move |v| (*v as CpuId, i as SocketId)))
+            .map(|(i, c)| c.iter().map(move |&v| (v, SocketId::new(i as u32))))
             .flatten()
             .collect();
         let socket_size = desc.cpus.iter().map(|v| v.len()).max().unwrap() as NumOfCpus;
@@ -134,7 +132,7 @@ impl ResourcePool {
     pub fn release_allocation(&mut self, allocation: ResourceAllocation) {
         for cpu_id in allocation.cpus {
             let socket_id = *self.cpu_id_to_socket.get(&cpu_id).unwrap();
-            self.free_cpus[socket_id as usize].push(cpu_id);
+            self.free_cpus[socket_id.as_num() as usize].push(cpu_id);
         }
         for ga in allocation.generic_allocations {
             self.free_generic_resources[ga.resource.as_num() as usize].release_allocation(ga.value);
@@ -326,6 +324,7 @@ impl ResourcePool {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::macros::AsIdVec;
     use crate::common::resources::descriptor::cpu_descriptor_from_socket_size;
     use crate::common::resources::{
         CpuRequest, GenericResourceAllocationValue, GenericResourceDescriptor,
@@ -351,8 +350,8 @@ mod tests {
 
     #[test]
     fn test_pool_single_socket() {
-        let cpus = cpu_descriptor_from_socket_size(1, 4);
-        let mut pool = ResourcePool::new(&ResourceDescriptor::new(cpus, Vec::new()), &[]);
+        let cores = cpu_descriptor_from_socket_size(1, 4);
+        let mut pool = ResourcePool::new(&ResourceDescriptor::new(cores, Vec::new()), &[]);
 
         let rq = CpuRequest::Compact(2).into();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
@@ -360,7 +359,7 @@ mod tests {
         assert_eq!(pool.n_free_cpus(), 2);
         assert_eq!(al.cpus.len(), 2);
         assert!(al.cpus[0] < al.cpus[1]);
-        assert!(0 < al.cpus[0] && al.cpus[0] < al.cpus[1] && al.cpus[1] < 4);
+        assert!(0 < al.cpus[0].as_num() && al.cpus[0] < al.cpus[1] && al.cpus[1].as_num() < 4);
 
         let rq2 = CpuRequest::Compact(4).into();
         assert!(pool.try_allocate_resources(&rq2, None).is_none());
@@ -372,7 +371,7 @@ mod tests {
 
         let rq = CpuRequest::Compact(4).into();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
-        assert_eq!(al.cpus, vec![0, 1, 2, 3]);
+        assert_eq!(al.cpus, vec![0, 1, 2, 3].to_ids());
 
         assert_eq!(pool.n_free_cpus(), 0);
 
@@ -446,7 +445,7 @@ mod tests {
 
         let rq = CpuRequest::Compact(24).into();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
-        assert_eq!(al.cpus, (0..24).collect::<Vec<_>>());
+        assert_eq!(al.cpus, (0..24).map(|id| id.into()).collect::<Vec<_>>());
         assert_eq!(pool.n_free_cpus(), 0);
         pool.release_allocation(al);
         assert_eq!(pool.n_free_cpus(), 24);
@@ -459,7 +458,7 @@ mod tests {
 
         let rq = CpuRequest::All.into();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
-        assert_eq!(al.cpus, (0..24).collect::<Vec<_>>());
+        assert_eq!(al.cpus, (0..24).map(|id| id.into()).collect::<Vec<_>>());
         assert_eq!(pool.n_free_cpus(), 0);
         pool.release_allocation(al);
         assert_eq!(pool.n_free_cpus(), 24);
