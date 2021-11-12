@@ -87,7 +87,7 @@ fn parse_resource_definition(input: &str) -> anyhow::Result<GenericResourceDescr
 #[cfg(test)]
 mod test {
     use super::*;
-    use tako::common::macros::AsIdVec;
+    use tako::common::index::AsIdVec;
 
     #[test]
     fn test_parse_cpu_def() {

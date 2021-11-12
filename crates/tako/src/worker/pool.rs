@@ -1,9 +1,10 @@
+use crate::common::index::IndexVec;
 use crate::common::resources::map::ResourceMap;
 use crate::common::resources::{
     CpuId, CpuRequest, GenericResourceAllocation, GenericResourceAllocationValue,
     GenericResourceAllocations, GenericResourceAmount, GenericResourceDescriptorKind,
     GenericResourceIndex, GenericResourceRequest, NumOfCpus, ResourceAllocation,
-    ResourceDescriptor, ResourceRequest, SocketId,
+    ResourceDescriptor, ResourceRequest, ResourceVec, SocketId,
 };
 use crate::common::Map;
 use std::time::Duration;
@@ -63,12 +64,12 @@ impl GenericResourcePool {
 }
 
 pub struct ResourcePool {
-    free_cpus: Vec<Vec<CpuId>>,
+    free_cpus: IndexVec<SocketId, Vec<CpuId>>,
     cpu_id_to_socket: Map<CpuId, SocketId>,
     socket_size: NumOfCpus,
 
-    free_generic_resources: Vec<GenericResourcePool>,
-    generic_resource_sizes: Vec<GenericResourceAmount>,
+    free_generic_resources: ResourceVec<GenericResourcePool>,
+    generic_resource_sizes: ResourceVec<GenericResourceAmount>,
 }
 
 impl ResourcePool {
@@ -106,16 +107,16 @@ impl ResourcePool {
         let sizes: Vec<_> = generic_resources.iter().map(|pool| pool.size()).collect();
 
         ResourcePool {
-            free_cpus: desc.cpus.clone(),
+            free_cpus: desc.cpus.clone().into(),
             cpu_id_to_socket: cpu_ids,
             socket_size,
-            free_generic_resources: generic_resources,
-            generic_resource_sizes: sizes,
+            free_generic_resources: generic_resources.into(),
+            generic_resource_sizes: sizes.into(),
         }
     }
 
     pub fn fraction_of_resource(&self, generic_request: &GenericResourceRequest) -> f32 {
-        let size = self.generic_resource_sizes[generic_request.resource.as_num() as usize];
+        let size = self.generic_resource_sizes[generic_request.resource];
         if size == 0 {
             0.0f32
         } else {
@@ -133,10 +134,10 @@ impl ResourcePool {
     pub fn release_allocation(&mut self, allocation: ResourceAllocation) {
         for cpu_id in allocation.cpus {
             let socket_id = *self.cpu_id_to_socket.get(&cpu_id).unwrap();
-            self.free_cpus[socket_id.as_num() as usize].push(cpu_id);
+            self.free_cpus[socket_id].push(cpu_id);
         }
         for ga in allocation.generic_allocations {
-            self.free_generic_resources[ga.resource.as_num() as usize].release_allocation(ga.value);
+            self.free_generic_resources[ga.resource].release_allocation(ga.value);
         }
     }
 
@@ -151,7 +152,7 @@ impl ResourcePool {
 
     fn _take_all_free_cpus(&mut self) -> Vec<CpuId> {
         let mut cpus = Vec::new();
-        for group in &mut self.free_cpus {
+        for group in self.free_cpus.iter_mut() {
             cpus.append(group);
         }
         cpus
@@ -209,7 +210,7 @@ impl ResourcePool {
                 .unwrap()
                 .0;
             while n_cpus > 0 {
-                if let Some(cpu_id) = self.free_cpus[i % count].pop() {
+                if let Some(cpu_id) = self.free_cpus[SocketId::new((i % count) as u32)].pop() {
                     cpus.push(cpu_id);
                     n_cpus -= 1;
                 }
@@ -253,12 +254,16 @@ impl ResourcePool {
             }?
             .0;
             for _ in 0..remainder {
-                cpus.push(self.free_cpus[group_idx].pop().unwrap());
+                cpus.push(
+                    self.free_cpus[SocketId::new(group_idx as u32)]
+                        .pop()
+                        .unwrap(),
+                );
             }
         }
 
         if full_sockets > 0 {
-            for group in &mut self.free_cpus {
+            for group in self.free_cpus.iter_mut() {
                 if group.len() as NumOfCpus == self.socket_size {
                     cpus.append(group);
                     full_sockets -= 1;
@@ -325,7 +330,7 @@ impl ResourcePool {
 
 #[cfg(test)]
 mod tests {
-    use crate::common::macros::AsIdVec;
+    use crate::common::index::AsIdVec;
     use crate::common::resources::descriptor::cpu_descriptor_from_socket_size;
     use crate::common::resources::map::ResourceMap;
     use crate::common::resources::{
@@ -611,7 +616,7 @@ mod tests {
         );
 
         assert!(
-            matches!(&pool.free_generic_resources[2], GenericResourcePool::Indices(indices) if indices.len() == 2)
+            matches!(&pool.free_generic_resources[2.into()], GenericResourcePool::Indices(indices) if indices.len() == 2)
         );
 
         let mut rq: ResourceRequest = CpuRequest::Compact(1).into();
@@ -646,17 +651,17 @@ mod tests {
             GenericResourceAllocationValue::Indices(indices) if indices.len() == 1
         ));
         assert!(
-            matches!(&pool.free_generic_resources[0], GenericResourcePool::Indices(indices) if indices.len() == 84)
+            matches!(&pool.free_generic_resources[0.into()], GenericResourcePool::Indices(indices) if indices.len() == 84)
         );
         assert!(matches!(
-            pool.free_generic_resources[1],
+            pool.free_generic_resources[1.into()],
             GenericResourcePool::Sum(99_000_000)
         ));
         assert!(
-            matches!(&pool.free_generic_resources[2], GenericResourcePool::Indices(indices) if indices.len() == 2)
+            matches!(&pool.free_generic_resources[2.into()], GenericResourcePool::Indices(indices) if indices.len() == 2)
         );
         assert!(
-            matches!(&pool.free_generic_resources[3], GenericResourcePool::Indices(indices) if indices.len() == 1)
+            matches!(&pool.free_generic_resources[3.into()], GenericResourcePool::Indices(indices) if indices.len() == 1)
         );
 
         let mut rq: ResourceRequest = CpuRequest::Compact(1).into();
@@ -669,17 +674,17 @@ mod tests {
         pool.release_allocation(al);
 
         assert!(
-            matches!(&pool.free_generic_resources[0], GenericResourcePool::Indices(indices) if indices.len() == 96)
+            matches!(&pool.free_generic_resources[0.into()], GenericResourcePool::Indices(indices) if indices.len() == 96)
         );
         assert!(matches!(
-            pool.free_generic_resources[1],
+            pool.free_generic_resources[1.into()],
             GenericResourcePool::Sum(100_000_000)
         ));
         assert!(
-            matches!(&pool.free_generic_resources[2], GenericResourcePool::Indices(indices) if indices.len() == 2)
+            matches!(&pool.free_generic_resources[2.into()], GenericResourcePool::Indices(indices) if indices.len() == 2)
         );
         assert!(
-            matches!(&pool.free_generic_resources[3], GenericResourcePool::Indices(indices) if indices.len() == 2)
+            matches!(&pool.free_generic_resources[3.into()], GenericResourcePool::Indices(indices) if indices.len() == 2)
         );
     }
 }

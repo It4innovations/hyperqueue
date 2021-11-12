@@ -91,7 +91,7 @@ fn parse_range(input: &str) -> anyhow::Result<Vec<CpuId>> {
 #[cfg(test)]
 mod tests {
     use super::{parse_range, read_linux_numa};
-    use tako::common::macros::AsIdVec;
+    use tako::common::index::AsIdVec;
 
     #[test]
     fn test_parse_range() {

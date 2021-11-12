@@ -15,7 +15,7 @@ pub type Error = crate::common::error::HqError;
 pub type Result<T> = std::result::Result<T, Error>;
 
 // ID types
-use tako::common::macros::define_id_type;
+use tako::define_id_type;
 
 pub type WorkerId = tako::WorkerId;
 pub type TakoTaskId = tako::TaskId;

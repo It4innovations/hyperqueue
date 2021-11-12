@@ -3,6 +3,7 @@ pub mod descriptor;
 pub(crate) mod map;
 pub mod request;
 
+use crate::common::index::IndexVec;
 use crate::define_id_type;
 pub use allocation::{
     GenericResourceAllocation, GenericResourceAllocationValue, GenericResourceAllocations,
@@ -25,3 +26,5 @@ pub type GenericResourceAmount = u64;
 
 // Represents an index within a single generic resource (e.g. GPU with ID 1).
 define_id_type!(GenericResourceIndex, u32);
+
+pub type ResourceVec<T> = IndexVec<GenericResourceId, T>;

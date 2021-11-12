@@ -660,7 +660,7 @@ fn remove_task_if_possible(core: &mut Core, comm: &mut impl Comm, task: &mut Tas
 
 #[cfg(test)]
 mod tests {
-    use crate::common::macros::AsIdVec;
+    use crate::common::index::AsIdVec;
     use std::time::Duration;
 
     use crate::common::resources::ResourceDescriptor;
