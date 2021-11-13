@@ -12,6 +12,7 @@ use crate::server::task::TaskRef;
 use crate::server::worker::Worker;
 use crate::server::worker_load::WorkerLoad;
 use crate::tests::utils;
+use crate::tests::utils::resources::cpus_compact;
 use crate::tests::utils::schedule;
 use crate::tests::utils::task::TaskBuilder;
 use crate::transfer::auth::{deserialize, serialize};
@@ -114,7 +115,9 @@ impl TestEnv {
             .map(|n_cpus| {
                 let task_id = self.task_id_counter;
                 self.task_id_counter += 1;
-                TaskBuilder::new(task_id).cpus_compact(*n_cpus).build()
+                TaskBuilder::new(task_id)
+                    .resources(cpus_compact(*n_cpus))
+                    .build()
             })
             .collect();
         let trs_refs: Vec<_> = trs.iter().collect();

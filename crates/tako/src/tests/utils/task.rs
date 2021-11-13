@@ -1,7 +1,5 @@
-use crate::common::resources::{
-    CpuRequest, GenericResourceAmount, GenericResourceId, GenericResourceRequest, NumOfCpus,
-    ResourceRequest,
-};
+use super::resources::ResBuilder;
+use crate::common::resources::{CpuRequest, GenericResourceAmount, GenericResourceId, NumOfCpus};
 use crate::messages::common::TaskConfiguration;
 use crate::server::task::TaskRef;
 use crate::TaskId;
@@ -11,7 +9,7 @@ pub struct TaskBuilder {
     id: TaskId,
     inputs: Vec<TaskRef>,
     n_outputs: u32,
-    resources: ResourceRequest,
+    resources: ResBuilder,
 }
 
 impl TaskBuilder {
@@ -34,35 +32,38 @@ impl TaskBuilder {
         self
     }
 
-    pub fn cpus_compact(mut self, cpu_request: NumOfCpus) -> TaskBuilder {
-        self.resources.set_cpus(CpuRequest::Compact(cpu_request));
+    pub fn resources(mut self, resources: ResBuilder) -> TaskBuilder {
+        self.resources = resources;
         self
     }
 
-    pub fn time_request(mut self, time: u64) -> TaskBuilder {
-        self.resources.set_time(Duration::new(time, 0));
+    pub fn cpus_compact(mut self, count: NumOfCpus) -> TaskBuilder {
+        self.resources = self.resources.cpus(CpuRequest::Compact(count));
+        self
+    }
+
+    pub fn time_request(mut self, time_s: u64) -> TaskBuilder {
+        self.resources = self.resources.min_time(Duration::from_secs(time_s));
         self
     }
 
     pub fn generic_res<Id: Into<GenericResourceId>>(
         mut self,
-        idx: Id,
+        id: Id,
         amount: GenericResourceAmount,
     ) -> TaskBuilder {
-        self.resources.add_generic_request(GenericResourceRequest {
-            resource: idx.into(),
-            amount,
-        });
+        self.resources = self.resources.add_generic(id, amount);
         self
     }
 
     pub fn build(self) -> TaskRef {
-        self.resources.validate().unwrap();
+        let resources = self.resources.finish();
+        resources.validate().unwrap();
         TaskRef::new(
             self.id,
             self.inputs,
             TaskConfiguration {
-                resources: self.resources,
+                resources,
                 n_outputs: self.n_outputs,
                 time_limit: None,
                 body: Default::default(),
