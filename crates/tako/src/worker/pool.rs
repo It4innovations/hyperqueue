@@ -334,10 +334,13 @@ mod tests {
     use crate::common::resources::descriptor::cpu_descriptor_from_socket_size;
     use crate::common::resources::map::ResourceMap;
     use crate::common::resources::{
-        CpuRequest, GenericResourceAllocationValue, GenericResourceDescriptor,
-        GenericResourceRequest, ResourceAllocation, ResourceDescriptor, ResourceRequest,
+        GenericResourceAllocationValue, GenericResourceDescriptor, ResourceAllocation,
+        ResourceDescriptor, ResourceRequest,
     };
     use crate::common::Set;
+    use crate::tests::utils::resources::{
+        cpus_all, cpus_compact, cpus_force_compact, cpus_scatter,
+    };
     use crate::tests::utils::sorted_vec;
     use crate::worker::pool::{GenericResourcePool, ResourcePool, SocketId};
 
@@ -363,7 +366,7 @@ mod tests {
             &Default::default(),
         );
 
-        let rq = CpuRequest::Compact(2).into();
+        let rq = cpus_compact(2).finish();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
 
         assert_eq!(pool.n_free_cpus(), 2);
@@ -371,15 +374,15 @@ mod tests {
         assert!(al.cpus[0] < al.cpus[1]);
         assert!(0 < al.cpus[0].as_num() && al.cpus[0] < al.cpus[1] && al.cpus[1].as_num() < 4);
 
-        let rq2 = CpuRequest::Compact(4).into();
+        let rq2 = cpus_compact(4).finish();
         assert!(pool.try_allocate_resources(&rq2, None).is_none());
-        let rq2 = CpuRequest::Compact(3).into();
+        let rq2 = cpus_compact(3).finish();
         assert!(pool.try_allocate_resources(&rq2, None).is_none());
 
         pool.release_allocation(al);
         assert_eq!(pool.n_free_cpus(), 4);
 
-        let rq = CpuRequest::Compact(4).into();
+        let rq = cpus_compact(4).finish();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
         assert_eq!(al.cpus, vec![0, 1, 2, 3].to_ids());
 
@@ -389,9 +392,9 @@ mod tests {
 
         assert_eq!(pool.n_free_cpus(), 4);
 
-        let rq = CpuRequest::Compact(1).into();
-        let rq2 = CpuRequest::Compact(2).into();
-        let rq3 = CpuRequest::Compact(3).into();
+        let rq = cpus_compact(1).finish();
+        let rq2 = cpus_compact(2).finish();
+        let rq3 = cpus_compact(3).finish();
         let al1 = pool.try_allocate_resources(&rq, None).unwrap();
         assert_eq!(pool.n_free_cpus(), 3);
         let al2 = pool.try_allocate_resources(&rq, None).unwrap();
@@ -415,14 +418,14 @@ mod tests {
             &Default::default(),
         );
 
-        let rq1 = CpuRequest::Compact(4).into();
+        let rq1 = cpus_compact(4).finish();
         let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(pool.get_sockets(&al1).len(), 1);
         let al2 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(pool.get_sockets(&al2).len(), 1);
         assert_ne!(pool.get_sockets(&al1), pool.get_sockets(&al2));
 
-        let rq2 = CpuRequest::Compact(3).into();
+        let rq2 = cpus_compact(3).finish();
 
         let al3 = pool.try_allocate_resources(&rq2, None).unwrap();
         assert_eq!(pool.get_sockets(&al3).len(), 1);
@@ -430,22 +433,22 @@ mod tests {
         assert_eq!(pool.get_sockets(&al4).len(), 1);
         assert_eq!(pool.get_sockets(&al3), pool.get_sockets(&al4));
 
-        let rq3 = CpuRequest::Compact(6).into();
+        let rq3 = cpus_compact(6).finish();
         let al = pool.try_allocate_resources(&rq3, None).unwrap();
         assert_eq!(pool.get_sockets(&al).len(), 1);
         pool.release_allocation(al);
 
-        let rq3 = CpuRequest::Compact(7).into();
+        let rq3 = cpus_compact(7).finish();
         let al = pool.try_allocate_resources(&rq3, None).unwrap();
         assert_eq!(pool.get_sockets(&al).len(), 2);
         pool.release_allocation(al);
 
-        let rq3 = CpuRequest::Compact(8).into();
+        let rq3 = cpus_compact(8).finish();
         let al = pool.try_allocate_resources(&rq3, None).unwrap();
         assert_eq!(pool.get_sockets(&al).len(), 2);
         pool.release_allocation(al);
 
-        let rq3 = CpuRequest::Compact(9).into();
+        let rq3 = cpus_compact(9).finish();
         let al = pool.try_allocate_resources(&rq3, None).unwrap();
         assert_eq!(pool.get_sockets(&al).len(), 3);
         pool.release_allocation(al);
@@ -459,7 +462,7 @@ mod tests {
             &Default::default(),
         );
 
-        let rq = CpuRequest::Compact(24).into();
+        let rq = cpus_compact(24).finish();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
         assert_eq!(al.cpus, (0..24).map(|id| id.into()).collect::<Vec<_>>());
         assert_eq!(pool.n_free_cpus(), 0);
@@ -475,14 +478,14 @@ mod tests {
             &Default::default(),
         );
 
-        let rq = CpuRequest::All.into();
+        let rq = cpus_all().finish();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
         assert_eq!(al.cpus, (0..24).map(|id| id.into()).collect::<Vec<_>>());
         assert_eq!(pool.n_free_cpus(), 0);
         pool.release_allocation(al);
         assert_eq!(pool.n_free_cpus(), 24);
 
-        let rq2 = CpuRequest::Compact(1).into();
+        let rq2 = cpus_compact(1).finish();
         assert!(pool.try_allocate_resources(&rq2, None).is_some());
         assert!(pool.try_allocate_resources(&rq, None).is_none());
     }
@@ -495,17 +498,17 @@ mod tests {
             &Default::default(),
         );
 
-        let rq1 = CpuRequest::ForceCompact(9).into();
+        let rq1 = cpus_force_compact(9).finish();
         assert!(pool.try_allocate_resources(&rq1, None).is_none());
 
         for _ in 0..4 {
-            let rq1 = CpuRequest::ForceCompact(2).into();
+            let rq1 = cpus_force_compact(2).finish();
             let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
             assert_eq!(al1.cpus.len(), 2);
             assert_eq!(pool.get_sockets(&al1).len(), 1);
         }
 
-        let rq1 = CpuRequest::ForceCompact(2).into();
+        let rq1 = cpus_force_compact(2).finish();
         assert!(pool.try_allocate_resources(&rq1, None).is_none());
     }
 
@@ -518,16 +521,16 @@ mod tests {
         );
 
         for _ in 0..2 {
-            let rq1 = CpuRequest::ForceCompact(3).into();
+            let rq1 = cpus_force_compact(3).finish();
             let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
             assert_eq!(al1.cpus.len(), 3);
             assert_eq!(pool.get_sockets(&al1).len(), 1);
         }
 
-        let rq1 = CpuRequest::ForceCompact(2).into();
+        let rq1 = cpus_force_compact(2).finish();
         assert!(pool.try_allocate_resources(&rq1, None).is_none());
 
-        let rq1 = CpuRequest::Compact(2).into();
+        let rq1 = cpus_compact(2).finish();
         assert!(pool.try_allocate_resources(&rq1, None).is_some());
     }
 
@@ -539,19 +542,19 @@ mod tests {
             &Default::default(),
         );
 
-        let rq1 = CpuRequest::ForceCompact(8).into();
+        let rq1 = cpus_force_compact(8).finish();
         let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(al1.cpus.len(), 8);
         assert_eq!(pool.get_sockets(&al1).len(), 2);
         pool.release_allocation(al1);
 
-        let rq1 = CpuRequest::ForceCompact(5).into();
+        let rq1 = cpus_force_compact(5).finish();
         let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(al1.cpus.len(), 5);
         assert_eq!(pool.get_sockets(&al1).len(), 2);
         pool.release_allocation(al1);
 
-        let rq1 = CpuRequest::ForceCompact(10).into();
+        let rq1 = cpus_force_compact(10).finish();
         let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(al1.cpus.len(), 10);
         assert_eq!(pool.get_sockets(&al1).len(), 3);
@@ -566,12 +569,12 @@ mod tests {
             &Default::default(),
         );
 
-        let rq1 = CpuRequest::Scatter(3).into();
+        let rq1 = cpus_scatter(3).finish();
         let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(al1.cpus.len(), 3);
         assert_eq!(pool.get_sockets(&al1).len(), 3);
 
-        let rq1 = CpuRequest::Scatter(4).into();
+        let rq1 = cpus_scatter(4).finish();
         let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(al1.cpus.len(), 4);
         assert_eq!(pool.get_sockets(&al1).len(), 3);
@@ -585,10 +588,10 @@ mod tests {
             &Default::default(),
         );
 
-        let rq1 = CpuRequest::ForceCompact(4).into();
+        let rq1 = cpus_force_compact(4).finish();
         pool.try_allocate_resources(&rq1, None).unwrap();
 
-        let rq1 = CpuRequest::Scatter(5).into();
+        let rq1 = cpus_scatter(5).finish();
         let al1 = pool.try_allocate_resources(&rq1, None).unwrap();
         assert_eq!(al1.cpus.len(), 5);
         assert_eq!(pool.get_sockets(&al1).len(), 2);
@@ -619,19 +622,11 @@ mod tests {
             matches!(&pool.free_generic_resources[2.into()], GenericResourcePool::Indices(indices) if indices.len() == 2)
         );
 
-        let mut rq: ResourceRequest = CpuRequest::Compact(1).into();
-        rq.add_generic_request(GenericResourceRequest {
-            resource: 3.into(),
-            amount: 1,
-        });
-        rq.add_generic_request(GenericResourceRequest {
-            resource: 0.into(),
-            amount: 12,
-        });
-        rq.add_generic_request(GenericResourceRequest {
-            resource: 1.into(),
-            amount: 1000_000,
-        });
+        let rq: ResourceRequest = cpus_compact(1)
+            .add_generic(3, 1)
+            .add_generic(0, 12)
+            .add_generic(1, 1000_000)
+            .finish();
         rq.validate().unwrap();
         let al = pool.try_allocate_resources(&rq, None).unwrap();
         assert_eq!(al.generic_allocations.len(), 3);
@@ -664,11 +659,7 @@ mod tests {
             matches!(&pool.free_generic_resources[3.into()], GenericResourcePool::Indices(indices) if indices.len() == 1)
         );
 
-        let mut rq: ResourceRequest = CpuRequest::Compact(1).into();
-        rq.add_generic_request(GenericResourceRequest {
-            resource: 3.into(),
-            amount: 2,
-        });
+        let rq: ResourceRequest = cpus_compact(1).add_generic(3, 2).finish();
         assert!(pool.try_allocate_resources(&rq, None).is_none());
 
         pool.release_allocation(al);

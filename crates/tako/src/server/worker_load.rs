@@ -248,29 +248,30 @@ impl ResourceRequestLowerBound {
 
 #[cfg(test)]
 mod tests {
-    use crate::common::resources::{CpuRequest, GenericResourceRequest, ResourceRequest};
+    use crate::common::resources::ResourceRequest;
     use crate::server::worker_load::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
+    use crate::tests::utils::resources::{cpus_all, cpus_compact};
 
     #[test]
     pub fn worker_lb_include1() {
         let mut lb = ResourceRequestLowerBound::new(0);
-        lb.include(&CpuRequest::Compact(4).into());
+        lb.include(&cpus_compact(4).finish());
         assert_eq!(lb.n_cpus, Some(4));
         assert!(!lb.all);
 
-        lb.include(&CpuRequest::Compact(2).into());
+        lb.include(&cpus_compact(2).finish());
         assert_eq!(lb.n_cpus, Some(2));
         assert!(!lb.all);
 
-        lb.include(&CpuRequest::Compact(4).into());
+        lb.include(&cpus_compact(4).finish());
         assert_eq!(lb.n_cpus, Some(2));
         assert!(!lb.all);
 
-        lb.include(&CpuRequest::All.into());
+        lb.include(&cpus_all().finish());
         assert_eq!(lb.n_cpus, Some(2));
         assert!(lb.all);
 
-        lb.include(&CpuRequest::Compact(1).into());
+        lb.include(&cpus_compact(1).finish());
         assert_eq!(lb.n_cpus, Some(1));
         assert!(lb.all);
     }
@@ -278,7 +279,7 @@ mod tests {
     #[test]
     pub fn worker_lb_include2() {
         let mut lb = ResourceRequestLowerBound::new(0);
-        lb.include(&CpuRequest::All.into());
+        lb.include(&cpus_all().finish());
         assert_eq!(lb.n_cpus, None);
         assert!(lb.all);
     }
@@ -286,29 +287,18 @@ mod tests {
     #[test]
     pub fn worker_lb_include_generic_resources1() {
         let mut lb = ResourceRequestLowerBound::new(3);
-        let mut rq: ResourceRequest = CpuRequest::Compact(2).into();
-        rq.add_generic_request(GenericResourceRequest {
-            resource: 1.into(),
-            amount: 10,
-        });
+        let rq: ResourceRequest = cpus_compact(2).add_generic(1, 10).finish();
         lb.include(&rq);
 
         assert_eq!(lb.n_generic_resources, vec![0, 10, 0].into());
 
-        let mut rq: ResourceRequest = CpuRequest::Compact(3).into();
-        rq.add_generic_request(GenericResourceRequest {
-            resource: 1.into(),
-            amount: 5,
-        });
-        lb.include(&rq);
+        let rbuilder = cpus_compact(3).add_generic(1, 5);
+        lb.include(&rbuilder.clone().finish());
 
         assert_eq!(lb.n_generic_resources, vec![0, 5, 0].into());
 
-        rq.add_generic_request(GenericResourceRequest {
-            resource: 2.into(),
-            amount: 100,
-        });
-        lb.include(&rq);
+        let rbuilder = rbuilder.add_generic(2, 100);
+        lb.include(&rbuilder.finish());
 
         assert_eq!(lb.n_cpus, Some(2));
         assert!(!lb.all);
@@ -318,24 +308,15 @@ mod tests {
     #[test]
     pub fn worker_lb_include_generic_resources2() {
         let mut lb = ResourceRequestLowerBound::new(3);
-        let mut rq: ResourceRequest = CpuRequest::Compact(2).into();
-        rq.add_generic_request(GenericResourceRequest {
-            resource: 0.into(),
-            amount: 10,
-        });
-        rq.add_generic_request(GenericResourceRequest {
-            resource: 1.into(),
-            amount: 20,
-        });
+        let rq: ResourceRequest = cpus_compact(2)
+            .add_generic(0, 10)
+            .add_generic(1, 20)
+            .finish();
         lb.include(&rq);
 
         assert_eq!(lb.n_generic_resources, vec![10, 20, 0].into());
 
-        let mut rq: ResourceRequest = CpuRequest::Compact(3).into();
-        rq.add_generic_request(GenericResourceRequest {
-            resource: 1.into(),
-            amount: 25,
-        });
+        let rq: ResourceRequest = cpus_compact(3).add_generic(1, 25).finish();
         lb.include(&rq);
 
         assert_eq!(lb.n_generic_resources, vec![0, 20, 0].into());

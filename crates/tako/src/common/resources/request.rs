@@ -129,44 +129,17 @@ impl ResourceRequest {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    impl ResourceRequest {
-        pub fn add_generic_request(&mut self, request: GenericResourceRequest) {
-            self.generic.push(request);
-            self.generic.sort_unstable_by_key(|r| r.resource);
-        }
-
-        pub fn set_cpus(&mut self, cpus: CpuRequest) {
-            self.cpus = cpus;
-        }
-
-        pub fn set_time(&mut self, time: Duration) {
-            self.min_time = time;
-        }
-    }
-
-    impl From<CpuRequest> for ResourceRequest {
-        fn from(cpu_request: CpuRequest) -> Self {
-            ResourceRequest::new(cpu_request, Duration::default(), Default::default())
-        }
-    }
+    use crate::common::resources::CpuRequest;
+    use crate::tests::utils::resources::ResBuilder;
 
     #[test]
     fn test_resource_request_validate() {
-        let mut rq: ResourceRequest = CpuRequest::All.into();
-        rq.add_generic_request(GenericResourceRequest {
-            resource: 10.into(),
-            amount: 4,
-        });
-        rq.add_generic_request(GenericResourceRequest {
-            resource: 7.into(),
-            amount: 6,
-        });
-        rq.add_generic_request(GenericResourceRequest {
-            resource: 10.into(),
-            amount: 6,
-        });
+        let rq = ResBuilder::default()
+            .cpus(CpuRequest::All)
+            .add_generic(10, 4)
+            .add_generic(7, 6)
+            .add_generic(10, 6)
+            .finish();
         assert!(rq.validate().is_err())
     }
 }

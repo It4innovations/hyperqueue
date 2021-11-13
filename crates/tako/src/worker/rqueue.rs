@@ -104,10 +104,11 @@ mod tests {
     use crate::common::resources::descriptor::cpu_descriptor_from_socket_size;
     use crate::common::resources::map::ResourceMap;
     use crate::common::resources::{
-        CpuRequest, GenericResourceDescriptor, GenericResourceRequest, ResourceAllocation,
-        ResourceDescriptor, ResourceRequest,
+        CpuRequest, GenericResourceDescriptor, ResourceAllocation, ResourceDescriptor,
+        ResourceRequest,
     };
     use crate::common::Map;
+    use crate::tests::utils::resources::{cpus_compact, cpus_force_compact, cpus_scatter};
     use crate::worker::rqueue::ResourceWaitQueue;
     use crate::worker::test_util::worker_task;
     use std::time::Duration;
@@ -136,11 +137,11 @@ mod tests {
             &ResourceDescriptor::new(cpus, Vec::new()),
             &Default::default(),
         );
-        let t = worker_task(10, CpuRequest::Scatter(4).into(), 1);
+        let t = worker_task(10, cpus_scatter(4).finish(), 1);
         rq.add_task(t);
-        let t = worker_task(11, CpuRequest::Compact(4).into(), 1);
+        let t = worker_task(11, cpus_compact(4).finish(), 1);
         rq.add_task(t);
-        let t = worker_task(12, CpuRequest::ForceCompact(4).into(), 1);
+        let t = worker_task(12, cpus_force_compact(4).finish(), 1);
         rq.add_task(t);
 
         let mut tasks = rq.try_start_tasks(None);
@@ -169,11 +170,11 @@ mod tests {
             &ResourceDescriptor::new(cpus, Vec::new()),
             &Default::default(),
         );
-        let t = worker_task(10, CpuRequest::Compact(2).into(), 1);
+        let t = worker_task(10, cpus_compact(2).finish(), 1);
         rq.add_task(t);
-        let t = worker_task(11, CpuRequest::Compact(5).into(), 1);
+        let t = worker_task(11, cpus_compact(5).finish(), 1);
         rq.add_task(t);
-        let t = worker_task(12, CpuRequest::Compact(2).into(), 1);
+        let t = worker_task(12, cpus_compact(2).finish(), 1);
         rq.add_task(t);
 
         let a = start_tasks_map(&mut rq);
@@ -189,11 +190,11 @@ mod tests {
             &ResourceDescriptor::new(cpus, Vec::new()),
             &Default::default(),
         );
-        let t = worker_task(10, CpuRequest::Compact(2).into(), 1);
+        let t = worker_task(10, cpus_compact(2).finish(), 1);
         rq.add_task(t);
-        let t = worker_task(11, CpuRequest::Compact(1).into(), 2);
+        let t = worker_task(11, cpus_compact(1).finish(), 2);
         rq.add_task(t);
-        let t = worker_task(12, CpuRequest::Compact(2).into(), 2);
+        let t = worker_task(12, cpus_compact(2).finish(), 2);
         rq.add_task(t);
 
         let a = start_tasks_map(&mut rq);
@@ -212,11 +213,11 @@ mod tests {
             &ResourceDescriptor::new(cpus, Vec::new()),
             &Default::default(),
         );
-        let t = worker_task(10, CpuRequest::Compact(2).into(), 1);
+        let t = worker_task(10, cpus_compact(2).finish(), 1);
         rq.add_task(t);
-        let t = worker_task(11, CpuRequest::Compact(1).into(), 1);
+        let t = worker_task(11, cpus_compact(1).finish(), 1);
         rq.add_task(t);
-        let t = worker_task(12, CpuRequest::Compact(2).into(), 2);
+        let t = worker_task(12, cpus_compact(2).finish(), 2);
         rq.add_task(t);
 
         let a = start_tasks_map(&mut rq);
@@ -380,16 +381,11 @@ mod tests {
             &ResourceMap::from_vec(vec!["Res0".into(), "Res1".into(), "Res2".into()]),
         );
 
-        let mut request: ResourceRequest = CpuRequest::Compact(2).into();
-
-        request.add_generic_request(GenericResourceRequest {
-            resource: 0.into(),
-            amount: 2,
-        });
+        let request: ResourceRequest = cpus_compact(2).add_generic(0, 2).finish();
 
         let t = worker_task(10, request, 1);
         rq.add_task(t);
-        let t = worker_task(11, CpuRequest::Compact(4).into(), 1);
+        let t = worker_task(11, cpus_compact(4).finish(), 1);
         rq.add_task(t);
 
         let a = start_tasks_map(&mut rq);
@@ -412,27 +408,15 @@ mod tests {
             &ResourceMap::from_vec(vec!["Res0".into(), "Res1".into(), "Res2".into()]),
         );
 
-        let mut request: ResourceRequest = CpuRequest::Compact(2).into();
-        request.add_generic_request(GenericResourceRequest {
-            resource: 0.into(),
-            amount: 8,
-        });
+        let request: ResourceRequest = cpus_compact(2).add_generic(0, 8).finish();
         let t = worker_task(10, request, 1);
         rq.add_task(t);
 
-        let mut request: ResourceRequest = CpuRequest::Compact(2).into();
-        request.add_generic_request(GenericResourceRequest {
-            resource: 0.into(),
-            amount: 12,
-        });
+        let request: ResourceRequest = cpus_compact(2).add_generic(0, 12).finish();
         let t = worker_task(11, request, 1);
         rq.add_task(t);
 
-        let mut request: ResourceRequest = CpuRequest::Compact(2).into();
-        request.add_generic_request(GenericResourceRequest {
-            resource: 1.into(),
-            amount: 50_000_000,
-        });
+        let request: ResourceRequest = cpus_compact(2).add_generic(1, 50_000_000).finish();
         let t = worker_task(12, request, 1);
         rq.add_task(t);
 
@@ -457,31 +441,18 @@ mod tests {
             &ResourceMap::from_vec(vec!["Res0".into(), "Res1".into(), "Res2".into()]),
         );
 
-        let mut request: ResourceRequest = CpuRequest::Compact(2).into();
-        request.add_generic_request(GenericResourceRequest {
-            resource: 0.into(),
-            amount: 18,
-        });
+        let request: ResourceRequest = cpus_compact(2).add_generic(0, 18).finish();
         let t = worker_task(10, request, 1);
         rq.add_task(t);
 
-        let mut request: ResourceRequest = CpuRequest::Compact(2).into();
-        request.add_generic_request(GenericResourceRequest {
-            resource: 0.into(),
-            amount: 10,
-        });
-        request.add_generic_request(GenericResourceRequest {
-            resource: 1.into(),
-            amount: 60_000_000,
-        });
+        let request: ResourceRequest = cpus_compact(2)
+            .add_generic(0, 10)
+            .add_generic(1, 60_000_000)
+            .finish();
         let t = worker_task(11, request, 1);
         rq.add_task(t);
 
-        let mut request: ResourceRequest = CpuRequest::Compact(2).into();
-        request.add_generic_request(GenericResourceRequest {
-            resource: 1.into(),
-            amount: 99_000_000,
-        });
+        let request: ResourceRequest = cpus_compact(2).add_generic(1, 99_000_000).finish();
         let t = worker_task(12, request, 1);
         rq.add_task(t);
 
