@@ -6,11 +6,14 @@ use crate::messages::worker::{StealResponse, StealResponseMsg, ToWorkerMessage};
 use crate::server::core::Core;
 use crate::server::reactor::on_steal_response;
 use crate::server::task::TaskRef;
-use crate::tests::utils::create_test_scheduler;
-use crate::tests::utils::{
-    create_test_comm, create_test_workers, finish_on_worker, start_and_finish_on_worker,
-    submit_example_1, submit_test_tasks, task, TaskBuilder, TestEnv,
+use crate::tests::utils::env::{create_test_comm, TestEnv};
+use crate::tests::utils::schedule::{
+    create_test_scheduler, create_test_workers, finish_on_worker, start_and_finish_on_worker,
+    submit_test_tasks,
 };
+use crate::tests::utils::task::task;
+use crate::tests::utils::task::TaskBuilder;
+use crate::tests::utils::workflows::submit_example_1;
 use crate::{TaskId, WorkerId};
 use std::time::Duration;
 

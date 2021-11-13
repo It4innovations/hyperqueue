@@ -375,7 +375,9 @@ mod tests {
 
     use crate::server::core::Core;
     use crate::server::task::{Task, TaskRuntimeState};
-    use crate::tests::utils::{submit_test_tasks, task, task_with_deps};
+    use crate::tests::utils::schedule::submit_test_tasks;
+    use crate::tests::utils::task;
+    use crate::tests::utils::task::task_with_deps;
 
     //use crate::test_util::{submit_test_tasks, task, task_with_deps};
 
@@ -390,14 +392,14 @@ mod tests {
 
     #[test]
     fn task_consumers_empty() {
-        let a = task(0);
+        let a = task::task(0);
         assert_eq!(a.get().collect_consumers(), Default::default());
     }
 
     #[test]
     fn task_recursive_consumers() {
         let mut core = Core::default();
-        let a = task(0);
+        let a = task::task(0);
         let b = task_with_deps(1, &[&a], 1);
         let c = task_with_deps(2, &[&b], 1);
         let d = task_with_deps(3, &[&b], 1);

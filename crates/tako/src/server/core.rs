@@ -423,7 +423,7 @@ mod tests {
     #[test]
     fn add_remove() {
         let mut core = Core::default();
-        let t = task(101);
+        let t = task::task(101);
         core.add_task(t.clone());
         assert_eq!(core.get_task_by_id(101.into()).unwrap(), &t);
         assert!(match core.remove_task(&mut t.get_mut()) {
