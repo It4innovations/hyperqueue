@@ -19,5 +19,4 @@ pub type PriorityTuple = (Priority, Priority); // user priority, scheduler prior
 pub type Error = crate::common::error::DsError;
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[cfg(test)]
-mod tests;
+pub mod tests;

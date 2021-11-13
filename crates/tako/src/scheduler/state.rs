@@ -87,6 +87,17 @@ pub async fn scheduler_loop(
 }
 
 impl SchedulerState {
+    #[cfg(test)]
+    pub(crate) fn new() -> SchedulerState {
+        Self {
+            dirty_tasks: Default::default(),
+            random: SmallRng::from_seed([
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0,
+            ]),
+        }
+    }
+
     pub(crate) fn run_scheduling(&mut self, core: &mut Core, comm: &mut impl Comm) {
         if self.schedule_available_tasks(core) {
             trace_time!("scheduler", "balance", self.balance(core));
@@ -442,40 +453,3 @@ impl SchedulerState {
         log::debug!("Balancing finished");
     }
 }
-
-#[cfg(test)]
-pub mod tests {
-    use rand::rngs::SmallRng;
-    use rand::SeedableRng;
-
-    use crate::scheduler::state::SchedulerState;
-    use crate::server::core::Core;
-    use crate::server::task::TaskRef;
-    use crate::WorkerId;
-
-    pub(crate) fn create_test_scheduler() -> SchedulerState {
-        SchedulerState {
-            dirty_tasks: Default::default(),
-            random: SmallRng::from_seed([
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0,
-            ]),
-        }
-    }
-
-    impl SchedulerState {
-        pub(crate) fn test_assign(
-            &mut self,
-            core: &mut Core,
-            task_ref: &TaskRef,
-            worker_id: WorkerId,
-        ) {
-            let mut task = task_ref.get_mut();
-            self.assign(core, &mut task, task_ref.clone(), worker_id);
-        }
-    }
-}
-
-/*
- *  Tests are in test_scheduler.rs
- */

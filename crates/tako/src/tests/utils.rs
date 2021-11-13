@@ -18,7 +18,6 @@ use crate::common::{Map, WrappedRcRefCell};
 use crate::messages::common::{TaskConfiguration, TaskFailInfo, WorkerConfiguration};
 use crate::messages::gateway::LostWorkerReason;
 use crate::messages::worker::{StealResponse, StealResponseMsg, TaskFinishedMsg, ToWorkerMessage};
-use crate::scheduler::state::tests::create_test_scheduler;
 use crate::scheduler::state::SchedulerState;
 use crate::server::comm::Comm;
 use crate::server::core::Core;
@@ -714,5 +713,16 @@ pub fn expect_error_message<T>(result: anyhow::Result<T>, msg: &str) {
                 panic!("Did not find `{}` in `{}`", msg, formatted);
             }
         }
+    }
+}
+
+pub(crate) fn create_test_scheduler() -> SchedulerState {
+    SchedulerState::new()
+}
+
+impl SchedulerState {
+    pub(crate) fn test_assign(&mut self, core: &mut Core, task_ref: &TaskRef, worker_id: WorkerId) {
+        let mut task = task_ref.get_mut();
+        self.assign(core, &mut task, task_ref.clone(), worker_id);
     }
 }
