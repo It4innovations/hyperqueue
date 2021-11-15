@@ -6,6 +6,11 @@ from typing import List
 import iso8601
 
 from .conftest import HqEnv
+from .utils import wait_for_job_state
+
+"""
+Json output tests
+"""
 
 
 def hq_json_wrapper(hq_env: HqEnv, command: List[str]):
@@ -94,3 +99,36 @@ def test_print_hw(hq_env: HqEnv):
     output = hq_json_wrapper(hq_env, ["--output-type=json", "worker", "hwdetect"])
     assert isinstance(output, dict)
     assert "cpus" in output.keys()
+
+
+"""
+Quiet flag tests
+"""
+
+
+def test_print_worker_list_quiet(hq_env: HqEnv):
+    hq_env.start_server()
+    for i in range(9):
+        hq_env.start_worker()
+    output = hq_env.command(["--output-type=quiet", "worker", "list"])
+    output = output.splitlines(keepends=False)
+    assert output == [f"{id + 1} RUNNING" for id in range(9)]
+
+
+def test_print_job_list_quiet(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    for i in range(9):
+        hq_env.command(["submit", "echo", "tt"])
+
+    wait_for_job_state(hq_env, list(range(1, 10)), "FINISHED")
+
+    output = hq_env.command(["--output-type=quiet", "jobs"])
+    output = output.splitlines(keepends=False)
+    assert output == [f"{id + 1} FINISHED" for id in range(9)]
+
+
+def test_submit_quiet(hq_env: HqEnv):
+    hq_env.start_server()
+    output = hq_env.command(["--output-type=quiet", "submit", "echo", "tt"])
+    assert output == "1\n"
