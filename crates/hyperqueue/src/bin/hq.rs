@@ -18,6 +18,7 @@ use hyperqueue::client::globalsettings::GlobalSettings;
 use hyperqueue::client::output::cli::CliOutput;
 use hyperqueue::client::output::json::JsonOutput;
 use hyperqueue::client::output::outputs::{Output, Outputs};
+use hyperqueue::client::output::quiet::Quiet;
 use hyperqueue::client::status::Status;
 use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::fsutils::absolute_path;
@@ -52,7 +53,7 @@ struct CommonOpts {
     colors: ColorPolicy,
 
     /// Output selection
-    #[clap(long, default_value = "cli", possible_values = &["cli","json"])]
+    #[clap(long, default_value = "cli", possible_values = &["cli", "json", "quiet"])]
     output_type: Outputs,
 }
 
@@ -426,6 +427,7 @@ async fn command_progress(gsettings: GlobalSettings, opts: ProgressOpts) -> anyh
     .await?;
     wait_for_jobs_with_progress(&mut connection, response.jobs).await
 }
+
 ///Starts the hq Dashboard
 async fn command_dashboard_start(
     gsettings: GlobalSettings,
@@ -493,6 +495,7 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
             Box::new(CliOutput::new(color_policy))
         }
         Outputs::JSON => Box::new(JsonOutput::default()),
+        Outputs::Quiet => Box::new(Quiet::default()),
     };
 
     GlobalSettings::new(server_dir, printer)

@@ -21,6 +21,7 @@ pub const MAX_DISPLAYED_WORKERS: usize = 2;
 pub enum Outputs {
     CLI,
     JSON,
+    Quiet,
 }
 
 impl FromStr for Outputs {
@@ -30,6 +31,7 @@ impl FromStr for Outputs {
         match s {
             "cli" => Ok(Outputs::CLI),
             "json" => Ok(Outputs::JSON),
+            "quiet" => Ok(Outputs::Quiet),
             _ => anyhow::bail!("Invalid output"),
         }
     }
