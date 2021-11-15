@@ -37,3 +37,8 @@ derive_builder = "0.10.2"
 anyhow = "1.0.45"
 env_logger = "0.9"
 tempdir = "0.3"
+criterion = { version = "0.3", features = ["html_reports"] }
+
+[[bench]]
+name = "benchmark"
+harness = false
