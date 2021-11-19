@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 
 use tako::common::{Map, Set};
 use tako::scheduler::metrics::compute_b_level_metric;
@@ -104,11 +104,30 @@ fn bench_add_tasks(c: &mut Criterion) {
     }
 }
 
-fn core_benchmark(c: &mut Criterion) {
-    bench_remove_single_task(c);
-    bench_remove_all_tasks(c);
-    bench_add_task(c);
-    bench_add_tasks(c);
+fn bench_iterate_tasks(c: &mut Criterion) {
+    for task_count in [10, 1_000, 100_000] {
+        c.bench_with_input(
+            BenchmarkId::new("iterate tasks", task_count),
+            &task_count,
+            |b, &task_count| {
+                b.iter_batched_ref(
+                    || {
+                        let mut core = Core::default();
+                        add_tasks(&mut core, task_count);
+                        core
+                    },
+                    |ref mut core| {
+                        let mut sum = 0;
+                        for task in core.get_tasks() {
+                            sum += task.get().id().as_num();
+                        }
+                        black_box(sum);
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
+    }
 }
 
 fn bench_b_level(c: &mut Criterion) {
@@ -170,6 +189,14 @@ fn bench_schedule(c: &mut Criterion) {
             );
         }
     }
+}
+
+fn core_benchmark(c: &mut Criterion) {
+    bench_remove_single_task(c);
+    bench_remove_all_tasks(c);
+    bench_add_task(c);
+    bench_add_tasks(c);
+    bench_iterate_tasks(c);
 }
 
 fn scheduler_benchmark(c: &mut Criterion) {
