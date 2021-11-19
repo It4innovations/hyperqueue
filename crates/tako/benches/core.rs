@@ -17,7 +17,7 @@ fn add_tasks(core: &mut Core, count: usize) -> Vec<TaskRef> {
     tasks
 }
 
-fn remove_single_task(c: &mut Criterion) {
+fn bench_remove_single_task(c: &mut Criterion) {
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("remove a single task", task_count),
@@ -40,7 +40,7 @@ fn remove_single_task(c: &mut Criterion) {
     }
 }
 
-fn remove_all_tasks(c: &mut Criterion) {
+fn bench_remove_all_tasks(c: &mut Criterion) {
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("remove all tasks", task_count),
@@ -62,7 +62,7 @@ fn remove_all_tasks(c: &mut Criterion) {
     }
 }
 
-fn add_task(c: &mut Criterion) {
+fn bench_add_task(c: &mut Criterion) {
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("add task", task_count),
@@ -86,10 +86,35 @@ fn add_task(c: &mut Criterion) {
     }
 }
 
+fn bench_add_tasks(c: &mut Criterion) {
+    for task_count in [10, 1_000, 100_000] {
+        c.bench_with_input(
+            BenchmarkId::new("add tasks", task_count),
+            &task_count,
+            |b, &task_count| {
+                b.iter_batched_ref(
+                    || {
+                        let core = Core::default();
+                        let tasks: Vec<_> = (0..task_count).map(|id| create_task(id)).collect();
+                        (core, tasks)
+                    },
+                    |(ref mut core, tasks)| {
+                        for task in tasks {
+                            core.add_task(task.clone());
+                        }
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
+    }
+}
+
 fn core_benchmark(c: &mut Criterion) {
-    remove_single_task(c);
-    remove_all_tasks(c);
-    add_task(c);
+    bench_remove_single_task(c);
+    bench_remove_all_tasks(c);
+    bench_add_task(c);
+    bench_add_tasks(c);
 }
 
 criterion_group!(benches, core_benchmark);
