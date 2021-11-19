@@ -198,13 +198,13 @@ impl Core {
     }
 
     pub fn add_task(&mut self, task_ref: TaskRef) {
-        let task_id = task_ref.get().id();
-        {
+        let task_id = {
             let task = task_ref.get();
             if task.is_ready() {
                 self.add_ready_to_assign(task_ref.clone());
             }
-        }
+            task.id()
+        };
         self.has_new_tasks = true;
         assert!(self.tasks.insert(task_id, task_ref).is_none());
     }
