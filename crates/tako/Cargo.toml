@@ -40,5 +40,5 @@ tempdir = "0.3"
 criterion = { version = "0.3", features = ["html_reports"] }
 
 [[bench]]
-name = "core"
+name = "benchmark"
 harness = false
