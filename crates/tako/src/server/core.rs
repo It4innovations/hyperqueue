@@ -387,22 +387,6 @@ impl Core {
     }
 }
 
-/*
-/// Returns task duration as specified by Dask.
-/// Converts from UNIX in seconds to a microseconds.
-fn get_task_duration(msg: &TaskFinishedMsg) -> (u64, u64) {
-    msg.startstops
-        .iter()
-        .find(|map| map[b"action" as &[u8]].as_str().unwrap() == "compute")
-        .map(|map| {
-            (
-                (map[b"start" as &[u8]].as_f64().unwrap() * 1_000_000f64) as u64,
-                (map[b"stop" as &[u8]].as_f64().unwrap() * 1_000_000f64) as u64,
-            )
-        })
-        .unwrap_or((0, 0))
-}*/
-
 #[cfg(test)]
 mod tests {
     use crate::server::core::Core;
@@ -431,34 +415,5 @@ mod tests {
             _ => false,
         });
         assert_eq!(core.get_task_by_id(101.into()), None);
-    }
-
-    #[test]
-    fn task_duration() {
-        /*assert_eq!(
-            get_task_duration(&TaskFinishedMsg {
-                key: "null".into(),
-                nbytes: 16,
-                r#type: vec![1, 2, 3],
-                startstops: vec!(
-                    startstop_item("send", 100.0, 200.0),
-                    startstop_item("compute", 200.134, 300.456)
-                ),
-            }),
-            (200134000, 300456000)
-        );*/
-    }
-
-    #[test]
-    fn task_duration_missing() {
-        /*assert_eq!(
-            get_task_duration(&TaskFinishedMsg {
-                key: "null".into(),
-                nbytes: 16,
-                r#type: vec![1, 2, 3],
-                startstops: vec!(),
-            }),
-            (0, 0)
-        );*/
     }
 }
