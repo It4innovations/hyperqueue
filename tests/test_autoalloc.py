@@ -276,6 +276,17 @@ except:
                 time.sleep(0.2)
 
 
+def wait_for_event(hq_env: HqEnv, state: str):
+    """
+    Wait for auto allocation event with the given `state` to appear.
+    """
+    def wait():
+        table = hq_env.command(["alloc", "events", "1"], as_table=True)
+        return state in table.get_column_value("Event")
+
+    wait_until(wait)
+
+
 def test_pbs_events_job_lifecycle(hq_env: HqEnv):
     mock = PbsMock(hq_env, qtime="Thu Aug 19 13:05:38 2021")
 
@@ -287,15 +298,11 @@ def test_pbs_events_job_lifecycle(hq_env: HqEnv):
         add_queue(hq_env)
 
         # Queued
-        time.sleep(0.2)
-        table = hq_env.command(["alloc", "events", "1"], as_table=True)
-        table.check_column_value("Event", -1, "Allocation queued")
+        wait_for_event(hq_env, "Allocation queued")
 
         # Started
         mock.set_job_data("R", stime="Thu Aug 19 13:05:39 2021")
-        time.sleep(0.2)
-        table = hq_env.command(["alloc", "events", "1"], as_table=True)
-        assert "Allocation started" in table.get_column_value("Event")
+        wait_for_event(hq_env, "Allocation started")
 
         # Finished
         mock.set_job_data(
@@ -304,9 +311,7 @@ def test_pbs_events_job_lifecycle(hq_env: HqEnv):
             mtime="Thu Aug 19 13:05:39 2021",
             exit_code=0,
         )
-        time.sleep(0.2)
-        table = hq_env.command(["alloc", "events", "1"], as_table=True)
-        assert "Allocation finished" in table.get_column_value("Event")
+        wait_for_event(hq_env, "Allocation finished")
 
 
 def test_pbs_events_job_failed(hq_env: HqEnv):
@@ -324,10 +329,22 @@ def test_pbs_events_job_failed(hq_env: HqEnv):
 
         add_queue(hq_env)
 
-        time.sleep(0.5)
-        table = hq_env.command(["alloc", "events", "1"], as_table=True)
-        column = table.get_column_value("Event")
-        assert "Allocation failed" in column
+        wait_for_event(hq_env, "Allocation failed")
+
+
+def wait_for_alloc(hq_env: HqEnv, state: str, index=0):
+    """
+    Wait until an allocation has the given `state`.
+    Assumes a single allocation.
+    """
+    def wait():
+        table = hq_env.command(["alloc", "info", "1"], as_table=True)
+        alloc_states = table.get_column_value("State")
+        if index >= len(alloc_states):
+            return False
+        return alloc_states[index] == state
+
+    wait_until(wait)
 
 
 def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
@@ -344,24 +361,13 @@ def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo")
-        time.sleep(0.2)
-
-        table = hq_env.command(["alloc", "info", "1"], as_table=True)
-        table.check_columns_value(
-            ("Id", "State", "Worker count"), 0, ("0", "Queued", "1")
-        )
+        wait_for_alloc(hq_env, "Queued")
 
         mock.set_job_data("R")
-        time.sleep(0.2)
-
-        table = hq_env.command(["alloc", "info", "1"], as_table=True)
-        table.check_column_value("State", 0, "Running")
+        wait_for_alloc(hq_env, "Running")
 
         mock.set_job_data("F", exit_code=0)
-        time.sleep(0.2)
-
-        table = hq_env.command(["alloc", "info", "1"], as_table=True)
-        table.check_column_value("State", 0, "Finished")
+        wait_for_alloc(hq_env, "Finished")
 
 
 def test_allocations_ignore_job_changes_after_finish(hq_env: HqEnv):
@@ -379,13 +385,10 @@ def test_allocations_ignore_job_changes_after_finish(hq_env: HqEnv):
         prepare_tasks(hq_env)
 
         add_queue(hq_env)
-        time.sleep(0.3)
-
-        table = hq_env.command(["alloc", "info", "1"], as_table=True)
-        table.check_column_value("State", 0, "Finished")
+        wait_for_alloc(hq_env, "Finished")
 
         mock.set_job_data("R")
-        time.sleep(0.3)
+        time.sleep(0.5)
 
         table = hq_env.command(["alloc", "info", "1"], as_table=True)
         table.check_column_value("State", 0, "Finished")
