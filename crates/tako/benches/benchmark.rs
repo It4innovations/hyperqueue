@@ -1,10 +1,13 @@
-use crate::utils::{add_tasks, create_task};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
+
 use tako::common::{Map, Set};
 use tako::scheduler::metrics::compute_b_level_metric;
+use tako::scheduler::state::SchedulerState;
 use tako::server::core::Core;
 use tako::server::task::TaskRef;
 use tako::TaskId;
+
+use crate::utils::{add_tasks, create_task, create_worker, NullComm};
 
 mod utils;
 
@@ -136,8 +139,42 @@ fn bench_b_level(c: &mut Criterion) {
     }
 }
 
+fn bench_schedule(c: &mut Criterion) {
+    for task_count in [10, 1_000, 100_000] {
+        for worker_count in [1, 8, 16, 32] {
+            c.bench_with_input(
+                BenchmarkId::new(
+                    "schedule",
+                    format!("tasks={}, workers={}", task_count, worker_count),
+                ),
+                &(task_count, worker_count),
+                |b, &(task_count, worker_count)| {
+                    b.iter_batched_ref(
+                        || {
+                            let mut core = Core::default();
+                            add_tasks(&mut core, task_count);
+
+                            for worker_id in 0..worker_count {
+                                core.new_worker(create_worker(worker_id as u64));
+                            }
+
+                            let scheduler = SchedulerState::new();
+                            (core, scheduler)
+                        },
+                        |(core, scheduler)| {
+                            scheduler.run_scheduling(core, &mut NullComm);
+                        },
+                        BatchSize::SmallInput,
+                    );
+                },
+            );
+        }
+    }
+}
+
 fn scheduler_benchmark(c: &mut Criterion) {
     bench_b_level(c);
+    bench_schedule(c);
 }
 
 criterion_group!(benches, core_benchmark, scheduler_benchmark);

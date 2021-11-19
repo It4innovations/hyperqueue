@@ -24,7 +24,7 @@ use super::utils::task_transfer_cost;
 // Long duration - 1 year
 const LONG_DURATION: std::time::Duration = std::time::Duration::from_secs(365 * 24 * 60 * 60);
 
-pub(crate) struct SchedulerState {
+pub struct SchedulerState {
     // Which tasks has modified state, this map holds the original state
     dirty_tasks: Map<TaskRef, TaskRuntimeState>,
 
@@ -87,8 +87,7 @@ pub async fn scheduler_loop(
 }
 
 impl SchedulerState {
-    #[cfg(test)]
-    pub(crate) fn new() -> SchedulerState {
+    pub fn new() -> SchedulerState {
         Self {
             dirty_tasks: Default::default(),
             random: SmallRng::from_seed([
@@ -98,7 +97,7 @@ impl SchedulerState {
         }
     }
 
-    pub(crate) fn run_scheduling(&mut self, core: &mut Core, comm: &mut impl Comm) {
+    pub fn run_scheduling(&mut self, core: &mut Core, comm: &mut impl Comm) {
         if self.schedule_available_tasks(core) {
             trace_time!("scheduler", "balance", self.balance(core));
         }
