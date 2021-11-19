@@ -280,6 +280,7 @@ def wait_for_event(hq_env: HqEnv, state: str):
     """
     Wait for auto allocation event with the given `state` to appear.
     """
+
     def wait():
         table = hq_env.command(["alloc", "events", "1"], as_table=True)
         return state in table.get_column_value("Event")
@@ -337,6 +338,7 @@ def wait_for_alloc(hq_env: HqEnv, state: str, index=0):
     Wait until an allocation has the given `state`.
     Assumes a single allocation.
     """
+
     def wait():
         table = hq_env.command(["alloc", "info", "1"], as_table=True)
         alloc_states = table.get_column_value("State")
