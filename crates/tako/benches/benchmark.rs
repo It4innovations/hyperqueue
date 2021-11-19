@@ -1,21 +1,12 @@
+use crate::utils::{add_tasks, create_task};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
-use tako::common::Set;
+use tako::common::{Map, Set};
+use tako::scheduler::metrics::compute_b_level_metric;
 use tako::server::core::Core;
 use tako::server::task::TaskRef;
+use tako::TaskId;
 
-fn create_task(id: u64) -> TaskRef {
-    TaskRef::new(id.into(), vec![], Default::default(), 0, false, false)
-}
-
-fn add_tasks(core: &mut Core, count: usize) -> Vec<TaskRef> {
-    let mut tasks = Vec::with_capacity(count);
-    for id in 0..count {
-        let task = create_task(id as u64);
-        core.add_task(task.clone());
-        tasks.push(task);
-    }
-    tasks
-}
+mod utils;
 
 fn bench_remove_single_task(c: &mut Criterion) {
     for task_count in [10, 1_000, 100_000] {
@@ -117,5 +108,37 @@ fn core_benchmark(c: &mut Criterion) {
     bench_add_tasks(c);
 }
 
-criterion_group!(benches, core_benchmark);
+fn bench_b_level(c: &mut Criterion) {
+    for task_count in [10, 1_000, 100_000] {
+        c.bench_with_input(
+            BenchmarkId::new("compute b-level", task_count),
+            &task_count,
+            |b, &task_count| {
+                b.iter_batched_ref(
+                    || {
+                        let mut core = Core::default();
+                        let tasks: Map<TaskId, TaskRef> = add_tasks(&mut core, task_count)
+                            .into_iter()
+                            .map(|t| {
+                                let id = t.get().id();
+                                (id, t)
+                            })
+                            .collect();
+                        (core, tasks)
+                    },
+                    |(_core, tasks)| {
+                        compute_b_level_metric(tasks);
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
+    }
+}
+
+fn scheduler_benchmark(c: &mut Criterion) {
+    bench_b_level(c);
+}
+
+criterion_group!(benches, core_benchmark, scheduler_benchmark);
 criterion_main!(benches);

@@ -1,3 +1,3 @@
-mod metrics;
+pub mod metrics;
 pub mod state;
 mod utils;
