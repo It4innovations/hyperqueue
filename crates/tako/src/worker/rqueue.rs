@@ -2,7 +2,7 @@ use crate::common::resources::map::ResourceMap;
 use crate::common::resources::{ResourceAllocation, ResourceDescriptor, ResourceRequest};
 use crate::common::Map;
 use crate::worker::pool::ResourcePool;
-use crate::worker::task::TaskRef;
+use crate::worker::task::Task;
 use crate::worker::taskmap::TaskMap;
 use crate::{PriorityTuple, TaskId};
 use std::time::Duration;
@@ -26,9 +26,8 @@ impl ResourceWaitQueue {
         self.pool.release_allocation(allocation);
     }
 
-    pub fn add_task(&mut self, task_ref: TaskRef) {
+    pub fn add_task(&mut self, task: &Task) {
         let (queue, priority, task_id) = {
-            let task = task_ref.get();
             let priority = task.priority;
             (
                 if let Some(queue) = self.queues.get_mut(&task.configuration.resources) {
@@ -46,8 +45,8 @@ impl ResourceWaitQueue {
                     self.requests = requests;
 
                     self.queues
-                        .insert(task.configuration.resources.clone(), Default::default());
-                    self.queues.get_mut(&task.configuration.resources).unwrap()
+                        .entry(task.configuration.resources.clone())
+                        .or_default()
                 },
                 priority,
                 task.id,
@@ -86,7 +85,7 @@ impl ResourceWaitQueue {
                 }
                 let allocation = {
                     if let Some(allocation) = self.pool.try_allocate_resources(
-                        &task_map.get(task_id).get().configuration.resources,
+                        &task_map.get(task_id).configuration.resources,
                         remaining_time,
                     ) {
                         allocation
