@@ -16,9 +16,8 @@ use tako::messages::common::WorkerConfiguration;
 use tako::messages::common::{ProgramDefinition, StdioDef};
 use tako::worker::launcher::{command_from_definitions, pin_program};
 use tako::worker::rpc::run_worker;
-use tako::worker::task::TaskRef;
 use tako::worker::taskenv::{StopReason, TaskResult};
-use tako::InstanceId;
+use tako::{InstanceId, TaskId};
 use tempdir::TempDir;
 use tokio::io::AsyncReadExt;
 use tokio::net::lookup_host;
@@ -144,9 +143,10 @@ fn create_directory_if_needed(file: &StdioDef) -> io::Result<()> {
 async fn launcher_main(
     state_ref: WorkerStateRef,
     streamer_ref: StreamerRef,
-    task_ref: TaskRef,
+    task_id: TaskId,
     end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
 ) -> tako::Result<TaskResult> {
+    let task_ref = state_ref.get().get_task(task_id).clone();
     log::debug!(
         "Starting program launcher {} {:?} {:?}",
         task_ref.get().id,
@@ -347,13 +347,17 @@ async fn run_task(
 fn launcher(
     state: &WorkerState,
     streamer_ref: &StreamerRef,
-    task_ref: &TaskRef,
+    task_id: TaskId,
     end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
 ) -> Pin<Box<dyn Future<Output = tako::Result<TaskResult>> + 'static>> {
     let state_ref = state.self_ref.clone().unwrap();
-    let task_ref = task_ref.clone();
     let streamer_ref = streamer_ref.clone();
-    Box::pin(async move { launcher_main(state_ref, streamer_ref, task_ref, end_receiver).await })
+    Box::pin(launcher_main(
+        state_ref,
+        streamer_ref,
+        task_id,
+        end_receiver,
+    ))
 }
 
 pub async fn start_hq_worker(
@@ -391,8 +395,8 @@ pub async fn start_hq_worker(
         server_addr,
         configuration,
         Some(record.tako_secret_key().clone()),
-        Box::new(move |state, task_ref, end_receiver| {
-            launcher(state, &streamer_ref, task_ref, end_receiver)
+        Box::new(move |state, task_id, end_receiver| {
+            launcher(state, &streamer_ref, task_id, end_receiver)
         }),
     )
     .await?;

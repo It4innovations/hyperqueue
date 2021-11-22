@@ -59,18 +59,6 @@ pub struct WorkerState {
 }
 
 impl WorkerState {
-    /*pub fn set_subworkers(&mut self, subworkers: Vec<SubworkerRef>) {
-        assert!(self.subworkers.is_empty() && self.free_subworkers.is_empty());
-        self.free_subworkers = subworkers.clone();
-        self.subworkers = subworkers
-            .iter()
-            .map(|s| {
-                let id = s.get().id;
-                (id, s.clone())
-            })
-            .collect();
-    }*/
-
     #[inline]
     pub fn get_task(&self, task_id: TaskId) -> &TaskRef {
         self.tasks.get(task_id)

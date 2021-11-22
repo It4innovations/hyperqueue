@@ -54,10 +54,9 @@ impl TaskEnv {
         let (end_sender, end_receiver) = oneshot::channel();
         self.stop_sender = Some(end_sender);
 
-        let task_ref = state.get_task(task.id);
-        let task_fut = (*state.task_launcher)(state, task_ref, end_receiver);
+        let task_fut = (*state.task_launcher)(state, task.id, end_receiver);
         let state_ref = state.self_ref();
-        let task_ref = task_ref.clone();
+        let task_ref = state.get_task(task.id).clone();
 
         tokio::task::spawn_local(async move {
             let time_limit = {
