@@ -8,4 +8,5 @@ pub mod rqueue;
 pub mod state;
 pub mod task;
 pub mod taskenv;
+pub mod taskmap;
 mod test_util;

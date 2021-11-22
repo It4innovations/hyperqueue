@@ -25,6 +25,7 @@ use crate::worker::hwmonitor::WorkerHwState;
 use crate::worker::launcher::TaskLauncher;
 use crate::worker::rqueue::ResourceWaitQueue;
 use crate::worker::task::{Task, TaskRef, TaskState};
+use crate::worker::taskmap::TaskMap;
 use crate::TaskId;
 use crate::{PriorityTuple, WorkerId};
 
@@ -32,7 +33,7 @@ pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
 
 pub struct WorkerState {
     pub sender: UnboundedSender<Bytes>,
-    pub tasks: HashMap<TaskId, TaskRef>,
+    tasks: TaskMap,
     pub ready_task_queue: ResourceWaitQueue,
     pub data_objects: HashMap<TaskId, DataObjectRef>,
     pub running_tasks: Set<TaskId>,
@@ -69,6 +70,11 @@ impl WorkerState {
             })
             .collect();
     }*/
+
+    #[inline]
+    pub fn get_task(&self, task_id: TaskId) -> &TaskRef {
+        self.tasks.get(task_id)
+    }
 
     pub fn add_data_object(&mut self, data_ref: DataObjectRef) {
         let id = data_ref.get().id;
@@ -253,7 +259,7 @@ impl WorkerState {
             }
         }
 
-        assert!(self.tasks.remove(&task.id).is_some());
+        assert!(self.tasks.remove(task.id).is_some());
         for data_ref in std::mem::take(&mut task.deps) {
             let mut data = data_ref.get_mut();
             assert!(data.consumers.remove(task_ref));
@@ -292,7 +298,7 @@ impl WorkerState {
 
     pub fn cancel_task(&mut self, task_id: TaskId) {
         log::debug!("Canceling task {}", task_id);
-        match self.tasks.get(&task_id).cloned() {
+        match self.tasks.find(task_id).cloned() {
             None => {
                 /* This may happen that task was computed or when work steal
                   was successful
@@ -316,7 +322,7 @@ impl WorkerState {
     }
 
     pub fn steal_task(&mut self, task_id: TaskId) -> StealResponse {
-        match self.tasks.get(&task_id).cloned() {
+        match self.tasks.find(task_id).cloned() {
             None => StealResponse::NotHere,
             Some(task_ref) => {
                 let mut task = task_ref.get_mut();

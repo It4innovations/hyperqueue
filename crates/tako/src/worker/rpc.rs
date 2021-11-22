@@ -410,7 +410,7 @@ async fn worker_message_loop(
                         .running_tasks
                         .iter()
                         .map(|&task_id| {
-                            let task = state.tasks.get(&task_id).unwrap().get();
+                            let task = state.get_task(task_id).get();
                             let allocation: ResourceAllocation =
                                 task.resource_allocation().unwrap().clone();
                             (task_id, allocation)
