@@ -22,6 +22,7 @@ impl ResourceWaitQueue {
         }
     }
 
+    #[inline]
     pub fn release_allocation(&mut self, allocation: ResourceAllocation) {
         self.pool.release_allocation(allocation);
     }
