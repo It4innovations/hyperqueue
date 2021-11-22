@@ -3,8 +3,8 @@ use crate::common::Map;
 use crate::messages::common::TaskConfiguration;
 use crate::messages::worker::ComputeTaskMsg;
 use crate::worker::rqueue::ResourceWaitQueue;
+use crate::worker::state::TaskMap;
 use crate::worker::task::Task;
-use crate::worker::taskmap::TaskMap;
 use crate::{Priority, TaskId};
 use std::time::Duration;
 
