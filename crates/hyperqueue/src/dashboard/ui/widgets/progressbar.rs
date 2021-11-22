@@ -1,6 +1,11 @@
+use tui::style::{Color, Modifier, Style};
+
+const GREEN_THRESHOLD: f32 = 0.5;
+const YELLOW_THRESHOLD: f32 = 0.7;
+
 /**
-*   Progress bar's structure: [StartBlock]<>[indicator][][]<>[][][][unused_area]<>[end_block]
-**/
+ *   Progress bar's structure: [StartBlock]<>[indicator][][]<>[][][][unused_area]<>[end_block]
+ **/
 pub struct ProgressPrintStyle {
     /// The first character of the progress bar
     start_block: char,
@@ -10,6 +15,23 @@ pub struct ProgressPrintStyle {
     unused_area: char,
     /// The ending character of the progressbar
     end_block: char,
+}
+
+pub fn get_progress_bar_color(progress: f32) -> Style {
+    let color = if progress <= GREEN_THRESHOLD {
+        Color::Green
+    } else if progress <= YELLOW_THRESHOLD {
+        Color::Yellow
+    } else {
+        Color::Red
+    };
+
+    Style {
+        fg: Some(color),
+        bg: None,
+        add_modifier: Modifier::empty(),
+        sub_modifier: Modifier::empty(),
+    }
 }
 
 /**
