@@ -40,10 +40,12 @@ pub struct ResourceMap {
 }
 
 impl ResourceMap {
+    #[inline]
     pub fn from_vec(resource_names: Vec<String>) -> Self {
         Self { resource_names }
     }
 
+    #[inline]
     pub fn into_vec(self) -> Vec<String> {
         self.resource_names
     }
@@ -51,6 +53,11 @@ impl ResourceMap {
     #[inline]
     pub fn len(&self) -> usize {
         self.resource_names.len()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     #[inline]

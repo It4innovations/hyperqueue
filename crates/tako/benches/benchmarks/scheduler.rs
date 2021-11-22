@@ -15,7 +15,7 @@ use tako::{TaskId, WorkerId};
 use crate::{add_tasks, create_worker};
 
 fn bench_b_level(c: &mut BenchmarkGroup<WallTime>) {
-    for task_count in [10, 1_000, 100_000, 100] {
+    for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("compute b-level", task_count),
             &task_count,

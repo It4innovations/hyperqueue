@@ -56,10 +56,8 @@ impl<V> StableVec<V> {
         match self.items.get_mut(index.as_num() as usize) {
             Some(value) => {
                 debug_assert!(value.is_some());
-
-                let value = std::mem::replace(value, None);
                 self.free_indices.push(index);
-                value
+                value.take()
             }
             None => panic!("Attempted to remove invalid index {}", index),
         }

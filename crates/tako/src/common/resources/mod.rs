@@ -1,6 +1,6 @@
 pub mod allocation;
 pub mod descriptor;
-pub(crate) mod map;
+pub mod map;
 pub mod request;
 
 use crate::common::index::IndexVec;

@@ -2,10 +2,19 @@ use std::time::Duration;
 
 use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
+use tako::common::index::AsIdVec;
+use tako::common::resources::descriptor::GenericResourceKindIndices;
+use tako::common::resources::map::ResourceMap;
+use tako::common::resources::{
+    CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, GenericResourceRequest,
+    ResourceDescriptor, ResourceRequest, TimeRequest,
+};
+use tako::messages::common::TaskConfiguration;
 use tokio::sync::mpsc::unbounded_channel;
 
 use tako::messages::worker::ComputeTaskMsg;
-use tako::worker::state::WorkerStateRef;
+use tako::worker::rqueue::ResourceWaitQueue;
+use tako::worker::state::{TaskMap, WorkerStateRef};
 use tako::worker::task::Task;
 use tako::worker::taskenv::TaskResult;
 use tako::TaskId;
@@ -136,9 +145,115 @@ fn bench_cancel_waiting_task(c: &mut BenchmarkGroup<WallTime>) {
     }
 }
 
+fn create_resource_queue(num_cpus: u32) -> ResourceWaitQueue {
+    ResourceWaitQueue::new(
+        &ResourceDescriptor {
+            cpus: vec![(0..num_cpus).collect::<Vec<_>>().to_ids()],
+            generic: vec![GenericResourceDescriptor {
+                name: "GPU".to_string(),
+                kind: GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
+                    start: 0.into(),
+                    end: 8.into(),
+                }),
+            }],
+        },
+        &ResourceMap::from_vec(vec!["GPU".to_string()]),
+    )
+}
+
+fn bench_resource_queue_add_task(c: &mut BenchmarkGroup<WallTime>) {
+    c.bench_function("add task to resource queue", |b| {
+        b.iter_batched_ref(
+            || (create_resource_queue(64), create_worker_task(0)),
+            |(queue, task)| queue.add_task(task),
+            BatchSize::SmallInput,
+        );
+    });
+}
+
+fn bench_resource_queue_release_allocation(c: &mut BenchmarkGroup<WallTime>) {
+    c.bench_function("release allocation from resource queue", |b| {
+        b.iter_batched_ref(
+            || {
+                let mut queue = create_resource_queue(64);
+                let mut task = create_worker_task(0);
+                task.configuration = TaskConfiguration {
+                    resources: ResourceRequest::new(
+                        CpuRequest::Compact(64),
+                        TimeRequest::new(0, 0),
+                        vec![GenericResourceRequest {
+                            resource: 0.into(),
+                            amount: 2,
+                        }]
+                        .into(),
+                    ),
+                    n_outputs: 0,
+                    time_limit: None,
+                    body: vec![],
+                };
+
+                queue.add_task(&task);
+
+                let mut map = TaskMap::default();
+                map.insert(0.into(), task);
+
+                let mut started = queue.try_start_tasks(&map, None);
+                (queue, started.pop().unwrap().1)
+            },
+            |(queue, allocation)| queue.release_allocation(allocation.clone()),
+            BatchSize::SmallInput,
+        );
+    });
+}
+
+fn bench_resource_queue_start_tasks(c: &mut BenchmarkGroup<WallTime>) {
+    for task_count in [1, 10, 1_000, 100_000] {
+        c.bench_with_input(
+            BenchmarkId::new("start tasks in resource queue", task_count),
+            &task_count,
+            |b, &task_count| {
+                b.iter_batched_ref(
+                    || {
+                        let mut queue = create_resource_queue(64);
+                        let mut map = TaskMap::default();
+
+                        for id in 0..task_count {
+                            let mut task = create_worker_task(id);
+                            task.configuration = TaskConfiguration {
+                                resources: ResourceRequest::new(
+                                    CpuRequest::Compact(64),
+                                    TimeRequest::new(0, 0),
+                                    vec![GenericResourceRequest {
+                                        resource: 0.into(),
+                                        amount: 2,
+                                    }]
+                                    .into(),
+                                ),
+                                n_outputs: 0,
+                                time_limit: None,
+                                body: vec![],
+                            };
+
+                            queue.add_task(&task);
+                            map.insert(id.into(), task);
+                        }
+
+                        (queue, map)
+                    },
+                    |(queue, map)| queue.try_start_tasks(&map, None),
+                    BatchSize::SmallInput,
+                );
+            },
+        );
+    }
+}
+
 pub fn benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("worker");
     bench_add_task(&mut group);
     bench_add_tasks(&mut group);
     bench_cancel_waiting_task(&mut group);
+    bench_resource_queue_add_task(&mut group);
+    bench_resource_queue_release_allocation(&mut group);
+    bench_resource_queue_start_tasks(&mut group);
 }
