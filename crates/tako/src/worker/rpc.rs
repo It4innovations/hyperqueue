@@ -171,13 +171,14 @@ pub async fn run_worker(
                 None
             };
             loop {
-                let allocations = state.ready_task_queue.try_start_tasks(remaining_time);
+                let (task_map, ready_task_queue) = state.borrow_tasks_and_queue();
+                let allocations = ready_task_queue.try_start_tasks(task_map, remaining_time);
                 if allocations.is_empty() {
                     break;
                 }
 
-                for (task_ref, allocation) in allocations {
-                    assign_task(&mut state, task_ref, allocation);
+                for (task_id, allocation) in allocations {
+                    assign_task(&mut state, task_id, allocation);
                 }
             }
         }

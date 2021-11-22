@@ -3,11 +3,12 @@ use crate::common::resources::{ResourceAllocation, ResourceDescriptor, ResourceR
 use crate::common::Map;
 use crate::worker::pool::ResourcePool;
 use crate::worker::task::TaskRef;
-use crate::PriorityTuple;
+use crate::worker::taskmap::TaskMap;
+use crate::{PriorityTuple, TaskId};
 use std::time::Duration;
 
 pub struct ResourceWaitQueue {
-    queues: Map<ResourceRequest, priority_queue::PriorityQueue<TaskRef, PriorityTuple>>,
+    queues: Map<ResourceRequest, priority_queue::PriorityQueue<TaskId, PriorityTuple>>,
     requests: Vec<ResourceRequest>,
     pool: ResourcePool,
 }
@@ -26,7 +27,7 @@ impl ResourceWaitQueue {
     }
 
     pub fn add_task(&mut self, task_ref: TaskRef) {
-        let (queue, priority) = {
+        let (queue, priority, task_id) = {
             let task = task_ref.get();
             let priority = task.priority;
             (
@@ -49,14 +50,15 @@ impl ResourceWaitQueue {
                     self.queues.get_mut(&task.configuration.resources).unwrap()
                 },
                 priority,
+                task.id,
             )
         };
-        queue.push(task_ref, priority);
+        queue.push(task_id, priority);
     }
 
-    pub fn remove_task(&mut self, task_ref: &TaskRef) {
+    pub fn remove_task(&mut self, task_id: TaskId) {
         for queue in self.queues.values_mut() {
-            if queue.remove(task_ref).is_some() {
+            if queue.remove(&task_id).is_some() {
                 return;
             }
         }
@@ -65,8 +67,9 @@ impl ResourceWaitQueue {
 
     pub fn try_start_tasks(
         &mut self,
+        task_map: &TaskMap,
         remaining_time: Option<Duration>,
-    ) -> Vec<(TaskRef, ResourceAllocation)> {
+    ) -> Vec<(TaskId, ResourceAllocation)> {
         let current_priority: PriorityTuple = if let Some(Some(priority)) =
             self.queues.values().map(|q| q.peek().map(|v| *v.1)).max()
         {
@@ -74,16 +77,16 @@ impl ResourceWaitQueue {
         } else {
             return Vec::new();
         };
-        let mut results: Vec<(TaskRef, ResourceAllocation)> = Vec::new();
+        let mut results: Vec<(TaskId, ResourceAllocation)> = Vec::new();
         for request in &self.requests {
             let queue = self.queues.get_mut(request).unwrap();
-            while let Some((task_ref, priority)) = queue.peek() {
+            while let Some((&task_id, priority)) = queue.peek() {
                 if current_priority != *priority {
                     break;
                 }
                 let allocation = {
                     if let Some(allocation) = self.pool.try_allocate_resources(
-                        &task_ref.get().configuration.resources,
+                        &task_map.get(task_id).get().configuration.resources,
                         remaining_time,
                     ) {
                         allocation
@@ -91,8 +94,8 @@ impl ResourceWaitQueue {
                         break;
                     }
                 };
-                let task_ref = queue.pop().unwrap().0;
-                results.push((task_ref, allocation));
+                let task_id = queue.pop().unwrap().0;
+                results.push((task_id, allocation));
             }
         }
         results
@@ -104,80 +107,57 @@ mod tests {
     use crate::common::resources::descriptor::cpu_descriptor_from_socket_size;
     use crate::common::resources::map::ResourceMap;
     use crate::common::resources::{
-        CpuRequest, GenericResourceDescriptor, ResourceAllocation, ResourceDescriptor,
-        ResourceRequest,
+        CpuRequest, GenericResourceDescriptor, ResourceDescriptor, ResourceRequest,
     };
-    use crate::common::Map;
     use crate::tests::utils::resources::{cpus_compact, cpus_force_compact, cpus_scatter};
     use crate::worker::rqueue::ResourceWaitQueue;
     use crate::worker::test_util::worker_task;
     use std::time::Duration;
 
-    fn start_tasks_map(rq: &mut ResourceWaitQueue) -> Map<u64, ResourceAllocation> {
-        rq.try_start_tasks(None)
-            .into_iter()
-            .map(|(t, a)| (t.get().id.as_num(), a))
-            .collect()
-    }
-
-    fn start_tasks_map_time(
-        rq: &mut ResourceWaitQueue,
-        remaining_time: Duration,
-    ) -> Map<u64, ResourceAllocation> {
-        rq.try_start_tasks(Some(remaining_time))
-            .into_iter()
-            .map(|(t, a)| (t.get().id.as_num(), a))
-            .collect()
-    }
+    use crate::worker::test_util::ResourceQueueBuilder as RB;
 
     #[test]
     fn test_rqueue_resource_priority() {
         let cpus = cpu_descriptor_from_socket_size(1, 5);
-        let mut rq = ResourceWaitQueue::new(
+        let mut rq: RB = RB::new(ResourceWaitQueue::new(
             &ResourceDescriptor::new(cpus, Vec::new()),
             &Default::default(),
-        );
-        let t = worker_task(10, cpus_scatter(4).finish(), 1);
-        rq.add_task(t);
-        let t = worker_task(11, cpus_compact(4).finish(), 1);
-        rq.add_task(t);
-        let t = worker_task(12, cpus_force_compact(4).finish(), 1);
-        rq.add_task(t);
+        ));
+        rq.add_task(worker_task(10, cpus_scatter(4).finish(), 1));
+        rq.add_task(worker_task(11, cpus_compact(4).finish(), 1));
+        rq.add_task(worker_task(12, cpus_force_compact(4).finish(), 1));
 
-        let mut tasks = rq.try_start_tasks(None);
+        let mut tasks = rq.start_tasks();
         assert_eq!(tasks.len(), 1);
-        assert_eq!(tasks[0].0.get().id, 12.into());
-        assert!(rq.try_start_tasks(None).is_empty());
-        rq.release_allocation(tasks.pop().unwrap().1);
+        assert!(tasks.contains_key(&12));
+        assert!(rq.start_tasks().is_empty());
+        rq.queue.release_allocation(tasks.remove(&12).unwrap());
 
-        let mut tasks = rq.try_start_tasks(None);
+        let mut tasks = rq.start_tasks();
         assert_eq!(tasks.len(), 1);
-        assert_eq!(tasks[0].0.get().id, 11.into());
-        assert!(rq.try_start_tasks(None).is_empty());
-        rq.release_allocation(tasks.pop().unwrap().1);
+        assert!(tasks.contains_key(&11));
+        assert!(rq.start_tasks().is_empty());
+        rq.queue.release_allocation(tasks.remove(&11).unwrap());
 
-        let mut tasks = rq.try_start_tasks(None);
+        let mut tasks = rq.start_tasks();
         assert_eq!(tasks.len(), 1);
-        assert_eq!(tasks[0].0.get().id, 10.into());
-        assert!(rq.try_start_tasks(None).is_empty());
-        rq.release_allocation(tasks.pop().unwrap().1);
+        assert!(tasks.contains_key(&10));
+        assert!(rq.start_tasks().is_empty());
+        rq.queue.release_allocation(tasks.remove(&10).unwrap());
     }
 
     #[test]
     fn test_rqueue1() {
         let cpus = cpu_descriptor_from_socket_size(3, 5);
-        let mut rq = ResourceWaitQueue::new(
+        let mut rq = RB::new(ResourceWaitQueue::new(
             &ResourceDescriptor::new(cpus, Vec::new()),
             &Default::default(),
-        );
-        let t = worker_task(10, cpus_compact(2).finish(), 1);
-        rq.add_task(t);
-        let t = worker_task(11, cpus_compact(5).finish(), 1);
-        rq.add_task(t);
-        let t = worker_task(12, cpus_compact(2).finish(), 1);
-        rq.add_task(t);
+        ));
+        rq.add_task(worker_task(10, cpus_compact(2).finish(), 1));
+        rq.add_task(worker_task(11, cpus_compact(5).finish(), 1));
+        rq.add_task(worker_task(12, cpus_compact(2).finish(), 1));
 
-        let a = start_tasks_map(&mut rq);
+        let a = rq.start_tasks();
         assert_eq!(a.get(&10).unwrap().cpus.len(), 2);
         assert_eq!(a.get(&11).unwrap().cpus.len(), 5);
         assert_eq!(a.get(&12).unwrap().cpus.len(), 2);
@@ -186,62 +166,54 @@ mod tests {
     #[test]
     fn test_rqueue2() {
         let cpus = cpu_descriptor_from_socket_size(1, 4);
-        let mut rq = ResourceWaitQueue::new(
+        let mut rq = RB::new(ResourceWaitQueue::new(
             &ResourceDescriptor::new(cpus, Vec::new()),
             &Default::default(),
-        );
-        let t = worker_task(10, cpus_compact(2).finish(), 1);
-        rq.add_task(t);
-        let t = worker_task(11, cpus_compact(1).finish(), 2);
-        rq.add_task(t);
-        let t = worker_task(12, cpus_compact(2).finish(), 2);
-        rq.add_task(t);
+        ));
+        rq.add_task(worker_task(10, cpus_compact(2).finish(), 1));
+        rq.add_task(worker_task(11, cpus_compact(1).finish(), 2));
+        rq.add_task(worker_task(12, cpus_compact(2).finish(), 2));
 
-        let a = start_tasks_map(&mut rq);
-        assert!(!a.contains_key(&10));
-        assert!(a.contains_key(&11));
-        assert!(a.contains_key(&12));
+        let map = rq.start_tasks();
+        assert!(!map.contains_key(&10));
+        assert!(map.contains_key(&11));
+        assert!(map.contains_key(&12));
 
-        let a = start_tasks_map(&mut rq);
-        assert!(a.is_empty())
+        assert!(rq.start_tasks().is_empty())
     }
 
     #[test]
     fn test_rqueue3() {
         let cpus = cpu_descriptor_from_socket_size(1, 4);
-        let mut rq = ResourceWaitQueue::new(
+        let mut rq = RB::new(ResourceWaitQueue::new(
             &ResourceDescriptor::new(cpus, Vec::new()),
             &Default::default(),
-        );
-        let t = worker_task(10, cpus_compact(2).finish(), 1);
-        rq.add_task(t);
-        let t = worker_task(11, cpus_compact(1).finish(), 1);
-        rq.add_task(t);
-        let t = worker_task(12, cpus_compact(2).finish(), 2);
-        rq.add_task(t);
+        ));
+        rq.add_task(worker_task(10, cpus_compact(2).finish(), 1));
+        rq.add_task(worker_task(11, cpus_compact(1).finish(), 1));
+        rq.add_task(worker_task(12, cpus_compact(2).finish(), 2));
 
-        let a = start_tasks_map(&mut rq);
-        assert!(!a.contains_key(&10));
-        assert!(!a.contains_key(&11));
-        assert!(a.contains_key(&12));
+        let map = rq.start_tasks();
+        assert!(!map.contains_key(&10));
+        assert!(!map.contains_key(&11));
+        assert!(map.contains_key(&12));
 
-        let a = start_tasks_map(&mut rq);
-        assert!(a.contains_key(&10));
-        assert!(!a.contains_key(&11));
-        assert!(!a.contains_key(&12));
+        let map = rq.start_tasks();
+        assert!(map.contains_key(&10));
+        assert!(!map.contains_key(&11));
+        assert!(!map.contains_key(&12));
 
-        let a = start_tasks_map(&mut rq);
-        assert!(a.is_empty())
+        assert!(rq.start_tasks().is_empty())
     }
 
     #[test]
     fn test_rqueue_time_request() {
         let cpus = cpu_descriptor_from_socket_size(1, 4);
-        let mut rq = ResourceWaitQueue::new(
+        let mut rq = RB::new(ResourceWaitQueue::new(
             &ResourceDescriptor::new(cpus, Vec::new()),
             &Default::default(),
-        );
-        let t = worker_task(
+        ));
+        rq.add_task(worker_task(
             10,
             ResourceRequest::new(
                 CpuRequest::Compact(1),
@@ -249,24 +221,20 @@ mod tests {
                 Default::default(),
             ),
             1,
-        );
-        rq.add_task(t);
+        ));
 
-        let tasks = rq.try_start_tasks(Some(Duration::new(9, 0)));
-        assert_eq!(tasks.len(), 0);
-
-        let tasks = rq.try_start_tasks(Some(Duration::new(11, 0)));
-        assert_eq!(tasks.len(), 1);
+        assert_eq!(rq.start_tasks_duration(Duration::new(9, 0)).len(), 0);
+        assert_eq!(rq.start_tasks_duration(Duration::new(11, 0)).len(), 1);
     }
 
     #[test]
     fn test_rqueue_time_request_priority1() {
         let cpus = cpu_descriptor_from_socket_size(1, 4);
-        let mut rq = ResourceWaitQueue::new(
+        let mut rq = RB::new(ResourceWaitQueue::new(
             &ResourceDescriptor::new(cpus, Vec::new()),
             &Default::default(),
-        );
-        let t = worker_task(
+        ));
+        rq.add_task(worker_task(
             10,
             ResourceRequest::new(
                 CpuRequest::Compact(2),
@@ -274,9 +242,8 @@ mod tests {
                 Default::default(),
             ),
             1,
-        );
-        rq.add_task(t);
-        let t = worker_task(
+        ));
+        rq.add_task(worker_task(
             11,
             ResourceRequest::new(
                 CpuRequest::Compact(2),
@@ -284,9 +251,8 @@ mod tests {
                 Default::default(),
             ),
             1,
-        );
-        rq.add_task(t);
-        let t = worker_task(
+        ));
+        rq.add_task(worker_task(
             12,
             ResourceRequest::new(
                 CpuRequest::Compact(2),
@@ -294,9 +260,8 @@ mod tests {
                 Default::default(),
             ),
             1,
-        );
-        rq.add_task(t);
-        let t = worker_task(
+        ));
+        rq.add_task(worker_task(
             13,
             ResourceRequest::new(
                 CpuRequest::Compact(2),
@@ -304,23 +269,22 @@ mod tests {
                 Default::default(),
             ),
             1,
-        );
-        rq.add_task(t);
+        ));
 
-        let a = start_tasks_map_time(&mut rq, Duration::new(40, 0));
-        assert_eq!(a.len(), 2);
-        assert!(a.contains_key(&11));
-        assert!(a.contains_key(&13));
+        let map = rq.start_tasks_duration(Duration::new(40, 0));
+        assert_eq!(map.len(), 2);
+        assert!(map.contains_key(&11));
+        assert!(map.contains_key(&13));
     }
 
     #[test]
     fn test_rqueue_time_request_priority2() {
         let cpus = cpu_descriptor_from_socket_size(1, 4);
-        let mut rq = ResourceWaitQueue::new(
+        let mut rq = RB::new(ResourceWaitQueue::new(
             &ResourceDescriptor::new(cpus, Vec::new()),
             &Default::default(),
-        );
-        let t = worker_task(
+        ));
+        rq.add_task(worker_task(
             10,
             ResourceRequest::new(
                 CpuRequest::Compact(2),
@@ -328,9 +292,8 @@ mod tests {
                 Default::default(),
             ),
             1,
-        );
-        rq.add_task(t);
-        let t = worker_task(
+        ));
+        rq.add_task(worker_task(
             11,
             ResourceRequest::new(
                 CpuRequest::Compact(2),
@@ -338,9 +301,8 @@ mod tests {
                 Default::default(),
             ),
             1,
-        );
-        rq.add_task(t);
-        let t = worker_task(
+        ));
+        rq.add_task(worker_task(
             12,
             ResourceRequest::new(
                 CpuRequest::Compact(2),
@@ -348,9 +310,8 @@ mod tests {
                 Default::default(),
             ),
             1,
-        );
-        rq.add_task(t);
-        let t = worker_task(
+        ));
+        rq.add_task(worker_task(
             13,
             ResourceRequest::new(
                 CpuRequest::Compact(2),
@@ -358,13 +319,12 @@ mod tests {
                 Default::default(),
             ),
             1,
-        );
-        rq.add_task(t);
+        ));
 
-        let a = start_tasks_map_time(&mut rq, Duration::new(30, 0));
-        assert_eq!(a.len(), 2);
-        assert!(a.contains_key(&12));
-        assert!(a.contains_key(&13));
+        let map = rq.start_tasks_duration(Duration::new(30, 0));
+        assert_eq!(map.len(), 2);
+        assert!(map.contains_key(&12));
+        assert!(map.contains_key(&13));
     }
 
     #[test]
@@ -376,21 +336,19 @@ mod tests {
             GenericResourceDescriptor::indices("Res2", 1, 50),
         ];
         let descriptor = ResourceDescriptor::new(cpus, generic);
-        let mut rq = ResourceWaitQueue::new(
+        let mut rq = RB::new(ResourceWaitQueue::new(
             &descriptor,
             &ResourceMap::from_vec(vec!["Res0".into(), "Res1".into(), "Res2".into()]),
-        );
+        ));
 
         let request: ResourceRequest = cpus_compact(2).add_generic(0, 2).finish();
 
-        let t = worker_task(10, request, 1);
-        rq.add_task(t);
-        let t = worker_task(11, cpus_compact(4).finish(), 1);
-        rq.add_task(t);
+        rq.add_task(worker_task(10, request, 1));
+        rq.add_task(worker_task(11, cpus_compact(4).finish(), 1));
 
-        let a = start_tasks_map(&mut rq);
-        assert!(!a.contains_key(&10));
-        assert!(a.contains_key(&11));
+        let map = rq.start_tasks();
+        assert!(!map.contains_key(&10));
+        assert!(map.contains_key(&11));
     }
 
     #[test]
@@ -403,27 +361,24 @@ mod tests {
         ];
         let descriptor = ResourceDescriptor::new(cpus, generic);
 
-        let mut rq = ResourceWaitQueue::new(
+        let mut rq = RB::new(ResourceWaitQueue::new(
             &descriptor,
             &ResourceMap::from_vec(vec!["Res0".into(), "Res1".into(), "Res2".into()]),
-        );
+        ));
 
         let request: ResourceRequest = cpus_compact(2).add_generic(0, 8).finish();
-        let t = worker_task(10, request, 1);
-        rq.add_task(t);
+        rq.add_task(worker_task(10, request, 1));
 
         let request: ResourceRequest = cpus_compact(2).add_generic(0, 12).finish();
-        let t = worker_task(11, request, 1);
-        rq.add_task(t);
+        rq.add_task(worker_task(11, request, 1));
 
         let request: ResourceRequest = cpus_compact(2).add_generic(1, 50_000_000).finish();
-        let t = worker_task(12, request, 1);
-        rq.add_task(t);
+        rq.add_task(worker_task(12, request, 1));
 
-        let a = start_tasks_map(&mut rq);
-        assert!(!a.contains_key(&10));
-        assert!(a.contains_key(&11));
-        assert!(a.contains_key(&12));
+        let map = rq.start_tasks();
+        assert!(!map.contains_key(&10));
+        assert!(map.contains_key(&11));
+        assert!(map.contains_key(&12));
     }
 
     #[test]
@@ -436,29 +391,26 @@ mod tests {
         ];
         let descriptor = ResourceDescriptor::new(cpus, generic);
 
-        let mut rq = ResourceWaitQueue::new(
+        let mut rq = RB::new(ResourceWaitQueue::new(
             &descriptor,
             &ResourceMap::from_vec(vec!["Res0".into(), "Res1".into(), "Res2".into()]),
-        );
+        ));
 
         let request: ResourceRequest = cpus_compact(2).add_generic(0, 18).finish();
-        let t = worker_task(10, request, 1);
-        rq.add_task(t);
+        rq.add_task(worker_task(10, request, 1));
 
         let request: ResourceRequest = cpus_compact(2)
             .add_generic(0, 10)
             .add_generic(1, 60_000_000)
             .finish();
-        let t = worker_task(11, request, 1);
-        rq.add_task(t);
+        rq.add_task(worker_task(11, request, 1));
 
         let request: ResourceRequest = cpus_compact(2).add_generic(1, 99_000_000).finish();
-        let t = worker_task(12, request, 1);
-        rq.add_task(t);
+        rq.add_task(worker_task(12, request, 1));
 
-        let a = start_tasks_map(&mut rq);
-        assert!(!a.contains_key(&10));
-        assert!(a.contains_key(&11));
-        assert!(!a.contains_key(&12));
+        let map = rq.start_tasks();
+        assert!(!map.contains_key(&10));
+        assert!(map.contains_key(&11));
+        assert!(!map.contains_key(&12));
     }
 }

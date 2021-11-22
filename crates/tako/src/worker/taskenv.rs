@@ -5,7 +5,6 @@ use tokio::sync::oneshot::Sender;
 use crate::messages::common::TaskFailInfo;
 use crate::worker::state::WorkerState;
 use crate::worker::task::Task;
-use crate::worker::task::TaskRef;
 
 pub enum TaskResult {
     Finished,
@@ -49,12 +48,13 @@ impl TaskEnv {
         self.send_stop(StopReason::Cancel);
     }
 
-    pub fn start_task(&mut self, state: &WorkerState, task: &Task, task_ref: &TaskRef) {
+    pub fn start_task(&mut self, state: &WorkerState, task: &Task) {
         assert_eq!(task.configuration.n_outputs, 0);
         assert!(self.stop_sender.is_none());
         let (end_sender, end_receiver) = oneshot::channel();
         self.stop_sender = Some(end_sender);
 
+        let task_ref = state.get_task(task.id);
         let task_fut = (*state.task_launcher)(state, task_ref, end_receiver);
         let state_ref = state.self_ref();
         let task_ref = task_ref.clone();
