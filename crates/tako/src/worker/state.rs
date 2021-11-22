@@ -12,6 +12,7 @@ use tokio::sync::Notify;
 
 use crate::common::data::SerializationType;
 use crate::common::resources::map::ResourceMap;
+use crate::common::stablemap::StableMap;
 use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
 use crate::messages::worker::{FromWorkerMessage, StealResponse, TaskFailedMsg, TaskFinishedMsg};
@@ -22,9 +23,10 @@ use crate::worker::hwmonitor::WorkerHwState;
 use crate::worker::launcher::TaskLauncher;
 use crate::worker::rqueue::ResourceWaitQueue;
 use crate::worker::task::{Task, TaskState};
-use crate::worker::taskmap::TaskMap;
 use crate::TaskId;
 use crate::{PriorityTuple, WorkerId};
+
+pub type TaskMap = StableMap<TaskId, Task>;
 
 pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
 
@@ -58,12 +60,12 @@ pub struct WorkerState {
 impl WorkerState {
     #[inline]
     pub fn get_task(&self, task_id: TaskId) -> &Task {
-        self.tasks.get(task_id)
+        self.tasks.get(&task_id)
     }
 
     #[inline]
     pub fn get_task_mut(&mut self, task_id: TaskId) -> &mut Task {
-        self.tasks.get_mut(task_id)
+        self.tasks.get_mut(&task_id)
     }
 
     #[inline]
@@ -188,6 +190,7 @@ impl WorkerState {
         task.deps.push(data_ref);*/
     }
 
+    #[inline]
     pub fn add_task(&mut self, task: Task) {
         if task.is_ready() {
             log::debug!("Task {} is directly ready", task.id);
@@ -199,7 +202,7 @@ impl WorkerState {
                 task.get_waiting()
             );
         }
-        assert!(self.tasks.insert(task.id, task).is_none());
+        self.tasks.insert(task.id, task);
     }
 
     pub fn remove_data_by_id(&mut self, task_id: TaskId) {
@@ -235,7 +238,7 @@ impl WorkerState {
 
     fn remove_task(&mut self, task_id: TaskId, just_finished: bool) {
         let previous_state =
-            { std::mem::replace(&mut self.tasks.get_mut(task_id).state, TaskState::Removed) };
+            { std::mem::replace(&mut self.tasks.get_mut(&task_id).state, TaskState::Removed) };
 
         match previous_state {
             TaskState::Waiting(x) => {
@@ -257,7 +260,7 @@ impl WorkerState {
             }
         }
 
-        assert!(self.tasks.remove(task_id).is_some());
+        assert!(self.tasks.remove(&task_id).is_some());
         /* TODO
         for data_ref in std::mem::take(&mut task.deps) {
             let mut data = data_ref.get_mut();
@@ -297,7 +300,7 @@ impl WorkerState {
 
     pub fn cancel_task(&mut self, task_id: TaskId) {
         log::debug!("Canceling task {}", task_id);
-        let was_waiting = match self.tasks.find_mut(task_id) {
+        let was_waiting = match self.tasks.find_mut(&task_id) {
             None => {
                 /* This may happen that task was computed or when work steal
                   was successful
@@ -321,7 +324,7 @@ impl WorkerState {
     }
 
     pub fn steal_task(&mut self, task_id: TaskId) -> StealResponse {
-        let response = match self.tasks.find(task_id) {
+        let response = match self.tasks.find(&task_id) {
             None => StealResponse::NotHere,
             Some(task) => match task.state {
                 TaskState::Waiting(_) => StealResponse::Ok,

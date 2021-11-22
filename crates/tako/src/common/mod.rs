@@ -12,3 +12,4 @@ mod wrapped;
 pub mod trace;
 pub mod index;
 pub mod secret;
+pub mod stablemap;

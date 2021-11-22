@@ -2,8 +2,8 @@ use crate::common::resources::map::ResourceMap;
 use crate::common::resources::{ResourceAllocation, ResourceDescriptor, ResourceRequest};
 use crate::common::Map;
 use crate::worker::pool::ResourcePool;
+use crate::worker::state::TaskMap;
 use crate::worker::task::Task;
-use crate::worker::taskmap::TaskMap;
 use crate::{PriorityTuple, TaskId};
 use std::time::Duration;
 
@@ -85,7 +85,7 @@ impl ResourceWaitQueue {
                 }
                 let allocation = {
                     if let Some(allocation) = self.pool.try_allocate_resources(
-                        &task_map.get(task_id).configuration.resources,
+                        &task_map.get(&task_id).configuration.resources,
                         remaining_time,
                     ) {
                         allocation
