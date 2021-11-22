@@ -3,7 +3,7 @@ use crate::common::Map;
 use crate::messages::common::TaskConfiguration;
 use crate::messages::worker::ComputeTaskMsg;
 use crate::worker::rqueue::ResourceWaitQueue;
-use crate::worker::task::TaskRef;
+use crate::worker::task::Task;
 use crate::worker::taskmap::TaskMap;
 use crate::{Priority, TaskId};
 use std::time::Duration;
@@ -12,8 +12,8 @@ pub fn worker_task<T: Into<TaskId>>(
     task_id: T,
     resources: ResourceRequest,
     u_priority: Priority,
-) -> TaskRef {
-    TaskRef::new(ComputeTaskMsg {
+) -> Task {
+    Task::new(ComputeTaskMsg {
         id: task_id.into(),
         instance_id: 0.into(),
         dep_info: vec![],
@@ -41,9 +41,9 @@ impl ResourceQueueBuilder {
         }
     }
 
-    pub fn add_task(&mut self, task: TaskRef) {
-        self.queue.add_task(task.clone());
-        let id = task.get().id;
+    pub fn add_task(&mut self, task: Task) {
+        self.queue.add_task(&task);
+        let id = task.id;
         self.task_map.insert(id, task);
     }
 

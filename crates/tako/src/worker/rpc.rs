@@ -32,7 +32,7 @@ use crate::worker::hwmonitor::HwSampler;
 use crate::worker::launcher::TaskLauncher;
 use crate::worker::reactor::assign_task;
 use crate::worker::state::WorkerStateRef;
-use crate::worker::task::TaskRef;
+use crate::worker::task::Task;
 use crate::PriorityTuple;
 use crate::{Priority, WorkerId};
 use futures::future::Either;
@@ -369,11 +369,11 @@ async fn worker_message_loop(
             ToWorkerMessage::ComputeTask(mut msg) => {
                 log::debug!("Task assigned: {}", msg.id);
                 let dep_info = std::mem::take(&mut msg.dep_info);
-                let task_ref = TaskRef::new(msg);
+                let task = Task::new(msg);
                 for (task_id, size, workers) in dep_info {
-                    state.add_dependency(&task_ref, task_id, size, workers);
+                    state.add_dependency(&task, task_id, size, workers);
                 }
-                state.add_task(task_ref);
+                state.add_task(task);
             }
             ToWorkerMessage::DeleteData(msg) => {
                 state.remove_data_by_id(msg.id);
@@ -411,7 +411,7 @@ async fn worker_message_loop(
                         .running_tasks
                         .iter()
                         .map(|&task_id| {
-                            let task = state.get_task(task_id).get();
+                            let task = state.get_task(task_id);
                             let allocation: ResourceAllocation =
                                 task.resource_allocation().unwrap().clone();
                             (task_id, allocation)

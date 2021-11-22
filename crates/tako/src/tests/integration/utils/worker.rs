@@ -18,8 +18,7 @@ use tokio::task::LocalSet;
 
 use crate::worker::launcher::command_from_definitions;
 use crate::worker::rpc::run_worker;
-use crate::worker::state::WorkerState;
-use crate::worker::task::TaskRef;
+use crate::worker::state::{WorkerState, WorkerStateRef};
 use crate::worker::taskenv::{StopReason, TaskResult};
 use crate::{TaskId, WorkerId};
 
@@ -236,16 +235,17 @@ pub(super) async fn start_worker(
     Ok((handle, ctx))
 }
 
-async fn launcher_main(task_ref: TaskRef) -> crate::Result<()> {
-    log::debug!(
-        "Starting program launcher {} {:?} {:?}",
-        task_ref.get().id,
-        &task_ref.get().configuration.resources,
-        task_ref.get().resource_allocation()
-    );
-
+async fn launcher_main(state_ref: WorkerStateRef, task_id: TaskId) -> crate::Result<()> {
     let program: ProgramDefinition = {
-        let task = task_ref.get();
+        let state = state_ref.get();
+        let task = state.get_task(task_id);
+        log::debug!(
+            "Starting program launcher {} {:?} {:?}",
+            task.id,
+            &task.configuration.resources,
+            task.resource_allocation()
+        );
+
         rmp_serde::from_slice(&task.configuration.body)?
     };
 
@@ -266,15 +266,14 @@ fn launcher(
     task_id: TaskId,
     end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
 ) -> Pin<Box<dyn Future<Output = crate::Result<TaskResult>> + 'static>> {
-    let task_ref = state.get_task(task_id).clone();
-
+    let state_ref = state.self_ref();
     Box::pin(async move {
         tokio::select! {
             biased;
                 r = end_receiver => {
                     Ok(r.unwrap().into())
                 }
-                r = launcher_main(task_ref) => {
+                r = launcher_main(state_ref, task_id) => {
                     r?;
                     Ok(TaskResult::Finished)
                 }

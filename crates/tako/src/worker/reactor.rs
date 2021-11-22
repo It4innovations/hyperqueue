@@ -7,15 +7,16 @@ use crate::TaskId;
 
 pub fn assign_task(state: &mut WorkerState, task_id: TaskId, allocation: ResourceAllocation) {
     {
-        let mut task = state.get_task(task_id).get_mut();
-        log::debug!("Task={} assigned", task.id);
+        log::debug!("Task={} assigned", task_id);
 
         state.send_message_to_server(FromWorkerMessage::TaskRunning(TaskRunningMsg {
-            id: task.id,
+            id: task_id,
         }));
 
         let mut task_env = TaskEnv::new();
-        task_env.start_task(state, &task);
+        task_env.start_task(state, task_id);
+
+        let mut task = state.get_task_mut(task_id);
         task.state = TaskState::Running(task_env, allocation);
     }
     state.running_tasks.insert(task_id);

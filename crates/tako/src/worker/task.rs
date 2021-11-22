@@ -22,6 +22,17 @@ pub struct Task {
 }
 
 impl Task {
+    pub fn new(message: ComputeTaskMsg) -> Self {
+        Task {
+            id: message.id,
+            priority: (message.user_priority, message.scheduler_priority),
+            state: TaskState::Waiting(0),
+            configuration: message.configuration,
+            deps: Default::default(),
+            instance_id: message.instance_id,
+        }
+    }
+
     #[inline]
     pub fn is_waiting(&self) -> bool {
         matches!(self.state, TaskState::Waiting(_))

@@ -146,21 +146,21 @@ async fn launcher_main(
     task_id: TaskId,
     end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
 ) -> tako::Result<TaskResult> {
-    let task_ref = state_ref.get().get_task(task_id).clone();
-    log::debug!(
-        "Starting program launcher {} {:?} {:?}",
-        task_ref.get().id,
-        &task_ref.get().configuration.resources,
-        task_ref.get().resource_allocation()
-    );
-
     let (program, job_id, job_task_id, instance_id): (
         ProgramDefinition,
         JobId,
         JobTaskId,
         InstanceId,
     ) = {
-        let task = task_ref.get();
+        let state = state_ref.get();
+        let task = state.get_task(task_id);
+        log::debug!(
+            "Starting program launcher {} {:?} {:?}",
+            task.id,
+            task.configuration.resources,
+            task.resource_allocation()
+        );
+
         let body: TaskBody = tako::transfer::auth::deserialize(&task.configuration.body)?;
         let allocation = task
             .resource_allocation()
@@ -180,7 +180,7 @@ async fn launcher_main(
             let state = state_ref.get();
             let resource_map = state.get_resource_map();
 
-            for rq in task_ref.get().configuration.resources.generic_requests() {
+            for rq in task.configuration.resources.generic_requests() {
                 let resource_name = resource_map.get_name(rq.resource).unwrap();
                 program.env.insert(
                     format!("HQ_RESOURCE_REQUEST_{}", resource_name).into(),

@@ -4,7 +4,7 @@ use tokio::sync::oneshot::Sender;
 
 use crate::messages::common::TaskFailInfo;
 use crate::worker::state::WorkerState;
-use crate::worker::task::Task;
+use crate::TaskId;
 
 pub enum TaskResult {
     Finished,
@@ -48,19 +48,19 @@ impl TaskEnv {
         self.send_stop(StopReason::Cancel);
     }
 
-    pub fn start_task(&mut self, state: &WorkerState, task: &Task) {
-        assert_eq!(task.configuration.n_outputs, 0);
+    pub fn start_task(&mut self, state: &WorkerState, task_id: TaskId) {
+        assert_eq!(state.get_task(task_id).configuration.n_outputs, 0);
         assert!(self.stop_sender.is_none());
         let (end_sender, end_receiver) = oneshot::channel();
         self.stop_sender = Some(end_sender);
 
-        let task_fut = (*state.task_launcher)(state, task.id, end_receiver);
+        let task_fut = (*state.task_launcher)(state, task_id, end_receiver);
         let state_ref = state.self_ref();
-        let task_ref = state.get_task(task.id).clone();
 
         tokio::task::spawn_local(async move {
             let time_limit = {
-                let task = task_ref.get();
+                let state = state_ref.get();
+                let task = state.get_task(task_id);
                 if task.is_removed() {
                     // Task was canceled in between start of the task and this spawn_local
                     return;
@@ -74,7 +74,8 @@ impl TaskEnv {
                     Either::Left((r, _)) => r,
                     Either::Right((_, task_fut)) => {
                         {
-                            let mut task = task_ref.get_mut();
+                            let mut state = state_ref.get_mut();
+                            let task = state.get_task_mut(task_id);
                             log::debug!("Task {} timeouted", task.id);
                             task.task_env_mut().unwrap().send_stop(StopReason::Timeout)
                         }
@@ -87,24 +88,23 @@ impl TaskEnv {
             let mut state = state_ref.get_mut();
             match result {
                 Ok(TaskResult::Finished) => {
-                    let task_id = task_ref.get().id;
                     log::debug!("Inner task finished id={}", task_id);
-                    state.finish_task(task_ref, 0);
+                    state.finish_task(task_id, 0);
                 }
                 Ok(TaskResult::Canceled) => {
-                    log::debug!("Inner task canceled id={}", task_ref.get().id);
-                    state.finish_task_cancel(task_ref);
+                    log::debug!("Inner task canceled id={}", task_id);
+                    state.finish_task_cancel(task_id);
                 }
                 Ok(TaskResult::Timeouted) => {
-                    log::debug!("Inner task timeouted id={}", task_ref.get().id);
+                    log::debug!("Inner task timeouted id={}", task_id);
                     state.finish_task_failed(
-                        task_ref,
+                        task_id,
                         TaskFailInfo::from_string("Time limit reached".to_string()),
                     );
                 }
                 Err(e) => {
-                    log::debug!("Inner task failed id={}, error={:?}", task_ref.get().id, e);
-                    state.finish_task_failed(task_ref, TaskFailInfo::from_string(e.to_string()));
+                    log::debug!("Inner task failed id={}, error={:?}", task_id, e);
+                    state.finish_task_failed(task_id, TaskFailInfo::from_string(e.to_string()));
                 }
             }
         });

@@ -7,7 +7,6 @@ use orion::aead::SecretKey;
 use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
-use smallvec::{smallvec, SmallVec};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
 
@@ -15,16 +14,14 @@ use crate::common::data::SerializationType;
 use crate::common::resources::map::ResourceMap;
 use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
-use crate::messages::worker::{
-    DataDownloadedMsg, FromWorkerMessage, StealResponse, TaskFailedMsg, TaskFinishedMsg,
-};
+use crate::messages::worker::{FromWorkerMessage, StealResponse, TaskFailedMsg, TaskFinishedMsg};
 use crate::transfer::auth::serialize;
 use crate::transfer::DataConnection;
-use crate::worker::data::{DataObject, DataObjectRef, DataObjectState, LocalData, RemoteData};
+use crate::worker::data::{DataObject, DataObjectRef, DataObjectState};
 use crate::worker::hwmonitor::WorkerHwState;
 use crate::worker::launcher::TaskLauncher;
 use crate::worker::rqueue::ResourceWaitQueue;
-use crate::worker::task::{Task, TaskRef, TaskState};
+use crate::worker::task::{Task, TaskState};
 use crate::worker::taskmap::TaskMap;
 use crate::TaskId;
 use crate::{PriorityTuple, WorkerId};
@@ -60,8 +57,13 @@ pub struct WorkerState {
 
 impl WorkerState {
     #[inline]
-    pub fn get_task(&self, task_id: TaskId) -> &TaskRef {
+    pub fn get_task(&self, task_id: TaskId) -> &Task {
         self.tasks.get(task_id)
+    }
+
+    #[inline]
+    pub fn get_task_mut(&mut self, task_id: TaskId) -> &mut Task {
+        self.tasks.get_mut(task_id)
     }
 
     #[inline]
@@ -86,7 +88,8 @@ impl WorkerState {
         data: BytesMut,
         serializer: SerializationType,
     ) {
-        let new_ready = {
+        // TODO
+        /*let new_ready = {
             let mut data_obj = data_ref.get_mut();
             log::debug!("Data {} downloaded ({} bytes)", data_obj.id, data.len());
             match data_obj.state {
@@ -124,29 +127,30 @@ impl WorkerState {
         };
         if !new_ready.is_empty() {
             self.add_ready_tasks(&new_ready);
-        }
+        }*/
     }
 
-    pub fn add_ready_task(&mut self, task_ref: TaskRef) {
-        self.ready_task_queue.add_task(task_ref);
+    pub fn add_ready_task(&mut self, task: &Task) {
+        self.ready_task_queue.add_task(task);
         self.schedule_task_start();
     }
 
-    pub fn add_ready_tasks(&mut self, task_refs: &[TaskRef]) {
-        for task_ref in task_refs {
-            self.ready_task_queue.add_task(task_ref.clone());
+    pub fn add_ready_tasks(&mut self, tasks: &[Task]) {
+        for task in tasks {
+            self.ready_task_queue.add_task(task);
         }
         self.schedule_task_start();
     }
 
     pub fn add_dependency(
         &mut self,
-        task_ref: &TaskRef,
+        task: &Task,
         task_id: TaskId,
         size: u64,
         workers: Vec<WorkerId>,
     ) {
-        let mut task = task_ref.get_mut();
+        todo!();
+        /*let mut task = task_ref.get_mut();
         let mut is_remote = false;
         let data_ref = match self.data_objects.get(&task_id).cloned() {
             None => {
@@ -181,23 +185,21 @@ impl WorkerState {
             task.increase_waiting_count();
             let _ = self.download_sender.send((data_ref.clone(), task.priority));
         }
-        task.deps.push(data_ref);
+        task.deps.push(data_ref);*/
     }
 
-    pub fn add_task(&mut self, task_ref: TaskRef) {
-        let id = task_ref.get().id;
-        if task_ref.get().is_ready() {
-            log::debug!("Task {} is directly ready", id);
-            self.add_ready_task(task_ref.clone());
+    pub fn add_task(&mut self, task: Task) {
+        if task.is_ready() {
+            log::debug!("Task {} is directly ready", task.id);
+            self.add_ready_task(&task);
         } else {
-            let task = task_ref.get();
             log::debug!(
                 "Task {} is blocked by {} remote objects",
-                id,
+                task.id,
                 task.get_waiting()
             );
         }
-        self.tasks.insert(id, task_ref);
+        self.tasks.insert(task.id, task);
     }
 
     pub fn remove_data_by_id(&mut self, task_id: TaskId) {
@@ -231,19 +233,22 @@ impl WorkerState {
         }
     }
 
-    fn remove_task(&mut self, task: &mut Task, task_ref: &TaskRef, just_finished: bool) {
-        match std::mem::replace(&mut task.state, TaskState::Removed) {
+    fn remove_task(&mut self, task_id: TaskId, just_finished: bool) {
+        let previous_state =
+            { std::mem::replace(&mut self.tasks.get_mut(task_id).state, TaskState::Removed) };
+
+        match previous_state {
             TaskState::Waiting(x) => {
-                log::debug!("Removing waiting task id={}", task.id);
+                log::debug!("Removing waiting task id={}", task_id);
                 assert!(!just_finished);
                 if x == 0 {
-                    self.ready_task_queue.remove_task(task.id);
+                    self.ready_task_queue.remove_task(task_id);
                 }
             }
             TaskState::Running(_, allocation) => {
-                log::debug!("Removing running task id={}", task.id);
+                log::debug!("Removing running task id={}", task_id);
                 assert!(just_finished);
-                assert!(self.running_tasks.remove(&task.id));
+                assert!(self.running_tasks.remove(&task_id));
                 self.schedule_task_start();
                 self.ready_task_queue.release_allocation(allocation);
             }
@@ -252,7 +257,8 @@ impl WorkerState {
             }
         }
 
-        assert!(self.tasks.remove(task.id).is_some());
+        assert!(self.tasks.remove(task_id).is_some());
+        /* TODO
         for data_ref in std::mem::take(&mut task.deps) {
             let mut data = data_ref.get_mut();
             assert!(data.consumers.remove(task_ref));
@@ -269,7 +275,7 @@ impl WorkerState {
                     }
                 };
             }
-        }
+        }*/
     }
 
     pub fn pop_worker_connection(&mut self, worker_id: WorkerId) -> Option<DataConnection> {
@@ -291,44 +297,42 @@ impl WorkerState {
 
     pub fn cancel_task(&mut self, task_id: TaskId) {
         log::debug!("Canceling task {}", task_id);
-        match self.tasks.find(task_id).cloned() {
+        let was_waiting = match self.tasks.find_mut(task_id) {
             None => {
                 /* This may happen that task was computed or when work steal
                   was successful
                 */
                 log::debug!("Task not found, try to remove object");
                 self.remove_data_by_id(task_id);
+                false
             }
-            Some(task_ref) => {
-                let mut task = task_ref.get_mut();
-                match &mut task.state {
-                    TaskState::Running(ref mut env, _) => {
-                        env.cancel_task();
-                    }
-                    TaskState::Waiting(_) => {
-                        self.remove_task(&mut task, &task_ref, false);
-                    }
-                    TaskState::Removed => unreachable!(),
+            Some(task) => match task.state {
+                TaskState::Running(ref mut env, _) => {
+                    env.cancel_task();
+                    false
                 }
-            }
+                TaskState::Waiting(_) => true,
+                TaskState::Removed => unreachable!(),
+            },
+        };
+        if was_waiting {
+            self.remove_task(task_id, false);
         }
     }
 
     pub fn steal_task(&mut self, task_id: TaskId) -> StealResponse {
-        match self.tasks.find(task_id).cloned() {
+        let response = match self.tasks.find(task_id) {
             None => StealResponse::NotHere,
-            Some(task_ref) => {
-                let mut task = task_ref.get_mut();
-                match task.state {
-                    TaskState::Waiting(_) => {
-                        self.remove_task(&mut task, &task_ref, false);
-                        StealResponse::Ok
-                    }
-                    TaskState::Running(_, _) => StealResponse::Running,
-                    TaskState::Removed => unreachable!(),
-                }
-            }
+            Some(task) => match task.state {
+                TaskState::Waiting(_) => StealResponse::Ok,
+                TaskState::Running(_, _) => StealResponse::Running,
+                TaskState::Removed => unreachable!(),
+            },
+        };
+        if let StealResponse::Ok = &response {
+            self.remove_task(task_id, false);
         }
+        response
     }
 
     pub fn schedule_task_start(&mut self) {
@@ -343,23 +347,20 @@ impl WorkerState {
         self.self_ref.clone().unwrap()
     }
 
-    pub fn finish_task(&mut self, task_ref: TaskRef, size: u64) {
-        let mut task = task_ref.get_mut();
-        self.remove_task(&mut task, &task_ref, true);
-        let message = FromWorkerMessage::TaskFinished(TaskFinishedMsg { id: task.id, size });
+    pub fn finish_task(&mut self, task_id: TaskId, size: u64) {
+        self.remove_task(task_id, true);
+        let message = FromWorkerMessage::TaskFinished(TaskFinishedMsg { id: task_id, size });
         self.send_message_to_server(message);
     }
 
-    pub fn finish_task_failed(&mut self, task_ref: TaskRef, info: TaskFailInfo) {
-        let mut task = task_ref.get_mut();
-        self.remove_task(&mut task, &task_ref, true);
-        let message = FromWorkerMessage::TaskFailed(TaskFailedMsg { id: task.id, info });
+    pub fn finish_task_failed(&mut self, task_id: TaskId, info: TaskFailInfo) {
+        self.remove_task(task_id, true);
+        let message = FromWorkerMessage::TaskFailed(TaskFailedMsg { id: task_id, info });
         self.send_message_to_server(message);
     }
 
-    pub fn finish_task_cancel(&mut self, task_ref: TaskRef) {
-        let mut task = task_ref.get_mut();
-        self.remove_task(&mut task, &task_ref, true);
+    pub fn finish_task_cancel(&mut self, task_id: TaskId) {
+        self.remove_task(task_id, true);
     }
 
     pub fn get_resource_map(&self) -> &ResourceMap {
