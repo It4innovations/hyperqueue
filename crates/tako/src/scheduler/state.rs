@@ -87,6 +87,7 @@ pub async fn scheduler_loop(
 }
 
 impl SchedulerState {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> SchedulerState {
         Self {
             dirty_tasks: Default::default(),
