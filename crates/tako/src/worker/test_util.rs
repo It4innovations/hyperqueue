@@ -1,10 +1,12 @@
-#![cfg(test)]
-
-use crate::common::resources::ResourceRequest;
+use crate::common::resources::{ResourceAllocation, ResourceRequest};
+use crate::common::Map;
 use crate::messages::common::TaskConfiguration;
 use crate::messages::worker::ComputeTaskMsg;
+use crate::worker::rqueue::ResourceWaitQueue;
 use crate::worker::task::TaskRef;
+use crate::worker::taskmap::TaskMap;
 use crate::{Priority, TaskId};
+use std::time::Duration;
 
 pub fn worker_task<T: Into<TaskId>>(
     task_id: T,
@@ -24,4 +26,46 @@ pub fn worker_task<T: Into<TaskId>>(
             body: vec![],
         },
     })
+}
+
+pub struct ResourceQueueBuilder {
+    task_map: TaskMap,
+    pub(crate) queue: ResourceWaitQueue,
+}
+
+impl ResourceQueueBuilder {
+    pub fn new(queue: ResourceWaitQueue) -> Self {
+        Self {
+            task_map: Default::default(),
+            queue,
+        }
+    }
+
+    pub fn add_task(&mut self, task: TaskRef) {
+        self.queue.add_task(task.clone());
+        let id = task.get().id;
+        self.task_map.insert(id, task);
+    }
+
+    pub fn start_tasks(&mut self) -> Map<u64, ResourceAllocation> {
+        self.queue
+            .try_start_tasks(&self.task_map, None)
+            .into_iter()
+            .map(|(t, a)| (t.as_num(), a))
+            .collect()
+    }
+
+    pub fn start_tasks_duration(&mut self, duration: Duration) -> Map<u64, ResourceAllocation> {
+        self.queue
+            .try_start_tasks(&self.task_map, Some(duration))
+            .into_iter()
+            .map(|(t, a)| (t.as_num(), a))
+            .collect()
+    }
+}
+
+impl From<ResourceWaitQueue> for ResourceQueueBuilder {
+    fn from(queue: ResourceWaitQueue) -> Self {
+        Self::new(queue)
+    }
 }

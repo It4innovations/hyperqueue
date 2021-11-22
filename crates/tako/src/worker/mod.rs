@@ -9,4 +9,6 @@ pub mod state;
 pub mod task;
 pub mod taskenv;
 pub mod taskmap;
+
+#[cfg(test)]
 mod test_util;

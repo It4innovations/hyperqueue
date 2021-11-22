@@ -76,6 +76,11 @@ impl WorkerState {
         self.tasks.get(task_id)
     }
 
+    #[inline]
+    pub fn borrow_tasks_and_queue(&mut self) -> (&TaskMap, &mut ResourceWaitQueue) {
+        (&self.tasks, &mut self.ready_task_queue)
+    }
+
     pub fn add_data_object(&mut self, data_ref: DataObjectRef) {
         let id = data_ref.get().id;
         self.data_objects.insert(id, data_ref);
@@ -244,7 +249,7 @@ impl WorkerState {
                 log::debug!("Removing waiting task id={}", task.id);
                 assert!(!just_finished);
                 if x == 0 {
-                    self.ready_task_queue.remove_task(task_ref);
+                    self.ready_task_queue.remove_task(task.id);
                 }
             }
             TaskState::Running(_, allocation) => {
