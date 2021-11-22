@@ -21,7 +21,7 @@ use crate::worker::rpc::run_worker;
 use crate::worker::state::WorkerState;
 use crate::worker::task::TaskRef;
 use crate::worker::taskenv::{StopReason, TaskResult};
-use crate::WorkerId;
+use crate::{TaskId, WorkerId};
 
 pub enum WorkerSecretKey {
     Server,
@@ -262,11 +262,11 @@ async fn launcher_main(task_ref: TaskRef) -> crate::Result<()> {
 }
 
 fn launcher(
-    _state: &WorkerState,
-    task_ref: &TaskRef,
+    state: &WorkerState,
+    task_id: TaskId,
     end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
 ) -> Pin<Box<dyn Future<Output = crate::Result<TaskResult>> + 'static>> {
-    let task_ref = task_ref.clone();
+    let task_ref = state.get_task(task_id).clone();
 
     Box::pin(async move {
         tokio::select! {
