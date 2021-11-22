@@ -35,7 +35,7 @@ pub struct WorkerState {
     pub tasks: HashMap<TaskId, TaskRef>,
     pub ready_task_queue: ResourceWaitQueue,
     pub data_objects: HashMap<TaskId, DataObjectRef>,
-    pub running_tasks: Set<TaskRef>,
+    pub running_tasks: Set<TaskId>,
     pub start_task_scheduled: bool,
     pub start_task_notify: Rc<Notify>,
 
@@ -140,7 +140,7 @@ impl WorkerState {
         self.schedule_task_start();
     }
 
-    pub fn add_dependancy(
+    pub fn add_dependency(
         &mut self,
         task_ref: &TaskRef,
         task_id: TaskId,
@@ -244,7 +244,7 @@ impl WorkerState {
             TaskState::Running(_, allocation) => {
                 log::debug!("Removing running task id={}", task.id);
                 assert!(just_finished);
-                assert!(self.running_tasks.remove(task_ref));
+                assert!(self.running_tasks.remove(&task.id));
                 self.schedule_task_start();
                 self.ready_task_queue.release_allocation(allocation);
             }

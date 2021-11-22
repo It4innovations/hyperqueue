@@ -15,5 +15,5 @@ pub fn assign_task(state: &mut WorkerState, task_ref: TaskRef, allocation: Resou
     let mut task_env = TaskEnv::new();
     task_env.start_task(state, &task, &task_ref);
     task.state = TaskState::Running(task_env, allocation);
-    state.running_tasks.insert(task_ref.clone());
+    state.running_tasks.insert(task.id);
 }

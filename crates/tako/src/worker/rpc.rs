@@ -370,7 +370,7 @@ async fn worker_message_loop(
                 let dep_info = std::mem::take(&mut msg.dep_info);
                 let task_ref = TaskRef::new(msg);
                 for (task_id, size, workers) in dep_info {
-                    state.add_dependancy(&task_ref, task_id, size, workers);
+                    state.add_dependency(&task_ref, task_id, size, workers);
                 }
                 state.add_task(task_ref);
             }
@@ -409,11 +409,11 @@ async fn worker_message_loop(
                     running_tasks: state
                         .running_tasks
                         .iter()
-                        .map(|tr| {
-                            let task = tr.get();
+                        .map(|&task_id| {
+                            let task = state.tasks.get(&task_id).unwrap().get();
                             let allocation: ResourceAllocation =
                                 task.resource_allocation().unwrap().clone();
-                            (task.id, allocation)
+                            (task_id, allocation)
                             // TODO: Modify this when more cpus are allowed
                         })
                         .collect(),
