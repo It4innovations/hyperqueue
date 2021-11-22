@@ -1,12 +1,13 @@
+use crate::dashboard::ui::terminal::DashboardFrame;
+use crate::dashboard::ui::widgets::progressbar::{
+    get_progress_bar_color, render_progress_bar_at, ProgressPrintStyle,
+};
+use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
+use crate::dashboard::utils::{calculate_memory_usage_percent, get_average_cpu_usage_for_worker};
 use tako::messages::gateway::CollectedOverview;
 use tako::WorkerId;
 use tui::layout::{Constraint, Rect};
 use tui::widgets::{Cell, Row};
-
-use crate::dashboard::ui::terminal::DashboardFrame;
-use crate::dashboard::ui::widgets::progressbar::{render_progress_bar_at, ProgressPrintStyle};
-use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
-use crate::dashboard::utils::{calculate_memory_usage_percent, get_average_cpu_usage_for_worker};
 
 #[derive(Default)]
 pub struct WorkerUtilTable {
@@ -53,23 +54,19 @@ impl WorkerUtilTable {
                 ],
             },
             |data| {
-                let cpu_prog_bar = render_progress_bar_at(
-                    data.average_cpu_usage.unwrap_or(0.0) / 100.0,
-                    12,
-                    ProgressPrintStyle::default(),
-                );
+                let cpu_progress = (data.average_cpu_usage.unwrap_or(0.0)) / 100.0;
+                let mem_progress = (data.memory_usage.unwrap_or(0) as f32) / 100.0;
+                let cpu_prog_bar =
+                    render_progress_bar_at(cpu_progress, 12, ProgressPrintStyle::default());
 
-                let mem_prog_bar = render_progress_bar_at(
-                    (data.memory_usage.unwrap_or(0) as f32) / 100.0,
-                    12,
-                    ProgressPrintStyle::default(),
-                );
+                let mem_prog_bar =
+                    render_progress_bar_at(mem_progress, 12, ProgressPrintStyle::default());
 
                 Row::new(vec![
                     Cell::from(data.id.to_string()),
                     Cell::from(data.num_tasks.to_string()),
-                    Cell::from(cpu_prog_bar),
-                    Cell::from(mem_prog_bar),
+                    Cell::from(cpu_prog_bar).style(get_progress_bar_color(cpu_progress)),
+                    Cell::from(mem_prog_bar).style(get_progress_bar_color(mem_progress)),
                 ])
             },
         );
