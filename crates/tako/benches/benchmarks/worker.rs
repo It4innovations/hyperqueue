@@ -1,10 +1,12 @@
+use std::time::Duration;
+
 use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 use tokio::sync::mpsc::unbounded_channel;
 
 use tako::messages::worker::ComputeTaskMsg;
 use tako::worker::state::WorkerStateRef;
-use tako::worker::task::TaskRef;
+use tako::worker::task::Task;
 use tako::worker::taskenv::TaskResult;
 use tako::TaskId;
 
@@ -26,8 +28,8 @@ fn create_worker_state() -> WorkerStateRef {
     )
 }
 
-fn create_worker_task(id: u64) -> TaskRef {
-    TaskRef::new(ComputeTaskMsg {
+fn create_worker_task(id: u64) -> Task {
+    Task::new(ComputeTaskMsg {
         id: id.into(),
         instance_id: Default::default(),
         dep_info: vec![],
@@ -37,31 +39,41 @@ fn create_worker_task(id: u64) -> TaskRef {
     })
 }
 
+macro_rules! measure_time {
+    ($body: block) => {{
+        let start = ::std::time::Instant::now();
+        $body
+        start.elapsed()
+    }}
+}
+
 fn bench_add_task(c: &mut BenchmarkGroup<WallTime>) {
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("add task", task_count),
             &task_count,
             |b, &task_count| {
-                b.iter_batched_ref(
-                    || {
-                        let state = create_worker_state();
+                b.iter_custom(|iters| {
+                    let mut total = Duration::new(0, 0);
 
-                        {
-                            let mut state = state.get_mut();
-                            for id in 0..task_count {
-                                state.add_task(create_worker_task(id));
-                            }
-                        }
-                        (state, create_worker_task(task_count))
-                    },
-                    |(state, task)| {
+                    for _ in 0..iters {
+                        let state = create_worker_state();
                         let mut state = state.get_mut();
-                        state.add_task(task.clone());
+
+                        for id in 0..task_count {
+                            state.add_task(create_worker_task(id));
+                        }
+                        let task = create_worker_task(task_count);
+
+                        let duration = measure_time!({
+                            state.add_task(task);
+                        });
+
                         state.self_ref = None;
-                    },
-                    BatchSize::SmallInput,
-                );
+                        total += duration;
+                    }
+                    total
+                });
             },
         );
     }
@@ -73,7 +85,7 @@ fn bench_add_tasks(c: &mut BenchmarkGroup<WallTime>) {
             BenchmarkId::new("add tasks", task_count),
             &task_count,
             |b, &task_count| {
-                b.iter_batched_ref(
+                b.iter_batched(
                     || {
                         let state = create_worker_state();
                         let tasks: Vec<_> =
@@ -83,7 +95,7 @@ fn bench_add_tasks(c: &mut BenchmarkGroup<WallTime>) {
                     |(state, tasks)| {
                         let mut state = state.get_mut();
                         for task in tasks {
-                            state.add_task(task.clone());
+                            state.add_task(task);
                         }
                         state.self_ref = None;
                     },
