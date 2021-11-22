@@ -1,15 +1,20 @@
-use criterion::{BatchSize, BenchmarkId, Criterion};
+use criterion::measurement::WallTime;
+use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 
 use tako::common::Map;
+use tako::messages::common::{TaskFailInfo, WorkerConfiguration};
+use tako::messages::gateway::LostWorkerReason;
+use tako::messages::worker::ToWorkerMessage;
 use tako::scheduler::metrics::compute_b_level_metric;
 use tako::scheduler::state::SchedulerState;
+use tako::server::comm::Comm;
 use tako::server::core::Core;
 use tako::server::task::TaskRef;
-use tako::TaskId;
+use tako::{TaskId, WorkerId};
 
-use crate::{add_tasks, create_worker, NullComm};
+use crate::{add_tasks, create_worker};
 
-fn bench_b_level(c: &mut Criterion) {
+fn bench_b_level(c: &mut BenchmarkGroup<WallTime>) {
     for task_count in [10, 1_000, 100_000, 100] {
         c.bench_with_input(
             BenchmarkId::new("compute b-level", task_count),
@@ -37,7 +42,7 @@ fn bench_b_level(c: &mut Criterion) {
     }
 }
 
-fn bench_schedule(c: &mut Criterion) {
+fn bench_schedule(c: &mut BenchmarkGroup<WallTime>) {
     for task_count in [10, 1_000, 100_000] {
         for worker_count in [1, 8, 16, 32] {
             c.bench_with_input(
@@ -71,6 +76,46 @@ fn bench_schedule(c: &mut Criterion) {
 }
 
 pub fn benchmark(c: &mut Criterion) {
-    bench_b_level(c);
-    bench_schedule(c);
+    let mut group = c.benchmark_group("scheduler");
+
+    bench_b_level(&mut group);
+    bench_schedule(&mut group);
+}
+
+// Utils
+struct NullComm;
+
+impl Comm for NullComm {
+    fn send_worker_message(&mut self, _worker_id: WorkerId, _message: &ToWorkerMessage) {}
+
+    fn broadcast_worker_message(&mut self, _message: &ToWorkerMessage) {}
+
+    fn ask_for_scheduling(&mut self) {}
+
+    fn send_client_task_finished(&mut self, _task_id: TaskId) {}
+
+    fn send_client_task_started(&mut self, _task_id: TaskId, _worker_id: WorkerId) {}
+
+    fn send_client_task_error(
+        &mut self,
+        _task_id: TaskId,
+        _consumers_id: Vec<TaskId>,
+        _error_info: TaskFailInfo,
+    ) {
+    }
+
+    fn send_client_worker_new(
+        &mut self,
+        _worker_id: WorkerId,
+        _configuration: &WorkerConfiguration,
+    ) {
+    }
+
+    fn send_client_worker_lost(
+        &mut self,
+        _worker_id: WorkerId,
+        _running_tasks: Vec<TaskId>,
+        _reason: LostWorkerReason,
+    ) {
+    }
 }
