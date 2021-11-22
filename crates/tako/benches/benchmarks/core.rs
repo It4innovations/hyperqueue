@@ -1,11 +1,12 @@
-use criterion::{black_box, BatchSize, BenchmarkId, Criterion};
+use criterion::measurement::WallTime;
+use criterion::{black_box, BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 
 use tako::common::Set;
 use tako::server::core::Core;
 
 use crate::{add_tasks, create_task};
 
-fn bench_remove_single_task(c: &mut Criterion) {
+fn bench_remove_single_task(c: &mut BenchmarkGroup<WallTime>) {
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("remove a single task", task_count),
@@ -28,7 +29,7 @@ fn bench_remove_single_task(c: &mut Criterion) {
     }
 }
 
-fn bench_remove_all_tasks(c: &mut Criterion) {
+fn bench_remove_all_tasks(c: &mut BenchmarkGroup<WallTime>) {
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("remove all tasks", task_count),
@@ -50,7 +51,7 @@ fn bench_remove_all_tasks(c: &mut Criterion) {
     }
 }
 
-fn bench_add_task(c: &mut Criterion) {
+fn bench_add_task(c: &mut BenchmarkGroup<WallTime>) {
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("add task", task_count),
@@ -74,7 +75,7 @@ fn bench_add_task(c: &mut Criterion) {
     }
 }
 
-fn bench_add_tasks(c: &mut Criterion) {
+fn bench_add_tasks(c: &mut BenchmarkGroup<WallTime>) {
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("add tasks", task_count),
@@ -98,7 +99,7 @@ fn bench_add_tasks(c: &mut Criterion) {
     }
 }
 
-fn bench_iterate_tasks(c: &mut Criterion) {
+fn bench_iterate_tasks(c: &mut BenchmarkGroup<WallTime>) {
     for task_count in [10, 1_000, 100_000] {
         c.bench_with_input(
             BenchmarkId::new("iterate tasks", task_count),
@@ -125,9 +126,11 @@ fn bench_iterate_tasks(c: &mut Criterion) {
 }
 
 pub fn benchmark(c: &mut Criterion) {
-    bench_remove_single_task(c);
-    bench_remove_all_tasks(c);
-    bench_add_task(c);
-    bench_add_tasks(c);
-    bench_iterate_tasks(c);
+    let mut group = c.benchmark_group("core");
+
+    bench_remove_single_task(&mut group);
+    bench_remove_all_tasks(&mut group);
+    bench_add_task(&mut group);
+    bench_add_tasks(&mut group);
+    bench_iterate_tasks(&mut group);
 }
