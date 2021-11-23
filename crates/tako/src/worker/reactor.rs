@@ -1,11 +1,16 @@
 use crate::common::resources::ResourceAllocation;
 use crate::messages::worker::{FromWorkerMessage, TaskRunningMsg};
-use crate::worker::state::WorkerState;
+use crate::worker::state::{WorkerState, WorkerStateRef};
 use crate::worker::task::TaskState;
 use crate::worker::taskenv::TaskEnv;
 use crate::TaskId;
 
-pub fn assign_task(state: &mut WorkerState, task_id: TaskId, allocation: ResourceAllocation) {
+pub fn assign_task(
+    state: &mut WorkerState,
+    state_ref: WorkerStateRef,
+    task_id: TaskId,
+    allocation: ResourceAllocation,
+) {
     {
         log::debug!("Task={} assigned", task_id);
 
@@ -14,7 +19,7 @@ pub fn assign_task(state: &mut WorkerState, task_id: TaskId, allocation: Resourc
         }));
 
         let mut task_env = TaskEnv::new();
-        task_env.start_task(state, task_id);
+        task_env.start_task(state, state_ref, task_id);
 
         let mut task = state.get_task_mut(task_id);
         task.state = TaskState::Running(task_env, allocation);

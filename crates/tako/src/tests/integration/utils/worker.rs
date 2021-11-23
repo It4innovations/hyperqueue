@@ -18,7 +18,7 @@ use tokio::task::LocalSet;
 
 use crate::worker::launcher::command_from_definitions;
 use crate::worker::rpc::run_worker;
-use crate::worker::state::{WorkerState, WorkerStateRef};
+use crate::worker::state::WorkerStateRef;
 use crate::worker::taskenv::{StopReason, TaskResult};
 use crate::{TaskId, WorkerId};
 
@@ -262,11 +262,10 @@ async fn launcher_main(state_ref: WorkerStateRef, task_id: TaskId) -> crate::Res
 }
 
 fn launcher(
-    state: &WorkerState,
+    state_ref: WorkerStateRef,
     task_id: TaskId,
     end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
 ) -> Pin<Box<dyn Future<Output = crate::Result<TaskResult>> + 'static>> {
-    let state_ref = state.self_ref();
     Box::pin(async move {
         tokio::select! {
             biased;
