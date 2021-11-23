@@ -30,8 +30,8 @@ impl TaskMap {
     }
 
     #[inline]
-    pub fn insert(&mut self, task_id: TaskId, task: Task) {
-        self.map.insert(task_id, task);
+    pub fn insert(&mut self, task_id: TaskId, task: Task) -> Option<Task> {
+        self.map.insert(task_id, task)
     }
 
     #[inline]
