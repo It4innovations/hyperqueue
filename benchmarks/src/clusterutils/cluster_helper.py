@@ -13,7 +13,7 @@ from ..utils import get_pyenv_from_env
 
 CLUSTER_FILENAME = "cluster.json"
 CURRENT_DIR = Path(__file__).absolute().parent
-MONITOR_SCRIPT_PATH = CURRENT_DIR.parent / "scripts" / "monitor.py"
+MONITOR_SCRIPT_PATH = CURRENT_DIR.parent / "monitoring" / "monitor_script.py"
 assert MONITOR_SCRIPT_PATH.is_file()
 
 
@@ -41,6 +41,13 @@ class ClusterHelper:
     @property
     def active_nodes(self) -> List[str]:
         return list(self.cluster.nodes.keys())
+
+    @property
+    def processes(self) -> List[Process]:
+        processes = []
+        for node in self.cluster.nodes.values():
+            processes += node.processes
+        return processes
 
     def commit(self):
         with open(self.workdir / CLUSTER_FILENAME, "w") as f:
@@ -95,7 +102,7 @@ class ClusterHelper:
         workdir = self.workdir / "monitoring"
         processes = []
         for node in nodes:
-            args = ["python", str(MONITOR_SCRIPT_PATH), str(workdir / f"monitor-{node}.trace")]
+            args = ["python", str(MONITOR_SCRIPT_PATH), str(workdir / f"monitoring-{node}.trace")]
             if observe_processes:
                 node_processes = self.cluster.get_processes(node=node)
                 pids = [str(process.pid) for (_, process) in node_processes]
@@ -103,7 +110,7 @@ class ClusterHelper:
             process = StartProcessArgs(
                 args=args,
                 host=node,
-                name=f"monitor-{node}",
+                name=f"monitoring-{node}",
                 workdir=workdir,
                 init_cmd=init_cmd
             )
@@ -113,7 +120,7 @@ class ClusterHelper:
 
 def kill_fn(scheduler_sigint: bool, node: str, process: Process):
     signal = "TERM"
-    if scheduler_sigint or "monitor" in process.key:
+    if scheduler_sigint or "monitoring" in process.key:
         signal = "INT"
 
     if not kill_process(node, process.pgid, signal=signal):

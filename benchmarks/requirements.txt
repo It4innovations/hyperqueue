@@ -1,3 +1,4 @@
 typer==0.4.0
 gitpython==3.1.24
-git+https://code.it4i.cz/def/cluster@45918e30db336d4aa9a139cb9560f37fbddab3a7
+git+https://code.it4i.cz/def/cluster@cbd7ee3bad431cf60be27b137b32145604fbda60
+dacite==1.6.0
