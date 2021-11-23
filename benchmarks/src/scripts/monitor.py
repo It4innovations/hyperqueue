@@ -3,6 +3,7 @@ import os
 import shutil
 import sys
 import time
+from typing import List
 
 import click
 import psutil
@@ -28,23 +29,49 @@ def get_resources():
     }
 
 
-def generate_record(timestamp):
-    resources = get_resources()
+def record_processes(processes: List[psutil.Process]):
+    data = {}
+    for process in processes:
+        try:
+            memory_info = process.memory_info()
+            cpu_utilization = process.cpu_percent()
+            data[process.pid] = {
+                "rss": memory_info.rss,
+                "vm": memory_info.vms,
+                "cpu": cpu_utilization
+            }
+        except BaseException as e:
+            logging.error(e)
+    return data
 
-    return {
+
+def generate_record(timestamp, processes: List[psutil.Process]):
+    data = {
         "timestamp": timestamp,
-        "resources": resources,
+        "resources": get_resources(),
     }
+    if processes:
+        data["processes"] = record_processes(processes)
+    return data
 
 
 @click.command()
 @click.argument("output")
 @click.option("--capture-interval", default=1)
 @click.option("--dump-interval", default=10)
-def main(output: str, capture_interval: int, dump_interval: int):
+@click.option("--observe-pids", default="")
+def main(output: str, capture_interval: int, dump_interval: int, observe_pids: str):
+    processes = []
+    for pid in observe_pids.split(","):
+        try:
+            processes.append(psutil.Process(int(pid)))
+            logging.info(f"Observing PID {pid}")
+        except BaseException as e:
+            logging.error(e)
+
     def capture(timestamp):
         try:
-            return generate_record(timestamp)
+            return generate_record(timestamp, processes)
         except Exception as e:
             logging.error("Opening cluster exception: {}".format(e))
             return None

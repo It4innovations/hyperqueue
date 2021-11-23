@@ -47,7 +47,7 @@ class HqEnvironment:
         self._wait_for_server_start()
 
         self.start_workers(self.worker_nodes[:self.info.worker_count])
-        self.cluster.start_monitoring(self.cluster.active_nodes)
+        self.cluster.start_monitoring(self.cluster.active_nodes, observe_processes=True)
         self.cluster.commit()
 
     def start_server(self):

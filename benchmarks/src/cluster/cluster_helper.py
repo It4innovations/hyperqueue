@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 import dataclasses
-from cluster.cluster import Cluster, Process, kill_process, start_process, Node, StartedProcess
+from cluster.cluster import Cluster, Process, kill_process, start_process, StartedProcess
 
 from . import ClusterInfo
 from ..utils import get_pyenv_from_env
@@ -78,9 +78,9 @@ class ClusterHelper:
                     spawned.append(res)
 
         for (process, args) in zip(spawned, pool_args):
-            self.cluster.add(args.host, process.pid, process.command, key=args.name)
+            self.cluster.add(process=process, node=args.host, key=args.name)
 
-    def start_monitoring(self, nodes: List[str]):
+    def start_monitoring(self, nodes: List[str], observe_processes=False):
         if not self.cluster_info.monitor_nodes:
             return
 
@@ -93,16 +93,22 @@ class ClusterHelper:
 
         nodes = sorted(set(nodes))
         workdir = self.workdir / "monitoring"
-        args = [
-            StartProcessArgs(
-                args=["python", str(MONITOR_SCRIPT_PATH), str(workdir / f"monitor-{node}.trace")],
+        processes = []
+        for node in nodes:
+            args = ["python", str(MONITOR_SCRIPT_PATH), str(workdir / f"monitor-{node}.trace")]
+            if observe_processes:
+                node_processes = self.cluster.get_processes(node=node)
+                pids = [str(process.pid) for (_, process) in node_processes]
+                args += ["--observe-pids", ",".join(pids)]
+            process = StartProcessArgs(
+                args=args,
                 host=node,
                 name=f"monitor-{node}",
                 workdir=workdir,
                 init_cmd=init_cmd
-            ) for node in nodes
-        ]
-        self.start_processes(args)
+            )
+            processes.append(process)
+        self.start_processes(processes)
 
 
 def kill_fn(scheduler_sigint: bool, node: str, process: Process):
@@ -110,7 +116,7 @@ def kill_fn(scheduler_sigint: bool, node: str, process: Process):
     if scheduler_sigint or "monitor" in process.key:
         signal = "INT"
 
-    if not kill_process(node, process.pid, signal=signal):
+    if not kill_process(node, process.pgid, signal=signal):
         logging.warning(f"Error when attempting to kill {process} on {node}")
 
 
