@@ -1,0 +1,3 @@
+typer==0.4.0
+gitpython==3.1.24
+git+https://code.it4i.cz/def/cluster@5950112495f8f00e9ee2a4695d95346defd54954
