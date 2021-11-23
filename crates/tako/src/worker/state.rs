@@ -84,9 +84,9 @@ impl WorkerState {
 
     pub fn on_data_downloaded(
         &mut self,
-        data_ref: DataObjectRef,
-        data: BytesMut,
-        serializer: SerializationType,
+        _data_ref: DataObjectRef,
+        _data: BytesMut,
+        _serializer: SerializationType,
     ) {
         // TODO
         /*let new_ready = {
@@ -144,10 +144,10 @@ impl WorkerState {
 
     pub fn add_dependency(
         &mut self,
-        task: &Task,
-        task_id: TaskId,
-        size: u64,
-        workers: Vec<WorkerId>,
+        _task: &Task,
+        _task_id: TaskId,
+        _size: u64,
+        _workers: Vec<WorkerId>,
     ) {
         todo!();
         /*let mut task = task_ref.get_mut();

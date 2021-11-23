@@ -212,8 +212,6 @@ async fn launcher_main(
             .env
             .insert(HQ_INSTANCE_ID.into(), task.instance_id.to_string().into());
 
-        dbg!(&program.env);
-
         replace_placeholders_worker(&mut program);
 
         create_directory_if_needed(&program.stdout)?;
