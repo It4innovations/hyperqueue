@@ -66,6 +66,9 @@ class ClusterHelper:
         ]
 
         logging.info(f"Starting cluster processes: {pool_args}")
+
+        for process in pool_args:
+            logging.info(f"Command: {' '.join(process.args)}")
         spawned = []
         if len(pool_args) == 1:
             spawned.append(start_process_pool(pool_args[0]))
@@ -104,7 +107,7 @@ class ClusterHelper:
 
 def kill_fn(scheduler_sigint: bool, node: str, process: Process):
     signal = "TERM"
-    if (process.key.startswith("server") and scheduler_sigint) or "monitor" in process.key:
+    if scheduler_sigint or "monitor" in process.key:
         signal = "INT"
 
     if not kill_process(node, process.pid, signal=signal):
