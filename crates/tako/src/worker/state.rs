@@ -199,7 +199,7 @@ impl WorkerState {
                 task.get_waiting()
             );
         }
-        self.tasks.insert(task.id, task);
+        assert!(self.tasks.insert(task.id, task).is_none());
     }
 
     pub fn remove_data_by_id(&mut self, task_id: TaskId) {
