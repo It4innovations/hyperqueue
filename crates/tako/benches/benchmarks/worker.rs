@@ -78,7 +78,6 @@ fn bench_add_task(c: &mut BenchmarkGroup<WallTime>) {
                             state.add_task(task);
                         });
 
-                        state.self_ref = None;
                         total += duration;
                     }
                     total
@@ -106,7 +105,6 @@ fn bench_add_tasks(c: &mut BenchmarkGroup<WallTime>) {
                         for task in tasks {
                             state.add_task(task);
                         }
-                        state.self_ref = None;
                     },
                     BatchSize::SmallInput,
                 );
@@ -136,7 +134,6 @@ fn bench_cancel_waiting_task(c: &mut BenchmarkGroup<WallTime>) {
                     |(state, task_id)| {
                         let mut state = state.get_mut();
                         state.cancel_task(*task_id);
-                        state.self_ref = None;
                     },
                     BatchSize::SmallInput,
                 );

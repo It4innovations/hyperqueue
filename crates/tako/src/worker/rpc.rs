@@ -178,7 +178,7 @@ pub async fn run_worker(
                 }
 
                 for (task_id, allocation) in allocations {
-                    assign_task(&mut state, task_id, allocation);
+                    assign_task(&mut state, state_ref2.clone(), task_id, allocation);
                 }
             }
         }

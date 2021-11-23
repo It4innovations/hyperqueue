@@ -45,8 +45,6 @@ pub struct WorkerState {
     pub worker_connections: Map<WorkerId, Vec<DataConnection>>,
     pub random: SmallRng,
 
-    pub self_ref: Option<WorkerStateRef>,
-
     pub configuration: WorkerConfiguration,
     pub task_launcher: TaskLauncher,
     pub secret_key: Option<Arc<SecretKey>>,
@@ -346,10 +344,6 @@ impl WorkerState {
         self.start_task_notify.notify_one();
     }
 
-    pub fn self_ref(&self) -> WorkerStateRef {
-        self.self_ref.clone().unwrap()
-    }
-
     pub fn finish_task(&mut self, task_id: TaskId, size: u64) {
         self.remove_task(task_id, true);
         let message = FromWorkerMessage::TaskFinished(TaskFinishedMsg { id: task_id, size });
@@ -384,7 +378,7 @@ impl WorkerStateRef {
         task_launcher: TaskLauncher,
     ) -> Self {
         let ready_task_queue = ResourceWaitQueue::new(&configuration.resources, &resource_map);
-        let self_ref = Self::wrap(WorkerState {
+        Self::wrap(WorkerState {
             worker_id,
             worker_addresses,
             sender,
@@ -397,15 +391,12 @@ impl WorkerStateRef {
             data_objects: Default::default(),
             random: SmallRng::from_entropy(),
             worker_connections: Default::default(),
-            self_ref: None,
             start_task_scheduled: false,
             start_task_notify: Rc::new(Notify::new()),
             running_tasks: Default::default(),
             hardware_state: Default::default(),
             start_time: std::time::Instant::now(),
             resource_map,
-        });
-        self_ref.get_mut().self_ref = Some(self_ref.clone());
-        self_ref
+        })
     }
 }

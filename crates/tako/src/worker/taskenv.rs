@@ -3,7 +3,7 @@ use tokio::sync::oneshot;
 use tokio::sync::oneshot::Sender;
 
 use crate::messages::common::TaskFailInfo;
-use crate::worker::state::WorkerState;
+use crate::worker::state::{WorkerState, WorkerStateRef};
 use crate::TaskId;
 
 pub enum TaskResult {
@@ -48,14 +48,20 @@ impl TaskEnv {
         self.send_stop(StopReason::Cancel);
     }
 
-    pub fn start_task(&mut self, state: &WorkerState, task_id: TaskId) {
-        assert_eq!(state.get_task(task_id).configuration.n_outputs, 0);
-        assert!(self.stop_sender.is_none());
-        let (end_sender, end_receiver) = oneshot::channel();
-        self.stop_sender = Some(end_sender);
+    pub fn start_task(
+        &mut self,
+        state: &mut WorkerState,
+        state_ref: WorkerStateRef,
+        task_id: TaskId,
+    ) {
+        let task_fut = {
+            assert_eq!(state.get_task(task_id).configuration.n_outputs, 0);
+            assert!(self.stop_sender.is_none());
+            let (end_sender, end_receiver) = oneshot::channel();
+            self.stop_sender = Some(end_sender);
 
-        let task_fut = (*state.task_launcher)(state, task_id, end_receiver);
-        let state_ref = state.self_ref();
+            (*state.task_launcher)(state_ref.clone(), task_id, end_receiver)
+        };
 
         tokio::task::spawn_local(async move {
             let time_limit = {

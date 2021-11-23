@@ -41,7 +41,7 @@ use crate::worker::streamer::StreamerRef;
 use crate::Map;
 use crate::{JobId, JobTaskId};
 use tako::common::resources::ResourceDescriptor;
-use tako::worker::state::{WorkerState, WorkerStateRef};
+use tako::worker::state::WorkerStateRef;
 
 pub const WORKER_EXTRA_PROCESS_PID: &str = "ProcessPid";
 
@@ -343,12 +343,12 @@ async fn run_task(
 }
 
 fn launcher(
-    state: &WorkerState,
+    state_ref: &WorkerStateRef,
     streamer_ref: &StreamerRef,
     task_id: TaskId,
     end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
 ) -> Pin<Box<dyn Future<Output = tako::Result<TaskResult>> + 'static>> {
-    let state_ref = state.self_ref.clone().unwrap();
+    let state_ref = state_ref.clone();
     let streamer_ref = streamer_ref.clone();
     Box::pin(launcher_main(
         state_ref,
@@ -394,7 +394,7 @@ pub async fn start_hq_worker(
         configuration,
         Some(record.tako_secret_key().clone()),
         Box::new(move |state, task_id, end_receiver| {
-            launcher(state, &streamer_ref, task_id, end_receiver)
+            launcher(&state, &streamer_ref, task_id, end_receiver)
         }),
     )
     .await?;
