@@ -4,9 +4,9 @@ from typing import List
 import dataclasses
 
 from ..utils import wait_until
-from ..cluster import ClusterInfo
-from ..cluster.cluster_helper import ClusterHelper, StartProcessArgs
-from ..cluster.profiler import NativeProfiler
+from ..clusterutils import ClusterInfo
+from ..clusterutils.cluster_helper import ClusterHelper, StartProcessArgs
+from ..clusterutils.profiler import NativeProfiler
 
 
 class ProfileMode:
@@ -39,8 +39,13 @@ class HqEnvironment:
         self.nodes = self.info.cluster.node_list.resolve()
         assert self.nodes
 
+        assert self.info.worker_count > 0
         self.worker_nodes = self.nodes if node_list.is_localhost() else self.nodes[1:]
-        assert self.worker_nodes
+        if len(self.worker_nodes) < self.info.worker_count:
+            raise Exception(f"Asked for {self.info.worker_count} workers, but only {len(self.worker_nodes)} "
+                            "node(s) are available")
+
+        self.stopped = False
 
     def start(self):
         self.start_server()
@@ -66,6 +71,7 @@ class HqEnvironment:
         )])
 
     def start_workers(self, nodes: List[str]):
+        assert not self.stopped
         worker_processes = []
         for (index, node) in enumerate(nodes):
             workdir = self.server_dir / f"worker-{index}"
@@ -84,6 +90,7 @@ class HqEnvironment:
         self.cluster.start_processes(worker_processes)
 
     def stop(self):
+        self.stopped = True
         self.cluster.stop(use_sigint=True)
 
     def _profile_args(self, args: List[str], profile: bool, path: Path) -> List[str]:

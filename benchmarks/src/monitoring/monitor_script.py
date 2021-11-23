@@ -3,56 +3,12 @@ import os
 import shutil
 import sys
 import time
-from typing import List
 
 import click
 import psutil
-
 from cluster.io import measure_and_store
 
-
-def get_resources():
-    cpus = psutil.cpu_percent(percpu=True)
-    mem = psutil.virtual_memory().percent
-    connections = sum(1 if c[5] == "ESTABLISHED" else 0 for c in psutil.net_connections())
-    bytes = psutil.net_io_counters()
-    io = psutil.disk_io_counters()
-
-    return {
-        "cpu": cpus,
-        "mem": mem,
-        "connections": connections,
-        "net-write": 0 if bytes is None else bytes.bytes_sent,
-        "net-read": 0 if bytes is None else bytes.bytes_recv,
-        "disk-write": 0 if io is None else io.write_bytes,
-        "disk-read": 0 if io is None else io.read_bytes
-    }
-
-
-def record_processes(processes: List[psutil.Process]):
-    data = {}
-    for process in processes:
-        try:
-            memory_info = process.memory_info()
-            cpu_utilization = process.cpu_percent()
-            data[process.pid] = {
-                "rss": memory_info.rss,
-                "vm": memory_info.vms,
-                "cpu": cpu_utilization
-            }
-        except BaseException as e:
-            logging.error(e)
-    return data
-
-
-def generate_record(timestamp, processes: List[psutil.Process]):
-    data = {
-        "timestamp": timestamp,
-        "resources": get_resources(),
-    }
-    if processes:
-        data["processes"] = record_processes(processes)
-    return data
+from record import generate_record
 
 
 @click.command()
