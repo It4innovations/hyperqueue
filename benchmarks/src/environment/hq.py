@@ -1,18 +1,23 @@
+import json
+import logging
+import subprocess
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Any
 
 import dataclasses
 
-from ..utils import wait_until
+from . import Environment
 from ..clusterutils import ClusterInfo
 from ..clusterutils.cluster_helper import ClusterHelper, StartProcessArgs
 from ..clusterutils.profiler import NativeProfiler
+from ..utils.timing import wait_until
 
 
 class ProfileMode:
-    def __init__(self, server=False, workers=False):
+    def __init__(self, server=False, workers=False, frequency=99):
         self.server = server
         self.workers = workers
+        self.frequency = frequency
 
 
 @dataclasses.dataclass
@@ -26,7 +31,7 @@ class HqClusterInfo:
         self.binary = self.binary.resolve()
 
 
-class HqEnvironment:
+class HqEnvironment(Environment):
     def __init__(self, info: HqClusterInfo):
         self.info = info
         self.cluster = ClusterHelper(self.info.cluster)
@@ -45,15 +50,44 @@ class HqEnvironment:
             raise Exception(f"Asked for {self.info.worker_count} workers, but only {len(self.worker_nodes)} "
                             "node(s) are available")
 
-        self.stopped = False
+        self.state = "initial"
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
+
+    def name(self) -> str:
+        return "hq"
+
+    def create_environment_key(self) -> Dict[str, Any]:
+        return {
+            "worker-count": self.info.worker_count
+        }
+
+    def create_metadata_key(self) -> Dict[str, Any]:
+        return {
+            "binary": self.info.binary
+        }
 
     def start(self):
+        assert self.state == "initial"
+
+        logging.info("Starting HQ server")
         self.start_server()
         self._wait_for_server_start()
+        logging.info("HQ server started")
 
         self.start_workers(self.worker_nodes[:self.info.worker_count])
         self.cluster.start_monitoring(self.cluster.active_nodes, observe_processes=True)
         self.cluster.commit()
+
+        self._wait_for_workers(self.info.worker_count)
+        logging.info(f"{self.info.worker_count} HQ worker(s) connected")
+
+        self.state = "started"
 
     def start_server(self):
         workdir = self.server_dir / "server"
@@ -71,7 +105,6 @@ class HqEnvironment:
         )])
 
     def start_workers(self, nodes: List[str]):
-        assert not self.stopped
         worker_processes = []
         for (index, node) in enumerate(nodes):
             workdir = self.server_dir / f"worker-{index}"
@@ -90,18 +123,29 @@ class HqEnvironment:
         self.cluster.start_processes(worker_processes)
 
     def stop(self):
-        self.stopped = True
+        assert self.state == "started"
         self.cluster.stop(use_sigint=True)
+        self.state = "stopped"
+
+    def submit(self, args: List[str]):
+        return subprocess.run(self._shared_args() + args, check=True)
 
     def _profile_args(self, args: List[str], profile: bool, path: Path) -> List[str]:
         if not profile:
             return args
         profiler = NativeProfiler()
         assert profiler.is_available()
-        return profiler.profile(args, path)
+        return profiler.profile(args, path, frequency=self.info.profile_mode.frequency)
 
     def _shared_args(self) -> List[str]:
         return [str(self.binary_path), "--server-dir", str(self.server_dir)]
 
     def _wait_for_server_start(self):
         wait_until(lambda: (self.server_dir / "hq-current" / "access.json").is_file())
+
+    def _wait_for_workers(self, count: int):
+        def get_worker_count():
+            output = subprocess.check_output(self._shared_args() + ["--output-type", "json", "worker", "list"])
+            return len(json.loads(output)) == count
+
+        wait_until(lambda: get_worker_count())

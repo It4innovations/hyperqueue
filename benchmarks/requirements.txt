@@ -2,3 +2,4 @@ typer==0.4.0
 gitpython==3.1.24
 git+https://code.it4i.cz/def/cluster@cbd7ee3bad431cf60be27b137b32145604fbda60
 dacite==1.6.0
+pandas==1.3.3
