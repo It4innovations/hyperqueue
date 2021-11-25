@@ -4,12 +4,12 @@ from typing import List
 
 import typer
 
-from src.workloads import SleepHQ
 from src.build.hq import iterate_binaries
 from src.build.repository import TAG_WORKSPACE
 from src.clusterutils import ClusterInfo
 from src.clusterutils.node_list import Local
 from src.environment.hq import HqClusterInfo, HqEnvironment, ProfileMode
+from src.workloads import SleepHQ
 
 
 def compare_tags(tags: List[str]):
@@ -43,6 +43,7 @@ def compare_tags(tags: List[str]):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(asctime)s:%(funcName)s: %(message)s",
+    logging.basicConfig(level=logging.INFO,
+                        format="%(levelname)s:%(asctime)s:%(funcName)s: %(message)s",
                         datefmt="%Y-%m-%d %H:%M:%S")
     typer.run(compare_tags)

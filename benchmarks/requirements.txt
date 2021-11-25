@@ -1,6 +1,7 @@
 typer==0.4.0
 gitpython==3.1.24
-git+https://code.it4i.cz/def/cluster@c64904c7bc3497499f6b8e55398b304320a5ff91
+git+https://code.it4i.cz/def/cluster.git@c64904c7bc3497499f6b8e55398b304320a5ff91
 dacite==1.6.0
 pandas==1.3.3
 tqdm==4.62.3
+mashumaro==2.9
