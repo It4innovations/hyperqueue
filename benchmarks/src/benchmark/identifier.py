@@ -1,10 +1,11 @@
-from typing import Any, Dict, Optional, Callable, List
-
 import dataclasses
+from typing import Any, Callable, Dict, List, Optional
+
+from mashumaro import DataClassDictMixin
 
 
 @dataclasses.dataclass(frozen=True)
-class BenchmarkIdentifier:
+class BenchmarkIdentifier(DataClassDictMixin):
     # Name of the workload
     workload: str
     # Environment type

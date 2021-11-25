@@ -1,18 +1,13 @@
 import datetime
+import json
 import logging
+import os
 import subprocess
-import uuid
 from pathlib import Path
 from typing import List, Optional
-import json
-import os
 
-import dataclasses
-import dacite
-
-from ..benchmark.identifier import BenchmarkIdentifier
-from ..utils import get_pyenv_from_env
 from .options import PBSSubmitOptions, serialize_submit_options
+from ..benchmark.identifier import BenchmarkIdentifier
 
 CURRENT_DIR = Path(__file__).absolute().parent
 EXECUTE_SCRIPT_PATH = CURRENT_DIR / "execute_script.py"
@@ -20,7 +15,7 @@ assert EXECUTE_SCRIPT_PATH.is_file()
 
 
 def serialize_identifiers(identifiers: List[BenchmarkIdentifier], path: Path):
-    items = [dataclasses.asdict(identifier) for identifier in identifiers]
+    items = [identifier.to_dict() for identifier in identifiers]
 
     with open(path, "w") as f:
         json.dump(items, f)
@@ -29,7 +24,7 @@ def serialize_identifiers(identifiers: List[BenchmarkIdentifier], path: Path):
 def deserialize_identifiers(path: Path) -> List[BenchmarkIdentifier]:
     with open(path) as f:
         items = json.load(f)
-    return [dacite.from_dict(BenchmarkIdentifier, item) for item in items]
+    return [BenchmarkIdentifier.from_dict(item) for item in items]
 
 
 def format_pbs_time(duration: datetime.timedelta) -> str:
@@ -100,7 +95,8 @@ def submit(identifiers: List[BenchmarkIdentifier], workdir: Path, options: PBSSu
 
     header = create_submit_script_header(workdir, options)
     script_body = create_submit_script_body(header, options, identifiers_path, submit_options_path,
-                                            workdir, database_path=database_path, resubmit=resubmit)
+                                            workdir, database_path=database_path,
+                                            resubmit=resubmit)
 
     script_path = workdir / "submit.sh"
     with open(script_path, "w") as f:

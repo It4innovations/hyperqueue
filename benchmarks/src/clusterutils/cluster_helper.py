@@ -58,7 +58,7 @@ class ClusterHelper:
 
         fn = functools.partial(kill_fn, use_sigint)
         self.cluster.kill(fn)
-        logging.info(f"Cluster killed in {time.time() - start} seconds")
+        logging.debug(f"Cluster killed in {time.time() - start} seconds")
 
     def start_processes(self, processes: List[StartProcessArgs]):
         def prepare_workdir(workdir: Path) -> Path:
@@ -73,10 +73,10 @@ class ClusterHelper:
             processes
         ]
 
-        logging.info(f"Starting cluster processes: {pool_args}")
+        logging.debug(f"Starting cluster processes: {pool_args}")
 
         for process in pool_args:
-            logging.info(f"Command: {' '.join(process.args)}")
+            logging.debug(f"Command: {' '.join(process.args)}")
         spawned = []
         if len(pool_args) == 1:
             spawned.append(start_process_pool(pool_args[0]))
