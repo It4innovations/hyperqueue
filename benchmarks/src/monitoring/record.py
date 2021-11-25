@@ -1,15 +1,13 @@
-import json
-
-import dacite
 import dataclasses
 import logging
-from typing import List, Dict
+from typing import Dict, List
 
 import psutil
+from mashumaro import DataClassJSONMixin
 
 
 @dataclasses.dataclass
-class ResourceRecord:
+class ResourceRecord(DataClassJSONMixin):
     cpu: List[float]
     mem: float
     connections: int
@@ -20,14 +18,14 @@ class ResourceRecord:
 
 
 @dataclasses.dataclass
-class ProcessRecord:
+class ProcessRecord(DataClassJSONMixin):
     rss: int
     vm: int
     cpu: float
 
 
 @dataclasses.dataclass
-class MonitoringRecord:
+class MonitoringRecord(DataClassJSONMixin):
     timestamp: float
     resources: ResourceRecord
     processes: Dict[str, ProcessRecord]
@@ -36,13 +34,11 @@ class MonitoringRecord:
     def deserialize_records(file) -> List["MonitoringRecord"]:
         records = []
         for line in file:
-            record = json.loads(line)
-            records.append(dacite.from_dict(MonitoringRecord, record))
+            records.append(MonitoringRecord.from_json(line))
         return records
 
     def serialize(self, file):
-        data = dataclasses.asdict(self)
-        json.dump(data, file)
+        file.write(self.to_json())
 
 
 def record_resources() -> ResourceRecord:
@@ -73,7 +69,7 @@ def record_processes(processes: List[psutil.Process]) -> Dict[str, ProcessRecord
                 rss=memory_info.rss,
                 vm=memory_info.vms,
                 cpu=cpu_utilization
-        )
+            )
         except BaseException as e:
             logging.error(e)
     return data
