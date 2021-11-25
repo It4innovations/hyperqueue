@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 import dataclasses
-from cluster.cluster import Cluster, Process, kill_process, start_process, StartedProcess
+from cluster.cluster import Cluster, Process, kill_process, start_process, ProcessInfo
 
 from . import ClusterInfo
 from ..utils import get_pyenv_from_env
@@ -17,10 +17,10 @@ MONITOR_SCRIPT_PATH = CURRENT_DIR.parent / "monitoring" / "monitor_script.py"
 assert MONITOR_SCRIPT_PATH.is_file()
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class StartProcessArgs:
     args: List[str]
-    host: str
+    hostname: str
     name: str
     workdir: Optional[Path] = None
     env: Dict[str, str] = dataclasses.field(default_factory=lambda: {})
@@ -67,7 +67,8 @@ class ClusterHelper:
             return workdir.absolute()
 
         pool_args = [
-            StartProcessArgs(args=args.args, host=args.host, name=args.name, env=args.env, init_cmd=args.init_cmd,
+            StartProcessArgs(args=args.args, hostname=args.hostname, name=args.name, env=args.env,
+                             init_cmd=args.init_cmd,
                              workdir=prepare_workdir(args.workdir)) for args in
             processes
         ]
@@ -85,7 +86,7 @@ class ClusterHelper:
                     spawned.append(res)
 
         for (process, args) in zip(spawned, pool_args):
-            self.cluster.add(process=process, node=args.host, key=args.name)
+            self.cluster.add(process=process, key=args.name)
 
     def start_monitoring(self, nodes: List[str], observe_processes=False):
         if not self.cluster_info.monitor_nodes:
@@ -109,7 +110,7 @@ class ClusterHelper:
                 args += ["--observe-pids", ",".join(pids)]
             process = StartProcessArgs(
                 args=args,
-                host=node,
+                hostname=node,
                 name=f"monitoring-{node}",
                 workdir=workdir,
                 init_cmd=init_cmd
@@ -118,7 +119,7 @@ class ClusterHelper:
         self.start_processes(processes)
 
 
-def kill_fn(scheduler_sigint: bool, node: str, process: Process):
+def kill_fn(scheduler_sigint: bool, node: str, process: ProcessInfo):
     signal = "TERM"
     if scheduler_sigint or "monitoring" in process.key:
         signal = "INT"
@@ -127,6 +128,10 @@ def kill_fn(scheduler_sigint: bool, node: str, process: Process):
         logging.warning(f"Error when attempting to kill {process} on {node}")
 
 
-def start_process_pool(args: StartProcessArgs) -> StartedProcess:
-    return start_process(args.args, host=args.host, workdir=str(args.workdir), name=args.name, env=args.env,
+def start_process_pool(args: StartProcessArgs) -> Process:
+    return start_process(args.args,
+                         hostname=args.hostname,
+                         workdir=str(args.workdir),
+                         name=args.name,
+                         env=args.env,
                          init_cmd=args.init_cmd)

@@ -2,7 +2,7 @@ import json
 import logging
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List
 
 import dataclasses
 
@@ -10,6 +10,7 @@ from . import Environment
 from ..clusterutils import ClusterInfo
 from ..clusterutils.cluster_helper import ClusterHelper, StartProcessArgs
 from ..clusterutils.profiler import NativeProfiler
+from ..utils import check_file_exists
 from ..utils.timing import wait_until
 
 
@@ -20,15 +21,12 @@ class ProfileMode:
         self.frequency = frequency
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class HqClusterInfo:
     cluster: ClusterInfo
     binary: Path
     worker_count: int
     profile_mode: ProfileMode = dataclasses.field(default_factory=lambda: ProfileMode())
-
-    def __post_init__(self):
-        self.binary = self.binary.resolve()
 
 
 class HqEnvironment(Environment):
@@ -36,7 +34,7 @@ class HqEnvironment(Environment):
         self.info = info
         self.cluster = ClusterHelper(self.info.cluster)
         self.binary_path = self.info.binary.absolute()
-        assert self.binary_path.is_file()
+        check_file_exists(self.binary_path)
 
         self.server_dir = self.info.cluster.workdir / "hq"
 
@@ -58,19 +56,6 @@ class HqEnvironment(Environment):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
-
-    def name(self) -> str:
-        return "hq"
-
-    def create_environment_key(self) -> Dict[str, Any]:
-        return {
-            "worker-count": self.info.worker_count
-        }
-
-    def create_metadata_key(self) -> Dict[str, Any]:
-        return {
-            "binary": self.info.binary
-        }
 
     def start(self):
         assert self.state == "initial"
@@ -99,7 +84,7 @@ class HqEnvironment(Environment):
 
         self.cluster.start_processes([StartProcessArgs(
             args=args,
-            host=self.nodes[0],
+            hostname=self.nodes[0],
             name="server",
             workdir=workdir
         )])
@@ -115,7 +100,7 @@ class HqEnvironment(Environment):
             )
             worker_processes.append(StartProcessArgs(
                 args=args,
-                host=node,
+                hostname=node,
                 name=f"worker-{index}",
                 workdir=workdir
             ))
