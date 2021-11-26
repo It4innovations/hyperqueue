@@ -3,14 +3,10 @@ use crate::server::task::{Task, TaskRef};
 use crate::TaskId;
 
 pub fn compute_b_level_metric(tasks: &Map<TaskId, TaskRef>) {
-    crawl(tasks, |t| t.get_consumers(), |t| &t.inputs);
+    crawl(tasks, |t| t.get_consumers());
 }
 
-fn crawl<F1: Fn(&Task) -> &Set<TaskRef>, F2: Fn(&Task) -> &Vec<TaskRef>>(
-    tasks: &Map<TaskId, TaskRef>,
-    predecessor_fn: F1,
-    successor_fn: F2,
-) {
+fn crawl<F1: Fn(&Task) -> &Set<TaskRef>>(tasks: &Map<TaskId, TaskRef>, predecessor_fn: F1) {
     let mut neighbours: Map<TaskRef, u32> = Map::with_capacity(tasks.len());
     let mut stack: Vec<TaskRef> = Vec::new();
     for (_, tref) in tasks.iter() {
@@ -31,13 +27,14 @@ fn crawl<F1: Fn(&Task) -> &Set<TaskRef>, F2: Fn(&Task) -> &Vec<TaskRef>>(
         }
         task.set_scheduler_priority(level + 1);
 
-        for inp in successor_fn(&task) {
+        for ti in &task.inputs {
+            let task = ti.task();
             let v: &mut u32 = neighbours
-                .get_mut(inp)
+                .get_mut(task)
                 .expect("Couldn't find task neighbour in level computation");
             if *v <= 1 {
                 assert_eq!(*v, 1);
-                stack.push(inp.clone());
+                stack.push(task.clone());
             } else {
                 *v -= 1;
             }

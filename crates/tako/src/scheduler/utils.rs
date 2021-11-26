@@ -6,8 +6,8 @@ pub fn task_transfer_cost(task: &Task, worker_id: WorkerId) -> u64 {
     task.inputs
         .iter()
         .take(512)
-        .map(|tr| {
-            let t = tr.get();
+        .map(|ti| {
+            let t = ti.task().get();
             let info = t.data_info().unwrap();
             if info.placement.contains(&worker_id) {
                 0u64

@@ -58,11 +58,41 @@ bitflags::bitflags! {
     }
 }
 
+pub struct TaskInput {
+    task: TaskRef,
+    output_id: u32, // MAX = pure dependency on task, not real output id
+}
+
+impl TaskInput {
+    pub fn new(task: TaskRef, output_id: u32) -> Self {
+        TaskInput { task, output_id }
+    }
+
+    pub fn new_task_dependency(task: TaskRef) -> Self {
+        TaskInput {
+            task,
+            output_id: u32::MAX,
+        }
+    }
+
+    pub fn task(&self) -> &TaskRef {
+        &self.task
+    }
+
+    pub fn output_id(&self) -> Option<u32> {
+        if self.output_id == u32::MAX {
+            None
+        } else {
+            Some(self.output_id)
+        }
+    }
+}
+
 pub struct Task {
     pub id: TaskId,
     pub state: TaskRuntimeState,
     consumers: Set<TaskRef>,
-    pub inputs: Vec<TaskRef>,
+    pub inputs: Vec<TaskInput>,
 
     pub flags: TaskFlags,
 
@@ -124,6 +154,7 @@ impl Task {
     pub fn has_consumers(&self) -> bool {
         !self.consumers.is_empty()
     }
+
     #[inline]
     pub fn add_consumer(&mut self, consumer: TaskRef) -> bool {
         self.consumers.insert(consumer)
@@ -205,11 +236,14 @@ impl Task {
         let dep_info: Vec<_> = self
             .inputs
             .iter()
-            .map(|task_ref| {
+            .filter_map(|ti| {
                 //let task_ref = core.get_task_by_id_or_panic(*task_id);
-                let task = task_ref.get();
-                let addresses: Vec<_> = task.get_placement().unwrap().iter().copied().collect();
-                (task.id, task.data_info().unwrap().data_info.size, addresses)
+                ti.output_id().map(|output_id| {
+                    assert_eq!(output_id, 0);
+                    let task = ti.task().get();
+                    let addresses: Vec<_> = task.get_placement().unwrap().iter().copied().collect();
+                    (task.id, task.data_info().unwrap().data_info.size, addresses)
+                })
             })
             .collect();
 
@@ -344,7 +378,7 @@ impl Task {
 impl TaskRef {
     pub fn new(
         id: TaskId,
-        inputs: Vec<TaskRef>,
+        inputs: Vec<TaskInput>,
         configuration: TaskConfiguration,
         user_priority: Priority,
         keep: bool,

@@ -142,8 +142,8 @@ pub fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec<TaskRe
             let mut task = task_ref.get_mut();
 
             let mut count = 0;
-            for tr in &task.inputs {
-                let mut task_dep = tr.get_mut();
+            for ti in &task.inputs {
+                let mut task_dep = ti.task().get_mut();
                 task_dep.add_consumer(task_ref.clone());
                 if !task_dep.is_finished() {
                     count += 1
@@ -627,9 +627,9 @@ fn unregister_as_consumer(
     task: &mut Task,
     task_ref: &TaskRef,
 ) {
-    for tr in &task.inputs {
+    for ti in &task.inputs {
         //let tr = core.get_task_by_id_or_panic(*input_id).clone();
-        let mut t = tr.get_mut();
+        let mut t = ti.task().get_mut();
         assert!(t.remove_consumer(task_ref));
         remove_task_if_possible(core, comm, &mut t);
     }
