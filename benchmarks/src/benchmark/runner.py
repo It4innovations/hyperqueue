@@ -28,7 +28,9 @@ class BenchmarkRunner:
     def compute(self, identifiers: List[BenchmarkIdentifier]):
         not_completed = self._skip_completed(identifiers)
         logging.info(
-            f"Skipping {len(identifiers) - len(not_completed)} out of {len(identifiers)} benchmarks")
+            f"Skipping {len(identifiers) - len(not_completed)} out of {len(identifiers)} "
+            f"benchmark(s)"
+        )
 
         for identifier in not_completed:
             instance = self.materialize_fn(identifier, self.workdir)

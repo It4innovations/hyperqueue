@@ -3,10 +3,10 @@ import logging
 import time
 from multiprocessing import Pool
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
 import dataclasses
-from cluster.cluster import Cluster, Process, kill_process, start_process, ProcessInfo
+from cluster.cluster import Cluster, Process, kill_process, start_process, ProcessInfo, Node
 
 from . import ClusterInfo
 from ..utils import get_pyenv_from_env
@@ -17,7 +17,7 @@ MONITOR_SCRIPT_PATH = CURRENT_DIR.parent / "monitoring" / "monitor_script.py"
 assert MONITOR_SCRIPT_PATH.is_file()
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class StartProcessArgs:
     args: List[str]
     hostname: str
@@ -25,6 +25,7 @@ class StartProcessArgs:
     workdir: Optional[Path] = None
     env: Dict[str, str] = dataclasses.field(default_factory=lambda: {})
     init_cmd: List[str] = dataclasses.field(default_factory=lambda: [])
+    metadata: Dict[str, Any] = dataclasses.field(default_factory=lambda: {})
 
 
 class ClusterHelper:
@@ -67,10 +68,15 @@ class ClusterHelper:
             return workdir.absolute()
 
         pool_args = [
-            StartProcessArgs(args=args.args, hostname=args.hostname, name=args.name, env=args.env,
-                             init_cmd=args.init_cmd,
-                             workdir=prepare_workdir(args.workdir)) for args in
-            processes
+            StartProcessArgs(
+                args=args.args,
+                hostname=args.hostname,
+                name=args.name,
+                env=args.env,
+                init_cmd=args.init_cmd,
+                workdir=prepare_workdir(args.workdir),
+                metadata=args.metadata
+            ) for args in processes
         ]
 
         logging.debug(f"Starting cluster processes: {pool_args}")
@@ -86,7 +92,7 @@ class ClusterHelper:
                     spawned.append(res)
 
         for (process, args) in zip(spawned, pool_args):
-            self.cluster.add(process=process, key=args.name)
+            self.cluster.add(process=process, key=args.name, **args.metadata)
 
     def start_monitoring(self, nodes: List[str], observe_processes=False):
         if not self.cluster_info.monitor_nodes:
@@ -103,15 +109,16 @@ class ClusterHelper:
         workdir = self.workdir / "monitoring"
         processes = []
         for node in nodes:
-            args = ["python", str(MONITOR_SCRIPT_PATH), str(workdir / f"monitoring-{node}.trace")]
+            args = ["python", str(MONITOR_SCRIPT_PATH),
+                    str(node_monitoring_trace(self.workdir, node))]
             if observe_processes:
-                node_processes = self.cluster.get_processes(node=node)
+                node_processes = self.cluster.get_processes(hostname=node)
                 pids = [str(process.pid) for (_, process) in node_processes]
                 args += ["--observe-pids", ",".join(pids)]
             process = StartProcessArgs(
                 args=args,
                 hostname=node,
-                name=f"monitoring-{node}",
+                name="monitor",
                 workdir=workdir,
                 init_cmd=init_cmd
             )
@@ -119,13 +126,17 @@ class ClusterHelper:
         self.start_processes(processes)
 
 
-def kill_fn(scheduler_sigint: bool, node: str, process: ProcessInfo):
+def node_monitoring_trace(directory: Path, hostname: str) -> Path:
+    return directory / "monitoring" / f"monitoring-{hostname}.trace"
+
+
+def kill_fn(scheduler_sigint: bool, node: Node, process: ProcessInfo):
     signal = "TERM"
     if scheduler_sigint or "monitoring" in process.key:
         signal = "INT"
 
-    if not kill_process(node, process.pgid, signal=signal):
-        logging.warning(f"Error when attempting to kill {process} on {node}")
+    if not kill_process(node.hostname, process.pgid, signal=signal):
+        logging.warning(f"Error when attempting to kill {process} on {node.hostname}")
 
 
 def start_process_pool(args: StartProcessArgs) -> Process:
