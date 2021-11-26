@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::common::resources::ResourceAllocation;
+use crate::common::resources::{CpuId, GenericResourceAmount, GenericResourceIndex};
 use crate::common::Map;
 use crate::messages::common::{TaskConfiguration, TaskFailInfo, WorkerConfiguration};
 use crate::messages::gateway::OverviewRequest;
@@ -110,9 +110,30 @@ pub struct WorkerHwStateMessage {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
+pub enum GenericResourceAllocationValue {
+    Indices(Vec<GenericResourceIndex>),
+    Sum(GenericResourceAmount),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
+pub struct GenericResourceAllocation {
+    pub resource: String,
+    pub value: GenericResourceAllocationValue,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
+pub struct TaskResourceAllocation {
+    pub cpus: Vec<CpuId>,
+    pub generic_allocations: Vec<GenericResourceAllocation>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerOverview {
     pub id: WorkerId,
-    pub running_tasks: Vec<(TaskId, ResourceAllocation)>,
+    pub running_tasks: Vec<(TaskId, TaskResourceAllocation)>,
     pub placed_data: Vec<TaskId>,
     pub hw_state: Option<WorkerHwStateMessage>,
 }
