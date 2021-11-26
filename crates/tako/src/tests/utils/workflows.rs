@@ -1,6 +1,7 @@
 use crate::server::core::Core;
 use crate::tests::utils::schedule::submit_test_tasks;
 use crate::tests::utils::task;
+use crate::tests::utils::task::TaskBuilder;
 use task::task_with_deps;
 
 pub fn submit_example_1(core: &mut Core) {
@@ -27,7 +28,7 @@ pub fn submit_example_1(core: &mut Core) {
 }
 
 pub fn submit_example_2(core: &mut Core) {
-    /* Graph simple
+    /*
          T1
         /  \
        T2   T3
@@ -47,4 +48,24 @@ pub fn submit_example_2(core: &mut Core) {
     let t7 = task_with_deps(7, &[&t6], 1);
 
     submit_test_tasks(core, &[&t1, &t2, &t3, &t4, &t5, &t6, &t7]);
+}
+
+pub fn submit_example_3(core: &mut Core) {
+    /* Task deps
+         T1   T2
+        / |\ /  \
+       T3 | T4  T5
+         \|    /
+          \   /
+           T6
+    */
+
+    let t1 = TaskBuilder::new(1).task_deps(&[]).build();
+    let t2 = TaskBuilder::new(2).task_deps(&[]).build();
+    let t3 = TaskBuilder::new(3).task_deps(&[&t1]).build();
+    let t4 = TaskBuilder::new(4).task_deps(&[&t1, &t2]).build();
+    let t5 = TaskBuilder::new(5).task_deps(&[&t2]).build();
+    let t6 = TaskBuilder::new(6).task_deps(&[&t1, &t5, &t3]).build();
+
+    submit_test_tasks(core, &[&t1, &t2, &t3, &t4, &t5, &t6]);
 }

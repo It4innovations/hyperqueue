@@ -1,13 +1,13 @@
 use super::resources::ResBuilder;
 use crate::common::resources::{CpuRequest, GenericResourceAmount, GenericResourceId, NumOfCpus};
 use crate::messages::common::TaskConfiguration;
-use crate::server::task::TaskRef;
+use crate::server::task::{TaskInput, TaskRef};
 use crate::TaskId;
 use std::time::Duration;
 
 pub struct TaskBuilder {
     id: TaskId,
-    inputs: Vec<TaskRef>,
+    inputs: Vec<TaskInput>,
     n_outputs: u32,
     resources: ResBuilder,
 }
@@ -22,8 +22,19 @@ impl TaskBuilder {
         }
     }
 
-    pub fn deps(mut self, deps: &[&TaskRef]) -> TaskBuilder {
-        self.inputs = deps.iter().map(|&tr| tr.clone()).collect();
+    pub fn simple_deps(mut self, deps: &[&TaskRef]) -> TaskBuilder {
+        self.inputs = deps
+            .iter()
+            .map(|&tr| TaskInput::new(tr.clone(), 0))
+            .collect();
+        self
+    }
+
+    pub fn task_deps(mut self, deps: &[&TaskRef]) -> TaskBuilder {
+        self.inputs = deps
+            .iter()
+            .map(|&tr| TaskInput::new_task_dependency(tr.clone()))
+            .collect();
         self
     }
 
@@ -81,7 +92,7 @@ pub fn task<T: Into<TaskId>>(id: T) -> TaskRef {
 
 pub fn task_with_deps<T: Into<TaskId>>(id: T, deps: &[&TaskRef], n_outputs: u32) -> TaskRef {
     TaskBuilder::new(id.into())
-        .deps(deps)
+        .simple_deps(deps)
         .outputs(n_outputs)
         .build()
 }

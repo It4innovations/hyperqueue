@@ -184,8 +184,8 @@ impl SchedulerState {
                 worker_id
             );
         }
-        for tr in &task.inputs {
-            let mut t = tr.get_mut();
+        for ti in &task.inputs {
+            let mut t = ti.task().get_mut();
             if let Some(wr) = assigned_worker {
                 t.remove_future_placement(wr);
             }

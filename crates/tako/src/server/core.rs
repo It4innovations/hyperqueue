@@ -285,7 +285,7 @@ impl Core {
     pub fn sanity_check(&self) {
         let fw_check = |task: &Task| {
             for t in &task.inputs {
-                assert!(t.get().is_finished());
+                assert!(t.task().get().is_finished());
             }
             for t in task.get_consumers() {
                 assert!(t.get().is_waiting());
@@ -317,8 +317,8 @@ impl Core {
             match &task.state {
                 TaskRuntimeState::Waiting(winfo) => {
                     let mut count = 0;
-                    for t in &task.inputs {
-                        if !t.get().is_finished() {
+                    for ti in &task.inputs {
+                        if !ti.task().get().is_finished() {
                             count += 1;
                         }
                     }
@@ -343,8 +343,8 @@ impl Core {
                 }
 
                 TaskRuntimeState::Finished(_) => {
-                    for t in &task.inputs {
-                        assert!(t.get().is_finished());
+                    for ti in &task.inputs {
+                        assert!(ti.task().get().is_finished());
                     }
                 }
 
@@ -400,6 +400,10 @@ mod tests {
     use crate::tests::utils::task;
 
     impl Core {
+        pub fn get_read_to_assign(&self) -> &[TaskRef] {
+            &self.ready_to_assign
+        }
+
         pub fn remove_from_ready_to_assign(&mut self, task_ref: &TaskRef) {
             let p = self
                 .ready_to_assign

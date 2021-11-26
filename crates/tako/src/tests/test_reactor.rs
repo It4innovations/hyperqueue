@@ -25,7 +25,7 @@ use crate::tests::utils::schedule::{
 };
 use crate::tests::utils::sorted_vec;
 use crate::tests::utils::task::{task, task_with_deps};
-use crate::tests::utils::workflows::submit_example_1;
+use crate::tests::utils::workflows::{submit_example_1, submit_example_3};
 use crate::tests::utils::{env, schedule};
 use crate::{TaskId, WorkerId};
 
@@ -1041,4 +1041,24 @@ fn cancel_tasks<T: Into<TaskId> + Copy>(core: &mut Core, task_ids: &[T]) {
         &mut comm,
         &task_ids.iter().map(|&v| v.into()).collect::<Vec<_>>(),
     );
+}
+
+#[test]
+fn test_task_deps() {
+    let mut core = Core::default();
+    //create_test_workers(&mut core, &[1, 1, 1]);
+    submit_example_3(&mut core);
+    assert_eq!(core.get_read_to_assign().len(), 2);
+    create_test_workers(&mut core, &[1]);
+    start_and_finish_on_worker(&mut core, 2, 100, 0);
+    assert!(core.get_task_by_id_or_panic(3.into()).get().is_waiting());
+    assert!(core.get_task_by_id_or_panic(4.into()).get().is_waiting());
+    assert!(core.get_task_by_id_or_panic(5.into()).get().is_ready());
+    assert!(core.get_task_by_id_or_panic(6.into()).get().is_waiting());
+
+    start_and_finish_on_worker(&mut core, 1, 100, 0);
+    assert!(core.get_task_by_id_or_panic(3.into()).get().is_ready());
+    assert!(core.get_task_by_id_or_panic(4.into()).get().is_ready());
+    assert!(core.get_task_by_id_or_panic(5.into()).get().is_ready());
+    assert!(core.get_task_by_id_or_panic(6.into()).get().is_waiting());
 }
