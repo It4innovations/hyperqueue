@@ -1,10 +1,8 @@
 use crate::common::resources::CpuId;
 use crate::common::resources::{GenericResourceAmount, GenericResourceId, GenericResourceIndex};
-use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(test, derive(Eq, PartialEq))]
+#[derive(Debug)]
 pub enum GenericResourceAllocationValue {
     Indices(SmallVec<[GenericResourceIndex; 2]>),
     Sum(GenericResourceAmount),
@@ -34,8 +32,7 @@ impl GenericResourceAllocationValue {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(test, derive(Eq, PartialEq))]
+#[derive(Debug)]
 pub struct GenericResourceAllocation {
     pub resource: GenericResourceId,
     pub value: GenericResourceAllocationValue,
@@ -43,14 +40,14 @@ pub struct GenericResourceAllocation {
 
 pub type GenericResourceAllocations = SmallVec<[GenericResourceAllocation; 2]>;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(test, derive(Eq, PartialEq))]
+#[derive(Debug)]
 pub struct ResourceAllocation {
     pub cpus: Vec<CpuId>,
     pub generic_allocations: GenericResourceAllocations,
 }
 
 impl ResourceAllocation {
+    #[inline]
     pub fn new(cpus: Vec<CpuId>, generic_allocations: GenericResourceAllocations) -> Self {
         ResourceAllocation {
             cpus,

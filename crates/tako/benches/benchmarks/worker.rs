@@ -195,9 +195,9 @@ fn bench_resource_queue_release_allocation(c: &mut BenchmarkGroup<WallTime>) {
                 map.insert(0.into(), task);
 
                 let mut started = queue.try_start_tasks(&map, None);
-                (queue, started.pop().unwrap().1)
+                (queue, Some(started.pop().unwrap().1))
             },
-            |(queue, allocation)| queue.release_allocation(allocation.clone()),
+            |(queue, allocation)| queue.release_allocation(allocation.take().unwrap()),
             BatchSize::SmallInput,
         );
     });

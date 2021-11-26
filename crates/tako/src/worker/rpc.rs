@@ -14,11 +14,12 @@ use tokio::time::sleep;
 use tokio::time::timeout;
 
 use crate::common::resources::map::ResourceMap;
-use crate::common::resources::ResourceAllocation;
+use crate::common::resources::{GenericResourceAllocationValue, ResourceAllocation};
 use crate::messages::common::WorkerConfiguration;
 use crate::messages::worker::{
-    ConnectionRegistration, FromWorkerMessage, RegisterWorker, StealResponseMsg, ToWorkerMessage,
-    WorkerHwStateMessage, WorkerOverview, WorkerRegistrationResponse,
+    ConnectionRegistration, FromWorkerMessage, RegisterWorker, StealResponseMsg,
+    TaskResourceAllocation, ToWorkerMessage, WorkerHwStateMessage, WorkerOverview,
+    WorkerRegistrationResponse,
 };
 use crate::server::rpc::ConnectionDescriptor;
 use crate::transfer::auth::{
@@ -412,9 +413,13 @@ async fn worker_message_loop(
                         .iter()
                         .map(|&task_id| {
                             let task = state.get_task(task_id);
-                            let allocation: ResourceAllocation =
-                                task.resource_allocation().unwrap().clone();
-                            (task_id, allocation)
+                            let allocation: &ResourceAllocation =
+                                task.resource_allocation().unwrap();
+
+                            (
+                                task_id,
+                                resource_allocation_to_msg(allocation, state.get_resource_map()),
+                            )
                             // TODO: Modify this when more cpus are allowed
                         })
                         .collect(),
@@ -435,6 +440,35 @@ async fn worker_message_loop(
         }
     }
     Ok(())
+}
+
+fn resource_allocation_to_msg(
+    allocation: &ResourceAllocation,
+    resource_map: &ResourceMap,
+) -> TaskResourceAllocation {
+    TaskResourceAllocation {
+        cpus: allocation.cpus.to_vec(),
+        generic_allocations: allocation
+            .generic_allocations
+            .iter()
+            .map(|alloc| crate::messages::worker::GenericResourceAllocation {
+                resource: resource_map
+                    .get_name(alloc.resource)
+                    .unwrap_or("unknown")
+                    .to_string(),
+                value: match &alloc.value {
+                    GenericResourceAllocationValue::Indices(indices) => {
+                        crate::messages::worker::GenericResourceAllocationValue::Indices(
+                            indices.iter().cloned().collect(),
+                        )
+                    }
+                    GenericResourceAllocationValue::Sum(amount) => {
+                        crate::messages::worker::GenericResourceAllocationValue::Sum(*amount)
+                    }
+                },
+            })
+            .collect(),
+    }
 }
 
 pub async fn connection_initiator(
