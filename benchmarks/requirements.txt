@@ -5,3 +5,4 @@ pandas==1.3.3
 tqdm==4.62.3
 mashumaro==2.9
 psutil==5.8.0
+humanize==3.12.0
