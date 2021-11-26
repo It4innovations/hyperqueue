@@ -1,4 +1,5 @@
 import logging
+import os
 import shutil
 import sys
 import time
@@ -6,7 +7,6 @@ import traceback
 from datetime import timedelta
 from pathlib import Path
 from typing import Optional
-import os
 
 import typer
 from tqdm import tqdm
@@ -75,10 +75,14 @@ def execute(
             root_dir = directory / "resubmits"
         directory = generate_job_dir(root_dir)
 
-        remaining = [identifier for identifier in identifiers if not database.has_record_for(identifier)]
+        remaining = [identifier for identifier in identifiers if
+                     not database.has_record_for(identifier)]
 
-        logging.warning(f"Benchmark didn't finish in {max_runtime}, computed {benchmark_count - len(remaining)}/{benchmark_count}, resubmitting at {directory}")
-        submit(remaining, workdir=directory, options=options, database_path=database_file, resubmit=True)
+        logging.warning(
+            f"Benchmark didn't finish in {max_runtime}, computed {benchmark_count - len(remaining)}"
+            f"/{benchmark_count}, resubmitting at {directory}")
+        submit(remaining, workdir=directory, options=options, database_path=database_file,
+               resubmit=True)
     except:
         runner.save()
         logging.error(f"Error occurred while benchmarking: {traceback.format_exc()}")

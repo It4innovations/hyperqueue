@@ -1,3 +1,4 @@
+import contextlib
 import os
 from pathlib import Path
 
@@ -18,3 +19,14 @@ def check_file_exists(path: Path):
         raise Exception(f"Path {path} does not exist")
     if not path.is_file():
         raise Exception(f"Path {path} is not a file")
+
+
+@contextlib.contextmanager
+def activate_cwd(directory: Path):
+    cwd = os.getcwd()
+    os.chdir(directory)
+
+    try:
+        yield
+    finally:
+        os.chdir(cwd)
