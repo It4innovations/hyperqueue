@@ -10,9 +10,11 @@ from src.postprocessing.report import ClusterReport
 from src.postprocessing.summary import generate_summary
 
 app = typer.Typer()
+cluster = typer.Typer()
+app.add_typer(cluster, name="cluster", help="Generate cluster reports")
 
 
-@app.command()
+@cluster.command("serve")
 def cluster_serve(
         directory: Path = typer.Argument(..., exists=True, file_okay=False),
         port: int = 5555
@@ -22,7 +24,7 @@ def cluster_serve(
     serve_cluster_report(report, port=port)
 
 
-@app.command()
+@cluster.command("generate")
 def cluster_generate(
         directory: Path = typer.Argument(..., exists=True, file_okay=False),
         output: Path = Path("out.html")
