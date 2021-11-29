@@ -1,49 +1,65 @@
 import logging
 from pathlib import Path
-from typing import List
+from typing import Any, Dict
 
-import typer
-
-from src.build.hq import iterate_binaries
-from src.build.repository import TAG_WORKSPACE
-from src.clusterutils import ClusterInfo
-from src.clusterutils.node_list import Local
-from src.environment.hq import HqClusterInfo, HqEnvironment, ProfileMode
-from src.workloads import SleepHQ
+from src.benchmark.identifier import BenchmarkIdentifier, repeat_benchmark
+from src.build.hq import iterate_binaries, BuildConfig
+from src.materialization import run_benchmark_suite
+from src.postprocessing.summary import generate_summary
 
 
-def compare_tags(tags: List[str]):
-    """
-    Compares a single benchmark between multiple HyperQueue git tags.
-    """
-    if TAG_WORKSPACE in tags:
-        tags = [TAG_WORKSPACE] + sorted(set(tags) - {TAG_WORKSPACE})
-    else:
-        tags = sorted(tags)
-
-    info = ClusterInfo(
-        workdir=Path("work"),
-        node_list=Local(),
-        monitor_nodes=True
+def benchmark(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+    return dict(
+        workload=name,
+        workload_params=args
     )
-    results = {}
-    for (tag, binary) in zip(tags, iterate_binaries(tags)):
-        hq_info = HqClusterInfo(
-            cluster=info,
-            binary=binary,
-            worker_count=1,
-            profile_mode=ProfileMode()
-        )
 
-        with HqEnvironment(hq_info) as hq_env:
-            sleep = SleepHQ()
-            ret = sleep.execute(hq_env, 10000)
-            results[tag] = ret
-    print(results)
+
+def sleep_benchmarks():
+    for task_count in (10, 100, 1000, 10000):
+        yield benchmark("sleep", dict(task_count=task_count))
+
+
+def hq_metadata(binary: str, monitoring=True, profile=False, timeout=180) -> Dict[str, Any]:
+    return dict(
+        monitoring=monitoring,
+        timeout=timeout,
+        profile=profile,
+        hq=dict(
+            binary=binary,
+            workers=[None]
+        ),
+    )
+
+
+def hq_environment(worker_count=1, zero_worker=False) -> Dict[str, Any]:
+    return dict(
+        environment="hq",
+        environment_params=dict(worker_count=worker_count, zero_worker=zero_worker),
+    )
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO,
-                        format="%(levelname)s:%(asctime)s:%(funcName)s: %(message)s",
-                        datefmt="%Y-%m-%d %H:%M:%S")
-    typer.run(compare_tags)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s:%(asctime)s:%(funcName)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+
+    identifiers = []
+
+    repeat_count = 2
+    for (config, binary) in iterate_binaries([BuildConfig(), BuildConfig(zero_worker=True)]):
+        for bench in sleep_benchmarks():
+            identifiers += repeat_benchmark(repeat_count, lambda index: BenchmarkIdentifier(
+                **hq_environment(zero_worker=config.zero_worker),
+                **bench,
+                metadata=hq_metadata(binary=str(binary)),
+                index=index
+            ))
+
+    workdir = Path("work/zw")
+    database = run_benchmark_suite(workdir, identifiers)
+
+    with open(workdir / "summary.txt", "w") as f:
+        generate_summary(database, f)
