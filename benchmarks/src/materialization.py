@@ -3,9 +3,13 @@ import os.path
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
+import tqdm
+
 from . import ROOT_DIR
 from .benchmark import BenchmarkInstance
+from .benchmark.database import Database
 from .benchmark.identifier import BenchmarkIdentifier
+from .benchmark.runner import BenchmarkRunner
 from .clusterutils import ClusterInfo, NodeList
 from .clusterutils.node_list import Local
 from .environment import Environment
@@ -56,7 +60,8 @@ def parse_hq_environment(info: ClusterInfo, identifier: BenchmarkIdentifier) -> 
         cluster=info,
         binary=Path(hq_metadata.get("binary", DEFAULT_HQ_BINARY_PATH)).absolute(),
         workers=parse_hq_workers(hq_metadata.get("workers")),
-        profile_mode=parse_profile_mode(metadata.get("profile"))
+        debug=hq_metadata.get("debug", False),
+        profile_mode=parse_profile_mode(metadata.get("profile")),
     )
     return HqEnvironment(hq_info)
 
@@ -126,7 +131,7 @@ def parse_cluster_info(identifier: BenchmarkIdentifier, workdir: Path) -> Cluste
 
 
 def parse_profile_mode(data) -> ProfileMode:
-    if data is None:
+    if data is None or data is False:
         return ProfileMode()
     if data is True:
         return ProfileMode(server=True, workers=True)
@@ -186,3 +191,18 @@ def format_parameter(key: str, value):
     if isinstance(value, str) and Path(value).exists():
         value = os.path.basename(value)
     return f"{key}-{value}"
+
+
+DEFAULT_DATA_JSON = "data.json"
+
+
+def run_benchmark_suite(workdir: Path, identifiers: List[BenchmarkIdentifier]) -> Database:
+    database = Database(workdir / DEFAULT_DATA_JSON)
+    runner = BenchmarkRunner(database, workdir=workdir, materialize_fn=materialize_benchmark)
+
+    for (_identifier, _benchmark, _result) in tqdm.tqdm(runner.compute(identifiers),
+                                                        total=len(identifiers)):
+        pass
+
+    runner.save()
+    return database

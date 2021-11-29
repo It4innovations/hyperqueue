@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from typing import Dict, Any
 
@@ -24,6 +25,10 @@ def create_database_df(database: Database) -> pd.DataFrame:
 
 def generate_summary(database: Database, file):
     df = create_database_df(database)
+    if df.empty:
+        logging.warning("No data found")
+        return
+
     grouped = df.groupby(["workload", "workload-params", "env", "env-params"])["duration"]
 
     with pd.option_context("display.max_rows", None,
