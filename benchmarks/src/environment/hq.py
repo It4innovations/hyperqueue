@@ -34,6 +34,8 @@ class HqClusterInfo:
     cluster: ClusterInfo
     binary: Path
     workers: List[HqWorkerConfig]
+    # Enable debug logging on server and workers
+    debug: bool = False
     profile_mode: ProfileMode = dataclasses.field(default_factory=lambda: ProfileMode())
 
 
@@ -90,6 +92,8 @@ class HqEnvironment(Environment):
         self.worker_assignment = assign_workers(self.info.workers, worker_nodes)
         logging.debug(f"Worker assignment: {self.worker_assignment}")
 
+        self.submit_id = 0
+
         self.state = "initial"
 
     def __enter__(self):
@@ -128,6 +132,9 @@ class HqEnvironment(Environment):
             hostname=self.nodes[0],
             name="server",
             workdir=workdir,
+            env={
+                "RUST_LOG": self._log_env_value()
+            }
         )
 
         if self.info.profile_mode.server:
@@ -151,6 +158,9 @@ class HqEnvironment(Environment):
                     hostname=node,
                     name=worker_index,
                     workdir=workdir,
+                    env={
+                        "RUST_LOG": self._log_env_value()
+                    }
                 )
 
                 if self.info.profile_mode.workers:
@@ -165,7 +175,19 @@ class HqEnvironment(Environment):
         self.state = "stopped"
 
     def submit(self, args: List[str]):
-        return subprocess.run(self._shared_args() + args, check=True)
+        path = self.server_dir / f"submit-{self.submit_id}"
+        with open(f"{path}.out", "wb") as stdout:
+            with open(f"{path}.err", "wb") as stderr:
+                result = subprocess.run(
+                    self._shared_args() + args,
+                    check=True,
+                    stdin=subprocess.DEVNULL,
+                    stdout=stdout,
+                    stderr=stderr
+                )
+
+        self.submit_id += 1
+        return result
 
     def _profile_args(self, args: StartProcessArgs, output_path: Path):
         profiler = NativeProfiler()
@@ -188,3 +210,6 @@ class HqEnvironment(Environment):
             return len(json.loads(output)) == count
 
         wait_until(lambda: get_worker_count())
+
+    def _log_env_value(self) -> str:
+        return f"hyperqueue={'DEBUG' if self.info.debug else 'INFO'}"
