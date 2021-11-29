@@ -10,6 +10,7 @@ import dataclasses
 from . import Environment
 from ..clusterutils import ClusterInfo
 from ..clusterutils.cluster_helper import ClusterHelper, StartProcessArgs
+from ..clusterutils.node_list import Local
 from ..clusterutils.profiler import NativeProfiler
 from ..utils import check_file_exists
 from ..utils.timing import wait_until
@@ -40,7 +41,8 @@ def assign_workers(
         workers: List[HqWorkerConfig],
         nodes: List[str]
 ) -> Dict[str, List[HqWorkerConfig]]:
-    round_robin_node = 1
+    round_robin_node = 0
+    used_round_robin = set()
 
     node_assignments = defaultdict(list)
     for (index, worker) in enumerate(workers):
@@ -48,15 +50,19 @@ def assign_workers(
         if node is not None:
             if not (0 <= node < len(nodes)):
                 raise Exception(f"Invalid node assignment. Worker {index} wants to be on node "
-                                f"{node}, but there are only {len(nodes)} nodes")
+                                f"{node}, but there are only {len(nodes)} worker nodes")
         else:
             node = round_robin_node
             round_robin_node = (round_robin_node + 1) % len(nodes)
-            if round_robin_node == 0:
+            if node in used_round_robin:
                 logging.warning(
-                    f"There are more workers ({len(workers)}) than worker nodes ({len(nodes) - 1})")
+                    f"There are more workers ({len(workers)}) than worker nodes ({len(nodes)})")
+            used_round_robin.add(node)
+        if node >= len(nodes):
+            raise Exception(
+                f"Selected worker node is {node}, but there are only {len(nodes)} worker node(s)")
         node_assignments[nodes[node]].append(worker)
-    return node_assignments
+    return dict(node_assignments)
 
 
 class HqEnvironment(Environment):
@@ -71,9 +77,17 @@ class HqEnvironment(Environment):
         self.nodes = self.info.cluster.node_list.resolve()
         assert self.nodes
 
+        worker_nodes = (
+            self.nodes
+            if isinstance(self.info.cluster.node_list, Local)
+            else self.nodes[1:]
+        )
+        if not worker_nodes:
+            raise Exception("No worker nodes are available")
+
         self.worker_count = len(self.info.workers)
         assert self.worker_count > 0
-        self.worker_assignment = assign_workers(self.info.workers, self.nodes)
+        self.worker_assignment = assign_workers(self.info.workers, worker_nodes)
         logging.debug(f"Worker assignment: {self.worker_assignment}")
 
         self.state = "initial"
