@@ -1,6 +1,5 @@
 use crate::common::resources::{ResourceAllocation, ResourceRequest};
 use crate::common::Map;
-use crate::messages::common::TaskConfiguration;
 use crate::messages::worker::ComputeTaskMsg;
 use crate::worker::rqueue::ResourceWaitQueue;
 use crate::worker::state::TaskMap;
@@ -19,12 +18,10 @@ pub fn worker_task<T: Into<TaskId>>(
         dep_info: vec![],
         user_priority: u_priority,
         scheduler_priority: 0,
-        configuration: TaskConfiguration {
-            resources,
-            n_outputs: 0,
-            time_limit: None,
-            body: vec![],
-        },
+        resources,
+        time_limit: None,
+        n_outputs: 0,
+        body: vec![]
     })
 }
 

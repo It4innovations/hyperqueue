@@ -5,14 +5,13 @@ use derive_builder::Builder;
 
 use crate::common::resources::CpuRequest;
 use crate::common::Map;
-use crate::messages::common::{
-    GenericResourceRequest, ProgramDefinition, ResourceRequest, StdioDef, TaskConfigurationMessage,
-};
-use crate::messages::gateway::TaskDef;
+use crate::messages::common::{ProgramDefinition, StdioDef};
+use crate::messages::gateway::{GenericResourceRequest, ResourceRequest, TaskConf, TaskDef};
 
 pub struct GraphBuilder {
     id_counter: u64,
     tasks: Vec<TaskDef>,
+    configurations: Vec<TaskConf>,
 }
 
 impl Default for GraphBuilder {
@@ -20,11 +19,24 @@ impl Default for GraphBuilder {
         Self {
             id_counter: 1,
             tasks: Default::default(),
+            configurations: Default::default(),
         }
     }
 }
 
 impl GraphBuilder {
+    pub fn singleton(builder: TaskConfigBuilder) -> (Vec<TaskDef>, Vec<TaskConf>) {
+        GraphBuilder::default().task(builder).build()
+    }
+
+    pub fn tasks(self, builders: impl Iterator<Item = TaskConfigBuilder>) -> Self {
+        let mut s = self;
+        for builder in builders {
+            s = s.task(builder);
+        }
+        s
+    }
+
     pub fn task(mut self, builder: TaskConfigBuilder) -> Self {
         let mut config: TaskConfig = builder.build().unwrap();
         config.id = config.id.or_else(|| {
@@ -33,8 +45,10 @@ impl GraphBuilder {
             Some(id)
         });
 
-        let def = build_task_from_config(config);
-        self.tasks.push(def);
+        let (mut tdef, tconf) = build_task_def_from_config(config);
+        tdef.conf_idx = self.configurations.len() as u32;
+        self.tasks.push(tdef);
+        self.configurations.push(tconf);
         self
     }
 
@@ -42,12 +56,12 @@ impl GraphBuilder {
         self.task(TaskConfigBuilder::default().args(simple_args(args)))
     }
 
-    pub fn build(self) -> Vec<TaskDef> {
-        self.tasks
+    pub fn build(self) -> (Vec<TaskDef>, Vec<TaskConf>) {
+        (self.tasks, self.configurations)
     }
 }
 
-fn build_task_from_config(config: TaskConfig) -> TaskDef {
+pub fn build_task_def_from_config(config: TaskConfig) -> (TaskDef, TaskConf) {
     let TaskConfig {
         id,
         keep,
@@ -71,34 +85,33 @@ fn build_task_from_config(config: TaskConfig) -> TaskDef {
     };
     let body = rmp_serde::to_vec(&program_def).unwrap();
 
-    let conf = TaskConfigurationMessage {
+    let conf = TaskConf {
         resources: ResourceRequest {
             cpus,
             min_time: Default::default(),
-            generic: generic,
+            generic,
         },
         n_outputs: 0,
         time_limit,
-        body,
-    };
-    TaskDef {
-        id: id.unwrap_or(1).into(),
-        conf,
         priority: 0,
         keep,
         observe: observe.unwrap_or(true),
-    }
-}
-
-pub fn build_task(config: TaskConfigBuilder) -> TaskDef {
-    build_task_from_config(config.build().unwrap())
+    };
+    (
+        TaskDef {
+            id: id.unwrap_or(1).into(),
+            conf_idx: 0,
+            body,
+        },
+        conf,
+    )
 }
 
 #[derive(Builder, Default, Clone)]
 #[builder(pattern = "owned")]
 pub struct TaskConfig {
     #[builder(default)]
-    id: Option<u64>,
+    pub id: Option<u64>,
 
     #[builder(default)]
     keep: bool,
@@ -136,9 +149,8 @@ pub fn simple_args(args: &[&'static str]) -> Vec<String> {
     args.iter().map(|&v| v.to_string()).collect()
 }
 
-pub fn simple_task(args: &[&'static str], id: u64) -> TaskDef {
-    let config = TaskConfigBuilder::default()
+pub fn simple_task(args: &[&'static str], id: u64) -> TaskConfigBuilder {
+    TaskConfigBuilder::default()
         .args(simple_args(args))
-        .id(Some(id));
-    build_task(config)
+        .id(Some(id))
 }

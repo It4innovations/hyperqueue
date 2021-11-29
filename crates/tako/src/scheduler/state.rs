@@ -147,7 +147,7 @@ impl SchedulerState {
         for (worker_id, mut task_refs) in task_computes {
             task_refs.sort_unstable_by_key(|tr| {
                 let t = tr.get();
-                Reverse((t.user_priority, t.scheduler_priority))
+                Reverse((t.configuration.user_priority, t.scheduler_priority))
             });
             for task_ref in task_refs {
                 let mut task = task_ref.get_mut();

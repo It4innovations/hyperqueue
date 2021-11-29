@@ -1,8 +1,8 @@
 use super::resources::ResBuilder;
 use crate::common::resources::{CpuRequest, GenericResourceAmount, GenericResourceId, NumOfCpus};
-use crate::messages::common::TaskConfiguration;
-use crate::server::task::{TaskInput, TaskRef};
-use crate::TaskId;
+use crate::server::task::{TaskConfiguration, TaskInput, TaskRef};
+use crate::{Priority, TaskId};
+use std::rc::Rc;
 use std::time::Duration;
 
 pub struct TaskBuilder {
@@ -10,6 +10,7 @@ pub struct TaskBuilder {
     inputs: Vec<TaskInput>,
     n_outputs: u32,
     resources: ResBuilder,
+    user_priority: Priority,
 }
 
 impl TaskBuilder {
@@ -19,7 +20,13 @@ impl TaskBuilder {
             inputs: Default::default(),
             n_outputs: 0,
             resources: Default::default(),
+            user_priority: 0,
         }
+    }
+
+    pub fn user_priority(mut self, value: Priority) -> TaskBuilder {
+        self.user_priority = value;
+        self
     }
 
     pub fn simple_deps(mut self, deps: &[&TaskRef]) -> TaskBuilder {
@@ -73,12 +80,12 @@ impl TaskBuilder {
         TaskRef::new(
             self.id,
             self.inputs,
-            TaskConfiguration {
+            Rc::new(TaskConfiguration {
                 resources,
                 n_outputs: self.n_outputs,
                 time_limit: None,
-                body: Default::default(),
-            },
+                user_priority: self.user_priority,
+            }),
             Default::default(),
             false,
             false,

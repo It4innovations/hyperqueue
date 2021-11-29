@@ -7,9 +7,8 @@ use anyhow::anyhow;
 use bstr::BString;
 use clap::Parser;
 use tako::common::resources::{CpuRequest, GenericResourceAmount};
-use tako::messages::common::{
-    GenericResourceRequest, ProgramDefinition, ResourceRequest, StdioDef,
-};
+use tako::messages::common::{ProgramDefinition, StdioDef};
+use tako::messages::gateway::{GenericResourceRequest, ResourceRequest};
 
 use crate::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use crate::client::globalsettings::GlobalSettings;

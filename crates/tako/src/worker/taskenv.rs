@@ -55,11 +55,10 @@ impl TaskEnv {
         task_id: TaskId,
     ) {
         let task_fut = {
-            assert_eq!(state.get_task(task_id).configuration.n_outputs, 0);
+            assert_eq!(state.get_task(task_id).n_outputs, 0);
             assert!(self.stop_sender.is_none());
             let (end_sender, end_receiver) = oneshot::channel();
             self.stop_sender = Some(end_sender);
-
             (*state.task_launcher)(state_ref.clone(), task_id, end_receiver)
         };
 
@@ -71,7 +70,7 @@ impl TaskEnv {
                     // Task was canceled in between start of the task and this spawn_local
                     return;
                 }
-                task.configuration.time_limit
+                task.time_limit
             };
             let result = if let Some(duration) = time_limit {
                 let sleep = tokio::time::sleep(duration);
