@@ -576,12 +576,12 @@ def create_page(report: ClusterReport):
     return Tabs(tabs=tabs)
 
 
-def generate(report: ClusterReport, output: Path):
+def generate_cluster_report(report: ClusterReport, output: Path):
     page = create_page(report)
     save(page, output, title="Cluster monitor", resources=CDN)
 
 
-def serve(report: ClusterReport, port: int):
+def serve_cluster_report(report: ClusterReport, port: int):
     class Handler(web.RequestHandler):
         def get(self):
             page = create_page(report)
