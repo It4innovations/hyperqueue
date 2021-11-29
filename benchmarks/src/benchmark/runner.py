@@ -27,13 +27,15 @@ class BenchmarkRunner:
 
     def compute(self, identifiers: List[BenchmarkIdentifier]):
         not_completed = self._skip_completed(identifiers)
+        # Materialize instances immediately to find potential errors sooner
+        instances = [self.materialize_fn(identifier, self.workdir) for identifier in not_completed]
+
         logging.info(
             f"Skipping {len(identifiers) - len(not_completed)} out of {len(identifiers)} "
             f"benchmark(s)"
         )
 
-        for identifier in not_completed:
-            instance = self.materialize_fn(identifier, self.workdir)
+        for (identifier, instance) in zip(not_completed, instances):
             logging.info(f"Executing benchmark {identifier}")
             timeout = identifier.timeout() or DEFAULT_TIMEOUT_S
 

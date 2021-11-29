@@ -163,14 +163,14 @@ def materialize_benchmark(identifier: BenchmarkIdentifier, workdir: Path) -> Ben
 
 
 def create_benchmark_key(
-        benchmark: str,
-        params: Dict[str, Any],
+        workload: str,
+        workload_params: Dict[str, Any],
         environment: str,
         environment_params: Dict[str, Any],
         index: int
 ) -> str:
     return (
-        f"{benchmark}-{format_dict(params)}-{environment}-{format_dict(environment_params)}-"
+        f"{workload}-{format_dict(workload_params)}-{environment}-{format_dict(environment_params)}-"
         f"{index}"
     )
 

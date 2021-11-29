@@ -3,8 +3,10 @@ from pathlib import Path
 
 import typer
 
-from src.postprocessing.monitor import generate, serve
+from src.benchmark.database import Database
+from src.postprocessing.monitor import generate_cluster_report, serve_cluster_report
 from src.postprocessing.report import ClusterReport
+from src.postprocessing.summary import generate_summary
 
 app = typer.Typer()
 
@@ -16,7 +18,7 @@ def cluster_serve(
 ):
     """Serve a HTML file with monitoring and profiling report for the given directory"""
     report = ClusterReport.load(directory)
-    serve(report, port=port)
+    serve_cluster_report(report, port=port)
 
 
 @app.command()
@@ -26,7 +28,18 @@ def cluster_generate(
 ):
     """Generate a HTML file with monitoring and profiling report for the given directory"""
     report = ClusterReport.load(directory)
-    generate(report, output=output)
+    generate_cluster_report(report, output=output)
+
+
+@app.command()
+def summary(
+        database_path: Path = typer.Argument(..., exists=True, dir_okay=False),
+        output: Path = Path("summary.txt")
+):
+    """Generate a simple text summary of benchmark results"""
+    database = Database(database_path)
+    with open(output, "w") as f:
+        generate_summary(database, f)
 
 
 if __name__ == "__main__":

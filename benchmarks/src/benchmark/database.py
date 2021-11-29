@@ -3,7 +3,7 @@ import time
 import uuid
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 
 import dataclasses
 import numpy as np
@@ -52,6 +52,10 @@ class Database:
         if self.path.is_file():
             self.data = load_database(path)
         self.metadata = metadata or np.nan
+
+    @property
+    def records(self) -> List[DatabaseRecord]:
+        return list(self.data.values())
 
     def has_record_for(self, identifier: BenchmarkIdentifier) -> bool:
         return create_identifier_key(identifier) in self.data
