@@ -152,7 +152,7 @@ impl State {
         tako_ref: &Backend,
         msg: TaskFailedMessage,
     ) {
-        log::debug!("Task id={} failed", msg.id);
+        log::debug!("Task id={} failed: {:?}", msg.id, msg.info);
 
         let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
         job.set_failed_state(msg.id, msg.info.message, tako_ref);
