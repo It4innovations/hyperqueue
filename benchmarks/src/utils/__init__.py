@@ -1,5 +1,6 @@
 import contextlib
 import os
+import shutil
 from pathlib import Path
 
 
@@ -19,6 +20,10 @@ def check_file_exists(path: Path):
         raise Exception(f"Path {path} does not exist")
     if not path.is_file():
         raise Exception(f"Path {path} is not a file")
+
+
+def is_binary_available(binary: str) -> bool:
+    return shutil.which(binary) is not None
 
 
 @contextlib.contextmanager

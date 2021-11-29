@@ -1,15 +1,17 @@
+import inspect
 import os.path
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set
 
-from . import BenchmarkInstance
-from .identifier import BenchmarkIdentifier
-from .. import ROOT_DIR
-from ..clusterutils import ClusterInfo, NodeList
-from ..clusterutils.node_list import Local
-from ..environment import Environment
-from ..environment.hq import HqClusterInfo, ProfileMode, HqEnvironment, HqWorkerConfig
-from ..workloads import Workload, SleepHQ
+from . import ROOT_DIR
+from .benchmark import BenchmarkInstance
+from .benchmark.identifier import BenchmarkIdentifier
+from .clusterutils import ClusterInfo, NodeList
+from .clusterutils.node_list import Local
+from .environment import Environment
+from .environment.hq import HqClusterInfo, ProfileMode, HqEnvironment, HqWorkerConfig
+from .workloads import Workload, SleepHQ
+from .workloads.stress import StressHQ
 
 DEFAULT_HQ_BINARY_PATH = ROOT_DIR / "target" / "release" / "hq"
 
@@ -18,6 +20,9 @@ HQ_ENV = "hq"
 WORKLOADS = {
     "sleep": {
         HQ_ENV: SleepHQ
+    },
+    "stress": {
+        HQ_ENV: StressHQ
     }
 }
 
@@ -34,7 +39,7 @@ def parse_hq_workers(data) -> List[HqWorkerConfig]:
         return [HqWorkerConfig()]
     elif isinstance(data, int):
         return [HqWorkerConfig()] * data
-    elif isinstance(data, list) and _check_type_all(data, int):
+    elif isinstance(data, list) and _check_type_all(data, (type(None), int)):
         return [HqWorkerConfig(cpus) for cpus in data]
     else:
         return [HqWorkerConfig(
@@ -66,16 +71,42 @@ def parse_environment(identifier: BenchmarkIdentifier, workdir: Path) -> Environ
         raise Exception(f"Unknown environment type {env_type}")
 
 
+def validate_workload_args(workload: Workload, workload_name: str, arguments: Dict[str, Any]):
+    signature = inspect.signature(workload.execute)
+    params = dict(signature.parameters)
+    del params["env"]
+
+    required_params = {k: v for (k, v) in params.items()
+                       if v.default == inspect.Parameter.empty}
+    param_set = set(params)
+    required_param_set = set(required_params.keys())
+    arg_set = set(arguments.keys())
+    unknown_args = arg_set - param_set
+
+    def format_args(args: Set[str]) -> str:
+        return ", ".join(f"`{arg}`" for arg in sorted(args))
+
+    if required_param_set - arg_set:
+        raise Exception(f"""Provide all required arguments for workload `{workload_name}`
+You have entered: {format_args(arg_set)}
+The workload requires: {format_args(required_param_set)}""")
+    elif unknown_args:
+        raise Exception(f"""You have entered unknown arguments for workload `{workload_name}`:
+{format_args(unknown_args)}""")
+
+
 def parse_workload(identifier: BenchmarkIdentifier, env_type: str) -> Workload:
-    workload = identifier.workload
-    if workload in WORKLOADS:
-        env_workloads = WORKLOADS[workload]
+    workload_name = identifier.workload
+    if workload_name in WORKLOADS:
+        env_workloads = WORKLOADS[workload_name]
         if env_type in env_workloads:
-            return env_workloads[env_type]()
+            workload = env_workloads[env_type]()
+            validate_workload_args(workload, workload_name, identifier.workload_params)
+            return workload
         else:
-            raise Exception(f"Workload {workload} is not implemented for {env_type}")
+            raise Exception(f"Workload {workload_name} is not implemented for {env_type}")
     else:
-        raise Exception(f"Unknown workload {workload}")
+        raise Exception(f"Unknown workload {workload_name}")
 
 
 def parse_node_list(data) -> NodeList:

@@ -1,7 +1,8 @@
-import shutil
 from abc import ABC
 from pathlib import Path
 from typing import List
+
+from ..utils import is_binary_available
 
 
 class Profiler(ABC):
@@ -14,7 +15,7 @@ class Profiler(ABC):
 
 class NativeProfiler:
     def is_available(self) -> bool:
-        return shutil.which("flamegraph") is not None
+        return is_binary_available("flamegraph")
 
     def profile(self, command: List[str], output_file: Path, frequency: int) -> List[str]:
         return ["flamegraph", "-o", str(output_file), "--freq", str(frequency), "--"] + command
