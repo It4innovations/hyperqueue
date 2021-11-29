@@ -4,8 +4,9 @@ use std::time::Duration;
 use bstr::BString;
 use serde::{Deserialize, Serialize};
 
-use crate::common::resources::{CpuRequest, ResourceDescriptor};
+use crate::common::resources::{ResourceDescriptor};
 use crate::common::Map;
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskFailInfo {
@@ -117,53 +118,4 @@ pub struct NetworkStats {
     pub tx_packets: u64,
     pub rx_errors: u64,
     pub tx_errors: u64,
-}
-
-// TODO: make this not serializable
-#[derive(Deserialize, Serialize, Debug, Default, Clone)]
-pub struct TaskConfiguration {
-    #[serde(default)]
-    pub resources: crate::common::resources::ResourceRequest,
-
-    #[serde(default)]
-    pub n_outputs: u32,
-
-    #[serde(default)]
-    pub time_limit: Option<Duration>,
-
-    #[serde(with = "serde_bytes")]
-    pub body: Vec<u8>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct TaskConfigurationMessage {
-    #[serde(default)]
-    pub resources: ResourceRequest,
-
-    #[serde(default)]
-    pub n_outputs: u32,
-
-    #[serde(default)]
-    pub time_limit: Option<Duration>,
-
-    #[serde(with = "serde_bytes")]
-    pub body: Vec<u8>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GenericResourceRequest {
-    pub resource: String,
-    pub amount: u64,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct ResourceRequest {
-    #[serde(default)]
-    pub cpus: CpuRequest,
-
-    #[serde(default)]
-    pub generic: Vec<GenericResourceRequest>,
-
-    #[serde(default)]
-    pub min_time: Duration,
 }

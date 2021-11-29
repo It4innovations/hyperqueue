@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 use std::fmt;
+use std::rc::Rc;
+use std::time::Duration;
 
 use crate::common::{Map, Set, WrappedRcRefCell};
-use crate::messages::common::TaskConfiguration;
 use crate::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::TaskId;
 use crate::WorkerId;
@@ -88,18 +89,23 @@ impl TaskInput {
     }
 }
 
+pub struct TaskConfiguration {
+    pub resources: crate::common::resources::ResourceRequest,
+    pub user_priority: Priority,
+    pub time_limit: Option<Duration>,
+    pub n_outputs: u32,
+}
+
 pub struct Task {
     pub id: TaskId,
     pub state: TaskRuntimeState,
     consumers: Set<TaskRef>,
     pub inputs: Vec<TaskInput>,
-
     pub flags: TaskFlags,
-
-    pub configuration: TaskConfiguration,
-    pub user_priority: Priority,
+    pub configuration: Rc<TaskConfiguration>,
     pub scheduler_priority: Priority,
     pub instance_id: InstanceId,
+    pub body: Vec<u8>,
 }
 
 impl fmt::Debug for Task {
@@ -113,7 +119,6 @@ pub type TaskRef = WrappedRcRefCell<Task>;
 impl Task {
     pub fn clear(&mut self) {
         self.inputs = Default::default();
-        self.configuration.body = Default::default();
     }
 
     #[inline]
@@ -251,9 +256,12 @@ impl Task {
             id: self.id,
             instance_id: self.instance_id,
             dep_info,
-            configuration: self.configuration.clone(),
-            user_priority: self.user_priority,
+            user_priority: self.configuration.user_priority,
             scheduler_priority: self.scheduler_priority,
+            resources: self.configuration.resources.clone(),
+            time_limit: self.configuration.time_limit,
+            n_outputs: self.configuration.n_outputs,
+            body: self.body.clone(),
         })
     }
 
@@ -379,8 +387,8 @@ impl TaskRef {
     pub fn new(
         id: TaskId,
         inputs: Vec<TaskInput>,
-        configuration: TaskConfiguration,
-        user_priority: Priority,
+        configuration: Rc<TaskConfiguration>,
+        body: Vec<u8>,
         keep: bool,
         observe: bool,
     ) -> Self {
@@ -394,7 +402,7 @@ impl TaskRef {
             inputs,
             flags,
             configuration,
-            user_priority,
+            body,
             scheduler_priority: Default::default(),
             state: TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 }),
             consumers: Default::default(),

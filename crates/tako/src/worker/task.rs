@@ -1,10 +1,10 @@
 use crate::common::resources::ResourceAllocation;
 use crate::common::WrappedRcRefCell;
-use crate::messages::common::TaskConfiguration;
 use crate::messages::worker::ComputeTaskMsg;
 use crate::worker::data::DataObjectRef;
 use crate::worker::taskenv::TaskEnv;
 use crate::{InstanceId, Priority, TaskId};
+use std::time::Duration;
 
 pub enum TaskState {
     Waiting(u32),
@@ -17,8 +17,12 @@ pub struct Task {
     pub state: TaskState,
     pub priority: (Priority, Priority),
     pub deps: Vec<DataObjectRef>,
-    pub configuration: TaskConfiguration,
     pub instance_id: InstanceId,
+
+    pub resources: crate::common::resources::ResourceRequest,
+    pub time_limit: Option<Duration>,
+    pub n_outputs: u32,
+    pub body: Vec<u8>,
 }
 
 impl Task {
@@ -27,9 +31,13 @@ impl Task {
             id: message.id,
             priority: (message.user_priority, message.scheduler_priority),
             state: TaskState::Waiting(0),
-            configuration: message.configuration,
             deps: Default::default(),
             instance_id: message.instance_id,
+
+            resources: message.resources,
+            time_limit: message.time_limit,
+            n_outputs: message.n_outputs,
+            body: message.body,
         }
     }
 
@@ -103,9 +111,12 @@ impl TaskRef {
             id: message.id,
             priority: (message.user_priority, message.scheduler_priority),
             state: TaskState::Waiting(0),
-            configuration: message.configuration,
             deps: Default::default(),
             instance_id: message.instance_id,
+            resources: message.resources,
+            time_limit: message.time_limit,
+            n_outputs: message.n_outputs,
+            body: message.body,
         })
     }
 }

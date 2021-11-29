@@ -155,13 +155,14 @@ async fn launcher_main(
         let state = state_ref.get();
         let task = state.get_task(task_id);
         log::debug!(
-            "Starting program launcher {} {:?} {:?}",
+            "Starting program launcher task_id={} res={:?} alloc={:?} body_len={}",
             task.id,
-            task.configuration.resources,
-            task.resource_allocation()
+            &task.resources,
+            task.resource_allocation(),
+            task.body.len(),
         );
 
-        let body: TaskBody = tako::transfer::auth::deserialize(&task.configuration.body)?;
+        let body: TaskBody = tako::transfer::auth::deserialize(&task.body)?;
         let allocation = task
             .resource_allocation()
             .expect("Missing resource allocation for running task");
@@ -180,7 +181,7 @@ async fn launcher_main(
             let state = state_ref.get();
             let resource_map = state.get_resource_map();
 
-            for rq in task.configuration.resources.generic_requests() {
+            for rq in task.resources.generic_requests() {
                 let resource_name = resource_map.get_name(rq.resource).unwrap();
                 program.env.insert(
                     format!("HQ_RESOURCE_REQUEST_{}", resource_name).into(),

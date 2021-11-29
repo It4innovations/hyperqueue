@@ -6,7 +6,6 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
 
 use crate::common::rpc::forward_queue_to_sink_with_map;
-use crate::messages::common::{TaskConfiguration, TaskConfigurationMessage};
 use crate::messages::gateway::{
     CancelTasksResponse, CollectedOverview, ErrorResponse, FromGatewayMessage, NewTasksResponse,
     OverviewRequest, TaskInfo, TaskState, TaskUpdate, TasksInfoResponse, ToGatewayMessage,
@@ -16,8 +15,9 @@ use crate::server::comm::{Comm, CommSenderRef};
 use crate::server::core::{Core, CoreRef};
 use crate::server::monitoring::MonitoringEvent;
 use crate::server::reactor::{on_cancel_tasks, on_new_tasks, on_set_observe_flag};
-use crate::server::task::{TaskRef, TaskRuntimeState};
+use crate::server::task::{TaskConfiguration, TaskRef, TaskRuntimeState};
 use crate::transfer::transport::make_protocol_builder;
+use std::rc::Rc;
 
 pub async fn client_connection_handler(
     core_ref: CoreRef,
@@ -67,10 +67,7 @@ pub async fn client_connection_handler(
     log::info!("Client connection terminated");
 }
 
-fn create_task_configuration(
-    core_ref: &mut Core,
-    msg: TaskConfigurationMessage,
-) -> TaskConfiguration {
+fn create_task_configuration(core_ref: &mut Core, msg: TaskConf) -> TaskConfiguration {
     let resources_msg = msg.resources;
     let generic_resources = resources_msg
         .generic
@@ -94,7 +91,7 @@ fn create_task_configuration(
         resources,
         n_outputs: msg.n_outputs,
         time_limit: msg.time_limit,
-        body: msg.body,
+        user_priority: msg.priority,
     }
 }
 
@@ -137,19 +134,38 @@ pub async fn process_client_message(
             let mut tasks: Vec<TaskRef> = Vec::with_capacity(msg.tasks.len());
             let mut core = core_ref.get_mut();
 
+            let configurations: Vec<_> = msg
+                .configurations
+                .into_iter()
+                .map(|c| {
+                    assert!(c.n_outputs == 0 || c.n_outputs == 1); // TODO: Implementation for more outputs
+                    let keep = c.keep;
+                    let observe = c.observe;
+                    (
+                        Rc::new(create_task_configuration(&mut core, c)),
+                        keep,
+                        observe,
+                    )
+                })
+                .collect();
+
             for task in msg.tasks {
                 if core.is_used_task_id(task.id) {
                     return Some(format!("Task id={} is already taken", task.id));
                 }
-                assert!(task.conf.n_outputs == 0 || task.conf.n_outputs == 1); // TODO: Implementation for more outputs
+                let idx = task.conf_idx as usize;
+                if idx >= configurations.len() {
+                    return Some(format!("Invalid configuration index {}", idx));
+                }
 
+                let (conf, keep, observe) = &configurations[idx];
                 let task_ref = TaskRef::new(
                     task.id,
                     Vec::new(),
-                    create_task_configuration(&mut core, task.conf),
-                    task.priority,
-                    task.keep,
-                    task.observe,
+                    conf.clone(),
+                    task.body,
+                    *keep,
+                    *observe,
                 );
                 tasks.push(task_ref);
             }

@@ -24,7 +24,7 @@ use crate::tests::utils::schedule::{
     start_and_finish_on_worker, start_on_worker, submit_test_tasks,
 };
 use crate::tests::utils::sorted_vec;
-use crate::tests::utils::task::{task, task_with_deps};
+use crate::tests::utils::task::{task, task_with_deps, TaskBuilder};
 use crate::tests::utils::workflows::{submit_example_1, submit_example_3};
 use crate::tests::utils::{env, schedule};
 use crate::{TaskId, WorkerId};
@@ -162,8 +162,7 @@ fn test_assignments_and_finish() {
           t3[k]   t7[k]
     */
 
-    let t1 = task(11);
-    t1.get_mut().user_priority = 12;
+    let t1 = TaskBuilder::new(11).user_priority(12).outputs(1).build();
     let t2 = task(12);
     let t3 = task_with_deps(13, &[&t1, &t2], 1);
     t3.get_mut().set_keep_flag(true);

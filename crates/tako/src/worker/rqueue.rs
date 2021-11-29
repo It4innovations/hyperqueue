@@ -31,10 +31,10 @@ impl ResourceWaitQueue {
         let (queue, priority, task_id) = {
             let priority = task.priority;
             (
-                if let Some(queue) = self.queues.get_mut(&task.configuration.resources) {
+                if let Some(queue) = self.queues.get_mut(&task.resources) {
                     queue
                 } else {
-                    self.requests.push(task.configuration.resources.clone());
+                    self.requests.push(task.resources.clone());
 
                     let mut requests = std::mem::take(&mut self.requests);
                     // Sort bigger values first
@@ -45,9 +45,7 @@ impl ResourceWaitQueue {
                     });
                     self.requests = requests;
 
-                    self.queues
-                        .entry(task.configuration.resources.clone())
-                        .or_default()
+                    self.queues.entry(task.resources.clone()).or_default()
                 },
                 priority,
                 task.id,
@@ -85,10 +83,10 @@ impl ResourceWaitQueue {
                     break;
                 }
                 let allocation = {
-                    if let Some(allocation) = self.pool.try_allocate_resources(
-                        &task_map.get(&task_id).configuration.resources,
-                        remaining_time,
-                    ) {
+                    if let Some(allocation) = self
+                        .pool
+                        .try_allocate_resources(&task_map.get(&task_id).resources, remaining_time)
+                    {
                         allocation
                     } else {
                         break;

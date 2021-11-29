@@ -29,13 +29,14 @@ use std::path::Path;
 use std::time::SystemTime;
 
 use tako::common::resources::{CpuRequest, ResourceDescriptor};
-use tako::messages::common::{ResourceRequest, StdioDef, WorkerConfiguration};
+use tako::messages::common::{StdioDef, WorkerConfiguration};
 
 use crate::common::strutils::pluralize;
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
 use colored::Color as Colorization;
 use colored::Colorize;
 use std::collections::BTreeSet;
+use tako::messages::gateway::ResourceRequest;
 
 pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
 pub const TASK_COLOR_FAILED: Colorization = Colorization::Red;

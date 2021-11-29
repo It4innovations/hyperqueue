@@ -1,14 +1,40 @@
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::messages::common::{TaskConfigurationMessage, TaskFailInfo, WorkerConfiguration};
+use crate::common::resources::CpuRequest;
+use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
 use crate::messages::worker::WorkerOverview;
 use crate::server::monitoring::MonitoringEvent;
 use crate::{Priority, TaskId, WorkerId};
+use std::time::Duration;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GenericResourceRequest {
+    pub resource: String,
+    pub amount: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct ResourceRequest {
+    #[serde(default)]
+    pub cpus: CpuRequest,
+
+    #[serde(default)]
+    pub generic: Vec<GenericResourceRequest>,
+
+    #[serde(default)]
+    pub min_time: Duration,
+}
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct TaskDef {
-    pub id: TaskId,
-    pub conf: TaskConfigurationMessage,
+pub struct TaskConf {
+    #[serde(default)]
+    pub resources: ResourceRequest,
+
+    #[serde(default)]
+    pub n_outputs: u32,
+
+    #[serde(default)]
+    pub time_limit: Option<Duration>,
 
     #[serde(default)]
     pub priority: Priority,
@@ -21,8 +47,18 @@ pub struct TaskDef {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct TaskDef {
+    pub id: TaskId,
+    pub conf_idx: u32,
+
+    #[serde(with = "serde_bytes")]
+    pub body: Vec<u8>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct NewTasksMessage {
     pub tasks: Vec<TaskDef>,
+    pub configurations: Vec<TaskConf>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

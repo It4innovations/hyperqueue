@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tako::messages::common::{ProgramDefinition, ResourceRequest};
+use tako::messages::common::ProgramDefinition;
 
 use crate::server::rpc::Backend;
 use crate::stream::server::control::StreamServerControlMessage;
@@ -9,6 +9,7 @@ use bstr::BString;
 use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 use tokio::sync::oneshot;
+use tako::messages::gateway::ResourceRequest;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum JobTaskState {

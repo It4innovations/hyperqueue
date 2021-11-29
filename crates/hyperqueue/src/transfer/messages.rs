@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde::Serialize;
-use tako::messages::common::{ProgramDefinition, ResourceRequest, WorkerConfiguration};
+use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
@@ -12,7 +12,7 @@ use crate::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
 use bstr::BString;
 use std::path::PathBuf;
 use std::time::Duration;
-use tako::messages::gateway::{CollectedOverview, OverviewRequest};
+use tako::messages::gateway::{CollectedOverview, OverviewRequest, ResourceRequest};
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]

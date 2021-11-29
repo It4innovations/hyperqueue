@@ -240,13 +240,13 @@ async fn launcher_main(state_ref: WorkerStateRef, task_id: TaskId) -> crate::Res
         let state = state_ref.get();
         let task = state.get_task(task_id);
         log::debug!(
-            "Starting program launcher {} {:?} {:?}",
+            "Starting program launcher task_id={} res={:?} alloc={:?} body_len={}",
             task.id,
-            &task.configuration.resources,
-            task.resource_allocation()
+            &task.resources,
+            task.resource_allocation(),
+            task.body.len(),
         );
-
-        rmp_serde::from_slice(&task.configuration.body)?
+        rmp_serde::from_slice(&task.body)?
     };
 
     let mut command = command_from_definitions(&program)?;

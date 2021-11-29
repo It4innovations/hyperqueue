@@ -8,10 +8,10 @@ use orion::kdf::SecretKey;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{oneshot, Notify};
 
-use tako::messages::common::{ProgramDefinition, TaskConfigurationMessage};
+use tako::messages::common::ProgramDefinition;
 use tako::messages::gateway::{
-    CancelTasks, FromGatewayMessage, NewTasksMessage, OverviewRequest, StopWorkerRequest, TaskDef,
-    ToGatewayMessage,
+    CancelTasks, FromGatewayMessage, NewTasksMessage, OverviewRequest, StopWorkerRequest, TaskConf,
+    TaskDef, ToGatewayMessage,
 };
 
 use crate::client::status::{job_status, task_status, Status};
@@ -569,7 +569,7 @@ async fn handle_submit(
     tako_ref: &Backend,
     message: SubmitRequest,
 ) -> ToClientMessage {
-    let resources = message.resources;
+    let resources = message.resources.clone();
     let spec = message.spec;
     let pin = message.pin;
     let submit_dir = message.submit_dir;
@@ -590,15 +590,8 @@ async fn handle_submit(
         let body = tako::transfer::auth::serialize(&body_msg).unwrap();
         TaskDef {
             id: tako_id,
-            conf: TaskConfigurationMessage {
-                resources: resources.clone(),
-                n_outputs: 0,
-                time_limit,
-                body,
-            },
-            keep: false,
-            observe: true,
-            priority,
+            conf_idx: 0,
+            body,
         }
     };
     let (task_defs, job_detail, job_id) = {
@@ -660,6 +653,14 @@ async fn handle_submit(
     match tako_ref
         .send_tako_message(FromGatewayMessage::NewTasks(NewTasksMessage {
             tasks: task_defs,
+            configurations: vec![TaskConf {
+                resources: message.resources,
+                n_outputs: 0,
+                time_limit,
+                keep: false,
+                observe: true,
+                priority,
+            }],
         }))
         .await
         .unwrap()
