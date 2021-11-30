@@ -24,8 +24,10 @@ from cluster.cluster import Cluster, ProcessInfo, Node
 from pandas import Timestamp
 from tornado import ioloop, web
 
+from .common import average
 from .report import ClusterReport, MonitoringData
 from ..monitoring.record import MonitoringRecord, ProcessRecord
+from ..utils import ensure_directory
 
 DATETIME_KEY = "datetime"
 HOSTNAME_KEY = "hostname"
@@ -46,10 +48,6 @@ RSS_KEY = "rss"
 class TimeRange:
     start: Timestamp
     end: Timestamp
-
-
-def average(data):
-    return sum(data) / len(data)
 
 
 def resample(df: pd.DataFrame, time_index: pd.Series, period="1S"):
@@ -540,16 +538,6 @@ def create_page(report: ClusterReport):
 
     per_node_df = create_global_resources_df(report.monitoring)
 
-    # x = per_node_df.copy()
-    # x[HOSTNAME_KEY] = "foo"
-    # x[MEM_KEY] *= 2
-    # x[CPU_KEY] = x[CPU_KEY].apply(lambda r: [x * 2 for x in r])
-    # x[DATETIME_KEY] += datetime.timedelta(milliseconds=100)
-    # s = x.iloc[-1].copy()
-    # s[DATETIME_KEY] += datetime.timedelta(seconds=5)
-    # x = x.append(s)
-    # per_node_df = pd.concat((per_node_df, x), ignore_index=True, sort=False)
-
     if not per_node_df.empty:
         structure += [
             ("Global utilization", lambda r: render_global_resource_usage(r, per_node_df)),
@@ -578,6 +566,9 @@ def create_page(report: ClusterReport):
 
 def generate_cluster_report(report: ClusterReport, output: Path):
     page = create_page(report)
+
+    ensure_directory(output.parent)
+    logging.info(f"Generating monitoring report into {output}")
     save(page, output, title="Cluster monitor", resources=CDN)
 
 
@@ -592,5 +583,5 @@ def serve_cluster_report(report: ClusterReport, port: int):
     ])
     app.listen(port)
 
-    print(f"Serving report at http://0.0.0.0:{port}")
+    logging.info(f"Serving report at http://0.0.0.0:{port}")
     ioloop.IOLoop.current().start()
