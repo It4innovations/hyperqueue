@@ -1,7 +1,7 @@
 import logging
 import traceback
 from pathlib import Path
-from typing import List, Callable
+from typing import List, Callable, Tuple
 
 from . import BenchmarkInstance
 from .database import Database, BenchmarkResultRecord
@@ -17,7 +17,8 @@ class BenchmarkRunner:
             self,
             database: Database,
             workdir: Path,
-            materialize_fn: Callable[[BenchmarkIdentifier, Path], BenchmarkInstance]
+            materialize_fn: Callable[
+                [BenchmarkIdentifier, Path], Tuple[BenchmarkIdentifier, BenchmarkInstance]]
     ):
         self.database = database
         self.executor = BenchmarkExecutor()
@@ -35,7 +36,7 @@ class BenchmarkRunner:
             f"benchmark(s)"
         )
 
-        for (identifier, instance) in zip(not_completed, instances):
+        for (identifier, instance) in instances:
             logging.info(f"Executing benchmark {identifier}")
             timeout = identifier.timeout() or DEFAULT_TIMEOUT_S
 
