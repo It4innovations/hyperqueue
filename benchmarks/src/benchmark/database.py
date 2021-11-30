@@ -79,7 +79,7 @@ class Database:
         self.data[key] = record
 
     def save(self):
-        ensure_directory(self.path)
+        ensure_directory(self.path.parent)
 
         data = defaultdict(list)
         for record in self.data.values():

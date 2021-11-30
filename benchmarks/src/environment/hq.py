@@ -191,7 +191,7 @@ class HqEnvironment(Environment):
 
     def _profile_args(self, args: StartProcessArgs, output_path: Path):
         profiler = NativeProfiler()
-        assert profiler.is_available()
+        profiler.check_availability()
 
         args.args = profiler.profile(args.args, output_path,
                                      frequency=self.info.profile_mode.frequency)

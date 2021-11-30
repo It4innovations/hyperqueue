@@ -1,7 +1,8 @@
+import dataclasses
 import inspect
 import os.path
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Set, Tuple
 
 import tqdm
 
@@ -145,7 +146,8 @@ def parse_profile_mode(data) -> ProfileMode:
         raise Exception(f"Unknown profile mode: {data}")
 
 
-def materialize_benchmark(identifier: BenchmarkIdentifier, workdir: Path) -> BenchmarkInstance:
+def materialize_benchmark(identifier: BenchmarkIdentifier, workdir: Path) -> Tuple[
+    BenchmarkIdentifier, BenchmarkInstance]:
     env_type = identifier.environment
 
     workload = parse_workload(identifier, env_type)
@@ -160,11 +162,18 @@ def materialize_benchmark(identifier: BenchmarkIdentifier, workdir: Path) -> Ben
     workdir.mkdir(parents=True, exist_ok=True)
 
     environment = parse_environment(identifier, workdir)
-    return BenchmarkInstance(
+
+    metadata = identifier.metadata.copy()
+    identifier = dataclasses.replace(identifier, metadata=dict(
+        **metadata,
+        workdir=str(workdir),
+        key=key
+    ))
+    return (identifier, BenchmarkInstance(
         workload=workload,
         environment=environment,
         workload_params=identifier.workload_params
-    )
+    ))
 
 
 def create_benchmark_key(
@@ -175,8 +184,8 @@ def create_benchmark_key(
         index: int
 ) -> str:
     return (
-        f"{workload}-{format_dict(workload_params)}-{environment}-{format_dict(environment_params)}-"
-        f"{index}"
+        f"{workload}-{format_dict(workload_params)}-{environment}-{format_dict(environment_params)}"
+        f"-{index}"
     )
 
 

@@ -132,7 +132,7 @@ def node_monitoring_trace(directory: Path, hostname: str) -> Path:
 
 def kill_fn(scheduler_sigint: bool, node: Node, process: ProcessInfo):
     signal = "TERM"
-    if scheduler_sigint or "monitoring" in process.key:
+    if scheduler_sigint or "monitor" in process.key:
         signal = "INT"
 
     if not kill_process(node.hostname, process.pgid, signal=signal):

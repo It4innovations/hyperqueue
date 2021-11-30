@@ -9,8 +9,6 @@ def get_pyenv_from_env() -> str:
 
 
 def ensure_directory(path: Path) -> Path:
-    if not path.is_dir():
-        path = path.parent
     path.mkdir(parents=True, exist_ok=True)
     return path.absolute()
 
