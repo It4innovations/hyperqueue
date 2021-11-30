@@ -3,25 +3,41 @@ import os
 import signal
 import socket
 import subprocess
+from typing import List
 
 import pytest
 
 from .conftest import HqEnv
 from .utils import parse_table
+from .utils.table import Table
 
 
-def test_server_host(hq_env: HqEnv):
-    args = hq_env.server_args()
-    args += ["--host", "abcd123"]
-    p = subprocess.Popen(args, stdout=subprocess.PIPE)
+def start_server_get_output(hq_env: HqEnv, args: List[str]) -> Table:
+    command = hq_env.server_args()
+    command += args
+    p = subprocess.Popen(command, stdout=subprocess.PIPE)
     try:
         stdout, stderr = p.communicate(timeout=0.5)
     except subprocess.TimeoutExpired:
         p.kill()
         stdout, stderr = p.communicate()
     stdout = stdout.decode()
-    table = parse_table(stdout)
+    return parse_table(stdout)
+
+
+def test_server_host(hq_env: HqEnv):
+    table = start_server_get_output(hq_env, ["--host", "abcd123"])
     table.check_row_value("Host", "abcd123")
+
+
+def test_server_client_port(hq_env: HqEnv):
+    table = start_server_get_output(hq_env, ["--client-port", "54782"])
+    table.check_row_value("HQ port", "54782")
+
+
+def test_server_worker_port(hq_env: HqEnv):
+    table = start_server_get_output(hq_env, ["--worker-port", "54783"])
+    table.check_row_value("Workers port", "54783")
 
 
 def test_version_mismatch(hq_env: HqEnv):

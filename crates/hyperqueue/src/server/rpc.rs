@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::future::Future;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
 use orion::kdf::SecretKey;
@@ -54,6 +55,7 @@ impl Backend {
         state_ref: StateRef,
         key: Arc<SecretKey>,
         idle_timeout: Option<Duration>,
+        worker_port: Option<u16>,
     ) -> crate::Result<(Backend, impl Future<Output = crate::Result<()>>)> {
         let msd = Duration::from_millis(20);
 
@@ -64,7 +66,7 @@ impl Backend {
         let stream_server_control2 = stream_server_control.clone();
 
         let (core_ref, comm_ref, server_future) = tako::server::server_start(
-            "0.0.0.0:0".parse().unwrap(),
+            SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), worker_port.unwrap_or(0)),
             Some(key),
             msd,
             from_tako_sender.clone(),
@@ -154,7 +156,7 @@ mod tests {
     #[tokio::test]
     async fn test_server_connect_worker() {
         let state = StateRef::new(Duration::from_secs(1));
-        let (server, _fut) = Backend::start(state, Default::default(), None)
+        let (server, _fut) = Backend::start(state, Default::default(), None, None)
             .await
             .unwrap();
         TcpStream::connect(format!("127.0.0.1:{}", server.worker_port()))
@@ -165,7 +167,7 @@ mod tests {
     #[tokio::test]
     async fn test_server_server_info() {
         let state = StateRef::new(Duration::from_secs(1));
-        let (server, fut) = Backend::start(state, Default::default(), None)
+        let (server, fut) = Backend::start(state, Default::default(), None, None)
             .await
             .unwrap();
         run_concurrent(fut, async move {

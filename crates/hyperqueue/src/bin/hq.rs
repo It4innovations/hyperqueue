@@ -117,6 +117,14 @@ struct ServerStartOpts {
     /// How often should the auto allocator perform its actions
     #[clap(long)]
     autoalloc_interval: Option<ArgDuration>,
+
+    /// Port for client connections (used e.g. for `hq submit`)
+    #[clap(long)]
+    client_port: Option<u16>,
+
+    /// Port for worker connections
+    #[clap(long)]
+    worker_port: Option<u16>,
 }
 
 #[derive(Parser)]
@@ -265,6 +273,8 @@ async fn command_server_start(
             .unwrap_or_else(|| gethostname::gethostname().into_string().unwrap()),
         idle_timeout: opts.idle_timeout.map(|x| x.unpack()),
         autoalloc_interval: opts.autoalloc_interval.map(|x| x.unpack()),
+        client_port: opts.client_port,
+        worker_port: opts.worker_port,
     };
 
     init_hq_server(&gsettings, server_cfg).await

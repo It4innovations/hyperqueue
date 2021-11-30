@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -27,6 +28,8 @@ pub struct ServerConfig {
     pub host: String,
     pub idle_timeout: Option<Duration>,
     pub autoalloc_interval: Option<Duration>,
+    pub client_port: Option<u16>,
+    pub worker_port: Option<u16>,
 }
 
 /// This function initializes the HQ server.
@@ -102,9 +105,13 @@ async fn initialize_server(
     server_cfg: ServerConfig,
 ) -> anyhow::Result<(impl Future<Output = anyhow::Result<()>>, Rc<Notify>)> {
     let server_directory = gsettings.server_directory();
-    let client_listener = TcpListener::bind("0.0.0.0:0")
-        .await
-        .with_context(|| "Cannot create HQ server socket".to_string())?;
+
+    let client_listener = TcpListener::bind(SocketAddr::new(
+        Ipv4Addr::UNSPECIFIED.into(),
+        server_cfg.client_port.unwrap_or(0),
+    ))
+    .await
+    .with_context(|| "Cannot create HQ server socket".to_string())?;
     let server_port = client_listener.local_addr()?.port();
 
     let hq_secret_key = Arc::new(generate_key());
@@ -119,6 +126,7 @@ async fn initialize_server(
         state_ref.clone(),
         tako_secret_key.clone(),
         server_cfg.idle_timeout,
+        server_cfg.worker_port,
     )
     .await?;
 
@@ -230,6 +238,8 @@ mod tests {
             host: "localhost".to_string(),
             idle_timeout: None,
             autoalloc_interval: None,
+            client_port: None,
+            worker_port: None,
         };
         initialize_server(&gsettings, server_cfg).await.unwrap()
     }
