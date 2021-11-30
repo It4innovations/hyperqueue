@@ -5,12 +5,16 @@ import typer
 
 from src.postprocessing.common import load_database
 from src.postprocessing.monitor import generate_cluster_report, serve_cluster_report
+from src.postprocessing.overview import generate_summary_text, generate_summary_html
 from src.postprocessing.report import ClusterReport
-from src.postprocessing.summary import generate_summary
 
 app = typer.Typer()
+
 cluster = typer.Typer()
-app.add_typer(cluster, name="cluster", help="Generate cluster reports")
+app.add_typer(cluster, name="cluster", help="Cluster utilization")
+
+summary = typer.Typer()
+app.add_typer(summary, name="summary", help="Result summary")
 
 
 @cluster.command("serve")
@@ -33,15 +37,25 @@ def cluster_generate(
     generate_cluster_report(report, output=output)
 
 
-@app.command()
-def summary(
-        path: Path = typer.Argument(..., exists=True),
+@summary.command("text")
+def summary_text(
+        database_path: Path = typer.Argument(..., exists=True),
         output: Path = Path("summary.txt")
 ):
     """Generate a simple text summary of benchmark results"""
-    database = load_database(path)
-    with open(output, "w") as f:
-        generate_summary(database, f)
+    database = load_database(database_path)
+    generate_summary_text(database, output)
+
+
+@summary.command("html")
+def summary_html(
+        database_path: Path = typer.Argument(..., exists=True),
+        directory: Path = Path("summary")
+):
+    """Generate a HTML summary of benchmark results into the given `directory`"""
+    database = load_database(database_path)
+    file = generate_summary_html(database, directory)
+    logging.info(f"You can find the summary in {file}")
 
 
 if __name__ == "__main__":

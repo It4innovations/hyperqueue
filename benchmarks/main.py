@@ -5,7 +5,7 @@ from typing import Any, Dict
 from src.benchmark.identifier import BenchmarkIdentifier, repeat_benchmark
 from src.build.hq import iterate_binaries, BuildConfig
 from src.materialization import run_benchmark_suite
-from src.postprocessing.summary import generate_summary
+from src.postprocessing.overview import generate_summary_text, generate_summary_html
 
 
 def benchmark(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
@@ -61,5 +61,11 @@ if __name__ == "__main__":
     workdir = Path("work/zw")
     database = run_benchmark_suite(workdir, identifiers)
 
-    with open(workdir / "summary.txt", "w") as f:
-        generate_summary(database, f)
+    summary_txt = workdir / "summary.txt"
+    generate_summary_text(database, summary_txt)
+
+    summary_html = workdir / "summary"
+    html_index = generate_summary_html(database, summary_html)
+
+    logging.info(f"You can find text summary at {summary_txt}")
+    logging.info(f"You can find HTML summary at {html_index}")
