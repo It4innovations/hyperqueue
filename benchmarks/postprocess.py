@@ -3,8 +3,7 @@ from pathlib import Path
 
 import typer
 
-from src.benchmark.database import Database
-from src.materialization import DEFAULT_DATA_JSON
+from src.postprocessing.common import load_database
 from src.postprocessing.monitor import generate_cluster_report, serve_cluster_report
 from src.postprocessing.report import ClusterReport
 from src.postprocessing.summary import generate_summary
@@ -36,19 +35,11 @@ def cluster_generate(
 
 @app.command()
 def summary(
-        path: Path = typer.Argument(..., exists=True, dir_okay=True),
+        path: Path = typer.Argument(..., exists=True),
         output: Path = Path("summary.txt")
 ):
     """Generate a simple text summary of benchmark results"""
-    if path.is_file():
-        database_path = path
-    elif path.is_dir():
-        database_path = path / DEFAULT_DATA_JSON
-        assert database_path.exists()
-    else:
-        raise Exception(f"{path} is not a valid file or directory")
-
-    database = Database(database_path)
+    database = load_database(path)
     with open(output, "w") as f:
         generate_summary(database, f)
 
