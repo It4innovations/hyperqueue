@@ -1,4 +1,5 @@
-use crate::common::manager::common::{format_duration, parse_hms_duration};
+use crate::common::manager::common::format_duration;
+use crate::common::timeutils::parse_hms_time;
 use crate::Map;
 use std::process::Command;
 use std::time::Duration;
@@ -15,13 +16,13 @@ pub fn parse_slurm_datetime(datetime: &str) -> anyhow::Result<chrono::NaiveDateT
     )?)
 }
 
-fn parse_slurm_duration(value: &str) -> anyhow::Result<chrono::Duration> {
+fn parse_slurm_duration(value: &str) -> anyhow::Result<Duration> {
     if let Some(p) = value.find('-') {
         let days = value[..p].parse()?;
-        let datetime = parse_hms_duration(&value[p + 1..])?;
-        Ok(datetime + chrono::Duration::days(days))
+        let datetime = parse_hms_time(&value[p + 1..])?;
+        Ok(datetime + chrono::Duration::days(days).to_std()?)
     } else {
-        parse_hms_duration(value)
+        parse_hms_time(value)
     }
 }
 
@@ -43,7 +44,7 @@ pub fn parse_remaining_timelimit(output: &str) -> anyhow::Result<Duration> {
         anyhow::bail!("Slurm: TimeLimit is smaller than RunTime");
     }
 
-    Ok((time_limit - run_time).to_std()?)
+    Ok(time_limit - run_time)
 }
 
 /// Calculates how much time is left for the given job using `scontrol`.
@@ -104,14 +105,14 @@ mod test {
     fn test_parse_slurm_duration() {
         let date = parse_slurm_duration("10:20:30").unwrap();
         assert_eq!(
-            date,
+            chrono::Duration::from_std(date).unwrap(),
             chrono::Duration::hours(10)
                 + chrono::Duration::minutes(20)
                 + chrono::Duration::seconds(30)
         );
         let date = parse_slurm_duration("17-01:00:11").unwrap();
         assert_eq!(
-            date,
+            chrono::Duration::from_std(date).unwrap(),
             chrono::Duration::days(17) + chrono::Duration::hours(1) + chrono::Duration::seconds(11)
         )
     }

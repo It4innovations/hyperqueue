@@ -1,3 +1,10 @@
+# DEV
+
+## New features
+
+  * You can now specify the timelimit of PBS/Slurm allocations using the `HH:MM:SS` format:
+    `hq alloc add pbs --time-limit 01:10:30`.
+
 # v0.6.1
 
 ## Fixes

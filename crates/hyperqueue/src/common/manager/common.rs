@@ -10,19 +10,9 @@ pub(super) fn format_duration(duration: &Duration) -> String {
     format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
 }
 
-/// Parse duration from string
-pub fn parse_hms_duration(raw_time: &str) -> anyhow::Result<chrono::Duration> {
-    use chrono::Duration as ChronoDuration;
-    let numbers: Vec<&str> = raw_time.split(':').collect();
-    let duration = ChronoDuration::hours(numbers[0].parse()?)
-        + ChronoDuration::minutes(numbers[1].parse()?)
-        + ChronoDuration::seconds(numbers[2].parse()?);
-    Ok(duration)
-}
-
 #[cfg(test)]
 mod test {
-    use super::{format_duration, parse_hms_duration};
+    use super::format_duration;
     use std::time::Duration;
 
     #[test]
@@ -31,11 +21,5 @@ mod test {
         assert_eq!(format_duration(&Duration::from_secs(1)), "00:00:01");
         assert_eq!(format_duration(&Duration::from_secs(61)), "00:01:01");
         assert_eq!(format_duration(&Duration::from_secs(3661)), "01:01:01");
-    }
-
-    #[test]
-    fn test_parse_hms_duration() {
-        let date = parse_hms_duration("03:01:34").unwrap();
-        assert_eq!(date, chrono::Duration::seconds(3 * 3600 + 60 + 34));
     }
 }

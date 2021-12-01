@@ -1,12 +1,11 @@
 use anyhow::anyhow;
 use nom::character::complete::char;
-use nom::combinator::all_consuming;
 use nom::combinator::{map_res, opt};
 use nom::multi::separated_list1;
 use nom::sequence::{preceded, tuple};
 
 use crate::common::arraydef::{IntArray, IntRange};
-use crate::common::parser::{format_parse_error, p_u32, NomResult};
+use crate::common::parser::{consume_all, p_u32, NomResult};
 use crate::Set;
 
 fn p_range(input: &str) -> NomResult<IntRange> {
@@ -50,9 +49,7 @@ fn is_overlapping(mut ranges: Vec<IntRange>) -> bool {
 }
 
 pub fn parse_array(input: &str) -> anyhow::Result<IntArray> {
-    all_consuming(p_array)(input)
-        .map(|r| r.1)
-        .map_err(format_parse_error)
+    consume_all(p_array, input)
 }
 
 #[cfg(test)]
@@ -74,7 +71,6 @@ mod test {
             vec![101]
         );
         assert!(parse_array("101-100").is_err());
-        //assert_eq!(all_consuming(uint)("0").unwrap().1, 0);
     }
 
     #[test]
