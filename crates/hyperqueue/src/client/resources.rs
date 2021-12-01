@@ -1,10 +1,12 @@
-use crate::common::parser::{format_parse_error, p_u32, p_u64, NomResult};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alphanumeric1, char, multispace0, multispace1};
-use nom::combinator::{all_consuming, map, map_res, opt};
+use nom::combinator::{map, map_res, opt};
 use nom::sequence::{preceded, separated_pair, tuple};
+
 use tako::common::resources::{CpuRequest, GenericResourceAmount};
+
+use crate::common::parser::{consume_all, p_u32, p_u64, NomResult};
 
 fn p_cpu_request(input: &str) -> NomResult<CpuRequest> {
     alt((
@@ -33,9 +35,7 @@ fn p_cpu_request(input: &str) -> NomResult<CpuRequest> {
 }
 
 pub fn parse_cpu_request(input: &str) -> anyhow::Result<CpuRequest> {
-    all_consuming(p_cpu_request)(input)
-        .map(|r| r.1)
-        .map_err(format_parse_error)
+    consume_all(p_cpu_request, input)
 }
 
 fn p_resource_request(input: &str) -> NomResult<(String, GenericResourceAmount)> {
@@ -50,9 +50,7 @@ fn p_resource_request(input: &str) -> NomResult<(String, GenericResourceAmount)>
 }
 
 pub fn parse_resource_request(input: &str) -> anyhow::Result<(String, GenericResourceAmount)> {
-    all_consuming(p_resource_request)(input)
-        .map(|r| r.1)
-        .map_err(format_parse_error)
+    consume_all(p_resource_request, input)
 }
 
 #[cfg(test)]

@@ -5,6 +5,8 @@ import time
 from os.path import dirname, join
 from typing import List, Optional
 
+import pytest
+
 from .conftest import HqEnv
 from .utils.check import check_error_log
 from .utils.wait import wait_until
@@ -73,6 +75,30 @@ def test_add_pbs_descriptor(hq_env: HqEnv):
 
         info = hq_env.command(["alloc", "list"], as_table=True)
         info.check_column_value("ID", 0, "1")
+
+
+@pytest.mark.parametrize("manager", ("pbs", "slurm"))
+def test_timelimit_hms(hq_env: HqEnv, manager: str):
+    mock = PbsMock(hq_env)
+
+    with mock.activate():
+        hq_env.start_server()
+        add_queue(hq_env, manager=manager, time_limit="01:10:15")
+
+        info = hq_env.command(["alloc", "list"], as_table=True)
+        info.check_column_value("Timelimit", 0, "1h 10m 15s")
+
+
+@pytest.mark.parametrize("manager", ("pbs", "slurm"))
+def test_timelimit_human(hq_env: HqEnv, manager: str):
+    mock = PbsMock(hq_env)
+
+    with mock.activate():
+        hq_env.start_server()
+        add_queue(hq_env, manager=manager, time_limit="3h 15m 10s")
+
+        info = hq_env.command(["alloc", "list"], as_table=True)
+        info.check_column_value("Timelimit", 0, "3h 15m 10s")
 
 
 def test_add_slurm_descriptor(hq_env: HqEnv):

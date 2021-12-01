@@ -1,15 +1,17 @@
-use crate::common::parser::{format_parse_error, NomResult};
-use crate::server::job::JobTaskState;
-use crate::transfer::messages::JobInfo;
+use std::str::FromStr;
+
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::space0;
-use nom::combinator::{all_consuming, map};
+use nom::combinator::map;
 use nom::multi::separated_list1;
 use nom::sequence::tuple;
 use serde::Deserialize;
 use serde::Serialize;
-use std::str::FromStr;
+
+use crate::common::parser::{consume_all, NomResult};
+use crate::server::job::JobTaskState;
+use crate::transfer::messages::JobInfo;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub enum Status {
@@ -98,9 +100,7 @@ fn p_status_list(input: &str) -> NomResult<Vec<Status>> {
 }
 
 fn parse_status_list(input: &str) -> anyhow::Result<Vec<Status>> {
-    all_consuming(p_status_list)(input)
-        .map(|r| r.1)
-        .map_err(format_parse_error)
+    consume_all(p_status_list, input)
 }
 
 #[cfg(test)]

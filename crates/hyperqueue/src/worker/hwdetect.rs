@@ -1,4 +1,4 @@
-use crate::common::parser::{format_parse_error, p_u32, NomResult};
+use crate::common::parser::{consume_all, p_u32, NomResult};
 
 use tako::common::resources::{
     CpuId, CpusDescriptor, GenericResourceDescriptor, GenericResourceDescriptorKind,
@@ -7,7 +7,6 @@ use tako::common::resources::{
 
 use nom::bytes::complete::tag;
 use nom::character::complete::{newline, space0};
-use nom::combinator::all_consuming;
 use nom::combinator::{map_res, opt};
 use nom::multi::separated_list1;
 use nom::sequence::{preceded, terminated, tuple};
@@ -83,9 +82,8 @@ fn p_cpu_ranges(input: &str) -> NomResult<Vec<CpuId>> {
 }
 
 fn parse_range(input: &str) -> anyhow::Result<Vec<CpuId>> {
-    all_consuming(terminated(p_cpu_ranges, opt(newline)))(input)
-        .map(|r| r.1)
-        .map_err(format_parse_error)
+    let parser = terminated(p_cpu_ranges, opt(newline));
+    consume_all(parser, input)
 }
 
 #[cfg(test)]

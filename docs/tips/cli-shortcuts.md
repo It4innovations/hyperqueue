@@ -60,3 +60,8 @@ suffixed can be found [here](https://docs.rs/humantime/2.1.0/humantime/fn.parse_
 - `hq alloc add pbs --time-limit=<duration>`
 - `hq submit --time-limit=<duration> ...`
 - `hq submit --time-request=<duration> ...`
+
+!!! tip
+
+    For increased compatibility with `PBS` and `Slurm`, you can also specify the `--time-limit`
+    option of `hq alloc add` using the `HH:MM:SS` format.

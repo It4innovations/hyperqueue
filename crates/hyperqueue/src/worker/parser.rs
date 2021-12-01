@@ -1,10 +1,9 @@
 use crate::arg_wrapper;
-use crate::common::parser::{p_u32, p_u64, NomResult};
-use anyhow::anyhow;
+use crate::common::parser::{consume_all, p_u32, p_u64, NomResult};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alphanumeric1, char, multispace0};
-use nom::combinator::{all_consuming, map, opt};
+use nom::combinator::{map, opt};
 use nom::sequence::{delimited, preceded, separated_pair, tuple};
 use tako::common::resources::descriptor::{
     cpu_descriptor_from_socket_size, GenericResourceDescriptorKind, GenericResourceKindIndices,
@@ -23,9 +22,7 @@ fn p_cpu_definition(input: &str) -> NomResult<CpusDescriptor> {
 }
 
 fn parse_cpu_definition(input: &str) -> anyhow::Result<CpusDescriptor> {
-    all_consuming(p_cpu_definition)(input)
-        .map(|r| r.1)
-        .map_err(|e| anyhow!(e.to_string()))
+    consume_all(p_cpu_definition, input)
 }
 
 arg_wrapper!(ArgCpuDef, CpusDescriptor, parse_cpu_definition);
@@ -79,9 +76,7 @@ fn p_resource_definition(input: &str) -> NomResult<GenericResourceDescriptor> {
 }
 
 fn parse_resource_definition(input: &str) -> anyhow::Result<GenericResourceDescriptor> {
-    all_consuming(p_resource_definition)(input)
-        .map(|r| r.1)
-        .map_err(|e| anyhow!(e.to_string()))
+    consume_all(p_resource_definition, input)
 }
 
 #[cfg(test)]

@@ -4,17 +4,18 @@ use std::time::Duration;
 
 use serde_json::Value;
 
-use crate::common::manager::common::{format_duration, parse_hms_duration};
+use crate::common::manager::common::format_duration;
+use crate::common::timeutils::parse_hms_time;
 
 fn parse_pbs_job_remaining_time(job_id: &str, data: &str) -> anyhow::Result<Duration> {
     let data_json: Value = serde_json::from_str(data)?;
 
-    let walltime = parse_hms_duration(
+    let walltime = parse_hms_time(
         data_json["Jobs"][job_id]["Resource_List"]["walltime"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Could not find walltime key for job {}", job_id))?,
     )?;
-    let used = parse_hms_duration(
+    let used = parse_hms_time(
         data_json["Jobs"][job_id]["resources_used"]["walltime"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Could not find used time key for job {}", job_id))?,
@@ -24,7 +25,7 @@ fn parse_pbs_job_remaining_time(job_id: &str, data: &str) -> anyhow::Result<Dura
         anyhow::bail!("Pbs: Used time is bigger then walltime");
     }
 
-    Ok((walltime - used).to_std()?)
+    Ok(walltime - used)
 }
 
 /// Calculates how much time is left for the given job using `qstat`.

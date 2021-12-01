@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 
 use nom::character::complete::satisfy;
-use nom::combinator::{map, map_res};
+use nom::combinator::{all_consuming, map, map_res};
 use nom::error::{ErrorKind, FromExternalError, ParseError};
 use nom::multi::many0;
 use nom::sequence::tuple;
@@ -67,6 +67,15 @@ pub fn p_u32(input: &str) -> NomResult<u32> {
 
 pub fn p_u64(input: &str) -> NomResult<u64> {
     map_res(p_integer_string, |number| number.parse::<u64>())(input)
+}
+
+pub fn consume_all<'a, O, F>(f: F, input: &'a str) -> anyhow::Result<O>
+where
+    F: FnMut(&'a str) -> NomResult<O>,
+{
+    all_consuming(f)(input)
+        .map(|r| r.1)
+        .map_err(format_parse_error)
 }
 
 #[cfg(test)]

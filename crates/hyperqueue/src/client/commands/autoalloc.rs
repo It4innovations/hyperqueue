@@ -1,5 +1,9 @@
+use std::str::FromStr;
+
+use clap::Parser;
+
 use crate::client::globalsettings::GlobalSettings;
-use crate::common::timeutils::ArgDuration;
+use crate::common::timeutils::ExtendedArgDuration;
 use crate::rpc_call;
 use crate::server::autoalloc::{Allocation, AllocationStatus, DescriptorId};
 use crate::server::bootstrap::get_client_connection;
@@ -8,8 +12,6 @@ use crate::transfer::messages::{
     AddQueueParams, AddQueueRequest, AutoAllocRequest, AutoAllocResponse, FromClientMessage,
     ToClientMessage,
 };
-use clap::Parser;
-use std::str::FromStr;
 
 #[derive(Parser)]
 pub struct AutoAllocOpts {
@@ -58,9 +60,9 @@ pub struct SharedQueueOpts {
     #[clap(long, short, default_value = "4")]
     backlog: u32,
 
-    /// Time limit (walltime) of PBS allocations
+    /// Time limit (walltime) of PBS/Slurm allocations
     #[clap(long, short('t'))]
-    time_limit: Option<ArgDuration>,
+    time_limit: Option<ExtendedArgDuration>,
 
     /// How many workers (nodes) should be spawned in each allocation
     #[clap(long, short, default_value = "1")]
