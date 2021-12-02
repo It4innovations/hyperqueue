@@ -1,19 +1,18 @@
+import dataclasses
 import json
 import logging
 import subprocess
 from collections import defaultdict
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
-import dataclasses
-
-from . import Environment
 from ..clusterutils import ClusterInfo
 from ..clusterutils.cluster_helper import ClusterHelper, StartProcessArgs
 from ..clusterutils.node_list import Local
 from ..clusterutils.profiler import NativeProfiler
 from ..utils import check_file_exists
 from ..utils.timing import wait_until
+from . import Environment
 
 
 class ProfileMode:
@@ -40,8 +39,7 @@ class HqClusterInfo:
 
 
 def assign_workers(
-        workers: List[HqWorkerConfig],
-        nodes: List[str]
+    workers: List[HqWorkerConfig], nodes: List[str]
 ) -> Dict[str, List[HqWorkerConfig]]:
     round_robin_node = 0
     used_round_robin = set()
@@ -51,18 +49,22 @@ def assign_workers(
         node = worker.node
         if node is not None:
             if not (0 <= node < len(nodes)):
-                raise Exception(f"Invalid node assignment. Worker {index} wants to be on node "
-                                f"{node}, but there are only {len(nodes)} worker nodes")
+                raise Exception(
+                    f"Invalid node assignment. Worker {index} wants to be on node "
+                    f"{node}, but there are only {len(nodes)} worker nodes"
+                )
         else:
             node = round_robin_node
             round_robin_node = (round_robin_node + 1) % len(nodes)
             if node in used_round_robin:
                 logging.warning(
-                    f"There are more workers ({len(workers)}) than worker nodes ({len(nodes)})")
+                    f"There are more workers ({len(workers)}) than worker nodes ({len(nodes)})"
+                )
             used_round_robin.add(node)
         if node >= len(nodes):
             raise Exception(
-                f"Selected worker node is {node}, but there are only {len(nodes)} worker node(s)")
+                f"Selected worker node is {node}, but there are only {len(nodes)} worker node(s)"
+            )
         node_assignments[nodes[node]].append(worker)
     return dict(node_assignments)
 
@@ -132,9 +134,7 @@ class HqEnvironment(Environment):
             hostname=self.nodes[0],
             name="server",
             workdir=workdir,
-            env={
-                "RUST_LOG": self._log_env_value()
-            }
+            env={"RUST_LOG": self._log_env_value()},
         )
 
         if self.info.profile_mode.server:
@@ -158,9 +158,7 @@ class HqEnvironment(Environment):
                     hostname=node,
                     name=worker_index,
                     workdir=workdir,
-                    env={
-                        "RUST_LOG": self._log_env_value()
-                    }
+                    env={"RUST_LOG": self._log_env_value()},
                 )
 
                 if self.info.profile_mode.workers:
@@ -183,7 +181,7 @@ class HqEnvironment(Environment):
                     check=True,
                     stdin=subprocess.DEVNULL,
                     stdout=stdout,
-                    stderr=stderr
+                    stderr=stderr,
                 )
 
         self.submit_id += 1
@@ -193,8 +191,9 @@ class HqEnvironment(Environment):
         profiler = NativeProfiler()
         profiler.check_availability()
 
-        args.args = profiler.profile(args.args, output_path,
-                                     frequency=self.info.profile_mode.frequency)
+        args.args = profiler.profile(
+            args.args, output_path, frequency=self.info.profile_mode.frequency
+        )
         args.metadata["flamegraph"] = str(output_path.absolute())
 
     def _shared_args(self) -> List[str]:
@@ -206,7 +205,8 @@ class HqEnvironment(Environment):
     def _wait_for_workers(self, count: int):
         def get_worker_count():
             output = subprocess.check_output(
-                self._shared_args() + ["--output-type", "json", "worker", "list"])
+                self._shared_args() + ["--output-type", "json", "worker", "list"]
+            )
             return len(json.loads(output)) == count
 
         wait_until(lambda: get_worker_count())

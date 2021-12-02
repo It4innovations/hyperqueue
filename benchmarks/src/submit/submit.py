@@ -6,8 +6,8 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional
 
-from .options import PBSSubmitOptions, serialize_submit_options
 from ..benchmark.identifier import BenchmarkIdentifier
+from .options import PBSSubmitOptions, serialize_submit_options
 
 CURRENT_DIR = Path(__file__).absolute().parent
 EXECUTE_SCRIPT_PATH = CURRENT_DIR / "execute_script.py"
@@ -53,17 +53,23 @@ def create_submit_script_header(directory: Path, options: PBSSubmitOptions):
 """.strip()
 
 
-def create_submit_script_body(header: str,
-                              options: PBSSubmitOptions,
-                              identifiers_path: Path,
-                              submit_options_path: Path,
-                              directory: Path,
-                              database_path: Optional[Path] = None,
-                              resubmit=False) -> str:
+def create_submit_script_body(
+    header: str,
+    options: PBSSubmitOptions,
+    identifiers_path: Path,
+    submit_options_path: Path,
+    directory: Path,
+    database_path: Optional[Path] = None,
+    resubmit=False,
+) -> str:
     workdir = Path(os.getcwd()).absolute()
     resubmit_flag = "--resubmit" if resubmit else "--no-resubmit"
 
-    init_cmd = f"source {options.init_script.absolute()} || exit 1" if options.init_script else ""
+    init_cmd = (
+        f"source {options.init_script.absolute()} || exit 1"
+        if options.init_script
+        else ""
+    )
 
     command = f"""{header}
 
@@ -82,8 +88,13 @@ python {EXECUTE_SCRIPT_PATH} \\
     return command
 
 
-def submit(identifiers: List[BenchmarkIdentifier], workdir: Path, options: PBSSubmitOptions,
-           database_path: Optional[Path] = None, resubmit=False) -> str:
+def submit(
+    identifiers: List[BenchmarkIdentifier],
+    workdir: Path,
+    options: PBSSubmitOptions,
+    database_path: Optional[Path] = None,
+    resubmit=False,
+) -> str:
     workdir = Path(workdir).absolute()
     workdir.mkdir(parents=True, exist_ok=True)
 
@@ -94,9 +105,15 @@ def submit(identifiers: List[BenchmarkIdentifier], workdir: Path, options: PBSSu
     serialize_submit_options(options, submit_options_path)
 
     header = create_submit_script_header(workdir, options)
-    script_body = create_submit_script_body(header, options, identifiers_path, submit_options_path,
-                                            workdir, database_path=database_path,
-                                            resubmit=resubmit)
+    script_body = create_submit_script_body(
+        header,
+        options,
+        identifiers_path,
+        submit_options_path,
+        workdir,
+        database_path=database_path,
+        resubmit=resubmit,
+    )
 
     script_path = workdir / "submit.sh"
     with open(script_path, "w") as f:
@@ -112,8 +129,11 @@ def submit(identifiers: List[BenchmarkIdentifier], workdir: Path, options: PBSSu
 
 
 def watch_pbs(job_id: str):
-    subprocess.run([
-        "watch",
-        "-n", "10",
-        f"check-pbs-jobs --jobid {job_id} --print-job-err --print-job-out | tail -n 40"
-    ])
+    subprocess.run(
+        [
+            "watch",
+            "-n",
+            "10",
+            f"check-pbs-jobs --jobid {job_id} --print-job-err --print-job-out | tail -n 40",
+        ]
+    )

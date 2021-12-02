@@ -1,22 +1,18 @@
+import dataclasses
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import dataclasses
 import typer
-
 from src.benchmark.identifier import BenchmarkIdentifier, repeat_benchmark
-from src.build.hq import iterate_binaries, BuildConfig, BuiltBinary
+from src.build.hq import BuildConfig, BuiltBinary, iterate_binaries
 from src.build.repository import TAG_WORKSPACE
 from src.materialization import run_benchmark_suite
-from src.postprocessing.overview import generate_summary_text, generate_summary_html
+from src.postprocessing.overview import generate_summary_html, generate_summary_text
 
 
 def benchmark(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
-    return dict(
-        workload=name,
-        workload_params=args
-    )
+    return dict(workload=name, workload_params=args)
 
 
 def sleep_benchmarks():
@@ -24,15 +20,14 @@ def sleep_benchmarks():
         yield benchmark("sleep", dict(task_count=task_count))
 
 
-def hq_metadata(binary: str, monitoring=True, profile=False, timeout=180) -> Dict[str, Any]:
+def hq_metadata(
+    binary: str, monitoring=True, profile=False, timeout=180
+) -> Dict[str, Any]:
     return dict(
         monitoring=monitoring,
         timeout=timeout,
         profile=profile,
-        hq=dict(
-            binary=binary,
-            workers=[None]
-        ),
+        hq=dict(binary=binary, workers=[None]),
     )
 
 
@@ -57,19 +52,23 @@ def run_benchmarks(workdir: Path, identifiers: List[BenchmarkIdentifier]):
 
 
 def create_basic_hq_benchmarks(
-        artifacts: List[BuiltBinary],
-        repeat_count=2
+    artifacts: List[BuiltBinary], repeat_count=2
 ) -> List[BenchmarkIdentifier]:
     identifiers = []
     for artifact in artifacts:
         for bench in sleep_benchmarks():
-            identifiers += repeat_benchmark(repeat_count, lambda index: BenchmarkIdentifier(
-                **hq_environment(zero_worker=artifact.config.zero_worker,
-                                 tag=artifact.config.git_ref),
-                **bench,
-                metadata=hq_metadata(binary=str(artifact.binary_path)),
-                index=index
-            ))
+            identifiers += repeat_benchmark(
+                repeat_count,
+                lambda index: BenchmarkIdentifier(
+                    **hq_environment(
+                        zero_worker=artifact.config.zero_worker,
+                        tag=artifact.config.git_ref,
+                    ),
+                    **bench,
+                    metadata=hq_metadata(binary=str(artifact.binary_path)),
+                    index=index,
+                ),
+            )
     return identifiers
 
 
@@ -78,9 +77,7 @@ app = typer.Typer()
 
 @app.command()
 def compare_hq_version(
-        baseline: str,
-        modified: Optional[str] = None,
-        zero_worker: Optional[bool] = False
+    baseline: str, modified: Optional[str] = None, zero_worker: Optional[bool] = False
 ):
     """
     Compares the performance of two HQ versions.
@@ -115,6 +112,6 @@ if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
         format="%(levelname)s:%(asctime)s:%(funcName)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
     app()

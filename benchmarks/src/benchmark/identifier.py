@@ -23,6 +23,7 @@ class BenchmarkIdentifier(DataClassDictMixin):
         return self.metadata.get("timeout")
 
 
-def repeat_benchmark(count: int, create_fn: Callable[[int], BenchmarkIdentifier]) -> List[
-    BenchmarkIdentifier]:
+def repeat_benchmark(
+    count: int, create_fn: Callable[[int], BenchmarkIdentifier]
+) -> List[BenchmarkIdentifier]:
     return [create_fn(index) for index in range(count)]

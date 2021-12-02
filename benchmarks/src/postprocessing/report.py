@@ -1,8 +1,8 @@
+import dataclasses
 import logging
 from pathlib import Path
 from typing import Dict, List
 
-import dataclasses
 from cluster.cluster import Cluster, Node
 
 from ..clusterutils.cluster_helper import CLUSTER_FILENAME, node_monitoring_trace
@@ -30,7 +30,7 @@ class ClusterReport:
             cluster=cluster,
             monitoring=monitoring,
             flamegraphs=flamegraphs,
-            directory=directory
+            directory=directory,
         )
 
 
@@ -43,7 +43,9 @@ def load_flamegraphs(cluster: Cluster) -> FlamegraphData:
             if flamegraph_file.is_file():
                 data[process.key] = flamegraph_file
             else:
-                logging.warning(f"Flamegraph for {process} not found at {flamegraph_file}")
+                logging.warning(
+                    f"Flamegraph for {process} not found at {flamegraph_file}"
+                )
     return data
 
 
@@ -57,5 +59,7 @@ def load_monitoring_data(directory: Path, cluster: Cluster) -> MonitoringData:
                 with open(trace_file) as f:
                     data[node] = MonitoringRecord.deserialize_records(f)
             else:
-                logging.warning(f"Monitoring trace for {node.hostname} not found at {trace_file}")
+                logging.warning(
+                    f"Monitoring trace for {node.hostname} not found at {trace_file}"
+                )
     return data

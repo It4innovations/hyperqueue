@@ -1,11 +1,10 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 import typer
-from swclient.client import Client, Measurement
-
 from src.postprocessing.common import load_database
+from swclient.client import Client, Measurement
 
 app = typer.Typer()
 
@@ -32,8 +31,8 @@ def normalize_dict(dictionary: Dict[str, Any], prefix: str) -> Dict[str, Any]:
 
 @app.command()
 def upload(
-        database_path: Path = typer.Argument(..., exists=True),
-        token: str = typer.Option(...)
+    database_path: Path = typer.Argument(..., exists=True),
+    token: str = typer.Option(...),
 ):
     client = Client("https://snailwatch.it4i.cz/api", token)
     database = load_database(database_path)
@@ -47,15 +46,10 @@ def upload(
                 **normalize_dict(record.workload_params, "workload"),
                 **normalize_dict(record.environment_params, "env"),
                 env=record.environment,
-                **normalize_dict(record.benchmark_metadata, "metadata")
+                **normalize_dict(record.benchmark_metadata, "metadata"),
             ),
-            result=dict(
-                duration=dict(
-                    type="time",
-                    value=record.duration
-                )
-            ),
-            timestamp=timestamp
+            result=dict(duration=dict(type="time", value=record.duration)),
+            timestamp=timestamp,
         )
         measurements.append(measurement)
 

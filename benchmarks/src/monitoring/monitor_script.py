@@ -7,7 +7,6 @@ import time
 import click
 import psutil
 from cluster.io import measure_and_store
-
 from record import generate_record
 
 
@@ -47,7 +46,9 @@ def main(output: str, capture_interval: int, dump_interval: int, observe_pids: s
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO,
-                        format="%(levelname)s:%(asctime)s:%(funcName)s: %(message)s",
-                        datefmt="%Y-%m-%d %H:%M:%S")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s:%(asctime)s:%(funcName)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     main()

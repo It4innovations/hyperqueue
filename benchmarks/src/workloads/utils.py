@@ -1,30 +1,31 @@
 import logging
 from typing import List
 
-from .workload import WorkloadExecutionResult
 from ..environment import Environment
 from ..environment.hq import HqEnvironment
 from ..utils import activate_cwd
 from ..utils.timing import Timings
+from .workload import WorkloadExecutionResult
 
 
 def measure_hq_tasks(
-        env: Environment,
-        command: List[str],
-        task_count: int,
-        cpus_per_task=1
+    env: Environment, command: List[str], task_count: int, cpus_per_task=1
 ) -> WorkloadExecutionResult:
     assert isinstance(env, HqEnvironment)
 
     args = [
         "submit",
-        "--array", f"1-{task_count}",
-        "--stdout", "none",
-        "--stderr", "none",
+        "--array",
+        f"1-{task_count}",
+        "--stdout",
+        "none",
+        "--stderr",
+        "none",
         "--wait",
-        "--cpus", str(cpus_per_task),
+        "--cpus",
+        str(cpus_per_task),
         "--",
-        *command
+        *command,
     ]
     logging.debug(f"[HQ] Submitting {' '.join(args)}")
 

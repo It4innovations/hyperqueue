@@ -3,7 +3,7 @@ import contextlib
 import multiprocessing.context
 import time
 from multiprocessing.pool import ThreadPool
-from typing import TypeVar, Callable
+from typing import Callable, TypeVar
 
 DEFAULT_TIMEOUT = 15
 

@@ -1,13 +1,15 @@
 import traceback
 
+from ..utils.timing import TimeoutException, with_timeout
+from ..workloads.workload import WorkloadExecutionResult
 from . import BenchmarkInstance
-from .result import BenchmarkResult, Success, Timeout, Failure
-from ..utils.timing import with_timeout, TimeoutException
-from ..workloads import WorkloadExecutionResult
+from .result import BenchmarkResult, Failure, Success, Timeout
 
 
 class BenchmarkExecutor:
-    def execute(self, benchmark: BenchmarkInstance, timeout_s: float) -> BenchmarkResult:
+    def execute(
+        self, benchmark: BenchmarkInstance, timeout_s: float
+    ) -> BenchmarkResult:
         return execute_benchmark(benchmark, timeout_s=timeout_s)
 
 
@@ -15,8 +17,7 @@ DEFAULT_TIMEOUT_S = 180.0
 
 
 def execute_benchmark(
-        benchmark: BenchmarkInstance,
-        timeout_s: float = DEFAULT_TIMEOUT_S
+    benchmark: BenchmarkInstance, timeout_s: float = DEFAULT_TIMEOUT_S
 ) -> BenchmarkResult:
     env = benchmark.environment
 

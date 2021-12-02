@@ -1,15 +1,15 @@
+import dataclasses
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
-import dataclasses
 import numpy as np
 import pandas as pd
 from cluster.cluster import ProcessInfo
 
-from .report import ClusterReport
 from ..benchmark.database import Database
 from ..materialization import DEFAULT_DATA_JSON
+from .report import ClusterReport
 
 
 def format_dict(dict: Dict[str, Any]) -> str:
@@ -63,7 +63,8 @@ class ProcessStats:
 def get_process_aggregated_stats(report: ClusterReport) -> Dict[Any, ProcessStats]:
     process_stats = {
         create_process_key(p): {"max_rss": 0, "avg_cpu": []}
-        for (_, p) in report.cluster.processes() if p.key != "monitor"
+        for (_, p) in report.cluster.processes()
+        if p.key != "monitor"
     }
     pid_to_key = {int(p[2]): p for p in process_stats.keys()}
     used_keys = set()
@@ -75,8 +76,9 @@ def get_process_aggregated_stats(report: ClusterReport) -> Dict[Any, ProcessStat
                 if pid in pid_to_key:
                     key = pid_to_key[pid]
                     used_keys.add(key)
-                    process_stats[key]["max_rss"] = max(process_record.rss,
-                                                        process_stats[key]["max_rss"])
+                    process_stats[key]["max_rss"] = max(
+                        process_record.rss, process_stats[key]["max_rss"]
+                    )
                     process_stats[key]["avg_cpu"].append(process_record.cpu)
 
     for worker in process_stats:
@@ -86,8 +88,10 @@ def get_process_aggregated_stats(report: ClusterReport) -> Dict[Any, ProcessStat
     for key in unused_keys:
         del process_stats[key]
 
-    return {k: ProcessStats(max_rss=v["max_rss"], avg_cpu=v["avg_cpu"]) for (k, v) in
-            process_stats.items()}
+    return {
+        k: ProcessStats(max_rss=v["max_rss"], avg_cpu=v["avg_cpu"])
+        for (k, v) in process_stats.items()
+    }
 
 
 def average(data) -> float:
@@ -97,6 +101,11 @@ def average(data) -> float:
 
 
 def pd_print_all():
-    return pd.option_context("display.max_rows", None,
-                             "display.max_columns", None,
-                             "display.expand_frame_repr", False)
+    return pd.option_context(
+        "display.max_rows",
+        None,
+        "display.max_columns",
+        None,
+        "display.expand_frame_repr",
+        False,
+    )

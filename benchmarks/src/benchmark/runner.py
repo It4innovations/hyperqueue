@@ -1,24 +1,25 @@
 import logging
 import traceback
 from pathlib import Path
-from typing import List, Callable, Tuple
+from typing import Callable, List, Tuple
 
 from . import BenchmarkInstance
-from .database import Database, BenchmarkResultRecord
+from .database import BenchmarkResultRecord, Database
 from .executor import BenchmarkExecutor
 from .identifier import BenchmarkIdentifier
-from .result import Failure, BenchmarkResult, Timeout, Success
+from .result import BenchmarkResult, Failure, Success, Timeout
 
 DEFAULT_TIMEOUT_S = 180.0
 
 
 class BenchmarkRunner:
     def __init__(
-            self,
-            database: Database,
-            workdir: Path,
-            materialize_fn: Callable[
-                [BenchmarkIdentifier, Path], Tuple[BenchmarkIdentifier, BenchmarkInstance]]
+        self,
+        database: Database,
+        workdir: Path,
+        materialize_fn: Callable[
+            [BenchmarkIdentifier, Path], Tuple[BenchmarkIdentifier, BenchmarkInstance]
+        ],
     ):
         self.database = database
         self.executor = BenchmarkExecutor()
@@ -29,7 +30,10 @@ class BenchmarkRunner:
     def compute(self, identifiers: List[BenchmarkIdentifier]):
         not_completed = self._skip_completed(identifiers)
         # Materialize instances immediately to find potential errors sooner
-        instances = [self.materialize_fn(identifier, self.workdir) for identifier in not_completed]
+        instances = [
+            self.materialize_fn(identifier, self.workdir)
+            for identifier in not_completed
+        ]
 
         logging.info(
             f"Skipping {len(identifiers) - len(not_completed)} out of {len(identifiers)} "
@@ -54,7 +58,9 @@ class BenchmarkRunner:
     def save(self):
         self.database.save()
 
-    def _skip_completed(self, identifiers: List[BenchmarkIdentifier]) -> List[BenchmarkIdentifier]:
+    def _skip_completed(
+        self, identifiers: List[BenchmarkIdentifier]
+    ) -> List[BenchmarkIdentifier]:
         not_completed = []
         for identifier in identifiers:
             if not self.database.has_record_for(identifier):

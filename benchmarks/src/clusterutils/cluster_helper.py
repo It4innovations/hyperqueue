@@ -1,15 +1,22 @@
+import dataclasses
 import functools
 import logging
 import time
 from multiprocessing import Pool
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import Any, Dict, List, Optional
 
-import dataclasses
-from cluster.cluster import Cluster, Process, kill_process, start_process, ProcessInfo, Node
+from cluster.cluster import (
+    Cluster,
+    Node,
+    Process,
+    ProcessInfo,
+    kill_process,
+    start_process,
+)
 
-from . import ClusterInfo
 from ..utils import get_pyenv_from_env
+from . import ClusterInfo
 
 CLUSTER_FILENAME = "cluster.json"
 CURRENT_DIR = Path(__file__).absolute().parent
@@ -75,8 +82,9 @@ class ClusterHelper:
                 env=args.env,
                 init_cmd=args.init_cmd,
                 workdir=prepare_workdir(args.workdir),
-                metadata=args.metadata
-            ) for args in processes
+                metadata=args.metadata,
+            )
+            for args in processes
         ]
 
         logging.debug(f"Starting cluster processes: {pool_args}")
@@ -103,14 +111,19 @@ class ClusterHelper:
         if pyenv:
             init_cmd += [f"source {pyenv}/bin/activate"]
         else:
-            logging.warning("No Python virtualenv detected. Monitoring will probably not work.")
+            logging.warning(
+                "No Python virtualenv detected. Monitoring will probably not work."
+            )
 
         nodes = sorted(set(nodes))
         workdir = self.workdir / "monitoring"
         processes = []
         for node in nodes:
-            args = ["python", str(MONITOR_SCRIPT_PATH),
-                    str(node_monitoring_trace(self.workdir, node))]
+            args = [
+                "python",
+                str(MONITOR_SCRIPT_PATH),
+                str(node_monitoring_trace(self.workdir, node)),
+            ]
             if observe_processes:
                 node_processes = self.cluster.get_processes(hostname=node)
                 pids = [str(process.pid) for (_, process) in node_processes]
@@ -120,7 +133,7 @@ class ClusterHelper:
                 hostname=node,
                 name="monitor",
                 workdir=workdir,
-                init_cmd=init_cmd
+                init_cmd=init_cmd,
             )
             processes.append(process)
         self.start_processes(processes)
@@ -140,9 +153,11 @@ def kill_fn(scheduler_sigint: bool, node: Node, process: ProcessInfo):
 
 
 def start_process_pool(args: StartProcessArgs) -> Process:
-    return start_process(args.args,
-                         hostname=args.hostname,
-                         workdir=str(args.workdir),
-                         name=args.name,
-                         env=args.env,
-                         init_cmd=args.init_cmd)
+    return start_process(
+        args.args,
+        hostname=args.hostname,
+        workdir=str(args.workdir),
+        name=args.name,
+        env=args.env,
+        init_cmd=args.init_cmd,
+    )

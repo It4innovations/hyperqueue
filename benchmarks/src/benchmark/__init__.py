@@ -1,6 +1,5 @@
-from typing import Dict, Any
-
 import dataclasses
+from typing import Any, Dict
 
 from ..environment import Environment
 from ..workloads import Workload

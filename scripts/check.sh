@@ -7,18 +7,19 @@ cd `dirname $0`/..
 # Format Rust code
 cargo fmt
 
-# Format Python tests
-isort --profile black tests
-black tests
+# Format Python code
+isort --profile black tests benchmarks
+black tests benchmarks
 
-# Lint Python tests
-flake8 tests
+# Lint Python code
+flake8 tests benchmarks
 
 # Run Rust tests
 cargo test
 
 # Run Rust linter
 cargo clippy
+cargo check --all-targets
 
 # Build Rust binaries
 cargo build

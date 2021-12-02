@@ -1,16 +1,16 @@
+import dataclasses
 import json
 import time
 import uuid
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional, Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-import dataclasses
 import numpy as np
 import pandas as pd
 
-from .identifier import BenchmarkIdentifier
 from ..utils import ensure_directory
+from .identifier import BenchmarkIdentifier
 
 UUID_KEY = "uuid"
 WORKLOAD_KEY = "workload"
@@ -74,7 +74,7 @@ class Database:
             benchmark_metadata=identifier.metadata,
             duration=result.duration or np.nan,
             metadata=self.metadata,
-            timestamp=int(time.time())
+            timestamp=int(time.time()),
         )
         self.data[key] = record
 
@@ -115,7 +115,7 @@ def parse_record(entry) -> DatabaseRecord:
         benchmark_metadata=entry[BENCHMARK_METADATA_KEY],
         duration=entry[DURATION_KEY],
         timestamp=entry[TIMESTAMP_KEY],
-        metadata=entry[METADATA_KEY]
+        metadata=entry[METADATA_KEY],
     )
 
 
@@ -137,7 +137,7 @@ def create_record_key(record: DatabaseRecord):
         record.environment,
         serialize(record.environment_params),
         record.index,
-        serialize(record.workload_params)
+        serialize(record.workload_params),
     )
 
 
@@ -147,5 +147,5 @@ def create_identifier_key(identifier: BenchmarkIdentifier):
         identifier.environment,
         serialize(identifier.environment_params),
         identifier.index,
-        serialize(identifier.workload_params)
+        serialize(identifier.workload_params),
     )

@@ -1,33 +1,43 @@
 import base64
+import dataclasses
 import datetime
 import logging
 import os
 import subprocess
 from collections import defaultdict
 from pathlib import Path
-from typing import Iterator, List, Tuple, Callable, Optional, TypeVar
+from typing import Callable, Iterator, List, Optional, Tuple, TypeVar
 
-import dataclasses
 import humanize
 import pandas as pd
 from bokeh.embed import file_html
 from bokeh.io import save
-from bokeh.layouts import gridplot, column
+from bokeh.layouts import column, gridplot
 from bokeh.model import Model
-from bokeh.models import Div, NumeralTickFormatter, Panel, Tabs, PreText, Column, ColumnDataSource, \
-    LayoutDOM, DatetimeTickFormatter, HoverTool
-from bokeh.models import Range1d
+from bokeh.models import (
+    Column,
+    ColumnDataSource,
+    DatetimeTickFormatter,
+    Div,
+    HoverTool,
+    LayoutDOM,
+    NumeralTickFormatter,
+    Panel,
+    PreText,
+    Range1d,
+    Tabs,
+)
 from bokeh.palettes import d3
-from bokeh.plotting import figure, Figure
+from bokeh.plotting import Figure, figure
 from bokeh.resources import CDN
-from cluster.cluster import Cluster, ProcessInfo, Node
+from cluster.cluster import Cluster, Node, ProcessInfo
 from pandas import Timestamp
 from tornado import ioloop, web
 
-from .common import average
-from .report import ClusterReport, MonitoringData
 from ..monitoring.record import MonitoringRecord, ProcessRecord
 from ..utils import ensure_directory
+from .common import average
+from .report import ClusterReport, MonitoringData
 
 DATETIME_KEY = "datetime"
 HOSTNAME_KEY = "hostname"
@@ -75,13 +85,15 @@ def select_colors(items: List) -> List[str]:
     return colors
 
 
-def prepare_time_range_figure(range: TimeRange, width=720, height=250, **kwargs) -> Figure:
+def prepare_time_range_figure(
+    range: TimeRange, width=720, height=250, **kwargs
+) -> Figure:
     fig = figure(
         plot_width=width,
         plot_height=height,
         x_range=[range.start, range.end],
         x_axis_type="datetime",
-        **kwargs
+        **kwargs,
     )
     fig.xaxis.formatter = DatetimeTickFormatter(
         seconds=["%H:%M:%S"],
@@ -89,7 +101,7 @@ def prepare_time_range_figure(range: TimeRange, width=720, height=250, **kwargs)
         minutes=["%H:%M:%S"],
         hourmin=["%H:%M"],
         hours=["%H:%M"],
-        days=["%d.%m."]
+        days=["%d.%m."],
     )
     return fig
 
@@ -99,8 +111,9 @@ def render_node_per_cpu_pct_utilization(figure: Figure, df: pd.DataFrame):
     cpu_series = df[CPU_KEY]
 
     cpu_count = len(cpu_series.iloc[0])
-    cpus = [resample(cpu_series.apply(lambda res: res[i]), time) for i in
-            range(cpu_count)]
+    cpus = [
+        resample(cpu_series.apply(lambda res: res[i]), time) for i in range(cpu_count)
+    ]
     cpu_mean = resample(cpu_series.apply(lambda res: average(res)), time)
 
     figure.yaxis[0].formatter = NumeralTickFormatter(format="0 %")
@@ -125,13 +138,23 @@ def render_node_per_cpu_pct_utilization(figure: Figure, df: pd.DataFrame):
 
     colors = select_colors(cpus)
     for (i, color) in enumerate(colors):
-        figure.line(x=f"cpu_{i}_x", y=f"cpu_{i}", color=color,
-                    legend_label=f"CPU #{i}", source=data)
+        figure.line(
+            x=f"cpu_{i}_x",
+            y=f"cpu_{i}",
+            color=color,
+            legend_label=f"CPU #{i}",
+            source=data,
+        )
 
-    figure.line(x="cpu_mean_x", y="cpu_mean", color="red", legend_label=f"Average CPU",
-                line_dash="dashed",
-                line_width=5,
-                source=data)
+    figure.line(
+        x="cpu_mean_x",
+        y="cpu_mean",
+        color="red",
+        legend_label="Average CPU",
+        line_dash="dashed",
+        line_width=5,
+        source=data,
+    )
 
 
 def render_node_mem_pct_utilization(figure: Figure, df: pd.DataFrame):
@@ -141,10 +164,7 @@ def render_node_mem_pct_utilization(figure: Figure, df: pd.DataFrame):
 
     figure.add_tools(HoverTool(tooltips=[("Memory", "@mem")]))
 
-    data = ColumnDataSource(dict(
-        mem=mem / 100.0,
-        x=mem.index
-    ))
+    data = ColumnDataSource(dict(mem=mem / 100.0, x=mem.index))
     figure.line(x="x", y="mem", color="red", legend_label="Memory", source=data)
 
 
@@ -154,19 +174,12 @@ def render_node_network_connections(figure: Figure, df: pd.DataFrame):
     figure.y_range = Range1d(0, connections_series.max() + 10)
 
     figure.add_tools(HoverTool(tooltips=[("Connection count", "@count")]))
-    data = ColumnDataSource(dict(
-        count=connections,
-        x=connections.index
-    ))
+    data = ColumnDataSource(dict(count=connections, x=connections.index))
     figure.line(x="x", y="count", legend_label="Network connections", source=data)
 
 
 def render_bytes_sent_received(
-        figure: Figure,
-        df: pd.DataFrame,
-        label: str,
-        read_col: str,
-        write_col: str
+    figure: Figure, df: pd.DataFrame, label: str, read_col: str, write_col: str
 ):
     def accumulate(column):
         values = df[column]
@@ -176,24 +189,19 @@ def render_bytes_sent_received(
     read = accumulate(read_col)
     write = accumulate(write_col)
 
-    data = ColumnDataSource(dict(
-        rx=read,
-        rx_kb=read / 1024,
-        tx=write,
-        tx_kb=write / 1024,
-        x=read.index
-    ))
-    tooltips = [
-        ("RX", "@rx_kb KiB"),
-        ("TX", "@tx_kb KiB")
-    ]
+    data = ColumnDataSource(
+        dict(rx=read, rx_kb=read / 1024, tx=write, tx_kb=write / 1024, x=read.index)
+    )
+    tooltips = [("RX", "@rx_kb KiB"), ("TX", "@tx_kb KiB")]
 
     figure.add_tools(HoverTool(tooltips=tooltips))
     figure.yaxis[0].formatter = NumeralTickFormatter(format="0.0b")
-    figure.line(x="x", y="rx", color="blue", legend_label="{} RX".format(label),
-                source=data)
-    figure.line(x="x", y="tx", color="red", legend_label="{} TX".format(label),
-                source=data)
+    figure.line(
+        x="x", y="rx", color="blue", legend_label="{} RX".format(label), source=data
+    )
+    figure.line(
+        x="x", y="tx", color="red", legend_label="{} TX".format(label), source=data
+    )
 
 
 def render_node_network_activity(figure: Figure, df: pd.DataFrame):
@@ -202,17 +210,13 @@ def render_node_network_activity(figure: Figure, df: pd.DataFrame):
         df,
         label="Network",
         read_col=NETWORK_READ_KEY,
-        write_col=NETWORK_WRITE_KEY
+        write_col=NETWORK_WRITE_KEY,
     )
 
 
 def render_node_io_activity(figure: Figure, df: pd.DataFrame):
     render_bytes_sent_received(
-        figure,
-        df,
-        label="I/O",
-        read_col=IO_READ_KEY,
-        write_col=IO_WRITE_KEY
+        figure, df, label="I/O", read_col=IO_READ_KEY, write_col=IO_WRITE_KEY
     )
 
 
@@ -231,10 +235,7 @@ def render_node_utilization(df: pd.DataFrame) -> LayoutDOM:
     io_activity = render(render_node_io_activity, "I/O activity")
     net_connections = render(render_node_network_connections, "Network connections")
 
-    layout = [
-        [cpu, net_activity, net_connections],
-        [mem, io_activity]
-    ]
+    layout = [[cpu, net_activity, net_connections], [mem, io_activity]]
     return gridplot(layout)
 
 
@@ -243,31 +244,36 @@ def get_node_description(report: ClusterReport, hostname: str) -> str:
     processes = get_processes_by_hostname(report.cluster, hostname)
     keys = sorted(p.key for p in processes if p.key)
     if keys:
-        node_info = ', '.join(keys)
+        node_info = ", ".join(keys)
         node_info = node_info if len(node_info) < 30 else f"{node_info[:30]}…"
         description += f" ({node_info})"
     return description
 
 
-def render_nodes_resource_usage(report: ClusterReport, resources_df: pd.DataFrame) -> LayoutDOM:
+def render_nodes_resource_usage(
+    report: ClusterReport, resources_df: pd.DataFrame
+) -> LayoutDOM:
     items = sorted(resources_df.groupby(HOSTNAME_KEY), key=lambda item: item[0])
     rows = []
     for (hostname, node_data) in items:
         utilization = render_node_utilization(node_data)
 
         header_text = get_node_description(report, hostname)
-        header = Div(text=header_text, render_as_text=True,
-                     style={"font-size": "20px", "font-weight": "bold"})
+        header = Div(
+            text=header_text,
+            render_as_text=True,
+            style={"font-size": "20px", "font-weight": "bold"},
+        )
 
         rows.append(Column(children=[header, utilization]))
     return column(rows)
 
 
 def render_global_percent_resource_usage(
-        figure: Figure,
-        source: ColumnDataSource,
-        report: ClusterReport,
-        hostnames: List[str],
+    figure: Figure,
+    source: ColumnDataSource,
+    report: ClusterReport,
+    hostnames: List[str],
 ):
     node_count = len(hostnames)
     figure.y_range = Range1d(0, node_count + 1)
@@ -282,22 +288,22 @@ def render_global_percent_resource_usage(
         color=colors,
         line_color="black",
         legend_label=[get_node_description(report, hostname) for hostname in hostnames],
-        source=source
+        source=source,
     )
 
     # Draw ceiling
-    figure.line(source.data["x"], [node_count] * len(source.data["x"]), color="red", line_width=2)
+    figure.line(
+        source.data["x"],
+        [node_count] * len(source.data["x"]),
+        color="red",
+        line_width=2,
+    )
 
 
 def create_global_resource_datasource_and_tooltips(
-        time_index: pd.Series,
-        df: pd.DataFrame,
-        key: str
+    time_index: pd.Series, df: pd.DataFrame, key: str
 ) -> Tuple[ColumnDataSource, List[Tuple[str, str]]]:
-    data = dict(
-        x=time_index,
-        x_start=time_index + datetime.timedelta(milliseconds=500)
-    )
+    data = dict(x=time_index, x_start=time_index + datetime.timedelta(milliseconds=500))
     items = sorted(df.groupby(HOSTNAME_KEY), key=lambda item: item[0])
     tooltips = []
 
@@ -316,7 +322,9 @@ def create_global_resource_datasource_and_tooltips(
     return (source, tooltips)
 
 
-def render_global_resource_usage(report: ClusterReport, resources_df: pd.DataFrame) -> LayoutDOM:
+def render_global_resource_usage(
+    report: ClusterReport, resources_df: pd.DataFrame
+) -> LayoutDOM:
     df = resources_df[[DATETIME_KEY, HOSTNAME_KEY, CPU_KEY, MEM_KEY]].copy()
     # Average CPUs per record
     df[CPU_KEY] = df[CPU_KEY].apply(lambda entry: average(entry))
@@ -328,9 +336,13 @@ def render_global_resource_usage(report: ClusterReport, resources_df: pd.DataFra
     hostnames = sorted(df[HOSTNAME_KEY].unique())
 
     def render(title: str, key: str) -> Column:
-        (source, tooltips) = create_global_resource_datasource_and_tooltips(time_index, df, key)
+        (source, tooltips) = create_global_resource_datasource_and_tooltips(
+            time_index, df, key
+        )
 
-        figure = prepare_time_range_figure(range, width=1000, height=500, tooltips=tooltips)
+        figure = prepare_time_range_figure(
+            range, width=1000, height=500, tooltips=tooltips
+        )
         render_global_percent_resource_usage(figure, source, report, hostnames)
         return Column(children=[Div(text=title), figure])
 
@@ -391,7 +403,8 @@ def render_flamegraph(flamegraph: Path):
     with open(flamegraph, "rb") as f:
         data = f.read()
         base64_content = base64.b64encode(data).decode()
-        content = f"""<object type="image/svg+xml" width="1600px" data="data:image/svg+xml;base64,{base64_content}"></object>"""
+        content = f"""<object type="image/svg+xml" width="1600px"
+ data="data:image/svg+xml;base64,{base64_content}"></object>"""
         return Div(text=content)
 
 
@@ -455,10 +468,7 @@ def render_output(report: ClusterReport):
         processes = [p for p in node.processes if is_valid_process(p)]
 
         def render_process_output(process: ProcessInfo) -> Optional[Model]:
-            items = [
-                ("out", process.process.stdout),
-                ("err", process.process.stderr)
-            ]
+            items = [("out", process.process.stdout), ("err", process.process.stderr)]
 
             def render_item(item: Tuple[str, str]):
                 name, path = item
@@ -470,7 +480,9 @@ def render_output(report: ClusterReport):
 
             return Panel(child=create_tabs(items, render_item), title=process.key)
 
-        return Panel(child=create_tabs(processes, render_process_output), title=node.hostname)
+        return Panel(
+            child=create_tabs(processes, render_process_output), title=node.hostname
+        )
 
     return create_node_tabs(report, render_node_output)
 
@@ -484,26 +496,29 @@ def render_process_resource_usage(report: ClusterReport, per_process_df: pd.Data
             process_data = node_data[node_data[PID_KEY] == pid]
             max_rss = process_data[RSS_KEY].max()
             avg_cpu = process_data[AVG_CPU_KEY].mean()
-            process = [p for p in report.cluster.nodes[node.hostname].processes if p.pid == pid]
+            process = [
+                p for p in report.cluster.nodes[node.hostname].processes if p.pid == pid
+            ]
             if not process:
                 logging.warning(f"Process {node.hostname}/{pid} not found in cluster")
             process = process[0]
 
             range = get_time_range(process_data[DATETIME_KEY])
 
-            mib_divisor = (1024.0 * 1024)
-            mem = resample(process_data[RSS_KEY] / mib_divisor, process_data[DATETIME_KEY])
+            mib_divisor = 1024.0 * 1024
+            mem = resample(
+                process_data[RSS_KEY] / mib_divisor, process_data[DATETIME_KEY]
+            )
             mem_figure = prepare_time_range_figure(range)
             mem_figure.yaxis[0].formatter = NumeralTickFormatter()
             mem_figure.yaxis.axis_label = "RSS (MiB)"
             mem_figure.y_range = Range1d(0, max_rss / mib_divisor + 100.0)
             mem_figure.add_tools(HoverTool(tooltips=[("RSS (MiB)", "@rss")]))
 
-            data = ColumnDataSource(dict(
-                rss=mem,
-                x=mem.index
-            ))
-            mem_figure.line(x="x", y="rss", color="red", legend_label="Memory", source=data)
+            data = ColumnDataSource(dict(rss=mem, x=mem.index))
+            mem_figure.line(
+                x="x", y="rss", color="red", legend_label="Memory", source=data
+            )
 
             cpu = resample(process_data[AVG_CPU_KEY], process_data[DATETIME_KEY])
             cpu_figure = prepare_time_range_figure(range)
@@ -512,18 +527,19 @@ def render_process_resource_usage(report: ClusterReport, per_process_df: pd.Data
             cpu_figure.y_range = Range1d(0, 1)
             cpu_figure.add_tools(HoverTool(tooltips=[("Avg. CPU usage", "@cpu")]))
 
-            data = ColumnDataSource(dict(
-                cpu=cpu / 100.0,
-                x=cpu.index
-            ))
-            cpu_figure.line(x="x", y="cpu", color="blue", legend_label="CPU usage (%)", source=data)
+            data = ColumnDataSource(dict(cpu=cpu / 100.0, x=cpu.index))
+            cpu_figure.line(
+                x="x", y="cpu", color="blue", legend_label="CPU usage (%)", source=data
+            )
 
-            summary = PreText(text=f"""
+            summary = PreText(
+                text=f"""
 PID: {pid}
 Key: {process.key}
 Max. RSS: {humanize.naturalsize(max_rss, binary=True)}
 Avg. CPU: {avg_cpu:.02f} %
-""".strip())
+""".strip()
+            )
 
             columns = [summary, mem_figure, cpu_figure]
             return Panel(child=Column(children=columns), title=process.key)
@@ -540,14 +556,20 @@ def create_page(report: ClusterReport):
 
     if not per_node_df.empty:
         structure += [
-            ("Global utilization", lambda r: render_global_resource_usage(r, per_node_df)),
-            ("Node utilization", lambda r: render_nodes_resource_usage(r, per_node_df))
+            (
+                "Global utilization",
+                lambda r: render_global_resource_usage(r, per_node_df),
+            ),
+            ("Node utilization", lambda r: render_nodes_resource_usage(r, per_node_df)),
         ]
 
     per_process_df = create_per_process_resources_df(report.monitoring)
     if not per_process_df.empty:
         structure += [
-            ("Process utilization", lambda r: render_process_resource_usage(r, per_process_df))
+            (
+                "Process utilization",
+                lambda r: render_process_resource_usage(r, per_process_df),
+            )
         ]
 
     structure.append(("Output", render_output))
@@ -578,9 +600,11 @@ def serve_cluster_report(report: ClusterReport, port: int):
             page = create_page(report)
             self.write(file_html(page, CDN, "Cluster report"))
 
-    app = web.Application([
-        (r"/", Handler),
-    ])
+    app = web.Application(
+        [
+            (r"/", Handler),
+        ]
+    )
     app.listen(port)
 
     logging.info(f"Serving report at http://0.0.0.0:{port}")
