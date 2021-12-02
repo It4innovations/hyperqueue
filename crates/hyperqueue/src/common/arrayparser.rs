@@ -3,6 +3,8 @@ use nom::character::complete::char;
 use nom::combinator::{map_res, opt};
 use nom::multi::separated_list1;
 use nom::sequence::{preceded, tuple};
+use nom::Parser;
+use nom_supreme::ParserExt;
 
 use crate::common::arraydef::{IntArray, IntRange};
 use crate::common::parser::{consume_all, p_u32, NomResult};
@@ -23,7 +25,9 @@ fn p_range(input: &str) -> NomResult<IntRange> {
             }
             _ => Err(anyhow!("Invalid range")),
         },
-    )(input)
+    )
+    .context("Integer range")
+    .parse(input)
 }
 
 fn p_ranges(input: &str) -> NomResult<Vec<IntRange>> {

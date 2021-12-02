@@ -1,11 +1,11 @@
 use std::str::FromStr;
 
 use nom::branch::alt;
-use nom::bytes::complete::tag;
 use nom::character::complete::space0;
 use nom::combinator::map;
 use nom::multi::separated_list1;
 use nom::sequence::tuple;
+use nom_supreme::tag::complete::tag;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -99,7 +99,7 @@ fn p_status_list(input: &str) -> NomResult<Vec<Status>> {
     separated_list1(tuple((tag(","), space0)), p_status)(input)
 }
 
-fn parse_status_list(input: &str) -> anyhow::Result<Vec<Status>> {
+pub fn parse_status_list(input: &str) -> anyhow::Result<Vec<Status>> {
     consume_all(p_status_list, input)
 }
 

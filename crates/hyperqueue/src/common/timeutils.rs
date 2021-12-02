@@ -6,8 +6,9 @@ use chrono::TimeZone;
 use nom::character::complete::char;
 use nom::combinator::{map_res, opt};
 use nom::sequence::{preceded, tuple};
+use nom_supreme::ParserExt;
 
-use crate::common::parser::{consume_all, p_u32};
+use crate::common::parser::{consume_all, p_u32, NomResult};
 
 // Allows specifying humantime format (2h, 3m, etc.)
 crate::arg_wrapper!(ArgDuration, Duration, humantime::parse_duration);
@@ -29,15 +30,14 @@ pub fn local_to_system_time(datetime: chrono::NaiveDateTime) -> SystemTime {
     chrono::Local.from_local_datetime(&datetime).unwrap().into()
 }
 
-/// Parses time strings in the format [[hh:]mm:]ss.
-/// Individual time values may be zero padded.
-pub fn parse_hms_time(input: &str) -> anyhow::Result<Duration> {
-    let parser = map_res(
+fn p_hms_time(input: &str) -> NomResult<Duration> {
+    map_res(
         tuple((
             p_u32,
             opt(preceded(char(':'), p_u32)),
             opt(preceded(char(':'), p_u32)),
-        )),
+        ))
+        .context("[[HH:]MM:]SS value"),
         |parsed| match parsed {
             (seconds, None, None) => Ok(Duration::from_secs(seconds as u64)),
             (minutes, Some(seconds), None) => {
@@ -48,13 +48,19 @@ pub fn parse_hms_time(input: &str) -> anyhow::Result<Duration> {
             )),
             _ => Err(anyhow!("Invalid time specification")),
         },
-    );
-    consume_all(parser, input)
+    )(input)
+}
+
+/// Parses time strings in the format [[hh:]mm:]ss.
+/// Individual time values may be zero padded.
+pub fn parse_hms_time(input: &str) -> anyhow::Result<Duration> {
+    consume_all(p_hms_time, input)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::common::timeutils::parse_hms_time;
+    use crate::common::timeutils::{p_hms_time, parse_hms_time};
+    use crate::tests::utils::check_parse_error;
 
     #[test]
     fn parse_hms_seconds() {
@@ -81,5 +87,16 @@ mod tests {
 
         let duration = parse_hms_time("02:03:04").unwrap();
         assert_eq!(duration.as_secs(), 2 * 3600 + 3 * 60 + 4);
+    }
+
+    #[test]
+    fn parse_hms_error() {
+        check_parse_error(
+            p_hms_time,
+            "x",
+            r#"Parse error
+expected [[HH:]MM:]SS value at character 0: "x"
+expected integer at character 0: "x""#,
+        );
     }
 }

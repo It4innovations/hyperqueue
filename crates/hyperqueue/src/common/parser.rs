@@ -1,53 +1,211 @@
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Write};
 
 use nom::character::complete::satisfy;
 use nom::combinator::{all_consuming, map, map_res};
-use nom::error::{ErrorKind, FromExternalError, ParseError};
+use nom::error::{ContextError, ErrorKind, FromExternalError, ParseError};
 use nom::multi::many0;
 use nom::sequence::tuple;
-use nom::{AsChar, IResult};
+use nom::{AsChar, IResult, InputLength, Parser};
+use nom_supreme::error::{BaseErrorKind, ErrorTree, Expectation, StackContext};
+use nom_supreme::final_parser::{ByteOffset, RecreateContext};
+use nom_supreme::tag::TagError;
+use nom_supreme::ParserExt;
 
-pub enum ParserError<I> {
-    Custom(anyhow::Error),
-    Nom(I, ErrorKind),
+const CONTEXT_INTEGER: &'static str = "integer";
+
+// Parser implementation details below these contexts will not be shown to the user
+const TERMINAL_CONTEXTS: [&'static str; 1] = [CONTEXT_INTEGER];
+
+#[derive(Debug)]
+pub struct ParserError<I>(ErrorTree<I>);
+
+impl<I> From<ErrorTree<I>> for ParserError<I> {
+    fn from(error: ErrorTree<I>) -> Self {
+        ParserError(error)
+    }
 }
 
-impl<I: Debug> Debug for ParserError<I> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Custom(error) => f.write_fmt(format_args!("Semantic error at {}", error)),
-            Self::Nom(input, error) => f.write_fmt(format_args!(
-                "Parser error at '{:?}': expecting {:?}",
-                input, error
-            )),
+impl<I> TagError<I, &'static str> for ParserError<I> {
+    fn from_tag(input: I, tag: &'static str) -> Self {
+        ErrorTree::from_tag(input, tag).into()
+    }
+
+    fn from_tag_no_case(input: I, tag: &'static str) -> Self {
+        ErrorTree::from_tag_no_case(input, tag).into()
+    }
+}
+
+impl<I> ContextError<I> for ParserError<I> {
+    fn add_context(location: I, ctx: &'static str, other: Self) -> Self {
+        ErrorTree::add_context(location, ctx, other.0).into()
+    }
+}
+
+impl<I: InputLength> ParseError<I> for ParserError<I> {
+    fn from_error_kind(input: I, kind: ErrorKind) -> Self {
+        ErrorTree::from_error_kind(input, kind).into()
+    }
+
+    fn append(input: I, error: ErrorKind, other: Self) -> Self {
+        ErrorTree::append(input, error, other.0).into()
+    }
+
+    fn from_char(input: I, c: char) -> Self {
+        ErrorTree::from_char(input, c).into()
+    }
+
+    fn or(self, other: Self) -> Self {
+        ErrorTree::or(self.0, other.0).into()
+    }
+}
+
+impl<I, E: Into<anyhow::Error>> FromExternalError<I, E> for ParserError<I> {
+    fn from_external_error(input: I, _kind: ErrorKind, error: E) -> Self {
+        ParserError(ErrorTree::Base {
+            location: input,
+            kind: BaseErrorKind::External(error.into().into()),
+        })
+    }
+}
+
+fn format_kind(kind: BaseErrorKind) -> String {
+    match kind {
+        BaseErrorKind::Expected(expectation) => match expectation {
+            Expectation::Tag(tag) => format!(r#"expected "{}""#, tag),
+            Expectation::Char(c) => format!(r#"expected "{}""#, c),
+            Expectation::Alpha => format!("expected alphabet character"),
+            Expectation::Digit | Expectation::HexDigit | Expectation::OctDigit => {
+                format!("expected digit")
+            }
+            Expectation::AlphaNumeric => format!("expected alphanumeric character"),
+            Expectation::Space | Expectation::Multispace | Expectation::CrLf => {
+                format!("expected whitespace")
+            }
+            Expectation::Eof => format!("expected end of input"),
+            _ => format!("expected something"),
+        },
+        BaseErrorKind::Kind(kind) => format!("expected: {:?}", kind),
+        BaseErrorKind::External(error) => format!(r#""{:?}""#, error),
+    }
+}
+
+fn format_location(input: &str, location: &str) -> String {
+    if location == "" {
+        format!("the end of input")
+    } else {
+        let offset = ByteOffset::recreate_context(input, location).0;
+        format!("character {}: {:?}", offset, location)
+    }
+}
+
+fn indent(depth: u32) -> String {
+    " ".repeat((depth as usize) * 2)
+}
+
+fn format_error(error: ErrorTree<&str>, mut depth: u32, input: &str, buffer: &mut String) {
+    match error {
+        ErrorTree::Base { location, kind } => {
+            buffer
+                .write_fmt(format_args!(
+                    "{}{} at {}\n",
+                    indent(depth),
+                    format_kind(kind),
+                    format_location(input, location)
+                ))
+                .unwrap();
+        }
+        ErrorTree::Stack { base, contexts } => {
+            let mut show_nested = true;
+            for (location, ctx) in contexts.into_iter().rev() {
+                let ctx_str = match ctx {
+                    StackContext::Kind(kind) => format!("{:?}", kind),
+                    StackContext::Context(ctx) => {
+                        if TERMINAL_CONTEXTS.contains(&ctx) {
+                            show_nested = false;
+                        }
+
+                        ctx.to_string()
+                    }
+                };
+                buffer
+                    .write_fmt(format_args!(
+                        "{}expected {} at {}",
+                        indent(depth),
+                        ctx_str,
+                        format_location(input, location)
+                    ))
+                    .unwrap();
+                buffer.push_str("\n");
+            }
+            if show_nested {
+                format_error(*base, depth + 1, input, buffer);
+            }
+        }
+        ErrorTree::Alt(mut choices) => {
+            // If an external error (`map_res`) has happened, it should have higher priority
+            // than other alternatives.
+            let external_error_index = choices.iter().position(|c| match c {
+                ErrorTree::Base { kind, .. } => match kind {
+                    BaseErrorKind::External(_) => true,
+                    _ => false,
+                },
+                _ => false,
+            });
+
+            match external_error_index {
+                Some(index) => format_error(choices.swap_remove(index), depth, input, buffer),
+                None => {
+                    let length = choices.len();
+                    buffer
+                        .write_fmt(format_args!(
+                            "{}expected one of the following {} variants:\n",
+                            indent(depth),
+                            length
+                        ))
+                        .unwrap();
+
+                    depth += 1;
+
+                    for (index, choice) in choices.into_iter().enumerate() {
+                        format_error(choice, depth, input, buffer);
+                        if index != length - 1 {
+                            buffer.push_str(&indent(depth));
+                            buffer.push_str("or\n");
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
-impl<I> ParseError<I> for ParserError<I> {
-    fn from_error_kind(input: I, kind: ErrorKind) -> Self {
-        ParserError::Nom(input, kind)
-    }
-
-    fn append(_: I, _: ErrorKind, other: Self) -> Self {
-        other
-    }
-}
-
-impl<I: Display, E: Into<anyhow::Error>> FromExternalError<I, E> for ParserError<I> {
-    fn from_external_error(input: I, _: ErrorKind, error: E) -> Self {
-        ParserError::Custom(anyhow::anyhow!("'{}': {}", input, error.into()))
-    }
-}
-
-pub(crate) fn format_parse_error<I: Debug>(error: nom::Err<ParserError<I>>) -> anyhow::Error {
+pub(crate) fn format_parse_error(error: nom::Err<ParserError<&str>>, input: &str) -> anyhow::Error {
     match error {
-        nom::Err::Error(e) | nom::Err::Failure(e) => anyhow::anyhow!("{:?}", e),
-        _ => anyhow::anyhow!(error.to_string()),
+        nom::Err::Error(e) | nom::Err::Failure(e) => {
+            let mut buffer = format!("Parse error\n");
+            format_error(e.0, 0, input, &mut buffer);
+            anyhow::anyhow!("{}", buffer.trim_end())
+        }
+        nom::Err::Incomplete(needed) => anyhow::anyhow!("Incomplete input (needed: {:?})", needed),
     }
 }
 
 pub type NomResult<'a, Ret> = IResult<&'a str, Ret, ParserError<&'a str>>;
+
+pub fn map_parse_result<O>(
+    result: Result<O, nom::Err<ParserError<&str>>>,
+    input: &str,
+) -> anyhow::Result<O> {
+    result.map_err(|e| format_parse_error(e, input))
+}
+
+/// Take a parser and input and return Result with a formatted error.
+pub fn consume_all<'a, O, F>(f: F, input: &'a str) -> anyhow::Result<O>
+where
+    F: FnMut(&'a str) -> NomResult<O>,
+{
+    map_parse_result(all_consuming(f)(input).map(|r| r.1), input)
+}
 
 fn p_integer_string(input: &str) -> NomResult<String> {
     let parser = tuple((
@@ -61,27 +219,27 @@ fn p_integer_string(input: &str) -> NomResult<String> {
     })(input)
 }
 
+/// Parse 4 byte integer.
 pub fn p_u32(input: &str) -> NomResult<u32> {
-    map_res(p_integer_string, |number| number.parse::<u32>())(input)
+    map_res(p_integer_string, |number| number.parse())
+        .context(CONTEXT_INTEGER)
+        .parse(input)
 }
 
+/// Parse 8 byte integer
 pub fn p_u64(input: &str) -> NomResult<u64> {
-    map_res(p_integer_string, |number| number.parse::<u64>())(input)
-}
-
-pub fn consume_all<'a, O, F>(f: F, input: &'a str) -> anyhow::Result<O>
-where
-    F: FnMut(&'a str) -> NomResult<O>,
-{
-    all_consuming(f)(input)
-        .map(|r| r.1)
-        .map_err(format_parse_error)
+    map_res(p_integer_string, |number| number.parse())
+        .context(CONTEXT_INTEGER)
+        .parse(input)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::p_u32;
     use nom::combinator::all_consuming;
+
+    use crate::tests::utils::check_parse_error;
+
+    use super::p_u32;
 
     #[test]
     fn test_parse_u32() {
@@ -92,12 +250,22 @@ mod tests {
 
     #[test]
     fn test_parse_u32_empty() {
-        assert!(all_consuming(p_u32)("").is_err());
+        check_parse_error(
+            p_u32,
+            "",
+            r#"Parse error
+expected integer at the end of input"#,
+        );
     }
 
     #[test]
     fn test_parse_u32_invalid() {
-        assert!(all_consuming(p_u32)("x").is_err());
+        check_parse_error(
+            p_u32,
+            "x",
+            r#"Parse error
+expected integer at character 0: "x""#,
+        );
     }
 
     #[test]
@@ -115,7 +283,17 @@ mod tests {
 
     #[test]
     fn test_parse_u32_starts_with_underscore() {
-        assert!(all_consuming(p_u32)("_").is_err());
-        assert!(all_consuming(p_u32)("_1").is_err());
+        check_parse_error(
+            p_u32,
+            "_",
+            r#"Parse error
+expected integer at character 0: "_""#,
+        );
+        check_parse_error(
+            p_u32,
+            "_1",
+            r#"Parse error
+expected integer at character 0: "_1""#,
+        );
     }
 }

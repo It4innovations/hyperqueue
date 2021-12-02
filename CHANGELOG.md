@@ -4,6 +4,7 @@
 
   * You can now specify the timelimit of PBS/Slurm allocations using the `HH:MM:SS` format:
     `hq alloc add pbs --time-limit 01:10:30`.
+  * Improve error messages printed when an invalid CLI parameter is entered.
 
 # v0.6.1
 
