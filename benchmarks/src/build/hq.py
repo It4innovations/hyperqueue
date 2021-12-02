@@ -4,7 +4,7 @@ import shutil
 import stat
 import subprocess
 from pathlib import Path
-from typing import List, Iterator, Tuple
+from typing import List, Iterable
 
 import dataclasses
 
@@ -17,6 +17,12 @@ class BuildConfig:
     git_ref: str = TAG_WORKSPACE
     release: bool = True
     zero_worker: bool = False
+
+
+@dataclasses.dataclass
+class BuiltBinary:
+    config: BuildConfig
+    binary_path: Path
 
 
 def get_build_dir(options: BuildConfig) -> Path:
@@ -69,13 +75,14 @@ def build_tag(config: BuildConfig, resolved_ref: str) -> Path:
     return path
 
 
-def iterate_binaries(configs: List[BuildConfig]) -> Iterator[Tuple[BuildConfig, str]]:
+def iterate_binaries(configs: List[BuildConfig]) -> Iterable[BuiltBinary]:
     """
     Iterate HyperQueue binaries from the given build configurations.
     If the binary is not built yet, it will be compiled first.
     """
+
     # Make sure that the current version is compiled first
-    # Make sure that zero-worker is build directly after/before the non zero-worker variant
+    # Make sure that zero-worker is built directly after/before the non zero-worker variant
     def sort_key(git_ref: str) -> str:
         if git_ref == TAG_WORKSPACE:
             return ""
@@ -86,4 +93,4 @@ def iterate_binaries(configs: List[BuildConfig]) -> Iterator[Tuple[BuildConfig, 
     for config in configs:
         ref = resolve_tag(config.git_ref)
         logging.info(f"Resolved tag {config.git_ref} to {ref}")
-        yield (config, build_tag(config, ref))
+        yield BuiltBinary(config=config, binary_path=build_tag(config, ref))
