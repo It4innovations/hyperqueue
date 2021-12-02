@@ -8,6 +8,7 @@ use crate::worker::hwmonitor::WorkerHwState;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, WorkerId};
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ConnectionRegistration {
     Worker(RegisterWorker),

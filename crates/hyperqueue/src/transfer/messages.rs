@@ -15,6 +15,7 @@ use std::time::Duration;
 use tako::messages::gateway::{CollectedOverview, OverviewRequest};
 
 // Messages client -> server
+#[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum FromClientMessage {
     Submit(SubmitRequest),

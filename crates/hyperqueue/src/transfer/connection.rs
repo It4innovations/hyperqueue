@@ -130,17 +130,17 @@ impl ServerConnection {
 
 fn serialize_message<S: Serialize>(
     item: S,
-    mut sealer: &mut Option<StreamSealer>,
+    sealer: &mut Option<StreamSealer>,
 ) -> crate::Result<Bytes> {
     let data = tako::transfer::auth::serialize(&item)?;
-    Ok(seal_message(&mut sealer, data.into()))
+    Ok(seal_message(sealer, data.into()))
 }
 
 fn deserialize_message<R: DeserializeOwned>(
     message: Result<BytesMut, std::io::Error>,
-    mut opener: &mut Option<StreamOpener>,
+    opener: &mut Option<StreamOpener>,
 ) -> crate::Result<R> {
     let message = message?;
-    let item = open_message(&mut opener, &message)?;
+    let item = open_message(opener, &message)?;
     Ok(item)
 }

@@ -294,6 +294,8 @@ fn get_event_log(state_ref: &StateRef, descriptor: DescriptorId) -> ToClientMess
     }
 }
 
+// The code doesn't compile if the Box closures are removed
+#[allow(clippy::redundant_closure)]
 fn create_queue(
     server_dir: &ServerDir,
     state_ref: &StateRef,
