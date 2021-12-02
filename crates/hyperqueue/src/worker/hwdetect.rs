@@ -5,11 +5,12 @@ use tako::common::resources::{
     GenericResourceIndex, NumOfCpus,
 };
 
-use nom::bytes::complete::tag;
 use nom::character::complete::{newline, space0};
 use nom::combinator::{map_res, opt};
 use nom::multi::separated_list1;
 use nom::sequence::{preceded, terminated, tuple};
+use nom::Parser;
+use nom_supreme::tag::complete::tag;
 use tako::common::resources::descriptor::{
     cpu_descriptor_from_socket_size, GenericResourceKindIndices,
 };
@@ -73,7 +74,8 @@ fn p_cpu_range(input: &str) -> NomResult<Vec<CpuId>> {
             )),
         )),
         |(u, v)| crate::Result::Ok((u..=v.unwrap_or(u)).map(|id| id.into()).collect()),
-    )(input)
+    )
+    .parse(input)
 }
 
 fn p_cpu_ranges(input: &str) -> NomResult<Vec<CpuId>> {

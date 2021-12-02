@@ -1,8 +1,9 @@
 use nom::branch::alt;
-use nom::bytes::complete::tag;
 use nom::character::complete::{alphanumeric1, char, multispace0, multispace1};
 use nom::combinator::{map, map_res, opt};
 use nom::sequence::{preceded, separated_pair, tuple};
+use nom_supreme::tag::complete::tag;
+use nom_supreme::ParserExt;
 
 use tako::common::resources::{CpuRequest, GenericResourceAmount};
 
@@ -41,9 +42,9 @@ pub fn parse_cpu_request(input: &str) -> anyhow::Result<CpuRequest> {
 fn p_resource_request(input: &str) -> NomResult<(String, GenericResourceAmount)> {
     map(
         separated_pair(
-            alphanumeric1,
+            alphanumeric1.context("Resource identifier"),
             tuple((multispace0, char('='), multispace0)),
-            p_u64,
+            p_u64.context("Resource amount"),
         ),
         |(name, value)| (name.to_string(), value),
     )(input)
@@ -56,6 +57,7 @@ pub fn parse_resource_request(input: &str) -> anyhow::Result<(String, GenericRes
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::tests::utils::check_parse_error;
 
     #[test]
     fn test_parse_cpu_request() {
@@ -77,7 +79,12 @@ mod test {
 
     #[test]
     fn test_parse_zero_cpus() {
-        assert!(parse_cpu_request("0").is_err());
+        check_parse_error(
+            p_cpu_request,
+            "0",
+            r#"Parse error
+"Requesting zero cpus is not allowed" at character 0: "0""#,
+        );
     }
 
     #[test]
@@ -89,6 +96,30 @@ mod test {
         assert_eq!(
             parse_resource_request("X = 1").unwrap(),
             ("X".to_string(), 1)
+        );
+    }
+
+    #[test]
+    fn test_parse_resource_request_error() {
+        check_parse_error(
+            p_resource_request,
+            "",
+            r#"Parse error
+expected Resource identifier at the end of input
+  expected alphanumeric character at the end of input"#,
+        );
+        check_parse_error(
+            p_resource_request,
+            "a",
+            r#"Parse error
+expected "=" at the end of input"#,
+        );
+        check_parse_error(
+            p_resource_request,
+            "a=x",
+            r#"Parse error
+expected Resource amount at character 2: "x"
+expected integer at character 2: "x""#,
         );
     }
 }
