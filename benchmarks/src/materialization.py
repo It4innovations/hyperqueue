@@ -1,28 +1,28 @@
-import dataclasses
 import inspect
 import os.path
 from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple
 
-import tqdm
+import dataclasses
 
 from . import ROOT_DIR
 from .benchmark import BenchmarkInstance
-from .benchmark.database import Database
 from .benchmark.identifier import BenchmarkIdentifier
-from .benchmark.runner import BenchmarkRunner
 from .clusterutils import ClusterInfo, NodeList
 from .clusterutils.node_list import Local
 from .environment import Environment
-from .environment.hq import HqClusterInfo, HqEnvironment, HqWorkerConfig, ProfileMode
+from .environment.hq import HqClusterInfo, HqEnvironment, HqWorkerConfig, ProfileMode, \
+    HqWorkerResources, HqSumWorkerResource, HqIndicesWorkerResource
 from .workloads import SleepHQ, Workload
+from .workloads.sleep_resources import SleepWithResourcesHQ
 from .workloads.stress import StressHQ
 
 DEFAULT_HQ_BINARY_PATH = ROOT_DIR / "target" / "release" / "hq"
 
 HQ_ENV = "hq"
 
-WORKLOADS = {"sleep": {HQ_ENV: SleepHQ}, "stress": {HQ_ENV: StressHQ}}
+WORKLOADS = {"sleep": {HQ_ENV: SleepHQ}, "sleep_resources": {HQ_ENV: SleepWithResourcesHQ},
+             "stress": {HQ_ENV: StressHQ}}
 
 
 def _check_type_all(iterable, type):
@@ -32,7 +32,35 @@ def _check_type_all(iterable, type):
     return True
 
 
+def parse_hq_worker_resources(data) -> HqWorkerResources:
+    if data is None:
+        return {}
+    assert isinstance(data, dict)
+
+    def parse_resource(item):
+        if item["type"] == "sum":
+            return HqSumWorkerResource(item["amount"])
+        elif item["type"] == "indices":
+            return HqIndicesWorkerResource(item["start"], item["end"])
+        else:
+            assert False
+
+    return {
+        k: parse_resource(v)
+        for (k, v) in data.items()
+    }
+
+
 def parse_hq_workers(data) -> List[HqWorkerConfig]:
+    """
+    None -> one simple worker
+    integer `n` -> `n` simple workers
+    list of integer or `None` -> each worker will be parsed as `None` or integer
+    list of dict {
+        "cpus",
+        "node"
+    }
+    """
     if data is None:
         return [HqWorkerConfig()]
     elif isinstance(data, int):
@@ -41,13 +69,17 @@ def parse_hq_workers(data) -> List[HqWorkerConfig]:
         return [HqWorkerConfig(cpus) for cpus in data]
     else:
         return [
-            HqWorkerConfig(cpus=config.get("cpus"), node=config.get("node"))
+            HqWorkerConfig(
+                cpus=config.get("cpus"),
+                node=config.get("node"),
+                resources=parse_hq_worker_resources(config.get("resources"))
+            )
             for config in data
         ]
 
 
 def parse_hq_environment(
-    info: ClusterInfo, identifier: BenchmarkIdentifier
+        info: ClusterInfo, identifier: BenchmarkIdentifier
 ) -> HqEnvironment:
     metadata = identifier.metadata
     hq_metadata = metadata.get("hq", {})
@@ -73,7 +105,7 @@ def parse_environment(identifier: BenchmarkIdentifier, workdir: Path) -> Environ
 
 
 def validate_workload_args(
-    workload: Workload, workload_name: str, arguments: Dict[str, Any]
+        workload: Workload, workload_name: str, arguments: Dict[str, Any]
 ):
     signature = inspect.signature(workload.execute)
     params = dict(signature.parameters)
@@ -151,7 +183,7 @@ def parse_profile_mode(data) -> ProfileMode:
 
 
 def materialize_benchmark(
-    identifier: BenchmarkIdentifier, workdir: Path
+        identifier: BenchmarkIdentifier, workdir: Path
 ) -> Tuple[BenchmarkIdentifier, BenchmarkInstance]:
     env_type = identifier.environment
 
@@ -183,46 +215,30 @@ def materialize_benchmark(
 
 
 def create_benchmark_key(
-    workload: str,
-    workload_params: Dict[str, Any],
-    environment: str,
-    environment_params: Dict[str, Any],
-    index: int,
+        workload: str,
+        workload_params: Dict[str, Any],
+        environment: str,
+        environment_params: Dict[str, Any],
+        index: int,
 ) -> str:
     return (
-        f"{workload}-{format_dict(workload_params)}-{environment}-{format_dict(environment_params)}"
+        f"{workload}-{format_value(workload_params)}-{environment}-{format_value(environment_params)}"
         f"-{index}"
     )
 
 
-def format_dict(data: Dict[str, Any]) -> str:
-    items = sorted(data.items())
-    return "_".join(format_parameter(key, value) for (key, value) in items)
-
-
-def format_parameter(key: str, value):
-    value = value or "default"
-
-    if isinstance(value, str) and Path(value).exists():
-        value = os.path.basename(value)
-    return f"{key}-{value}"
-
-
-DEFAULT_DATA_JSON = "data.json"
-
-
-def run_benchmark_suite(
-    workdir: Path, identifiers: List[BenchmarkIdentifier]
-) -> Database:
-    database = Database(workdir / DEFAULT_DATA_JSON)
-    runner = BenchmarkRunner(
-        database, workdir=workdir, materialize_fn=materialize_benchmark
-    )
-
-    for (_identifier, _benchmark, _result) in tqdm.tqdm(
-        runner.compute(identifiers), total=len(identifiers)
-    ):
-        pass
-
-    runner.save()
-    return database
+def format_value(value):
+    if isinstance(value, dict):
+        items = sorted(value.items())
+        return "_".join(f"{format_value(k)}={format_value(v)}" for (k, v) in items)
+    elif isinstance(value, (list, tuple)):
+        items = sorted(value)
+        return "_".join(format_value(v) for v in items)
+    elif isinstance(value, str):
+        if Path(value).exists():
+            return os.path.basename(value)
+        return value
+    elif value is None:
+        return format_value("default")
+    else:
+        return str(value)

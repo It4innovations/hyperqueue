@@ -11,21 +11,49 @@ from ..clusterutils.cluster_helper import ClusterHelper, StartProcessArgs
 from ..clusterutils.node_list import Local
 from ..clusterutils.profiler import NativeProfiler
 from ..utils import check_file_exists
+from ..utils.process import execute_process
 from ..utils.timing import wait_until
 from . import Environment
 
 
+@dataclasses.dataclass(frozen=True)
 class ProfileMode:
-    def __init__(self, server=False, workers=False, frequency=99):
-        self.server = server
-        self.workers = workers
-        self.frequency = frequency
+    server: bool = False
+    workers: bool = False
+    frequency: int = 99
+
+
+@dataclasses.dataclass(frozen=True)
+class HqWorkerResource:
+    def format(self) -> str:
+        raise NotImplementedError
+
+
+@dataclasses.dataclass(frozen=True)
+class HqSumWorkerResource(HqWorkerResource):
+    amount: int
+
+    def format(self) -> str:
+        return f"sum({self.amount})"
+
+
+@dataclasses.dataclass(frozen=True)
+class HqIndicesWorkerResource(HqWorkerResource):
+    start: int
+    end: int
+
+    def format(self) -> str:
+        return f"indices({self.start}-{self.end})"
+
+
+HqWorkerResources = Dict[str, HqWorkerResource]
 
 
 @dataclasses.dataclass(frozen=True)
 class HqWorkerConfig:
     cpus: Optional[int] = None
     node: Optional[int] = None
+    resources: HqWorkerResources = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -95,7 +123,6 @@ class HqEnvironment(Environment):
         logging.debug(f"Worker assignment: {self.worker_assignment}")
 
         self.submit_id = 0
-
         self.state = "initial"
 
     def __enter__(self):
@@ -148,11 +175,15 @@ class HqEnvironment(Environment):
         items = sorted(worker_assignment.items(), key=lambda item: item[0])
         for (node, workers) in items:
             for (worker_index, worker) in enumerate(workers):
+                worker: HqWorkerConfig = worker
+
                 worker_index = f"worker-{node}-{worker_index}"
                 workdir = self.server_dir / worker_index
                 args = self._shared_args() + ["worker", "start"]
                 if worker.cpus is not None:
                     args += ["--cpus", str(worker.cpus)]
+                for (name, resource) in worker.resources.items():
+                    args += ["--resource", f"{name}={resource.format()}"]
                 args = StartProcessArgs(
                     args=args,
                     hostname=node,
@@ -172,17 +203,11 @@ class HqEnvironment(Environment):
         self.cluster.stop(use_sigint=True)
         self.state = "stopped"
 
-    def submit(self, args: List[str]):
+    def submit(self, args: List[str]) -> subprocess.CompletedProcess:
         path = self.server_dir / f"submit-{self.submit_id}"
-        with open(f"{path}.out", "wb") as stdout:
-            with open(f"{path}.err", "wb") as stderr:
-                result = subprocess.run(
-                    self._shared_args() + args,
-                    check=True,
-                    stdin=subprocess.DEVNULL,
-                    stdout=stdout,
-                    stderr=stderr,
-                )
+        stdout = Path(f"{path}.out")
+        stderr = Path(f"{path}.err")
+        result = execute_process(self._shared_args() + args, stdout=stdout, stderr=stderr)
 
         self.submit_id += 1
         return result
