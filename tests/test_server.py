@@ -3,6 +3,7 @@ import os
 import signal
 import socket
 import subprocess
+from contextlib import closing
 from typing import List
 
 import pytest
@@ -25,19 +26,28 @@ def start_server_get_output(hq_env: HqEnv, args: List[str]) -> Table:
     return parse_table(stdout)
 
 
+def find_free_port():
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(("", 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
+
+
 def test_server_host(hq_env: HqEnv):
     table = start_server_get_output(hq_env, ["--host", "abcd123"])
     table.check_row_value("Host", "abcd123")
 
 
 def test_server_client_port(hq_env: HqEnv):
-    table = start_server_get_output(hq_env, ["--client-port", "54782"])
-    table.check_row_value("HQ port", "54782")
+    port = str(find_free_port())
+    table = start_server_get_output(hq_env, ["--client-port", port])
+    table.check_row_value("HQ port", port)
 
 
 def test_server_worker_port(hq_env: HqEnv):
-    table = start_server_get_output(hq_env, ["--worker-port", "54783"])
-    table.check_row_value("Workers port", "54783")
+    port = str(find_free_port())
+    table = start_server_get_output(hq_env, ["--worker-port", port])
+    table.check_row_value("Workers port", port)
 
 
 def test_version_mismatch(hq_env: HqEnv):
