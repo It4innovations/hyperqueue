@@ -121,7 +121,7 @@ def submit(
 
     logging.info(f"Submitting PBS script: {script_path}")
     logging.debug(f"Script body: {script_body}")
-    result = subprocess.run(["qsub", script_path], stdout=subprocess.PIPE)
+    result = subprocess.run(["qsub", script_path], stdout=subprocess.PIPE, check=True)
     job_id = result.stdout.decode().strip()
     logging.info(f"Job id: {job_id}")
 

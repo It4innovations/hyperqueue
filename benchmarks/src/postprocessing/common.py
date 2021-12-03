@@ -1,6 +1,5 @@
 import dataclasses
 from collections import defaultdict
-from pathlib import Path
 from typing import Any, Dict
 
 import numpy as np
@@ -8,7 +7,6 @@ import pandas as pd
 from cluster.cluster import ProcessInfo
 
 from ..benchmark.database import Database
-from ..materialization import DEFAULT_DATA_JSON
 from .report import ClusterReport
 
 
@@ -36,18 +34,6 @@ def groupby_workload(df: pd.DataFrame):
 
 def groupby_environment(df: pd.DataFrame):
     return df.groupby(["env", "env-params"])
-
-
-def load_database(path: Path) -> Database:
-    if path.is_file():
-        database_path = path
-    elif path.is_dir():
-        database_path = path / DEFAULT_DATA_JSON
-        assert database_path.is_file()
-    else:
-        raise Exception(f"{path} is not a valid file or directory")
-
-    return Database(database_path)
 
 
 def create_process_key(process: ProcessInfo):
