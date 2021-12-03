@@ -9,4 +9,4 @@ from ..workloads import Workload
 class BenchmarkInstance:
     environment: Environment
     workload: Workload
-    workload_params: Dict[str, Any] = dataclasses.field(default_factory=lambda: {})
+    workload_params: Dict[str, Any] = dataclasses.field(default_factory=dict)

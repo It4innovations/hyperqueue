@@ -57,11 +57,15 @@ class Database:
     def records(self) -> List[DatabaseRecord]:
         return list(self.data.values())
 
+    def has_key(self, key) -> bool:
+        return key in self.data
+
     def has_record_for(self, identifier: BenchmarkIdentifier) -> bool:
-        return create_identifier_key(identifier) in self.data
+        return self.has_key(create_identifier_key(identifier))
 
     def store(self, identifier: BenchmarkIdentifier, result: BenchmarkResultRecord):
-        assert not self.has_record_for(identifier)
+        key = create_identifier_key(identifier)
+        assert not self.has_key(key)
 
         key = create_identifier_key(identifier)
         record = DatabaseRecord(

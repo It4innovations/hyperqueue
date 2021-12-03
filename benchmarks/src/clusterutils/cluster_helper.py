@@ -30,9 +30,9 @@ class StartProcessArgs:
     hostname: str
     name: str
     workdir: Optional[Path] = None
-    env: Dict[str, str] = dataclasses.field(default_factory=lambda: {})
-    init_cmd: List[str] = dataclasses.field(default_factory=lambda: [])
-    metadata: Dict[str, Any] = dataclasses.field(default_factory=lambda: {})
+    env: Dict[str, str] = dataclasses.field(default_factory=dict)
+    init_cmd: List[str] = dataclasses.field(default_factory=list)
+    metadata: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 class ClusterHelper:

@@ -15,12 +15,15 @@ class BenchmarkIdentifier(DataClassDictMixin):
     # Number of the benchmark run
     index: int = 0
     # Parameters passed to the workload function
-    workload_params: Dict[str, Any] = dataclasses.field(default_factory=lambda: {})
+    workload_params: Dict[str, Any] = dataclasses.field(default_factory=dict)
     # Additional metadata describing the benchmark
-    metadata: Dict[str, Any] = dataclasses.field(default_factory=lambda: {})
+    metadata: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def timeout(self) -> Optional[float]:
         return self.metadata.get("timeout")
+
+    def workdir(self) -> Optional[str]:
+        return self.metadata.get("workdir")
 
 
 def repeat_benchmark(
