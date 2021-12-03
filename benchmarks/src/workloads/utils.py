@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import List, Dict, Optional
 
 from ..environment import Environment
 from ..environment.hq import HqEnvironment
@@ -9,7 +9,8 @@ from .workload import WorkloadExecutionResult
 
 
 def measure_hq_tasks(
-    env: Environment, command: List[str], task_count: int, cpus_per_task=1
+    env: Environment, command: List[str], task_count: int, cpus_per_task=1,
+        resources: Optional[Dict[str, int]] = None
 ) -> WorkloadExecutionResult:
     assert isinstance(env, HqEnvironment)
 
@@ -24,9 +25,17 @@ def measure_hq_tasks(
         "--wait",
         "--cpus",
         str(cpus_per_task),
+    ]
+
+    resources = resources or {}
+    for (name, amount) in resources.items():
+        args += ["--resource", f"{name}={amount}"]
+
+    args += [
         "--",
         *command,
     ]
+
     logging.debug(f"[HQ] Submitting {' '.join(args)}")
 
     timer = Timings()
