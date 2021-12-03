@@ -3,8 +3,9 @@ from pathlib import Path
 from typing import Any, Dict
 
 import typer
-from src.postprocessing.common import load_database
 from swclient.client import Client, Measurement
+
+from src.benchutils import load_database
 
 app = typer.Typer()
 
