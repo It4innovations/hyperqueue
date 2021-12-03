@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Callable, List, Tuple
 
 from . import BenchmarkInstance
-from .database import BenchmarkResultRecord, Database
+from .database import BenchmarkResultRecord, Database, create_identifier_key
 from .executor import BenchmarkExecutor
 from .identifier import BenchmarkIdentifier
 from .result import BenchmarkResult, Failure, Success, Timeout
@@ -20,12 +20,14 @@ class BenchmarkRunner:
         materialize_fn: Callable[
             [BenchmarkIdentifier, Path], Tuple[BenchmarkIdentifier, BenchmarkInstance]
         ],
+        exit_on_error=True
     ):
         self.database = database
         self.executor = BenchmarkExecutor()
         self.workdir = workdir.absolute()
         self.workdir.mkdir(parents=True, exist_ok=True)
         self.materialize_fn = materialize_fn
+        self.exit_on_error = exit_on_error
 
     def compute(self, identifiers: List[BenchmarkIdentifier]):
         not_completed = self._skip_completed(identifiers)
@@ -62,7 +64,12 @@ class BenchmarkRunner:
         self, identifiers: List[BenchmarkIdentifier]
     ) -> List[BenchmarkIdentifier]:
         not_completed = []
+        visited = set()
         for identifier in identifiers:
+            key = create_identifier_key(identifier)
+            if key in visited:
+                raise Exception(f"Duplicated identifier: {identifier} in {identifiers}")
+            visited.add(key)
             if not self.database.has_record_for(identifier):
                 not_completed.append(identifier)
         return not_completed
@@ -73,7 +80,9 @@ class BenchmarkRunner:
 
         if isinstance(result, Failure):
             logging.error(f"Benchmark {key} has failed: {result.traceback}")
-            return
+            if self.exit_on_error:
+                raise Exception(f"""Benchmark {identifier} has failed: {result}
+You can find details in {identifier.workdir()}""")
         elif isinstance(result, Timeout):
             logging.info(f"Benchmark {key} has timeouted after {result.timeout}s")
         elif isinstance(result, Success):
