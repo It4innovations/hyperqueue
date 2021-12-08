@@ -11,10 +11,10 @@ use nom_supreme::final_parser::{ByteOffset, RecreateContext};
 use nom_supreme::tag::TagError;
 use nom_supreme::ParserExt;
 
-const CONTEXT_INTEGER: &'static str = "integer";
+const CONTEXT_INTEGER: &str = "integer";
 
 // Parser implementation details below these contexts will not be shown to the user
-const TERMINAL_CONTEXTS: [&'static str; 1] = [CONTEXT_INTEGER];
+const TERMINAL_CONTEXTS: [&str; 1] = [CONTEXT_INTEGER];
 
 #[derive(Debug)]
 pub struct ParserError<I>(ErrorTree<I>);
@@ -73,16 +73,16 @@ fn format_kind(kind: BaseErrorKind) -> String {
         BaseErrorKind::Expected(expectation) => match expectation {
             Expectation::Tag(tag) => format!(r#"expected "{}""#, tag),
             Expectation::Char(c) => format!(r#"expected "{}""#, c),
-            Expectation::Alpha => format!("expected alphabet character"),
+            Expectation::Alpha => "expected alphabet character".to_string(),
             Expectation::Digit | Expectation::HexDigit | Expectation::OctDigit => {
-                format!("expected digit")
+                "expected digit".to_string()
             }
-            Expectation::AlphaNumeric => format!("expected alphanumeric character"),
+            Expectation::AlphaNumeric => "expected alphanumeric character".to_string(),
             Expectation::Space | Expectation::Multispace | Expectation::CrLf => {
-                format!("expected whitespace")
+                "expected whitespace".to_string()
             }
-            Expectation::Eof => format!("expected end of input"),
-            _ => format!("expected something"),
+            Expectation::Eof => "expected end of input".to_string(),
+            _ => "expected something".to_string(),
         },
         BaseErrorKind::Kind(kind) => format!("expected: {:?}", kind),
         BaseErrorKind::External(error) => format!(r#""{:?}""#, error),
@@ -90,8 +90,8 @@ fn format_kind(kind: BaseErrorKind) -> String {
 }
 
 fn format_location(input: &str, location: &str) -> String {
-    if location == "" {
-        format!("the end of input")
+    if location.is_empty() {
+        "the end of input".to_string()
     } else {
         let offset = ByteOffset::recreate_context(input, location).0;
         format!("character {}: {:?}", offset, location)
@@ -135,7 +135,7 @@ fn format_error(error: ErrorTree<&str>, mut depth: u32, input: &str, buffer: &mu
                         format_location(input, location)
                     ))
                     .unwrap();
-                buffer.push_str("\n");
+                buffer.push('\n');
             }
             if show_nested {
                 format_error(*base, depth + 1, input, buffer);
@@ -144,12 +144,14 @@ fn format_error(error: ErrorTree<&str>, mut depth: u32, input: &str, buffer: &mu
         ErrorTree::Alt(mut choices) => {
             // If an external error (`map_res`) has happened, it should have higher priority
             // than other alternatives.
-            let external_error_index = choices.iter().position(|c| match c {
-                ErrorTree::Base { kind, .. } => match kind {
-                    BaseErrorKind::External(_) => true,
-                    _ => false,
-                },
-                _ => false,
+            let external_error_index = choices.iter().position(|c| {
+                matches!(
+                    c,
+                    ErrorTree::Base {
+                        kind: BaseErrorKind::External(_),
+                        ..
+                    }
+                )
             });
 
             match external_error_index {
@@ -182,7 +184,7 @@ fn format_error(error: ErrorTree<&str>, mut depth: u32, input: &str, buffer: &mu
 pub(crate) fn format_parse_error(error: nom::Err<ParserError<&str>>, input: &str) -> anyhow::Error {
     match error {
         nom::Err::Error(e) | nom::Err::Failure(e) => {
-            let mut buffer = format!("Parse error\n");
+            let mut buffer = "Parse error\n".to_string();
             format_error(e.0, 0, input, &mut buffer);
             anyhow::anyhow!("{}", buffer.trim_end())
         }
