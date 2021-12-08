@@ -4,7 +4,7 @@ import logging
 import subprocess
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from ..clusterutils import ClusterInfo
 from ..clusterutils.cluster_helper import ClusterHelper, StartProcessArgs
@@ -13,7 +13,7 @@ from ..clusterutils.profiler import NativeProfiler
 from ..utils import check_file_exists
 from ..utils.process import execute_process
 from ..utils.timing import wait_until
-from . import Environment
+from . import Environment, EnvironmentDescriptor
 
 
 @dataclasses.dataclass(frozen=True)
@@ -57,13 +57,26 @@ class HqWorkerConfig:
 
 
 @dataclasses.dataclass(frozen=True)
-class HqClusterInfo:
+class HqClusterInfo(EnvironmentDescriptor):
     cluster: ClusterInfo
     binary: Path
     workers: List[HqWorkerConfig]
     # Enable debug logging on server and workers
     debug: bool = False
     profile_mode: ProfileMode = dataclasses.field(default_factory=lambda: ProfileMode())
+    # Additional information that describes the environment
+    environment_params: Dict[str, Any] = dataclasses.field(default_factory=dict)
+
+    def create_environment(self, workdir: Path) -> Environment:
+        return HqEnvironment(self, workdir)
+
+    def name(self) -> str:
+        return "hq"
+
+    def parameters(self) -> Dict[str, Any]:
+        params = dict(worker_count=len(self.workers))
+        params.update(self.environment_params)
+        return params
 
 
 def assign_workers(
@@ -98,13 +111,14 @@ def assign_workers(
 
 
 class HqEnvironment(Environment):
-    def __init__(self, info: HqClusterInfo):
+    def __init__(self, info: HqClusterInfo, workdir: Path):
         self.info = info
-        self.cluster = ClusterHelper(self.info.cluster)
+        self.cluster = ClusterHelper(self.info.cluster, workdir=workdir)
         self.binary_path = self.info.binary.absolute()
         check_file_exists(self.binary_path)
 
-        self.server_dir = self.info.cluster.workdir / "hq"
+        self._workdir = workdir
+        self.server_dir = self.workdir / "hq"
 
         self.nodes = self.info.cluster.node_list.resolve()
         assert self.nodes
@@ -134,7 +148,7 @@ class HqEnvironment(Environment):
 
     @property
     def workdir(self) -> Path:
-        return self.info.cluster.workdir
+        return self._workdir
 
     def start(self):
         assert self.state == "initial"
@@ -207,7 +221,9 @@ class HqEnvironment(Environment):
         path = self.server_dir / f"submit-{self.submit_id}"
         stdout = Path(f"{path}.out")
         stderr = Path(f"{path}.err")
-        result = execute_process(self._shared_args() + args, stdout=stdout, stderr=stderr)
+        result = execute_process(
+            self._shared_args() + args, stdout=stdout, stderr=stderr
+        )
 
         self.submit_id += 1
         return result

@@ -4,11 +4,11 @@ from typing import Dict, List, Optional
 
 
 def execute_process(
-        args: List[str],
-        stdout: Path,
-        stderr: Path,
-        env: Optional[Dict[str, str]] = None,
-        check=True
+    args: List[str],
+    stdout: Path,
+    stderr: Path,
+    env: Optional[Dict[str, str]] = None,
+    check=True,
 ) -> subprocess.CompletedProcess:
     with open(stdout, "wb") as stdout_file:
         with open(stderr, "wb") as stderr_file:
@@ -28,5 +28,6 @@ def execute_process(
                         f"""The process {args} has exited with error code {result.returncode}
 Stdout: {stdout_file.read()}
 Stderr: {stderr_file.read()}
-""".strip())
+""".strip()
+                    )
     return result

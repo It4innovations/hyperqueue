@@ -1,53 +1,46 @@
 import logging
 import traceback
 from pathlib import Path
-from typing import Callable, List, Tuple
+from typing import Iterable, List, Tuple
 
-from . import BenchmarkInstance
-from .database import BenchmarkResultRecord, Database, create_identifier_key
-from .executor import BenchmarkExecutor
-from .identifier import BenchmarkIdentifier
+from .database import BenchmarkResultRecord, Database
+from .executor import DEFAULT_TIMEOUT_S, BenchmarkContext, BenchmarkExecutor
+from .identifier import (
+    BenchmarkDescriptor,
+    BenchmarkIdentifier,
+    BenchmarkInstance,
+    create_identifiers,
+)
 from .result import BenchmarkResult, Failure, Success, Timeout
-
-DEFAULT_TIMEOUT_S = 180.0
 
 
 class BenchmarkRunner:
-    def __init__(
-        self,
-        database: Database,
-        workdir: Path,
-        materialize_fn: Callable[
-            [BenchmarkIdentifier, Path], Tuple[BenchmarkIdentifier, BenchmarkInstance]
-        ],
-        exit_on_error=True
-    ):
+    def __init__(self, database: Database, workdir: Path, exit_on_error=True):
         self.database = database
         self.executor = BenchmarkExecutor()
         self.workdir = workdir.absolute()
         self.workdir.mkdir(parents=True, exist_ok=True)
-        self.materialize_fn = materialize_fn
         self.exit_on_error = exit_on_error
 
-    def compute(self, identifiers: List[BenchmarkIdentifier]):
-        not_completed = self._skip_completed(identifiers)
-        # Materialize instances immediately to find potential errors sooner
-        instances = [
-            self.materialize_fn(identifier, self.workdir)
-            for identifier in not_completed
-        ]
+    def materialize_and_skip(
+        self, descriptors: List[BenchmarkDescriptor]
+    ) -> List[BenchmarkInstance]:
+        instances = create_identifiers(descriptors, workdir=self.workdir)
+        return self._skip_completed(instances)
 
-        logging.info(
-            f"Skipping {len(identifiers) - len(not_completed)} out of {len(identifiers)} "
-            f"benchmark(s)"
-        )
+    def compute_materialized(
+        self, instances: List[BenchmarkInstance]
+    ) -> Iterable[Tuple[BenchmarkInstance, BenchmarkResult]]:
+        for instance in instances:
+            identifier = instance.identifier
 
-        for (identifier, instance) in instances:
             logging.info(f"Executing benchmark {identifier}")
             timeout = identifier.timeout() or DEFAULT_TIMEOUT_S
 
+            ctx = BenchmarkContext(workdir=Path(identifier.workdir), timeout_s=timeout)
+
             try:
-                result = self.executor.execute(instance, timeout_s=timeout)
+                result = self.executor.execute(instance.descriptor, ctx=ctx)
             except BaseException as e:
                 tb = traceback.format_exc()
                 logging.error(f"Unexpected benchmarking error has occurred: {tb}")
@@ -55,23 +48,37 @@ class BenchmarkRunner:
 
             self._handle_result(identifier, result)
 
-            yield (identifier, instance, result)
+            yield (instance, result)
+
+    def compute(
+        self, descriptors: List[BenchmarkDescriptor]
+    ) -> Iterable[Tuple[BenchmarkInstance, BenchmarkResult]]:
+        instances = self.materialize_and_skip(descriptors)
+        yield from self.compute_materialized(instances)
 
     def save(self):
         self.database.save()
 
     def _skip_completed(
-        self, identifiers: List[BenchmarkIdentifier]
-    ) -> List[BenchmarkIdentifier]:
+        self, infos: List[BenchmarkInstance]
+    ) -> List[BenchmarkInstance]:
         not_completed = []
         visited = set()
-        for identifier in identifiers:
-            key = create_identifier_key(identifier)
+        skipped = 0
+
+        for info in infos:
+            key = info.identifier.key
             if key in visited:
-                raise Exception(f"Duplicated identifier: {identifier} in {identifiers}")
+                raise Exception(f"Duplicated identifier: {info.identifier} in {infos}")
             visited.add(key)
-            if not self.database.has_record_for(identifier):
-                not_completed.append(identifier)
+
+            if not self.database.has_record_for(info.identifier):
+                not_completed.append(info)
+            else:
+                skipped += 1
+
+        total_count = skipped + len(not_completed)
+        logging.info(f"Skipping {skipped} out of {total_count} benchmark(s)")
         return not_completed
 
     def _handle_result(self, identifier: BenchmarkIdentifier, result: BenchmarkResult):
@@ -81,8 +88,10 @@ class BenchmarkRunner:
         if isinstance(result, Failure):
             logging.error(f"Benchmark {key} has failed: {result.traceback}")
             if self.exit_on_error:
-                raise Exception(f"""Benchmark {identifier} has failed: {result}
-You can find details in {identifier.workdir()}""")
+                raise Exception(
+                    f"""Benchmark {identifier} has failed: {result}
+You can find details in {identifier.workdir}"""
+                )
         elif isinstance(result, Timeout):
             logging.info(f"Benchmark {key} has timeouted after {result.timeout}s")
         elif isinstance(result, Success):
