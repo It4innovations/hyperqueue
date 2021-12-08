@@ -18,7 +18,7 @@ flake8 tests benchmarks
 cargo test
 
 # Run Rust linter
-cargo clippy
+cargo clippy -- -D warnings
 cargo check --all-targets
 
 # Build Rust binaries
