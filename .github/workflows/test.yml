@@ -64,7 +64,7 @@ jobs:
       - name: Lint
         uses: actions-rs/cargo@v1
         with:
-          command: clippy
+          command: clippy -- -D warnings
 
       - name: Check Rust formatting
         uses: actions-rs/cargo@v1
