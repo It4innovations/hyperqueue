@@ -4,6 +4,12 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+
+from src.benchmark import BenchmarkInstance
+from src.benchmark.executor import execute_benchmark
+from src.environment.snake import SnakeEnvironment, SnakeClusterInfo
+from src.workloads.sleep import SleepSnake
+
 from src.benchmark_defs import create_basic_hq_benchmarks
 from src.build.hq import BuildConfig, iterate_binaries
 from src.build.repository import TAG_WORKSPACE
@@ -43,6 +49,23 @@ def compare_zw():
     identifiers = create_basic_hq_benchmarks(artifacts)
     workdir = Path("benchmark/zw")
     run_benchmarks_with_postprocessing(workdir, identifiers)
+
+
+@app.command()
+def snake_sleep():
+    """
+    Simple snake sleep bench from instance
+    """
+    workdir = Path("benchmark/snake")
+    snake = SnakeEnvironment(SnakeClusterInfo(workdir))
+
+    # Create bench instance
+    snake_bench = BenchmarkInstance(
+        workload=SleepSnake(),
+        environment=snake,
+        workload_params={'task_count': 150},
+    )
+    execute_benchmark(snake_bench)
 
 
 if __name__ == "__main__":
