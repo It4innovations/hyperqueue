@@ -1,22 +1,15 @@
-import dataclasses
 import traceback
-from pathlib import Path
 
+from ..benchmark.identifier import BenchmarkDescriptor
+from ..benchmark.result import BenchmarkResult, Failure, Success, Timeout
 from ..utils.timing import TimeoutException, with_timeout
 from ..workloads.workload import WorkloadExecutionResult
-from .identifier import BenchmarkDescriptor
-from .result import BenchmarkResult, Failure, Success, Timeout
-
-DEFAULT_TIMEOUT_S = 180.0
+from .executor import BenchmarkContext, BenchmarkExecutor
 
 
-@dataclasses.dataclass(frozen=True)
-class BenchmarkContext:
-    workdir: Path
-    timeout_s: float = DEFAULT_TIMEOUT_S
+class LocalBenchmarkExecutor(BenchmarkExecutor):
+    """Executes benchmarks in the current process"""
 
-
-class BenchmarkExecutor:
     def execute(
         self, benchmark: BenchmarkDescriptor, ctx: BenchmarkContext
     ) -> BenchmarkResult:
@@ -38,5 +31,5 @@ def execute_benchmark(
             return Success(duration=result.duration)
     except TimeoutException:
         return Timeout(ctx.timeout_s)
-    except BaseException as e:
-        return Failure(e, traceback.format_exc())
+    except BaseException:
+        return Failure(traceback.format_exc())

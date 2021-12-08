@@ -5,7 +5,7 @@ import typer
 from src.postprocessing.monitor import generate_cluster_report, serve_cluster_report
 from src.postprocessing.overview import generate_summary_html, generate_summary_text
 from src.postprocessing.report import ClusterReport
-from src.utils import load_database
+from src.utils.benchmark import load_database
 
 app = typer.Typer()
 

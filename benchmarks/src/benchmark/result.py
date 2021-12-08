@@ -1,30 +1,32 @@
-from abc import ABC
+import dataclasses
+
+from mashumaro import DataClassDictMixin
 
 
-class BenchmarkResult(ABC):
+@dataclasses.dataclass(frozen=True)
+class BenchmarkResult(DataClassDictMixin):
     pass
 
 
+@dataclasses.dataclass(frozen=True)
 class Timeout(BenchmarkResult):
-    def __init__(self, timeout: float):
-        self.timeout = timeout
+    timeout: float
 
     def __repr__(self):
         return f"Timeout after {self.timeout}s"
 
 
+@dataclasses.dataclass(frozen=True)
 class Failure(BenchmarkResult):
-    def __init__(self, exception: BaseException, traceback: str):
-        self.exception = exception
-        self.traceback = traceback
+    traceback: str
 
     def __repr__(self):
         return f"Failure: {self.traceback}"
 
 
+@dataclasses.dataclass(frozen=True)
 class Success(BenchmarkResult):
-    def __init__(self, duration: float):
-        self.duration = duration
+    duration: float
 
     def __repr__(self):
         return f"Success: {self.duration}s"

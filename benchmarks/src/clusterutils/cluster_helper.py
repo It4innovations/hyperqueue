@@ -72,15 +72,7 @@ class ClusterHelper:
             return workdir.absolute()
 
         pool_args = [
-            StartProcessArgs(
-                args=args.args,
-                hostname=args.hostname,
-                name=args.name,
-                env=args.env,
-                init_cmd=args.init_cmd,
-                workdir=prepare_workdir(args.workdir),
-                metadata=args.metadata,
-            )
+            dataclasses.replace(args, workdir=prepare_workdir(args.workdir))
             for args in processes
         ]
 

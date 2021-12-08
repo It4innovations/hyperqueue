@@ -3,8 +3,10 @@ import traceback
 from pathlib import Path
 from typing import Iterable, List, Tuple
 
+from ..executor.executor import DEFAULT_TIMEOUT_S, BenchmarkContext, BenchmarkExecutor
+from ..executor.external_executor import ExternalBenchmarkExecutor
+from ..executor.local_executor import LocalBenchmarkExecutor
 from .database import BenchmarkResultRecord, Database
-from .executor import DEFAULT_TIMEOUT_S, BenchmarkContext, BenchmarkExecutor
 from .identifier import (
     BenchmarkDescriptor,
     BenchmarkIdentifier,
@@ -17,8 +19,7 @@ from .result import BenchmarkResult, Failure, Success, Timeout
 class BenchmarkRunner:
     def __init__(self, database: Database, workdir: Path, exit_on_error=True):
         self.database = database
-        self.executor = BenchmarkExecutor()
-        self.workdir = workdir.absolute()
+        self.workdir = workdir.resolve()
         self.workdir.mkdir(parents=True, exist_ok=True)
         self.exit_on_error = exit_on_error
 
@@ -38,13 +39,14 @@ class BenchmarkRunner:
             timeout = identifier.timeout() or DEFAULT_TIMEOUT_S
 
             ctx = BenchmarkContext(workdir=Path(identifier.workdir), timeout_s=timeout)
+            executor = self._create_executor(instance.descriptor)
 
             try:
-                result = self.executor.execute(instance.descriptor, ctx=ctx)
-            except BaseException as e:
+                result = executor.execute(instance.descriptor, ctx=ctx)
+            except BaseException:
                 tb = traceback.format_exc()
                 logging.error(f"Unexpected benchmarking error has occurred: {tb}")
-                result = Failure(e, tb)
+                result = Failure(tb)
 
             self._handle_result(identifier, result)
 
@@ -101,3 +103,8 @@ You can find details in {identifier.workdir}"""
             raise Exception(f"Unknown benchmark result {result}")
 
         self.database.store(identifier, BenchmarkResultRecord(duration=duration))
+
+    def _create_executor(self, descriptor: BenchmarkDescriptor) -> BenchmarkExecutor:
+        if descriptor.executor_config is not None:
+            return ExternalBenchmarkExecutor(descriptor.executor_config.init_script)
+        return LocalBenchmarkExecutor()
