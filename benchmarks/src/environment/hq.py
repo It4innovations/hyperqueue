@@ -56,7 +56,7 @@ class HqWorkerConfig:
     resources: HqWorkerResources = dataclasses.field(default_factory=dict)
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class HqClusterInfo(EnvironmentDescriptor):
     cluster: ClusterInfo
     binary: Path
@@ -66,6 +66,9 @@ class HqClusterInfo(EnvironmentDescriptor):
     profile_mode: ProfileMode = dataclasses.field(default_factory=lambda: ProfileMode())
     # Additional information that describes the environment
     environment_params: Dict[str, Any] = dataclasses.field(default_factory=dict)
+
+    def __post_init__(self):
+        self.binary = self.binary.absolute()
 
     def create_environment(self, workdir: Path) -> Environment:
         return HqEnvironment(self, workdir)
@@ -117,7 +120,7 @@ class HqEnvironment(Environment):
         self.binary_path = self.info.binary.absolute()
         check_file_exists(self.binary_path)
 
-        self._workdir = workdir
+        self._workdir = workdir.resolve()
         self.server_dir = self.workdir / "hq"
 
         self.nodes = self.info.cluster.node_list.resolve()

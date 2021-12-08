@@ -35,10 +35,16 @@ class BenchmarkIdentifier(DataClassDictMixin):
 
 
 @dataclasses.dataclass(frozen=True)
+class BenchmarkExecutorConfig:
+    init_script: Path
+
+
+@dataclasses.dataclass(frozen=True)
 class BenchmarkDescriptor:
     env_descriptor: EnvironmentDescriptor
     workload: Workload
     repeat_count: int = 1
+    executor_config: Optional[BenchmarkExecutorConfig] = None
 
 
 @dataclasses.dataclass(frozen=True)
