@@ -145,6 +145,11 @@ impl Allocation {
             AllocationStatus::Queued | AllocationStatus::Running { .. }
         )
     }
+
+    /// Returns true if the allocation is currently running
+    pub fn is_running(&self) -> bool {
+        matches!(self.status, AllocationStatus::Running { .. })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

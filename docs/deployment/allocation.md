@@ -92,7 +92,14 @@ If you want to remove an allocation queue, use the following command:
 $ hq alloc remove <queue-id>
 ```
 
-This will also stop and remove any running or queued allocations created by the specified allocation queue from PBS/Slurm.
+When an allocation queue is removed, all its corresponding queued and running allocations will be
+canceled immediately.
+
+By default, HQ will not allow you to remove an allocation queue that contains a running allocation.
+If you want to force its removal, use the `--force` flag.
+
+When the HQ server stops, it will automatically remove all allocation queues and cleanup all
+allocations.
 
 ## Debugging automatic allocation
 Since the automatic allocator is a "background" process that interacts with an external job manager, it can be challenging

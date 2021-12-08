@@ -43,6 +43,11 @@ pub struct AddQueueOpts {
 pub struct RemoveQueueOpts {
     /// ID of the allocation queue that should be removed
     queue_id: DescriptorId,
+
+    /// Remove the queue even if there are currently running jobs.
+    /// The running jobs will be canceled.
+    #[clap(long, takes_value = false)]
+    force: bool,
 }
 
 #[derive(Parser)]
@@ -132,8 +137,8 @@ pub async fn command_autoalloc(
         AutoAllocCommand::Info(opts) => {
             print_allocations(&gsettings, connection, opts).await?;
         }
-        AutoAllocCommand::Remove(descriptor_id) => {
-            remove_queue(connection, descriptor_id.queue_id).await?;
+        AutoAllocCommand::Remove(opts) => {
+            remove_queue(connection, opts.queue_id, opts.force).await?;
         }
     }
     Ok(())
@@ -172,16 +177,17 @@ async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyh
 
 async fn remove_queue(
     mut connection: ClientConnection,
-    descriptor_id: DescriptorId,
+    descriptor: DescriptorId,
+    force: bool,
 ) -> anyhow::Result<()> {
-    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::RemoveQueue(descriptor_id));
+    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::RemoveQueue { descriptor, force });
 
     rpc_call!(connection, message,
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueRemoved(_)) => ()
     )
     .await?;
 
-    log::info!("Allocation queue {} successfully removed", descriptor_id);
+    log::info!("Allocation queue {} successfully removed", descriptor);
     Ok(())
 }
 

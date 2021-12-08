@@ -229,11 +229,13 @@ async fn handle_autoalloc_message(
         AutoAllocRequest::AddQueue(params) => create_queue(server_dir, state_ref, params),
         AutoAllocRequest::Events { descriptor } => get_event_log(state_ref, descriptor),
         AutoAllocRequest::Info { descriptor } => get_allocations(state_ref, descriptor),
-        AutoAllocRequest::RemoveQueue(id) => remove_queue(state_ref, id).await,
+        AutoAllocRequest::RemoveQueue { descriptor, force } => {
+            remove_queue(state_ref, descriptor, force).await
+        }
     }
 }
 
-async fn remove_queue(state_ref: &StateRef, id: DescriptorId) -> ToClientMessage {
+async fn remove_queue(state_ref: &StateRef, id: DescriptorId, force: bool) -> ToClientMessage {
     let remove_alloc_fut = {
         let mut server_state = state_ref.get_mut();
         let descriptor_state = server_state
@@ -243,6 +245,17 @@ async fn remove_queue(state_ref: &StateRef, id: DescriptorId) -> ToClientMessage
         let fut = match descriptor_state {
             Some(state) => {
                 let handler = state.descriptor.handler();
+
+                let has_running_allocations =
+                    state.all_allocations().any(|alloc| alloc.is_running());
+                if has_running_allocations && !force {
+                    return ToClientMessage::Error(
+                        "Allocation queue has running jobs, so it will \
+not be removed. Use `--force` if you want to remove the queue anyway"
+                            .to_string(),
+                    );
+                }
+
                 let futures: Vec<_> = state
                     .active_allocations()
                     .map(move |alloc| {
@@ -253,7 +266,7 @@ async fn remove_queue(state_ref: &StateRef, id: DescriptorId) -> ToClientMessage
                     .collect();
                 futures
             }
-            None => return ToClientMessage::Error("Descriptor not found".to_string()),
+            None => return ToClientMessage::Error("Allocation queue not found".to_string()),
         };
 
         server_state.get_autoalloc_state_mut().remove_descriptor(id);

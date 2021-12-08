@@ -239,7 +239,70 @@ def test_pbs_cancel_active_jobs_on_server_stop(hq_env: HqEnv):
         wait_until(lambda: expected_job_ids == set(mock.deleted_jobs()))
 
 
-def test_pbs_cancel_active_jobs_on_remove_descriptor(hq_env: HqEnv):
+def test_pbs_cancel_queued_jobs_on_remove_descriptor(hq_env: HqEnv):
+    mock = PbsMock(hq_env)
+
+    for index in range(2):
+        mock.update_job_state(
+            mock.job_id(index),
+            JobState(
+                status="Q",
+                qtime="Thu Aug 19 13:05:38 2021",
+                stime="Thu Aug 19 13:05:39 2021",
+                mtime="Thu Aug 19 13:05:39 2021",
+            ),
+        )
+
+    with mock.activate():
+        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        prepare_tasks(hq_env)
+
+        add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
+
+        def wait_until_fixpoint():
+            jobs = hq_env.command(["alloc", "info", "1"], as_table=True)
+            return len(jobs) == 3
+
+        wait_until(lambda: wait_until_fixpoint())
+
+        remove_queue(hq_env, 1)
+        wait_until(lambda: len(hq_env.command(["alloc", "list"], as_table=True)) == 1)
+
+        expected_job_ids = set(mock.job_id(index) for index in range(2))
+        wait_until(lambda: expected_job_ids == set(mock.deleted_jobs()))
+
+
+def test_fail_on_remove_descriptor_with_running_jobs(hq_env: HqEnv):
+    mock = PbsMock(hq_env)
+
+    mock.update_job_state(
+        mock.job_id(0),
+        JobState(
+            status="R",
+            qtime="Thu Aug 19 13:05:38 2021",
+            stime="Thu Aug 19 13:05:39 2021",
+            mtime="Thu Aug 19 13:05:39 2021",
+        ),
+    )
+
+    with mock.activate():
+        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        prepare_tasks(hq_env)
+
+        add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
+
+        wait_for_alloc(hq_env, "Running")
+
+        remove_queue(
+            hq_env,
+            1,
+            expect_fail="Allocation queue has running jobs, so it will not be removed. "
+            "Use `--force` if you want to remove the queue anyway",
+        )
+        wait_for_alloc(hq_env, "Running")
+
+
+def test_pbs_cancel_active_jobs_on_forced_remove_descriptor(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 
     # Keep 2 running and 2 queued jobs
@@ -277,7 +340,7 @@ def test_pbs_cancel_active_jobs_on_remove_descriptor(hq_env: HqEnv):
 
         wait_until(lambda: wait_until_fixpoint())
 
-        remove_queue(hq_env, 1)
+        remove_queue(hq_env, 1, force=True)
         wait_until(lambda: len(hq_env.command(["alloc", "list"], as_table=True)) == 1)
 
         expected_job_ids = set(mock.job_id(index) for index in range(4))
