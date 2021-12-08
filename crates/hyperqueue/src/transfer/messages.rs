@@ -104,10 +104,17 @@ pub struct WorkerInfoRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AutoAllocRequest {
     List,
-    Events { descriptor: DescriptorId },
-    Info { descriptor: DescriptorId },
+    Events {
+        descriptor: DescriptorId,
+    },
+    Info {
+        descriptor: DescriptorId,
+    },
     AddQueue(AddQueueRequest),
-    RemoveQueue(DescriptorId),
+    RemoveQueue {
+        descriptor: DescriptorId,
+        force: bool,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -6,6 +6,12 @@
     `hq alloc add pbs --time-limit 01:10:30`.
   * Improve error messages printed when an invalid CLI parameter is entered.
 
+## Changes
+
+  * `hq alloc remove` will no longer let you remove an allocation queue that contains running
+    allocations by default. If you want to force its removal and cancel the running allocations
+    immediately, use the `--force` flag. 
+
 # v0.6.1
 
 ## Fixes

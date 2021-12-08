@@ -70,6 +70,8 @@ def wait_for_event(hq_env: HqEnv, state: str):
     wait_until(wait)
 
 
-def remove_queue(hq_env: HqEnv, queue_id: int):
+def remove_queue(hq_env: HqEnv, queue_id: int, force=False, **kwargs):
     args = ["alloc", "remove", str(queue_id)]
-    return hq_env.command(args)
+    if force:
+        args.append("--force")
+    return hq_env.command(args, **kwargs)
