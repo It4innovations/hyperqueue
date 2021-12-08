@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 
 from ..environment import Environment
 from ..environment.hq import HqEnvironment
+from ..environment.snake import SnakeEnvironment
 from ..utils import activate_cwd
 from ..utils.timing import Timings
 from .workload import WorkloadExecutionResult
@@ -45,6 +46,30 @@ def measure_hq_tasks(
     with activate_cwd(env.workdir):
         with timer.time():
             env.submit(args)
+    return result(timer.duration())
+
+
+def measure_snake_tasks(
+        env: Environment, command: str, task_count: int, cpus_per_task=1
+) -> WorkloadExecutionResult:
+    assert isinstance(env, SnakeEnvironment)
+
+    args = \
+f"""rule all:
+    input: 
+        expand("{env.workdir}/{{sample}}", sample=range({task_count}))
+
+rule benchmark:
+    output: 
+        "{{sample}}"
+    shell: 
+        "{command}"
+"""
+    logging.debug(f"[Snake] Submitting {args}")
+
+    timer = Timings()
+    with timer.time():
+        env.submit([args, cpus_per_task])
     return result(timer.duration())
 
 
