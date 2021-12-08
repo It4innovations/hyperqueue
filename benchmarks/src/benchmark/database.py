@@ -57,17 +57,16 @@ class Database:
     def records(self) -> List[DatabaseRecord]:
         return list(self.data.values())
 
-    def has_key(self, key) -> bool:
+    def __contains__(self, key):
         return key in self.data
 
     def has_record_for(self, identifier: BenchmarkIdentifier) -> bool:
-        return self.has_key(create_identifier_key(identifier))
+        return create_identifier_key(identifier) in self
 
     def store(self, identifier: BenchmarkIdentifier, result: BenchmarkResultRecord):
         key = create_identifier_key(identifier)
-        assert not self.has_key(key)
+        assert key not in self
 
-        key = create_identifier_key(identifier)
         record = DatabaseRecord(
             uuid=uuid.uuid4().hex,
             workload=identifier.workload,

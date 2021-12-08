@@ -8,6 +8,7 @@ from .. import ROOT_DIR
 
 REPO = Repo(ROOT_DIR)
 
+# This tag represents the active git workspace
 TAG_WORKSPACE = "current"
 
 

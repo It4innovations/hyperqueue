@@ -1,21 +1,20 @@
+import dataclasses
 import logging
 from pathlib import Path
 from typing import Optional
 
-import dataclasses
 import typer
-
-from src.benchmark_set import create_basic_hq_benchmarks
+from src.benchmark_defs import create_basic_hq_benchmarks
 from src.build.hq import BuildConfig, iterate_binaries
 from src.build.repository import TAG_WORKSPACE
-from src.benchutils import run_benchmarks_with_postprocessing
+from src.utils.benchmark import run_benchmarks_with_postprocessing
 
 app = typer.Typer()
 
 
 @app.command()
 def compare_hq_version(
-        baseline: str, modified: Optional[str] = None, zero_worker: Optional[bool] = False
+    baseline: str, modified: Optional[str] = None, zero_worker: Optional[bool] = False
 ):
     """
     Compares the performance of two HQ versions.

@@ -36,15 +36,12 @@ class StartProcessArgs:
 
 
 class ClusterHelper:
-    def __init__(self, cluster_info: ClusterInfo):
+    def __init__(self, cluster_info: ClusterInfo, workdir: Path):
         self.cluster_info = cluster_info
-        cluster_info.workdir.mkdir(exist_ok=True, parents=True)
+        self.workdir = workdir
+        self.workdir.mkdir(exist_ok=True, parents=True)
 
-        self.cluster = Cluster(str(cluster_info.workdir))
-
-    @property
-    def workdir(self) -> Path:
-        return self.cluster_info.workdir
+        self.cluster = Cluster(str(self.workdir))
 
     @property
     def active_nodes(self) -> List[str]:

@@ -1,4 +1,5 @@
 import dataclasses
+from typing import Any, Dict
 
 from ..environment import Environment
 
@@ -9,5 +10,11 @@ class WorkloadExecutionResult:
 
 
 class Workload:
-    def execute(self, env: Environment, *args, **kwargs) -> WorkloadExecutionResult:
+    def name(self) -> str:
+        raise NotImplementedError
+
+    def parameters(self) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    def execute(self, env: Environment) -> WorkloadExecutionResult:
         raise NotImplementedError

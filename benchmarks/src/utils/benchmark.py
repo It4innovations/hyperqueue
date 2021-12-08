@@ -4,25 +4,21 @@ from typing import List
 
 import tqdm
 
-from .benchmark.database import Database
-from .benchmark.identifier import BenchmarkIdentifier
-from .benchmark.runner import BenchmarkRunner
-from .materialization import materialize_benchmark
-from .postprocessing.overview import generate_summary_text, generate_summary_html
+from ..benchmark.database import Database
+from ..benchmark.identifier import BenchmarkDescriptor
+from ..benchmark.runner import BenchmarkRunner
+from ..postprocessing.overview import generate_summary_html, generate_summary_text
 
 DEFAULT_DATA_JSON = "data.json"
 
 
-def run_benchmark_suite(
-        workdir: Path, identifiers: List[BenchmarkIdentifier]
-) -> Database:
+def run_benchmarks(workdir: Path, descriptors: List[BenchmarkDescriptor]) -> Database:
     database = Database(workdir / DEFAULT_DATA_JSON)
-    runner = BenchmarkRunner(
-        database, workdir=workdir, materialize_fn=materialize_benchmark
-    )
+    runner = BenchmarkRunner(database, workdir=workdir)
 
-    for (_identifier, _benchmark, _result) in tqdm.tqdm(
-            runner.compute(identifiers), total=len(identifiers)
+    materialized = runner.materialize_and_skip(descriptors)
+    for (_info, _result) in tqdm.tqdm(
+        runner.compute_materialized(materialized), total=len(materialized)
     ):
         pass
 
@@ -30,8 +26,10 @@ def run_benchmark_suite(
     return database
 
 
-def run_benchmarks_with_postprocessing(workdir: Path, identifiers: List[BenchmarkIdentifier]):
-    database = run_benchmark_suite(workdir, identifiers)
+def run_benchmarks_with_postprocessing(
+    workdir: Path, descriptors: List[BenchmarkDescriptor]
+):
+    database = run_benchmarks(workdir, descriptors)
 
     summary_txt = workdir / "summary.txt"
     generate_summary_text(database, summary_txt)
@@ -51,5 +49,4 @@ def load_database(path: Path) -> Database:
         assert database_path.is_file()
     else:
         raise Exception(f"{path} is not a valid file or directory")
-
     return Database(database_path)

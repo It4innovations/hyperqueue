@@ -3,9 +3,8 @@ from pathlib import Path
 from typing import Any, Dict
 
 import typer
+from src.utils import load_database
 from swclient.client import Client, Measurement
-
-from src.benchutils import load_database
 
 app = typer.Typer()
 
@@ -46,7 +45,7 @@ def upload(
             environment=dict(
                 **normalize_dict(record.workload_params, "workload"),
                 **normalize_dict(record.environment_params, "env"),
-                env=record.environment,
+                env=record.environment_params,
                 **normalize_dict(record.benchmark_metadata, "metadata"),
             ),
             result=dict(duration=dict(type="time", value=record.duration)),

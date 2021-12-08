@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 from ..environment import Environment
 from ..environment.hq import HqEnvironment
@@ -9,8 +9,11 @@ from .workload import WorkloadExecutionResult
 
 
 def measure_hq_tasks(
-    env: Environment, command: List[str], task_count: int, cpus_per_task=1,
-        resources: Optional[Dict[str, int]] = None
+    env: Environment,
+    command: List[str],
+    task_count: int,
+    cpus_per_task=1,
+    resources: Optional[Dict[str, int]] = None,
 ) -> WorkloadExecutionResult:
     assert isinstance(env, HqEnvironment)
 
