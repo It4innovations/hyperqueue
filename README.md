@@ -13,14 +13,94 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
 - **Performance**
     - The inner scheduler can scale to hundreds of nodes
-    - The overhead for one task is below 0.1ms.
-    - HQ allows to stream outputs from tasks to avoid creating many small files on a distributed filesystem
+    - The overhead per one task is below 0.1ms.
+    - HQ allows streaming outputs from tasks to avoid creating many small files on a distributed filesystem
 
 - **Easy deployment**
     - HQ is provided as a single, statically linked binary without any dependencies
     - No admin access to a cluster is needed
 
-## FAQ
+# Getting started
+
+## Installation
+
+* Download the latest binary distribution from this [link](https://github.com/It4innovations/hyperqueue/releases/latest).
+* Unpack the downloaded archive:
+
+  ```bash
+  $ tar -xvzf hq-<version>-linux-x64.tar.gz
+  ```
+
+> If you want to try the newest features, you can also download a nightly
+> [build](https://github.com/It4innovations/hyperqueue/releases/nightly).
+
+## Submitting a simple task
+
+* Start a server (e.g. on a login node or in a cluster partition)
+
+  ```bash
+  $ hq server start &
+  ```
+* Submit a job (command ``echo 'Hello world'`` in this case)
+
+  ```bash
+  $ hq submit echo 'Hello world'
+  ```
+* Ask for computing resources
+
+    * Start worker manually
+
+      ```bash
+      $ hq worker start &
+      ```
+    * Manual request in PBS
+
+      - Start worker on the first node of a PBS job
+
+        ```bash
+        $ qsub <your-params-of-qsub> -- hq worker start
+        ```
+      - Start worker on all nodes of a PBS job
+
+        ```bash
+        $ qsub <your-params-of-qsub> -- `which pbsdsh` hq worker start
+        ```
+    * Manual request in SLURM
+
+      - Start worker on the first node of a Slurm job
+
+        ```bash
+        $ sbatch <your-params-of-sbatch> --wrap "hq worker start"
+        ```
+      - Start worker on all nodes of a Slurm job
+
+        ```bash
+        $ sbatch <your-params-of-sbatch> --wrap "srun hq worker start"
+        ```
+    * Automatic submission of workers into PBS/SLURM
+
+      - Slurm:
+
+        ```bash
+        $ hq alloc add slurm --partition <partition>
+        ```
+      - PBS:
+
+        ```bash
+        $ hq alloc add pbs --queue <queue>
+        ```
+
+* Monitor the state of jobs
+
+  ```bash
+  $ hq jobs
+  ```
+
+## What's next?
+
+Check out the [documentation](https://it4innovations.github.io/hyperqueue/).
+
+# FAQ
 
 * **How HQ works?**
 
@@ -112,78 +192,12 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
   We are a group at [IT4Innovations](https://www.it4i.cz/), the Czech National Supercomputing Center.
   We welcome any contribution from outside.
 
-
-# Getting started
-
-## Installation
-
-* Download the latest binary distribution from this [link](https://github.com/It4innovations/hyperqueue/releases/latest).
-* Unpack the downloaded archive:
-
-  ``$ tar -xvzf hq-<version>-linux-x64.tar.gz``
-
-## Submitting a simple task
-
-* Start a server (e.g. on a login node or in a cluster partition)
-
-  ``$ hq server start &``
-
-* Submit a job (command ``echo 'Hello world'`` in this case)
-
-  ``$ hq submit echo 'Hello world'``
-
-* Ask for computing resources
-
-    * Start worker manually
-
-      ``$ hq worker start &``
-
-    * Manual request in PBS
-
-      - Start worker on the first node of a PBS job
-
-        ``$ qsub <your-params-of-qsub> -- hq worker start``
-
-      - Start worker on all nodes of a PBS job
-
-        ``$ qsub <your-params-of-qsub> -- `which pbsdsh` hq worker start``
-
-    * Manual request in SLURM
-
-      - Start worker on the first node of a Slurm job
-
-        ``$ sbatch <your-params-of-sbatch> --wrap "hq worker start"``
-
-      - Start worker on all nodes of a Slurm job
-
-        ``$ sbatch <your-params-of-sbatch> --wrap "srun hq worker start"``
-
-    * Automatic submission of workers into PBS/SLURM
-
-      - Slurm:
-
-        ``$ hq alloc add slurm --partition <partition>``
-
-      - PBS:
-
-        ``$ hq alloc add pbs --queue <queue>``
-
-
-* Monitor the state of jobs
-
-  ``$ hq jobs``
-
-# What next?
-
-[Documentation](https://it4innovations.github.io/hyperqueue/)
-
 # Future work
 
 * API for dependencies
 * Python API
 * Dashboard
 * Multi-node tasks
-
 
 # Acknowledgement
 
