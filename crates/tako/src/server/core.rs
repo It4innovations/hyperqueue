@@ -9,6 +9,7 @@ use crate::common::resources::{GenericResourceId, ResourceRequest};
 use crate::common::trace::trace_task_remove;
 use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::gateway::ServerInfo;
+use crate::server::monitoring::EventStorage;
 use crate::server::rpc::ConnectionDescriptor;
 use crate::server::task::{Task, TaskRef, TaskRuntimeState};
 use crate::server::worker::Worker;
@@ -21,6 +22,7 @@ pub type CustomConnectionHandler = Box<dyn Fn(ConnectionDescriptor)>;
 pub struct Core {
     tasks: Map<TaskId, TaskRef>,
     workers: Map<WorkerId, Worker>,
+    event_storage: EventStorage,
 
     /* Scheduler items */
     parked_resources: Set<WorkerResources>, // Resources of workers that has flag NOTHING_TO_LOAD
@@ -101,6 +103,10 @@ impl Core {
     }
 
     pub fn reset_waiting_resources(&mut self) {}
+
+    pub fn get_event_storage(&mut self) -> &mut EventStorage {
+        &mut self.event_storage
+    }
 
     pub fn get_server_info(&self) -> ServerInfo {
         ServerInfo {

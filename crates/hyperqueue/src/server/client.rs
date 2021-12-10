@@ -769,7 +769,7 @@ async fn handle_worker_info(state_ref: &StateRef, worker_id: WorkerId) -> ToClie
 async fn get_collected_overview(tako_ref: &Backend) -> ToClientMessage {
     let response = tako_ref
         .send_tako_message(FromGatewayMessage::GetOverview(OverviewRequest {
-            enable_hw_overview: true,
+            fetch_hw_overview: true,
         }))
         .await
         .unwrap();
