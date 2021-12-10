@@ -49,13 +49,19 @@ async fn test_submit_simple_task_fail() {
         handler.start_worker(Default::default()).await.unwrap();
 
         let ids = handler
-            .submit(GraphBuilder::singleton(simple_task(&["/usr/bin/nonsense"], 1)))
+            .submit(GraphBuilder::singleton(simple_task(
+                &["/usr/bin/nonsense"],
+                1,
+            )))
             .await;
         let result = handler.wait(&ids).await;
         assert!(result.is_failed(ids[0]));
 
         let ids = handler
-            .submit(GraphBuilder::singleton(simple_task(&["bash", "c", "'exit 3'"], 2)))
+            .submit(GraphBuilder::singleton(simple_task(
+                &["bash", "c", "'exit 3'"],
+                2,
+            )))
             .await;
         let result = handler.wait(&ids).await;
         assert!(result.is_failed(ids[0]));
@@ -73,7 +79,9 @@ async fn test_cancel_immediately() {
     run_test(Default::default(), |mut handle| async move {
         handle.start_worker(Default::default()).await.unwrap();
 
-        let ids = handle.submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1))).await;
+        let ids = handle
+            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1)))
+            .await;
         let response = cancel(&mut handle, &ids).await;
         assert_eq!(response.cancelled_tasks, vec![1].to_ids());
     })
@@ -87,8 +95,9 @@ async fn test_cancel_prev() {
 
         let ids = handle
             .submit(
-                GraphBuilder::default().tasks((1..100)
-                    .map(|id| simple_task(&["sleep", "1"], id))).build(),
+                GraphBuilder::default()
+                    .tasks((1..100).map(|id| simple_task(&["sleep", "1"], id)))
+                    .build(),
             )
             .await;
         let mut to_cancel = ids[..72].to_vec();
@@ -105,7 +114,9 @@ async fn test_cancel_error_task() {
     run_test(Default::default(), |mut handle| async move {
         handle.start_worker(Default::default()).await.unwrap();
 
-        handle.submit(GraphBuilder::singleton(simple_task(&["/nonsense"], 1))).await;
+        handle
+            .submit(GraphBuilder::singleton(simple_task(&["/nonsense"], 1)))
+            .await;
         sleep(Duration::from_millis(300)).await;
 
         let response = cancel(&mut handle, &[1]).await;
@@ -126,7 +137,8 @@ async fn test_task_time_limit_fail() {
                 TaskConfigBuilder::default()
                     .args(simple_args(&["sleep", "2"]))
                     .time_limit(Some(Duration::from_millis(600))),
-            )).await;
+            ))
+            .await;
         handle
             .wait(&[1])
             .await

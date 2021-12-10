@@ -5,16 +5,21 @@ use tokio::time::sleep;
 
 use crate::tests::integration::utils::api::get_overview;
 use crate::tests::integration::utils::server::run_test;
-use crate::tests::integration::utils::task::{simple_args, simple_task, GraphBuilder as GB, ResourceRequestConfigBuilder as RR, TaskConfigBuilder as TC, GraphBuilder};
+use crate::tests::integration::utils::task::{
+    simple_args, simple_task, GraphBuilder as GB, GraphBuilder, ResourceRequestConfigBuilder as RR,
+    TaskConfigBuilder as TC,
+};
 use crate::tests::integration::utils::worker::{cpus, numa_cpus, WorkerConfigBuilder as WC};
 
 #[tokio::test]
 async fn test_submit_2_sleeps_on_1() {
     run_test(Default::default(), |mut handle| async move {
         handle
-            .submit(GraphBuilder::default()
-                .task(simple_task(&["sleep", "1"], 1))
-                .task(simple_task(&["sleep", "1"], 2)).build(),
+            .submit(
+                GraphBuilder::default()
+                    .task(simple_task(&["sleep", "1"], 1))
+                    .task(simple_task(&["sleep", "1"], 2))
+                    .build(),
             )
             .await;
 
@@ -47,9 +52,11 @@ async fn test_submit_2_sleeps_on_1() {
 async fn test_submit_2_sleeps_on_2() {
     run_test(Default::default(), |mut handle| async move {
         handle
-            .submit(GraphBuilder::default().task(
-                simple_task(&["sleep", "1"], 1)).task(
-                simple_task(&["sleep", "1"], 2)).build()
+            .submit(
+                GraphBuilder::default()
+                    .task(simple_task(&["sleep", "1"], 1))
+                    .task(simple_task(&["sleep", "1"], 2))
+                    .build(),
             )
             .await;
 
@@ -71,9 +78,11 @@ async fn test_submit_2_sleeps_on_2() {
 async fn test_submit_2_sleeps_on_separated_2() {
     run_test(Default::default(), |mut handle| async move {
         handle
-            .submit(GraphBuilder::default().task(
-                simple_task(&["sleep", "1"], 1)).task(
-                simple_task(&["sleep", "1"], 2)).build()
+            .submit(
+                GraphBuilder::default()
+                    .task(simple_task(&["sleep", "1"], 1))
+                    .task(simple_task(&["sleep", "1"], 2))
+                    .build(),
             )
             .await;
 

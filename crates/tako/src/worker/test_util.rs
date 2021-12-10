@@ -21,7 +21,7 @@ pub fn worker_task<T: Into<TaskId>>(
         resources,
         time_limit: None,
         n_outputs: 0,
-        body: vec![]
+        body: vec![],
     })
 }
 

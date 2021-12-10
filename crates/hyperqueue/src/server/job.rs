@@ -8,8 +8,8 @@ use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
 use bstr::BString;
 use chrono::{DateTime, Utc};
 use std::path::PathBuf;
-use tokio::sync::oneshot;
 use tako::messages::gateway::ResourceRequest;
+use tokio::sync::oneshot;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum JobTaskState {

@@ -4,9 +4,8 @@ use std::time::Duration;
 use bstr::BString;
 use serde::{Deserialize, Serialize};
 
-use crate::common::resources::{ResourceDescriptor};
+use crate::common::resources::ResourceDescriptor;
 use crate::common::Map;
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskFailInfo {
