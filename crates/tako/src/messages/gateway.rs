@@ -51,6 +51,8 @@ pub struct TaskDef {
     pub id: TaskId,
     pub conf_idx: u32,
 
+    pub task_deps: Vec<TaskId>,
+
     #[serde(with = "serde_bytes")]
     pub body: Vec<u8>,
 }
