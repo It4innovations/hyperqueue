@@ -5,15 +5,14 @@ from typing import Optional
 
 import typer
 
-from src.benchmark import BenchmarkInstance
-from src.benchmark.executor import execute_benchmark
-from src.environment.snake import SnakeEnvironment, SnakeClusterInfo
+from src.benchmark.identifier import BenchmarkDescriptor
+from src.environment.snake import SnakeEnvironmentDescriptor
 from src.workloads.sleep import SleepSnake
 
 from src.benchmark_defs import create_basic_hq_benchmarks
 from src.build.hq import BuildConfig, iterate_binaries
 from src.build.repository import TAG_WORKSPACE
-from src.utils.benchmark import run_benchmarks_with_postprocessing
+from src.utils.benchmark import run_benchmarks_with_postprocessing, run_benchmarks
 
 app = typer.Typer()
 
@@ -57,15 +56,14 @@ def snake_sleep():
     Simple snake sleep bench from instance
     """
     workdir = Path("benchmark/snake")
-    snake = SnakeEnvironment(SnakeClusterInfo(workdir))
+    snake_env_desc = SnakeEnvironmentDescriptor()
 
-    # Create bench instance
-    snake_bench = BenchmarkInstance(
-        workload=SleepSnake(),
-        environment=snake,
-        workload_params={'task_count': 150},
+    bench_desc = BenchmarkDescriptor(
+        env_descriptor=snake_env_desc,
+        workload=SleepSnake(task_count=10),
     )
-    execute_benchmark(snake_bench)
+
+    run_benchmarks(workdir, [bench_desc])
 
 
 if __name__ == "__main__":

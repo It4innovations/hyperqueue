@@ -27,7 +27,7 @@ class SleepHQ(Sleep):
 
 
 class SleepSnake(Sleep):
-    def execute(self, env: SnakeEnvironment, task_count: int, sleep_duration=0) -> WorkloadExecutionResult:
+    def execute(self, env: SnakeEnvironment) -> WorkloadExecutionResult:
         return measure_snake_tasks(
-            env, f"sleep {sleep_duration}; echo '' > {{output}}", task_count=task_count
+            env, f"sleep {self.sleep_duration}; echo '' > {{output}}", task_count=self.task_count
         )

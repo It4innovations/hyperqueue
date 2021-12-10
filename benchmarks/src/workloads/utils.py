@@ -69,7 +69,7 @@ rule benchmark:
 
     timer = Timings()
     with timer.time():
-        env.submit([args, cpus_per_task])
+        env.submit(args, cpus_per_task)
     return result(timer.duration())
 
 
