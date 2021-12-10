@@ -116,7 +116,7 @@ def assign_workers(
 
 class HqEnvironment(Environment, EnvStateManager):
     def __init__(self, info: HqClusterInfo, workdir: Path):
-        super(EnvStateManager, self).__init__()
+        EnvStateManager.__init__(self)
 
         self.info = info
         self.cluster = ClusterHelper(self.info.cluster, workdir=workdir)

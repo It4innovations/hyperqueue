@@ -24,5 +24,5 @@ class EnvStateManager:
         self.state = Started()
 
     def state_stop(self):
-        assert isinstance(self.state, Stopped)
+        assert isinstance(self.state, Started)
         self.state = Stopped()
