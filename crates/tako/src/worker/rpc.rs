@@ -424,8 +424,7 @@ async fn worker_message_loop(
                         })
                         .collect(),
                     placed_data: state.data_objects.keys().copied().collect(),
-
-                    hw_state: match overview_request.enable_hw_overview {
+                    hw_state: match overview_request.fetch_hw_overview {
                         true => Some(WorkerHwStateMessage {
                             state: state.hardware_state.clone(),
                         }),

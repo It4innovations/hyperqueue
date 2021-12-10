@@ -138,7 +138,6 @@ async fn worker_rpc_loop(
         configuration.idle_timeout = *core_ref.get().idle_timeout();
     }
     let idle_timeout = configuration.idle_timeout;
-
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
 
     {
@@ -148,9 +147,11 @@ async fn worker_rpc_loop(
         for descriptor in &configuration.resources.generic {
             core.get_or_create_generic_resource_id(&descriptor.name);
         }
-        let worker = Worker::new(worker_id, configuration, core.create_resource_map());
+        let worker = Worker::new(worker_id, configuration.clone(), core.create_resource_map());
 
         on_new_worker(&mut core, &mut *comm_ref.get_mut(), worker);
+        core.get_event_storage()
+            .on_worker_added(worker_id, configuration);
     }
 
     /* Send registration message, this has to be after on_new_worker
@@ -227,6 +228,9 @@ async fn worker_rpc_loop(
     let mut comm = comm_ref.get_mut();
     let stopping = { core.get_worker_by_id_or_panic(worker_id).is_stopping() };
     comm.remove_worker(worker_id);
+
+    core.get_event_storage()
+        .on_remove_worker(worker_id, reason.clone());
     on_remove_worker(
         &mut core,
         &mut *comm,

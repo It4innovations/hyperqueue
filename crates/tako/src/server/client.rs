@@ -9,11 +9,12 @@ use crate::common::rpc::forward_queue_to_sink_with_map;
 use crate::messages::common::{TaskConfiguration, TaskConfigurationMessage};
 use crate::messages::gateway::{
     CancelTasksResponse, CollectedOverview, ErrorResponse, FromGatewayMessage, NewTasksResponse,
-    TaskInfo, TaskState, TaskUpdate, TasksInfoResponse, ToGatewayMessage,
+    OverviewRequest, TaskInfo, TaskState, TaskUpdate, TasksInfoResponse, ToGatewayMessage,
 };
 use crate::messages::worker::{ToWorkerMessage, WorkerOverview};
 use crate::server::comm::{Comm, CommSenderRef};
 use crate::server::core::{Core, CoreRef};
+use crate::server::monitoring::MonitoringEvent;
 use crate::server::reactor::{on_cancel_tasks, on_new_tasks, on_set_observe_flag};
 use crate::server::task::{TaskRef, TaskRuntimeState};
 use crate::transfer::transport::make_protocol_builder;
@@ -203,27 +204,8 @@ pub async fn process_client_message(
         }
         FromGatewayMessage::GetOverview(overview_request) => {
             log::debug!("Client ask for overview");
-            let overview_receivers = {
-                let mut core = core_ref.get_mut();
-
-                let mut overview_receivers = Vec::with_capacity(core.get_worker_map().len());
-                for worker in core.get_workers_mut() {
-                    //for each worker, create a one-shot channel, pass it to the worker and store it's receiver
-                    let (sender, receiver) = oneshot::channel();
-                    worker.overview_callbacks.push(sender);
-                    overview_receivers.push(receiver.into_future());
-                }
-                comm_ref
-                    .get_mut()
-                    .broadcast_worker_message(&ToWorkerMessage::GetOverview(overview_request));
-                overview_receivers
-            };
-            let worker_overviews: Vec<WorkerOverview> = join_all(overview_receivers)
-                .await
-                .into_iter()
-                .filter_map(|r| r.ok())
-                .collect();
-            log::debug!("Gathering overview finished");
+            let worker_overviews =
+                fetch_worker_overviews(core_ref, comm_ref, overview_request).await;
             assert!(client_sender
                 .send(ToGatewayMessage::Overview(CollectedOverview {
                     worker_overviews
@@ -257,5 +239,48 @@ pub async fn process_client_message(
                 Some(format!("Worker with id {} not found", msg.worker_id))
             }
         }
+        FromGatewayMessage::GetMonitoringEvents(request) => {
+            let after_id = request.after_id.unwrap_or(0);
+
+            let mut core = core_ref.get_mut();
+            let events: Vec<MonitoringEvent> = core
+                .get_event_storage()
+                .get_events_after(after_id)
+                .cloned()
+                .collect();
+            assert!(client_sender
+                .send(ToGatewayMessage::MonitoringEvents(events))
+                .is_ok());
+            None
+        }
     }
+}
+
+pub async fn fetch_worker_overviews(
+    core_ref: &CoreRef,
+    comm_ref: &CommSenderRef,
+    overview_request: OverviewRequest,
+) -> Vec<WorkerOverview> {
+    let overview_receivers = {
+        let mut core = core_ref.get_mut();
+
+        let mut overview_receivers = Vec::with_capacity(core.get_worker_map().len());
+        for worker in core.get_workers_mut() {
+            //for each worker, create a one-shot channel, pass it to the worker and store it's receiver
+            let (sender, receiver) = oneshot::channel();
+            worker.overview_callbacks.push(sender);
+            overview_receivers.push(receiver.into_future());
+        }
+        comm_ref
+            .get_mut()
+            .broadcast_worker_message(&ToWorkerMessage::GetOverview(overview_request));
+        overview_receivers
+    };
+    let worker_overviews: Vec<WorkerOverview> = join_all(overview_receivers)
+        .await
+        .into_iter()
+        .filter_map(|r| r.ok())
+        .collect();
+    log::debug!("Gathering overview finished");
+    worker_overviews
 }

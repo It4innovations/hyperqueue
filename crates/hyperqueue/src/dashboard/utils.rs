@@ -14,7 +14,7 @@ pub async fn get_hw_overview(
     let response = rpc_call!(
         connection,
         FromClientMessage::Overview(OverviewRequest {
-            enable_hw_overview: true
+            fetch_hw_overview: true
         }),
         ToClientMessage::OverviewResponse(response) => response
     )

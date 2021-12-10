@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::messages::common::{TaskConfigurationMessage, TaskFailInfo, WorkerConfiguration};
 use crate::messages::worker::WorkerOverview;
+use crate::server::monitoring::MonitoringEvent;
 use crate::{Priority, TaskId, WorkerId};
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -46,7 +47,7 @@ pub struct StopWorkerRequest {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct OverviewRequest {
-    pub enable_hw_overview: bool,
+    pub fetch_hw_overview: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -57,8 +58,15 @@ pub enum FromGatewayMessage {
     CancelTasks(CancelTasks),
     GetTaskInfo(TaskInfoRequest),
     ServerInfo,
+    GetMonitoringEvents(MonitoringEventRequest),
     GetOverview(OverviewRequest),
     StopWorker(StopWorkerRequest),
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct MonitoringEventRequest {
+    /// Get events after a particular id. All events are returned if `None`.
+    pub after_id: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -150,7 +158,7 @@ pub struct NewWorkerMessage {
     pub configuration: WorkerConfiguration,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub enum LostWorkerReason {
     Stopped,
     ConnectionLost,
@@ -193,4 +201,5 @@ pub enum ToGatewayMessage {
     NewWorker(NewWorkerMessage),
     LostWorker(LostWorkerMessage),
     WorkerStopped,
+    MonitoringEvents(Vec<MonitoringEvent>),
 }
