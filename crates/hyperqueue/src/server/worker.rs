@@ -1,8 +1,9 @@
 use chrono::Utc;
 use tako::messages::common::WorkerConfiguration;
+use tako::messages::gateway::LostWorkerReason;
 
 use crate::server::worker::WorkerState::Offline;
-use crate::transfer::messages::{LostWorkerReasonInfo, WorkerExitInfo, WorkerInfo};
+use crate::transfer::messages::{WorkerExitInfo, WorkerInfo};
 use crate::WorkerId;
 
 pub enum WorkerState {
@@ -33,7 +34,7 @@ impl Worker {
         &self.configuration
     }
 
-    pub fn set_offline_state(&mut self, reason: LostWorkerReasonInfo) {
+    pub fn set_offline_state(&mut self, reason: LostWorkerReason) {
         self.state = Offline(WorkerExitInfo {
             ended_at: Utc::now(),
             reason,

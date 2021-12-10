@@ -1,14 +1,7 @@
 use tako::messages::common::MemoryStats;
-use tako::messages::gateway::CollectedOverview;
 use tako::messages::worker::WorkerHwStateMessage;
 
-use crate::common::error::HqError;
-
-//todo: remove
-pub async fn get_hw_overview() -> Result<CollectedOverview, HqError> {
-    Err(HqError::GenericError("Not implemented".to_string()))
-}
-
+#[allow(unused)]
 pub fn calculate_memory_usage_percent(memory_stats: &MemoryStats) -> u64 {
     if memory_stats.total == 0 {
         return 0;
@@ -16,6 +9,7 @@ pub fn calculate_memory_usage_percent(memory_stats: &MemoryStats) -> u64 {
     (((memory_stats.free as f64) / (memory_stats.total as f64)) * 100.00) as u64
 }
 
+#[allow(unused)]
 pub fn get_average_cpu_usage_for_worker(hw_state: &WorkerHwStateMessage) -> f32 {
     let num_cpus = hw_state
         .state

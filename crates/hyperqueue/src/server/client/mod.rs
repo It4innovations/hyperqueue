@@ -10,7 +10,7 @@ use tokio::sync::{oneshot, Notify};
 
 use tako::messages::common::ProgramDefinition;
 use tako::messages::gateway::{
-    CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage,
+    CancelTasks, FromGatewayMessage, MonitoringEventRequest, StopWorkerRequest, ToGatewayMessage,
 };
 
 use crate::client::status::{job_status, task_status, Status};
@@ -125,19 +125,26 @@ pub async fn client_rpc_loop<
                     FromClientMessage::WaitForJobs(msg) => {
                         handle_wait_for_jobs_message(&state_ref, msg.selector).await
                     }
+                    FromClientMessage::MonitoringEvents(request) => {
+                        get_monitoring_events(&tako_ref, request).await
+                    }
                 };
                 assert!(tx.send(response).await.is_ok());
             }
             Err(e) => {
                 log::error!("Cannot parse client message: {}", e);
-                assert!(tx
+                if tx
                     .send(ToClientMessage::Error(format!(
                         "Cannot parse message: {}",
                         e
                     )))
                     .await
-                    .is_ok());
-                return;
+                    .is_err()
+                {
+                    log::error!(
+                        "Cannot send error response to client, it has probably disconnected."
+                    );
+                }
             }
         }
     }
@@ -672,4 +679,20 @@ async fn handle_worker_info(state_ref: &StateRef, worker_id: WorkerId) -> ToClie
     let state = state_ref.get();
 
     ToClientMessage::WorkerInfoResponse(state.get_worker(worker_id).map(|w| w.make_info()))
+}
+
+async fn get_monitoring_events(
+    tako_ref: &Backend,
+    request: MonitoringEventRequest,
+) -> ToClientMessage {
+    let response = tako_ref
+        .send_tako_message(FromGatewayMessage::GetMonitoringEvents(request))
+        .await
+        .unwrap();
+    match response {
+        ToGatewayMessage::MonitoringEvents(events) => {
+            ToClientMessage::MonitoringEventsResponse(events)
+        }
+        _ => ToClientMessage::Error("Failed to fetch events".to_string()),
+    }
 }

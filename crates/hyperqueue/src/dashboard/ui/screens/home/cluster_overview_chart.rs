@@ -1,45 +1,58 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tako::messages::gateway::CollectedOverview;
 
-use crate::dashboard::ui::terminal::DashboardFrame;
 use tui::layout::Rect;
 use tui::style::{Color, Modifier, Style};
 use tui::symbols;
 use tui::text::Span;
 use tui::widgets::{Axis, Block, Borders, Chart, Dataset};
 
-/// Stores the number of connected workers at a time.
+use crate::dashboard::data::DashboardData;
+use crate::dashboard::ui::terminal::DashboardFrame;
+
 struct WorkerCountRecord {
     time: SystemTime,
-    worker_count: u32,
+    count: usize,
 }
 
 pub struct ClusterOverviewChart {
-    /// Worker count at different times.
+    /// Worker count records that should be currently displayed.
     worker_records: Vec<WorkerCountRecord>,
     /// The time for which the data is plotted for.
     view_size: Duration,
 }
 
 impl ClusterOverviewChart {
-    pub fn update(&mut self, overview: &CollectedOverview) {
-        self.worker_records.push(WorkerCountRecord {
-            time: SystemTime::now(),
-            worker_count: overview.worker_overviews.len() as u32,
-        });
+    pub fn update(&mut self, data: &DashboardData) {
+        let end = SystemTime::now();
+        let mut start = end - self.view_size;
+        let mut times = vec![];
+
+        while start <= end {
+            times.push(start);
+            start += Duration::from_secs(1);
+        }
+
+        self.worker_records = times
+            .into_iter()
+            .map(|time| WorkerCountRecord {
+                time,
+                count: data.worker_count_at(time),
+            })
+            .collect();
     }
 
     pub fn draw(&mut self, rect: Rect, frame: &mut DashboardFrame) {
-        let workers_in_view = self.get_workers_in_view();
-        let max_workers_in_view = workers_in_view
+        let max_workers_in_view = self
+            .worker_records
             .iter()
-            .map(|&(_, count)| count)
+            .map(|record| record.count)
             .max()
             .unwrap_or(0) as f64;
 
-        let worker_counts: Vec<(f64, f64)> = workers_in_view
+        let worker_counts: Vec<(f64, f64)> = self
+            .worker_records
             .iter()
-            .map(|x| (x.0 as f64, x.1 as f64))
+            .map(|record| (get_time_as_secs(record.time) as f64, record.count as f64))
             .collect();
         let datasets = vec![Dataset::default()
             .name("workers_connected")
@@ -77,16 +90,6 @@ impl ClusterOverviewChart {
                     ]),
             );
         frame.render_widget(chart, rect);
-    }
-
-    /// Returns the worker connection chart data for the view size.
-    fn get_workers_in_view(&self) -> Vec<(u64, u64)> {
-        let current_time = SystemTime::now();
-        self.worker_records
-            .iter()
-            .filter(|count| count.time > current_time - self.view_size)
-            .map(|record| (get_time_as_secs(record.time), record.worker_count as u64))
-            .collect()
     }
 }
 

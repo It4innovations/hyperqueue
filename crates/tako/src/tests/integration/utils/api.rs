@@ -144,7 +144,9 @@ pub async fn get_events_after(
             MonitoringEventRequest { after_id },
         ))
         .await;
-    wait_for_msg!(handler, ToGatewayMessage::MonitoringEvents(events) => events)
+    let mut events = wait_for_msg!(handler, ToGatewayMessage::MonitoringEvents(events) => events);
+    events.sort_by_key(|e| e.id());
+    events
 }
 
 // Waiting for tasks

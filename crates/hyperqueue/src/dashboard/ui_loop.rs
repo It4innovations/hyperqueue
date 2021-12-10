@@ -6,27 +6,32 @@ use termion::input::TermRead;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Duration;
 
-use crate::client::commands::worker::get_worker_list;
 use crate::client::globalsettings::GlobalSettings;
+use crate::dashboard::data;
+use crate::dashboard::data::DashboardData;
 use crate::dashboard::events::DashboardEvent;
 use crate::dashboard::state::DashboardState;
-use crate::dashboard::ui::screen::ClusterState;
 use crate::dashboard::ui::terminal::{initialize_terminal, DashboardTerminal};
-use crate::dashboard::utils::get_hw_overview;
 use crate::server::bootstrap::get_client_connection;
-use crate::transfer::connection::ClientConnection;
 
 /// Starts the dashboard UI with a keyboard listener and tick provider
-pub async fn start_ui_loop(
-    mut state: DashboardState,
-    gsettings: &GlobalSettings,
-) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+pub async fn start_ui_loop(gsettings: &GlobalSettings) -> anyhow::Result<()> {
+    let connection = get_client_connection(gsettings.server_directory()).await?;
+
+    // TODO: When we start the dashboard and connect to the server, the server may have already forgotten
+    // some of its events. Therefore we should bootstrap the state with the most recent overview snapshot.
+
+    let data = DashboardData::default();
+    let mut state = DashboardState::new(data);
+
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     start_key_event_listener(tx.clone());
 
-    let ui_ticker = send_event_every(100, tx.clone(), DashboardEvent::UiTick);
-    let data_ticker = send_event_every(500, tx, DashboardEvent::DataTick);
+    let ui_ticker = send_event_every(100, tx, DashboardEvent::UiTick);
+
+    let data_source = state.get_data_source().clone();
+    let data_fetch_process =
+        data::create_data_fetch_process(Duration::from_secs(1), data_source, connection);
 
     let mut terminal = initialize_terminal()?;
 
@@ -40,32 +45,24 @@ pub async fn start_ui_loop(
                         }
                     }
                     DashboardEvent::UiTick => draw(&mut state, &mut terminal),
-                    // TODO: move to another thread in order to not block UI
-                    DashboardEvent::DataTick => update(&mut state, &mut connection).await?,
                 }
             }
         }
     };
     tokio::select! {
-        _ = ui_ticker => { Ok(()) }
-        _ = data_ticker => {Ok(()) }
-        result = event_loop => { result }
+        _ = ui_ticker => {
+            log::warn!("UI event process has ended");
+            Ok(())
+        }
+        result = data_fetch_process => {
+            log::warn!("Data fetch process has ended");
+            result
+        }
+        result = event_loop => {
+            log::warn!("Dashboard event loop has ended");
+            result
+        }
     }
-}
-
-async fn update(
-    state: &mut DashboardState,
-    connection: &mut ClientConnection,
-) -> anyhow::Result<()> {
-    let overview = get_hw_overview().await?;
-    let worker_info = get_worker_list(connection, false).await?;
-
-    let screen = state.get_current_screen_mut();
-    screen.update(ClusterState {
-        overview,
-        worker_info,
-    });
-    Ok(())
 }
 
 fn handle_key(state: &mut DashboardState, input: Key) -> ControlFlow<anyhow::Result<()>> {
@@ -82,13 +79,16 @@ fn handle_key(state: &mut DashboardState, input: Key) -> ControlFlow<anyhow::Res
 fn draw(state: &mut DashboardState, terminal: &mut DashboardTerminal) {
     terminal
         .draw(|frame| {
+            let data = state.get_data_source().clone();
             let screen = state.get_current_screen_mut();
+
+            screen.update(&data.get());
             screen.draw(frame);
         })
         .expect("An error occurred while drawing the dashboard");
 }
 
-///Handles key press events when the dashboard_ui is active
+/// Handles key press events when the dashboard_ui is active
 fn start_key_event_listener(tx: UnboundedSender<DashboardEvent>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let stdin = io::stdin();
@@ -101,7 +101,7 @@ fn start_key_event_listener(tx: UnboundedSender<DashboardEvent>) -> thread::Join
     })
 }
 
-///Sends a dashboard event every n milliseconds
+/// Sends a dashboard event every n milliseconds
 async fn send_event_every(
     n_milliseconds: u64,
     sender: UnboundedSender<DashboardEvent>,

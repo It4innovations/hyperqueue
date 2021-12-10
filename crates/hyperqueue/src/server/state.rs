@@ -9,7 +9,6 @@ use crate::server::autoalloc::AutoAllocState;
 use crate::server::job::Job;
 use crate::server::rpc::Backend;
 use crate::server::worker::Worker;
-use crate::transfer::messages::LostWorkerReasonInfo;
 use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
 use std::cmp::min;
@@ -200,10 +199,10 @@ impl State {
         log::debug!("Worker lost id={}", msg.worker_id);
         let worker = self.workers.get_mut(&msg.worker_id).unwrap();
         worker.set_offline_state(match msg.reason {
-            LostWorkerReason::Stopped => LostWorkerReasonInfo::Stopped,
-            LostWorkerReason::ConnectionLost => LostWorkerReasonInfo::ConnectionLost,
-            LostWorkerReason::HeartbeatLost => LostWorkerReasonInfo::HeartbeatLost,
-            LostWorkerReason::IdleTimeout => LostWorkerReasonInfo::IdleTimeout,
+            LostWorkerReason::Stopped => LostWorkerReason::Stopped,
+            LostWorkerReason::ConnectionLost => LostWorkerReason::ConnectionLost,
+            LostWorkerReason::HeartbeatLost => LostWorkerReason::HeartbeatLost,
+            LostWorkerReason::IdleTimeout => LostWorkerReason::IdleTimeout,
         });
         for task_id in msg.running_tasks {
             let job = self.get_job_mut_by_tako_task_id(task_id).unwrap();

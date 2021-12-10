@@ -4,6 +4,7 @@ use std::time::Duration;
 use anyhow::Error;
 
 use tako::common::resources::ResourceDescriptor;
+use tako::messages::gateway::LostWorkerReason;
 
 use crate::client::job::WorkerMap;
 use crate::client::output::outputs::Output;
@@ -12,8 +13,8 @@ use crate::common::serverdir::AccessRecord;
 use crate::server::autoalloc::{Allocation, AllocationEventHolder};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, LostWorkerReasonInfo, StatsResponse,
-    WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
+    AutoAllocListResponse, JobDetail, JobInfo, StatsResponse, WaitForJobsResponse, WorkerExitInfo,
+    WorkerInfo,
 };
 
 #[derive(Default)]
@@ -26,19 +27,19 @@ impl Output for Quiet {
             let worker_status = match worker.ended.as_ref() {
                 None => "RUNNING",
                 Some(WorkerExitInfo {
-                    reason: LostWorkerReasonInfo::ConnectionLost,
+                    reason: LostWorkerReason::ConnectionLost,
                     ..
                 }) => "CONNECTION LOST",
                 Some(WorkerExitInfo {
-                    reason: LostWorkerReasonInfo::HeartbeatLost,
+                    reason: LostWorkerReason::HeartbeatLost,
                     ..
                 }) => "HEARTBEAT LOST",
                 Some(WorkerExitInfo {
-                    reason: LostWorkerReasonInfo::IdleTimeout,
+                    reason: LostWorkerReason::IdleTimeout,
                     ..
                 }) => "IDLE TIMEOUT",
                 Some(WorkerExitInfo {
-                    reason: LostWorkerReasonInfo::Stopped,
+                    reason: LostWorkerReason::Stopped,
                     ..
                 }) => "STOPPED",
             };

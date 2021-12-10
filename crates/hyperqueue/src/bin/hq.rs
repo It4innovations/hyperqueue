@@ -26,7 +26,6 @@ use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::timeutils::ArgDuration;
-use hyperqueue::dashboard::state::DashboardState;
 use hyperqueue::dashboard::ui_loop::start_ui_loop;
 use hyperqueue::server::bootstrap::{
     get_client_connection, init_hq_server, print_server_info, ServerConfig,
@@ -445,7 +444,7 @@ async fn command_dashboard_start(
     gsettings: &GlobalSettings,
     _opts: DashboardOpts,
 ) -> anyhow::Result<()> {
-    start_ui_loop(DashboardState::default(), gsettings).await?;
+    start_ui_loop(gsettings).await?;
     Ok(())
 }
 
