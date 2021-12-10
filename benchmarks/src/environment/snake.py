@@ -5,7 +5,7 @@ import logging
 import os
 
 from pathlib import Path
-from snakemake import snakemake
+# from snakemake import snakemake
 from . import Environment, EnvironmentDescriptor
 from .utils import EnvStateManager
 
@@ -32,7 +32,7 @@ class SnakeEnvironmentDescriptor(EnvironmentDescriptor):
 
 class SnakeEnvironment(Environment, EnvStateManager):
     def __init__(self, info: SnakeClusterInfo):
-        super(EnvStateManager, self).__init__()
+        EnvStateManager.__init__(self)
         self.info = info
         self.snakefile = os.path.join(info.workdir, "Snakefile")
 
