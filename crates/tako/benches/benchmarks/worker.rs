@@ -9,7 +9,6 @@ use tako::common::resources::{
     CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, GenericResourceRequest,
     ResourceDescriptor, ResourceRequest, TimeRequest,
 };
-use tako::messages::common::TaskConfiguration;
 use tokio::sync::mpsc::unbounded_channel;
 
 use tako::messages::worker::ComputeTaskMsg;
@@ -42,9 +41,12 @@ fn create_worker_task(id: u64) -> Task {
         id: id.into(),
         instance_id: Default::default(),
         dep_info: vec![],
-        configuration: Default::default(),
         user_priority: 0,
         scheduler_priority: 0,
+        resources: Default::default(),
+        time_limit: None,
+        n_outputs: 0,
+        body: vec![],
     })
 }
 
@@ -174,21 +176,15 @@ fn bench_resource_queue_release_allocation(c: &mut BenchmarkGroup<WallTime>) {
             || {
                 let mut queue = create_resource_queue(64);
                 let mut task = create_worker_task(0);
-                task.configuration = TaskConfiguration {
-                    resources: ResourceRequest::new(
-                        CpuRequest::Compact(64),
-                        TimeRequest::new(0, 0),
-                        vec![GenericResourceRequest {
-                            resource: 0.into(),
-                            amount: 2,
-                        }]
-                        .into(),
-                    ),
-                    n_outputs: 0,
-                    time_limit: None,
-                    body: vec![],
-                };
-
+                task.resources = ResourceRequest::new(
+                    CpuRequest::Compact(64),
+                    TimeRequest::new(0, 0),
+                    vec![GenericResourceRequest {
+                        resource: 0.into(),
+                        amount: 2,
+                    }]
+                    .into(),
+                );
                 queue.add_task(&task);
 
                 let mut map = TaskMap::default();
@@ -216,21 +212,15 @@ fn bench_resource_queue_start_tasks(c: &mut BenchmarkGroup<WallTime>) {
 
                         for id in 0..task_count {
                             let mut task = create_worker_task(id);
-                            task.configuration = TaskConfiguration {
-                                resources: ResourceRequest::new(
-                                    CpuRequest::Compact(64),
-                                    TimeRequest::new(0, 0),
-                                    vec![GenericResourceRequest {
-                                        resource: 0.into(),
-                                        amount: 2,
-                                    }]
-                                    .into(),
-                                ),
-                                n_outputs: 0,
-                                time_limit: None,
-                                body: vec![],
-                            };
-
+                            task.resources = ResourceRequest::new(
+                                CpuRequest::Compact(64),
+                                TimeRequest::new(0, 0),
+                                vec![GenericResourceRequest {
+                                    resource: 0.into(),
+                                    amount: 2,
+                                }]
+                                .into(),
+                            );
                             queue.add_task(&task);
                             map.insert(id.into(), task);
                         }

@@ -1,12 +1,26 @@
+use std::rc::Rc;
 use tako::common::resources::ResourceDescriptor;
 use tako::messages::common::WorkerConfiguration;
 use tako::server::core::Core;
-use tako::server::task::TaskRef;
+use tako::server::task::{TaskConfiguration, TaskRef};
 use tako::server::worker::Worker;
 use tako::WorkerId;
 
 pub fn create_task(id: u64) -> TaskRef {
-    TaskRef::new(id.into(), vec![], Default::default(), 0, false, false)
+    let conf = TaskConfiguration {
+        resources: Default::default(),
+        user_priority: 0,
+        time_limit: None,
+        n_outputs: 0,
+    };
+    TaskRef::new(
+        id.into(),
+        vec![],
+        Rc::new(conf),
+        Default::default(),
+        false,
+        false,
+    )
 }
 pub fn create_worker(id: u64) -> Worker {
     Worker::new(
