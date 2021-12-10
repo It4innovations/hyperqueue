@@ -12,7 +12,8 @@ use crate::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
 use bstr::BString;
 use std::path::PathBuf;
 use std::time::Duration;
-use tako::messages::gateway::ResourceRequest;
+use tako::messages::gateway::{LostWorkerReason, MonitoringEventRequest, ResourceRequest};
+use tako::server::monitoring::MonitoringEvent;
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]
@@ -30,6 +31,7 @@ pub enum FromClientMessage {
     Stop,
     AutoAlloc(AutoAllocRequest),
     WaitForJobs(WaitForJobsRequest),
+    MonitoringEvents(MonitoringEventRequest),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -150,6 +152,7 @@ pub enum ToClientMessage {
     CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
     AutoAllocResponse(AutoAllocResponse),
     WaitForJobsResponse(WaitForJobsResponse),
+    MonitoringEventsResponse(Vec<MonitoringEvent>),
     Error(String),
 }
 
@@ -205,19 +208,10 @@ pub struct JobInfo {
     pub resources: ResourceRequest,
 }
 
-// We need to duplicate LostWorkerReason because of serialization problems (msgpack vs. binpack)
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum LostWorkerReasonInfo {
-    Stopped,
-    ConnectionLost,
-    HeartbeatLost,
-    IdleTimeout,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerExitInfo {
     pub ended_at: DateTime<Utc>,
-    pub reason: LostWorkerReasonInfo,
+    pub reason: LostWorkerReason,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

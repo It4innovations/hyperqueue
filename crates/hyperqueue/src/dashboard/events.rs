@@ -6,6 +6,4 @@ pub enum DashboardEvent {
     KeyPressEvent(Key),
     /// Updates the dashboard ui with the latest data
     UiTick,
-    /// Fetches the latest data
-    DataTick,
 }

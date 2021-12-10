@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::common::resources::CpuRequest;
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
-use crate::messages::worker::WorkerOverview;
 use crate::server::monitoring::MonitoringEvent;
 use crate::{Priority, TaskId, WorkerId};
 use std::time::Duration;
@@ -166,11 +165,6 @@ pub struct TasksInfoResponse {
     pub tasks: Vec<TaskInfo>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CollectedOverview {
-    pub worker_overviews: Vec<WorkerOverview>,
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CancelTasksResponse {
     // Tasks that was waiting, assigned or running. Such tasks were removed from server
@@ -190,26 +184,12 @@ pub struct NewWorkerMessage {
     pub configuration: WorkerConfiguration,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum LostWorkerReason {
     Stopped,
     ConnectionLost,
     HeartbeatLost,
     IdleTimeout,
-}
-
-impl Serialize for LostWorkerReason {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(match self {
-            LostWorkerReason::Stopped => "Stopped",
-            LostWorkerReason::ConnectionLost => "ConnectionLost",
-            LostWorkerReason::HeartbeatLost => "HeartbeatLost",
-            LostWorkerReason::IdleTimeout => "IdleTimeout",
-        })
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -229,7 +209,6 @@ pub enum ToGatewayMessage {
     TaskInfo(TasksInfoResponse),
     Error(ErrorResponse),
     ServerInfo(ServerInfo),
-    Overview(CollectedOverview),
     NewWorker(NewWorkerMessage),
     LostWorker(LostWorkerMessage),
     WorkerStopped,

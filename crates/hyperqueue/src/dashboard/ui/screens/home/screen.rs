@@ -1,41 +1,36 @@
 use termion::event::Key;
 
-use crate::dashboard::ui::screen::{ClusterState, Screen};
-use crate::dashboard::ui::screens::home::chart_section::ClusterOverviewChart;
-use crate::dashboard::ui::screens::home::info_section::WorkerInfoTable;
+use crate::dashboard::ui::screen::Screen;
+use crate::dashboard::ui::screens::home::cluster_overview_chart::ClusterOverviewChart;
 use crate::dashboard::ui::screens::home::worker_utilization_table::WorkerUtilTable;
 use crate::dashboard::ui::styles::style_header_text;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
 
+use crate::dashboard::data::DashboardData;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
 pub struct HomeScreen {
-    worker_info_table: WorkerInfoTable,
     worker_util_table: WorkerUtilTable,
-    worker_info_chart: ClusterOverviewChart,
+    cluster_overview: ClusterOverviewChart,
 }
 
 impl Screen for HomeScreen {
     fn draw(&mut self, frame: &mut DashboardFrame) {
         let layout = HomeLayout::new(frame);
         draw_text("HQ top", layout.header_chunk, frame, style_header_text());
-        // Update the current selected worker for info table
-        let selected_worker = self.worker_util_table.get_selected_item();
-        self.worker_info_table.change_info(selected_worker);
 
-        self.worker_info_chart.draw(layout.chart_chunk, frame);
-        self.worker_info_table.draw(layout.info_chunk, frame);
+        self.cluster_overview.draw(layout.chart_chunk, frame);
         self.worker_util_table.draw(layout.body_chunk, frame);
     }
 
-    fn update(&mut self, state: ClusterState) {
-        self.worker_util_table.update(&state.overview);
-        self.worker_info_table.update(state.worker_info);
-        self.worker_info_chart.update(&state.overview)
+    fn update(&mut self, data: &DashboardData) {
+        self.worker_util_table.update(data);
+        self.cluster_overview.update(data);
     }
 
+    /// Handles key presses for the components of the screen
     fn handle_key(&mut self, key: Key) {
         match key {
             Key::Down => self.worker_util_table.select_next_worker(),
@@ -55,7 +50,7 @@ impl Screen for HomeScreen {
  **/
 struct HomeLayout {
     chart_chunk: Rect,
-    info_chunk: Rect,
+    _info_chunk: Rect,
     header_chunk: Rect,
     body_chunk: Rect,
 }
@@ -79,7 +74,7 @@ impl HomeLayout {
 
         Self {
             chart_chunk: info_chunks[0],
-            info_chunk: info_chunks[1],
+            _info_chunk: info_chunks[1],
             header_chunk: base_chunks[1],
             body_chunk: base_chunks[2],
         }

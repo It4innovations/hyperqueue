@@ -16,8 +16,8 @@ use crate::server::autoalloc::{
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, JobType, LostWorkerReasonInfo, StatsResponse,
-    WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
+    AutoAllocListResponse, JobDetail, JobInfo, JobType, StatsResponse, WaitForJobsResponse,
+    WorkerExitInfo, WorkerInfo,
 };
 use crate::{JobTaskCount, WorkerId};
 
@@ -37,7 +37,7 @@ use anyhow::Error;
 use colored::Color as Colorization;
 use colored::Colorize;
 use std::collections::BTreeSet;
-use tako::messages::gateway::ResourceRequest;
+use tako::messages::gateway::{LostWorkerReason, ResourceRequest};
 
 pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
 pub const TASK_COLOR_FAILED: Colorization = Colorization::Red;
@@ -165,19 +165,19 @@ impl Output for CliOutput {
                     match worker.ended.as_ref() {
                         None => "RUNNING".cell().foreground_color(Some(Color::Green)),
                         Some(WorkerExitInfo {
-                            reason: LostWorkerReasonInfo::ConnectionLost,
+                            reason: LostWorkerReason::ConnectionLost,
                             ..
                         }) => "CONNECTION LOST".cell().foreground_color(Some(Color::Red)),
                         Some(WorkerExitInfo {
-                            reason: LostWorkerReasonInfo::HeartbeatLost,
+                            reason: LostWorkerReason::HeartbeatLost,
                             ..
                         }) => "HEARTBEAT LOST".cell().foreground_color(Some(Color::Red)),
                         Some(WorkerExitInfo {
-                            reason: LostWorkerReasonInfo::IdleTimeout,
+                            reason: LostWorkerReason::IdleTimeout,
                             ..
                         }) => "IDLE TIMEOUT".cell().foreground_color(Some(Color::Cyan)),
                         Some(WorkerExitInfo {
-                            reason: LostWorkerReasonInfo::Stopped,
+                            reason: LostWorkerReason::Stopped,
                             ..
                         }) => "STOPPED".cell().foreground_color(Some(Color::Magenta)),
                     },

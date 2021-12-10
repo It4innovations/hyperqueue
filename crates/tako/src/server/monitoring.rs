@@ -22,6 +22,21 @@ pub struct MonitoringEvent {
     pub payload: MonitoringEventPayload,
 }
 
+impl MonitoringEvent {
+    #[inline]
+    pub fn id(&self) -> MonitoringEventId {
+        self.id
+    }
+    #[inline]
+    pub fn time(&self) -> SystemTime {
+        self.time
+    }
+    #[inline]
+    pub fn payload(&self) -> &MonitoringEventPayload {
+        &self.payload
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum MonitoringEventPayload {
     WorkerConnected(WorkerId, Box<WorkerConfiguration>),
