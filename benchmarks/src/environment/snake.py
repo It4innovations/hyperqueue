@@ -1,18 +1,13 @@
-from typing import List
+from typing import Dict, Any
 
 import dataclasses
 import logging
-import subprocess
 import os
+
 from pathlib import Path
-from . import Environment
-
-
-class ProfileMode:
-    def __init__(self, server=False, workers=False, frequency=99):
-        self.server = server
-        self.workers = workers
-        self.frequency = frequency
+from snakemake import snakemake
+from . import Environment, EnvironmentDescriptor
+from .utils import EnvStateManager
 
 
 @dataclasses.dataclass(frozen=True)
@@ -20,11 +15,26 @@ class SnakeClusterInfo:
     workdir: Path
 
 
-class SnakeEnvironment(Environment):
+class SnakeEnvironmentDescriptor(EnvironmentDescriptor):
+    def create_environment(self, workdir: Path) -> Environment:
+        info = SnakeClusterInfo(workdir)
+        return SnakeEnvironment(info)
+
+    def name(self) -> str:
+        return "snake"
+
+    def parameters(self) -> Dict[str, Any]:
+        return {}
+
+    def metadata(self) -> Dict[str, Any]:
+        return {}
+
+
+class SnakeEnvironment(Environment, EnvStateManager):
     def __init__(self, info: SnakeClusterInfo):
+        super(EnvStateManager, self).__init__()
         self.info = info
-        self.snakefile = "Snakefile"
-        self.state = "initial"
+        self.snakefile = os.path.join(info.workdir, "Snakefile")
 
     def __enter__(self):
         self.start()
@@ -38,22 +48,17 @@ class SnakeEnvironment(Environment):
         return self.info.workdir
 
     def start(self):
+        self.state_start()
         logging.info("Creating Snakefile")
-        file = open(self.snakefile, "w")
-        file.close()
-        self.state = "started"
+        with open(self.snakefile, "w") as f:
+            pass
 
     def stop(self):
-        logging.info("Deleting Snakefile")
-        os.remove(self.snakefile)
-        self.state = "stopped"
+        logging.info("Stopped Snakemake")
+        self.state_stop()
 
-    def submit(self, args: List[str]):
-        logging.info(f"Snake Submitting {args[0], args[1]}")
-        file = open(self.snakefile, "a")
-        file.writelines(args[0])
-        file.close()
-
-        result = subprocess.call([f'snakemake --quiet --cores {args[1]}'], shell=True, stdout=subprocess.PIPE)
-        self.state = "submitted"
-        return result
+    def submit(self, cmds: str, cpus_per_task: int):
+        logging.info(f"Starting Snakemake {cmds, cpus_per_task}")
+        with open(self.snakefile, "w") as f:
+            f.writelines(cmds)
+        snakemake(snakefile=self.snakefile, quiet=True, cores=cpus_per_task)
