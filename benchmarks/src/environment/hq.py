@@ -14,6 +14,7 @@ from ..utils import check_file_exists
 from ..utils.process import execute_process
 from ..utils.timing import wait_until
 from . import Environment, EnvironmentDescriptor
+from .utils import EnvStateManager
 
 
 @dataclasses.dataclass(frozen=True)
@@ -113,8 +114,10 @@ def assign_workers(
     return dict(node_assignments)
 
 
-class HqEnvironment(Environment):
+class HqEnvironment(Environment, EnvStateManager):
     def __init__(self, info: HqClusterInfo, workdir: Path):
+        super(EnvStateManager, self).__init__()
+
         self.info = info
         self.cluster = ClusterHelper(self.info.cluster, workdir=workdir)
         self.binary_path = self.info.binary.absolute()
@@ -140,7 +143,6 @@ class HqEnvironment(Environment):
         logging.debug(f"Worker assignment: {self.worker_assignment}")
 
         self.submit_id = 0
-        self.state = "initial"
 
     def __enter__(self):
         self.start()
@@ -154,7 +156,7 @@ class HqEnvironment(Environment):
         return self._workdir
 
     def start(self):
-        assert self.state == "initial"
+        self.state_start()
 
         logging.info("Starting HQ server")
         self.start_server()
@@ -167,8 +169,6 @@ class HqEnvironment(Environment):
 
         self._wait_for_workers(self.worker_count)
         logging.info(f"{self.worker_count} HQ worker(s) connected")
-
-        self.state = "started"
 
     def start_server(self):
         workdir = self.server_dir / "server"
@@ -216,9 +216,8 @@ class HqEnvironment(Environment):
         self.cluster.start_processes(worker_processes)
 
     def stop(self):
-        assert self.state == "started"
+        self.state_stop()
         self.cluster.stop(use_sigint=True)
-        self.state = "stopped"
 
     def submit(self, args: List[str]) -> subprocess.CompletedProcess:
         path = self.server_dir / f"submit-{self.submit_id}"
