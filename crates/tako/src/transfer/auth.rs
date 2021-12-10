@@ -112,7 +112,7 @@ impl Authenticator {
                 response.extend_from_slice(&msg.challenge);
 
                 let challenge_response = sealer
-                    .seal_chunk(&response, StreamTag::Message)
+                    .seal_chunk(&response, &StreamTag::Message)
                     .map_err(|_| "Cannot seal challenge")?;
                 self.sealer = Some(sealer);
 
@@ -263,7 +263,10 @@ where
 #[inline]
 pub fn seal_message(sealer: &mut Option<StreamSealer>, data: Bytes) -> Bytes {
     if let Some(sealer) = sealer {
-        sealer.seal_chunk(&data, StreamTag::Message).unwrap().into()
+        sealer
+            .seal_chunk(&data, &StreamTag::Message)
+            .unwrap()
+            .into()
     } else {
         data
     }
