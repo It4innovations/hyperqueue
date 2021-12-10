@@ -1,4 +1,5 @@
 use crate::common::resources::{GenericResourceRequest, ResourceRequest};
+use crate::common::Map;
 use futures::future::join_all;
 use futures::{StreamExt, TryFutureExt};
 use tokio::net::UnixListener;
@@ -16,7 +17,7 @@ use crate::server::comm::{Comm, CommSenderRef};
 use crate::server::core::{Core, CoreRef};
 use crate::server::monitoring::MonitoringEvent;
 use crate::server::reactor::{on_cancel_tasks, on_new_tasks, on_set_observe_flag};
-use crate::server::task::{TaskConfiguration, TaskRef, TaskRuntimeState};
+use crate::server::task::{TaskConfiguration, TaskInput, TaskRef, TaskRuntimeState};
 use crate::transfer::transport::make_protocol_builder;
 use std::rc::Rc;
 
@@ -150,6 +151,7 @@ pub async fn process_client_message(
                 })
                 .collect();
 
+            let mut local_task_map = Map::new();
             for task in msg.tasks {
                 if core.is_used_task_id(task.id) {
                     return Some(format!("Task id={} is already taken", task.id));
@@ -158,18 +160,26 @@ pub async fn process_client_message(
                 if idx >= configurations.len() {
                     return Some(format!("Invalid configuration index {}", idx));
                 }
-
                 let (conf, keep, observe) = &configurations[idx];
-                let task_ref = TaskRef::new(
-                    task.id,
-                    Vec::new(),
-                    conf.clone(),
-                    task.body,
-                    *keep,
-                    *observe,
-                );
+                let inputs: Vec<_> = task
+                    .task_deps
+                    .iter()
+                    .map(|task_id| {
+                        TaskInput::new_task_dependency(
+                            local_task_map
+                                .get(task_id)
+                                .or_else(|| core.get_task_by_id(*task_id))
+                                .unwrap()
+                                .clone(),
+                        )
+                    })
+                    .collect();
+                let task_ref =
+                    TaskRef::new(task.id, inputs, conf.clone(), task.body, *keep, *observe);
+                local_task_map.insert(task.id, task_ref.clone());
                 tasks.push(task_ref);
             }
+            drop(local_task_map);
             let mut comm = comm_ref.get_mut();
             on_new_tasks(&mut core, &mut *comm, tasks);
 

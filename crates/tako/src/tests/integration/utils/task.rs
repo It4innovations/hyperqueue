@@ -101,6 +101,7 @@ pub fn build_task_def_from_config(config: TaskConfig) -> (TaskDef, TaskConf) {
         TaskDef {
             id: id.unwrap_or(1).into(),
             conf_idx: 0,
+            task_deps: Vec::new(),
             body,
         },
         conf,

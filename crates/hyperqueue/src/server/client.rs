@@ -591,6 +591,7 @@ async fn handle_submit(
         TaskDef {
             id: tako_id,
             conf_idx: 0,
+            task_deps: Vec::new(),
             body,
         }
     };
