@@ -42,6 +42,8 @@ pub struct ComputeTaskMsg {
     pub resources: crate::common::resources::ResourceRequest,
     pub time_limit: Option<Duration>,
     pub n_outputs: u32,
+
+    #[serde(with = "serde_bytes")]
     pub body: Vec<u8>,
 }
 

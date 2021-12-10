@@ -8,7 +8,8 @@ use tokio::sync::oneshot;
 use crate::common::rpc::forward_queue_to_sink_with_map;
 use crate::messages::gateway::{
     CancelTasksResponse, CollectedOverview, ErrorResponse, FromGatewayMessage, NewTasksResponse,
-    OverviewRequest, TaskInfo, TaskState, TaskUpdate, TasksInfoResponse, ToGatewayMessage,
+    OverviewRequest, TaskConf, TaskInfo, TaskState, TaskUpdate, TasksInfoResponse,
+    ToGatewayMessage,
 };
 use crate::messages::worker::{ToWorkerMessage, WorkerOverview};
 use crate::server::comm::{Comm, CommSenderRef};

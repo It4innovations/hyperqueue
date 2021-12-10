@@ -230,13 +230,10 @@ fn test_assignments_and_finish() {
     ));
     comm.emptiness_check();
 
-    assert!(core.get_task_by_id_or_panic(11.into()).get().is_assigned());
-    assert!(core.get_task_by_id_or_panic(12.into()).get().is_assigned());
-    assert!(core.get_task_by_id_or_panic(13.into()).get().is_waiting());
-    assert!(core.get_task_by_id_or_panic(17.into()).get().is_waiting());
+    core.assert_assigned(&[11, 12]);
+    core.assert_waiting(&[13, 17]);
 
     let t5 = core.get_task_by_id_or_panic(15.into()).clone();
-
     assert!(t5.get().is_assigned());
 
     // FINISH TASK WITHOUT CONSUMERS & KEEP FLAG
@@ -929,16 +926,13 @@ fn lost_worker_with_running_and_assign_tasks() {
     start_stealing(&mut core, 40, 100);
     start_stealing(&mut core, 41, 101);
 
-    assert!(core.get_task_by_id_or_panic(12.into()).get().is_running());
+    core.assert_running(&[12]);
     assert_eq!(
         core.get_task_by_id_or_panic(12.into()).get().instance_id,
         0.into()
     );
 
-    assert!(!core.get_task_by_id_or_panic(11.into()).get().is_fresh());
-    assert!(!core.get_task_by_id_or_panic(12.into()).get().is_fresh());
-    assert!(!core.get_task_by_id_or_panic(40.into()).get().is_fresh());
-    assert!(!core.get_task_by_id_or_panic(41.into()).get().is_fresh());
+    core.assert_task_condition(&[11, 12, 40, 41], |t| !t.is_fresh());
 
     let mut comm = create_test_comm();
     on_remove_worker(
@@ -954,16 +948,14 @@ fn lost_worker_with_running_and_assign_tasks() {
     );
 
     assert_eq!(core.take_ready_to_assign().len(), 3);
-    assert!(core.get_task_by_id_or_panic(11.into()).get().is_ready());
-    assert!(core.get_task_by_id_or_panic(12.into()).get().is_ready());
+    core.assert_ready(&[11, 12]);
     assert_eq!(
         core.get_task_by_id_or_panic(12.into()).get().instance_id,
         1.into()
     );
     assert!(core.get_task_by_id_or_panic(40.into()).get().is_ready());
-    assert!(core.get_task_by_id_or_panic(11.into()).get().is_fresh());
-    assert!(core.get_task_by_id_or_panic(12.into()).get().is_fresh());
-    assert!(core.get_task_by_id_or_panic(40.into()).get().is_fresh());
+    core.assert_ready(&[40]);
+    core.assert_fresh(&[11, 12, 40]);
     assert!(matches!(
         core.get_task_by_id_or_panic(41.into()).get().state,
         TaskRuntimeState::Stealing(WorkerId(100), None)
@@ -982,8 +974,8 @@ fn lost_worker_with_running_and_assign_tasks() {
     );
 
     assert_eq!(core.take_ready_to_assign().len(), 1);
-    assert!(core.get_task_by_id_or_panic(41.into()).get().is_ready());
-    assert!(core.get_task_by_id_or_panic(41.into()).get().is_fresh());
+    core.assert_ready(&[41]);
+    core.assert_fresh(&[41]);
 
     comm.check_need_scheduling();
     comm.emptiness_check();
@@ -1050,14 +1042,10 @@ fn test_task_deps() {
     assert_eq!(core.get_read_to_assign().len(), 2);
     create_test_workers(&mut core, &[1]);
     start_and_finish_on_worker(&mut core, 2, 100, 0);
-    assert!(core.get_task_by_id_or_panic(3.into()).get().is_waiting());
-    assert!(core.get_task_by_id_or_panic(4.into()).get().is_waiting());
-    assert!(core.get_task_by_id_or_panic(5.into()).get().is_ready());
-    assert!(core.get_task_by_id_or_panic(6.into()).get().is_waiting());
+    core.assert_waiting(&[3, 4, 6]);
+    core.assert_ready(&[5]);
 
     start_and_finish_on_worker(&mut core, 1, 100, 0);
-    assert!(core.get_task_by_id_or_panic(3.into()).get().is_ready());
-    assert!(core.get_task_by_id_or_panic(4.into()).get().is_ready());
-    assert!(core.get_task_by_id_or_panic(5.into()).get().is_ready());
-    assert!(core.get_task_by_id_or_panic(6.into()).get().is_waiting());
+    core.assert_waiting(&[6]);
+    core.assert_ready(&[3, 4, 5]);
 }

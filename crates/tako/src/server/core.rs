@@ -396,6 +396,7 @@ impl Core {
 #[cfg(test)]
 mod tests {
     use crate::server::core::Core;
+    use crate::server::task::Task;
     use crate::server::task::{TaskRef, TaskRuntimeState};
     use crate::tests::utils::task;
 
@@ -411,6 +412,34 @@ mod tests {
                 .position(|x| x == task_ref)
                 .unwrap();
             self.ready_to_assign.remove(p);
+        }
+
+        pub fn assert_task_condition<F: Fn(&Task) -> bool>(&self, task_ids: &[u64], op: F) {
+            for task_id in task_ids {
+                if !op(&self.get_task_by_id_or_panic((*task_id).into()).get()) {
+                    panic!("Task {} does not satisfy the condition", task_id);
+                }
+            }
+        }
+
+        pub fn assert_waiting(&self, task_ids: &[u64]) {
+            self.assert_task_condition(task_ids, |t| t.is_waiting());
+        }
+
+        pub fn assert_ready(&self, task_ids: &[u64]) {
+            self.assert_task_condition(task_ids, |t| t.is_ready());
+        }
+
+        pub fn assert_assigned(&self, task_ids: &[u64]) {
+            self.assert_task_condition(task_ids, |t| t.is_assigned());
+        }
+
+        pub fn assert_fresh(&self, task_ids: &[u64]) {
+            self.assert_task_condition(task_ids, |t| t.is_fresh());
+        }
+
+        pub fn assert_running(&self, task_ids: &[u64]) {
+            self.assert_task_condition(task_ids, |t| t.is_running());
         }
     }
 
