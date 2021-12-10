@@ -5,8 +5,22 @@ on:
   schedule:
     - cron: '0 0 * * *'
 jobs:
+  set-env:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ env.HQ_VERSION }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+      - name: Set HQ nightly version
+        run: |
+          echo "HQ_VERSION=nightly-$(date +'%Y-%m-%d')-${{ github.sha }}" >> $GITHUB_ENV
+      - name: Print HQ nightly version
+        run: |
+          echo "HQ version: ${{ env.HQ_VERSION }}"
   build-binaries-x64:
     runs-on: ubuntu-latest
+    needs: [ set-env ]
     # Use a container with GLIBC 2.17
     container: quay.io/pypa/manylinux2014_x86_64
     steps:
@@ -27,6 +41,8 @@ jobs:
 
       - name: Compile
         uses: actions-rs/cargo@v1
+        env:
+         HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
         with:
           command: build
           args: --release
@@ -37,7 +53,7 @@ jobs:
       - name: Prepare archive
         id: archive
         run: |
-          export ARCHIVE_NAME=hq-nightly-linux-x64.tar.gz
+          export ARCHIVE_NAME=hq-${{ needs.set-env.outputs.version }}-linux-x64.tar.gz
           tar -czvf $ARCHIVE_NAME -C target/release hq
           echo "::set-output name=archive-name::$ARCHIVE_NAME"
 
@@ -48,6 +64,7 @@ jobs:
           path: ${{ steps.archive.outputs.archive-name }}
   build-binaries-powerpc:
     runs-on: ubuntu-latest
+    needs: [ set-env ]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -57,19 +74,24 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+
       - uses: Swatinem/rust-cache@v1
         with:
           key: powerpc64le-unknown-linux-gnu
+
       - name: Compile
         uses: actions-rs/cargo@v1
+        env:
+          HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
         with:
           command: build
           args: --target powerpc64le-unknown-linux-gnu --no-default-features --release
           use-cross: true
+
       - name: Prepare archive
         id: archive
         run: |
-          export ARCHIVE_NAME=hq-nightly-linux-powerpc64.tar.gz
+          export ARCHIVE_NAME=hq-${{ needs.set-env.outputs.version }}-linux-powerpc64.tar.gz
           tar -czvf $ARCHIVE_NAME -C target/powerpc64le-unknown-linux-gnu/release hq
           echo "::set-output name=archive-name::$ARCHIVE_NAME"
 
@@ -80,7 +102,7 @@ jobs:
           path: ${{ steps.archive.outputs.archive-name }}
   create-tag:
     runs-on: ubuntu-latest
-    needs: [ build-binaries-x64, build-binaries-powerpc ]
+    needs: [ set-env, build-binaries-x64, build-binaries-powerpc ]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -89,12 +111,10 @@ jobs:
         with:
           tag: nightly
           force_push_tag: true
-          message: "Nightly build"
+          message: Nightly build ${{ needs.set-env.outputs.version }}
   create-release:
     runs-on: ubuntu-latest
-    needs: [ create-tag ]
-    outputs:
-      upload_url: ${{ steps.create-release.outputs.upload_url }}
+    needs: [ set-env, create-tag ]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -105,6 +125,10 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v2
 
+      - name: Prepare release name
+        run: |
+          echo "RELEASE_NAME=Nightly build $(date +'%Y-%m-%d')" >> $GITHUB_ENV
+
       - name: Create release
         uses: ncipollo/release-action@v1
         id: create-release
@@ -112,8 +136,9 @@ jobs:
           bodyFile: generated-changelog.md
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
-          name: Nightly build
+          name: ${{ env.RELEASE_NAME }}
           prerelease: true
           tag: nightly
           commit: ${{ github.sha }}
           artifacts: archive-*/**
+          removeArtifacts: true
