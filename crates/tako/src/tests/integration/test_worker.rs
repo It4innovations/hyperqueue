@@ -4,7 +4,7 @@ use tokio::time::sleep;
 
 use crate::tests::integration::utils::api::get_overview;
 use crate::tests::integration::utils::server::run_test;
-use crate::tests::integration::utils::task::{GraphBuilder, simple_task};
+use crate::tests::integration::utils::task::{simple_task, GraphBuilder};
 use crate::WorkerId;
 
 use super::utils::server::ServerConfigBuilder;
@@ -46,7 +46,13 @@ async fn test_worker_idle_timeout_no_tasks() {
 #[tokio::test]
 async fn test_worker_idle_timeout_tasks() {
     run_test(Default::default(), |mut handle| async move {
-        handle.submit(GraphBuilder::default().task(simple_task(&["sleep", "1"], 1)).build()).await;
+        handle
+            .submit(
+                GraphBuilder::default()
+                    .task(simple_task(&["sleep", "1"], 1))
+                    .build(),
+            )
+            .await;
 
         let builder = WorkerConfigBuilder::default().idle_timeout(Some(Duration::from_millis(250)));
         handle.start_worker(builder).await.unwrap();
@@ -111,7 +117,9 @@ async fn test_lost_worker_with_tasks_continue() {
             .await
             .unwrap();
 
-        handle.submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1))).await;
+        handle
+            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1)))
+            .await;
 
         sleep(Duration::from_millis(400)).await;
 
@@ -134,7 +142,9 @@ async fn test_lost_worker_with_tasks_continue() {
 #[tokio::test]
 async fn test_lost_worker_with_tasks_restarts() {
     run_test(Default::default(), |mut handle| async move {
-        handle.submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1))).await;
+        handle
+            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1)))
+            .await;
 
         for _ in 0..5 {
             let worker = handle.start_worker(Default::default()).await.unwrap();
