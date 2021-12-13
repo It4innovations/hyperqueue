@@ -14,6 +14,7 @@
 
 ## Changes
 
+  * The `--time-limit` parameter of `hq alloc add` command is now required.
   * `hq alloc remove` will no longer let you remove an allocation queue that contains running
     allocations by default. If you want to force its removal and cancel the running allocations
     immediately, use the `--force` flag. 

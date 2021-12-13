@@ -71,7 +71,7 @@ pub struct SharedQueueOpts {
 
     /// Time limit (walltime) of PBS/Slurm allocations
     #[clap(long, short('t'))]
-    time_limit: Option<ExtendedArgDuration>,
+    time_limit: ExtendedArgDuration,
 
     /// How many workers (nodes) should be spawned in each allocation
     #[clap(long, short, default_value = "1")]
@@ -173,7 +173,7 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
     AllocationQueueParams {
         workers_per_alloc: args.workers_per_alloc,
         backlog: args.backlog,
-        timelimit: args.time_limit.map(|v| v.unpack()),
+        timelimit: Some(args.time_limit.unpack()),
         name: args.name,
         additional_args: args.additional_args,
     }
