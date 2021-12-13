@@ -1,9 +1,8 @@
-from typing import Dict, Any
-
 import dataclasses
 import logging
-
 from pathlib import Path
+from typing import Any, Dict
+
 from . import Environment, EnvironmentDescriptor
 from .utils import EnvStateManager
 
@@ -57,4 +56,15 @@ class SnakeEnvironment(Environment, EnvStateManager):
             f.writelines(cmds)
 
         from snakemake import snakemake
-        snakemake(snakefile=str(self.snakefile), quiet=True, cores=cpus_per_task)
+
+        ret = snakemake(
+            snakefile=str(self.snakefile),
+            quiet=True,
+            cores=cpus_per_task,
+            workdir=str(self.workdir),
+        )
+        if not ret:
+            raise Exception(
+                f"SnakeMake execution failed. You can find more details in "
+                f"{self.workdir / '.snakemake' / 'log'}"
+            )
