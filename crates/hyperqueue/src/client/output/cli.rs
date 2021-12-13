@@ -544,10 +544,8 @@ impl Output for CliOutput {
                 id.cell(),
                 data.info.backlog().cell(),
                 data.info.workers_per_alloc().cell(),
-                data.info
-                    .timelimit()
-                    .map(|d| humantime::format_duration(d).to_string())
-                    .unwrap_or_else(|| "N/A".to_string())
+                humantime::format_duration(data.info.timelimit())
+                    .to_string()
                     .cell(),
                 data.manager_type.cell(),
                 data.name.unwrap_or_else(|| "".to_string()).cell(),

@@ -55,7 +55,7 @@ impl QueueHandler for SlurmHandler {
             let worker_args = build_worker_args(&hq_path, ManagerType::Slurm, &server_directory);
             let script = build_slurm_submit_script(
                 worker_count,
-                timelimit.as_ref(),
+                timelimit,
                 &format!("hq-alloc-{}", descriptor_id),
                 &directory.join("stdout").display().to_string(),
                 &directory.join("stderr").display().to_string(),
@@ -162,7 +162,7 @@ impl QueueHandler for SlurmHandler {
 #[allow(clippy::too_many_arguments)]
 fn build_slurm_submit_script(
     nodes: u64,
-    timelimit: Option<&Duration>,
+    timelimit: Duration,
     name: &str,
     stdout: &str,
     stderr: &str,
@@ -175,19 +175,14 @@ fn build_slurm_submit_script(
 #SBATCH --job-name={name}
 #SBATCH --output={stdout}
 #SBATCH --error={stderr}
+#SBATCH --time={walltime}
 "##,
         nodes = nodes,
         name = name,
         stdout = stdout,
         stderr = stderr,
+        walltime = format_slurm_duration(&timelimit)
     );
-
-    if let Some(timelimit) = timelimit {
-        script.push_str(&format!(
-            "#SBATCH --time={}\n",
-            format_slurm_duration(timelimit)
-        ));
-    }
 
     if !sbatch_args.is_empty() {
         script.push_str(&format!("#SBATCH {}\n", sbatch_args));

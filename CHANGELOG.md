@@ -1,5 +1,12 @@
 # DEV
 
+## Fixes
+
+  * The automatic allocator will no longer keep submitting allocations in situations where the created
+    workers would not be able to execute currently waiting tasks. Currently, this situation is detected
+    only for the case when a task has a time request higher than the time limit of the allocation
+    queue.
+
 ## New features
 
   * You can now test auto allocation parameters using a dry-run command:

@@ -52,7 +52,7 @@ impl QueueHandler for PbsHandler {
 
             let script = build_pbs_submit_script(
                 worker_count,
-                timelimit.as_ref(),
+                timelimit,
                 &format!("hq-alloc-{}", descriptor_id),
                 &directory.join("stdout").display().to_string(),
                 &directory.join("stderr").display().to_string(),
@@ -153,7 +153,7 @@ impl QueueHandler for PbsHandler {
 #[allow(clippy::too_many_arguments)]
 fn build_pbs_submit_script(
     nodes: u64,
-    timelimit: Option<&Duration>,
+    timelimit: Duration,
     name: &str,
     stdout: &str,
     stderr: &str,
@@ -166,19 +166,14 @@ fn build_pbs_submit_script(
 #PBS -N {name}
 #PBS -o {stdout}
 #PBS -e {stderr}
+#PBS -l walltime={walltime}
 "##,
         nodes = nodes,
         name = name,
         stdout = stdout,
         stderr = stderr,
+        walltime = format_pbs_duration(&timelimit)
     );
-
-    if let Some(timelimit) = timelimit {
-        script.push_str(&format!(
-            "#PBS -l walltime={}\n",
-            format_pbs_duration(timelimit)
-        ));
-    }
 
     if !qsub_args.is_empty() {
         script.push_str(&format!("#PBS {}\n", qsub_args));

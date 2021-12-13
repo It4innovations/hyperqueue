@@ -56,7 +56,7 @@ impl QueueDescriptor {
 pub struct QueueInfo {
     backlog: u32,
     workers_per_alloc: u32,
-    timelimit: Option<Duration>,
+    timelimit: Duration,
     additional_args: Vec<String>,
 }
 
@@ -64,7 +64,7 @@ impl QueueInfo {
     pub fn new(
         backlog: u32,
         workers_per_alloc: u32,
-        timelimit: Option<Duration>,
+        timelimit: Duration,
         additional_args: Vec<String>,
     ) -> Self {
         QueueInfo {
@@ -83,7 +83,7 @@ impl QueueInfo {
         self.workers_per_alloc
     }
 
-    pub fn timelimit(&self) -> Option<Duration> {
+    pub fn timelimit(&self) -> Duration {
         self.timelimit
     }
 

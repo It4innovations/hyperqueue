@@ -173,7 +173,7 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
     AllocationQueueParams {
         workers_per_alloc: args.workers_per_alloc,
         backlog: args.backlog,
-        timelimit: Some(args.time_limit.unpack()),
+        timelimit: args.time_limit.unpack(),
         name: args.name,
         additional_args: args.additional_args,
     }
