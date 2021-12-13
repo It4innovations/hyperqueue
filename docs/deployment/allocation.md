@@ -67,17 +67,20 @@ creating a new allocation queue:
   resources of workers spawned in the created allocation queue. The name and syntax of these parameters
   is the same as when you create a worker manually:
 
-=== "PBS"
-
-    ```bash
-    $ hq alloc add pbs --time-limit 1h --cpus 4x4 --resource "gpu=indices(1-2)" -- -qqprod -AAccount1
-    ```
-
-=== "Slurm"
-
-    ``` bash
-    $ hq alloc add slurm --time-limit 1h --cpus 4x4 --resource "gpu=indices(1-2)" -- --partition=p1
-    ```
+    === "PBS"
+    
+        ```bash
+        $ hq alloc add pbs --time-limit 1h --cpus 4x4 --resource "gpu=indices(1-2)" -- -qqprod -AAccount1
+        ```
+    
+    === "Slurm"
+    
+        ``` bash
+        $ hq alloc add slurm --time-limit 1h --cpus 4x4 --resource "gpu=indices(1-2)" -- --partition=p1
+        ```
+    
+    If you do not pass any resources, they will be detected automatically (same as it works with
+    `hq worker start`).
 
 [^1]: You can use various [shortcuts](../tips/cli-shortcuts.md#duration) for the duration value.
 
