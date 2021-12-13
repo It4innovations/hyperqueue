@@ -124,7 +124,7 @@ pub enum AutoAllocRequest {
 pub struct AllocationQueueParams {
     pub workers_per_alloc: u32,
     pub backlog: u32,
-    pub timelimit: Option<Duration>,
+    pub timelimit: Duration,
     pub name: Option<String>,
     pub additional_args: Vec<String>,
 }

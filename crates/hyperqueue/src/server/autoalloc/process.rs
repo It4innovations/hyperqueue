@@ -1,8 +1,9 @@
 use std::time::SystemTime;
 
 use crate::server::autoalloc::state::{Allocation, AllocationEvent, AllocationStatus};
-use crate::server::autoalloc::DescriptorId;
-use crate::server::state::StateRef;
+use crate::server::autoalloc::{DescriptorId, QueueInfo};
+use crate::server::job::Job;
+use crate::server::state::{State, StateRef};
 
 macro_rules! get_or_return {
     ($e:expr) => {
@@ -157,6 +158,28 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
     }
 }
 
+/// Find out if workers spawned in this queue can possibly provide computational resources
+/// for tasks of this job.
+///
+/// TODO: once HQ jobs are heterogeneous, the implementation will need to be modified
+fn can_provide_worker(job: &Job, queue_info: &QueueInfo) -> bool {
+    job.resources.min_time < queue_info.timelimit()
+}
+
+fn count_available_tasks(state: &State, queue_info: &QueueInfo) -> u64 {
+    let waiting_tasks: u64 = state
+        .jobs()
+        .map(|job| {
+            let result = match can_provide_worker(job, queue_info) {
+                true => job.counters.n_waiting_tasks(job.n_tasks()),
+                false => 0,
+            };
+            result as u64
+        })
+        .sum();
+    waiting_tasks
+}
+
 /// Schedule new allocations for the descriptor with the given name.
 async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
     let (allocations_to_create, workers_per_alloc, mut waiting_tasks) = {
@@ -164,10 +187,7 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
         let descriptor = get_or_return!(state.get_autoalloc_state().get_descriptor(id));
         let allocs_in_queue = descriptor.queued_allocations().count();
 
-        let waiting_tasks: u64 = state
-            .jobs()
-            .map(|j| j.counters.n_waiting_tasks(j.n_tasks()) as u64)
-            .sum();
+        let waiting_tasks = count_available_tasks(&state, descriptor.descriptor.info());
 
         let info = descriptor.descriptor.info();
         (
@@ -235,7 +255,9 @@ mod tests {
 
     use crate::common::arraydef::IntArray;
     use hashbrown::HashMap;
+    use tako::common::resources::TimeRequest;
     use tako::messages::common::ProgramDefinition;
+    use tako::messages::gateway::ResourceRequest;
 
     use crate::common::manager::info::ManagerType;
     use crate::server::autoalloc::descriptor::{
@@ -259,7 +281,7 @@ mod tests {
             move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
             |_, _| async move { Ok(()) },
         );
-        add_descriptor(&state, handler, 1, 1);
+        add_descriptor(&state, handler, 1, 1, Duration::from_secs(60));
 
         autoalloc_tick(&state).await;
 
@@ -277,7 +299,7 @@ mod tests {
         let state = create_state(1000);
 
         let handler = always_queued_handler();
-        add_descriptor(&state, handler, 4, 2);
+        add_descriptor(&state, handler, 4, 2, Duration::from_secs(60));
 
         autoalloc_tick(&state).await;
 
@@ -291,7 +313,7 @@ mod tests {
         let state = create_state(1000);
 
         let handler = always_queued_handler();
-        add_descriptor(&state, handler, 4, 1);
+        add_descriptor(&state, handler, 4, 1, Duration::from_secs(60));
 
         autoalloc_tick(&state).await;
         autoalloc_tick(&state).await;
@@ -334,7 +356,7 @@ mod tests {
             },
             |_, _| async move { Ok(()) },
         );
-        add_descriptor(&state, handler, 3, 1);
+        add_descriptor(&state, handler, 3, 1, Duration::from_secs(60));
 
         // schedule allocations
         autoalloc_tick(&state).await;
@@ -359,7 +381,7 @@ mod tests {
         let state = create_state(0);
 
         let handler = always_queued_handler();
-        add_descriptor(&state, handler, 3, 1);
+        add_descriptor(&state, handler, 3, 1, Duration::from_secs(60));
 
         autoalloc_tick(&state).await;
         assert_eq!(get_allocations(&state, 0).len(), 0);
@@ -370,11 +392,27 @@ mod tests {
         let state = create_state(5);
 
         let handler = always_queued_handler();
-        add_descriptor(&state, handler, 5, 2);
+        add_descriptor(&state, handler, 5, 2, Duration::from_secs(60));
 
         // 5 tasks, 3 * 2 workers -> last two allocations should be ignored
         autoalloc_tick(&state).await;
         assert_eq!(get_allocations(&state, 0).len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_ignore_task_with_high_time_request() {
+        let state = create_state(0);
+        state
+            .get_mut()
+            .add_job(create_job(1, Duration::from_secs(60 * 60)));
+
+        let handler = always_queued_handler();
+        add_descriptor(&state, handler, 1, 1, Duration::from_secs(60 * 30));
+
+        // Allocations last for 30 minutes, but job requires 60 minutes
+        // Nothing should be scheduled
+        autoalloc_tick(&state).await;
+        assert_eq!(get_allocations(&state, 0).len(), 0);
     }
 
     struct Handler<ScheduleFn, StatusFn, RemoveFn, State> {
@@ -457,10 +495,11 @@ mod tests {
         handler: Box<dyn QueueHandler>,
         backlog: u32,
         workers_per_alloc: u32,
+        timelimit: Duration,
     ) {
         let descriptor = QueueDescriptor::new(
             ManagerType::Pbs,
-            QueueInfo::new(backlog, workers_per_alloc, None, vec![]),
+            QueueInfo::new(backlog, workers_per_alloc, timelimit, vec![]),
             None,
             handler,
         );
@@ -472,27 +511,11 @@ mod tests {
 
     fn create_state(waiting_tasks: u32) -> StateRef {
         let state = StateRef::new(Duration::from_millis(100));
-        state.get_mut().add_job(Job::new(
-            JobType::Array(IntArray::from_range(0, waiting_tasks)),
-            0.into(),
-            0.into(),
-            "job".to_string(),
-            ProgramDefinition {
-                args: vec![],
-                env: Default::default(),
-                stdout: Default::default(),
-                stderr: Default::default(),
-                cwd: None,
-            },
-            Default::default(),
-            false,
-            None,
-            None,
-            0,
-            None,
-            None,
-        ));
-
+        if waiting_tasks > 0 {
+            state
+                .get_mut()
+                .add_job(create_job(waiting_tasks, Duration::from_secs(0)));
+        }
         state
     }
 
@@ -536,5 +559,32 @@ mod tests {
                 .filter(|a| matches!(a.status, AllocationStatus::Running { .. }))
                 .count()
         );
+    }
+
+    fn create_job(tasks: u32, min_time: TimeRequest) -> Job {
+        Job::new(
+            JobType::Array(IntArray::from_range(0, tasks)),
+            0.into(),
+            0.into(),
+            "job".to_string(),
+            ProgramDefinition {
+                args: vec![],
+                env: Default::default(),
+                stdout: Default::default(),
+                stderr: Default::default(),
+                cwd: None,
+            },
+            ResourceRequest {
+                cpus: Default::default(),
+                generic: vec![],
+                min_time,
+            },
+            false,
+            None,
+            None,
+            0,
+            None,
+            None,
+        )
     }
 }

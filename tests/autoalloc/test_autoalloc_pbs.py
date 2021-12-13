@@ -380,6 +380,20 @@ def test_pbs_dry_run_success(hq_env: HqEnv):
         hq_env.command(dry_run_cmd())
 
 
+def test_pbs_too_high_time_request(hq_env: HqEnv):
+    mock = PbsMock(hq_env)
+
+    with mock.activate():
+        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.command(["submit", "--time-request", "1h", "sleep", "1"])
+
+        add_queue(hq_env, name="foo", time_limit="30m")
+        time.sleep(1)
+
+        table = hq_env.command(["alloc", "info", "1"], as_table=True)
+        assert len(table) == 1
+
+
 def wait_for_alloc(hq_env: HqEnv, state: str, index=0):
     """
     Wait until an allocation has the given `state`.
