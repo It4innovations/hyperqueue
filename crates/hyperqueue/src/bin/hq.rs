@@ -13,7 +13,9 @@ use hyperqueue::client::commands::submit::{
     resubmit_computation, submit_computation, ResubmitOpts, SubmitOpts,
 };
 use hyperqueue::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
-use hyperqueue::client::commands::worker::{get_worker_info, get_worker_list, stop_worker};
+use hyperqueue::client::commands::worker::{
+    get_worker_info, get_worker_list, start_hq_worker, stop_worker, WorkerStartOpts,
+};
 use hyperqueue::client::globalsettings::GlobalSettings;
 use hyperqueue::client::output::cli::CliOutput;
 use hyperqueue::client::output::json::JsonOutput;
@@ -33,7 +35,6 @@ use hyperqueue::transfer::messages::{
     FromClientMessage, JobInfoRequest, Selector, ToClientMessage,
 };
 use hyperqueue::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resource};
-use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::WorkerId;
 use tako::common::resources::ResourceDescriptor;
 

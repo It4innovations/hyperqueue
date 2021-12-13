@@ -1,113 +1,41 @@
 use std::future::Future;
 use std::io;
-
 use std::pin::Pin;
 use std::process::ExitStatus;
 use std::rc::Rc;
-use std::str::FromStr;
 use std::time::Duration;
 
-use anyhow::{anyhow, Context};
-use clap::Parser;
+use anyhow::anyhow;
 use futures::TryFutureExt;
+use tempdir::TempDir;
+use tokio::io::AsyncReadExt;
+use tokio::sync::oneshot;
 
 use tako::common::error::DsError;
+use tako::common::resources::ResourceDescriptor;
 use tako::messages::common::WorkerConfiguration;
 use tako::messages::common::{ProgramDefinition, StdioDef};
 use tako::worker::launcher::{command_from_definitions, pin_program};
-use tako::worker::rpc::run_worker;
+use tako::worker::state::WorkerStateRef;
 use tako::worker::taskenv::{StopReason, TaskResult};
 use tako::{InstanceId, TaskId};
-use tempdir::TempDir;
-use tokio::io::AsyncReadExt;
-use tokio::net::lookup_host;
-use tokio::sync::oneshot;
-use tokio::task::LocalSet;
 
-use crate::client::globalsettings::GlobalSettings;
+use crate::client::commands::worker::{ManagerOpts, WorkerStartOpts};
 use crate::common::env::{HQ_CPUS, HQ_INSTANCE_ID, HQ_PIN};
-use crate::common::error::error;
 use crate::common::manager::info::{ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::manager::{pbs, slurm};
 use crate::common::placeholders::replace_placeholders_worker;
-use crate::common::serverdir::ServerDir;
-use crate::common::timeutils::ArgDuration;
 use crate::transfer::messages::TaskBody;
 use crate::transfer::stream::ChannelId;
-use crate::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resource};
-use crate::worker::parser::{ArgCpuDefinition, ArgGenericResourceDef, CpuDefinition};
+use crate::worker::hwdetect::{detect_cpus, detect_generic_resource};
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use crate::Map;
 use crate::{JobId, JobTaskId};
-use tako::common::resources::ResourceDescriptor;
-use tako::worker::state::WorkerStateRef;
 
 pub const WORKER_EXTRA_PROCESS_PID: &str = "ProcessPid";
 
 const STDIO_BUFFER_SIZE: usize = 16 * 1024; // 16kB
-
-#[derive(Parser)]
-pub enum ManagerOpts {
-    Detect,
-    None,
-    Pbs,
-    Slurm,
-}
-
-impl FromStr for ManagerOpts {
-    type Err = crate::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s.to_ascii_lowercase().as_str() {
-            "detect" => Self::Detect,
-            "none" => Self::None,
-            "pbs" => Self::Pbs,
-            "slurm" => Self::Slurm,
-            _ => {
-                return error(
-                    "Invalid manager value. Allowed values are 'detect', 'none', 'pbs', 'slurm'"
-                        .to_string(),
-                );
-            }
-        })
-    }
-}
-
-#[derive(Parser)]
-pub struct WorkerStartOpts {
-    /// How many cores should be allocated for the worker (auto, no-ht, N, MxN)
-    #[clap(long, default_value = "auto")]
-    cpus: ArgCpuDefinition,
-
-    /// Resources
-    #[clap(long, setting = clap::ArgSettings::MultipleOccurrences)]
-    resource: Vec<ArgGenericResourceDef>,
-
-    #[clap(long = "no-detect-resources")]
-    /// Disable auto-detection of resources
-    no_detect_resources: bool,
-
-    /// How often should the worker announce its existence to the server. (default: "8s")
-    #[clap(long, default_value = "8s")]
-    heartbeat: ArgDuration,
-
-    /// Duration after which will an idle worker automatically stop
-    #[clap(long)]
-    idle_timeout: Option<ArgDuration>,
-
-    /// Worker time limit. Worker exits after given time.
-    #[clap(long)]
-    time_limit: Option<ArgDuration>,
-
-    /// What HPC job manager should be used by the worker.
-    #[clap(long, default_value = "detect", possible_values = &["detect", "slurm", "pbs", "none"])]
-    manager: ManagerOpts,
-
-    /// Overwrite worker hostname
-    #[clap(long)]
-    hostname: Option<String>,
-}
 
 async fn resend_stdio(
     job_id: JobId,
@@ -343,7 +271,7 @@ async fn run_task(
     }
 }
 
-fn launcher(
+pub fn worker_launcher(
     state_ref: &WorkerStateRef,
     streamer_ref: &StreamerRef,
     task_id: TaskId,
@@ -357,62 +285,6 @@ fn launcher(
         task_id,
         end_receiver,
     ))
-}
-
-pub async fn start_hq_worker(
-    gsettings: &GlobalSettings,
-    opts: WorkerStartOpts,
-) -> anyhow::Result<()> {
-    log::info!("Starting hyperqueue worker {}", env!("CARGO_PKG_VERSION"));
-    let server_dir =
-        ServerDir::open(gsettings.server_directory()).context("Cannot load server directory")?;
-    let record = server_dir.read_access_record().with_context(|| {
-        format!(
-            "Cannot load access record from {:?}",
-            server_dir.access_filename()
-        )
-    })?;
-    let server_address = format!("{}:{}", record.host(), record.worker_port());
-    log::info!("Connecting to: {}", server_address);
-
-    let configuration = gather_configuration(opts)?;
-
-    let server_addr = lookup_host(&server_address)
-        .await?
-        .next()
-        .expect("Invalid server address");
-
-    log::debug!("Starting streamer ...");
-    let (streamer_ref, streamer_future) = StreamerRef::start(
-        Duration::from_secs(10),
-        server_addr,
-        record.tako_secret_key().clone(),
-    );
-
-    log::debug!("Starting Tako worker ...");
-    let ((worker_id, configuration), worker_future) = run_worker(
-        server_addr,
-        configuration,
-        Some(record.tako_secret_key().clone()),
-        Box::new(move |state, task_id, end_receiver| {
-            launcher(&state, &streamer_ref, task_id, end_receiver)
-        }),
-    )
-    .await?;
-
-    gsettings
-        .printer()
-        .print_worker_info(worker_id, configuration);
-    let local_set = LocalSet::new();
-    local_set
-        .run_until(async move {
-            tokio::select! {
-                () = worker_future => {}
-                () = streamer_future => {}
-            }
-        })
-        .await;
-    Ok(())
 }
 
 fn try_get_pbs_info() -> anyhow::Result<ManagerInfo> {
@@ -472,7 +344,7 @@ fn gather_manager_info(opts: ManagerOpts) -> anyhow::Result<Option<ManagerInfo>>
     }
 }
 
-fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfiguration> {
+pub fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfiguration> {
     log::debug!("Gathering worker configuration information");
 
     let hostname = opts.hostname.unwrap_or_else(|| {
