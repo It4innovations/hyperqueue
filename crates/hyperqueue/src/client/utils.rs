@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+use std::str::FromStr;
 #[macro_export]
 macro_rules! rpc_call {
     ($conn:expr, $message:expr, $matcher:pat $(=> $result:expr)?) => {
@@ -37,4 +39,23 @@ macro_rules! arg_wrapper {
             }
         }
     };
+}
+
+/// This argument checks that the input can be parsed as `Arg`.
+/// If it is, it will return the original input from the command line as a [`String`].
+pub struct PassThroughArgument<Arg>(String, PhantomData<Arg>);
+
+impl<Arg: FromStr> FromStr for PassThroughArgument<Arg> {
+    type Err = <Arg as FromStr>::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Arg::from_str(s)?;
+        Ok(Self(s.to_string(), Default::default()))
+    }
+}
+
+impl<Arg> From<PassThroughArgument<Arg>> for String {
+    fn from(arg: PassThroughArgument<Arg>) -> Self {
+        arg.0
+    }
 }

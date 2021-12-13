@@ -9,17 +9,28 @@
 
 ## New features
 
-  * You can now test auto allocation parameters using a dry-run command:
+### Automatic allocation
+* You can now specify CPU and generic resources for workers created by the automatic allocator: 
+    ```bash
+    $ hq alloc add pbs --time-limit 2h --cpus 4x4 --resource "gpu=indices(1-2)" -- -q qexp -A Project1
+    ```
+  Using this command you can quickly test if PBS/Slurm will accept allocations created with
+  the provided parameters.
+* You can now test auto allocation parameters using a dry-run command:
     ```bash
     $ hq alloc dry-run pbs --time-limit 2h -- -q qexp -A Project1
     ```
     Using this command you can quickly test if PBS/Slurm will accept allocations created with
     the provided parameters.
-  * Worker can be started with --cpus="no-ht" that detects CPUs but ignores HyperThreading
-    (for each physical core it ignores all except the first HT virtual core)
-  * You can now specify the timelimit of PBS/Slurm allocations using the `HH:MM:SS` format:
-    `hq alloc add pbs --time-limit 01:10:30`.
-  * Improve error messages printed when an invalid CLI parameter is entered.
+* You can now specify the timelimit of PBS/Slurm allocations using the `HH:MM:SS` format:
+`hq alloc add pbs --time-limit 01:10:30`.
+
+### Resource management
+* Workers can be now started with the parameter `--cpus="no-ht"`. When detecting CPUs in this mode,
+  HyperThreading will be ignored (for each physical core only the first HT virtual core will be chosen).
+
+### CLI
+* Improve error messages printed when an invalid CLI parameter is entered.
 
 ## Changes
 

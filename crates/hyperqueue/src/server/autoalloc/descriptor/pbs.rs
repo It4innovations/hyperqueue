@@ -34,12 +34,12 @@ impl QueueHandler for PbsHandler {
         queue_info: &QueueInfo,
         worker_count: u64,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>> {
+        let queue_info = queue_info.clone();
         let timelimit = queue_info.timelimit;
         let hq_path = self.handler.hq_path.clone();
         let server_directory = self.handler.server_directory.clone();
         let name = self.handler.name.clone();
         let allocation_num = self.handler.create_allocation_id();
-        let qsub_args: Vec<_> = queue_info.additional_args.to_vec();
 
         Box::pin(async move {
             let directory = create_allocation_dir(
@@ -48,7 +48,8 @@ impl QueueHandler for PbsHandler {
                 name.as_ref(),
                 allocation_num,
             )?;
-            let worker_args = build_worker_args(&hq_path, ManagerType::Pbs, &server_directory);
+            let worker_args =
+                build_worker_args(&hq_path, ManagerType::Pbs, &server_directory, &queue_info);
 
             let script = build_pbs_submit_script(
                 worker_count,
@@ -56,7 +57,7 @@ impl QueueHandler for PbsHandler {
                 &format!("hq-alloc-{}", descriptor_id),
                 &directory.join("stdout").display().to_string(),
                 &directory.join("stderr").display().to_string(),
-                &qsub_args.join(" "),
+                &queue_info.additional_args.join(" "),
                 &worker_args,
             );
             let job_id =

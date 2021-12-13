@@ -31,6 +31,7 @@ def add_queue(
     name: Optional[str] = "foo",
     backlog=1,
     workers_per_alloc=1,
+    additional_worker_args: List[str] = None,
     additional_args=None,
     time_limit="1h",
     **kwargs,
@@ -48,6 +49,8 @@ def add_queue(
     )
     if time_limit is not None:
         args.extend(["--time-limit", time_limit])
+    if additional_worker_args is not None:
+        args.extend(additional_worker_args)
     if additional_args is not None:
         args.append("--")
         args.extend(additional_args.split(" "))
