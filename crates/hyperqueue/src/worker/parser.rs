@@ -23,6 +23,8 @@ fn p_cpu_definition(input: &str) -> NomResult<CpusDescriptor> {
     )(input)
 }
 
+#[derive(Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum CpuDefinition {
     Detect,
     DetectNoHyperThreading,
@@ -105,12 +107,17 @@ mod test {
     fn test_parse_cpu_def() {
         assert_eq!(
             parse_cpu_definition("4").unwrap(),
-            vec![vec![0, 1, 2, 3].to_ids()]
+            CpuDefinition::Custom(vec![vec![0, 1, 2, 3].to_ids()]),
         );
         assert_eq!(
             parse_cpu_definition("2x3").unwrap(),
-            vec![vec![0, 1, 2].to_ids(), vec![3, 4, 5].to_ids()]
+            CpuDefinition::Custom(vec![vec![0, 1, 2].to_ids(), vec![3, 4, 5].to_ids()]),
         );
+        assert_eq!(
+            parse_cpu_definition("no-ht").unwrap(),
+            CpuDefinition::DetectNoHyperThreading,
+        );
+        assert_eq!(parse_cpu_definition("auto").unwrap(), CpuDefinition::Detect,);
     }
 
     #[test]

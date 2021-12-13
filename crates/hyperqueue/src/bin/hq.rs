@@ -227,7 +227,7 @@ struct WorkerInfoOpts {
 #[derive(Parser)]
 struct HwDetectOpts {
     #[clap(long)]
-    no_ht: bool,
+    no_hyperthreading: bool,
 }
 
 #[derive(Parser)]
@@ -239,6 +239,7 @@ enum WorkerCommand {
     /// Display information about workers
     List(WorkerListOpts),
     /// Hwdetect
+    #[clap(name = "hwdetect")]
     HwDetect(HwDetectOpts),
     /// Display information about a specific worker
     Info(WorkerInfoOpts),
@@ -391,7 +392,7 @@ async fn command_resubmit(gsettings: GlobalSettings, opts: ResubmitOpts) -> anyh
 }
 
 fn command_worker_hwdetect(gsettings: GlobalSettings, opts: HwDetectOpts) -> anyhow::Result<()> {
-    let cpus = if opts.no_ht {
+    let cpus = if opts.no_hyperthreading {
         detect_cpus_no_ht()?
     } else {
         detect_cpus()?

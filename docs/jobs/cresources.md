@@ -119,5 +119,6 @@ If automatic detection fails, or you want to manually configure set a CPU config
 - 2 sockets with 12 cores per socket
   ``$ hq worker start --cpus=2x12``
 
-- Automatic detection of CPUs but ignores HyperThreading (it will detect only the first virtual CPU of each physical CPU)
+- Automatic detection of CPUs but ignores HyperThreading
+  (it will detect only the first virtual core of each physical core)
   ``$ hq worker start --cpus="no-ht"``
