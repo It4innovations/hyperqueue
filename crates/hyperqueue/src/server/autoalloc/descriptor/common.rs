@@ -10,7 +10,7 @@ use crate::server::autoalloc::state::AllocationId;
 use crate::server::autoalloc::{AutoAllocResult, DescriptorId};
 
 /// Name of a script that will be submitted to Slurm/PBS.
-const SUBMIT_SCRIPT_NAME: &str = "hq_submit.sh";
+const SUBMIT_SCRIPT_NAME: &str = "hq-submit.sh";
 
 /// Name of a file that will store the job id of a submitted Slurm/PBS allocation.
 const JOBID_FILE_NAME: &str = "jobid";
