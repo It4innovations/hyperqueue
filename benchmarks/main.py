@@ -1,16 +1,22 @@
 import dataclasses
+import itertools
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import typer
 from src.benchmark.identifier import BenchmarkDescriptor
 from src.benchmark_defs import create_basic_hq_benchmarks
 from src.build.hq import BuildConfig, iterate_binaries
 from src.build.repository import TAG_WORKSPACE
+from src.clusterutils import ClusterInfo
+from src.clusterutils.node_list import Local
+from src.environment import EnvironmentDescriptor
+from src.environment.hq import HqClusterInfo, HqWorkerConfig
 from src.environment.snake import SnakeEnvironmentDescriptor
 from src.utils.benchmark import run_benchmarks, run_benchmarks_with_postprocessing
-from src.workloads.sleep import SleepSnake
+from src.workloads import Workload
+from src.workloads.sleep import SleepHQ, SleepSnake
 
 app = typer.Typer()
 
@@ -49,19 +55,38 @@ def compare_zw():
 
 
 @app.command()
-def snake_sleep():
+def sleep():
     """
-    Simple snake sleep bench from instance
+    Compare the sleep benchmarks between various tools.
     """
-    workdir = Path("benchmark/snake")
-    snake_env_desc = SnakeEnvironmentDescriptor()
+    hq_path = list(iterate_binaries([BuildConfig()]))[0].binary_path
+    workdir = Path("benchmark/sleep")
 
-    bench_desc = BenchmarkDescriptor(
-        env_descriptor=snake_env_desc,
-        workload=SleepSnake(task_count=10),
+    task_counts = (10, 100, 1000, 10000)
+    descriptions = []
+
+    def add_product(
+        workloads: List[Workload], environments: List[EnvironmentDescriptor]
+    ):
+        for (env, workload) in itertools.product(environments, workloads):
+            descriptions.append(
+                BenchmarkDescriptor(env_descriptor=env, workload=workload)
+            )
+
+    add_product([SleepSnake(tc) for tc in task_counts], [SnakeEnvironmentDescriptor()])
+    add_product(
+        [SleepHQ(tc) for tc in task_counts],
+        [
+            HqClusterInfo(
+                cluster=ClusterInfo(monitor_nodes=True, node_list=Local()),
+                environment_params=dict(worker_count=1),
+                workers=[HqWorkerConfig()],
+                binary=hq_path,
+            )
+        ],
     )
 
-    run_benchmarks(workdir, [bench_desc])
+    run_benchmarks(workdir, descriptions)
 
 
 if __name__ == "__main__":
