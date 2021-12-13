@@ -15,23 +15,24 @@ class BenchmarkIdentifier(DataClassDictMixin):
     workload: str
     # Environment type
     environment: str
-    workdir: str
-    key: str
     # Parameters of the benchmark environment (# of workers, etc.)
     environment_params: Dict[str, Any]
+    # Directory where will the benchmark be executed
+    workdir: str
+    # Unique key that describes this benchmark
+    key: str
     # Number of the benchmark run
     index: int = 0
     # Parameters passed to the workload function
     workload_params: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    # Timeout of the benchmark in seconds
+    timeout: Optional[int] = None
     # Additional metadata describing the benchmark
     metadata: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
         self.metadata["workdir"] = self.workdir
         self.metadata["key"] = self.key
-
-    def timeout(self) -> Optional[float]:
-        return self.metadata.get("timeout")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -45,6 +46,7 @@ class BenchmarkDescriptor:
     workload: Workload
     repeat_count: int = 1
     executor_config: Optional[BenchmarkExecutorConfig] = None
+    timeout: Optional[int] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -54,13 +56,15 @@ class BenchmarkInstance:
 
 
 def create_identifiers(
-    descriptors: List[BenchmarkDescriptor], workdir: Path
+    descriptors: List[BenchmarkDescriptor], workdir: Path, default_timeout_s: int
 ) -> List[BenchmarkInstance]:
     identifiers = []
     for descriptor in descriptors:
         identifiers.extend(
             BenchmarkInstance(
-                identifier=create_identifier(workdir, descriptor, index),
+                identifier=create_identifier(
+                    workdir, descriptor, default_timeout_s, index=index
+                ),
                 descriptor=descriptor,
             )
             for index in range(descriptor.repeat_count)
@@ -69,7 +73,7 @@ def create_identifiers(
 
 
 def create_identifier(
-    workdir: Path, descriptor: BenchmarkDescriptor, index: int
+    workdir: Path, descriptor: BenchmarkDescriptor, default_timeout_s: int, index: int
 ) -> BenchmarkIdentifier:
     env_name = descriptor.env_descriptor.name()
     env_params = descriptor.env_descriptor.parameters()
@@ -97,6 +101,7 @@ def create_identifier(
         environment_params=env_params,
         index=index,
         metadata=metadata,
+        timeout=descriptor.timeout or default_timeout_s,
     )
 
 

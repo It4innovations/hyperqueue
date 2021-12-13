@@ -3,7 +3,7 @@ import traceback
 from pathlib import Path
 from typing import Iterable, List, Tuple
 
-from ..executor.executor import DEFAULT_TIMEOUT_S, BenchmarkContext, BenchmarkExecutor
+from ..executor.executor import BenchmarkContext, BenchmarkExecutor
 from ..executor.external_executor import ExternalBenchmarkExecutor
 from ..executor.local_executor import LocalBenchmarkExecutor
 from .database import BenchmarkResultRecord, Database
@@ -14,6 +14,8 @@ from .identifier import (
     create_identifiers,
 )
 from .result import BenchmarkResult, Failure, Success, Timeout
+
+DEFAULT_TIMEOUT_S = 120
 
 
 class BenchmarkRunner:
@@ -26,7 +28,9 @@ class BenchmarkRunner:
     def materialize_and_skip(
         self, descriptors: List[BenchmarkDescriptor]
     ) -> List[BenchmarkInstance]:
-        instances = create_identifiers(descriptors, workdir=self.workdir)
+        instances = create_identifiers(
+            descriptors, workdir=self.workdir, default_timeout_s=DEFAULT_TIMEOUT_S
+        )
         return self._skip_completed(instances)
 
     def compute_materialized(
@@ -36,9 +40,9 @@ class BenchmarkRunner:
             identifier = instance.identifier
 
             logging.info(f"Executing benchmark {identifier}")
-            timeout = identifier.timeout() or DEFAULT_TIMEOUT_S
-
-            ctx = BenchmarkContext(workdir=Path(identifier.workdir), timeout_s=timeout)
+            ctx = BenchmarkContext(
+                workdir=Path(identifier.workdir), timeout_s=identifier.timeout
+            )
             executor = self._create_executor(instance.descriptor)
 
             try:

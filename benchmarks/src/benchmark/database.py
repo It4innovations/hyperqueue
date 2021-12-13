@@ -19,6 +19,7 @@ ENVIRONMENT_PARAMS_KEY = "env-params"
 INDEX_KEY = "index"
 WORKLOAD_PARAMS_KEY = "workload-params"
 BENCHMARK_METADATA_KEY = "benchmark-metadata"
+TIMEOUT_KEY = "timeout"
 
 DURATION_KEY = "duration"
 METADATA_KEY = "metadata"
@@ -34,6 +35,7 @@ class DatabaseRecord:
     index: int
     workload_params: Dict[str, Any]
     benchmark_metadata: Dict[str, Any]
+    timeout: float
     duration: float
     timestamp: int
     metadata: Dict[str, Any]
@@ -77,6 +79,7 @@ class Database:
             benchmark_metadata=identifier.metadata,
             duration=result.duration or np.nan,
             metadata=self.metadata,
+            timeout=identifier.timeout,
             timestamp=int(time.time()),
         )
         self.data[key] = record
@@ -95,6 +98,7 @@ class Database:
             data[BENCHMARK_METADATA_KEY].append(record.benchmark_metadata)
             data[DURATION_KEY].append(record.duration)
             data[METADATA_KEY].append(record.metadata)
+            data[TIMEOUT_KEY].append(record.timeout)
             data[TIMESTAMP_KEY].append(record.timestamp)
 
         df = pd.DataFrame(data)
@@ -118,6 +122,7 @@ def parse_record(entry) -> DatabaseRecord:
         benchmark_metadata=entry[BENCHMARK_METADATA_KEY],
         duration=entry[DURATION_KEY],
         timestamp=entry[TIMESTAMP_KEY],
+        timeout=entry[TIMEOUT_KEY],
         metadata=entry[METADATA_KEY],
     )
 
