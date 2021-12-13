@@ -26,13 +26,13 @@ account ID, etc.) after `--`. These trailing arguments will then be passed direc
 === "PBS"
 
     ```bash
-    $ hq alloc add pbs -- -qqprod -AAccount1
+    $ hq alloc add pbs --time-limit 1h -- -qqprod -AAccount1
     ```
 
 === "Slurm"
 
     ``` bash
-    $ hq alloc add slurm -- --partition=p1
+    $ hq alloc add slurm --time-limit 1h -- --partition=p1
     ```
 
 !!! tip
@@ -53,10 +53,15 @@ create multiple allocation queues, and you can even combine PBS queues with Slur
 In addition to arguments that are passed to `qsub`/`sbatch`, you can also use several other command line options when
 creating a new allocation queue:
 
+- **`--time-limit <duration>`** Sets the walltime of created allocations[^1].
+  
+    This parameter is required, as HyperQueue must know the duration of the individual allocations.
+    Make sure that you pass a  time limit that does not exceed the limit of the PBS/Slurm queue
+    that you intend to use, otherwise the allocation submissions will fail. You can use the
+    [`dry-run` command](#dry-run-command) to debug this.
+
 - `--backlog <count>` How many allocations should be queued (waiting to be started) in PBS/Slurm at any given time.
 - `--workers-per-alloc <count>` How many nodes should be requested in each allocation.
-- `--time-limit <duration>` Sets the walltime of created allocations[^1]. If unset, the default walltime of the selected
-PBS queue or Slurm partition will be used.
 - `--name <name>` Name of the allocation queue. Will be used to name allocations. Serves for debug purposes only.
 
 [^1]: You can use various [shortcuts](../tips/cli-shortcuts.md#duration) for the duration value.

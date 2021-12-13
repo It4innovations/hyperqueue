@@ -19,7 +19,7 @@ def test_autoalloc_descriptor_list(hq_env: HqEnv):
             "Name",
         ),
         0,
-        ("1", "5", "1", "N/A", "PBS", ""),
+        ("1", "5", "1", "1h", "PBS", ""),
     )
 
     add_queue(
@@ -64,6 +64,17 @@ def test_timelimit_human_format(hq_env: HqEnv, manager: str):
 
     info = hq_env.command(["alloc", "list"], as_table=True)
     info.check_column_value("Timelimit", 0, "3h 15m 10s")
+
+
+@pytest.mark.parametrize("manager", ("pbs", "slurm"))
+def test_require_timelimit(hq_env: HqEnv, manager: str):
+    hq_env.start_server()
+    add_queue(
+        hq_env,
+        manager=manager,
+        time_limit=None,
+        expect_fail="--time-limit <TIME_LIMIT>",
+    )
 
 
 def test_remove_descriptor(hq_env: HqEnv):
