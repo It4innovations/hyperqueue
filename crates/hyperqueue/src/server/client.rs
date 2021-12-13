@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -28,9 +28,9 @@ use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::connection::ServerConnection;
-use crate::transfer::messages::WaitForJobsResponse;
+use crate::transfer::messages::{AllocationQueueParams, WaitForJobsResponse};
 use crate::transfer::messages::{
-    AddQueueRequest, AutoAllocListResponse, AutoAllocRequest, AutoAllocResponse, CancelJobResponse,
+    AutoAllocListResponse, AutoAllocRequest, AutoAllocResponse, CancelJobResponse,
     FromClientMessage, JobDetail, JobInfoResponse, JobType, QueueDescriptorData, ResubmitRequest,
     Selector, StatsResponse, StopWorkerResponse, SubmitRequest, SubmitResponse, TaskBody,
     ToClientMessage, WorkerListResponse,
@@ -226,7 +226,10 @@ async fn handle_autoalloc_message(
                     .collect(),
             }))
         }
-        AutoAllocRequest::AddQueue(params) => create_queue(server_dir, state_ref, params),
+        AutoAllocRequest::AddQueue {
+            manager,
+            parameters,
+        } => create_queue(server_dir, state_ref, manager, parameters),
         AutoAllocRequest::Events { descriptor } => get_event_log(state_ref, descriptor),
         AutoAllocRequest::Info { descriptor } => get_allocations(state_ref, descriptor),
         AutoAllocRequest::RemoveQueue { descriptor, force } => {
@@ -309,41 +312,46 @@ fn get_event_log(state_ref: &StateRef, descriptor: DescriptorId) -> ToClientMess
 
 // The code doesn't compile if the Box closures are removed
 #[allow(clippy::redundant_closure)]
-fn create_queue(
-    server_dir: &ServerDir,
-    state_ref: &StateRef,
-    request: AddQueueRequest,
-) -> ToClientMessage {
-    let server_directory = server_dir.directory().to_path_buf();
-    let (handler, params, manager_type) = match request {
-        AddQueueRequest::Pbs(params) => {
-            let handler = PbsHandler::new(server_directory, params.name.clone());
-            (
-                handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler)),
-                params,
-                ManagerType::Pbs,
-            )
+pub fn create_allocation_handler(
+    manager: &ManagerType,
+    params: &AllocationQueueParams,
+    directory: PathBuf,
+) -> anyhow::Result<Box<dyn QueueHandler>> {
+    match manager {
+        ManagerType::Pbs => {
+            let handler = PbsHandler::new(directory, params.name.clone());
+            handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler))
         }
-        AddQueueRequest::Slurm(params) => {
-            let handler = SlurmHandler::new(server_directory, params.name.clone());
-            (
-                handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler)),
-                params,
-                ManagerType::Slurm,
-            )
+        ManagerType::Slurm => {
+            let handler = SlurmHandler::new(directory, params.name.clone());
+            handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler))
         }
-    };
+    }
+}
 
-    let queue_info = QueueInfo::new(
+pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
+    QueueInfo::new(
         params.backlog,
         params.workers_per_alloc,
         params.timelimit,
         params.additional_args,
-    );
+    )
+}
+
+fn create_queue(
+    server_dir: &ServerDir,
+    state_ref: &StateRef,
+    manager: ManagerType,
+    params: AllocationQueueParams,
+) -> ToClientMessage {
+    let server_directory = server_dir.directory().to_path_buf();
+    let handler = create_allocation_handler(&manager, &params, server_directory);
+    let name = params.name.clone();
+    let queue_info = create_queue_info(params);
 
     match handler {
         Ok(handler) => {
-            let descriptor = QueueDescriptor::new(manager_type, queue_info, params.name, handler);
+            let descriptor = QueueDescriptor::new(manager, queue_info, name, handler);
             let id = state_ref.get_mut().get_autoalloc_state_mut().create_id();
             state_ref
                 .get_mut()

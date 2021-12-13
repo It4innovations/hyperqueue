@@ -110,7 +110,10 @@ pub enum AutoAllocRequest {
     Info {
         descriptor: DescriptorId,
     },
-    AddQueue(AddQueueRequest),
+    AddQueue {
+        manager: ManagerType,
+        parameters: AllocationQueueParams,
+    },
     RemoveQueue {
         descriptor: DescriptorId,
         force: bool,
@@ -118,13 +121,7 @@ pub enum AutoAllocRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum AddQueueRequest {
-    Pbs(AddQueueParams),
-    Slurm(AddQueueParams),
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct AddQueueParams {
+pub struct AllocationQueueParams {
     pub workers_per_alloc: u32,
     pub backlog: u32,
     pub timelimit: Option<Duration>,

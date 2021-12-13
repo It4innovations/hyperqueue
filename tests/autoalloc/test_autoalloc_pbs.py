@@ -347,6 +347,36 @@ def test_pbs_cancel_active_jobs_on_forced_remove_descriptor(hq_env: HqEnv):
         wait_until(lambda: expected_job_ids == set(mock.deleted_jobs()))
 
 
+def test_pbs_dry_run_missing_qsub(hq_env: HqEnv):
+    hq_env.command(
+        ["alloc", "dry-run", "pbs"],
+        expect_fail="Could not submit allocation: qsub start failed",
+    )
+
+
+def test_pbs_dry_run_submit_error(hq_env: HqEnv):
+    mock = PbsMock(hq_env, new_job_responses=[NewJobFailed(message="FOOBAR")])
+
+    with mock.activate():
+        hq_env.command(["alloc", "dry-run", "pbs"], expect_fail="Stderr: FOOBAR")
+
+
+def test_pbs_dry_run_cancel_error(hq_env: HqEnv):
+    mock = PbsMock(hq_env, new_job_responses=[NewJobId(id="job1")], qdel_code="exit(1)")
+
+    with mock.activate():
+        hq_env.command(
+            ["alloc", "dry-run", "pbs"], expect_fail="Could not cancel allocation job1"
+        )
+
+
+def test_pbs_dry_run_success(hq_env: HqEnv):
+    mock = PbsMock(hq_env, new_job_responses=[NewJobId(id="job1")])
+
+    with mock.activate():
+        hq_env.command(["alloc", "dry-run", "pbs"])
+
+
 def wait_for_alloc(hq_env: HqEnv, state: str, index=0):
     """
     Wait until an allocation has the given `state`.

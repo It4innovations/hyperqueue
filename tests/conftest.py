@@ -104,15 +104,16 @@ class HqEnv(Env):
         self.workers = {}
         self.id_counter = 0
         self.do_final_check = True
-        self.server_dir = None
+        self.server_dir = ""
         self.debug = debug
 
     def no_final_check(self):
         self.do_final_check = False
 
-    def make_default_env(self):
+    def make_default_env(self, log=True):
         env = os.environ.copy()
-        env["RUST_LOG"] = "tako=trace,hyperqueue=trace"
+        if log:
+            env["RUST_LOG"] = "tako=trace,hyperqueue=trace"
         env["RUST_BACKTRACE"] = "full"
         self.mock.update_env(env)
         return env
@@ -218,11 +219,16 @@ class HqEnv(Env):
 
         args = [get_hq_binary(self.debug), "--server-dir", self.server_dir] + args
         cwd = cwd or self.work_path
+        env = self.make_default_env(log=False)
         try:
             if not wait:
-                return subprocess.Popen(args, stderr=subprocess.STDOUT, cwd=cwd)
+                return subprocess.Popen(
+                    args, stderr=subprocess.STDOUT, cwd=cwd, env=env
+                )
 
-            output = subprocess.check_output(args, stderr=subprocess.STDOUT, cwd=cwd)
+            output = subprocess.check_output(
+                args, stderr=subprocess.STDOUT, cwd=cwd, env=env
+            )
             if expect_fail is not None:
                 raise Exception("Command should failed")
             output = output.decode()

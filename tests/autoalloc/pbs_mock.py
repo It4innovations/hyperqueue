@@ -33,7 +33,12 @@ class NewJobFailed(NewJobResponse):
 
 
 class PbsMock:
-    def __init__(self, hq_env: HqEnv, new_job_responses: List[NewJobResponse] = None):
+    def __init__(
+        self,
+        hq_env: HqEnv,
+        new_job_responses: List[NewJobResponse] = None,
+        qdel_code: Optional[str] = None,
+    ):
         if new_job_responses is None:
             new_job_responses = list(NewJobId(id=str(i)) for i in range(1000))
         self.new_job_responses = new_job_responses
@@ -91,7 +96,9 @@ data = dict(
 )
 print(json.dumps(data))
 """
-        self.qdel_code = f"""
+        self.qdel_code = (
+            qdel_code
+            or f"""
 import sys
 import json
 import os
@@ -101,6 +108,7 @@ jobid = sys.argv[1]
 with open(os.path.join("{self.qdel_dir}", jobid), "w") as f:
     f.write(jobid)
 """
+        )
 
         self.jobs: Dict[str, JobState] = {}
 

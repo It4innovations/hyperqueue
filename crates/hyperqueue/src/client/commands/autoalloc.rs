@@ -1,16 +1,18 @@
 use std::str::FromStr;
 
 use clap::Parser;
+use tempdir::TempDir;
 
 use crate::client::globalsettings::GlobalSettings;
+use crate::common::manager::info::ManagerType;
 use crate::common::timeutils::ExtendedArgDuration;
 use crate::rpc_call;
 use crate::server::autoalloc::{Allocation, AllocationStatus, DescriptorId};
 use crate::server::bootstrap::get_client_connection;
+use crate::server::client::{create_allocation_handler, create_queue_info};
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    AddQueueParams, AddQueueRequest, AutoAllocRequest, AutoAllocResponse, FromClientMessage,
-    ToClientMessage,
+    AllocationQueueParams, AutoAllocRequest, AutoAllocResponse, FromClientMessage, ToClientMessage,
 };
 
 #[derive(Parser)]
@@ -29,6 +31,8 @@ enum AutoAllocCommand {
     Info(AllocationsOpts),
     /// Add new allocation queue
     Add(AddQueueOpts),
+    /// Try to submit an allocation to test allocation parameters
+    DryRun(DryRunOpts),
     /// Removes an allocation queue with the given ID
     Remove(RemoveQueueOpts),
 }
@@ -83,6 +87,20 @@ pub struct SharedQueueOpts {
 }
 
 #[derive(Parser)]
+pub struct DryRunOpts {
+    #[clap(subcommand)]
+    subcmd: DryRunCommand,
+}
+
+#[derive(Parser)]
+pub enum DryRunCommand {
+    /// Try to create a PBS allocation
+    Pbs(SharedQueueOpts),
+    /// Try to create a SLURM allocation
+    Slurm(SharedQueueOpts),
+}
+
+#[derive(Parser)]
 pub struct EventsOpts {
     /// ID of the allocation queue
     queue: u32,
@@ -123,29 +141,36 @@ pub async fn command_autoalloc(
     gsettings: GlobalSettings,
     opts: AutoAllocOpts,
 ) -> anyhow::Result<()> {
-    let connection = get_client_connection(gsettings.server_directory()).await?;
     match opts.subcmd {
         AutoAllocCommand::List => {
+            let connection = get_client_connection(gsettings.server_directory()).await?;
             print_allocation_queues(&gsettings, connection).await?;
         }
         AutoAllocCommand::Add(opts) => {
+            let connection = get_client_connection(gsettings.server_directory()).await?;
             add_queue(connection, opts).await?;
         }
         AutoAllocCommand::Events(opts) => {
+            let connection = get_client_connection(gsettings.server_directory()).await?;
             print_event_log(&gsettings, connection, opts).await?;
         }
         AutoAllocCommand::Info(opts) => {
+            let connection = get_client_connection(gsettings.server_directory()).await?;
             print_allocations(&gsettings, connection, opts).await?;
         }
         AutoAllocCommand::Remove(opts) => {
+            let connection = get_client_connection(gsettings.server_directory()).await?;
             remove_queue(connection, opts.queue_id, opts.force).await?;
+        }
+        AutoAllocCommand::DryRun(opts) => {
+            dry_run(opts).await?;
         }
     }
     Ok(())
 }
 
-fn args_to_params(args: SharedQueueOpts) -> AddQueueParams {
-    AddQueueParams {
+fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
+    AllocationQueueParams {
         workers_per_alloc: args.workers_per_alloc,
         backlog: args.backlog,
         timelimit: args.time_limit.map(|v| v.unpack()),
@@ -154,17 +179,43 @@ fn args_to_params(args: SharedQueueOpts) -> AddQueueParams {
     }
 }
 
-async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyhow::Result<()> {
-    let AddQueueOpts { subcmd } = opts;
-
-    let message = match subcmd {
-        AddQueueCommand::Pbs(params) => FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(
-            AddQueueRequest::Pbs(args_to_params(params)),
-        )),
-        AddQueueCommand::Slurm(params) => FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue(
-            AddQueueRequest::Slurm(args_to_params(params)),
-        )),
+async fn dry_run(opts: DryRunOpts) -> anyhow::Result<()> {
+    let (manager, params) = match opts.subcmd {
+        DryRunCommand::Pbs(params) => (ManagerType::Pbs, args_to_params(params)),
+        DryRunCommand::Slurm(params) => (ManagerType::Slurm, args_to_params(params)),
     };
+
+    let tmpdir = TempDir::new("hq")?;
+    let mut handler = create_allocation_handler(&manager, &params, tmpdir.as_ref().to_path_buf())?;
+    let worker_count = params.workers_per_alloc;
+    let queue_info = create_queue_info(params);
+
+    let allocation = handler
+        .schedule_allocation(0, &queue_info, worker_count as u64)
+        .await
+        .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
+
+    handler
+        .remove_allocation(allocation.id().to_string())
+        .await
+        .map_err(|e| anyhow::anyhow!("Could not cancel allocation {}: {:?}", allocation.id(), e))?;
+
+    log::info!(
+        "Allocation was submitted successfully. It was immediately canceled to avoid wasting
+resources."
+    );
+    Ok(())
+}
+
+async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyhow::Result<()> {
+    let (manager, parameters) = match opts.subcmd {
+        AddQueueCommand::Pbs(params) => (ManagerType::Pbs, args_to_params(params)),
+        AddQueueCommand::Slurm(params) => (ManagerType::Slurm, args_to_params(params)),
+    };
+    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue {
+        manager,
+        parameters,
+    });
 
     let queue_id = rpc_call!(connection, message,
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreated(id)) => id

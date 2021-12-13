@@ -103,12 +103,25 @@ allocations.
 
 ## Debugging automatic allocation
 Since the automatic allocator is a "background" process that interacts with an external job manager, it can be challenging
-to debug its behavior. To aid with this process, HyperQueue provides various sources of information that can help you
+to debug its behavior. To aid with this process, HyperQueue provides a "dry-run" command that you can
+use to test allocation parameters. HyperQueue also provides various sources of information that can help you
 find out what is going on.
 
-- [`Basic queue information`](#display-information-about-an-allocation-queue) This command will show you details about
+### Dry-run command
+To test whether PBS/Slurm will accept the submit parameters that you provide to the auto allocator,
+you can use the `dry-run` command. It accepts the same parameters as `hq alloc add`, which it will use
+to immediately submit an allocation and print any encountered errors.
+
+```bash
+$ hq alloc dry-run pbs --timelimit 2h -- q qexp -A Project1
+```
+
+If the allocation was submitted successfully, it will be canceled immediately to avoid wasting resources.
+
+### Finding information about allocations
+- **[`Basic queue information`](#display-information-about-an-allocation-queue)** This command will show you details about
 allocations created by the automatic allocator.
-- [`Allocator events`](#display-events-of-an-allocation-queue) Each time the allocator performs some action or notices
+- **[`Allocator events`](#display-events-of-an-allocation-queue)** Each time the allocator performs some action or notices
 that a status of some allocation was changed, it will create a corresponding event. You can use this command to list
 most recent events to see what was the allocator doing.
 - **Extended logging** To get more information about what is happening inside the allocator, start the HyperQueue
@@ -129,7 +142,7 @@ server directory:
     stderr
     stdout
     job-id
-    hq_submit.sh
+    hq-submit.sh
     ```
 
 ## Useful autoalloc commands
