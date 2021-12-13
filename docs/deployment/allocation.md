@@ -63,6 +63,21 @@ creating a new allocation queue:
 - `--backlog <count>` How many allocations should be queued (waiting to be started) in PBS/Slurm at any given time.
 - `--workers-per-alloc <count>` How many nodes should be requested in each allocation.
 - `--name <name>` Name of the allocation queue. Will be used to name allocations. Serves for debug purposes only.
+- **Worker resources** You can specify [CPU](../jobs/cresources.md) and [generic](../jobs/gresources.md)
+  resources of workers spawned in the created allocation queue. The name and syntax of these parameters
+  is the same as when you create a worker manually:
+
+=== "PBS"
+
+    ```bash
+    $ hq alloc add pbs --time-limit 1h --cpus 4x4 --resource "gpu=indices(1-2)" -- -qqprod -AAccount1
+    ```
+
+=== "Slurm"
+
+    ``` bash
+    $ hq alloc add slurm --time-limit 1h --cpus 4x4 --resource "gpu=indices(1-2)" -- --partition=p1
+    ```
 
 [^1]: You can use various [shortcuts](../tips/cli-shortcuts.md#duration) for the duration value.
 

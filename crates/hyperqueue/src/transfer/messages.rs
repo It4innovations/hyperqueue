@@ -127,6 +127,8 @@ pub struct AllocationQueueParams {
     pub timelimit: Duration,
     pub name: Option<String>,
     pub additional_args: Vec<String>,
+    pub worker_cpu_arg: Option<String>,
+    pub worker_resources_args: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

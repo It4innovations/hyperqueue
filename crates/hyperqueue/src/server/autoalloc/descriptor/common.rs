@@ -1,13 +1,14 @@
 use crate::common::manager::info::ManagerType;
 use anyhow::Context;
 use bstr::ByteSlice;
+use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
 use tokio::process::Command;
 
 use crate::server::autoalloc::state::AllocationId;
-use crate::server::autoalloc::{AutoAllocResult, DescriptorId};
+use crate::server::autoalloc::{AutoAllocResult, DescriptorId, QueueInfo};
 
 /// Name of a script that will be submitted to Slurm/PBS.
 const SUBMIT_SCRIPT_NAME: &str = "hq-submit.sh";
@@ -118,18 +119,33 @@ fn get_default_worker_idle_time() -> Duration {
     Duration::from_secs(5 * 60)
 }
 
-pub fn build_worker_args(hq_path: &Path, manager: ManagerType, server_dir: &Path) -> String {
+pub fn build_worker_args(
+    hq_path: &Path,
+    manager: ManagerType,
+    server_dir: &Path,
+    queue_info: &QueueInfo,
+) -> String {
     let manager = match manager {
         ManagerType::Pbs => "pbs",
         ManagerType::Slurm => "slurm",
     };
 
     let duration = humantime::format_duration(get_default_worker_idle_time()).to_string();
-    format!(
+    let mut args = format!(
         "{} worker start --idle-timeout {} --manager {} --server-dir {}",
         hq_path.display(),
         duration,
         manager,
         server_dir.display()
-    )
+    );
+
+    if let Some(cpu_arg) = queue_info.worker_cpu_args() {
+        args.write_fmt(format_args!(" --cpus {}", cpu_arg)).unwrap();
+    }
+    for resource_arg in queue_info.worker_resource_args() {
+        args.write_fmt(format_args!(" --resource \"{}\"", resource_arg))
+            .unwrap();
+    }
+
+    args
 }

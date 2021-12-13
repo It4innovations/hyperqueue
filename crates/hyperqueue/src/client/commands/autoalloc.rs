@@ -4,6 +4,7 @@ use clap::Parser;
 use tempdir::TempDir;
 
 use crate::client::globalsettings::GlobalSettings;
+use crate::client::utils::PassThroughArgument;
 use crate::common::manager::info::ManagerType;
 use crate::common::timeutils::ExtendedArgDuration;
 use crate::rpc_call;
@@ -14,6 +15,7 @@ use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
     AllocationQueueParams, AutoAllocRequest, AutoAllocResponse, FromClientMessage, ToClientMessage,
 };
+use crate::worker::parser::{ArgCpuDefinition, ArgGenericResourceDef};
 
 #[derive(Parser)]
 pub struct AutoAllocOpts {
@@ -80,6 +82,14 @@ pub struct SharedQueueOpts {
     /// Name of the allocation queue (for debug purposes only)
     #[clap(long, short)]
     name: Option<String>,
+
+    /// How many cores should be allocated for workers spawned inside allocations
+    #[clap(long)]
+    cpus: Option<PassThroughArgument<ArgCpuDefinition>>,
+
+    /// What resources should the workers spawned inside allocations contain
+    #[clap(long, setting = clap::ArgSettings::MultipleOccurrences)]
+    resource: Vec<PassThroughArgument<ArgGenericResourceDef>>,
 
     /// Additional arguments passed to the submit command
     #[clap()]
@@ -176,6 +186,8 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
         timelimit: args.time_limit.unpack(),
         name: args.name,
         additional_args: args.additional_args,
+        worker_cpu_arg: args.cpus.map(|v| v.into()),
+        worker_resources_args: args.resource.into_iter().map(|v| v.into()).collect(),
     }
 }
 

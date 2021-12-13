@@ -335,6 +335,8 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
         params.workers_per_alloc,
         params.timelimit,
         params.additional_args,
+        params.worker_cpu_arg,
+        params.worker_resources_args,
     )
 }
 

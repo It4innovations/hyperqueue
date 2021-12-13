@@ -8,7 +8,7 @@ use crate::transfer::messages::{
     FromClientMessage, Selector, StopWorkerMessage, StopWorkerResponse, ToClientMessage,
     WorkerInfo, WorkerInfoRequest,
 };
-use crate::worker::parser::{ArgCpuDef, ArgCpuDefinition, ArgGenericResourceDef};
+use crate::worker::parser::{ArgCpuDefinition, ArgGenericResourceDef};
 use crate::worker::start;
 use crate::worker::streamer::StreamerRef;
 use crate::WorkerId;
