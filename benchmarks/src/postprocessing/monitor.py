@@ -501,6 +501,7 @@ def render_process_resource_usage(report: ClusterReport, per_process_df: pd.Data
             ]
             if not process:
                 logging.warning(f"Process {node.hostname}/{pid} not found in cluster")
+                return
             process = process[0]
 
             range = get_time_range(process_data[DATETIME_KEY])

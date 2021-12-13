@@ -140,9 +140,10 @@ def render_environment(
 
     content.append(Div(text="<h3>Individual runs</h3>"))
     for item in items:
-        entry = entry_map[item.key]
-        benchmark_content = render_benchmark(entry)
-        runs.append(Panel(child=benchmark_content, title=str(item.index)))
+        entry = entry_map.get(item.key)
+        if entry is not None:
+            benchmark_content = render_benchmark(entry)
+            runs.append(Panel(child=benchmark_content, title=str(item.index)))
 
     content.append(Tabs(tabs=runs, **style()))
 
@@ -180,11 +181,14 @@ def render_workload(
     return Column(children=columns, **style(level=level))
 
 
-def generate_entry(args: Tuple[DatabaseRecord, Path]) -> BenchmarkEntry:
+def generate_entry(args: Tuple[DatabaseRecord, Path]) -> Optional[BenchmarkEntry]:
     record, directory = args
     workdir = Path(record.benchmark_metadata["workdir"])
     key = record.benchmark_metadata["key"]
-    report = ClusterReport.load(workdir)
+    try:
+        report = ClusterReport.load(workdir)
+    except FileNotFoundError:
+        return None
 
     target_report_filename = directory / key / "monitoring-report.html"
     if report.monitoring:
@@ -211,7 +215,8 @@ def pregenerate_entries(database: Database, directory: Path) -> EntryMap:
         for ((record, _), entry) in tqdm.tqdm(
             zip(args, pool.imap(generate_entry, args)), total=len(args)
         ):
-            entry_map[record.benchmark_metadata["key"]] = entry
+            if entry is not None:
+                entry_map[record.benchmark_metadata["key"]] = entry
     return entry_map
 
 
