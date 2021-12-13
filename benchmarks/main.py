@@ -4,15 +4,13 @@ from pathlib import Path
 from typing import Optional
 
 import typer
-
 from src.benchmark.identifier import BenchmarkDescriptor
-from src.environment.snake import SnakeEnvironmentDescriptor
-from src.workloads.sleep import SleepSnake
-
 from src.benchmark_defs import create_basic_hq_benchmarks
 from src.build.hq import BuildConfig, iterate_binaries
 from src.build.repository import TAG_WORKSPACE
-from src.utils.benchmark import run_benchmarks_with_postprocessing, run_benchmarks
+from src.environment.snake import SnakeEnvironmentDescriptor
+from src.utils.benchmark import run_benchmarks, run_benchmarks_with_postprocessing
+from src.workloads.sleep import SleepSnake
 
 app = typer.Typer()
 

@@ -50,19 +50,18 @@ def measure_hq_tasks(
 
 
 def measure_snake_tasks(
-        env: Environment, command: str, task_count: int, cpus_per_task=1
+    env: Environment, command: str, task_count: int, cpus_per_task=1
 ) -> WorkloadExecutionResult:
     assert isinstance(env, SnakeEnvironment)
 
-    args = \
-f"""rule all:
-    input: 
+    args = f"""rule all:
+    input:
         expand("{env.workdir}/{{sample}}", sample=range({task_count}))
 
 rule benchmark:
-    output: 
+    output:
         "{{sample}}"
-    shell: 
+    shell:
         "{command}"
 """
     logging.debug(f"[Snake] Submitting {args}")

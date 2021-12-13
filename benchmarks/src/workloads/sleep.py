@@ -2,9 +2,9 @@ from abc import ABC
 from typing import Any, Dict
 
 from ..environment.hq import HqEnvironment
+from ..environment.snake import SnakeEnvironment
 from .utils import measure_hq_tasks, measure_snake_tasks
 from .workload import Workload, WorkloadExecutionResult
-from ..environment.snake import SnakeEnvironment
 
 
 class Sleep(Workload, ABC):
@@ -29,5 +29,7 @@ class SleepHQ(Sleep):
 class SleepSnake(Sleep):
     def execute(self, env: SnakeEnvironment) -> WorkloadExecutionResult:
         return measure_snake_tasks(
-            env, f"sleep {self.sleep_duration}; echo '' > {{output}}", task_count=self.task_count
+            env,
+            f"sleep {self.sleep_duration}; echo '' > {{output}}",
+            task_count=self.task_count,
         )
