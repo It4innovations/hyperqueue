@@ -26,6 +26,26 @@ pub fn detect_cpus() -> anyhow::Result<CpusDescriptor> {
     })
 }
 
+pub fn detect_cpus_no_ht() -> anyhow::Result<CpusDescriptor> {
+    let descriptor = detect_cpus()?;
+    let mut new_desc = Vec::new();
+    for socket in descriptor {
+        let mut new_socket = Vec::new();
+        for cpu_id in socket {
+            if read_linux_thread_siblings(cpu_id)?
+                .iter()
+                .min()
+                .ok_or_else(|| anyhow::anyhow!("Thread siblings are empty"))
+                .map(|v| *v == cpu_id)?
+            {
+                new_socket.push(cpu_id);
+            }
+        }
+        new_desc.push(new_socket);
+    }
+    Ok(new_desc)
+}
+
 pub fn detect_generic_resource() -> anyhow::Result<Vec<GenericResourceDescriptor>> {
     let mut generic = Vec::new();
     if let Ok(count) = read_linux_gpu_count() {
@@ -62,6 +82,15 @@ fn read_linux_numa() -> anyhow::Result<Vec<Vec<CpuId>>> {
     }
     log::debug!("Linux numa detection is successful");
     Ok(numa_nodes)
+}
+
+fn read_linux_thread_siblings(cpu_id: CpuId) -> anyhow::Result<Vec<CpuId>> {
+    let filename = format!(
+        "/sys/devices/system/cpu/cpu{}/topology/thread_siblings_list",
+        cpu_id
+    );
+    log::debug!("Reading {}", filename);
+    parse_range(&std::fs::read_to_string(filename)?)
 }
 
 fn p_cpu_range(input: &str) -> NomResult<Vec<CpuId>> {
