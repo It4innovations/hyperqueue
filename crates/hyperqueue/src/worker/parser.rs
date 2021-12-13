@@ -23,11 +23,21 @@ fn p_cpu_definition(input: &str) -> NomResult<CpusDescriptor> {
     )(input)
 }
 
-fn parse_cpu_definition(input: &str) -> anyhow::Result<CpusDescriptor> {
-    consume_all(p_cpu_definition, input)
+pub enum CpuDefinition {
+    Detect,
+    DetectNoHyperThreading,
+    Custom(CpusDescriptor),
 }
 
-arg_wrapper!(ArgCpuDef, CpusDescriptor, parse_cpu_definition);
+fn parse_cpu_definition(input: &str) -> anyhow::Result<CpuDefinition> {
+    match input {
+        "auto" => Ok(CpuDefinition::Detect),
+        "no-ht" => Ok(CpuDefinition::DetectNoHyperThreading),
+        other => consume_all(p_cpu_definition, other).map(CpuDefinition::Custom),
+    }
+}
+
+arg_wrapper!(ArgCpuDefinition, CpuDefinition, parse_cpu_definition);
 arg_wrapper!(
     ArgGenericResourceDef,
     GenericResourceDescriptor,

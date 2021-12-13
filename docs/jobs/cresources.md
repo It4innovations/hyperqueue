@@ -82,15 +82,15 @@ Note: Specifying policy has effect only if you have more then one sockets(physic
 
 * Compact (``compact``) - Tries to allocate cores on as few sockets as possible in the current worker state.
 
-  Example: ``hq --cpus="8 compact" ...``
+  Example: ``hq submit --cpus="8 compact" ...``
 
 * Strict Compact (``compact!``) - Always allocate cores on as few sockets as possible for a target node. The task is not executed until the requirement could not be fully fullfiled. E.g. If your worker has 4 cores per socket and you ask for 4 cpus, it will be always executed on a single socket. If you ask for 8 cpus, it will be always executed on two sockets.
 
-  Example: ``hq --cpus="8 compact!" ...``
+  Example: ``hq submit --cpus="8 compact!" ...``
 
 * Scatter (``scatter``) - Allocate cores across as many sockets possible in the current worker state. If your worker has 4 sockets with 8 cores per socket and you ask for 8 cpus than if possible in the current situation, HQ tries to run process with 2 cpus on each socket.
 
-  Example: ``hq --cpus="8 scatter" ...``
+  Example: ``hq submit --cpus="8 scatter" ...``
 
 
 The default policy is the compact policy, i.e. ``--cpus=XX`` is equivalent to ``--cpus="XX compact"``
@@ -98,7 +98,7 @@ The default policy is the compact policy, i.e. ``--cpus=XX`` is equivalent to ``
 
 ## CPU requests and job arrays
 
-Resource requests are applied to each task of job. For example, if you submit the following: ``hq --cpus=2 --array=1-10`` it will create 10 tasks where each task needs two CPUs.
+Resource requests are applied to each task of job. For example, if you submit the following: ``hq submit --cpus=2 --array=1-10`` it will create 10 tasks where each task needs two CPUs.
 
 
 ## CPUs configuration
@@ -107,13 +107,17 @@ Worker automatically detect number of CPUs and on Linux system it also detects p
 it should work without need of any touch. If you want to see how is your seen by a worker without actually starting it,
 you can start ``$ hq worker hwdetect`` that only prints CPUs layout.
 
+
 ### Manual specification of CPU configration
 
-If automatic detection fails, or you want to manually configure set CPU configuration, you can use
+If automatic detection fails, or you want to manually configure set a CPU configuration, you can use
 ``--cpus`` parameter; for example as follows:
 
 - 8 CPUs for worker
   ``$ hq worker start --cpus=8``
 
 - 2 sockets with 12 cores per socket
-  ``$ hq worker --cpus=2x12``
+  ``$ hq worker start --cpus=2x12``
+
+- Automatic detection of CPUs but ignores HyperThreading (it will detect only the first virtual CPU of each physical CPU)
+  ``$ hq worker start --cpus="no-ht"``

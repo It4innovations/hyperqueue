@@ -34,8 +34,8 @@ use crate::common::serverdir::ServerDir;
 use crate::common::timeutils::ArgDuration;
 use crate::transfer::messages::TaskBody;
 use crate::transfer::stream::ChannelId;
-use crate::worker::hwdetect::{detect_cpus, detect_generic_resource};
-use crate::worker::parser::{ArgCpuDef, ArgGenericResourceDef};
+use crate::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resource};
+use crate::worker::parser::{ArgCpuDefinition, ArgGenericResourceDef, CpuDefinition};
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use crate::Map;
@@ -77,8 +77,8 @@ impl FromStr for ManagerOpts {
 #[derive(Parser)]
 pub struct WorkerStartOpts {
     /// How many cores should be allocated for the worker
-    #[clap(long)]
-    cpus: Option<ArgCpuDef>,
+    #[clap(long, default_value = "auto")]
+    cpus: ArgCpuDefinition,
 
     /// Resources
     #[clap(long, setting = clap::ArgSettings::MultipleOccurrences)]
@@ -481,10 +481,11 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
             .expect("Invalid hostname")
     });
 
-    let cpus = opts
-        .cpus
-        .map(|x| Ok(x.unpack()))
-        .unwrap_or_else(detect_cpus)?;
+    let cpus = match opts.cpus.unpack() {
+        CpuDefinition::Detect => detect_cpus()?,
+        CpuDefinition::DetectNoHyperThreading => detect_cpus_no_ht()?,
+        CpuDefinition::Custom(cpus) => cpus,
+    };
 
     let mut generic = if opts.no_detect_resources {
         Vec::new()

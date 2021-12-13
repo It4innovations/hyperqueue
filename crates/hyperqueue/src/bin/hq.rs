@@ -32,7 +32,7 @@ use hyperqueue::server::bootstrap::{
 use hyperqueue::transfer::messages::{
     FromClientMessage, JobInfoRequest, Selector, ToClientMessage,
 };
-use hyperqueue::worker::hwdetect::{detect_cpus, detect_generic_resource};
+use hyperqueue::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resource};
 use hyperqueue::worker::start::{start_hq_worker, WorkerStartOpts};
 use hyperqueue::WorkerId;
 use tako::common::resources::ResourceDescriptor;
@@ -225,6 +225,12 @@ struct WorkerInfoOpts {
 }
 
 #[derive(Parser)]
+struct HwDetectOpts {
+    #[clap(long)]
+    no_ht: bool,
+}
+
+#[derive(Parser)]
 enum WorkerCommand {
     /// Start worker
     Start(WorkerStartOpts),
@@ -233,7 +239,7 @@ enum WorkerCommand {
     /// Display information about workers
     List(WorkerListOpts),
     /// Hwdetect
-    Hwdetect,
+    HwDetect(HwDetectOpts),
     /// Display information about a specific worker
     Info(WorkerInfoOpts),
     /// Display worker's hostname
@@ -384,8 +390,12 @@ async fn command_resubmit(gsettings: GlobalSettings, opts: ResubmitOpts) -> anyh
     resubmit_computation(&gsettings, &mut connection, opts).await
 }
 
-fn command_worker_hwdetect(gsettings: GlobalSettings) -> anyhow::Result<()> {
-    let cpus = detect_cpus()?;
+fn command_worker_hwdetect(gsettings: GlobalSettings, opts: HwDetectOpts) -> anyhow::Result<()> {
+    let cpus = if opts.no_ht {
+        detect_cpus_no_ht()?
+    } else {
+        detect_cpus()?
+    };
     let generic = detect_generic_resource()?;
     gsettings
         .printer()
@@ -532,8 +542,8 @@ async fn main() -> hyperqueue::Result<()> {
             subcmd: WorkerCommand::Info(opts),
         }) => command_worker_info(gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::Hwdetect,
-        }) => command_worker_hwdetect(gsettings),
+            subcmd: WorkerCommand::HwDetect(opts),
+        }) => command_worker_hwdetect(gsettings, opts),
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Address(opts),
         }) => command_worker_address(gsettings, opts).await,
