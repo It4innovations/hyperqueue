@@ -99,7 +99,9 @@ def test_print_hw(hq_env: HqEnv):
     output = hq_json_wrapper(hq_env, ["--output-type=json", "worker", "hwdetect"])
     assert isinstance(output, dict)
     assert "cpus" in output.keys()
-    output = hq_json_wrapper(hq_env, ["--output-type=json", "worker", "hwdetect", "--no-hyperthreading"])
+    output = hq_json_wrapper(
+        hq_env, ["--output-type=json", "worker", "hwdetect", "--no-hyperthreading"]
+    )
     assert isinstance(output, dict)
     assert "cpus" in output.keys()
 

@@ -226,6 +226,7 @@ struct WorkerInfoOpts {
 
 #[derive(Parser)]
 struct HwDetectOpts {
+    /// Detect only physical cores
     #[clap(long)]
     no_hyperthreading: bool,
 }

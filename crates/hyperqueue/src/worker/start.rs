@@ -76,7 +76,7 @@ impl FromStr for ManagerOpts {
 
 #[derive(Parser)]
 pub struct WorkerStartOpts {
-    /// How many cores should be allocated for the worker
+    /// How many cores should be allocated for the worker (auto, no-ht, N, MxN)
     #[clap(long, default_value = "auto")]
     cpus: ArgCpuDefinition,
 
