@@ -14,7 +14,7 @@ from src.clusterutils.node_list import Local
 from src.environment import EnvironmentDescriptor
 from src.environment.hq import HqClusterInfo, HqWorkerConfig
 from src.environment.snake import SnakeEnvironmentDescriptor
-from src.utils.benchmark import run_benchmarks, run_benchmarks_with_postprocessing
+from src.utils.benchmark import run_benchmarks_with_postprocessing
 from src.workloads import Workload
 from src.workloads.sleep import SleepHQ, SleepSnake
 
@@ -62,7 +62,7 @@ def sleep():
     hq_path = list(iterate_binaries([BuildConfig()]))[0].binary_path
     workdir = Path("benchmark/sleep")
 
-    task_counts = (10, 100, 1000, 10000)
+    task_counts = (10, 100, 1000)
     descriptions = []
 
     def add_product(
@@ -86,7 +86,7 @@ def sleep():
         ],
     )
 
-    run_benchmarks(workdir, descriptions)
+    run_benchmarks_with_postprocessing(workdir, descriptions)
 
 
 if __name__ == "__main__":
