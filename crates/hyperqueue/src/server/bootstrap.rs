@@ -30,6 +30,7 @@ pub struct ServerConfig {
     pub autoalloc_interval: Option<Duration>,
     pub client_port: Option<u16>,
     pub worker_port: Option<u16>,
+    pub event_store_size: usize,
 }
 
 /// This function initializes the HQ server.
@@ -127,6 +128,7 @@ async fn initialize_server(
         tako_secret_key.clone(),
         server_cfg.idle_timeout,
         server_cfg.worker_port,
+        server_cfg.event_store_size,
     )
     .await?;
 
@@ -240,6 +242,7 @@ mod tests {
             autoalloc_interval: None,
             client_port: None,
             worker_port: None,
+            event_store_size: 1_000_000,
         };
         initialize_server(&gsettings, server_cfg).await.unwrap()
     }

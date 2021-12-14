@@ -4,11 +4,12 @@ use crate::WorkerId;
 
 use crate::messages::common::WorkerConfiguration;
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::time::SystemTime;
 
-#[derive(Default)]
 pub struct EventStorage {
-    event_queue: Vec<MonitoringEvent>,
+    event_store_size: usize,
+    event_queue: VecDeque<MonitoringEvent>,
     last_event_id: u32,
 }
 
@@ -31,7 +32,25 @@ pub enum MonitoringEventPayload {
 // Keep the size of the event structure in check
 const _: () = assert!(std::mem::size_of::<MonitoringEventPayload>() == 32);
 
+impl Default for EventStorage {
+    fn default() -> Self {
+        Self {
+            event_store_size: 1_000_000,
+            event_queue: Default::default(),
+            last_event_id: 0,
+        }
+    }
+}
+
 impl EventStorage {
+    pub fn new(event_store_size: usize) -> Self {
+        Self {
+            event_store_size,
+            event_queue: VecDeque::new(),
+            last_event_id: 0,
+        }
+    }
+
     /// Returns all events that have event ID larger than `id`.
     /// There is no guarantee on the order of the events, if you want any specific order, you have
     /// to sort them.
@@ -67,10 +86,13 @@ impl EventStorage {
 
     fn insert_event(&mut self, payload: MonitoringEventPayload) {
         self.last_event_id += 1;
-        self.event_queue.push(MonitoringEvent {
+        self.event_queue.push_back(MonitoringEvent {
             payload,
             id: self.last_event_id,
             time: SystemTime::now(),
-        })
+        });
+        if self.event_queue.len() > self.event_store_size {
+            self.event_queue.pop_front();
+        }
     }
 }
