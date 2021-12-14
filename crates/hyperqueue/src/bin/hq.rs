@@ -127,6 +127,10 @@ struct ServerStartOpts {
     /// Port for worker connections
     #[clap(long)]
     worker_port: Option<u16>,
+
+    /// The maximum number of events tako server will store in memory
+    #[clap(long, default_value = "1000000")]
+    event_store_size: usize,
 }
 
 #[derive(Parser)]
@@ -285,6 +289,7 @@ async fn command_server_start(
         autoalloc_interval: opts.autoalloc_interval.map(|x| x.unpack()),
         client_port: opts.client_port,
         worker_port: opts.worker_port,
+        event_store_size: opts.event_store_size,
     };
 
     init_hq_server(&gsettings, server_cfg).await

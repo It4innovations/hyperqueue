@@ -168,6 +168,7 @@ async fn create_handle(
         client_sender.clone(),
         config.panic_on_worker_lost,
         config.idle_timeout,
+        1_000_000,
         None,
     )
     .await

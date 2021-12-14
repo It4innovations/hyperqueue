@@ -54,6 +54,7 @@ impl CoreRef {
         worker_listen_port: u16,
         secret_key: Option<Arc<SecretKey>>,
         idle_timeout: Option<Duration>,
+        event_store_size: usize,
         custom_conn_handler: Option<CustomConnectionHandler>,
     ) -> Self {
         /*let mut core = Core::default();
@@ -64,6 +65,7 @@ impl CoreRef {
             secret_key,
             idle_timeout,
             custom_conn_handler,
+            event_storage: EventStorage::new(event_store_size),
             ..Default::default()
         })
     }
