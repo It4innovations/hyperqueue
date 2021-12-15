@@ -261,12 +261,24 @@ impl Core {
         self.ready_to_assign.retain(|t| !tasks.contains(t));
     }
 
+    #[inline]
     pub fn get_tasks(&self) -> impl Iterator<Item = &TaskRef> {
         self.tasks.values()
     }
 
-    pub fn get_task_map(&self) -> &Map<TaskId, TaskRef> {
+    #[inline]
+    pub fn get_task_ids(&self) -> impl Iterator<Item = TaskId> + '_ {
+        self.tasks.values().map(|tref| tref.get().id)
+    }
+
+    #[inline]
+    pub fn get_task_map(&self) -> &TaskMap {
         &self.tasks
+    }
+
+    #[inline]
+    pub fn get_task_map_mut(&mut self) -> &mut TaskMap {
+        &mut self.tasks
     }
 
     #[inline]
