@@ -54,15 +54,19 @@ In addition to arguments that are passed to `qsub`/`sbatch`, you can also use se
 creating a new allocation queue:
 
 - **`--time-limit <duration>`** Sets the walltime of created allocations[^1].
-  
-    This parameter is required, as HyperQueue must know the duration of the individual allocations.
+
+    This parameter is **required**, as HyperQueue must know the duration of the individual allocations.
     Make sure that you pass a  time limit that does not exceed the limit of the PBS/Slurm queue
     that you intend to use, otherwise the allocation submissions will fail. You can use the
     [`dry-run` command](#dry-run-command) to debug this.
 
 - `--backlog <count>` How many allocations should be queued (waiting to be started) in PBS/Slurm at any given time.
-- `--workers-per-alloc <count>` How many nodes should be requested in each allocation.
-- `--name <name>` Name of the allocation queue. Will be used to name allocations. Serves for debug purposes only.
+- `--workers-per-alloc <count>` How many workers should be requested in each allocation. This corresponds
+  to the number of requested nodes, as the allocator will always create a single worker per node.
+- `--max-worker-count <count>` Maximum number of workers that can be queued or running in the created
+  allocation queue. The amount of workers will be limited by the manager (PBS/Slurm), but you can
+  use this parameter to make the limit smaller, for example if you also want to create manager allocations
+  outside HyperQueue.
 - **Worker resources** You can specify [CPU](../jobs/cresources.md) and [generic](../jobs/gresources.md)
   resources of workers spawned in the created allocation queue. The name and syntax of these parameters
   is the same as when you create a worker manually:
@@ -81,6 +85,8 @@ creating a new allocation queue:
     
     If you do not pass any resources, they will be detected automatically (same as it works with
     `hq worker start`).
+
+- `--name <name>` Name of the allocation queue. Will be used to name allocations. Serves for debug purposes only.
 
 [^1]: You can use various [shortcuts](../tips/cli-shortcuts.md#duration) for the duration value.
 

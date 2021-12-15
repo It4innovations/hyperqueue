@@ -79,6 +79,10 @@ pub struct SharedQueueOpts {
     #[clap(long, short, default_value = "1")]
     workers_per_alloc: u32,
 
+    /// Maximum number of workers that can be queued or running at any given time in this queue
+    #[clap(long)]
+    max_worker_count: Option<u32>,
+
     /// Name of the allocation queue (for debug purposes only)
     #[clap(long, short)]
     name: Option<String>,
@@ -180,14 +184,26 @@ pub async fn command_autoalloc(
 }
 
 fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
+    let SharedQueueOpts {
+        backlog,
+        time_limit,
+        workers_per_alloc,
+        max_worker_count,
+        name,
+        cpus,
+        resource,
+        additional_args,
+    } = args;
+
     AllocationQueueParams {
-        workers_per_alloc: args.workers_per_alloc,
-        backlog: args.backlog,
-        timelimit: args.time_limit.unpack(),
-        name: args.name,
-        additional_args: args.additional_args,
-        worker_cpu_arg: args.cpus.map(|v| v.into()),
-        worker_resources_args: args.resource.into_iter().map(|v| v.into()).collect(),
+        workers_per_alloc,
+        backlog,
+        timelimit: time_limit.unpack(),
+        name,
+        additional_args,
+        worker_cpu_arg: cpus.map(|v| v.into()),
+        worker_resources_args: resource.into_iter().map(|v| v.into()).collect(),
+        max_worker_count,
     }
 }
 
@@ -198,7 +214,8 @@ async fn dry_run(opts: DryRunOpts) -> anyhow::Result<()> {
     };
 
     let tmpdir = TempDir::new("hq")?;
-    let mut handler = create_allocation_handler(&manager, &params, tmpdir.as_ref().to_path_buf())?;
+    let mut handler =
+        create_allocation_handler(&manager, params.name.clone(), tmpdir.as_ref().to_path_buf())?;
     let worker_count = params.workers_per_alloc;
     let queue_info = create_queue_info(params);
 

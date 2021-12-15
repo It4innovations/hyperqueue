@@ -14,14 +14,18 @@
     ```bash
     $ hq alloc add pbs --time-limit 2h --cpus 4x4 --resource "gpu=indices(1-2)" -- -q qexp -A Project1
     ```
-  Using this command you can quickly test if PBS/Slurm will accept allocations created with
-  the provided parameters.
 * You can now test auto allocation parameters using a dry-run command:
     ```bash
     $ hq alloc dry-run pbs --time-limit 2h -- -q qexp -A Project1
     ```
     Using this command you can quickly test if PBS/Slurm will accept allocations created with
     the provided parameters.
+* You can now specify a limit for the number of workers spawned inside a single allocation queue.
+  You can use the parameter `--max-worker-count` when creating a queue to make sure that the queue
+  will not create too many workers.
+    ```bash
+    $ hq alloc add pbs --time-limit 00:10:00 --max-worker-count 10 -- -q qprod -A Project1
+    ```
 * You can now specify the timelimit of PBS/Slurm allocations using the `HH:MM:SS` format:
 `hq alloc add pbs --time-limit 01:10:30`.
 

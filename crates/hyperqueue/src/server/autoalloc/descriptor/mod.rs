@@ -60,6 +60,7 @@ pub struct QueueInfo {
     additional_args: Vec<String>,
     worker_cpu_arg: Option<String>,
     worker_resource_args: Vec<String>,
+    max_worker_count: Option<u32>,
 }
 
 impl QueueInfo {
@@ -70,14 +71,16 @@ impl QueueInfo {
         additional_args: Vec<String>,
         worker_cpu_arg: Option<String>,
         worker_resource_args: Vec<String>,
+        max_worker_count: Option<u32>,
     ) -> Self {
-        QueueInfo {
+        Self {
             backlog,
             workers_per_alloc,
             timelimit,
             additional_args,
             worker_cpu_arg,
             worker_resource_args,
+            max_worker_count,
         }
     }
 
@@ -103,6 +106,10 @@ impl QueueInfo {
 
     pub fn worker_resource_args(&self) -> &[String] {
         &self.worker_resource_args
+    }
+
+    pub fn max_worker_count(&self) -> Option<u32> {
+        self.max_worker_count
     }
 }
 
