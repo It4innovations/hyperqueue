@@ -242,7 +242,8 @@ impl SchedulerState {
         if !ready_tasks.is_empty() {
             let now = std::time::Instant::now();
             let mut tmp_workers = Vec::with_capacity(core.get_worker_map().len());
-            for tr in ready_tasks.into_iter() {
+            for task_id in ready_tasks.into_iter() {
+                let tr = core.get_task_by_id_or_panic(task_id).clone();
                 let mut task = tr.get_mut();
                 if let TaskRuntimeState::Released = task.state {
                     continue;
@@ -264,7 +265,7 @@ impl SchedulerState {
                         .is_capable_to_run(&task.configuration.resources, now));
                     self.assign(core, &mut task, tr.clone(), worker_id);
                 } else {
-                    core.add_sleeping_task(tr.clone());
+                    core.add_sleeping_task(task.id);
                 }
             }
         }

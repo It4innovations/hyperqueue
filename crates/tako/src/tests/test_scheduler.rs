@@ -451,7 +451,7 @@ fn test_resources_no_workers2() {
 
         let s = rt.core().take_sleeping_tasks();
         assert_eq!(s.len(), 1);
-        assert_eq!(s[0].get().id, TaskId::new(unschedulable_index));
+        assert_eq!(s[0], TaskId::new(unschedulable_index));
     }
 
     check(&[9, 10, 11]);

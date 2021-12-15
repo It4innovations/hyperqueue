@@ -46,8 +46,9 @@ pub(crate) fn force_assign<W: Into<WorkerId>, T: Into<TaskId>>(
     task_id: T,
     worker_id: W,
 ) {
-    let task_ref = core.get_task_by_id_or_panic(task_id.into()).clone();
-    core.remove_from_ready_to_assign(&task_ref);
+    let task_id = task_id.into();
+    core.remove_from_ready_to_assign(task_id);
+    let task_ref = core.get_task_by_id_or_panic(task_id).clone();
     let mut task = task_ref.get_mut();
     scheduler.assign(core, &mut task, task_ref.clone(), worker_id.into());
 }

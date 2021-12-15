@@ -128,7 +128,7 @@ impl TestEnv {
     pub fn _test_assign(&mut self, task_ref: &TaskRef, worker_id: WorkerId) {
         self.scheduler
             .test_assign(&mut self.core, &task_ref, worker_id);
-        self.core.remove_from_ready_to_assign(task_ref);
+        self.core.remove_from_ready_to_assign(task_ref.get().id);
     }
 
     pub fn test_assign<T: Into<TaskId>, W: Into<WorkerId>>(&mut self, task_id: T, worker_id: W) {
