@@ -3,7 +3,6 @@ use std::ops::{Deref, DerefMut, Index, IndexMut};
 /// Vec that can only be indexed by the specified `Idx` type.
 /// Useful in combination with index types created by `define_id_type`.
 #[derive(Debug, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[repr(transparent)]
 pub struct IndexVec<Idx, Value>(Vec<Value>, std::marker::PhantomData<Idx>);
 
 impl<Idx: Into<usize>, Value: Copy> IndexVec<Idx, Value> {
@@ -69,7 +68,6 @@ macro_rules! define_id_type {
             ::std::cmp::Eq,
             ::std::cmp::PartialEq,
         )]
-        #[repr(transparent)]
         pub struct $name($type);
 
         impl $name {

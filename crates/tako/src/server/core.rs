@@ -12,6 +12,7 @@ use crate::messages::gateway::ServerInfo;
 use crate::server::monitoring::EventStorage;
 use crate::server::rpc::ConnectionDescriptor;
 use crate::server::task::{Task, TaskRef, TaskRuntimeState};
+use crate::server::taskmap::TaskMap;
 use crate::server::worker::Worker;
 use crate::server::worker_load::WorkerResources;
 use crate::{TaskId, WorkerId};
@@ -20,7 +21,7 @@ pub type CustomConnectionHandler = Box<dyn Fn(ConnectionDescriptor)>;
 
 #[derive(Default)]
 pub struct Core {
-    tasks: Map<TaskId, TaskRef>,
+    tasks: TaskMap,
     workers: Map<WorkerId, Worker>,
     event_storage: EventStorage,
 
@@ -313,7 +314,7 @@ impl Core {
             worker.sanity_check();
         }
 
-        for (task_id, task_ref) in &self.tasks {
+        for (task_id, task_ref) in self.tasks.iter() {
             let task = task_ref.get();
             assert_eq!(task.id, *task_id);
             match &task.state {
