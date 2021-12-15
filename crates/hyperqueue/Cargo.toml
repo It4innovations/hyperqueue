@@ -53,6 +53,9 @@ tako = { path = "../tako" }
 # Optional dependencies
 jemallocator = { version = "0.3.2", optional = true }
 
+[dev-dependencies]
+derive_builder = "0.10.2"
+
 [features]
 default = ["jemalloc"]
 # Mode that does not execute tasks, useful for benchmarking HQ overhead

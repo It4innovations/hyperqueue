@@ -706,6 +706,7 @@ dependencies = [
  "cli-table",
  "colored",
  "const_format",
+ "derive_builder",
  "dirs",
  "env_logger",
  "futures",

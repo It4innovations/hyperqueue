@@ -314,29 +314,40 @@ fn get_event_log(state_ref: &StateRef, descriptor: DescriptorId) -> ToClientMess
 #[allow(clippy::redundant_closure)]
 pub fn create_allocation_handler(
     manager: &ManagerType,
-    params: &AllocationQueueParams,
+    name: Option<String>,
     directory: PathBuf,
 ) -> anyhow::Result<Box<dyn QueueHandler>> {
     match manager {
         ManagerType::Pbs => {
-            let handler = PbsHandler::new(directory, params.name.clone());
+            let handler = PbsHandler::new(directory, name);
             handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler))
         }
         ManagerType::Slurm => {
-            let handler = SlurmHandler::new(directory, params.name.clone());
+            let handler = SlurmHandler::new(directory, name);
             handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler))
         }
     }
 }
 
 pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
+    let AllocationQueueParams {
+        name: _name,
+        workers_per_alloc,
+        backlog,
+        timelimit,
+        additional_args,
+        worker_cpu_arg,
+        worker_resources_args,
+        max_worker_count,
+    } = params;
     QueueInfo::new(
-        params.backlog,
-        params.workers_per_alloc,
-        params.timelimit,
-        params.additional_args,
-        params.worker_cpu_arg,
-        params.worker_resources_args,
+        backlog,
+        workers_per_alloc,
+        timelimit,
+        additional_args,
+        worker_cpu_arg,
+        worker_resources_args,
+        max_worker_count,
     )
 }
 
@@ -347,8 +358,8 @@ fn create_queue(
     params: AllocationQueueParams,
 ) -> ToClientMessage {
     let server_directory = server_dir.directory().to_path_buf();
-    let handler = create_allocation_handler(&manager, &params, server_directory);
     let name = params.name.clone();
+    let handler = create_allocation_handler(&manager, name.clone(), server_directory);
     let queue_info = create_queue_info(params);
 
     match handler {
