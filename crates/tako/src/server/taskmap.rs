@@ -1,11 +1,23 @@
 use crate::common::Map;
-use crate::server::task::TaskRef;
+use crate::server::task::{Task, TaskRef};
 use crate::TaskId;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Default, Debug)]
 pub struct TaskMap {
     tasks: Map<TaskId, TaskRef>,
+}
+
+impl TaskMap {
+    #[inline]
+    pub fn get_task_ref(&self, task_id: TaskId) -> &Task {
+        &self.tasks.get(&task_id).unwrap().get()
+    }
+
+    #[inline]
+    pub fn get_task_ref_mut(&mut self, task_id: TaskId) -> &mut Task {
+        &mut self.tasks.get(&task_id).unwrap().get_mut()
+    }
 }
 
 impl Deref for TaskMap {
