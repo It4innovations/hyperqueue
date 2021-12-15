@@ -28,10 +28,10 @@ pub struct Core {
     /* Scheduler items */
     parked_resources: Set<WorkerResources>, // Resources of workers that has flag NOTHING_TO_LOAD
     // TODO: benchmark and possibly replace with a set
-    ready_to_assign: Vec<TaskRef>,
+    ready_to_assign: Vec<TaskId>,
     has_new_tasks: bool,
 
-    sleeping_tasks: Vec<TaskRef>, // Tasks that cannot be scheduled to any available worker
+    sleeping_tasks: Vec<TaskId>, // Tasks that cannot be scheduled to any available worker
 
     maximal_task_id: TaskId,
     worker_id_counter: u32,
@@ -97,11 +97,11 @@ impl Core {
         }
     }
 
-    pub fn add_sleeping_task(&mut self, task_ref: TaskRef) {
-        self.sleeping_tasks.push(task_ref);
+    pub fn add_sleeping_task(&mut self, task_id: TaskId) {
+        self.sleeping_tasks.push(task_id);
     }
 
-    pub fn take_sleeping_tasks(&mut self) -> Vec<TaskRef> {
+    pub fn take_sleeping_tasks(&mut self) -> Vec<TaskId> {
         std::mem::take(&mut self.sleeping_tasks)
     }
 
@@ -117,7 +117,7 @@ impl Core {
         }
     }
 
-    pub fn take_ready_to_assign(&mut self) -> Vec<TaskRef> {
+    pub fn take_ready_to_assign(&mut self) -> Vec<TaskId> {
         std::mem::take(&mut self.ready_to_assign)
     }
 
@@ -210,7 +210,7 @@ impl Core {
         let task_id = {
             let task = task_ref.get();
             if task.is_ready() {
-                self.add_ready_to_assign(task_ref.clone());
+                self.add_ready_to_assign(task.id);
             }
             task.id()
         };
@@ -238,8 +238,8 @@ impl Core {
     }
 
     #[inline]
-    pub fn add_ready_to_assign(&mut self, task_ref: TaskRef) {
-        self.ready_to_assign.push(task_ref);
+    pub fn add_ready_to_assign(&mut self, task_id: TaskId) {
+        self.ready_to_assign.push(task_id);
     }
 
     /// Removes a single task.
@@ -254,9 +254,9 @@ impl Core {
     }
 
     /// Removes multiple tasks at once, to reduce memory consumption
-    pub fn remove_tasks_batched(&mut self, tasks: &Set<TaskRef>) {
-        for task in tasks {
-            let _ = self.remove_task(&mut task.get_mut());
+    pub fn remove_tasks_batched(&mut self, tasks: &Set<TaskId>) {
+        for &task_id in tasks {
+            let _ = self.remove_task(&mut self.get_task_by_id_or_panic(task_id).clone().get_mut());
         }
         self.ready_to_assign.retain(|t| !tasks.contains(t));
     }
@@ -400,21 +400,17 @@ impl Core {
 mod tests {
     use crate::server::core::Core;
     use crate::server::task::Task;
-    use crate::server::task::{TaskRef, TaskRuntimeState};
+    use crate::server::task::TaskRuntimeState;
     use crate::tests::utils::task;
+    use crate::TaskId;
 
     impl Core {
-        pub fn get_read_to_assign(&self) -> &[TaskRef] {
+        pub fn get_read_to_assign(&self) -> &[TaskId] {
             &self.ready_to_assign
         }
 
-        pub fn remove_from_ready_to_assign(&mut self, task_ref: &TaskRef) {
-            let p = self
-                .ready_to_assign
-                .iter()
-                .position(|x| x == task_ref)
-                .unwrap();
-            self.ready_to_assign.remove(p);
+        pub fn remove_from_ready_to_assign(&mut self, task_id: TaskId) {
+            self.ready_to_assign.retain(|&id| id != task_id);
         }
 
         pub fn assert_task_condition<F: Fn(&Task) -> bool>(&self, task_ids: &[u64], op: F) {

@@ -39,7 +39,13 @@ fn bench_remove_all_tasks(c: &mut BenchmarkGroup<WallTime>) {
                     || {
                         let mut core = Core::default();
                         let tasks: Set<_> = add_tasks(&mut core, task_count).into_iter().collect();
-                        (core, tasks)
+                        (
+                            core,
+                            tasks
+                                .into_iter()
+                                .map(|tref| tref.get().id)
+                                .collect::<Set<_>>(),
+                        )
                     },
                     |(ref mut core, tasks)| {
                         core.remove_tasks_batched(tasks);

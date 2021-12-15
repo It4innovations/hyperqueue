@@ -17,19 +17,17 @@ use crate::server::worker::Worker;
 use crate::{TaskId, WorkerId};
 
 pub fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
-    {
-        trace_worker_new(worker.id, &worker.configuration);
+    trace_worker_new(worker.id, &worker.configuration);
 
-        comm.broadcast_worker_message(&ToWorkerMessage::NewWorker(NewWorkerMsg {
-            worker_id: worker.id,
-            address: worker.configuration.listen_address.clone(),
-        }));
+    comm.broadcast_worker_message(&ToWorkerMessage::NewWorker(NewWorkerMsg {
+        worker_id: worker.id,
+        address: worker.configuration.listen_address.clone(),
+    }));
 
-        comm.send_client_worker_new(worker.id, &worker.configuration);
+    comm.send_client_worker_new(worker.id, &worker.configuration);
 
-        /*comm.send_scheduler_message(ToSchedulerMessage::NewWorker(worker.make_sched_info()));*/
-        comm.ask_for_scheduling();
-    }
+    /*comm.send_scheduler_message(ToSchedulerMessage::NewWorker(worker.make_sched_info()));*/
+    comm.ask_for_scheduling();
     core.new_worker(worker);
 }
 
@@ -56,7 +54,7 @@ pub fn on_remove_worker(
                     log::debug!("Removing task task={} from lost worker", task_id);
                     task.increment_instance_id();
                     task.set_fresh_flag(true);
-                    ready_to_assign.push(task_ref.clone());
+                    ready_to_assign.push(task_id);
                     if task.is_running() {
                         running_tasks.push(task_id);
                     }
@@ -74,7 +72,7 @@ pub fn on_remove_worker(
                     }
                     task.increment_instance_id();
                     task.set_fresh_flag(true);
-                    ready_to_assign.push(task_ref.clone());
+                    ready_to_assign.push(task_id);
                     TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
                 } else if *to_id == Some(worker_id) {
                     log::debug!("Task={} is stealing target for lost worker", task_id);
@@ -105,19 +103,13 @@ pub fn on_remove_worker(
             .remove_task(&task, &task_ref)
     }
 
-    /*if let Some(w_id) = remove_from {
-        assert!(core.get_worker_mut_by_id_or_panic(w_id).tasks.remove(&task_ref))
-    }*/
-
-    for task_ref in ready_to_assign {
-        core.add_ready_to_assign(task_ref);
+    for task_id in ready_to_assign {
+        core.add_ready_to_assign(task_id);
     }
 
-    let _worker = core.remove_worker(worker_id);
+    let _ = core.remove_worker(worker_id);
     comm.send_client_worker_lost(worker_id, running_tasks, reason);
     comm.ask_for_scheduling();
-
-    //let worker = core.get_worker_by_id_or_panic(.into()worker_id);
 }
 
 pub fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec<TaskRef>) {
@@ -296,7 +288,7 @@ pub fn on_task_finished(
             for consumer in task.get_consumers() {
                 let mut t = consumer.get_mut();
                 if t.decrease_unfinished_deps() {
-                    core.add_ready_to_assign(consumer.clone());
+                    core.add_ready_to_assign(t.id);
                     comm.ask_for_scheduling();
                 }
             }
@@ -378,7 +370,7 @@ pub fn on_steal_response(
                                 TaskRuntimeState::Assigned(w_id)
                             } else {
                                 comm.ask_for_scheduling();
-                                core.add_ready_to_assign(task_ref.clone());
+                                core.add_ready_to_assign(task_id);
                                 TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
                             }
                         }
@@ -556,7 +548,7 @@ pub fn on_cancel_tasks(
         unregister_as_consumer(core, comm, &mut task, task_ref);
     }
 
-    core.remove_tasks_batched(&task_refs);
+    core.remove_tasks_batched(&task_refs.iter().map(|tref| tref.get().id).collect());
 
     for (w_id, ids) in running_ids {
         comm.send_worker_message(w_id, &ToWorkerMessage::CancelTasks(TaskIdsMsg { ids }));
