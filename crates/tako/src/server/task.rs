@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
@@ -60,6 +59,7 @@ bitflags::bitflags! {
     }
 }
 
+#[derive(Clone)]
 pub struct TaskInput {
     task: TaskId,
     output_id: u32, // MAX = pure dependency on task, not real output id
@@ -118,6 +118,34 @@ impl fmt::Debug for Task {
 pub type TaskRef = WrappedRcRefCell<Task>;
 
 impl Task {
+    pub fn new(
+        id: TaskId,
+        inputs: Vec<TaskInput>,
+        configuration: Rc<TaskConfiguration>,
+        body: Vec<u8>,
+        keep: bool,
+        observe: bool,
+    ) -> Self {
+        log::debug!("New task {} {:?}", id, &configuration.resources);
+
+        let mut flags = TaskFlags::empty();
+        flags.set(TaskFlags::KEEP, keep);
+        flags.set(TaskFlags::OBSERVE, observe);
+        flags.set(TaskFlags::FRESH, true);
+
+        Self {
+            id,
+            inputs,
+            flags,
+            configuration,
+            body,
+            scheduler_priority: Default::default(),
+            state: TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 }),
+            consumers: Default::default(),
+            instance_id: InstanceId::new(0),
+        }
+    }
+
     #[inline]
     pub fn is_ready(&self) -> bool {
         matches!(
@@ -215,17 +243,14 @@ impl Task {
         self.consumers.is_empty() && !self.is_keeped() && self.is_finished()
     }
 
-    pub fn collect_consumers(&self, taskmap: &TaskMap) -> HashSet<TaskRef> {
+    pub fn collect_consumers(&self, taskmap: &TaskMap) -> Set<TaskId> {
         let mut stack: Vec<_> = self.consumers.iter().copied().collect();
-        let mut result: HashSet<TaskRef> = stack
-            .iter()
-            .map(|task_id| taskmap.get(task_id).unwrap().clone())
-            .collect();
+        let mut result: Set<TaskId> = stack.iter().copied().collect();
 
         while let Some(task_id) = stack.pop() {
-            let task = taskmap.get(&task_id).unwrap();
-            for &consumer_id in &task.get().consumers {
-                if result.insert(taskmap.get(&consumer_id).unwrap().clone()) {
+            let task = taskmap.get_task_ref(task_id);
+            for &consumer_id in &task.consumers {
+                if result.insert(consumer_id) {
                     stack.push(consumer_id);
                 }
             }
@@ -392,22 +417,7 @@ impl TaskRef {
         keep: bool,
         observe: bool,
     ) -> Self {
-        let mut flags = TaskFlags::empty();
-        log::debug!("New task {} {:?}", id, &configuration.resources);
-        flags.set(TaskFlags::KEEP, keep);
-        flags.set(TaskFlags::OBSERVE, observe);
-        flags.set(TaskFlags::FRESH, true);
-        Self::wrap(Task {
-            id,
-            inputs,
-            flags,
-            configuration,
-            body,
-            scheduler_priority: Default::default(),
-            state: TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 }),
-            consumers: Default::default(),
-            instance_id: InstanceId::new(0),
-        })
+        Self::wrap(Task::new(id, inputs, configuration, body, keep, observe))
     }
 }
 
@@ -435,10 +445,7 @@ mod tests {
     #[test]
     fn task_consumers_empty() {
         let a = task::task(0);
-        assert_eq!(
-            a.get().collect_consumers(&Default::default()),
-            Default::default()
-        );
+        assert_eq!(a.collect_consumers(&Default::default()), Default::default());
     }
 
     #[test]
@@ -450,11 +457,14 @@ mod tests {
         let d = task_with_deps(3, &[&b], 1);
         let e = task_with_deps(4, &[&c, &d], 1);
 
-        submit_test_tasks(&mut core, &[&a, &b, &c, &d, &e]);
+        let expected_ids = vec![b.id, c.id, d.id, e.id];
+        submit_test_tasks(&mut core, vec![a, b, c, d, e]);
 
         assert_eq!(
-            a.get().collect_consumers(core.get_task_map()),
-            vec!(b, c, d, e).into_iter().collect()
+            core.get_task_map()
+                .get_task_ref(0.into())
+                .collect_consumers(core.get_task_map()),
+            expected_ids.into_iter().collect()
         );
     }
 }

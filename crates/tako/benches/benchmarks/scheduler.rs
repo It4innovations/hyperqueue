@@ -26,9 +26,8 @@ fn bench_b_level(c: &mut BenchmarkGroup<WallTime>) {
                         let mut core = Core::default();
                         let tasks: Map<TaskId, TaskRef> = add_tasks(&mut core, task_count)
                             .into_iter()
-                            .map(|t| {
-                                let id = t.get().id();
-                                (id, t)
+                            .map(|task_id| {
+                                (task_id, core.get_task_map().get(&task_id).unwrap().clone())
                             })
                             .collect();
                         (core, TaskMap::new(tasks))

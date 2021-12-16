@@ -11,10 +11,11 @@ use crate::messages::worker::{
 };
 use crate::server::comm::Comm;
 use crate::server::core::Core;
-use crate::server::task::{DataInfo, TaskRef, TaskRuntimeState};
-use crate::server::task::{FinishInfo, Task, WaitingInfo};
+use crate::server::task::{DataInfo, Task, TaskRuntimeState};
+use crate::server::task::{FinishInfo, WaitingInfo};
 use crate::server::worker::Worker;
 use crate::{TaskId, WorkerId};
+use std::cell::RefMut;
 
 pub fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
     trace_worker_new(worker.id, &worker.configuration);
@@ -42,9 +43,9 @@ pub fn on_remove_worker(
     let mut removes = Vec::new();
     let mut running_tasks = Vec::new();
 
-    for task_ref in core.get_tasks() {
-        let mut task = task_ref.get_mut();
-        let task_id = task.id;
+    let task_ids: Vec<_> = core.get_task_ids().collect();
+    for task_id in task_ids {
+        let mut task = core.get_task_map_mut().get_task_ref_mut(task_id);
 
         let new_state = match &mut task.state {
             TaskRuntimeState::Waiting(_) => continue,
@@ -113,35 +114,47 @@ pub fn on_remove_worker(
     comm.ask_for_scheduling();
 }
 
-pub fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec<TaskRef>) {
+pub fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec<Task>) {
     assert!(!new_tasks.is_empty());
 
-    let task_map: Map<_, _> = new_tasks.iter().map(|t| (t.get().id, t.clone())).collect();
-    for task_ref in new_tasks {
-        {
-            let mut task = task_ref.get_mut();
+    let mut task_map: Map<_, _> = new_tasks.into_iter().map(|t| (t.id, t)).collect();
+    let ids: Vec<_> = task_map.keys().copied().collect();
+    for task_id in ids {
+        let mut task = task_map.remove(&task_id).unwrap();
 
-            let mut count = 0;
-            for ti in &task.inputs {
-                let mut task_dep = task_map
-                    .get(&ti.task())
-                    .or_else(|| core.get_task_map().get(&ti.task()))
-                    .unwrap()
-                    .get_mut();
-                task_dep.add_consumer(task.id);
-                if !task_dep.is_finished() {
-                    count += 1
+        let mut count = 0;
+        for ti in &task.inputs {
+            let input_id = ti.task();
+            // TODO: unify once RefMut is removed
+            match task_map.get_mut(&input_id) {
+                Some(task_dep) => {
+                    task_dep.add_consumer(task.id);
+                    if !task_dep.is_finished() {
+                        count += 1
+                    }
+                }
+                None => {
+                    let mut task_dep = core.get_task_map_mut().get_task_ref_mut(input_id);
+                    task_dep.add_consumer(task.id);
+                    if !task_dep.is_finished() {
+                        count += 1
+                    }
                 }
             }
-            assert!(matches!(
-                task.state,
-                TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
-            ));
-            task.state = TaskRuntimeState::Waiting(WaitingInfo {
-                unfinished_deps: count,
-            });
         }
-        core.add_task(task_ref);
+
+        assert!(matches!(
+            task.state,
+            TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
+        ));
+        task.state = TaskRuntimeState::Waiting(WaitingInfo {
+            unfinished_deps: count,
+        });
+        task_map.insert(task_id, task);
+    }
+
+    for (_, task) in task_map.into_iter() {
+        core.add_task(task);
     }
     comm.ask_for_scheduling()
 }
@@ -152,8 +165,8 @@ pub fn on_task_running(
     worker_id: WorkerId,
     task_id: TaskId,
 ) {
-    if let Some(task_ref) = core.get_task_by_id(task_id).cloned() {
-        let mut task = task_ref.get_mut();
+    let (tasks, workers) = core.split_tasks_workers_mut();
+    if let Some(mut task) = tasks.get_task_opt_mut(task_id) {
         let new_state = match task.state {
             TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Stealing(w_id, None) => {
                 assert_eq!(w_id, worker_id);
@@ -161,9 +174,9 @@ pub fn on_task_running(
             }
             TaskRuntimeState::Stealing(w_id, Some(target_id)) => {
                 assert_eq!(w_id, worker_id);
-                let worker = core.get_worker_mut_by_id_or_panic(target_id);
+                let worker = workers.get_worker_mut(target_id);
                 worker.remove_task(&task);
-                let worker = core.get_worker_mut_by_id_or_panic(w_id);
+                let worker = workers.get_worker_mut(w_id);
                 worker.insert_task(&task);
                 comm.ask_for_scheduling();
                 TaskRuntimeState::Running(worker_id)
@@ -188,9 +201,9 @@ pub fn on_task_finished(
     worker_id: WorkerId,
     msg: TaskFinishedMsg,
 ) {
-    if let Some(task_ref) = core.get_task_by_id(msg.id).cloned() {
-        {
-            let mut task = task_ref.get_mut();
+    {
+        let (tasks, workers) = core.split_tasks_workers_mut();
+        if let Some(mut task) = tasks.get_task_opt_mut(msg.id) {
             trace_task_finish(
                 task.id,
                 worker_id,
@@ -203,13 +216,11 @@ pub fn on_task_finished(
             match &task.state {
                 TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
                     assert_eq!(*w_id, worker_id);
-                    let worker = core.get_worker_mut_by_id_or_panic(worker_id);
-                    worker.remove_task(&task);
+                    workers.get_worker_mut(worker_id).remove_task(&task);
                 }
                 TaskRuntimeState::Stealing(w_id, Some(target_w)) => {
                     assert_eq!(*w_id, worker_id);
-                    let worker = core.get_worker_mut_by_id_or_panic(*target_w);
-                    worker.remove_task(&task);
+                    workers.get_worker_mut(*target_w).remove_task(&task);
                 }
                 TaskRuntimeState::Stealing(w_id, None) => {
                     assert_eq!(*w_id, worker_id);
@@ -238,33 +249,33 @@ pub fn on_task_finished(
             if task.is_observed() {
                 comm.send_client_task_finished(task.id);
             }
+        } else {
+            log::debug!("Unknown task finished id={}", msg.id);
+            return;
+        }
+    }
+
+    // TODO: benchmark vec vs set
+    let consumers: Set<TaskId> = {
+        let task = core.get_task_map().get_task_ref(msg.id);
+        task.get_consumers().clone()
+    };
+
+    for consumer in consumers {
+        let id = {
+            let mut t = core.get_task_map_mut().get_task_ref_mut(consumer);
+            if t.decrease_unfinished_deps() {
+                t.id
+            } else {
+                continue;
+            }
         };
 
-        {
-            let task = task_ref.get();
-            for &consumer in task.get_consumers() {
-                let id = {
-                    let mut t = core.get_task_map_mut().get_task_ref_mut(consumer);
-                    if t.decrease_unfinished_deps() {
-                        t.id
-                    } else {
-                        continue;
-                    }
-                };
-
-                core.add_ready_to_assign(id);
-                comm.ask_for_scheduling();
-            }
-        }
-
-        {
-            let mut task = task_ref.get_mut();
-            unregister_as_consumer(core, comm, &mut task);
-        }
-        remove_task_if_possible(core, comm, msg.id);
-    } else {
-        log::debug!("Unknown task finished id={}", msg.id);
+        core.add_ready_to_assign(id);
+        comm.ask_for_scheduling();
     }
+    unregister_as_consumer(core, comm, msg.id);
+    remove_task_if_possible(core, comm, msg.id);
 }
 
 pub fn on_steal_response(
@@ -280,102 +291,93 @@ pub fn on_steal_response(
             task_id,
             response
         );
-        let task_ref = core.get_task_by_id(task_id).cloned();
-        match task_ref {
-            Some(task_ref) => {
-                let new_state = {
-                    let task = task_ref.get();
-                    if task.is_done_or_running() {
-                        log::debug!("Received trace response for finished task={}", task_id);
-                        trace_worker_steal_response(task.id, worker_id, 0.into(), "done");
-                        continue;
-                    }
-                    let (from_worker_id, to_worker_id) =
-                        if let TaskRuntimeState::Stealing(from_w, to_w) = &task.state {
-                            assert_eq!(*from_w, worker_id);
-                            (*from_w, *to_w)
-                        } else {
-                            panic!(
-                                "Invalid state of task={} when steal response occured",
-                                task_id
-                            );
-                        };
+        if core.get_task_map().get_task_opt(task_id).is_none() {
+            log::debug!("Received trace response for invalid task {}", task_id);
+            trace_worker_steal_response_missing(task_id, worker_id);
+            continue;
+        }
 
-                    trace_worker_steal_response(
-                        task_id,
-                        worker_id,
-                        to_worker_id.unwrap_or_else(|| WorkerId::new(0)),
-                        match response {
-                            StealResponse::Ok => "ok",
-                            StealResponse::NotHere => "nothere",
-                            StealResponse::Running => "running",
-                        },
+        let new_state = {
+            let (from_worker_id, to_worker_id) = {
+                let task = core.get_task_map().get_task_ref(task_id);
+                if task.is_done_or_running() {
+                    log::debug!("Received trace response for finished task={}", task_id);
+                    trace_worker_steal_response(task.id, worker_id, 0.into(), "done");
+                    continue;
+                }
+                if let TaskRuntimeState::Stealing(from_w, to_w) = &task.state {
+                    assert_eq!(*from_w, worker_id);
+                    (*from_w, *to_w)
+                } else {
+                    panic!(
+                        "Invalid state of task={} when steal response occurred",
+                        task_id
                     );
+                }
+            };
 
-                    match response {
-                        StealResponse::Ok => {
-                            log::debug!("Task stealing was successful task={}", task_id);
-                            trace_task_assign(
-                                task_id,
-                                to_worker_id.unwrap_or_else(|| WorkerId::new(0)),
-                            );
-                            if let Some(w_id) = to_worker_id {
-                                comm.send_worker_message(
-                                    w_id,
-                                    &task.make_compute_message(core.get_task_map()),
-                                );
-                                TaskRuntimeState::Assigned(w_id)
-                            } else {
-                                comm.ask_for_scheduling();
-                                core.add_ready_to_assign(task_id);
-                                TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
-                            }
-                        }
-                        StealResponse::Running => {
-                            log::debug!("Task stealing was not successful task={}", task_id);
-                            if let Some(w_id) = to_worker_id {
-                                core.get_worker_mut_by_id_or_panic(w_id).remove_task(&task)
-                            }
-                            core.get_worker_mut_by_id_or_panic(from_worker_id)
-                                .insert_task(&task);
-                            comm.ask_for_scheduling();
-                            TaskRuntimeState::Running(worker_id)
-                        }
-                        StealResponse::NotHere => {
-                            panic!("Received NotHere while stealing, it seems that Finished message got lost");
-                        }
+            trace_worker_steal_response(
+                task_id,
+                worker_id,
+                to_worker_id.unwrap_or_else(|| WorkerId::new(0)),
+                match response {
+                    StealResponse::Ok => "ok",
+                    StealResponse::NotHere => "nothere",
+                    StealResponse::Running => "running",
+                },
+            );
+
+            match response {
+                StealResponse::Ok => {
+                    log::debug!("Task stealing was successful task={}", task_id);
+                    trace_task_assign(task_id, to_worker_id.unwrap_or_else(|| WorkerId::new(0)));
+                    if let Some(w_id) = to_worker_id {
+                        let task = core.get_task_map().get_task_ref(task_id);
+                        comm.send_worker_message(
+                            w_id,
+                            &task.make_compute_message(core.get_task_map()),
+                        );
+                        TaskRuntimeState::Assigned(w_id)
+                    } else {
+                        comm.ask_for_scheduling();
+                        core.add_ready_to_assign(task_id);
+                        TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
                     }
-                };
-                {
-                    let mut task = task_ref.get_mut();
-                    if let TaskRuntimeState::Waiting(_winfo) = &new_state {
-                        task.set_fresh_flag(true)
-                    };
-                    task.state = new_state;
+                }
+                StealResponse::Running => {
+                    log::debug!("Task stealing was not successful task={}", task_id);
+
+                    let (tasks, workers) = core.split_tasks_workers_mut();
+                    let task = tasks.get_task_ref(task_id);
+                    if let Some(w_id) = to_worker_id {
+                        workers.get_worker_mut(w_id).remove_task(&task)
+                    }
+                    workers.get_worker_mut(from_worker_id).insert_task(&task);
+                    comm.ask_for_scheduling();
+                    TaskRuntimeState::Running(worker_id)
+                }
+                StealResponse::NotHere => {
+                    panic!(
+                        "Received NotHere while stealing, it seems that Finished message got lost"
+                    );
                 }
             }
-            None => {
-                log::debug!("Received trace response for invalid task {}", task_id);
-                trace_worker_steal_response_missing(task_id, worker_id)
-            }
-        }
+        };
+
+        let mut task = core.get_task_map_mut().get_task_ref_mut(task_id);
+        if let TaskRuntimeState::Waiting(_winfo) = &new_state {
+            task.set_fresh_flag(true)
+        };
+        task.state = new_state;
     }
 }
 
 pub fn on_reset_keep_flag(core: &mut Core, comm: &mut impl Comm, task_id: TaskId) {
-    let task_ref = core.get_task_by_id_or_panic(task_id).clone();
-    let task_id = {
-        let mut task = task_ref.get_mut();
+    {
+        let mut task = core.get_task_map_mut().get_task_ref_mut(task_id);
         task.set_keep_flag(false);
-        task.id
-    };
+    }
     remove_task_if_possible(core, comm, task_id);
-}
-
-pub fn on_set_keep_flag(core: &mut Core, task_id: TaskId) -> TaskRef {
-    let task_ref = core.get_task_by_id_or_panic(task_id).clone();
-    task_ref.get_mut().set_keep_flag(true);
-    task_ref
 }
 
 pub fn on_set_observe_flag(
@@ -384,8 +386,7 @@ pub fn on_set_observe_flag(
     task_id: TaskId,
     value: bool,
 ) -> bool {
-    if let Some(task_ref) = core.get_task_by_id(task_id) {
-        let mut task = task_ref.get_mut();
+    if let Some(mut task) = core.get_task_map_mut().get_task_opt_mut(task_id) {
         if value && task.is_finished() {
             comm.send_client_task_finished(task_id);
         }
@@ -403,50 +404,45 @@ pub fn on_task_error(
     task_id: TaskId,
     error_info: TaskFailInfo,
 ) {
-    if let Some(task_ref) = core.get_task_by_id(task_id).cloned() {
-        log::debug!("Task task {} failed", task_id);
-
-        let task_refs: Vec<TaskRef> = {
-            let task = task_ref.get();
+    let consumers: Vec<TaskId> = {
+        let (tasks, workers) = core.split_tasks_workers_mut();
+        if let Some(task) = tasks.get_task_opt(task_id) {
+            log::debug!("Task task {} failed", task_id);
             assert!(task.is_assigned_or_stealed_from(worker_id));
-            core.get_worker_mut_by_id_or_panic(worker_id)
-                .remove_task(&task);
-            task.collect_consumers(core.get_task_map())
-                .into_iter()
-                .collect()
-        };
+            workers.get_worker_mut(worker_id).remove_task(&task);
 
-        println!("Unregistering {}", &mut task_ref.get_mut().id);
-        unregister_as_consumer(core, comm, &mut task_ref.get_mut());
+            task.collect_consumers(tasks).into_iter().collect()
+        } else {
+            return;
+        }
+    };
+    // TODO: take taskmap in `unregister_as_consumer`
+    unregister_as_consumer(core, comm, task_id);
 
-        for task_ref in &task_refs {
-            let mut task = task_ref.get_mut();
+    for &consumer in &consumers {
+        {
+            let task = core.get_task_map().get_task_ref(consumer);
             log::debug!("Task={} canceled because of failed dependency", task.id);
             assert!(task.is_waiting());
-            unregister_as_consumer(core, comm, &mut task);
         }
-
-        assert!(matches!(
-            core.remove_task(task_id),
-            TaskRuntimeState::Assigned(_)
-                | TaskRuntimeState::Running(_)
-                | TaskRuntimeState::Stealing(_, _)
-        ));
-
-        for task_ref in &task_refs {
-            // We can drop the resulting state as checks was done earlier
-            let task_id = task_ref.get().id;
-            assert!(matches!(
-                core.remove_task(task_id),
-                TaskRuntimeState::Waiting(_)
-            ));
-        }
-        comm.send_client_task_error(
-            task_id,
-            task_refs.iter().map(|tr| tr.get().id).collect(),
-            error_info,
-        );
+        unregister_as_consumer(core, comm, consumer);
     }
+
+    assert!(matches!(
+        core.remove_task(task_id),
+        TaskRuntimeState::Assigned(_)
+            | TaskRuntimeState::Running(_)
+            | TaskRuntimeState::Stealing(_, _)
+    ));
+
+    for &consumer in &consumers {
+        // We can drop the resulting state as checks was done earlier
+        assert!(matches!(
+            core.remove_task(consumer),
+            TaskRuntimeState::Waiting(_)
+        ));
+    }
+    comm.send_client_task_error(task_id, consumers, error_info);
 }
 
 pub fn on_cancel_tasks(
@@ -454,84 +450,84 @@ pub fn on_cancel_tasks(
     comm: &mut impl Comm,
     task_ids: &[TaskId],
 ) -> (Vec<TaskId>, Vec<TaskId>) {
-    let mut task_refs = Set::with_capacity(task_ids.len());
+    let mut to_unregister = Set::with_capacity(task_ids.len());
     let mut running_ids: Map<WorkerId, Vec<TaskId>> = Map::new();
     let mut already_finished: Vec<TaskId> = Vec::new();
 
     log::debug!("Canceling {} tasks", task_ids.len());
 
-    for task_id in task_ids {
+    for &task_id in task_ids {
         log::debug!("Canceling task id={}", task_id);
-        let tr: Option<TaskRef> = core.get_task_by_id(*task_id).cloned();
-        if let Some(task_ref) = tr {
-            let mut remove = false;
-            {
-                let mut task = task_ref.get_mut();
-                match task.state {
-                    TaskRuntimeState::Waiting(_) => {
-                        task_refs.insert(task_ref.clone());
-                        task_refs.extend(task.collect_consumers(core.get_task_map()).into_iter());
-                    }
-                    TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
-                        task_refs.insert(task_ref.clone());
-                        task_refs.extend(task.collect_consumers(core.get_task_map()).into_iter());
-                        core.get_worker_mut_by_id_or_panic(w_id).remove_task(&task);
-                        running_ids.entry(w_id).or_default().push(*task_id);
-                    }
-                    TaskRuntimeState::Stealing(from_id, to_id) => {
-                        task_refs.insert(task_ref.clone());
-                        task_refs.extend(task.collect_consumers(core.get_task_map()).into_iter());
-                        if let Some(to_id) = to_id {
-                            core.get_worker_mut_by_id_or_panic(to_id).remove_task(&task);
-                        }
-                        running_ids.entry(from_id).or_default().push(*task_id);
-                    }
-                    TaskRuntimeState::Finished(_) => {
-                        if task.is_keeped() {
-                            task.set_keep_flag(false);
-                            remove = true;
-                        }
-                        already_finished.push(*task_id);
-                    }
-                    TaskRuntimeState::Released => {
-                        unreachable!()
-                    }
-                };
-            }
-            if remove {
-                remove_task_if_possible(core, comm, *task_id);
-            }
-        } else {
+
+        if core.get_task_map().get_task_opt(task_id).is_none() {
             log::debug!("Task is not here");
-            already_finished.push(*task_id);
+            already_finished.push(task_id);
+            continue;
+        }
+
+        let mut remove = false;
+        {
+            let (tasks, workers) = core.split_tasks_workers_mut();
+            let task = tasks.get_task_ref(task_id);
+            match task.state {
+                TaskRuntimeState::Waiting(_) => {
+                    to_unregister.insert(task_id);
+                    to_unregister.extend(task.collect_consumers(tasks).into_iter());
+                }
+                TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
+                    to_unregister.insert(task_id);
+                    to_unregister.extend(task.collect_consumers(tasks).into_iter());
+                    workers.get_worker_mut(w_id).remove_task(&task);
+                    running_ids.entry(w_id).or_default().push(task_id);
+                }
+                TaskRuntimeState::Stealing(from_id, to_id) => {
+                    to_unregister.insert(task_id);
+                    to_unregister.extend(task.collect_consumers(tasks).into_iter());
+                    if let Some(to_id) = to_id {
+                        workers.get_worker_mut(to_id).remove_task(&task);
+                    }
+                    running_ids.entry(from_id).or_default().push(task_id);
+                }
+                TaskRuntimeState::Finished(_) => {
+                    if task.is_keeped() {
+                        remove = true;
+                    }
+                    already_finished.push(task_id);
+                }
+                TaskRuntimeState::Released => {
+                    unreachable!()
+                }
+            };
+        }
+        if remove {
+            core.get_task_map_mut()
+                .get_task_ref_mut(task_id)
+                .set_keep_flag(false);
+            remove_task_if_possible(core, comm, task_id);
         }
     }
 
-    for task_ref in &task_refs {
-        let mut task = task_ref.get_mut();
-        unregister_as_consumer(core, comm, &mut task);
+    for &task_id in &to_unregister {
+        unregister_as_consumer(core, comm, task_id);
     }
 
-    core.remove_tasks_batched(&task_refs.iter().map(|tref| tref.get().id).collect());
+    core.remove_tasks_batched(&to_unregister);
 
     for (w_id, ids) in running_ids {
         comm.send_worker_message(w_id, &ToWorkerMessage::CancelTasks(TaskIdsMsg { ids }));
     }
 
     comm.ask_for_scheduling();
-    (
-        task_refs.into_iter().map(|tr| tr.get().id).collect(),
-        already_finished,
-    )
+    (to_unregister.into_iter().collect(), already_finished)
 }
 
-fn get_task_or_send_delete(
-    core: &Core,
+fn get_task_or_send_delete<'a>(
+    core: &'a mut Core,
     comm: &mut impl Comm,
     worker_id: WorkerId,
     task_id: TaskId,
-) -> Option<TaskRef> {
-    let result = core.get_task_by_id(task_id).cloned();
+) -> Option<RefMut<'a, Task>> {
+    let result = core.get_task_map_mut().get_task_opt_mut(task_id);
     if result.is_none() {
         log::debug!(
             "Task id={} is not known to server; replaying with delete",
@@ -553,8 +549,7 @@ pub fn on_tasks_transferred(
 ) {
     log::debug!("Task id={} transferred to worker={}", task_id, worker_id);
     // TODO handle the race when task is removed from server before this message arrives
-    if let Some(task_ref) = get_task_or_send_delete(core, comm, worker_id, task_id) {
-        let mut task = task_ref.get_mut();
+    if let Some(mut task) = get_task_or_send_delete(core, comm, worker_id, task_id) {
         match &mut task.state {
             TaskRuntimeState::Finished(ref mut winfo) => {
                 winfo.placement.insert(worker_id);
@@ -571,13 +566,20 @@ pub fn on_tasks_transferred(
     }
 }
 
-fn unregister_as_consumer(core: &mut Core, comm: &mut impl Comm, task: &mut Task) {
-    for ti in &task.inputs {
+fn unregister_as_consumer(core: &mut Core, comm: &mut impl Comm, task_id: TaskId) {
+    let inputs: Vec<TaskId> = core
+        .get_task_map()
+        .get_task_ref(task_id)
+        .inputs
+        .iter()
+        .map(|ti| ti.task())
+        .collect();
+    for input_id in inputs {
         {
-            let mut input = core.get_task_map_mut().get_task_ref_mut(ti.task());
-            assert!(input.remove_consumer(task.id));
+            let mut input = core.get_task_map_mut().get_task_ref_mut(input_id);
+            assert!(input.remove_consumer(task_id));
         }
-        remove_task_if_possible(core, comm, ti.task());
+        remove_task_if_possible(core, comm, input_id);
     }
 }
 

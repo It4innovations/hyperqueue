@@ -5,7 +5,7 @@ use crate::common::Set;
 use crate::messages::worker::{StealResponse, StealResponseMsg, ToWorkerMessage};
 use crate::server::core::Core;
 use crate::server::reactor::on_steal_response;
-use crate::server::task::TaskRef;
+use crate::server::task::Task;
 use crate::tests::utils::env::{create_test_comm, TestEnv};
 use crate::tests::utils::schedule::{
     create_test_scheduler, create_test_workers, finish_on_worker, start_and_finish_on_worker,
@@ -29,9 +29,8 @@ fn test_no_deps_distribute() {
     }
 
     let mut active_ids: Set<TaskId> = (1..301).into_iter().map(|id| id.into()).collect();
-    let tasks: Vec<TaskRef> = (1..301).map(|i| task(i)).collect();
-    let task_refs: Vec<&TaskRef> = tasks.iter().collect();
-    submit_test_tasks(&mut core, &task_refs);
+    let tasks: Vec<Task> = (1..301).map(|i| task(i)).collect();
+    submit_test_tasks(&mut core, tasks);
 
     let mut scheduler = create_test_scheduler();
     let mut comm = create_test_comm();

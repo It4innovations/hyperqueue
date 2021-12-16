@@ -1,5 +1,4 @@
 use crate::common::resources::{GenericResourceRequest, ResourceRequest};
-use crate::common::Map;
 use futures::future::join_all;
 use futures::{StreamExt, TryFutureExt};
 use tokio::net::UnixListener;
@@ -8,16 +7,16 @@ use tokio::sync::oneshot;
 
 use crate::common::rpc::forward_queue_to_sink_with_map;
 use crate::messages::gateway::{
-    CancelTasksResponse, CollectedOverview, ErrorResponse, FromGatewayMessage, NewTasksResponse,
-    OverviewRequest, TaskConf, TaskInfo, TaskState, TaskUpdate, TasksInfoResponse,
-    ToGatewayMessage,
+    CancelTasksResponse, CollectedOverview, ErrorResponse, FromGatewayMessage, NewTasksMessage,
+    NewTasksResponse, OverviewRequest, TaskConf, TaskInfo, TaskState, TaskUpdate,
+    TasksInfoResponse, ToGatewayMessage,
 };
 use crate::messages::worker::{ToWorkerMessage, WorkerOverview};
-use crate::server::comm::{Comm, CommSenderRef};
+use crate::server::comm::{Comm, CommSender, CommSenderRef};
 use crate::server::core::{Core, CoreRef};
 use crate::server::monitoring::MonitoringEvent;
 use crate::server::reactor::{on_cancel_tasks, on_new_tasks, on_set_observe_flag};
-use crate::server::task::{TaskConfiguration, TaskInput, TaskRef, TaskRuntimeState};
+use crate::server::task::{Task, TaskConfiguration, TaskInput, TaskRuntimeState};
 use crate::transfer::transport::make_protocol_builder;
 use std::rc::Rc;
 
@@ -97,6 +96,35 @@ fn create_task_configuration(core_ref: &mut Core, msg: TaskConf) -> TaskConfigur
     }
 }
 
+pub async fn fetch_worker_overviews(
+    core_ref: &CoreRef,
+    comm_ref: &CommSenderRef,
+    overview_request: OverviewRequest,
+) -> Vec<WorkerOverview> {
+    let overview_receivers = {
+        let mut core = core_ref.get_mut();
+
+        let mut overview_receivers = Vec::with_capacity(core.get_worker_map().len());
+        for worker in core.get_workers_mut() {
+            //for each worker, create a one-shot channel, pass it to the worker and store it's receiver
+            let (sender, receiver) = oneshot::channel();
+            worker.overview_callbacks.push(sender);
+            overview_receivers.push(receiver.into_future());
+        }
+        comm_ref
+            .get_mut()
+            .broadcast_worker_message(&ToWorkerMessage::GetOverview(overview_request));
+        overview_receivers
+    };
+    let worker_overviews: Vec<WorkerOverview> = join_all(overview_receivers)
+        .await
+        .into_iter()
+        .filter_map(|r| r.ok())
+        .collect();
+    log::debug!("Gathering overview finished");
+    worker_overviews
+}
+
 pub async fn process_client_message(
     core_ref: &CoreRef,
     comm_ref: &CommSenderRef,
@@ -128,60 +156,12 @@ pub async fn process_client_message(
             }
             None
         }
-        FromGatewayMessage::NewTasks(msg) => {
-            log::debug!("Client sends {} tasks", msg.tasks.len());
-            if msg.tasks.is_empty() {
-                return Some("Task submission is empty".to_string());
-            }
-            let mut tasks: Vec<TaskRef> = Vec::with_capacity(msg.tasks.len());
-            let mut core = core_ref.get_mut();
-
-            let configurations: Vec<_> = msg
-                .configurations
-                .into_iter()
-                .map(|c| {
-                    assert!(c.n_outputs == 0 || c.n_outputs == 1); // TODO: Implementation for more outputs
-                    let keep = c.keep;
-                    let observe = c.observe;
-                    (
-                        Rc::new(create_task_configuration(&mut core, c)),
-                        keep,
-                        observe,
-                    )
-                })
-                .collect();
-
-            let mut local_task_map = Map::new();
-            for task in msg.tasks {
-                if core.is_used_task_id(task.id) {
-                    return Some(format!("Task id={} is already taken", task.id));
-                }
-                let idx = task.conf_idx as usize;
-                if idx >= configurations.len() {
-                    return Some(format!("Invalid configuration index {}", idx));
-                }
-                let (conf, keep, observe) = &configurations[idx];
-                let inputs: Vec<_> = task
-                    .task_deps
-                    .iter()
-                    .map(|&task_id| TaskInput::new_task_dependency(task_id))
-                    .collect();
-                let task_ref =
-                    TaskRef::new(task.id, inputs, conf.clone(), task.body, *keep, *observe);
-                local_task_map.insert(task.id, task_ref.clone());
-                tasks.push(task_ref);
-            }
-            drop(local_task_map);
-            let mut comm = comm_ref.get_mut();
-            on_new_tasks(&mut core, &mut *comm, tasks);
-
-            assert!(client_sender
-                .send(ToGatewayMessage::NewTasksResponse(NewTasksResponse {
-                    n_waiting_for_workers: 0 // TODO
-                }))
-                .is_ok());
-            None
-        }
+        FromGatewayMessage::NewTasks(msg) => handle_new_tasks(
+            &mut core_ref.get_mut(),
+            &mut comm_ref.get_mut(),
+            client_sender,
+            msg,
+        ),
         FromGatewayMessage::ServerInfo => {
             let core = core_ref.get();
             assert!(client_sender
@@ -196,9 +176,9 @@ pub async fn process_client_message(
             }
             let core = core_ref.get();
             let task_infos = core
-                .get_tasks()
-                .map(|tref| {
-                    let task = tref.get();
+                .get_task_ids()
+                .map(|task_id| {
+                    let task = core.get_task_map().get_task_ref(task_id);
                     TaskInfo {
                         id: task.id,
                         state: match task.state {
@@ -275,31 +255,52 @@ pub async fn process_client_message(
     }
 }
 
-pub async fn fetch_worker_overviews(
-    core_ref: &CoreRef,
-    comm_ref: &CommSenderRef,
-    overview_request: OverviewRequest,
-) -> Vec<WorkerOverview> {
-    let overview_receivers = {
-        let mut core = core_ref.get_mut();
+fn handle_new_tasks(
+    core: &mut Core,
+    comm: &mut CommSender,
+    client_sender: &UnboundedSender<ToGatewayMessage>,
+    msg: NewTasksMessage,
+) -> Option<String> {
+    log::debug!("Client sends {} tasks", msg.tasks.len());
+    if msg.tasks.is_empty() {
+        return Some("Task submission is empty".to_string());
+    }
 
-        let mut overview_receivers = Vec::with_capacity(core.get_worker_map().len());
-        for worker in core.get_workers_mut() {
-            //for each worker, create a one-shot channel, pass it to the worker and store it's receiver
-            let (sender, receiver) = oneshot::channel();
-            worker.overview_callbacks.push(sender);
-            overview_receivers.push(receiver.into_future());
-        }
-        comm_ref
-            .get_mut()
-            .broadcast_worker_message(&ToWorkerMessage::GetOverview(overview_request));
-        overview_receivers
-    };
-    let worker_overviews: Vec<WorkerOverview> = join_all(overview_receivers)
-        .await
+    let configurations: Vec<_> = msg
+        .configurations
         .into_iter()
-        .filter_map(|r| r.ok())
+        .map(|c| {
+            assert!(c.n_outputs == 0 || c.n_outputs == 1); // TODO: Implementation for more outputs
+            let keep = c.keep;
+            let observe = c.observe;
+            (Rc::new(create_task_configuration(core, c)), keep, observe)
+        })
         .collect();
-    log::debug!("Gathering overview finished");
-    worker_overviews
+
+    let mut tasks: Vec<Task> = Vec::with_capacity(msg.tasks.len());
+    for task in msg.tasks {
+        if core.is_used_task_id(task.id) {
+            return Some(format!("Task id={} is already taken", task.id));
+        }
+        let idx = task.conf_idx as usize;
+        if idx >= configurations.len() {
+            return Some(format!("Invalid configuration index {}", idx));
+        }
+        let (conf, keep, observe) = &configurations[idx];
+        let inputs: Vec<_> = task
+            .task_deps
+            .iter()
+            .map(|&task_id| TaskInput::new_task_dependency(task_id))
+            .collect();
+        let task = Task::new(task.id, inputs, conf.clone(), task.body, *keep, *observe);
+        tasks.push(task);
+    }
+    on_new_tasks(core, comm, tasks);
+
+    assert!(client_sender
+        .send(ToGatewayMessage::NewTasksResponse(NewTasksResponse {
+            n_waiting_for_workers: 0 // TODO
+        }))
+        .is_ok());
+    None
 }
