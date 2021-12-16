@@ -114,28 +114,19 @@ pub fn on_remove_worker(
 pub fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec<TaskRef>) {
     assert!(!new_tasks.is_empty());
 
-    /*let mut lowest_id = TaskId::MAX;
-    let mut highest_id = 0;
-
-    for task_ref in &new_tasks {
-        let task_id = task_ref.get().id;
-        lowest_id = lowest_id.min(task_id);
-        highest_id = highest_id.max(task_id);
-        log::debug!("New task id={}", task_id);
-        trace_task_new(task_id, task_ref.get().inputs.iter().map(|tr| tr.get().id));
-        core.add_task(task_ref.clone());
-    }
-
-    core.update_max_task_id(highest_id);*/
-
+    let task_map: Map<_, _> = new_tasks.iter().map(|t| (t.get().id, t.clone())).collect();
     for task_ref in new_tasks {
         {
             let mut task = task_ref.get_mut();
 
             let mut count = 0;
             for ti in &task.inputs {
-                let mut task_dep = ti.task().get_mut();
-                task_dep.add_consumer(task_ref.clone());
+                let mut task_dep = task_map
+                    .get(&ti.task())
+                    .or_else(|| core.get_task_map().get(&ti.task()))
+                    .unwrap()
+                    .get_mut();
+                task_dep.add_consumer(task.id);
                 if !task_dep.is_finished() {
                     count += 1
                 }
@@ -150,35 +141,6 @@ pub fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec<TaskRe
         }
         core.add_task(task_ref);
     }
-    /*
-    let mut count = new_tasks.len();
-    let mut processed = Set::with_capacity(count);
-    let mut stack: Vec<(TaskRef, usize)> = Default::default();
-
-    let mut scheduler_infos = Vec::with_capacity(count);
-    for task_ref in new_tasks {
-        if !task_ref.get().has_consumers() {
-            stack.push((task_ref, 0));
-            while let Some((tr, c)) = stack.pop() {
-                let ii = {
-                    let task = tr.get();
-                    task.dependencies.get(c).copied()
-                };
-                if let Some(inp) = ii {
-                    stack.push((tr, c + 1));
-                    if inp >= lowest_id && processed.insert(inp) {
-                        stack.push((core.get_task_by_id_or_panic(inp).clone(), 0));
-                    }
-                } else {
-                    count -= 1;
-                    let task = tr.get();
-                    scheduler_infos.push(task.make_sched_info());
-                }
-            }
-        }
-    }
-    assert_eq!(count, 0);
-    // comm.send_scheduler_message(ToSchedulerMessage::NewTasks(scheduler_infos));*/
     comm.ask_for_scheduling()
 }
 
@@ -269,12 +231,6 @@ pub fn on_task_finished(
                 placement,
                 future_placement: Default::default(),
             });
-            /*comm.send_scheduler_message(ToSchedulerMessage::TaskUpdate(TaskUpdate {
-                state: TaskUpdateType::Finished,
-                id: task.id,
-                worker: worker_id,
-                size: Some(task.data_info().unwrap().size),
-            }));*/
             comm.ask_for_scheduling();
 
             if task.is_observed() {
@@ -284,17 +240,23 @@ pub fn on_task_finished(
 
         {
             let task = task_ref.get();
-            for consumer in task.get_consumers() {
-                let mut t = consumer.get_mut();
-                if t.decrease_unfinished_deps() {
-                    core.add_ready_to_assign(t.id);
-                    comm.ask_for_scheduling();
-                }
+            for &consumer in task.get_consumers() {
+                let id = {
+                    let mut t = core.get_task_map_mut().get_task_ref_mut(consumer);
+                    if t.decrease_unfinished_deps() {
+                        t.id
+                    } else {
+                        continue;
+                    }
+                };
+
+                core.add_ready_to_assign(id);
+                comm.ask_for_scheduling();
             }
         }
 
         let mut task = task_ref.get_mut();
-        unregister_as_consumer(core, comm, &mut task, &task_ref);
+        unregister_as_consumer(core, comm, &mut task);
         remove_task_if_possible(core, comm, &mut task);
 
         //self.notify_key_in_memory(&task_ref, notifications);
@@ -337,15 +299,6 @@ pub fn on_steal_response(
                             );
                         };
 
-                    /*comm.send_scheduler_message(ToSchedulerMessage::TaskStealResponse(
-                        TaskStealResponse {
-                            id: task_id,
-                            from_worker: worker_id,
-                            to_worker: to_worker_id,
-                            success,
-                        },
-                    ));*/
-
                     trace_worker_steal_response(
                         task_id,
                         worker_id,
@@ -365,7 +318,10 @@ pub fn on_steal_response(
                                 to_worker_id.unwrap_or_else(|| WorkerId::new(0)),
                             );
                             if let Some(w_id) = to_worker_id {
-                                comm.send_worker_message(w_id, &task.make_compute_message());
+                                comm.send_worker_message(
+                                    w_id,
+                                    &task.make_compute_message(core.get_task_map()),
+                                );
                                 TaskRuntimeState::Assigned(w_id)
                             } else {
                                 comm.ask_for_scheduling();
@@ -450,16 +406,18 @@ pub fn on_task_error(
             assert!(task.is_assigned_or_stealed_from(worker_id));
             core.get_worker_mut_by_id_or_panic(worker_id)
                 .remove_task(&task);
-            task.collect_consumers().into_iter().collect()
+            task.collect_consumers(core.get_task_map())
+                .into_iter()
+                .collect()
         };
 
-        unregister_as_consumer(core, comm, &mut task_ref.get_mut(), &task_ref);
+        unregister_as_consumer(core, comm, &mut task_ref.get_mut());
 
         for task_ref in &task_refs {
             let mut task = task_ref.get_mut();
             log::debug!("Task={} canceled because of failed dependency", task.id);
             assert!(task.is_waiting());
-            unregister_as_consumer(core, comm, &mut task, task_ref);
+            unregister_as_consumer(core, comm, &mut task);
         }
 
         assert!(matches!(
@@ -506,17 +464,17 @@ pub fn on_cancel_tasks(
             match task.state {
                 TaskRuntimeState::Waiting(_) => {
                     task_refs.insert(task_ref.clone());
-                    task_refs.extend(task.collect_consumers().into_iter());
+                    task_refs.extend(task.collect_consumers(core.get_task_map()).into_iter());
                 }
                 TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
                     task_refs.insert(task_ref.clone());
-                    task_refs.extend(task.collect_consumers().into_iter());
+                    task_refs.extend(task.collect_consumers(core.get_task_map()).into_iter());
                     core.get_worker_mut_by_id_or_panic(w_id).remove_task(&task);
                     running_ids.entry(w_id).or_default().push(*task_id);
                 }
                 TaskRuntimeState::Stealing(from_id, to_id) => {
                     task_refs.insert(task_ref.clone());
-                    task_refs.extend(task.collect_consumers().into_iter());
+                    task_refs.extend(task.collect_consumers(core.get_task_map()).into_iter());
                     if let Some(to_id) = to_id {
                         core.get_worker_mut_by_id_or_panic(to_id).remove_task(&task);
                     }
@@ -541,7 +499,7 @@ pub fn on_cancel_tasks(
 
     for task_ref in &task_refs {
         let mut task = task_ref.get_mut();
-        unregister_as_consumer(core, comm, &mut task, task_ref);
+        unregister_as_consumer(core, comm, &mut task);
     }
 
     core.remove_tasks_batched(&task_refs.iter().map(|tref| tref.get().id).collect());
@@ -583,7 +541,7 @@ pub fn on_tasks_transferred(
     worker_id: WorkerId,
     task_id: TaskId,
 ) {
-    log::debug!("Task id={} transfered on worker={}", task_id, worker_id);
+    log::debug!("Task id={} transferred to worker={}", task_id, worker_id);
     // TODO handle the race when task is removed from server before this message arrives
     if let Some(task_ref) = get_task_or_send_delete(core, comm, worker_id, task_id) {
         let mut task = task_ref.get_mut();
@@ -600,25 +558,14 @@ pub fn on_tasks_transferred(
             }
         };
         trace_task_place(task.id, worker_id);
-        /*comm.send_scheduler_message(ToSchedulerMessage::TaskUpdate(TaskUpdate {
-            id,
-            state: TaskUpdateType::Placed,
-            worker: worker_id,
-            size: None,
-        }));*/
     }
 }
 
-fn unregister_as_consumer(
-    core: &mut Core,
-    comm: &mut impl Comm,
-    task: &mut Task,
-    task_ref: &TaskRef,
-) {
+fn unregister_as_consumer(core: &mut Core, comm: &mut impl Comm, task: &mut Task) {
     for ti in &task.inputs {
-        //let tr = core.get_task_by_id_or_panic(*input_id).clone();
-        let mut t = ti.task().get_mut();
-        assert!(t.remove_consumer(task_ref));
+        let t = core.get_task_by_id_or_panic(ti.task()).clone();
+        let mut t = t.get_mut();
+        assert!(t.remove_consumer(task.id));
         remove_task_if_possible(core, comm, &mut t);
     }
 }
@@ -640,8 +587,5 @@ fn remove_task_if_possible(core: &mut Core, comm: &mut impl Comm, task: &mut Tas
                 &ToWorkerMessage::DeleteData(TaskIdMsg { id: task.id }),
             );
         }
-        task.clear();
-        //comm.send_scheduler_message(ToSchedulerMessage::RemoveTask(task.id));
-        //comm.send_client_task_removed(task.id);
     }
 }

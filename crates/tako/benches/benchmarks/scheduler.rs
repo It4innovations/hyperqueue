@@ -10,6 +10,7 @@ use tako::scheduler::state::SchedulerState;
 use tako::server::comm::Comm;
 use tako::server::core::Core;
 use tako::server::task::TaskRef;
+use tako::server::taskmap::TaskMap;
 use tako::{TaskId, WorkerId};
 
 use crate::{add_tasks, create_worker};
@@ -30,7 +31,7 @@ fn bench_b_level(c: &mut BenchmarkGroup<WallTime>) {
                                 (id, t)
                             })
                             .collect();
-                        (core, tasks)
+                        (core, TaskMap::new(tasks))
                     },
                     |(_core, tasks)| {
                         compute_b_level_metric(tasks);

@@ -32,7 +32,7 @@ impl TaskBuilder {
     pub fn simple_deps(mut self, deps: &[&TaskRef]) -> TaskBuilder {
         self.inputs = deps
             .iter()
-            .map(|&tr| TaskInput::new(tr.clone(), 0))
+            .map(|&tr| TaskInput::new(tr.get().id, 0))
             .collect();
         self
     }
@@ -40,7 +40,7 @@ impl TaskBuilder {
     pub fn task_deps(mut self, deps: &[&TaskRef]) -> TaskBuilder {
         self.inputs = deps
             .iter()
-            .map(|&tr| TaskInput::new_task_dependency(tr.clone()))
+            .map(|&tr| TaskInput::new_task_dependency(tr.get().id))
             .collect();
         self
     }

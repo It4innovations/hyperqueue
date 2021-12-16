@@ -14,6 +14,7 @@ use crate::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::server::comm::{Comm, CommSenderRef};
 use crate::server::core::{Core, CoreRef};
 use crate::server::task::{Task, TaskRef, TaskRuntimeState};
+use crate::server::taskmap::TaskMap;
 use crate::server::worker::Worker;
 use crate::server::worker_load::ResourceRequestLowerBound;
 use crate::{TaskId, WorkerId};
@@ -38,6 +39,7 @@ pub struct SchedulerState {
 /// If no worker is available, returns `None`.
 fn choose_worker_for_task(
     task: &Task,
+    taskmap: &TaskMap,
     worker_map: &Map<WorkerId, Worker>,
     random: &mut SmallRng,
     workers: &mut Vec<WorkerId>,
@@ -51,7 +53,7 @@ fn choose_worker_for_task(
             continue;
         }
 
-        let c = task_transfer_cost(task, worker.id);
+        let c = task_transfer_cost(taskmap, task, worker.id);
         match c.cmp(&costs) {
             Ordering::Less => {
                 costs = c;
@@ -110,10 +112,10 @@ impl SchedulerState {
         if self.schedule_available_tasks(core) {
             trace_time!("scheduler", "balance", self.balance(core));
         }
-        self.finish_scheduling(comm);
+        self.finish_scheduling(core, comm);
     }
 
-    pub(crate) fn finish_scheduling(&mut self, comm: &mut impl Comm) {
+    pub(crate) fn finish_scheduling(&mut self, core: &Core, comm: &mut impl Comm) {
         let mut task_steals: Map<WorkerId, Vec<TaskId>> = Default::default();
         let mut task_computes: Map<WorkerId, Vec<TaskRef>> = Default::default();
         for (task_ref, old_state) in self.dirty_tasks.drain() {
@@ -161,7 +163,10 @@ impl SchedulerState {
                 let mut task = task_ref.get_mut();
                 task.set_fresh_flag(false);
                 trace_task_assign(task.id, worker_id);
-                comm.send_worker_message(worker_id, &task.make_compute_message());
+                comm.send_worker_message(
+                    worker_id,
+                    &task.make_compute_message(core.get_task_map()),
+                );
             }
         }
     }
@@ -193,7 +198,7 @@ impl SchedulerState {
             );
         }
         for ti in &task.inputs {
-            let mut t = ti.task().get_mut();
+            let mut t = core.get_task_map_mut().get_task_ref_mut(ti.task());
             if let Some(wr) = assigned_worker {
                 t.remove_future_placement(wr);
             }
@@ -234,7 +239,7 @@ impl SchedulerState {
         if core.check_has_new_tasks_and_reset() {
             // TODO: utilize information and do not recompute all b-levels
             trace_time!("scheduler", "blevel", {
-                compute_b_level_metric(core.get_task_map())
+                compute_b_level_metric(core.get_task_map_mut())
             });
         }
 
@@ -252,6 +257,7 @@ impl SchedulerState {
                 core.try_wakeup_parked_resources(&task.configuration.resources);
                 let worker_id = choose_worker_for_task(
                     &task,
+                    core.get_task_map(),
                     core.get_worker_map(),
                     &mut self.random,
                     &mut tmp_workers,
@@ -337,7 +343,7 @@ impl SchedulerState {
                 // and tN is the lowest cost to schedule here
                 ts.sort_by_cached_key(|tr| {
                     let task = tr.get();
-                    let mut cost = task_transfer_cost(&task, worker.id);
+                    let mut cost = task_transfer_cost(core.get_task_map(), &task, worker.id);
                     if !task.is_fresh() && task.get_assigned_worker() != Some(worker.id) {
                         cost += 10_000_000;
                     }

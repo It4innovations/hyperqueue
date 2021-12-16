@@ -1,40 +1,42 @@
 use crate::common::{Map, Set};
-use crate::server::task::{Task, TaskRef};
+use crate::server::task::Task;
+use crate::server::taskmap::TaskMap;
 use crate::TaskId;
 
-pub fn compute_b_level_metric(tasks: &Map<TaskId, TaskRef>) {
+pub fn compute_b_level_metric(tasks: &mut TaskMap) {
     crawl(tasks, |t| t.get_consumers());
 }
 
-fn crawl<F1: Fn(&Task) -> &Set<TaskRef>>(tasks: &Map<TaskId, TaskRef>, predecessor_fn: F1) {
-    let mut neighbours: Map<TaskRef, u32> = Map::with_capacity(tasks.len());
-    let mut stack: Vec<TaskRef> = Vec::new();
-    for (_, tref) in tasks.iter() {
-        let len = predecessor_fn(&tref.get()).len() as u32;
+fn crawl<F1: Fn(&Task) -> &Set<TaskId>>(tasks: &mut TaskMap, predecessor_fn: F1) {
+    let mut neighbours: Map<TaskId, u32> = Map::with_capacity(tasks.len());
+    let mut stack: Vec<TaskId> = Vec::new();
+    for task in tasks.iter_tasks() {
+        let len = predecessor_fn(&task).len() as u32;
         if len == 0 {
-            stack.push(tref.clone());
+            stack.push(task.id);
         } else {
-            neighbours.insert(tref.clone(), len);
+            neighbours.insert(task.id, len);
         }
     }
 
-    while let Some(tref) = stack.pop() {
-        let mut task = tref.get_mut();
+    while let Some(task_id) = stack.pop() {
+        let level = predecessor_fn(&tasks.get_task_ref(task_id))
+            .iter()
+            .map(|&pred_id| tasks.get_task_ref(pred_id).get_scheduler_priority())
+            .max()
+            .unwrap_or(0);
 
-        let mut level = 0;
-        for tr in predecessor_fn(&task) {
-            level = level.max(tr.get().get_scheduler_priority());
-        }
+        let mut task = tasks.get_task_ref_mut(task_id);
         task.set_scheduler_priority(level + 1);
 
         for ti in &task.inputs {
-            let task = ti.task();
+            let input_id = ti.task();
             let v: &mut u32 = neighbours
-                .get_mut(task)
+                .get_mut(&input_id)
                 .expect("Couldn't find task neighbour in level computation");
             if *v <= 1 {
                 assert_eq!(*v, 1);
-                stack.push(task.clone());
+                stack.push(input_id);
             } else {
                 *v -= 1;
             }
@@ -52,7 +54,7 @@ mod tests {
     fn b_level_simple_graph() {
         let mut core = Core::default();
         submit_example_2(&mut core);
-        compute_b_level_metric(core.get_task_map());
+        compute_b_level_metric(core.get_task_map_mut());
 
         assert_eq!(
             core.get_task_by_id_or_panic(7.into())

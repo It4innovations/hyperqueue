@@ -164,15 +164,7 @@ pub async fn process_client_message(
                 let inputs: Vec<_> = task
                     .task_deps
                     .iter()
-                    .map(|task_id| {
-                        TaskInput::new_task_dependency(
-                            local_task_map
-                                .get(task_id)
-                                .or_else(|| core.get_task_by_id(*task_id))
-                                .unwrap()
-                                .clone(),
-                        )
-                    })
+                    .map(|&task_id| TaskInput::new_task_dependency(task_id))
                     .collect();
                 let task_ref =
                     TaskRef::new(task.id, inputs, conf.clone(), task.body, *keep, *observe);

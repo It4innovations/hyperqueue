@@ -1,13 +1,14 @@
 use crate::server::task::Task;
+use crate::server::taskmap::TaskMap;
 use crate::WorkerId;
 
-pub fn task_transfer_cost(task: &Task, worker_id: WorkerId) -> u64 {
+pub fn task_transfer_cost(taskmap: &TaskMap, task: &Task, worker_id: WorkerId) -> u64 {
     // TODO: For large number of inputs, only sample inputs
     task.inputs
         .iter()
         .take(512)
         .map(|ti| {
-            let t = ti.task().get();
+            let t = taskmap.get_task_ref(ti.task());
             let info = t.data_info().unwrap();
             if info.placement.contains(&worker_id) {
                 0u64

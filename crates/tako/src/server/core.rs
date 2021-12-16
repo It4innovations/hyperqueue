@@ -304,11 +304,11 @@ impl Core {
 
     pub fn sanity_check(&self) {
         let fw_check = |task: &Task| {
-            for t in &task.inputs {
-                assert!(t.task().get().is_finished());
+            for input in &task.inputs {
+                assert!(self.tasks.get_task_ref(input.task()).is_finished());
             }
-            for t in task.get_consumers() {
-                assert!(t.get().is_waiting());
+            for &task_id in task.get_consumers() {
+                assert!(self.tasks.get_task_ref(task_id).is_waiting());
             }
         };
 
@@ -337,12 +337,12 @@ impl Core {
                 TaskRuntimeState::Waiting(winfo) => {
                     let mut count = 0;
                     for ti in &task.inputs {
-                        if !ti.task().get().is_finished() {
+                        if !self.tasks.get_task_ref(ti.task()).is_finished() {
                             count += 1;
                         }
                     }
-                    for t in task.get_consumers() {
-                        assert!(t.get().is_waiting());
+                    for &task_id in task.get_consumers() {
+                        assert!(self.tasks.get_task_ref(task_id).is_waiting());
                     }
                     assert_eq!(winfo.unfinished_deps, count);
                     worker_check(self, task.id, 0.into());
@@ -363,7 +363,7 @@ impl Core {
 
                 TaskRuntimeState::Finished(_) => {
                     for ti in &task.inputs {
-                        assert!(ti.task().get().is_finished());
+                        assert!(self.tasks.get_task_ref(ti.task()).is_finished());
                     }
                 }
 
