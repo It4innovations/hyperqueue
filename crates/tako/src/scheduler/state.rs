@@ -31,6 +31,11 @@ pub struct SchedulerState {
     random: SmallRng,
 }
 
+/// Selects a worker that is able to execute the given task.
+///
+/// The `workers` Vec is passed from the outside as an optimization, to reuse its allocated buffer.
+///
+/// If no worker is available, returns `None`.
 fn choose_worker_for_task(
     task: &Task,
     worker_map: &Map<WorkerId, Worker>,
@@ -38,6 +43,8 @@ fn choose_worker_for_task(
     workers: &mut Vec<WorkerId>,
     now: std::time::Instant,
 ) -> Option<WorkerId> {
+    workers.clear();
+
     let mut costs = u64::MAX;
     for worker in worker_map.values() {
         if !worker.is_capable_to_run(&task.configuration.resources, now) {
@@ -55,6 +62,7 @@ fn choose_worker_for_task(
             Ordering::Greater => { /* Do nothing */ }
         }
     }
+
     match workers.len() {
         1 => Some(workers.pop().unwrap()),
         0 => None,
@@ -248,8 +256,12 @@ impl SchedulerState {
                     &mut tmp_workers,
                     now,
                 );
+
                 //log::debug!("Task {} initially assigned to {}", task.id, worker_id);
                 if let Some(worker_id) = worker_id {
+                    debug_assert!(core
+                        .get_worker_by_id_or_panic(worker_id)
+                        .is_capable_to_run(&task.configuration.resources, now));
                     self.assign(core, &mut task, tr.clone(), worker_id);
                 } else {
                     core.add_sleeping_task(tr.clone());
