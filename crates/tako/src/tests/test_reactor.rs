@@ -122,8 +122,8 @@ fn test_submit_jobs() {
     let t2 = core.get_task_by_id_or_panic(502.into()).clone();
     assert_eq!(t1.get().get_unfinished_deps(), 0);
     assert_eq!(t2.get().get_unfinished_deps(), 1);
-    assert_eq!(t1.get().get_consumers().len(), 1);
-    assert!(t1.get().get_consumers().contains(&t2));
+
+    check_task_consumers_exact(&t1, &[&t2]);
 
     let t3 = task(604);
     let t4 = task_with_deps(602, &[&t1, &t3], 1);
@@ -137,13 +137,10 @@ fn test_submit_jobs() {
     let t4 = core.get_task_by_id_or_panic(602.into()).clone();
     let t6 = core.get_task_by_id_or_panic(601.into()).clone();
 
-    assert_eq!(t1.get().get_consumers().len(), 2);
-    assert!(t1.get().get_consumers().contains(&t2));
-    assert!(t1.get().get_consumers().contains(&t4));
+    check_task_consumers_exact(&t1, &[&t2, &t4]);
     assert_eq!(t1.get().get_unfinished_deps(), 0);
 
-    assert_eq!(t2.get().get_consumers().len(), 1);
-    assert!(t2.get().get_consumers().contains(&t6));
+    check_task_consumers_exact(&t2, &[&t6]);
 
     assert_eq!(t1.get().get_unfinished_deps(), 0);
     assert_eq!(t2.get().get_unfinished_deps(), 1);
@@ -184,7 +181,7 @@ fn test_assignments_and_finish() {
     assert!(t1.get().is_fresh());
     assert!(t3.get().is_fresh());
 
-    scheduler.finish_scheduling(&mut comm);
+    scheduler.finish_scheduling(&core, &mut comm);
 
     assert!(!t1.get().is_fresh());
     assert!(t3.get().is_fresh());
@@ -293,7 +290,7 @@ fn test_assignments_and_finish() {
     //assert_eq!(comm.take_client_task_finished(1), vec![11]);
 
     force_assign(&mut core, &mut scheduler, 13, 101);
-    scheduler.finish_scheduling(&mut comm);
+    scheduler.finish_scheduling(&core, &mut comm);
 
     let msgs = comm.take_worker_msgs(101, 1);
     assert!(matches!(
@@ -449,7 +446,7 @@ fn test_steal_tasks_ok() {
     let mut scheduler = create_test_scheduler();
 
     force_reassign(&mut core, &mut scheduler, 13, 100);
-    scheduler.finish_scheduling(&mut comm);
+    scheduler.finish_scheduling(&core, &mut comm);
 
     assert!(!worker_has_task(&core, 101, &t3));
     assert!(worker_has_task(&core, 100, &t3));
@@ -496,7 +493,7 @@ fn test_steal_tasks_running() {
     let mut scheduler = create_test_scheduler();
 
     force_reassign(&mut core, &mut scheduler, 13, 100);
-    scheduler.finish_scheduling(&mut comm);
+    scheduler.finish_scheduling(&core, &mut comm);
 
     let msgs = comm.take_worker_msgs(101, 1);
     assert!(matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![13].to_ids()));
@@ -932,7 +929,7 @@ fn start_stealing<W: Into<WorkerId>, T: Into<TaskId>>(
     let mut scheduler = schedule::create_test_scheduler();
     force_reassign(core, &mut scheduler, task_id.into(), new_worker_id.into());
     let mut comm = env::create_test_comm();
-    scheduler.finish_scheduling(&mut comm);
+    scheduler.finish_scheduling(core, &mut comm);
 }
 
 fn cancel_tasks<T: Into<TaskId> + Copy>(core: &mut Core, task_ids: &[T]) {
@@ -956,6 +953,16 @@ fn worker_has_task(core: &Core, worker_id: u32, task: &TaskRef) -> bool {
     core.get_worker_by_id_or_panic(worker_id.into())
         .tasks()
         .contains(&task.get().id)
+}
+
+fn check_task_consumers_exact(task: &TaskRef, consumers: &[&TaskRef]) {
+    let task = task.get();
+    let task_consumers = task.get_consumers();
+
+    assert_eq!(task_consumers.len(), consumers.len());
+    for consumer in consumers {
+        assert!(task_consumers.contains(&consumer.get().id));
+    }
 }
 
 #[test]

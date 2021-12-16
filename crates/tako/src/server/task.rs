@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
+use crate::server::taskmap::TaskMap;
 use crate::TaskId;
 use crate::WorkerId;
 use crate::{InstanceId, Priority};
@@ -60,24 +61,24 @@ bitflags::bitflags! {
 }
 
 pub struct TaskInput {
-    task: TaskRef,
+    task: TaskId,
     output_id: u32, // MAX = pure dependency on task, not real output id
 }
 
 impl TaskInput {
-    pub fn new(task: TaskRef, output_id: u32) -> Self {
+    pub fn new(task: TaskId, output_id: u32) -> Self {
         TaskInput { task, output_id }
     }
 
-    pub fn new_task_dependency(task: TaskRef) -> Self {
+    pub fn new_task_dependency(task: TaskId) -> Self {
         TaskInput {
             task,
             output_id: u32::MAX,
         }
     }
 
-    pub fn task(&self) -> &TaskRef {
-        &self.task
+    pub fn task(&self) -> TaskId {
+        self.task
     }
 
     pub fn output_id(&self) -> Option<u32> {
@@ -99,7 +100,7 @@ pub struct TaskConfiguration {
 pub struct Task {
     pub id: TaskId,
     pub state: TaskRuntimeState,
-    consumers: Set<TaskRef>,
+    consumers: Set<TaskId>,
     pub inputs: Vec<TaskInput>,
     pub flags: TaskFlags,
     pub configuration: Rc<TaskConfiguration>,
@@ -117,10 +118,6 @@ impl fmt::Debug for Task {
 pub type TaskRef = WrappedRcRefCell<Task>;
 
 impl Task {
-    pub fn clear(&mut self) {
-        self.inputs = Default::default();
-    }
-
     #[inline]
     pub fn is_ready(&self) -> bool {
         matches!(
@@ -161,15 +158,15 @@ impl Task {
     }
 
     #[inline]
-    pub fn add_consumer(&mut self, consumer: TaskRef) -> bool {
+    pub fn add_consumer(&mut self, consumer: TaskId) -> bool {
         self.consumers.insert(consumer)
     }
     #[inline]
-    pub fn remove_consumer(&mut self, consumer: &TaskRef) -> bool {
-        self.consumers.remove(consumer)
+    pub fn remove_consumer(&mut self, consumer: TaskId) -> bool {
+        self.consumers.remove(&consumer)
     }
     #[inline]
-    pub fn get_consumers(&self) -> &Set<TaskRef> {
+    pub fn get_consumers(&self) -> &Set<TaskId> {
         &self.consumers
     }
 
@@ -218,15 +215,18 @@ impl Task {
         self.consumers.is_empty() && !self.is_keeped() && self.is_finished()
     }
 
-    pub fn collect_consumers(&self) -> HashSet<TaskRef> {
-        let mut stack: Vec<_> = self.consumers.iter().cloned().collect();
-        let mut result: HashSet<TaskRef> = stack.iter().cloned().collect();
+    pub fn collect_consumers(&self, taskmap: &TaskMap) -> HashSet<TaskRef> {
+        let mut stack: Vec<_> = self.consumers.iter().copied().collect();
+        let mut result: HashSet<TaskRef> = stack
+            .iter()
+            .map(|task_id| taskmap.get(task_id).unwrap().clone())
+            .collect();
 
-        while let Some(task_ref) = stack.pop() {
-            let task = task_ref.get();
-            for t in &task.consumers {
-                if result.insert(t.clone()) {
-                    stack.push(t.clone());
+        while let Some(task_id) = stack.pop() {
+            let task = taskmap.get(&task_id).unwrap();
+            for &consumer_id in &task.get().consumers {
+                if result.insert(taskmap.get(&consumer_id).unwrap().clone()) {
+                    stack.push(consumer_id);
                 }
             }
         }
@@ -237,7 +237,7 @@ impl Task {
         self.instance_id = InstanceId(self.instance_id.as_num() + 1);
     }
 
-    pub fn make_compute_message(&self) -> ToWorkerMessage {
+    pub fn make_compute_message(&self, taskmap: &TaskMap) -> ToWorkerMessage {
         let dep_info: Vec<_> = self
             .inputs
             .iter()
@@ -245,7 +245,7 @@ impl Task {
                 //let task_ref = core.get_task_by_id_or_panic(*task_id);
                 ti.output_id().map(|output_id| {
                     assert_eq!(output_id, 0);
-                    let task = ti.task().get();
+                    let task = taskmap.get_task_ref(ti.task());
                     let addresses: Vec<_> = task.get_placement().unwrap().iter().copied().collect();
                     (task.id, task.data_info().unwrap().data_info.size, addresses)
                 })
@@ -435,7 +435,10 @@ mod tests {
     #[test]
     fn task_consumers_empty() {
         let a = task::task(0);
-        assert_eq!(a.get().collect_consumers(), Default::default());
+        assert_eq!(
+            a.get().collect_consumers(&Default::default()),
+            Default::default()
+        );
     }
 
     #[test]
@@ -450,7 +453,7 @@ mod tests {
         submit_test_tasks(&mut core, &[&a, &b, &c, &d, &e]);
 
         assert_eq!(
-            a.get().collect_consumers(),
+            a.get().collect_consumers(core.get_task_map()),
             vec!(b, c, d, e).into_iter().collect()
         );
     }

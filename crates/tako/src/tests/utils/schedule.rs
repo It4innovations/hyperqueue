@@ -61,7 +61,7 @@ pub fn start_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
     let mut scheduler = create_test_scheduler();
     let mut comm = TestComm::default();
     force_assign(core, &mut scheduler, task_id.into(), worker_id.into());
-    scheduler.finish_scheduling(&mut comm);
+    scheduler.finish_scheduling(core, &mut comm);
 }
 
 pub fn start_on_worker_running<W: Into<WorkerId>, T: Into<TaskId>>(
@@ -75,7 +75,7 @@ pub fn start_on_worker_running<W: Into<WorkerId>, T: Into<TaskId>>(
     let mut scheduler = create_test_scheduler();
     let mut comm = TestComm::default();
     force_assign(core, &mut scheduler, task_id, worker_id);
-    scheduler.finish_scheduling(&mut comm);
+    scheduler.finish_scheduling(core, &mut comm);
     on_task_running(core, &mut comm, worker_id, task_id);
 }
 

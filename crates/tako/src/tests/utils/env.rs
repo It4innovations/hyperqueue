@@ -183,7 +183,7 @@ impl TestEnv {
 
     pub fn finish_scheduling(&mut self) {
         let mut comm = create_test_comm();
-        self.scheduler.finish_scheduling(&mut comm);
+        self.scheduler.finish_scheduling(&self.core, &mut comm);
         self.core.sanity_check();
         println!("-------------");
         for worker in self.core.get_workers() {

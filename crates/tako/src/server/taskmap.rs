@@ -10,6 +10,10 @@ pub struct TaskMap {
 }
 
 impl TaskMap {
+    pub fn new(tasks: Map<TaskId, TaskRef>) -> Self {
+        Self { tasks }
+    }
+
     #[inline]
     pub fn get_task_ref(&self, task_id: TaskId) -> Ref<Task> {
         self.tasks.get(&task_id).unwrap().get()
@@ -18,6 +22,11 @@ impl TaskMap {
     #[inline]
     pub fn get_task_ref_mut(&mut self, task_id: TaskId) -> RefMut<Task> {
         self.tasks.get(&task_id).unwrap().get_mut()
+    }
+
+    #[inline]
+    pub fn iter_tasks(&self) -> impl Iterator<Item = Ref<Task>> {
+        self.tasks.values().map(|t| t.get())
     }
 }
 
