@@ -2,7 +2,8 @@ use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
 
-use crate::common::{Map, Set, WrappedRcRefCell};
+use crate::common::stablemap::ExtractKey;
+use crate::common::{Map, Set};
 use crate::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::server::taskmap::TaskMap;
 use crate::TaskId;
@@ -10,21 +11,25 @@ use crate::WorkerId;
 use crate::{InstanceId, Priority};
 
 #[derive(Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct DataInfo {
     pub size: u64,
 }
 
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct WaitingInfo {
     pub unfinished_deps: u32,
     // pub scheduler_metric: i32,
 }
 
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct FinishInfo {
     pub data_info: DataInfo,
     pub placement: Set<WorkerId>,
     pub future_placement: Map<WorkerId, u32>,
 }
 
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum TaskRuntimeState {
     Waiting(WaitingInfo), // Unfinished inputs
     Assigned(WorkerId),
@@ -60,6 +65,7 @@ bitflags::bitflags! {
 }
 
 #[derive(Clone)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct TaskInput {
     task: TaskId,
     output_id: u32, // MAX = pure dependency on task, not real output id
@@ -91,6 +97,7 @@ impl TaskInput {
 }
 
 #[derive(Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct TaskConfiguration {
     pub resources: crate::common::resources::ResourceRequest,
     pub user_priority: Priority,
@@ -98,6 +105,7 @@ pub struct TaskConfiguration {
     pub n_outputs: u32,
 }
 
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct Task {
     pub id: TaskId,
     pub state: TaskRuntimeState,
@@ -116,7 +124,6 @@ impl fmt::Debug for Task {
         f.debug_struct("Task").field("id", &self.id).finish()
     }
 }
-pub type TaskRef = WrappedRcRefCell<Task>;
 
 impl Task {
     pub fn new(
@@ -249,7 +256,7 @@ impl Task {
         let mut result: Set<TaskId> = stack.iter().copied().collect();
 
         while let Some(task_id) = stack.pop() {
-            let task = taskmap.get_task_ref(task_id);
+            let task = taskmap.get_task(task_id);
             for &consumer_id in &task.consumers {
                 if result.insert(consumer_id) {
                     stack.push(consumer_id);
@@ -271,7 +278,7 @@ impl Task {
                 //let task_ref = core.get_task_by_id_or_panic(*task_id);
                 ti.output_id().map(|output_id| {
                     assert_eq!(output_id, 0);
-                    let task = taskmap.get_task_ref(ti.task());
+                    let task = taskmap.get_task(ti.task());
                     let addresses: Vec<_> = task.get_placement().unwrap().iter().copied().collect();
                     (task.id, task.data_info().unwrap().data_info.size, addresses)
                 })
@@ -409,16 +416,10 @@ impl Task {
     }
 }
 
-impl TaskRef {
-    pub fn new(
-        id: TaskId,
-        inputs: Vec<TaskInput>,
-        configuration: Rc<TaskConfiguration>,
-        body: Vec<u8>,
-        keep: bool,
-        observe: bool,
-    ) -> Self {
-        Self::wrap(Task::new(id, inputs, configuration, body, keep, observe))
+impl ExtractKey<TaskId> for Task {
+    #[inline]
+    fn extract_key(&self) -> TaskId {
+        self.id
     }
 }
 
@@ -462,9 +463,7 @@ mod tests {
         submit_test_tasks(&mut core, vec![a, b, c, d, e]);
 
         assert_eq!(
-            core.get_task_map()
-                .get_task_ref(0.into())
-                .collect_consumers(core.get_task_map()),
+            core.get_task(0.into()).collect_consumers(core.task_map()),
             expected_ids.into_iter().collect()
         );
     }

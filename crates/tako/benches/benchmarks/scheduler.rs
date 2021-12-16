@@ -1,7 +1,6 @@
 use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 
-use tako::common::Map;
 use tako::messages::common::{TaskFailInfo, WorkerConfiguration};
 use tako::messages::gateway::LostWorkerReason;
 use tako::messages::worker::ToWorkerMessage;
@@ -9,8 +8,6 @@ use tako::scheduler::metrics::compute_b_level_metric;
 use tako::scheduler::state::SchedulerState;
 use tako::server::comm::Comm;
 use tako::server::core::Core;
-use tako::server::task::TaskRef;
-use tako::server::taskmap::TaskMap;
 use tako::{TaskId, WorkerId};
 
 use crate::{add_tasks, create_worker};
@@ -24,16 +21,11 @@ fn bench_b_level(c: &mut BenchmarkGroup<WallTime>) {
                 b.iter_batched_ref(
                     || {
                         let mut core = Core::default();
-                        let tasks: Map<TaskId, TaskRef> = add_tasks(&mut core, task_count)
-                            .into_iter()
-                            .map(|task_id| {
-                                (task_id, core.get_task_map().get(&task_id).unwrap().clone())
-                            })
-                            .collect();
-                        (core, TaskMap::new(tasks))
+                        add_tasks(&mut core, task_count);
+                        core
                     },
-                    |(_core, tasks)| {
-                        compute_b_level_metric(tasks);
+                    |core| {
+                        compute_b_level_metric(core.task_map_mut());
                     },
                     BatchSize::SmallInput,
                 );

@@ -119,7 +119,7 @@ impl SchedulerState {
         let mut task_steals: Map<WorkerId, Vec<TaskId>> = Default::default();
         let mut task_computes: Map<WorkerId, Vec<TaskId>> = Default::default();
         for (task_id, old_state) in self.dirty_tasks.drain() {
-            let task = core.get_task_map().get_task_ref(task_id);
+            let task = core.get_task(task_id);
             match (&task.state, old_state) {
                 (TaskRuntimeState::Assigned(w_id), TaskRuntimeState::Waiting(winfo)) => {
                     debug_assert_eq!(winfo.unfinished_deps, 0);
@@ -153,17 +153,16 @@ impl SchedulerState {
 
         for (worker_id, mut task_ids) in task_computes {
             task_ids.sort_unstable_by_key(|&task_id| {
-                let task = core.get_task_map().get_task_ref(task_id);
+                let task = core.get_task(task_id);
                 Reverse((task.configuration.user_priority, task.scheduler_priority))
             });
-            let tasks = core.get_task_map_mut();
+            let tasks = core.task_map_mut();
             for task_id in task_ids {
-                // TODO: simplify once RefMut is removed
                 {
-                    let mut task = tasks.get_task_ref_mut(task_id);
+                    let task = tasks.get_task_mut(task_id);
                     task.set_fresh_flag(false);
                 }
-                let task = tasks.get_task_ref(task_id);
+                let task = tasks.get_task(task_id);
                 trace_task_assign(task.id, worker_id);
                 comm.send_worker_message(worker_id, &task.make_compute_message(tasks));
             }
@@ -173,7 +172,7 @@ impl SchedulerState {
     pub(crate) fn assign(&mut self, core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
         let (inputs, assigned_worker) = {
             let (tasks, workers) = core.split_tasks_workers_mut();
-            let task = tasks.get_task_ref(task_id);
+            let task = tasks.get_task(task_id);
             let assigned_worker = task.get_assigned_worker();
             if let Some(w_id) = assigned_worker {
                 log::debug!(
@@ -183,7 +182,7 @@ impl SchedulerState {
                     worker_id
                 );
                 assert_ne!(w_id, worker_id);
-                workers.get_worker_mut(w_id).remove_task(&task);
+                workers.get_worker_mut(w_id).remove_task(task);
             } else {
                 log::debug!(
                     "Fresh assignment of task={} to worker={}",
@@ -195,7 +194,7 @@ impl SchedulerState {
         };
 
         for ti in inputs {
-            let mut input = core.get_task_map_mut().get_task_ref_mut(ti.task());
+            let input = core.get_task_mut(ti.task());
             if let Some(wr) = assigned_worker {
                 input.remove_future_placement(wr);
             }
@@ -203,8 +202,8 @@ impl SchedulerState {
         }
 
         let (tasks, workers) = core.split_tasks_workers_mut();
-        let mut task = tasks.get_task_ref_mut(task_id);
-        workers.get_worker_mut(worker_id).insert_task(&task);
+        let task = tasks.get_task_mut(task_id);
+        workers.get_worker_mut(worker_id).insert_task(task);
         let new_state = match task.state {
             TaskRuntimeState::Waiting(_) => TaskRuntimeState::Assigned(worker_id),
             TaskRuntimeState::Assigned(old_w) => {
@@ -238,7 +237,7 @@ impl SchedulerState {
         if core.check_has_new_tasks_and_reset() {
             // TODO: utilize information and do not recompute all b-levels
             trace_time!("scheduler", "blevel", {
-                compute_b_level_metric(core.get_task_map_mut())
+                compute_b_level_metric(core.task_map_mut())
             });
         }
 
@@ -249,7 +248,7 @@ impl SchedulerState {
             for task_id in ready_tasks.into_iter() {
                 let worker_id = {
                     let configuration = {
-                        let task = core.get_task_map().get_task_ref(task_id);
+                        let task = core.get_task(task_id);
                         if let TaskRuntimeState::Released = task.state {
                             continue;
                         }
@@ -259,8 +258,8 @@ impl SchedulerState {
                     core.try_wakeup_parked_resources(&configuration.resources);
 
                     choose_worker_for_task(
-                        &core.get_task_map().get_task_ref(task_id),
-                        core.get_task_map(),
+                        core.get_task(task_id),
+                        core.task_map(),
                         core.get_worker_map(),
                         &mut self.random,
                         &mut tmp_workers,
@@ -272,14 +271,7 @@ impl SchedulerState {
                     debug_assert!(core
                         .get_worker_map()
                         .get_worker(worker_id)
-                        .is_capable_to_run(
-                            &core
-                                .get_task_map()
-                                .get_task_ref(task_id)
-                                .configuration
-                                .resources,
-                            now
-                        ));
+                        .is_capable_to_run(&core.get_task(task_id).configuration.resources, now));
                     self.assign(core, task_id, worker_id);
                 } else {
                     core.add_sleeping_task(task_id);
@@ -310,7 +302,7 @@ impl SchedulerState {
                 let mut offered = 0;
                 let not_overloaded = !worker.is_overloaded();
                 for &task_id in worker.tasks() {
-                    let mut task = tasks.get_task_ref_mut(task_id);
+                    let task = tasks.get_task_mut(task_id);
                     if task.is_running()
                         || (not_overloaded
                             && (task.is_fresh() || !task.inputs.is_empty())
@@ -342,7 +334,7 @@ impl SchedulerState {
         log::debug!("Min resources {:?}", min_resource);
 
         let mut underload_workers = Vec::new();
-        let task_map = core.get_task_map();
+        let task_map = core.task_map();
         for worker in core.get_workers() {
             // We could here also testing park flag, but it is already solved in the next condition
             if worker.have_immediate_resources_for_lb(&min_resource) {
@@ -356,8 +348,8 @@ impl SchedulerState {
                 // Where t1 is the task with the highest cost to schedule here
                 // and tN is the lowest cost to schedule here
                 ts.sort_by_cached_key(|&task_id| {
-                    let task = task_map.get_task_ref(task_id);
-                    let mut cost = task_transfer_cost(task_map, &task, worker.id);
+                    let task = task_map.get_task(task_id);
+                    let mut cost = task_transfer_cost(task_map, task, worker.id);
                     if !task.is_fresh() && task.get_assigned_worker() != Some(worker.id) {
                         cost += 10_000_000;
                     }
@@ -407,7 +399,7 @@ impl SchedulerState {
                     *pos -= 1;
                     let (task_id, worker2_id) = {
                         let task_id = ts[*pos];
-                        let task = core.get_task_map().get_task_ref(task_id);
+                        let task = core.get_task(task_id);
                         if task.is_taken() {
                             continue;
                         }
@@ -424,9 +416,7 @@ impl SchedulerState {
                         self.assign(core, task_id, *worker_id);
                     }
                     changed = true;
-                    core.get_task_map_mut()
-                        .get_task_ref_mut(task_id)
-                        .set_take_flag(true);
+                    core.get_task_mut(task_id).set_take_flag(true);
                     break;
                 }
             }
@@ -449,7 +439,7 @@ impl SchedulerState {
                 let worker = core.get_worker_map().get_worker(*worker_id);
                 while let Some(task_id) = ts.pop() {
                     let worker2_id = {
-                        let task = core.get_task_map().get_task_ref(task_id);
+                        let task = core.get_task(task_id);
                         if task.is_taken() {
                             continue;
                         }
@@ -468,9 +458,7 @@ impl SchedulerState {
                         self.assign(core, task_id, *worker_id);
                     }
                     changed = true;
-                    core.get_task_map_mut()
-                        .get_task_ref_mut(task_id)
-                        .set_take_flag(true);
+                    core.get_task_mut(task_id).set_take_flag(true);
                     break;
                 }
             }

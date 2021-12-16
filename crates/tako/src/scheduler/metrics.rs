@@ -10,8 +10,8 @@ pub fn compute_b_level_metric(tasks: &mut TaskMap) {
 fn crawl<F1: Fn(&Task) -> &Set<TaskId>>(tasks: &mut TaskMap, predecessor_fn: F1) {
     let mut neighbours: Map<TaskId, u32> = Map::with_capacity(tasks.len());
     let mut stack: Vec<TaskId> = Vec::new();
-    for task in tasks.iter_tasks() {
-        let len = predecessor_fn(&task).len() as u32;
+    for task in tasks.tasks() {
+        let len = predecessor_fn(task).len() as u32;
         if len == 0 {
             stack.push(task.id);
         } else {
@@ -20,13 +20,13 @@ fn crawl<F1: Fn(&Task) -> &Set<TaskId>>(tasks: &mut TaskMap, predecessor_fn: F1)
     }
 
     while let Some(task_id) = stack.pop() {
-        let level = predecessor_fn(&tasks.get_task_ref(task_id))
+        let level = predecessor_fn(tasks.get_task(task_id))
             .iter()
-            .map(|&pred_id| tasks.get_task_ref(pred_id).get_scheduler_priority())
+            .map(|&pred_id| tasks.get_task(pred_id).get_scheduler_priority())
             .max()
             .unwrap_or(0);
 
-        let mut task = tasks.get_task_ref_mut(task_id);
+        let task = tasks.get_task_mut(task_id);
         task.set_scheduler_priority(level + 1);
 
         for ti in &task.inputs {
@@ -54,7 +54,7 @@ mod tests {
     fn b_level_simple_graph() {
         let mut core = Core::default();
         submit_example_2(&mut core);
-        compute_b_level_metric(core.get_task_map_mut());
+        compute_b_level_metric(core.task_map_mut());
 
         check_task_priority(&core, 7, 1);
         check_task_priority(&core, 6, 2);
@@ -67,9 +67,7 @@ mod tests {
 
     fn check_task_priority(core: &Core, task_id: u64, priority: i32) {
         assert_eq!(
-            core.get_task_map()
-                .get_task_ref(task_id.into())
-                .get_scheduler_priority(),
+            core.get_task(task_id.into()).get_scheduler_priority(),
             priority
         );
     }

@@ -175,10 +175,11 @@ pub async fn process_client_message(
                 todo!();
             }
             let core = core_ref.get();
-            let task_infos = core
-                .get_task_ids()
+            let task_map = core.task_map();
+            let task_infos = task_map
+                .task_ids()
                 .map(|task_id| {
-                    let task = core.get_task_map().get_task_ref(task_id);
+                    let task = task_map.get_task(task_id);
                     TaskInfo {
                         id: task.id,
                         state: match task.state {

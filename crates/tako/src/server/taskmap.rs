@@ -1,61 +1,70 @@
-use crate::common::Map;
-use crate::server::task::{Task, TaskRef};
+use crate::common::stablemap::StableMap;
+use crate::server::task::Task;
 use crate::TaskId;
-use std::cell::{Ref, RefMut};
-use std::ops::{Deref, DerefMut};
 
 #[derive(Default, Debug)]
 pub struct TaskMap {
-    tasks: Map<TaskId, TaskRef>,
+    tasks: StableMap<TaskId, Task>,
 }
 
 impl TaskMap {
-    pub fn new(tasks: Map<TaskId, TaskRef>) -> Self {
-        Self { tasks }
+    // Insertion
+    #[inline(always)]
+    pub fn insert(&mut self, task: Task) -> Option<Task> {
+        self.tasks.insert(task);
+        // StableMap panics on duplicate insertion
+        None
     }
 
-    #[inline]
-    pub fn get_task_ref(&self, task_id: TaskId) -> Ref<Task> {
-        self.tasks.get(&task_id).unwrap().get()
+    // Removal
+    #[inline(always)]
+    pub fn remove(&mut self, task_id: TaskId) -> Option<Task> {
+        self.tasks.remove(&task_id)
     }
 
-    #[inline]
-    pub fn get_task_ref_mut(&mut self, task_id: TaskId) -> RefMut<Task> {
-        self.tasks.get(&task_id).unwrap().get_mut()
+    // Accessors
+    #[inline(always)]
+    pub fn get_task(&self, task_id: TaskId) -> &Task {
+        self.tasks.find(&task_id).unwrap_or_else(|| {
+            panic!("Asking for invalid task id={}", task_id);
+        })
     }
 
-    #[inline]
-    pub fn get_task_opt(&self, task_id: TaskId) -> Option<Ref<Task>> {
-        self.tasks.get(&task_id).map(|t| t.get())
+    #[inline(always)]
+    pub fn get_task_mut(&mut self, task_id: TaskId) -> &mut Task {
+        self.tasks.find_mut(&task_id).unwrap_or_else(|| {
+            panic!("Asking for invalid task id={}", task_id);
+        })
     }
 
-    #[inline]
-    pub fn get_task_opt_mut(&mut self, task_id: TaskId) -> Option<RefMut<Task>> {
-        self.tasks.get(&task_id).map(|t| t.get_mut())
+    #[inline(always)]
+    pub fn find_task(&self, task_id: TaskId) -> Option<&Task> {
+        self.tasks.find(&task_id)
     }
 
-    #[inline]
-    pub fn iter_tasks(&self) -> impl Iterator<Item = Ref<Task>> {
-        self.tasks.values().map(|t| t.get())
+    #[inline(always)]
+    pub fn find_task_mut(&mut self, task_id: TaskId) -> Option<&mut Task> {
+        self.tasks.find_mut(&task_id)
     }
 
-    #[inline]
-    pub fn iter_tasks_with_ids(&self) -> impl Iterator<Item = (TaskId, Ref<Task>)> {
-        self.tasks.values().map(|t| (t.get().id, t.get()))
+    // Iteration
+    #[inline(always)]
+    pub fn task_ids(&self) -> impl Iterator<Item = TaskId> + '_ {
+        self.tasks.keys().copied()
     }
-}
 
-impl Deref for TaskMap {
-    type Target = Map<TaskId, TaskRef>;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.tasks
+    #[inline(always)]
+    pub fn tasks(&self) -> impl Iterator<Item = &Task> {
+        self.tasks.values()
     }
-}
-impl DerefMut for TaskMap {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.tasks
+
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.tasks.len()
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.tasks.is_empty()
     }
 }

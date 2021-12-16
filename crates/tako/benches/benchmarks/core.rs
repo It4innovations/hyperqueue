@@ -113,8 +113,8 @@ fn bench_iterate_tasks(c: &mut BenchmarkGroup<WallTime>) {
                     },
                     |ref mut core| {
                         let mut sum = 0;
-                        for task in core.get_tasks() {
-                            sum += task.get().id().as_num();
+                        for task in core.task_map().tasks() {
+                            sum += task.id().as_num();
                         }
                         black_box(sum);
                     },
