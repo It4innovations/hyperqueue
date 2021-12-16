@@ -184,7 +184,7 @@ impl SchedulerState {
             );
             assert_ne!(w_id, worker_id);
             let previous_worker = core.get_worker_mut_by_id_or_panic(w_id);
-            previous_worker.remove_task(task, &task_ref);
+            previous_worker.remove_task(task);
         } else {
             log::debug!(
                 "Fresh assignment of task={} to worker={}",
@@ -200,7 +200,7 @@ impl SchedulerState {
             t.set_future_placement(worker_id);
         }
         core.get_worker_mut_by_id_or_panic(worker_id)
-            .insert_task(task, task_ref.clone());
+            .insert_task(task);
         let new_state = match task.state {
             TaskRuntimeState::Waiting(_) => TaskRuntimeState::Assigned(worker_id),
             TaskRuntimeState::Assigned(old_w) => {
@@ -290,7 +290,8 @@ impl SchedulerState {
         for worker in core.get_workers() {
             let mut offered = 0;
             let not_overloaded = !worker.is_overloaded();
-            for tr in worker.tasks() {
+            for &task_id in worker.tasks() {
+                let tr = core.get_task_by_id_or_panic(task_id);
                 let mut task = tr.get_mut();
                 if task.is_running()
                     || (not_overloaded
