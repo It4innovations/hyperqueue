@@ -15,6 +15,7 @@ use crate::server::task::{Task, TaskRef, TaskRuntimeState};
 use crate::server::taskmap::TaskMap;
 use crate::server::worker::Worker;
 use crate::server::worker_load::WorkerResources;
+use crate::server::workermap::WorkerMap;
 use crate::{TaskId, WorkerId};
 
 pub type CustomConnectionHandler = Box<dyn Fn(ConnectionDescriptor)>;
@@ -22,7 +23,7 @@ pub type CustomConnectionHandler = Box<dyn Fn(ConnectionDescriptor)>;
 #[derive(Default)]
 pub struct Core {
     tasks: TaskMap,
-    workers: Map<WorkerId, Worker>,
+    workers: WorkerMap,
     event_storage: EventStorage,
 
     /* Scheduler items */
@@ -319,7 +320,7 @@ impl Core {
         };
 
         let worker_check = |core: &Core, task_id: TaskId, wid: WorkerId| {
-            for (worker_id, worker) in &core.workers {
+            for (worker_id, worker) in core.workers.iter() {
                 if wid == *worker_id {
                     assert!(worker.tasks().contains(&task_id));
                 } else {
@@ -328,7 +329,7 @@ impl Core {
             }
         };
 
-        for (worker_id, worker) in &self.workers {
+        for (worker_id, worker) in self.workers.iter() {
             assert_eq!(worker.id, *worker_id);
             if worker.is_parked() {
                 assert!(self.parked_resources.contains(&worker.resources));
