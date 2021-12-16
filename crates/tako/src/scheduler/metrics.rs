@@ -56,47 +56,21 @@ mod tests {
         submit_example_2(&mut core);
         compute_b_level_metric(core.get_task_map_mut());
 
+        check_task_priority(&core, 7, 1);
+        check_task_priority(&core, 6, 2);
+        check_task_priority(&core, 5, 1);
+        check_task_priority(&core, 4, 2);
+        check_task_priority(&core, 3, 3);
+        check_task_priority(&core, 2, 3);
+        check_task_priority(&core, 1, 4);
+    }
+
+    fn check_task_priority(core: &Core, task_id: u64, priority: i32) {
         assert_eq!(
-            core.get_task_by_id_or_panic(7.into())
-                .get()
+            core.get_task_map()
+                .get_task_ref(task_id.into())
                 .get_scheduler_priority(),
-            1
-        );
-        assert_eq!(
-            core.get_task_by_id_or_panic(6.into())
-                .get()
-                .get_scheduler_priority(),
-            2
-        );
-        assert_eq!(
-            core.get_task_by_id_or_panic(5.into())
-                .get()
-                .get_scheduler_priority(),
-            1
-        );
-        assert_eq!(
-            core.get_task_by_id_or_panic(4.into())
-                .get()
-                .get_scheduler_priority(),
-            2
-        );
-        assert_eq!(
-            core.get_task_by_id_or_panic(3.into())
-                .get()
-                .get_scheduler_priority(),
-            3
-        );
-        assert_eq!(
-            core.get_task_by_id_or_panic(2.into())
-                .get()
-                .get_scheduler_priority(),
-            3
-        );
-        assert_eq!(
-            core.get_task_by_id_or_panic(1.into())
-                .get()
-                .get_scheduler_priority(),
-            4
+            priority
         );
     }
 }

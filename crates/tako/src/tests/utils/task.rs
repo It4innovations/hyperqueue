@@ -1,6 +1,6 @@
 use super::resources::ResBuilder;
 use crate::common::resources::{CpuRequest, GenericResourceAmount, GenericResourceId, NumOfCpus};
-use crate::server::task::{TaskConfiguration, TaskInput, TaskRef};
+use crate::server::task::{Task, TaskConfiguration, TaskInput};
 use crate::{Priority, TaskId};
 use std::rc::Rc;
 use std::time::Duration;
@@ -29,18 +29,15 @@ impl TaskBuilder {
         self
     }
 
-    pub fn simple_deps(mut self, deps: &[&TaskRef]) -> TaskBuilder {
-        self.inputs = deps
-            .iter()
-            .map(|&tr| TaskInput::new(tr.get().id, 0))
-            .collect();
+    pub fn simple_deps(mut self, deps: &[&Task]) -> TaskBuilder {
+        self.inputs = deps.iter().map(|&tr| TaskInput::new(tr.id, 0)).collect();
         self
     }
 
-    pub fn task_deps(mut self, deps: &[&TaskRef]) -> TaskBuilder {
+    pub fn task_deps(mut self, deps: &[&Task]) -> TaskBuilder {
         self.inputs = deps
             .iter()
-            .map(|&tr| TaskInput::new_task_dependency(tr.get().id))
+            .map(|&tr| TaskInput::new_task_dependency(tr.id))
             .collect();
         self
     }
@@ -74,10 +71,10 @@ impl TaskBuilder {
         self
     }
 
-    pub fn build(self) -> TaskRef {
+    pub fn build(self) -> Task {
         let resources = self.resources.finish();
         resources.validate().unwrap();
-        TaskRef::new(
+        Task::new(
             self.id,
             self.inputs,
             Rc::new(TaskConfiguration {
@@ -93,11 +90,11 @@ impl TaskBuilder {
     }
 }
 
-pub fn task<T: Into<TaskId>>(id: T) -> TaskRef {
+pub fn task<T: Into<TaskId>>(id: T) -> Task {
     TaskBuilder::new(id.into()).outputs(1).build()
 }
 
-pub fn task_with_deps<T: Into<TaskId>>(id: T, deps: &[&TaskRef], n_outputs: u32) -> TaskRef {
+pub fn task_with_deps<T: Into<TaskId>>(id: T, deps: &[&Task], n_outputs: u32) -> Task {
     TaskBuilder::new(id.into())
         .simple_deps(deps)
         .outputs(n_outputs)

@@ -45,9 +45,10 @@ impl TestEnv {
     }
 
     pub fn new_task(&mut self, builder: TaskBuilder) -> TaskRef {
-        let tr = builder.build();
-        schedule::submit_test_tasks(&mut self.core, &[&tr]);
-        tr
+        let task = builder.build();
+        let task_id = task.id;
+        schedule::submit_test_tasks(&mut self.core, vec![task]);
+        self.task(task_id)
     }
 
     pub fn new_generic_resource(&mut self, count: usize) {
@@ -58,16 +59,16 @@ impl TestEnv {
     }
 
     pub fn new_task_assigned<W: Into<WorkerId>>(&mut self, builder: TaskBuilder, worker_id: W) {
-        let tr = builder.build();
-        schedule::submit_test_tasks(&mut self.core, &[&tr]);
-        let task_id = tr.get().id();
+        let task = builder.build();
+        let task_id = task.id();
+        schedule::submit_test_tasks(&mut self.core, vec![task]);
         schedule::start_on_worker(&mut self.core, task_id, worker_id.into());
     }
 
     pub fn new_task_running<W: Into<WorkerId>>(&mut self, builder: TaskBuilder, worker_id: W) {
-        let tr = builder.build();
-        schedule::submit_test_tasks(&mut self.core, &[&tr]);
-        let task_id = tr.get().id();
+        let task = builder.build();
+        let task_id = task.id();
+        schedule::submit_test_tasks(&mut self.core, vec![task]);
         schedule::start_on_worker_running(&mut self.core, task_id, worker_id.into());
     }
 
@@ -110,7 +111,7 @@ impl TestEnv {
     }
 
     pub fn new_ready_tasks_cpus(&mut self, tasks: &[NumOfCpus]) -> Vec<TaskRef> {
-        let trs: Vec<_> = tasks
+        let tasks: Vec<_> = tasks
             .iter()
             .map(|n_cpus| {
                 let task_id = self.task_id_counter;
@@ -120,9 +121,12 @@ impl TestEnv {
                     .build()
             })
             .collect();
-        let trs_refs: Vec<_> = trs.iter().collect();
-        schedule::submit_test_tasks(&mut self.core, &trs_refs);
-        trs
+        let task_ids: Vec<_> = tasks.iter().map(|t| t.id).collect();
+        schedule::submit_test_tasks(&mut self.core, tasks);
+        task_ids
+            .into_iter()
+            .map(|task_id| self.task(task_id))
+            .collect()
     }
 
     pub fn _test_assign(&mut self, task_ref: &TaskRef, worker_id: WorkerId) {

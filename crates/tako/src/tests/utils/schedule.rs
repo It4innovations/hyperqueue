@@ -4,7 +4,7 @@ use crate::messages::worker::TaskFinishedMsg;
 use crate::scheduler::state::SchedulerState;
 use crate::server::core::Core;
 use crate::server::reactor::{on_new_tasks, on_new_worker, on_task_finished, on_task_running};
-use crate::server::task::TaskRef;
+use crate::server::task::{Task, TaskRef};
 use crate::server::worker::Worker;
 use crate::tests::utils::env::TestComm;
 use crate::{TaskId, WorkerId};
@@ -32,12 +32,8 @@ pub fn create_test_workers(core: &mut Core, cpus: &[u32]) {
     }
 }
 
-pub fn submit_test_tasks(core: &mut Core, tasks: &[&TaskRef]) {
-    on_new_tasks(
-        core,
-        &mut TestComm::default(),
-        tasks.iter().map(|&tr| tr.clone()).collect(),
-    );
+pub fn submit_test_tasks(core: &mut Core, tasks: Vec<Task>) {
+    on_new_tasks(core, &mut TestComm::default(), tasks);
 }
 
 pub(crate) fn force_assign<W: Into<WorkerId>, T: Into<TaskId>>(

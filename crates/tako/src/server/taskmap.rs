@@ -25,6 +25,16 @@ impl TaskMap {
     }
 
     #[inline]
+    pub fn get_task_opt(&self, task_id: TaskId) -> Option<Ref<Task>> {
+        self.tasks.get(&task_id).map(|t| t.get())
+    }
+
+    #[inline]
+    pub fn get_task_opt_mut(&mut self, task_id: TaskId) -> Option<RefMut<Task>> {
+        self.tasks.get(&task_id).map(|t| t.get_mut())
+    }
+
+    #[inline]
     pub fn iter_tasks(&self) -> impl Iterator<Item = Ref<Task>> {
         self.tasks.values().map(|t| t.get())
     }

@@ -222,16 +222,12 @@ impl Core {
         !self.workers.is_empty()
     }
 
-    pub fn add_task(&mut self, task_ref: TaskRef) {
-        let task_id = {
-            let task = task_ref.get();
-            if task.is_ready() {
-                self.add_ready_to_assign(task.id);
-            }
-            task.id()
-        };
+    pub fn add_task(&mut self, task: Task) {
+        if task.is_ready() {
+            self.add_ready_to_assign(task.id);
+        }
         self.has_new_tasks = true;
-        assert!(self.tasks.insert(task_id, task_ref).is_none());
+        assert!(self.tasks.insert(task.id, TaskRef::wrap(task)).is_none());
     }
 
     #[inline(never)]
@@ -436,6 +432,7 @@ mod tests {
     use crate::server::task::TaskRuntimeState;
     use crate::tests::utils::task;
     use crate::TaskId;
+    use std::cell::Ref;
 
     impl Core {
         pub fn get_read_to_assign(&self) -> &[TaskId] {
@@ -446,32 +443,45 @@ mod tests {
             self.ready_to_assign.retain(|&id| id != task_id);
         }
 
-        pub fn assert_task_condition<F: Fn(&Task) -> bool>(&self, task_ids: &[u64], op: F) {
+        pub fn assert_task_condition<T: Copy + Into<TaskId>, F: Fn(&Task) -> bool>(
+            &self,
+            task_ids: &[T],
+            op: F,
+        ) {
             for task_id in task_ids {
-                if !op(&self.get_task_by_id_or_panic((*task_id).into()).get()) {
+                let task_id: TaskId = task_id.clone().into();
+                if !op(&self.get_task_by_id_or_panic(task_id).get()) {
                     panic!("Task {} does not satisfy the condition", task_id);
                 }
             }
         }
 
-        pub fn assert_waiting(&self, task_ids: &[u64]) {
+        pub fn assert_waiting<T: Copy + Into<TaskId>>(&self, task_ids: &[T]) {
             self.assert_task_condition(task_ids, |t| t.is_waiting());
         }
 
-        pub fn assert_ready(&self, task_ids: &[u64]) {
+        pub fn assert_ready<T: Copy + Into<TaskId>>(&self, task_ids: &[T]) {
             self.assert_task_condition(task_ids, |t| t.is_ready());
         }
 
-        pub fn assert_assigned(&self, task_ids: &[u64]) {
+        pub fn assert_assigned<T: Copy + Into<TaskId>>(&self, task_ids: &[T]) {
             self.assert_task_condition(task_ids, |t| t.is_assigned());
         }
 
-        pub fn assert_fresh(&self, task_ids: &[u64]) {
+        pub fn assert_fresh<T: Copy + Into<TaskId>>(&self, task_ids: &[T]) {
             self.assert_task_condition(task_ids, |t| t.is_fresh());
         }
 
-        pub fn assert_running(&self, task_ids: &[u64]) {
+        pub fn assert_not_fresh<T: Copy + Into<TaskId>>(&self, task_ids: &[T]) {
+            self.assert_task_condition(task_ids, |t| !t.is_fresh());
+        }
+
+        pub fn assert_running<T: Copy + Into<TaskId>>(&self, task_ids: &[T]) {
             self.assert_task_condition(task_ids, |t| t.is_running());
+        }
+
+        pub fn task<T: Into<TaskId>>(&self, id: T) -> Ref<Task> {
+            self.tasks.get_task_ref(id.into())
         }
     }
 
@@ -479,8 +489,7 @@ mod tests {
     fn add_remove() {
         let mut core = Core::default();
         let t = task::task(101);
-        core.add_task(t.clone());
-        assert_eq!(core.get_task_by_id(101.into()).unwrap(), &t);
+        core.add_task(t);
         assert!(match core.remove_task(101.into()) {
             TaskRuntimeState::Waiting(_) => true,
             _ => false,
