@@ -74,6 +74,16 @@ impl CoreRef {
 }
 
 impl Core {
+    #[inline]
+    pub fn split_tasks_workers(&self) -> (&TaskMap, &WorkerMap) {
+        (&self.tasks, &self.workers)
+    }
+
+    #[inline]
+    pub fn split_tasks_workers_mut(&mut self) -> (&mut TaskMap, &mut WorkerMap) {
+        (&mut self.tasks, &mut self.workers)
+    }
+
     pub fn new_worker_id(&mut self) -> WorkerId {
         self.worker_id_counter += 1;
         WorkerId::new(self.worker_id_counter)

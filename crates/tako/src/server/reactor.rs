@@ -67,7 +67,7 @@ pub fn on_remove_worker(
                     log::debug!("Canceling steal of task={} from lost worker", task_id);
 
                     if let Some(to_id) = to_id {
-                        removes.push((*to_id, task_ref.clone()));
+                        removes.push((*to_id, task_id));
                     }
                     task.increment_instance_id();
                     task.set_fresh_flag(true);
@@ -96,9 +96,12 @@ pub fn on_remove_worker(
         task.state = new_state;
     }
 
-    for (w_id, task_ref) in removes {
-        let task = task_ref.get();
-        core.get_worker_mut_by_id_or_panic(w_id).remove_task(&task)
+    {
+        let (tasks, workers) = core.split_tasks_workers_mut();
+        for (w_id, task_id) in removes {
+            let task = tasks.get_task_ref(task_id);
+            workers.get_worker_mut(w_id).remove_task(&task)
+        }
     }
 
     for task_id in ready_to_assign {
