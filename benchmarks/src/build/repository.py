@@ -26,7 +26,7 @@ def checkout_tag(tag: str):
         active_branch = REPO.active_branch
 
         logging.info("Stashing repository")
-        REPO.git.stash()
+        msg = REPO.git.stash()
         try:
             aliases = REPO.git.name_rev(["--name-only", tag]).split()
             logging.info(f"Checking out {tag} ({', '.join(aliases)})")
@@ -35,4 +35,5 @@ def checkout_tag(tag: str):
         finally:
             logging.info(f"Reverting to original state ({active_branch})")
             REPO.git.checkout(active_branch)
-            REPO.git.stash("pop")
+            if "No local changes to save" not in msg:
+                REPO.git.stash("pop")
