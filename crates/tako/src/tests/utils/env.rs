@@ -156,7 +156,7 @@ impl TestEnv {
                 .get_worker_by_id_or_panic(worker_id)
                 .tasks()
                 .iter()
-                .map(|t| t.get().id())
+                .copied()
                 .collect(),
         );
         assert_eq!(
@@ -194,7 +194,15 @@ impl TestEnv {
                 worker
                     .tasks()
                     .iter()
-                    .map(|t| format!("{}:{:?}", t.get().id(), &t.get().configuration.resources))
+                    .map(|&task_id| format!(
+                        "{}:{:?}",
+                        task_id,
+                        self.core
+                            .get_task_map()
+                            .get_task_ref(task_id)
+                            .configuration
+                            .resources
+                    ))
                     .collect::<Vec<String>>()
                     .join(", ")
             );

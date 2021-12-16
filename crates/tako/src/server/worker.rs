@@ -8,9 +8,10 @@ use crate::common::resources::{NumOfCpus, TimeRequest};
 use crate::common::Set;
 use crate::messages::common::WorkerConfiguration;
 use crate::messages::worker::WorkerOverview;
-use crate::server::task::{Task, TaskRef};
+use crate::server::task::Task;
+use crate::server::taskmap::TaskMap;
 use crate::server::worker_load::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
-use crate::WorkerId;
+use crate::{TaskId, WorkerId};
 use std::time::Duration;
 
 bitflags::bitflags! {
@@ -29,7 +30,7 @@ pub struct Worker {
 
     // This is list of assigned tasks
     // !! In case of stealing T from W1 to W2, T is in "tasks" of W2, even T was not yet canceled from W1.
-    tasks: Set<TaskRef>,
+    tasks: Set<TaskId>,
 
     pub load: WorkerLoad,
     pub resources: WorkerResources,
@@ -61,41 +62,30 @@ impl Worker {
         self.id
     }
 
-    pub fn tasks(&self) -> &Set<TaskRef> {
+    pub fn tasks(&self) -> &Set<TaskId> {
         &self.tasks
     }
 
-    pub fn insert_task(&mut self, task: &Task, task_ref: TaskRef) {
-        assert!(self.tasks.insert(task_ref));
+    pub fn insert_task(&mut self, task: &Task) {
+        assert!(self.tasks.insert(task.id));
         self.load
             .add_request(&task.configuration.resources, &self.resources);
     }
 
-    pub fn remove_task(&mut self, task: &Task, task_ref: &TaskRef) {
-        assert!(self.tasks.remove(task_ref));
+    pub fn remove_task(&mut self, task: &Task) {
+        assert!(self.tasks.remove(&task.id));
         self.load
             .remove_request(&task.configuration.resources, &self.resources);
     }
 
-    pub fn sanity_check(&self) {
+    pub fn sanity_check(&self, task_map: &TaskMap) {
         let mut check_load = WorkerLoad::new(&self.resources);
-        for task_ref in &self.tasks {
-            let task = task_ref.get();
+        for &task_id in &self.tasks {
+            let task = task_map.get_task_ref(task_id);
             check_load.add_request(&task.configuration.resources, &self.resources);
         }
         assert_eq!(self.load, check_load);
     }
-
-    /*#[inline]
-    pub fn address(&self) -> &str {
-        &self.listen_address
-    }*/
-
-    /*pub fn hostname(&self) -> String {
-        let s = self.configuration.listen_address.as_str();
-        let s: &str = s.find("://").map(|p| &s[p + 3..]).unwrap_or(s);
-        s.chars().take_while(|x| *x != ':').collect()
-    }*/
 
     pub fn load(&self) -> &WorkerLoad {
         &self.load
@@ -176,7 +166,7 @@ impl Worker {
         let resources = WorkerResources::from_description(&configuration.resources, resource_map);
         let load = WorkerLoad::new(&resources);
         let now = std::time::Instant::now();
-        Worker {
+        Self {
             id,
             termination_time: configuration.time_limit.map(|duration| now + duration),
             configuration,

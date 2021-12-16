@@ -99,8 +99,7 @@ pub fn on_remove_worker(
 
     for (w_id, task_ref) in removes {
         let task = task_ref.get();
-        core.get_worker_mut_by_id_or_panic(w_id)
-            .remove_task(&task, &task_ref)
+        core.get_worker_mut_by_id_or_panic(w_id).remove_task(&task)
     }
 
     for task_id in ready_to_assign {
@@ -199,9 +198,9 @@ pub fn on_task_running(
             TaskRuntimeState::Stealing(w_id, Some(target_id)) => {
                 assert_eq!(w_id, worker_id);
                 let worker = core.get_worker_mut_by_id_or_panic(target_id);
-                worker.remove_task(&task, &task_ref);
+                worker.remove_task(&task);
                 let worker = core.get_worker_mut_by_id_or_panic(w_id);
-                worker.insert_task(&task, task_ref.clone());
+                worker.insert_task(&task);
                 comm.ask_for_scheduling();
                 TaskRuntimeState::Running(worker_id)
             }
@@ -241,12 +240,12 @@ pub fn on_task_finished(
                 TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
                     assert_eq!(*w_id, worker_id);
                     let worker = core.get_worker_mut_by_id_or_panic(worker_id);
-                    worker.remove_task(&task, &task_ref);
+                    worker.remove_task(&task);
                 }
                 TaskRuntimeState::Stealing(w_id, Some(target_w)) => {
                     assert_eq!(*w_id, worker_id);
                     let worker = core.get_worker_mut_by_id_or_panic(*target_w);
-                    worker.remove_task(&task, &task_ref);
+                    worker.remove_task(&task);
                 }
                 TaskRuntimeState::Stealing(w_id, None) => {
                     assert_eq!(*w_id, worker_id);
@@ -377,11 +376,10 @@ pub fn on_steal_response(
                         StealResponse::Running => {
                             log::debug!("Task stealing was not successful task={}", task_id);
                             if let Some(w_id) = to_worker_id {
-                                core.get_worker_mut_by_id_or_panic(w_id)
-                                    .remove_task(&task, &task_ref)
+                                core.get_worker_mut_by_id_or_panic(w_id).remove_task(&task)
                             }
                             core.get_worker_mut_by_id_or_panic(from_worker_id)
-                                .insert_task(&task, task_ref.clone());
+                                .insert_task(&task);
                             comm.ask_for_scheduling();
                             TaskRuntimeState::Running(worker_id)
                         }
@@ -451,7 +449,7 @@ pub fn on_task_error(
             let task = task_ref.get();
             assert!(task.is_assigned_or_stealed_from(worker_id));
             core.get_worker_mut_by_id_or_panic(worker_id)
-                .remove_task(&task, &task_ref);
+                .remove_task(&task);
             task.collect_consumers().into_iter().collect()
         };
 
@@ -513,16 +511,14 @@ pub fn on_cancel_tasks(
                 TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
                     task_refs.insert(task_ref.clone());
                     task_refs.extend(task.collect_consumers().into_iter());
-                    core.get_worker_mut_by_id_or_panic(w_id)
-                        .remove_task(&task, &task_ref);
+                    core.get_worker_mut_by_id_or_panic(w_id).remove_task(&task);
                     running_ids.entry(w_id).or_default().push(*task_id);
                 }
                 TaskRuntimeState::Stealing(from_id, to_id) => {
                     task_refs.insert(task_ref.clone());
                     task_refs.extend(task.collect_consumers().into_iter());
                     if let Some(to_id) = to_id {
-                        core.get_worker_mut_by_id_or_panic(to_id)
-                            .remove_task(&task, &task_ref);
+                        core.get_worker_mut_by_id_or_panic(to_id).remove_task(&task);
                     }
                     running_ids.entry(from_id).or_default().push(*task_id);
                 }

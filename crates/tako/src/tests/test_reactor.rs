@@ -16,7 +16,7 @@ use crate::server::reactor::{
     on_set_observe_flag, on_steal_response, on_task_error, on_task_finished, on_task_running,
     on_tasks_transferred,
 };
-use crate::server::task::TaskRuntimeState;
+use crate::server::task::{TaskRef, TaskRuntimeState};
 use crate::server::worker::Worker;
 use crate::tests::utils::env::create_test_comm;
 use crate::tests::utils::schedule::{
@@ -189,21 +189,9 @@ fn test_assignments_and_finish() {
     assert!(!t1.get().is_fresh());
     assert!(t3.get().is_fresh());
 
-    assert_eq!(core.get_worker_by_id_or_panic(100.into()).tasks().len(), 2);
-    assert!(core
-        .get_worker_by_id_or_panic(100.into())
-        .tasks()
-        .contains(&t1));
-    assert!(core
-        .get_worker_by_id_or_panic(100.into())
-        .tasks()
-        .contains(&t5));
-    assert_eq!(core.get_worker_by_id_or_panic(101.into()).tasks().len(), 1);
-    assert!(core
-        .get_worker_by_id_or_panic(101.into())
-        .tasks()
-        .contains(&t2));
-    assert_eq!(core.get_worker_by_id_or_panic(102.into()).tasks().len(), 0);
+    check_worker_tasks_exact(&core, 100, &[&t1, &t5]);
+    check_worker_tasks_exact(&core, 101, &[&t2]);
+    check_worker_tasks_exact(&core, 102, &[]);
 
     let msgs = comm.take_worker_msgs(100, 2);
     dbg!(&msgs[0]);
@@ -248,17 +236,9 @@ fn test_assignments_and_finish() {
     );
 
     assert!(matches!(t5.get().state, TaskRuntimeState::Released));
-    assert_eq!(core.get_worker_by_id_or_panic(100.into()).tasks().len(), 1);
-    assert!(core
-        .get_worker_by_id_or_panic(100.into())
-        .tasks()
-        .contains(&t1));
-    assert_eq!(core.get_worker_by_id_or_panic(101.into()).tasks().len(), 1);
-    assert!(core
-        .get_worker_by_id_or_panic(101.into())
-        .tasks()
-        .contains(&t2));
-    assert_eq!(core.get_worker_by_id_or_panic(102.into()).tasks().len(), 0);
+    check_worker_tasks_exact(&core, 100, &[&t1]);
+    check_worker_tasks_exact(&core, 101, &[&t2]);
+    check_worker_tasks_exact(&core, 102, &[]);
 
     let msgs = comm.take_worker_msgs(100, 1);
     assert!(matches!(
@@ -289,13 +269,9 @@ fn test_assignments_and_finish() {
 
     assert!(t2.get().is_finished());
     assert!(matches!(t5.get().state, TaskRuntimeState::Released));
-    assert_eq!(core.get_worker_by_id_or_panic(100.into()).tasks().len(), 1);
-    assert!(core
-        .get_worker_by_id_or_panic(100.into())
-        .tasks()
-        .contains(&t1));
-    assert_eq!(core.get_worker_by_id_or_panic(101.into()).tasks().len(), 0);
-    assert_eq!(core.get_worker_by_id_or_panic(102.into()).tasks().len(), 0);
+    check_worker_tasks_exact(&core, 100, &[&t1]);
+    check_worker_tasks_exact(&core, 101, &[]);
+    check_worker_tasks_exact(&core, 102, &[]);
 
     comm.check_need_scheduling();
     //assert_eq!(comm.take_client_task_finished(1), vec![12]);
@@ -382,10 +358,7 @@ fn test_running_task_on_error() {
     start_on_worker(&mut core, 13, 102);
     let t13 = core.get_task_by_id_or_panic(13.into()).clone();
     assert!(t13.get().is_assigned());
-    assert!(core
-        .get_worker_by_id_or_panic(102.into())
-        .tasks()
-        .contains(&t13));
+    assert!(worker_has_task(&core, 102, &t13));
 
     let mut comm = create_test_comm();
     on_task_error(
@@ -399,10 +372,7 @@ fn test_running_task_on_error() {
             error_data: vec![],
         },
     );
-    assert!(!core
-        .get_worker_by_id_or_panic(102.into())
-        .tasks()
-        .contains(&t13));
+    assert!(!worker_has_task(&core, 102, &t13));
 
     let msgs = comm.take_worker_msgs(100, 1);
     assert!(matches!(
@@ -472,14 +442,8 @@ fn test_steal_tasks_ok() {
     start_on_worker(&mut core, 13, 101);
 
     let t3 = core.get_task_by_id_or_panic(13.into()).clone();
-    assert!(core
-        .get_worker_by_id_or_panic(101.into())
-        .tasks()
-        .contains(&t3));
-    assert!(!core
-        .get_worker_by_id_or_panic(100.into())
-        .tasks()
-        .contains(&t3));
+    assert!(worker_has_task(&core, 101, &t3));
+    assert!(!worker_has_task(&core, 100, &t3));
 
     let mut comm = create_test_comm();
     let mut scheduler = create_test_scheduler();
@@ -487,14 +451,8 @@ fn test_steal_tasks_ok() {
     force_reassign(&mut core, &mut scheduler, 13, 100);
     scheduler.finish_scheduling(&mut comm);
 
-    assert!(!core
-        .get_worker_by_id_or_panic(101.into())
-        .tasks()
-        .contains(&t3));
-    assert!(core
-        .get_worker_by_id_or_panic(100.into())
-        .tasks()
-        .contains(&t3));
+    assert!(!worker_has_task(&core, 101, &t3));
+    assert!(worker_has_task(&core, 100, &t3));
 
     let msgs = comm.take_worker_msgs(101, 1);
     assert!(matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![13].to_ids()));
@@ -513,14 +471,8 @@ fn test_steal_tasks_ok() {
         },
     );
 
-    assert!(!core
-        .get_worker_by_id_or_panic(101.into())
-        .tasks()
-        .contains(&t3));
-    assert!(core
-        .get_worker_by_id_or_panic(100.into())
-        .tasks()
-        .contains(&t3));
+    assert!(!worker_has_task(&core, 101, &t3));
+    assert!(worker_has_task(&core, 100, &t3));
 
     let msgs = comm.take_worker_msgs(100, 1);
     assert!(matches!(
@@ -551,14 +503,8 @@ fn test_steal_tasks_running() {
     comm.emptiness_check();
 
     let t3 = core.get_task_by_id_or_panic(13.into()).clone();
-    assert!(!core
-        .get_worker_by_id_or_panic(101.into())
-        .tasks()
-        .contains(&t3));
-    assert!(core
-        .get_worker_by_id_or_panic(100.into())
-        .tasks()
-        .contains(&t3));
+    assert!(!worker_has_task(&core, 101, &t3));
+    assert!(worker_has_task(&core, 100, &t3));
 
     on_steal_response(
         &mut core,
@@ -569,14 +515,8 @@ fn test_steal_tasks_running() {
         },
     );
 
-    assert!(core
-        .get_worker_by_id_or_panic(101.into())
-        .tasks()
-        .contains(&t3));
-    assert!(!core
-        .get_worker_by_id_or_panic(100.into())
-        .tasks()
-        .contains(&t3));
+    assert!(worker_has_task(&core, 101, &t3));
+    assert!(!worker_has_task(&core, 100, &t3));
 
     comm.check_need_scheduling();
     comm.emptiness_check();
@@ -733,10 +673,7 @@ fn test_finished_before_steal_response() {
     submit_test_tasks(&mut core, &[&t1]);
     start_on_worker(&mut core, 1, 101);
     start_stealing(&mut core, 1, 102);
-    assert!(core
-        .get_worker_mut_by_id_or_panic(102.into())
-        .tasks()
-        .contains(&t1));
+    assert!(worker_has_task(&core, 102, &t1));
 
     let mut comm = create_test_comm();
     on_task_finished(
@@ -756,14 +693,8 @@ fn test_finished_before_steal_response() {
     comm.check_need_scheduling();
     comm.emptiness_check();
 
-    assert!(!core
-        .get_worker_mut_by_id_or_panic(101.into())
-        .tasks()
-        .contains(&t1));
-    assert!(!core
-        .get_worker_mut_by_id_or_panic(102.into())
-        .tasks()
-        .contains(&t1));
+    assert!(!worker_has_task(&core, 101, &t1));
+    assert!(!worker_has_task(&core, 102, &t1));
 
     on_steal_response(
         &mut core,
@@ -776,14 +707,8 @@ fn test_finished_before_steal_response() {
 
     comm.emptiness_check();
 
-    assert!(!core
-        .get_worker_mut_by_id_or_panic(101.into())
-        .tasks()
-        .contains(&t1));
-    assert!(!core
-        .get_worker_mut_by_id_or_panic(102.into())
-        .tasks()
-        .contains(&t1));
+    assert!(!worker_has_task(&core, 101, &t1));
+    assert!(!worker_has_task(&core, 102, &t1));
 }
 
 #[test]
@@ -794,24 +719,15 @@ fn test_running_before_steal_response() {
     submit_test_tasks(&mut core, &[&t1]);
     start_on_worker(&mut core, 1, 101);
     start_stealing(&mut core, 1, 102);
-    assert!(core
-        .get_worker_mut_by_id_or_panic(102.into())
-        .tasks()
-        .contains(&t1));
+    assert!(worker_has_task(&core, 102, &t1));
 
     let mut comm = create_test_comm();
     on_task_running(&mut core, &mut comm, 101.into(), 1.into());
     comm.check_need_scheduling();
     comm.emptiness_check();
 
-    assert!(core
-        .get_worker_mut_by_id_or_panic(101.into())
-        .tasks()
-        .contains(&t1));
-    assert!(!core
-        .get_worker_mut_by_id_or_panic(102.into())
-        .tasks()
-        .contains(&t1));
+    assert!(worker_has_task(&core, 101, &t1));
+    assert!(!worker_has_task(&core, 102, &t1));
 
     on_steal_response(
         &mut core,
@@ -823,14 +739,8 @@ fn test_running_before_steal_response() {
     );
 
     comm.emptiness_check();
-    assert!(core
-        .get_worker_mut_by_id_or_panic(101.into())
-        .tasks()
-        .contains(&t1));
-    assert!(!core
-        .get_worker_mut_by_id_or_panic(102.into())
-        .tasks()
-        .contains(&t1));
+    assert!(worker_has_task(&core, 101, &t1));
+    assert!(!worker_has_task(&core, 102, &t1));
 }
 
 #[test]
@@ -1032,6 +942,20 @@ fn cancel_tasks<T: Into<TaskId> + Copy>(core: &mut Core, task_ids: &[T]) {
         &mut comm,
         &task_ids.iter().map(|&v| v.into()).collect::<Vec<_>>(),
     );
+}
+
+fn check_worker_tasks_exact(core: &Core, worker_id: u32, tasks: &[&TaskRef]) {
+    let worker = core.get_worker_by_id_or_panic(worker_id.into());
+    assert_eq!(worker.tasks().len(), tasks.len());
+    for task in tasks {
+        assert!(worker.tasks().contains(&task.get().id));
+    }
+}
+
+fn worker_has_task(core: &Core, worker_id: u32, task: &TaskRef) -> bool {
+    core.get_worker_by_id_or_panic(worker_id.into())
+        .tasks()
+        .contains(&task.get().id)
 }
 
 #[test]

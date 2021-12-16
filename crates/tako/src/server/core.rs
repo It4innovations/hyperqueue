@@ -89,7 +89,12 @@ impl Core {
 
     pub fn park_workers(&mut self) {
         for worker in self.workers.values_mut() {
-            if worker.is_underloaded() && worker.tasks().iter().all(|t| t.get().is_running()) {
+            if worker.is_underloaded()
+                && worker
+                    .tasks()
+                    .iter()
+                    .all(|&task_id| self.tasks.get_task_ref(task_id).is_running())
+            {
                 log::debug!("Parking worker {}", worker.id);
                 worker.set_parked_flag(true);
                 self.parked_resources.insert(worker.resources.clone());
@@ -307,13 +312,12 @@ impl Core {
             }
         };
 
-        let worker_check = |core: &Core, tr: &TaskRef, wid: WorkerId| {
+        let worker_check = |core: &Core, task_id: TaskId, wid: WorkerId| {
             for (worker_id, worker) in &core.workers {
                 if wid == *worker_id {
-                    assert!(worker.tasks().contains(tr));
+                    assert!(worker.tasks().contains(&task_id));
                 } else {
-                    //dbg!(tr.get().id, wid, worker_id);
-                    assert!(!worker.tasks().contains(tr));
+                    assert!(!worker.tasks().contains(&task_id));
                 }
             }
         };
@@ -323,7 +327,7 @@ impl Core {
             if worker.is_parked() {
                 assert!(self.parked_resources.contains(&worker.resources));
             }
-            worker.sanity_check();
+            worker.sanity_check(&self.tasks);
         }
 
         for (task_id, task_ref) in self.tasks.iter() {
@@ -341,20 +345,20 @@ impl Core {
                         assert!(t.get().is_waiting());
                     }
                     assert_eq!(winfo.unfinished_deps, count);
-                    worker_check(self, task_ref, 0.into());
+                    worker_check(self, task.id, 0.into());
                     assert!(task.is_fresh());
                 }
 
                 TaskRuntimeState::Assigned(wid) | TaskRuntimeState::Running(wid) => {
                     assert!(!task.is_fresh());
                     fw_check(&task);
-                    worker_check(self, task_ref, *wid);
+                    worker_check(self, task.id, *wid);
                 }
 
                 TaskRuntimeState::Stealing(_, target) => {
                     assert!(!task.is_fresh());
                     fw_check(&task);
-                    worker_check(self, task_ref, target.unwrap_or(WorkerId::new(0)));
+                    worker_check(self, task.id, target.unwrap_or(WorkerId::new(0)));
                 }
 
                 TaskRuntimeState::Finished(_) => {
