@@ -3,6 +3,7 @@ use criterion::{black_box, BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 
 use tako::common::Set;
 use tako::server::core::Core;
+use tako::TaskId;
 
 use crate::{add_tasks, create_task};
 
@@ -16,11 +17,10 @@ fn bench_remove_single_task(c: &mut BenchmarkGroup<WallTime>) {
                     || {
                         let mut core = Core::default();
                         add_tasks(&mut core, task_count);
-                        let task = core.get_task_by_id_or_panic(0.into()).clone();
-                        (core, task)
+                        (core, TaskId::new(0))
                     },
-                    |(ref mut core, task)| {
-                        let _ = core.remove_task(&mut task.get_mut());
+                    |(ref mut core, task_id)| {
+                        let _ = core.remove_task(*task_id);
                     },
                     BatchSize::SmallInput,
                 );

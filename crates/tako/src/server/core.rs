@@ -251,17 +251,23 @@ impl Core {
     /// It can still remain in [`ready_to_assign`], where it will remain until the scheduler picks
     /// it up.
     #[must_use]
-    pub fn remove_task(&mut self, task: &mut Task) -> TaskRuntimeState {
-        trace_task_remove(task.id);
-        assert!(!task.has_consumers());
-        assert!(self.tasks.remove(&task.id).is_some());
-        std::mem::replace(&mut task.state, TaskRuntimeState::Released)
+    pub fn remove_task(&mut self, task_id: TaskId) -> TaskRuntimeState {
+        trace_task_remove(task_id);
+
+        let state = {
+            let mut task = self.tasks.get_task_ref_mut(task_id);
+            assert!(!task.has_consumers());
+            std::mem::replace(&mut task.state, TaskRuntimeState::Released)
+        };
+
+        self.tasks.remove(&task_id);
+        state
     }
 
     /// Removes multiple tasks at once, to reduce memory consumption
     pub fn remove_tasks_batched(&mut self, tasks: &Set<TaskId>) {
         for &task_id in tasks {
-            let _ = self.remove_task(&mut self.get_task_by_id_or_panic(task_id).clone().get_mut());
+            let _ = self.remove_task(task_id);
         }
         self.ready_to_assign.retain(|t| !tasks.contains(t));
     }
@@ -464,7 +470,7 @@ mod tests {
         let t = task::task(101);
         core.add_task(t.clone());
         assert_eq!(core.get_task_by_id(101.into()).unwrap(), &t);
-        assert!(match core.remove_task(&mut t.get_mut()) {
+        assert!(match core.remove_task(101.into()) {
             TaskRuntimeState::Waiting(_) => true,
             _ => false,
         });

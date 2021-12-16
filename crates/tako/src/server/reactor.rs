@@ -26,7 +26,6 @@ pub fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
 
     comm.send_client_worker_new(worker.id, &worker.configuration);
 
-    /*comm.send_scheduler_message(ToSchedulerMessage::NewWorker(worker.make_sched_info()));*/
     comm.ask_for_scheduling();
     core.new_worker(worker);
 }
@@ -255,11 +254,11 @@ pub fn on_task_finished(
             }
         }
 
-        let mut task = task_ref.get_mut();
-        unregister_as_consumer(core, comm, &mut task);
-        remove_task_if_possible(core, comm, &mut task);
-
-        //self.notify_key_in_memory(&task_ref, notifications);
+        {
+            let mut task = task_ref.get_mut();
+            unregister_as_consumer(core, comm, &mut task);
+        }
+        remove_task_if_possible(core, comm, msg.id);
     } else {
         log::debug!("Unknown task finished id={}", msg.id);
     }
@@ -362,9 +361,12 @@ pub fn on_steal_response(
 
 pub fn on_reset_keep_flag(core: &mut Core, comm: &mut impl Comm, task_id: TaskId) {
     let task_ref = core.get_task_by_id_or_panic(task_id).clone();
-    let mut task = task_ref.get_mut();
-    task.set_keep_flag(false);
-    remove_task_if_possible(core, comm, &mut task);
+    let task_id = {
+        let mut task = task_ref.get_mut();
+        task.set_keep_flag(false);
+        task.id
+    };
+    remove_task_if_possible(core, comm, task_id);
 }
 
 pub fn on_set_keep_flag(core: &mut Core, task_id: TaskId) -> TaskRef {
@@ -411,6 +413,7 @@ pub fn on_task_error(
                 .collect()
         };
 
+        println!("Unregistering {}", &mut task_ref.get_mut().id);
         unregister_as_consumer(core, comm, &mut task_ref.get_mut());
 
         for task_ref in &task_refs {
@@ -421,21 +424,19 @@ pub fn on_task_error(
         }
 
         assert!(matches!(
-            core.remove_task(&mut task_ref.get_mut()),
+            core.remove_task(task_id),
             TaskRuntimeState::Assigned(_)
                 | TaskRuntimeState::Running(_)
                 | TaskRuntimeState::Stealing(_, _)
         ));
-        //comm.send_scheduler_message(ToSchedulerMessage::RemoveTask(task_ref.get().id));
 
         for task_ref in &task_refs {
             // We can drop the resulting state as checks was done earlier
-            let mut task = task_ref.get_mut();
+            let task_id = task_ref.get().id;
             assert!(matches!(
-                core.remove_task(&mut task),
+                core.remove_task(task_id),
                 TaskRuntimeState::Waiting(_)
             ));
-            //comm.send_scheduler_message(ToSchedulerMessage::RemoveTask(task.id));
         }
         comm.send_client_task_error(
             task_id,
@@ -460,37 +461,43 @@ pub fn on_cancel_tasks(
         log::debug!("Canceling task id={}", task_id);
         let tr: Option<TaskRef> = core.get_task_by_id(*task_id).cloned();
         if let Some(task_ref) = tr {
-            let mut task = task_ref.get_mut();
-            match task.state {
-                TaskRuntimeState::Waiting(_) => {
-                    task_refs.insert(task_ref.clone());
-                    task_refs.extend(task.collect_consumers(core.get_task_map()).into_iter());
-                }
-                TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
-                    task_refs.insert(task_ref.clone());
-                    task_refs.extend(task.collect_consumers(core.get_task_map()).into_iter());
-                    core.get_worker_mut_by_id_or_panic(w_id).remove_task(&task);
-                    running_ids.entry(w_id).or_default().push(*task_id);
-                }
-                TaskRuntimeState::Stealing(from_id, to_id) => {
-                    task_refs.insert(task_ref.clone());
-                    task_refs.extend(task.collect_consumers(core.get_task_map()).into_iter());
-                    if let Some(to_id) = to_id {
-                        core.get_worker_mut_by_id_or_panic(to_id).remove_task(&task);
+            let mut remove = false;
+            {
+                let mut task = task_ref.get_mut();
+                match task.state {
+                    TaskRuntimeState::Waiting(_) => {
+                        task_refs.insert(task_ref.clone());
+                        task_refs.extend(task.collect_consumers(core.get_task_map()).into_iter());
                     }
-                    running_ids.entry(from_id).or_default().push(*task_id);
-                }
-                TaskRuntimeState::Finished(_) => {
-                    if task.is_keeped() {
-                        task.set_keep_flag(false);
-                        remove_task_if_possible(core, comm, &mut task);
+                    TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
+                        task_refs.insert(task_ref.clone());
+                        task_refs.extend(task.collect_consumers(core.get_task_map()).into_iter());
+                        core.get_worker_mut_by_id_or_panic(w_id).remove_task(&task);
+                        running_ids.entry(w_id).or_default().push(*task_id);
                     }
-                    already_finished.push(*task_id);
-                }
-                TaskRuntimeState::Released => {
-                    unreachable!()
-                }
-            };
+                    TaskRuntimeState::Stealing(from_id, to_id) => {
+                        task_refs.insert(task_ref.clone());
+                        task_refs.extend(task.collect_consumers(core.get_task_map()).into_iter());
+                        if let Some(to_id) = to_id {
+                            core.get_worker_mut_by_id_or_panic(to_id).remove_task(&task);
+                        }
+                        running_ids.entry(from_id).or_default().push(*task_id);
+                    }
+                    TaskRuntimeState::Finished(_) => {
+                        if task.is_keeped() {
+                            task.set_keep_flag(false);
+                            remove = true;
+                        }
+                        already_finished.push(*task_id);
+                    }
+                    TaskRuntimeState::Released => {
+                        unreachable!()
+                    }
+                };
+            }
+            if remove {
+                remove_task_if_possible(core, comm, *task_id);
+            }
         } else {
             log::debug!("Task is not here");
             already_finished.push(*task_id);
@@ -563,29 +570,32 @@ pub fn on_tasks_transferred(
 
 fn unregister_as_consumer(core: &mut Core, comm: &mut impl Comm, task: &mut Task) {
     for ti in &task.inputs {
-        let t = core.get_task_by_id_or_panic(ti.task()).clone();
-        let mut t = t.get_mut();
-        assert!(t.remove_consumer(task.id));
-        remove_task_if_possible(core, comm, &mut t);
+        {
+            let mut input = core.get_task_map_mut().get_task_ref_mut(ti.task());
+            assert!(input.remove_consumer(task.id));
+        }
+        remove_task_if_possible(core, comm, ti.task());
     }
 }
 
-fn remove_task_if_possible(core: &mut Core, comm: &mut impl Comm, task: &mut Task) {
-    if task.is_removable() {
-        let ws = match core.remove_task(task) {
-            TaskRuntimeState::Finished(finfo) => finfo.placement,
-            _ => unreachable!(),
-        };
-        for worker_id in ws {
-            log::debug!(
-                "Task id={} is no longer needed, deleting from worker={}",
-                task.id,
-                worker_id
-            );
-            comm.send_worker_message(
-                worker_id,
-                &ToWorkerMessage::DeleteData(TaskIdMsg { id: task.id }),
-            );
-        }
+fn remove_task_if_possible(core: &mut Core, comm: &mut impl Comm, task_id: TaskId) {
+    if !core.get_task_map().get_task_ref(task_id).is_removable() {
+        return;
+    }
+
+    let ws = match core.remove_task(task_id) {
+        TaskRuntimeState::Finished(finfo) => finfo.placement,
+        _ => unreachable!(),
+    };
+    for worker_id in ws {
+        log::debug!(
+            "Task id={} is no longer needed, deleting from worker={}",
+            task_id,
+            worker_id
+        );
+        comm.send_worker_message(
+            worker_id,
+            &ToWorkerMessage::DeleteData(TaskIdMsg { id: task_id }),
+        );
     }
 }
