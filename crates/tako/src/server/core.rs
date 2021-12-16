@@ -343,9 +343,8 @@ impl Core {
             worker.sanity_check(&self.tasks);
         }
 
-        for (task_id, task_ref) in self.tasks.iter() {
-            let task = task_ref.get();
-            assert_eq!(task.id, *task_id);
+        for (task_id, task) in self.tasks.iter_tasks_with_ids() {
+            assert_eq!(task.id, task_id);
             match &task.state {
                 TaskRuntimeState::Waiting(winfo) => {
                     let mut count = 0;

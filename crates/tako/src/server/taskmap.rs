@@ -38,6 +38,11 @@ impl TaskMap {
     pub fn iter_tasks(&self) -> impl Iterator<Item = Ref<Task>> {
         self.tasks.values().map(|t| t.get())
     }
+
+    #[inline]
+    pub fn iter_tasks_with_ids(&self) -> impl Iterator<Item = (TaskId, Ref<Task>)> {
+        self.tasks.values().map(|t| (t.get().id, t.get()))
+    }
 }
 
 impl Deref for TaskMap {
