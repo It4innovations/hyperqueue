@@ -8,7 +8,7 @@ pub fn task_transfer_cost(taskmap: &TaskMap, task: &Task, worker_id: WorkerId) -
         .iter()
         .take(512)
         .map(|ti| {
-            let t = taskmap.get_task_ref(ti.task());
+            let t = taskmap.get_task(ti.task());
             let info = t.data_info().unwrap();
             if info.placement.contains(&worker_id) {
                 0u64

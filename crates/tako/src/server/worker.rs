@@ -81,7 +81,7 @@ impl Worker {
     pub fn sanity_check(&self, task_map: &TaskMap) {
         let mut check_load = WorkerLoad::new(&self.resources);
         for &task_id in &self.tasks {
-            let task = task_map.get_task_ref(task_id);
+            let task = task_map.get_task(task_id);
             check_load.add_request(&task.configuration.resources, &self.resources);
         }
         assert_eq!(self.load, check_load);

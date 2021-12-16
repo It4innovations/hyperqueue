@@ -66,15 +66,12 @@ fn test_no_deps_distribute() {
     finish_all(&mut core, m1, 100);
     finish_all(&mut core, m3, 102);
 
-    assert!(core.get_worker_by_id_or_panic(100.into()).is_underloaded());
-    assert!(!core.get_worker_by_id_or_panic(101.into()).is_underloaded());
-    assert!(core.get_worker_by_id_or_panic(102.into()).is_underloaded());
+    core.assert_underloaded(&[100, 102]);
+    core.assert_not_underloaded(&[101]);
 
     scheduler.run_scheduling(&mut core, &mut comm);
 
-    assert!(!core.get_worker_by_id_or_panic(100.into()).is_underloaded());
-    assert!(!core.get_worker_by_id_or_panic(101.into()).is_underloaded());
-    assert!(!core.get_worker_by_id_or_panic(102.into()).is_underloaded());
+    core.assert_not_underloaded(&[100, 101, 102]);
 
     // TODO: Finish stealing
 
@@ -106,9 +103,7 @@ fn test_no_deps_distribute() {
     assert!(n3.len() > 5);
     assert_eq!(n1.len() + n3.len(), stealing.len());
 
-    assert!(!core.get_worker_by_id_or_panic(100.into()).is_underloaded());
-    assert!(!core.get_worker_by_id_or_panic(101.into()).is_underloaded());
-    assert!(!core.get_worker_by_id_or_panic(102.into()).is_underloaded());
+    core.assert_not_underloaded(&[100, 101, 102]);
 
     comm.emptiness_check();
     core.sanity_check();
@@ -147,20 +142,8 @@ fn test_minimal_transfer_no_balance1() {
     comm.take_worker_msgs(100, 1);
     comm.take_worker_msgs(101, 1);
 
-    assert_eq!(
-        core.get_task_by_id_or_panic(13.into())
-            .get()
-            .get_assigned_worker()
-            .unwrap(),
-        WorkerId(100)
-    );
-    assert_eq!(
-        core.get_task_by_id_or_panic(14.into())
-            .get()
-            .get_assigned_worker()
-            .unwrap(),
-        WorkerId(101)
-    );
+    check_task_has_worker(&core, 13, 100);
+    check_task_has_worker(&core, 14, 101);
 
     comm.emptiness_check();
     core.sanity_check();
@@ -189,17 +172,11 @@ fn test_minimal_transfer_no_balance2() {
     comm.take_worker_msgs(101, 2);
 
     assert_eq!(
-        core.get_task_by_id_or_panic(13.into())
-            .get()
-            .get_assigned_worker()
-            .unwrap(),
+        core.get_task(13.into()).get_assigned_worker().unwrap(),
         WorkerId(101)
     );
     assert_eq!(
-        core.get_task_by_id_or_panic(14.into())
-            .get()
-            .get_assigned_worker()
-            .unwrap(),
+        core.get_task(14.into()).get_assigned_worker().unwrap(),
         WorkerId(101)
     );
 
@@ -233,20 +210,8 @@ fn test_minimal_transfer_after_balance() {
     comm.take_worker_msgs(100, 1);
     comm.take_worker_msgs(101, 1);
 
-    assert_eq!(
-        core.get_task_by_id_or_panic(13.into())
-            .get()
-            .get_assigned_worker()
-            .unwrap(),
-        WorkerId(100)
-    );
-    assert_eq!(
-        core.get_task_by_id_or_panic(14.into())
-            .get()
-            .get_assigned_worker()
-            .unwrap(),
-        WorkerId(101)
-    );
+    check_task_has_worker(&core, 13, 100);
+    check_task_has_worker(&core, 14, 101);
 
     comm.emptiness_check();
     core.sanity_check();
@@ -419,7 +384,6 @@ fn test_resources_no_workers1() {
     assert_eq!(s.len(), 2);
 }
 
-// TODO: flakiness introduced in commit "Remove TaskRef from scheduler `schedule_available_tasks`".
 #[test]
 fn test_resources_no_workers2() {
     fn check(task_cpu_counts: &[NumOfCpus]) {
@@ -703,5 +667,16 @@ fn test_generic_resource_balance2() {
             .tasks()
             .len(),
         2
+    );
+}
+
+fn check_task_has_worker<T: Into<TaskId>, W: Into<WorkerId>>(
+    core: &Core,
+    task_id: T,
+    worker_id: W,
+) {
+    assert_eq!(
+        core.get_task(task_id.into()).get_assigned_worker().unwrap(),
+        worker_id.into()
     );
 }

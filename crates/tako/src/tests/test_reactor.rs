@@ -16,7 +16,7 @@ use crate::server::reactor::{
     on_set_observe_flag, on_steal_response, on_task_error, on_task_finished, on_task_running,
     on_tasks_transferred,
 };
-use crate::server::task::{Task, TaskRef, TaskRuntimeState};
+use crate::server::task::{Task, TaskRuntimeState};
 use crate::server::worker::Worker;
 use crate::tests::utils::env::create_test_comm;
 use crate::tests::utils::schedule::{
@@ -118,34 +118,36 @@ fn test_submit_jobs() {
     comm.check_need_scheduling();
     comm.emptiness_check();
 
-    let t1 = core.get_task_by_id_or_panic(501.into()).clone();
-    let t2 = core.get_task_by_id_or_panic(502.into()).clone();
-    assert_eq!(t1.get().get_unfinished_deps(), 0);
-    assert_eq!(t2.get().get_unfinished_deps(), 1);
+    let t1 = core.get_task(501.into());
+    let t2 = core.get_task(502.into());
+    assert_eq!(t1.get_unfinished_deps(), 0);
+    assert_eq!(t2.get_unfinished_deps(), 1);
 
-    check_task_consumers_exact(&t1, &[&t2.get()]);
+    check_task_consumers_exact(&t1, &[t2]);
 
     let t3 = task(604);
-    let t4 = task_with_deps(602, &[&t1.get(), &t3], 1);
+    let t4 = task_with_deps(602, &[&t1, &t3], 1);
     let t5 = task_with_deps(603, &[&t3], 1);
-    let t6 = task_with_deps(601, &[&t3, &t4, &t5, &t2.get()], 1);
+    let t6 = task_with_deps(601, &[&t3, &t4, &t5, &t2], 1);
 
     on_new_tasks(&mut core, &mut comm, vec![t6, t3, t4, t5]);
     comm.check_need_scheduling();
     comm.emptiness_check();
 
-    let t4 = core.get_task_by_id_or_panic(602.into()).clone();
-    let t6 = core.get_task_by_id_or_panic(601.into()).clone();
+    let t1 = core.get_task(501.into());
+    let t2 = core.get_task(502.into());
+    let t4 = core.get_task(602.into());
+    let t6 = core.get_task(601.into());
 
-    check_task_consumers_exact(&t1, &[&t2.get(), &t4.get()]);
-    assert_eq!(t1.get().get_unfinished_deps(), 0);
+    check_task_consumers_exact(&t1, &[t2, t4]);
+    assert_eq!(t1.get_unfinished_deps(), 0);
 
-    check_task_consumers_exact(&t2, &[&t6.get()]);
+    check_task_consumers_exact(&t2, &[t6]);
 
-    assert_eq!(t1.get().get_unfinished_deps(), 0);
-    assert_eq!(t2.get().get_unfinished_deps(), 1);
-    assert_eq!(t4.get().get_unfinished_deps(), 2);
-    assert_eq!(t6.get().get_unfinished_deps(), 4);
+    assert_eq!(t1.get_unfinished_deps(), 0);
+    assert_eq!(t2.get_unfinished_deps(), 1);
+    assert_eq!(t4.get_unfinished_deps(), 2);
+    assert_eq!(t6.get_unfinished_deps(), 4);
 }
 
 #[test]
@@ -217,8 +219,7 @@ fn test_assignments_and_finish() {
     core.assert_assigned(&[id1, id2]);
     core.assert_waiting(&[id3, id7]);
 
-    let t5 = core.get_task_by_id_or_panic(15.into()).clone();
-    assert!(t5.get().is_assigned());
+    assert!(core.get_task(15.into()).is_assigned());
 
     // FINISH TASK WITHOUT CONSUMERS & KEEP FLAG
     on_task_finished(
@@ -231,7 +232,7 @@ fn test_assignments_and_finish() {
         },
     );
 
-    assert!(matches!(t5.get().state, TaskRuntimeState::Released));
+    assert!(core.find_task(15.into()).is_none());
     check_worker_tasks_exact(&core, 100, &[id1]);
     check_worker_tasks_exact(&core, 101, &[id2]);
     check_worker_tasks_exact(&core, 102, &[]);
@@ -246,11 +247,10 @@ fn test_assignments_and_finish() {
 
     comm.emptiness_check();
 
-    assert!(core.get_task_by_id(15.into()).is_none());
+    assert!(core.find_task(15.into()).is_none());
 
     // FINISHED TASK WITH CONSUMERS
-    let t2 = core.get_task_by_id_or_panic(12.into()).clone();
-    assert!(t2.get().is_assigned());
+    assert!(core.get_task(12.into()).is_assigned());
 
     on_task_finished(
         &mut core,
@@ -262,8 +262,7 @@ fn test_assignments_and_finish() {
         },
     );
 
-    assert!(t2.get().is_finished());
-    assert!(matches!(t5.get().state, TaskRuntimeState::Released));
+    assert!(core.get_task(12.into()).is_finished());
     check_worker_tasks_exact(&core, 100, &[id1]);
     check_worker_tasks_exact(&core, 101, &[]);
     check_worker_tasks_exact(&core, 102, &[]);
@@ -271,7 +270,7 @@ fn test_assignments_and_finish() {
     comm.check_need_scheduling();
     comm.emptiness_check();
 
-    assert!(core.get_task_by_id(12.into()).is_some());
+    assert!(core.find_task(12.into()).is_some());
 
     on_task_finished(
         &mut core,
@@ -284,7 +283,6 @@ fn test_assignments_and_finish() {
     );
 
     comm.check_need_scheduling();
-    //assert_eq!(comm.take_client_task_finished(1), vec![11]);
 
     force_assign(&mut core, &mut scheduler, 13, 101);
     scheduler.finish_scheduling(&mut core, &mut comm);
@@ -378,8 +376,8 @@ fn test_running_task_on_error() {
     assert_eq!(sorted_vec(cs), vec![15, 16, 17].to_ids());
     comm.emptiness_check();
 
-    assert!(core.get_task_by_id(16.into()).is_none());
-    assert!(core.get_task_by_id(15.into()).is_none());
+    assert!(core.find_task(16.into()).is_none());
+    assert!(core.find_task(15.into()).is_none());
     core.sanity_check();
 }
 
@@ -412,12 +410,7 @@ fn test_running_task_on_task_transferred() {
 
     comm.emptiness_check();
 
-    let ws = core
-        .get_task_by_id_or_panic(11.into())
-        .get()
-        .get_placement()
-        .unwrap()
-        .clone();
+    let ws = core.get_task(11.into()).get_placement().unwrap().clone();
     let mut set = Set::new();
     set.insert(WorkerId::new(100));
     set.insert(WorkerId::new(101));
@@ -605,8 +598,8 @@ fn test_task_cancel() {
         matches!(&msgs[1], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if sorted_vec(ids.clone()) == vec![12, 40].to_ids())
     );
 
-    assert_eq!(core.get_task_map().len(), 1);
-    assert!(core.get_task_by_id(42.into()).is_some());
+    assert_eq!(core.task_map().len(), 1);
+    assert!(core.find_task(42.into()).is_some());
 
     comm.check_need_scheduling();
     comm.emptiness_check();
@@ -832,10 +825,7 @@ fn lost_worker_with_running_and_assign_tasks() {
     start_stealing(&mut core, 41, 101);
 
     core.assert_running(&[12]);
-    assert_eq!(
-        core.get_task_by_id_or_panic(12.into()).get().instance_id,
-        0.into()
-    );
+    assert_eq!(core.get_task(12.into()).instance_id, 0.into());
 
     core.assert_task_condition(&[11, 12, 40, 41], |t| !t.is_fresh());
 
@@ -854,15 +844,12 @@ fn lost_worker_with_running_and_assign_tasks() {
 
     assert_eq!(core.take_ready_to_assign().len(), 3);
     core.assert_ready(&[11, 12]);
-    assert_eq!(
-        core.get_task_by_id_or_panic(12.into()).get().instance_id,
-        1.into()
-    );
-    assert!(core.get_task_by_id_or_panic(40.into()).get().is_ready());
+    assert_eq!(core.get_task(12.into()).instance_id, 1.into());
+    assert!(core.get_task(40.into()).is_ready());
     core.assert_ready(&[40]);
     core.assert_fresh(&[11, 12, 40]);
     assert!(matches!(
-        core.get_task_by_id_or_panic(41.into()).get().state,
+        core.get_task(41.into()).state,
         TaskRuntimeState::Stealing(WorkerId(100), None)
     ));
 
@@ -951,8 +938,7 @@ fn worker_has_task<T: Into<TaskId>>(core: &Core, worker_id: u32, task_id: T) -> 
         .contains(&task_id.into())
 }
 
-fn check_task_consumers_exact(task: &TaskRef, consumers: &[&Task]) {
-    let task = task.get();
+fn check_task_consumers_exact(task: &Task, consumers: &[&Task]) {
     let task_consumers = task.get_consumers();
 
     assert_eq!(task_consumers.len(), consumers.len());

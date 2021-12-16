@@ -103,7 +103,7 @@ where
     pub fn insert(&mut self, value: V) {
         let key = value.extract_key();
         let index = self.storage.insert(value);
-        self.map.insert(key, index);
+        assert!(self.map.insert(key, index).is_none());
     }
 
     #[inline]
@@ -129,6 +129,26 @@ where
                 Some(removed)
             }
         })
+    }
+
+    #[inline]
+    pub fn keys(&self) -> impl Iterator<Item = &K> {
+        self.map.keys()
+    }
+
+    #[inline]
+    pub fn values(&self) -> impl Iterator<Item = &V> {
+        self.storage.items.iter()
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

@@ -11,7 +11,7 @@ use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::gateway::ServerInfo;
 use crate::server::monitoring::EventStorage;
 use crate::server::rpc::ConnectionDescriptor;
-use crate::server::task::{Task, TaskRef, TaskRuntimeState};
+use crate::server::task::{Task, TaskRuntimeState};
 use crate::server::taskmap::TaskMap;
 use crate::server::worker::Worker;
 use crate::server::worker_load::WorkerResources;
@@ -104,7 +104,7 @@ impl Core {
                 && worker
                     .tasks()
                     .iter()
-                    .all(|&task_id| self.tasks.get_task_ref(task_id).is_running())
+                    .all(|&task_id| self.tasks.get_task(task_id).is_running())
             {
                 log::debug!("Parking worker {}", worker.id);
                 worker.set_parked_flag(true);
@@ -227,7 +227,7 @@ impl Core {
             self.add_ready_to_assign(task.id);
         }
         self.has_new_tasks = true;
-        assert!(self.tasks.insert(task.id, TaskRef::wrap(task)).is_none());
+        assert!(self.tasks.insert(task).is_none());
     }
 
     #[inline(never)]
@@ -254,6 +254,7 @@ impl Core {
         self.ready_to_assign.push(task_id);
     }
 
+    // TODO: move to TaskMap
     /// Removes a single task.
     /// It can still remain in [`ready_to_assign`], where it will remain until the scheduler picks
     /// it up.
@@ -262,12 +263,12 @@ impl Core {
         trace_task_remove(task_id);
 
         let state = {
-            let mut task = self.tasks.get_task_ref_mut(task_id);
+            let task = self.tasks.get_task_mut(task_id);
             assert!(!task.has_consumers());
             std::mem::replace(&mut task.state, TaskRuntimeState::Released)
         };
 
-        self.tasks.remove(&task_id);
+        self.tasks.remove(task_id);
         state
     }
 
@@ -280,35 +281,33 @@ impl Core {
     }
 
     #[inline]
-    pub fn get_tasks(&self) -> impl Iterator<Item = &TaskRef> {
-        self.tasks.values()
-    }
-
-    #[inline]
-    pub fn get_task_ids(&self) -> impl Iterator<Item = TaskId> + '_ {
-        self.tasks.values().map(|tref| tref.get().id)
-    }
-
-    #[inline]
-    pub fn get_task_map(&self) -> &TaskMap {
+    pub fn task_map(&self) -> &TaskMap {
         &self.tasks
     }
 
     #[inline]
-    pub fn get_task_map_mut(&mut self) -> &mut TaskMap {
+    pub fn task_map_mut(&mut self) -> &mut TaskMap {
         &mut self.tasks
     }
 
     #[inline]
-    pub fn get_task_by_id_or_panic(&self, id: TaskId) -> &TaskRef {
-        self.tasks.get(&id).unwrap_or_else(|| {
-            panic!("Asking for invalid task id={}", id);
-        })
+    pub fn get_task(&self, task_id: TaskId) -> &Task {
+        self.tasks.get_task(task_id)
     }
 
     #[inline]
-    pub fn get_task_by_id(&self, id: TaskId) -> Option<&TaskRef> {
-        self.tasks.get(&id)
+    pub fn get_task_mut(&mut self, task_id: TaskId) -> &mut Task {
+        self.tasks.get_task_mut(task_id)
+    }
+
+    #[inline]
+    pub fn find_task(&self, task_id: TaskId) -> Option<&Task> {
+        self.tasks.find_task(task_id)
+    }
+
+    #[inline]
+    pub fn find_task_mut(&mut self, task_id: TaskId) -> Option<&mut Task> {
+        self.tasks.find_task_mut(task_id)
     }
 
     pub fn custom_conn_handler(&self) -> &Option<CustomConnectionHandler> {
@@ -318,10 +317,10 @@ impl Core {
     pub fn sanity_check(&self) {
         let fw_check = |task: &Task| {
             for input in &task.inputs {
-                assert!(self.tasks.get_task_ref(input.task()).is_finished());
+                assert!(self.tasks.get_task(input.task()).is_finished());
             }
             for &task_id in task.get_consumers() {
-                assert!(self.tasks.get_task_ref(task_id).is_waiting());
+                assert!(self.tasks.get_task(task_id).is_waiting());
             }
         };
 
@@ -343,18 +342,19 @@ impl Core {
             worker.sanity_check(&self.tasks);
         }
 
-        for (task_id, task) in self.tasks.iter_tasks_with_ids() {
+        for task_id in self.tasks.task_ids() {
+            let task = self.get_task(task_id);
             assert_eq!(task.id, task_id);
             match &task.state {
                 TaskRuntimeState::Waiting(winfo) => {
                     let mut count = 0;
                     for ti in &task.inputs {
-                        if !self.tasks.get_task_ref(ti.task()).is_finished() {
+                        if !self.tasks.get_task(ti.task()).is_finished() {
                             count += 1;
                         }
                     }
                     for &task_id in task.get_consumers() {
-                        assert!(self.tasks.get_task_ref(task_id).is_waiting());
+                        assert!(self.tasks.get_task(task_id).is_waiting());
                     }
                     assert_eq!(winfo.unfinished_deps, count);
                     worker_check(self, task.id, 0.into());
@@ -363,19 +363,19 @@ impl Core {
 
                 TaskRuntimeState::Assigned(wid) | TaskRuntimeState::Running(wid) => {
                     assert!(!task.is_fresh());
-                    fw_check(&task);
+                    fw_check(task);
                     worker_check(self, task.id, *wid);
                 }
 
                 TaskRuntimeState::Stealing(_, target) => {
                     assert!(!task.is_fresh());
-                    fw_check(&task);
+                    fw_check(task);
                     worker_check(self, task.id, target.unwrap_or(WorkerId::new(0)));
                 }
 
                 TaskRuntimeState::Finished(_) => {
                     for ti in &task.inputs {
-                        assert!(self.tasks.get_task_ref(ti.task()).is_finished());
+                        assert!(self.tasks.get_task(ti.task()).is_finished());
                     }
                 }
 
@@ -429,9 +429,9 @@ mod tests {
     use crate::server::core::Core;
     use crate::server::task::Task;
     use crate::server::task::TaskRuntimeState;
+    use crate::server::worker::Worker;
     use crate::tests::utils::task;
-    use crate::TaskId;
-    use std::cell::Ref;
+    use crate::{TaskId, WorkerId};
 
     impl Core {
         pub fn get_read_to_assign(&self) -> &[TaskId] {
@@ -449,8 +449,21 @@ mod tests {
         ) {
             for task_id in task_ids {
                 let task_id: TaskId = task_id.clone().into();
-                if !op(&self.get_task_by_id_or_panic(task_id).get()) {
+                if !op(&self.get_task(task_id)) {
                     panic!("Task {} does not satisfy the condition", task_id);
+                }
+            }
+        }
+
+        pub fn assert_worker_condition<W: Copy + Into<WorkerId>, F: Fn(&Worker) -> bool>(
+            &self,
+            worker_ids: &[W],
+            op: F,
+        ) {
+            for worker_id in worker_ids {
+                let worker_id: WorkerId = worker_id.clone().into();
+                if !op(&self.get_worker_by_id_or_panic(worker_id)) {
+                    panic!("Worker {} does not satisfy the condition", worker_id);
                 }
             }
         }
@@ -479,8 +492,16 @@ mod tests {
             self.assert_task_condition(task_ids, |t| t.is_running());
         }
 
-        pub fn task<T: Into<TaskId>>(&self, id: T) -> Ref<Task> {
-            self.tasks.get_task_ref(id.into())
+        pub fn assert_underloaded<W: Copy + Into<WorkerId>>(&self, worker_ids: &[W]) {
+            self.assert_worker_condition(worker_ids, |w| w.is_underloaded());
+        }
+
+        pub fn assert_not_underloaded<W: Copy + Into<WorkerId>>(&self, worker_ids: &[W]) {
+            self.assert_worker_condition(worker_ids, |w| !w.is_underloaded());
+        }
+
+        pub fn task<T: Into<TaskId>>(&self, id: T) -> &Task {
+            self.tasks.get_task(id.into())
         }
     }
 
@@ -493,6 +514,6 @@ mod tests {
             TaskRuntimeState::Waiting(_) => true,
             _ => false,
         });
-        assert_eq!(core.get_task_by_id(101.into()), None);
+        assert_eq!(core.find_task(101.into()), None);
     }
 }

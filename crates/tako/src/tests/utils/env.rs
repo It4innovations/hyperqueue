@@ -8,7 +8,7 @@ use crate::scheduler::state::SchedulerState;
 use crate::server::comm::Comm;
 use crate::server::core::Core;
 use crate::server::reactor::on_new_worker;
-use crate::server::task::TaskRef;
+use crate::server::task::Task;
 use crate::server::worker::Worker;
 use crate::server::worker_load::WorkerLoad;
 use crate::tests::utils;
@@ -40,11 +40,11 @@ impl TestEnv {
         &mut self.core
     }
 
-    pub fn task(&self, task_id: TaskId) -> TaskRef {
-        self.core.get_task_by_id_or_panic(task_id).clone()
+    pub fn task(&self, task_id: TaskId) -> &Task {
+        self.core.get_task(task_id)
     }
 
-    pub fn new_task(&mut self, builder: TaskBuilder) -> TaskRef {
+    pub fn new_task(&mut self, builder: TaskBuilder) -> &Task {
         let task = builder.build();
         let task_id = task.id;
         schedule::submit_test_tasks(&mut self.core, vec![task]);
@@ -110,7 +110,7 @@ impl TestEnv {
         self.new_workers_ext(&defs);
     }
 
-    pub fn new_ready_tasks_cpus(&mut self, tasks: &[NumOfCpus]) -> Vec<TaskRef> {
+    pub fn new_ready_tasks_cpus(&mut self, tasks: &[NumOfCpus]) -> Vec<TaskId> {
         let tasks: Vec<_> = tasks
             .iter()
             .map(|n_cpus| {
@@ -124,9 +124,6 @@ impl TestEnv {
         let task_ids: Vec<_> = tasks.iter().map(|t| t.id).collect();
         schedule::submit_test_tasks(&mut self.core, tasks);
         task_ids
-            .into_iter()
-            .map(|task_id| self.task(task_id))
-            .collect()
     }
 
     pub fn _test_assign(&mut self, task_id: TaskId, worker_id: WorkerId) {
@@ -141,9 +138,8 @@ impl TestEnv {
     pub fn new_assigned_tasks_cpus(&mut self, tasks: &[&[NumOfCpus]]) {
         for (i, tdefs) in tasks.iter().enumerate() {
             let w_id = WorkerId::new(100 + i as u32);
-            let trs = self.new_ready_tasks_cpus(tdefs);
-            for tr in &trs {
-                let task_id = tr.get().id;
+            let task_ids = self.new_ready_tasks_cpus(tdefs);
+            for task_id in task_ids {
                 self._test_assign(task_id, w_id);
             }
         }
@@ -201,11 +197,7 @@ impl TestEnv {
                     .map(|&task_id| format!(
                         "{}:{:?}",
                         task_id,
-                        self.core
-                            .get_task_map()
-                            .get_task_ref(task_id)
-                            .configuration
-                            .resources
+                        self.core.get_task(task_id).configuration.resources
                     ))
                     .collect::<Vec<String>>()
                     .join(", ")
