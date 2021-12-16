@@ -129,14 +129,13 @@ impl TestEnv {
             .collect()
     }
 
-    pub fn _test_assign(&mut self, task_ref: &TaskRef, worker_id: WorkerId) {
-        self.scheduler
-            .test_assign(&mut self.core, &task_ref, worker_id);
-        self.core.remove_from_ready_to_assign(task_ref.get().id);
+    pub fn _test_assign(&mut self, task_id: TaskId, worker_id: WorkerId) {
+        self.scheduler.assign(&mut self.core, task_id, worker_id);
+        self.core.remove_from_ready_to_assign(task_id);
     }
 
     pub fn test_assign<T: Into<TaskId>, W: Into<WorkerId>>(&mut self, task_id: T, worker_id: W) {
-        self._test_assign(&self.task(task_id.into()), worker_id.into());
+        self._test_assign(task_id.into(), worker_id.into());
     }
 
     pub fn new_assigned_tasks_cpus(&mut self, tasks: &[&[NumOfCpus]]) {
@@ -144,7 +143,8 @@ impl TestEnv {
             let w_id = WorkerId::new(100 + i as u32);
             let trs = self.new_ready_tasks_cpus(tdefs);
             for tr in &trs {
-                self._test_assign(tr, w_id);
+                let task_id = tr.get().id;
+                self._test_assign(task_id, w_id);
             }
         }
     }
@@ -187,7 +187,7 @@ impl TestEnv {
 
     pub fn finish_scheduling(&mut self) {
         let mut comm = create_test_comm();
-        self.scheduler.finish_scheduling(&self.core, &mut comm);
+        self.scheduler.finish_scheduling(&mut self.core, &mut comm);
         self.core.sanity_check();
         println!("-------------");
         for worker in self.core.get_workers() {

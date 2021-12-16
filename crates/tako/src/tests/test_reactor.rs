@@ -181,7 +181,7 @@ fn test_assignments_and_finish() {
 
     core.assert_fresh(&[id1, id3]);
 
-    scheduler.finish_scheduling(&core, &mut comm);
+    scheduler.finish_scheduling(&mut core, &mut comm);
 
     core.assert_not_fresh(&[id1]);
     core.assert_fresh(&[id3]);
@@ -287,7 +287,7 @@ fn test_assignments_and_finish() {
     //assert_eq!(comm.take_client_task_finished(1), vec![11]);
 
     force_assign(&mut core, &mut scheduler, 13, 101);
-    scheduler.finish_scheduling(&core, &mut comm);
+    scheduler.finish_scheduling(&mut core, &mut comm);
 
     let msgs = comm.take_worker_msgs(101, 1);
     assert!(matches!(
@@ -443,7 +443,7 @@ fn test_steal_tasks_ok() {
     let mut scheduler = create_test_scheduler();
 
     force_reassign(&mut core, &mut scheduler, task_id, 100);
-    scheduler.finish_scheduling(&core, &mut comm);
+    scheduler.finish_scheduling(&mut core, &mut comm);
 
     assert!(!worker_has_task(&core, 101, task_id));
     assert!(worker_has_task(&core, 100, task_id));
@@ -492,7 +492,7 @@ fn test_steal_tasks_running() {
     let mut scheduler = create_test_scheduler();
 
     force_reassign(&mut core, &mut scheduler, 13, 100);
-    scheduler.finish_scheduling(&core, &mut comm);
+    scheduler.finish_scheduling(&mut core, &mut comm);
 
     let msgs = comm.take_worker_msgs(101, 1);
     assert!(matches!(&msgs[0], ToWorkerMessage::StealTasks(ids) if ids.ids == vec![13].to_ids()));
@@ -895,9 +895,7 @@ fn force_reassign<W: Into<WorkerId>, T: Into<TaskId>>(
     worker_id: W,
 ) {
     // The same as force_assign, but do not expect that task in ready_to_assign array
-    let task_ref = core.get_task_by_id_or_panic(task_id.into()).clone();
-    let mut task = task_ref.get_mut();
-    scheduler.assign(core, &mut task, task_ref.clone(), worker_id.into());
+    scheduler.assign(core, task_id.into(), worker_id.into());
 }
 
 fn fail_steal<W: Into<WorkerId>, T: Into<TaskId>>(

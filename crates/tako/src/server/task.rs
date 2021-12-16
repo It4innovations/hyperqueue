@@ -90,6 +90,7 @@ impl TaskInput {
     }
 }
 
+#[derive(Debug)]
 pub struct TaskConfiguration {
     pub resources: crate::common::resources::ResourceRequest,
     pub user_priority: Priority,

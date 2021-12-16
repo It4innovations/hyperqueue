@@ -213,7 +213,7 @@ impl Core {
     }
 
     #[inline]
-    pub fn get_worker_map(&self) -> &Map<WorkerId, Worker> {
+    pub fn get_worker_map(&self) -> &WorkerMap {
         &self.workers
     }
 
