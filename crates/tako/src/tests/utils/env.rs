@@ -22,7 +22,7 @@ use std::time::Duration;
 pub struct TestEnv {
     core: Core,
     scheduler: SchedulerState,
-    task_id_counter: u64,
+    pub task_id_counter: u64,
     worker_id_counter: u32,
 }
 

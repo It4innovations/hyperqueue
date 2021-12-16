@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate::common::resources::GenericResourceDescriptor;
+use crate::common::resources::{GenericResourceDescriptor, NumOfCpus};
 use crate::common::Set;
 use crate::messages::worker::{StealResponse, StealResponseMsg, ToWorkerMessage};
 use crate::server::core::Core;
@@ -422,26 +422,44 @@ fn test_resources_no_workers1() {
 
 #[test]
 fn test_resources_no_workers2() {
-    let mut rt = TestEnv::new();
-    rt.new_workers(&[8, 8, 8]);
+    fn check(task_cpu_counts: &[NumOfCpus]) {
+        println!("Checking order {:?}", task_cpu_counts);
 
-    rt.new_ready_tasks_cpus(&[9, 10, 11]);
-    rt.schedule();
-    assert_eq!(rt.worker_load(100).get_n_cpus(), 0);
-    assert_eq!(rt.worker_load(101).get_n_cpus(), 0);
-    assert_eq!(rt.worker_load(102).get_n_cpus(), 0);
+        let mut rt = TestEnv::new();
 
-    rt.new_workers(&[9, 10]);
-    rt.schedule();
-    assert_eq!(rt.worker_load(100).get_n_cpus(), 0);
-    assert_eq!(rt.worker_load(101).get_n_cpus(), 0);
-    assert_eq!(rt.worker_load(102).get_n_cpus(), 0);
-    assert_eq!(rt.worker(103).tasks().len(), 1);
-    assert_eq!(rt.worker(104).tasks().len(), 1);
+        let unschedulable_index = task_cpu_counts
+            .iter()
+            .position(|&count| count > 10)
+            .unwrap() as u64
+            + rt.task_id_counter;
 
-    let s = rt.core().take_sleeping_tasks();
-    assert_eq!(s.len(), 1);
-    assert_eq!(s[0].get().id, 12.into());
+        rt.new_workers(&[8, 8, 8]);
+
+        rt.new_ready_tasks_cpus(task_cpu_counts);
+        rt.schedule();
+        assert_eq!(rt.worker_load(100).get_n_cpus(), 0);
+        assert_eq!(rt.worker_load(101).get_n_cpus(), 0);
+        assert_eq!(rt.worker_load(102).get_n_cpus(), 0);
+
+        rt.new_workers(&[9, 10]);
+        rt.schedule();
+        assert_eq!(rt.worker_load(100).get_n_cpus(), 0);
+        assert_eq!(rt.worker_load(101).get_n_cpus(), 0);
+        assert_eq!(rt.worker_load(102).get_n_cpus(), 0);
+        assert_eq!(rt.worker(103).tasks().len(), 1);
+        assert_eq!(rt.worker(104).tasks().len(), 1);
+
+        let s = rt.core().take_sleeping_tasks();
+        assert_eq!(s.len(), 1);
+        assert_eq!(s[0].get().id, TaskId::new(unschedulable_index));
+    }
+
+    check(&[9, 10, 11]);
+    check(&[9, 11, 10]);
+    check(&[10, 9, 11]);
+    check(&[10, 11, 9]);
+    check(&[11, 9, 10]);
+    check(&[11, 10, 9]);
 }
 
 #[test]
