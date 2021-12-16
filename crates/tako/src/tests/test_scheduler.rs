@@ -419,6 +419,7 @@ fn test_resources_no_workers1() {
     assert_eq!(s.len(), 2);
 }
 
+// TODO: flakiness introduced in commit "Remove TaskRef from scheduler `schedule_available_tasks`".
 #[test]
 fn test_resources_no_workers2() {
     fn check(task_cpu_counts: &[NumOfCpus]) {

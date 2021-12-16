@@ -4,7 +4,7 @@ use crate::messages::worker::TaskFinishedMsg;
 use crate::scheduler::state::SchedulerState;
 use crate::server::core::Core;
 use crate::server::reactor::{on_new_tasks, on_new_worker, on_task_finished, on_task_running};
-use crate::server::task::{Task, TaskRef};
+use crate::server::task::Task;
 use crate::server::worker::Worker;
 use crate::tests::utils::env::TestComm;
 use crate::{TaskId, WorkerId};
@@ -44,9 +44,7 @@ pub(crate) fn force_assign<W: Into<WorkerId>, T: Into<TaskId>>(
 ) {
     let task_id = task_id.into();
     core.remove_from_ready_to_assign(task_id);
-    let task_ref = core.get_task_by_id_or_panic(task_id).clone();
-    let mut task = task_ref.get_mut();
-    scheduler.assign(core, &mut task, task_ref.clone(), worker_id.into());
+    scheduler.assign(core, task_id, worker_id.into());
 }
 
 pub fn start_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
@@ -108,11 +106,4 @@ pub fn start_and_finish_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
 
 pub(crate) fn create_test_scheduler() -> SchedulerState {
     SchedulerState::new()
-}
-
-impl SchedulerState {
-    pub(crate) fn test_assign(&mut self, core: &mut Core, task_ref: &TaskRef, worker_id: WorkerId) {
-        let mut task = task_ref.get_mut();
-        self.assign(core, &mut task, task_ref.clone(), worker_id);
-    }
 }
