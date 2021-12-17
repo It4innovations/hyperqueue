@@ -21,9 +21,10 @@ use serde_json::json;
 use std::path::Path;
 use std::time::Duration;
 use tako::common::resources::{
-    GenericResourceDescriptor, GenericResourceDescriptorKind, ResourceDescriptor,
+    CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, ResourceDescriptor,
 };
 use tako::messages::common::WorkerConfiguration;
+use tako::messages::gateway::ResourceRequest;
 
 #[derive(Default)]
 pub struct JsonOutput;
@@ -45,7 +46,6 @@ impl Output for JsonOutput {
         self.print(format_worker_info(worker_info));
     }
 
-    // Server
     fn print_server_record(&self, server_dir: &Path, record: &AccessRecord) {
         let json = json!({
             "server_dir": server_dir,
@@ -68,9 +68,8 @@ impl Output for JsonOutput {
         }))
     }
 
-    // Jobs
     fn print_job_list(&self, tasks: Vec<JobInfo>) {
-        self.print(json!(tasks));
+        self.print(tasks.into_iter().map(format_job_info).collect());
     }
     fn print_job_detail(&self, job: JobDetail, show_tasks: bool, worker_map: WorkerMap) {
         let worker = format_job_workers(&job, &worker_map);
@@ -150,6 +149,76 @@ impl Output for JsonOutput {
     }
 }
 
+fn format_job_info(info: JobInfo) -> serde_json::Value {
+    let JobInfo {
+        id,
+        name,
+        n_tasks,
+        counters,
+        resources:
+            ResourceRequest {
+                cpus,
+                generic,
+                min_time,
+            },
+    } = info;
+
+    json!({
+        "id": id,
+        "name": name,
+        "task_count": n_tasks,
+        "task_stats": json!({
+            "running": counters.n_running_tasks,
+            "finished": counters.n_finished_tasks,
+            "failed": counters.n_failed_tasks,
+            "canceled": counters.n_canceled_tasks,
+            "waiting": counters.n_waiting_tasks(n_tasks)
+        }),
+        "resources": json!({
+            "cpus": format_cpu_request(cpus),
+            "generic": generic,
+            "min_time": format_duration(min_time)
+        })
+    })
+}
+fn format_cpu_request(request: CpuRequest) -> serde_json::Value {
+    let cpus = &match request {
+        CpuRequest::Compact(count)
+        | CpuRequest::ForceCompact(count)
+        | CpuRequest::Scatter(count) => Some(count),
+        CpuRequest::All => None,
+    };
+    let name = match request {
+        CpuRequest::Compact(_) => "compact",
+        CpuRequest::ForceCompact(_) => "force-compact",
+        CpuRequest::Scatter(_) => "scatter",
+        CpuRequest::All => "all",
+    };
+    json!({
+        "type": name,
+        "cpus": cpus
+    })
+}
+
+fn format_queue_descriptor(descriptor: &QueueDescriptorData) -> serde_json::Value {
+    let manager = match descriptor.manager_type {
+        ManagerType::Pbs => "PBS",
+        ManagerType::Slurm => "Slurm",
+    };
+    let info = &descriptor.info;
+
+    json!({
+        "manager": manager,
+        "additional_args": info.additional_args(),
+        "backlog": info.backlog(),
+        "workers_per_alloc": info.workers_per_alloc(),
+        "timelimit": format_duration(info.timelimit()),
+        "max_worker_count": info.max_worker_count(),
+        "worker_cpu_args": info.worker_cpu_args(),
+        "worker_resource_args": info.worker_resource_args(),
+        "name": descriptor.name
+    })
+}
 fn format_allocation(allocation: Allocation) -> serde_json::Value {
     let Allocation {
         id,
@@ -187,7 +256,6 @@ fn format_allocation(allocation: Allocation) -> serde_json::Value {
         "workdir": working_dir
     })
 }
-
 fn format_allocation_event(event: AllocationEventHolder) -> serde_json::Value {
     let name = match &event.event {
         AllocationEvent::AllocationQueued(_) => "allocation-queued",
@@ -215,14 +283,6 @@ fn format_allocation_event(event: AllocationEventHolder) -> serde_json::Value {
         "date": format_datetime(event.date),
         "event": name,
         "params": params
-    })
-}
-
-fn format_resource_descriptor(descriptor: &ResourceDescriptor) -> serde_json::Value {
-    let ResourceDescriptor { cpus, generic } = descriptor;
-    json!({
-        "cpus": cpus,
-        "generic": generic.iter().map(format_generic_resource).collect::<Vec<_>>()
     })
 }
 
@@ -262,6 +322,13 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
         }))
     })
 }
+fn format_resource_descriptor(descriptor: &ResourceDescriptor) -> serde_json::Value {
+    let ResourceDescriptor { cpus, generic } = descriptor;
+    json!({
+        "cpus": cpus,
+        "generic": generic.iter().map(format_generic_resource).collect::<Vec<_>>()
+    })
+}
 fn format_generic_resource(resource: &GenericResourceDescriptor) -> serde_json::Value {
     json!({
         "name": resource.name,
@@ -278,26 +345,6 @@ fn format_generic_resource(resource: &GenericResourceDescriptor) -> serde_json::
                 "size": params.size
             }),
         }
-    })
-}
-
-fn format_queue_descriptor(descriptor: &QueueDescriptorData) -> serde_json::Value {
-    let manager = match descriptor.manager_type {
-        ManagerType::Pbs => "PBS",
-        ManagerType::Slurm => "Slurm",
-    };
-    let info = &descriptor.info;
-
-    json!({
-        "manager": manager,
-        "additional_args": info.additional_args(),
-        "backlog": info.backlog(),
-        "workers_per_alloc": info.workers_per_alloc(),
-        "timelimit": format_duration(info.timelimit()),
-        "max_worker_count": info.max_worker_count(),
-        "worker_cpu_args": info.worker_cpu_args(),
-        "worker_resource_args": info.worker_resource_args(),
-        "name": descriptor.name
     })
 }
 

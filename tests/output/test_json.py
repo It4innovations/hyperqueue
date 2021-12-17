@@ -78,8 +78,22 @@ def test_print_job_list(hq_env: HqEnv):
     hq_env.start_worker()
     hq_env.command(["submit", "echo", "tt"])
     output = parse_json_output(hq_env, ["--output-type=json", "jobs"])
-    assert isinstance(output, list)
-    assert isinstance(output[0], dict)
+
+    schema = Schema([{
+        "id": 1,
+        "name": "echo",
+        "resources": {
+            "cpus": {
+                "cpus": 1,
+                "type": "compact"
+            },
+            "generic": [],
+            "min_time": 0.0
+        },
+        "task_count": 1,
+        "task_stats": {"canceled": 0, "failed": 0, "finished": 1, "running": 0, "waiting": 0}
+    }])
+    schema.validate(output)
 
 
 def test_print_job_detail(hq_env: HqEnv):
