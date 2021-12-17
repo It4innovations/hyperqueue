@@ -59,7 +59,7 @@ def test_print_server_record(hq_env: HqEnv):
             "server_dir": hq_env.server_dir,
             "start_date": str,
             "version": str,
-            "worker_port": int
+            "worker_port": int,
         }
     )
     schema.validate(output)
@@ -79,51 +79,74 @@ def test_print_job_list(hq_env: HqEnv):
     hq_env.command(["submit", "echo", "tt"])
     output = parse_json_output(hq_env, ["--output-type=json", "jobs"])
 
-    schema = Schema([{
-        "id": 1,
-        "name": "echo",
-        "resources": {
-            "cpus": {
-                "cpus": 1,
-                "type": "compact"
-            },
-            "generic": [],
-            "min_time": 0.0
-        },
-        "task_count": 1,
-        "task_stats": {"canceled": 0, "failed": 0, "finished": 1, "running": 0, "waiting": 0}
-    }])
+    schema = Schema(
+        [
+            {
+                "id": 1,
+                "name": "echo",
+                "resources": {
+                    "cpus": {"cpus": 1, "type": "compact"},
+                    "generic": [],
+                    "min_time": 0.0,
+                },
+                "task_count": 1,
+                "task_stats": {
+                    "canceled": 0,
+                    "failed": 0,
+                    "finished": 1,
+                    "running": 0,
+                    "waiting": 0,
+                },
+            }
+        ]
+    )
     schema.validate(output)
 
 
 def test_print_job_detail(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["submit", "echo", "tt"])
-    tasks, job_detail = parse_json_output(hq_env, ["--output-type=json", "job", "1"])
-    assert isinstance(tasks, dict)
-    assert isinstance(job_detail, dict)
-    assert job_detail["job_detail"]["job_type"] == "Simple"
-    assert tasks["tasks_id"] == [0]
+    output = parse_json_output(hq_env, ["--output-type=json", "job", "1"])
 
-
-def test_print_job_tasks(hq_env: HqEnv):
-    hq_env.start_server()
-    hq_env.command(["submit", "echo", "tt", "--array=1-10"])
-    tasks, job_detail = parse_json_output(
-        hq_env, ["--output-type=json", "job", "1", "--tasks"]
+    schema = Schema(
+        {
+            "info": {
+                "id": 1,
+                "name": "echo",
+                "resources": dict,
+                "task_count": 1,
+                "task_stats": dict,
+            },
+            "finished_at": None,
+            "max_fails": None,
+            "pin": False,
+            "priority": 0,
+            "program": {
+                "args": ["echo", "tt"],
+                "env": {},
+                "cwd": str,
+                "stdout": dict,
+                "stderr": dict,
+            },
+            "started_at": str,
+            "time_limit": None,
+        }
     )
-    assert isinstance(tasks, dict)
-    for key in tasks:
-        if isinstance(tasks[key], list):
-            assert len(tasks[key]) == 10
+    schema.validate(output)
+
+
+def test_print_job_with_tasks(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "echo", "tt", "--array=1-4"])
+    output = parse_json_output(hq_env, ["--output-type=json", "job", "1", "--tasks"])
+
+    schema = Schema([{"id": id, "state": "waiting"} for id in range(1, 5)])
+    schema.validate(output["tasks"])
 
 
 def test_print_hw(hq_env: HqEnv):
     hq_env.start_server()
     output = parse_json_output(hq_env, ["--output-type=json", "worker", "hwdetect"])
 
-    schema = Schema({
-        "cpus": [[int]],
-        "generic": list
-    })
+    schema = Schema({"cpus": [[int]], "generic": list})
     schema.validate(output)

@@ -87,6 +87,10 @@ impl JobTaskCounters {
     pub fn has_unsuccessful_tasks(&self) -> bool {
         self.n_failed_tasks > 0 || self.n_canceled_tasks > 0
     }
+
+    pub fn is_terminated(&self, n_tasks: JobTaskCount) -> bool {
+        self.n_running_tasks == 0 && self.n_waiting_tasks(n_tasks) == 0
+    }
 }
 
 pub struct Job {
@@ -223,7 +227,7 @@ impl Job {
     }
 
     pub fn is_terminated(&self) -> bool {
-        self.counters.n_running_tasks == 0 && self.counters.n_waiting_tasks(self.n_tasks()) == 0
+        self.counters.is_terminated(self.n_tasks())
     }
 
     pub fn get_task_state_mut(
