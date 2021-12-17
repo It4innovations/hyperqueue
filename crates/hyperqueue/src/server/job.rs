@@ -182,7 +182,6 @@ impl Job {
             info: self.make_job_info(),
             job_type: self.job_type.clone(),
             program_def: self.program_def.clone(),
-            resources: self.resources.clone(),
             tasks: if include_tasks {
                 match &self.state {
                     JobState::SingleTask(s) => {
@@ -206,14 +205,6 @@ impl Job {
     }
 
     pub fn make_job_info(&self) -> JobInfo {
-        /*let error = match &self.state {
-            JobState::Waiting => (JobStatus::Waiting, None),
-            JobState::Finished => (JobStatus::Finished, None),
-            JobState::Failed(e) => (JobStatus::Failed, Some(e.clone())),
-            JobState::Running => (JobStatus::Running, None),
-            JobState::Canceled => (JobStatus::Canceled, None),
-        };*/
-
         JobInfo {
             id: self.job_id,
             name: self.name.clone(),

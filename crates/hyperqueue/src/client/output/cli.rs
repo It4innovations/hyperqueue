@@ -305,7 +305,7 @@ impl Output for CliOutput {
             format_job_workers(&job, &worker_map).cell(),
         ]);
 
-        let resources = format_resource_request(&job.resources);
+        let resources = format_resource_request(&job.info.resources);
         rows.push(vec![
             "Resources".cell().bold(true),
             if job.pin {
