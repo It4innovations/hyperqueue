@@ -2,9 +2,10 @@ use super::macros::wait_for_msg;
 use crate::common::{Map, Set};
 use crate::messages::common::TaskFailInfo;
 use crate::messages::gateway::{
-    CancelTasks, CancelTasksResponse, CollectedOverview, FromGatewayMessage, OverviewRequest,
-    TaskState, ToGatewayMessage,
+    CancelTasks, CancelTasksResponse, CollectedOverview, FromGatewayMessage,
+    MonitoringEventRequest, OverviewRequest, TaskState, ToGatewayMessage,
 };
+use crate::server::monitoring::MonitoringEvent;
 use crate::tests::integration::utils::server::ServerHandle;
 use crate::TaskId;
 
@@ -16,6 +17,19 @@ pub async fn get_overview(handler: &mut ServerHandle) -> CollectedOverview {
         }))
         .await;
     wait_for_msg!(handler, ToGatewayMessage::Overview(overview) => overview)
+}
+
+// Worker events
+pub async fn get_events_after(
+    after_id: Option<u32>,
+    handler: &mut ServerHandle,
+) -> Vec<MonitoringEvent> {
+    handler
+        .send(FromGatewayMessage::GetMonitoringEvents(
+            MonitoringEventRequest { after_id },
+        ))
+        .await;
+    wait_for_msg!(handler, ToGatewayMessage::MonitoringEvents(events) => events)
 }
 
 // Waiting for tasks
