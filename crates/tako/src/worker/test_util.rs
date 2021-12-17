@@ -40,8 +40,7 @@ impl ResourceQueueBuilder {
 
     pub fn add_task(&mut self, task: Task) {
         self.queue.add_task(&task);
-        let id = task.id;
-        self.task_map.insert(id, task);
+        self.task_map.insert(task);
     }
 
     pub fn start_tasks(&mut self) -> Map<u64, ResourceAllocation> {

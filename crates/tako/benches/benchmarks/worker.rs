@@ -188,7 +188,7 @@ fn bench_resource_queue_release_allocation(c: &mut BenchmarkGroup<WallTime>) {
                 queue.add_task(&task);
 
                 let mut map = TaskMap::default();
-                map.insert(0.into(), task);
+                map.insert(task);
 
                 let mut started = queue.try_start_tasks(&map, None);
                 (queue, Some(started.pop().unwrap().1))
@@ -222,7 +222,7 @@ fn bench_resource_queue_start_tasks(c: &mut BenchmarkGroup<WallTime>) {
                                 .into(),
                             );
                             queue.add_task(&task);
-                            map.insert(id.into(), task);
+                            map.insert(task);
                         }
 
                         (queue, map)
