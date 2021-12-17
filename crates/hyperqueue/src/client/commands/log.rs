@@ -73,7 +73,7 @@ impl FromStr for Channel {
     }
 }
 
-pub fn command_log(gsettings: GlobalSettings, opts: LogOpts) -> anyhow::Result<()> {
+pub fn command_log(gsettings: &GlobalSettings, opts: LogOpts) -> anyhow::Result<()> {
     let mut log_file = LogFile::open(&opts.filename)?;
     match opts.command {
         LogCommand::Summary(_) => {

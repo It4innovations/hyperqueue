@@ -14,6 +14,7 @@ use crate::transfer::messages::{
     WaitForJobsResponse, WorkerInfo,
 };
 use crate::JobTaskId;
+use anyhow::Error;
 use chrono::{DateTime, Utc};
 use serde_json;
 use serde_json::json;
@@ -36,9 +37,6 @@ impl JsonOutput {
     }
 }
 
-// TODO: output machine-readable data
-// hq jobs, hq submit, hq cancel,
-// time in UTC
 impl Output for JsonOutput {
     fn print_worker_list(&self, workers: Vec<WorkerInfo>) {
         self.print(workers.into_iter().map(format_worker_info).collect());
@@ -145,6 +143,10 @@ impl Output for JsonOutput {
 
     fn print_hw(&self, descriptor: &ResourceDescriptor) {
         self.print(format_resource_descriptor(descriptor));
+    }
+
+    fn print_error(&self, error: Error) {
+        self.print(json!({ "error": format!("{:?}", error) }))
     }
 }
 

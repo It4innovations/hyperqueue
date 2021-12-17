@@ -152,13 +152,13 @@ impl FromStr for AllocationStateFilter {
 }
 
 pub async fn command_autoalloc(
-    gsettings: GlobalSettings,
+    gsettings: &GlobalSettings,
     opts: AutoAllocOpts,
 ) -> anyhow::Result<()> {
     match opts.subcmd {
         AutoAllocCommand::List => {
             let connection = get_client_connection(gsettings.server_directory()).await?;
-            print_allocation_queues(&gsettings, connection).await?;
+            print_allocation_queues(gsettings, connection).await?;
         }
         AutoAllocCommand::Add(opts) => {
             let connection = get_client_connection(gsettings.server_directory()).await?;
@@ -166,11 +166,11 @@ pub async fn command_autoalloc(
         }
         AutoAllocCommand::Events(opts) => {
             let connection = get_client_connection(gsettings.server_directory()).await?;
-            print_event_log(&gsettings, connection, opts).await?;
+            print_event_log(gsettings, connection, opts).await?;
         }
         AutoAllocCommand::Info(opts) => {
             let connection = get_client_connection(gsettings.server_directory()).await?;
-            print_allocations(&gsettings, connection, opts).await?;
+            print_allocations(gsettings, connection, opts).await?;
         }
         AutoAllocCommand::Remove(opts) => {
             let connection = get_client_connection(gsettings.server_directory()).await?;

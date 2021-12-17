@@ -33,6 +33,7 @@ use tako::messages::common::StdioDef;
 
 use crate::common::strutils::pluralize;
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
+use anyhow::Error;
 use colored::Color as Colorization;
 use colored::Colorize;
 use std::collections::BTreeSet;
@@ -650,6 +651,10 @@ impl Output for CliOutput {
     fn print_hw(&self, descriptor: &ResourceDescriptor) {
         println!("Summary: {}", descriptor.summary(true));
         println!("Cpu Ids: {}", descriptor.full_describe());
+    }
+
+    fn print_error(&self, error: Error) {
+        eprintln!("{:?}", error);
     }
 }
 
