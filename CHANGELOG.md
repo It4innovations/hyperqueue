@@ -1,6 +1,8 @@
-# DEV
+# v0.7.0
 
 ## Fixes
+
+  * Fixes an invalid behvaior of the scheduler when resources are defined
 
   * The automatic allocator will no longer keep submitting allocations in situations where the created
     workers would not be able to execute currently waiting tasks. Currently, this situation is detected
