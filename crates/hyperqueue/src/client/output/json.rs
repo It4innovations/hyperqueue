@@ -1,30 +1,30 @@
+use std::path::Path;
+use std::time::Duration;
+
+use anyhow::Error;
+use chrono::{DateTime, Utc};
+use serde_json;
+use serde_json::json;
+
+use tako::common::resources::{
+    CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, ResourceDescriptor,
+};
+use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
+use tako::messages::gateway::ResourceRequest;
+
 use crate::client::job::WorkerMap;
-use crate::client::output::cli::{format_job_workers, format_task_duration};
 use crate::client::output::outputs::Output;
-use crate::client::status::{task_status, Status};
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::AccessRecord;
 use crate::server::autoalloc::{
     Allocation, AllocationEvent, AllocationEventHolder, AllocationStatus,
 };
-use crate::server::job::{JobTaskCounters, JobTaskInfo};
+use crate::server::job::JobTaskState;
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, QueueDescriptorData, StatsResponse,
     WaitForJobsResponse, WorkerInfo,
 };
-use crate::JobTaskId;
-use anyhow::Error;
-use chrono::{DateTime, Utc};
-use serde_json;
-use serde_json::json;
-use std::path::Path;
-use std::time::Duration;
-use tako::common::resources::{
-    CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, ResourceDescriptor,
-};
-use tako::messages::common::WorkerConfiguration;
-use tako::messages::gateway::ResourceRequest;
 
 #[derive(Default)]
 pub struct JsonOutput;
@@ -71,50 +71,113 @@ impl Output for JsonOutput {
     fn print_job_list(&self, tasks: Vec<JobInfo>) {
         self.print(tasks.into_iter().map(format_job_info).collect());
     }
-    fn print_job_detail(&self, job: JobDetail, show_tasks: bool, worker_map: WorkerMap) {
-        let worker = format_job_workers(&job, &worker_map);
-        let json = json!({
-            "job_detail": job,
-            "worker": worker,
+    fn print_job_detail(&self, job: JobDetail, show_tasks: bool, _worker_map: WorkerMap) {
+        let JobDetail {
+            info,
+            job_type: _,
+            program_def:
+                ProgramDefinition {
+                    args,
+                    env,
+                    stdout,
+                    stderr,
+                    cwd,
+                },
+            tasks,
+            pin,
+            max_fails,
+            priority,
+            time_limit,
+            submission_date,
+            completion_date_or_now,
+        } = job;
+
+        let finished_at = if info.counters.is_terminated(info.n_tasks) {
+            Some(completion_date_or_now)
+        } else {
+            None
+        };
+
+        let mut json = json!({
+            "info": format_job_info(info),
+            "program": json!({
+                "args": args.into_iter().map(|args| args.to_string()).collect::<Vec<_>>(),
+                "env": env,
+                "cwd": cwd,
+                "stderr": stderr,
+                "stdout": stdout,
+            }),
+            "pin": pin,
+            "max_fails": max_fails,
+            "priority": priority,
+            "time_limit": time_limit.map(format_duration),
+            "started_at": format_datetime(submission_date),
+            "finished_at": finished_at.map(format_datetime)
         });
-        if !job.tasks.is_empty() {
-            self.print_job_tasks(
-                job.completion_date_or_now,
-                job.tasks,
-                show_tasks,
-                &job.info.counters,
-                &worker_map,
-            );
+        if show_tasks {
+            json["tasks"] = tasks
+                .into_iter()
+                .map(|task| {
+                    let state = &match task.state {
+                        JobTaskState::Waiting => "waiting",
+                        JobTaskState::Running { .. } => "running",
+                        JobTaskState::Finished { .. } => "finished",
+                        JobTaskState::Failed { .. } => "failed",
+                        JobTaskState::Canceled => "canceled",
+                    };
+                    let mut data = json!({
+                        "id": task.task_id,
+                        "state": state,
+                    });
+                    match task.state {
+                        JobTaskState::Running { start_date, worker } => {
+                            data["worker"] = worker.as_num().into();
+                            data["started_at"] = format_datetime(start_date)
+                        }
+                        JobTaskState::Finished {
+                            start_date,
+                            worker,
+                            end_date,
+                        } => {
+                            data["worker"] = worker.as_num().into();
+                            data["started_at"] = format_datetime(start_date);
+                            data["finished_at"] = format_datetime(end_date);
+                        }
+                        JobTaskState::Failed {
+                            start_date,
+                            end_date,
+                            worker,
+                            error,
+                        } => {
+                            data["worker"] = worker.as_num().into();
+                            data["started_at"] = format_datetime(start_date);
+                            data["finished_at"] = format_datetime(end_date);
+                            data["error"] = error.into();
+                        }
+                        _ => {}
+                    };
+                    data
+                })
+                .collect();
         }
         self.print(json);
     }
 
-    fn print_job_tasks(
-        &self,
-        completion_date_or_now: chrono::DateTime<chrono::Utc>,
-        mut tasks: Vec<JobTaskInfo>,
-        _show_tasks: bool,
-        counters: &JobTaskCounters,
-        worker_map: &WorkerMap,
-    ) {
-        tasks.sort_unstable_by_key(|t| t.task_id);
-
-        let output_tasks_duration: Vec<String> = tasks
-            .iter()
-            .map(|t| format_task_duration(&completion_date_or_now, &t.state))
-            .collect();
-        let tasks_id: Vec<JobTaskId> = tasks.iter().map(|t| t.task_id).collect();
-        let tasks_state: Vec<Status> = tasks.iter().map(|t| task_status(&t.state)).collect();
-        let json = json!({
-            "tasks_state": tasks_state,
-            "tasks_duration": output_tasks_duration,
-            "tasks_id": tasks_id,
-            "counters": counters,
-            "worker": worker_map,
-        });
-        self.print(json);
+    fn print_job_wait(&self, duration: Duration, response: &WaitForJobsResponse) {
+        let WaitForJobsResponse {
+            finished,
+            failed,
+            canceled,
+            invalid,
+        } = response;
+        self.print(json!({
+            "duration": format_duration(duration),
+            "finished": finished,
+            "failed": failed,
+            "canceled": canceled,
+            "invalid": invalid,
+        }))
     }
-    fn print_job_wait(&self, _duration: Duration, _response: &WaitForJobsResponse) {}
 
     fn print_summary(&self, filename: &Path, summary: Summary) {
         let json = json!({

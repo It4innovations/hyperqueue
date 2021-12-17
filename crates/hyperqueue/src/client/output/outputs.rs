@@ -5,7 +5,6 @@ use crate::transfer::messages::{
 
 use crate::client::job::WorkerMap;
 use crate::server::autoalloc::{Allocation, AllocationEventHolder};
-use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::stream::reader::logfile::Summary;
 use std::path::Path;
 use std::str::FromStr;
@@ -47,14 +46,6 @@ pub trait Output {
     fn print_job_submitted(&self, job: JobDetail);
     fn print_job_list(&self, tasks: Vec<JobInfo>);
     fn print_job_detail(&self, job: JobDetail, show_tasks: bool, worker_map: WorkerMap);
-    fn print_job_tasks(
-        &self,
-        completion_date_or_now: chrono::DateTime<chrono::Utc>,
-        tasks: Vec<JobTaskInfo>,
-        show_tasks: bool,
-        counters: &JobTaskCounters,
-        worker_map: &WorkerMap,
-    );
     fn print_job_wait(&self, duration: Duration, response: &WaitForJobsResponse);
 
     // Log

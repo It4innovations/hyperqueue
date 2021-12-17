@@ -66,6 +66,83 @@ impl CliOutput {
             log::error!("Cannot print table to stdout: {:?}", e);
         }
     }
+
+    fn print_job_tasks(
+        &self,
+        completion_date_or_now: DateTime<Utc>,
+        mut tasks: Vec<JobTaskInfo>,
+        show_tasks: bool,
+        counters: &JobTaskCounters,
+        worker_map: &WorkerMap,
+    ) {
+        tasks.sort_unstable_by_key(|t| t.task_id);
+        let make_error_row = |t: &JobTaskInfo| match &t.state {
+            JobTaskState::Failed { worker, error, .. } => Some(vec![
+                t.task_id.cell(),
+                format_worker(*worker, worker_map).cell(),
+                error.to_owned().cell().foreground_color(Some(Color::Red)),
+            ]),
+            _ => None,
+        };
+
+        if show_tasks {
+            let rows: Vec<_> = tasks
+                .iter()
+                .map(|t| {
+                    vec![
+                        t.task_id.cell(),
+                        task_status_to_cell(task_status(&t.state)),
+                        match t.state.get_worker() {
+                            Some(worker) => format_worker(worker, worker_map),
+                            _ => "",
+                        }
+                        .cell(),
+                        format_task_duration(&completion_date_or_now, &t.state).cell(),
+                        match &t.state {
+                            JobTaskState::Failed { error, .. } => {
+                                error.to_owned().cell().foreground_color(Some(Color::Red))
+                            }
+                            _ => "".cell(),
+                        },
+                    ]
+                })
+                .collect();
+            let table = rows.table().title(vec![
+                "Task Id".cell().bold(true),
+                "State".cell().bold(true),
+                "Worker".cell().bold(true),
+                "Time".cell().bold(true),
+                "Message".cell().bold(true),
+            ]);
+            self.print_table(table);
+        } else {
+            const SHOWN_TASKS: usize = 5;
+            let fail_rows: Vec<_> = tasks
+                .iter()
+                .filter_map(make_error_row)
+                .take(SHOWN_TASKS)
+                .collect();
+
+            if !fail_rows.is_empty() {
+                let count = fail_rows.len() as JobTaskCount;
+                let table = fail_rows.table().title(vec![
+                    "Task Id".cell().bold(true),
+                    "Worker".cell().bold(true),
+                    "Error".cell().bold(true),
+                ]);
+                self.print_table(table);
+
+                if count < counters.n_failed_tasks {
+                    println!(
+                        "{} tasks failed. ({} shown)",
+                        counters.n_failed_tasks, count
+                    );
+                } else {
+                    println!("{} tasks failed.", counters.n_failed_tasks);
+                }
+            }
+        }
+    }
 }
 
 impl Output for CliOutput {
@@ -389,83 +466,6 @@ impl Output for CliOutput {
                 &job.info.counters,
                 &worker_map,
             );
-        }
-    }
-
-    fn print_job_tasks(
-        &self,
-        completion_date_or_now: DateTime<Utc>,
-        mut tasks: Vec<JobTaskInfo>,
-        show_tasks: bool,
-        counters: &JobTaskCounters,
-        worker_map: &WorkerMap,
-    ) {
-        tasks.sort_unstable_by_key(|t| t.task_id);
-        let make_error_row = |t: &JobTaskInfo| match &t.state {
-            JobTaskState::Failed { worker, error, .. } => Some(vec![
-                t.task_id.cell(),
-                format_worker(*worker, worker_map).cell(),
-                error.to_owned().cell().foreground_color(Some(Color::Red)),
-            ]),
-            _ => None,
-        };
-
-        if show_tasks {
-            let rows: Vec<_> = tasks
-                .iter()
-                .map(|t| {
-                    vec![
-                        t.task_id.cell(),
-                        task_status_to_cell(task_status(&t.state)),
-                        match t.state.get_worker() {
-                            Some(worker) => format_worker(worker, worker_map),
-                            _ => "",
-                        }
-                        .cell(),
-                        format_task_duration(&completion_date_or_now, &t.state).cell(),
-                        match &t.state {
-                            JobTaskState::Failed { error, .. } => {
-                                error.to_owned().cell().foreground_color(Some(Color::Red))
-                            }
-                            _ => "".cell(),
-                        },
-                    ]
-                })
-                .collect();
-            let table = rows.table().title(vec![
-                "Task Id".cell().bold(true),
-                "State".cell().bold(true),
-                "Worker".cell().bold(true),
-                "Time".cell().bold(true),
-                "Message".cell().bold(true),
-            ]);
-            self.print_table(table);
-        } else {
-            const SHOWN_TASKS: usize = 5;
-            let fail_rows: Vec<_> = tasks
-                .iter()
-                .filter_map(make_error_row)
-                .take(SHOWN_TASKS)
-                .collect();
-
-            if !fail_rows.is_empty() {
-                let count = fail_rows.len() as JobTaskCount;
-                let table = fail_rows.table().title(vec![
-                    "Task Id".cell().bold(true),
-                    "Worker".cell().bold(true),
-                    "Error".cell().bold(true),
-                ]);
-                self.print_table(table);
-
-                if count < counters.n_failed_tasks {
-                    println!(
-                        "{} tasks failed. ({} shown)",
-                        counters.n_failed_tasks, count
-                    );
-                } else {
-                    println!("{} tasks failed.", counters.n_failed_tasks);
-                }
-            }
         }
     }
 
