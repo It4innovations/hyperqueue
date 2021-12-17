@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import typer
+
 from src.benchmark.identifier import BenchmarkDescriptor
 from src.benchmark_defs import create_basic_hq_benchmarks
 from src.build.hq import BuildConfig, iterate_binaries
@@ -16,6 +17,7 @@ from src.environment.hq import HqClusterInfo, HqWorkerConfig
 from src.environment.snake import SnakeEnvironmentDescriptor
 from src.utils.benchmark import run_benchmarks_with_postprocessing
 from src.workloads import Workload
+from src.workloads.write import WriteHQ, WriteSnake
 from src.workloads.sleep import SleepHQ, SleepSnake
 
 app = typer.Typer()
@@ -86,6 +88,40 @@ def sleep():
         ],
     )
 
+    run_benchmarks_with_postprocessing(workdir, descriptions)
+
+
+@app.command()
+def write():
+    """
+    Compare the sleep benchmarks between various tools.
+    """
+    hq_path = list(iterate_binaries([BuildConfig()]))[0].binary_path
+    workdir = Path("benchmark/write")
+
+    task_counts = (10, 100, 1000)
+    descriptions = []
+
+    def add_product(
+        workloads: List[Workload], environments: List[EnvironmentDescriptor]
+    ):
+        for (env, workload) in itertools.product(environments, workloads):
+            descriptions.append(
+                BenchmarkDescriptor(env_descriptor=env, workload=workload)
+            )
+
+    add_product([WriteSnake(tc) for tc in task_counts], [SnakeEnvironmentDescriptor()])
+    add_product(
+        [WriteHQ(tc) for tc in task_counts],
+        [
+            HqClusterInfo(
+                cluster=ClusterInfo(monitor_nodes=True, node_list=Local()),
+                environment_params=dict(worker_count=1),
+                workers=[HqWorkerConfig()],
+                binary=hq_path,
+            )
+        ],
+    )
     run_benchmarks_with_postprocessing(workdir, descriptions)
 
 

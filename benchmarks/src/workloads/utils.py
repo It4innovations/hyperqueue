@@ -14,6 +14,8 @@ def measure_hq_tasks(
     command: List[str],
     task_count: int,
     cpus_per_task=1,
+    stdout=False,
+    stderr=False,
     resources: Optional[Dict[str, int]] = None,
 ) -> WorkloadExecutionResult:
     assert isinstance(env, HqEnvironment)
@@ -22,14 +24,16 @@ def measure_hq_tasks(
         "submit",
         "--array",
         f"1-{task_count}",
-        "--stdout",
-        "none",
-        "--stderr",
-        "none",
         "--wait",
         "--cpus",
         str(cpus_per_task),
     ]
+
+    if not stdout:
+        print('hahahahahaaahhhhhhhhh')
+        args += ["--stdout", "none"]
+    if not stderr:
+        args += ["--stderr", "none"]
 
     resources = resources or {}
     for (name, amount) in resources.items():
