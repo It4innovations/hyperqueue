@@ -124,16 +124,24 @@ def test_worker_list_resources(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus="10")
     hq_env.start_worker(cpus="4x5")
+    hq_env.start_worker(cpus="[[100, 200, 300], [400, 500, 600]]")
+    hq_env.start_worker(cpus="[[0, 1], [2], [10, 11, 12]]")
 
-    wait_for_worker_state(hq_env, [1, 2], "RUNNING")
+    wait_for_worker_state(hq_env, [1, 2, 3, 4], "RUNNING")
 
     table = list_all_workers(hq_env)
-    assert len(table) == 3
+    assert len(table) == 5
     table.check_columns_value(
         ["Id", "State", "Resources"], 0, ["1", "RUNNING", "1x10 cpus"]
     )
     table.check_columns_value(
         ["Id", "State", "Resources"], 1, ["2", "RUNNING", "4x5 cpus"]
+    )
+    table.check_columns_value(
+        ["Id", "State", "Resources"], 2, ["3", "RUNNING", "2x3 cpus"]
+    )
+    table.check_columns_value(
+        ["Id", "State", "Resources"], 3, ["4", "RUNNING", "1x1 1x2 1x3 cpus"]
     )
 
 

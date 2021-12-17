@@ -122,3 +122,7 @@ If automatic detection fails, or you want to manually configure set a CPU config
 - Automatic detection of CPUs but ignores HyperThreading
   (it will detect only the first virtual core of each physical core)
   ``$ hq worker start --cpus="no-ht"``
+
+- Manually specify that worker should use the following core ids and how they are organized into sockets.
+  In this example, two sockets are defined, one with 3 cores and one with 2 cores.
+  ``$ hq worker start --cpus=[[2, 3, 4], [10, 14]]``

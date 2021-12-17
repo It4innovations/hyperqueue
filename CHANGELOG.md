@@ -32,6 +32,9 @@
 ### Resource management
 * Workers can be now started with the parameter `--cpus="no-ht"`. When detecting CPUs in this mode,
   HyperThreading will be ignored (for each physical core only the first HT virtual core will be chosen).
+* The user may explicitly specify what CPU IDs should be used by a worker
+  (including arrangement of IDs into sockets).
+  (E.g. ``hq worker start --cpus=[[0, 1], [6, 8]]``)
 
 ### CLI
 * Improve error messages printed when an invalid CLI parameter is entered.
