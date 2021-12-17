@@ -240,7 +240,6 @@ pub struct JobDetail {
     pub job_type: JobType,
     pub program_def: ProgramDefinition,
     pub tasks: Vec<JobTaskInfo>,
-    pub resources: ResourceRequest,
     pub pin: bool,
     pub max_fails: Option<JobTaskCount>,
     pub priority: tako::Priority,
