@@ -67,4 +67,6 @@ pub trait Output {
 
     // Hw
     fn print_hw(&self, descriptor: &ResourceDescriptor);
+
+    fn print_error(&self, error: anyhow::Error);
 }

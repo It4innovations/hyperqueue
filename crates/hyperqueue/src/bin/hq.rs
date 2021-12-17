@@ -278,7 +278,7 @@ struct CancelOpts {
 
 // Commands
 async fn command_server_start(
-    gsettings: GlobalSettings,
+    gsettings: &GlobalSettings,
     opts: ServerStartOpts,
 ) -> anyhow::Result<()> {
     let server_cfg = ServerConfig {
@@ -292,11 +292,11 @@ async fn command_server_start(
         event_store_size: opts.event_store_size,
     };
 
-    init_hq_server(&gsettings, server_cfg).await
+    init_hq_server(gsettings, server_cfg).await
 }
 
 async fn command_server_stop(
-    gsettings: GlobalSettings,
+    gsettings: &GlobalSettings,
     _opts: ServerStopOpts,
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
@@ -305,23 +305,23 @@ async fn command_server_stop(
 }
 
 async fn command_server_info(
-    gsettings: GlobalSettings,
+    gsettings: &GlobalSettings,
     opts: ServerInfoOpts,
 ) -> anyhow::Result<()> {
     if opts.stats {
         let mut connection = get_client_connection(gsettings.server_directory()).await?;
-        print_server_stats(&gsettings, &mut connection).await
+        print_server_stats(gsettings, &mut connection).await
     } else {
-        print_server_info(&gsettings).await
+        print_server_info(gsettings).await
     }
 }
 
-async fn command_job_list(gsettings: GlobalSettings, opts: JobListOpts) -> anyhow::Result<()> {
+async fn command_job_list(gsettings: &GlobalSettings, opts: JobListOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    output_job_list(&gsettings, &mut connection, opts.job_filters).await
+    output_job_list(gsettings, &mut connection, opts.job_filters).await
 }
 
-async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> anyhow::Result<()> {
+async fn command_job_detail(gsettings: &GlobalSettings, opts: JobDetailOpts) -> anyhow::Result<()> {
     if matches!(opts.selector_arg, SelectorArg::All) {
         log::warn!("Job detail doesn't support the `all` selector, did you mean to use `hq jobs`?");
         return Ok(());
@@ -329,7 +329,7 @@ async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> a
 
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
     output_job_detail(
-        &gsettings,
+        gsettings,
         &mut connection,
         opts.selector_arg.into(),
         opts.tasks,
@@ -337,47 +337,44 @@ async fn command_job_detail(gsettings: GlobalSettings, opts: JobDetailOpts) -> a
     .await
 }
 
-async fn command_submit(gsettings: GlobalSettings, opts: SubmitOpts) -> anyhow::Result<()> {
+async fn command_submit(gsettings: &GlobalSettings, opts: SubmitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    submit_computation(&gsettings, &mut connection, opts).await
+    submit_computation(gsettings, &mut connection, opts).await
 }
 
-async fn command_cancel(gsettings: GlobalSettings, opts: CancelOpts) -> anyhow::Result<()> {
+async fn command_cancel(gsettings: &GlobalSettings, opts: CancelOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
-
-    cancel_job(&gsettings, &mut connection, opts.selector_arg.into()).await
+    cancel_job(gsettings, &mut connection, opts.selector_arg.into()).await
 }
 
 async fn command_worker_start(
-    gsettings: GlobalSettings,
+    gsettings: &GlobalSettings,
     opts: WorkerStartOpts,
 ) -> anyhow::Result<()> {
-    start_hq_worker(&gsettings, opts).await
+    start_hq_worker(gsettings, opts).await
 }
 
 async fn command_worker_stop(
-    gsettings: GlobalSettings,
+    gsettings: &GlobalSettings,
     opts: WorkerStopOpts,
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
-
     stop_worker(&mut connection, opts.selector_arg.into()).await?;
     Ok(())
 }
 
 async fn command_worker_list(
-    gsettings: GlobalSettings,
+    gsettings: &GlobalSettings,
     opts: WorkerListOpts,
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
-
     let workers = get_worker_list(&mut connection, opts.all).await?;
     gsettings.printer().print_worker_list(workers);
     Ok(())
 }
 
 async fn command_worker_info(
-    gsettings: GlobalSettings,
+    gsettings: &GlobalSettings,
     opts: WorkerInfoOpts,
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
@@ -391,12 +388,12 @@ async fn command_worker_info(
     Ok(())
 }
 
-async fn command_resubmit(gsettings: GlobalSettings, opts: ResubmitOpts) -> anyhow::Result<()> {
+async fn command_resubmit(gsettings: &GlobalSettings, opts: ResubmitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    resubmit_computation(&gsettings, &mut connection, opts).await
+    resubmit_computation(gsettings, &mut connection, opts).await
 }
 
-fn command_worker_hwdetect(gsettings: GlobalSettings, opts: HwDetectOpts) -> anyhow::Result<()> {
+fn command_worker_hwdetect(gsettings: &GlobalSettings, opts: HwDetectOpts) -> anyhow::Result<()> {
     let cpus = if opts.no_hyperthreading {
         detect_cpus_no_ht()?
     } else {
@@ -410,7 +407,7 @@ fn command_worker_hwdetect(gsettings: GlobalSettings, opts: HwDetectOpts) -> any
 }
 
 async fn command_worker_address(
-    gsettings: GlobalSettings,
+    gsettings: &GlobalSettings,
     opts: WorkerAddressOpts,
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
@@ -424,13 +421,12 @@ async fn command_worker_address(
     Ok(())
 }
 
-async fn command_wait(gsettings: GlobalSettings, opts: WaitOpts) -> anyhow::Result<()> {
+async fn command_wait(gsettings: &GlobalSettings, opts: WaitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
-
-    wait_for_jobs(&gsettings, &mut connection, opts.selector_arg.into()).await
+    wait_for_jobs(gsettings, &mut connection, opts.selector_arg.into()).await
 }
 
-async fn command_progress(gsettings: GlobalSettings, opts: ProgressOpts) -> anyhow::Result<()> {
+async fn command_progress(gsettings: &GlobalSettings, opts: ProgressOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
     let selector = opts.selector_arg.into();
     let response = hyperqueue::rpc_call!(
@@ -446,10 +442,10 @@ async fn command_progress(gsettings: GlobalSettings, opts: ProgressOpts) -> anyh
 
 ///Starts the hq Dashboard
 async fn command_dashboard_start(
-    gsettings: GlobalSettings,
+    gsettings: &GlobalSettings,
     _opts: DashboardOpts,
 ) -> anyhow::Result<()> {
-    start_ui_loop(DashboardState::default(), &gsettings).await?;
+    start_ui_loop(DashboardState::default(), gsettings).await?;
     Ok(())
 }
 
@@ -527,45 +523,46 @@ async fn main() -> hyperqueue::Result<()> {
     let result = match top_opts.subcmd {
         SubCommand::Server(ServerOpts {
             subcmd: ServerCommand::Start(opts),
-        }) => command_server_start(gsettings, opts).await,
+        }) => command_server_start(&gsettings, opts).await,
         SubCommand::Server(ServerOpts {
             subcmd: ServerCommand::Stop(opts),
-        }) => command_server_stop(gsettings, opts).await,
+        }) => command_server_stop(&gsettings, opts).await,
         SubCommand::Server(ServerOpts {
             subcmd: ServerCommand::Info(opts),
-        }) => command_server_info(gsettings, opts).await,
+        }) => command_server_info(&gsettings, opts).await,
 
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Start(opts),
-        }) => command_worker_start(gsettings, opts).await,
+        }) => command_worker_start(&gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Stop(opts),
-        }) => command_worker_stop(gsettings, opts).await,
+        }) => command_worker_stop(&gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::List(opts),
-        }) => command_worker_list(gsettings, opts).await,
+        }) => command_worker_list(&gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Info(opts),
-        }) => command_worker_info(gsettings, opts).await,
+        }) => command_worker_info(&gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::HwDetect(opts),
-        }) => command_worker_hwdetect(gsettings, opts),
+        }) => command_worker_hwdetect(&gsettings, opts),
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Address(opts),
-        }) => command_worker_address(gsettings, opts).await,
-        SubCommand::Jobs(opts) => command_job_list(gsettings, opts).await,
-        SubCommand::Job(opts) => command_job_detail(gsettings, opts).await,
-        SubCommand::Submit(opts) => command_submit(gsettings, opts).await,
-        SubCommand::Cancel(opts) => command_cancel(gsettings, opts).await,
-        SubCommand::Resubmit(opts) => command_resubmit(gsettings, opts).await,
-        SubCommand::Dashboard(opts) => command_dashboard_start(gsettings, opts).await,
-        SubCommand::Wait(opts) => command_wait(gsettings, opts).await,
-        SubCommand::Progress(opts) => command_progress(gsettings, opts).await,
-        SubCommand::Log(opts) => command_log(gsettings, opts),
-        SubCommand::AutoAlloc(opts) => command_autoalloc(gsettings, opts).await,
+        }) => command_worker_address(&gsettings, opts).await,
+        SubCommand::Jobs(opts) => command_job_list(&gsettings, opts).await,
+        SubCommand::Job(opts) => command_job_detail(&gsettings, opts).await,
+        SubCommand::Submit(opts) => command_submit(&gsettings, opts).await,
+        SubCommand::Cancel(opts) => command_cancel(&gsettings, opts).await,
+        SubCommand::Resubmit(opts) => command_resubmit(&gsettings, opts).await,
+        SubCommand::Dashboard(opts) => command_dashboard_start(&gsettings, opts).await,
+        SubCommand::Wait(opts) => command_wait(&gsettings, opts).await,
+        SubCommand::Progress(opts) => command_progress(&gsettings, opts).await,
+        SubCommand::Log(opts) => command_log(&gsettings, opts),
+        SubCommand::AutoAlloc(opts) => command_autoalloc(&gsettings, opts).await,
     };
+
     if let Err(e) = result {
-        eprintln!("{:?}", e);
+        gsettings.printer().print_error(e);
         std::process::exit(1);
     }
 

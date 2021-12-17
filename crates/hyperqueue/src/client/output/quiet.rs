@@ -9,6 +9,7 @@ use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, LostWorkerReasonInfo, StatsResponse,
     WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
 };
+use anyhow::Error;
 use std::path::Path;
 use std::time::Duration;
 use tako::common::resources::ResourceDescriptor;
@@ -99,4 +100,8 @@ impl Output for Quiet {
 
     // Hw
     fn print_hw(&self, _descriptor: &ResourceDescriptor) {}
+
+    fn print_error(&self, error: Error) {
+        eprintln!("{:?}", error);
+    }
 }
