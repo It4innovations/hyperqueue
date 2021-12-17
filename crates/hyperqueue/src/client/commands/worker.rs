@@ -123,9 +123,11 @@ pub async fn start_hq_worker(
     )
     .await?;
 
-    gsettings
-        .printer()
-        .print_worker_info(worker_id, configuration);
+    gsettings.printer().print_worker_info(WorkerInfo {
+        id: worker_id,
+        configuration,
+        ended: None,
+    });
     let local_set = LocalSet::new();
     local_set
         .run_until(async move {

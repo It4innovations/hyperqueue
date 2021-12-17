@@ -29,7 +29,7 @@ use std::path::Path;
 use std::time::SystemTime;
 
 use tako::common::resources::{CpuRequest, ResourceDescriptor};
-use tako::messages::common::{StdioDef, WorkerConfiguration};
+use tako::messages::common::StdioDef;
 
 use crate::common::strutils::pluralize;
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
@@ -122,10 +122,16 @@ impl Output for CliOutput {
         self.print_table(table);
     }
 
-    fn print_worker_info(&self, worker_id: WorkerId, configuration: WorkerConfiguration) {
+    fn print_worker_info(&self, worker_info: WorkerInfo) {
+        let WorkerInfo {
+            id,
+            configuration,
+            ended: _ended,
+        } = worker_info;
+
         let manager_info = configuration.get_manager_info();
         let rows = vec![
-            vec!["Worker ID".cell().bold(true), worker_id.cell()],
+            vec!["Worker ID".cell().bold(true), id.cell()],
             vec!["Hostname".cell().bold(true), configuration.hostname.cell()],
             vec![
                 "Data provider".cell().bold(true),
