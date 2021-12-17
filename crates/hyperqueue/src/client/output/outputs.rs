@@ -7,14 +7,11 @@ use crate::client::job::WorkerMap;
 use crate::server::autoalloc::{Allocation, AllocationEventHolder};
 use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::stream::reader::logfile::Summary;
-use crate::WorkerId;
-
 use std::path::Path;
 use std::str::FromStr;
 
 use core::time::Duration;
 use tako::common::resources::ResourceDescriptor;
-use tako::messages::common::WorkerConfiguration;
 
 pub const MAX_DISPLAYED_WORKERS: usize = 2;
 
@@ -40,7 +37,7 @@ impl FromStr for Outputs {
 pub trait Output {
     // Workers
     fn print_worker_list(&self, workers: Vec<WorkerInfo>);
-    fn print_worker_info(&self, worker_id: WorkerId, configuration: WorkerConfiguration);
+    fn print_worker_info(&self, worker_info: WorkerInfo);
 
     // Server
     fn print_server_record(&self, server_dir: &Path, record: &AccessRecord);

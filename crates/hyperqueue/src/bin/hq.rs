@@ -384,9 +384,7 @@ async fn command_worker_info(
     let response = get_worker_info(&mut connection, opts.worker_id).await?;
 
     if let Some(worker) = response {
-        gsettings
-            .printer()
-            .print_worker_info(opts.worker_id, worker.configuration);
+        gsettings.printer().print_worker_info(worker);
     } else {
         log::error!("Worker {} not found", opts.worker_id);
     }

@@ -9,11 +9,9 @@ use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, LostWorkerReasonInfo, StatsResponse,
     WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
 };
-use crate::WorkerId;
 use std::path::Path;
 use std::time::Duration;
 use tako::common::resources::ResourceDescriptor;
-use tako::messages::common::WorkerConfiguration;
 
 fn to_str(stat: &Status) -> anyhow::Result<&str> {
     Ok(match stat {
@@ -54,7 +52,7 @@ impl Output for Quiet {
             println!("{} {}", worker.id, worker_status)
         }
     }
-    fn print_worker_info(&self, _worker_id: WorkerId, _configuration: WorkerConfiguration) {}
+    fn print_worker_info(&self, _worker_info: WorkerInfo) {}
 
     // Server
     fn print_server_record(&self, server_dir: &Path, _record: &AccessRecord) {
