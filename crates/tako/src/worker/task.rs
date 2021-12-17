@@ -1,4 +1,5 @@
 use crate::common::resources::ResourceAllocation;
+use crate::common::stablemap::ExtractKey;
 use crate::common::WrappedRcRefCell;
 use crate::messages::worker::ComputeTaskMsg;
 use crate::worker::data::DataObjectRef;
@@ -27,13 +28,12 @@ pub struct Task {
 
 impl Task {
     pub fn new(message: ComputeTaskMsg) -> Self {
-        Task {
+        Self {
             id: message.id,
             priority: (message.user_priority, message.scheduler_priority),
             state: TaskState::Waiting(0),
             deps: Default::default(),
             instance_id: message.instance_id,
-
             resources: message.resources,
             time_limit: message.time_limit,
             n_outputs: message.n_outputs,
@@ -118,5 +118,12 @@ impl TaskRef {
             n_outputs: message.n_outputs,
             body: message.body,
         })
+    }
+}
+
+impl ExtractKey<TaskId> for Task {
+    #[inline]
+    fn extract_key(&self) -> TaskId {
+        self.id
     }
 }
