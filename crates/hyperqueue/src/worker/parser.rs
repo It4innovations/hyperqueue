@@ -1,8 +1,9 @@
 use crate::arg_wrapper;
 use crate::common::parser::{consume_all, p_u32, p_u64, NomResult};
 use nom::branch::alt;
-use nom::character::complete::{alphanumeric1, char, multispace0};
+use nom::character::complete::{alphanumeric1, char, multispace0, space0};
 use nom::combinator::{map, opt};
+use nom::multi::separated_list1;
 use nom::sequence::{delimited, preceded, separated_pair, tuple};
 use nom::Parser;
 use nom_supreme::tag::complete::tag;
@@ -11,16 +12,36 @@ use tako::common::resources::descriptor::{
     cpu_descriptor_from_socket_size, GenericResourceDescriptorKind, GenericResourceKindIndices,
     GenericResourceKindSum,
 };
-use tako::common::resources::{CpusDescriptor, GenericResourceDescriptor};
+use tako::common::resources::{CpuId, CpusDescriptor, GenericResourceDescriptor};
 
-fn p_cpu_definition(input: &str) -> NomResult<CpusDescriptor> {
+fn p_cpu_list(input: &str) -> NomResult<Vec<CpuId>> {
+    delimited(
+        tuple((char('['), space0)),
+        separated_list1(tuple((char(','), space0)), map(p_u32, |x| x.into())),
+        tuple((space0, char(']'))),
+    )(input)
+}
+
+fn p_cpu_socket_list(input: &str) -> NomResult<CpusDescriptor> {
+    delimited(
+        tuple((char('['), space0)),
+        separated_list1(tuple((char(','), space0)), p_cpu_list),
+        tuple((space0, char(']'))),
+    )(input)
+}
+
+fn p_cpu_simple(input: &str) -> NomResult<CpusDescriptor> {
     map(
-        tuple((p_u32, opt(preceded(tag("x"), p_u32)))),
+        tuple((p_u32, opt(preceded(char('x'), p_u32)))),
         |r| match r {
             (c1, None) => cpu_descriptor_from_socket_size(1, c1),
             (c1, Some(c2)) => cpu_descriptor_from_socket_size(c1, c2),
         },
     )(input)
+}
+
+fn p_cpu_definition(input: &str) -> NomResult<CpusDescriptor> {
+    alt((p_cpu_simple, p_cpu_socket_list))(input)
 }
 
 #[derive(Debug)]
@@ -114,10 +135,22 @@ mod test {
             CpuDefinition::Custom(vec![vec![0, 1, 2].to_ids(), vec![3, 4, 5].to_ids()]),
         );
         assert_eq!(
+            parse_cpu_definition("[[5, 7, 123]]").unwrap(),
+            CpuDefinition::Custom(vec![vec![5, 7, 123].to_ids()]),
+        );
+        assert_eq!(
+            parse_cpu_definition("[[0], [7], [123, 200]]").unwrap(),
+            CpuDefinition::Custom(vec![
+                vec![0].to_ids(),
+                vec![7].to_ids(),
+                vec![123, 200].to_ids()
+            ]),
+        );
+        assert_eq!(
             parse_cpu_definition("no-ht").unwrap(),
             CpuDefinition::DetectNoHyperThreading,
         );
-        assert_eq!(parse_cpu_definition("auto").unwrap(), CpuDefinition::Detect,);
+        assert_eq!(parse_cpu_definition("auto").unwrap(), CpuDefinition::Detect);
     }
 
     #[test]
@@ -125,8 +158,7 @@ mod test {
         check_parse_error(
             p_cpu_definition,
             "x",
-            r#"Parse error
-expected integer at character 0: "x""#,
+            "Parse error\nexpected one of the following 2 variants:\n  expected integer at character 0: \"x\"\n  or\n  expected \"[\" at character 0: \"x\"",
         );
     }
 
