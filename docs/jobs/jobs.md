@@ -149,7 +149,7 @@ You can specify two time-related parameters when submitting a job. They will be 
 
         Workers with an unknown remaining lifetime will be able to execute any task, disregarding its time request.
 
-[^2]: You can use various [shortcuts](../tips/cli-shortcuts.md#duration) for the duration value.
+[^2]: You can use various [shortcuts](../cli/shortcuts.md#duration) for the duration value.
 
 Here is an example situation where time limit and time request can be used:
 
@@ -207,7 +207,7 @@ can query the state of a job with the following commands[^1]:
     $ hq job --tasks <job-id>
     ```
 
-[^1]: You can use various [shortcuts](../tips/cli-shortcuts.md#id-selector) to select multiple jobs at once.
+[^1]: You can use various [shortcuts](../cli/shortcuts.md#id-selector) to select multiple jobs at once.
 
 ### Task state
 Each task starts in the `Waiting` state and can end up in one of the terminal states: `Finished`, `Failed`

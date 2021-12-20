@@ -36,7 +36,7 @@ that can be accessed through the `HQ_TASK_ID` [environment variable](jobs.md#env
 You can enter the range as two unsigned numbers separated by a dash[^2], where the first number should be smaller than
 the second one. The range is inclusive.
 
-[^2]: The full syntax can be seen in the second selector of the [ID selector shortcut](../tips/cli-shortcuts.md).
+[^2]: The full syntax can be seen in the second selector of the [ID selector shortcut](../cli/shortcuts.md).
 
 The range is entered using the `--array` option:
 

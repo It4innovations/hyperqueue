@@ -25,8 +25,9 @@ nav:
     - Generic Resources: jobs/gresources.md
     - Handling Failure: jobs/failure.md
     - Output Streaming: jobs/streaming.md
-  - Tips:
-    - CLI Shortcuts: tips/cli-shortcuts.md
+  - CLI:
+    - Shortcuts: cli/shortcuts.md
+    - Output mode: cli/output-mode.md
   - FAQ: faq.md
   - Comparison With Other Tools: other-tools.md
 

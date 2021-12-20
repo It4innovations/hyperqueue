@@ -79,7 +79,7 @@ If you have started a worker manually, and you want to stop it, you can use the 
 $ hq worker stop <selector>
 ```
 
-[^2]: You can use various [shortcuts](../tips/cli-shortcuts.md#id-selector) to select multiple workers at once.
+[^2]: You can use various [shortcuts](../cli/shortcuts.md#id-selector) to select multiple workers at once.
 
 ## Time limit
 HyperQueue workers are designed to be volatile, i.e. it is expected that they will be stopped from time to time, because
@@ -92,7 +92,7 @@ When a worker is started inside a PBS or Slurm job, it will automatically calcul
 metadata. If you want to set time limit manually for workers started outside of PBS/Slurm jobs or if you want to
 override the detected settings, you can use the `--time-limit=<DURATION>` option[^1] when starting the worker.
 
-[^1]: You can use various [shortcuts](../tips/cli-shortcuts.md#duration) for the duration value.
+[^1]: You can use various [shortcuts](../cli/shortcuts.md#duration) for the duration value.
 
 When the time limit is reached, the worker is automatically terminated.
 
