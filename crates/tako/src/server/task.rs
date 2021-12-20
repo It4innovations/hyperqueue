@@ -36,7 +36,6 @@ pub enum TaskRuntimeState {
     Stealing(WorkerId, Option<WorkerId>), // (from, to)
     Running(WorkerId),
     Finished(FinishInfo),
-    Released,
 }
 
 impl fmt::Debug for TaskRuntimeState {
@@ -47,7 +46,6 @@ impl fmt::Debug for TaskRuntimeState {
             Self::Stealing(from_w, to_w) => write!(f, "S({}, {:?})", from_w, to_w),
             Self::Running(w_id) => write!(f, "R({})", w_id),
             Self::Finished(_) => write!(f, "F"),
-            Self::Released => write!(f, "X"),
         }
     }
 }
@@ -325,19 +323,14 @@ impl Task {
 
     #[inline]
     pub fn is_done(&self) -> bool {
-        matches!(
-            &self.state,
-            TaskRuntimeState::Finished(_) | TaskRuntimeState::Released
-        )
+        matches!(&self.state, TaskRuntimeState::Finished(_))
     }
 
     #[inline]
     pub fn is_done_or_running(&self) -> bool {
         matches!(
             &self.state,
-            TaskRuntimeState::Finished(_)
-                | TaskRuntimeState::Released
-                | TaskRuntimeState::Running(_)
+            TaskRuntimeState::Finished(_) | TaskRuntimeState::Running(_)
         )
     }
 
@@ -358,7 +351,6 @@ impl Task {
             | TaskRuntimeState::Stealing(_, Some(id)) => Some(*id),
             TaskRuntimeState::Stealing(_, None) => None,
             TaskRuntimeState::Finished(_) => None,
-            TaskRuntimeState::Released => None,
         }
     }
 

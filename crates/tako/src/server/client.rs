@@ -188,9 +188,6 @@ pub async fn process_client_message(
                             TaskRuntimeState::Stealing(_, _) => TaskState::Waiting,
                             TaskRuntimeState::Running(_) => TaskState::Waiting,
                             TaskRuntimeState::Finished(_) => TaskState::Finished,
-                            TaskRuntimeState::Released => {
-                                unreachable!()
-                            }
                         },
                     }
                 })

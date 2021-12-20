@@ -89,9 +89,6 @@ pub fn on_remove_worker(
                 }
                 continue;
             }
-            TaskRuntimeState::Released => {
-                unreachable!()
-            }
         };
         task.state = new_state;
     }
@@ -173,8 +170,7 @@ pub fn on_task_running(
             }
             TaskRuntimeState::Running(_)
             | TaskRuntimeState::Waiting(_)
-            | TaskRuntimeState::Finished(_)
-            | TaskRuntimeState::Released => {
+            | TaskRuntimeState::Finished(_) => {
                 unreachable!()
             }
         };
@@ -216,9 +212,7 @@ pub fn on_task_finished(
                     assert_eq!(*w_id, worker_id);
                     /* Do nothing */
                 }
-                TaskRuntimeState::Waiting(_)
-                | TaskRuntimeState::Finished(_)
-                | TaskRuntimeState::Released => {
+                TaskRuntimeState::Waiting(_) | TaskRuntimeState::Finished(_) => {
                     unreachable!();
                 }
             }
@@ -479,9 +473,6 @@ pub fn on_cancel_tasks(
                     }
                     already_finished.push(task_id);
                 }
-                TaskRuntimeState::Released => {
-                    unreachable!()
-                }
             };
         }
         if remove {
@@ -537,8 +528,7 @@ pub fn on_tasks_transferred(
             TaskRuntimeState::Finished(ref mut winfo) => {
                 winfo.placement.insert(worker_id);
             }
-            TaskRuntimeState::Released
-            | TaskRuntimeState::Waiting(_)
+            TaskRuntimeState::Waiting(_)
             | TaskRuntimeState::Running(_)
             | TaskRuntimeState::Assigned(_)
             | TaskRuntimeState::Stealing(_, _) => {

@@ -216,9 +216,7 @@ impl SchedulerState {
             TaskRuntimeState::Stealing(from_w, _) => {
                 TaskRuntimeState::Stealing(from_w, Some(worker_id))
             }
-            TaskRuntimeState::Running(_)
-            | TaskRuntimeState::Finished(_)
-            | TaskRuntimeState::Released => {
+            TaskRuntimeState::Running(_) | TaskRuntimeState::Finished(_) => {
                 panic!("Invalid state {:?}", task.state);
             }
         };
@@ -247,13 +245,11 @@ impl SchedulerState {
             let mut tmp_workers = Vec::with_capacity(core.get_worker_map().len());
             for task_id in ready_tasks.into_iter() {
                 let worker_id = {
-                    let configuration = {
-                        let task = core.get_task(task_id);
-                        if let TaskRuntimeState::Released = task.state {
-                            continue;
-                        }
+                    let configuration = if let Some(task) = core.find_task(task_id) {
                         assert!(task.is_waiting());
                         task.configuration.clone()
+                    } else {
+                        continue;
                     };
                     core.try_wakeup_parked_resources(&configuration.resources);
 
