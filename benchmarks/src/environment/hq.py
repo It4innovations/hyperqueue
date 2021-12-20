@@ -9,19 +9,12 @@ from typing import Any, Dict, List, Optional
 from ..clusterutils import ClusterInfo
 from ..clusterutils.cluster_helper import ClusterHelper, StartProcessArgs
 from ..clusterutils.node_list import Local
-from ..clusterutils.profiler import NativeProfiler
+from ..clusterutils.profiler import PROFILER_METADATA_KEY, Profiler
 from ..utils import check_file_exists
 from ..utils.process import execute_process
 from ..utils.timing import wait_until
 from . import Environment, EnvironmentDescriptor
 from .utils import EnvStateManager
-
-
-@dataclasses.dataclass(frozen=True)
-class ProfileMode:
-    server: bool = False
-    workers: bool = False
-    frequency: int = 99
 
 
 @dataclasses.dataclass(frozen=True)
@@ -64,7 +57,8 @@ class HqClusterInfo(EnvironmentDescriptor):
     workers: List[HqWorkerConfig]
     # Enable debug logging on server and workers
     debug: bool = False
-    profile_mode: ProfileMode = dataclasses.field(default_factory=lambda: ProfileMode())
+    server_profilers: List[Profiler] = dataclasses.field(default_factory=list)
+    worker_profilers: List[Profiler] = dataclasses.field(default_factory=list)
     # Additional information that describes the environment
     environment_params: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -181,8 +175,7 @@ class HqEnvironment(Environment, EnvStateManager):
             env={"RUST_LOG": self._log_env_value()},
         )
 
-        if self.info.profile_mode.server:
-            self._profile_args(args, workdir / "flamegraph.svg")
+        apply_profilers(args, self.info.server_profilers, workdir)
 
         self.cluster.start_processes([args])
 
@@ -209,8 +202,7 @@ class HqEnvironment(Environment, EnvStateManager):
                     env={"RUST_LOG": self._log_env_value()},
                 )
 
-                if self.info.profile_mode.workers:
-                    self._profile_args(args, workdir / "flamegraph.svg")
+                apply_profilers(args, self.info.worker_profilers, workdir)
                 worker_processes.append(args)
 
         self.cluster.start_processes(worker_processes)
@@ -230,15 +222,6 @@ class HqEnvironment(Environment, EnvStateManager):
         self.submit_id += 1
         return result
 
-    def _profile_args(self, args: StartProcessArgs, output_path: Path):
-        profiler = NativeProfiler()
-        profiler.check_availability()
-
-        args.args = profiler.profile(
-            args.args, output_path, frequency=self.info.profile_mode.frequency
-        )
-        args.metadata["flamegraph"] = str(output_path.absolute())
-
     def _shared_args(self) -> List[str]:
         return [str(self.binary_path), "--server-dir", str(self.server_dir)]
 
@@ -256,3 +239,18 @@ class HqEnvironment(Environment, EnvStateManager):
 
     def _log_env_value(self) -> str:
         return f"hyperqueue={'DEBUG' if self.info.debug else 'INFO'}"
+
+
+def apply_profilers(
+    args: StartProcessArgs, profilers: List[Profiler], output_dir: Path
+):
+    for profiler in profilers:
+        profiler.check_availability()
+        result = profiler.profile(args.args, output_dir.absolute())
+
+        metadata = args.metadata.get(PROFILER_METADATA_KEY, {})
+        assert result.tag not in metadata
+        metadata[result.tag] = str(result.output_path.absolute())
+
+        args.metadata[PROFILER_METADATA_KEY] = metadata
+        args.args = result.args

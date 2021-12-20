@@ -5,12 +5,8 @@ from .benchmark.identifier import BenchmarkDescriptor
 from .build.hq import BuiltBinary
 from .clusterutils import ClusterInfo
 from .clusterutils.node_list import Local
-from .environment.hq import (
-    HqClusterInfo,
-    HqSumWorkerResource,
-    HqWorkerConfig,
-    ProfileMode,
-)
+from .clusterutils.profiler import FlamegraphProfiler
+from .environment.hq import HqClusterInfo, HqSumWorkerResource, HqWorkerConfig
 from .workloads import Workload
 from .workloads.sleep import Sleep, SleepHQ
 from .workloads.sleep_resources import SleepWithResourcesHQ
@@ -22,12 +18,12 @@ def benchmark(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
 
 # Basic workloads
 def sleep_workloads(cls: Type[Sleep] = SleepHQ) -> Iterable[Workload]:
-    for task_count in (10, 100, 1000, 10000, 100000):
+    for task_count in (10, 100, 1000, 10000):
         yield cls(task_count=task_count)
 
 
 def sleep_resource_benchmarks() -> Iterable[Workload]:
-    for task_count in (10, 100, 1000, 10000, 100000):
+    for task_count in (10, 100, 1000, 10000):
         yield SleepWithResourcesHQ(task_count=task_count, resources=dict(resource1=10))
 
 
@@ -36,19 +32,24 @@ def hq_env_local(
     binary: Path,
     workers: Optional[List[HqWorkerConfig]] = None,
     environment: Optional[Dict[str, Any]] = None,
-    profile_mode: Optional[ProfileMode] = None,
     monitoring=True,
+    profile=False,
     debug=False,
 ) -> HqClusterInfo:
     workers = workers or [HqWorkerConfig()]
-    profile_mode = profile_mode or ProfileMode()
     environment = environment or {}
+
+    profilers = []
+    if profile:
+        profilers = [FlamegraphProfiler(99)]
+        # profilers = [PerfEventsProfiler()]
 
     return HqClusterInfo(
         cluster=ClusterInfo(Local(), monitor_nodes=monitoring),
         binary=binary,
         workers=workers,
-        profile_mode=profile_mode,
+        server_profilers=profilers,
+        worker_profilers=profilers,
         debug=debug,
         environment_params=environment,
     )

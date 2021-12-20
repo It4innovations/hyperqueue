@@ -6,17 +6,22 @@ from typing import Dict, List
 from cluster.cluster import Cluster, Node
 
 from ..clusterutils.cluster_helper import CLUSTER_FILENAME, node_monitoring_trace
+from ..clusterutils.profiler import PROFILER_METADATA_KEY
 from ..monitoring.record import MonitoringRecord
 
 MonitoringData = Dict[Node, List[MonitoringRecord]]
-FlamegraphData = Dict[Node, Path]
+
+
+ProcessKey = str
+ProfilerTag = str
+ProfilingData = Dict[ProcessKey, Dict[ProfilerTag, Path]]
 
 
 @dataclasses.dataclass(frozen=True)
 class ClusterReport:
     cluster: Cluster
     monitoring: MonitoringData
-    flamegraphs: FlamegraphData
+    profiling_data: ProfilingData
     directory: Path
 
     @staticmethod
@@ -25,27 +30,32 @@ class ClusterReport:
         with open(cluster_file) as f:
             cluster = Cluster.deserialize(f)
         monitoring = load_monitoring_data(directory, cluster)
-        flamegraphs = load_flamegraphs(cluster)
+        profiling_data = load_profiling_data(cluster)
         return ClusterReport(
             cluster=cluster,
             monitoring=monitoring,
-            flamegraphs=flamegraphs,
+            profiling_data=profiling_data,
             directory=directory,
         )
 
 
-def load_flamegraphs(cluster: Cluster) -> FlamegraphData:
+def load_profiling_data(cluster: Cluster) -> ProfilingData:
     data = {}
 
     for (_, process) in cluster.processes():
-        if "flamegraph" in process.metadata:
-            flamegraph_file = Path(process.metadata["flamegraph"])
-            if flamegraph_file.is_file():
-                data[process.key] = flamegraph_file
-            else:
-                logging.warning(
-                    f"Flamegraph for {process} not found at {flamegraph_file}"
-                )
+        if PROFILER_METADATA_KEY in process.metadata:
+            records = process.metadata[PROFILER_METADATA_KEY]
+            process_records = {}
+
+            for (tag, file) in records.items():
+                file = Path(file)
+                if file.is_file():
+                    process_records[tag] = file
+                else:
+                    logging.warning(
+                        f"Profiler record `{tag}` for `{process.key}` not found at {file}"
+                    )
+            data[process.key] = process_records
     return data
 
 
