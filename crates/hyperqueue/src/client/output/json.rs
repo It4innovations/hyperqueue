@@ -17,7 +17,7 @@ use crate::client::output::outputs::Output;
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::AccessRecord;
 use crate::server::autoalloc::{
-    Allocation, AllocationEvent, AllocationEventHolder, AllocationStatus,
+    Allocation, AllocationEvent, AllocationEventHolder, AllocationStatus, DescriptorId,
 };
 use crate::server::job::JobTaskState;
 use crate::stream::reader::logfile::Summary;
@@ -189,10 +189,13 @@ impl Output for JsonOutput {
     }
 
     fn print_autoalloc_queues(&self, info: AutoAllocListResponse) {
+        let mut descriptors: Vec<_> = info.descriptors.into_iter().collect();
+        descriptors.sort_by_key(|descriptor| descriptor.0);
+
         self.print(
-            info.descriptors
+            descriptors
                 .iter()
-                .map(|(key, descriptor)| (key.to_string(), format_queue_descriptor(descriptor)))
+                .map(|(key, descriptor)| format_queue_descriptor(*key, descriptor))
                 .collect(),
         );
     }
@@ -264,7 +267,10 @@ fn format_cpu_request(request: CpuRequest) -> serde_json::Value {
     })
 }
 
-fn format_queue_descriptor(descriptor: &QueueDescriptorData) -> serde_json::Value {
+fn format_queue_descriptor(
+    id: DescriptorId,
+    descriptor: &QueueDescriptorData,
+) -> serde_json::Value {
     let manager = match descriptor.manager_type {
         ManagerType::Pbs => "PBS",
         ManagerType::Slurm => "Slurm",
@@ -272,6 +278,8 @@ fn format_queue_descriptor(descriptor: &QueueDescriptorData) -> serde_json::Valu
     let info = &descriptor.info;
 
     json!({
+        "id": id,
+        "name": descriptor.name,
         "manager": manager,
         "additional_args": info.additional_args(),
         "backlog": info.backlog(),
@@ -280,7 +288,6 @@ fn format_queue_descriptor(descriptor: &QueueDescriptorData) -> serde_json::Valu
         "max_worker_count": info.max_worker_count(),
         "worker_cpu_args": info.worker_cpu_args(),
         "worker_resource_args": info.worker_resource_args(),
-        "name": descriptor.name
     })
 }
 fn format_allocation(allocation: Allocation) -> serde_json::Value {
