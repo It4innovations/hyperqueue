@@ -262,14 +262,12 @@ impl Core {
     pub fn remove_task(&mut self, task_id: TaskId) -> TaskRuntimeState {
         trace_task_remove(task_id);
 
-        let state = {
-            let task = self.tasks.get_task_mut(task_id);
-            assert!(!task.has_consumers());
-            std::mem::replace(&mut task.state, TaskRuntimeState::Released)
-        };
-
-        self.tasks.remove(task_id);
-        state
+        let task = self
+            .tasks
+            .remove(task_id)
+            .expect("Trying to remove non-existent task");
+        assert!(!task.has_consumers());
+        task.state
     }
 
     /// Removes multiple tasks at once, to reduce memory consumption
@@ -377,10 +375,6 @@ impl Core {
                     for ti in &task.inputs {
                         assert!(self.tasks.get_task(ti.task()).is_finished());
                     }
-                }
-
-                TaskRuntimeState::Released => {
-                    unreachable!()
                 }
             }
         }
