@@ -53,9 +53,9 @@ struct CommonOpts {
     #[clap(long, default_value = "auto", possible_values = &["auto", "always", "never"])]
     colors: ColorPolicy,
 
-    /// Output selection
-    #[clap(long, env = "HQ_OUTPUT_TYPE", default_value = "cli", possible_values = &["cli", "json", "quiet"])]
-    output_type: Outputs,
+    /// How should the output of the command be formatted.
+    #[clap(long, env = "HQ_OUTPUT_MODE", default_value = "cli", possible_values = &["cli", "json", "quiet"])]
+    output_mode: Outputs,
 }
 
 // Root CLI options
@@ -493,7 +493,7 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
     };
 
     // Create Printer
-    let printer: Box<dyn Output> = match opts.output_type {
+    let printer: Box<dyn Output> = match opts.output_mode {
         Outputs::CLI => {
             // Set colored settings for CLI
             match color_policy {
