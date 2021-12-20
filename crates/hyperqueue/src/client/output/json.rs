@@ -25,6 +25,7 @@ use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, QueueDescriptorData, StatsResponse,
     WaitForJobsResponse, WorkerInfo,
 };
+use crate::Map;
 
 #[derive(Default)]
 pub struct JsonOutput;
@@ -102,7 +103,7 @@ impl Output for JsonOutput {
             "info": format_job_info(info),
             "program": json!({
                 "args": args.into_iter().map(|args| args.to_string()).collect::<Vec<_>>(),
-                "env": env,
+                "env": env.into_iter().map(|(key, value)| (key.to_string(), value.to_string())).collect::<Map<String, String>>(),
                 "cwd": cwd,
                 "stderr": stderr,
                 "stdout": stdout,
