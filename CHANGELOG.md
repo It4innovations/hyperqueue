@@ -1,3 +1,12 @@
+# DEV
+
+## New features
+
+### CLI
+You can now force HyperQueue commands to output machine-readable data using the `--output-mode` flag
+available to all HyperQueue commands. Notably, you can output data of the commands as JSON. You can
+find more information in the [documentation](https://it4innovations.github.io/hyperqueue/stable/cli/output-mode/).
+
 # v0.7.0
 
 ## Fixes

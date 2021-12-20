@@ -88,7 +88,7 @@ creating a new allocation queue:
 
 - `--name <name>` Name of the allocation queue. Will be used to name allocations. Serves for debug purposes only.
 
-[^1]: You can use various [shortcuts](../tips/cli-shortcuts.md#duration) for the duration value.
+[^1]: You can use various [shortcuts](../cli/shortcuts.md#duration) for the duration value.
 
 ## Behavior
 The automatic allocator is a periodic process that runs every few seconds and does the following:
