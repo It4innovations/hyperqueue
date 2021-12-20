@@ -13,7 +13,7 @@ env_logger = "0.9"
 futures = "0.3"
 tokio = { version = "1.14", features = ["full"] }
 tokio-util = { version = "0.6", features = ["codec"] }
-clap = { version = "=3.0.0-rc.4", features = ["derive"] }
+clap = { version = "=3.0.0-rc.4", features = ["derive", "env"] }
 rmp-serde = "0.15.4"
 rmpv = { version = "1.0", features = ["with-serde"] }
 serde = { version = "1.0", features = ["derive"] }
