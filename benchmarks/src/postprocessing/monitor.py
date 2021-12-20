@@ -34,6 +34,7 @@ from cluster.cluster import Cluster, Node, ProcessInfo
 from pandas import Timestamp
 from tornado import ioloop, web
 
+from ..clusterutils.profiler import FlamegraphProfiler, PerfEventsProfiler
 from ..monitoring.record import MonitoringRecord, ProcessRecord
 from ..utils import ensure_directory
 from .common import average
@@ -408,13 +409,35 @@ def render_flamegraph(flamegraph: Path):
         return Div(text=content)
 
 
-def render_flamegraphs(report: ClusterReport):
-    tabs = []
-    for (key, flamegraph_file) in report.flamegraphs.items():
-        widget = render_flamegraph(flamegraph_file)
-        tabs.append(Panel(child=widget, title=key))
+def render_perf_events(file: Path):
+    with open(file) as f:
+        data = f.read()
+        return PreText(text=data)
 
-    return Tabs(tabs=tabs)
+
+def render_profiling_data(report: ClusterReport):
+    def render_process(arg):
+        key, records = arg
+
+        def render_profiler_record(arg):
+            tag, file = arg
+            if tag == FlamegraphProfiler.TAG:
+                name = "Flamegraph"
+                widget = render_flamegraph(file)
+            elif tag == PerfEventsProfiler.TAG:
+                name = "Perf. events"
+                widget = render_perf_events(file)
+            else:
+                name = "Unknown"
+                msg = f"Unknown profiler tag encountered: `{tag}` ({file})"
+                logging.warning(msg)
+                widget = Div(text=msg)
+            return Panel(child=widget, title=name)
+
+        tabs = create_tabs(list(records.items()), render_profiler_record)
+        return Panel(child=tabs, title=key)
+
+    return create_tabs(list(report.profiling_data.items()), render_process)
 
 
 def load_process_output(path: Path) -> str:
@@ -575,8 +598,8 @@ def create_page(report: ClusterReport):
 
     structure.append(("Output", render_output))
 
-    if report.flamegraphs:
-        structure.append(("Flamegraphs", render_flamegraphs))
+    if report.profiling_data:
+        structure.append(("Profiler", render_profiling_data))
 
     tabs = []
     for name, fn in structure:
