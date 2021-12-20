@@ -6,6 +6,7 @@ from typing import List
 import iso8601
 from schema import Schema
 
+from utils import wait_for_job_state
 from ..conftest import HqEnv
 
 
@@ -19,14 +20,14 @@ def test_print_worker_list(hq_env: HqEnv):
     for i in range(5):
         hq_env.start_worker()
 
-    output = parse_json_output(hq_env, ["--output-type=json", "worker", "list"])
+    output = parse_json_output(hq_env, ["--output-mode=json", "worker", "list"])
     assert len(output) == 5
 
 
 def test_print_worker_info(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
-    output = parse_json_output(hq_env, ["--output-type=json", "worker", "info", "1"])
+    output = parse_json_output(hq_env, ["--output-mode=json", "worker", "info", "1"])
 
     schema = Schema(
         {
@@ -49,7 +50,7 @@ def test_print_worker_info(hq_env: HqEnv):
 
 def test_print_server_record(hq_env: HqEnv):
     process = hq_env.start_server()
-    output = parse_json_output(hq_env, ["--output-type=json", "server", "info"])
+    output = parse_json_output(hq_env, ["--output-mode=json", "server", "info"])
 
     schema = Schema(
         {
@@ -77,7 +78,8 @@ def test_print_job_list(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
     hq_env.command(["submit", "echo", "tt"])
-    output = parse_json_output(hq_env, ["--output-type=json", "jobs"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    output = parse_json_output(hq_env, ["--output-mode=json", "jobs"])
 
     schema = Schema(
         [
@@ -106,7 +108,7 @@ def test_print_job_list(hq_env: HqEnv):
 def test_print_job_detail(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["submit", "echo", "tt"])
-    output = parse_json_output(hq_env, ["--output-type=json", "job", "1"])
+    output = parse_json_output(hq_env, ["--output-mode=json", "job", "1"])
 
     schema = Schema(
         {
@@ -138,7 +140,7 @@ def test_print_job_detail(hq_env: HqEnv):
 def test_print_job_with_tasks(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["submit", "echo", "tt", "--array=1-4"])
-    output = parse_json_output(hq_env, ["--output-type=json", "job", "1", "--tasks"])
+    output = parse_json_output(hq_env, ["--output-mode=json", "job", "1", "--tasks"])
 
     schema = Schema([{"id": id, "state": "waiting"} for id in range(1, 5)])
     schema.validate(output["tasks"])
@@ -146,7 +148,7 @@ def test_print_job_with_tasks(hq_env: HqEnv):
 
 def test_print_hw(hq_env: HqEnv):
     hq_env.start_server()
-    output = parse_json_output(hq_env, ["--output-type=json", "worker", "hwdetect"])
+    output = parse_json_output(hq_env, ["--output-mode=json", "worker", "hwdetect"])
 
     schema = Schema({"cpus": [[int]], "generic": list})
     schema.validate(output)
