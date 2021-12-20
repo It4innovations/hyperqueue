@@ -54,7 +54,7 @@ struct CommonOpts {
     colors: ColorPolicy,
 
     /// Output selection
-    #[clap(long, default_value = "cli", possible_values = &["cli", "json", "quiet"])]
+    #[clap(long, env = "HQ_OUTPUT_TYPE", default_value = "cli", possible_values = &["cli", "json", "quiet"])]
     output_type: Outputs,
 }
 
