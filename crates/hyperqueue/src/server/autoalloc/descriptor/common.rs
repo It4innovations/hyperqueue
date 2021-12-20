@@ -48,11 +48,14 @@ pub fn create_allocation_dir(
 ) -> Result<PathBuf, std::io::Error> {
     let mut dir = server_directory;
     dir.push("autoalloc");
+
+    let mut dir_name = id.to_string();
     if let Some(name) = name {
-        dir.push(name);
-    } else {
-        dir.push(id.to_string());
+        dir_name.push('-');
+        dir_name.push_str(name);
     }
+
+    dir.push(dir_name);
     dir.push(format!("{:03}", allocation_num));
 
     std::fs::create_dir_all(&dir)?;
