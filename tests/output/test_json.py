@@ -6,8 +6,8 @@ from typing import List
 import iso8601
 from schema import Schema
 
-from utils import wait_for_job_state
 from ..conftest import HqEnv
+from ..utils import wait_for_job_state
 
 
 def parse_json_output(hq_env: HqEnv, command: List[str]):

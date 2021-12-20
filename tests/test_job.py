@@ -339,7 +339,6 @@ def test_cancel_last(hq_env: HqEnv):
 
 def test_cancel_some(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.start_worker(cpus=1)
     hq_env.command(["submit", "sleep", "100"])
     hq_env.command(["submit", "hostname"])
     hq_env.command(["submit", "/invalid"])
