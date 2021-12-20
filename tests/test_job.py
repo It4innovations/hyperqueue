@@ -434,7 +434,7 @@ def test_max_fails_0(hq_env: HqEnv):
         [
             "submit",
             "--array",
-            "1-200",
+            "1-2",
             "--stdout",
             "none",
             "--stderr",
@@ -444,17 +444,16 @@ def test_max_fails_0(hq_env: HqEnv):
             "--",
             "bash",
             "-c",
-            "if [ $HQ_TASK_ID == 137 ]; then exit 1; fi",
+            "if [ $HQ_TASK_ID == 1 ]; then exit 1; fi; if [ $HQ_TASK_ID == 2 ]; then sleep 100; fi",
         ]
     )
-    hq_env.start_workers(1)
+    hq_env.start_workers(1, cpus=2)
 
     wait_for_job_state(hq_env, 1, "CANCELED")
 
     table = hq_env.command(["job", "1"], as_table=True)
     states = table.get_row_value("State").split("\n")
     assert "FAILED (1)" in states
-    assert any(s.startswith("FINISHED") for s in states)
     assert any(s.startswith("CANCELED") for s in states)
 
 
