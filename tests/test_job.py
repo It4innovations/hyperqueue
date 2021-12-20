@@ -445,7 +445,7 @@ def test_max_fails_0(hq_env: HqEnv):
             "--",
             "bash",
             "-c",
-            "if [ $HQ_TASK_ID == 1 ]; then exit 1; fi; if [ $HQ_TASK_ID == 2 ]; then sleep 100; fi"
+            "if [ $HQ_TASK_ID == 1 ]; then exit 1; fi; if [ $HQ_TASK_ID == 2 ]; then sleep 100; fi",
         ]
     )
     hq_env.start_workers(1, cpus=2)
