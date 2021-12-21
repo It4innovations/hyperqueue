@@ -231,7 +231,7 @@ class HqEnvironment(Environment, EnvStateManager):
     def _wait_for_workers(self, count: int):
         def get_worker_count():
             output = subprocess.check_output(
-                self._shared_args() + ["--output-type", "json", "worker", "list"]
+                self._shared_args() + ["--output-mode", "json", "worker", "list"]
             )
             return len(json.loads(output)) == count
 
