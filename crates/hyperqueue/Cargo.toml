@@ -23,7 +23,6 @@ serde-tuple-vec-map = "1"
 bytes = "1.0.1"
 atty = "0.2"
 cli-table = { version = "0.4.6", default-features = false }
-hashbrown = { version = "0.11", features = ["serde"] }
 thiserror = "1"
 anyhow = "1"
 dirs = "4.0"

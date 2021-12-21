@@ -2,7 +2,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use bytes::{Bytes, BytesMut};
-use hashbrown::HashMap;
 use orion::aead::SecretKey;
 use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
@@ -34,7 +33,7 @@ pub struct WorkerState {
     pub sender: UnboundedSender<Bytes>,
     tasks: TaskMap,
     pub ready_task_queue: ResourceWaitQueue,
-    pub data_objects: HashMap<TaskId, DataObjectRef>,
+    pub data_objects: Map<TaskId, DataObjectRef>,
     pub running_tasks: Set<TaskId>,
     pub start_task_scheduled: bool,
     pub start_task_notify: Rc<Notify>,

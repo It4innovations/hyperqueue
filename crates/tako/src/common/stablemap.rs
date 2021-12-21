@@ -41,12 +41,12 @@ impl<V> StableVec<V> {
 }
 
 #[derive(Debug)]
-pub struct StableMap<K, V> {
+pub struct StableMap<K: Eq + Hash, V> {
     map: Map<K, StableVecIndex>,
     storage: StableVec<V>,
 }
 
-impl<K, V> Default for StableMap<K, V> {
+impl<K: Eq + Hash, V> Default for StableMap<K, V> {
     #[inline]
     fn default() -> Self {
         Self {

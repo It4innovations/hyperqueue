@@ -272,9 +272,9 @@ mod tests {
     use std::future::Future;
     use std::pin::Pin;
     use std::time::{Duration, SystemTime};
+    use tako::common::Map;
 
     use crate::common::arraydef::IntArray;
-    use hashbrown::HashMap;
     use tako::common::resources::TimeRequest;
     use tako::messages::common::ProgramDefinition;
     use tako::messages::gateway::ResourceRequest;
@@ -354,7 +354,7 @@ mod tests {
     async fn test_keep_backlog_filled() {
         let state = create_state(1000);
 
-        let mut queue = HashMap::<AllocationId, isize>::new();
+        let mut queue = Map::<AllocationId, isize>::new();
         queue.insert("0".to_string(), 0); // run immediately
         queue.insert("1".to_string(), 2); // run after two checks
         queue.insert("2".to_string(), 3); // run after three checks
@@ -603,7 +603,7 @@ mod tests {
 
     #[derive(Default)]
     struct AllocationState {
-        state: HashMap<AllocationId, AllocationStatus>,
+        state: Map<AllocationId, AllocationStatus>,
         spawned_allocations: usize,
     }
 

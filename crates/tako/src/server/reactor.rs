@@ -217,7 +217,7 @@ pub fn on_task_finished(
                 }
             }
 
-            let mut placement = Set::new();
+            let mut placement = Set::default();
 
             if task.configuration.n_outputs > 0 {
                 placement.insert(worker_id);
@@ -430,7 +430,7 @@ pub fn on_cancel_tasks(
     task_ids: &[TaskId],
 ) -> (Vec<TaskId>, Vec<TaskId>) {
     let mut to_unregister = Set::with_capacity(task_ids.len());
-    let mut running_ids: Map<WorkerId, Vec<TaskId>> = Map::new();
+    let mut running_ids: Map<WorkerId, Vec<TaskId>> = Map::default();
     let mut already_finished: Vec<TaskId> = Vec::new();
 
     log::debug!("Canceling {} tasks", task_ids.len());

@@ -2,10 +2,9 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use bytes::Bytes;
-use hashbrown::HashSet;
 
 use crate::common::data::SerializationType;
-use crate::common::WrappedRcRefCell;
+use crate::common::{Set, WrappedRcRefCell};
 use crate::worker::task::TaskRef;
 use crate::{TaskId, WorkerId};
 
@@ -40,7 +39,7 @@ pub enum DataObjectState {
 pub struct DataObject {
     pub id: TaskId,
     pub state: DataObjectState,
-    pub consumers: HashSet<TaskRef>,
+    pub consumers: Set<TaskRef>,
     pub size: u64,
 }
 
