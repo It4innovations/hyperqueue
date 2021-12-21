@@ -1,7 +1,6 @@
 pub use wrapped::WrappedRcRefCell;
 
-pub type Map<K, V> = hashbrown::HashMap<K, V>;
-pub type Set<T> = hashbrown::HashSet<T>;
+pub use data_structures::{Map, Set};
 
 pub mod data;
 pub mod error;
@@ -10,6 +9,7 @@ pub mod rpc;
 mod wrapped;
 #[macro_use]
 pub mod trace;
+pub mod data_structures;
 pub mod index;
 pub mod secret;
 pub mod stablemap;

@@ -11,8 +11,7 @@ pub mod worker;
 #[cfg(test)]
 pub(crate) mod tests;
 
-pub type Map<K, V> = hashbrown::HashMap<K, V>;
-pub type Set<T> = hashbrown::HashSet<T>;
+pub use tako::common::{Map, Set};
 
 pub type Error = crate::common::error::HqError;
 pub type Result<T> = std::result::Result<T, Error>;

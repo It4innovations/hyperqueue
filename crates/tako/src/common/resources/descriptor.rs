@@ -124,7 +124,7 @@ impl ResourceDescriptor {
         let mut result = if self.cpus.len() == 1 {
             format!("1x{} cpus", self.cpus[0].len())
         } else {
-            let mut counts = Map::<usize, usize>::new();
+            let mut counts = Map::<usize, usize>::default();
             for group in &self.cpus {
                 *counts.entry(group.len()).or_default() += 1;
             }
