@@ -69,7 +69,6 @@ impl CliOutput {
 
     fn print_job_tasks(
         &self,
-        completion_date_or_now: DateTime<Utc>,
         mut tasks: Vec<JobTaskInfo>,
         show_tasks: bool,
         counters: &JobTaskCounters,
@@ -89,6 +88,7 @@ impl CliOutput {
             let rows: Vec<_> = tasks
                 .iter()
                 .map(|t| {
+                    let (start, end) = get_task_time(&t.state);
                     vec![
                         t.task_id.cell(),
                         task_status_to_cell(task_status(&t.state)),
@@ -97,7 +97,14 @@ impl CliOutput {
                             _ => "",
                         }
                         .cell(),
-                        format_task_duration(&completion_date_or_now, &t.state).cell(),
+                        start
+                            .map(|x| x.to_string())
+                            .unwrap_or_else(|| "".to_string())
+                            .cell(),
+                        end.map(|x| x.to_string())
+                            .unwrap_or_else(|| "".to_string())
+                            .cell(),
+                        format_task_duration(start, end).cell(),
                         match &t.state {
                             JobTaskState::Failed { error, .. } => {
                                 error.to_owned().cell().foreground_color(Some(Color::Red))
@@ -111,6 +118,8 @@ impl CliOutput {
                 "Task Id".cell().bold(true),
                 "State".cell().bold(true),
                 "Worker".cell().bold(true),
+                "Start time".cell().bold(true),
+                "End time".cell().bold(true),
                 "Time".cell().bold(true),
                 "Message".cell().bold(true),
             ]);
@@ -459,13 +468,7 @@ impl Output for CliOutput {
         self.print_rows(rows);
 
         if !job.tasks.is_empty() {
-            self.print_job_tasks(
-                job.completion_date_or_now,
-                job.tasks,
-                show_tasks,
-                &job.info.counters,
-                &worker_map,
-            );
+            self.print_job_tasks(job.tasks, show_tasks, &job.info.counters, &worker_map);
         }
     }
 
@@ -872,13 +875,10 @@ fn format_worker(id: WorkerId, worker_map: &WorkerMap) -> &str {
         .unwrap_or_else(|| "N/A")
 }
 
-pub fn format_task_duration(
-    completion_date_or_now: &chrono::DateTime<chrono::Utc>,
-    state: &JobTaskState,
-) -> String {
-    let duration = match state {
-        JobTaskState::Canceled | JobTaskState::Waiting => return "".to_string(),
-        JobTaskState::Running { start_date, .. } => *completion_date_or_now - *start_date,
+pub fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<DateTime<Utc>>) {
+    match state {
+        JobTaskState::Canceled | JobTaskState::Waiting => (None, None),
+        JobTaskState::Running { start_date, .. } => (Some(*start_date), None),
         JobTaskState::Finished {
             start_date,
             end_date,
@@ -888,9 +888,16 @@ pub fn format_task_duration(
             start_date,
             end_date,
             ..
-        } => *end_date - *start_date,
-    };
-    human_duration(duration)
+        } => (Some(*start_date), Some(*end_date)),
+    }
+}
+
+pub fn format_task_duration(start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>) -> String {
+    match (start, end) {
+        (Some(start), None) => human_duration(Utc::now() - start),
+        (Some(start), Some(end)) => human_duration(end - start),
+        _ => "".to_string(),
+    }
 }
 
 fn format_time(time: SystemTime) -> impl Display {

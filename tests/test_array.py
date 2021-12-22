@@ -3,6 +3,7 @@ import os
 import time
 
 import pytest
+import datetime
 
 from .conftest import HqEnv
 from .utils import JOB_TABLE_ROWS, wait_for_job_state
@@ -140,7 +141,7 @@ def test_job_array_error_all(hq_env: HqEnv):
     for i in range(10):
         assert table[offset + i][0] == str(i)
         assert table[offset + i][1] == "FAILED"
-        assert "No such file or directory" in table[offset + i][4]
+        assert "No such file or directory" in table[offset + i][6]
 
 
 def test_job_array_cancel(hq_env: HqEnv):
@@ -218,3 +219,27 @@ def test_warning_missing_placeholder_in_output(hq_env: HqEnv, channel: str):
         in output
     )
     assert f"Consider adding `%{{TASK_ID}}` to the `--{channel}` value."
+
+
+def test_array_times(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["submit", "--array=1-3", "sleep", "1"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    time.sleep(
+        1.2
+    )  # This sleep is not redundant, we check that after finished time is not moving
+
+    table = hq_env.command(["job", "1", "--tasks"], as_table=True)
+    offset = JOB_TABLE_ROWS
+    for i in range(1, 4):
+        start = datetime.datetime.strptime(
+            table[offset + i][3][0:-7], "%Y-%m-%d %H:%M:%S.%f"
+        )
+        end = datetime.datetime.strptime(
+            table[offset + i][4][0:-7], "%Y-%m-%d %H:%M:%S.%f"
+        )
+        seconds = (end - start).total_seconds()
+        assert 0.9 <= seconds <= 1.1
