@@ -714,7 +714,7 @@ def test_job_completion_time(hq_env: HqEnv):
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
 
     offset = JOB_TABLE_ROWS
-    assert table[offset + 1][3].startswith("1s")
+    assert table[offset + 1][5].startswith("1s")
 
 
 def test_job_timeout(hq_env: HqEnv):
