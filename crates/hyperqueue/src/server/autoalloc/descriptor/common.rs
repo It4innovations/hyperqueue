@@ -82,8 +82,7 @@ where
     let arguments = vec![program, script_path];
 
     log::debug!("Running command `{}`", arguments.join(" "));
-    let mut command = Command::new(&arguments[0]);
-    command.args(&arguments[1..]);
+    let mut command = create_command(arguments, directory);
 
     let output = command
         .output()
@@ -103,6 +102,13 @@ where
     std::fs::write(directory.join(JOBID_FILE_NAME), &job_id)?;
 
     Ok(job_id)
+}
+
+pub fn create_command(arguments: Vec<&str>, workdir: &Path) -> Command {
+    let mut command = Command::new(arguments[0]);
+    command.args(&arguments[1..]);
+    command.current_dir(workdir);
+    command
 }
 
 pub fn check_command_output(output: Output) -> AutoAllocResult<Output> {

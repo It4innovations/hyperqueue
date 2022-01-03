@@ -49,7 +49,7 @@ pub async fn autoalloc_shutdown(state_ref: StateRef) {
                     .all_allocations()
                     .filter(|alloc| alloc.is_active())
                     .map(move |alloc| {
-                        let fut = handler.remove_allocation(alloc.id.clone());
+                        let fut = handler.remove_allocation(alloc);
                         let id = alloc.id.clone();
                         async move { (fut.await, id) }
                     })
@@ -98,10 +98,15 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
             .map(|alloc| alloc.id.clone())
             .collect();
     for allocation_id in allocation_ids.into_iter() {
-        let status_fut = get_or_return!(state_ref.get().get_autoalloc_state().get_descriptor(id))
-            .descriptor
-            .handler()
-            .get_allocation_status(allocation_id.clone());
+        let status_fut = {
+            let state = state_ref.get();
+            let descriptor = get_or_return!(state.get_autoalloc_state().get_descriptor(id));
+            let allocation = get_or_continue!(descriptor.get_allocation(&allocation_id));
+            descriptor
+                .descriptor
+                .handler()
+                .get_allocation_status(allocation)
+        };
 
         let result = status_fut.await;
 
@@ -582,20 +587,22 @@ mod tests {
 
         fn get_allocation_status(
             &self,
-            allocation_id: AllocationId,
+            allocation: &Allocation,
         ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>> {
             let status_fn = self.status_fn.clone();
             let custom_state = self.custom_state.clone();
+            let allocation_id = allocation.id.clone();
 
             Box::pin(async move { (status_fn.get())(custom_state.clone(), allocation_id).await })
         }
 
         fn remove_allocation(
             &self,
-            allocation_id: AllocationId,
+            allocation: &Allocation,
         ) -> Pin<Box<dyn Future<Output = AutoAllocResult<()>>>> {
             let remove_fn = self.remove_fn.clone();
             let custom_state = self.custom_state.clone();
+            let allocation_id = allocation.id.clone();
 
             Box::pin(async move { (remove_fn.get())(custom_state.clone(), allocation_id).await })
         }

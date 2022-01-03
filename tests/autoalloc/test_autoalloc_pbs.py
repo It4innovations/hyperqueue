@@ -2,6 +2,7 @@ import json
 import os
 import time
 from os.path import dirname, join
+from pathlib import Path
 from typing import List
 
 from ..conftest import HqEnv
@@ -12,6 +13,7 @@ from .utils import (
     extract_script_args,
     prepare_tasks,
     program_code_store_args_json,
+    program_code_store_cwd_json,
     remove_queue,
     wait_for_event,
 )
@@ -162,6 +164,30 @@ def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
 
         mock.update_job_state(mock.job_id(0), JobState(status="F", exit_code=0))
         wait_for_alloc(hq_env, "Finished")
+
+
+def test_pbs_check_working_directory(hq_env: HqEnv):
+    """Check that qsub and qstat are invoked from an autoalloc working directory"""
+    qsub_path = join(hq_env.work_path, "qsub.out")
+    qstat_path = join(hq_env.work_path, "qstat.out")
+    qsub_code = f"""
+{program_code_store_cwd_json(qsub_path)}
+print("1")
+"""
+
+    with hq_env.mock.mock_program("qsub", qsub_code):
+        with hq_env.mock.mock_program("qstat", program_code_store_cwd_json(qstat_path)):
+            hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+            prepare_tasks(hq_env)
+
+            add_queue(hq_env, name="foo")
+            wait_until(lambda: os.path.isfile(qsub_path))
+            wait_until(lambda: os.path.isfile(qstat_path))
+
+            with open(qsub_path) as f:
+                assert f.read() == str(
+                    Path(hq_env.server_dir) / "001/autoalloc/1-foo/001"
+                )
 
 
 def test_pbs_ignore_job_changes_after_finish(hq_env: HqEnv):

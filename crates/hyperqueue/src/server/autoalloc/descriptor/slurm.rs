@@ -5,7 +5,6 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::Context;
 use bstr::ByteSlice;
-use tokio::process::Command;
 
 use crate::common::manager::info::ManagerType;
 use crate::common::manager::slurm::{
@@ -13,11 +12,11 @@ use crate::common::manager::slurm::{
 };
 use crate::common::timeutils::local_to_system_time;
 use crate::server::autoalloc::descriptor::common::{
-    build_worker_args, create_allocation_dir, submit_script, ExternalHandler,
+    build_worker_args, create_allocation_dir, create_command, submit_script, ExternalHandler,
 };
 use crate::server::autoalloc::descriptor::{common, CreatedAllocation, QueueHandler};
-use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
-use crate::server::autoalloc::{AutoAllocResult, DescriptorId, QueueInfo};
+use crate::server::autoalloc::state::AllocationStatus;
+use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId, QueueInfo};
 
 pub struct SlurmHandler {
     handler: ExternalHandler,
@@ -81,15 +80,16 @@ impl QueueHandler for SlurmHandler {
 
     fn get_allocation_status(
         &self,
-        allocation_id: AllocationId,
+        allocation: &Allocation,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>> {
+        let allocation_id = allocation.id.clone();
+        let workdir = allocation.working_dir.clone();
+
         Box::pin(async move {
             let arguments = vec!["scontrol", "show", "job", &allocation_id];
             log::debug!("Running Slurm command `{}`", arguments.join(" "));
 
-            let mut command = Command::new(arguments[0]);
-            command.args(&arguments[1..]);
-
+            let mut command = create_command(arguments, &workdir);
             let output = command.output().await.context("scontrol start failed")?;
             let output =
                 common::check_command_output(output).context("scontrol execution failed")?;
@@ -145,14 +145,15 @@ impl QueueHandler for SlurmHandler {
 
     fn remove_allocation(
         &self,
-        allocation_id: AllocationId,
+        allocation: &Allocation,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<()>>>> {
+        let allocation_id = allocation.id.clone();
+        let workdir = allocation.working_dir.clone();
+
         Box::pin(async move {
             let arguments = vec!["scancel", &allocation_id];
             log::debug!("Running Slurm command `{}`", arguments.join(" "));
-            let mut command = Command::new(&arguments[0]);
-            command.args(&arguments[1..]);
-
+            let mut command = create_command(arguments, &workdir);
             let output = command.output().await?;
             common::check_command_output(output)?;
             Ok(())
