@@ -1,12 +1,14 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::common::index::ItemId;
 use derive_builder::Builder;
 
 use crate::common::resources::CpuRequest;
 use crate::common::Map;
 use crate::messages::common::{ProgramDefinition, StdioDef};
 use crate::messages::gateway::{GenericResourceRequest, ResourceRequest, TaskConf, TaskDef};
+use crate::TaskId;
 
 pub struct GraphBuilder {
     id_counter: u64,
@@ -99,7 +101,7 @@ pub fn build_task_def_from_config(config: TaskConfig) -> (TaskDef, TaskConf) {
     };
     (
         TaskDef {
-            id: id.unwrap_or(1).into(),
+            id: TaskId::new(id.unwrap_or(1) as <TaskId as ItemId>::IdType),
             conf_idx: 0,
             task_deps: Vec::new(),
             body,

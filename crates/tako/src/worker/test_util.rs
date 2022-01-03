@@ -47,7 +47,7 @@ impl ResourceQueueBuilder {
         self.queue
             .try_start_tasks(&self.task_map, None)
             .into_iter()
-            .map(|(t, a)| (t.as_num(), a))
+            .map(|(t, a)| (t.as_num() as u64, a))
             .collect()
     }
 
@@ -55,7 +55,7 @@ impl ResourceQueueBuilder {
         self.queue
             .try_start_tasks(&self.task_map, Some(duration))
             .into_iter()
-            .map(|(t, a)| (t.as_num(), a))
+            .map(|(t, a)| (t.as_num() as u64, a))
             .collect()
     }
 }

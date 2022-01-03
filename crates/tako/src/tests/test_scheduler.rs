@@ -1,5 +1,6 @@
 #![cfg(test)]
 
+use crate::common::index::ItemId;
 use crate::common::resources::{GenericResourceDescriptor, NumOfCpus};
 use crate::common::Set;
 use crate::messages::worker::{StealResponse, StealResponseMsg, ToWorkerMessage};
@@ -394,7 +395,7 @@ fn test_resources_no_workers2() {
         let unschedulable_index = task_cpu_counts
             .iter()
             .position(|&count| count > 10)
-            .unwrap() as u64
+            .unwrap() as <TaskId as ItemId>::IdType
             + rt.task_id_counter;
 
         rt.new_workers(&[8, 8, 8]);

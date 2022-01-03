@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
-use tako::common::index::AsIdVec;
+use tako::common::index::{AsIdVec, ItemId};
 use tako::common::resources::descriptor::GenericResourceKindIndices;
 use tako::common::resources::map::ResourceMap;
 use tako::common::resources::{
@@ -38,7 +38,7 @@ fn create_worker_state() -> WorkerStateRef {
 
 fn create_worker_task(id: u64) -> Task {
     Task::new(ComputeTaskMsg {
-        id: id.into(),
+        id: TaskId::new(id as <TaskId as ItemId>::IdType),
         instance_id: Default::default(),
         dep_info: vec![],
         user_priority: 0,

@@ -1,5 +1,6 @@
 use criterion::measurement::WallTime;
 use criterion::{black_box, BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
+use tako::common::index::ItemId;
 
 use tako::common::Set;
 use tako::server::core::Core;
@@ -62,7 +63,9 @@ fn bench_add_task(c: &mut BenchmarkGroup<WallTime>) {
                         let mut core = Core::default();
                         add_tasks(&mut core, task_count);
 
-                        let task = create_task((task_count + 1) as u64);
+                        let task = create_task(TaskId::new(
+                            (task_count + 1) as <TaskId as ItemId>::IdType,
+                        ));
                         (core, Some(task))
                     },
                     |(ref mut core, task)| {
@@ -84,7 +87,9 @@ fn bench_add_tasks(c: &mut BenchmarkGroup<WallTime>) {
                 b.iter_batched_ref(
                     || {
                         let core = Core::default();
-                        let tasks: Vec<_> = (0..task_count).map(|id| create_task(id)).collect();
+                        let tasks: Vec<_> = (0..task_count)
+                            .map(|id| create_task(TaskId::new(id as <TaskId as ItemId>::IdType)))
+                            .collect();
                         (core, tasks)
                     },
                     |(ref mut core, tasks)| {
