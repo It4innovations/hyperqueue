@@ -13,3 +13,4 @@ pub mod data_structures;
 pub mod index;
 pub mod secret;
 pub mod stablemap;
+pub mod utils;

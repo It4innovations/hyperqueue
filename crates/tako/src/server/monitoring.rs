@@ -1,6 +1,6 @@
 use crate::messages::gateway::{CollectedOverview, LostWorkerReason};
 use crate::messages::worker::WorkerOverview;
-use crate::WorkerId;
+use crate::{static_assert_size, WorkerId};
 
 use crate::messages::common::WorkerConfiguration;
 use serde::{Deserialize, Serialize};
@@ -30,7 +30,7 @@ pub enum MonitoringEventPayload {
 }
 
 // Keep the size of the event structure in check
-const _: () = assert!(std::mem::size_of::<MonitoringEventPayload>() == 32);
+static_assert_size!(MonitoringEventPayload, 32);
 
 impl Default for EventStorage {
     fn default() -> Self {
