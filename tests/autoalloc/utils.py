@@ -17,6 +17,18 @@ with open("{path}", "w") as f:
 """
 
 
+def program_code_store_cwd_json(path: str) -> str:
+    """
+    Creates program code that stores its working directory as JSON into the specified `path`.
+    """
+    return f"""
+import os
+
+with open("{path}", "w") as f:
+    f.write(os.getcwd())
+"""
+
+
 def extract_script_args(script: str, prefix: str) -> List[str]:
     return [
         line[len(prefix) :].strip()

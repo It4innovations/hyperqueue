@@ -262,9 +262,9 @@ not be removed. Use `--force` if you want to remove the queue anyway"
                 let futures: Vec<_> = state
                     .active_allocations()
                     .map(move |alloc| {
-                        let id = alloc.id.clone();
-                        let future = handler.remove_allocation(alloc.id.clone());
-                        async move { (future.await, id) }
+                        let allocation_id = alloc.id.clone();
+                        let future = handler.remove_allocation(alloc);
+                        async move { (future.await, allocation_id) }
                     })
                     .collect();
                 futures

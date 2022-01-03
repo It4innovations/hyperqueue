@@ -4,7 +4,7 @@ pub mod slurm;
 
 use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
-use crate::server::autoalloc::{AutoAllocResult, DescriptorId};
+use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -146,12 +146,12 @@ pub trait QueueHandler {
     /// TODO: get status of multiple allocations to amortize qstat cost
     fn get_allocation_status(
         &self,
-        allocation_id: AllocationId,
+        allocation: &Allocation,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>>;
 
     /// Remove allocation, if it still exists.
     fn remove_allocation(
         &self,
-        allocation_id: AllocationId,
+        allocation: &Allocation,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<()>>>>;
 }

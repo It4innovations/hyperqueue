@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::time::SystemTime;
 
 use clap::Parser;
 use tempdir::TempDir;
@@ -224,10 +225,17 @@ async fn dry_run(opts: DryRunOpts) -> anyhow::Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
 
+    let allocation = Allocation {
+        id: allocation.id().to_string(),
+        worker_count: 1,
+        queued_at: SystemTime::now(),
+        status: AllocationStatus::Queued,
+        working_dir: allocation.working_dir().into(),
+    };
     handler
-        .remove_allocation(allocation.id().to_string())
+        .remove_allocation(&allocation)
         .await
-        .map_err(|e| anyhow::anyhow!("Could not cancel allocation {}: {:?}", allocation.id(), e))?;
+        .map_err(|e| anyhow::anyhow!("Could not cancel allocation {}: {:?}", allocation.id, e))?;
 
     log::info!(
         "Allocation was submitted successfully. It was immediately canceled to avoid wasting

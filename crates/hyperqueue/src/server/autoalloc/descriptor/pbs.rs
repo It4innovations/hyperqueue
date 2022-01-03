@@ -4,17 +4,17 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use anyhow::Context;
-use tokio::process::Command;
 
 use crate::common::manager::info::ManagerType;
 use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
 use crate::common::timeutils::local_to_system_time;
 use crate::server::autoalloc::descriptor::common::{
-    build_worker_args, check_command_output, create_allocation_dir, submit_script, ExternalHandler,
+    build_worker_args, check_command_output, create_allocation_dir, create_command, submit_script,
+    ExternalHandler,
 };
 use crate::server::autoalloc::descriptor::{CreatedAllocation, QueueHandler};
-use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
-use crate::server::autoalloc::{AutoAllocResult, DescriptorId, QueueInfo};
+use crate::server::autoalloc::state::AllocationStatus;
+use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId, QueueInfo};
 
 pub struct PbsHandler {
     handler: ExternalHandler,
@@ -72,18 +72,20 @@ impl QueueHandler for PbsHandler {
 
     fn get_allocation_status(
         &self,
-        allocation_id: AllocationId,
+        allocation: &Allocation,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>> {
+        let allocation_id = allocation.id.clone();
+        let workdir = allocation.working_dir.clone();
+
         Box::pin(async move {
             // -x will also display finished jobs
             let arguments = vec!["qstat", "-f", &allocation_id, "-F", "json", "-x"];
             log::debug!("Running PBS command `{}`", arguments.join(" "));
 
-            let mut command = Command::new(arguments[0]);
-            command.args(&arguments[1..]);
-
+            let mut command = create_command(arguments, &workdir);
             let output = command.output().await.context("qstat start failed")?;
             let output = check_command_output(output).context("qstat execution failed")?;
+
             let data: serde_json::Value =
                 serde_json::from_slice(&output.stdout).context("Cannot parse qstat JSON output")?;
             let job = &data["Jobs"][&allocation_id];
@@ -136,14 +138,16 @@ impl QueueHandler for PbsHandler {
 
     fn remove_allocation(
         &self,
-        allocation_id: AllocationId,
+        allocation: &Allocation,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<()>>>> {
-        Box::pin(async move {
-            let arguments = vec!["qdel".to_string(), allocation_id];
-            log::debug!("Running PBS command `{}`", arguments.join(" "));
-            let mut command = Command::new(&arguments[0]);
-            command.args(&arguments[1..]);
+        let allocation_id = allocation.id.clone();
+        let workdir = allocation.working_dir.clone();
 
+        Box::pin(async move {
+            let arguments = vec!["qdel", &allocation_id];
+            log::debug!("Running PBS command `{}`", arguments.join(" "));
+
+            let mut command = create_command(arguments, &workdir);
             let output = command.output().await?;
             check_command_output(output)?;
             Ok(())
