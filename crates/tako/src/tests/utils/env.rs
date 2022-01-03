@@ -1,3 +1,4 @@
+use crate::common::index::ItemId;
 use crate::common::resources::descriptor::cpu_descriptor_from_socket_size;
 use crate::common::resources::{GenericResourceDescriptor, NumOfCpus, ResourceDescriptor};
 use crate::common::Map;
@@ -22,8 +23,8 @@ use std::time::Duration;
 pub struct TestEnv {
     core: Core,
     scheduler: SchedulerState,
-    pub task_id_counter: u64,
-    worker_id_counter: u32,
+    pub task_id_counter: <TaskId as ItemId>::IdType,
+    worker_id_counter: <WorkerId as ItemId>::IdType,
 }
 
 impl TestEnv {

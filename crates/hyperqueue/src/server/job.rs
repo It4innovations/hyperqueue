@@ -8,7 +8,9 @@ use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
 use bstr::BString;
 use chrono::{DateTime, Utc};
 use std::path::PathBuf;
+use tako::common::index::ItemId;
 use tako::messages::gateway::ResourceRequest;
+use tako::TaskId;
 use tokio::sync::oneshot;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -149,7 +151,7 @@ impl Job {
                     .enumerate()
                     .map(|(i, task_id)| {
                         (
-                            TakoTaskId::new(base + i as u64),
+                            TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
                             JobTaskInfo {
                                 state: JobTaskState::Waiting,
                                 task_id: task_id.into(),

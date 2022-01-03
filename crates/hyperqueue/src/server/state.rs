@@ -14,7 +14,8 @@ use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
 use std::cmp::min;
 use std::time::Duration;
-use tako::define_wrapped_type;
+use tako::common::index::ItemId;
+use tako::{define_wrapped_type, TaskId};
 
 pub struct State {
     jobs: crate::Map<JobId, Job>,
@@ -34,8 +35,8 @@ pub struct State {
     // Therefore we need to find biggest key that is lower then a given task id
     // To make this query efficient, we use BTreeMap and not Map
     base_task_id_to_job_id: BTreeMap<TakoTaskId, JobId>,
-    job_id_counter: u32,
-    task_id_counter: u64,
+    job_id_counter: <JobId as ItemId>::IdType,
+    task_id_counter: <TaskId as ItemId>::IdType,
 
     autoalloc_state: AutoAllocState,
 }
@@ -110,7 +111,11 @@ impl State {
             .next()?
             .1;
         let job = self.jobs.get_mut(&job_id)?;
-        if task_id < TakoTaskId::new(job.base_task_id.as_num() + job.n_tasks() as u64) {
+        if task_id
+            < TakoTaskId::new(
+                job.base_task_id.as_num() + job.n_tasks() as <TaskId as ItemId>::IdType,
+            )
+        {
             Some(job)
         } else {
             None
@@ -130,7 +135,7 @@ impl State {
 
     pub fn new_task_id(&mut self, task_count: JobTaskCount) -> TakoTaskId {
         let id = self.task_id_counter;
-        self.task_id_counter += task_count as u64;
+        self.task_id_counter += task_count as u32;
         id.into()
     }
 
