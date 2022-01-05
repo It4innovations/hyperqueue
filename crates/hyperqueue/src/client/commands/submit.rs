@@ -17,7 +17,7 @@ use crate::client::resources::{parse_cpu_request, parse_resource_request};
 use crate::client::status::StatusList;
 use crate::common::arraydef::IntArray;
 use crate::common::placeholders::{
-    parse_resolvable_string, StringPart, JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER,
+    parse_resolvable_string, StringPart, CWD_PLACEHOLDER, JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER,
 };
 use crate::common::timeutils::ArgDuration;
 use crate::transfer::connection::ClientConnection;
@@ -126,17 +126,17 @@ pub struct SubmitOpts {
     pin: bool,
 
     /// Working directory for the submitted job.
-    /// The path must be accessible from a worker node
+    /// The path must be accessible from worker nodes
     #[clap(long, default_value("%{SUBMIT_DIR}"))]
     cwd: PathBuf,
 
     /// Path where the standard output of the job will be stored.
-    /// The path must be accessible from a worker node
+    /// The path must be accessible from worker nodes
     #[clap(long)]
     stdout: Option<StdioArg>,
 
     /// Path where the standard error of the job will be stored.
-    /// The path must be accessible from a worker node
+    /// The path must be accessible from worker nodes
     #[clap(long)]
     stderr: Option<StdioArg>,
 
@@ -372,7 +372,7 @@ fn warn_missing_task_id(opts: &SubmitOpts, job_type: &JobType) {
             let placeholders = parse_resolvable_string(path);
             if !placeholders.contains(&StringPart::Placeholder(TASK_ID_PLACEHOLDER)) {
                 log::warn!("You have submitted an array job, but the `{}` path does not contain the task ID placeholder.\n\
-Individual tasks might thus overwrite the file. Consider adding `%{{{}}}` to the `--{}` value.", stream, TASK_ID_PLACEHOLDER, stream);
+        Individual tasks might thus overwrite the file. Consider adding `%{{{}}}` to the `--{}` value.", stream, TASK_ID_PLACEHOLDER, stream);
             }
         }
     };
@@ -383,10 +383,24 @@ Individual tasks might thus overwrite the file. Consider adding `%{{{}}}` to the
     }
 }
 
+/// Returns an error if working directory contains the CWD placeholder.
+fn check_valid_cwd(opts: &SubmitOpts) -> anyhow::Result<()> {
+    let placeholders = parse_resolvable_string(opts.cwd.to_str().unwrap());
+    if placeholders.contains(&StringPart::Placeholder(CWD_PLACEHOLDER)) {
+        return Err(anyhow!(
+            "Working directory path cannot contain the working directory placeholder `%{{{}}}`.",
+            CWD_PLACEHOLDER
+        ));
+    }
+
+    Ok(())
+}
+
 /// Warn user about suspicious submit parameters
 fn check_suspicious_options(opts: &SubmitOpts, job_type: &JobType) -> anyhow::Result<()> {
     warn_array_task_count(opts, job_type);
     warn_missing_task_id(opts, job_type);
+    check_valid_cwd(opts)?;
     Ok(())
 }
 
