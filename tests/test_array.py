@@ -215,7 +215,7 @@ def test_warning_missing_placeholder_in_output(hq_env: HqEnv, channel: str):
     )
     assert (
         f"You have submitted an array job, but the `{channel}` "
-        + "path does not contain task ID placeholder."
+        + "path does not contain the task ID placeholder."
         in output
     )
     assert f"Consider adding `%{{TASK_ID}}` to the `--{channel}` value."
