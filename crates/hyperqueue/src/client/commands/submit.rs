@@ -206,6 +206,16 @@ impl SubmitOpts {
     }
 }
 
+fn create_stdio(arg: Option<StdioArg>, log: &Option<PathBuf>, default: &str) -> StdioDef {
+    arg.map(|x| x.0).unwrap_or_else(|| {
+        if log.is_none() {
+            StdioDef::File(default.into())
+        } else {
+            StdioDef::Pipe
+        }
+    })
+}
+
 pub async fn submit_computation(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
@@ -213,24 +223,7 @@ pub async fn submit_computation(
 ) -> anyhow::Result<()> {
     let resources = opts.resource_request();
 
-    let (job_type, entries) = if let Some(ref filename) = opts.each_line {
-        let entries = read_lines(filename)?;
-        let def = IntArray::from_range(0, entries.len() as JobTaskCount);
-        (JobType::Array(def), Some(entries))
-    } else if let Some(ref filename) = opts.from_json {
-        let entries = make_entries_from_json(filename)?;
-        let def = IntArray::from_range(0, entries.len() as JobTaskCount);
-        (JobType::Array(def), Some(entries))
-    } else {
-        (
-            opts.array
-                .as_ref()
-                .cloned()
-                .map(JobType::Array)
-                .unwrap_or(JobType::Simple),
-            None,
-        )
-    };
+    let (job_type, entries) = get_job_type_and_entries(&opts)?;
 
     check_suspicious_options(&opts, &job_type);
 
@@ -252,20 +245,8 @@ pub async fn submit_computation(
 
     let log = opts.log;
     let cwd = Some(opts.cwd);
-    let stdout = opts.stdout.map(|x| x.0).unwrap_or_else(|| {
-        if log.is_none() {
-            StdioDef::File(DEFAULT_STDOUT_PATH.into())
-        } else {
-            StdioDef::Pipe
-        }
-    });
-    let stderr = opts.stderr.map(|x| x.0).unwrap_or_else(|| {
-        if log.is_none() {
-            StdioDef::File(DEFAULT_STDERR_PATH.into())
-        } else {
-            StdioDef::Pipe
-        }
-    });
+    let stdout = create_stdio(opts.stdout, &log, DEFAULT_STDOUT_PATH);
+    let stderr = create_stdio(opts.stderr, &log, DEFAULT_STDERR_PATH);
 
     let env_count = opts.env.len();
     let env: Map<_, _> = opts
@@ -294,7 +275,11 @@ pub async fn submit_computation(
         pin: opts.pin,
         entries,
         max_fails: opts.max_fails,
-        submit_dir: std::env::current_dir().unwrap().to_str().unwrap().into(),
+        submit_dir: std::env::current_dir()
+            .expect("Cannot get current working directory")
+            .to_str()
+            .unwrap()
+            .into(),
         priority: opts.priority,
         time_limit: opts.time_limit.map(|x| x.unpack()),
         log,
@@ -315,6 +300,28 @@ pub async fn submit_computation(
         wait_for_jobs_with_progress(connection, vec![info]).await?;
     }
     Ok(())
+}
+
+fn get_job_type_and_entries(opts: &SubmitOpts) -> anyhow::Result<(JobType, Option<Vec<BString>>)> {
+    let result = if let Some(ref filename) = opts.each_line {
+        let entries = read_lines(filename)?;
+        let def = IntArray::from_range(0, entries.len() as JobTaskCount);
+        (JobType::Array(def), Some(entries))
+    } else if let Some(ref filename) = opts.from_json {
+        let entries = make_entries_from_json(filename)?;
+        let def = IntArray::from_range(0, entries.len() as JobTaskCount);
+        (JobType::Array(def), Some(entries))
+    } else {
+        (
+            opts.array
+                .as_ref()
+                .cloned()
+                .map(JobType::Array)
+                .unwrap_or(JobType::Simple),
+            None,
+        )
+    };
+    Ok(result)
 }
 
 /// Warn user about suspicious submit parameters
@@ -382,7 +389,7 @@ pub async fn resubmit_computation(
     Ok(())
 }
 
-fn validate_name(name: String) -> anyhow::Result<String, anyhow::Error> {
+fn validate_name(name: String) -> anyhow::Result<String> {
     match name {
         name if name.contains('\n') || name.contains('\t') => {
             Err(anyhow!("name cannot have a newline or a tab"))
@@ -392,11 +399,11 @@ fn validate_name(name: String) -> anyhow::Result<String, anyhow::Error> {
     }
 }
 
-// We need to read it as bytes, because not all our users uses UTF-8
+// We need to read it as bytes, because not all our users use UTF-8
 fn read_lines(filename: &Path) -> anyhow::Result<Vec<BString>> {
     log::info!("Reading file: {}", filename.display());
     if fs::metadata(filename)?.len() > 100 << 20 {
-        log::warn!("Reading file bigger then 100MB");
+        log::warn!("Reading file bigger than 100MB");
     };
     let file = std::fs::File::open(filename)?;
     let results: Result<Vec<BString>, std::io::Error> = io::BufReader::new(file)
