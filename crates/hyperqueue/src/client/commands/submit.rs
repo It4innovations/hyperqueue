@@ -16,7 +16,9 @@ use crate::client::job::get_worker_map;
 use crate::client::resources::{parse_cpu_request, parse_resource_request};
 use crate::client::status::StatusList;
 use crate::common::arraydef::IntArray;
-use crate::common::placeholders::{JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER};
+use crate::common::placeholders::{
+    parse_resolvable_string, StringPart, JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER,
+};
 use crate::common::timeutils::ArgDuration;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
@@ -29,16 +31,24 @@ const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 // Keep in sync with tests/util/job.py::default_task_output
 const DEFAULT_STDOUT_PATH: &str = const_format::concatcp!(
     "job-",
+    "%{",
     JOB_ID_PLACEHOLDER,
+    "}",
     "/",
+    "%{",
     TASK_ID_PLACEHOLDER,
+    "}",
     ".stdout"
 );
 const DEFAULT_STDERR_PATH: &str = const_format::concatcp!(
     "job-",
+    "%{",
     JOB_ID_PLACEHOLDER,
+    "}",
     "/",
+    "%{",
     TASK_ID_PLACEHOLDER,
+    "}",
     ".stderr"
 );
 
@@ -225,7 +235,7 @@ pub async fn submit_computation(
 
     let (job_type, entries) = get_job_type_and_entries(&opts)?;
 
-    check_suspicious_options(&opts, &job_type);
+    check_suspicious_options(&opts, &job_type)?;
 
     let name = if let Some(name) = opts.name {
         validate_name(name)?
@@ -324,44 +334,60 @@ fn get_job_type_and_entries(opts: &SubmitOpts) -> anyhow::Result<(JobType, Optio
     Ok(result)
 }
 
-/// Warn user about suspicious submit parameters
-fn check_suspicious_options(opts: &SubmitOpts, job_type: &JobType) {
+/// Warns the user that an array job might produce too many files.
+fn warn_array_task_count(opts: &SubmitOpts, job_type: &JobType) {
     let is_path_some =
         |path: Option<&StdioArg>| -> bool { path.map_or(true, |x| !matches!(x.0, StdioDef::Null)) };
+
+    if let JobType::Array(ref array) = job_type {
+        let mut task_files = 0;
+        let mut active_dirs = Vec::new();
+        if is_path_some(opts.stdout.as_ref()) {
+            task_files += array.id_count();
+            active_dirs.push("stdout");
+        }
+        if is_path_some(opts.stderr.as_ref()) {
+            task_files += array.id_count();
+            active_dirs.push("stderr");
+        }
+        if task_files > SUBMIT_ARRAY_LIMIT && opts.log.is_none() {
+            log::warn!(
+                "The job will create {} files for{}. \
+                Consider using the `--log` option to stream all outputs into a single file",
+                task_files,
+                active_dirs.join(" and ")
+            );
+        }
+    }
+}
+
+/// Warns the user that an array job does not contain task ID within stdout/stderr path.
+fn warn_missing_task_id(opts: &SubmitOpts, job_type: &JobType) {
     let check_path = |path: Option<&StdioArg>, stream: &str| {
         let path = path.and_then(|stdio| match &stdio.0 {
             StdioDef::File(path) => path.to_str(),
             _ => None,
         });
         if let Some(path) = path {
-            if !path.contains(TASK_ID_PLACEHOLDER) {
-                log::warn!("You have submitted an array job, but the `{}` path does not contain task ID placeholder.\n\
-                Individual tasks might thus overwrite the file. Consider adding `{}` to the `--{}` value.", stream, TASK_ID_PLACEHOLDER, stream);
+            let placeholders = parse_resolvable_string(path);
+            if !placeholders.contains(&StringPart::Placeholder(TASK_ID_PLACEHOLDER)) {
+                log::warn!("You have submitted an array job, but the `{}` path does not contain the task ID placeholder.\n\
+Individual tasks might thus overwrite the file. Consider adding `%{{{}}}` to the `--{}` value.", stream, TASK_ID_PLACEHOLDER, stream);
             }
         }
     };
-    if let JobType::Array(ref array) = job_type {
-        let mut task_files = 0;
-        let mut active_dirs = String::new();
-        if is_path_some(opts.stdout.as_ref()) {
-            task_files += array.id_count();
-            active_dirs.push_str(" stdout");
-            check_path(opts.stdout.as_ref(), "stdout");
-        }
-        if is_path_some(opts.stderr.as_ref()) {
-            task_files += array.id_count();
-            active_dirs.push_str(" stderr");
-            check_path(opts.stderr.as_ref(), "stderr");
-        }
-        if task_files > SUBMIT_ARRAY_LIMIT && opts.log.is_none() {
-            log::warn!(
-                "The job will create {} files for{}. \
-                You may consider using --log option to stream all outputs into one file",
-                task_files,
-                active_dirs
-            );
-        }
+
+    if let JobType::Array(_) = job_type {
+        check_path(opts.stdout.as_ref(), "stdout");
+        check_path(opts.stderr.as_ref(), "stderr");
     }
+}
+
+/// Warn user about suspicious submit parameters
+fn check_suspicious_options(opts: &SubmitOpts, job_type: &JobType) -> anyhow::Result<()> {
+    warn_array_task_count(opts, job_type);
+    warn_missing_task_id(opts, job_type);
+    Ok(())
 }
 
 #[derive(Parser)]
