@@ -10,20 +10,18 @@ use tokio::sync::{oneshot, Notify};
 
 use tako::messages::common::ProgramDefinition;
 use tako::messages::gateway::{
-    CancelTasks, FromGatewayMessage, NewTasksMessage, OverviewRequest, StopWorkerRequest, TaskConf,
-    TaskDef, ToGatewayMessage,
+    CancelTasks, FromGatewayMessage, OverviewRequest, StopWorkerRequest, ToGatewayMessage,
 };
 
 use crate::client::status::{job_status, task_status, Status};
 use crate::common::arraydef::IntArray;
-use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
+use crate::common::env::{HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::manager::info::ManagerType;
-use crate::common::placeholders::replace_placeholders_server;
 use crate::common::serverdir::ServerDir;
 use crate::server::autoalloc::{
     DescriptorId, PbsHandler, QueueDescriptor, QueueHandler, QueueInfo, SlurmHandler,
 };
-use crate::server::job::{Job, JobState, JobTaskCounters};
+use crate::server::job::{JobState, JobTaskCounters};
 use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
@@ -32,10 +30,12 @@ use crate::transfer::messages::{AllocationQueueParams, WaitForJobsResponse};
 use crate::transfer::messages::{
     AutoAllocListResponse, AutoAllocRequest, AutoAllocResponse, CancelJobResponse,
     FromClientMessage, JobDetail, JobInfoResponse, JobType, QueueDescriptorData, ResubmitRequest,
-    Selector, StatsResponse, StopWorkerResponse, SubmitRequest, SubmitResponse, TaskBody,
-    ToClientMessage, WorkerListResponse,
+    Selector, StatsResponse, StopWorkerResponse, SubmitRequest, ToClientMessage,
+    WorkerListResponse,
 };
 use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
+
+mod submit;
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
@@ -95,7 +95,7 @@ pub async fn client_rpc_loop<
             Ok(message) => {
                 let response = match message {
                     FromClientMessage::Submit(msg) => {
-                        handle_submit(&state_ref, &tako_ref, msg).await
+                        submit::handle_submit(&state_ref, &tako_ref, msg).await
                     }
                     FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, msg.selector),
                     FromClientMessage::Resubmit(msg) => {
@@ -585,117 +585,6 @@ fn make_program_def_for_task(
     def
 }
 
-async fn handle_submit(
-    state_ref: &StateRef,
-    tako_ref: &Backend,
-    message: SubmitRequest,
-) -> ToClientMessage {
-    let resources = message.resources.clone();
-    let spec = message.spec;
-    let pin = message.pin;
-    let submit_dir = message.submit_dir;
-    let priority = message.priority;
-    let time_limit = message.time_limit;
-
-    let make_task = |job_id, task_id, tako_id, entry: Option<BString>| {
-        let mut program = make_program_def_for_task(&spec, job_id, task_id, &submit_dir);
-        if let Some(e) = entry {
-            program.env.insert(HQ_ENTRY.into(), e);
-        }
-        let body_msg = TaskBody {
-            program,
-            pin,
-            job_id,
-            task_id,
-        };
-        let body = tako::transfer::auth::serialize(&body_msg).unwrap();
-        TaskDef {
-            id: tako_id,
-            conf_idx: 0,
-            task_deps: Vec::new(),
-            body,
-        }
-    };
-    let (task_defs, job_detail, job_id) = {
-        let mut state = state_ref.get_mut();
-        let job_id = state.new_job_id();
-        let task_count = match &message.job_type {
-            JobType::Simple => 1,
-            JobType::Array(a) => a.id_count(),
-        };
-        let tako_base_id = state.new_task_id(task_count).as_num();
-        let task_defs = match (&message.job_type, message.entries.clone()) {
-            (JobType::Simple, _) => vec![make_task(job_id, 0.into(), tako_base_id.into(), None)],
-            (JobType::Array(a), None) => a
-                .iter()
-                .zip(tako_base_id..)
-                .map(|(task_id, tako_id)| make_task(job_id, task_id.into(), tako_id.into(), None))
-                .collect(),
-            (JobType::Array(a), Some(entries)) => a
-                .iter()
-                .zip(tako_base_id..)
-                .zip(entries.into_iter())
-                .map(|((task_id, tako_id), entry)| {
-                    make_task(job_id, task_id.into(), tako_id.into(), Some(entry))
-                })
-                .collect(),
-        };
-        let job = Job::new(
-            message.job_type,
-            job_id,
-            tako_base_id.into(),
-            message.name.clone(),
-            spec,
-            resources,
-            pin,
-            message.max_fails,
-            message.entries.clone(),
-            priority,
-            time_limit,
-            message.log.clone(),
-        );
-        let job_detail = job.make_job_detail(false);
-        state.add_job(job);
-
-        (task_defs, job_detail, job_id)
-    };
-
-    if let Some(mut log) = message.log {
-        replace_placeholders_server(&mut log, job_id, submit_dir.clone());
-
-        let (sender, receiver) = oneshot::channel();
-        tako_ref.send_stream_control(StreamServerControlMessage::RegisterStream {
-            job_id,
-            path: submit_dir.join(log),
-            response: sender,
-        });
-        assert!(receiver.await.is_ok());
-    }
-
-    match tako_ref
-        .send_tako_message(FromGatewayMessage::NewTasks(NewTasksMessage {
-            tasks: task_defs,
-            configurations: vec![TaskConf {
-                resources: message.resources,
-                n_outputs: 0,
-                time_limit,
-                keep: false,
-                observe: true,
-                priority,
-            }],
-        }))
-        .await
-        .unwrap()
-    {
-        ToGatewayMessage::NewTasksResponse(_) => { /* Ok */ }
-        _ => {
-            panic!("Invalid response");
-        }
-    };
-
-    ToClientMessage::SubmitResponse(SubmitResponse { job: job_detail })
-}
-
 async fn handle_resubmit(
     state_ref: &StateRef,
     tako_ref: &Backend,
@@ -768,7 +657,7 @@ async fn handle_resubmit(
             return ToClientMessage::Error("Invalid job_id".to_string());
         }
     };
-    handle_submit(&state_ref.clone(), &tako_ref.clone(), msg_submit).await
+    submit::handle_submit(&state_ref.clone(), &tako_ref.clone(), msg_submit).await
 }
 
 async fn handle_worker_list(state_ref: &StateRef) -> ToClientMessage {
