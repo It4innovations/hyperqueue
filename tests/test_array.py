@@ -1,9 +1,9 @@
 import collections
+import datetime
 import os
 import time
 
 import pytest
-import datetime
 
 from .conftest import HqEnv
 from .utils import JOB_TABLE_ROWS, wait_for_job_state
