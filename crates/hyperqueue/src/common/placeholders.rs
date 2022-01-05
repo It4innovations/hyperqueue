@@ -77,11 +77,17 @@ pub fn replace_placeholders(map: &PlaceholderMap, input: &str) -> String {
     for placeholder in parse_resolvable_string(input) {
         match placeholder {
             StringPart::Verbatim(data) => buffer.write_str(data),
-            StringPart::Placeholder(placeholder) => buffer.write_str(
-                map.get(placeholder)
-                    .map(String::as_str)
-                    .unwrap_or_else(|| placeholder),
-            ),
+            StringPart::Placeholder(placeholder) => buffer.write_str(match map.get(placeholder) {
+                Some(value) => value.as_str(),
+                None => {
+                    log::warn!(
+                        "Encountered an unknown placeholder `{}` in `{}`",
+                        placeholder,
+                        input
+                    );
+                    placeholder
+                }
+            }),
         }
         .unwrap();
     }
