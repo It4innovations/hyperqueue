@@ -154,6 +154,15 @@ def test_job_output_default(hq_env: HqEnv, tmp_path):
         assert f.read() == ""
 
 
+def test_cwd_recursive_placeholder(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.command(
+        ["submit", "--cwd", "%{CWD}/foo", "--", "bash", "-c", "echo 'hello'"],
+        expect_fail="Working directory path cannot contain the working "
+        "directory placeholder `%{CWD}`.",
+    )
+
+
 def test_create_output_folders(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
