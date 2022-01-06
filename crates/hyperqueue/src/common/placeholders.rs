@@ -23,7 +23,7 @@ pub const SUBMIT_DIR_PLACEHOLDER: &str = "SUBMIT_DIR";
 type PlaceholderMap<'a> = Map<&'static str, Cow<'a, str>>;
 
 pub fn fill_placeholders_worker(program: &mut ProgramDefinition) {
-    let mut placeholders = Map::new();
+    let mut placeholders = PlaceholderMap::new();
     let job_id = program.env[&BString::from(HQ_JOB_ID)].to_string();
     let task_id = program.env[&BString::from(HQ_TASK_ID)].to_string();
     let instance_id = program.env[&BString::from(HQ_INSTANCE_ID)].to_string();
@@ -60,7 +60,7 @@ pub fn fill_placeholders_worker(program: &mut ProgramDefinition) {
 }
 
 pub fn fill_placeholders_log(value: &mut PathBuf, job_id: JobId, submit_dir: &Path) {
-    let mut map = Map::new();
+    let mut map = PlaceholderMap::new();
     map.insert(JOB_ID_PLACEHOLDER, job_id.to_string().into());
     map.insert(SUBMIT_DIR_PLACEHOLDER, submit_dir.to_str().unwrap().into());
     *value = replace_placeholders(&map, value.to_str().unwrap()).into();
