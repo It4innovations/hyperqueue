@@ -17,6 +17,7 @@ use crate::tests::utils::resources::cpus_compact;
 use crate::tests::utils::schedule;
 use crate::tests::utils::task::TaskBuilder;
 use crate::transfer::auth::{deserialize, serialize};
+use crate::worker::state::ServerLostPolicy;
 use crate::{TaskId, WorkerId};
 use std::time::Duration;
 
@@ -98,6 +99,7 @@ impl TestEnv {
                 send_overview_interval: Some(Duration::from_millis(1000)),
                 idle_timeout: None,
                 time_limit: time_limit.clone(),
+                on_server_lost: ServerLostPolicy::Stop,
                 extra: Default::default(),
             };
 

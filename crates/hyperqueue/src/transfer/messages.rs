@@ -12,8 +12,10 @@ use crate::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
 use bstr::BString;
 use std::path::PathBuf;
 use std::time::Duration;
+
 use tako::messages::gateway::{LostWorkerReason, MonitoringEventRequest, ResourceRequest};
 use tako::server::monitoring::MonitoringEvent;
+use tako::worker::state::ServerLostPolicy;
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]
@@ -126,6 +128,7 @@ pub struct AllocationQueueParams {
     pub workers_per_alloc: u32,
     pub backlog: u32,
     pub timelimit: Duration,
+    pub on_server_lost: ServerLostPolicy,
     pub name: Option<String>,
     pub additional_args: Vec<String>,
     pub worker_cpu_arg: Option<String>,

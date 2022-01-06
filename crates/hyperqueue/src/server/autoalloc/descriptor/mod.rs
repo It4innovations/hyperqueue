@@ -10,6 +10,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::Duration;
+use tako::worker::state::ServerLostPolicy;
 
 /// Describes an allocation queue. Holds both input parameters of the queue (`info`) and a handler
 /// that can communicate with the queue.
@@ -57,6 +58,7 @@ pub struct QueueInfo {
     backlog: u32,
     workers_per_alloc: u32,
     timelimit: Duration,
+    on_server_lost: ServerLostPolicy,
     additional_args: Vec<String>,
     worker_cpu_arg: Option<String>,
     worker_resource_args: Vec<String>,
@@ -64,10 +66,12 @@ pub struct QueueInfo {
 }
 
 impl QueueInfo {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         backlog: u32,
         workers_per_alloc: u32,
         timelimit: Duration,
+        on_server_lost: ServerLostPolicy,
         additional_args: Vec<String>,
         worker_cpu_arg: Option<String>,
         worker_resource_args: Vec<String>,
@@ -81,6 +85,7 @@ impl QueueInfo {
             worker_cpu_arg,
             worker_resource_args,
             max_worker_count,
+            on_server_lost,
         }
     }
 
@@ -106,6 +111,10 @@ impl QueueInfo {
 
     pub fn worker_resource_args(&self) -> &[String] {
         &self.worker_resource_args
+    }
+
+    pub fn on_server_lost(&self) -> &ServerLostPolicy {
+        &self.on_server_lost
     }
 
     pub fn max_worker_count(&self) -> Option<u32> {

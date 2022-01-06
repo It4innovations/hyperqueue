@@ -155,6 +155,10 @@ pub fn build_worker_args(
         args.write_fmt(format_args!(" --resource \"{}\"", resource_arg))
             .unwrap();
     }
-
+    args.write_fmt(format_args!(
+        " --on-server-lost={}",
+        crate::common::format::server_lost_policy_to_str(&queue_info.on_server_lost)
+    ))
+    .unwrap();
     args
 }

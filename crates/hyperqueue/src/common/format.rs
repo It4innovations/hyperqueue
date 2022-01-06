@@ -1,3 +1,5 @@
+use tako::worker::state::ServerLostPolicy;
+
 pub fn human_duration(duration: chrono::Duration) -> String {
     // Truncate to reasonable precision
     if duration.num_hours() > 0 {
@@ -21,6 +23,13 @@ pub fn human_size(size: u64) -> String {
         format!("{} MiB", size / (1024 * 1024))
     } else {
         format!("{} GiB", size / (1024 * 1024 * 1024))
+    }
+}
+
+pub fn server_lost_policy_to_str(policy: &ServerLostPolicy) -> &str {
+    match policy {
+        ServerLostPolicy::Stop => "stop",
+        ServerLostPolicy::FinishRunning => "finish-running",
     }
 }
 

@@ -1,8 +1,11 @@
+import os
 import time
 from socket import gethostname
 
+import pytest
+
 from .conftest import HqEnv
-from .utils import wait_for_worker_state
+from .utils import wait_for_job_state, wait_for_worker_state
 from .utils.table import Table
 
 
@@ -211,6 +214,56 @@ def test_worker_address(hq_env: HqEnv):
 
     output = hq_env.command(["worker", "address", "2"]).strip()
     assert output == gethostname()
+
+
+@pytest.mark.parametrize("policy", ["stop", "finish-running"])
+def test_server_lost_no_tasks(hq_env: HqEnv, policy: str):
+    hq_env.start_server()
+    worker = hq_env.start_worker(on_server_lost=policy)
+    hq_env.kill_server()
+    time.sleep(0.5)
+    hq_env.check_process_exited(worker)
+
+
+def test_server_lost_stop_with_task(hq_env: HqEnv):
+    hq_env.start_server()
+    worker = hq_env.start_worker(on_server_lost="stop")
+    path = os.path.join(hq_env.work_path, "finished")
+    hq_env.command(
+        ["submit", "--array=1-10", "--", "bash", "-c", f"sleep 2; touch {path}"]
+    )
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    hq_env.kill_server()
+    time.sleep(0.5)
+    hq_env.check_process_exited(worker)
+    assert not os.path.isfile(path)
+
+
+def test_server_lost_finish_running_with_task(hq_env: HqEnv):
+    hq_env.start_server()
+    worker = hq_env.start_worker(on_server_lost="finish-running")
+    path = os.path.join(hq_env.work_path, "finished")
+    hq_env.command(
+        [
+            "submit",
+            "--array=1-10",
+            "--",
+            "bash",
+            "-c",
+            f"sleep 2; touch {path}-$HQ_TASK_ID",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    hq_env.kill_server()
+    time.sleep(0.5)
+    assert worker.poll() is None
+    time.sleep(2.0)
+    hq_env.check_process_exited(worker)
+
+    files = [
+        path for path in os.listdir(hq_env.work_path) if path.startswith("finished-")
+    ]
+    assert len(files) == 1
 
 
 def list_all_workers(hq_env: HqEnv) -> Table:

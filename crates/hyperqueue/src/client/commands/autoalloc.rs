@@ -4,6 +4,7 @@ use std::time::SystemTime;
 use clap::Parser;
 use tempdir::TempDir;
 
+use crate::client::commands::worker::ArgServerLostPolicy;
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::utils::PassThroughArgument;
 use crate::common::manager::info::ManagerType;
@@ -95,6 +96,10 @@ pub struct SharedQueueOpts {
     /// What resources should the workers spawned inside allocations contain
     #[clap(long, setting = clap::ArgSettings::MultipleOccurrences)]
     resource: Vec<PassThroughArgument<ArgGenericResourceDef>>,
+
+    /// Behavior when a connection to a server is lost
+    #[clap(long, default_value = "finish-running", possible_values = &["stop", "finish-running"])]
+    on_server_lost: ArgServerLostPolicy,
 
     /// Additional arguments passed to the submit command
     #[clap()]
@@ -194,6 +199,7 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
         cpus,
         resource,
         additional_args,
+        on_server_lost,
     } = args;
 
     AllocationQueueParams {
@@ -205,6 +211,7 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
         worker_cpu_arg: cpus.map(|v| v.into()),
         worker_resources_args: resource.into_iter().map(|v| v.into()).collect(),
         max_worker_count,
+        on_server_lost: on_server_lost.unpack(),
     }
 }
 

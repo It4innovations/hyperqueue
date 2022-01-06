@@ -18,6 +18,7 @@ use clap::Parser;
 use std::str::FromStr;
 use std::time::Duration;
 use tako::worker::rpc::run_worker;
+use tako::worker::state::ServerLostPolicy;
 use tokio::net::lookup_host;
 use tokio::task::LocalSet;
 
@@ -46,6 +47,21 @@ impl FromStr for ManagerOpts {
             }
         })
     }
+}
+
+crate::arg_wrapper!(ArgServerLostPolicy, ServerLostPolicy, parse_on_server_lost);
+
+fn parse_on_server_lost(s: &str) -> crate::Result<ServerLostPolicy> {
+    Ok(match s.to_ascii_lowercase().as_str() {
+        "stop" => ServerLostPolicy::Stop,
+        "finish-running" => ServerLostPolicy::FinishRunning,
+        _ => {
+            return error(
+                "Invalid on-server-lost value. Allowed values are 'stop', 'finish-running'"
+                    .to_string(),
+            );
+        }
+    })
 }
 
 #[derive(Parser)]
@@ -81,6 +97,10 @@ pub struct WorkerStartOpts {
     /// Overwrite worker hostname
     #[clap(long)]
     pub hostname: Option<String>,
+
+    /// Behavior when a connection to a server is lost
+    #[clap(long, default_value = "stop", possible_values = &["stop", "finish-running"])]
+    pub on_server_lost: ArgServerLostPolicy,
 }
 
 pub async fn start_hq_worker(

@@ -467,6 +467,7 @@ def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
             '"x=sum(100)"',
             "--resource",
             '"y=indices(1-4)"',
+            "--on-server-lost=finish-running",
         ]
 
 
@@ -484,3 +485,41 @@ def wait_for_alloc(hq_env: HqEnv, state: str, index=0):
         return alloc_states[index] == state
 
     wait_until(wait)
+
+
+def test_pbs_pass_on_server_lost(hq_env: HqEnv):
+    path = join(hq_env.work_path, "qsub.out")
+    qsub_code = program_code_store_args_json(path)
+
+    with hq_env.mock.mock_program("qsub", qsub_code):
+        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        prepare_tasks(hq_env)
+
+        add_queue(
+            hq_env,
+            manager="pbs",
+            additional_worker_args=["--on-server-lost=stop"],
+        )
+        wait_until(lambda: os.path.exists(path))
+
+        with open(path) as f:
+            args = json.loads(f.read())
+            qsub_script_path = args[1]
+        with open(qsub_script_path) as f:
+            data = f.read()
+        worker_args = [
+            line
+            for line in data.splitlines(keepends=False)
+            if line and not line.startswith("#")
+        ][0].split(" ")[1:]
+        assert worker_args == [
+            "worker",
+            "start",
+            "--idle-timeout",
+            "5m",
+            "--manager",
+            "pbs",
+            "--server-dir",
+            f"{hq_env.server_dir}/001",
+            "--on-server-lost=stop",
+        ]

@@ -153,6 +153,7 @@ class HqEnv(Env):
         args=None,
         set_hostname=True,
         wait_for_start=True,
+        on_server_lost="stop",
     ) -> subprocess.Popen:
         self.id_counter += 1
         worker_id = self.id_counter
@@ -165,6 +166,7 @@ class HqEnv(Env):
             self.server_dir,
             "worker",
             "start",
+            f"--on-server-lost={on_server_lost}",
             "--no-detect-resources",  # Ignore resources on testing machine
         ]
         hostname = f"worker{worker_id}"
@@ -187,6 +189,9 @@ class HqEnv(Env):
 
             wait_until(wait_for_worker)
         return r
+
+    def kill_server(self):
+        self.kill_process("server")
 
     def kill_worker(self, worker_id: int):
         table = self.command(["worker", "info", str(worker_id)], as_table=True)

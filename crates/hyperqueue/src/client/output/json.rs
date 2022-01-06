@@ -296,6 +296,7 @@ fn format_queue_descriptor(
         "max_worker_count": info.max_worker_count(),
         "worker_cpu_args": info.worker_cpu_args(),
         "worker_resource_args": info.worker_resource_args(),
+        "on_server_lost": crate::common::format::server_lost_policy_to_str(info.on_server_lost()),
     })
 }
 fn format_allocation(allocation: Allocation) -> serde_json::Value {
@@ -379,6 +380,7 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
                 send_overview_interval: _,
                 idle_timeout,
                 time_limit,
+                on_server_lost,
                 extra: _,
             },
         ended,
@@ -394,7 +396,8 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
             "work_dir": work_dir,
             "hostname": hostname,
             "listen_address": listen_address,
-            "resources": format_resource_descriptor(&resources)
+            "resources": format_resource_descriptor(&resources),
+            "on_server_lost": crate::common::format::server_lost_policy_to_str(&on_server_lost),
         }),
         "ended": ended.map(|info| json!({
             "at": format_datetime(info.ended_at)
