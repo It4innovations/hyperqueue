@@ -214,7 +214,7 @@ impl SchedulerState {
             TaskRuntimeState::Stealing(from_w, _) => {
                 TaskRuntimeState::Stealing(from_w, Some(worker_id))
             }
-            TaskRuntimeState::Running(_) | TaskRuntimeState::Finished(_) => {
+            TaskRuntimeState::Running { .. } | TaskRuntimeState::Finished(_) => {
                 panic!("Invalid state {:?}", task.state);
             }
         };

@@ -172,9 +172,9 @@ impl State {
     pub fn process_task_update(&mut self, msg: TaskUpdate, backend: &Backend) {
         log::debug!("Task id={} updated {:?}", msg.id, msg.state);
         match msg.state {
-            TaskState::Running(worker_id) => {
+            TaskState::Running { worker_id, context } => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
-                job.set_running_state(msg.id, worker_id)
+                job.set_running_state(msg.id, worker_id, context)
             }
             TaskState::Finished => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();

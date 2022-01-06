@@ -878,17 +878,17 @@ fn format_worker(id: WorkerId, worker_map: &WorkerMap) -> &str {
 pub fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<DateTime<Utc>>) {
     match state {
         JobTaskState::Canceled | JobTaskState::Waiting => (None, None),
-        JobTaskState::Running { start_date, .. } => (Some(*start_date), None),
+        JobTaskState::Running { started_data, .. } => (Some(started_data.start_date), None),
         JobTaskState::Finished {
-            start_date,
+            started_data,
             end_date,
             ..
         }
         | JobTaskState::Failed {
-            start_date,
+            started_data,
             end_date,
             ..
-        } => (Some(*start_date), Some(*end_date)),
+        } => (Some(started_data.start_date), Some(*end_date)),
     }
 }
 

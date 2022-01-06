@@ -154,7 +154,7 @@ pub async fn process_client_message(
                             TaskRuntimeState::Waiting(_) => TaskState::Waiting,
                             TaskRuntimeState::Assigned(_) => TaskState::Waiting,
                             TaskRuntimeState::Stealing(_, _) => TaskState::Waiting,
-                            TaskRuntimeState::Running(_) => TaskState::Waiting,
+                            TaskRuntimeState::Running { .. } => TaskState::Waiting,
                             TaskRuntimeState::Finished(_) => TaskState::Finished,
                         },
                     }

@@ -3,7 +3,7 @@ use crate::messages::common::TaskFailInfo;
 use crate::messages::gateway::LostWorkerReason;
 use crate::messages::worker::{
     NewWorkerMsg, StealResponse, StealResponseMsg, TaskFinishedMsg, TaskIdMsg, TaskIdsMsg,
-    ToWorkerMessage,
+    TaskRunningMsg, ToWorkerMessage,
 };
 use crate::server::comm::Comm;
 use crate::server::core::Core;
@@ -42,7 +42,10 @@ pub fn on_remove_worker(
 
         let new_state = match &mut task.state {
             TaskRuntimeState::Waiting(_) => continue,
-            TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
+            TaskRuntimeState::Assigned(w_id)
+            | TaskRuntimeState::Running {
+                worker_id: w_id, ..
+            } => {
                 if *w_id == worker_id {
                     log::debug!("Removing task task={} from lost worker", task_id);
                     task.increment_instance_id();
@@ -144,14 +147,19 @@ pub fn on_task_running(
     core: &mut Core,
     comm: &mut impl Comm,
     worker_id: WorkerId,
-    task_id: TaskId,
+    message: TaskRunningMsg,
 ) {
+    let TaskRunningMsg {
+        id: task_id,
+        context,
+    } = message;
+
     let (tasks, workers) = core.split_tasks_workers_mut();
     if let Some(mut task) = tasks.find_task_mut(task_id) {
-        let new_state = match task.state {
+        task.state = match task.state {
             TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Stealing(w_id, None) => {
                 assert_eq!(w_id, worker_id);
-                TaskRuntimeState::Running(worker_id)
+                TaskRuntimeState::Running { worker_id }
             }
             TaskRuntimeState::Stealing(w_id, Some(target_id)) => {
                 assert_eq!(w_id, worker_id);
@@ -160,17 +168,17 @@ pub fn on_task_running(
                 let worker = workers.get_worker_mut(w_id);
                 worker.insert_task(task);
                 comm.ask_for_scheduling();
-                TaskRuntimeState::Running(worker_id)
+                TaskRuntimeState::Running { worker_id }
             }
-            TaskRuntimeState::Running(_)
+            TaskRuntimeState::Running { .. }
             | TaskRuntimeState::Waiting(_)
             | TaskRuntimeState::Finished(_) => {
                 unreachable!()
             }
         };
-        task.state = new_state;
+
         if task.is_observed() {
-            comm.send_client_task_started(task_id, worker_id);
+            comm.send_client_task_started(task_id, worker_id, context);
         }
     }
 }
@@ -188,7 +196,10 @@ pub fn on_task_finished(
             assert!(task.is_assigned_or_stealed_from(worker_id));
 
             match &task.state {
-                TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
+                TaskRuntimeState::Assigned(w_id)
+                | TaskRuntimeState::Running {
+                    worker_id: w_id, ..
+                } => {
                     assert_eq!(*w_id, worker_id);
                     workers.get_worker_mut(worker_id).remove_task(task);
                 }
@@ -309,7 +320,7 @@ pub fn on_steal_response(
                     }
                     workers.get_worker_mut(from_worker_id).insert_task(task);
                     comm.ask_for_scheduling();
-                    TaskRuntimeState::Running(worker_id)
+                    TaskRuntimeState::Running { worker_id }
                 }
                 StealResponse::NotHere => {
                     panic!(
@@ -384,7 +395,7 @@ pub fn on_task_error(
     assert!(matches!(
         core.remove_task(task_id),
         TaskRuntimeState::Assigned(_)
-            | TaskRuntimeState::Running(_)
+            | TaskRuntimeState::Running { .. }
             | TaskRuntimeState::Stealing(_, _)
     ));
 
@@ -427,7 +438,10 @@ pub fn on_cancel_tasks(
                     to_unregister.insert(task_id);
                     to_unregister.extend(task.collect_consumers(tasks).into_iter());
                 }
-                TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Running(w_id) => {
+                TaskRuntimeState::Assigned(w_id)
+                | TaskRuntimeState::Running {
+                    worker_id: w_id, ..
+                } => {
                     to_unregister.insert(task_id);
                     to_unregister.extend(task.collect_consumers(tasks).into_iter());
                     workers.get_worker_mut(w_id).remove_task(task);
@@ -503,7 +517,7 @@ pub fn on_tasks_transferred(
                 winfo.placement.insert(worker_id);
             }
             TaskRuntimeState::Waiting(_)
-            | TaskRuntimeState::Running(_)
+            | TaskRuntimeState::Running { .. }
             | TaskRuntimeState::Assigned(_)
             | TaskRuntimeState::Stealing(_, _) => {
                 panic!("Invalid task state");

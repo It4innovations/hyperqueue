@@ -4,30 +4,40 @@ use tako::messages::common::ProgramDefinition;
 use crate::server::rpc::Backend;
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{JobDetail, JobInfo, JobType};
+use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
 use bstr::BString;
 use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 use tako::common::index::ItemId;
 use tako::messages::gateway::ResourceRequest;
+use tako::server::task::SerializedTaskContext;
+use tako::transfer::auth::deserialize;
 use tako::TaskId;
 use tokio::sync::oneshot;
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+/// State of a task that has been started at least once.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct StartedTaskData {
+    pub start_date: DateTime<Utc>,
+    pub context: RunningTaskContext,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum JobTaskState {
     Waiting,
     Running {
         worker: WorkerId,
-        start_date: DateTime<Utc>,
+        started_data: StartedTaskData,
     },
     Finished {
         worker: WorkerId,
-        start_date: DateTime<Utc>,
+        started_data: StartedTaskData,
         end_date: DateTime<Utc>,
     },
     Failed {
         worker: WorkerId,
-        start_date: DateTime<Utc>,
+        started_data: StartedTaskData,
         end_date: DateTime<Utc>,
         error: String,
     },
@@ -274,13 +284,24 @@ impl Job {
         result
     }
 
-    pub fn set_running_state(&mut self, tako_task_id: TakoTaskId, worker: WorkerId) {
+    pub fn set_running_state(
+        &mut self,
+        tako_task_id: TakoTaskId,
+        worker: WorkerId,
+        context: SerializedTaskContext,
+    ) {
         let (_, state) = self.get_task_state_mut(tako_task_id);
+
+        let context: RunningTaskContext =
+            deserialize(&context).expect("Could not deserialize task context");
 
         if matches!(state, JobTaskState::Waiting) {
             *state = JobTaskState::Running {
                 worker,
-                start_date: Utc::now(),
+                started_data: StartedTaskData {
+                    start_date: Utc::now(),
+                    context,
+                },
             };
             self.counters.n_running_tasks += 1;
         }
@@ -304,10 +325,13 @@ impl Job {
         let (_, state) = self.get_task_state_mut(tako_task_id);
         let now = Utc::now();
         match state {
-            JobTaskState::Running { worker, start_date } => {
+            JobTaskState::Running {
+                worker,
+                started_data,
+            } => {
                 *state = JobTaskState::Finished {
                     worker: *worker,
-                    start_date: *start_date,
+                    started_data: started_data.clone(),
                     end_date: now,
                 };
                 self.counters.n_running_tasks -= 1;
@@ -329,10 +353,13 @@ impl Job {
         let (_, state) = self.get_task_state_mut(tako_task_id);
         let now = Utc::now();
         match state {
-            JobTaskState::Running { worker, start_date } => {
+            JobTaskState::Running {
+                worker,
+                started_data,
+            } => {
                 *state = JobTaskState::Failed {
                     error,
-                    start_date: *start_date,
+                    started_data: started_data.clone(),
                     end_date: now,
                     worker: *worker,
                 };

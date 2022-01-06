@@ -7,6 +7,7 @@ use crate::server::reactor::{on_new_tasks, on_new_worker, on_task_finished, on_t
 use crate::server::task::Task;
 use crate::server::worker::Worker;
 use crate::tests::utils::env::TestComm;
+use crate::tests::utils::task::task_running_msg;
 use crate::{TaskId, WorkerId};
 use std::time::Duration;
 
@@ -70,7 +71,7 @@ pub fn start_on_worker_running<W: Into<WorkerId>, T: Into<TaskId>>(
     let mut comm = TestComm::default();
     force_assign(core, &mut scheduler, task_id, worker_id);
     scheduler.finish_scheduling(core, &mut comm);
-    on_task_running(core, &mut comm, worker_id, task_id);
+    on_task_running(core, &mut comm, worker_id, task_running_msg(task_id));
 }
 
 pub fn finish_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(

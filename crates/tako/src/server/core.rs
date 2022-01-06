@@ -356,7 +356,8 @@ impl Core {
                     assert!(task.is_fresh());
                 }
 
-                TaskRuntimeState::Assigned(wid) | TaskRuntimeState::Running(wid) => {
+                TaskRuntimeState::Assigned(wid)
+                | TaskRuntimeState::Running { worker_id: wid, .. } => {
                     assert!(!task.is_fresh());
                     fw_check(task);
                     worker_check(self, task.id, *wid);

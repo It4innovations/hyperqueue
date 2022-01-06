@@ -9,7 +9,7 @@ use crate::scheduler::state::SchedulerState;
 use crate::server::comm::Comm;
 use crate::server::core::Core;
 use crate::server::reactor::on_new_worker;
-use crate::server::task::Task;
+use crate::server::task::{SerializedTaskContext, Task};
 use crate::server::worker::Worker;
 use crate::server::worker_load::WorkerLoad;
 use crate::tests::utils;
@@ -327,7 +327,12 @@ impl Comm for TestComm {
         self.client_task_finished.push(task_id);
     }
 
-    fn send_client_task_started(&mut self, task_id: TaskId, _worker_id: WorkerId) {
+    fn send_client_task_started(
+        &mut self,
+        task_id: TaskId,
+        _worker_id: WorkerId,
+        _context: SerializedTaskContext,
+    ) {
         self.client_task_running.push(task_id);
     }
 
