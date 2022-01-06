@@ -146,3 +146,13 @@ If you also want to include workers that are offline (i.e. that have crashed or 
 ```bash
 $ hq worker info <worker-id>
 ```
+
+## Lost connection to the server
+
+The behavior of what should happen with a worker that lost connection to the server is configured via ``hq worker start --on-server-lost=X`` where ``X`` can be:
+
+* ``stop`` - The worker immediately terminates while killing all currently running tasks
+* ``finish-running`` - The worker does not start any new tasks and tries to finish already running tasks. When all tasks are finished then it terminates.
+
+``stop`` is a default policy when worker is manually started by ``hq worker start``.
+When a worker is started by automatic allocation, then ``finish-running`` is used as a default value.

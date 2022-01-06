@@ -27,6 +27,7 @@ use crate::tests::utils::sorted_vec;
 use crate::tests::utils::task::{task, task_running_msg, task_with_deps, TaskBuilder};
 use crate::tests::utils::workflows::{submit_example_1, submit_example_3};
 use crate::tests::utils::{env, schedule};
+use crate::worker::state::ServerLostPolicy;
 use crate::{TaskId, WorkerId};
 
 #[test]
@@ -47,6 +48,7 @@ fn test_worker_add() {
         send_overview_interval: Some(Duration::from_millis(1000)),
         idle_timeout: None,
         time_limit: None,
+        on_server_lost: ServerLostPolicy::Stop,
         extra: Default::default(),
     };
 
@@ -81,6 +83,7 @@ fn test_worker_add() {
         send_overview_interval: Some(Duration::from_millis(1000)),
         idle_timeout: None,
         time_limit: None,
+        on_server_lost: ServerLostPolicy::Stop,
         extra: Default::default(),
     };
 

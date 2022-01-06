@@ -42,6 +42,7 @@ def test_print_worker_info(hq_env: HqEnv):
                 "resources": {"cpus": [[0]], "generic": []},
                 "time_limit": None,
                 "work_dir": str,
+                "on_server_lost": "stop",
             },
             "ended": None,
             "id": 1,

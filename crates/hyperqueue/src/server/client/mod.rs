@@ -339,11 +339,13 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
         worker_cpu_arg,
         worker_resources_args,
         max_worker_count,
+        on_server_lost,
     } = params;
     QueueInfo::new(
         backlog,
         workers_per_alloc,
         timelimit,
+        on_server_lost,
         additional_args,
         worker_cpu_arg,
         worker_resources_args,

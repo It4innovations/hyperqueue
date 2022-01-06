@@ -2,10 +2,15 @@
 
 ## New features
 
+### Worker configuraiton
+  * Argument for ``--on-worker-lost`` (for ``worker start`` and autoalloc) to define what should happen
+    when a worker lost connection to server.
+
 ### CLI
 You can now force HyperQueue commands to output machine-readable data using the `--output-mode` flag
 available to all HyperQueue commands. Notably, you can output data of the commands as JSON. You can
 find more information in the [documentation](https://it4innovations.github.io/hyperqueue/stable/cli/output-mode/).
+
 
 # v0.7.0
 

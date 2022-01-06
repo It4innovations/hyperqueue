@@ -25,10 +25,17 @@ use crate::worker::task::{Task, TaskState};
 use crate::worker::taskenv::TaskEnv;
 use crate::TaskId;
 use crate::{PriorityTuple, WorkerId};
+use serde::{Deserialize, Serialize};
 
 pub type TaskMap = StableMap<TaskId, Task>;
 
 pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ServerLostPolicy {
+    Stop,
+    FinishRunning,
+}
 
 pub struct WorkerState {
     pub sender: UnboundedSender<Bytes>,
@@ -44,6 +51,8 @@ pub struct WorkerState {
     pub worker_addresses: Map<WorkerId, String>,
     pub worker_connections: Map<WorkerId, Vec<DataConnection>>,
     pub random: SmallRng,
+
+    pub worker_is_empty_notify: Option<Rc<Notify>>,
 
     pub configuration: WorkerConfiguration,
     pub task_launcher: Box<dyn TaskLauncher>,
@@ -80,10 +89,18 @@ impl WorkerState {
         self.data_objects.insert(id, data_ref);
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.tasks.is_empty()
+    }
+
     pub fn send_message_to_server(&self, message: FromWorkerMessage) {
-        self.sender
+        if self
+            .sender
             .send(serialize(&message).unwrap().into())
-            .unwrap();
+            .is_err()
+        {
+            log::debug!("Message could not be sent to server");
+        }
     }
 
     pub fn on_data_downloaded(
@@ -274,6 +291,12 @@ impl WorkerState {
                 };
             }
         }*/
+        if self.tasks.is_empty() {
+            if let Some(notify) = &self.worker_is_empty_notify {
+                log::debug!("Notifying that worker is empty");
+                notify.notify_one()
+            }
+        }
     }
 
     pub fn pop_worker_connection(&mut self, worker_id: WorkerId) -> Option<DataConnection> {
@@ -291,6 +314,18 @@ impl WorkerState {
 
     pub fn get_worker_address(&self, worker_id: WorkerId) -> Option<&String> {
         self.worker_addresses.get(&worker_id)
+    }
+
+    pub fn drop_non_running_tasks(&mut self) {
+        log::debug!("Dropping non running tasks");
+        let non_running_tasks: Vec<TaskId> = self
+            .tasks
+            .values()
+            .filter_map(|t| if t.is_running() { None } else { Some(t.id) })
+            .collect();
+        for task_id in non_running_tasks {
+            self.remove_task(task_id, false);
+        }
     }
 
     pub fn cancel_task(&mut self, task_id: TaskId) {
@@ -402,6 +437,7 @@ impl WorkerStateRef {
             running_tasks: Default::default(),
             start_time: std::time::Instant::now(),
             resource_map,
+            worker_is_empty_notify: None,
         })
     }
 }

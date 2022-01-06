@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::common::resources::ResourceDescriptor;
 use crate::common::Map;
+use crate::worker::state::ServerLostPolicy;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskFailInfo {
@@ -94,6 +95,7 @@ pub struct WorkerConfiguration {
     pub send_overview_interval: Option<Duration>,
     pub idle_timeout: Option<Duration>,
     pub time_limit: Option<Duration>,
+    pub on_server_lost: ServerLostPolicy,
 
     pub extra: Map<String, String>,
 }

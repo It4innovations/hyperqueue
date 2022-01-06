@@ -17,6 +17,7 @@ use tokio::task::LocalSet;
 
 use crate::worker::launcher::{command_from_definitions, TaskLaunchData, TaskLauncher};
 use crate::worker::rpc::run_worker;
+use crate::worker::state::ServerLostPolicy;
 use crate::worker::state::WorkerState;
 use crate::worker::taskenv::{StopReason, TaskResult};
 use crate::{TaskId, WorkerId};
@@ -81,6 +82,7 @@ pub(super) fn create_worker_configuration(
             heartbeat_interval,
             send_overview_interval,
             idle_timeout,
+            on_server_lost: ServerLostPolicy::Stop,
             time_limit: None,
             extra: Default::default(),
         },

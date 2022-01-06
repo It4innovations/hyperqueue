@@ -5,6 +5,7 @@ use tako::messages::common::WorkerConfiguration;
 use tako::server::core::Core;
 use tako::server::task::{Task, TaskConfiguration};
 use tako::server::worker::Worker;
+use tako::worker::state::ServerLostPolicy;
 use tako::{TaskId, WorkerId};
 
 pub fn create_task(id: TaskId) -> Task {
@@ -32,6 +33,7 @@ pub fn create_worker(id: u64) -> Worker {
             send_overview_interval: None,
             idle_timeout: None,
             time_limit: None,
+            on_server_lost: ServerLostPolicy::Stop,
             extra: Default::default(),
         },
         Default::default(),

@@ -1,12 +1,13 @@
 use std::future::Future;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::{Bytes, BytesMut};
 use futures::stream::FuturesUnordered;
-use futures::{SinkExt, Stream, StreamExt};
-use orion::aead::streaming::StreamOpener;
+use futures::{Sink, SinkExt, Stream, StreamExt};
+use orion::aead::streaming::{StreamOpener, StreamSealer};
 use orion::aead::SecretKey;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::sleep;
@@ -32,11 +33,12 @@ use crate::worker::data::{DataObjectRef, DataObjectState};
 use crate::worker::hwmonitor::HwSampler;
 use crate::worker::launcher::TaskLauncher;
 use crate::worker::reactor::run_task;
-use crate::worker::state::{WorkerState, WorkerStateRef};
+use crate::worker::state::{ServerLostPolicy, WorkerState, WorkerStateRef};
 use crate::worker::task::Task;
 use crate::PriorityTuple;
 use crate::{Priority, WorkerId};
 use futures::future::Either;
+use tokio::sync::Notify;
 
 async fn start_listener() -> crate::Result<(TcpListener, String)> {
     let address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
@@ -96,6 +98,46 @@ pub async fn connect_to_server_and_authenticate(
         sealer,
         opener,
     })
+}
+
+pub async fn handle_server_connection(
+    state: WorkerStateRef,
+    receiver: impl Stream<Item = Result<BytesMut, std::io::Error>> + Unpin,
+    opener: Option<StreamOpener>,
+    queue_receiver: tokio::sync::mpsc::UnboundedReceiver<bytes::Bytes>,
+    sender: impl Sink<Bytes, Error = std::io::Error> + Unpin,
+    sealer: std::option::Option<StreamSealer>,
+) -> crate::Result<()> {
+    if let Err(e) = tokio::select! {
+        r = worker_message_loop(state.clone(), receiver, opener) => r,
+        r = forward_queue_to_sealed_sink(queue_receiver, sender, sealer) => r.map_err(|e| e.into())
+    } {
+        let on_server_lost = state.get().configuration.on_server_lost.clone();
+        log::error!(
+            "Server connection failed: {}, on-server-lost: {:?}",
+            e,
+            on_server_lost,
+        );
+        match on_server_lost {
+            ServerLostPolicy::Stop => Ok(()),
+            ServerLostPolicy::FinishRunning => {
+                state.get_mut().drop_non_running_tasks();
+                let notify = Rc::new(Notify::new());
+                state.get_mut().worker_is_empty_notify = Some(notify.clone());
+                let is_empty = state.get().is_empty();
+                if is_empty {
+                    log::info!("No running tasks remain")
+                } else {
+                    log::info!("Waiting for finishing running tasks");
+                    notify.notified().await;
+                    log::info!("All running tasks were finished");
+                }
+                Ok(())
+            }
+        }
+    } else {
+        Ok(())
+    }
 }
 
 pub async fn run_worker(
@@ -167,14 +209,15 @@ pub async fn run_worker(
     Ok(((worker_id, configuration), async move {
         tokio::select! {
             () = try_start_tasks => { unreachable!() }
-            worker_res = worker_message_loop(state.clone(), receiver, opener) => {
+            /*worker_res = worker_message_loop(state.clone(), receiver, opener) => {
                 if let Err(e) = worker_res {
                     panic!("Main worker loop failed: {}", e);
                 }
             }
             _ = forward_queue_to_sealed_sink(queue_receiver, sender, sealer) => {
                 panic!("Cannot send a message to server");
-            }
+            }*/
+            _ = handle_server_connection(state.clone(), receiver, opener, queue_receiver, sender, sealer) => {}
             /*_result = taskset.run_until(connection_initiator(listener, state.clone())) => {
                 panic!("Taskset failed");
             }*/
@@ -378,12 +421,11 @@ async fn worker_message_loop(
                     .insert(msg.worker_id, msg.address)
                     .is_none())
             }
-            ToWorkerMessage::Stop => {
-                break;
-            }
+            ToWorkerMessage::Stop => return Ok(()),
         }
     }
-    Ok(())
+    log::debug!("Connection to server is closed");
+    Err("Server connection closed".into())
 }
 
 async fn send_overview_loop(state_ref: WorkerStateRef, interval: Duration) -> crate::Result<()> {

@@ -8,6 +8,7 @@ use crate::server::task::Task;
 use crate::server::worker::Worker;
 use crate::tests::utils::env::TestComm;
 use crate::tests::utils::task::task_running_msg;
+use crate::worker::state::ServerLostPolicy;
 use crate::{TaskId, WorkerId};
 use std::time::Duration;
 
@@ -25,6 +26,7 @@ pub fn create_test_workers(core: &mut Core, cpus: &[u32]) {
             send_overview_interval: Some(Duration::from_millis(1000)),
             idle_timeout: None,
             time_limit: None,
+            on_server_lost: ServerLostPolicy::Stop,
             extra: Default::default(),
         };
 

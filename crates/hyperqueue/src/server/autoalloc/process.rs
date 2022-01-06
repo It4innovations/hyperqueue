@@ -295,6 +295,7 @@ mod tests {
     use crate::server::state::StateRef;
     use crate::transfer::messages::JobType;
     use crate::WrappedRcRefCell;
+    use tako::worker::state::ServerLostPolicy;
 
     #[tokio::test]
     async fn test_log_failed_allocation_attempt() {
@@ -681,6 +682,7 @@ mod tests {
                 backlog,
                 workers_per_alloc,
                 timelimit,
+                ServerLostPolicy::Stop,
                 vec![],
                 None,
                 vec![],
