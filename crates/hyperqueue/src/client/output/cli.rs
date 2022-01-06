@@ -13,7 +13,7 @@ use crate::common::serverdir::AccessRecord;
 use crate::server::autoalloc::{
     Allocation, AllocationEvent, AllocationEventHolder, AllocationStatus,
 };
-use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
+use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, JobType, StatsResponse, WaitForJobsResponse,
@@ -76,9 +76,13 @@ impl CliOutput {
     ) {
         tasks.sort_unstable_by_key(|t| t.task_id);
         let make_error_row = |t: &JobTaskInfo| match &t.state {
-            JobTaskState::Failed { worker, error, .. } => Some(vec![
+            JobTaskState::Failed {
+                started_data: StartedTaskData { worker_id, .. },
+                error,
+                ..
+            } => Some(vec![
                 t.task_id.cell(),
-                format_worker(*worker, worker_map).cell(),
+                format_worker(*worker_id, worker_map).cell(),
                 error.to_owned().cell().foreground_color(Some(Color::Red)),
             ]),
             _ => None,
