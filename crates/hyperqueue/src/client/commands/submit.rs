@@ -17,7 +17,8 @@ use crate::client::resources::{parse_cpu_request, parse_resource_request};
 use crate::client::status::StatusList;
 use crate::common::arraydef::IntArray;
 use crate::common::placeholders::{
-    parse_resolvable_string, StringPart, CWD_PLACEHOLDER, JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER,
+    parse_resolvable_string, StringPart, CWD_PLACEHOLDER, JOB_ID_PLACEHOLDER,
+    SUBMIT_DIR_PLACEHOLDER, TASK_ID_PLACEHOLDER,
 };
 use crate::common::timeutils::ArgDuration;
 use crate::transfer::connection::ClientConnection;
@@ -30,6 +31,10 @@ const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 
 // Keep in sync with tests/util/job.py::default_task_output
 const DEFAULT_STDOUT_PATH: &str = const_format::concatcp!(
+    "%{",
+    SUBMIT_DIR_PLACEHOLDER,
+    "}",
+    "/",
     "job-",
     "%{",
     JOB_ID_PLACEHOLDER,
@@ -41,6 +46,10 @@ const DEFAULT_STDOUT_PATH: &str = const_format::concatcp!(
     ".stdout"
 );
 const DEFAULT_STDERR_PATH: &str = const_format::concatcp!(
+    "%{",
+    SUBMIT_DIR_PLACEHOLDER,
+    "}",
+    "/",
     "job-",
     "%{",
     JOB_ID_PLACEHOLDER,
