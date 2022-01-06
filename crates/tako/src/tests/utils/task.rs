@@ -1,5 +1,6 @@
 use super::resources::ResBuilder;
 use crate::common::resources::{CpuRequest, GenericResourceAmount, GenericResourceId, NumOfCpus};
+use crate::messages::worker::TaskRunningMsg;
 use crate::server::task::{Task, TaskConfiguration, TaskInput};
 use crate::{Priority, TaskId};
 use std::rc::Rc;
@@ -99,4 +100,11 @@ pub fn task_with_deps<T: Into<TaskId>>(id: T, deps: &[&Task], n_outputs: u32) ->
         .simple_deps(deps)
         .outputs(n_outputs)
         .build()
+}
+
+pub fn task_running_msg<T: Into<TaskId>>(task_id: T) -> TaskRunningMsg {
+    TaskRunningMsg {
+        id: task_id.into(),
+        context: Default::default(),
+    }
 }

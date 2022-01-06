@@ -26,11 +26,12 @@ pub fn run_task(
         Ok(task_launch_data) => {
             let TaskLaunchData {
                 task_future,
-                running_data: _,
+                task_context,
             } = task_launch_data;
 
             state.send_message_to_server(FromWorkerMessage::TaskRunning(TaskRunningMsg {
                 id: task_id,
+                context: task_context,
             }));
 
             tokio::task::spawn_local(execute_task(task_future, state_ref.clone(), task_id));

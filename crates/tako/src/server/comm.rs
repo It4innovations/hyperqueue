@@ -11,6 +11,7 @@ use crate::messages::gateway::{
     TaskUpdate, ToGatewayMessage,
 };
 use crate::messages::worker::ToWorkerMessage;
+use crate::server::task::SerializedTaskContext;
 use crate::transfer::auth::serialize;
 use crate::{TaskId, WorkerId};
 
@@ -20,7 +21,12 @@ pub trait Comm {
     fn ask_for_scheduling(&mut self);
 
     fn send_client_task_finished(&mut self, task_id: TaskId);
-    fn send_client_task_started(&mut self, task_id: TaskId, worker_id: WorkerId);
+    fn send_client_task_started(
+        &mut self,
+        task_id: TaskId,
+        worker_id: WorkerId,
+        context: SerializedTaskContext,
+    );
     //fn send_client_task_removed(&mut self, task_id: TaskId);
     fn send_client_task_error(
         &mut self,
@@ -118,12 +124,17 @@ impl Comm for CommSender {
             .unwrap();
     }
 
-    fn send_client_task_started(&mut self, task_id: TaskId, worker_id: WorkerId) {
+    fn send_client_task_started(
+        &mut self,
+        task_id: TaskId,
+        worker_id: WorkerId,
+        context: SerializedTaskContext,
+    ) {
         log::debug!("Informing client about running task={}", task_id);
         self.client_sender
             .send(ToGatewayMessage::TaskUpdate(TaskUpdate {
                 id: task_id,
-                state: TaskState::Running(worker_id),
+                state: TaskState::Running { worker_id, context },
             }))
             .unwrap();
     }

@@ -131,27 +131,30 @@ impl Output for JsonOutput {
                         "state": state,
                     });
                     match task.state {
-                        JobTaskState::Running { start_date, worker } => {
+                        JobTaskState::Running {
+                            started_data,
+                            worker,
+                        } => {
                             data["worker"] = worker.as_num().into();
-                            data["started_at"] = format_datetime(start_date)
+                            data["started_at"] = format_datetime(started_data.start_date)
                         }
                         JobTaskState::Finished {
-                            start_date,
+                            started_data,
                             worker,
                             end_date,
                         } => {
                             data["worker"] = worker.as_num().into();
-                            data["started_at"] = format_datetime(start_date);
+                            data["started_at"] = format_datetime(started_data.start_date);
                             data["finished_at"] = format_datetime(end_date);
                         }
                         JobTaskState::Failed {
-                            start_date,
+                            started_data,
                             end_date,
                             worker,
                             error,
                         } => {
                             data["worker"] = worker.as_num().into();
-                            data["started_at"] = format_datetime(start_date);
+                            data["started_at"] = format_datetime(started_data.start_date);
                             data["finished_at"] = format_datetime(end_date);
                             data["error"] = error.into();
                         }

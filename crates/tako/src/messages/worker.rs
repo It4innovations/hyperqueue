@@ -4,6 +4,7 @@ use std::time::Duration;
 use crate::common::resources::{CpuId, GenericResourceAmount, GenericResourceIndex};
 use crate::common::Map;
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
+use crate::server::task::SerializedTaskContext;
 use crate::worker::hwmonitor::WorkerHwState;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, WorkerId};
@@ -90,6 +91,7 @@ pub struct TaskFailedMsg {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRunningMsg {
     pub id: TaskId,
+    pub context: SerializedTaskContext,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

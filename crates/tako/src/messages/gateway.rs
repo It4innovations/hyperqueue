@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use crate::common::resources::CpuRequest;
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
 use crate::server::monitoring::MonitoringEvent;
+use crate::server::task::SerializedTaskContext;
 use crate::{Priority, TaskId, WorkerId};
 use std::time::Duration;
 
@@ -114,7 +115,10 @@ pub struct ErrorResponse {
 pub enum TaskState {
     Invalid,
     Waiting,
-    Running(WorkerId),
+    Running {
+        worker_id: WorkerId,
+        context: SerializedTaskContext,
+    },
     Finished,
 }
 
@@ -127,7 +131,7 @@ impl Serialize for TaskState {
             TaskState::Invalid => "Invalid",
             TaskState::Waiting => "Waiting",
             TaskState::Finished => "Finished",
-            TaskState::Running(_) => "Running",
+            TaskState::Running { .. } => "Running",
         })
     }
 }

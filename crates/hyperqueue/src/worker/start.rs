@@ -39,7 +39,7 @@ use serde::{Deserialize, Serialize};
 
 /// Data created when a task is started on a worker.
 /// It can be accessed through the state of a running task.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunningTaskContext {
     cwd: PathBuf,
     stdout: StdioDef,

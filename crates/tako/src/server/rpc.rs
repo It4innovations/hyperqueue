@@ -259,7 +259,7 @@ pub async fn worker_receive_loop<
                 on_task_finished(&mut core, &mut *comm, worker_id, msg);
             }
             FromWorkerMessage::TaskRunning(msg) => {
-                on_task_running(&mut core, &mut *comm, worker_id, msg.id);
+                on_task_running(&mut core, &mut *comm, worker_id, msg);
             }
             FromWorkerMessage::TaskFailed(msg) => {
                 on_task_error(&mut core, &mut *comm, worker_id, msg.id, msg.info);

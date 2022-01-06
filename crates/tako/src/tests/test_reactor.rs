@@ -24,7 +24,7 @@ use crate::tests::utils::schedule::{
     start_and_finish_on_worker, start_on_worker, submit_test_tasks,
 };
 use crate::tests::utils::sorted_vec;
-use crate::tests::utils::task::{task, task_with_deps, TaskBuilder};
+use crate::tests::utils::task::{task, task_running_msg, task_with_deps, TaskBuilder};
 use crate::tests::utils::workflows::{submit_example_1, submit_example_3};
 use crate::tests::utils::{env, schedule};
 use crate::{TaskId, WorkerId};
@@ -621,20 +621,26 @@ fn test_running_task() {
     on_set_observe_flag(&mut core, &mut comm, 1.into(), true);
     comm.emptiness_check();
 
-    on_task_running(&mut core, &mut comm, 101.into(), 1.into());
+    on_task_running(&mut core, &mut comm, 101.into(), task_running_msg(1));
     assert_eq!(comm.take_client_task_running(1), vec![1].to_ids());
     comm.emptiness_check();
 
-    on_task_running(&mut core, &mut comm, 101.into(), 2.into());
+    on_task_running(&mut core, &mut comm, 101.into(), task_running_msg(2));
     comm.emptiness_check();
 
     assert!(matches!(
         core.task(1).state,
-        TaskRuntimeState::Running(WorkerId(101))
+        TaskRuntimeState::Running {
+            worker_id: WorkerId(101),
+            ..
+        }
     ));
     assert!(matches!(
         core.task(2).state,
-        TaskRuntimeState::Running(WorkerId(101))
+        TaskRuntimeState::Running {
+            worker_id: WorkerId(101),
+            ..
+        }
     ));
 
     on_remove_worker(
@@ -710,7 +716,7 @@ fn test_running_before_steal_response() {
     assert!(worker_has_task(&core, 102, 1));
 
     let mut comm = create_test_comm();
-    on_task_running(&mut core, &mut comm, 101.into(), 1.into());
+    on_task_running(&mut core, &mut comm, 101.into(), task_running_msg(1));
     comm.check_need_scheduling();
     comm.emptiness_check();
 
@@ -801,7 +807,7 @@ fn test_after_cancel_messages() {
     );
     comm.emptiness_check();
 
-    on_task_running(&mut core, &mut comm, 101.into(), 4.into());
+    on_task_running(&mut core, &mut comm, 101.into(), task_running_msg(4));
     comm.emptiness_check();
 }
 

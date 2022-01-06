@@ -8,6 +8,7 @@ use bstr::ByteSlice;
 use tokio::process::Command;
 
 use crate::messages::common::{ProgramDefinition, StdioDef};
+use crate::server::task::SerializedTaskContext;
 use crate::worker::state::WorkerState;
 use crate::worker::taskenv::{StopReason, TaskResult};
 use crate::TaskId;
@@ -19,15 +20,15 @@ pub struct TaskLaunchData {
     pub task_future: TaskFuture,
 
     /// Opaque data that will be sent back to the server
-    pub running_data: Vec<u8>,
+    pub task_context: SerializedTaskContext,
 }
 
 impl TaskLaunchData {
     #[inline]
-    pub fn new(task_future: TaskFuture, running_data: Vec<u8>) -> Self {
+    pub fn new(task_future: TaskFuture, task_context: SerializedTaskContext) -> Self {
         Self {
             task_future,
-            running_data,
+            task_context,
         }
     }
 
@@ -35,7 +36,7 @@ impl TaskLaunchData {
     pub fn from_future(task_future: TaskFuture) -> Self {
         Self {
             task_future,
-            running_data: Vec::new(),
+            task_context: Default::default(),
         }
     }
 }

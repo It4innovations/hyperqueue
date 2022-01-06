@@ -8,6 +8,7 @@ use tako::scheduler::metrics::compute_b_level_metric;
 use tako::scheduler::state::SchedulerState;
 use tako::server::comm::Comm;
 use tako::server::core::Core;
+use tako::server::task::SerializedTaskContext;
 use tako::{TaskId, WorkerId};
 
 use crate::{add_tasks, create_worker};
@@ -86,7 +87,13 @@ impl Comm for NullComm {
 
     fn send_client_task_finished(&mut self, _task_id: TaskId) {}
 
-    fn send_client_task_started(&mut self, _task_id: TaskId, _worker_id: WorkerId) {}
+    fn send_client_task_started(
+        &mut self,
+        _task_id: TaskId,
+        _worker_id: WorkerId,
+        _context: SerializedTaskContext,
+    ) {
+    }
 
     fn send_client_task_error(
         &mut self,

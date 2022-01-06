@@ -29,12 +29,14 @@ pub struct FinishInfo {
     pub future_placement: Map<WorkerId, u32>,
 }
 
+pub type SerializedTaskContext = Vec<u8>;
+
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum TaskRuntimeState {
     Waiting(WaitingInfo), // Unfinished inputs
     Assigned(WorkerId),
     Stealing(WorkerId, Option<WorkerId>), // (from, to)
-    Running(WorkerId),
+    Running { worker_id: WorkerId },
     Finished(FinishInfo),
 }
 
@@ -44,7 +46,7 @@ impl fmt::Debug for TaskRuntimeState {
             Self::Waiting(info) => write!(f, "W({})", info.unfinished_deps),
             Self::Assigned(w_id) => write!(f, "A({})", w_id),
             Self::Stealing(from_w, to_w) => write!(f, "S({}, {:?})", from_w, to_w),
-            Self::Running(w_id) => write!(f, "R({})", w_id),
+            Self::Running { worker_id, .. } => write!(f, "R({})", worker_id),
             Self::Finished(_) => write!(f, "F"),
         }
     }
@@ -165,7 +167,7 @@ impl Task {
 
     #[inline]
     pub fn is_running(&self) -> bool {
-        matches!(self.state, TaskRuntimeState::Running(_))
+        matches!(self.state, TaskRuntimeState::Running { .. })
     }
 
     #[inline]
@@ -310,7 +312,7 @@ impl Task {
     pub fn is_assigned_or_stealed_from(&self, worker_id: WorkerId) -> bool {
         match &self.state {
             TaskRuntimeState::Assigned(w)
-            | TaskRuntimeState::Running(w)
+            | TaskRuntimeState::Running { worker_id: w, .. }
             | TaskRuntimeState::Stealing(w, _) => worker_id == *w,
             _ => false,
         }
@@ -330,7 +332,7 @@ impl Task {
     pub fn is_done_or_running(&self) -> bool {
         matches!(
             &self.state,
-            TaskRuntimeState::Finished(_) | TaskRuntimeState::Running(_)
+            TaskRuntimeState::Finished(_) | TaskRuntimeState::Running { .. }
         )
     }
 
@@ -347,7 +349,7 @@ impl Task {
         match &self.state {
             TaskRuntimeState::Waiting(_) => None,
             TaskRuntimeState::Assigned(id)
-            | TaskRuntimeState::Running(id)
+            | TaskRuntimeState::Running { worker_id: id, .. }
             | TaskRuntimeState::Stealing(_, Some(id)) => Some(*id),
             TaskRuntimeState::Stealing(_, None) => None,
             TaskRuntimeState::Finished(_) => None,
