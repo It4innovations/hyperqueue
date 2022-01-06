@@ -1,6 +1,4 @@
-use std::future::Future;
 use std::io;
-use std::pin::Pin;
 use std::process::ExitStatus;
 use std::rc::Rc;
 use std::time::Duration;
@@ -16,7 +14,7 @@ use tako::common::error::DsError;
 use tako::common::resources::{ResourceAllocation, ResourceDescriptor};
 use tako::messages::common::WorkerConfiguration;
 use tako::messages::common::{ProgramDefinition, StdioDef};
-use tako::worker::launcher::{command_from_definitions, TaskLauncher};
+use tako::worker::launcher::{command_from_definitions, TaskLaunchData, TaskLauncher};
 use tako::worker::state::{WorkerState, WorkerStateRef};
 use tako::worker::task::Task;
 use tako::worker::taskenv::{StopReason, TaskResult};
@@ -52,13 +50,13 @@ impl TaskLauncher for HqTaskLauncher {
         state_ref: WorkerStateRef,
         task_id: TaskId,
         stop_receiver: Receiver<StopReason>,
-    ) -> Pin<Box<dyn Future<Output = tako::Result<TaskResult>>>> {
-        Box::pin(launcher_main(
+    ) -> TaskLaunchData {
+        TaskLaunchData::from_future(Box::pin(launcher_main(
             state_ref,
             self.streamer_ref.clone(),
             task_id,
             stop_receiver,
-        ))
+        )))
     }
 }
 

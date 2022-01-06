@@ -62,6 +62,7 @@ impl TaskEnv {
             state
                 .task_launcher
                 .start_task(state_ref.clone(), task_id, end_receiver)
+                .task_future
         };
 
         tokio::task::spawn_local(async move {

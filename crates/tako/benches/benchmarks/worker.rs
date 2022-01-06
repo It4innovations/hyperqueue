@@ -1,5 +1,3 @@
-use std::future::Future;
-use std::pin::Pin;
 use std::time::Duration;
 
 use criterion::measurement::WallTime;
@@ -15,7 +13,7 @@ use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::oneshot::Receiver;
 
 use tako::messages::worker::ComputeTaskMsg;
-use tako::worker::launcher::TaskLauncher;
+use tako::worker::launcher::{TaskLaunchData, TaskLauncher};
 use tako::worker::rqueue::ResourceWaitQueue;
 use tako::worker::state::{TaskMap, WorkerStateRef};
 use tako::worker::task::Task;
@@ -32,8 +30,8 @@ impl TaskLauncher for BenchmarkTaskLauncher {
         _state_ref: WorkerStateRef,
         _task_id: TaskId,
         _stop_receiver: Receiver<StopReason>,
-    ) -> Pin<Box<dyn Future<Output = tako::Result<TaskResult>>>> {
-        Box::pin(async move { Ok(TaskResult::Finished) })
+    ) -> TaskLaunchData {
+        TaskLaunchData::from_future(Box::pin(async move { Ok(TaskResult::Finished) }))
     }
 }
 

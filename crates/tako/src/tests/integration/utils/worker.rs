@@ -17,7 +17,7 @@ use orion::auth::SecretKey;
 use tokio::sync::oneshot::Receiver;
 use tokio::task::LocalSet;
 
-use crate::worker::launcher::{command_from_definitions, TaskLauncher};
+use crate::worker::launcher::{command_from_definitions, TaskLaunchData, TaskLauncher};
 use crate::worker::rpc::run_worker;
 use crate::worker::state::WorkerStateRef;
 use crate::worker::taskenv::{StopReason, TaskResult};
@@ -270,8 +270,8 @@ impl TaskLauncher for TestTaskLauncher {
         state_ref: WorkerStateRef,
         task_id: TaskId,
         stop_receiver: Receiver<StopReason>,
-    ) -> Pin<Box<dyn Future<Output = crate::Result<TaskResult>>>> {
-        Box::pin(async move {
+    ) -> TaskLaunchData {
+        TaskLaunchData::from_future(Box::pin(async move {
             tokio::select! {
                 biased;
                 r = stop_receiver => {
@@ -282,7 +282,7 @@ impl TaskLauncher for TestTaskLauncher {
                     Ok(TaskResult::Finished)
                 }
             }
-        })
+        }))
     }
 }
 
