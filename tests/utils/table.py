@@ -80,6 +80,9 @@ def parse_table(table_string: str) -> Table:
     result = []
     new_row = True
     for line in lines:
+        # Log output
+        if line.startswith("["):
+            continue
         if line.startswith("+-"):
             new_row = True
             continue

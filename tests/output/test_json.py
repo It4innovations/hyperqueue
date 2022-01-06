@@ -1,5 +1,6 @@
 import datetime
 import json
+import os
 import socket
 from typing import List
 
@@ -8,6 +9,7 @@ from schema import Schema
 
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
+from ..utils.job import default_task_output
 
 
 def parse_json_output(hq_env: HqEnv, command: List[str]):
@@ -144,6 +146,31 @@ def test_print_job_with_tasks(hq_env: HqEnv):
 
     schema = Schema([{"id": id, "state": "waiting"} for id in range(1, 5)])
     schema.validate(output["tasks"])
+
+
+def test_print_task_placeholders(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.command(["submit", "echo", "tt", "--array=1-4"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    output = parse_json_output(hq_env, ["--output-mode=json", "job", "1", "--tasks"])
+
+    schema = Schema(
+        [{"id": id, "state": "finished"} for id in range(1, 5)], ignore_extra_keys=True
+    )
+    schema.validate(output["tasks"])
+
+    tasks = sorted(output["tasks"], key=lambda t: t["id"])
+    for i in range(4):
+        task_id = tasks[i]["id"]
+        assert tasks[i]["cwd"] == os.getcwd()
+        assert tasks[i]["stdout"]["File"] == default_task_output(
+            task_id=task_id, type="stdout"
+        )
+        assert tasks[i]["stderr"]["File"] == default_task_output(
+            task_id=task_id, type="stderr"
+        )
 
 
 def test_print_hw(hq_env: HqEnv):

@@ -126,22 +126,19 @@ def test_job_array_error_all(hq_env: HqEnv):
     states = table.get_row_value("State").split("\n")
     assert "FAILED (10)" in states
 
-    offset = JOB_TABLE_ROWS + 1
-
-    for i in range(5):
-        assert table[offset + i][0] == str(i)
-        assert "No such file or directory" in table[offset + i][2]
-    table.print()
-    assert table[offset + 5] == []
+    errors = table[JOB_TABLE_ROWS:].get_column_value("Error")
+    for error in errors:
+        assert "No such file or directory" in error
 
     table = hq_env.command(["job", "1", "--tasks"], as_table=True)
     states = table.get_row_value("State").split("\n")
     assert "FAILED (10)" in states
 
+    task_table = table[JOB_TABLE_ROWS:]
     for i in range(10):
-        assert table[offset + i][0] == str(i)
-        assert table[offset + i][1] == "FAILED"
-        assert "No such file or directory" in table[offset + i][6]
+        assert task_table.get_column_value("Task Id")[i] == str(i)
+        assert task_table.get_column_value("State")[i] == "FAILED"
+        assert "No such file or directory" in task_table.get_column_value("Error")[i]
 
 
 def test_job_array_cancel(hq_env: HqEnv):

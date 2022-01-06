@@ -93,6 +93,8 @@ impl CliOutput {
                 .iter()
                 .map(|t| {
                     let (start, end) = get_task_time(&t.state);
+                    let (cwd, stdout, stderr) = get_task_paths(&t.state);
+
                     vec![
                         t.task_id.cell(),
                         task_status_to_cell(task_status(&t.state)),
@@ -109,6 +111,9 @@ impl CliOutput {
                             .unwrap_or_else(|| "".to_string())
                             .cell(),
                         format_task_duration(start, end).cell(),
+                        cwd,
+                        stdout,
+                        stderr,
                         match &t.state {
                             JobTaskState::Failed { error, .. } => {
                                 error.to_owned().cell().foreground_color(Some(Color::Red))
@@ -125,7 +130,10 @@ impl CliOutput {
                 "Start time".cell().bold(true),
                 "End time".cell().bold(true),
                 "Time".cell().bold(true),
-                "Message".cell().bold(true),
+                "Working directory".cell().bold(true),
+                "Stdout".cell().bold(true),
+                "Stderr".cell().bold(true),
+                "Error".cell().bold(true),
             ]);
             self.print_table(table);
         } else {
@@ -146,12 +154,13 @@ impl CliOutput {
                 self.print_table(table);
 
                 if count < counters.n_failed_tasks {
-                    println!(
+                    log::warn!(
                         "{} tasks failed. ({} shown)",
-                        counters.n_failed_tasks, count
+                        counters.n_failed_tasks,
+                        count
                     );
                 } else {
-                    println!("{} tasks failed.", counters.n_failed_tasks);
+                    log::warn!("{} tasks failed.", counters.n_failed_tasks);
                 }
             }
         }
@@ -444,7 +453,7 @@ impl Output for CliOutput {
         ]);
 
         rows.push(vec![
-            "Working Dir".cell().bold(true),
+            "Working directory".cell().bold(true),
             program_def
                 .cwd
                 .map(|cwd| cwd.display().to_string())
@@ -879,7 +888,7 @@ fn format_worker(id: WorkerId, worker_map: &WorkerMap) -> &str {
         .unwrap_or_else(|| "N/A")
 }
 
-pub fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<DateTime<Utc>>) {
+fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<DateTime<Utc>>) {
     match state {
         JobTaskState::Canceled {
             started_data: Some(started_data),
@@ -899,7 +908,27 @@ pub fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<Dat
     }
 }
 
-pub fn format_task_duration(start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>) -> String {
+/// Returns (working directory, stdout, stderr)
+fn get_task_paths(state: &JobTaskState) -> (CellStruct, CellStruct, CellStruct) {
+    match state {
+        JobTaskState::Canceled {
+            started_data: Some(started_data),
+        }
+        | JobTaskState::Running { started_data, .. }
+        | JobTaskState::Finished { started_data, .. }
+        | JobTaskState::Failed { started_data, .. } => {
+            let ctx = &started_data.context;
+            (
+                ctx.cwd.to_str().unwrap().cell(),
+                stdio_to_cell(&ctx.stdout),
+                stdio_to_cell(&ctx.stderr),
+            )
+        }
+        _ => ("".cell(), "".cell(), "".cell()),
+    }
+}
+
+fn format_task_duration(start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>) -> String {
     match (start, end) {
         (Some(start), None) => human_duration(Utc::now() - start),
         (Some(start), Some(end)) => human_duration(end - start),
