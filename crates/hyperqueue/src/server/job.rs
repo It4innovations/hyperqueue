@@ -41,7 +41,9 @@ pub enum JobTaskState {
         end_date: DateTime<Utc>,
         error: String,
     },
-    Canceled,
+    Canceled {
+        started_data: Option<StartedTaskData>,
+    },
 }
 
 impl JobTaskState {
@@ -278,7 +280,7 @@ impl Job {
                 JobTaskState::Waiting | JobTaskState::Running { .. } => result.push(tako_id),
                 JobTaskState::Finished { .. }
                 | JobTaskState::Failed { .. }
-                | JobTaskState::Canceled => { /* Do nothing */ }
+                | JobTaskState::Canceled { .. } => { /* Do nothing */ }
             }
         }
         result
@@ -372,23 +374,28 @@ impl Job {
     }
 
     pub fn set_cancel_state(&mut self, tako_task_id: TakoTaskId, backend: &Backend) -> JobTaskId {
-        let (task_id, state) = self.get_task_state_mut(tako_task_id);
-        let old_state = std::mem::replace(state, JobTaskState::Canceled);
         let now = Utc::now();
-        assert!(matches!(
-            old_state,
-            JobTaskState::Running { .. } | JobTaskState::Waiting
-        ));
-        if let JobTaskState::Running { .. } = old_state {
-            self.counters.n_running_tasks -= 1;
+
+        let (task_id, state) = self.get_task_state_mut(tako_task_id);
+        match state {
+            JobTaskState::Running { started_data, .. } => {
+                *state = JobTaskState::Canceled {
+                    started_data: Some(started_data.clone()),
+                };
+                self.counters.n_running_tasks -= 1;
+            }
+            JobTaskState::Waiting => {
+                *state = JobTaskState::Canceled { started_data: None };
+            }
+            state => panic!(
+                "Invalid job state that is being canceled: {:?} {:?}",
+                task_id, state
+            ),
         }
+
         self.counters.n_canceled_tasks += 1;
         self.check_termination(backend, now);
         task_id
-        //assert!(matches!(
-        //    old_state,
-        //    JobTaskState::Running | JobTaskState::Waiting
-        //));
     }
 
     /// Subscribes to the completion event of this job.
