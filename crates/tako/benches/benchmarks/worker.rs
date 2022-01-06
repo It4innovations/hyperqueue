@@ -15,7 +15,7 @@ use tokio::sync::oneshot::Receiver;
 use tako::messages::worker::ComputeTaskMsg;
 use tako::worker::launcher::{TaskLaunchData, TaskLauncher};
 use tako::worker::rqueue::ResourceWaitQueue;
-use tako::worker::state::{TaskMap, WorkerStateRef};
+use tako::worker::state::{TaskMap, WorkerState, WorkerStateRef};
 use tako::worker::task::Task;
 use tako::worker::taskenv::{StopReason, TaskResult};
 use tako::TaskId;
@@ -25,13 +25,15 @@ use crate::create_worker;
 struct BenchmarkTaskLauncher;
 
 impl TaskLauncher for BenchmarkTaskLauncher {
-    fn start_task(
+    fn build_task(
         &self,
-        _state_ref: WorkerStateRef,
+        _state: &WorkerState,
         _task_id: TaskId,
         _stop_receiver: Receiver<StopReason>,
-    ) -> TaskLaunchData {
-        TaskLaunchData::from_future(Box::pin(async move { Ok(TaskResult::Finished) }))
+    ) -> tako::Result<TaskLaunchData> {
+        Ok(TaskLaunchData::from_future(Box::pin(async move {
+            Ok(TaskResult::Finished)
+        })))
     }
 }
 

@@ -1,7 +1,5 @@
-use std::future::Future;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -19,7 +17,7 @@ use tokio::task::LocalSet;
 
 use crate::worker::launcher::{command_from_definitions, TaskLaunchData, TaskLauncher};
 use crate::worker::rpc::run_worker;
-use crate::worker::state::WorkerStateRef;
+use crate::worker::state::WorkerState;
 use crate::worker::taskenv::{StopReason, TaskResult};
 use crate::{TaskId, WorkerId};
 
@@ -236,20 +234,7 @@ pub(super) async fn start_worker(
     Ok((handle, ctx))
 }
 
-async fn launcher_main(state_ref: WorkerStateRef, task_id: TaskId) -> crate::Result<()> {
-    let program: ProgramDefinition = {
-        let state = state_ref.get();
-        let task = state.get_task(task_id);
-        log::debug!(
-            "Starting program launcher task_id={} res={:?} alloc={:?} body_len={}",
-            task.id,
-            &task.resources,
-            task.resource_allocation(),
-            task.body.len(),
-        );
-        rmp_serde::from_slice(&task.body)?
-    };
-
+async fn launcher_main(program: ProgramDefinition) -> crate::Result<()> {
     let mut command = command_from_definitions(&program)?;
     let status = command.status().await?;
     if !status.success() {
@@ -265,24 +250,36 @@ async fn launcher_main(state_ref: WorkerStateRef, task_id: TaskId) -> crate::Res
 struct TestTaskLauncher;
 
 impl TaskLauncher for TestTaskLauncher {
-    fn start_task(
+    fn build_task(
         &self,
-        state_ref: WorkerStateRef,
+        state: &WorkerState,
         task_id: TaskId,
         stop_receiver: Receiver<StopReason>,
-    ) -> TaskLaunchData {
-        TaskLaunchData::from_future(Box::pin(async move {
+    ) -> crate::Result<TaskLaunchData> {
+        let program: ProgramDefinition = {
+            let task = state.get_task(task_id);
+            log::debug!(
+                "Starting program launcher task_id={} res={:?} alloc={:?} body_len={}",
+                task.id,
+                &task.resources,
+                task.resource_allocation(),
+                task.body.len(),
+            );
+            rmp_serde::from_slice(&task.body)?
+        };
+
+        Ok(TaskLaunchData::from_future(Box::pin(async move {
             tokio::select! {
                 biased;
                 r = stop_receiver => {
                     Ok(r.unwrap().into())
                 }
-                r = launcher_main(state_ref, task_id) => {
+                r = launcher_main(program) => {
                     r?;
                     Ok(TaskResult::Finished)
                 }
             }
-        }))
+        })))
     }
 }
 

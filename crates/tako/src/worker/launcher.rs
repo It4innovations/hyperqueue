@@ -8,11 +8,11 @@ use bstr::ByteSlice;
 use tokio::process::Command;
 
 use crate::messages::common::{ProgramDefinition, StdioDef};
-use crate::worker::state::WorkerStateRef;
+use crate::worker::state::WorkerState;
 use crate::worker::taskenv::{StopReason, TaskResult};
 use crate::TaskId;
 
-type TaskFuture = Pin<Box<dyn Future<Output = crate::Result<TaskResult>>>>;
+pub type TaskFuture = Pin<Box<dyn Future<Output = crate::Result<TaskResult>>>>;
 
 pub struct TaskLaunchData {
     /// Future that represents the execution of the task
@@ -41,12 +41,14 @@ impl TaskLaunchData {
 }
 
 pub trait TaskLauncher {
-    fn start_task(
+    /// Creates data required to execute a task.
+    /// `state_ref` must not be borrowed when this function is called.  
+    fn build_task(
         &self,
-        state_ref: WorkerStateRef,
+        state: &WorkerState,
         task_id: TaskId,
         stop_receiver: tokio::sync::oneshot::Receiver<StopReason>,
-    ) -> TaskLaunchData;
+    ) -> crate::Result<TaskLaunchData>;
 }
 
 /// Create an output stream file on the given path.
