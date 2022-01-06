@@ -1,5 +1,5 @@
 use crate::common::env::HQ_ENTRY;
-use crate::common::placeholders::replace_placeholders_server;
+use crate::common::placeholders::{fill_placeholders_log, normalize_path};
 use crate::server::client;
 use crate::server::job::Job;
 use crate::server::rpc::Backend;
@@ -8,7 +8,9 @@ use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
     JobType, SubmitRequest, SubmitResponse, TaskBody, ToClientMessage,
 };
+use crate::JobId;
 use bstr::BString;
+use std::path::PathBuf;
 use tako::messages::gateway::{
     FromGatewayMessage, NewTasksMessage, TaskConf, TaskDef, ToGatewayMessage,
 };
@@ -19,12 +21,19 @@ pub async fn handle_submit(
     tako_ref: &Backend,
     message: SubmitRequest,
 ) -> ToClientMessage {
-    let resources = message.resources.clone();
-    let spec = message.spec;
-    let pin = message.pin;
-    let submit_dir = message.submit_dir;
-    let priority = message.priority;
-    let time_limit = message.time_limit;
+    let SubmitRequest {
+        job_type,
+        name,
+        max_fails,
+        spec,
+        resources,
+        pin,
+        entries,
+        submit_dir,
+        priority,
+        time_limit,
+        mut log,
+    } = message;
 
     let make_task = |job_id, task_id, tako_id, entry: Option<BString>| {
         let mut program = client::make_program_def_for_task(&spec, job_id, task_id, &submit_dir);
@@ -48,12 +57,12 @@ pub async fn handle_submit(
     let (task_defs, job_detail, job_id) = {
         let mut state = state_ref.get_mut();
         let job_id = state.new_job_id();
-        let task_count = match &message.job_type {
+        let task_count = match &job_type {
             JobType::Simple => 1,
             JobType::Array(a) => a.id_count(),
         };
         let tako_base_id = state.new_task_id(task_count).as_num();
-        let task_defs = match (&message.job_type, message.entries.clone()) {
+        let task_defs = match (&job_type, entries.clone()) {
             (JobType::Simple, _) => vec![make_task(job_id, 0.into(), tako_base_id.into(), None)],
             (JobType::Array(a), None) => a
                 .iter()
@@ -69,19 +78,25 @@ pub async fn handle_submit(
                 })
                 .collect(),
         };
+
+        if let Some(ref mut log) = log {
+            fill_placeholders_log(log, job_id, &submit_dir);
+            *log = normalize_path(log, &submit_dir);
+        }
+
         let job = Job::new(
-            message.job_type,
+            job_type,
             job_id,
             tako_base_id.into(),
-            message.name.clone(),
+            name,
             spec,
-            resources,
+            resources.clone(),
             pin,
-            message.max_fails,
-            message.entries.clone(),
+            max_fails,
+            entries,
             priority,
             time_limit,
-            message.log.clone(),
+            log.clone(),
         );
         let job_detail = job.make_job_detail(false);
         state.add_job(job);
@@ -89,23 +104,15 @@ pub async fn handle_submit(
         (task_defs, job_detail, job_id)
     };
 
-    if let Some(mut log) = message.log {
-        replace_placeholders_server(&mut log, job_id, submit_dir.clone());
-
-        let (sender, receiver) = oneshot::channel();
-        tako_ref.send_stream_control(StreamServerControlMessage::RegisterStream {
-            job_id,
-            path: submit_dir.join(log),
-            response: sender,
-        });
-        assert!(receiver.await.is_ok());
+    if let Some(log) = log {
+        start_log_streaming(tako_ref, job_id, log).await;
     }
 
     match tako_ref
         .send_tako_message(FromGatewayMessage::NewTasks(NewTasksMessage {
             tasks: task_defs,
             configurations: vec![TaskConf {
-                resources: message.resources,
+                resources,
                 n_outputs: 0,
                 time_limit,
                 keep: false,
@@ -117,10 +124,18 @@ pub async fn handle_submit(
         .unwrap()
     {
         ToGatewayMessage::NewTasksResponse(_) => { /* Ok */ }
-        _ => {
-            panic!("Invalid response");
-        }
+        _ => panic!("Invalid response"),
     };
 
     ToClientMessage::SubmitResponse(SubmitResponse { job: job_detail })
+}
+
+async fn start_log_streaming(tako_ref: &Backend, job_id: JobId, path: PathBuf) {
+    let (sender, receiver) = oneshot::channel();
+    tako_ref.send_stream_control(StreamServerControlMessage::RegisterStream {
+        job_id,
+        path,
+        response: sender,
+    });
+    assert!(receiver.await.is_ok());
 }

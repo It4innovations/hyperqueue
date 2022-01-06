@@ -1,8 +1,9 @@
+use std::borrow::Cow;
 use std::fmt::Write;
-use std::path::PathBuf;
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
 
 use bstr::BString;
-use humantime::format_rfc3339;
 use nom::bytes::complete::take_until;
 use nom::sequence::delimited;
 use nom_supreme::tag::complete::tag;
@@ -19,25 +20,23 @@ pub const INSTANCE_ID_PLACEHOLDER: &str = "INSTANCE_ID";
 pub const CWD_PLACEHOLDER: &str = "CWD";
 pub const SUBMIT_DIR_PLACEHOLDER: &str = "SUBMIT_DIR";
 
-type PlaceholderMap = Map<&'static str, String>;
+type PlaceholderMap<'a> = Map<&'static str, Cow<'a, str>>;
 
-pub fn replace_placeholders_worker(program: &mut ProgramDefinition) {
-    let mut placeholder_map = Map::new();
+pub fn fill_placeholders_worker(program: &mut ProgramDefinition) {
+    let mut placeholders = Map::new();
     let job_id = program.env[&BString::from(HQ_JOB_ID)].to_string();
+    let task_id = program.env[&BString::from(HQ_TASK_ID)].to_string();
+    let instance_id = program.env[&BString::from(HQ_INSTANCE_ID)].to_string();
     let submit_dir = program.env[&BString::from(HQ_SUBMIT_DIR)].to_string();
-    fill_server_context(&mut placeholder_map, job_id, submit_dir.clone());
 
-    placeholder_map.insert(
-        TASK_ID_PLACEHOLDER,
-        program.env[&BString::from(HQ_TASK_ID)].to_string(),
-    );
-    placeholder_map.insert(
-        INSTANCE_ID_PLACEHOLDER,
-        program.env[&BString::from(HQ_INSTANCE_ID)].to_string(),
-    );
+    placeholders.insert(JOB_ID_PLACEHOLDER, job_id.into());
+    placeholders.insert(TASK_ID_PLACEHOLDER, task_id.into());
+    placeholders.insert(INSTANCE_ID_PLACEHOLDER, instance_id.into());
+    placeholders.insert(SUBMIT_DIR_PLACEHOLDER, submit_dir.clone().into());
 
-    let replace_path = |map: &PlaceholderMap, path: &PathBuf| -> PathBuf {
-        replace_placeholders(map, path.to_str().unwrap()).into()
+    let replace_path = |map: &PlaceholderMap, path: &PathBuf, base_dir: &Path| -> PathBuf {
+        let path: PathBuf = replace_placeholders(map, path.to_str().unwrap()).into();
+        normalize_path(&path, base_dir)
     };
 
     // Replace CWD
@@ -45,60 +44,57 @@ pub fn replace_placeholders_worker(program: &mut ProgramDefinition) {
     program.cwd = program
         .cwd
         .as_ref()
-        .map(|cwd| submit_dir.join(replace_path(&placeholder_map, cwd)))
+        .map(|cwd| replace_path(&placeholders, cwd, &submit_dir))
         .or_else(|| Some(std::env::current_dir().unwrap()));
 
     // Replace STDOUT and STDERR
-    placeholder_map.insert(
+    placeholders.insert(
         CWD_PLACEHOLDER,
-        program.cwd.as_ref().unwrap().to_str().unwrap().to_string(),
+        program.cwd.as_ref().unwrap().to_str().unwrap().into(),
     );
 
     program.stdout = std::mem::take(&mut program.stdout)
-        .map_filename(|path| submit_dir.join(replace_path(&placeholder_map, &path)));
-
+        .map_filename(|path| replace_path(&placeholders, &path, &submit_dir));
     program.stderr = std::mem::take(&mut program.stderr)
-        .map_filename(|path| submit_dir.join(replace_path(&placeholder_map, &path)));
+        .map_filename(|path| replace_path(&placeholders, &path, &submit_dir));
 }
 
-pub fn replace_placeholders_server(value: &mut PathBuf, job_id: JobId, submit_dir: PathBuf) {
-    let mut placeholder_map = Map::new();
-    fill_server_context(
-        &mut placeholder_map,
-        job_id.to_string(),
-        submit_dir.to_str().unwrap().to_string(),
-    );
-
-    *value = replace_placeholders(&placeholder_map, value.to_str().unwrap()).into();
+pub fn fill_placeholders_log(value: &mut PathBuf, job_id: JobId, submit_dir: &Path) {
+    let mut map = Map::new();
+    map.insert(JOB_ID_PLACEHOLDER, job_id.to_string().into());
+    map.insert(SUBMIT_DIR_PLACEHOLDER, submit_dir.to_str().unwrap().into());
+    *value = replace_placeholders(&map, value.to_str().unwrap()).into();
 }
 
-pub fn replace_placeholders(map: &PlaceholderMap, input: &str) -> String {
+fn replace_placeholders(map: &PlaceholderMap, input: &str) -> String {
     let mut buffer = String::with_capacity(input.len());
     for placeholder in parse_resolvable_string(input) {
         match placeholder {
             StringPart::Verbatim(data) => buffer.write_str(data),
-            StringPart::Placeholder(placeholder) => buffer.write_str(match map.get(placeholder) {
-                Some(value) => value.as_str(),
+            StringPart::Placeholder(placeholder) => match map.get(placeholder) {
+                Some(value) => buffer.write_str(value.deref()),
                 None => {
                     log::warn!(
                         "Encountered an unknown placeholder `{}` in `{}`",
                         placeholder,
                         input
                     );
-                    placeholder
+                    buffer.write_fmt(format_args!("%{{{}}}", placeholder))
                 }
-            }),
+            },
         }
         .unwrap();
     }
     buffer
 }
 
-fn fill_server_context(map: &mut PlaceholderMap, job_id: String, submit_dir: String) {
-    let date = format_rfc3339(std::time::SystemTime::now()).to_string();
-    map.insert(JOB_ID_PLACEHOLDER, job_id);
-    map.insert(SUBMIT_DIR_PLACEHOLDER, submit_dir);
-    map.insert("%{DATE}", date);
+/// Adds the given base `directory` to the `path`, if it's not already absolute.
+pub fn normalize_path(path: &Path, directory: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        [directory, path].into_iter().collect()
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -154,7 +150,7 @@ mod tests {
 
     use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
     use crate::common::placeholders::{
-        parse_resolvable_string, replace_placeholders_worker, StringPart,
+        fill_placeholders_worker, parse_resolvable_string, StringPart,
     };
     use crate::Map;
 
@@ -239,7 +235,7 @@ mod tests {
             0,
             1,
         );
-        replace_placeholders_worker(&mut program);
+        fill_placeholders_worker(&mut program);
         assert_eq!(program.cwd, Some("dir-1".into()));
         assert_eq!(program.stdout, StdioDef::File("1.out".into()));
         assert_eq!(program.stderr, StdioDef::File("1.err".into()));
@@ -255,7 +251,7 @@ mod tests {
             5,
             1,
         );
-        replace_placeholders_worker(&mut program);
+        fill_placeholders_worker(&mut program);
         assert_eq!(program.cwd, Some("dir-5-1".into()));
         assert_eq!(program.stdout, StdioDef::File("5-1.out".into()));
         assert_eq!(program.stderr, StdioDef::File("5-1.err".into()));
@@ -271,7 +267,7 @@ mod tests {
             5,
             1,
         );
-        replace_placeholders_worker(&mut program);
+        fill_placeholders_worker(&mut program);
 
         assert_eq!(program.cwd, Some("/submit-dir".into()));
         assert_eq!(program.stdout, StdioDef::File("/submit-dir/out".into()));
@@ -288,7 +284,7 @@ mod tests {
             5,
             1,
         );
-        replace_placeholders_worker(&mut program);
+        fill_placeholders_worker(&mut program);
         assert_eq!(program.cwd, Some("dir-5-1".into()));
         assert_eq!(program.stdout, StdioDef::File("dir-5-1.out".into()));
         assert_eq!(program.stderr, StdioDef::File("dir-5-1.err".into()));
