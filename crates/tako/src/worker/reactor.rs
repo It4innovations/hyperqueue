@@ -5,7 +5,7 @@ use crate::worker::task::TaskState;
 use crate::worker::taskenv::TaskEnv;
 use crate::TaskId;
 
-pub fn assign_task(
+pub fn run_task(
     state: &mut WorkerState,
     state_ref: WorkerStateRef,
     task_id: TaskId,
