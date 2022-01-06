@@ -9,7 +9,6 @@ use futures::{SinkExt, Stream, StreamExt};
 use orion::aead::streaming::StreamOpener;
 use orion::aead::SecretKey;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::task::LocalSet;
 use tokio::time::sleep;
 use tokio::time::timeout;
 
@@ -105,7 +104,7 @@ pub async fn run_worker(
     secret_key: Option<Arc<SecretKey>>,
     launcher_setup: Box<dyn TaskLauncher>,
 ) -> crate::Result<((WorkerId, WorkerConfiguration), impl Future<Output = ()>)> {
-    let (listener, address) = start_listener().await?;
+    let (_listener, address) = start_listener().await?;
     configuration.listen_address = address;
     let ConnectionDescriptor {
         mut sender,
@@ -114,7 +113,6 @@ pub async fn run_worker(
         mut sealer,
         ..
     } = connect_to_server_and_authenticate(scheduler_address, &secret_key).await?;
-    let taskset = LocalSet::default();
     {
         let message = ConnectionRegistration::Worker(RegisterWorker {
             configuration: configuration.clone(),
@@ -177,9 +175,9 @@ pub async fn run_worker(
             _ = forward_queue_to_sealed_sink(queue_receiver, sender, sealer) => {
                 panic!("Cannot send a message to server");
             }
-            _result = taskset.run_until(connection_initiator(listener, state.clone())) => {
+            /*_result = taskset.run_until(connection_initiator(listener, state.clone())) => {
                 panic!("Taskset failed");
-            }
+            }*/
             _ = worker_data_downloader(state, download_reader) => {
                 unreachable!()
             }
