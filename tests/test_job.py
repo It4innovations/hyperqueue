@@ -199,6 +199,28 @@ def test_job_output_configured(hq_env: HqEnv, tmp_path):
         assert f.read() == ""
 
 
+def test_job_output_absolute_path(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_worker(cpus=1)
+    hq_env.command(
+        [
+            "submit",
+            f"--stdout={os.path.abspath('abc')}",
+            f"--stderr={os.path.abspath('xyz')}",
+            "--",
+            "bash",
+            "-c",
+            "echo 'hello'",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    with open(os.path.join(tmp_path, "abc")) as f:
+        assert f.read() == "hello\n"
+    with open(os.path.join(tmp_path, "xyz")) as f:
+        assert f.read() == ""
+
+
 def test_job_output_none(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker(cpus=1)

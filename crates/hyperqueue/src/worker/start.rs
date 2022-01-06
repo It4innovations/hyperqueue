@@ -24,7 +24,7 @@ use crate::client::commands::worker::{ManagerOpts, WorkerStartOpts};
 use crate::common::env::{HQ_CPUS, HQ_INSTANCE_ID, HQ_PIN};
 use crate::common::manager::info::{ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::manager::{pbs, slurm};
-use crate::common::placeholders::replace_placeholders_worker;
+use crate::common::placeholders::fill_placeholders_worker;
 use crate::transfer::messages::TaskBody;
 use crate::transfer::stream::ChannelId;
 use crate::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resource};
@@ -142,7 +142,7 @@ async fn launcher_main(
             .env
             .insert(HQ_INSTANCE_ID.into(), task.instance_id.to_string().into());
 
-        replace_placeholders_worker(&mut program);
+        fill_placeholders_worker(&mut program);
 
         create_directory_if_needed(&program.stdout)?;
         create_directory_if_needed(&program.stderr)?;
