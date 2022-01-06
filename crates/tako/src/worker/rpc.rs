@@ -103,7 +103,7 @@ pub async fn run_worker(
     scheduler_address: SocketAddr,
     mut configuration: WorkerConfiguration,
     secret_key: Option<Arc<SecretKey>>,
-    launcher_setup: TaskLauncher,
+    launcher_setup: Box<dyn TaskLauncher>,
 ) -> crate::Result<((WorkerId, WorkerConfiguration), impl Future<Output = ()>)> {
     let (listener, address) = start_listener().await?;
     configuration.listen_address = address;

@@ -10,6 +10,7 @@ use crate::transfer::messages::{
 };
 use crate::worker::parser::{ArgCpuDefinition, ArgGenericResourceDef};
 use crate::worker::start;
+use crate::worker::start::HqTaskLauncher;
 use crate::worker::streamer::StreamerRef;
 use crate::WorkerId;
 use anyhow::Context;
@@ -117,9 +118,7 @@ pub async fn start_hq_worker(
         server_addr,
         configuration,
         Some(record.tako_secret_key().clone()),
-        Box::new(move |state, task_id, end_receiver| {
-            start::worker_launcher(&state, &streamer_ref, task_id, end_receiver)
-        }),
+        Box::new(HqTaskLauncher::new(streamer_ref)),
     )
     .await?;
 

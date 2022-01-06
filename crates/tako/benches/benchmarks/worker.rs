@@ -1,3 +1,5 @@
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 
 use criterion::measurement::WallTime;
@@ -10,15 +12,30 @@ use tako::common::resources::{
     ResourceDescriptor, ResourceRequest, TimeRequest,
 };
 use tokio::sync::mpsc::unbounded_channel;
+use tokio::sync::oneshot::Receiver;
 
 use tako::messages::worker::ComputeTaskMsg;
+use tako::worker::launcher::TaskLauncher;
 use tako::worker::rqueue::ResourceWaitQueue;
 use tako::worker::state::{TaskMap, WorkerStateRef};
 use tako::worker::task::Task;
-use tako::worker::taskenv::TaskResult;
+use tako::worker::taskenv::{StopReason, TaskResult};
 use tako::TaskId;
 
 use crate::create_worker;
+
+struct BenchmarkTaskLauncher;
+
+impl TaskLauncher for BenchmarkTaskLauncher {
+    fn start_task(
+        &self,
+        _state_ref: WorkerStateRef,
+        _task_id: TaskId,
+        _stop_receiver: Receiver<StopReason>,
+    ) -> Pin<Box<dyn Future<Output = tako::Result<TaskResult>>>> {
+        Box::pin(async move { Ok(TaskResult::Finished) })
+    }
+}
 
 fn create_worker_state() -> WorkerStateRef {
     let worker = create_worker(1);
@@ -32,7 +49,7 @@ fn create_worker_state() -> WorkerStateRef {
         tx2,
         Default::default(),
         Default::default(),
-        Box::new(|_, _, _| Box::pin(async move { Ok(TaskResult::Finished) })),
+        Box::new(BenchmarkTaskLauncher),
     )
 }
 
