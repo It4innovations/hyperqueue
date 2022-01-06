@@ -12,13 +12,41 @@ use crate::worker::state::WorkerStateRef;
 use crate::worker::taskenv::{StopReason, TaskResult};
 use crate::TaskId;
 
+type TaskFuture = Pin<Box<dyn Future<Output = crate::Result<TaskResult>>>>;
+
+pub struct TaskLaunchData {
+    /// Future that represents the execution of the task
+    pub task_future: TaskFuture,
+
+    /// Opaque data that will be sent back to the server
+    pub running_data: Vec<u8>,
+}
+
+impl TaskLaunchData {
+    #[inline]
+    pub fn new(task_future: TaskFuture, running_data: Vec<u8>) -> Self {
+        Self {
+            task_future,
+            running_data,
+        }
+    }
+
+    #[inline]
+    pub fn from_future(task_future: TaskFuture) -> Self {
+        Self {
+            task_future,
+            running_data: Vec::new(),
+        }
+    }
+}
+
 pub trait TaskLauncher {
     fn start_task(
         &self,
         state_ref: WorkerStateRef,
         task_id: TaskId,
         stop_receiver: tokio::sync::oneshot::Receiver<StopReason>,
-    ) -> Pin<Box<dyn Future<Output = crate::Result<TaskResult>>>>;
+    ) -> TaskLaunchData;
 }
 
 /// Create an output stream file on the given path.
