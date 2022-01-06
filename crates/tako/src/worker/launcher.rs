@@ -7,26 +7,18 @@ use std::process::Stdio;
 use bstr::ByteSlice;
 use tokio::process::Command;
 
-use crate::common::resources::ResourceAllocation;
 use crate::messages::common::{ProgramDefinition, StdioDef};
 use crate::worker::state::WorkerStateRef;
 use crate::worker::taskenv::{StopReason, TaskResult};
 use crate::TaskId;
 
-pub type TaskLauncher = Box<
-    dyn Fn(
-        WorkerStateRef,
-        TaskId,
-        tokio::sync::oneshot::Receiver<StopReason>,
-    ) -> Pin<Box<dyn Future<Output = crate::Result<TaskResult>> + 'static>>,
->;
-
-pub fn pin_program(program: &mut ProgramDefinition, allocation: &ResourceAllocation) {
-    program.args.insert(0, "taskset".into());
-    program.args.insert(1, "-c".into());
-    program
-        .args
-        .insert(2, allocation.comma_delimited_cpu_ids().into());
+pub trait TaskLauncher {
+    fn start_task(
+        &self,
+        state_ref: WorkerStateRef,
+        task_id: TaskId,
+        stop_receiver: tokio::sync::oneshot::Receiver<StopReason>,
+    ) -> Pin<Box<dyn Future<Output = crate::Result<TaskResult>>>>;
 }
 
 /// Create an output stream file on the given path.

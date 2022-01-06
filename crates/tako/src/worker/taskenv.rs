@@ -59,7 +59,9 @@ impl TaskEnv {
             assert!(self.stop_sender.is_none());
             let (end_sender, end_receiver) = oneshot::channel();
             self.stop_sender = Some(end_sender);
-            (*state.task_launcher)(state_ref.clone(), task_id, end_receiver)
+            state
+                .task_launcher
+                .start_task(state_ref.clone(), task_id, end_receiver)
         };
 
         tokio::task::spawn_local(async move {

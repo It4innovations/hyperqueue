@@ -44,7 +44,7 @@ pub struct WorkerState {
     pub random: SmallRng,
 
     pub configuration: WorkerConfiguration,
-    pub task_launcher: TaskLauncher,
+    pub task_launcher: Box<dyn TaskLauncher>,
     pub secret_key: Option<Arc<SecretKey>>,
 
     pub start_time: std::time::Instant,
@@ -368,7 +368,7 @@ impl WorkerStateRef {
         download_sender: tokio::sync::mpsc::UnboundedSender<(DataObjectRef, PriorityTuple)>,
         worker_addresses: Map<WorkerId, String>,
         resource_map: ResourceMap,
-        task_launcher: TaskLauncher,
+        task_launcher: Box<dyn TaskLauncher>,
     ) -> Self {
         let ready_task_queue = ResourceWaitQueue::new(&configuration.resources, &resource_map);
         Self::wrap(WorkerState {

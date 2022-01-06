@@ -14,9 +14,10 @@ use crate::messages::common::{ProgramDefinition, WorkerConfiguration};
 use crate::server::core::CoreRef;
 use derive_builder::Builder;
 use orion::auth::SecretKey;
+use tokio::sync::oneshot::Receiver;
 use tokio::task::LocalSet;
 
-use crate::worker::launcher::command_from_definitions;
+use crate::worker::launcher::{command_from_definitions, TaskLauncher};
 use crate::worker::rpc::run_worker;
 use crate::worker::state::WorkerStateRef;
 use crate::worker::taskenv::{StopReason, TaskResult};
@@ -178,7 +179,7 @@ pub(super) async fn start_worker(
                 server_address,
                 configuration,
                 secret_key,
-                Box::new(launcher),
+                Box::new(TestTaskLauncher),
             )
             .await;
 
@@ -261,23 +262,28 @@ async fn launcher_main(state_ref: WorkerStateRef, task_id: TaskId) -> crate::Res
     Ok(())
 }
 
-fn launcher(
-    state_ref: WorkerStateRef,
-    task_id: TaskId,
-    end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
-) -> Pin<Box<dyn Future<Output = crate::Result<TaskResult>> + 'static>> {
-    Box::pin(async move {
-        tokio::select! {
-            biased;
-                r = end_receiver => {
+struct TestTaskLauncher;
+
+impl TaskLauncher for TestTaskLauncher {
+    fn start_task(
+        &self,
+        state_ref: WorkerStateRef,
+        task_id: TaskId,
+        stop_receiver: Receiver<StopReason>,
+    ) -> Pin<Box<dyn Future<Output = crate::Result<TaskResult>>>> {
+        Box::pin(async move {
+            tokio::select! {
+                biased;
+                r = stop_receiver => {
                     Ok(r.unwrap().into())
                 }
                 r = launcher_main(state_ref, task_id) => {
                     r?;
                     Ok(TaskResult::Finished)
                 }
-        }
-    })
+            }
+        })
+    }
 }
 
 // Resource helpers

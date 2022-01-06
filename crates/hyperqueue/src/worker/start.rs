@@ -10,12 +10,13 @@ use futures::TryFutureExt;
 use tempdir::TempDir;
 use tokio::io::AsyncReadExt;
 use tokio::sync::oneshot;
+use tokio::sync::oneshot::Receiver;
 
 use tako::common::error::DsError;
 use tako::common::resources::{ResourceAllocation, ResourceDescriptor};
 use tako::messages::common::WorkerConfiguration;
 use tako::messages::common::{ProgramDefinition, StdioDef};
-use tako::worker::launcher::command_from_definitions;
+use tako::worker::launcher::{command_from_definitions, TaskLauncher};
 use tako::worker::state::{WorkerState, WorkerStateRef};
 use tako::worker::task::Task;
 use tako::worker::taskenv::{StopReason, TaskResult};
@@ -34,6 +35,32 @@ use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use crate::Map;
 use crate::{JobId, JobTaskId};
+
+pub struct HqTaskLauncher {
+    streamer_ref: StreamerRef,
+}
+
+impl HqTaskLauncher {
+    pub fn new(streamer_ref: StreamerRef) -> Self {
+        Self { streamer_ref }
+    }
+}
+
+impl TaskLauncher for HqTaskLauncher {
+    fn start_task(
+        &self,
+        state_ref: WorkerStateRef,
+        task_id: TaskId,
+        stop_receiver: Receiver<StopReason>,
+    ) -> Pin<Box<dyn Future<Output = tako::Result<TaskResult>>>> {
+        Box::pin(launcher_main(
+            state_ref,
+            self.streamer_ref.clone(),
+            task_id,
+            stop_receiver,
+        ))
+    }
+}
 
 pub const WORKER_EXTRA_PROCESS_PID: &str = "ProcessPid";
 
@@ -286,22 +313,6 @@ async fn run_task(
                 r = command.status() => status_to_result(r?)
         }
     }
-}
-
-pub fn worker_launcher(
-    state_ref: &WorkerStateRef,
-    streamer_ref: &StreamerRef,
-    task_id: TaskId,
-    end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
-) -> Pin<Box<dyn Future<Output = tako::Result<TaskResult>> + 'static>> {
-    let state_ref = state_ref.clone();
-    let streamer_ref = streamer_ref.clone();
-    Box::pin(launcher_main(
-        state_ref,
-        streamer_ref,
-        task_id,
-        end_receiver,
-    ))
 }
 
 fn try_get_pbs_info() -> anyhow::Result<ManagerInfo> {
