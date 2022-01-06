@@ -219,7 +219,7 @@ async fn task_starter_process(state_ref: WrappedRcRefCell<WorkerState>) {
             }
 
             for (task_id, allocation) in allocations {
-                run_task(&mut state, state_ref.clone(), task_id, allocation);
+                run_task(&mut state, &state_ref, task_id, allocation);
             }
         }
     }

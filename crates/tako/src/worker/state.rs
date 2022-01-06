@@ -11,6 +11,7 @@ use tokio::sync::Notify;
 
 use crate::common::data::SerializationType;
 use crate::common::resources::map::ResourceMap;
+use crate::common::resources::ResourceAllocation;
 use crate::common::stablemap::StableMap;
 use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
@@ -21,6 +22,7 @@ use crate::worker::data::{DataObject, DataObjectRef, DataObjectState};
 use crate::worker::launcher::TaskLauncher;
 use crate::worker::rqueue::ResourceWaitQueue;
 use crate::worker::task::{Task, TaskState};
+use crate::worker::taskenv::TaskEnv;
 use crate::TaskId;
 use crate::{PriorityTuple, WorkerId};
 
@@ -335,6 +337,17 @@ impl WorkerState {
         }
         self.start_task_scheduled = true;
         self.start_task_notify.notify_one();
+    }
+
+    pub fn start_task(
+        &mut self,
+        task_id: TaskId,
+        task_env: TaskEnv,
+        allocation: ResourceAllocation,
+    ) {
+        let mut task = self.get_task_mut(task_id);
+        task.state = TaskState::Running(task_env, allocation);
+        self.running_tasks.insert(task_id);
     }
 
     pub fn finish_task(&mut self, task_id: TaskId, size: u64) {
