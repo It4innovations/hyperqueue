@@ -81,7 +81,7 @@ pub fn task_status(status: &JobTaskState) -> Status {
         JobTaskState::Running { .. } => Status::Running,
         JobTaskState::Finished { .. } => Status::Finished,
         JobTaskState::Failed { .. } => Status::Failed,
-        JobTaskState::Canceled => Status::Canceled,
+        JobTaskState::Canceled { .. } => Status::Canceled,
     }
 }
 

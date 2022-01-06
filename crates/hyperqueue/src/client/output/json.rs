@@ -124,7 +124,7 @@ impl Output for JsonOutput {
                         JobTaskState::Running { .. } => "running",
                         JobTaskState::Finished { .. } => "finished",
                         JobTaskState::Failed { .. } => "failed",
-                        JobTaskState::Canceled => "canceled",
+                        JobTaskState::Canceled { .. } => "canceled",
                     };
                     let mut data = json!({
                         "id": task.task_id,
