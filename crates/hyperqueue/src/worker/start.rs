@@ -12,11 +12,12 @@ use tokio::io::AsyncReadExt;
 use tokio::sync::oneshot;
 
 use tako::common::error::DsError;
-use tako::common::resources::ResourceDescriptor;
+use tako::common::resources::{ResourceAllocation, ResourceDescriptor};
 use tako::messages::common::WorkerConfiguration;
 use tako::messages::common::{ProgramDefinition, StdioDef};
 use tako::worker::launcher::{command_from_definitions, pin_program};
-use tako::worker::state::WorkerStateRef;
+use tako::worker::state::{WorkerState, WorkerStateRef};
+use tako::worker::task::Task;
 use tako::worker::taskenv::{StopReason, TaskResult};
 use tako::{InstanceId, TaskId};
 
@@ -83,18 +84,19 @@ async fn launcher_main(
     ) = {
         let state = state_ref.get();
         let task = state.get_task(task_id);
+        let allocation = task
+            .resource_allocation()
+            .expect("Missing resource allocation for running task");
+
         log::debug!(
             "Starting program launcher task_id={} res={:?} alloc={:?} body_len={}",
             task.id,
             &task.resources,
-            task.resource_allocation(),
+            allocation,
             task.body.len(),
         );
 
         let body: TaskBody = tako::transfer::auth::deserialize(&task.body)?;
-        let allocation = task
-            .resource_allocation()
-            .expect("Missing resource allocation for running task");
         let mut program = body.program;
 
         if body.pin {
@@ -102,41 +104,7 @@ async fn launcher_main(
             program.env.insert(HQ_PIN.into(), "1".into());
         }
 
-        program
-            .env
-            .insert(HQ_CPUS.into(), allocation.comma_delimited_cpu_ids().into());
-
-        {
-            let state = state_ref.get();
-            let resource_map = state.get_resource_map();
-
-            for rq in task.resources.generic_requests() {
-                let resource_name = resource_map.get_name(rq.resource).unwrap();
-                program.env.insert(
-                    format!("HQ_RESOURCE_REQUEST_{}", resource_name).into(),
-                    rq.amount.to_string().into(),
-                );
-            }
-
-            for alloc in &allocation.generic_allocations {
-                let resource_name = resource_map.get_name(alloc.resource).unwrap();
-                if let Some(indices) = alloc.value.to_comma_delimited_list() {
-                    if resource_name == "gpus" {
-                        /* Extra hack for GPUS */
-                        program
-                            .env
-                            .insert("CUDA_VISIBLE_DEVICES".into(), indices.clone().into());
-                        program
-                            .env
-                            .insert("CUDA_DEVICE_ORDER".into(), "PCI_BUS_ID".into());
-                    }
-                    program.env.insert(
-                        format!("HQ_RESOURCE_INDICES_{}", resource_name).into(),
-                        indices.into(),
-                    );
-                }
-            }
-        }
+        insert_resources_into_env(&state_ref.get(), task, allocation, &mut program);
 
         program
             .env
@@ -159,6 +127,46 @@ async fn launcher_main(
         end_receiver,
     )
     .await
+}
+
+fn insert_resources_into_env(
+    state: &WorkerState,
+    task: &Task,
+    allocation: &ResourceAllocation,
+    program: &mut ProgramDefinition,
+) {
+    program
+        .env
+        .insert(HQ_CPUS.into(), allocation.comma_delimited_cpu_ids().into());
+
+    let resource_map = state.get_resource_map();
+
+    for rq in task.resources.generic_requests() {
+        let resource_name = resource_map.get_name(rq.resource).unwrap();
+        program.env.insert(
+            format!("HQ_RESOURCE_REQUEST_{}", resource_name).into(),
+            rq.amount.to_string().into(),
+        );
+    }
+
+    for alloc in &allocation.generic_allocations {
+        let resource_name = resource_map.get_name(alloc.resource).unwrap();
+        if let Some(indices) = alloc.value.to_comma_delimited_list() {
+            if resource_name == "gpus" {
+                /* Extra hack for GPUS */
+                program
+                    .env
+                    .insert("CUDA_VISIBLE_DEVICES".into(), indices.clone().into());
+                program
+                    .env
+                    .insert("CUDA_DEVICE_ORDER".into(), "PCI_BUS_ID".into());
+            }
+            program.env.insert(
+                format!("HQ_RESOURCE_INDICES_{}", resource_name).into(),
+                indices.into(),
+            );
+        }
+    }
 }
 
 /// Zero-worker mode measures pure overhead of HyperQueue.
