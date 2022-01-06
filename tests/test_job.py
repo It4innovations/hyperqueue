@@ -95,23 +95,23 @@ def test_custom_working_dir(hq_env: HqEnv, tmpdir):
     hq_env.start_server()
 
     test_string = "cwd_test_string"
-    test_path = tmpdir.mkdir("test_dir")
-    test_file = test_path.join("testfile")
+    work_dir = tmpdir.mkdir("test_dir")
+    test_file = work_dir.join("testfile")
     test_file.write(test_string)
 
     submit_dir = tmpdir.mkdir("submit_dir")
 
     hq_env.command(
-        ["submit", "--cwd=" + str(test_path), "--", "bash", "-c", "cat testfile"],
+        ["submit", f"--cwd={work_dir}", "--", "bash", "-c", "cat testfile"],
         cwd=submit_dir,
     )
     table = hq_env.command(["job", "1"], as_table=True)
-    table.check_row_value("Working Dir", str(test_path))
+    table.check_row_value("Working Dir", str(work_dir))
 
     hq_env.start_worker(cpus=1)
     wait_for_job_state(hq_env, 1, ["FINISHED"])
 
-    with open(os.path.join(tmpdir, "submit_dir", default_task_output())) as f:
+    with open(default_task_output(submit_dir=submit_dir)) as f:
         assert f.read() == test_string
 
 
