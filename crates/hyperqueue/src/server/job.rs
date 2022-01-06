@@ -17,26 +17,25 @@ use tako::TaskId;
 use tokio::sync::oneshot;
 
 /// State of a task that has been started at least once.
+/// It contains the last known state of the task.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StartedTaskData {
     pub start_date: DateTime<Utc>,
     pub context: RunningTaskContext,
+    pub worker_id: WorkerId,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum JobTaskState {
     Waiting,
     Running {
-        worker: WorkerId,
         started_data: StartedTaskData,
     },
     Finished {
-        worker: WorkerId,
         started_data: StartedTaskData,
         end_date: DateTime<Utc>,
     },
     Failed {
-        worker: WorkerId,
         started_data: StartedTaskData,
         end_date: DateTime<Utc>,
         error: String,
@@ -47,13 +46,18 @@ pub enum JobTaskState {
 }
 
 impl JobTaskState {
-    pub fn get_worker(&self) -> Option<WorkerId> {
+    pub fn started_data(&self) -> Option<&StartedTaskData> {
         match self {
-            JobTaskState::Running { worker, .. }
-            | JobTaskState::Finished { worker, .. }
-            | JobTaskState::Failed { worker, .. } => Some(*worker),
+            JobTaskState::Running { started_data, .. }
+            | JobTaskState::Finished { started_data, .. }
+            | JobTaskState::Failed { started_data, .. } => Some(started_data),
+            JobTaskState::Canceled { started_data } => started_data.as_ref(),
             _ => None,
         }
+    }
+
+    pub fn get_worker(&self) -> Option<WorkerId> {
+        self.started_data().map(|data| data.worker_id)
     }
 }
 
@@ -299,10 +303,10 @@ impl Job {
 
         if matches!(state, JobTaskState::Waiting) {
             *state = JobTaskState::Running {
-                worker,
                 started_data: StartedTaskData {
                     start_date: Utc::now(),
                     context,
+                    worker_id: worker,
                 },
             };
             self.counters.n_running_tasks += 1;
@@ -327,12 +331,8 @@ impl Job {
         let (_, state) = self.get_task_state_mut(tako_task_id);
         let now = Utc::now();
         match state {
-            JobTaskState::Running {
-                worker,
-                started_data,
-            } => {
+            JobTaskState::Running { started_data } => {
                 *state = JobTaskState::Finished {
-                    worker: *worker,
                     started_data: started_data.clone(),
                     end_date: now,
                 };
@@ -355,15 +355,11 @@ impl Job {
         let (_, state) = self.get_task_state_mut(tako_task_id);
         let now = Utc::now();
         match state {
-            JobTaskState::Running {
-                worker,
-                started_data,
-            } => {
+            JobTaskState::Running { started_data } => {
                 *state = JobTaskState::Failed {
                     error,
                     started_data: started_data.clone(),
                     end_date: now,
-                    worker: *worker,
                 };
                 self.counters.n_running_tasks -= 1;
                 self.counters.n_failed_tasks += 1;
