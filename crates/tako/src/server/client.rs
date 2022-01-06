@@ -1,17 +1,14 @@
 use crate::common::resources::{GenericResourceRequest, ResourceRequest};
-use futures::future::join_all;
-use futures::{StreamExt, TryFutureExt};
+use futures::StreamExt;
 use tokio::net::UnixListener;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio::sync::oneshot;
 
 use crate::common::rpc::forward_queue_to_sink_with_map;
 use crate::messages::gateway::{
-    CancelTasksResponse, CollectedOverview, ErrorResponse, FromGatewayMessage, NewTasksMessage,
-    NewTasksResponse, OverviewRequest, TaskConf, TaskInfo, TaskState, TaskUpdate,
-    TasksInfoResponse, ToGatewayMessage,
+    CancelTasksResponse, ErrorResponse, FromGatewayMessage, NewTasksMessage, NewTasksResponse,
+    TaskConf, TaskInfo, TaskState, TaskUpdate, TasksInfoResponse, ToGatewayMessage,
 };
-use crate::messages::worker::{ToWorkerMessage, WorkerOverview};
+use crate::messages::worker::ToWorkerMessage;
 use crate::server::comm::{Comm, CommSender, CommSenderRef};
 use crate::server::core::{Core, CoreRef};
 use crate::server::monitoring::MonitoringEvent;
@@ -96,35 +93,6 @@ fn create_task_configuration(core_ref: &mut Core, msg: TaskConf) -> TaskConfigur
     }
 }
 
-pub async fn fetch_worker_overviews(
-    core_ref: &CoreRef,
-    comm_ref: &CommSenderRef,
-    overview_request: OverviewRequest,
-) -> Vec<WorkerOverview> {
-    let overview_receivers = {
-        let mut core = core_ref.get_mut();
-
-        let mut overview_receivers = Vec::with_capacity(core.get_worker_map().len());
-        for worker in core.get_workers_mut() {
-            //for each worker, create a one-shot channel, pass it to the worker and store it's receiver
-            let (sender, receiver) = oneshot::channel();
-            worker.overview_callbacks.push(sender);
-            overview_receivers.push(receiver.into_future());
-        }
-        comm_ref
-            .get_mut()
-            .broadcast_worker_message(&ToWorkerMessage::GetOverview(overview_request));
-        overview_receivers
-    };
-    let worker_overviews: Vec<WorkerOverview> = join_all(overview_receivers)
-        .await
-        .into_iter()
-        .filter_map(|r| r.ok())
-        .collect();
-    log::debug!("Gathering overview finished");
-    worker_overviews
-}
-
 pub async fn process_client_message(
     core_ref: &CoreRef,
     comm_ref: &CommSenderRef,
@@ -195,17 +163,6 @@ pub async fn process_client_message(
             assert!(client_sender
                 .send(ToGatewayMessage::TaskInfo(TasksInfoResponse {
                     tasks: task_infos
-                }))
-                .is_ok());
-            None
-        }
-        FromGatewayMessage::GetOverview(overview_request) => {
-            log::debug!("Client ask for overview");
-            let worker_overviews =
-                fetch_worker_overviews(core_ref, comm_ref, overview_request).await;
-            assert!(client_sender
-                .send(ToGatewayMessage::Overview(CollectedOverview {
-                    worker_overviews
                 }))
                 .is_ok());
             None

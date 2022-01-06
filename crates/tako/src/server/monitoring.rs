@@ -1,4 +1,4 @@
-use crate::messages::gateway::{CollectedOverview, LostWorkerReason};
+use crate::messages::gateway::LostWorkerReason;
 use crate::messages::worker::WorkerOverview;
 use crate::{static_assert_size, WorkerId};
 
@@ -26,11 +26,11 @@ pub struct MonitoringEvent {
 pub enum MonitoringEventPayload {
     WorkerConnected(WorkerId, Box<WorkerConfiguration>),
     WorkerLost(WorkerId, LostWorkerReason),
-    OverviewUpdate(CollectedOverview),
+    OverviewUpdate(WorkerOverview),
 }
 
 // Keep the size of the event structure in check
-static_assert_size!(MonitoringEventPayload, 32);
+static_assert_size!(MonitoringEventPayload, 160);
 
 impl Default for EventStorage {
     fn default() -> Self {
@@ -78,10 +78,8 @@ impl EventStorage {
     }
 
     #[inline]
-    pub fn on_overview_received(&mut self, worker_overviews: Vec<WorkerOverview>) {
-        self.insert_event(MonitoringEventPayload::OverviewUpdate(CollectedOverview {
-            worker_overviews,
-        }));
+    pub fn on_overview_received(&mut self, worker_overview: WorkerOverview) {
+        self.insert_event(MonitoringEventPayload::OverviewUpdate(worker_overview));
     }
 
     fn insert_event(&mut self, payload: MonitoringEventPayload) {

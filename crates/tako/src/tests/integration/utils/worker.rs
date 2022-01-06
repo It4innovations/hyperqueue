@@ -47,8 +47,8 @@ pub struct ResourceConfig {
 pub struct WorkerConfig {
     #[builder(default)]
     idle_timeout: Option<Duration>,
-    #[builder(default)]
-    hw_state_poll_interval: Option<Duration>,
+    #[builder(default = "Some(Duration::from_millis(50))")]
+    send_overview_interval: Option<Duration>,
     #[builder(default)]
     secret_key: WorkerSecretKey,
     #[builder(default = "Duration::from_millis(250)")]
@@ -62,7 +62,7 @@ pub(super) fn create_worker_configuration(
 ) -> (WorkerConfiguration, WorkerSecretKey) {
     let WorkerConfig {
         idle_timeout,
-        hw_state_poll_interval,
+        send_overview_interval,
         secret_key,
         heartbeat_interval,
         resources,
@@ -80,7 +80,7 @@ pub(super) fn create_worker_configuration(
             work_dir: Default::default(),
             log_dir: Default::default(),
             heartbeat_interval,
-            hw_state_poll_interval,
+            send_overview_interval,
             idle_timeout,
             time_limit: None,
             extra: Default::default(),

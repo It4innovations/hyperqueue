@@ -229,19 +229,15 @@ async fn worker_rpc_loop(
     let stopping = { core.get_worker_by_id_or_panic(worker_id).is_stopping() };
     comm.remove_worker(worker_id);
 
+    let reason = if stopping {
+        LostWorkerReason::Stopped
+    } else {
+        reason
+    };
+
     core.get_event_storage()
         .on_remove_worker(worker_id, reason.clone());
-    on_remove_worker(
-        &mut core,
-        &mut *comm,
-        worker_id,
-        if stopping {
-            LostWorkerReason::Stopped
-        } else {
-            reason
-        },
-    );
-    //core.remove_worker(worker_id);
+    on_remove_worker(&mut core, &mut *comm, worker_id, reason);
     Ok(())
 }
 
@@ -281,10 +277,7 @@ pub async fn worker_receive_loop<
                 };
             }
             FromWorkerMessage::Overview(overview) => {
-                if let Some(worker) = core.get_worker_mut(worker_id) {
-                    let sender = worker.overview_callbacks.remove(0);
-                    let _ = sender.send(overview);
-                };
+                core.get_event_storage().on_overview_received(overview);
             }
         }
     }

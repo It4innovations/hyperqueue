@@ -4,7 +4,6 @@ use std::time::Duration;
 use crate::common::resources::{CpuId, GenericResourceAmount, GenericResourceIndex};
 use crate::common::Map;
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
-use crate::messages::gateway::OverviewRequest;
 use crate::worker::hwmonitor::WorkerHwState;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, WorkerId};
@@ -71,7 +70,6 @@ pub enum ToWorkerMessage {
     StealTasks(TaskIdsMsg),
     CancelTasks(TaskIdsMsg),
     NewWorker(NewWorkerMsg),
-    GetOverview(OverviewRequest),
     Stop,
 }
 

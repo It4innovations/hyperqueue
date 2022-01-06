@@ -126,7 +126,7 @@ pub async fn run_worker(
     let (download_sender, download_reader) =
         tokio::sync::mpsc::unbounded_channel::<(DataObjectRef, (Priority, Priority))>();
     let heartbeat_interval = configuration.heartbeat_interval;
-    let hw_state_poll_interval = configuration.hw_state_poll_interval;
+    let send_overview_interval = configuration.send_overview_interval;
     let time_limit = configuration.time_limit;
 
     let (worker_id, state) = {
@@ -197,12 +197,9 @@ pub async fn run_worker(
         }
     };
 
-    let hw_polling_process = match hw_state_poll_interval {
+    let overview_loop = match send_overview_interval {
         None => Either::Left(futures::future::pending()),
-        Some(interval) => {
-            let sampler = HwSampler::init()?;
-            Either::Right(update_hw_state(state.clone(), interval, sampler))
-        }
+        Some(interval) => Either::Right(send_overview_loop(state.clone(), interval)),
     };
 
     let time_limit_fut = match time_limit {
@@ -228,7 +225,7 @@ pub async fn run_worker(
                 unreachable!()
             }
             _ = heartbeat => { unreachable!() }
-            _ = hw_polling_process => { unreachable!() }
+            _ = overview_loop => { unreachable!() }
             _ = time_limit_fut => {
                 log::info!("Time limit reached");
             }
@@ -238,32 +235,6 @@ pub async fn run_worker(
 
 const MAX_RUNNING_DOWNLOADS: usize = 32;
 const MAX_ATTEMPTS: u32 = 8;
-
-async fn update_hw_state(
-    state_ref: WorkerStateRef,
-    hw_poll_interval: Duration,
-    mut sampler: HwSampler,
-) {
-    let mut poll_interval = tokio::time::interval(hw_poll_interval);
-    loop {
-        poll_interval.tick().await;
-        let hw_state = sampler.fetch_hw_state();
-        match hw_state {
-            Ok(new_state) => {
-                state_ref.get_mut().hardware_state = new_state;
-            }
-            Err(error) => {
-                state_ref
-                    .get_mut()
-                    .hardware_state
-                    .worker_cpu_usage
-                    .cpu_per_core_percent_usage
-                    .clear();
-                log::warn!("Error reading hw state! {:?}", error);
-            }
-        }
-    }
-}
 
 async fn download_data(state_ref: WorkerStateRef, data_ref: DataObjectRef) {
     for attempt in 0..MAX_ATTEMPTS {
@@ -405,40 +376,43 @@ async fn worker_message_loop(
                     .insert(msg.worker_id, msg.address)
                     .is_none())
             }
-            ToWorkerMessage::GetOverview(overview_request) => {
-                let message = FromWorkerMessage::Overview(WorkerOverview {
-                    id: state.worker_id,
-                    running_tasks: state
-                        .running_tasks
-                        .iter()
-                        .map(|&task_id| {
-                            let task = state.get_task(task_id);
-                            let allocation: &ResourceAllocation =
-                                task.resource_allocation().unwrap();
-
-                            (
-                                task_id,
-                                resource_allocation_to_msg(allocation, state.get_resource_map()),
-                            )
-                            // TODO: Modify this when more cpus are allowed
-                        })
-                        .collect(),
-                    placed_data: state.data_objects.keys().copied().collect(),
-                    hw_state: match overview_request.fetch_hw_overview {
-                        true => Some(WorkerHwStateMessage {
-                            state: state.hardware_state.clone(),
-                        }),
-                        false => None,
-                    },
-                });
-                state.send_message_to_server(message);
-            }
             ToWorkerMessage::Stop => {
                 break;
             }
         }
     }
     Ok(())
+}
+
+async fn send_overview_loop(state_ref: WorkerStateRef, interval: Duration) -> crate::Result<()> {
+    let mut sampler = HwSampler::init()?;
+    let mut poll_interval = tokio::time::interval(interval);
+    loop {
+        poll_interval.tick().await;
+        let worker_state = state_ref.get();
+
+        let message = FromWorkerMessage::Overview(WorkerOverview {
+            id: worker_state.worker_id,
+            running_tasks: worker_state
+                .running_tasks
+                .iter()
+                .map(|&task_id| {
+                    let task = worker_state.get_task(task_id);
+                    let allocation: &ResourceAllocation = task.resource_allocation().unwrap();
+                    (
+                        task_id,
+                        resource_allocation_to_msg(allocation, worker_state.get_resource_map()),
+                    )
+                    // TODO: Modify this when more cpus are allowed
+                })
+                .collect(),
+            placed_data: worker_state.data_objects.keys().copied().collect(),
+            hw_state: Some(WorkerHwStateMessage {
+                state: sampler.fetch_hw_state()?,
+            }),
+        });
+        worker_state.send_message_to_server(message);
+    }
 }
 
 fn resource_allocation_to_msg(

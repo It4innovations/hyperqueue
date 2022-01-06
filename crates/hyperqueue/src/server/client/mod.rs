@@ -10,7 +10,7 @@ use tokio::sync::{oneshot, Notify};
 
 use tako::messages::common::ProgramDefinition;
 use tako::messages::gateway::{
-    CancelTasks, FromGatewayMessage, OverviewRequest, StopWorkerRequest, ToGatewayMessage,
+    CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage,
 };
 
 use crate::client::status::{job_status, task_status, Status};
@@ -124,10 +124,6 @@ pub async fn client_rpc_loop<
                     }
                     FromClientMessage::WaitForJobs(msg) => {
                         handle_wait_for_jobs_message(&state_ref, msg.selector).await
-                    }
-                    FromClientMessage::Overview(_overview_request) => {
-                        //todo: take in overview_request as param
-                        get_collected_overview(&tako_ref).await
                     }
                 };
                 assert!(tx.send(response).await.is_ok());
@@ -676,20 +672,4 @@ async fn handle_worker_info(state_ref: &StateRef, worker_id: WorkerId) -> ToClie
     let state = state_ref.get();
 
     ToClientMessage::WorkerInfoResponse(state.get_worker(worker_id).map(|w| w.make_info()))
-}
-
-async fn get_collected_overview(tako_ref: &Backend) -> ToClientMessage {
-    let response = tako_ref
-        .send_tako_message(FromGatewayMessage::GetOverview(OverviewRequest {
-            fetch_hw_overview: true,
-        }))
-        .await
-        .unwrap();
-    //todo: if let
-    match response {
-        ToGatewayMessage::Overview(collected_overview) => {
-            ToClientMessage::OverviewResponse(collected_overview)
-        }
-        _ => ToClientMessage::Error("overview request failed".to_string()),
-    }
 }

@@ -104,7 +104,7 @@ fn create_rows(worker_info: &WorkerInfo) -> Vec<WorkerInfoDataRow> {
             label: "hw_state_poll_interval: ".to_string(),
             data: worker_info
                 .configuration
-                .hw_state_poll_interval
+                .send_overview_interval
                 .map(|interval| humantime::format_duration(interval).to_string())
                 .unwrap_or_else(|| missing_data_str.clone()),
         },
