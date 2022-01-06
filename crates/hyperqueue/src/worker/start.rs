@@ -415,7 +415,7 @@ pub fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfi
         log_dir,
         heartbeat_interval: opts.heartbeat.unpack(),
         idle_timeout: opts.idle_timeout.map(|x| x.unpack()),
-        hw_state_poll_interval: Some(Duration::from_millis(1000)),
+        send_overview_interval: Some(Duration::from_millis(1000)),
         extra,
     })
 }

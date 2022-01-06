@@ -29,7 +29,7 @@ pub fn create_worker(id: u64) -> Worker {
             work_dir: Default::default(),
             log_dir: Default::default(),
             heartbeat_interval: Default::default(),
-            hw_state_poll_interval: None,
+            send_overview_interval: None,
             idle_timeout: None,
             time_limit: None,
             extra: Default::default(),

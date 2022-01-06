@@ -2,24 +2,139 @@ use super::macros::wait_for_msg;
 use crate::common::{Map, Set};
 use crate::messages::common::TaskFailInfo;
 use crate::messages::gateway::{
-    CancelTasks, CancelTasksResponse, CollectedOverview, FromGatewayMessage,
-    MonitoringEventRequest, OverviewRequest, TaskState, ToGatewayMessage,
+    CancelTasks, CancelTasksResponse, FromGatewayMessage, MonitoringEventRequest, TaskState,
+    TaskUpdate, ToGatewayMessage,
 };
-use crate::server::monitoring::MonitoringEvent;
+use crate::messages::worker::WorkerOverview;
+use crate::server::monitoring::{MonitoringEvent, MonitoringEventId, MonitoringEventPayload};
 use crate::tests::integration::utils::server::ServerHandle;
-use crate::TaskId;
+use crate::{TaskId, WorkerId};
+use std::collections::HashMap;
+use std::future::Future;
+use std::time::Duration;
+use tokio::sync::mpsc::Sender;
+use tokio::time::error::Elapsed;
+use tokio::time::sleep;
 
-// Worker info
-pub async fn get_overview(handler: &mut ServerHandle) -> CollectedOverview {
-    handler
-        .send(FromGatewayMessage::GetOverview(OverviewRequest {
-            fetch_hw_overview: true,
-        }))
-        .await;
-    wait_for_msg!(handler, ToGatewayMessage::Overview(overview) => overview)
+/// Repeatedly gathers events until at least one overview per each worker is received.
+/// Events created before calling this function will not be considered.
+pub async fn get_latest_overview(
+    handler: &mut ServerHandle,
+    worker_ids: Vec<WorkerId>,
+) -> HashMap<WorkerId, WorkerOverview> {
+    let event_id = get_current_event_id(handler).await;
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<MonitoringEvent>(100);
+    let gather_fut = async move {
+        let mut overview_map: HashMap<WorkerId, WorkerOverview> = HashMap::new();
+        while let Some(event) = rx.recv().await {
+            assert!(Some(event.id) > event_id);
+            if let MonitoringEventPayload::OverviewUpdate(overview) = event.payload {
+                if worker_ids.contains(&overview.id) && !overview_map.contains_key(&overview.id) {
+                    overview_map.insert(overview.id, overview);
+                }
+            }
+            if overview_map.len() >= worker_ids.len() {
+                break;
+            }
+        }
+        overview_map
+    };
+
+    event_stream(handler, tx, gather_fut, Duration::from_secs(5), event_id)
+        .await
+        .expect("Timed out while waiting for worker overviews")
 }
 
-// Worker events
+pub async fn wait_for_worker_lost(
+    handler: &mut ServerHandle,
+    worker_id: WorkerId,
+) -> MonitoringEvent {
+    wait_for_event(
+        handler,
+        |event| {
+            matches!(
+                event.payload,
+                MonitoringEventPayload::WorkerLost(id, _) if id == worker_id
+            )
+        },
+        Duration::from_secs(3),
+        None,
+    )
+    .await
+    .unwrap()
+}
+
+pub async fn wait_for_task_start<T: Into<TaskId>>(
+    handler: &mut ServerHandle,
+    task_id: T,
+) -> WorkerId {
+    let task_id: TaskId = task_id.into();
+    wait_for_msg!(handler, ToGatewayMessage::TaskUpdate(TaskUpdate {
+        state: TaskState::Running(worker_id),
+        id,
+    }) if id == task_id => worker_id)
+}
+
+pub async fn wait_for_event<EventCondition: Fn(&MonitoringEvent) -> bool>(
+    handler: &mut ServerHandle,
+    condition: EventCondition,
+    for_duration: Duration,
+    start_event_id: Option<MonitoringEventId>,
+) -> Option<MonitoringEvent> {
+    let (tx, mut rx) = tokio::sync::mpsc::channel(100);
+    let wait_fut = async move {
+        while let Some(event) = rx.recv().await {
+            if condition(&event) {
+                return Some(event);
+            }
+        }
+        None
+    };
+
+    event_stream(handler, tx, wait_fut, for_duration, start_event_id)
+        .await
+        .unwrap_or(None)
+}
+
+pub async fn get_current_event_id(handler: &mut ServerHandle) -> Option<MonitoringEventId> {
+    let events = get_events_after(None, handler).await;
+    events.into_iter().map(|event| event.id).max()
+}
+
+/// Repeatedly download events from the server and pass them to the provided queue.
+async fn event_stream<F: Future>(
+    handler: &mut ServerHandle,
+    event_sender: Sender<MonitoringEvent>,
+    reader_fut: F,
+    timeout: Duration,
+    start_event_id: Option<MonitoringEventId>,
+) -> Result<F::Output, Elapsed> {
+    let events_fut = async move {
+        let mut last_id = start_event_id;
+        loop {
+            let mut events = get_events_after(last_id, handler).await;
+            events.sort_unstable_by_key(|x| x.id);
+            last_id = events.last().map(|event| event.id).or(last_id);
+
+            for event in events {
+                event_sender.send(event).await.unwrap();
+            }
+
+            sleep(Duration::from_millis(10)).await;
+        }
+    };
+    let events_fut = tokio::time::timeout(timeout, events_fut);
+
+    tokio::select! {
+        result = reader_fut => Ok(result),
+        err = events_fut => err
+    }
+}
+
+/**
+ * The event order is not guaranteed
+ **/
 pub async fn get_events_after(
     after_id: Option<u32>,
     handler: &mut ServerHandle,

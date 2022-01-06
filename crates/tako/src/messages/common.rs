@@ -91,7 +91,7 @@ pub struct WorkerConfiguration {
     pub work_dir: PathBuf,
     pub log_dir: PathBuf,
     pub heartbeat_interval: Duration,
-    pub hw_state_poll_interval: Option<Duration>,
+    pub send_overview_interval: Option<Duration>,
     pub idle_timeout: Option<Duration>,
     pub time_limit: Option<Duration>,
 

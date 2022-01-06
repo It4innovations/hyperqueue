@@ -1,25 +1,12 @@
 use tako::messages::common::MemoryStats;
 use tako::messages::gateway::CollectedOverview;
-use tako::messages::gateway::OverviewRequest;
 use tako::messages::worker::WorkerHwStateMessage;
 
 use crate::common::error::HqError;
-use crate::rpc_call;
-use crate::transfer::connection::ClientConnection;
-use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 
-pub async fn get_hw_overview(
-    connection: &mut ClientConnection,
-) -> Result<CollectedOverview, HqError> {
-    let response = rpc_call!(
-        connection,
-        FromClientMessage::Overview(OverviewRequest {
-            fetch_hw_overview: true
-        }),
-        ToClientMessage::OverviewResponse(response) => response
-    )
-    .await;
-    response
+//todo: remove
+pub async fn get_hw_overview() -> Result<CollectedOverview, HqError> {
+    Err(HqError::GenericError("Not implemented".to_string()))
 }
 
 pub fn calculate_memory_usage_percent(memory_stats: &MemoryStats) -> u64 {

@@ -2,8 +2,14 @@
 macro_rules! wait_for_msg {
     ($handle: expr, $matcher:pat $(=> $result:expr)?) => {
         $handle.recv_msg(|msg| match msg {
-            $matcher => ::std::option::Option::Some(($($result),*)),
-            _ => None,
+            $matcher => $crate::tests::integration::utils::server::MessageFilter::Expected(($($result),*)),
+            _ => $crate::tests::integration::utils::server::MessageFilter::Unexpected(msg),
+        }).await
+    };
+    ($handle: expr, $matcher:pat if $guard:expr $(=> $result:expr)?) => {
+        $handle.recv_msg(|msg| match msg {
+            $matcher if $guard => $crate::tests::integration::utils::server::MessageFilter::Expected(($($result),*)),
+            _ => $crate::tests::integration::utils::server::MessageFilter::Unexpected(msg),
         }).await
     }
 }

@@ -11,8 +11,8 @@ use tokio::time::timeout;
 
 use crate::common::{Map, Set};
 use crate::messages::gateway::{
-    FromGatewayMessage, NewTasksMessage, NewTasksResponse, ObserveTasksMessage, TaskConf, TaskDef,
-    ToGatewayMessage,
+    FromGatewayMessage, NewTasksMessage, NewTasksResponse, ObserveTasksMessage, StopWorkerRequest,
+    TaskConf, TaskDef, ToGatewayMessage,
 };
 use crate::server::client::process_client_message;
 use crate::server::comm::CommSenderRef;
@@ -57,6 +57,18 @@ pub struct ServerHandle {
     comm_ref: CommSenderRef,
     pub(super) secret_key: Option<Arc<SecretKey>>,
     workers: Map<WorkerId, WorkerContext>,
+    out_of_band_messages: Vec<ToGatewayMessage>,
+}
+
+pub enum MessageFilter<T> {
+    Expected(T),
+    Unexpected(ToGatewayMessage),
+}
+
+impl<T> From<ToGatewayMessage> for MessageFilter<T> {
+    fn from(msg: ToGatewayMessage) -> Self {
+        Self::Unexpected(msg)
+    }
 }
 
 impl ServerHandle {
@@ -77,18 +89,43 @@ impl ServerHandle {
     /// When check_fn returns `Some`, the loop will end.
     ///
     /// Use this to wait for a specific message to be received.
-    pub async fn recv_msg<CheckMsg: FnMut(ToGatewayMessage) -> Option<T>, T>(
+    pub async fn recv_msg<CheckMsg: FnMut(ToGatewayMessage) -> MessageFilter<T>, T>(
         &mut self,
         mut check_fn: CheckMsg,
     ) -> T {
+        let mut found_oob = None;
+        self.out_of_band_messages = std::mem::take(&mut self.out_of_band_messages)
+            .into_iter()
+            .filter_map(|msg| {
+                if found_oob.is_none() {
+                    match check_fn(msg) {
+                        MessageFilter::Expected(response) => {
+                            found_oob = Some(response);
+                            None
+                        }
+                        MessageFilter::Unexpected(msg) => Some(msg),
+                    }
+                } else {
+                    Some(msg)
+                }
+            })
+            .collect();
+        if let Some(found) = found_oob {
+            return found;
+        }
+
         let fut = async move {
             loop {
                 let msg = self.recv().await;
-                let formatted = format!("{:?}", msg);
-                if let Some(result) = check_fn(msg) {
-                    break result;
+                match check_fn(msg) {
+                    MessageFilter::Expected(response) => {
+                        break response;
+                    }
+                    MessageFilter::Unexpected(msg) => {
+                        println!("Received out-of-band message {:?}", msg);
+                        self.out_of_band_messages.push(msg);
+                    }
                 }
-                println!("Received out-of-band message {}", formatted);
             }
         };
         match timeout(WAIT_TIMEOUT, fut).await {
@@ -122,6 +159,13 @@ impl ServerHandle {
     pub async fn kill_worker(&mut self, id: WorkerId) {
         let ctx = self.workers.remove(&id).unwrap();
         ctx.kill().await;
+    }
+
+    pub async fn stop_worker(&mut self, worker_id: WorkerId) {
+        self.send(FromGatewayMessage::StopWorker(StopWorkerRequest {
+            worker_id,
+        }))
+        .await;
     }
 
     pub async fn submit(&mut self, tasks_and_confs: (Vec<TaskDef>, Vec<TaskConf>)) -> Vec<TaskId> {
@@ -182,6 +226,7 @@ async fn create_handle(
             comm_ref,
             secret_key,
             workers: Default::default(),
+            out_of_band_messages: Default::default(),
         },
         server_future,
     )

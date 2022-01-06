@@ -84,11 +84,6 @@ pub struct StopWorkerRequest {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct OverviewRequest {
-    pub fetch_hw_overview: bool,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "op")]
 pub enum FromGatewayMessage {
     NewTasks(NewTasksMessage),
@@ -97,7 +92,6 @@ pub enum FromGatewayMessage {
     GetTaskInfo(TaskInfoRequest),
     ServerInfo,
     GetMonitoringEvents(MonitoringEventRequest),
-    GetOverview(OverviewRequest),
     StopWorker(StopWorkerRequest),
 }
 

@@ -12,7 +12,7 @@ use crate::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
 use bstr::BString;
 use std::path::PathBuf;
 use std::time::Duration;
-use tako::messages::gateway::{CollectedOverview, OverviewRequest, ResourceRequest};
+use tako::messages::gateway::ResourceRequest;
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]
@@ -30,7 +30,6 @@ pub enum FromClientMessage {
     Stop,
     AutoAlloc(AutoAllocRequest),
     WaitForJobs(WaitForJobsRequest),
-    Overview(OverviewRequest),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -151,7 +150,6 @@ pub enum ToClientMessage {
     CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
     AutoAllocResponse(AutoAllocResponse),
     WaitForJobsResponse(WaitForJobsResponse),
-    OverviewResponse(CollectedOverview),
     Error(String),
 }
 

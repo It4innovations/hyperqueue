@@ -1,13 +1,10 @@
 use std::fmt;
 
-use tokio::sync::oneshot;
-
 use crate::common::resources::map::ResourceMap;
 use crate::common::resources::ResourceRequest;
 use crate::common::resources::{NumOfCpus, TimeRequest};
 use crate::common::Set;
 use crate::messages::common::WorkerConfiguration;
-use crate::messages::worker::WorkerOverview;
 use crate::server::task::Task;
 use crate::server::taskmap::TaskMap;
 use crate::server::worker_load::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
@@ -42,7 +39,6 @@ pub struct Worker {
     pub last_heartbeat: std::time::Instant,
     pub last_occupied: std::time::Instant,
     pub configuration: WorkerConfiguration,
-    pub overview_callbacks: Vec<oneshot::Sender<WorkerOverview>>,
 }
 
 impl fmt::Debug for Worker {
@@ -174,7 +170,6 @@ impl Worker {
             load,
             tasks: Default::default(),
             flags: WorkerFlags::empty(),
-            overview_callbacks: Default::default(),
             last_heartbeat: now,
             last_occupied: now,
         }

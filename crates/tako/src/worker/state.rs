@@ -18,7 +18,6 @@ use crate::messages::worker::{FromWorkerMessage, StealResponse, TaskFailedMsg, T
 use crate::transfer::auth::serialize;
 use crate::transfer::DataConnection;
 use crate::worker::data::{DataObject, DataObjectRef, DataObjectState};
-use crate::worker::hwmonitor::WorkerHwState;
 use crate::worker::launcher::TaskLauncher;
 use crate::worker::rqueue::ResourceWaitQueue;
 use crate::worker::task::{Task, TaskState};
@@ -49,7 +48,6 @@ pub struct WorkerState {
     pub secret_key: Option<Arc<SecretKey>>,
 
     pub start_time: std::time::Instant,
-    pub hardware_state: WorkerHwState,
 
     resource_map: ResourceMap,
 }
@@ -393,7 +391,6 @@ impl WorkerStateRef {
             start_task_scheduled: false,
             start_task_notify: Rc::new(Notify::new()),
             running_tasks: Default::default(),
-            hardware_state: Default::default(),
             start_time: std::time::Instant::now(),
             resource_map,
         })

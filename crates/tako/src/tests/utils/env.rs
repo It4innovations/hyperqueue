@@ -95,7 +95,7 @@ impl TestEnv {
                 work_dir: Default::default(),
                 log_dir: Default::default(),
                 heartbeat_interval: Duration::from_millis(1000),
-                hw_state_poll_interval: Some(Duration::from_millis(1000)),
+                send_overview_interval: Some(Duration::from_millis(1000)),
                 idle_timeout: None,
                 time_limit: time_limit.clone(),
                 extra: Default::default(),
