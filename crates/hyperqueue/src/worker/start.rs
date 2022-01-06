@@ -15,7 +15,7 @@ use tako::common::error::DsError;
 use tako::common::resources::{ResourceAllocation, ResourceDescriptor};
 use tako::messages::common::WorkerConfiguration;
 use tako::messages::common::{ProgramDefinition, StdioDef};
-use tako::worker::launcher::{command_from_definitions, pin_program};
+use tako::worker::launcher::command_from_definitions;
 use tako::worker::state::{WorkerState, WorkerStateRef};
 use tako::worker::task::Task;
 use tako::worker::taskenv::{StopReason, TaskResult};
@@ -167,6 +167,14 @@ fn insert_resources_into_env(
             );
         }
     }
+}
+
+fn pin_program(program: &mut ProgramDefinition, allocation: &ResourceAllocation) {
+    program.args.insert(0, "taskset".into());
+    program.args.insert(1, "-c".into());
+    program
+        .args
+        .insert(2, allocation.comma_delimited_cpu_ids().into());
 }
 
 /// Zero-worker mode measures pure overhead of HyperQueue.

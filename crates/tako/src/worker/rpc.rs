@@ -15,6 +15,7 @@ use tokio::time::timeout;
 
 use crate::common::resources::map::ResourceMap;
 use crate::common::resources::{GenericResourceAllocationValue, ResourceAllocation};
+use crate::common::WrappedRcRefCell;
 use crate::messages::common::WorkerConfiguration;
 use crate::messages::worker::{
     ConnectionRegistration, FromWorkerMessage, RegisterWorker, StealResponseMsg,
@@ -31,8 +32,8 @@ use crate::transfer::DataConnection;
 use crate::worker::data::{DataObjectRef, DataObjectState};
 use crate::worker::hwmonitor::HwSampler;
 use crate::worker::launcher::TaskLauncher;
-use crate::worker::reactor::assign_task;
-use crate::worker::state::WorkerStateRef;
+use crate::worker::reactor::run_task;
+use crate::worker::state::{WorkerState, WorkerStateRef};
 use crate::worker::task::Task;
 use crate::PriorityTuple;
 use crate::{Priority, WorkerId};
@@ -148,56 +149,14 @@ pub async fn run_worker(
                 )
             }
             Ok(None) => panic!("Connection closed without receiving registration response"),
-            Err(_) => panic!("Did not received worker registration response"),
+            Err(_) => panic!("Did not receive worker registration response"),
         }
     };
 
-    let state_ref2 = state.clone();
-    let state_ref3 = state.clone();
+    let try_start_tasks = task_starter_process(state.clone());
 
-    let try_start_tasks = async move {
-        let notify = state_ref2.get().start_task_notify.clone();
-        loop {
-            notify.notified().await;
-            let mut state = state_ref2.get_mut();
-            state.start_task_scheduled = false;
-            let remaining_time = if let Some(limit) = state.configuration.time_limit {
-                let life_time = std::time::Instant::now() - state.start_time;
-                if life_time >= limit {
-                    log::debug!("Trying to start a task after time limit");
-                    break;
-                }
-                Some(limit - life_time)
-            } else {
-                None
-            };
-            loop {
-                let (task_map, ready_task_queue) = state.borrow_tasks_and_queue();
-                let allocations = ready_task_queue.try_start_tasks(task_map, remaining_time);
-                if allocations.is_empty() {
-                    break;
-                }
-
-                for (task_id, allocation) in allocations {
-                    assign_task(&mut state, state_ref2.clone(), task_id, allocation);
-                }
-            }
-        }
-    };
-
-    let heartbeat = async move {
-        let mut interval = tokio::time::interval(heartbeat_interval);
-
-        loop {
-            interval.tick().await;
-            state_ref3
-                .get()
-                .send_message_to_server(FromWorkerMessage::Heartbeat);
-            log::debug!("Heartbeat sent");
-        }
-    };
-
-    let overview_loop = match send_overview_interval {
+    let heartbeat = heartbeat_process(heartbeat_interval, state.clone());
+    let hw_polling_process = match send_overview_interval {
         None => Either::Left(futures::future::pending()),
         Some(interval) => Either::Right(send_overview_loop(state.clone(), interval)),
     };
@@ -231,6 +190,51 @@ pub async fn run_worker(
             }
         }
     }))
+}
+
+/// Tries to start tasks after a new task appears or some task finishes.
+async fn task_starter_process(state_ref: WrappedRcRefCell<WorkerState>) {
+    let notify = state_ref.get().start_task_notify.clone();
+    loop {
+        notify.notified().await;
+
+        let mut state = state_ref.get_mut();
+        state.start_task_scheduled = false;
+
+        let remaining_time = if let Some(limit) = state.configuration.time_limit {
+            let life_time = std::time::Instant::now() - state.start_time;
+            if life_time >= limit {
+                log::debug!("Trying to start a task after time limit");
+                break;
+            }
+            Some(limit - life_time)
+        } else {
+            None
+        };
+        loop {
+            let (task_map, ready_task_queue) = state.borrow_tasks_and_queue();
+            let allocations = ready_task_queue.try_start_tasks(task_map, remaining_time);
+            if allocations.is_empty() {
+                break;
+            }
+
+            for (task_id, allocation) in allocations {
+                run_task(&mut state, state_ref.clone(), task_id, allocation);
+            }
+        }
+    }
+}
+
+/// Repeatedly sends a heartbeat message to the server.
+async fn heartbeat_process(heartbeat_interval: Duration, state_ref: WrappedRcRefCell<WorkerState>) {
+    let mut interval = tokio::time::interval(heartbeat_interval);
+    loop {
+        interval.tick().await;
+        state_ref
+            .get()
+            .send_message_to_server(FromWorkerMessage::Heartbeat);
+        log::debug!("Heartbeat sent");
+    }
 }
 
 const MAX_RUNNING_DOWNLOADS: usize = 32;
