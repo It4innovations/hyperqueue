@@ -4,12 +4,12 @@ use std::time::Duration;
 use anyhow::Error;
 use chrono::{DateTime, Utc};
 use serde_json;
-use serde_json::json;
+use serde_json::{json, Value};
 
 use tako::common::resources::{
     CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, ResourceDescriptor,
 };
-use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
+use tako::messages::common::{ProgramDefinition, StdioDef, WorkerConfiguration};
 use tako::messages::gateway::ResourceRequest;
 
 use crate::client::job::WorkerMap;
@@ -19,7 +19,7 @@ use crate::common::serverdir::AccessRecord;
 use crate::server::autoalloc::{
     Allocation, AllocationEvent, AllocationEventHolder, AllocationStatus, DescriptorId,
 };
-use crate::server::job::JobTaskState;
+use crate::server::job::{JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, QueueDescriptorData, StatsResponse,
@@ -39,6 +39,7 @@ impl JsonOutput {
     }
 }
 
+// Remember to modify JSON documentation when the JSON output is changed.
 impl Output for JsonOutput {
     fn print_worker_list(&self, workers: Vec<WorkerInfo>) {
         self.print(workers.into_iter().map(format_worker_info).collect());
@@ -105,8 +106,8 @@ impl Output for JsonOutput {
                 "args": args.into_iter().map(|args| args.to_string()).collect::<Vec<_>>(),
                 "env": env.into_iter().map(|(key, value)| (key.to_string(), value.to_string())).collect::<Map<String, String>>(),
                 "cwd": cwd,
-                "stderr": stderr,
-                "stdout": stdout,
+                "stderr": format_stdio_def(stderr),
+                "stdout": format_stdio_def(stdout),
             }),
             "pin": pin,
             "max_fails": max_fails,
@@ -132,15 +133,13 @@ impl Output for JsonOutput {
                     });
                     match task.state {
                         JobTaskState::Running { started_data } => {
-                            // data["worker"] = worker.as_num().into();
-                            data["started_at"] = format_datetime(started_data.start_date)
+                            fill_task_started_data(&mut data, started_data);
                         }
                         JobTaskState::Finished {
                             started_data,
                             end_date,
                         } => {
-                            // data["worker"] = worker.as_num().into();
-                            data["started_at"] = format_datetime(started_data.start_date);
+                            fill_task_started_data(&mut data, started_data);
                             data["finished_at"] = format_datetime(end_date);
                         }
                         JobTaskState::Failed {
@@ -148,8 +147,7 @@ impl Output for JsonOutput {
                             end_date,
                             error,
                         } => {
-                            // data["worker"] = worker.as_num().into();
-                            data["started_at"] = format_datetime(started_data.start_date);
+                            fill_task_started_data(&mut data, started_data);
                             data["finished_at"] = format_datetime(end_date);
                             data["error"] = error.into();
                         }
@@ -212,6 +210,18 @@ impl Output for JsonOutput {
     fn print_error(&self, error: Error) {
         self.print(json!({ "error": format!("{:?}", error) }))
     }
+}
+
+fn fill_task_started_data(dict: &mut Value, data: StartedTaskData) {
+    dict["started_at"] = format_datetime(data.start_date);
+    dict["worker"] = data.worker_id.as_num().into();
+    dict["cwd"] = data.context.cwd.to_str().unwrap().into();
+    dict["stdout"] = format_stdio_def(data.context.stdout);
+    dict["stderr"] = format_stdio_def(data.context.stderr);
+}
+
+fn format_stdio_def(stdio: StdioDef) -> Value {
+    json!(stdio)
 }
 
 fn format_job_info(info: JobInfo) -> serde_json::Value {

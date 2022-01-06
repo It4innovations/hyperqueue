@@ -41,9 +41,9 @@ use serde::{Deserialize, Serialize};
 /// It can be accessed through the state of a running task.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunningTaskContext {
-    cwd: PathBuf,
-    stdout: StdioDef,
-    stderr: StdioDef,
+    pub cwd: PathBuf,
+    pub stdout: StdioDef,
+    pub stderr: StdioDef,
 }
 
 pub struct HqTaskLauncher {

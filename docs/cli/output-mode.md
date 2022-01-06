@@ -199,7 +199,14 @@ Time-based items are formatted in the following way:
             "id": 0,
             "started_at": "2021-12-20T08:56:16.437123396Z",
             "state": "finished",
-            "worker": 1
+            "worker": 1,
+            "cwd": "/tmp/foo",
+            "stderr": {
+              "File": "job-1/0.stderr"
+            },
+            "stdout": {
+              "File": "job-1/0.stdout"
+            }
           }],
           "time_limit": null
         }

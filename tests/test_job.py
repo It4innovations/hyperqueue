@@ -1,7 +1,7 @@
 import os
 import time
 from datetime import datetime
-from os.path import isdir, isfile
+from os.path import abspath, isdir, isfile
 
 import pytest
 
@@ -106,7 +106,7 @@ def test_custom_working_dir(hq_env: HqEnv, tmpdir):
         cwd=submit_dir,
     )
     table = hq_env.command(["job", "1"], as_table=True)
-    table.check_row_value("Working Dir", str(work_dir))
+    table.check_row_value("Working directory", str(work_dir))
 
     hq_env.start_worker(cpus=1)
     wait_for_job_state(hq_env, 1, ["FINISHED"])
@@ -298,7 +298,7 @@ def test_job_fail(hq_env: HqEnv):
 
     table = table[JOB_TABLE_ROWS:]
     table.check_column_value("Task Id", 0, "0")
-    assert "No such file or directory" in table.get_column_value("Message")[0]
+    assert "No such file or directory" in table.get_column_value("Error")[0]
 
 
 def test_job_invalid(hq_env: HqEnv):
@@ -678,6 +678,56 @@ def test_job_tasks_table(hq_env: HqEnv):
     wait_for_job_state(hq_env, 2, "FAILED")
     worker = table.get_column_value("Worker")[0]
     assert worker == "" or worker == "worker1"
+
+
+def test_task_resolve_submit_placeholders(hq_env: HqEnv):
+    hq_env.start_server()
+
+    hq_env.command(["submit", "echo", "test"])
+    table = hq_env.command(["job", "1", "--tasks"], as_table=True)[JOB_TABLE_ROWS:]
+    wait_for_job_state(hq_env, 1, "WAITING")
+    table.check_column_value("Working directory", 0, "")
+    table.check_column_value("Stdout", 0, "")
+    table.check_column_value("Stderr", 0, "")
+
+    hq_env.start_worker()
+
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    table = hq_env.command(["job", "1", "--tasks"], as_table=True)[JOB_TABLE_ROWS:]
+    table.check_column_value("Working directory", 0, os.getcwd())
+    table.check_column_value("Stdout", 0, default_task_output())
+    table.check_column_value("Stderr", 0, default_task_output(type="stderr"))
+
+
+def test_task_resolve_worker_placeholders(hq_env: HqEnv):
+    hq_env.start_server()
+
+    hq_env.command(
+        [
+            "submit",
+            "--stdout",
+            "%{INSTANCE_ID}.out",
+            "--stderr",
+            "%{INSTANCE_ID}.err",
+            "--cwd",
+            "%{INSTANCE_ID}-dir",
+            "echo",
+            "test",
+        ]
+    )
+    table = hq_env.command(["job", "1", "--tasks"], as_table=True)[JOB_TABLE_ROWS:]
+    wait_for_job_state(hq_env, 1, "WAITING")
+    table.check_column_value("Working directory", 0, "")
+    table.check_column_value("Stdout", 0, "")
+    table.check_column_value("Stderr", 0, "")
+
+    hq_env.start_worker()
+
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    table = hq_env.command(["job", "1", "--tasks"], as_table=True)[JOB_TABLE_ROWS:]
+    table.check_column_value("Working directory", 0, abspath("0-dir"))
+    table.check_column_value("Stdout", 0, abspath("0.out"))
+    table.check_column_value("Stderr", 0, abspath("0.err"))
 
 
 def test_job_wait(hq_env: HqEnv):
