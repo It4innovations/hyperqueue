@@ -1,6 +1,7 @@
-use crate::common::env::HQ_ENTRY;
-use crate::common::placeholders::{fill_placeholders_log, normalize_path};
-use crate::server::client;
+use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
+use crate::common::placeholders::{
+    fill_placeholders_after_submit, fill_placeholders_log, normalize_path,
+};
 use crate::server::job::Job;
 use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
@@ -8,9 +9,10 @@ use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
     JobType, SubmitRequest, SubmitResponse, TaskBody, ToClientMessage,
 };
-use crate::JobId;
+use crate::{JobId, JobTaskId};
 use bstr::BString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use tako::messages::common::ProgramDefinition;
 use tako::messages::gateway::{
     FromGatewayMessage, NewTasksMessage, TaskConf, TaskDef, ToGatewayMessage,
 };
@@ -25,7 +27,7 @@ pub async fn handle_submit(
         job_type,
         name,
         max_fails,
-        spec,
+        spec: mut def,
         resources,
         pin,
         entries,
@@ -35,8 +37,8 @@ pub async fn handle_submit(
         mut log,
     } = message;
 
-    let make_task = |job_id, task_id, tako_id, entry: Option<BString>| {
-        let mut program = client::make_program_def_for_task(&spec, job_id, task_id, &submit_dir);
+    let make_task = |job_id, task_id, tako_id, entry: Option<BString>, def: &ProgramDefinition| {
+        let mut program = make_program_def_for_task(def, job_id, task_id, &submit_dir);
         if let Some(e) = entry {
             program.env.insert(HQ_ENTRY.into(), e);
         }
@@ -57,24 +59,31 @@ pub async fn handle_submit(
     let (task_defs, job_detail, job_id) = {
         let mut state = state_ref.get_mut();
         let job_id = state.new_job_id();
+
+        fill_placeholders_after_submit(&mut def, job_id, &submit_dir);
+
         let task_count = match &job_type {
             JobType::Simple => 1,
             JobType::Array(a) => a.id_count(),
         };
         let tako_base_id = state.new_task_id(task_count).as_num();
         let task_defs = match (&job_type, entries.clone()) {
-            (JobType::Simple, _) => vec![make_task(job_id, 0.into(), tako_base_id.into(), None)],
+            (JobType::Simple, _) => {
+                vec![make_task(job_id, 0.into(), tako_base_id.into(), None, &def)]
+            }
             (JobType::Array(a), None) => a
                 .iter()
                 .zip(tako_base_id..)
-                .map(|(task_id, tako_id)| make_task(job_id, task_id.into(), tako_id.into(), None))
+                .map(|(task_id, tako_id)| {
+                    make_task(job_id, task_id.into(), tako_id.into(), None, &def)
+                })
                 .collect(),
             (JobType::Array(a), Some(entries)) => a
                 .iter()
                 .zip(tako_base_id..)
                 .zip(entries.into_iter())
                 .map(|((task_id, tako_id), entry)| {
-                    make_task(job_id, task_id.into(), tako_id.into(), Some(entry))
+                    make_task(job_id, task_id.into(), tako_id.into(), Some(entry), &def)
                 })
                 .collect(),
         };
@@ -89,7 +98,7 @@ pub async fn handle_submit(
             job_id,
             tako_base_id.into(),
             name,
-            spec,
+            def,
             resources.clone(),
             pin,
             max_fails,
@@ -138,4 +147,21 @@ async fn start_log_streaming(tako_ref: &Backend, job_id: JobId, path: PathBuf) {
         response: sender,
     });
     assert!(receiver.await.is_ok());
+}
+
+fn make_program_def_for_task(
+    program_def: &ProgramDefinition,
+    job_id: JobId,
+    task_id: JobTaskId,
+    submit_dir: &Path,
+) -> ProgramDefinition {
+    let mut def = program_def.clone();
+    def.env.insert(HQ_JOB_ID.into(), job_id.to_string().into());
+    def.env
+        .insert(HQ_TASK_ID.into(), task_id.to_string().into());
+    def.env.insert(
+        HQ_SUBMIT_DIR.into(),
+        BString::from(submit_dir.to_string_lossy().as_bytes()),
+    );
+    def
 }

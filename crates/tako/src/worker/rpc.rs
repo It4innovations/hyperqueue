@@ -156,7 +156,7 @@ pub async fn run_worker(
     let try_start_tasks = task_starter_process(state.clone());
 
     let heartbeat = heartbeat_process(heartbeat_interval, state.clone());
-    let hw_polling_process = match send_overview_interval {
+    let overview_loop = match send_overview_interval {
         None => Either::Left(futures::future::pending()),
         Some(interval) => Either::Right(send_overview_loop(state.clone(), interval)),
     };

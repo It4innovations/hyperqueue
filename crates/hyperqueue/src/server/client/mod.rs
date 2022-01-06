@@ -1,21 +1,18 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use bstr::BString;
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{oneshot, Notify};
 
-use tako::messages::common::ProgramDefinition;
 use tako::messages::gateway::{
     CancelTasks, FromGatewayMessage, MonitoringEventRequest, StopWorkerRequest, ToGatewayMessage,
 };
 
 use crate::client::status::{job_status, task_status, Status};
 use crate::common::arraydef::IntArray;
-use crate::common::env::{HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::ServerDir;
 use crate::server::autoalloc::{
@@ -33,7 +30,7 @@ use crate::transfer::messages::{
     Selector, StatsResponse, StopWorkerResponse, SubmitRequest, ToClientMessage,
     WorkerListResponse,
 };
-use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
+use crate::{JobId, JobTaskCount, WorkerId};
 
 mod submit;
 
@@ -569,23 +566,6 @@ async fn handle_job_cancel(
     }
 
     ToClientMessage::CancelJobResponse(responses)
-}
-
-fn make_program_def_for_task(
-    program_def: &ProgramDefinition,
-    job_id: JobId,
-    task_id: JobTaskId,
-    submit_dir: &Path,
-) -> ProgramDefinition {
-    let mut def = program_def.clone();
-    def.env.insert(HQ_JOB_ID.into(), job_id.to_string().into());
-    def.env
-        .insert(HQ_TASK_ID.into(), task_id.to_string().into());
-    def.env.insert(
-        HQ_SUBMIT_DIR.into(),
-        BString::from(submit_dir.to_string_lossy().as_bytes()),
-    );
-    def
 }
 
 async fn handle_resubmit(
