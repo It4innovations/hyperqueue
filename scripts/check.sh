@@ -5,7 +5,7 @@ set -e
 cd `dirname $0`/..
 
 # Format Rust code
-cargo fmt
+cargo fmt --all
 
 # Format Python code
 isort --profile black tests benchmarks
@@ -18,11 +18,11 @@ flake8 tests benchmarks
 cargo test
 
 # Run Rust linter
-cargo clippy -- -D warnings
-cargo check --all-targets
+cargo clippy --all -- -D warnings
+cargo check --all --all-targets
 
 # Build Rust binaries
-cargo build
+cargo build --all
 
 # Run Python tests
 python -m pytest tests -n32

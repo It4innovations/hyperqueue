@@ -1,7 +1,8 @@
 [workspace]
 members = [
     "crates/hyperqueue",
-    "crates/tako"
+    "crates/tako",
+    "crates/pyhq"
 ]
 default-members = [
     "crates/hyperqueue",

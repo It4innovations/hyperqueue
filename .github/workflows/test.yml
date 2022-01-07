@@ -29,12 +29,13 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --all-targets
+          args: --all --all-targets
 
       - name: Test
         uses: actions-rs/cargo@v1
         with:
           command: test
+          args: --all
 
       - name: Setup Python
         uses: actions/setup-python@v1
@@ -65,7 +66,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings
+          args: --all -- -D warnings
 
       - name: Check Rust formatting
         uses: actions-rs/cargo@v1
