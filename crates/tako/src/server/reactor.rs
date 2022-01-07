@@ -1,7 +1,3 @@
-use crate::common::trace::{
-    trace_task_assign, trace_task_finish, trace_task_place, trace_worker_new,
-    trace_worker_steal_response, trace_worker_steal_response_missing,
-};
 use crate::common::{Map, Set};
 use crate::messages::common::TaskFailInfo;
 use crate::messages::gateway::LostWorkerReason;
@@ -17,8 +13,6 @@ use crate::server::worker::Worker;
 use crate::{TaskId, WorkerId};
 
 pub fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
-    trace_worker_new(worker.id, &worker.configuration);
-
     comm.broadcast_worker_message(&ToWorkerMessage::NewWorker(NewWorkerMsg {
         worker_id: worker.id,
         address: worker.configuration.listen_address.clone(),
@@ -190,12 +184,6 @@ pub fn on_task_finished(
     {
         let (tasks, workers) = core.split_tasks_workers_mut();
         if let Some(mut task) = tasks.find_task_mut(msg.id) {
-            trace_task_finish(
-                task.id,
-                worker_id,
-                msg.size,
-                (0, 0), /* TODO: gather real computation */
-            );
             log::debug!("Task id={} finished on worker={}", task.id, worker_id);
             assert!(task.is_assigned_or_stealed_from(worker_id));
 
@@ -277,7 +265,6 @@ pub fn on_steal_response(
         );
         if core.find_task(task_id).is_none() {
             log::debug!("Received trace response for invalid task {}", task_id);
-            trace_worker_steal_response_missing(task_id, worker_id);
             continue;
         }
 
@@ -286,7 +273,6 @@ pub fn on_steal_response(
                 let task = core.get_task(task_id);
                 if task.is_done_or_running() {
                     log::debug!("Received trace response for finished task={}", task_id);
-                    trace_worker_steal_response(task.id, worker_id, 0.into(), "done");
                     continue;
                 }
                 if let TaskRuntimeState::Stealing(from_w, to_w) = &task.state {
@@ -300,21 +286,9 @@ pub fn on_steal_response(
                 }
             };
 
-            trace_worker_steal_response(
-                task_id,
-                worker_id,
-                to_worker_id.unwrap_or_else(|| WorkerId::new(0)),
-                match response {
-                    StealResponse::Ok => "ok",
-                    StealResponse::NotHere => "nothere",
-                    StealResponse::Running => "running",
-                },
-            );
-
             match response {
                 StealResponse::Ok => {
                     log::debug!("Task stealing was successful task={}", task_id);
-                    trace_task_assign(task_id, to_worker_id.unwrap_or_else(|| WorkerId::new(0)));
                     if let Some(w_id) = to_worker_id {
                         let task = core.get_task(task_id);
                         comm.send_worker_message(w_id, &task.make_compute_message(core.task_map()));
@@ -535,7 +509,6 @@ pub fn on_tasks_transferred(
                 panic!("Invalid task state");
             }
         };
-        trace_task_place(task.id, worker_id);
     }
 }
 

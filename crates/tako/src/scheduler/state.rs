@@ -8,7 +8,6 @@ use rand::SeedableRng;
 use tokio::sync::Notify;
 use tokio::time::sleep;
 
-use crate::common::trace::trace_task_assign;
 use crate::common::Map;
 use crate::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::server::comm::{Comm, CommSenderRef};
@@ -163,7 +162,6 @@ impl SchedulerState {
                     task.set_fresh_flag(false);
                 }
                 let task = tasks.get_task(task_id);
-                trace_task_assign(task.id, worker_id);
                 comm.send_worker_message(worker_id, &task.make_compute_message(tasks));
             }
         }
