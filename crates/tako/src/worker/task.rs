@@ -10,7 +10,6 @@ use std::time::Duration;
 pub enum TaskState {
     Waiting(u32),
     Running(TaskEnv, ResourceAllocation),
-    Removed,
 }
 
 pub struct Task {
@@ -56,15 +55,10 @@ impl Task {
         matches!(self.state, TaskState::Running(_, _))
     }
 
-    pub fn is_removed(&self) -> bool {
-        matches!(self.state, TaskState::Removed)
-    }
-
     pub fn resource_allocation(&self) -> Option<&ResourceAllocation> {
         match &self.state {
             TaskState::Running(_, a) => Some(a),
             TaskState::Waiting(_) => None,
-            TaskState::Removed => unreachable!(),
         }
     }
 

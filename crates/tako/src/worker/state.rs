@@ -59,6 +59,11 @@ impl WorkerState {
     }
 
     #[inline]
+    pub fn find_task(&self, task_id: TaskId) -> Option<&Task> {
+        self.tasks.find(&task_id)
+    }
+
+    #[inline]
     pub fn get_task_mut(&mut self, task_id: TaskId) -> &mut Task {
         self.tasks.get_mut(&task_id)
     }
@@ -232,10 +237,7 @@ impl WorkerState {
     }
 
     fn remove_task(&mut self, task_id: TaskId, just_finished: bool) {
-        let previous_state =
-            { std::mem::replace(&mut self.tasks.get_mut(&task_id).state, TaskState::Removed) };
-
-        match previous_state {
+        match self.tasks.remove(&task_id).unwrap().state {
             TaskState::Waiting(x) => {
                 log::debug!("Removing waiting task id={}", task_id);
                 assert!(!just_finished);
@@ -250,12 +252,8 @@ impl WorkerState {
                 self.schedule_task_start();
                 self.ready_task_queue.release_allocation(allocation);
             }
-            TaskState::Removed => {
-                unreachable!();
-            }
         }
 
-        assert!(self.tasks.remove(&task_id).is_some());
         /* TODO
         for data_ref in std::mem::take(&mut task.deps) {
             let mut data = data_ref.get_mut();
@@ -310,7 +308,6 @@ impl WorkerState {
                     false
                 }
                 TaskState::Waiting(_) => true,
-                TaskState::Removed => unreachable!(),
             },
         };
         if was_waiting {
@@ -324,7 +321,6 @@ impl WorkerState {
             Some(task) => match task.state {
                 TaskState::Waiting(_) => StealResponse::Ok,
                 TaskState::Running(_, _) => StealResponse::Running,
-                TaskState::Removed => unreachable!(),
             },
         };
         if let StealResponse::Ok = &response {
