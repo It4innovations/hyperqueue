@@ -65,12 +65,12 @@ impl TaskEnv {
         tokio::task::spawn_local(async move {
             let time_limit = {
                 let state = state_ref.get();
-                let task = state.get_task(task_id);
-                if task.is_removed() {
-                    // Task was canceled in between start of the task and this spawn_local
+                if let Some(task) = state.find_task(task_id) {
+                    task.time_limit
+                } else {
+                    // Task were removed before spawn take place
                     return;
                 }
-                task.time_limit
             };
             let result = if let Some(duration) = time_limit {
                 let sleep = tokio::time::sleep(duration);
