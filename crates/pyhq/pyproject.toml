@@ -1,0 +1,12 @@
+[build-system]
+requires = ["maturin>=0.12,<0.13"]
+build-backend = "maturin"
+
+[project]
+name = "pyhq"
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Rust"
+]
+requires-python = ">=3.6"
+description = "HyperQueue Python API"

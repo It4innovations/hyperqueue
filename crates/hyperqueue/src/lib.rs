@@ -30,4 +30,5 @@ pub type JobTaskCount = u32;
 pub type JobTaskStep = u32;
 
 // Reexports
+pub use tako;
 pub use tako::common::WrappedRcRefCell;

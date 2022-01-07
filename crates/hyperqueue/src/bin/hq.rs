@@ -16,6 +16,7 @@ use hyperqueue::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progr
 use hyperqueue::client::commands::worker::{
     get_worker_info, get_worker_list, start_hq_worker, stop_worker, WorkerStartOpts,
 };
+use hyperqueue::client::default_server_directory_path;
 use hyperqueue::client::globalsettings::GlobalSettings;
 use hyperqueue::client::output::cli::CliOutput;
 use hyperqueue::client::output::json::JsonOutput;
@@ -468,12 +469,6 @@ impl FromStr for ColorPolicy {
 }
 
 fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
-    fn default_server_directory_path() -> PathBuf {
-        let mut home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
-        home.push(".hq-server");
-        home
-    }
-
     let server_dir = absolute_path(
         opts.server_dir
             .unwrap_or_else(default_server_directory_path),
