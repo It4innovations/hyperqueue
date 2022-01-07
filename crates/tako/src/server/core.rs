@@ -6,7 +6,6 @@ use tokio::task::JoinHandle;
 
 use crate::common::resources::map::{ResourceIdAllocator, ResourceMap};
 use crate::common::resources::{GenericResourceId, ResourceRequest};
-use crate::common::trace::trace_task_remove;
 use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::gateway::ServerInfo;
 use crate::server::monitoring::EventStorage;
@@ -260,8 +259,6 @@ impl Core {
     /// it up.
     #[must_use]
     pub fn remove_task(&mut self, task_id: TaskId) -> TaskRuntimeState {
-        trace_task_remove(task_id);
-
         let task = self
             .tasks
             .remove(task_id)
