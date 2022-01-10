@@ -1,16 +1,13 @@
 use serde::{Deserialize, Serialize};
-use tako::messages::common::ProgramDefinition;
 
 use crate::server::rpc::Backend;
 use crate::stream::server::control::StreamServerControlMessage;
-use crate::transfer::messages::{JobDetail, JobInfo, JobType};
+use crate::transfer::messages::{JobDescription, JobDetail, JobInfo};
 use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
-use bstr::BString;
 use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 use tako::common::index::ItemId;
-use tako::messages::gateway::ResourceRequest;
 use tako::server::task::SerializedTaskContext;
 use tako::transfer::auth::deserialize;
 use tako::TaskId;
@@ -67,11 +64,6 @@ pub struct JobTaskInfo {
     pub task_id: JobTaskId,
 }
 
-pub enum JobState {
-    SingleTask(JobTaskState),
-    ManyTasks(Map<TakoTaskId, JobTaskInfo>),
-}
-
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, Default)]
 pub struct JobTaskCounters {
     pub n_running_tasks: JobTaskCount,
@@ -117,20 +109,12 @@ pub struct Job {
     pub max_fails: Option<JobTaskCount>,
     pub counters: JobTaskCounters,
 
-    pub state: JobState,
+    pub tasks: Map<TakoTaskId, JobTaskInfo>,
 
     pub log: Option<PathBuf>,
 
-    pub job_type: JobType,
+    pub job_desc: JobDescription,
     pub name: String,
-
-    pub program_def: ProgramDefinition,
-    pub resources: ResourceRequest,
-    pub pin: bool,
-
-    pub entries: Option<Vec<BString>>,
-    pub priority: tako::Priority,
-    pub time_limit: Option<std::time::Duration>,
 
     pub submission_date: DateTime<Utc>,
     pub completion_date: Option<DateTime<Utc>>,
@@ -147,55 +131,40 @@ impl Job {
     // I am disabling it now
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        job_type: JobType,
+        job_desc: JobDescription,
         job_id: JobId,
         base_task_id: TakoTaskId,
         name: String,
-        program_def: ProgramDefinition,
-        resources: ResourceRequest,
-        pin: bool,
         max_fails: Option<JobTaskCount>,
-        entries: Option<Vec<BString>>,
-        priority: tako::Priority,
-        time_limit: Option<std::time::Duration>,
-        job_log: Option<PathBuf>,
+        log: Option<PathBuf>,
         submit_dir: PathBuf,
     ) -> Self {
         let base = base_task_id.as_num();
-        let state = match &job_type {
-            JobType::Simple => JobState::SingleTask(JobTaskState::Waiting),
-            JobType::Array(m) if m.id_count() == 1 => JobState::SingleTask(JobTaskState::Waiting),
-            JobType::Array(m) => JobState::ManyTasks(
-                m.iter()
-                    .enumerate()
-                    .map(|(i, task_id)| {
-                        (
-                            TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
-                            JobTaskInfo {
-                                state: JobTaskState::Waiting,
-                                task_id: task_id.into(),
-                            },
-                        )
-                    })
-                    .collect(),
-            ),
+        let tasks = match &job_desc {
+            JobDescription::Array { ids, .. } => ids
+                .iter()
+                .enumerate()
+                .map(|(i, task_id)| {
+                    (
+                        TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
+                        JobTaskInfo {
+                            state: JobTaskState::Waiting,
+                            task_id: task_id.into(),
+                        },
+                    )
+                })
+                .collect(),
         };
 
         Job {
-            job_type,
+            job_desc,
             job_id,
             counters: Default::default(),
             base_task_id,
             name,
-            state,
-            program_def,
-            resources,
-            pin,
+            tasks,
             max_fails,
-            entries,
-            priority,
-            log: job_log,
-            time_limit,
+            log,
             submission_date: Utc::now(),
             completion_date: None,
             submit_dir,
@@ -205,27 +174,15 @@ impl Job {
 
     pub fn make_job_detail(&self, include_tasks: bool) -> JobDetail {
         let tasks = if include_tasks {
-            match &self.state {
-                JobState::SingleTask(s) => {
-                    vec![JobTaskInfo {
-                        task_id: 0.into(),
-                        state: s.clone(),
-                    }]
-                }
-                JobState::ManyTasks(m) => m.values().cloned().collect(),
-            }
+            self.tasks.values().cloned().collect()
         } else {
             Vec::new()
         };
         JobDetail {
             info: self.make_job_info(),
-            job_type: self.job_type.clone(),
-            program_def: self.program_def.clone(),
+            job_desc: self.job_desc.clone(),
             tasks,
-            pin: self.pin,
             max_fails: self.max_fails,
-            priority: self.priority,
-            time_limit: self.time_limit,
             submission_date: self.submission_date,
             submit_dir: self.submit_dir.clone(),
             completion_date_or_now: self.completion_date.unwrap_or_else(Utc::now),
@@ -238,16 +195,12 @@ impl Job {
             name: self.name.clone(),
             n_tasks: self.n_tasks(),
             counters: self.counters,
-            resources: self.resources.clone(),
         }
     }
 
     #[inline]
     pub fn n_tasks(&self) -> JobTaskCount {
-        match &self.state {
-            JobState::SingleTask(_) => 1,
-            JobState::ManyTasks(s) => s.len() as JobTaskCount,
-        }
+        self.tasks.len() as JobTaskCount
     }
 
     pub fn is_terminated(&self) -> bool {
@@ -258,29 +211,14 @@ impl Job {
         &mut self,
         tako_task_id: TakoTaskId,
     ) -> (JobTaskId, &mut JobTaskState) {
-        match &mut self.state {
-            JobState::SingleTask(ref mut s) => {
-                debug_assert_eq!(tako_task_id, self.base_task_id);
-                (0.into(), s)
-            }
-            JobState::ManyTasks(m) => {
-                let state = m.get_mut(&tako_task_id).unwrap();
-                (state.task_id, &mut state.state)
-            }
-        }
+        let state = self.tasks.get_mut(&tako_task_id).unwrap();
+        (state.task_id, &mut state.state)
     }
 
-    pub fn iter_task_states<'a>(
-        &'a self,
-    ) -> Box<dyn Iterator<Item = (TakoTaskId, JobTaskId, &'a JobTaskState)> + 'a> {
-        match self.state {
-            JobState::SingleTask(ref s) => {
-                Box::new(Some((self.base_task_id, JobTaskId::new(0), s)).into_iter())
-            }
-            JobState::ManyTasks(ref m) => {
-                Box::new(m.iter().map(|(k, v)| (*k, v.task_id, &v.state)))
-            }
-        }
+    pub fn iter_task_states(
+        &self,
+    ) -> impl Iterator<Item = (TakoTaskId, JobTaskId, &JobTaskState)> + '_ {
+        self.tasks.iter().map(|(k, v)| (*k, v.task_id, &v.state))
     }
 
     pub fn non_finished_task_ids(&self) -> Vec<TakoTaskId> {

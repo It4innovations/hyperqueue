@@ -23,7 +23,8 @@ use crate::common::placeholders::{
 use crate::common::timeutils::ArgDuration;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    FromClientMessage, JobType, ResubmitRequest, Selector, SubmitRequest, ToClientMessage,
+    FromClientMessage, JobDescription, ResubmitRequest, Selector, SubmitRequest, TaskDescription,
+    ToClientMessage,
 };
 use crate::{rpc_call, JobTaskCount, Map};
 
@@ -241,38 +242,52 @@ pub async fn submit_computation(
     opts: SubmitOpts,
 ) -> anyhow::Result<()> {
     let resources = opts.resource_request();
+    let (ids, entries) = get_ids_and_entries(&opts)?;
+    let task_count = ids.id_count();
 
-    let (job_type, entries) = get_job_type_and_entries(&opts)?;
+    check_suspicious_options(&opts, task_count)?;
 
-    check_suspicious_options(&opts, &job_type)?;
+    let SubmitOpts {
+        command,
+        args,
+        cpus: _,
+        resource: _,
+        time_request: _,
+        name,
+        pin,
+        cwd,
+        stdout,
+        stderr,
+        env,
+        each_line: _,
+        from_json: _,
+        array: _,
+        max_fails,
+        priority,
+        time_limit,
+        wait,
+        progress,
+        log,
+    } = opts;
 
-    let name = if let Some(name) = opts.name {
+    let name = if let Some(name) = name {
         validate_name(name)?
     } else {
-        PathBuf::from(&opts.command)
+        PathBuf::from(&command)
             .file_name()
             .and_then(|t| t.to_str().map(|s| s.to_string()))
             .unwrap_or_else(|| "job".to_string())
     };
 
-    let mut args: Vec<BString> = opts
-        .args
-        .iter()
-        .map(|x| BString::from(x.as_str()))
-        .collect();
-    args.insert(0, opts.command.into());
+    let mut args: Vec<BString> = args.iter().map(|x| BString::from(x.as_str())).collect();
+    args.insert(0, command.into());
 
-    let log = opts.log;
-    let cwd = Some(opts.cwd);
-    let stdout = create_stdio(opts.stdout, &log, DEFAULT_STDOUT_PATH);
-    let stderr = create_stdio(opts.stderr, &log, DEFAULT_STDERR_PATH);
+    let cwd = Some(cwd);
+    let stdout = create_stdio(stdout, &log, DEFAULT_STDOUT_PATH);
+    let stderr = create_stdio(stderr, &log, DEFAULT_STDERR_PATH);
 
-    let env_count = opts.env.len();
-    let env: Map<_, _> = opts
-        .env
-        .into_iter()
-        .map(|env| (env.key, env.value))
-        .collect();
+    let env_count = env.len();
+    let env: Map<_, _> = env.into_iter().map(|env| (env.key, env.value)).collect();
 
     if env.len() != env_count {
         log::warn!(
@@ -280,28 +295,32 @@ pub async fn submit_computation(
         )
     }
 
-    let submit_dir: PathBuf = std::env::current_dir()
-        .expect("Cannot get current working directory")
-        .to_str()
-        .unwrap()
-        .into();
-    let message = FromClientMessage::Submit(SubmitRequest {
-        job_type,
-        name,
-        spec: ProgramDefinition {
-            args,
-            env,
-            stdout,
-            stderr,
-            cwd,
-        },
+    let program_def = ProgramDefinition {
+        args,
+        env,
+        stdout,
+        stderr,
+        cwd,
+    };
+    let task_desc = TaskDescription {
+        program: program_def,
         resources,
-        pin: opts.pin,
+        pin,
+        priority,
+        time_limit: time_limit.map(|x| x.unpack()),
+    };
+
+    let job_desc = JobDescription::Array {
+        ids,
         entries,
-        max_fails: opts.max_fails,
-        submit_dir,
-        priority: opts.priority,
-        time_limit: opts.time_limit.map(|x| x.unpack()),
+        task_desc,
+    };
+
+    let message = FromClientMessage::Submit(SubmitRequest {
+        job_desc,
+        name,
+        max_fails,
+        submit_dir: std::env::current_dir().expect("Cannot get current working directory"),
         log,
     });
 
@@ -309,70 +328,70 @@ pub async fn submit_computation(
     let info = response.job.info.clone();
 
     gsettings.printer().print_job_submitted(response.job);
-    if opts.wait {
+    if wait {
         wait_for_jobs(
             gsettings,
             connection,
             Selector::Specific(IntArray::from_id(info.id.into())),
         )
         .await?;
-    } else if opts.progress {
+    } else if progress {
         wait_for_jobs_with_progress(connection, vec![info]).await?;
     }
     Ok(())
 }
 
-fn get_job_type_and_entries(opts: &SubmitOpts) -> anyhow::Result<(JobType, Option<Vec<BString>>)> {
-    let result = if let Some(ref filename) = opts.each_line {
-        let entries = read_lines(filename)?;
-        let def = IntArray::from_range(0, entries.len() as JobTaskCount);
-        (JobType::Array(def), Some(entries))
+fn get_ids_and_entries(opts: &SubmitOpts) -> anyhow::Result<(IntArray, Option<Vec<BString>>)> {
+    let entries = if let Some(ref filename) = opts.each_line {
+        Some(read_lines(filename)?)
     } else if let Some(ref filename) = opts.from_json {
-        let entries = make_entries_from_json(filename)?;
-        let def = IntArray::from_range(0, entries.len() as JobTaskCount);
-        (JobType::Array(def), Some(entries))
+        Some(make_entries_from_json(filename)?)
     } else {
-        (
-            opts.array
-                .as_ref()
-                .cloned()
-                .map(JobType::Array)
-                .unwrap_or(JobType::Simple),
-            None,
-        )
+        None
     };
-    Ok(result)
+
+    let ids = if let Some(ref entries) = entries {
+        IntArray::from_range(0, entries.len() as JobTaskCount)
+    } else if let Some(ref array) = opts.array {
+        array.clone()
+    } else {
+        IntArray::from_id(0)
+    };
+
+    Ok((ids, entries))
 }
 
 /// Warns the user that an array job might produce too many files.
-fn warn_array_task_count(opts: &SubmitOpts, job_type: &JobType) {
+fn warn_array_task_count(opts: &SubmitOpts, task_count: u32) {
+    if task_count < 2 {
+        return;
+    }
+
     let is_path_some =
         |path: Option<&StdioArg>| -> bool { path.map_or(true, |x| !matches!(x.0, StdioDef::Null)) };
 
-    if let JobType::Array(ref array) = job_type {
-        let mut task_files = 0;
-        let mut active_dirs = Vec::new();
-        if is_path_some(opts.stdout.as_ref()) {
-            task_files += array.id_count();
-            active_dirs.push("stdout");
-        }
-        if is_path_some(opts.stderr.as_ref()) {
-            task_files += array.id_count();
-            active_dirs.push("stderr");
-        }
-        if task_files > SUBMIT_ARRAY_LIMIT && opts.log.is_none() {
-            log::warn!(
-                "The job will create {} files for{}. \
-                Consider using the `--log` option to stream all outputs into a single file",
-                task_files,
-                active_dirs.join(" and ")
-            );
-        }
+    let mut task_files = 0;
+    let mut active_dirs = Vec::new();
+    if is_path_some(opts.stdout.as_ref()) {
+        task_files += task_count;
+        active_dirs.push("stdout");
+    }
+    if is_path_some(opts.stderr.as_ref()) {
+        task_files += task_count;
+        active_dirs.push("stderr");
+    }
+    if task_files > SUBMIT_ARRAY_LIMIT && opts.log.is_none() {
+        log::warn!(
+            "The job will create {} files for{}. \
+            Consider using the `--log` option to stream all outputs into a single file",
+            task_files,
+            active_dirs.join(" and ")
+        );
     }
 }
 
 /// Warns the user that an array job does not contain task ID within stdout/stderr path.
-fn warn_missing_task_id(opts: &SubmitOpts, job_type: &JobType) {
+fn warn_missing_task_id(opts: &SubmitOpts, task_count: u32) {
     let check_path = |path: Option<&StdioArg>, stream: &str| {
         let path = path.and_then(|stdio| match &stdio.0 {
             StdioDef::File(path) => path.to_str(),
@@ -387,7 +406,7 @@ fn warn_missing_task_id(opts: &SubmitOpts, job_type: &JobType) {
         }
     };
 
-    if let JobType::Array(_) = job_type {
+    if task_count > 1 {
         check_path(opts.stdout.as_ref(), "stdout");
         check_path(opts.stderr.as_ref(), "stderr");
     }
@@ -407,9 +426,9 @@ fn check_valid_cwd(opts: &SubmitOpts) -> anyhow::Result<()> {
 }
 
 /// Warn user about suspicious submit parameters
-fn check_suspicious_options(opts: &SubmitOpts, job_type: &JobType) -> anyhow::Result<()> {
-    warn_array_task_count(opts, job_type);
-    warn_missing_task_id(opts, job_type);
+fn check_suspicious_options(opts: &SubmitOpts, task_count: u32) -> anyhow::Result<()> {
+    warn_array_task_count(opts, task_count);
+    warn_missing_task_id(opts, task_count);
     check_valid_cwd(opts)?;
     Ok(())
 }

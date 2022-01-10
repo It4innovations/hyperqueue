@@ -22,8 +22,8 @@ use crate::server::autoalloc::{
 use crate::server::job::{JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, QueueDescriptorData, StatsResponse,
-    WaitForJobsResponse, WorkerInfo,
+    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, QueueDescriptorData, StatsResponse,
+    TaskDescription, WaitForJobsResponse, WorkerInfo,
 };
 use crate::Map;
 
@@ -76,24 +76,37 @@ impl Output for JsonOutput {
     fn print_job_detail(&self, job: JobDetail, show_tasks: bool, _worker_map: WorkerMap) {
         let JobDetail {
             info,
-            job_type: _,
-            program_def:
-                ProgramDefinition {
-                    args,
-                    env,
-                    stdout,
-                    stderr,
-                    cwd,
-                },
+            job_desc,
             tasks,
-            pin,
             max_fails,
-            priority,
-            time_limit,
             submission_date,
             completion_date_or_now,
             submit_dir,
         } = job;
+
+        let JobDescription::Array {
+            task_desc:
+                TaskDescription {
+                    program:
+                        ProgramDefinition {
+                            args,
+                            env,
+                            stdout,
+                            stderr,
+                            cwd,
+                        },
+                    resources:
+                        ResourceRequest {
+                            cpus,
+                            generic,
+                            min_time,
+                        },
+                    pin,
+                    time_limit,
+                    priority,
+                },
+            ..
+        } = job_desc;
 
         let finished_at = if info.counters.is_terminated(info.n_tasks) {
             Some(completion_date_or_now)
@@ -109,6 +122,11 @@ impl Output for JsonOutput {
                 "cwd": cwd,
                 "stderr": format_stdio_def(stderr),
                 "stdout": format_stdio_def(stdout),
+            }),
+            "resources": json!({
+                "cpus": format_cpu_request(cpus),
+                "generic": generic,
+                "min_time": format_duration(min_time)
             }),
             "pin": pin,
             "max_fails": max_fails,
@@ -232,12 +250,6 @@ fn format_job_info(info: JobInfo) -> serde_json::Value {
         name,
         n_tasks,
         counters,
-        resources:
-            ResourceRequest {
-                cpus,
-                generic,
-                min_time,
-            },
     } = info;
 
     json!({
@@ -250,11 +262,6 @@ fn format_job_info(info: JobInfo) -> serde_json::Value {
             "failed": counters.n_failed_tasks,
             "canceled": counters.n_canceled_tasks,
             "waiting": counters.n_waiting_tasks(n_tasks)
-        }),
-        "resources": json!({
-            "cpus": format_cpu_request(cpus),
-            "generic": generic,
-            "min_time": format_duration(min_time)
         })
     })
 }

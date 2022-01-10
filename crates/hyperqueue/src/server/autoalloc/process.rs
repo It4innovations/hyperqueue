@@ -6,6 +6,7 @@ use crate::server::autoalloc::state::{
 use crate::server::autoalloc::{DescriptorId, QueueInfo};
 use crate::server::job::Job;
 use crate::server::state::{State, StateRef};
+use crate::transfer::messages::{JobDescription, TaskDescription};
 
 macro_rules! get_or_return {
     ($e:expr) => {
@@ -170,7 +171,11 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
 ///
 /// TODO: once HQ jobs are heterogeneous, the implementation will need to be modified
 fn can_provide_worker(job: &Job, queue_info: &QueueInfo) -> bool {
-    job.resources.min_time < queue_info.timelimit()
+    let JobDescription::Array {
+        task_desc: TaskDescription { resources, .. },
+        ..
+    } = &job.job_desc;
+    resources.min_time < queue_info.timelimit()
 }
 
 fn count_available_tasks(state: &State, queue_info: &QueueInfo) -> u64 {
@@ -293,7 +298,7 @@ mod tests {
     use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId};
     use crate::server::job::Job;
     use crate::server::state::StateRef;
-    use crate::transfer::messages::JobType;
+    use crate::transfer::messages::{JobDescription, TaskDescription};
     use crate::WrappedRcRefCell;
     use tako::worker::state::ServerLostPolicy;
 
@@ -741,27 +746,34 @@ mod tests {
     }
 
     fn create_job(tasks: u32, min_time: TimeRequest) -> Job {
+        let def = ProgramDefinition {
+            args: vec![],
+            env: Default::default(),
+            stdout: Default::default(),
+            stderr: Default::default(),
+            cwd: None,
+        };
+        let resources = ResourceRequest {
+            cpus: Default::default(),
+            generic: vec![],
+            min_time,
+        };
+
         Job::new(
-            JobType::Array(IntArray::from_range(0, tasks)),
+            JobDescription::Array {
+                ids: IntArray::from_range(0, tasks),
+                entries: None,
+                task_desc: TaskDescription {
+                    program: def,
+                    resources: resources.clone(),
+                    pin: false,
+                    time_limit: None,
+                    priority: 0,
+                },
+            },
             0.into(),
             0.into(),
             "job".to_string(),
-            ProgramDefinition {
-                args: vec![],
-                env: Default::default(),
-                stdout: Default::default(),
-                stderr: Default::default(),
-                cwd: None,
-            },
-            ResourceRequest {
-                cpus: Default::default(),
-                generic: vec![],
-                min_time,
-            },
-            false,
-            None,
-            None,
-            0,
             None,
             None,
             Default::default(),

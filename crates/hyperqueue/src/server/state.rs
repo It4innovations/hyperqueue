@@ -238,8 +238,8 @@ mod tests {
 
     use crate::common::arraydef::IntArray;
     use crate::server::job::Job;
-    use crate::server::state::StateRef;
-    use crate::transfer::messages::JobType;
+    use crate::server::state::{State, StateRef};
+    use crate::transfer::messages::{JobDescription, TaskDescription};
     use crate::{JobId, TakoTaskId};
     use std::time::Duration;
 
@@ -254,112 +254,70 @@ mod tests {
     }
 
     fn test_job<J: Into<JobId>, T: Into<TakoTaskId>>(
-        job_type: JobType,
+        ids: IntArray,
         job_id: J,
         base_task_id: T,
     ) -> Job {
+        let job_desc = JobDescription::Array {
+            ids,
+            entries: None,
+            task_desc: TaskDescription {
+                program: dummy_program_definition(),
+                resources: Default::default(),
+                pin: false,
+                time_limit: None,
+                priority: 0,
+            },
+        };
         Job::new(
-            job_type,
+            job_desc,
             job_id.into(),
             base_task_id.into(),
             "".to_string(),
-            dummy_program_definition(),
-            Default::default(),
-            false,
-            None,
-            Some(Vec::new()),
-            0,
             None,
             None,
             Default::default(),
         )
     }
 
+    fn check_id<T: Into<TakoTaskId>>(state: &mut State, task_id: T, expected: Option<u32>) {
+        assert_eq!(
+            state
+                .get_job_mut_by_tako_task_id(task_id.into())
+                .map(|j| j.job_id.as_num()),
+            expected
+        );
+    }
+
     #[test]
     fn test_find_job_id_by_task_id() {
         let state_ref = StateRef::new(Duration::from_secs(1));
         let mut state = state_ref.get_mut();
-        state.add_job(test_job(
-            JobType::Array(IntArray::from_range(0, 10)),
-            223,
-            100,
-        ));
-        state.add_job(test_job(
-            JobType::Array(IntArray::from_range(0, 15)),
-            224,
-            110,
-        ));
-        state.add_job(test_job(JobType::Simple, 225, 125));
-        state.add_job(test_job(JobType::Simple, 226, 126));
-        state.add_job(test_job(JobType::Simple, 227, 130));
+        state.add_job(test_job(IntArray::from_range(0, 10), 223, 100));
+        state.add_job(test_job(IntArray::from_range(0, 15), 224, 110));
+        state.add_job(test_job(IntArray::from_id(0), 225, 125));
+        state.add_job(test_job(IntArray::from_id(0), 226, 126));
+        state.add_job(test_job(IntArray::from_id(0), 227, 130));
 
-        assert!(state.get_job_mut_by_tako_task_id(99.into()).is_none());
-        assert_eq!(
-            state
-                .get_job_mut_by_tako_task_id(100.into())
-                .unwrap()
-                .job_id
-                .as_num(),
-            223
-        );
-        assert_eq!(
-            state
-                .get_job_mut_by_tako_task_id(101.into())
-                .unwrap()
-                .job_id
-                .as_num(),
-            223
-        );
-        assert_eq!(
-            state
-                .get_job_mut_by_tako_task_id(109.into())
-                .unwrap()
-                .job_id
-                .as_num(),
-            223
-        );
-        assert_eq!(
-            state
-                .get_job_mut_by_tako_task_id(110.into())
-                .unwrap()
-                .job_id
-                .as_num(),
-            224
-        );
-        assert_eq!(
-            state
-                .get_job_mut_by_tako_task_id(124.into())
-                .unwrap()
-                .job_id
-                .as_num(),
-            224
-        );
-        assert_eq!(
-            state
-                .get_job_mut_by_tako_task_id(125.into())
-                .unwrap()
-                .job_id
-                .as_num(),
-            225
-        );
-        assert_eq!(
-            state
-                .get_job_mut_by_tako_task_id(126.into())
-                .unwrap()
-                .job_id
-                .as_num(),
-            226
-        );
-        assert!(state.get_job_mut_by_tako_task_id(127.into()).is_none());
-        assert!(state.get_job_mut_by_tako_task_id(129.into()).is_none());
-        assert_eq!(
-            state
-                .get_job_mut_by_tako_task_id(130.into())
-                .unwrap()
-                .job_id
-                .as_num(),
-            227
-        );
-        assert!(state.get_job_mut_by_tako_task_id(131.into()).is_none());
+        let state = &mut state;
+        check_id(state, 99, None);
+
+        check_id(state, 100, Some(223));
+        check_id(state, 101, Some(223));
+        check_id(state, 109, Some(223));
+
+        check_id(state, 110, Some(224));
+        check_id(state, 124, Some(224));
+
+        check_id(state, 125, Some(225));
+
+        check_id(state, 126, Some(226));
+
+        check_id(state, 127, None);
+        check_id(state, 129, None);
+
+        check_id(state, 130, Some(227));
+
+        check_id(state, 131, None);
     }
 }

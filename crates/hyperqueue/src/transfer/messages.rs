@@ -45,23 +45,40 @@ pub struct TaskBody {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum JobType {
-    Simple,
-    Array(IntArray),
+pub struct TaskDescription {
+    pub program: ProgramDefinition,
+    pub resources: ResourceRequest,
+    pub pin: bool,
+    pub time_limit: Option<Duration>,
+    pub priority: tako::Priority,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum JobDescription {
+    Array {
+        ids: IntArray,
+        entries: Option<Vec<BString>>,
+        task_desc: TaskDescription,
+    },
+}
+
+impl JobDescription {
+    pub fn is_simple_job(&self) -> bool {
+        self.task_count() == 1
+    }
+    pub fn task_count(&self) -> JobTaskCount {
+        match self {
+            JobDescription::Array { ids, .. } => ids.id_count() as JobTaskCount,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitRequest {
-    pub job_type: JobType,
+    pub job_desc: JobDescription,
     pub name: String,
     pub max_fails: Option<JobTaskCount>,
-    pub spec: ProgramDefinition,
-    pub resources: ResourceRequest,
-    pub pin: bool,
-    pub entries: Option<Vec<BString>>,
     pub submit_dir: PathBuf,
-    pub priority: tako::Priority,
-    pub time_limit: Option<Duration>,
     pub log: Option<PathBuf>,
 }
 
@@ -208,7 +225,6 @@ pub struct JobInfo {
 
     pub n_tasks: JobTaskCount,
     pub counters: JobTaskCounters,
-    pub resources: ResourceRequest,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -232,13 +248,9 @@ pub struct JobInfoResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JobDetail {
     pub info: JobInfo,
-    pub job_type: JobType,
-    pub program_def: ProgramDefinition,
+    pub job_desc: JobDescription,
     pub tasks: Vec<JobTaskInfo>,
-    pub pin: bool,
     pub max_fails: Option<JobTaskCount>,
-    pub priority: tako::Priority,
-    pub time_limit: Option<Duration>,
 
     // Date when job was submitted
     pub submission_date: DateTime<Utc>,

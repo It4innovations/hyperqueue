@@ -14,15 +14,15 @@ black tests benchmarks
 # Lint Python code
 flake8 tests benchmarks
 
-# Run Rust tests
+# Test Rust code
 cargo test
-
-# Run Rust linter
-cargo clippy --all -- -D warnings
-cargo check --all --all-targets
 
 # Build Rust binaries
 cargo build --all
 
-# Run Python tests
+# Test Python code
 python -m pytest tests -n32
+
+# Lint Rust code
+cargo clippy --all -- -D warnings
+cargo check --all --all-targets

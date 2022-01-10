@@ -25,6 +25,7 @@ pub struct ResourceRequest {
     pub min_time: Duration,
 }
 
+// TODO: merge with TaskDescription somehow
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskConf {
     #[serde(default)]
