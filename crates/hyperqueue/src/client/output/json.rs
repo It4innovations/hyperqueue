@@ -92,6 +92,7 @@ impl Output for JsonOutput {
             time_limit,
             submission_date,
             completion_date_or_now,
+            submit_dir,
         } = job;
 
         let finished_at = if info.counters.is_terminated(info.n_tasks) {
@@ -114,7 +115,8 @@ impl Output for JsonOutput {
             "priority": priority,
             "time_limit": time_limit.map(format_duration),
             "started_at": format_datetime(submission_date),
-            "finished_at": finished_at.map(format_datetime)
+            "finished_at": finished_at.map(format_datetime),
+            "submit_dir": submit_dir
         });
         if show_tasks {
             json["tasks"] = tasks

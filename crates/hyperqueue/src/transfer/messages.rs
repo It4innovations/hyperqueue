@@ -239,6 +239,7 @@ pub struct JobDetail {
 
     // Date when job was submitted
     pub submission_date: DateTime<Utc>,
+    pub submit_dir: PathBuf,
 
     // Time when job was completed or now if job is not completed
     pub completion_date_or_now: DateTime<Utc>,

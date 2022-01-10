@@ -106,6 +106,7 @@ pub async fn handle_submit(
             priority,
             time_limit,
             log.clone(),
+            submit_dir,
         );
         let job_detail = job.make_job_detail(false);
         state.add_job(job);

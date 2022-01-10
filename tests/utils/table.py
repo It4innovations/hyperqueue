@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-JOB_TABLE_ROWS = 15
+JOB_TABLE_ROWS = 16
 
 
 # TODO: create a pandas dataframe instead?

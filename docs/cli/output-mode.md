@@ -208,7 +208,8 @@ Time-based items are formatted in the following way:
               "File": "job-1/0.stdout"
             }
           }],
-          "time_limit": null
+          "time_limit": null,
+          "submit_dir": "/foo/bar/submit"
         }
         ```
 
