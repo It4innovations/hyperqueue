@@ -135,6 +135,8 @@ pub struct Job {
     pub submission_date: DateTime<Utc>,
     pub completion_date: Option<DateTime<Utc>>,
 
+    submit_dir: PathBuf,
+
     /// Holds channels that will receive information about the job after the it finishes in any way.
     /// You can subscribe to the completion message with [`Self::subscribe_to_completion`].
     completion_callbacks: Vec<oneshot::Sender<JobId>>,
@@ -157,6 +159,7 @@ impl Job {
         priority: tako::Priority,
         time_limit: Option<std::time::Duration>,
         job_log: Option<PathBuf>,
+        submit_dir: PathBuf,
     ) -> Self {
         let base = base_task_id.as_num();
         let state = match &job_type {
@@ -195,33 +198,36 @@ impl Job {
             time_limit,
             submission_date: Utc::now(),
             completion_date: None,
+            submit_dir,
             completion_callbacks: Default::default(),
         }
     }
 
     pub fn make_job_detail(&self, include_tasks: bool) -> JobDetail {
+        let tasks = if include_tasks {
+            match &self.state {
+                JobState::SingleTask(s) => {
+                    vec![JobTaskInfo {
+                        task_id: 0.into(),
+                        state: s.clone(),
+                    }]
+                }
+                JobState::ManyTasks(m) => m.values().cloned().collect(),
+            }
+        } else {
+            Vec::new()
+        };
         JobDetail {
             info: self.make_job_info(),
             job_type: self.job_type.clone(),
             program_def: self.program_def.clone(),
-            tasks: if include_tasks {
-                match &self.state {
-                    JobState::SingleTask(s) => {
-                        vec![JobTaskInfo {
-                            task_id: 0.into(),
-                            state: s.clone(),
-                        }]
-                    }
-                    JobState::ManyTasks(m) => m.values().cloned().collect(),
-                }
-            } else {
-                Vec::new()
-            },
+            tasks,
             pin: self.pin,
             max_fails: self.max_fails,
             priority: self.priority,
             time_limit: self.time_limit,
             submission_date: self.submission_date,
+            submit_dir: self.submit_dir.clone(),
             completion_date_or_now: self.completion_date.unwrap_or_else(Utc::now),
         }
     }

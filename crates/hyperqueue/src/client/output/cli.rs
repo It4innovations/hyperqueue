@@ -379,35 +379,49 @@ impl Output for CliOutput {
     }
 
     fn print_job_detail(&self, job: JobDetail, show_tasks: bool, worker_map: WorkerMap) {
+        let JobDetail {
+            info,
+            job_type,
+            program_def,
+            tasks,
+            pin,
+            max_fails: _,
+            priority,
+            time_limit,
+            submission_date,
+            completion_date_or_now,
+            submit_dir,
+        } = job;
+
         let mut rows = vec![
-            vec!["Id".cell().bold(true), job.info.id.cell()],
-            vec!["Name".cell().bold(true), job.info.name.as_str().cell()],
+            vec!["Id".cell().bold(true), info.id.cell()],
+            vec!["Name".cell().bold(true), info.name.as_str().cell()],
         ];
 
-        let status = if job.info.n_tasks == 1 {
-            task_status_to_cell(job_status(&job.info))
+        let status = if info.n_tasks == 1 {
+            task_status_to_cell(job_status(&info))
         } else {
-            job_status_to_cell(&job.info).cell()
+            job_status_to_cell(&info).cell()
         };
 
         let state_label = "State".cell().bold(true);
         rows.push(vec![state_label, status]);
 
-        let mut n_tasks = job.info.n_tasks.to_string();
-        if let JobType::Array(array_def) = &job.job_type {
+        let mut n_tasks = info.n_tasks.to_string();
+        if let JobType::Array(array_def) = &job_type {
             n_tasks.push_str(&format!("; Ids: {}", array_def));
         }
 
         rows.push(vec!["Tasks".cell().bold(true), n_tasks.cell()]);
         rows.push(vec![
             "Workers".cell().bold(true),
-            format_job_workers(&job, &worker_map).cell(),
+            format_job_workers(&tasks, &worker_map).cell(),
         ]);
 
-        let resources = format_resource_request(&job.info.resources);
+        let resources = format_resource_request(&info.resources);
         rows.push(vec![
             "Resources".cell().bold(true),
-            if job.pin {
+            if pin {
                 format!("{} [pin]", resources)
             } else {
                 resources
@@ -415,9 +429,8 @@ impl Output for CliOutput {
             .cell(),
         ]);
 
-        rows.push(vec!["Priority".cell().bold(true), job.priority.cell()]);
+        rows.push(vec!["Priority".cell().bold(true), priority.cell()]);
 
-        let program_def = job.program_def;
         rows.push(vec![
             "Command".cell().bold(true),
             program_def
@@ -463,12 +476,17 @@ impl Output for CliOutput {
 
         rows.push(vec![
             "Submission date".cell().bold(true),
-            job.submission_date.round_subsecs(0).cell(),
+            submission_date.round_subsecs(0).cell(),
+        ]);
+
+        rows.push(vec![
+            "Submission directory".cell().bold(true),
+            submit_dir.to_str().unwrap().cell(),
         ]);
 
         rows.push(vec![
             "Task time limit".cell().bold(true),
-            job.time_limit
+            time_limit
                 .map(|duration| humantime::format_duration(duration).to_string())
                 .unwrap_or_else(|| "None".to_string())
                 .cell(),
@@ -476,12 +494,12 @@ impl Output for CliOutput {
 
         rows.push(vec![
             "Makespan".cell().bold(true),
-            human_duration(job.completion_date_or_now - job.submission_date).cell(),
+            human_duration(completion_date_or_now - submission_date).cell(),
         ]);
         self.print_rows(rows);
 
-        if !job.tasks.is_empty() {
-            self.print_job_tasks(job.tasks, show_tasks, &job.info.counters, &worker_map);
+        if !tasks.is_empty() {
+            self.print_job_tasks(tasks, show_tasks, &info.counters, &worker_map);
         }
     }
 
@@ -858,10 +876,9 @@ fn format_cpu_request(cr: &CpuRequest) -> String {
 }
 
 /// Formatting
-pub fn format_job_workers(job: &JobDetail, worker_map: &WorkerMap) -> String {
+pub fn format_job_workers(tasks: &[JobTaskInfo], worker_map: &WorkerMap) -> String {
     // BTreeSet is used to both filter duplicates and keep a stable order
-    let worker_set: BTreeSet<_> = job
-        .tasks
+    let worker_set: BTreeSet<_> = tasks
         .iter()
         .filter_map(|task| task.state.get_worker())
         .collect();

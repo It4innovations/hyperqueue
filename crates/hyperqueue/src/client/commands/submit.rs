@@ -280,6 +280,11 @@ pub async fn submit_computation(
         )
     }
 
+    let submit_dir: PathBuf = std::env::current_dir()
+        .expect("Cannot get current working directory")
+        .to_str()
+        .unwrap()
+        .into();
     let message = FromClientMessage::Submit(SubmitRequest {
         job_type,
         name,
@@ -294,11 +299,7 @@ pub async fn submit_computation(
         pin: opts.pin,
         entries,
         max_fails: opts.max_fails,
-        submit_dir: std::env::current_dir()
-            .expect("Cannot get current working directory")
-            .to_str()
-            .unwrap()
-            .into(),
+        submit_dir,
         priority: opts.priority,
         time_limit: opts.time_limit.map(|x| x.unpack()),
         log,

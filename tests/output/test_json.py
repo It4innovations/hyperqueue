@@ -135,6 +135,7 @@ def test_print_job_detail(hq_env: HqEnv):
             },
             "started_at": str,
             "time_limit": None,
+            "submit_dir": str,
         }
     )
     schema.validate(output)

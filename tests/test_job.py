@@ -2,6 +2,7 @@ import os
 import time
 from datetime import datetime
 from os.path import abspath, isdir, isfile
+from pathlib import Path
 
 import pytest
 
@@ -59,6 +60,17 @@ def test_job_submit_output(hq_env: HqEnv):
 
     output = hq_env.command(["submit", "--", "bash", "-c", "echo 'hello'"])
     assert output.strip() == "Job submitted successfully, job ID: 1"
+
+
+def test_job_submit_dir(hq_env: HqEnv):
+    hq_env.start_server()
+
+    submit_dir = Path(hq_env.server_dir) / "submit"
+    submit_dir.mkdir()
+    hq_env.command(["submit", "echo", "tt"], cwd=submit_dir)
+
+    table = hq_env.command(["job", "1"], as_table=True)
+    table.check_row_value("Submission directory", str(submit_dir))
 
 
 def test_custom_name(hq_env: HqEnv):
