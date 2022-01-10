@@ -11,14 +11,13 @@ use tako::messages::gateway::{
     CancelTasks, FromGatewayMessage, MonitoringEventRequest, StopWorkerRequest, ToGatewayMessage,
 };
 
-use crate::client::status::{job_status, task_status, Status};
-use crate::common::arraydef::IntArray;
+use crate::client::status::{job_status, Status};
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::ServerDir;
 use crate::server::autoalloc::{
     DescriptorId, PbsHandler, QueueDescriptor, QueueHandler, QueueInfo, SlurmHandler,
 };
-use crate::server::job::{JobState, JobTaskCounters};
+use crate::server::job::JobTaskCounters;
 use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
@@ -26,9 +25,8 @@ use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{AllocationQueueParams, WaitForJobsResponse};
 use crate::transfer::messages::{
     AutoAllocListResponse, AutoAllocRequest, AutoAllocResponse, CancelJobResponse,
-    FromClientMessage, JobDetail, JobInfoResponse, JobType, QueueDescriptorData, ResubmitRequest,
-    Selector, StatsResponse, StopWorkerResponse, SubmitRequest, ToClientMessage,
-    WorkerListResponse,
+    FromClientMessage, JobDetail, JobInfoResponse, QueueDescriptorData, Selector, StatsResponse,
+    StopWorkerResponse, ToClientMessage, WorkerListResponse,
 };
 use crate::{JobId, JobTaskCount, WorkerId};
 
@@ -96,7 +94,7 @@ pub async fn client_rpc_loop<
                     }
                     FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, msg.selector),
                     FromClientMessage::Resubmit(msg) => {
-                        handle_resubmit(&state_ref, &tako_ref, msg).await
+                        submit::handle_resubmit(&state_ref, &tako_ref, msg).await
                     }
                     FromClientMessage::Stop => {
                         end_flag.notify_one();
@@ -568,81 +566,6 @@ async fn handle_job_cancel(
     }
 
     ToClientMessage::CancelJobResponse(responses)
-}
-
-async fn handle_resubmit(
-    state_ref: &StateRef,
-    tako_ref: &Backend,
-    message: ResubmitRequest,
-) -> ToClientMessage {
-    let msg_submit: SubmitRequest = {
-        let state = state_ref.get_mut();
-        let job = state.get_job(message.job_id);
-        if let Some(job) = job {
-            let job_type: Option<JobType> = match &job.state {
-                JobState::SingleTask(s) => {
-                    if let Some(filter) = &message.status {
-                        if filter.contains(&task_status(s)) {
-                            Some(JobType::Simple)
-                        } else {
-                            None
-                        }
-                    } else {
-                        Some(JobType::Simple)
-                    }
-                }
-                JobState::ManyTasks(s) => {
-                    let mut ids: Vec<_> = if let Some(filter) = &message.status {
-                        s.values()
-                            .filter_map(|v| {
-                                if filter.contains(&task_status(&v.state)) {
-                                    Some(v.task_id)
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect()
-                    } else {
-                        s.values().map(|x| x.task_id).collect()
-                    };
-                    if ids.is_empty() {
-                        None
-                    } else {
-                        ids.sort_unstable();
-                        Some(JobType::Array(IntArray::from_ids(
-                            ids.into_iter().map(|v| v.into()).collect(),
-                        )))
-                    }
-                }
-            };
-
-            if let Some(job_type) = job_type {
-                let spec = job.program_def.clone();
-                let name = job.name.clone();
-                let resources = job.resources.clone();
-                let entries = job.entries.clone();
-
-                SubmitRequest {
-                    job_type,
-                    name,
-                    max_fails: job.max_fails,
-                    spec,
-                    resources,
-                    pin: job.pin,
-                    entries,
-                    submit_dir: std::env::current_dir().unwrap().to_str().unwrap().into(),
-                    priority: job.priority,
-                    time_limit: job.time_limit,
-                    log: None, // TODO: Reuse log configuration
-                }
-            } else {
-                return ToClientMessage::Error("Nothing was resubmitted".to_string());
-            }
-        } else {
-            return ToClientMessage::Error("Invalid job_id".to_string());
-        }
-    };
-    submit::handle_submit(&state_ref.clone(), &tako_ref.clone(), msg_submit).await
 }
 
 async fn handle_worker_list(state_ref: &StateRef) -> ToClientMessage {

@@ -89,11 +89,6 @@ def test_print_job_list(hq_env: HqEnv):
             {
                 "id": 1,
                 "name": "echo",
-                "resources": {
-                    "cpus": {"cpus": 1, "type": "compact"},
-                    "generic": [],
-                    "min_time": 0.0,
-                },
                 "task_count": 1,
                 "task_stats": {
                     "canceled": 0,
@@ -118,10 +113,10 @@ def test_print_job_detail(hq_env: HqEnv):
             "info": {
                 "id": 1,
                 "name": "echo",
-                "resources": dict,
                 "task_count": 1,
                 "task_stats": dict,
             },
+            "resources": dict,
             "finished_at": None,
             "max_fails": None,
             "pin": False,

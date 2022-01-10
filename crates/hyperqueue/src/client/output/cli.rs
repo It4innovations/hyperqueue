@@ -16,7 +16,7 @@ use crate::server::autoalloc::{
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, JobType, StatsResponse, WaitForJobsResponse,
+    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, StatsResponse, WaitForJobsResponse,
     WorkerExitInfo, WorkerInfo,
 };
 use crate::{JobTaskCount, WorkerId};
@@ -381,13 +381,9 @@ impl Output for CliOutput {
     fn print_job_detail(&self, job: JobDetail, show_tasks: bool, worker_map: WorkerMap) {
         let JobDetail {
             info,
-            job_type,
-            program_def,
+            job_desc,
             tasks,
-            pin,
             max_fails: _,
-            priority,
-            time_limit,
             submission_date,
             completion_date_or_now,
             submit_dir,
@@ -408,9 +404,8 @@ impl Output for CliOutput {
         rows.push(vec![state_label, status]);
 
         let mut n_tasks = info.n_tasks.to_string();
-        if let JobType::Array(array_def) = &job_type {
-            n_tasks.push_str(&format!("; Ids: {}", array_def));
-        }
+        let JobDescription::Array { ids, .. } = &job_desc;
+        n_tasks.push_str(&format!("; Ids: {}", ids));
 
         rows.push(vec!["Tasks".cell().bold(true), n_tasks.cell()]);
         rows.push(vec![
@@ -418,7 +413,16 @@ impl Output for CliOutput {
             format_job_workers(&tasks, &worker_map).cell(),
         ]);
 
-        let resources = format_resource_request(&info.resources);
+        let (resources, program_def, time_limit, priority, pin) = match &job_desc {
+            JobDescription::Array { task_desc, .. } => (
+                &task_desc.resources,
+                &task_desc.program,
+                task_desc.time_limit,
+                task_desc.priority,
+                task_desc.pin,
+            ),
+        };
+        let resources = format_resource_request(resources);
         rows.push(vec![
             "Resources".cell().bold(true),
             if pin {
@@ -469,6 +473,7 @@ impl Output for CliOutput {
             "Working directory".cell().bold(true),
             program_def
                 .cwd
+                .as_ref()
                 .map(|cwd| cwd.display().to_string())
                 .unwrap()
                 .cell(),
