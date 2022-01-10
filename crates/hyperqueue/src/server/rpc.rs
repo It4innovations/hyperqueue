@@ -150,9 +150,9 @@ mod tests {
     use tako::messages::gateway::{FromGatewayMessage, ServerInfo, ToGatewayMessage};
     use tokio::net::TcpStream;
 
-    use crate::common::fsutils::test_utils::run_concurrent;
     use crate::server::rpc::Backend;
     use crate::server::state::StateRef;
+    use crate::tests::utils::run_concurrent;
     use std::time::Duration;
 
     #[tokio::test]
@@ -167,7 +167,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_server_server_info() {
+    async fn test_server_info() {
         let state = StateRef::new(Duration::from_secs(1));
         let (server, fut) = Backend::start(state, Default::default(), None, None, 1_000_000)
             .await

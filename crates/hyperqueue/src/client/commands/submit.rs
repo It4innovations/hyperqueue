@@ -16,6 +16,7 @@ use crate::client::job::get_worker_map;
 use crate::client::resources::{parse_cpu_request, parse_resource_request};
 use crate::client::status::StatusList;
 use crate::common::arraydef::IntArray;
+use crate::common::fsutils::get_current_dir;
 use crate::common::placeholders::{
     parse_resolvable_string, StringPart, CWD_PLACEHOLDER, JOB_ID_PLACEHOLDER,
     SUBMIT_DIR_PLACEHOLDER, TASK_ID_PLACEHOLDER,
@@ -320,7 +321,7 @@ pub async fn submit_computation(
         job_desc,
         name,
         max_fails,
-        submit_dir: std::env::current_dir().expect("Cannot get current working directory"),
+        submit_dir: get_current_dir(),
         log,
     });
 

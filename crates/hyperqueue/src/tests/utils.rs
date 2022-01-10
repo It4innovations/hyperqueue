@@ -1,3 +1,7 @@
+use std::future::Future;
+
+use tokio::task::{JoinHandle, LocalSet};
+
 use crate::common::parser::{consume_all, NomResult};
 
 pub fn check_parse_error<F: FnMut(&str) -> NomResult<O>, O>(
@@ -12,4 +16,18 @@ pub fn check_parse_error<F: FnMut(&str) -> NomResult<O>, O>(
         }
         _ => panic!("The parser should have failed"),
     }
+}
+
+pub async fn run_concurrent<
+    R: 'static,
+    Fut1: 'static + Future<Output = R>,
+    Fut2: Future<Output = ()>,
+>(
+    background_fut: Fut1,
+    fut: Fut2,
+) -> (LocalSet, JoinHandle<R>) {
+    let set = tokio::task::LocalSet::new();
+    let handle = set.spawn_local(background_fut);
+    set.run_until(fut).await;
+    (set, handle)
 }
