@@ -8,11 +8,11 @@ cd `dirname $0`/..
 cargo fmt --all
 
 # Format Python code
-isort --profile black tests benchmarks
-black tests benchmarks
+isort --profile black tests benchmarks crates/pyhq/python
+black tests benchmarks crates/pyhq/python
 
 # Lint Python code
-flake8 tests benchmarks
+flake8 tests benchmarks crates/pyhq/python
 
 # Test Rust code
 cargo test
