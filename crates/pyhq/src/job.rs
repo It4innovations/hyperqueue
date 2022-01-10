@@ -1,3 +1,4 @@
+use crate::utils::error::ToPyResult;
 use crate::{borrow_mut, run_future, ContextPtr};
 use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::fsutils::get_current_dir;
@@ -57,7 +58,7 @@ pub(crate) fn submit_job_impl(
         let mut ctx = borrow_mut!(py, ctx);
         let response = rpc_call!(ctx.connection, message, ToClientMessage::SubmitResponse(r) => r)
             .await
-            .unwrap();
+            .map_py_err()?;
         Ok(response.job.info.id.as_num())
     })
 }

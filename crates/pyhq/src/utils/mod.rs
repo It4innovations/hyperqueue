@@ -1,3 +1,5 @@
+pub mod error;
+
 use std::future::Future;
 use tokio::task::LocalSet;
 
