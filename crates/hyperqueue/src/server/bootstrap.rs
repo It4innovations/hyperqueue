@@ -214,7 +214,6 @@ mod tests {
     use tokio::sync::Notify;
 
     use crate::client::commands::stop::stop_server;
-    use crate::common::fsutils::test_utils::run_concurrent;
     use crate::common::serverdir::{store_access_record, AccessRecord, ServerDir, SYMLINK_PATH};
     use crate::server::bootstrap::{
         get_client_connection, get_server_status, initialize_server, ServerConfig,
@@ -223,6 +222,7 @@ mod tests {
     use super::ServerStatus;
     use crate::client::globalsettings::GlobalSettings;
     use crate::client::output::cli::CliOutput;
+    use crate::tests::utils::run_concurrent;
     use cli_table::ColorChoice;
     use std::future::Future;
     use std::path::Path;
