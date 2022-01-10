@@ -3,12 +3,16 @@ use pyo3::{pyclass, pyfunction, pymodule};
 use pyo3::{wrap_pyfunction, Py, PyResult, Python};
 use tokio::runtime::Builder;
 
-use crate::utils::run_future;
-use hyperqueue::client::default_server_directory_path;
-use hyperqueue::server::bootstrap::get_client_connection;
+use crate::job::{submit_job_impl, JobDescription};
+use crate::marshal::FromPy;
 use hyperqueue::transfer::connection::ClientConnection;
-use hyperqueue::transfer::messages::FromClientMessage;
 
+use crate::server::{connect_to_server_impl, stop_server_impl};
+use crate::utils::run_future;
+
+mod job;
+mod marshal;
+mod server;
 mod utils;
 
 /// Opaque object that is returned by `connect_to_server` and then passed from the Python side
@@ -18,22 +22,21 @@ struct HqContext {
     connection: ClientConnection,
 }
 
+type ContextPtr = Py<HqContext>;
+
 #[pyfunction]
-fn connect_to_server(py: Python) -> PyResult<Py<HqContext>> {
-    run_future(async move {
-        let connection = get_client_connection(&default_server_directory_path()).await?;
-        let context = HqContext { connection };
-        Py::new(py, context)
-    })
+fn connect_to_server(py: Python) -> PyResult<ContextPtr> {
+    connect_to_server_impl(py)
 }
 
 #[pyfunction]
-fn stop_server(py: Python, ctx: Py<HqContext>) -> PyResult<()> {
-    run_future(async move {
-        let mut ctx = borrow_mut!(py, ctx);
-        ctx.connection.send(FromClientMessage::Stop).await.unwrap();
-        Ok(())
-    })
+fn stop_server(py: Python, ctx: ContextPtr) -> PyResult<()> {
+    stop_server_impl(py, ctx)
+}
+
+#[pyfunction]
+fn submit_job(py: Python, ctx: ContextPtr, job: FromPy<JobDescription>) -> PyResult<u32> {
+    submit_job_impl(py, ctx, job.extract())
 }
 
 #[pymodule]
@@ -46,5 +49,6 @@ fn pyhq(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<HqContext>()?;
     m.add_function(wrap_pyfunction!(connect_to_server, m)?)?;
     m.add_function(wrap_pyfunction!(stop_server, m)?)?;
+    m.add_function(wrap_pyfunction!(submit_job, m)?)?;
     Ok(())
 }
