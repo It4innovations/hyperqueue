@@ -47,17 +47,22 @@ jobs:
           python -m pip install --upgrade pip wheel setuptools
           python -m pip install -r tests/requirements.txt
 
+      - name: Build Python binding
+        run: |
+          maturin build --manifest-path crates/pyhq/Cargo.toml
+          python -m pip install target/wheels/pyhq-*.whl
+
       - name: Test Python
         id: python_test
         run: python -m pytest tests -n4
 
       - name: Archive test artifacts
-        if: always() && steps.python_test.outcome != 'success'
+        if: always() && steps.python_test.outcome == 'failure'
         run: tar -cvf artifacts.tar /tmp/pytest-*
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v2
-        if: always() && steps.python_test.outcome != 'success'
+        if: always() && steps.python_test.outcome == 'failure'
         with:
           name: pytest artifacts
           path: artifacts.tar

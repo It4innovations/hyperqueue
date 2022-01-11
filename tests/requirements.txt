@@ -5,3 +5,4 @@ black==21.9b0
 isort==5.9.3
 iso8601==1.0.0
 schema==0.7.5
+maturin==0.12.6

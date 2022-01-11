@@ -14,7 +14,7 @@ pub(crate) fn connect_to_server_impl(
 ) -> PyResult<ContextPtr> {
     let directory = directory
         .map(|p| -> PathBuf { p.into() })
-        .unwrap_or_else(|| default_server_directory_path());
+        .unwrap_or_else(default_server_directory_path);
 
     run_future(async move {
         let connection = get_client_connection(&directory).await?;
