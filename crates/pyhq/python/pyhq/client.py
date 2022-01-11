@@ -1,9 +1,14 @@
-from . import pyhq as ffi
+from .ffi.ffi import TaskDescription, connect_to_server, JobDescription, submit_job
+from .job import Job
 
 
-def connect_to_server():
-    return ffi.connect_to_server()
+class Client:
+    def __init__(self, *args, **kwargs):
+        self.ctx = connect_to_server()
 
-
-def stop_server(ctx):
-    return ffi.stop_server(ctx)
+    def submit(self, job: Job):
+        configs = job.build()
+        job = JobDescription(tasks=[
+            TaskDescription(args=config.args) for config in configs
+        ])
+        return submit_job(self.ctx, job)
