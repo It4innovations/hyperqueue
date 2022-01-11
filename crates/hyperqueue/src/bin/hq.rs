@@ -1,7 +1,9 @@
+use std::io;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use clap::{Parser, ValueHint};
+use clap::{IntoApp, Parser, ValueHint};
+use clap_complete::{generate, Shell};
 use cli_table::ColorChoice;
 
 use hyperqueue::client::commands::autoalloc::{command_autoalloc, AutoAllocOpts};
@@ -103,6 +105,7 @@ enum SubCommand {
     AutoAlloc(AutoAllocOpts),
     ///Commands for the dashboard
     Dashboard(DashboardOpts),
+    GenerateCompletion(GenerateCompletionOpts),
 }
 
 // Server CLI options
@@ -274,6 +277,12 @@ struct JobDetailOpts {
 struct CancelOpts {
     /// Select job(s) to cancel
     selector_arg: SelectorArg,
+}
+
+#[derive(Parser)]
+struct GenerateCompletionOpts {
+    #[clap(possible_values = Shell::possible_values().collect::<Vec<_>>())]
+    shell: Shell,
 }
 
 // Commands
@@ -507,6 +516,15 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
     GlobalSettings::new(server_dir, printer)
 }
 
+fn generate_completion(opts: GenerateCompletionOpts) -> anyhow::Result<()> {
+    let generator = opts.shell;
+
+    let mut app = Opts::into_app();
+    eprintln!("Generating completion file for {}...", generator);
+    generate(generator, &mut app, "hq".to_string(), &mut io::stdout());
+    Ok(())
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> hyperqueue::Result<()> {
     let top_opts: Opts = Opts::parse();
@@ -553,6 +571,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Progress(opts) => command_progress(&gsettings, opts).await,
         SubCommand::Log(opts) => command_log(&gsettings, opts),
         SubCommand::AutoAlloc(opts) => command_autoalloc(&gsettings, opts).await,
+        SubCommand::GenerateCompletion(opts) => generate_completion(opts),
     };
 
     if let Err(e) = result {

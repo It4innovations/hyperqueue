@@ -2,21 +2,22 @@
 
 ## New features
 
-### Worker configuraiton
+### Worker configuration
   * Argument for ``--on-worker-lost`` (for ``worker start`` and autoalloc) to define what should happen
     when a worker lost connection to server.
 
 ### CLI
-You can now force HyperQueue commands to output machine-readable data using the `--output-mode` flag
+* You can now force HyperQueue commands to output machine-readable data using the `--output-mode` flag
 available to all HyperQueue commands. Notably, you can output data of the commands as JSON. You can
 find more information in the [documentation](https://it4innovations.github.io/hyperqueue/stable/cli/output-mode/).
 
+* You can now generate shell completion using the `hq generate-completion <shell>` command.
 
 # v0.7.0
 
 ## Fixes
 
-  * Fixes an invalid behvaior of the scheduler when resources are defined
+  * Fixes an invalid behavior of the scheduler when resources are defined
 
   * The automatic allocator will no longer keep submitting allocations in situations where the created
     workers would not be able to execute currently waiting tasks. Currently, this situation is detected
