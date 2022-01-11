@@ -25,8 +25,8 @@ struct HqContext {
 type ContextPtr = Py<HqContext>;
 
 #[pyfunction]
-fn connect_to_server(py: Python) -> PyResult<ContextPtr> {
-    connect_to_server_impl(py)
+fn connect_to_server(py: Python, directory: Option<String>) -> PyResult<ContextPtr> {
+    connect_to_server_impl(py, directory)
 }
 
 #[pyfunction]

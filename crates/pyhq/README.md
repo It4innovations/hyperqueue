@@ -10,10 +10,4 @@ $ pip install maturin
 ```bash
 $ maturin develop
 ```
-3) Use the build `pyhq` package
-```python
-from pyhq.client import connect_to_server, stop_server
-
-ctx = connect_to_server()
-stop_server(ctx)
-```
+3) Use the built `pyhq` package
