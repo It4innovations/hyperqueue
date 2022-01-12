@@ -816,3 +816,48 @@ The program that you have tried to execute (`foo`) was not found.
 The file "{join(os.getcwd(), 'foo')}" exists, maybe you have meant `./foo` instead?"""
         == table.get_column_value("Error")[0]
     )
+
+
+def test_hq_directives_from_file(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_worker(cpus="1")
+
+    content = """#! /bin/bash
+# Hello!
+#HQ --name abc --array=1-10
+#HQ --cpus="2 compact"
+
+./do-something
+
+#HQ --this-should-be-ignored
+"""
+
+    (tmp_path / "test.sh").write_text(content)
+    (tmp_path / "test").write_text(content)
+    (tmp_path / "input").write_text("line\n" * 5)
+
+    hq_env.command(["submit", "test.sh"])
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    assert table.get_row_value("Name") == "abc"
+    assert table.get_row_value("Resources") == "cpus: 2 compact"
+    assert table.get_row_value("Tasks") == "10; Ids: 1-10"
+
+    hq_env.command(["submit", "--name=xyz", "test.sh"])
+    table = hq_env.command(["job", "info", "2"], as_table=True)
+    assert table.get_row_value("Name") == "xyz"
+    assert table.get_row_value("Resources") == "cpus: 2 compact"
+    assert table.get_row_value("Tasks") == "10; Ids: 1-10"
+
+    hq_env.command(["submit", "--name=xyz", "--each-line", "input", "test.sh"])
+    table = hq_env.command(["job", "info", "3"], as_table=True)
+    assert table.get_row_value("Name") == "xyz"
+    assert table.get_row_value("Resources") == "cpus: 2 compact"
+    assert table.get_row_value("Tasks") == "5; Ids: 0-4"
+
+    hq_env.command(["submit", "test"])
+    table = hq_env.command(["job", "info", "4"], as_table=True)
+    assert table.get_row_value("Name") == "test"
+
+    hq_env.command(["submit", "--directives", "test"])
+    table = hq_env.command(["job", "info", "5"], as_table=True)
+    assert table.get_row_value("Name") == "abc"

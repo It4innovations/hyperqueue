@@ -5,7 +5,7 @@ repo_url: https://github.com/It4innovations/hyperqueue
 edit_uri: blob/main/docs/
 
 site_description: Documentation of HyperQueue.
-site_author: Stanislav Böhm
+site_author: Stanislav Böhm, Jakub Beránek
 
 nav:
   - Overview: README.md
@@ -25,6 +25,7 @@ nav:
     - Generic Resources: jobs/gresources.md
     - Handling Failure: jobs/failure.md
     - Output Streaming: jobs/streaming.md
+    - Directives: jobs/directives.md
   - CLI:
     - Shortcuts: cli/shortcuts.md
     - Output mode: cli/output-mode.md
