@@ -1,7 +1,7 @@
 import dataclasses
 from typing import List, Optional
 
-from .. import pyhq as ffi
+from .. import hyperqueue as ffi
 
 
 class HqContext:

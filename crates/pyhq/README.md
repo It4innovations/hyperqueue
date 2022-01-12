@@ -1,4 +1,4 @@
-# PyHQ binding
+# HyperQueue Python binding
 This package provides a Python binding to HyperQueue.
 
 ## Development
@@ -10,4 +10,4 @@ $ pip install maturin
 ```bash
 $ maturin develop
 ```
-3) Use the built `pyhq` package
+3) Use the built `hyperqueue` package
