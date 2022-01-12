@@ -1,4 +1,4 @@
-from pyhq.ffi.ffi import connect_to_server, stop_server
+from hyperqueue.ffi.ffi import connect_to_server, stop_server
 
 from ...conftest import HqEnv
 

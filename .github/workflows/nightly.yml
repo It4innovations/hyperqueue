@@ -115,7 +115,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: archive-pyhq
-          path: target/wheels/pyhq-*.whl
+          path: target/wheels/hyperqueue-*.whl
   create-tag:
     runs-on: ubuntu-latest
     needs: [ set-env, build-binaries-x64, build-binaries-powerpc, build-python-binding ]

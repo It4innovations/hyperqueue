@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "pyhq"
+name = "hyperqueue"
 # "cdylib" is necessary to produce a shared library for Python to import from.
 #
 # Downstream Rust code (including code in `bin/`, `examples/`, and `tests/`) will not be able

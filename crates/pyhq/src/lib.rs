@@ -40,7 +40,7 @@ fn submit_job(py: Python, ctx: ContextPtr, job: FromPy<JobDescription>) -> PyRes
 }
 
 #[pymodule]
-fn pyhq(_py: Python, m: &PyModule) -> PyResult<()> {
+fn hyperqueue(_py: Python, m: &PyModule) -> PyResult<()> {
     // Use a single-threaded Tokio runtime for all Rust async operations
     let mut builder = Builder::new_current_thread();
     builder.enable_all();
