@@ -87,6 +87,10 @@ creating a new allocation queue:
     `hq worker start`).
 
 - `--name <name>` Name of the allocation queue. Will be used to name allocations. Serves for debug purposes only.
+- `--max-kept-directories <number>` Each allocation that finishes (either successfully or unsuccessfully)
+will leave a directory containing debugging information on the filesystem. To avoid wasting disk space,
+HyperQueue will by default keep only the most recent `N` directories and remove the older ones. You
+can change the number of kept directories with this parameter.
 
 [^1]: You can use various [shortcuts](../cli/shortcuts.md#duration) for the duration value.
 
@@ -173,14 +177,6 @@ server directory:
     job-id
     hq-submit.sh
     ```
-
-    !!! tip
-
-        HyperQueue will store the `hq-submit.sh` file on disk even if the allocation fails to be queued.
-        You can use this file to debug the submission failure.
-
-        To avoid wasting disk space, HyperQueue will only keep a small number of most recent
-        directories of unqueued allocations, older ones will be deleted.
 
 ## Useful autoalloc commands
 Here is a list of useful commands to manage automatic allocation:

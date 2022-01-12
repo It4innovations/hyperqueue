@@ -3,12 +3,18 @@
 ## Fixes
 
 ### Automatic allocation
-* [Issue #294](https://github.com/It4innovations/hyperqueue/issues/294): If the automatic allocator
-  fails to submit an allocation, it leaves behind a directory on the filesystem, which contains useful
-  debugging information. However, HyperQueue could create a lot these files and directories if
-  allocations were failing to be submitted repeatedly. To alleviate this, HyperQueue will now keep
-  only the last `16` directories of unsubmitted allocations. Older directories will be removed to
-  save space.
+* [Issue #294](https://github.com/It4innovations/hyperqueue/issues/294): The automatic allocator
+  leaves behind directories of inactive (failed or finished) allocations on the filesystem. Although
+  these directories contain useful debugging information, creating too many of them can needlessly
+  waste disk space. To alleviate this, HyperQueue will now keep only the last `20` directories of
+  inactive allocations per each allocation queue and remove the older directories to save space.
+  
+  You can change this parameter by using the `--max-kept-directories` flag when creating an allocation
+  queue:
+
+  ```bash
+  $ hq alloc add pbs --time-limit 1h --max-kept-directories 100
+  ```
 
 ## New features
 

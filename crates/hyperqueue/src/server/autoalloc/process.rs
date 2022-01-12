@@ -116,9 +116,13 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
         let state = state.get_autoalloc_state_mut();
         match result {
             Ok(status) => {
+                let descriptor = get_or_continue!(state.get_descriptor_mut(id));
+                let working_dir = get_or_continue!(descriptor.get_allocation(&allocation_id))
+                    .working_dir
+                    .clone();
+
                 match status {
                     Some(status) => {
-                        let descriptor = get_or_continue!(state.get_descriptor_mut(id));
                         let id = allocation_id.clone();
                         log::debug!("Status of allocation {}: {:?}", allocation_id, status);
                         match status {
@@ -134,10 +138,12 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
                             AllocationStatus::Finished { .. } => {
                                 descriptor
                                     .add_event(AllocationEvent::AllocationFinished(allocation_id));
+                                descriptor.add_inactive_directory(working_dir);
                             }
                             AllocationStatus::Failed { .. } => {
                                 descriptor
                                     .add_event(AllocationEvent::AllocationFailed(allocation_id));
+                                descriptor.add_inactive_directory(working_dir);
                             }
                             AllocationStatus::Queued => {}
                         };
@@ -145,9 +151,9 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
                     }
                     None => {
                         log::warn!("Allocation {} was not found", allocation_id);
-                        let descriptor = get_or_continue!(state.get_descriptor_mut(id));
                         descriptor.remove_allocation(&allocation_id);
                         descriptor.add_event(AllocationEvent::AllocationDisappeared(allocation_id));
+                        descriptor.add_inactive_directory(working_dir);
                     }
                 };
             }
@@ -277,7 +283,7 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
                         descriptor.add_event(AllocationEvent::QueueFail {
                             error: format!("{:?}", err),
                         });
-                        descriptor.store_unsubmitted_directory(working_dir);
+                        descriptor.add_inactive_directory(working_dir);
                     }
                 }
             }
@@ -294,15 +300,15 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
         }
     }
 
-    remove_stale_directories(id, state_ref).await;
+    remove_inactive_directories(id, state_ref).await;
 }
 
-/// Removes directories of unsubmitted allocations.
-async fn remove_stale_directories(id: DescriptorId, state_ref: &StateRef) {
+/// Removes directories of inactive allocations scheduled for removal.
+async fn remove_inactive_directories(id: DescriptorId, state_ref: &StateRef) {
     let to_remove = {
         let mut state = state_ref.get_mut();
         get_or_return!(state.get_autoalloc_state_mut().get_descriptor_mut(id))
-            .get_submission_directories_for_removal()
+            .get_directories_for_removal()
     };
     let futures: Vec<_> = to_remove
         .into_iter()
@@ -341,9 +347,7 @@ mod tests {
         AllocationSubmissionResult, QueueDescriptor, QueueHandler, QueueInfo,
     };
     use crate::server::autoalloc::process::autoalloc_tick;
-    use crate::server::autoalloc::state::{
-        AllocationEvent, AllocationId, AllocationStatus, MAX_UNSUBMITTED_DIRECTORIES_KEPT,
-    };
+    use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
     use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId};
     use crate::server::job::Job;
     use crate::server::state::StateRef;
@@ -361,7 +365,7 @@ mod tests {
             move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
             |_, _| async move { Ok(()) },
         );
-        add_descriptor(&state, handler, QueueBuilder::default().build());
+        add_descriptor(&state, handler, QueueBuilder::default());
 
         autoalloc_tick(&state).await;
 
@@ -389,7 +393,7 @@ mod tests {
             move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
             |_, _| async move { Ok(()) },
         );
-        add_descriptor(&state, handler, QueueBuilder::default().build());
+        add_descriptor(&state, handler, QueueBuilder::default());
 
         autoalloc_tick(&state).await;
 
@@ -410,10 +414,7 @@ mod tests {
         add_descriptor(
             &state,
             handler,
-            QueueBuilder::default()
-                .backlog(4)
-                .workers_per_alloc(2)
-                .build(),
+            QueueBuilder::default().backlog(4).workers_per_alloc(2),
         );
 
         autoalloc_tick(&state).await;
@@ -428,7 +429,7 @@ mod tests {
         let state = create_state(1000);
 
         let handler = always_queued_handler();
-        add_descriptor(&state, handler, QueueBuilder::default().backlog(4).build());
+        add_descriptor(&state, handler, QueueBuilder::default().backlog(4));
 
         autoalloc_tick(&state).await;
         autoalloc_tick(&state).await;
@@ -474,7 +475,7 @@ mod tests {
             },
             |_, _| async move { Ok(()) },
         );
-        add_descriptor(&state, handler, QueueBuilder::default().backlog(3).build());
+        add_descriptor(&state, handler, QueueBuilder::default().backlog(3));
 
         // schedule allocations
         autoalloc_tick(&state).await;
@@ -499,7 +500,7 @@ mod tests {
         let state = create_state(0);
 
         let handler = always_queued_handler();
-        add_descriptor(&state, handler, QueueBuilder::default().backlog(3).build());
+        add_descriptor(&state, handler, QueueBuilder::default().backlog(3));
 
         autoalloc_tick(&state).await;
         assert_eq!(get_allocations(&state, 0).len(), 0);
@@ -513,10 +514,7 @@ mod tests {
         add_descriptor(
             &state,
             handler,
-            QueueBuilder::default()
-                .backlog(5)
-                .workers_per_alloc(2)
-                .build(),
+            QueueBuilder::default().backlog(5).workers_per_alloc(2),
         );
 
         // 5 tasks, 3 * 2 workers -> last two allocations should be ignored
@@ -535,9 +533,7 @@ mod tests {
         add_descriptor(
             &state,
             handler,
-            QueueBuilder::default()
-                .timelimit(Duration::from_secs(60 * 30))
-                .build(),
+            QueueBuilder::default().timelimit(Duration::from_secs(60 * 30)),
         );
 
         // Allocations last for 30 minutes, but job requires 60 minutes
@@ -556,10 +552,7 @@ mod tests {
         add_descriptor(
             &state,
             handler,
-            QueueBuilder::default()
-                .backlog(4)
-                .max_worker_count(Some(5))
-                .build(),
+            QueueBuilder::default().backlog(4).max_worker_count(Some(5)),
         );
 
         // Put 4 allocations into the queue.
@@ -606,8 +599,7 @@ mod tests {
             QueueBuilder::default()
                 .backlog(2)
                 .workers_per_alloc(4)
-                .max_worker_count(Some(6))
-                .build(),
+                .max_worker_count(Some(6)),
         );
 
         autoalloc_tick(&state).await;
@@ -618,7 +610,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_delete_stale_directories() {
+    async fn test_delete_stale_directories_of_unsubmitted_allocations() {
         let state = create_state(100);
 
         let shared = WrappedRcRefCell::wrap(Vec::new());
@@ -640,10 +632,15 @@ mod tests {
             |_, _| async move { Ok(()) },
         );
 
-        add_descriptor(&state, handler, QueueBuilder::default().build());
+        let max_kept = 4;
+        add_descriptor(
+            &state,
+            handler,
+            QueueBuilder::default().max_kept_dirs(max_kept),
+        );
 
         // Gather failures
-        for _ in 0..MAX_UNSUBMITTED_DIRECTORIES_KEPT {
+        for _ in 0..max_kept {
             autoalloc_tick(&state).await;
         }
         for directory in shared.get().iter() {
@@ -663,6 +660,59 @@ mod tests {
         for directory in &shared.get()[2..] {
             assert!(directory.exists());
         }
+    }
+
+    #[tokio::test]
+    async fn test_delete_stale_directories_of_finished_allocations() {
+        let state = create_state(100);
+
+        let shared = WrappedRcRefCell::wrap(AllocationState::default());
+        let handler = stateful_handler(shared.clone());
+
+        let descriptor_id = add_descriptor(
+            &state,
+            handler,
+            QueueBuilder::default().backlog(1).max_kept_dirs(0),
+        );
+
+        let check_dir = |allocation_id: &str, exists: bool| {
+            let state = state.get();
+            let state = state.get_autoalloc_state();
+            let descriptor = state.get_descriptor(descriptor_id).unwrap();
+            let allocation = descriptor.get_allocation(allocation_id).unwrap();
+            assert_eq!(allocation.working_dir.exists(), exists);
+        };
+
+        // Spawn a single allocation
+        autoalloc_tick(&state).await;
+
+        // Check that queued job directory was not removed
+        autoalloc_tick(&state).await;
+        check_dir("0", true);
+
+        // Start the allocation
+        shared.get_mut().start("0");
+
+        // Check that running job directory was not removed
+        autoalloc_tick(&state).await;
+        check_dir("0", true);
+
+        // Finish the allocation
+        shared.get_mut().finish("0");
+
+        // Check that finished job directory was removed
+        autoalloc_tick(&state).await;
+        check_dir("0", false);
+
+        // Start next allocation
+        shared.get_mut().start("1");
+        autoalloc_tick(&state).await;
+        // Fail the allocation
+        shared.get_mut().fail("1");
+
+        // Check that failed job directory was removed
+        autoalloc_tick(&state).await;
+        check_dir("1", false);
     }
 
     struct Handler<ScheduleFn, StatusFn, RemoveFn, State> {
@@ -752,6 +802,32 @@ mod tests {
         fn set_status(&mut self, allocation: &str, status: AllocationStatus) {
             self.state.insert(allocation.to_string(), status);
         }
+        fn start(&mut self, allocation: &str) {
+            self.set_status(
+                allocation,
+                AllocationStatus::Running {
+                    started_at: SystemTime::now(),
+                },
+            );
+        }
+        fn finish(&mut self, allocation: &str) {
+            self.set_status(
+                allocation,
+                AllocationStatus::Finished {
+                    started_at: SystemTime::now(),
+                    finished_at: SystemTime::now(),
+                },
+            );
+        }
+        fn fail(&mut self, allocation: &str) {
+            self.set_status(
+                allocation,
+                AllocationStatus::Failed {
+                    started_at: SystemTime::now(),
+                    finished_at: SystemTime::now(),
+                },
+            );
+        }
     }
 
     // Handlers
@@ -772,8 +848,8 @@ mod tests {
         )
     }
 
-    /// Handler that spawns allocations with sequentially increasing IDs and returns allocation
-    /// statuses from [`AllocationState`].
+    /// Handler that spawns allocations with sequentially increasing IDs (starting at *0*) and
+    /// returns allocation statuses from [`AllocationState`].
     fn stateful_handler(state: WrappedRcRefCell<AllocationState>) -> Box<dyn QueueHandler> {
         Handler::new(
             state.clone(),
@@ -781,10 +857,11 @@ mod tests {
                 let id_state = &mut state.get_mut().spawned_allocations;
                 let id = *id_state;
                 *id_state += 1;
-                Ok(AllocationSubmissionResult::new(
-                    Ok(id.to_string()),
-                    Default::default(),
-                ))
+
+                let tempdir = TempDir::new("hq").unwrap();
+                let dir = tempdir.into_path();
+
+                Ok(AllocationSubmissionResult::new(Ok(id.to_string()), dir))
             },
             move |state, id| async move {
                 let state = &mut state.get_mut().state;
@@ -807,36 +884,55 @@ mod tests {
         timelimit: Duration,
         #[builder(default)]
         max_worker_count: Option<u32>,
+        #[builder(default = "1")]
+        max_kept_dirs: usize,
     }
 
     impl QueueBuilder {
-        fn build(self) -> QueueInfo {
+        fn build(self) -> (QueueInfo, usize) {
             let Queue {
                 backlog,
                 workers_per_alloc,
                 timelimit,
                 max_worker_count,
+                max_kept_dirs,
             } = self.finish().unwrap();
-            QueueInfo::new(
-                backlog,
-                workers_per_alloc,
-                timelimit,
-                ServerLostPolicy::Stop,
-                vec![],
-                None,
-                vec![],
-                max_worker_count,
+            (
+                QueueInfo::new(
+                    backlog,
+                    workers_per_alloc,
+                    timelimit,
+                    ServerLostPolicy::Stop,
+                    vec![],
+                    None,
+                    vec![],
+                    max_worker_count,
+                ),
+                max_kept_dirs,
             )
         }
     }
 
     // Helper functions
-    fn add_descriptor(state_ref: &StateRef, handler: Box<dyn QueueHandler>, queue_info: QueueInfo) {
-        let descriptor = QueueDescriptor::new(ManagerType::Pbs, queue_info, None, handler);
+    fn add_descriptor(
+        state_ref: &StateRef,
+        handler: Box<dyn QueueHandler>,
+        queue_builder: QueueBuilder,
+    ) -> DescriptorId {
+        let (queue_info, max_kept_directories) = queue_builder.build();
+        let descriptor = QueueDescriptor::new(
+            ManagerType::Pbs,
+            queue_info,
+            None,
+            handler,
+            max_kept_directories,
+        );
 
         let mut state = state_ref.get_mut();
         let state = state.get_autoalloc_state_mut();
-        state.add_descriptor(state.descriptors().count() as DescriptorId, descriptor)
+        let id = state.descriptors().count() as DescriptorId;
+        state.add_descriptor(id, descriptor);
+        id
     }
 
     fn create_state(waiting_tasks: u32) -> StateRef {
