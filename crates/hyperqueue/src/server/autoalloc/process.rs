@@ -1,3 +1,4 @@
+use futures::future::join_all;
 use std::time::SystemTime;
 
 use crate::server::autoalloc::state::{
@@ -243,7 +244,7 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
             descriptor
                 .descriptor
                 .handler_mut()
-                .schedule_allocation(id, &info, workers_to_spawn)
+                .submit_allocation(id, &info, workers_to_spawn)
         };
 
         let result = schedule_fut.await;
@@ -252,26 +253,71 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
         let state = state.get_autoalloc_state_mut();
         let descriptor = get_or_return!(state.get_descriptor_mut(id));
         match result {
-            Ok(created) => {
-                log::info!("Queued {} workers into queue {}", workers_to_spawn, id);
-                descriptor.add_event(AllocationEvent::AllocationQueued(created.id().to_string()));
-                descriptor.add_allocation(Allocation {
-                    id: created.id().to_string(),
-                    worker_count: workers_to_spawn,
-                    queued_at: SystemTime::now(),
-                    status: AllocationStatus::Queued,
-                    working_dir: created.working_dir().to_path_buf(),
-                });
+            Ok(submission_result) => {
+                let working_dir = submission_result.working_dir().to_path_buf();
+                match submission_result.into_id() {
+                    Ok(allocation_id) => {
+                        log::info!("Queued {} workers into queue {}", workers_to_spawn, id);
+                        descriptor.add_event(AllocationEvent::AllocationQueued(
+                            allocation_id.to_string(),
+                        ));
+                        descriptor.add_allocation(Allocation {
+                            id: allocation_id.to_string(),
+                            worker_count: workers_to_spawn,
+                            queued_at: SystemTime::now(),
+                            status: AllocationStatus::Queued,
+                            working_dir,
+                        });
 
-                waiting_tasks = waiting_tasks.saturating_sub(workers_to_spawn);
-                available_workers = available_workers.saturating_sub(workers_to_spawn);
+                        waiting_tasks = waiting_tasks.saturating_sub(workers_to_spawn);
+                        available_workers = available_workers.saturating_sub(workers_to_spawn);
+                    }
+                    Err(err) => {
+                        log::error!("Failed to submit allocation into queue {}: {:?}", id, err);
+                        descriptor.add_event(AllocationEvent::QueueFail {
+                            error: format!("{:?}", err),
+                        });
+                        descriptor.store_unsubmitted_directory(working_dir);
+                    }
+                }
             }
             Err(err) => {
-                log::error!("Failed to queue allocation into queue {}: {:?}", id, err);
+                log::error!(
+                    "Failed to create allocation directory for queue {}: {:?}",
+                    id,
+                    err
+                );
                 descriptor.add_event(AllocationEvent::QueueFail {
                     error: format!("{:?}", err),
                 });
             }
+        }
+    }
+
+    remove_stale_directories(id, state_ref).await;
+}
+
+/// Removes directories of unsubmitted allocations.
+async fn remove_stale_directories(id: DescriptorId, state_ref: &StateRef) {
+    let to_remove = {
+        let mut state = state_ref.get_mut();
+        get_or_return!(state.get_autoalloc_state_mut().get_descriptor_mut(id))
+            .get_submission_directories_for_removal()
+    };
+    let futures: Vec<_> = to_remove
+        .into_iter()
+        .map(|dir| async move {
+            let result = tokio::fs::remove_dir_all(&dir).await;
+            (result, dir)
+        })
+        .collect();
+    for (result, directory) in join_all(futures).await {
+        if let Err(err) = result {
+            log::error!(
+                "Failed to remove stale allocation directory {:?}: {:?}",
+                directory,
+                err
+            );
         }
     }
 }
@@ -283,6 +329,7 @@ mod tests {
     use std::pin::Pin;
     use std::time::{Duration, SystemTime};
     use tako::common::Map;
+    use tempdir::TempDir;
 
     use crate::common::arraydef::IntArray;
     use tako::common::resources::TimeRequest;
@@ -291,10 +338,12 @@ mod tests {
 
     use crate::common::manager::info::ManagerType;
     use crate::server::autoalloc::descriptor::{
-        CreatedAllocation, QueueDescriptor, QueueHandler, QueueInfo,
+        AllocationSubmissionResult, QueueDescriptor, QueueHandler, QueueInfo,
     };
     use crate::server::autoalloc::process::autoalloc_tick;
-    use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
+    use crate::server::autoalloc::state::{
+        AllocationEvent, AllocationId, AllocationStatus, MAX_UNSUBMITTED_DIRECTORIES_KEPT,
+    };
     use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId};
     use crate::server::job::Job;
     use crate::server::state::StateRef;
@@ -303,12 +352,40 @@ mod tests {
     use tako::worker::state::ServerLostPolicy;
 
     #[tokio::test]
-    async fn test_log_failed_allocation_attempt() {
+    async fn test_log_failed_allocation_attempt_directory_fail() {
         let state = create_state(1000);
 
         let handler = Handler::new(
             WrappedRcRefCell::wrap(()),
             move |_, _| async move { anyhow::bail!("foo") },
+            move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
+            |_, _| async move { Ok(()) },
+        );
+        add_descriptor(&state, handler, QueueBuilder::default().build());
+
+        autoalloc_tick(&state).await;
+
+        let state = state.get();
+        let state = state.get_autoalloc_state();
+        let descriptor = state.get_descriptor(0).unwrap();
+        matches!(
+            descriptor.get_events()[0].event,
+            AllocationEvent::QueueFail { .. }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_log_failed_allocation_attempt_submission_fail() {
+        let state = create_state(1000);
+
+        let handler = Handler::new(
+            WrappedRcRefCell::wrap(()),
+            move |_, _| async move {
+                Ok(AllocationSubmissionResult::new(
+                    Err(anyhow::anyhow!("foo")),
+                    Default::default(),
+                ))
+            },
             move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
             |_, _| async move { Ok(()) },
         );
@@ -376,7 +453,10 @@ mod tests {
                 let id_state = &mut state.get_mut().0;
                 let id = *id_state;
                 *id_state += 1;
-                Ok(CreatedAllocation::new(id.to_string(), Default::default()))
+                Ok(AllocationSubmissionResult::new(
+                    Ok(id.to_string()),
+                    Default::default(),
+                ))
             },
             move |state, id| async move {
                 let queue_state = &mut state.get_mut().1;
@@ -537,6 +617,54 @@ mod tests {
         assert_eq!(allocations[1].worker_count, 2);
     }
 
+    #[tokio::test]
+    async fn test_delete_stale_directories() {
+        let state = create_state(100);
+
+        let shared = WrappedRcRefCell::wrap(Vec::new());
+        let handler = Handler::new(
+            shared.clone(),
+            move |state, _| async move {
+                let mut state = state.get_mut();
+
+                let tempdir = TempDir::new("hq").unwrap();
+                let dir = tempdir.into_path();
+                state.push(dir.clone());
+
+                Ok(AllocationSubmissionResult::new(
+                    Err(anyhow::anyhow!("failure")),
+                    dir,
+                ))
+            },
+            move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
+            |_, _| async move { Ok(()) },
+        );
+
+        add_descriptor(&state, handler, QueueBuilder::default().build());
+
+        // Gather failures
+        for _ in 0..MAX_UNSUBMITTED_DIRECTORIES_KEPT {
+            autoalloc_tick(&state).await;
+        }
+        for directory in shared.get().iter() {
+            assert!(directory.exists());
+        }
+
+        // Delete oldest directory
+        autoalloc_tick(&state).await;
+        assert!(!shared.get()[0].exists());
+        for directory in &shared.get()[1..] {
+            assert!(directory.exists());
+        }
+
+        // Delete second oldest directory
+        autoalloc_tick(&state).await;
+        assert!(!shared.get()[1].exists());
+        for directory in &shared.get()[2..] {
+            assert!(directory.exists());
+        }
+    }
+
     struct Handler<ScheduleFn, StatusFn, RemoveFn, State> {
         schedule_fn: WrappedRcRefCell<ScheduleFn>,
         status_fn: WrappedRcRefCell<StatusFn>,
@@ -547,7 +675,7 @@ mod tests {
     impl<
             State: 'static,
             ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
-            ScheduleFnFut: Future<Output = AutoAllocResult<CreatedAllocation>>,
+            ScheduleFnFut: Future<Output = AutoAllocResult<AllocationSubmissionResult>>,
             StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
             StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationStatus>>>,
             RemoveFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> RemoveFnFut,
@@ -572,19 +700,19 @@ mod tests {
     impl<
             State: 'static,
             ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
-            ScheduleFnFut: Future<Output = AutoAllocResult<CreatedAllocation>>,
+            ScheduleFnFut: Future<Output = AutoAllocResult<AllocationSubmissionResult>>,
             StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
             StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationStatus>>>,
             RemoveFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> RemoveFnFut,
             RemoveFnFut: Future<Output = AutoAllocResult<()>>,
         > QueueHandler for Handler<ScheduleFn, StatusFn, RemoveFn, State>
     {
-        fn schedule_allocation(
+        fn submit_allocation(
             &mut self,
             _descriptor_id: DescriptorId,
             _queue_info: &QueueInfo,
             worker_count: u64,
-        ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>> {
+        ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationSubmissionResult>>>> {
             let schedule_fn = self.schedule_fn.clone();
             let custom_state = self.custom_state.clone();
 
@@ -634,7 +762,10 @@ mod tests {
                 let mut s = state.get_mut();
                 let id = *s;
                 *s += 1;
-                Ok(CreatedAllocation::new(id.to_string(), Default::default()))
+                Ok(AllocationSubmissionResult::new(
+                    Ok(id.to_string()),
+                    Default::default(),
+                ))
             },
             move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
             |_, _| async move { Ok(()) },
@@ -650,7 +781,10 @@ mod tests {
                 let id_state = &mut state.get_mut().spawned_allocations;
                 let id = *id_state;
                 *id_state += 1;
-                Ok(CreatedAllocation::new(id.to_string(), Default::default()))
+                Ok(AllocationSubmissionResult::new(
+                    Ok(id.to_string()),
+                    Default::default(),
+                ))
             },
             move |state, id| async move {
                 let state = &mut state.get_mut().state;

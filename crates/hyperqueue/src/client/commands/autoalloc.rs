@@ -228,16 +228,20 @@ async fn dry_run(opts: DryRunOpts) -> anyhow::Result<()> {
     let queue_info = create_queue_info(params);
 
     let allocation = handler
-        .schedule_allocation(0, &queue_info, worker_count as u64)
+        .submit_allocation(0, &queue_info, worker_count as u64)
         .await
         .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
 
+    let working_dir = allocation.working_dir().to_path_buf();
+    let id = allocation
+        .into_id()
+        .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
     let allocation = Allocation {
-        id: allocation.id().to_string(),
+        id: id.to_string(),
         worker_count: 1,
         queued_at: SystemTime::now(),
         status: AllocationStatus::Queued,
-        working_dir: allocation.working_dir().into(),
+        working_dir,
     };
     handler
         .remove_allocation(&allocation)

@@ -174,6 +174,14 @@ server directory:
     hq-submit.sh
     ```
 
+    !!! tip
+
+        HyperQueue will store the `hq-submit.sh` file on disk even if the allocation fails to be queued.
+        You can use this file to debug the submission failure.
+
+        To avoid wasting disk space, HyperQueue will only keep a small number of most recent
+        directories of unqueued allocations, older ones will be deleted.
+
 ## Useful autoalloc commands
 Here is a list of useful commands to manage automatic allocation:
 

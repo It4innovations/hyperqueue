@@ -1,5 +1,15 @@
 # DEV
 
+## Fixes
+
+### Automatic allocation
+* [Issue #294](https://github.com/It4innovations/hyperqueue/issues/294): If the automatic allocator
+  fails to submit an allocation, it leaves behind a directory on the filesystem, which contains useful
+  debugging information. However, HyperQueue could create a lot these files and directories if
+  allocations were failing to be submitted repeatedly. To alleviate this, HyperQueue will now keep
+  only the last `16` directories of unsubmitted allocations. Older directories will be removed to
+  save space.
+
 ## New features
 
 ### Worker configuration

@@ -1,5 +1,6 @@
-from ...conftest import HqEnv
 from pyhq.ffi.ffi import connect_to_server, stop_server
+
+from ...conftest import HqEnv
 
 
 def test_stop_server(hq_env: HqEnv):

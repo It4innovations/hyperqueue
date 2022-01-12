@@ -12,7 +12,7 @@ use crate::server::autoalloc::descriptor::common::{
     build_worker_args, check_command_output, create_allocation_dir, create_command, submit_script,
     ExternalHandler,
 };
-use crate::server::autoalloc::descriptor::{CreatedAllocation, QueueHandler};
+use crate::server::autoalloc::descriptor::{AllocationSubmissionResult, QueueHandler};
 use crate::server::autoalloc::state::AllocationStatus;
 use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId, QueueInfo};
 
@@ -28,12 +28,12 @@ impl PbsHandler {
 }
 
 impl QueueHandler for PbsHandler {
-    fn schedule_allocation(
+    fn submit_allocation(
         &mut self,
         descriptor_id: DescriptorId,
         queue_info: &QueueInfo,
         worker_count: u64,
-    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>> {
+    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationSubmissionResult>>>> {
         let queue_info = queue_info.clone();
         let timelimit = queue_info.timelimit;
         let hq_path = self.handler.hq_path.clone();
@@ -61,9 +61,9 @@ impl QueueHandler for PbsHandler {
                 &worker_args,
             );
             let job_id =
-                submit_script(script, "qsub", &directory, |output| Ok(output.to_string())).await?;
+                submit_script(script, "qsub", &directory, |output| Ok(output.to_string())).await;
 
-            Ok(CreatedAllocation {
+            Ok(AllocationSubmissionResult {
                 id: job_id,
                 working_dir: directory,
             })

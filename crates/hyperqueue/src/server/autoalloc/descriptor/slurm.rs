@@ -14,7 +14,7 @@ use crate::common::timeutils::local_to_system_time;
 use crate::server::autoalloc::descriptor::common::{
     build_worker_args, create_allocation_dir, create_command, submit_script, ExternalHandler,
 };
-use crate::server::autoalloc::descriptor::{common, CreatedAllocation, QueueHandler};
+use crate::server::autoalloc::descriptor::{common, AllocationSubmissionResult, QueueHandler};
 use crate::server::autoalloc::state::AllocationStatus;
 use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId, QueueInfo};
 
@@ -30,12 +30,12 @@ impl SlurmHandler {
 }
 
 impl QueueHandler for SlurmHandler {
-    fn schedule_allocation(
+    fn submit_allocation(
         &mut self,
         descriptor_id: DescriptorId,
         queue_info: &QueueInfo,
         worker_count: u64,
-    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>> {
+    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationSubmissionResult>>>> {
         let queue_info = queue_info.clone();
         let timelimit = queue_info.timelimit;
         let hq_path = self.handler.hq_path.clone();
@@ -44,7 +44,7 @@ impl QueueHandler for SlurmHandler {
         let allocation_num = self.handler.create_allocation_id();
 
         Box::pin(async move {
-            let directory = create_allocation_dir(
+            let working_dir = create_allocation_dir(
                 server_directory.clone(),
                 descriptor_id,
                 name.as_ref(),
@@ -57,24 +57,21 @@ impl QueueHandler for SlurmHandler {
                 worker_count,
                 timelimit,
                 &format!("hq-alloc-{}", descriptor_id),
-                &directory.join("stdout").display().to_string(),
-                &directory.join("stderr").display().to_string(),
+                &working_dir.join("stdout").display().to_string(),
+                &working_dir.join("stderr").display().to_string(),
                 &queue_info.additional_args.join(" "),
                 &worker_args,
             );
-            let job_id = submit_script(script, "sbatch", &directory, |output| {
+            let id = submit_script(script, "sbatch", &working_dir, |output| {
                 output
                     .split(' ')
                     .nth(3)
                     .ok_or_else(|| anyhow::anyhow!("Missing job id in sbatch output"))
                     .map(|id| id.to_string())
             })
-            .await?;
+            .await;
 
-            Ok(CreatedAllocation {
-                id: job_id,
-                working_dir: directory,
-            })
+            Ok(AllocationSubmissionResult::new(id, working_dir))
         })
     }
 

@@ -1,4 +1,4 @@
-from .ffi.ffi import TaskDescription, connect_to_server, JobDescription, submit_job
+from .ffi.ffi import JobDescription, TaskDescription, connect_to_server, submit_job
 from .job import Job
 
 
@@ -8,7 +8,7 @@ class Client:
 
     def submit(self, job: Job):
         configs = job.build()
-        job = JobDescription(tasks=[
-            TaskDescription(args=config.args) for config in configs
-        ])
+        job = JobDescription(
+            tasks=[TaskDescription(args=config.args) for config in configs]
+        )
         return submit_job(self.ctx, job)
