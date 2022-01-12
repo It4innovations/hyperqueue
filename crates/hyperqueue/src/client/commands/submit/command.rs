@@ -10,6 +10,7 @@ use tako::common::resources::{CpuRequest, GenericResourceAmount};
 use tako::messages::common::{ProgramDefinition, StdioDef};
 use tako::messages::gateway::{GenericResourceRequest, ResourceRequest};
 
+use super::directives::parse_hq_directives;
 use crate::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
@@ -112,24 +113,26 @@ impl FromStr for StdioArg {
     }
 }
 
+/* This is a special kind of parser because some argument may be used setted
+  through #HQ directives. This implies two things:
+  * Do not used "default_value" but write default in documentation and set default in code
+  * You may use conflicts_with(...) but do not forget to modify merge method
+*/
 #[derive(Parser)]
-#[clap(setting = clap::AppSettings::TrailingVarArg)]
-pub struct JobSubmitOpts {
-    /// Command that should be executed by each task
-    #[clap(required = true)]
-    commands: Vec<String>,
-
+pub struct SubmitJobConfOpts {
     /// Number and placement of CPUs for each job
-    #[clap(long, default_value = "1")]
-    cpus: ArgCpuRequest,
+    /// [default: 1]
+    #[clap(long)]
+    cpus: Option<ArgCpuRequest>,
 
     /// Generic resource request in form <NAME>=<AMOUNT>
     #[clap(long, setting = clap::ArgSettings::MultipleOccurrences)]
     resource: Vec<ArgNamedResourceRequest>,
 
     /// Minimal lifetime of the worker needed to start the job
-    #[clap(long, default_value = "0ms")]
-    time_request: ArgDuration,
+    /// [default: 0ms]
+    #[clap(long)]
+    time_request: Option<ArgDuration>,
 
     /// Name of the job
     #[clap(long)]
@@ -141,8 +144,9 @@ pub struct JobSubmitOpts {
 
     /// Working directory for the submitted job.
     /// The path must be accessible from worker nodes
-    #[clap(long, default_value("%{SUBMIT_DIR}"))]
-    cwd: PathBuf,
+    /// [default: %{SUBMIT_DIR}]
+    #[clap(long)]
+    cwd: Option<PathBuf>,
 
     /// Path where the standard output of the job will be stored.
     /// The path must be accessible from worker nodes
@@ -188,13 +192,64 @@ pub struct JobSubmitOpts {
     #[clap(long)]
     max_fails: Option<JobTaskCount>,
 
-    /// Priority of each task
-    #[clap(long, default_value = "0")]
-    priority: tako::Priority,
+    /// Priority of each task [default: 0]
+    #[clap(long)]
+    priority: Option<tako::Priority>,
 
     #[clap(long)]
     /// Time limit per task. E.g. --time-limit=10min
     time_limit: Option<ArgDuration>,
+
+    /// Stream the output of tasks into this log file.
+    #[clap(long)]
+    log: Option<PathBuf>,
+}
+
+impl SubmitJobConfOpts {
+    pub fn merge(self, mut other: SubmitJobConfOpts) -> SubmitJobConfOpts {
+        let mut env = self.env;
+        env.append(&mut other.env);
+
+        let mut resource = self.resource;
+        resource.append(&mut other.resource);
+
+        let (each_line, from_json, array) =
+            if self.each_line.is_some() || self.from_json.is_some() || self.array.is_some() {
+                (self.each_line, self.from_json, self.array)
+            } else {
+                (other.each_line, other.from_json, other.array)
+            };
+
+        SubmitJobConfOpts {
+            cpus: self.cpus.or(other.cpus),
+            resource,
+            time_request: self.time_request.or(other.time_request),
+            name: self.name.or(other.name),
+            pin: self.pin || other.pin,
+            cwd: self.cwd.or(other.cwd),
+            stdout: self.stdout.or(other.stdout),
+            stderr: self.stderr.or(other.stderr),
+            env,
+            each_line,
+            from_json,
+            array,
+            max_fails: self.max_fails.or(other.max_fails),
+            priority: self.priority.or(other.priority),
+            time_limit: self.time_limit.or(other.time_limit),
+            log: self.log.or(other.log),
+        }
+    }
+}
+
+#[derive(Parser)]
+#[clap(setting = clap::AppSettings::TrailingVarArg)]
+pub struct JobSubmitOpts {
+    /// Command that should be executed by each task
+    #[clap(required = true)]
+    commands: Vec<String>,
+
+    #[clap(flatten)]
+    conf: SubmitJobConfOpts,
 
     /// Wait for the job to finish.
     #[clap(long, conflicts_with("progress"))]
@@ -204,14 +259,16 @@ pub struct JobSubmitOpts {
     #[clap(long, conflicts_with("wait"))]
     progress: bool,
 
-    /// Stream the output of tasks into this log file.
+    /// Parse directives from submited file
+    /// (it is done automatically if suffix of command is ".sh"
     #[clap(long)]
-    log: Option<PathBuf>,
+    directives: bool,
 }
 
 impl JobSubmitOpts {
     fn resource_request(&self) -> ResourceRequest {
         let generic_resources = self
+            .conf
             .resource
             .iter()
             .map(|gr| {
@@ -224,8 +281,18 @@ impl JobSubmitOpts {
             .collect();
 
         ResourceRequest {
-            cpus: self.cpus.get().clone(),
-            min_time: *self.time_request.get(),
+            cpus: self
+                .conf
+                .cpus
+                .as_ref()
+                .map(|c| c.get().clone())
+                .unwrap_or_default(),
+            min_time: self
+                .conf
+                .time_request
+                .as_ref()
+                .map(|t| *t.get())
+                .unwrap_or_else(|| std::time::Duration::from_millis(0)),
             generic: generic_resources,
         }
     }
@@ -244,8 +311,14 @@ fn create_stdio(arg: Option<StdioArg>, log: &Option<PathBuf>, default: &str) -> 
 pub async fn submit_computation(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
-    opts: JobSubmitOpts,
+    mut opts: JobSubmitOpts,
 ) -> anyhow::Result<()> {
+    if let Some(command) = opts.commands.get(0) {
+        if opts.directives || command.ends_with(".sh") {
+            opts.conf = parse_hq_directives(&PathBuf::from(&command), opts.conf)?;
+        }
+    }
+
     let resources = opts.resource_request();
     let (ids, entries) = get_ids_and_entries(&opts)?;
     let task_count = ids.id_count();
@@ -254,24 +327,28 @@ pub async fn submit_computation(
 
     let JobSubmitOpts {
         commands,
-        cpus: _,
-        resource: _,
-        time_request: _,
-        name,
-        pin,
-        cwd,
-        stdout,
-        stderr,
-        env,
-        each_line: _,
-        from_json: _,
-        array: _,
-        max_fails,
-        priority,
-        time_limit,
         wait,
         progress,
-        log,
+        directives: _,
+        conf:
+            SubmitJobConfOpts {
+                cpus: _,
+                resource: _,
+                time_request: _,
+                name,
+                pin,
+                cwd,
+                stdout,
+                stderr,
+                env,
+                each_line: _,
+                from_json: _,
+                array: _,
+                max_fails,
+                priority,
+                time_limit,
+                log,
+            },
     } = opts;
 
     let name = if let Some(name) = name {
@@ -285,9 +362,11 @@ pub async fn submit_computation(
 
     let args: Vec<BString> = commands.into_iter().map(|arg| arg.into()).collect();
 
-    let cwd = Some(cwd);
     let stdout = create_stdio(stdout, &log, DEFAULT_STDOUT_PATH);
     let stderr = create_stdio(stderr, &log, DEFAULT_STDERR_PATH);
+    let cwd = Some(cwd.unwrap_or_else(|| PathBuf::from("%{SUBMIT_DIR}")));
+    let priority = priority.unwrap_or(0);
+    let time_limit = time_limit.map(|x| x.unpack());
 
     let env_count = env.len();
     let env: Map<_, _> = env.into_iter().map(|env| (env.key, env.value)).collect();
@@ -305,12 +384,13 @@ pub async fn submit_computation(
         stderr,
         cwd,
     };
+
     let task_desc = TaskDescription {
         program: program_def,
         resources,
         pin,
         priority,
-        time_limit: time_limit.map(|x| x.unpack()),
+        time_limit,
     };
 
     let job_desc = JobDescription::Array {
@@ -345,9 +425,9 @@ pub async fn submit_computation(
 }
 
 fn get_ids_and_entries(opts: &JobSubmitOpts) -> anyhow::Result<(IntArray, Option<Vec<BString>>)> {
-    let entries = if let Some(ref filename) = opts.each_line {
+    let entries = if let Some(ref filename) = opts.conf.each_line {
         Some(read_lines(filename)?)
-    } else if let Some(ref filename) = opts.from_json {
+    } else if let Some(ref filename) = opts.conf.from_json {
         Some(make_entries_from_json(filename)?)
     } else {
         None
@@ -355,7 +435,7 @@ fn get_ids_and_entries(opts: &JobSubmitOpts) -> anyhow::Result<(IntArray, Option
 
     let ids = if let Some(ref entries) = entries {
         IntArray::from_range(0, entries.len() as JobTaskCount)
-    } else if let Some(ref array) = opts.array {
+    } else if let Some(ref array) = opts.conf.array {
         array.clone()
     } else {
         IntArray::from_id(0)
@@ -375,15 +455,15 @@ fn warn_array_task_count(opts: &JobSubmitOpts, task_count: u32) {
 
     let mut task_files = 0;
     let mut active_dirs = Vec::new();
-    if is_path_some(opts.stdout.as_ref()) {
+    if is_path_some(opts.conf.stdout.as_ref()) {
         task_files += task_count;
         active_dirs.push("stdout");
     }
-    if is_path_some(opts.stderr.as_ref()) {
+    if is_path_some(opts.conf.stderr.as_ref()) {
         task_files += task_count;
         active_dirs.push("stderr");
     }
-    if task_files > SUBMIT_ARRAY_LIMIT && opts.log.is_none() {
+    if task_files > SUBMIT_ARRAY_LIMIT && opts.conf.log.is_none() {
         log::warn!(
             "The job will create {} files for{}. \
             Consider using the `--log` option to stream all outputs into a single file",
@@ -410,8 +490,8 @@ fn warn_missing_task_id(opts: &JobSubmitOpts, task_count: u32) {
     };
 
     if task_count > 1 {
-        check_path(opts.stdout.as_ref(), "stdout");
-        check_path(opts.stderr.as_ref(), "stderr");
+        check_path(opts.conf.stdout.as_ref(), "stdout");
+        check_path(opts.conf.stderr.as_ref(), "stderr");
     }
 }
 
@@ -433,33 +513,34 @@ fn warn_unknown_placeholders(opts: &JobSubmitOpts) {
     };
 
     check(
-        opts.stdout.as_ref().and_then(|arg| match &arg.0 {
+        opts.conf.stdout.as_ref().and_then(|arg| match &arg.0 {
             StdioDef::File(path) => Some(path.as_path()),
             _ => None,
         }),
         "stdout path",
     );
     check(
-        opts.stderr.as_ref().and_then(|arg| match &arg.0 {
+        opts.conf.stderr.as_ref().and_then(|arg| match &arg.0 {
             StdioDef::File(path) => Some(path.as_path()),
             _ => None,
         }),
         "stderr path",
     );
-    check(opts.log.as_deref(), "log path");
-    check(Some(opts.cwd.as_path()), "working directory path");
+    check(opts.conf.log.as_deref(), "log path");
+    check(opts.conf.cwd.as_deref(), "working directory path");
 }
 
 /// Returns an error if working directory contains the CWD placeholder.
 fn check_valid_cwd(opts: &JobSubmitOpts) -> anyhow::Result<()> {
-    let placeholders = parse_resolvable_string(opts.cwd.to_str().unwrap());
-    if placeholders.contains(&StringPart::Placeholder(CWD_PLACEHOLDER)) {
-        return Err(anyhow!(
-            "Working directory path cannot contain the working directory placeholder `%{{{}}}`.",
-            CWD_PLACEHOLDER
-        ));
+    if let Some(cwd) = &opts.conf.cwd {
+        let placeholders = parse_resolvable_string(cwd.to_str().unwrap());
+        if placeholders.contains(&StringPart::Placeholder(CWD_PLACEHOLDER)) {
+            return Err(anyhow!(
+                "Working directory path cannot contain the working directory placeholder `%{{{}}}`.",
+                CWD_PLACEHOLDER
+            ));
+        }
     }
-
     Ok(())
 }
 

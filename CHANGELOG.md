@@ -18,6 +18,12 @@
 
 ## New features
 
+
+### Job configurations
+   * ``#HQ`` directives - Job arguments can be defined inside a submitted script, e.g.
+     ``#HQ --cpus=4``.
+
+
 ### Worker configuration
   * You can now select what should happen when a worker loses its connection to the server using the
     new `--on-worker-lost` flag available for `worker start` and `hq alloc add` commands. You can find
