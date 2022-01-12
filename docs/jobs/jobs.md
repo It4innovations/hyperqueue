@@ -74,8 +74,8 @@ $ hq submit --cwd=<path> ...
 By default, each job will produce two files containing the standard output and standard error output, respectively. The
 default paths of these files are
 
-- `job-%{JOB_ID}/%{TASK_ID}.stdout` for `stdout`
-- `job-%{JOB_ID}/%{TASK_ID}.stderr` for `stderr`
+- `%{SUBMIT_DIR}/job-%{JOB_ID}/%{TASK_ID}.stdout` for `stdout`
+- `%{SUBMIT_DIR}/job-%{JOB_ID}/%{TASK_ID}.stderr` for `stderr`
 
 `%{JOB_ID}` and `%{TASK_ID}` are so-called placeholders, you can read about them [below](#placeholders).
 
@@ -183,16 +183,13 @@ Placeholders are enclosed in curly braces (`{}`) and prefixed with a percent (`%
 
 You can use the following placeholders:
 
-| Placeholder | Will be replaced by |
-| ----------- | ------------------------------------ |
-| `%{JOB_ID}`     | Job ID |
-| `%{TASK_ID}`    | Task ID (*) |
-| `%{INSTANCE_ID}` | [Instance ID](failure.md#task-restart) |
-| `%{SUBMIT_DIR}` | Directory from which the job was submitted. (*) |
-| `%{CWD}`        | Working directory of the job.<br/><br/>This placeholder is only available for `stdout` and `stderr` paths. |
-| `%{DATE}`       | Date when the job was executed in the [RFC3339](https://datatracker.ietf.org/doc/html/rfc3339) format. (*) |
-
-\* These placeholders are available for the streaming [log](streaming.md#redirecting-output-to-the-log) path.
+| Placeholder      | Will be replaced by                         | Available for                    |
+|------------------|---------------------------------------------|----------------------------------|
+| `%{JOB_ID}`      | Job ID                                      | `stdout`, `stderr`, `cwd`, `log` |
+| `%{TASK_ID}`     | Task ID                                     | `stdout`, `stderr`, `cwd`        |
+| `%{INSTANCE_ID}` | [Instance ID](failure.md#task-restart)      | `stdout`, `stderr`, `cwd`        |
+| `%{SUBMIT_DIR}`  | Directory from which the job was submitted. | `stdout`, `stderr`, `cwd`, `log` |
+| `%{CWD}`         | Working directory of the task.              | `stdout`, `stderr`               |
 
 ## State
 At any moment in time, each task and job has a specific *state* that represents what is currently happening to it. You
