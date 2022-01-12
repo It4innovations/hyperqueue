@@ -1,6 +1,5 @@
-from typing import List, Optional
-
 import dataclasses
+from typing import List, Optional
 
 from .. import pyhq as ffi
 

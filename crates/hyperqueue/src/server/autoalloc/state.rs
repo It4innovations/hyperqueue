@@ -8,7 +8,11 @@ use crate::common::idcounter::IdCounter;
 use crate::server::autoalloc::descriptor::QueueDescriptor;
 use crate::Map;
 
+/// Maximum number of autoalloc events stored in memory
 const MAX_EVENT_QUEUE_LENGTH: usize = 100;
+
+/// Maximum number of unsubmitted allocation directories kept on disk
+pub(super) const MAX_UNSUBMITTED_DIRECTORIES_KEPT: usize = 16;
 
 pub type DescriptorId = u32;
 
@@ -63,10 +67,12 @@ impl AutoAllocState {
 /// Represents the state of a single allocation queue.
 pub struct DescriptorState {
     pub descriptor: QueueDescriptor,
-    /// Active allocations
+    /// Active allocations.
     allocations: Map<AllocationId, Allocation>,
     /// Records events that have occurred on this queue.
     events: VecDeque<AllocationEventHolder>,
+    /// Directories of allocations that have failed to be submitted.
+    unsubmitted_allocation_directories: VecDeque<PathBuf>,
 }
 
 impl From<QueueDescriptor> for DescriptorState {
@@ -75,6 +81,7 @@ impl From<QueueDescriptor> for DescriptorState {
             descriptor,
             allocations: Default::default(),
             events: Default::default(),
+            unsubmitted_allocation_directories: Default::default(),
         }
     }
 }
@@ -123,6 +130,24 @@ impl DescriptorState {
         if self.allocations.remove(key).is_none() {
             log::warn!("Trying to remove non-existent allocation {}", key);
         }
+    }
+
+    /// Stores the directory of an unsubmitted allocation that should be later deleted.
+    ///
+    /// The directory is not deleted right away to allow the user to debug potential failures.
+    pub fn store_unsubmitted_directory(&mut self, directory: PathBuf) {
+        self.unsubmitted_allocation_directories.push_back(directory);
+    }
+
+    /// Returns directories of allocations that have failed to be submitted that are scheduled for
+    /// removal.
+    pub fn get_submission_directories_for_removal(&mut self) -> Vec<PathBuf> {
+        let mut to_remove = Vec::new();
+        while self.unsubmitted_allocation_directories.len() > MAX_UNSUBMITTED_DIRECTORIES_KEPT {
+            let directory = self.unsubmitted_allocation_directories.pop_front().unwrap();
+            to_remove.push(directory);
+        }
+        to_remove
     }
 }
 

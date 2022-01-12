@@ -4,7 +4,6 @@ from typing import Dict, List, Optional, Union
 from .output import Output, gather_outputs
 from .validation import ValidationException, validate_args
 
-
 EnvType = Optional[Dict[str, str]]
 ProgramArgs = Union[List[str], str]
 

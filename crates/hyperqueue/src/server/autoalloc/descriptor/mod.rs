@@ -123,19 +123,30 @@ impl QueueInfo {
 }
 
 #[derive(Debug)]
-pub struct CreatedAllocation {
-    id: AllocationId,
+pub struct AllocationSubmissionResult {
+    /// Directory containing stdout/stderr of the allocation (if submission was successful)
+    /// and with debug information.
+    ///
+    /// It is returned always because we need to delete regularly to avoid too many directories and
+    /// files being created.
     working_dir: PathBuf,
+    /// ID of the created allocation, if it was successfully submitted.
+    id: AutoAllocResult<AllocationId>,
 }
 
-impl CreatedAllocation {
-    pub fn new(id: AllocationId, working_dir: PathBuf) -> Self {
+impl AllocationSubmissionResult {
+    pub fn new(id: AutoAllocResult<AllocationId>, working_dir: PathBuf) -> Self {
         Self { id, working_dir }
     }
 
-    pub fn id(&self) -> &str {
-        &self.id
+    pub fn is_success(&self) -> bool {
+        self.id.is_ok()
     }
+
+    pub fn into_id(self) -> AutoAllocResult<AllocationId> {
+        self.id
+    }
+
     pub fn working_dir(&self) -> &Path {
         self.working_dir.as_path()
     }
@@ -143,13 +154,17 @@ impl CreatedAllocation {
 
 /// Handler that can communicate with some allocation queue (e.g. PBS/Slurm queue)
 pub trait QueueHandler {
-    /// Schedule an allocation that will start the corresponding number of workers.
-    fn schedule_allocation(
+    /// Submit an allocation that will start the corresponding number of workers.
+    ///
+    /// If the method returns an error, no directory was created on disk.
+    /// If it returns Ok, the directory was created and submission result can be read out of the
+    /// `id` field of `AllocationSubmissionResult`.
+    fn submit_allocation(
         &mut self,
         descriptor_id: DescriptorId,
         queue_info: &QueueInfo,
         worker_count: u64,
-    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<CreatedAllocation>>>>;
+    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationSubmissionResult>>>>;
 
     /// Get status of an existing allocation
     /// TODO: get status of multiple allocations to amortize qstat cost
