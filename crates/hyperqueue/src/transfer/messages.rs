@@ -151,6 +151,7 @@ pub struct AllocationQueueParams {
     pub worker_cpu_arg: Option<String>,
     pub worker_resources_args: Vec<String>,
     pub max_worker_count: Option<u32>,
+    pub max_kept_directories: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -19,6 +19,7 @@ pub struct QueueDescriptor {
     info: QueueInfo,
     name: Option<String>,
     handler: Box<dyn QueueHandler>,
+    max_kept_directories: usize,
 }
 
 impl QueueDescriptor {
@@ -27,29 +28,39 @@ impl QueueDescriptor {
         info: QueueInfo,
         name: Option<String>,
         handler: Box<dyn QueueHandler>,
+        max_kept_directories: usize,
     ) -> Self {
         Self {
             manager,
             info,
             name,
             handler,
+            max_kept_directories,
         }
     }
 
     pub fn manager(&self) -> &ManagerType {
         &self.manager
     }
+
     pub fn info(&self) -> &QueueInfo {
         &self.info
     }
+
     pub fn name(&self) -> Option<&str> {
         self.name.as_deref()
     }
+
     pub fn handler(&self) -> &dyn QueueHandler {
         self.handler.as_ref()
     }
+
     pub fn handler_mut(&mut self) -> &mut dyn QueueHandler {
         self.handler.as_mut()
+    }
+
+    pub fn max_kept_directories(&self) -> usize {
+        self.max_kept_directories
     }
 }
 

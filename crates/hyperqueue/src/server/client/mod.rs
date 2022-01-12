@@ -338,6 +338,7 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
         worker_resources_args,
         max_worker_count,
         on_server_lost,
+        max_kept_directories: _,
     } = params;
     QueueInfo::new(
         backlog,
@@ -359,12 +360,14 @@ fn create_queue(
 ) -> ToClientMessage {
     let server_directory = server_dir.directory().to_path_buf();
     let name = params.name.clone();
+    let max_kept_directories = params.max_kept_directories;
     let handler = create_allocation_handler(&manager, name.clone(), server_directory);
     let queue_info = create_queue_info(params);
 
     match handler {
         Ok(handler) => {
-            let descriptor = QueueDescriptor::new(manager, queue_info, name, handler);
+            let descriptor =
+                QueueDescriptor::new(manager, queue_info, name, handler, max_kept_directories);
             let id = state_ref.get_mut().get_autoalloc_state_mut().create_id();
             state_ref
                 .get_mut()

@@ -101,6 +101,15 @@ pub struct SharedQueueOpts {
     #[clap(long, default_value = "finish-running", possible_values = &["stop", "finish-running"])]
     on_server_lost: ArgServerLostPolicy,
 
+    /// Maximum number of directories of inactive (finished, failed, unsubmitted) allocations
+    /// that should be stored on the disk. When the number of inactive directories surpasses this
+    /// value, the least recent directories will be removed.
+    ///
+    /// If you do not need to access the directories (e.g. to debug automatic allocation), you can
+    /// set this to a smaller number to save disk space.
+    #[clap(long, default_value = "20")]
+    max_kept_directories: usize,
+
     /// Additional arguments passed to the submit command
     #[clap()]
     additional_args: Vec<String>,
@@ -200,6 +209,7 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
         resource,
         additional_args,
         on_server_lost,
+        max_kept_directories,
     } = args;
 
     AllocationQueueParams {
@@ -212,6 +222,7 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
         worker_resources_args: resource.into_iter().map(|v| v.into()).collect(),
         max_worker_count,
         on_server_lost: on_server_lost.unpack(),
+        max_kept_directories,
     }
 }
 
