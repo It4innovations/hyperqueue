@@ -127,6 +127,10 @@ impl State {
         id.into()
     }
 
+    pub fn revert_to_job_id(&mut self, id: JobId) {
+        self.job_id_counter = id.as_num();
+    }
+
     pub fn last_n_ids(&self, n: u32) -> impl Iterator<Item = JobId> {
         let n = min(n, self.job_id_counter - 1);
         ((self.job_id_counter - n)..self.job_id_counter).map(|id| id.into())

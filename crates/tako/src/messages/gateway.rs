@@ -7,13 +7,13 @@ use crate::server::task::SerializedTaskContext;
 use crate::{Priority, TaskId, WorkerId};
 use std::time::Duration;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GenericResourceRequest {
     pub resource: String,
     pub amount: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct ResourceRequest {
     #[serde(default)]
     pub cpus: CpuRequest,

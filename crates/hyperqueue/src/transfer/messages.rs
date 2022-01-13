@@ -56,7 +56,7 @@ pub struct TaskDescription {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskWithDependencies {
     pub id: JobTaskId,
-    pub task: TaskDescription,
+    pub task_desc: TaskDescription,
     pub dependencies: Vec<JobTaskId>,
 }
 
