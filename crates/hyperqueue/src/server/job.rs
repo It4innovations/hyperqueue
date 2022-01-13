@@ -154,6 +154,19 @@ impl Job {
                     )
                 })
                 .collect(),
+            JobDescription::Graph { tasks } => tasks
+                .iter()
+                .enumerate()
+                .map(|(i, task)| {
+                    (
+                        TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
+                        JobTaskInfo {
+                            state: JobTaskState::Waiting,
+                            task_id: task.id,
+                        },
+                    )
+                })
+                .collect(),
         };
 
         Job {

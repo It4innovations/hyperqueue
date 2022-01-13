@@ -10,7 +10,7 @@ use nom_supreme::tag::complete::tag;
 
 use tako::messages::common::ProgramDefinition;
 
-use crate::common::env::{HQ_INSTANCE_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
+use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::parser::NomResult;
 use crate::{JobId, Map};
 
@@ -28,7 +28,12 @@ fn env_key(key: &str) -> &BStr {
 
 /// Fills placeholder values known on the worker.
 pub fn fill_placeholders_worker(program: &mut ProgramDefinition) {
+    let submit_dir: PathBuf = program.env[env_key(HQ_SUBMIT_DIR)].to_string().into();
+
     let mut placeholders = PlaceholderMap::new();
+
+    let job_id = program.env[env_key(HQ_JOB_ID)].to_string();
+    placeholders.insert(HQ_JOB_ID, job_id.into());
 
     let task_id = program.env[env_key(HQ_TASK_ID)].to_string();
     placeholders.insert(TASK_ID_PLACEHOLDER, task_id.into());
@@ -36,7 +41,8 @@ pub fn fill_placeholders_worker(program: &mut ProgramDefinition) {
     let instance_id = program.env[env_key(HQ_INSTANCE_ID)].to_string();
     placeholders.insert(INSTANCE_ID_PLACEHOLDER, instance_id.into());
 
-    let submit_dir: PathBuf = program.env[env_key(HQ_SUBMIT_DIR)].to_string().into();
+    placeholders.insert(SUBMIT_DIR_PLACEHOLDER, submit_dir.to_str().unwrap().into());
+
     resolve_program_paths(placeholders, program, &submit_dir, true);
 }
 

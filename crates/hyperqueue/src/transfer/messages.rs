@@ -54,21 +54,29 @@ pub struct TaskDescription {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TaskWithDependencies {
+    pub id: JobTaskId,
+    pub task: TaskDescription,
+    pub dependencies: Vec<JobTaskId>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum JobDescription {
+    /// Either a single-task job or a task array usually submitted through the CLI.
     Array {
         ids: IntArray,
         entries: Option<Vec<BString>>,
         task_desc: TaskDescription,
     },
+    /// Generic DAG of tasks usually submitted through the Python binding.
+    Graph { tasks: Vec<TaskWithDependencies> },
 }
 
 impl JobDescription {
-    pub fn is_simple_job(&self) -> bool {
-        self.task_count() == 1
-    }
     pub fn task_count(&self) -> JobTaskCount {
         match self {
             JobDescription::Array { ids, .. } => ids.id_count() as JobTaskCount,
+            JobDescription::Graph { tasks } => tasks.len() as JobTaskCount,
         }
     }
 }

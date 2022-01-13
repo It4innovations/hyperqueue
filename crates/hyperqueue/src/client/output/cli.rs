@@ -16,8 +16,8 @@ use crate::server::autoalloc::{
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, StatsResponse, WaitForJobsResponse,
-    WorkerExitInfo, WorkerInfo,
+    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, StatsResponse, TaskDescription,
+    WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
 };
 use crate::{JobTaskCount, WorkerId};
 
@@ -164,6 +164,81 @@ impl CliOutput {
                 }
             }
         }
+    }
+
+    fn print_job_shared_task_description(
+        &self,
+        rows: &mut Vec<Vec<CellStruct>>,
+        task_desc: &TaskDescription,
+    ) {
+        let TaskDescription {
+            program,
+            resources,
+            pin,
+            time_limit,
+            priority,
+        } = task_desc;
+
+        let resources = format_resource_request(resources);
+        rows.push(vec![
+            "Resources".cell().bold(true),
+            if *pin {
+                format!("{} [pin]", resources)
+            } else {
+                resources
+            }
+            .cell(),
+        ]);
+
+        rows.push(vec!["Priority".cell().bold(true), priority.cell()]);
+
+        rows.push(vec![
+            "Command".cell().bold(true),
+            program
+                .args
+                .iter()
+                .map(|x| textwrap::fill(&x.to_string(), TERMINAL_WIDTH))
+                .collect::<Vec<String>>()
+                .join("\n")
+                .cell(),
+        ]);
+        rows.push(vec![
+            "Stdout".cell().bold(true),
+            stdio_to_cell(&program.stdout),
+        ]);
+        rows.push(vec![
+            "Stderr".cell().bold(true),
+            stdio_to_cell(&program.stderr),
+        ]);
+        let mut env_vars: Vec<(_, _)> = program.env.iter().filter(|(k, _)| !is_hq_env(k)).collect();
+        env_vars.sort_by_key(|item| item.0);
+        rows.push(vec![
+            "Environment".cell().bold(true),
+            env_vars
+                .into_iter()
+                .map(|(k, v)| format!("{}={}", k, v))
+                .collect::<Vec<_>>()
+                .join("\n")
+                .cell(),
+        ]);
+
+        rows.push(vec![
+            "Working directory".cell().bold(true),
+            program
+                .cwd
+                .as_ref()
+                .map(|cwd| cwd.display().to_string())
+                .unwrap()
+                .cell(),
+        ]);
+
+        rows.push(vec![
+            "Task time limit".cell().bold(true),
+            time_limit
+                .map(|duration| humantime::format_duration(duration).to_string())
+                .unwrap_or_else(|| "None".to_string())
+                .cell(),
+        ]);
     }
 }
 
@@ -404,8 +479,14 @@ impl Output for CliOutput {
         rows.push(vec![state_label, status]);
 
         let mut n_tasks = info.n_tasks.to_string();
-        let JobDescription::Array { ids, .. } = &job_desc;
-        n_tasks.push_str(&format!("; Ids: {}", ids));
+        match &job_desc {
+            JobDescription::Array { ids, .. } => {
+                n_tasks.push_str(&format!("; Ids: {}", ids));
+            }
+            JobDescription::Graph { .. } => {
+                // TODO
+            }
+        }
 
         rows.push(vec!["Tasks".cell().bold(true), n_tasks.cell()]);
         rows.push(vec![
@@ -413,71 +494,9 @@ impl Output for CliOutput {
             format_job_workers(&tasks, &worker_map).cell(),
         ]);
 
-        let (resources, program_def, time_limit, priority, pin) = match &job_desc {
-            JobDescription::Array { task_desc, .. } => (
-                &task_desc.resources,
-                &task_desc.program,
-                task_desc.time_limit,
-                task_desc.priority,
-                task_desc.pin,
-            ),
-        };
-        let resources = format_resource_request(resources);
-        rows.push(vec![
-            "Resources".cell().bold(true),
-            if pin {
-                format!("{} [pin]", resources)
-            } else {
-                resources
-            }
-            .cell(),
-        ]);
-
-        rows.push(vec!["Priority".cell().bold(true), priority.cell()]);
-
-        rows.push(vec![
-            "Command".cell().bold(true),
-            program_def
-                .args
-                .iter()
-                .map(|x| textwrap::fill(&x.to_string(), TERMINAL_WIDTH))
-                .collect::<Vec<String>>()
-                .join("\n")
-                .cell(),
-        ]);
-        rows.push(vec![
-            "Stdout".cell().bold(true),
-            stdio_to_cell(&program_def.stdout),
-        ]);
-        rows.push(vec![
-            "Stderr".cell().bold(true),
-            stdio_to_cell(&program_def.stderr),
-        ]);
-        let mut env_vars: Vec<(_, _)> = program_def
-            .env
-            .iter()
-            .filter(|(k, _)| !is_hq_env(k))
-            .collect();
-        env_vars.sort_by_key(|item| item.0);
-        rows.push(vec![
-            "Environment".cell().bold(true),
-            env_vars
-                .into_iter()
-                .map(|(k, v)| format!("{}={}", k, v))
-                .collect::<Vec<_>>()
-                .join("\n")
-                .cell(),
-        ]);
-
-        rows.push(vec![
-            "Working directory".cell().bold(true),
-            program_def
-                .cwd
-                .as_ref()
-                .map(|cwd| cwd.display().to_string())
-                .unwrap()
-                .cell(),
-        ]);
+        if let JobDescription::Array { task_desc, .. } = &job_desc {
+            self.print_job_shared_task_description(&mut rows, task_desc);
+        }
 
         rows.push(vec![
             "Submission date".cell().bold(true),
@@ -487,14 +506,6 @@ impl Output for CliOutput {
         rows.push(vec![
             "Submission directory".cell().bold(true),
             submit_dir.to_str().unwrap().cell(),
-        ]);
-
-        rows.push(vec![
-            "Task time limit".cell().bold(true),
-            time_limit
-                .map(|duration| humantime::format_duration(duration).to_string())
-                .unwrap_or_else(|| "None".to_string())
-                .cell(),
         ]);
 
         rows.push(vec![
