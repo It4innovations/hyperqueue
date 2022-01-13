@@ -9,7 +9,6 @@ use tako::messages::gateway::{
 };
 use tako::TaskId;
 
-use crate::client::status::task_status;
 use crate::common::arraydef::IntArray;
 use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::placeholders::{
@@ -17,89 +16,72 @@ use crate::common::placeholders::{
 };
 use crate::server::job::Job;
 use crate::server::rpc::Backend;
-use crate::server::state::StateRef;
+use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
     JobDescription, ResubmitRequest, SubmitRequest, SubmitResponse, TaskBody, TaskDescription,
     ToClientMessage,
 };
-use crate::{JobId, JobTaskId};
+use crate::{JobId, JobTaskId, TakoTaskId};
+
+struct JobContext<'a> {
+    id: JobId,
+    tako_base_id: TakoTaskId,
+    submit_dir: &'a Path,
+}
 
 pub async fn handle_submit(
     state_ref: &StateRef,
     tako_ref: &Backend,
-    message: SubmitRequest,
+    mut message: SubmitRequest,
 ) -> ToClientMessage {
+    let (job_id, tako_base_id) = prepare_job(&mut message, &mut state_ref.get_mut());
+
     let SubmitRequest {
-        mut job_desc,
+        job_desc,
         name,
         max_fails,
         submit_dir,
-        mut log,
+        log,
     } = message;
 
-    let (resources, time_limit, priority) = match job_desc {
-        JobDescription::Array { ref task_desc, .. } => (
-            task_desc.resources.clone(),
-            task_desc.time_limit,
-            task_desc.priority,
-        ),
+    let job_ctx = JobContext {
+        id: job_id,
+        tako_base_id,
+        submit_dir: &submit_dir,
     };
 
-    let (task_defs, job_detail, job_id) = {
-        let mut state = state_ref.get_mut();
-        let job_id = state.new_job_id();
-
-        // Prefill currently known placeholders eagerly
-        match job_desc {
+    let new_tasks = {
+        match job_desc.clone() {
             JobDescription::Array {
-                ref mut task_desc, ..
-            } => {
-                fill_placeholders_after_submit(&mut task_desc.program, job_id, &submit_dir);
+                ids,
+                entries,
+                task_desc,
+            } => build_tasks_array(ids, entries, task_desc, job_ctx),
+            JobDescription::Graph { .. } => {
+                todo!()
             }
-        };
-
-        let task_count = job_desc.task_count();
-        let tako_base_id = state.new_task_id(task_count).as_num();
-        let task_defs =
-            make_task_defs(&job_desc, job_id, JobTaskId::new(tako_base_id), &submit_dir);
-
-        if let Some(ref mut log) = log {
-            fill_placeholders_log(log, job_id, &submit_dir);
-            *log = normalize_path(log, &submit_dir);
         }
-
-        let job = Job::new(
-            job_desc,
-            job_id,
-            tako_base_id.into(),
-            name,
-            max_fails,
-            log.clone(),
-            submit_dir,
-        );
-        let job_detail = job.make_job_detail(false);
-        state.add_job(job);
-
-        (task_defs, job_detail, job_id)
     };
+
+    let job = Job::new(
+        job_desc,
+        job_id,
+        tako_base_id.into(),
+        name,
+        max_fails,
+        log.clone(),
+        submit_dir,
+    );
+    let job_detail = job.make_job_detail(false);
+    state_ref.get_mut().add_job(job);
 
     if let Some(log) = log {
         start_log_streaming(tako_ref, job_id, log).await;
     }
 
     match tako_ref
-        .send_tako_message(FromGatewayMessage::NewTasks(NewTasksMessage {
-            tasks: task_defs,
-            configurations: vec![TaskConf {
-                resources,
-                n_outputs: 0,
-                time_limit,
-                keep: false,
-                observe: true,
-                priority,
-            }],
-        }))
+        .send_tako_message(FromGatewayMessage::NewTasks(new_tasks))
         .await
         .unwrap()
     {
@@ -110,12 +92,78 @@ pub async fn handle_submit(
     ToClientMessage::SubmitResponse(SubmitResponse { job: job_detail })
 }
 
+fn build_tasks_array(
+    ids: IntArray,
+    entries: Option<Vec<BString>>,
+    task_desc: TaskDescription,
+    ctx: JobContext,
+) -> NewTasksMessage {
+    let tako_base_id = ctx.tako_base_id.as_num();
+
+    let task_defs = match entries {
+        None => ids
+            .iter()
+            .zip(tako_base_id..)
+            .map(|(task_id, tako_id)| {
+                make_task_def(&ctx, task_id.into(), tako_id.into(), None, &task_desc)
+            })
+            .collect(),
+        Some(entries) => ids
+            .iter()
+            .zip(tako_base_id..)
+            .zip(entries.iter())
+            .map(|((task_id, tako_id), entry)| {
+                make_task_def(
+                    &ctx,
+                    task_id.into(),
+                    tako_id.into(),
+                    Some(entry.clone()),
+                    &task_desc,
+                )
+            })
+            .collect(),
+    };
+
+    NewTasksMessage {
+        tasks: task_defs,
+        configurations: vec![TaskConf {
+            resources: task_desc.resources,
+            n_outputs: 0,
+            time_limit: task_desc.time_limit,
+            keep: false,
+            observe: true,
+            priority: task_desc.priority,
+        }],
+    }
+}
+
+/// Prefills placeholders in the submit request and creates job ID
+fn prepare_job(request: &mut SubmitRequest, state: &mut State) -> (JobId, TakoTaskId) {
+    let job_id = state.new_job_id();
+
+    // Prefill currently known placeholders eagerly
+    if let JobDescription::Array {
+        ref mut task_desc, ..
+    } = request.job_desc
+    {
+        fill_placeholders_after_submit(&mut task_desc.program, job_id, &request.submit_dir);
+    };
+
+    if let Some(ref mut log) = request.log {
+        fill_placeholders_log(log, job_id, &request.submit_dir);
+        *log = normalize_path(log, &request.submit_dir);
+    }
+
+    let task_count = request.job_desc.task_count();
+    (job_id, state.new_task_id(task_count))
+}
+
 pub async fn handle_resubmit(
-    state_ref: &StateRef,
-    tako_ref: &Backend,
-    message: ResubmitRequest,
+    _state_ref: &StateRef,
+    _tako_ref: &Backend,
+    _message: ResubmitRequest,
 ) -> ToClientMessage {
-    let msg_submit: SubmitRequest = {
+    /*let msg_submit: SubmitRequest = {
         let state = state_ref.get_mut();
         let job = state.get_job(message.job_id);
         if let Some(job) = job {
@@ -160,7 +208,8 @@ pub async fn handle_resubmit(
             return ToClientMessage::Error("Invalid job_id".to_string());
         }
     };
-    handle_submit(state_ref, tako_ref, msg_submit).await
+    handle_submit(state_ref, tako_ref, msg_submit).await*/
+    todo!()
 }
 
 async fn start_log_streaming(tako_ref: &Backend, job_id: JobId, path: PathBuf) {
@@ -171,55 +220,6 @@ async fn start_log_streaming(tako_ref: &Backend, job_id: JobId, path: PathBuf) {
         response: sender,
     });
     assert!(receiver.await.is_ok());
-}
-
-fn make_task_defs(
-    job_desc: &JobDescription,
-    job_id: JobId,
-    tako_base_id: JobTaskId,
-    submit_dir: &Path,
-) -> Vec<TaskDef> {
-    let tako_base_id = tako_base_id.as_num();
-
-    match &job_desc {
-        JobDescription::Array {
-            ids,
-            entries: None,
-            task_desc: task_def,
-        } => ids
-            .iter()
-            .zip(tako_base_id..)
-            .map(|(task_id, tako_id)| {
-                make_task_def(
-                    job_id,
-                    task_id.into(),
-                    tako_id.into(),
-                    None,
-                    task_def,
-                    submit_dir,
-                )
-            })
-            .collect(),
-        JobDescription::Array {
-            ids,
-            entries: Some(entries),
-            task_desc: task_def,
-        } => ids
-            .iter()
-            .zip(tako_base_id..)
-            .zip(entries.iter())
-            .map(|((task_id, tako_id), entry)| {
-                make_task_def(
-                    job_id,
-                    task_id.into(),
-                    tako_id.into(),
-                    Some(entry.clone()),
-                    task_def,
-                    submit_dir,
-                )
-            })
-            .collect(),
-    }
 }
 
 fn make_program_def_for_task(
@@ -240,21 +240,21 @@ fn make_program_def_for_task(
 }
 
 fn make_task_def(
-    job_id: JobId,
+    ctx: &JobContext,
     task_id: JobTaskId,
     tako_id: TaskId,
     entry: Option<BString>,
-    def: &TaskDescription,
-    submit_dir: &Path,
+    task_desc: &TaskDescription,
 ) -> TaskDef {
-    let mut program = make_program_def_for_task(&def.program, job_id, task_id, submit_dir);
+    let mut program =
+        make_program_def_for_task(&task_desc.program, ctx.id, task_id, ctx.submit_dir);
     if let Some(e) = entry {
         program.env.insert(HQ_ENTRY.into(), e);
     }
     let body_msg = TaskBody {
         program,
-        pin: def.pin,
-        job_id,
+        pin: task_desc.pin,
+        job_id: ctx.id,
         task_id,
     };
     let body = tako::transfer::auth::serialize(&body_msg).unwrap();

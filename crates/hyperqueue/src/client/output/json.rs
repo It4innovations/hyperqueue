@@ -84,7 +84,21 @@ impl Output for JsonOutput {
             submit_dir,
         } = job;
 
-        let JobDescription::Array {
+        let finished_at = if info.counters.is_terminated(info.n_tasks) {
+            Some(completion_date_or_now)
+        } else {
+            None
+        };
+
+        let mut json = json!({
+            "info": format_job_info(info),
+            "max_fails": max_fails,
+            "started_at": format_datetime(submission_date),
+            "finished_at": finished_at.map(format_datetime),
+            "submit_dir": submit_dir
+        });
+
+        if let JobDescription::Array {
             task_desc:
                 TaskDescription {
                     program:
@@ -106,36 +120,25 @@ impl Output for JsonOutput {
                     priority,
                 },
             ..
-        } = job_desc;
-
-        let finished_at = if info.counters.is_terminated(info.n_tasks) {
-            Some(completion_date_or_now)
-        } else {
-            None
-        };
-
-        let mut json = json!({
-            "info": format_job_info(info),
-            "program": json!({
+        } = job_desc
+        {
+            json["program"] = json!({
                 "args": args.into_iter().map(|args| args.to_string()).collect::<Vec<_>>(),
                 "env": env.into_iter().map(|(key, value)| (key.to_string(), value.to_string())).collect::<Map<String, String>>(),
                 "cwd": cwd,
                 "stderr": format_stdio_def(stderr),
                 "stdout": format_stdio_def(stdout),
-            }),
-            "resources": json!({
+            });
+            json["resources"] = json!({
                 "cpus": format_cpu_request(cpus),
                 "generic": generic,
                 "min_time": format_duration(min_time)
-            }),
-            "pin": pin,
-            "max_fails": max_fails,
-            "priority": priority,
-            "time_limit": time_limit.map(format_duration),
-            "started_at": format_datetime(submission_date),
-            "finished_at": finished_at.map(format_datetime),
-            "submit_dir": submit_dir
-        });
+            });
+            json["pin"] = json!(pin);
+            json["priority"] = json!(priority);
+            json["time_limit"] = json!(time_limit.map(format_duration));
+        }
+
         if show_tasks {
             json["tasks"] = tasks
                 .into_iter()

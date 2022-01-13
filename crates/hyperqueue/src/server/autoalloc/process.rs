@@ -169,26 +169,23 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
 
 /// Find out if workers spawned in this queue can possibly provide computational resources
 /// for tasks of this job.
-///
-/// TODO: once HQ jobs are heterogeneous, the implementation will need to be modified
 fn can_provide_worker(job: &Job, queue_info: &QueueInfo) -> bool {
-    let JobDescription::Array {
-        task_desc: TaskDescription { resources, .. },
-        ..
-    } = &job.job_desc;
-    resources.min_time < queue_info.timelimit()
+    match &job.job_desc {
+        JobDescription::Array {
+            task_desc: TaskDescription { resources, .. },
+            ..
+        } => resources.min_time < queue_info.timelimit(),
+        JobDescription::Graph { .. } => {
+            todo!()
+        }
+    }
 }
 
 fn count_available_tasks(state: &State, queue_info: &QueueInfo) -> u64 {
     let waiting_tasks: u64 = state
         .jobs()
-        .map(|job| {
-            let result = match can_provide_worker(job, queue_info) {
-                true => job.counters.n_waiting_tasks(job.n_tasks()),
-                false => 0,
-            };
-            result as u64
-        })
+        .filter(|job| !job.is_terminated() && can_provide_worker(job, queue_info))
+        .map(|job| job.counters.n_waiting_tasks(job.n_tasks()) as u64)
         .sum();
     waiting_tasks
 }
