@@ -1,7 +1,7 @@
 import os
 import time
 from datetime import datetime
-from os.path import abspath, isdir, isfile
+from os.path import isdir, isfile
 from pathlib import Path
 
 import pytest
@@ -166,15 +166,6 @@ def test_job_output_default(hq_env: HqEnv, tmp_path):
         assert f.read() == ""
 
 
-def test_cwd_recursive_placeholder(hq_env: HqEnv):
-    hq_env.start_server()
-    hq_env.command(
-        ["submit", "--cwd", "%{CWD}/foo", "--", "bash", "-c", "echo 'hello'"],
-        expect_fail="Working directory path cannot contain the working "
-        "directory placeholder `%{CWD}`.",
-    )
-
-
 def test_create_output_folders(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
@@ -231,18 +222,6 @@ def test_job_output_absolute_path(hq_env: HqEnv, tmp_path):
         assert f.read() == "hello\n"
     with open(os.path.join(tmp_path, "xyz")) as f:
         assert f.read() == ""
-
-
-def test_job_paths_prefilled_placeholders(hq_env: HqEnv):
-    """
-    Checks that job paths are partially resolved after submit.
-    """
-    hq_env.start_server()
-    hq_env.command(["submit", "hostname"])
-    wait_for_job_state(hq_env, 1, "WAITING")
-
-    table = hq_env.command(["job", "info", "1"], as_table=True)
-    assert table.get_row_value("Stdout") == default_task_output(task_id="%{TASK_ID}")
 
 
 def test_job_output_none(hq_env: HqEnv, tmp_path):
@@ -708,64 +687,6 @@ def test_job_tasks_table(hq_env: HqEnv):
     wait_for_job_state(hq_env, 2, "FAILED")
     worker = table.get_column_value("Worker")[0]
     assert worker == "" or worker == "worker1"
-
-
-def test_task_resolve_submit_placeholders(hq_env: HqEnv):
-    hq_env.start_server()
-
-    hq_env.command(["submit", "echo", "test"])
-    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)[
-        JOB_TABLE_ROWS:
-    ].as_horizontal()
-    wait_for_job_state(hq_env, 1, "WAITING")
-    table.check_column_value("Working directory", 0, "")
-    table.check_column_value("Stdout", 0, "")
-    table.check_column_value("Stderr", 0, "")
-
-    hq_env.start_worker()
-
-    wait_for_job_state(hq_env, 1, "FINISHED")
-    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)[
-        JOB_TABLE_ROWS:
-    ].as_horizontal()
-    table.check_column_value("Working directory", 0, os.getcwd())
-    table.check_column_value("Stdout", 0, default_task_output())
-    table.check_column_value("Stderr", 0, default_task_output(type="stderr"))
-
-
-def test_task_resolve_worker_placeholders(hq_env: HqEnv):
-    hq_env.start_server()
-
-    hq_env.command(
-        [
-            "submit",
-            "--stdout",
-            "%{INSTANCE_ID}.out",
-            "--stderr",
-            "%{INSTANCE_ID}.err",
-            "--cwd",
-            "%{INSTANCE_ID}-dir",
-            "echo",
-            "test",
-        ]
-    )
-    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)[
-        JOB_TABLE_ROWS:
-    ].as_horizontal()
-    wait_for_job_state(hq_env, 1, "WAITING")
-    table.check_column_value("Working directory", 0, "")
-    table.check_column_value("Stdout", 0, "")
-    table.check_column_value("Stderr", 0, "")
-
-    hq_env.start_worker()
-
-    wait_for_job_state(hq_env, 1, "FINISHED")
-    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)[
-        JOB_TABLE_ROWS:
-    ].as_horizontal()
-    table.check_column_value("Working directory", 0, abspath("0-dir"))
-    table.check_column_value("Stdout", 0, abspath("0.out"))
-    table.check_column_value("Stderr", 0, abspath("0.err"))
 
 
 def test_job_wait(hq_env: HqEnv):

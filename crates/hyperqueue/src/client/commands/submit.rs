@@ -18,9 +18,10 @@ use crate::client::status::StatusList;
 use crate::common::arraydef::IntArray;
 use crate::common::fsutils::get_current_dir;
 use crate::common::placeholders::{
-    parse_resolvable_string, StringPart, CWD_PLACEHOLDER, JOB_ID_PLACEHOLDER,
-    SUBMIT_DIR_PLACEHOLDER, TASK_ID_PLACEHOLDER,
+    get_unknown_placeholders, parse_resolvable_string, StringPart, CWD_PLACEHOLDER,
+    JOB_ID_PLACEHOLDER, SUBMIT_DIR_PLACEHOLDER, TASK_ID_PLACEHOLDER,
 };
+use crate::common::strutils::pluralize;
 use crate::common::timeutils::ArgDuration;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
@@ -414,6 +415,41 @@ fn warn_missing_task_id(opts: &JobSubmitOpts, task_count: u32) {
     }
 }
 
+/// Warns about unknown placeholders in various paths.
+fn warn_unknown_placeholders(opts: &JobSubmitOpts) {
+    let check = |path: Option<&Path>, context: &str| {
+        if let Some(path) = path {
+            let unknown = get_unknown_placeholders(path.to_str().unwrap());
+            if !unknown.is_empty() {
+                let placeholder_str = pluralize("placeholder", unknown.len());
+                log::warn!(
+                    "Found unknown {} `{}` in {}",
+                    placeholder_str,
+                    unknown.join(", "),
+                    context
+                );
+            }
+        }
+    };
+
+    check(
+        opts.stdout.as_ref().and_then(|arg| match &arg.0 {
+            StdioDef::File(path) => Some(path.as_path()),
+            _ => None,
+        }),
+        "stdout path",
+    );
+    check(
+        opts.stderr.as_ref().and_then(|arg| match &arg.0 {
+            StdioDef::File(path) => Some(path.as_path()),
+            _ => None,
+        }),
+        "stderr path",
+    );
+    check(opts.log.as_deref(), "log path");
+    check(Some(opts.cwd.as_path()), "working directory path");
+}
+
 /// Returns an error if working directory contains the CWD placeholder.
 fn check_valid_cwd(opts: &JobSubmitOpts) -> anyhow::Result<()> {
     let placeholders = parse_resolvable_string(opts.cwd.to_str().unwrap());
@@ -431,6 +467,7 @@ fn check_valid_cwd(opts: &JobSubmitOpts) -> anyhow::Result<()> {
 fn check_suspicious_options(opts: &JobSubmitOpts, task_count: u32) -> anyhow::Result<()> {
     warn_array_task_count(opts, task_count);
     warn_missing_task_id(opts, task_count);
+    warn_unknown_placeholders(opts);
     check_valid_cwd(opts)?;
     Ok(())
 }
