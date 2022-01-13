@@ -5,7 +5,8 @@ use tokio::sync::oneshot;
 
 use tako::messages::common::ProgramDefinition;
 use tako::messages::gateway::{
-    FromGatewayMessage, NewTasksMessage, TaskConf, TaskDef, ToGatewayMessage,
+    FromGatewayMessage, NewTasksMessage, SharedTaskConfiguration, TaskConfiguration,
+    ToGatewayMessage,
 };
 use tako::TaskId;
 
@@ -126,7 +127,7 @@ fn build_tasks_array(
 
     NewTasksMessage {
         tasks: task_defs,
-        configurations: vec![TaskConf {
+        shared_data: vec![SharedTaskConfiguration {
             resources: task_desc.resources,
             n_outputs: 0,
             time_limit: task_desc.time_limit,
@@ -245,7 +246,7 @@ fn make_task_def(
     tako_id: TaskId,
     entry: Option<BString>,
     task_desc: &TaskDescription,
-) -> TaskDef {
+) -> TaskConfiguration {
     let mut program =
         make_program_def_for_task(&task_desc.program, ctx.id, task_id, ctx.submit_dir);
     if let Some(e) = entry {
@@ -258,9 +259,9 @@ fn make_task_def(
         task_id,
     };
     let body = tako::transfer::auth::serialize(&body_msg).unwrap();
-    TaskDef {
+    TaskConfiguration {
         id: tako_id,
-        conf_idx: 0,
+        shared_data_index: 0,
         task_deps: Vec::new(),
         body,
     }
