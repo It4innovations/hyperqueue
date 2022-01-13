@@ -60,6 +60,7 @@ pub struct TaskWithDependencies {
     pub dependencies: Vec<JobTaskId>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum JobDescription {
     /// Either a single-task job or a task array usually submitted through the CLI.

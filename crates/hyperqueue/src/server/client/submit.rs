@@ -12,6 +12,7 @@ use tako::messages::gateway::{
 };
 use tako::TaskId;
 
+use crate::client::status::task_status;
 use crate::common::arraydef::IntArray;
 use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::placeholders::{
@@ -76,7 +77,7 @@ pub async fn handle_submit(
     let job = Job::new(
         job_desc,
         job_id,
-        tako_base_id.into(),
+        tako_base_id,
         name,
         max_fails,
         log.clone(),
@@ -123,14 +124,24 @@ fn prepare_job(request: &mut SubmitRequest, state: &mut State) -> (JobId, TakoTa
 }
 
 pub async fn handle_resubmit(
-    _state_ref: &StateRef,
-    _tako_ref: &Backend,
-    _message: ResubmitRequest,
+    state_ref: &StateRef,
+    tako_ref: &Backend,
+    message: ResubmitRequest,
 ) -> ToClientMessage {
-    /*let msg_submit: SubmitRequest = {
+    let msg_submit: SubmitRequest = {
         let state = state_ref.get_mut();
         let job = state.get_job(message.job_id);
+
         if let Some(job) = job {
+            match job.job_desc {
+                JobDescription::Array { .. } => {}
+                _ => {
+                    return ToClientMessage::Error(
+                        "Resubmit is not supported for this job".to_string(),
+                    )
+                }
+            }
+
             let job_desc = if let Some(filter) = &message.status {
                 match &job.job_desc {
                     JobDescription::Array {
@@ -156,6 +167,7 @@ pub async fn handle_resubmit(
                             task_desc: task_desc.clone(),
                         }
                     }
+                    _ => unimplemented!(),
                 }
             } else {
                 job.job_desc.clone()
@@ -172,8 +184,7 @@ pub async fn handle_resubmit(
             return ToClientMessage::Error("Invalid job_id".to_string());
         }
     };
-    handle_submit(state_ref, tako_ref, msg_submit).await*/
-    todo!()
+    handle_submit(state_ref, tako_ref, msg_submit).await
 }
 
 async fn start_log_streaming(tako_ref: &Backend, job_id: JobId, path: PathBuf) {
@@ -209,7 +220,7 @@ fn serialize_task_body(
     entry: Option<BString>,
     task_desc: &TaskDescription,
 ) -> Vec<u8> {
-    let mut program = make_program_def_for_task(&task_desc.program, task_id, &ctx);
+    let mut program = make_program_def_for_task(&task_desc.program, task_id, ctx);
     if let Some(e) = entry {
         program.env.insert(HQ_ENTRY.into(), e);
     }
@@ -283,7 +294,10 @@ fn build_tasks_graph(
 
     let mut tako_id = ctx.tako_base_id.as_num();
     for task in &tasks {
-        if let Some(_) = job_task_id_to_tako_id.insert(task.id, tako_id.into()) {
+        if job_task_id_to_tako_id
+            .insert(task.id, tako_id.into())
+            .is_some()
+        {
             return Err(anyhow::anyhow!("Duplicate task ID {}", task.id));
         }
         tako_id += 1;
