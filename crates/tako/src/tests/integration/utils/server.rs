@@ -11,8 +11,8 @@ use tokio::time::timeout;
 
 use crate::common::{Map, Set};
 use crate::messages::gateway::{
-    FromGatewayMessage, NewTasksMessage, NewTasksResponse, ObserveTasksMessage, StopWorkerRequest,
-    TaskConf, TaskDef, ToGatewayMessage,
+    FromGatewayMessage, NewTasksMessage, NewTasksResponse, ObserveTasksMessage,
+    SharedTaskConfiguration, StopWorkerRequest, TaskConfiguration, ToGatewayMessage,
 };
 use crate::server::client::process_client_message;
 use crate::server::comm::CommSenderRef;
@@ -168,13 +168,16 @@ impl ServerHandle {
         .await;
     }
 
-    pub async fn submit(&mut self, tasks_and_confs: (Vec<TaskDef>, Vec<TaskConf>)) -> Vec<TaskId> {
+    pub async fn submit(
+        &mut self,
+        tasks_and_confs: (Vec<TaskConfiguration>, Vec<SharedTaskConfiguration>),
+    ) -> Vec<TaskId> {
         let (tasks, configurations) = tasks_and_confs;
         let ids: Vec<TaskId> = tasks.iter().map(|t| t.id).collect();
         assert_eq!(ids.iter().collect::<Set<_>>().len(), ids.len());
         let msg = NewTasksMessage {
             tasks,
-            configurations,
+            shared_data: configurations,
         };
         self.send(FromGatewayMessage::NewTasks(msg)).await;
         wait_for_msg!(self, ToGatewayMessage::NewTasksResponse(NewTasksResponse { .. }) => ());

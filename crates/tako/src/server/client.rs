@@ -6,7 +6,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use crate::common::rpc::forward_queue_to_sink_with_map;
 use crate::messages::gateway::{
     CancelTasksResponse, ErrorResponse, FromGatewayMessage, NewTasksMessage, NewTasksResponse,
-    TaskConf, TaskInfo, TaskState, TaskUpdate, TasksInfoResponse, ToGatewayMessage,
+    SharedTaskConfiguration, TaskInfo, TaskState, TaskUpdate, TasksInfoResponse, ToGatewayMessage,
 };
 use crate::messages::worker::ToWorkerMessage;
 use crate::server::comm::{Comm, CommSender, CommSenderRef};
@@ -65,7 +65,10 @@ pub async fn client_connection_handler(
     log::info!("Client connection terminated");
 }
 
-fn create_task_configuration(core_ref: &mut Core, msg: TaskConf) -> TaskConfiguration {
+fn create_task_configuration(
+    core_ref: &mut Core,
+    msg: SharedTaskConfiguration,
+) -> TaskConfiguration {
     let resources_msg = msg.resources;
     let generic_resources = resources_msg
         .generic
@@ -222,7 +225,7 @@ fn handle_new_tasks(
     }
 
     let configurations: Vec<_> = msg
-        .configurations
+        .shared_data
         .into_iter()
         .map(|c| {
             assert!(c.n_outputs == 0 || c.n_outputs == 1); // TODO: Implementation for more outputs
@@ -237,7 +240,7 @@ fn handle_new_tasks(
         if core.is_used_task_id(task.id) {
             return Some(format!("Task id={} is already taken", task.id));
         }
-        let idx = task.conf_idx as usize;
+        let idx = task.shared_data_index as usize;
         if idx >= configurations.len() {
             return Some(format!("Invalid configuration index {}", idx));
         }

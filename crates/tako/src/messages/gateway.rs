@@ -25,9 +25,10 @@ pub struct ResourceRequest {
     pub min_time: Duration,
 }
 
-// TODO: merge with TaskDescription somehow
+/// Task data that is often shared by multiple tasks.
+/// It is send out-of-band in NewTasksMessage to save bandwidth and allocations.
 #[derive(Deserialize, Serialize, Debug)]
-pub struct TaskConf {
+pub struct SharedTaskConfiguration {
     #[serde(default)]
     pub resources: ResourceRequest,
 
@@ -47,21 +48,24 @@ pub struct TaskConf {
     pub observe: bool,
 }
 
+/// Task data that is unique for each task.
 #[derive(Deserialize, Serialize, Debug)]
-pub struct TaskDef {
+pub struct TaskConfiguration {
     pub id: TaskId,
-    pub conf_idx: u32,
+    /// Index into NewTasksMessage::shared_data that contains the shared data for this task.
+    pub shared_data_index: u32,
 
     pub task_deps: Vec<TaskId>,
 
+    /// Opaque data that is passed by the gateway user to task launchers.
     #[serde(with = "serde_bytes")]
     pub body: Vec<u8>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct NewTasksMessage {
-    pub tasks: Vec<TaskDef>,
-    pub configurations: Vec<TaskConf>,
+    pub tasks: Vec<TaskConfiguration>,
+    pub shared_data: Vec<SharedTaskConfiguration>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

@@ -7,13 +7,15 @@ use derive_builder::Builder;
 use crate::common::resources::CpuRequest;
 use crate::common::Map;
 use crate::messages::common::{ProgramDefinition, StdioDef};
-use crate::messages::gateway::{GenericResourceRequest, ResourceRequest, TaskConf, TaskDef};
+use crate::messages::gateway::{
+    GenericResourceRequest, ResourceRequest, SharedTaskConfiguration, TaskConfiguration,
+};
 use crate::TaskId;
 
 pub struct GraphBuilder {
     id_counter: u64,
-    tasks: Vec<TaskDef>,
-    configurations: Vec<TaskConf>,
+    tasks: Vec<TaskConfiguration>,
+    configurations: Vec<SharedTaskConfiguration>,
 }
 
 impl Default for GraphBuilder {
@@ -27,7 +29,9 @@ impl Default for GraphBuilder {
 }
 
 impl GraphBuilder {
-    pub fn singleton(builder: TaskConfigBuilder) -> (Vec<TaskDef>, Vec<TaskConf>) {
+    pub fn singleton(
+        builder: TaskConfigBuilder,
+    ) -> (Vec<TaskConfiguration>, Vec<SharedTaskConfiguration>) {
         GraphBuilder::default().task(builder).build()
     }
 
@@ -48,7 +52,7 @@ impl GraphBuilder {
         });
 
         let (mut tdef, tconf) = build_task_def_from_config(config);
-        tdef.conf_idx = self.configurations.len() as u32;
+        tdef.shared_data_index = self.configurations.len() as u32;
         self.tasks.push(tdef);
         self.configurations.push(tconf);
         self
@@ -58,12 +62,14 @@ impl GraphBuilder {
         self.task(TaskConfigBuilder::default().args(simple_args(args)))
     }
 
-    pub fn build(self) -> (Vec<TaskDef>, Vec<TaskConf>) {
+    pub fn build(self) -> (Vec<TaskConfiguration>, Vec<SharedTaskConfiguration>) {
         (self.tasks, self.configurations)
     }
 }
 
-pub fn build_task_def_from_config(config: TaskConfig) -> (TaskDef, TaskConf) {
+pub fn build_task_def_from_config(
+    config: TaskConfig,
+) -> (TaskConfiguration, SharedTaskConfiguration) {
     let TaskConfig {
         id,
         keep,
@@ -87,7 +93,7 @@ pub fn build_task_def_from_config(config: TaskConfig) -> (TaskDef, TaskConf) {
     };
     let body = rmp_serde::to_vec(&program_def).unwrap();
 
-    let conf = TaskConf {
+    let conf = SharedTaskConfiguration {
         resources: ResourceRequest {
             cpus,
             min_time: Default::default(),
@@ -100,9 +106,9 @@ pub fn build_task_def_from_config(config: TaskConfig) -> (TaskDef, TaskConf) {
         observe: observe.unwrap_or(true),
     };
     (
-        TaskDef {
+        TaskConfiguration {
             id: TaskId::new(id.unwrap_or(1) as <TaskId as ItemId>::IdType),
-            conf_idx: 0,
+            shared_data_index: 0,
             task_deps: Vec::new(),
             body,
         },
