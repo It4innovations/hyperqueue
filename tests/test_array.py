@@ -3,8 +3,6 @@ import datetime
 import os
 import time
 
-import pytest
-
 from .conftest import HqEnv
 from .utils import JOB_TABLE_ROWS, wait_for_job_state
 from .utils.job import default_task_output
@@ -202,20 +200,6 @@ def test_array_mix_with_simple_jobs(hq_env: HqEnv):
         assert table.get_column_value("Id")[i] == str(i + 1)
         assert table.get_column_value("State")[i] == "FINISHED"
         assert table.get_column_value("Tasks")[i] == "4" if i % 2 == 0 else "1"
-
-
-@pytest.mark.parametrize("channel", ("stdout", "stderr"))
-def test_warning_missing_placeholder_in_output(hq_env: HqEnv, channel: str):
-    hq_env.start_server()
-    output = hq_env.command(
-        ["submit", "--array=1-4", f"--{channel}=foo", "/bin/hostname"]
-    )
-    assert (
-        f"You have submitted an array job, but the `{channel}` "
-        + "path does not contain the task ID placeholder."
-        in output
-    )
-    assert f"Consider adding `%{{TASK_ID}}` to the `--{channel}` value."
 
 
 def test_array_times(hq_env: HqEnv):

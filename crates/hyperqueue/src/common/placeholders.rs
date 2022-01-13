@@ -14,6 +14,7 @@ use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::parser::NomResult;
 use crate::{JobId, Map};
 
+// If a new placeholder is added, also change `get_unknown_placeholders`
 pub const TASK_ID_PLACEHOLDER: &str = "TASK_ID";
 pub const JOB_ID_PLACEHOLDER: &str = "JOB_ID";
 pub const INSTANCE_ID_PLACEHOLDER: &str = "INSTANCE_ID";
@@ -63,6 +64,27 @@ pub fn fill_placeholders_log(value: &mut PathBuf, job_id: JobId, submit_dir: &Pa
     *value = resolve(&placeholders, value.to_str().unwrap()).into();
 }
 
+/// Find placeholders in the input that are not supported by HyperQueue.
+pub fn get_unknown_placeholders(input: &str) -> Vec<&str> {
+    let known_placeholders = [
+        TASK_ID_PLACEHOLDER,
+        JOB_ID_PLACEHOLDER,
+        INSTANCE_ID_PLACEHOLDER,
+        CWD_PLACEHOLDER,
+        SUBMIT_DIR_PLACEHOLDER,
+    ];
+
+    let mut unknown = Vec::new();
+    for placeholder in parse_resolvable_string(input) {
+        if let StringPart::Placeholder(placeholder) = placeholder {
+            if !known_placeholders.contains(&placeholder) {
+                unknown.push(placeholder);
+            }
+        }
+    }
+    unknown
+}
+
 fn insert_submit_data<'a>(map: &mut PlaceholderMap<'a>, job_id: JobId, submit_dir: &'a Path) {
     map.insert(JOB_ID_PLACEHOLDER, job_id.to_string().into());
     map.insert(SUBMIT_DIR_PLACEHOLDER, submit_dir.to_str().unwrap().into());
@@ -101,14 +123,7 @@ fn resolve(map: &PlaceholderMap, input: &str) -> String {
             StringPart::Verbatim(data) => buffer.write_str(data),
             StringPart::Placeholder(placeholder) => match map.get(placeholder) {
                 Some(value) => buffer.write_str(value.deref()),
-                None => {
-                    log::warn!(
-                        "Encountered an unknown placeholder `{}` in `{}`",
-                        placeholder,
-                        input
-                    );
-                    buffer.write_fmt(format_args!("%{{{}}}", placeholder))
-                }
+                None => buffer.write_fmt(format_args!("%{{{}}}", placeholder)),
             },
         }
         .unwrap();
