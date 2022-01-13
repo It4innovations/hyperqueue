@@ -1,6 +1,5 @@
 import sys
-from os.path import dirname, abspath, join
-
+from os.path import abspath, dirname, join
 
 CURRENT_DIR = dirname(abspath(__file__))
 CHANGELOG_PATH = join(dirname(CURRENT_DIR), "CHANGELOG.md")
@@ -16,7 +15,7 @@ def get_matching_lines(text: str, tag: str):
         if line.startswith("# "):
             version = normalize(line.lstrip("# "))
             if version == tag:
-                for matching_line in lines[index + 1:]:
+                for matching_line in lines[index + 1 :]:
                     if matching_line.startswith("# "):
                         return
                     yield matching_line

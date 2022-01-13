@@ -110,12 +110,12 @@ jobs:
           maturin-version: latest
           manylinux: 2014
           command: build
-          args: --manifest-path crates/pyhq/Cargo.toml --release
+          args: --manifest-path crates/pyhq/Cargo.toml --release --out wheels
       - name: Upload test artifacts
         uses: actions/upload-artifact@v2
         with:
           name: archive-pyhq
-          path: target/wheels/hyperqueue-*.whl
+          path: wheels/hyperqueue-*.whl
   create-tag:
     runs-on: ubuntu-latest
     needs: [ set-env, build-binaries-x64, build-binaries-powerpc, build-python-binding ]
