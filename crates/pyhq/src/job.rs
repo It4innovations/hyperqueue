@@ -1,5 +1,3 @@
-use crate::utils::error::ToPyResult;
-use crate::{borrow_mut, run_future, ContextPtr};
 use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::fsutils::get_current_dir;
 use hyperqueue::rpc_call;
@@ -9,15 +7,18 @@ use hyperqueue::transfer::messages::{
     TaskDescription as HqTaskDescription, ToClientMessage,
 };
 use pyo3::{PyResult, Python};
-use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct TaskDescription {
+use crate::utils::error::ToPyResult;
+use crate::{borrow_mut, run_future, ContextPtr, FromPyObject};
+
+#[derive(Debug, FromPyObject)]
+pub struct TaskDescription {
     args: Vec<String>,
+    cwd: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct JobDescription {
+#[derive(Debug, FromPyObject)]
+pub struct JobDescription {
     tasks: Vec<TaskDescription>,
 }
 
@@ -38,7 +39,7 @@ pub(crate) fn submit_job_impl(
                     env: Default::default(),
                     stdout: Default::default(),
                     stderr: Default::default(),
-                    cwd: None,
+                    cwd: task.cwd.map(|p| p.into()),
                 },
                 resources: Default::default(),
                 pin: false,

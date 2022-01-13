@@ -1,8 +1,15 @@
+#![allow(unused)]
+
+use std::ops::{Deref, DerefMut};
+use std::time::Duration;
+
+use pyo3::types::PyFloat;
 use pyo3::{FromPyObject, PyAny, PyResult};
 use pythonize::depythonize;
 use serde::de::DeserializeOwned;
-use std::ops::{Deref, DerefMut};
 
+/// Wrapper type that implements deserialization from Python type using `serde::DeserializeOwned`.
+#[derive(Debug)]
 pub struct FromPy<T>(T);
 
 impl<T> FromPy<T> {
@@ -31,5 +38,24 @@ where
 {
     fn extract(obj: &'source PyAny) -> PyResult<Self> {
         depythonize(obj).map(|v| FromPy(v)).map_err(|e| e.into())
+    }
+}
+
+#[derive(Debug)]
+pub struct WrappedDuration(Duration);
+
+impl<'a> FromPyObject<'a> for WrappedDuration {
+    fn extract(object: &'a PyAny) -> PyResult<Self> {
+        if let Err(_) | Ok(false) = object.is_instance::<PyFloat>() {
+            return Err(anyhow::anyhow!(
+                "Duration must be represented as a float containing the total amount of seconds."
+            ))
+            .map_err(|e| e.into());
+        }
+
+        let seconds: f64 = object.extract()?;
+        let nanoseconds = seconds * 1e9;
+
+        Ok(WrappedDuration(Duration::from_nanos(nanoseconds as u64)))
     }
 }

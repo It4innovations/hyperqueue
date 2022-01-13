@@ -1,12 +1,11 @@
 use pyo3::types::PyModule;
-use pyo3::{pyclass, pyfunction, pymodule};
+use pyo3::{pyclass, pyfunction, pymodule, FromPyObject};
 use pyo3::{wrap_pyfunction, Py, PyResult, Python};
 use tokio::runtime::Builder;
 
-use crate::job::{submit_job_impl, JobDescription};
-use crate::marshal::FromPy;
 use hyperqueue::transfer::connection::ClientConnection;
 
+use crate::job::{submit_job_impl, JobDescription};
 use crate::server::{connect_to_server_impl, stop_server_impl};
 use crate::utils::run_future;
 
@@ -35,8 +34,8 @@ fn stop_server(py: Python, ctx: ContextPtr) -> PyResult<()> {
 }
 
 #[pyfunction]
-fn submit_job(py: Python, ctx: ContextPtr, job: FromPy<JobDescription>) -> PyResult<u32> {
-    submit_job_impl(py, ctx, job.extract())
+fn submit_job(py: Python, ctx: ContextPtr, job: JobDescription) -> PyResult<u32> {
+    submit_job_impl(py, ctx, job)
 }
 
 #[pymodule]
