@@ -46,7 +46,7 @@ pub async fn client_connection_handler(
                     Ok(message) => {
                         process_client_message(&core_ref, &comm_ref, &client_sender, message).await
                     }
-                    Err(e) => Some(format!("Invalid format of message: {}", e.to_string())),
+                    Err(e) => Some(format!("Invalid format of message: {}", e)),
                 };
                 if let Some(message) = error {
                     client_sender
