@@ -2,6 +2,8 @@ from typing import List, Optional
 
 from .task import EnvType, ExternalProgram, ProgramArgs, Task, TaskConfig, build_tasks
 
+JobId = int
+
 
 class Job:
     def __init__(self, *args, **kwargs):
