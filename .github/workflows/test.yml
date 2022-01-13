@@ -49,8 +49,8 @@ jobs:
 
       - name: Build Python binding
         run: |
-          maturin build --manifest-path crates/pyhq/Cargo.toml
-          python -m pip install target/wheels/hyperqueue-*.whl
+          maturin build --manifest-path crates/pyhq/Cargo.toml --out wheels
+          python -m pip install wheels/hyperqueue-*.whl
 
       - name: Test Python
         id: python_test
@@ -88,3 +88,6 @@ jobs:
         run: |
           python -m pip install -r docs/requirements.txt
           mkdocs build --strict
+
+      - name: Check package versions
+        run: python scripts/check_package_versions.py

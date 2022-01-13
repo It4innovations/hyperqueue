@@ -1276,7 +1276,7 @@ dependencies = [
 
 [[package]]
 name = "pyhq"
-version = "0.1.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "hyperqueue",

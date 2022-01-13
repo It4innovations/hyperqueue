@@ -13,7 +13,13 @@ on:
     tags:
       - 'v*'
 jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check package versions
+        run: python scripts/check_package_versions.py
   set-env:
+    needs: [version-check]
     runs-on: ubuntu-latest
     outputs:
       sha: ${{ env.SHA }}
