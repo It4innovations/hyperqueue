@@ -21,7 +21,7 @@ jobs:
           profile: minimal
           toolchain: 1.58.0
           override: true
-          components: clippy
+          components: clippy, rustfmt
 
       - uses: Swatinem/rust-cache@v1
 
