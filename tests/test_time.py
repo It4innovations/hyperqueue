@@ -14,7 +14,7 @@ def test_job_time_request1(hq_env: HqEnv):
 
     hq_env.command(["submit", "--array=1-20", "--time-request=5s", "--", "ls"])
     wait_for_job_state(hq_env, 1, "FINISHED")
-    table = hq_env.command(["job", "1"], as_table=True)
+    table = hq_env.command(["job", "info", "1"], as_table=True)
     assert {"worker3", "worker4"} == set(table.get_row_value("Workers").split(", "))
 
 
@@ -29,6 +29,6 @@ def test_job_time_request2(hq_env: HqEnv):
     # hq_env.start_worker(args=["--time-limit", "5s"])
 
     wait_for_job_state(hq_env, 1, "FINISHED")
-    table = hq_env.command(["jobs"], as_table=True)
+    table = hq_env.command(["job", "list"], as_table=True)
     assert table[1][2] == "FINISHED"
     assert table[2][2] == "WAITING"

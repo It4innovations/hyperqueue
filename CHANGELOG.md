@@ -29,6 +29,23 @@ find more information in the [documentation](https://it4innovations.github.io/hy
 
 * You can now generate shell completion using the `hq generate-completion <shell>` command.
 
+## Changes
+
+* The command line interface for jobs has been changed to be more consistent with the interface for
+  workers. Commands that have been formerly standalone (like `hq jobs`, `hq resubmit`, `hq wait`) are
+  not accessed through `hq job`. The only previous job-related command that remained to on the top level
+  is `hq submit`, which is now a shortcut for `hq job submit`. Here is a table of changed commands:
+
+    | **Previous command** | **New command**    |
+    |------------------|--------------------|
+    | `hq jobs`           | `hq job list`    |
+    | `hq job`            | `hq job info`    |
+    | `hq resubmit`       | `hq job resubmit` |
+    | `hq cancel`         | `hq job cancel`  |
+    | `hq wait`           | `hq job wait`    |
+    | `hq progress`       | `hq job progress` |
+    | `hq submit`         | `hq submit` or `hq job submit` |
+
 # v0.7.0
 
 ## Fixes

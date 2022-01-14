@@ -19,7 +19,7 @@ def test_print_job_list(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, list(range(1, 10)), "FINISHED")
 
-    output = hq_env.command(["--output-mode=quiet", "jobs"])
+    output = hq_env.command(["--output-mode=quiet", "job", "list"])
     output = output.splitlines(keepends=False)
     assert output == [f"{id + 1} FINISHED" for id in range(9)]
 

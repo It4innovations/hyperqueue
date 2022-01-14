@@ -66,7 +66,7 @@ def test_worker_stop(hq_env: HqEnv):
 
 def test_worker_stop_some(hq_env: HqEnv):
     hq_env.start_server()
-    processes = [hq_env.start_worker() for i in range(3)]
+    processes = [hq_env.start_worker() for _ in range(3)]
 
     wait_for_worker_state(hq_env, [1, 2, 3], "RUNNING")
     r = hq_env.command(["worker", "stop", "1-4"])
@@ -79,11 +79,11 @@ def test_worker_stop_some(hq_env: HqEnv):
 
 def test_worker_stop_all(hq_env: HqEnv):
     hq_env.start_server()
-    processes = [hq_env.start_worker() for i in range(4)]
+    processes = [hq_env.start_worker() for _ in range(4)]
 
-    wait_for_worker_state(hq_env, [1, 2, 3, 4], ["RUNNING" for i in range(4)]),
+    wait_for_worker_state(hq_env, [1, 2, 3, 4], ["RUNNING" for _ in range(4)]),
     hq_env.command(["worker", "stop", "all"])
-    wait_for_worker_state(hq_env, [1, 2, 3, 4], ["STOPPED" for i in range(4)]),
+    wait_for_worker_state(hq_env, [1, 2, 3, 4], ["STOPPED" for _ in range(4)]),
 
     for process in processes:
         hq_env.check_process_exited(process)
@@ -91,11 +91,11 @@ def test_worker_stop_all(hq_env: HqEnv):
 
 def test_worker_stop_last(hq_env: HqEnv):
     hq_env.start_server()
-    processes = [hq_env.start_worker() for i in range(4)]
+    processes = [hq_env.start_worker() for _ in range(4)]
 
-    wait_for_worker_state(hq_env, [1, 2, 3, 4], ["RUNNING" for i in range(4)]),
+    wait_for_worker_state(hq_env, [1, 2, 3, 4], ["RUNNING" for _ in range(4)]),
     hq_env.command(["worker", "stop", "last"])
-    wait_for_worker_state(hq_env, [4], ["STOPPED" for i in range(4)]),
+    wait_for_worker_state(hq_env, [4], ["STOPPED" for _ in range(4)]),
 
     hq_env.check_process_exited(processes[3])
 

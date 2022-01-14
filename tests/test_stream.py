@@ -357,7 +357,7 @@ def test_stream_task_cancel(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "RUNNING")
 
-    hq_env.command(["cancel", "1"])
+    hq_env.command(["job", "cancel", "1"])
 
     wait_for_job_state(hq_env, 1, "CANCELED")
 

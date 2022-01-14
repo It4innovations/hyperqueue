@@ -95,7 +95,7 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 * Monitor the state of jobs
 
   ```bash
-  $ hq jobs
+  $ hq job list
   ```
 
 ## What's next?

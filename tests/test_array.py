@@ -49,10 +49,10 @@ def test_job_array_report(hq_env: HqEnv):
     hq_env.start_worker(cpus=4)
     hq_env.command(["submit", "--array=10-19", "--", "sleep", "1"])
     time.sleep(1.6)
-    table = hq_env.command(["jobs"], as_table=True)
+    table = hq_env.command(["job", "list"], as_table=True)
     table.check_column_value("State", 0, "RUNNING")
 
-    table = hq_env.command(["job", "1"], as_table=True)
+    table = hq_env.command(["job", "info", "1"], as_table=True)
     table.check_row_value("Tasks", "10; Ids: 10-19")
 
     states = table.get_row_value("State").split("\n")
@@ -62,7 +62,7 @@ def test_job_array_report(hq_env: HqEnv):
 
     time.sleep(1.6)
 
-    table = hq_env.command(["job", "1"], as_table=True)
+    table = hq_env.command(["job", "info", "1"], as_table=True)
     assert table.get_row_value("State").split("\n")[-1] == "FINISHED (10)"
 
 
@@ -82,10 +82,10 @@ def test_job_array_error_some(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    table = hq_env.command(["jobs"], as_table=True)
+    table = hq_env.command(["job", "list"], as_table=True)
     table.check_column_value("State", 0, "FAILED")
 
-    table = hq_env.command(["job", "1"], as_table=True)
+    table = hq_env.command(["job", "info", "1"], as_table=True)
     states = table.get_row_value("State").split("\n")
     assert "FAILED (3)" in states
     assert "FINISHED (7)" in states
@@ -104,7 +104,7 @@ def test_job_array_error_some(hq_env: HqEnv):
     assert table[offset + 3][0] == "7"
     assert table[offset + 3][2] == "Error: Program terminated with exit code 1"
 
-    table = hq_env.command(["job", "1", "--tasks"], as_table=True)
+    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)
     for i, s in enumerate(
         ["FINISHED", "FAILED", "FAILED", "FINISHED", "FINISHED", "FINISHED", "FAILED"]
         + 3 * ["FINISHED"]
@@ -119,10 +119,10 @@ def test_job_array_error_all(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    table = hq_env.command(["jobs"], as_table=True)
+    table = hq_env.command(["job", "list"], as_table=True)
     table.check_column_value("State", 0, "FAILED")
 
-    table = hq_env.command(["job", "1"], as_table=True)
+    table = hq_env.command(["job", "info", "1"], as_table=True)
     states = table.get_row_value("State").split("\n")
     assert "FAILED (10)" in states
 
@@ -130,7 +130,7 @@ def test_job_array_error_all(hq_env: HqEnv):
     for error in errors:
         assert "No such file or directory" in error
 
-    table = hq_env.command(["job", "1", "--tasks"], as_table=True)
+    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)
     states = table.get_row_value("State").split("\n")
     assert "FAILED (10)" in states
 
@@ -146,10 +146,10 @@ def test_job_array_cancel(hq_env: HqEnv):
     hq_env.start_worker(cpus=4)
     hq_env.command(["submit", "--array=0-9", "--", "sleep", "1"])
     time.sleep(1.6)
-    hq_env.command(["cancel", "1"])
+    hq_env.command(["job", "cancel", "1"])
     time.sleep(0.4)
 
-    table = hq_env.command(["job", "1", "--tasks"], as_table=True)
+    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)
     states = table.get_row_value("State").split("\n")
     assert "FINISHED (4)" in states
     assert "CANCELED (6)" in states
@@ -160,7 +160,7 @@ def test_job_array_cancel(hq_env: HqEnv):
     assert c.get("FINISHED") == 4
     assert c.get("CANCELED") == 6
 
-    table = hq_env.command(["jobs"], as_table=True)
+    table = hq_env.command(["job", "list"], as_table=True)
     table.check_column_value("State", 0, "CANCELED")
 
 
@@ -171,7 +171,7 @@ def test_array_reporting_state_after_worker_lost(hq_env: HqEnv):
     time.sleep(0.25)
     hq_env.kill_worker(1)
     time.sleep(0.25)
-    table = hq_env.command(["job", "1", "--tasks"], as_table=True)
+    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)
     assert "WAITING (4)" in table.get_row_value("State").split("\n")
 
     task_states = table[JOB_TABLE_ROWS:].get_column_value("State")
@@ -180,7 +180,7 @@ def test_array_reporting_state_after_worker_lost(hq_env: HqEnv):
     hq_env.start_workers(1, cpus=2)
 
     time.sleep(2.2)
-    table = hq_env.command(["job", "1", "--tasks"], as_table=True)
+    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)
     assert "FINISHED (4)" in table.get_row_value("State").split("\n")
 
     task_states = table[JOB_TABLE_ROWS:].get_column_value("State")
@@ -197,7 +197,7 @@ def test_array_mix_with_simple_jobs(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, list(range(1, 101)), "FINISHED")
 
-    table = hq_env.command("jobs", as_table=True)
+    table = hq_env.command(["job", "list"], as_table=True)
     for i in range(1, 101):
         assert table[i][0] == str(i)
         assert table[i][2] == "FINISHED"
@@ -229,7 +229,7 @@ def test_array_times(hq_env: HqEnv):
         1.2
     )  # This sleep is not redundant, we check that after finished time is not moving
 
-    table = hq_env.command(["job", "1", "--tasks"], as_table=True)
+    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)
     offset = JOB_TABLE_ROWS
     for i in range(1, 4):
         start = datetime.datetime.strptime(

@@ -8,13 +8,13 @@ or by setting the `HQ_OUTPUT_MODE` environment variable.
 === "Flag"
 
     ```bash
-    $ hq --output-mode=json jobs
+    $ hq --output-mode=json job list
     ```
 
 === "Environment variable"
 
     ``` bash
-    $ HQ_OUTPUT_MODE=json hq jobs
+    $ HQ_OUTPUT_MODE=json hq job list
     ```
 
 Currently, there are three output modes available. The default, human-readable `cli` mode, and then
@@ -123,7 +123,7 @@ Time-based items are formatted in the following way:
         }
         ```
 
-- Job list: `hq jobs`
+- Job list: `hq job list`
 
     ??? Example
         ```json
@@ -149,7 +149,7 @@ Time-based items are formatted in the following way:
         }]
         ```
 
-- Job info: `hq job <job-id> --tasks`
+- Job info: `hq job info <job-id> --tasks`
 
     ??? Example
         ```json

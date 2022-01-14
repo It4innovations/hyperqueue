@@ -46,7 +46,7 @@ def test_task_resources1(hq_env: HqEnv):
         ]
     )
     time.sleep(0.4)
-    table = hq_env.command(["job", "1"], as_table=True)
+    table = hq_env.command(["job", "info", "1"], as_table=True)
     assert table.get_row_value("State") == "WAITING"
     assert (
         table.get_row_value("Resources") == "cpus: 1 compact\nfairy: 1\npotato: 1000000"
