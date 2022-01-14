@@ -56,15 +56,15 @@ them to fully utilize allocated notes. You thus do not have to manually aggregat
 
     * Automatic submission of workers into PBS/SLURM
 
-      - Slurm:
-
-        ```bash
-        $ hq alloc add slurm --partition <partition>
-        ```
       - PBS:
 
         ```bash
-        $ hq alloc add pbs --queue <queue>
+        $ hq alloc add pbs --time-limit 1h -- -q <queue>
+        ```
+      - Slurm:
+
+        ```bash
+        $ hq alloc add slurm --time-limit 1h -- -p <partition>
         ```
 
     * Manual request in PBS
