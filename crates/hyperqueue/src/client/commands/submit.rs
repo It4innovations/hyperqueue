@@ -112,7 +112,7 @@ impl FromStr for StdioArg {
 }
 
 #[derive(Parser)]
-pub struct SubmitOpts {
+pub struct JobSubmitOpts {
     command: String,
     args: Vec<String>,
 
@@ -205,7 +205,7 @@ pub struct SubmitOpts {
     log: Option<PathBuf>,
 }
 
-impl SubmitOpts {
+impl JobSubmitOpts {
     fn resource_request(&self) -> ResourceRequest {
         let generic_resources = self
             .resource
@@ -240,7 +240,7 @@ fn create_stdio(arg: Option<StdioArg>, log: &Option<PathBuf>, default: &str) -> 
 pub async fn submit_computation(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
-    opts: SubmitOpts,
+    opts: JobSubmitOpts,
 ) -> anyhow::Result<()> {
     let resources = opts.resource_request();
     let (ids, entries) = get_ids_and_entries(&opts)?;
@@ -248,7 +248,7 @@ pub async fn submit_computation(
 
     check_suspicious_options(&opts, task_count)?;
 
-    let SubmitOpts {
+    let JobSubmitOpts {
         command,
         args,
         cpus: _,
@@ -342,7 +342,7 @@ pub async fn submit_computation(
     Ok(())
 }
 
-fn get_ids_and_entries(opts: &SubmitOpts) -> anyhow::Result<(IntArray, Option<Vec<BString>>)> {
+fn get_ids_and_entries(opts: &JobSubmitOpts) -> anyhow::Result<(IntArray, Option<Vec<BString>>)> {
     let entries = if let Some(ref filename) = opts.each_line {
         Some(read_lines(filename)?)
     } else if let Some(ref filename) = opts.from_json {
@@ -363,7 +363,7 @@ fn get_ids_and_entries(opts: &SubmitOpts) -> anyhow::Result<(IntArray, Option<Ve
 }
 
 /// Warns the user that an array job might produce too many files.
-fn warn_array_task_count(opts: &SubmitOpts, task_count: u32) {
+fn warn_array_task_count(opts: &JobSubmitOpts, task_count: u32) {
     if task_count < 2 {
         return;
     }
@@ -392,7 +392,7 @@ fn warn_array_task_count(opts: &SubmitOpts, task_count: u32) {
 }
 
 /// Warns the user that an array job does not contain task ID within stdout/stderr path.
-fn warn_missing_task_id(opts: &SubmitOpts, task_count: u32) {
+fn warn_missing_task_id(opts: &JobSubmitOpts, task_count: u32) {
     let check_path = |path: Option<&StdioArg>, stream: &str| {
         let path = path.and_then(|stdio| match &stdio.0 {
             StdioDef::File(path) => path.to_str(),
@@ -414,7 +414,7 @@ fn warn_missing_task_id(opts: &SubmitOpts, task_count: u32) {
 }
 
 /// Returns an error if working directory contains the CWD placeholder.
-fn check_valid_cwd(opts: &SubmitOpts) -> anyhow::Result<()> {
+fn check_valid_cwd(opts: &JobSubmitOpts) -> anyhow::Result<()> {
     let placeholders = parse_resolvable_string(opts.cwd.to_str().unwrap());
     if placeholders.contains(&StringPart::Placeholder(CWD_PLACEHOLDER)) {
         return Err(anyhow!(
@@ -427,7 +427,7 @@ fn check_valid_cwd(opts: &SubmitOpts) -> anyhow::Result<()> {
 }
 
 /// Warn user about suspicious submit parameters
-fn check_suspicious_options(opts: &SubmitOpts, task_count: u32) -> anyhow::Result<()> {
+fn check_suspicious_options(opts: &JobSubmitOpts, task_count: u32) -> anyhow::Result<()> {
     warn_array_task_count(opts, task_count);
     warn_missing_task_id(opts, task_count);
     check_valid_cwd(opts)?;
@@ -435,7 +435,7 @@ fn check_suspicious_options(opts: &SubmitOpts, task_count: u32) -> anyhow::Resul
 }
 
 #[derive(Parser)]
-pub struct ResubmitOpts {
+pub struct JobResubmitOpts {
     job_id: u32,
 
     /// Filter only tasks in a given state
@@ -446,7 +446,7 @@ pub struct ResubmitOpts {
 pub async fn resubmit_computation(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
-    opts: ResubmitOpts,
+    opts: JobResubmitOpts,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::Resubmit(ResubmitRequest {
         job_id: opts.job_id.into(),
