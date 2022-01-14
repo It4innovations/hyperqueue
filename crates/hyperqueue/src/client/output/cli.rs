@@ -4,7 +4,7 @@ use cli_table::{print_stdout, Cell, CellStruct, Color, ColorChoice, Style, Table
 use std::fmt::{Display, Write};
 
 use crate::client::job::WorkerMap;
-use crate::client::output::outputs::{Output, MAX_DISPLAYED_WORKERS};
+use crate::client::output::outputs::{Output, OutputStream, MAX_DISPLAYED_WORKERS};
 use crate::client::status::{job_status, task_status, Status};
 use crate::common::env::is_hq_env;
 use crate::common::format::{human_duration, human_size};
@@ -16,10 +16,10 @@ use crate::server::autoalloc::{
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, StatsResponse, TaskDescription,
-    WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
+    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, Selector, StatsResponse,
+    TaskDescription, WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
 };
-use crate::{JobTaskCount, WorkerId};
+use crate::{JobTaskCount, JobTaskId, WorkerId};
 
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use core::time::Duration;
@@ -37,7 +37,8 @@ use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
 use anyhow::Error;
 use colored::Color as Colorization;
 use colored::Colorize;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
+use std::fs::File;
 use tako::messages::gateway::{LostWorkerReason, ResourceRequest};
 
 pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
@@ -485,7 +486,7 @@ impl Output for CliOutput {
             .iter()
             .map(|task| {
                 let (start, end) = get_task_time(&task.state);
-                let (cwd, stdout, stderr) = get_task_paths(&task_to_paths, task);
+                let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, task);
 
                 vec![
                     task.task_id.cell().justify(Justify::Right),
@@ -558,6 +559,15 @@ impl Output for CliOutput {
             humantime::format_duration(duration),
             msgs.join(", ")
         );
+    }
+
+    fn print_job_output(
+        &self,
+        job: JobDetail,
+        task_selector: Option<Selector>,
+        output_stream: OutputStream,
+    ) -> anyhow::Result<()> {
+        print_job_output(job, task_selector, output_stream)
     }
 
     fn print_summary(&self, filename: &Path, summary: Summary) {
@@ -895,6 +905,76 @@ pub(crate) fn job_progress_bar(
     buffer
 }
 
+pub fn print_job_output(
+    job: JobDetail,
+    task_selector: Option<Selector>,
+    output_stream: OutputStream,
+) -> anyhow::Result<()> {
+    let task_to_paths = resolve_task_paths(&job);
+
+    let read_stream = |task_info: &JobTaskInfo, output_stream: &OutputStream| {
+        let (_, stdout, stderr) = get_task_paths(&task_to_paths, task_info);
+        let (opt_path, stream_name) = match output_stream {
+            OutputStream::Stdout => (stdout, "stdout"),
+            OutputStream::Stderr => (stderr, "stderr"),
+        };
+
+        if let Some(path) = opt_path {
+            match File::open(path) {
+                Ok(mut file) => {
+                    let copy = std::io::copy(&mut file, &mut std::io::stdout().lock());
+                    if let Err(error) = copy {
+                        log::warn!("Could not output contents of `{path}`: {error:?}");
+                    }
+                }
+                Err(error) => log::warn!("File `{path}` cannot be opened: {error:?}"),
+            };
+        } else {
+            log::warn!(
+                "Task {} has no `{stream_name}` stream associated with it",
+                task_info.task_id
+            );
+        }
+    };
+
+    match task_selector {
+        None | Some(Selector::All) => {
+            job.tasks.iter().for_each(|task| {
+                read_stream(task, &output_stream);
+            });
+        }
+        Some(Selector::Specific(arr)) => {
+            let tasks_map: HashMap<JobTaskId, JobTaskInfo> = job
+                .tasks
+                .into_iter()
+                .map(|info| (info.task_id, info))
+                .collect();
+
+            let tasks: Vec<(JobTaskId, Option<&JobTaskInfo>)> = arr
+                .iter()
+                .map(|task_id| {
+                    let task_id: JobTaskId = task_id.into();
+                    (task_id, tasks_map.get(&task_id))
+                })
+                .collect();
+
+            for (id, task) in tasks {
+                match task {
+                    None => log::warn!("Task {id} not found"),
+                    Some(info) => read_stream(info, &output_stream),
+                }
+            }
+        }
+        Some(Selector::LastN(_)) => {
+            let last_task = job.tasks.iter().max_by_key(|&x| x.task_id);
+            if let Some(task) = last_task {
+                read_stream(task, &output_stream);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn task_status_to_cell(status: Status) -> CellStruct {
     match status {
         Status::Waiting => "WAITING".cell().foreground_color(Some(Color::Cyan)),
@@ -978,8 +1058,29 @@ fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<DateTim
     }
 }
 
-/// Returns (working directory, stdout, stderr)
+/// Returns Option(working directory, stdout, stderr)
 fn get_task_paths<'a>(
+    task_map: &'a TaskToPathsMap,
+    state: &JobTaskInfo,
+) -> (Option<&'a str>, Option<&'a str>, Option<&'a str>) {
+    match task_map[&state.task_id] {
+        Some(ref paths) => (
+            Some(paths.cwd.to_str().unwrap()),
+            match &paths.stdout {
+                StdioDef::File(filename) => Some(filename.to_str().unwrap()),
+                _ => None,
+            },
+            match &paths.stderr {
+                StdioDef::File(filename) => Some(filename.to_str().unwrap()),
+                _ => None,
+            },
+        ),
+        None => (None, None, None),
+    }
+}
+
+/// Returns (working directory, stdout, stderr)
+fn format_task_paths<'a>(
     task_map: &'a TaskToPathsMap,
     state: &JobTaskInfo,
 ) -> (&'a str, &'a str, &'a str) {

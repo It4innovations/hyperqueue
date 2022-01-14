@@ -19,7 +19,18 @@
 ## New features
 
 
-### Job submission
+### Jobs
+   * Added new command for outputting `stdout`/`stderr` of jobs.
+
+     ```bash
+     # Print stdout of all tasks of job 1
+     $ hq job cat 1 stdout
+     
+     # Print stderr of tasks 1, 2, 3 of job 5
+     $ hq job cat 5 stderr --tasks 1-3
+     ```
+
+     You can find more information in the [documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/jobs/#display-job-stdoutstderr)
    * `#HQ` directives - You can now specify job parameters using a shell script passed to `hq submit`
      by using HQ directives such as `#HQ --cpus=4`. This feature was inspired by similar functionality
      that is present in e.g. PBS or Slurm. You can find more information in the
