@@ -1,6 +1,7 @@
 use crate::common::serverdir::AccessRecord;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, StatsResponse, WaitForJobsResponse, WorkerInfo,
+    AutoAllocListResponse, JobDetail, JobInfo, Selector, StatsResponse, WaitForJobsResponse,
+    WorkerInfo,
 };
 
 use crate::client::job::WorkerMap;
@@ -9,11 +10,13 @@ use crate::stream::reader::logfile::Summary;
 use std::path::Path;
 use std::str::FromStr;
 
+use clap::Parser;
 use core::time::Duration;
 use tako::common::resources::ResourceDescriptor;
 
 pub const MAX_DISPLAYED_WORKERS: usize = 2;
 
+#[derive(Parser)]
 pub enum Outputs {
     CLI,
     JSON,
@@ -23,12 +26,33 @@ pub enum Outputs {
 impl FromStr for Outputs {
     type Err = anyhow::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        match input {
             "cli" => Ok(Outputs::CLI),
             "json" => Ok(Outputs::JSON),
             "quiet" => Ok(Outputs::Quiet),
-            _ => anyhow::bail!("Invalid output"),
+            _ => {
+                anyhow::bail!("Invalid output mode. Possible values are `cli`, `json` or `quiet`.")
+            }
+        }
+    }
+}
+
+pub enum OutputStream {
+    /// Displays stdout output stream for given job and task(s)
+    Stdout,
+    /// Displays stderr output stream for given job and task(s)
+    Stderr,
+}
+
+impl FromStr for OutputStream {
+    type Err = anyhow::Error;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        match input {
+            "stdout" => Ok(OutputStream::Stdout),
+            "stderr" => Ok(OutputStream::Stderr),
+            _ => anyhow::bail!("Invalid output stream. Possible values are `stdout` or `stderr`."),
         }
     }
 }
@@ -48,6 +72,12 @@ pub trait Output {
     fn print_job_detail(&self, job: JobDetail, worker_map: WorkerMap);
     fn print_job_tasks(&self, job: JobDetail, worker_map: WorkerMap);
     fn print_job_wait(&self, duration: Duration, response: &WaitForJobsResponse);
+    fn print_job_output(
+        &self,
+        job: JobDetail,
+        task_selector: Option<Selector>,
+        output_stream: OutputStream,
+    ) -> anyhow::Result<()>;
 
     // Log
     fn print_summary(&self, filename: &Path, summary: Summary);

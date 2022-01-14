@@ -14,7 +14,7 @@ use tako::messages::gateway::ResourceRequest;
 
 use crate::client::job::WorkerMap;
 use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
-use crate::client::output::outputs::Output;
+use crate::client::output::outputs::{Output, OutputStream};
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::AccessRecord;
 use crate::server::autoalloc::{
@@ -23,8 +23,8 @@ use crate::server::autoalloc::{
 use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, QueueDescriptorData, StatsResponse,
-    TaskDescription, WaitForJobsResponse, WorkerInfo,
+    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, QueueDescriptorData, Selector,
+    StatsResponse, TaskDescription, WaitForJobsResponse, WorkerInfo,
 };
 use crate::{JobTaskId, Map};
 
@@ -164,6 +164,15 @@ impl Output for JsonOutput {
             "canceled": canceled,
             "invalid": invalid,
         }))
+    }
+
+    fn print_job_output(
+        &self,
+        _job: JobDetail,
+        _task_selector: Option<Selector>,
+        _output_stream: OutputStream,
+    ) -> anyhow::Result<()> {
+        anyhow::bail!("JSON output mode doesn't support job output");
     }
 
     fn print_summary(&self, filename: &Path, summary: Summary) {

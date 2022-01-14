@@ -833,3 +833,65 @@ echo 'Hello' > out.txt
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     check_file_contents("out.txt", "Hello\n")
+
+
+def test_job_cat_stdout(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["submit", "--array", "1-2", "--", "bash", "-c", "echo $HQ_TASK_ID"])
+
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    output = hq_env.command(["job", "cat", "1", "stdout"])
+    assert output.splitlines() == ["1", "2"]
+
+    output = hq_env.command(["job", "cat", "--tasks", "2", "1", "stdout"])
+    assert output.strip() == "2"
+
+    output = hq_env.command(["job", "cat", "--tasks", "0", "1", "stdout"])
+    assert "Task 0 not found" in output.strip()
+
+
+def test_job_cat_stderr(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--array",
+            "1-2",
+            "--",
+            "python3",
+            "-c",
+            """
+import sys
+import os
+print(os.environ['HQ_TASK_ID'], file=sys.stderr)
+""",
+        ]
+    )
+
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    output = hq_env.command(["job", "cat", "1", "stderr"])
+    assert output.splitlines() == ["1", "2"]
+
+    output = hq_env.command(["job", "cat", "--tasks", "last", "1", "stderr"])
+    assert output.strip() == "2"
+
+    output = hq_env.command(["job", "cat", "--tasks", "3", "1", "stdout"])
+    assert "Task 3 not found" in output.strip()
+
+
+def test_job_cat_no_output(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["submit", "--stdout=none", "--stderr=none", "--", "echo", "hello"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    output = hq_env.command(["job", "cat", "1", "stdout"])
+    assert "Task 0 has no `stdout` stream associated with it" in output.strip()
+
+    output = hq_env.command(["job", "cat", "1", "stderr"])
+    assert "Task 0 has no `stderr` stream associated with it" in output.strip()

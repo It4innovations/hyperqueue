@@ -7,14 +7,15 @@ use tako::common::resources::ResourceDescriptor;
 use tako::messages::gateway::LostWorkerReason;
 
 use crate::client::job::WorkerMap;
-use crate::client::output::outputs::Output;
+use crate::client::output::cli::print_job_output;
+use crate::client::output::outputs::{Output, OutputStream};
 use crate::client::status::{job_status, Status};
 use crate::common::serverdir::AccessRecord;
 use crate::server::autoalloc::{Allocation, AllocationEventHolder};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, StatsResponse, WaitForJobsResponse, WorkerExitInfo,
-    WorkerInfo,
+    AutoAllocListResponse, JobDetail, JobInfo, Selector, StatsResponse, WaitForJobsResponse,
+    WorkerExitInfo, WorkerInfo,
 };
 
 #[derive(Default)]
@@ -67,6 +68,15 @@ impl Output for Quiet {
     fn print_job_detail(&self, _job: JobDetail, _worker_map: WorkerMap) {}
     fn print_job_tasks(&self, _job: JobDetail, _worker_map: WorkerMap) {}
     fn print_job_wait(&self, _duration: Duration, _response: &WaitForJobsResponse) {}
+
+    fn print_job_output(
+        &self,
+        job: JobDetail,
+        task_selector: Option<Selector>,
+        output_stream: OutputStream,
+    ) -> anyhow::Result<()> {
+        print_job_output(job, task_selector, output_stream)
+    }
 
     // Log
     fn print_summary(&self, _filename: &Path, _summary: Summary) {}

@@ -9,8 +9,8 @@ use cli_table::ColorChoice;
 use clap::ArgSettings::HiddenShortHelp;
 use hyperqueue::client::commands::autoalloc::{command_autoalloc, AutoAllocOpts};
 use hyperqueue::client::commands::job::{
-    cancel_job, output_job_detail, output_job_list, output_job_tasks, JobCancelOpts, JobInfoOpts,
-    JobListOpts, JobTasksOpts,
+    cancel_job, output_job_cat, output_job_detail, output_job_list, output_job_tasks,
+    JobCancelOpts, JobCatOpts, JobInfoOpts, JobListOpts, JobTasksOpts,
 };
 use hyperqueue::client::commands::log::{command_log, LogOpts};
 use hyperqueue::client::commands::stats::print_server_stats;
@@ -247,6 +247,8 @@ enum JobCommand {
     Tasks(JobTasksOpts),
     /// Cancel a specific job
     Cancel(JobCancelOpts),
+    /// Shows task(s) streams(stdout, stderr) of a specific job
+    Cat(JobCatOpts),
     /// Submit a job to HyperQueue
     Submit(JobSubmitOpts),
     /// Resubmits tasks of a job
@@ -335,6 +337,18 @@ async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> an
 async fn command_job_tasks(gsettings: &GlobalSettings, opts: JobTasksOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
     output_job_tasks(gsettings, &mut connection, opts.job_id.into()).await
+}
+
+async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow::Result<()> {
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    output_job_cat(
+        gsettings,
+        &mut connection,
+        opts.job_id,
+        opts.tasks.map(|selector| selector.into()),
+        opts.stream,
+    )
+    .await
 }
 
 async fn command_submit(gsettings: &GlobalSettings, opts: JobSubmitOpts) -> anyhow::Result<()> {
@@ -560,6 +574,9 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Tasks(opts),
         }) => command_job_tasks(&gsettings, opts).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::Cat(opts),
+        }) => command_job_cat(&gsettings, opts).await,
         SubCommand::Submit(opts)
         | SubCommand::Job(JobOpts {
             subcmd: JobCommand::Submit(opts),

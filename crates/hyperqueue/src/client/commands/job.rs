@@ -1,5 +1,6 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
+use crate::client::output::outputs::OutputStream;
 use crate::client::status::{job_status, Status};
 use crate::common::arraydef::IntArray;
 use crate::common::cli::SelectorArg;
@@ -34,6 +35,20 @@ pub struct JobTasksOpts {
 pub struct JobCancelOpts {
     /// Select job(s) to cancel
     pub selector_arg: SelectorArg,
+}
+
+#[derive(Parser)]
+pub struct JobCatOpts {
+    /// Select job
+    pub job_id: u32,
+
+    /// Select task(s) outputs to view
+    #[clap(long)]
+    pub tasks: Option<SelectorArg>,
+
+    /// Type of output stream to display
+    #[clap(possible_values = &["stdout", "stderr"])]
+    pub stream: OutputStream,
 }
 
 pub async fn get_last_job_id(connection: &mut ClientConnection) -> crate::Result<Option<JobId>> {
@@ -121,6 +136,30 @@ pub async fn output_job_tasks(
             .print_job_tasks(job, get_worker_map(connection).await?);
     } else {
         log::error!("Job {} not found", job_id);
+    }
+    Ok(())
+}
+
+pub async fn output_job_cat(
+    gsettings: &GlobalSettings,
+    connection: &mut ClientConnection,
+    job_id: u32,
+    task_selector: Option<Selector>,
+    output_stream: OutputStream,
+) -> anyhow::Result<()> {
+    let message = FromClientMessage::JobDetail(JobDetailRequest {
+        selector: Selector::Specific(IntArray::from_id(job_id)),
+        include_tasks: true,
+    });
+    let mut responses =
+        rpc_call!(connection, message, ToClientMessage::JobDetailResponse(r) => r).await?;
+
+    if let Some(job) = responses.pop().and_then(|v| v.1) {
+        return gsettings
+            .printer()
+            .print_job_output(job, task_selector, output_stream);
+    } else {
+        log::error!("Job {job_id} not found");
     }
     Ok(())
 }

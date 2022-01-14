@@ -313,3 +313,9 @@ $ hq job info <job-selector>
 ```bash
 $ hq job tasks <job-id>
 ```
+
+### Display job `stdout`/`stderr`
+
+```bash
+$ hq job cat <job-id> [--tasks <task-selector>] <stdout/stderr>
+```
