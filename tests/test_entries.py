@@ -32,7 +32,7 @@ def test_entries_no_newline(hq_env: HqEnv):
         assert line == test
     assert not os.path.isfile(default_task_output(job_id=1, task_id=4))
 
-    table = hq_env.command(["job", "1"], as_table=True)
+    table = hq_env.command(["job", "info", "1"], as_table=True)
     assert table.get_row_value("State").split("\n")[-1] == "FINISHED (4)"
 
 
@@ -61,7 +61,7 @@ def test_entries_with_newline(hq_env: HqEnv):
         assert line == test
     assert not os.path.isfile(default_task_output(task_id=4))
 
-    table = hq_env.command(["job", "1"], as_table=True)
+    table = hq_env.command(["job", "info", "1"], as_table=True)
     assert table.get_row_value("State").split("\n")[-1] == "FINISHED (4)"
 
 
@@ -90,7 +90,7 @@ def test_entries_from_json_entry(hq_env: HqEnv):
         assert line == test
     assert not os.path.isfile(default_task_output(task_id=3))
 
-    table = hq_env.command(["job", "1"], as_table=True)
+    table = hq_env.command(["job", "info", "1"], as_table=True)
     assert table.get_row_value("State").split("\n")[-1] == "FINISHED (3)"
 
 

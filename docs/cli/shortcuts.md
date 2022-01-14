@@ -7,17 +7,17 @@ select multiple IDs at once or to reference the most recently created ID:
 
 - `<id>` Single ID
     - `hq worker stop 1` - stop a worker with ID `1`
-    - `hq cancel 5` - cancel a job with ID `5`
+    - `hq job cancel 5` - cancel a job with ID `5`
 - `<start>-<end>:<step>` Inclusive range of IDs, starting at `start` and ending at `end` with step `step`
     - `hq submit --array=1-10` - create a task array with `10` tasks
     - `hq worker stop 1-3` - stop workers with IDs `1`, `2` and `3`
-    - `hq cancel 2-10:2` - cancel jobs with IDs `2`, `4`, `6`, `8` and `10`
+    - `hq job cancel 2-10:2` - cancel jobs with IDs `2`, `4`, `6`, `8` and `10`
 - `all` All valid IDs
     - `hq worker stop all` - stop all workers
-    - `hq cancel all` - cancel all jobs
+    - `hq job cancel all` - cancel all jobs
 - `last` The most recently created ID
     - `hq worker stop last` - stop most recently connected worker 
-    - `hq cancel last` - cancel most recently submitted job
+    - `hq job cancel last` - cancel most recently submitted job
 
 You can also combine the first two types of selectors with a comma. For example, the command
 
@@ -37,11 +37,11 @@ would stop workers with IDs `1`, `3`, `5`, `6`, `7` and `8`.
 ### Supported commands and options
 - `hq submit --array=<selector>`
 - `hq worker stop <selector>`
-- `hq job <selector>`
-    - does not support `all` (use `hq jobs` instead)
-- `hq cancel <selector>`
-- `hq wait <selector>`
-- `hq progress <selector>`
+- `hq job info <selector>`
+    - does not support `all` (use `hq job list` instead)
+- `hq job cancel <selector>`
+- `hq job wait <selector>`
+- `hq job progress <selector>`
 
 ## Duration
 You can enter durations using various time suffixes, for example:

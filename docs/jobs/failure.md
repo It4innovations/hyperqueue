@@ -6,7 +6,7 @@ When a job fails or is canceled, you might want to submit it again, without the 
 parameters. You can achieve this using **resubmit**:
 
 ```bash
-$ hq resubmit <job-id>
+$ hq job resubmit <job-id>
 ```
 
 It wil create a new job that has the same configuration as the job with the entered job id. 
@@ -15,7 +15,7 @@ This is especially useful for [task arrays](arrays.md). By default, `resubmit` w
 however, you can specify only a subset of tasks based on their [state](jobs.md#task-state):
 
 ```bash
-$ hq resubmit <job-id> --status=failed,canceled
+$ hq job resubmit <job-id> --status=failed,canceled
 ```
 
 Using this command you can resubmit e.g. only the tasks that have failed, without the need to recompute all tasks of

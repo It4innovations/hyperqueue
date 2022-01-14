@@ -52,7 +52,7 @@ def test_server_worker_port(hq_env: HqEnv):
 
 def test_version_mismatch(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command("jobs", as_table=True)
+    hq_env.command(["job", "list"], as_table=True)
 
     access_file = os.path.join(hq_env.server_dir, "hq-current", "access.json")
 
@@ -72,7 +72,7 @@ def test_version_mismatch(hq_env: HqEnv):
         Exception,
         match=f"Server was started with version {version}.1, but the current version is {version}",
     ):
-        hq_env.command("jobs", as_table=True)
+        hq_env.command(["job", "list"], as_table=True)
 
 
 def test_server_info(hq_env: HqEnv):

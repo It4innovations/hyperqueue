@@ -82,22 +82,12 @@ struct DashboardOpts {}
 enum SubCommand {
     /// Commands for controlling the HyperQueue server
     Server(ServerOpts),
-    /// Display information about all jobs
-    Jobs(JobListOpts),
-    /// Display detailed information about a specific job
-    Job(JobDetailOpts),
+    /// Commands for controlling HyperQueue jobs
+    Job(JobOpts),
     /// Submit a job to HyperQueue
     Submit(SubmitOpts),
-    /// Cancel a specific job
-    Cancel(CancelOpts),
     /// Commands for controlling HyperQueue workers
     Worker(WorkerOpts),
-    /// Resubmits all filtered tasks within a job
-    Resubmit(ResubmitOpts),
-    /// Waits until a job is ended
-    Wait(WaitOpts),
-    /// Interactively observe the execution of a job
-    Progress(ProgressOpts),
     /// Operations with log
     Log(LogOpts),
     /// Automatic allocation management
@@ -203,40 +193,11 @@ pub struct ProgressOpts {
 }
 
 // Worker CLI options
-#[derive(Parser)]
-struct WorkerStopOpts {
-    /// Select worker(s) to stop
-    selector_arg: SelectorArg,
-}
-
-#[derive(Parser)]
-struct WorkerListOpts {
-    /// Include offline workers in the list
-    #[clap(long)]
-    all: bool,
-}
-
-#[derive(Parser)]
-struct WorkerAddressOpts {
-    worker_id: WorkerId,
-}
 
 #[derive(Parser)]
 struct WorkerOpts {
     #[clap(subcommand)]
     subcmd: WorkerCommand,
-}
-
-#[derive(Parser)]
-struct WorkerInfoOpts {
-    worker_id: WorkerId,
-}
-
-#[derive(Parser)]
-struct HwDetectOpts {
-    /// Detect only physical cores
-    #[clap(long)]
-    no_hyperthreading: bool,
 }
 
 #[derive(Parser)]
@@ -256,7 +217,62 @@ enum WorkerCommand {
     Address(WorkerAddressOpts),
 }
 
+#[derive(Parser)]
+struct WorkerStopOpts {
+    /// Select worker(s) to stop
+    selector_arg: SelectorArg,
+}
+
+#[derive(Parser)]
+struct WorkerListOpts {
+    /// Include offline workers in the list
+    #[clap(long)]
+    all: bool,
+}
+
+#[derive(Parser)]
+struct WorkerAddressOpts {
+    worker_id: WorkerId,
+}
+
+#[derive(Parser)]
+struct WorkerInfoOpts {
+    worker_id: WorkerId,
+}
+
+#[derive(Parser)]
+struct HwDetectOpts {
+    /// Detect only physical cores
+    #[clap(long)]
+    no_hyperthreading: bool,
+}
+
 // Job CLI options
+
+#[derive(Parser)]
+struct JobOpts {
+    #[clap(subcommand)]
+    subcmd: JobCommand,
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Parser)]
+enum JobCommand {
+    /// Display information about jobs
+    List(JobListOpts),
+    /// Display detailed information about a specific job
+    Info(JobInfoOpts),
+    /// Cancel a specific job
+    Cancel(JobCancelOpts),
+    /// Submit a job to HyperQueue
+    Submit(SubmitOpts),
+    /// Resubmits tasks of a job
+    Resubmit(ResubmitOpts),
+    /// Waits until a job is finished
+    Wait(WaitOpts),
+    /// Interactively observe the execution of a job
+    Progress(ProgressOpts),
+}
 
 #[derive(Parser)]
 struct JobListOpts {
@@ -264,7 +280,7 @@ struct JobListOpts {
 }
 
 #[derive(Parser)]
-struct JobDetailOpts {
+struct JobInfoOpts {
     /// Single ID, ID range or `last` to display the most recently submitted job
     selector_arg: SelectorArg,
 
@@ -274,7 +290,7 @@ struct JobDetailOpts {
 }
 
 #[derive(Parser)]
-struct CancelOpts {
+struct JobCancelOpts {
     /// Select job(s) to cancel
     selector_arg: SelectorArg,
 }
@@ -330,7 +346,7 @@ async fn command_job_list(gsettings: &GlobalSettings, opts: JobListOpts) -> anyh
     output_job_list(gsettings, &mut connection, opts.job_filters).await
 }
 
-async fn command_job_detail(gsettings: &GlobalSettings, opts: JobDetailOpts) -> anyhow::Result<()> {
+async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> anyhow::Result<()> {
     if matches!(opts.selector_arg, SelectorArg::All) {
         log::warn!("Job detail doesn't support the `all` selector, did you mean to use `hq jobs`?");
         return Ok(());
@@ -351,7 +367,7 @@ async fn command_submit(gsettings: &GlobalSettings, opts: SubmitOpts) -> anyhow:
     submit_computation(gsettings, &mut connection, opts).await
 }
 
-async fn command_cancel(gsettings: &GlobalSettings, opts: CancelOpts) -> anyhow::Result<()> {
+async fn command_cancel(gsettings: &GlobalSettings, opts: JobCancelOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
     cancel_job(gsettings, &mut connection, opts.selector_arg.into()).await
 }
@@ -561,14 +577,29 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Address(opts),
         }) => command_worker_address(&gsettings, opts).await,
-        SubCommand::Jobs(opts) => command_job_list(&gsettings, opts).await,
-        SubCommand::Job(opts) => command_job_detail(&gsettings, opts).await,
-        SubCommand::Submit(opts) => command_submit(&gsettings, opts).await,
-        SubCommand::Cancel(opts) => command_cancel(&gsettings, opts).await,
-        SubCommand::Resubmit(opts) => command_resubmit(&gsettings, opts).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::List(opts),
+        }) => command_job_list(&gsettings, opts).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::Info(opts),
+        }) => command_job_detail(&gsettings, opts).await,
+        SubCommand::Submit(opts)
+        | SubCommand::Job(JobOpts {
+            subcmd: JobCommand::Submit(opts),
+        }) => command_submit(&gsettings, opts).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::Cancel(opts),
+        }) => command_cancel(&gsettings, opts).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::Resubmit(opts),
+        }) => command_resubmit(&gsettings, opts).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::Wait(opts),
+        }) => command_wait(&gsettings, opts).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::Progress(opts),
+        }) => command_progress(&gsettings, opts).await,
         SubCommand::Dashboard(opts) => command_dashboard_start(&gsettings, opts).await,
-        SubCommand::Wait(opts) => command_wait(&gsettings, opts).await,
-        SubCommand::Progress(opts) => command_progress(&gsettings, opts).await,
         SubCommand::Log(opts) => command_log(&gsettings, opts),
         SubCommand::AutoAlloc(opts) => command_autoalloc(&gsettings, opts).await,
         SubCommand::GenerateCompletion(opts) => generate_completion(opts),

@@ -108,10 +108,10 @@ $ hq submit --env KEY1=VAL1 --env KEY2=VAL2 ...
 
 Each executed task will also automatically receive the following environment variables:
 
-| Variable name | Explanation |
-| ------------- | ----------- |
-| `HQ_JOB_ID`   | Job id      |
-| `HQ_TASK_ID`  | Task id     |
+| Variable name    | Explanation                            |
+|------------------|----------------------------------------|
+| `HQ_JOB_ID`      | Job id                                 |
+| `HQ_TASK_ID`     | Task id                                |
 | `HQ_INSTANCE_ID` | [Instance id](failure.md#task-restart) |
 
 ### Time management
@@ -197,11 +197,11 @@ can query the state of a job with the following commands[^1]:
 
 === "Simple job"
     ```bash
-    $ hq job <job-id>
+    $ hq job info <job-id>
     ```
 === "Job with multiple tasks"
     ```bash
-    $ hq job --tasks <job-id>
+    $ hq job info --tasks <job-id>
     ```
 
 [^1]: You can use various [shortcuts](../cli/shortcuts.md#id-selector) to select multiple jobs at once.
@@ -243,11 +243,11 @@ matches from the following list of rules:
 5. All tasks have to be `Finished`, therefore the job state will also be `Finished`.
 
 ## Cancelling jobs
-You can prematurely terminate a submitted job that haven't been completed yet by *cancelling* it using the `hq cancel`
+You can prematurely terminate a submitted job that haven't been completed yet by *cancelling* it using the `hq job cancel`
 command[^1]:
 
 ```bash
-$ hq cancel <job-selector>
+$ hq job cancel <job-selector>
 ```
 
 Cancelling a job will cancel all of its tasks that are not yet completed.
@@ -266,14 +266,14 @@ There are three ways of waiting until a job completes:
 
         This method can be used for benchmarking the job duration.
 
-- **Wait command** There is a separate `hq wait` command that can be used to wait until an existing job completes[^1]:
+- **Wait command** There is a separate `hq job wait` command that can be used to wait until an existing job completes[^1]:
 
     ```bash
-    $ hq wait <job-selector>
+    $ hq job wait <job-selector>
     ```
 
 - **Interactive wait** If you want to interactively observe the status of a job (which is useful especially if it
-  has [multiple tasks](arrays.md)), you can use the `hq progress` command:
+  has [multiple tasks](arrays.md)), you can use the `hq job progress` command:
 
     === "Submit and observe"
         ```bash
@@ -281,7 +281,7 @@ There are three ways of waiting until a job completes:
         ```
     === "Observe an existing job[^1]"
         ```bash
-        $ hq progress <selector>
+        $ hq job progress <selector>
         ```
 
 ## Useful job commands
@@ -290,13 +290,13 @@ Here is a list of useful job commands:
 ### Display all jobs
 
 ```bash
-$ hq jobs
+$ hq job list
 ```
 
 You can display only jobs having the selected [states](#job-state) by appending them to the command:
 
 ```bash
-$ hq jobs running waiting
+$ hq job list running waiting
 ```
 
 Valid filter values are:
@@ -310,5 +310,5 @@ Valid filter values are:
 ### Display information about a specific job
 
 ```bash
-$ hq job <job-selector>
+$ hq job info <job-selector>
 ```
