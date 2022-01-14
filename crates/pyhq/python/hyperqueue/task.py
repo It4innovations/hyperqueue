@@ -1,6 +1,7 @@
 import dataclasses
 from typing import Dict, List, Optional, Union
 
+from .common import GenericPath
 from .output import Output, gather_outputs
 from .validation import ValidationException, validate_args
 
@@ -13,12 +14,14 @@ class Task:
 
 
 class ExternalProgram(Task):
-    def __init__(self, args: List[str], env: EnvType = None, cwd: Optional[str] = None):
+    def __init__(
+        self, args: List[str], env: EnvType = None, cwd: Optional[GenericPath] = None
+    ):
         args = to_arg_list(args)
         validate_args(args)
         self.args = args
         self.env = env or {}
-        self.cwd = cwd
+        self.cwd = str(cwd)
         self.outputs = get_task_outputs(self)
 
     def __getitem__(self, key: str):
