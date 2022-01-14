@@ -7,6 +7,7 @@ use hyperqueue::transfer::messages::{
     TaskDescription as HqTaskDescription, ToClientMessage,
 };
 use pyo3::{PyResult, Python};
+use std::collections::HashMap;
 
 use crate::utils::error::ToPyResult;
 use crate::{borrow_mut, run_future, ContextPtr, FromPyObject};
@@ -15,6 +16,7 @@ use crate::{borrow_mut, run_future, ContextPtr, FromPyObject};
 pub struct TaskDescription {
     args: Vec<String>,
     cwd: Option<String>,
+    env: HashMap<String, String>,
 }
 
 #[derive(Debug, FromPyObject)]
@@ -36,7 +38,11 @@ pub(crate) fn submit_job_impl(
             task_desc: HqTaskDescription {
                 program: ProgramDefinition {
                     args: task.args.into_iter().map(|arg| arg.into()).collect(),
-                    env: Default::default(),
+                    env: task
+                        .env
+                        .into_iter()
+                        .map(|(k, v)| (k.into(), v.into()))
+                        .collect(),
                     stdout: Default::default(),
                     stderr: Default::default(),
                     cwd: task.cwd.map(|p| p.into()),

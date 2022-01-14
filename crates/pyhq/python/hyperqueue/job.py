@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+from .common import GenericPath
 from .task import EnvType, ExternalProgram, ProgramArgs, Task, TaskConfig, build_tasks
 
 JobId = int
@@ -13,7 +14,7 @@ class Job:
         self,
         args: ProgramArgs,
         env: EnvType = None,
-        cwd: Optional[str] = None,
+        cwd: Optional[GenericPath] = None,
         **kwargs
     ) -> ExternalProgram:
         task = ExternalProgram(args=args, env=env, cwd=cwd)
