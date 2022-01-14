@@ -1,6 +1,7 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
 use crate::client::status::{job_status, Status};
+use crate::common::cli::SelectorArg;
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
@@ -8,6 +9,28 @@ use crate::transfer::messages::{
     Selector, ToClientMessage,
 };
 use crate::JobId;
+use clap::Parser;
+
+#[derive(Parser)]
+pub struct JobListOpts {
+    pub job_filters: Vec<Status>,
+}
+
+#[derive(Parser)]
+pub struct JobInfoOpts {
+    /// Single ID, ID range or `last` to display the most recently submitted job
+    pub selector_arg: SelectorArg,
+
+    /// Include detailed task information in the output
+    #[clap(long)]
+    pub tasks: bool,
+}
+
+#[derive(Parser)]
+pub struct JobCancelOpts {
+    /// Select job(s) to cancel
+    pub selector_arg: SelectorArg,
+}
 
 pub async fn get_last_job_id(connection: &mut ClientConnection) -> crate::Result<Option<JobId>> {
     let message = FromClientMessage::JobInfo(JobInfoRequest {

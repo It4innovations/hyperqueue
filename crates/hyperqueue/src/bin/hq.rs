@@ -7,12 +7,14 @@ use clap_complete::{generate, Shell};
 use cli_table::ColorChoice;
 
 use hyperqueue::client::commands::autoalloc::{command_autoalloc, AutoAllocOpts};
-use hyperqueue::client::commands::jobs::{cancel_job, output_job_detail, output_job_list};
+use hyperqueue::client::commands::job::{
+    cancel_job, output_job_detail, output_job_list, JobCancelOpts, JobInfoOpts, JobListOpts,
+};
 use hyperqueue::client::commands::log::{command_log, LogOpts};
 use hyperqueue::client::commands::stats::print_server_stats;
 use hyperqueue::client::commands::stop::stop_server;
 use hyperqueue::client::commands::submit::{
-    resubmit_computation, submit_computation, ResubmitOpts, SubmitOpts,
+    resubmit_computation, submit_computation, JobResubmitOpts, JobSubmitOpts,
 };
 use hyperqueue::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use hyperqueue::client::commands::worker::{
@@ -24,8 +26,7 @@ use hyperqueue::client::output::cli::CliOutput;
 use hyperqueue::client::output::json::JsonOutput;
 use hyperqueue::client::output::outputs::{Output, Outputs};
 use hyperqueue::client::output::quiet::Quiet;
-use hyperqueue::client::status::Status;
-use hyperqueue::common::arraydef::IntArray;
+use hyperqueue::common::cli::SelectorArg;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::timeutils::ArgDuration;
@@ -33,9 +34,7 @@ use hyperqueue::dashboard::ui_loop::start_ui_loop;
 use hyperqueue::server::bootstrap::{
     get_client_connection, init_hq_server, print_server_info, ServerConfig,
 };
-use hyperqueue::transfer::messages::{
-    FromClientMessage, JobInfoRequest, Selector, ToClientMessage,
-};
+use hyperqueue::transfer::messages::{FromClientMessage, JobInfoRequest, ToClientMessage};
 use hyperqueue::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resource};
 use hyperqueue::WorkerId;
 use tako::common::resources::ResourceDescriptor;
@@ -85,7 +84,7 @@ enum SubCommand {
     /// Commands for controlling HyperQueue jobs
     Job(JobOpts),
     /// Submit a job to HyperQueue
-    Submit(SubmitOpts),
+    Submit(JobSubmitOpts),
     /// Commands for controlling HyperQueue workers
     Worker(WorkerOpts),
     /// Operations with log
@@ -150,46 +149,6 @@ enum ServerCommand {
     Stop(ServerStopOpts),
     /// Show info of running HyperQueue server
     Info(ServerInfoOpts),
-}
-
-enum SelectorArg {
-    All,
-    Last,
-    Id(IntArray),
-}
-
-impl FromStr for SelectorArg {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "last" => Ok(SelectorArg::Last),
-            "all" => Ok(SelectorArg::All),
-            _ => Ok(SelectorArg::Id(IntArray::from_str(s)?)),
-        }
-    }
-}
-
-impl From<SelectorArg> for Selector {
-    fn from(selector_arg: SelectorArg) -> Self {
-        match selector_arg {
-            SelectorArg::Id(array) => Selector::Specific(array),
-            SelectorArg::Last => Selector::LastN(1),
-            SelectorArg::All => Selector::All,
-        }
-    }
-}
-
-#[derive(Parser)]
-pub struct WaitOpts {
-    /// Select job(s) to wait for
-    selector_arg: SelectorArg,
-}
-
-#[derive(Parser)]
-pub struct ProgressOpts {
-    /// Select job(s) to observe
-    selector_arg: SelectorArg,
 }
 
 // Worker CLI options
@@ -265,33 +224,24 @@ enum JobCommand {
     /// Cancel a specific job
     Cancel(JobCancelOpts),
     /// Submit a job to HyperQueue
-    Submit(SubmitOpts),
+    Submit(JobSubmitOpts),
     /// Resubmits tasks of a job
-    Resubmit(ResubmitOpts),
+    Resubmit(JobResubmitOpts),
     /// Waits until a job is finished
-    Wait(WaitOpts),
+    Wait(JobWaitOpts),
     /// Interactively observe the execution of a job
-    Progress(ProgressOpts),
+    Progress(JobProgressOpts),
 }
 
 #[derive(Parser)]
-struct JobListOpts {
-    job_filters: Vec<Status>,
-}
-
-#[derive(Parser)]
-struct JobInfoOpts {
-    /// Single ID, ID range or `last` to display the most recently submitted job
+pub struct JobWaitOpts {
+    /// Select job(s) to wait for
     selector_arg: SelectorArg,
-
-    /// Include detailed task information in the output
-    #[clap(long)]
-    tasks: bool,
 }
 
 #[derive(Parser)]
-struct JobCancelOpts {
-    /// Select job(s) to cancel
+pub struct JobProgressOpts {
+    /// Select job(s) to observe
     selector_arg: SelectorArg,
 }
 
@@ -302,6 +252,7 @@ struct GenerateCompletionOpts {
 }
 
 // Commands
+
 async fn command_server_start(
     gsettings: &GlobalSettings,
     opts: ServerStartOpts,
@@ -362,7 +313,7 @@ async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> an
     .await
 }
 
-async fn command_submit(gsettings: &GlobalSettings, opts: SubmitOpts) -> anyhow::Result<()> {
+async fn command_submit(gsettings: &GlobalSettings, opts: JobSubmitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
     submit_computation(gsettings, &mut connection, opts).await
 }
@@ -413,7 +364,7 @@ async fn command_worker_info(
     Ok(())
 }
 
-async fn command_resubmit(gsettings: &GlobalSettings, opts: ResubmitOpts) -> anyhow::Result<()> {
+async fn command_resubmit(gsettings: &GlobalSettings, opts: JobResubmitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
     resubmit_computation(gsettings, &mut connection, opts).await
 }
@@ -446,12 +397,12 @@ async fn command_worker_address(
     Ok(())
 }
 
-async fn command_wait(gsettings: &GlobalSettings, opts: WaitOpts) -> anyhow::Result<()> {
+async fn command_wait(gsettings: &GlobalSettings, opts: JobWaitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
     wait_for_jobs(gsettings, &mut connection, opts.selector_arg.into()).await
 }
 
-async fn command_progress(gsettings: &GlobalSettings, opts: ProgressOpts) -> anyhow::Result<()> {
+async fn command_progress(gsettings: &GlobalSettings, opts: JobProgressOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
     let selector = opts.selector_arg.into();
     let response = hyperqueue::rpc_call!(

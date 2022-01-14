@@ -1,5 +1,6 @@
 pub mod arraydef;
 pub mod arrayparser;
+pub mod cli;
 pub mod env;
 pub mod error;
 pub mod format;

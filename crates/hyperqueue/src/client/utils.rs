@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 use std::str::FromStr;
+
 #[macro_export]
 macro_rules! rpc_call {
     ($conn:expr, $message:expr, $matcher:pat $(=> $result:expr)?) => {
