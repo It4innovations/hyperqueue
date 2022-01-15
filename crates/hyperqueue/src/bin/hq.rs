@@ -62,6 +62,7 @@ struct CommonOpts {
 // Root CLI options
 #[derive(Parser)]
 #[clap(author, about, version(option_env!("HQ_BUILD_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))))]
+#[clap(global_setting = clap::AppSettings::DisableHelpSubcommand)]
 struct Opts {
     #[clap(flatten)]
     common: CommonOpts,
