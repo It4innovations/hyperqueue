@@ -5,6 +5,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use anyhow::anyhow;
+use bstr::ByteSlice;
 use futures::TryFutureExt;
 use tempdir::TempDir;
 use tokio::io::AsyncReadExt;
@@ -247,10 +248,22 @@ async fn run_task(
         }
     };
 
+    let mut child = command.spawn().map_err(|err| {
+        tako::Error::GenericError(format!(
+            "Cannot execute {:?}: {}",
+            program
+                .args
+                .iter()
+                .map(|arg| arg.to_str_lossy())
+                .collect::<Vec<_>>()
+                .join(" "),
+            err
+        ))
+    })?;
+
     if matches!(program.stdout, StdioDef::Pipe) || matches!(program.stderr, StdioDef::Pipe) {
         let streamer_error =
             |e: DsError| DsError::GenericError(format!("Streamer: {:?}", e.to_string()));
-        let mut child = command.spawn()?;
         let (close_sender, close_responder) = oneshot::channel();
         let stream = Rc::new(streamer_ref.get_mut().get_stream(
             &streamer_ref,
@@ -316,7 +329,7 @@ async fn run_task(
                 r = end_receiver => {
                     Ok(r.unwrap().into())
                 }
-                r = command.status() => status_to_result(r?)
+                r = child.wait() => status_to_result(r?)
         }
     }
 }
