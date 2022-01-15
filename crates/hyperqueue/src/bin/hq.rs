@@ -6,6 +6,7 @@ use clap::{IntoApp, Parser, ValueHint};
 use clap_complete::{generate, Shell};
 use cli_table::ColorChoice;
 
+use clap::ArgSettings::HiddenShortHelp;
 use hyperqueue::client::commands::autoalloc::{command_autoalloc, AutoAllocOpts};
 use hyperqueue::client::commands::job::{
     cancel_job, output_job_detail, output_job_list, JobCancelOpts, JobInfoOpts, JobListOpts,
@@ -47,15 +48,30 @@ static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 #[derive(Parser)]
 struct CommonOpts {
     /// Path to a directory that stores HyperQueue access files
-    #[clap(long, global = true, value_hint = ValueHint::DirPath)]
+    #[clap(long, value_hint = ValueHint::DirPath)]
+    #[clap(
+        global = true,
+        help_heading("GLOBAL OPTIONS"),
+        setting(HiddenShortHelp)
+    )]
     server_dir: Option<PathBuf>,
 
     /// Console color policy.
     #[clap(long, default_value = "auto", possible_values = &["auto", "always", "never"])]
+    #[clap(
+        global = true,
+        help_heading("GLOBAL OPTIONS"),
+        setting(HiddenShortHelp)
+    )]
     colors: ColorPolicy,
 
     /// How should the output of the command be formatted.
     #[clap(long, env = "HQ_OUTPUT_MODE", default_value = "cli", possible_values = &["cli", "json", "quiet"])]
+    #[clap(
+        global = true,
+        help_heading("GLOBAL OPTIONS"),
+        setting(HiddenShortHelp)
+    )]
     output_mode: Outputs,
 }
 
@@ -70,7 +86,7 @@ struct Opts {
     subcmd: SubCommand,
 }
 
-///HyperQueue Dashboard
+/// HyperQueue Dashboard
 #[allow(clippy::large_enum_variant)]
 #[derive(Parser)]
 #[clap(setting = clap::AppSettings::Hidden)]
