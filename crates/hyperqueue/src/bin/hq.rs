@@ -63,6 +63,7 @@ struct CommonOpts {
 #[derive(Parser)]
 #[clap(author, about, version(option_env!("HQ_BUILD_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))))]
 #[clap(global_setting = clap::AppSettings::DisableHelpSubcommand)]
+#[clap(global_setting = clap::AppSettings::HelpExpected)]
 struct Opts {
     #[clap(flatten)]
     common: CommonOpts,
@@ -95,6 +96,7 @@ enum SubCommand {
     AutoAlloc(AutoAllocOpts),
     ///Commands for the dashboard
     Dashboard(DashboardOpts),
+    /// Generate shell completion script
     GenerateCompletion(GenerateCompletionOpts),
 }
 
@@ -192,11 +194,13 @@ struct WorkerListOpts {
 
 #[derive(Parser)]
 struct WorkerAddressOpts {
+    /// Worker ID
     worker_id: WorkerId,
 }
 
 #[derive(Parser)]
 struct WorkerInfoOpts {
+    /// Worker ID
     worker_id: WorkerId,
 }
 
@@ -248,6 +252,7 @@ pub struct JobProgressOpts {
 
 #[derive(Parser)]
 struct GenerateCompletionOpts {
+    /// Shell flavour for which the completion script should be generated
     #[clap(possible_values = Shell::possible_values().collect::<Vec<_>>())]
     shell: Shell,
 }
