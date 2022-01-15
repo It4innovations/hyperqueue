@@ -113,7 +113,9 @@ impl FromStr for StdioArg {
 
 #[derive(Parser)]
 pub struct JobSubmitOpts {
+    /// Command that should be executed by each task
     command: String,
+    /// Arguments for the executed command
     args: Vec<String>,
 
     /// Number and placement of CPUs for each job
@@ -185,6 +187,7 @@ pub struct JobSubmitOpts {
     #[clap(long)]
     max_fails: Option<JobTaskCount>,
 
+    /// Priority of each task
     #[clap(long, default_value = "0")]
     priority: tako::Priority,
 
@@ -436,6 +439,7 @@ fn check_suspicious_options(opts: &JobSubmitOpts, task_count: u32) -> anyhow::Re
 
 #[derive(Parser)]
 pub struct JobResubmitOpts {
+    /// Job that should be resubmitted
     job_id: u32,
 
     /// Filter only tasks in a given state

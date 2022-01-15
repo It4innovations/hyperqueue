@@ -13,6 +13,7 @@ use clap::Parser;
 
 #[derive(Parser)]
 pub struct JobListOpts {
+    /// Only jobs with the passed statuses will be shown
     pub job_filters: Vec<Status>,
 }
 
