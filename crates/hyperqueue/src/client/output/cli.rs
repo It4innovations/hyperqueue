@@ -1,4 +1,4 @@
-use cli_table::format::Justify;
+use cli_table::format::{Justify, Separator};
 use cli_table::{print_stdout, Cell, CellStruct, Color, ColorChoice, Style, Table, TableStruct};
 
 use std::fmt::{Display, Write};
@@ -56,8 +56,26 @@ impl CliOutput {
         CliOutput { color_policy }
     }
 
-    fn print_rows(&self, rows: Vec<Vec<CellStruct>>) {
-        self.print_table(rows.table())
+    fn print_vertical_table(&self, rows: Vec<Vec<CellStruct>>) {
+        let table = rows.table().separator(
+            Separator::builder()
+                .column(Some(Default::default()))
+                .build(),
+        );
+        self.print_table(table);
+    }
+
+    fn print_horizontal_table(&self, rows: Vec<Vec<CellStruct>>, header: Vec<CellStruct>) {
+        let table = rows
+            .table()
+            .separator(
+                Separator::builder()
+                    .title(Some(Default::default()))
+                    .column(Some(Default::default()))
+                    .build(),
+            )
+            .title(header);
+        self.print_table(table);
     }
 
     fn print_table(&self, table: TableStruct) {
@@ -123,7 +141,7 @@ impl CliOutput {
                     ]
                 })
                 .collect();
-            let table = rows.table().title(vec![
+            let header = vec![
                 "Task Id".cell().bold(true),
                 "State".cell().bold(true),
                 "Worker".cell().bold(true),
@@ -134,8 +152,8 @@ impl CliOutput {
                 "Stdout".cell().bold(true),
                 "Stderr".cell().bold(true),
                 "Error".cell().bold(true),
-            ]);
-            self.print_table(table);
+            ];
+            self.print_horizontal_table(rows, header);
         } else {
             const SHOWN_TASKS: usize = 5;
             let fail_rows: Vec<_> = tasks
@@ -146,12 +164,12 @@ impl CliOutput {
 
             if !fail_rows.is_empty() {
                 let count = fail_rows.len() as JobTaskCount;
-                let table = fail_rows.table().title(vec![
+                let header = vec![
                     "Task Id".cell().bold(true),
                     "Worker".cell().bold(true),
                     "Error".cell().bold(true),
-                ]);
-                self.print_table(table);
+                ];
+                self.print_horizontal_table(fail_rows, header);
 
                 if count < counters.n_failed_tasks {
                     log::warn!(
@@ -248,7 +266,7 @@ impl Output for CliOutput {
             .into_iter()
             .map(|worker| {
                 let manager_info = worker.configuration.get_manager_info();
-                [
+                vec![
                     worker.id.cell().justify(Justify::Right),
                     match worker.ended.as_ref() {
                         None => "RUNNING".cell().foreground_color(Some(Color::Green)),
@@ -286,15 +304,15 @@ impl Output for CliOutput {
             })
             .collect();
 
-        let table = rows.table().title(vec![
+        let header = vec![
             "Id".cell(),
             "State".cell().bold(true),
             "Hostname".cell().bold(true),
             "Resources".cell().bold(true),
             "Manager".cell().bold(true),
             "Manager Job Id".cell().bold(true),
-        ]);
-        self.print_table(table);
+        ];
+        self.print_horizontal_table(rows, header);
     }
 
     fn print_worker_info(&self, worker_info: WorkerInfo) {
@@ -372,7 +390,7 @@ impl Output for CliOutput {
                     .cell(),
             ],
         ];
-        self.print_rows(rows);
+        self.print_vertical_table(rows);
     }
 
     fn print_server_record(&self, server_dir: &Path, record: &AccessRecord) {
@@ -394,7 +412,7 @@ impl Output for CliOutput {
             ],
             vec!["Version".cell().bold(true), record.version().cell()],
         ];
-        self.print_rows(rows);
+        self.print_vertical_table(rows);
     }
 
     fn print_server_stats(&self, stats: StatsResponse) {
@@ -419,7 +437,7 @@ impl Output for CliOutput {
                 stats.stream_stats.files.join("\n").cell(),
             ],
         ];
-        self.print_rows(rows);
+        self.print_vertical_table(rows);
     }
 
     fn print_job_submitted(&self, job: JobDetail) {
@@ -444,13 +462,13 @@ impl Output for CliOutput {
             })
             .collect();
 
-        let table = rows.table().title(vec![
+        let header = vec![
             "Id".cell().bold(true),
             "Name".cell().bold(true),
             "State".cell().bold(true),
             "Tasks".cell().bold(true),
-        ]);
-        self.print_table(table);
+        ];
+        self.print_horizontal_table(rows, header);
     }
 
     fn print_job_detail(&self, job: JobDetail, show_tasks: bool, worker_map: WorkerMap) {
@@ -512,7 +530,7 @@ impl Output for CliOutput {
             "Makespan".cell().bold(true),
             human_duration(completion_date_or_now - submission_date).cell(),
         ]);
-        self.print_rows(rows);
+        self.print_vertical_table(rows);
 
         if !tasks.is_empty() {
             self.print_job_tasks(tasks, show_tasks, &info.counters, &worker_map);
@@ -579,11 +597,31 @@ impl Output for CliOutput {
                 .cell(),
             ],
         ];
-        self.print_rows(rows);
+        self.print_vertical_table(rows);
     }
 
     fn print_autoalloc_queues(&self, info: AutoAllocListResponse) {
-        let mut rows = vec![vec![
+        let mut descriptors: Vec<_> = info.descriptors.into_iter().collect();
+        descriptors.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+
+        let rows: Vec<_> = descriptors
+            .into_iter()
+            .map(|(id, data)| {
+                vec![
+                    id.cell(),
+                    data.info.backlog().cell(),
+                    data.info.workers_per_alloc().cell(),
+                    humantime::format_duration(data.info.timelimit())
+                        .to_string()
+                        .cell(),
+                    data.manager_type.cell(),
+                    data.name.unwrap_or_else(|| "".to_string()).cell(),
+                    data.info.additional_args().join(",").cell(),
+                ]
+            })
+            .collect();
+
+        let header = vec![
             "ID".cell().bold(true),
             "Backlog size".cell().bold(true),
             "Workers per alloc".cell().bold(true),
@@ -591,25 +629,8 @@ impl Output for CliOutput {
             "Manager".cell().bold(true),
             "Name".cell().bold(true),
             "Args".cell().bold(true),
-        ]];
-
-        let mut descriptors: Vec<_> = info.descriptors.into_iter().collect();
-        descriptors.sort_unstable_by(|a, b| a.0.cmp(&b.0));
-
-        rows.extend(descriptors.into_iter().map(|(id, data)| {
-            vec![
-                id.cell(),
-                data.info.backlog().cell(),
-                data.info.workers_per_alloc().cell(),
-                humantime::format_duration(data.info.timelimit())
-                    .to_string()
-                    .cell(),
-                data.manager_type.cell(),
-                data.name.unwrap_or_else(|| "".to_string()).cell(),
-                data.info.additional_args().join(",").cell(),
-            ]
-        }));
-        self.print_rows(rows);
+        ];
+        self.print_horizontal_table(rows, header);
     }
 
     fn print_event_log(&self, events: Vec<AllocationEventHolder>) {
@@ -651,23 +672,49 @@ impl Output for CliOutput {
             }
         };
 
-        let mut rows = vec![vec![
+        let rows: Vec<_> = events
+            .into_iter()
+            .map(|event| {
+                vec![
+                    event_name(&event),
+                    format_time(event.date).cell(),
+                    event_message(&event),
+                ]
+            })
+            .collect();
+
+        let header = vec![
             "Event".cell().bold(true),
             "Time".cell().bold(true),
             "Message".cell().bold(true),
-        ]];
-        rows.extend(events.into_iter().map(|event| {
-            vec![
-                event_name(&event),
-                format_time(event.date).cell(),
-                event_message(&event),
-            ]
-        }));
-        self.print_rows(rows);
+        ];
+        self.print_horizontal_table(rows, header);
     }
 
     fn print_allocations(&self, mut allocations: Vec<Allocation>) {
-        let mut rows = vec![vec![
+        let format_time = |time: Option<SystemTime>| match time {
+            Some(time) => format_time(time).cell(),
+            None => "".cell(),
+        };
+
+        allocations.sort_unstable_by(|a, b| a.id.cmp(&b.id));
+        let rows: Vec<_> = allocations
+            .into_iter()
+            .map(|allocation| {
+                let times = allocation_times_from_alloc(&allocation);
+                vec![
+                    allocation.id.cell(),
+                    allocation_status_to_cell(&allocation.status),
+                    allocation.working_dir.display().cell(),
+                    allocation.worker_count.cell(),
+                    format_time(Some(times.get_queued_at())),
+                    format_time(times.get_started_at()),
+                    format_time(times.get_finished_at()),
+                ]
+            })
+            .collect();
+
+        let header = vec![
             "Id".cell().bold(true),
             "State".cell().bold(true),
             "Working directory".cell().bold(true),
@@ -675,27 +722,8 @@ impl Output for CliOutput {
             "Queue time".cell().bold(true),
             "Start time".cell().bold(true),
             "Finish time".cell().bold(true),
-        ]];
-
-        let format_time = |time: Option<SystemTime>| match time {
-            Some(time) => format_time(time).cell(),
-            None => "".cell(),
-        };
-
-        allocations.sort_unstable_by(|a, b| a.id.cmp(&b.id));
-        rows.extend(allocations.into_iter().map(|allocation| {
-            let times = allocation_times_from_alloc(&allocation);
-            vec![
-                allocation.id.cell(),
-                allocation_status_to_cell(&allocation.status),
-                allocation.working_dir.display().cell(),
-                allocation.worker_count.cell(),
-                format_time(Some(times.get_queued_at())),
-                format_time(times.get_started_at()),
-                format_time(times.get_finished_at()),
-            ]
-        }));
-        self.print_rows(rows);
+        ];
+        self.print_horizontal_table(rows, header);
     }
 
     fn print_hw(&self, descriptor: &ResourceDescriptor) {

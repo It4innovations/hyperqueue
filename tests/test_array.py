@@ -126,7 +126,7 @@ def test_job_array_error_all(hq_env: HqEnv):
     states = table.get_row_value("State").split("\n")
     assert "FAILED (10)" in states
 
-    errors = table[JOB_TABLE_ROWS:].get_column_value("Error")
+    errors = table[JOB_TABLE_ROWS:].as_horizontal().get_column_value("Error")
     for error in errors:
         assert "No such file or directory" in error
 
@@ -134,7 +134,7 @@ def test_job_array_error_all(hq_env: HqEnv):
     states = table.get_row_value("State").split("\n")
     assert "FAILED (10)" in states
 
-    task_table = table[JOB_TABLE_ROWS:]
+    task_table = table[JOB_TABLE_ROWS:].as_horizontal()
     for i in range(10):
         assert task_table.get_column_value("Task Id")[i] == str(i)
         assert task_table.get_column_value("State")[i] == "FAILED"
@@ -154,7 +154,7 @@ def test_job_array_cancel(hq_env: HqEnv):
     assert "FINISHED (4)" in states
     assert "CANCELED (6)" in states
 
-    table = table[JOB_TABLE_ROWS:]
+    table = table[JOB_TABLE_ROWS:].as_horizontal()
     task_states = table.get_column_value("State")
     c = collections.Counter(task_states)
     assert c.get("FINISHED") == 4
@@ -174,7 +174,7 @@ def test_array_reporting_state_after_worker_lost(hq_env: HqEnv):
     table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)
     assert "WAITING (4)" in table.get_row_value("State").split("\n")
 
-    task_states = table[JOB_TABLE_ROWS:].get_column_value("State")
+    task_states = table[JOB_TABLE_ROWS:].as_horizontal().get_column_value("State")
     c = collections.Counter(task_states)
     assert c.get("WAITING") == 4
     hq_env.start_workers(1, cpus=2)
@@ -183,7 +183,7 @@ def test_array_reporting_state_after_worker_lost(hq_env: HqEnv):
     table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)
     assert "FINISHED (4)" in table.get_row_value("State").split("\n")
 
-    task_states = table[JOB_TABLE_ROWS:].get_column_value("State")
+    task_states = table[JOB_TABLE_ROWS:].as_horizontal().get_column_value("State")
     c = collections.Counter(task_states)
     assert c.get("FINISHED") == 4
 
@@ -198,10 +198,10 @@ def test_array_mix_with_simple_jobs(hq_env: HqEnv):
     wait_for_job_state(hq_env, list(range(1, 101)), "FINISHED")
 
     table = hq_env.command(["job", "list"], as_table=True)
-    for i in range(1, 101):
-        assert table[i][0] == str(i)
-        assert table[i][2] == "FINISHED"
-        assert table[i][3] == "4" if i % 2 == 1 else "1"
+    for i in range(100):
+        assert table.get_column_value("Id")[i] == str(i + 1)
+        assert table.get_column_value("State")[i] == "FINISHED"
+        assert table.get_column_value("Tasks")[i] == "4" if i % 2 == 0 else "1"
 
 
 @pytest.mark.parametrize("channel", ("stdout", "stderr"))

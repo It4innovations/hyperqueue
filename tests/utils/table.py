@@ -3,18 +3,24 @@ from typing import List, Optional
 JOB_TABLE_ROWS = 16
 
 
-# TODO: create a pandas dataframe instead?
 class Table:
-    def __init__(self, rows):
+    def __init__(self, rows: List[List[str]], header: Optional[List[str]]):
         self.rows = rows
+        self.header = header
 
     def __getitem__(self, item):
         if isinstance(item, slice):
-            return Table(self.rows[item])
+            return Table(self.rows[item], header=self.header)
         return self.rows[item]
 
     def __iter__(self):
         yield from self.rows
+
+    def as_horizontal(self) -> "Table":
+        if self.header is not None:
+            return self
+        assert self.rows
+        return Table(self.rows[1:], self.rows[0])
 
     def get_row_value(self, key: str) -> Optional[str]:
         """
@@ -36,12 +42,13 @@ class Table:
         """
         Assumes horizontal table (each value has a separate column).
         """
-        header = self.rows[0]
-        if key not in header:
+        if self.header is None:
+            raise Exception(f"This table is not horizontal!\n{self}")
+        if key not in self.header:
             return None
 
-        index = header.index(key)
-        return [row[index] for row in self.rows[1:]]
+        index = self.header.index(key)
+        return [row[index] for row in self.rows]
 
     def check_column_value(self, key: str, index: int, value: str):
         column = self.get_column_value(key)
@@ -56,6 +63,8 @@ class Table:
             self.check_column_value(key, index, val)
 
     def print(self):
+        if self.header:
+            print("Header", self.header)
         for i, row in enumerate(self):
             print(i, row)
 
@@ -63,7 +72,9 @@ class Table:
         return len(self.rows)
 
     def __repr__(self):
-        return "\n".join(" | ".join(val) for val in self.rows)
+        rows = [self.header] if self.header else []
+        rows.extend(self.rows)
+        return "\n".join(" | ".join(val) for val in rows)
 
 
 def assert_equals(a, b):
@@ -77,21 +88,31 @@ def assert_equals(a, b):
 
 def parse_table(table_string: str) -> Table:
     lines = table_string.strip().split("\n")
-    result = []
+    rows = []
     new_row = True
+    header = None
+
     for line in lines:
         # Log output
         if line.startswith("["):
             continue
         if line.startswith("+-"):
+            if len(rows) == 1 and not header:
+                # Second +- has appeared, the previous row was a header
+                header = rows[0]
+                rows.clear()
             new_row = True
             continue
         items = [x.strip() for x in line.split("|")[1:-1]]
+
+        # Empty first column = previous row continues
+        if items and items[0]:
+            new_row = True
         if new_row:
-            result.append(items)
+            rows.append(items)
             new_row = False
         else:
             for i, item in enumerate(items):
                 if item:
-                    result[-1][i] += "\n" + item
-    return Table(result)
+                    rows[-1][i] += "\n" + item
+    return Table(rows, header=header)

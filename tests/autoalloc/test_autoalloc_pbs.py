@@ -254,7 +254,7 @@ def test_pbs_cancel_active_jobs_on_server_stop(hq_env: HqEnv):
         def wait_until_fixpoint():
             jobs = hq_env.command(["alloc", "info", "1"], as_table=True)
             # 2 running + 2 queued
-            return len(jobs) == 5
+            return len(jobs) == 4
 
         wait_until(lambda: wait_until_fixpoint())
 
@@ -288,12 +288,12 @@ def test_pbs_cancel_queued_jobs_on_remove_descriptor(hq_env: HqEnv):
 
         def wait_until_fixpoint():
             jobs = hq_env.command(["alloc", "info", "1"], as_table=True)
-            return len(jobs) == 3
+            return len(jobs) == 2
 
         wait_until(lambda: wait_until_fixpoint())
 
         remove_queue(hq_env, 1)
-        wait_until(lambda: len(hq_env.command(["alloc", "list"], as_table=True)) == 1)
+        wait_until(lambda: len(hq_env.command(["alloc", "list"], as_table=True)) == 0)
 
         expected_job_ids = set(mock.job_id(index) for index in range(2))
         wait_until(lambda: expected_job_ids == set(mock.deleted_jobs()))
@@ -363,12 +363,12 @@ def test_pbs_cancel_active_jobs_on_forced_remove_descriptor(hq_env: HqEnv):
         def wait_until_fixpoint():
             jobs = hq_env.command(["alloc", "info", "1"], as_table=True)
             # 2 running + 2 queued
-            return len(jobs) == 5
+            return len(jobs) == 4
 
         wait_until(lambda: wait_until_fixpoint())
 
         remove_queue(hq_env, 1, force=True)
-        wait_until(lambda: len(hq_env.command(["alloc", "list"], as_table=True)) == 1)
+        wait_until(lambda: len(hq_env.command(["alloc", "list"], as_table=True)) == 0)
 
         expected_job_ids = set(mock.job_id(index) for index in range(4))
         wait_until(lambda: expected_job_ids == set(mock.deleted_jobs()))
@@ -417,7 +417,7 @@ def test_pbs_too_high_time_request(hq_env: HqEnv):
         time.sleep(1)
 
         table = hq_env.command(["alloc", "info", "1"], as_table=True)
-        assert len(table) == 1
+        assert len(table) == 0
 
 
 def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
