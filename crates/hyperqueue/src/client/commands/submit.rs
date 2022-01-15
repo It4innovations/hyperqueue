@@ -112,11 +112,11 @@ impl FromStr for StdioArg {
 }
 
 #[derive(Parser)]
+#[clap(setting = clap::AppSettings::TrailingVarArg)]
 pub struct JobSubmitOpts {
     /// Command that should be executed by each task
-    command: String,
-    /// Arguments for the executed command
-    args: Vec<String>,
+    #[clap(required = true)]
+    commands: Vec<String>,
 
     /// Number and placement of CPUs for each job
     #[clap(long, default_value = "1")]
@@ -252,8 +252,7 @@ pub async fn submit_computation(
     check_suspicious_options(&opts, task_count)?;
 
     let JobSubmitOpts {
-        command,
-        args,
+        commands,
         cpus: _,
         resource: _,
         time_request: _,
@@ -277,14 +276,13 @@ pub async fn submit_computation(
     let name = if let Some(name) = name {
         validate_name(name)?
     } else {
-        PathBuf::from(&command)
+        PathBuf::from(&commands[0])
             .file_name()
             .and_then(|t| t.to_str().map(|s| s.to_string()))
             .unwrap_or_else(|| "job".to_string())
     };
 
-    let mut args: Vec<BString> = args.iter().map(|x| BString::from(x.as_str())).collect();
-    args.insert(0, command.into());
+    let args: Vec<BString> = commands.into_iter().map(|arg| arg.into()).collect();
 
     let cwd = Some(cwd);
     let stdout = create_stdio(stdout, &log, DEFAULT_STDOUT_PATH);
