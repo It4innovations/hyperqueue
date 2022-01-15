@@ -12,13 +12,13 @@ from .utils.table import Table
 def test_worker_list(hq_env: HqEnv):
     hq_env.start_server()
     table = list_all_workers(hq_env)
-    assert len(table) == 1
-    assert table[0][:2] == ["Id", "State"]
+    assert len(table) == 0
+    assert table.header[:2] == ["Id", "State"]
 
     hq_env.start_workers(2)
 
     table = list_all_workers(hq_env)
-    assert len(table) == 3
+    assert len(table) == 2
     table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
     table.check_columns_value(["Id", "State"], 1, ["2", "RUNNING"])
 
@@ -26,7 +26,7 @@ def test_worker_list(hq_env: HqEnv):
     wait_for_worker_state(hq_env, 2, "CONNECTION LOST")
 
     table = list_all_workers(hq_env)
-    assert len(table) == 3
+    assert len(table) == 2
     table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
     table.check_columns_value(["Id", "State"], 1, ["2", "CONNECTION LOST"])
 
@@ -34,7 +34,7 @@ def test_worker_list(hq_env: HqEnv):
     wait_for_worker_state(hq_env, 1, "CONNECTION LOST")
 
     table = list_all_workers(hq_env)
-    assert len(table) == 3
+    assert len(table) == 2
     table.check_columns_value(["Id", "State"], 0, ["1", "CONNECTION LOST"])
     table.check_columns_value(["Id", "State"], 1, ["2", "CONNECTION LOST"])
 
@@ -43,7 +43,7 @@ def test_worker_list(hq_env: HqEnv):
 
     table = list_all_workers(hq_env)
 
-    assert len(table) == 4
+    assert len(table) == 3
     table.check_columns_value(["Id", "State"], 0, ["1", "CONNECTION LOST"])
     table.check_columns_value(["Id", "State"], 1, ["2", "CONNECTION LOST"])
     table.check_columns_value(["Id", "State"], 2, ["3", "RUNNING"])
@@ -107,19 +107,19 @@ def test_worker_list_only_online(hq_env: HqEnv):
     wait_for_worker_state(hq_env, [1, 2], "RUNNING")
 
     table = list_all_workers(hq_env)
-    assert len(table) == 3
+    assert len(table) == 2
     table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
     table.check_columns_value(["Id", "State"], 1, ["2", "RUNNING"])
     hq_env.kill_worker(2)
 
     wait_for_worker_state(hq_env, 2, "CONNECTION LOST")
     table = list_all_workers(hq_env)
-    assert len(table) == 3
+    assert len(table) == 2
     table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
     table.check_columns_value(["Id", "State"], 1, ["2", "CONNECTION LOST"])
 
     table = hq_env.command(["worker", "list"], as_table=True)
-    assert len(table) == 2
+    assert len(table) == 1
     table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
 
 
@@ -133,7 +133,7 @@ def test_worker_list_resources(hq_env: HqEnv):
     wait_for_worker_state(hq_env, [1, 2, 3, 4], "RUNNING")
 
     table = list_all_workers(hq_env)
-    assert len(table) == 5
+    assert len(table) == 4
     table.check_columns_value(
         ["Id", "State", "Resources"], 0, ["1", "RUNNING", "1x10 cpus"]
     )

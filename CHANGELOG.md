@@ -54,6 +54,9 @@ find more information in the [documentation](https://it4innovations.github.io/hy
     | `hq progress`       | `hq job progress` |
     | `hq submit`         | `hq submit` or `hq job submit` |
 
+* Tables outputted by various informational commands (like `hq job info` or `hq worker list`)
+are now more densely packed and should thus better fit on terminal screens.
+
 # v0.7.0
 
 ## Fixes

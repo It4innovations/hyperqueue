@@ -30,5 +30,5 @@ def test_job_time_request2(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "FINISHED")
     table = hq_env.command(["job", "list"], as_table=True)
-    assert table[1][2] == "FINISHED"
-    assert table[2][2] == "WAITING"
+    assert table.get_column_value("State")[0] == "FINISHED"
+    assert table.get_column_value("State")[1] == "WAITING"

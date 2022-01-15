@@ -44,7 +44,7 @@ def wait_for_state(
 
         table = env.command(commands, as_table=True)
         last_table = table
-        jobs = [row for row in table[1:] if row[0] in ids]
+        jobs = [row for row in table if row[0] in ids]
         return len(jobs) >= len(ids) and all(
             j[state_index].lower() in target_states for j in jobs
         )
