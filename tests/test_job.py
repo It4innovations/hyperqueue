@@ -76,7 +76,7 @@ def test_job_submit_dir(hq_env: HqEnv):
 def test_custom_name(hq_env: HqEnv):
     hq_env.start_server()
 
-    hq_env.command(["submit", "sleep", "1", "--name=sleep_prog"])
+    hq_env.command(["submit", "--name=sleep_prog", "sleep", "1"])
     wait_for_job_state(hq_env, 1, "WAITING")
 
     table = hq_env.command(["job", "list"], as_table=True)
@@ -86,16 +86,16 @@ def test_custom_name(hq_env: HqEnv):
     )
 
     with pytest.raises(Exception):
-        hq_env.command(["submit", "sleep", "1", "--name=second_sleep \n"])
+        hq_env.command(["submit", "--name=second_sleep \n", "sleep", "1"])
     with pytest.raises(Exception):
-        hq_env.command(["submit", "sleep", "1", "--name=second_sleep \t"])
+        hq_env.command(["submit", "--name=second_sleep \t", "sleep", "1"])
     with pytest.raises(Exception):
         hq_env.command(
             [
                 "submit",
+                "--name=sleep_sleep_sleep_sleep_sleep_sleep_sleep_sleep",
                 "sleep",
                 "1",
-                "--name=sleep_sleep_sleep_sleep_sleep_sleep_sleep_sleep",
             ]
         )
 
@@ -785,7 +785,7 @@ def test_job_wait(hq_env: HqEnv):
 def test_job_submit_wait(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
-    r = hq_env.command(["submit", "sleep", "1", "--wait"])
+    r = hq_env.command(["submit", "--wait", "sleep", "1"])
     assert "1 job finished" in r
 
     table = hq_env.command(["job", "info", "1"], as_table=True)

@@ -30,7 +30,15 @@ find more information in the [documentation](https://it4innovations.github.io/hy
 * You can now generate shell completion using the `hq generate-completion <shell>` command.
 
 ## Changes
-
+### CLI
+* The command line parsing of `hq submit` has been changed slightly. All flags and arguments that appear
+  after the first positional argument will now be considered to belong to the executed program, not to
+  the submit command. This mimics the behaviour of e.g. `docker run`. For example:
+    ```bash
+    $ hq submit foo --array 1-4
+    # Before: submits a task array with 4 tasks that execute the program `foo`
+    # Now: submits a single task that executes `foo --array 1-4`
+    ```
 * The command line interface for jobs has been changed to be more consistent with the interface for
   workers. Commands that have been formerly standalone (like `hq jobs`, `hq resubmit`, `hq wait`) are
   not accessed through `hq job`. The only previous job-related command that remained to on the top level
