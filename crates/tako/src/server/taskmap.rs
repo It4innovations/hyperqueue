@@ -1,16 +1,17 @@
 use crate::common::stablemap::StableMap;
+use crate::server::system::TaskSystem;
 use crate::server::task::Task;
 use crate::TaskId;
 
 #[derive(Default, Debug)]
-pub struct TaskMap {
-    tasks: StableMap<TaskId, Task>,
+pub struct TaskMap<System: TaskSystem> {
+    tasks: StableMap<TaskId, Task<System>>,
 }
 
-impl TaskMap {
+impl<System: TaskSystem> TaskMap<System> {
     // Insertion
     #[inline(always)]
-    pub fn insert(&mut self, task: Task) -> Option<Task> {
+    pub fn insert(&mut self, task: Task<System>) -> Option<Task<System>> {
         self.tasks.insert(task);
         // StableMap panics on duplicate insertion
         None
@@ -18,32 +19,32 @@ impl TaskMap {
 
     // Removal
     #[inline(always)]
-    pub fn remove(&mut self, task_id: TaskId) -> Option<Task> {
+    pub fn remove(&mut self, task_id: TaskId) -> Option<Task<System>> {
         self.tasks.remove(&task_id)
     }
 
     // Accessors
     #[inline(always)]
-    pub fn get_task(&self, task_id: TaskId) -> &Task {
+    pub fn get_task(&self, task_id: TaskId) -> &Task<System> {
         self.tasks.find(&task_id).unwrap_or_else(|| {
             panic!("Asking for invalid task id={}", task_id);
         })
     }
 
     #[inline(always)]
-    pub fn get_task_mut(&mut self, task_id: TaskId) -> &mut Task {
+    pub fn get_task_mut(&mut self, task_id: TaskId) -> &mut Task<System> {
         self.tasks.find_mut(&task_id).unwrap_or_else(|| {
             panic!("Asking for invalid task id={}", task_id);
         })
     }
 
     #[inline(always)]
-    pub fn find_task(&self, task_id: TaskId) -> Option<&Task> {
+    pub fn find_task(&self, task_id: TaskId) -> Option<&Task<System>> {
         self.tasks.find(&task_id)
     }
 
     #[inline(always)]
-    pub fn find_task_mut(&mut self, task_id: TaskId) -> Option<&mut Task> {
+    pub fn find_task_mut(&mut self, task_id: TaskId) -> Option<&mut Task<System>> {
         self.tasks.find_mut(&task_id)
     }
 
@@ -54,7 +55,7 @@ impl TaskMap {
     }
 
     #[inline(always)]
-    pub fn tasks(&self) -> impl Iterator<Item = &Task> {
+    pub fn tasks(&self) -> impl Iterator<Item = &Task<System>> {
         self.tasks.values()
     }
 

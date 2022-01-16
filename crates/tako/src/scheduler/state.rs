@@ -12,6 +12,7 @@ use crate::common::Map;
 use crate::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::server::comm::{Comm, CommSenderRef};
 use crate::server::core::{Core, CoreRef};
+use crate::server::system::TaskSystem;
 use crate::server::task::{Task, TaskRuntimeState};
 use crate::server::taskmap::TaskMap;
 use crate::server::worker::Worker;
@@ -36,9 +37,9 @@ pub struct SchedulerState {
 /// The `workers` Vec is passed from the outside as an optimization, to reuse its allocated buffer.
 ///
 /// If no worker is available, returns `None`.
-fn choose_worker_for_task(
-    task: &Task,
-    taskmap: &TaskMap,
+fn choose_worker_for_task<System: TaskSystem>(
+    task: &Task<System>,
+    taskmap: &TaskMap<System>,
     worker_map: &Map<WorkerId, Worker>,
     random: &mut SmallRng,
     workers: &mut Vec<WorkerId>,

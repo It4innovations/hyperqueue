@@ -5,6 +5,7 @@ use std::time::Duration;
 use crate::common::stablemap::ExtractKey;
 use crate::common::{Map, Set};
 use crate::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
+use crate::server::system::{DefaultTaskSystem, TaskSystem};
 use crate::server::taskmap::TaskMap;
 use crate::TaskId;
 use crate::WorkerId;
@@ -106,7 +107,7 @@ pub struct TaskConfiguration {
 }
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
-pub struct Task {
+pub struct Task<System: TaskSystem = DefaultTaskSystem> {
     pub id: TaskId,
     pub state: TaskRuntimeState,
     consumers: Set<TaskId>,
@@ -115,22 +116,22 @@ pub struct Task {
     pub configuration: Rc<TaskConfiguration>,
     pub scheduler_priority: Priority,
     pub instance_id: InstanceId,
-    pub body: Vec<u8>,
+    pub body: System::Body,
 }
 
-impl fmt::Debug for Task {
+impl<System: TaskSystem> fmt::Debug for Task<System> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         //let task_ids : Vec<_> = self.tasks.iter().map(|r| r.get().id.to_string()).collect();
         f.debug_struct("Task").field("id", &self.id).finish()
     }
 }
 
-impl Task {
+impl<System: TaskSystem> Task<System> {
     pub fn new(
         id: TaskId,
         inputs: Vec<TaskInput>,
         configuration: Rc<TaskConfiguration>,
-        body: Vec<u8>,
+        body: System::Body,
         keep: bool,
         observe: bool,
     ) -> Self {
@@ -251,7 +252,7 @@ impl Task {
         self.consumers.is_empty() && !self.is_keeped() && self.is_finished()
     }
 
-    pub fn collect_consumers(&self, taskmap: &TaskMap) -> Set<TaskId> {
+    pub fn collect_consumers(&self, taskmap: &TaskMap<System>) -> Set<TaskId> {
         let mut stack: Vec<_> = self.consumers.iter().copied().collect();
         let mut result: Set<TaskId> = stack.iter().copied().collect();
 
@@ -270,7 +271,7 @@ impl Task {
         self.instance_id = InstanceId(self.instance_id.as_num() + 1);
     }
 
-    pub fn make_compute_message(&self, taskmap: &TaskMap) -> ToWorkerMessage {
+    pub fn make_compute_message(&self, taskmap: &TaskMap<System>) -> ToWorkerMessage<System> {
         let dep_info: Vec<_> = self
             .inputs
             .iter()
@@ -410,7 +411,7 @@ impl Task {
     }
 }
 
-impl ExtractKey<TaskId> for Task {
+impl<System: TaskSystem> ExtractKey<TaskId> for Task<System> {
     #[inline]
     fn extract_key(&self) -> TaskId {
         self.id

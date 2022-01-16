@@ -1,13 +1,17 @@
 use crate::common::{Map, Set};
+use crate::server::system::TaskSystem;
 use crate::server::task::Task;
 use crate::server::taskmap::TaskMap;
 use crate::TaskId;
 
-pub fn compute_b_level_metric(tasks: &mut TaskMap) {
+pub fn compute_b_level_metric<System: TaskSystem>(tasks: &mut TaskMap<System>) {
     crawl(tasks, |t| t.get_consumers());
 }
 
-fn crawl<F1: Fn(&Task) -> &Set<TaskId>>(tasks: &mut TaskMap, predecessor_fn: F1) {
+fn crawl<System: TaskSystem, F1: Fn(&Task<System>) -> &Set<TaskId>>(
+    tasks: &mut TaskMap<System>,
+    predecessor_fn: F1,
+) {
     let mut neighbours: Map<TaskId, u32> = Map::with_capacity(tasks.len());
     let mut stack: Vec<TaskId> = Vec::new();
     for task in tasks.tasks() {

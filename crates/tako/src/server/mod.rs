@@ -8,6 +8,7 @@ pub mod monitoring;
 pub mod reactor;
 pub mod rpc;
 mod start;
+pub mod system;
 pub mod task;
 pub mod taskmap;
 pub mod worker;

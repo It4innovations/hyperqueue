@@ -10,6 +10,7 @@ use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::gateway::ServerInfo;
 use crate::server::monitoring::EventStorage;
 use crate::server::rpc::ConnectionDescriptor;
+use crate::server::system::{DefaultTaskSystem, TaskSystem};
 use crate::server::task::{Task, TaskRuntimeState};
 use crate::server::taskmap::TaskMap;
 use crate::server::worker::Worker;
@@ -20,8 +21,8 @@ use crate::{TaskId, WorkerId};
 pub type CustomConnectionHandler = Box<dyn Fn(ConnectionDescriptor)>;
 
 #[derive(Default)]
-pub struct Core {
-    tasks: TaskMap,
+pub struct Core<System: TaskSystem = DefaultTaskSystem> {
+    tasks: TaskMap<System>,
     workers: WorkerMap,
     event_storage: EventStorage,
 
@@ -48,9 +49,9 @@ pub struct Core {
     rpc_handles: Vec<JoinHandle<()>>,
 }
 
-pub type CoreRef = WrappedRcRefCell<Core>;
+pub type CoreRef<System: TaskSystem = DefaultTaskSystem> = WrappedRcRefCell<Core<System>>;
 
-impl CoreRef {
+impl<System: TaskSystem> CoreRef<System> {
     pub fn new(
         worker_listen_port: u16,
         secret_key: Option<Arc<SecretKey>>,
@@ -72,14 +73,14 @@ impl CoreRef {
     }
 }
 
-impl Core {
+impl<System: TaskSystem> Core<System> {
     #[inline]
-    pub fn split_tasks_workers(&self) -> (&TaskMap, &WorkerMap) {
+    pub fn split_tasks_workers(&self) -> (&TaskMap<System>, &WorkerMap) {
         (&self.tasks, &self.workers)
     }
 
     #[inline]
-    pub fn split_tasks_workers_mut(&mut self) -> (&mut TaskMap, &mut WorkerMap) {
+    pub fn split_tasks_workers_mut(&mut self) -> (&mut TaskMap<System>, &mut WorkerMap) {
         (&mut self.tasks, &mut self.workers)
     }
 
@@ -221,7 +222,7 @@ impl Core {
         !self.workers.is_empty()
     }
 
-    pub fn add_task(&mut self, task: Task) {
+    pub fn add_task(&mut self, task: Task<System>) {
         if task.is_ready() {
             self.add_ready_to_assign(task.id);
         }
@@ -276,32 +277,32 @@ impl Core {
     }
 
     #[inline]
-    pub fn task_map(&self) -> &TaskMap {
+    pub fn task_map(&self) -> &TaskMap<System> {
         &self.tasks
     }
 
     #[inline]
-    pub fn task_map_mut(&mut self) -> &mut TaskMap {
+    pub fn task_map_mut(&mut self) -> &mut TaskMap<System> {
         &mut self.tasks
     }
 
     #[inline]
-    pub fn get_task(&self, task_id: TaskId) -> &Task {
+    pub fn get_task(&self, task_id: TaskId) -> &Task<System> {
         self.tasks.get_task(task_id)
     }
 
     #[inline]
-    pub fn get_task_mut(&mut self, task_id: TaskId) -> &mut Task {
+    pub fn get_task_mut(&mut self, task_id: TaskId) -> &mut Task<System> {
         self.tasks.get_task_mut(task_id)
     }
 
     #[inline]
-    pub fn find_task(&self, task_id: TaskId) -> Option<&Task> {
+    pub fn find_task(&self, task_id: TaskId) -> Option<&Task<System>> {
         self.tasks.find_task(task_id)
     }
 
     #[inline]
-    pub fn find_task_mut(&mut self, task_id: TaskId) -> Option<&mut Task> {
+    pub fn find_task_mut(&mut self, task_id: TaskId) -> Option<&mut Task<System>> {
         self.tasks.find_task_mut(task_id)
     }
 
@@ -310,7 +311,7 @@ impl Core {
     }
 
     pub fn sanity_check(&self) {
-        let fw_check = |task: &Task| {
+        let fw_check = |task: &Task<System>| {
             for input in &task.inputs {
                 assert!(self.tasks.get_task(input.task()).is_finished());
             }
@@ -319,7 +320,7 @@ impl Core {
             }
         };
 
-        let worker_check = |core: &Core, task_id: TaskId, wid: WorkerId| {
+        let worker_check = |core: &Core<System>, task_id: TaskId, wid: WorkerId| {
             for (worker_id, worker) in core.workers.iter() {
                 if wid == *worker_id {
                     assert!(worker.tasks().contains(&task_id));

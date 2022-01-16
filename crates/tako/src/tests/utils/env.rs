@@ -9,6 +9,7 @@ use crate::scheduler::state::SchedulerState;
 use crate::server::comm::Comm;
 use crate::server::core::Core;
 use crate::server::reactor::on_new_worker;
+use crate::server::system::DefaultTaskSystem;
 use crate::server::task::{SerializedTaskContext, Task};
 use crate::server::worker::Worker;
 use crate::server::worker_load::WorkerLoad;
@@ -222,8 +223,8 @@ impl TestEnv {
 
 #[derive(Default, Debug)]
 pub struct TestComm {
-    pub worker_msgs: Map<WorkerId, Vec<ToWorkerMessage>>,
-    pub broadcast_msgs: Vec<ToWorkerMessage>,
+    pub worker_msgs: Map<WorkerId, Vec<ToWorkerMessage<DefaultTaskSystem>>>,
+    pub broadcast_msgs: Vec<ToWorkerMessage<DefaultTaskSystem>>,
 
     pub client_task_finished: Vec<TaskId>,
     pub client_task_running: Vec<TaskId>,

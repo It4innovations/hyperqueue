@@ -5,6 +5,7 @@ use crate::common::resources::ResourceRequest;
 use crate::common::resources::{NumOfCpus, TimeRequest};
 use crate::common::Set;
 use crate::messages::common::WorkerConfiguration;
+use crate::server::system::TaskSystem;
 use crate::server::task::Task;
 use crate::server::taskmap::TaskMap;
 use crate::server::worker_load::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
@@ -74,7 +75,7 @@ impl Worker {
             .remove_request(&task.configuration.resources, &self.resources);
     }
 
-    pub fn sanity_check(&self, task_map: &TaskMap) {
+    pub fn sanity_check<System: TaskSystem>(&self, task_map: &TaskMap<System>) {
         let mut check_load = WorkerLoad::new(&self.resources);
         for &task_id in &self.tasks {
             let task = task_map.get_task(task_id);

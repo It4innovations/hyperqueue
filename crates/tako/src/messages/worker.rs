@@ -4,6 +4,7 @@ use std::time::Duration;
 use crate::common::resources::{CpuId, GenericResourceAmount, GenericResourceIndex};
 use crate::common::Map;
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
+use crate::server::system::TaskSystem;
 use crate::server::task::SerializedTaskContext;
 use crate::worker::hwmonitor::WorkerHwState;
 use crate::{InstanceId, Priority};
@@ -29,7 +30,7 @@ pub struct WorkerRegistrationResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ComputeTaskMsg {
+pub struct ComputeTaskMsg<System: TaskSystem> {
     pub id: TaskId,
 
     pub instance_id: InstanceId,
@@ -43,8 +44,7 @@ pub struct ComputeTaskMsg {
     pub time_limit: Option<Duration>,
     pub n_outputs: u32,
 
-    #[serde(with = "serde_bytes")]
-    pub body: Vec<u8>,
+    pub body: System::Body,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -65,8 +65,8 @@ pub struct TaskIdMsg {
 
 #[derive(Serialize, Deserialize, Debug)]
 //#[serde(tag = "op")]
-pub enum ToWorkerMessage {
-    ComputeTask(ComputeTaskMsg),
+pub enum ToWorkerMessage<System: TaskSystem> {
+    ComputeTask(ComputeTaskMsg<System>),
     DeleteData(TaskIdMsg),
     StealTasks(TaskIdsMsg),
     CancelTasks(TaskIdsMsg),

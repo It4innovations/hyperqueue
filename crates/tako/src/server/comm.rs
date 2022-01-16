@@ -11,13 +11,18 @@ use crate::messages::gateway::{
     TaskUpdate, ToGatewayMessage,
 };
 use crate::messages::worker::ToWorkerMessage;
+use crate::server::system::TaskSystem;
 use crate::server::task::SerializedTaskContext;
 use crate::transfer::auth::serialize;
 use crate::{TaskId, WorkerId};
 
 pub trait Comm {
-    fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage);
-    fn broadcast_worker_message(&mut self, message: &ToWorkerMessage);
+    fn send_worker_message<System: TaskSystem>(
+        &mut self,
+        worker_id: WorkerId,
+        message: &ToWorkerMessage<System>,
+    );
+    fn broadcast_worker_message<System: TaskSystem>(&mut self, message: &ToWorkerMessage<System>);
     fn ask_for_scheduling(&mut self);
 
     fn send_client_task_finished(&mut self, task_id: TaskId);
@@ -89,7 +94,11 @@ impl CommSender {
 }
 
 impl Comm for CommSender {
-    fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage) {
+    fn send_worker_message<System: TaskSystem>(
+        &mut self,
+        worker_id: WorkerId,
+        message: &ToWorkerMessage<System>,
+    ) {
         let data = serialize(&message).unwrap();
         self.workers
             .get(&worker_id)
@@ -98,7 +107,7 @@ impl Comm for CommSender {
             .expect("Send to worker failed");
     }
 
-    fn broadcast_worker_message(&mut self, message: &ToWorkerMessage) {
+    fn broadcast_worker_message<System: TaskSystem>(&mut self, message: &ToWorkerMessage<System>) {
         let data: Bytes = serialize(&message).unwrap().into();
         for sender in self.workers.values() {
             sender.send(data.clone()).expect("Send to worker failed");

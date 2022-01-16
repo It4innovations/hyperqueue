@@ -1,8 +1,13 @@
+use crate::server::system::TaskSystem;
 use crate::server::task::Task;
 use crate::server::taskmap::TaskMap;
 use crate::WorkerId;
 
-pub fn task_transfer_cost(taskmap: &TaskMap, task: &Task, worker_id: WorkerId) -> u64 {
+pub fn task_transfer_cost<System: TaskSystem>(
+    taskmap: &TaskMap<System>,
+    task: &Task<System>,
+    worker_id: WorkerId,
+) -> u64 {
     // TODO: For large number of inputs, only sample inputs
     task.inputs
         .iter()

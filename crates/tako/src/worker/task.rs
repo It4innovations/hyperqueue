@@ -2,6 +2,7 @@ use crate::common::resources::ResourceAllocation;
 use crate::common::stablemap::ExtractKey;
 use crate::common::WrappedRcRefCell;
 use crate::messages::worker::ComputeTaskMsg;
+use crate::server::system::{DefaultTaskSystem, TaskSystem};
 use crate::worker::data::DataObjectRef;
 use crate::worker::taskenv::TaskEnv;
 use crate::{InstanceId, Priority, TaskId};
@@ -12,7 +13,7 @@ pub enum TaskState {
     Running(TaskEnv, ResourceAllocation),
 }
 
-pub struct Task {
+pub struct Task<System: TaskSystem = DefaultTaskSystem> {
     pub id: TaskId,
     pub state: TaskState,
     pub priority: (Priority, Priority),
@@ -22,11 +23,11 @@ pub struct Task {
     pub resources: crate::common::resources::ResourceRequest,
     pub time_limit: Option<Duration>,
     pub n_outputs: u32,
-    pub body: Vec<u8>,
+    pub body: System::Body,
 }
 
-impl Task {
-    pub fn new(message: ComputeTaskMsg) -> Self {
+impl<System: TaskSystem> Task<System> {
+    pub fn new(message: ComputeTaskMsg<System>) -> Self {
         Self {
             id: message.id,
             priority: (message.user_priority, message.scheduler_priority),
@@ -97,10 +98,10 @@ impl Task {
     }
 }
 
-pub type TaskRef = WrappedRcRefCell<Task>;
+pub type TaskRef<System = DefaultTaskSystem> = WrappedRcRefCell<Task<System>>;
 
-impl TaskRef {
-    pub fn new(message: ComputeTaskMsg) -> Self {
+impl<System: TaskSystem> TaskRef<System> {
+    pub fn new(message: ComputeTaskMsg<System>) -> Self {
         TaskRef::wrap(Task {
             id: message.id,
             priority: (message.user_priority, message.scheduler_priority),
@@ -115,7 +116,7 @@ impl TaskRef {
     }
 }
 
-impl ExtractKey<TaskId> for Task {
+impl<System: TaskSystem> ExtractKey<TaskId> for Task<System> {
     #[inline]
     fn extract_key(&self) -> TaskId {
         self.id
