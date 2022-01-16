@@ -142,7 +142,7 @@ impl CliOutput {
                 })
                 .collect();
             let header = vec![
-                "Task Id".cell().bold(true),
+                "Task ID".cell().bold(true),
                 "State".cell().bold(true),
                 "Worker".cell().bold(true),
                 "Start time".cell().bold(true),
@@ -165,7 +165,7 @@ impl CliOutput {
             if !fail_rows.is_empty() {
                 let count = fail_rows.len() as JobTaskCount;
                 let header = vec![
-                    "Task Id".cell().bold(true),
+                    "Task ID".cell().bold(true),
                     "Worker".cell().bold(true),
                     "Error".cell().bold(true),
                 ];
@@ -305,12 +305,12 @@ impl Output for CliOutput {
             .collect();
 
         let header = vec![
-            "Id".cell(),
+            "ID".cell(),
             "State".cell().bold(true),
             "Hostname".cell().bold(true),
             "Resources".cell().bold(true),
             "Manager".cell().bold(true),
-            "Manager Job Id".cell().bold(true),
+            "Manager Job ID".cell().bold(true),
         ];
         self.print_horizontal_table(rows, header);
     }
@@ -382,7 +382,7 @@ impl Output for CliOutput {
                     .cell(),
             ],
             vec![
-                "Manager Job Id".cell().bold(true),
+                "Manager Job ID".cell().bold(true),
                 manager_info
                     .as_ref()
                     .map(|info| info.job_id.as_str())
@@ -463,7 +463,7 @@ impl Output for CliOutput {
             .collect();
 
         let header = vec![
-            "Id".cell().bold(true),
+            "ID".cell().bold(true),
             "Name".cell().bold(true),
             "State".cell().bold(true),
             "Tasks".cell().bold(true),
@@ -483,7 +483,7 @@ impl Output for CliOutput {
         } = job;
 
         let mut rows = vec![
-            vec!["Id".cell().bold(true), info.id.cell()],
+            vec!["ID".cell().bold(true), info.id.cell()],
             vec!["Name".cell().bold(true), info.name.as_str().cell()],
         ];
 
@@ -715,7 +715,7 @@ impl Output for CliOutput {
             .collect();
 
         let header = vec![
-            "Id".cell().bold(true),
+            "ID".cell().bold(true),
             "State".cell().bold(true),
             "Working directory".cell().bold(true),
             "Worker count".cell().bold(true),
