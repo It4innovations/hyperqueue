@@ -1,7 +1,7 @@
 import os
 import time
 from datetime import datetime
-from os.path import isdir, isfile
+from os.path import isdir, isfile, join
 from pathlib import Path
 
 import pytest
@@ -789,3 +789,41 @@ def test_job_timeout(hq_env: HqEnv):
     wait_for_job_state(hq_env, 3, "FINISHED")
     table = hq_env.command(["job", "info", "3"], as_table=True)
     assert table.get_row_value("Makespan").startswith("2")
+
+
+def test_job_submit_program_not_found(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["submit", "foo", "--bar", "--baz=5"])
+    wait_for_job_state(hq_env, 1, "FAILED")
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)[
+        JOB_TABLE_ROWS:
+    ].as_horizontal()
+    assert (
+        'Error: Cannot execute "foo --bar --baz=5": No such file or directory (os error 2)\n'
+        "The program that you have tried to execute (`foo`) was not found."
+        == table.get_column_value("Error")[0]
+    )
+
+
+def test_job_submit_program_not_found_file_exists(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    with open("foo", "w") as f:
+        f.write("hostname")
+
+    hq_env.command(["submit", "foo"])
+    wait_for_job_state(hq_env, 1, "FAILED")
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)[
+        JOB_TABLE_ROWS:
+    ].as_horizontal()
+    assert (
+        f"""Error: Cannot execute "foo": No such file or directory (os error 2)
+The program that you have tried to execute (`foo`) was not found.
+The file "{join(os.getcwd(), 'foo')}" exists, maybe you have meant `./foo` instead?"""
+        == table.get_column_value("Error")[0]
+    )

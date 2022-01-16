@@ -1,5 +1,9 @@
+use std::ffi::OsStr;
+use std::fmt::Write;
 use std::io;
-use std::path::PathBuf;
+use std::io::ErrorKind;
+use std::os::unix::prelude::OsStrExt;
+use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::rc::Rc;
 use std::time::Duration;
@@ -225,6 +229,47 @@ async fn run_task(
     Ok(TaskResult::Finished)
 }
 
+/// Provide a more detailed error message when a process fails to be spawned.
+fn map_spawn_error(error: std::io::Error, program: &ProgramDefinition) -> tako::Error {
+    let context = match &error.kind() {
+        ErrorKind::NotFound => {
+            let file = &program.args[0];
+            let mut msg = format!(
+                "\nThe program that you have tried to execute (`{}`) was not found.",
+                file
+            );
+
+            let path = Path::new(OsStr::from_bytes(file.as_bytes()));
+            if !path.is_absolute() && !path.starts_with(".") {
+                let possible_path = program.cwd.as_ref().unwrap().join(path);
+                if possible_path.is_file() {
+                    msg.write_fmt(format_args!(
+                        "\nThe file {:?} exists, maybe you have meant `./{}` instead?",
+                        possible_path, file
+                    ))
+                    .unwrap();
+                }
+            }
+
+            msg
+        }
+        _ => "".to_string(),
+    };
+    let message = format!(
+        "Cannot execute {:?}: {}{}",
+        program
+            .args
+            .iter()
+            .map(|arg| arg.to_str_lossy())
+            .collect::<Vec<_>>()
+            .join(" "),
+        error,
+        context
+    );
+
+    tako::Error::GenericError(message)
+}
+
 #[cfg(not(feature = "zero-worker"))]
 async fn run_task(
     streamer_ref: StreamerRef,
@@ -248,18 +293,9 @@ async fn run_task(
         }
     };
 
-    let mut child = command.spawn().map_err(|err| {
-        tako::Error::GenericError(format!(
-            "Cannot execute {:?}: {}",
-            program
-                .args
-                .iter()
-                .map(|arg| arg.to_str_lossy())
-                .collect::<Vec<_>>()
-                .join(" "),
-            err
-        ))
-    })?;
+    let mut child = command
+        .spawn()
+        .map_err(|error| map_spawn_error(error, &program))?;
 
     if matches!(program.stdout, StdioDef::Pipe) || matches!(program.stderr, StdioDef::Pipe) {
         let streamer_error =
