@@ -15,7 +15,7 @@ def test_job_submit(hq_env: HqEnv):
     hq_env.start_server()
     table = hq_env.command(["job", "list"], as_table=True)
     assert len(table) == 0
-    assert table.header[:3] == ["Id", "Name", "State"]
+    assert table.header[:3] == ["ID", "Name", "State"]
 
     hq_env.command(["submit", "--", "bash", "-c", "echo 'hello'"])
     hq_env.command(["submit", "--", "bash", "-c", "echo 'hello2'"])
@@ -24,8 +24,8 @@ def test_job_submit(hq_env: HqEnv):
 
     table = hq_env.command(["job", "list"], as_table=True)
     assert len(table) == 2
-    table.check_columns_value(["Id", "Name", "State"], 0, ["1", "bash", "WAITING"])
-    table.check_columns_value(["Id", "Name", "State"], 1, ["2", "bash", "WAITING"])
+    table.check_columns_value(["ID", "Name", "State"], 0, ["1", "bash", "WAITING"])
+    table.check_columns_value(["ID", "Name", "State"], 1, ["2", "bash", "WAITING"])
 
     hq_env.start_worker(cpus=1)
 
@@ -33,8 +33,8 @@ def test_job_submit(hq_env: HqEnv):
 
     table = hq_env.command(["job", "list"], as_table=True)
     assert len(table) == 2
-    table.check_columns_value(["Id", "Name", "State"], 0, ["1", "bash", "FINISHED"])
-    table.check_columns_value(["Id", "Name", "State"], 1, ["2", "bash", "FINISHED"])
+    table.check_columns_value(["ID", "Name", "State"], 0, ["1", "bash", "FINISHED"])
+    table.check_columns_value(["ID", "Name", "State"], 1, ["2", "bash", "FINISHED"])
 
     hq_env.command(["submit", "--", "sleep", "1"])
 
@@ -42,17 +42,17 @@ def test_job_submit(hq_env: HqEnv):
 
     table = hq_env.command(["job", "list"], as_table=True)
     assert len(table) == 3
-    table.check_columns_value(["Id", "Name", "State"], 0, ["1", "bash", "FINISHED"])
-    table.check_columns_value(["Id", "Name", "State"], 1, ["2", "bash", "FINISHED"])
-    table.check_columns_value(["Id", "Name", "State"], 2, ["3", "sleep", "RUNNING"])
+    table.check_columns_value(["ID", "Name", "State"], 0, ["1", "bash", "FINISHED"])
+    table.check_columns_value(["ID", "Name", "State"], 1, ["2", "bash", "FINISHED"])
+    table.check_columns_value(["ID", "Name", "State"], 2, ["3", "sleep", "RUNNING"])
 
     wait_for_job_state(hq_env, 3, "FINISHED")
 
     table = hq_env.command(["job", "list"], as_table=True)
     assert len(table) == 3
-    table.check_columns_value(["Id", "Name", "State"], 0, ["1", "bash", "FINISHED"])
-    table.check_columns_value(["Id", "Name", "State"], 1, ["2", "bash", "FINISHED"])
-    table.check_columns_value(["Id", "Name", "State"], 2, ["3", "sleep", "FINISHED"])
+    table.check_columns_value(["ID", "Name", "State"], 0, ["1", "bash", "FINISHED"])
+    table.check_columns_value(["ID", "Name", "State"], 1, ["2", "bash", "FINISHED"])
+    table.check_columns_value(["ID", "Name", "State"], 2, ["3", "sleep", "FINISHED"])
 
 
 def test_job_submit_output(hq_env: HqEnv):
@@ -82,7 +82,7 @@ def test_custom_name(hq_env: HqEnv):
     table = hq_env.command(["job", "list"], as_table=True)
     assert len(table) == 1
     table.check_columns_value(
-        ["Id", "Name", "State"], 0, ["1", "sleep_prog", "WAITING"]
+        ["ID", "Name", "State"], 0, ["1", "sleep_prog", "WAITING"]
     )
 
     with pytest.raises(Exception):
@@ -291,16 +291,16 @@ def test_job_fail(hq_env: HqEnv):
 
     table = hq_env.command(["job", "list"], as_table=True)
     assert len(table) == 1
-    table.check_column_value("Id", 0, "1")
+    table.check_column_value("ID", 0, "1")
     table.check_column_value("Name", 0, "non-existent-program")
     table.check_column_value("State", 0, "FAILED")
 
     table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)
-    table.check_row_value("Id", "1")
+    table.check_row_value("ID", "1")
     table.check_row_value("State", "FAILED")
 
     table = table[JOB_TABLE_ROWS:].as_horizontal()
-    table.check_column_value("Task Id", 0, "0")
+    table.check_column_value("Task ID", 0, "0")
     assert "No such file or directory" in table.get_column_value("Error")[0]
 
 
@@ -560,13 +560,13 @@ def test_job_last(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     table = hq_env.command(["job", "info", "last"], as_table=True)
-    table.check_row_value("Id", "1")
+    table.check_row_value("ID", "1")
 
     hq_env.command(["submit", "ls"])
     wait_for_job_state(hq_env, 2, "FINISHED")
 
     table = hq_env.command(["job", "info", "last"], as_table=True)
-    table.check_row_value("Id", "2")
+    table.check_row_value("ID", "2")
 
 
 def test_job_resubmit_with_status(hq_env: HqEnv):

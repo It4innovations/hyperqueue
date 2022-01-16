@@ -90,7 +90,7 @@ def test_job_array_error_some(hq_env: HqEnv):
 
     offset = JOB_TABLE_ROWS
 
-    assert table[offset][0] == "Task Id"
+    assert table[offset][0] == "Task ID"
     assert table[offset][2] == "Error"
 
     assert table[offset + 1][0] == "2"
@@ -134,7 +134,7 @@ def test_job_array_error_all(hq_env: HqEnv):
 
     task_table = table[JOB_TABLE_ROWS:].as_horizontal()
     for i in range(10):
-        assert task_table.get_column_value("Task Id")[i] == str(i)
+        assert task_table.get_column_value("Task ID")[i] == str(i)
         assert task_table.get_column_value("State")[i] == "FAILED"
         assert "No such file or directory" in task_table.get_column_value("Error")[i]
 
@@ -197,7 +197,7 @@ def test_array_mix_with_simple_jobs(hq_env: HqEnv):
 
     table = hq_env.command(["job", "list"], as_table=True)
     for i in range(100):
-        assert table.get_column_value("Id")[i] == str(i + 1)
+        assert table.get_column_value("ID")[i] == str(i + 1)
         assert table.get_column_value("State")[i] == "FINISHED"
         assert table.get_column_value("Tasks")[i] == "4" if i % 2 == 0 else "1"
 

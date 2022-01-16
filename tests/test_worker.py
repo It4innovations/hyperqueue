@@ -13,30 +13,30 @@ def test_worker_list(hq_env: HqEnv):
     hq_env.start_server()
     table = list_all_workers(hq_env)
     assert len(table) == 0
-    assert table.header[:2] == ["Id", "State"]
+    assert table.header[:2] == ["ID", "State"]
 
     hq_env.start_workers(2)
 
     table = list_all_workers(hq_env)
     assert len(table) == 2
-    table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
-    table.check_columns_value(["Id", "State"], 1, ["2", "RUNNING"])
+    table.check_columns_value(["ID", "State"], 0, ["1", "RUNNING"])
+    table.check_columns_value(["ID", "State"], 1, ["2", "RUNNING"])
 
     hq_env.kill_worker(2)
     wait_for_worker_state(hq_env, 2, "CONNECTION LOST")
 
     table = list_all_workers(hq_env)
     assert len(table) == 2
-    table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
-    table.check_columns_value(["Id", "State"], 1, ["2", "CONNECTION LOST"])
+    table.check_columns_value(["ID", "State"], 0, ["1", "RUNNING"])
+    table.check_columns_value(["ID", "State"], 1, ["2", "CONNECTION LOST"])
 
     hq_env.kill_worker(1)
     wait_for_worker_state(hq_env, 1, "CONNECTION LOST")
 
     table = list_all_workers(hq_env)
     assert len(table) == 2
-    table.check_columns_value(["Id", "State"], 0, ["1", "CONNECTION LOST"])
-    table.check_columns_value(["Id", "State"], 1, ["2", "CONNECTION LOST"])
+    table.check_columns_value(["ID", "State"], 0, ["1", "CONNECTION LOST"])
+    table.check_columns_value(["ID", "State"], 1, ["2", "CONNECTION LOST"])
 
     hq_env.start_worker()
     wait_for_worker_state(hq_env, 3, "RUNNING")
@@ -44,9 +44,9 @@ def test_worker_list(hq_env: HqEnv):
     table = list_all_workers(hq_env)
 
     assert len(table) == 3
-    table.check_columns_value(["Id", "State"], 0, ["1", "CONNECTION LOST"])
-    table.check_columns_value(["Id", "State"], 1, ["2", "CONNECTION LOST"])
-    table.check_columns_value(["Id", "State"], 2, ["3", "RUNNING"])
+    table.check_columns_value(["ID", "State"], 0, ["1", "CONNECTION LOST"])
+    table.check_columns_value(["ID", "State"], 1, ["2", "CONNECTION LOST"])
+    table.check_columns_value(["ID", "State"], 2, ["3", "RUNNING"])
 
 
 def test_worker_stop(hq_env: HqEnv):
@@ -108,19 +108,19 @@ def test_worker_list_only_online(hq_env: HqEnv):
 
     table = list_all_workers(hq_env)
     assert len(table) == 2
-    table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
-    table.check_columns_value(["Id", "State"], 1, ["2", "RUNNING"])
+    table.check_columns_value(["ID", "State"], 0, ["1", "RUNNING"])
+    table.check_columns_value(["ID", "State"], 1, ["2", "RUNNING"])
     hq_env.kill_worker(2)
 
     wait_for_worker_state(hq_env, 2, "CONNECTION LOST")
     table = list_all_workers(hq_env)
     assert len(table) == 2
-    table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
-    table.check_columns_value(["Id", "State"], 1, ["2", "CONNECTION LOST"])
+    table.check_columns_value(["ID", "State"], 0, ["1", "RUNNING"])
+    table.check_columns_value(["ID", "State"], 1, ["2", "CONNECTION LOST"])
 
     table = hq_env.command(["worker", "list"], as_table=True)
     assert len(table) == 1
-    table.check_columns_value(["Id", "State"], 0, ["1", "RUNNING"])
+    table.check_columns_value(["ID", "State"], 0, ["1", "RUNNING"])
 
 
 def test_worker_list_resources(hq_env: HqEnv):
@@ -135,16 +135,16 @@ def test_worker_list_resources(hq_env: HqEnv):
     table = list_all_workers(hq_env)
     assert len(table) == 4
     table.check_columns_value(
-        ["Id", "State", "Resources"], 0, ["1", "RUNNING", "1x10 cpus"]
+        ["ID", "State", "Resources"], 0, ["1", "RUNNING", "1x10 cpus"]
     )
     table.check_columns_value(
-        ["Id", "State", "Resources"], 1, ["2", "RUNNING", "4x5 cpus"]
+        ["ID", "State", "Resources"], 1, ["2", "RUNNING", "4x5 cpus"]
     )
     table.check_columns_value(
-        ["Id", "State", "Resources"], 2, ["3", "RUNNING", "2x3 cpus"]
+        ["ID", "State", "Resources"], 2, ["3", "RUNNING", "2x3 cpus"]
     )
     table.check_columns_value(
-        ["Id", "State", "Resources"], 3, ["4", "RUNNING", "1x1 1x2 1x3 cpus"]
+        ["ID", "State", "Resources"], 3, ["4", "RUNNING", "1x1 1x2 1x3 cpus"]
     )
 
 
