@@ -4,7 +4,7 @@ from os.path import abspath
 import pytest
 
 from .conftest import HqEnv
-from .utils import JOB_TABLE_ROWS, wait_for_job_state
+from .utils import wait_for_job_state
 from .utils.job import default_task_output
 
 
@@ -33,9 +33,7 @@ def test_task_resolve_submit_placeholders(hq_env: HqEnv):
     hq_env.start_server()
 
     hq_env.command(["submit", "echo", "test"])
-    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)[
-        JOB_TABLE_ROWS:
-    ].as_horizontal()
+    table = hq_env.command(["job", "tasks", "1"], as_table=True)
     wait_for_job_state(hq_env, 1, "WAITING")
     table.check_column_value("Working directory", 0, "")
     table.check_column_value("Stdout", 0, "")
@@ -44,9 +42,7 @@ def test_task_resolve_submit_placeholders(hq_env: HqEnv):
     hq_env.start_worker()
 
     wait_for_job_state(hq_env, 1, "FINISHED")
-    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)[
-        JOB_TABLE_ROWS:
-    ].as_horizontal()
+    table = hq_env.command(["job", "tasks", "1"], as_table=True)
     table.check_column_value("Working directory", 0, os.getcwd())
     table.check_column_value("Stdout", 0, default_task_output())
     table.check_column_value("Stderr", 0, default_task_output(type="stderr"))
@@ -68,9 +64,7 @@ def test_task_resolve_worker_placeholders(hq_env: HqEnv):
             "test",
         ]
     )
-    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)[
-        JOB_TABLE_ROWS:
-    ].as_horizontal()
+    table = hq_env.command(["job", "tasks", "1"], as_table=True)
     wait_for_job_state(hq_env, 1, "WAITING")
     table.check_column_value("Working directory", 0, "")
     table.check_column_value("Stdout", 0, "")
@@ -79,9 +73,7 @@ def test_task_resolve_worker_placeholders(hq_env: HqEnv):
     hq_env.start_worker()
 
     wait_for_job_state(hq_env, 1, "FINISHED")
-    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)[
-        JOB_TABLE_ROWS:
-    ].as_horizontal()
+    table = hq_env.command(["job", "tasks", "1"], as_table=True)
     table.check_column_value("Working directory", 0, abspath("0-dir"))
     table.check_column_value("Stdout", 0, abspath("0.out"))
     table.check_column_value("Stderr", 0, abspath("0.err"))

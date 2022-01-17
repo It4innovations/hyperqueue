@@ -9,7 +9,8 @@ use cli_table::ColorChoice;
 use clap::ArgSettings::HiddenShortHelp;
 use hyperqueue::client::commands::autoalloc::{command_autoalloc, AutoAllocOpts};
 use hyperqueue::client::commands::job::{
-    cancel_job, output_job_detail, output_job_list, JobCancelOpts, JobInfoOpts, JobListOpts,
+    cancel_job, output_job_detail, output_job_list, output_job_tasks, JobCancelOpts, JobInfoOpts,
+    JobListOpts, JobTasksOpts,
 };
 use hyperqueue::client::commands::log::{command_log, LogOpts};
 use hyperqueue::client::commands::stats::print_server_stats;
@@ -240,8 +241,10 @@ struct JobOpts {
 enum JobCommand {
     /// Display information about jobs
     List(JobListOpts),
-    /// Display detailed information about a specific job
+    /// Display detailed information of the selected job
     Info(JobInfoOpts),
+    /// Display individual tasks of the selected job
+    Tasks(JobTasksOpts),
     /// Cancel a specific job
     Cancel(JobCancelOpts),
     /// Submit a job to HyperQueue
@@ -326,13 +329,12 @@ async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> an
     }
 
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    output_job_detail(
-        gsettings,
-        &mut connection,
-        opts.selector_arg.into(),
-        opts.tasks,
-    )
-    .await
+    output_job_detail(gsettings, &mut connection, opts.selector_arg.into()).await
+}
+
+async fn command_job_tasks(gsettings: &GlobalSettings, opts: JobTasksOpts) -> anyhow::Result<()> {
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    output_job_tasks(gsettings, &mut connection, opts.job_id.into()).await
 }
 
 async fn command_submit(gsettings: &GlobalSettings, opts: JobSubmitOpts) -> anyhow::Result<()> {
@@ -531,7 +533,6 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Server(ServerOpts {
             subcmd: ServerCommand::Info(opts),
         }) => command_server_info(&gsettings, opts).await,
-
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Start(opts),
         }) => command_worker_start(&gsettings, opts).await,
@@ -556,6 +557,9 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Info(opts),
         }) => command_job_detail(&gsettings, opts).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::Tasks(opts),
+        }) => command_job_tasks(&gsettings, opts).await,
         SubCommand::Submit(opts)
         | SubCommand::Job(JobOpts {
             subcmd: JobCommand::Submit(opts),

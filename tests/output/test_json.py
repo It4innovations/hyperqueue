@@ -131,20 +131,28 @@ def test_print_job_detail(hq_env: HqEnv):
             "started_at": str,
             "time_limit": None,
             "submit_dir": str,
+            "tasks": list,
         }
     )
     schema.validate(output)
 
 
-def test_print_job_with_tasks(hq_env: HqEnv):
+def test_print_job_tasks_in_job_detail(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["submit", "--array=1-4", "echo", "tt"])
-    output = parse_json_output(
-        hq_env, ["--output-mode=json", "job", "info", "1", "--tasks"]
-    )
+    output = parse_json_output(hq_env, ["--output-mode=json", "job", "info", "1"])
 
     schema = Schema([{"id": id, "state": "waiting"} for id in range(1, 5)])
     schema.validate(output["tasks"])
+
+
+def test_print_job_tasks(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--array=1-4", "echo", "tt"])
+    output = parse_json_output(hq_env, ["--output-mode=json", "job", "tasks", "1"])
+
+    schema = Schema([{"id": id, "state": "waiting"} for id in range(1, 5)])
+    schema.validate(output)
 
 
 def test_print_task_placeholders(hq_env: HqEnv):
@@ -153,9 +161,7 @@ def test_print_task_placeholders(hq_env: HqEnv):
     hq_env.command(["submit", "--array=1-4", "echo", "tt"])
     wait_for_job_state(hq_env, 1, "FINISHED")
 
-    output = parse_json_output(
-        hq_env, ["--output-mode=json", "job", "info", "1", "--tasks"]
-    )
+    output = parse_json_output(hq_env, ["--output-mode=json", "job", "info", "1"])
 
     schema = Schema(
         [{"id": id, "state": "finished"} for id in range(1, 5)], ignore_extra_keys=True

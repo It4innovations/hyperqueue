@@ -1,6 +1,7 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
 use crate::client::status::{job_status, Status};
+use crate::common::arraydef::IntArray;
 use crate::common::cli::SelectorArg;
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
@@ -21,10 +22,12 @@ pub struct JobListOpts {
 pub struct JobInfoOpts {
     /// Single ID, ID range or `last` to display the most recently submitted job
     pub selector_arg: SelectorArg,
+}
 
-    /// Include detailed task information in the output
-    #[clap(long)]
-    pub tasks: bool,
+#[derive(Parser)]
+pub struct JobTasksOpts {
+    /// Job ID
+    pub job_id: u32,
 }
 
 #[derive(Parser)]
@@ -80,7 +83,6 @@ pub async fn output_job_detail(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
     selector: Selector,
-    show_tasks: bool,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::JobDetail(JobDetailRequest {
         selector,
@@ -91,14 +93,34 @@ pub async fn output_job_detail(
 
     for response in responses {
         if let Some(job) = response.1 {
-            gsettings.printer().print_job_detail(
-                job,
-                show_tasks,
-                get_worker_map(connection).await?,
-            );
+            gsettings
+                .printer()
+                .print_job_detail(job, get_worker_map(connection).await?);
         } else {
             log::error!("Job {} not found", response.0);
         }
+    }
+    Ok(())
+}
+
+pub async fn output_job_tasks(
+    gsettings: &GlobalSettings,
+    connection: &mut ClientConnection,
+    job_id: JobId,
+) -> anyhow::Result<()> {
+    let message = FromClientMessage::JobDetail(JobDetailRequest {
+        selector: Selector::Specific(IntArray::from_id(job_id.into())),
+        include_tasks: true,
+    });
+    let mut response =
+        rpc_call!(connection, message, ToClientMessage::JobDetailResponse(r) => r).await?;
+
+    if let Some(job) = response.pop().and_then(|item| item.1) {
+        gsettings
+            .printer()
+            .print_job_tasks(job, get_worker_map(connection).await?);
+    } else {
+        log::error!("Job {} not found", job_id);
     }
     Ok(())
 }

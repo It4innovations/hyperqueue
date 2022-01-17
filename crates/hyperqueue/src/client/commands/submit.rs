@@ -494,7 +494,7 @@ pub async fn resubmit_computation(
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
     gsettings
         .printer()
-        .print_job_detail(response.job, false, get_worker_map(connection).await?);
+        .print_job_detail(response.job, get_worker_map(connection).await?);
     Ok(())
 }
 

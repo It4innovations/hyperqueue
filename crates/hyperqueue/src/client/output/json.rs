@@ -19,7 +19,7 @@ use crate::common::serverdir::AccessRecord;
 use crate::server::autoalloc::{
     Allocation, AllocationEvent, AllocationEventHolder, AllocationStatus, DescriptorId,
 };
-use crate::server::job::{JobTaskState, StartedTaskData};
+use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDescription, JobDetail, JobInfo, QueueDescriptorData, StatsResponse,
@@ -73,7 +73,7 @@ impl Output for JsonOutput {
     fn print_job_list(&self, tasks: Vec<JobInfo>) {
         self.print(tasks.into_iter().map(format_job_info).collect());
     }
-    fn print_job_detail(&self, job: JobDetail, show_tasks: bool, _worker_map: WorkerMap) {
+    fn print_job_detail(&self, job: JobDetail, _worker_map: WorkerMap) {
         let JobDetail {
             info,
             job_desc,
@@ -139,48 +139,11 @@ impl Output for JsonOutput {
             json["time_limit"] = json!(time_limit.map(format_duration));
         }
 
-        if show_tasks {
-            json["tasks"] = tasks
-                .into_iter()
-                .map(|task| {
-                    let state = &match task.state {
-                        JobTaskState::Waiting => "waiting",
-                        JobTaskState::Running { .. } => "running",
-                        JobTaskState::Finished { .. } => "finished",
-                        JobTaskState::Failed { .. } => "failed",
-                        JobTaskState::Canceled { .. } => "canceled",
-                    };
-                    let mut data = json!({
-                        "id": task.task_id,
-                        "state": state,
-                    });
-                    match task.state {
-                        JobTaskState::Running { started_data } => {
-                            fill_task_started_data(&mut data, started_data);
-                        }
-                        JobTaskState::Finished {
-                            started_data,
-                            end_date,
-                        } => {
-                            fill_task_started_data(&mut data, started_data);
-                            data["finished_at"] = format_datetime(end_date);
-                        }
-                        JobTaskState::Failed {
-                            started_data,
-                            end_date,
-                            error,
-                        } => {
-                            fill_task_started_data(&mut data, started_data);
-                            data["finished_at"] = format_datetime(end_date);
-                            data["error"] = error.into();
-                        }
-                        _ => {}
-                    };
-                    data
-                })
-                .collect();
-        }
+        json["tasks"] = format_tasks(tasks);
         self.print(json);
+    }
+    fn print_job_tasks(&self, job: JobDetail, _worker_map: WorkerMap) {
+        self.print(format_tasks(job.tasks));
     }
 
     fn print_job_wait(&self, duration: Duration, response: &WaitForJobsResponse) {
@@ -285,6 +248,48 @@ fn format_cpu_request(request: CpuRequest) -> serde_json::Value {
         "type": name,
         "cpus": cpus
     })
+}
+
+fn format_tasks(tasks: Vec<JobTaskInfo>) -> serde_json::Value {
+    tasks
+        .into_iter()
+        .map(|task| {
+            let state = &match task.state {
+                JobTaskState::Waiting => "waiting",
+                JobTaskState::Running { .. } => "running",
+                JobTaskState::Finished { .. } => "finished",
+                JobTaskState::Failed { .. } => "failed",
+                JobTaskState::Canceled { .. } => "canceled",
+            };
+            let mut data = json!({
+                "id": task.task_id,
+                "state": state,
+            });
+            match task.state {
+                JobTaskState::Running { started_data } => {
+                    fill_task_started_data(&mut data, started_data);
+                }
+                JobTaskState::Finished {
+                    started_data,
+                    end_date,
+                } => {
+                    fill_task_started_data(&mut data, started_data);
+                    data["finished_at"] = format_datetime(end_date);
+                }
+                JobTaskState::Failed {
+                    started_data,
+                    end_date,
+                    error,
+                } => {
+                    fill_task_started_data(&mut data, started_data);
+                    data["finished_at"] = format_datetime(end_date);
+                    data["error"] = error.into();
+                }
+                _ => {}
+            };
+            data
+        })
+        .collect()
 }
 
 fn format_queue_descriptor(
