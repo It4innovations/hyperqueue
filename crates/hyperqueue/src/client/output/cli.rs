@@ -85,105 +85,6 @@ impl CliOutput {
         }
     }
 
-    fn print_job_tasks(
-        &self,
-        mut tasks: Vec<JobTaskInfo>,
-        show_tasks: bool,
-        counters: &JobTaskCounters,
-        worker_map: &WorkerMap,
-    ) {
-        tasks.sort_unstable_by_key(|t| t.task_id);
-        let make_error_row = |t: &JobTaskInfo| match &t.state {
-            JobTaskState::Failed {
-                started_data: StartedTaskData { worker_id, .. },
-                error,
-                ..
-            } => Some(vec![
-                t.task_id.cell(),
-                format_worker(*worker_id, worker_map).cell(),
-                error.to_owned().cell().foreground_color(Some(Color::Red)),
-            ]),
-            _ => None,
-        };
-
-        if show_tasks {
-            let rows: Vec<_> = tasks
-                .iter()
-                .map(|t| {
-                    let (start, end) = get_task_time(&t.state);
-                    let (cwd, stdout, stderr) = get_task_paths(&t.state);
-
-                    vec![
-                        t.task_id.cell(),
-                        task_status_to_cell(task_status(&t.state)),
-                        match t.state.get_worker() {
-                            Some(worker) => format_worker(worker, worker_map),
-                            _ => "",
-                        }
-                        .cell(),
-                        start
-                            .map(|x| x.to_string())
-                            .unwrap_or_else(|| "".to_string())
-                            .cell(),
-                        end.map(|x| x.to_string())
-                            .unwrap_or_else(|| "".to_string())
-                            .cell(),
-                        format_task_duration(start, end).cell(),
-                        cwd,
-                        stdout,
-                        stderr,
-                        match &t.state {
-                            JobTaskState::Failed { error, .. } => {
-                                error.to_owned().cell().foreground_color(Some(Color::Red))
-                            }
-                            _ => "".cell(),
-                        },
-                    ]
-                })
-                .collect();
-            let header = vec![
-                "Task ID".cell().bold(true),
-                "State".cell().bold(true),
-                "Worker".cell().bold(true),
-                "Start time".cell().bold(true),
-                "End time".cell().bold(true),
-                "Time".cell().bold(true),
-                "Working directory".cell().bold(true),
-                "Stdout".cell().bold(true),
-                "Stderr".cell().bold(true),
-                "Error".cell().bold(true),
-            ];
-            self.print_horizontal_table(rows, header);
-        } else {
-            const SHOWN_TASKS: usize = 5;
-            let fail_rows: Vec<_> = tasks
-                .iter()
-                .filter_map(make_error_row)
-                .take(SHOWN_TASKS)
-                .collect();
-
-            if !fail_rows.is_empty() {
-                let count = fail_rows.len() as JobTaskCount;
-                let header = vec![
-                    "Task ID".cell().bold(true),
-                    "Worker".cell().bold(true),
-                    "Error".cell().bold(true),
-                ];
-                self.print_horizontal_table(fail_rows, header);
-
-                if count < counters.n_failed_tasks {
-                    log::warn!(
-                        "{} tasks failed. ({} shown)",
-                        counters.n_failed_tasks,
-                        count
-                    );
-                } else {
-                    log::warn!("{} tasks failed.", counters.n_failed_tasks);
-                }
-            }
-        }
-    }
-
     fn print_job_shared_task_description(
         &self,
         rows: &mut Vec<Vec<CellStruct>>,
@@ -257,6 +158,48 @@ impl CliOutput {
                 .unwrap_or_else(|| "None".to_string())
                 .cell(),
         ]);
+    }
+
+    fn print_task_summary(&self, tasks: Vec<JobTaskInfo>, info: JobInfo, worker_map: &WorkerMap) {
+        const SHOWN_TASKS: usize = 5;
+
+        let fail_rows: Vec<_> = tasks
+            .iter()
+            .filter_map(|t: &JobTaskInfo| match &t.state {
+                JobTaskState::Failed {
+                    started_data: StartedTaskData { worker_id, .. },
+                    error,
+                    ..
+                } => Some(vec![
+                    t.task_id.cell(),
+                    format_worker(*worker_id, worker_map).cell(),
+                    error.to_owned().cell().foreground_color(Some(Color::Red)),
+                ]),
+                _ => None,
+            })
+            .take(SHOWN_TASKS)
+            .collect();
+
+        if !fail_rows.is_empty() {
+            let count = fail_rows.len() as JobTaskCount;
+            let header = vec![
+                "Task ID".cell().bold(true),
+                "Worker".cell().bold(true),
+                "Error".cell().bold(true),
+            ];
+            self.print_horizontal_table(fail_rows, header);
+
+            let counters = info.counters;
+            if count < counters.n_failed_tasks {
+                log::warn!(
+                    "{} tasks failed. ({} shown)",
+                    counters.n_failed_tasks,
+                    count
+                );
+            } else {
+                log::warn!("{} tasks failed.", counters.n_failed_tasks);
+            }
+        }
     }
 }
 
@@ -471,11 +414,11 @@ impl Output for CliOutput {
         self.print_horizontal_table(rows, header);
     }
 
-    fn print_job_detail(&self, job: JobDetail, show_tasks: bool, worker_map: WorkerMap) {
+    fn print_job_detail(&self, job: JobDetail, worker_map: WorkerMap) {
         let JobDetail {
             info,
             job_desc,
-            tasks,
+            mut tasks,
             max_fails: _,
             submission_date,
             completion_date_or_now,
@@ -532,9 +475,61 @@ impl Output for CliOutput {
         ]);
         self.print_vertical_table(rows);
 
-        if !tasks.is_empty() {
-            self.print_job_tasks(tasks, show_tasks, &info.counters, &worker_map);
-        }
+        tasks.sort_unstable_by_key(|t| t.task_id);
+        self.print_task_summary(tasks, info, &worker_map);
+    }
+
+    fn print_job_tasks(&self, job: JobDetail, worker_map: WorkerMap) {
+        let mut tasks = job.tasks;
+        tasks.sort_unstable_by_key(|t| t.task_id);
+
+        let rows: Vec<_> = tasks
+            .iter()
+            .map(|t| {
+                let (start, end) = get_task_time(&t.state);
+                let (cwd, stdout, stderr) = get_task_paths(&t.state);
+
+                vec![
+                    t.task_id.cell(),
+                    task_status_to_cell(task_status(&t.state)),
+                    match t.state.get_worker() {
+                        Some(worker) => format_worker(worker, &worker_map),
+                        _ => "",
+                    }
+                    .cell(),
+                    start
+                        .map(|x| x.to_string())
+                        .unwrap_or_else(|| "".to_string())
+                        .cell(),
+                    end.map(|x| x.to_string())
+                        .unwrap_or_else(|| "".to_string())
+                        .cell(),
+                    format_task_duration(start, end).cell(),
+                    cwd,
+                    stdout,
+                    stderr,
+                    match &t.state {
+                        JobTaskState::Failed { error, .. } => {
+                            error.to_owned().cell().foreground_color(Some(Color::Red))
+                        }
+                        _ => "".cell(),
+                    },
+                ]
+            })
+            .collect();
+        let header = vec![
+            "Task ID".cell().bold(true),
+            "State".cell().bold(true),
+            "Worker".cell().bold(true),
+            "Start time".cell().bold(true),
+            "End time".cell().bold(true),
+            "Time".cell().bold(true),
+            "Working directory".cell().bold(true),
+            "Stdout".cell().bold(true),
+            "Stderr".cell().bold(true),
+            "Error".cell().bold(true),
+        ];
+        self.print_horizontal_table(rows, header);
     }
 
     fn print_job_wait(&self, duration: Duration, response: &WaitForJobsResponse) {

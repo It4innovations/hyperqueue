@@ -193,16 +193,11 @@ You can use the following placeholders:
 
 ## State
 At any moment in time, each task and job has a specific *state* that represents what is currently happening to it. You
-can query the state of a job with the following commands[^1]:
+can query the state of a job with the following command[^1]:
 
-=== "Simple job"
-    ```bash
-    $ hq job info <job-id>
-    ```
-=== "Job with multiple tasks"
-    ```bash
-    $ hq job info --tasks <job-id>
-    ```
+```bash
+$ hq job info <job-id>
+```
 
 [^1]: You can use various [shortcuts](../cli/shortcuts.md#id-selector) to select multiple jobs at once.
 
@@ -311,4 +306,10 @@ Valid filter values are:
 
 ```bash
 $ hq job info <job-selector>
+```
+
+### Display information about individual tasks of a specific job
+
+```bash
+$ hq job tasks <job-id>
 ```

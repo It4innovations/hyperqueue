@@ -64,7 +64,8 @@ impl Output for Quiet {
             println!("{} {}", task.id, format_status(&status))
         }
     }
-    fn print_job_detail(&self, _job: JobDetail, _show_tasks: bool, _worker_map: WorkerMap) {}
+    fn print_job_detail(&self, _job: JobDetail, _worker_map: WorkerMap) {}
+    fn print_job_tasks(&self, _job: JobDetail, _worker_map: WorkerMap) {}
     fn print_job_wait(&self, _duration: Duration, _response: &WaitForJobsResponse) {}
 
     // Log

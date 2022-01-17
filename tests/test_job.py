@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from .conftest import HqEnv
-from .utils import JOB_TABLE_ROWS, wait_for_job_state
+from .utils import wait_for_job_state
 from .utils.job import default_task_output
 
 
@@ -295,11 +295,11 @@ def test_job_fail(hq_env: HqEnv):
     table.check_column_value("Name", 0, "non-existent-program")
     table.check_column_value("State", 0, "FAILED")
 
-    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)
+    table = hq_env.command(["job", "info", "1"], as_table=True)
     table.check_row_value("ID", "1")
     table.check_row_value("State", "FAILED")
 
-    table = table[JOB_TABLE_ROWS:].as_horizontal()
+    table = hq_env.command(["job", "tasks", "1"], as_table=True)
     table.check_column_value("Task ID", 0, "0")
     assert "No such file or directory" in table.get_column_value("Error")[0]
 
@@ -666,24 +666,18 @@ def test_job_tasks_table(hq_env: HqEnv):
     hq_env.start_server()
 
     hq_env.command(["submit", "echo", "test"])
-    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)[
-        JOB_TABLE_ROWS:
-    ].as_horizontal()
+    table = hq_env.command(["job", "tasks", "1"], as_table=True)
     wait_for_job_state(hq_env, 1, "WAITING")
     table.check_column_value("Worker", 0, "")
 
     hq_env.start_worker()
 
-    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)[
-        JOB_TABLE_ROWS:
-    ].as_horizontal()
+    table = hq_env.command(["job", "tasks", "1"], as_table=True)
     wait_for_job_state(hq_env, 1, "FINISHED")
     table.check_column_value("Worker", 0, "worker1")
 
     hq_env.command(["submit", "non-existent-program", "test"])
-    table = hq_env.command(["job", "info", "2", "--tasks"], as_table=True)[
-        JOB_TABLE_ROWS:
-    ].as_horizontal()
+    table = hq_env.command(["job", "tasks", "2"], as_table=True)
     wait_for_job_state(hq_env, 2, "FAILED")
     worker = table.get_column_value("Worker")[0]
     assert worker == "" or worker == "worker1"
@@ -751,10 +745,8 @@ def test_job_completion_time(hq_env: HqEnv):
     table = hq_env.command(["job", "info", "1"], as_table=True)
     assert table.get_row_value("Makespan").startswith("1s")
 
-    table = hq_env.command(["job", "info", "1", "--tasks"], as_table=True)
-
-    offset = JOB_TABLE_ROWS
-    assert table[offset + 1][5].startswith("1s")
+    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    table.get_column_value("Time")[0].startswith("1s")
 
 
 def test_job_timeout(hq_env: HqEnv):
@@ -777,10 +769,11 @@ def test_job_timeout(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FAILED")
     table = hq_env.command(["job", "info", "1"], as_table=True)
     table.check_row_value("Task time limit", "500ms")
-    offset = JOB_TABLE_ROWS
-    assert table[offset + 1][2] == "Time limit reached"
     assert table.get_row_value("Makespan").startswith("5")
     assert table.get_row_value("Makespan").endswith("ms")
+
+    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    assert table.get_column_value("Error")[0] == "Time limit reached"
 
     wait_for_job_state(hq_env, 2, "FINISHED")
     table = hq_env.command(["job", "info", "2"], as_table=True)
