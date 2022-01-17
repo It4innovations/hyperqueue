@@ -19,8 +19,10 @@
 ## New features
 
 ### Worker configuration
-  * Argument for ``--on-worker-lost`` (for ``worker start`` and autoalloc) to define what should happen
-    when a worker lost connection to server.
+  * You can now select what should happen when a worker loses its connection to the server using the
+    new `--on-worker-lost` flag available for `worker start` and `hq alloc add` commands. You can find
+    more information in the [documentation](https://it4innovations.github.io/hyperqueue/stable/deployment/worker/#lost-connection-to-the-server).
+
 
 ### CLI
 * You can now force HyperQueue commands to output machine-readable data using the `--output-mode` flag
@@ -41,7 +43,7 @@ find more information in the [documentation](https://it4innovations.github.io/hy
     ```
 * The command line interface for jobs has been changed to be more consistent with the interface for
   workers. Commands that have been formerly standalone (like `hq jobs`, `hq resubmit`, `hq wait`) are
-  not accessed through `hq job`. The only previous job-related command that remained to on the top level
+  not accessed through `hq job`. The only previous job-related command that remained on the top level
   is `hq submit`, which is now a shortcut for `hq job submit`. Here is a table of changed commands:
 
     | **Previous command** | **New command**    |

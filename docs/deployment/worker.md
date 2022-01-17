@@ -130,6 +130,19 @@ Each worker can be in one of the following states:
 * **Stopped** Worker was [stopped](#stopping-worker).
 * **Idle timeout** Worker was terminated due to [Idle timeout](#idle-timeout).
 
+### Lost connection to the server
+
+The behavior of what should happen with a worker that lost its connection to the server is configured
+via `hq worker start --on-server-lost=<policy>`. You can select from two policies:
+
+* `stop` - The worker immediately terminates and kills all currently running tasks.
+* `finish-running` - The worker does not start to execute any new tasks, but it tries to finish tasks
+  that are already running. When all such tasks finish, the worker will terminate.
+
+`stop` is the default policy when a worker is manually started by `hq worker start`.
+When a worker is started by the [automatic allocator](allocation.md), then `finish-running` is used
+as the default value.
+
 ## Useful worker commands
 Here is a list of useful worker commands:
 
@@ -146,13 +159,3 @@ If you also want to include workers that are offline (i.e. that have crashed or 
 ```bash
 $ hq worker info <worker-id>
 ```
-
-## Lost connection to the server
-
-The behavior of what should happen with a worker that lost connection to the server is configured via ``hq worker start --on-server-lost=X`` where ``X`` can be:
-
-* ``stop`` - The worker immediately terminates while killing all currently running tasks
-* ``finish-running`` - The worker does not start any new tasks and tries to finish already running tasks. When all tasks are finished then it terminates.
-
-``stop`` is a default policy when worker is manually started by ``hq worker start``.
-When a worker is started by automatic allocation, then ``finish-running`` is used as a default value.

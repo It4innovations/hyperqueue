@@ -1,5 +1,5 @@
 In distributed systems, failure is inevitable. This sections describes how HyperQueue handles various types of failures
-and how can you affect its behaviour.
+and how can you affect its behavior.
 
 ## Resubmitting jobs
 When a job fails or is canceled, you might want to submit it again, without the need to pass all the original
@@ -35,7 +35,7 @@ task. Two different tasks may have the same instance id.
 ## Task array failures
 By default, when a single task of a [task array](arrays.md) fails, the computation of the job will continue.
 
-You can change this behaviour with the `--max-fails=<X>` option of the `submit` command, where `X` is non-negative integer.
+You can change this behavior with the `--max-fails=<X>` option of the `submit` command, where `X` is non-negative integer.
 If specified, once more tasks than `X` tasks fail, the rest of the job's tasks that were not completed yet will be canceled.
 
 For example:
