@@ -3,16 +3,15 @@ use std::fmt::Write;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
-use bstr::BStr;
 use nom::bytes::complete::take_until;
 use nom::sequence::delimited;
 use nom_supreme::tag::complete::tag;
+use tako::InstanceId;
 
-use tako::messages::common::ProgramDefinition;
+use tako::messages::common::{ProgramDefinition, StdioDef};
 
-use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::parser::NomResult;
-use crate::{JobId, Map};
+use crate::{JobId, JobTaskId, Map};
 
 // If a new placeholder is added, also change `get_unknown_placeholders`
 pub const TASK_ID_PLACEHOLDER: &str = "TASK_ID";
@@ -23,28 +22,41 @@ pub const SUBMIT_DIR_PLACEHOLDER: &str = "SUBMIT_DIR";
 
 type PlaceholderMap<'a> = Map<&'static str, Cow<'a, str>>;
 
-fn env_key(key: &str) -> &BStr {
-    key.into()
+pub struct CompletePlaceholderCtx<'a> {
+    pub job_id: JobId,
+    pub task_id: JobTaskId,
+    pub instance_id: InstanceId,
+    pub submit_dir: &'a Path,
 }
 
-/// Fills placeholder values known on the worker.
-pub fn fill_placeholders_worker(program: &mut ProgramDefinition) {
-    let submit_dir: PathBuf = program.env[env_key(HQ_SUBMIT_DIR)].to_string().into();
+pub struct ResolvablePaths<'a> {
+    pub cwd: &'a mut PathBuf,
+    pub stdout: &'a mut StdioDef,
+    pub stderr: &'a mut StdioDef,
+}
 
+impl<'a> ResolvablePaths<'a> {
+    pub fn from_program_def(program: &'a mut ProgramDefinition) -> Self {
+        Self {
+            cwd: &mut program.cwd,
+            stdout: &mut program.stdout,
+            stderr: &mut program.stderr,
+        }
+    }
+}
+
+/// Fills all known placeholders in the given paths.
+pub fn fill_placeholders_in_paths(paths: ResolvablePaths, ctx: CompletePlaceholderCtx) {
     let mut placeholders = PlaceholderMap::new();
+    placeholders.insert(JOB_ID_PLACEHOLDER, ctx.job_id.to_string().into());
+    placeholders.insert(TASK_ID_PLACEHOLDER, ctx.task_id.to_string().into());
+    placeholders.insert(INSTANCE_ID_PLACEHOLDER, ctx.instance_id.to_string().into());
+    placeholders.insert(
+        SUBMIT_DIR_PLACEHOLDER,
+        ctx.submit_dir.to_str().unwrap().into(),
+    );
 
-    let job_id = program.env[env_key(HQ_JOB_ID)].to_string();
-    placeholders.insert(HQ_JOB_ID, job_id.into());
-
-    let task_id = program.env[env_key(HQ_TASK_ID)].to_string();
-    placeholders.insert(TASK_ID_PLACEHOLDER, task_id.into());
-
-    let instance_id = program.env[env_key(HQ_INSTANCE_ID)].to_string();
-    placeholders.insert(INSTANCE_ID_PLACEHOLDER, instance_id.into());
-
-    placeholders.insert(SUBMIT_DIR_PLACEHOLDER, submit_dir.to_str().unwrap().into());
-
-    resolve_program_paths(placeholders, program, &submit_dir, true);
+    resolve_program_paths(placeholders, paths, ctx.submit_dir, true);
 }
 
 /// Fills placeholder values that are known immediately after a job is submitted.
@@ -55,13 +67,20 @@ pub fn fill_placeholders_after_submit(
 ) {
     let mut placeholders = PlaceholderMap::new();
     insert_submit_data(&mut placeholders, job_id, submit_dir);
-    resolve_program_paths(placeholders, program, submit_dir, false);
+    resolve_program_paths(
+        placeholders,
+        ResolvablePaths::from_program_def(program),
+        submit_dir,
+        false,
+    );
 }
 
 pub fn fill_placeholders_log(value: &mut PathBuf, job_id: JobId, submit_dir: &Path) {
     let mut placeholders = PlaceholderMap::new();
     insert_submit_data(&mut placeholders, job_id, submit_dir);
-    *value = resolve(&placeholders, value.to_str().unwrap()).into();
+    *value = resolve(&placeholders, value.to_str().unwrap())
+        .into_owned()
+        .into();
 }
 
 /// Find placeholders in the input that are not supported by HyperQueue.
@@ -92,40 +111,51 @@ fn insert_submit_data<'a>(map: &mut PlaceholderMap<'a>, job_id: JobId, submit_di
 
 fn resolve_program_paths<'a>(
     mut placeholders: PlaceholderMap<'a>,
-    program: &'a mut ProgramDefinition,
+    paths: ResolvablePaths<'a>,
     submit_dir: &Path,
     normalize_paths: bool,
 ) {
-    // Replace CWD
-    program.cwd = resolve_path(&placeholders, &program.cwd, submit_dir, normalize_paths);
+    *paths.cwd = resolve_path(&placeholders, paths.cwd, submit_dir, normalize_paths);
 
     if normalize_paths {
-        placeholders.insert(CWD_PLACEHOLDER, program.cwd.to_str().unwrap().into());
+        placeholders.insert(CWD_PLACEHOLDER, paths.cwd.to_str().unwrap().into());
     }
 
-    program.stdout = std::mem::take(&mut program.stdout)
+    *paths.stdout = std::mem::take(paths.stdout)
         .map_filename(|path| resolve_path(&placeholders, &path, submit_dir, normalize_paths));
-    program.stderr = std::mem::take(&mut program.stderr)
+    *paths.stderr = std::mem::take(paths.stderr)
         .map_filename(|path| resolve_path(&placeholders, &path, submit_dir, normalize_paths));
 }
 
-fn resolve(map: &PlaceholderMap, input: &str) -> String {
+fn resolve<'a, 'b>(map: &'a PlaceholderMap, input: &'b str) -> Cow<'b, str> {
+    let parts = parse_resolvable_string(input);
+
+    let is_known_placeholder = |part: &StringPart| match part {
+        StringPart::Verbatim(_) => false,
+        StringPart::Placeholder(placeholder) => map.contains_key(placeholder),
+    };
+
+    if !parts.iter().any(is_known_placeholder) {
+        return input.into();
+    }
+
     let mut buffer = String::with_capacity(input.len());
-    for placeholder in parse_resolvable_string(input) {
-        match placeholder {
-            StringPart::Verbatim(data) => buffer.write_str(data),
+    for part in parts {
+        match part {
+            StringPart::Verbatim(data) => buffer.push_str(data),
             StringPart::Placeholder(placeholder) => match map.get(placeholder) {
-                Some(value) => buffer.write_str(value.deref()),
-                None => buffer.write_fmt(format_args!("%{{{}}}", placeholder)),
+                Some(value) => buffer.push_str(value.deref()),
+                None => buffer
+                    .write_fmt(format_args!("%{{{}}}", placeholder))
+                    .unwrap(),
             },
         }
-        .unwrap();
     }
-    buffer
+    buffer.into()
 }
 
 fn resolve_path(map: &PlaceholderMap, path: &Path, base_dir: &Path, normalize: bool) -> PathBuf {
-    let path: PathBuf = resolve(map, path.to_str().unwrap()).into();
+    let path: PathBuf = resolve(map, path.to_str().unwrap()).into_owned().into();
     if normalize {
         normalize_path(&path, base_dir)
     } else {
@@ -191,13 +221,13 @@ pub fn parse_resolvable_string(data: &str) -> Vec<StringPart> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use tako::messages::common::{ProgramDefinition, StdioDef};
 
     use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
     use crate::common::placeholders::{
-        fill_placeholders_after_submit, fill_placeholders_worker, parse_resolvable_string,
-        StringPart,
+        fill_placeholders_after_submit, fill_placeholders_in_paths, parse_resolvable_string,
+        CompletePlaceholderCtx, ResolvablePaths, StringPart,
     };
     use crate::Map;
 
@@ -289,35 +319,73 @@ mod tests {
     }
 
     #[test]
-    fn test_replace_worker() {
-        let mut program = program_def(
+    fn test_replace_paths() {
+        let submit_dir = PathBuf::from("/foo");
+        let ctx = ctx(5, 10, 6, &submit_dir);
+        let mut paths = paths(
             "%{TASK_ID}-%{INSTANCE_ID}",
-            Some("%{CWD}/stdout"),
-            Some("%{CWD}/stderr"),
-            "/foo",
-            5,
-            10,
+            "%{JOB_ID}/stdout",
+            "%{JOB_ID}/stderr",
         );
-        fill_placeholders_worker(&mut program);
-        assert_eq!(program.cwd, PathBuf::from("/foo/10-0"));
-        assert_eq!(program.stdout, StdioDef::File("/foo/10-0/stdout".into()));
-        assert_eq!(program.stderr, StdioDef::File("/foo/10-0/stderr".into()));
+
+        fill_placeholders_in_paths(ResolvablePaths::from_paths(&mut paths), ctx);
+        assert_eq!(paths.cwd, PathBuf::from("/foo/10-6"));
+        assert_eq!(paths.stdout, StdioDef::File("/foo/5/stdout".into()));
+        assert_eq!(paths.stderr, StdioDef::File("/foo/5/stderr".into()));
     }
 
     #[test]
     fn test_fill_cwd_into_output_paths() {
-        let mut program = program_def(
-            "bar/%{TASK_ID}",
-            Some("%{CWD}/%{TASK_ID}.out"),
-            Some("%{CWD}/%{TASK_ID}.err"),
-            "/foo",
-            5,
-            1,
+        let submit_dir = PathBuf::from("/foo");
+        let ctx = ctx(1, 2, 3, &submit_dir);
+        let mut paths = paths(
+            "bar/%{JOB_ID}",
+            "%{CWD}/%{TASK_ID}.out",
+            "%{CWD}/%{TASK_ID}.err",
         );
-        fill_placeholders_worker(&mut program);
-        assert_eq!(program.cwd, PathBuf::from("/foo/bar/1"));
-        assert_eq!(program.stdout, StdioDef::File("/foo/bar/1/1.out".into()));
-        assert_eq!(program.stderr, StdioDef::File("/foo/bar/1/1.err".into()));
+
+        fill_placeholders_in_paths(ResolvablePaths::from_paths(&mut paths), ctx);
+        assert_eq!(paths.cwd, PathBuf::from("/foo/bar/1"));
+        assert_eq!(paths.stdout, StdioDef::File("/foo/bar/1/2.out".into()));
+        assert_eq!(paths.stderr, StdioDef::File("/foo/bar/1/2.err".into()));
+    }
+
+    struct ResolvedPaths {
+        cwd: PathBuf,
+        stdout: StdioDef,
+        stderr: StdioDef,
+    }
+
+    impl<'a> ResolvablePaths<'a> {
+        fn from_paths(paths: &'a mut ResolvedPaths) -> Self {
+            Self {
+                cwd: &mut paths.cwd,
+                stdout: &mut paths.stdout,
+                stderr: &mut paths.stderr,
+            }
+        }
+    }
+
+    fn paths(cwd: &str, stdout: &str, stderr: &str) -> ResolvedPaths {
+        ResolvedPaths {
+            cwd: cwd.to_string().into(),
+            stdout: StdioDef::File(stdout.to_string().into()),
+            stderr: StdioDef::File(stderr.to_string().into()),
+        }
+    }
+
+    fn ctx(
+        job_id: u32,
+        task_id: u32,
+        instance_id: u32,
+        submit_dir: &Path,
+    ) -> CompletePlaceholderCtx {
+        CompletePlaceholderCtx {
+            job_id: job_id.into(),
+            task_id: task_id.into(),
+            instance_id: instance_id.into(),
+            submit_dir,
+        }
     }
 
     fn program_def(

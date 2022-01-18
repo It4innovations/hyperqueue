@@ -31,6 +31,7 @@ use std::time::SystemTime;
 use tako::common::resources::{CpuRequest, ResourceDescriptor};
 use tako::messages::common::StdioDef;
 
+use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
 use crate::common::strutils::pluralize;
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
 use anyhow::Error;
@@ -475,19 +476,21 @@ impl Output for CliOutput {
     }
 
     fn print_job_tasks(&self, job: JobDetail, worker_map: WorkerMap) {
+        let task_to_paths = resolve_task_paths(&job);
+
         let mut tasks = job.tasks;
         tasks.sort_unstable_by_key(|t| t.task_id);
 
         let rows: Vec<_> = tasks
             .iter()
-            .map(|t| {
-                let (start, end) = get_task_time(&t.state);
-                let (cwd, stdout, stderr) = get_task_paths(&t.state);
+            .map(|task| {
+                let (start, end) = get_task_time(&task.state);
+                let (cwd, stdout, stderr) = get_task_paths(&task_to_paths, task);
 
                 vec![
-                    t.task_id.cell(),
-                    task_status_to_cell(task_status(&t.state)),
-                    match t.state.get_worker() {
+                    task.task_id.cell(),
+                    task_status_to_cell(task_status(&task.state)),
+                    match task.state.get_worker() {
                         Some(worker) => format_worker(worker, &worker_map),
                         _ => "",
                     }
@@ -503,7 +506,7 @@ impl Output for CliOutput {
                     cwd,
                     stdout,
                     stderr,
-                    match &t.state {
+                    match &task.state {
                         JobTaskState::Failed { error, .. } => {
                             error.to_owned().cell().foreground_color(Some(Color::Red))
                         }
@@ -960,22 +963,17 @@ fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<DateTim
 }
 
 /// Returns (working directory, stdout, stderr)
-fn get_task_paths(state: &JobTaskState) -> (CellStruct, CellStruct, CellStruct) {
-    match state {
-        JobTaskState::Canceled {
-            started_data: Some(started_data),
-        }
-        | JobTaskState::Running { started_data, .. }
-        | JobTaskState::Finished { started_data, .. }
-        | JobTaskState::Failed { started_data, .. } => {
-            let ctx = &started_data.context;
-            (
-                ctx.cwd.to_str().unwrap().cell(),
-                stdio_to_cell(&ctx.stdout),
-                stdio_to_cell(&ctx.stderr),
-            )
-        }
-        _ => ("".cell(), "".cell(), "".cell()),
+fn get_task_paths(
+    task_map: &TaskToPathsMap,
+    state: &JobTaskInfo,
+) -> (CellStruct, CellStruct, CellStruct) {
+    match task_map[&state.task_id] {
+        Some(ref paths) => (
+            paths.cwd.to_str().unwrap().cell(),
+            stdio_to_cell(&paths.stdout),
+            stdio_to_cell(&paths.stderr),
+        ),
+        None => ("".cell(), "".cell(), "".cell()),
     }
 }
 

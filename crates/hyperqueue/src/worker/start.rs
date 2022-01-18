@@ -9,7 +9,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use anyhow::anyhow;
-use bstr::ByteSlice;
+use bstr::{BStr, ByteSlice};
 use futures::TryFutureExt;
 use tempdir::TempDir;
 use tokio::io::AsyncReadExt;
@@ -28,10 +28,12 @@ use tako::worker::taskenv::{StopReason, TaskResult};
 use tako::{InstanceId, TaskId};
 
 use crate::client::commands::worker::{ManagerOpts, WorkerStartOpts};
-use crate::common::env::{HQ_CPUS, HQ_INSTANCE_ID, HQ_PIN};
+use crate::common::env::{HQ_CPUS, HQ_INSTANCE_ID, HQ_PIN, HQ_SUBMIT_DIR};
 use crate::common::manager::info::{ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::manager::{pbs, slurm};
-use crate::common::placeholders::fill_placeholders_worker;
+use crate::common::placeholders::{
+    fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
+};
 use crate::transfer::messages::TaskBody;
 use crate::transfer::stream::ChannelId;
 use crate::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resource};
@@ -46,9 +48,7 @@ use serde::{Deserialize, Serialize};
 /// It can be accessed through the state of a running task.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunningTaskContext {
-    pub cwd: PathBuf,
-    pub stdout: StdioDef,
-    pub stderr: StdioDef,
+    pub instance_id: InstanceId,
 }
 
 pub struct HqTaskLauncher {
@@ -97,11 +97,19 @@ impl TaskLauncher for HqTaskLauncher {
 
             insert_resources_into_env(state, task, allocation, &mut program);
 
+            let submit_dir: PathBuf = program.env[<&BStr>::from(HQ_SUBMIT_DIR)].to_string().into();
             program
                 .env
                 .insert(HQ_INSTANCE_ID.into(), task.instance_id.to_string().into());
 
-            fill_placeholders_worker(&mut program);
+            let ctx = CompletePlaceholderCtx {
+                job_id: body.job_id,
+                task_id: body.task_id,
+                instance_id: task.instance_id,
+                submit_dir: &submit_dir,
+            };
+            let paths = ResolvablePaths::from_program_def(&mut program);
+            fill_placeholders_in_paths(paths, ctx);
 
             create_directory_if_needed(&program.stdout)?;
             create_directory_if_needed(&program.stderr)?;
@@ -109,11 +117,7 @@ impl TaskLauncher for HqTaskLauncher {
             (program, body.job_id, body.task_id, task.instance_id)
         };
 
-        let context = RunningTaskContext {
-            cwd: program.cwd.clone(),
-            stdout: program.stdout.clone(),
-            stderr: program.stderr.clone(),
-        };
+        let context = RunningTaskContext { instance_id };
         let serialized_context = serialize(&context)?;
 
         let task_future = run_task(
