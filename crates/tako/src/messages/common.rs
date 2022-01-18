@@ -72,7 +72,7 @@ pub struct ProgramDefinition {
     pub stderr: StdioDef,
 
     #[serde(default)]
-    pub cwd: Option<PathBuf>,
+    pub cwd: PathBuf,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

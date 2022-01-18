@@ -470,7 +470,7 @@ mod tests {
                 env: Default::default(),
                 stdout: Default::default(),
                 stderr: Default::default(),
-                cwd: None,
+                cwd: Default::default(),
             },
             resources: ResourceRequest {
                 cpus: CpuRequest::Compact(cpu_count),

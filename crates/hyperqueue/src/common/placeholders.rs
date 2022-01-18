@@ -97,17 +97,10 @@ fn resolve_program_paths<'a>(
     normalize_paths: bool,
 ) {
     // Replace CWD
-    program.cwd = program
-        .cwd
-        .as_ref()
-        .map(|cwd| resolve_path(&placeholders, cwd, submit_dir, normalize_paths))
-        .or_else(|| Some(std::env::current_dir().unwrap()));
+    program.cwd = resolve_path(&placeholders, &program.cwd, submit_dir, normalize_paths);
 
     if normalize_paths {
-        placeholders.insert(
-            CWD_PLACEHOLDER,
-            program.cwd.as_ref().unwrap().to_str().unwrap().into(),
-        );
+        placeholders.insert(CWD_PLACEHOLDER, program.cwd.to_str().unwrap().into());
     }
 
     program.stdout = std::mem::take(&mut program.stdout)
@@ -290,7 +283,7 @@ mod tests {
             99,
         );
         fill_placeholders_after_submit(&mut program, 5.into(), &PathBuf::from("/foo"));
-        assert_eq!(program.cwd, Some("/foo/5-%{TASK_ID}".into()));
+        assert_eq!(program.cwd, PathBuf::from("/foo/5-%{TASK_ID}"));
         assert_eq!(program.stdout, StdioDef::File("%{CWD}.out".into()));
         assert_eq!(program.stderr, StdioDef::File("%{CWD}.err".into()));
     }
@@ -306,7 +299,7 @@ mod tests {
             10,
         );
         fill_placeholders_worker(&mut program);
-        assert_eq!(program.cwd, Some("/foo/10-0".into()));
+        assert_eq!(program.cwd, PathBuf::from("/foo/10-0"));
         assert_eq!(program.stdout, StdioDef::File("/foo/10-0/stdout".into()));
         assert_eq!(program.stderr, StdioDef::File("/foo/10-0/stderr".into()));
     }
@@ -322,7 +315,7 @@ mod tests {
             1,
         );
         fill_placeholders_worker(&mut program);
-        assert_eq!(program.cwd, Some("/foo/bar/1".into()));
+        assert_eq!(program.cwd, PathBuf::from("/foo/bar/1"));
         assert_eq!(program.stdout, StdioDef::File("/foo/bar/1/1.out".into()));
         assert_eq!(program.stderr, StdioDef::File("/foo/bar/1/1.err".into()));
     }
@@ -346,7 +339,7 @@ mod tests {
             env,
             stdout: stdout.map(|v| StdioDef::File(v.into())).unwrap_or_default(),
             stderr: stderr.map(|v| StdioDef::File(v.into())).unwrap_or_default(),
-            cwd: Some(cwd.into()),
+            cwd: cwd.into(),
         }
     }
 }

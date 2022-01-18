@@ -7,6 +7,7 @@ use hyperqueue::transfer::messages::{
 };
 use pyo3::{PyResult, Python};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use crate::utils::error::ToPyResult;
 use crate::{borrow_mut, run_future, ContextPtr, FromPyObject};
@@ -15,7 +16,7 @@ use crate::{borrow_mut, run_future, ContextPtr, FromPyObject};
 pub struct TaskDescription {
     id: u32,
     args: Vec<String>,
-    cwd: Option<String>,
+    cwd: Option<PathBuf>,
     env: HashMap<String, String>,
     dependencies: Vec<u32>,
 }
@@ -27,14 +28,15 @@ pub struct JobDescription {
 
 pub(crate) fn submit_job_impl(py: Python, ctx: ContextPtr, job: JobDescription) -> PyResult<u32> {
     run_future(async move {
-        let tasks = build_tasks(job.tasks);
+        let submit_dir = get_current_dir();
+        let tasks = build_tasks(job.tasks, &submit_dir);
         let job_desc = HqJobDescription::Graph { tasks };
 
         let message = FromClientMessage::Submit(SubmitRequest {
             job_desc,
             name: "".to_string(),
             max_fails: None,
-            submit_dir: get_current_dir(),
+            submit_dir,
             log: None,
         });
 
@@ -46,12 +48,16 @@ pub(crate) fn submit_job_impl(py: Python, ctx: ContextPtr, job: JobDescription) 
     })
 }
 
-fn build_tasks(tasks: Vec<TaskDescription>) -> Vec<TaskWithDependencies> {
+fn build_tasks(tasks: Vec<TaskDescription>, submit_dir: &Path) -> Vec<TaskWithDependencies> {
     tasks
         .into_iter()
         .map(|task| TaskWithDependencies {
             id: task.id.into(),
-            task_desc: build_task_desc(task.args, task.env, task.cwd),
+            task_desc: build_task_desc(
+                task.args,
+                task.env,
+                task.cwd.unwrap_or_else(|| submit_dir.to_path_buf()),
+            ),
             dependencies: task.dependencies.into_iter().map(|id| id.into()).collect(),
         })
         .collect()
@@ -60,7 +66,7 @@ fn build_tasks(tasks: Vec<TaskDescription>) -> Vec<TaskWithDependencies> {
 fn build_task_desc(
     args: Vec<String>,
     env: HashMap<String, String>,
-    cwd: Option<String>,
+    cwd: PathBuf,
 ) -> HqTaskDescription {
     HqTaskDescription {
         program: ProgramDefinition {
@@ -68,7 +74,7 @@ fn build_task_desc(
             env: env.into_iter().map(|(k, v)| (k.into(), v.into())).collect(),
             stdout: Default::default(),
             stderr: Default::default(),
-            cwd: cwd.map(|p| p.into()),
+            cwd,
         },
         resources: Default::default(),
         pin: false,
