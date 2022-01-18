@@ -978,7 +978,7 @@ mod tests {
             env: Default::default(),
             stdout: Default::default(),
             stderr: Default::default(),
-            cwd: None,
+            cwd: Default::default(),
         };
         let resources = ResourceRequest {
             cpus: Default::default(),

@@ -360,7 +360,7 @@ pub async fn submit_computation(
 
     let stdout = create_stdio(stdout, &log, DEFAULT_STDOUT_PATH);
     let stderr = create_stdio(stderr, &log, DEFAULT_STDERR_PATH);
-    let cwd = Some(cwd.unwrap_or_else(|| PathBuf::from("%{SUBMIT_DIR}")));
+    let cwd = cwd.unwrap_or_else(|| PathBuf::from("%{SUBMIT_DIR}"));
     let priority = priority.unwrap_or(0);
     let time_limit = time_limit.map(|x| x.unpack());
 

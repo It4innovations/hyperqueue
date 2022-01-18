@@ -142,7 +142,7 @@ pub struct TaskConfig {
     #[builder(default)]
     stderr: StdioDef,
     #[builder(default)]
-    cwd: Option<PathBuf>,
+    cwd: PathBuf,
 }
 
 #[derive(Builder, Default, Clone)]

@@ -143,12 +143,7 @@ impl CliOutput {
 
         rows.push(vec![
             "Working directory".cell().bold(true),
-            program
-                .cwd
-                .as_ref()
-                .map(|cwd| cwd.display().to_string())
-                .unwrap()
-                .cell(),
+            program.cwd.display().to_string().cell(),
         ]);
 
         rows.push(vec![

@@ -253,7 +253,7 @@ mod tests {
             env: Default::default(),
             stdout: StdioDef::Null,
             stderr: StdioDef::Null,
-            cwd: None,
+            cwd: Default::default(),
         }
     }
 

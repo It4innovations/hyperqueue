@@ -1,9 +1,10 @@
 use std::fs::File;
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::Path;
 use std::pin::Pin;
 use std::process::Stdio;
 
+use crate::common::error::DsError::GenericError;
 use bstr::ByteSlice;
 use tokio::process::Command;
 
@@ -53,13 +54,14 @@ pub trait TaskLauncher {
 }
 
 /// Create an output stream file on the given path.
-/// If the path is relative and `cwd` is specified, the file will be created relative to `cwd`.
-fn create_output_stream(def: &StdioDef, cwd: Option<&PathBuf>) -> crate::Result<Stdio> {
+/// If the path is relative, the file will be created relative to `cwd`.
+fn create_output_stream(def: &StdioDef, cwd: &Path) -> crate::Result<Stdio> {
     let stdio = match def {
         StdioDef::File(path) => {
-            let stream_path = match cwd {
-                Some(cwd) => cwd.join(path),
-                None => path.clone(),
+            let stream_path = if path.is_relative() {
+                cwd.join(path)
+            } else {
+                path.clone()
             };
 
             let file = File::create(stream_path)
@@ -84,19 +86,13 @@ pub fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result
     command.kill_on_drop(true);
     command.args(definition.args[1..].iter().map(|x| x.to_os_str_lossy()));
 
-    if let Some(cwd) = &definition.cwd {
-        std::fs::create_dir_all(cwd).expect("Could not create working directory");
-        command.current_dir(cwd);
-    }
+    std::fs::create_dir_all(&definition.cwd).map_err(|error| {
+        GenericError(format!("Could not create working directory: {:?}", error))
+    })?;
+    command.current_dir(&definition.cwd);
 
-    command.stdout(create_output_stream(
-        &definition.stdout,
-        definition.cwd.as_ref(),
-    )?);
-    command.stderr(create_output_stream(
-        &definition.stderr,
-        definition.cwd.as_ref(),
-    )?);
+    command.stdout(create_output_stream(&definition.stdout, &definition.cwd)?);
+    command.stderr(create_output_stream(&definition.stderr, &definition.cwd)?);
 
     for (k, v) in definition.env.iter() {
         command.env(k.to_os_str_lossy(), v.to_os_str_lossy());

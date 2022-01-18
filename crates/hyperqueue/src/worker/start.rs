@@ -110,7 +110,7 @@ impl TaskLauncher for HqTaskLauncher {
         };
 
         let context = RunningTaskContext {
-            cwd: program.cwd.clone().unwrap(),
+            cwd: program.cwd.clone(),
             stdout: program.stdout.clone(),
             stderr: program.stderr.clone(),
         };
@@ -241,7 +241,7 @@ fn map_spawn_error(error: std::io::Error, program: &ProgramDefinition) -> tako::
 
             let path = Path::new(OsStr::from_bytes(file.as_bytes()));
             if !path.is_absolute() && !path.starts_with(".") {
-                let possible_path = program.cwd.as_ref().unwrap().join(path);
+                let possible_path = program.cwd.join(path);
                 if possible_path.is_file() {
                     msg.write_fmt(format_args!(
                         "\nThe file {:?} exists, maybe you have meant `./{}` instead?",
