@@ -4,6 +4,8 @@ use crate::dashboard::ui::widgets::progressbar::{
     get_progress_bar_color, render_progress_bar_at, ProgressPrintStyle,
 };
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
+use crate::dashboard::utils::{calculate_memory_usage_percent, get_average_cpu_usage_for_worker};
+use tako::messages::worker::WorkerOverview;
 use tako::WorkerId;
 use tui::layout::{Constraint, Rect};
 use tui::widgets::{Cell, Row};
@@ -14,12 +16,10 @@ pub struct WorkerUtilTable {
 }
 
 impl WorkerUtilTable {
-    pub fn update(&mut self, _data: &DashboardData) {
-        // if let Some(overview) = data.get_latest_overview() {
-        //     let rows = create_rows(overview);
-        //     self.table.set_items(rows);
-        // }
-        // TODO
+    pub fn update(&mut self, data: &DashboardData) {
+        let overview = data.get_latest_overview();
+        let rows = create_rows(overview);
+        self.table.set_items(rows);
     }
 
     pub fn select_next_worker(&mut self) {
@@ -82,10 +82,8 @@ struct WorkerUtilRow {
     memory_usage: Option<u64>,
 }
 
-// TODO
-/*fn create_rows(overview: &CollectedOverview) -> Vec<WorkerUtilRow> {
+fn create_rows(overview: Vec<&WorkerOverview>) -> Vec<WorkerUtilRow> {
     overview
-        .worker_overviews
         .iter()
         .map(|worker| {
             let hw_state = worker.hw_state.as_ref();
@@ -101,4 +99,4 @@ struct WorkerUtilRow {
             }
         })
         .collect()
-}*/
+}

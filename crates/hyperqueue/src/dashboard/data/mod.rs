@@ -1,14 +1,15 @@
-use crate::dashboard::data::worker_count::WorkerCountTimeline;
+use crate::dashboard::data::worker_timeline::WorkerTimeline;
 use std::time::{Duration, SystemTime};
 use tako::common::WrappedRcRefCell;
 use tako::messages::gateway::MonitoringEventRequest;
-use tako::server::monitoring::MonitoringEvent;
+use tako::messages::worker::WorkerOverview;
+use tako::server::monitoring::{MonitoringEvent, MonitoringEventPayload};
 
-use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
+use crate::{rpc_call, WorkerId};
 
-pub mod worker_count;
+pub mod worker_timeline;
 
 #[derive(Default)]
 pub struct DashboardData {
@@ -16,7 +17,8 @@ pub struct DashboardData {
     fetched_until: Option<u32>,
     /// All events received from the client
     events: Vec<MonitoringEvent>,
-    worker_count_timeline: WorkerCountTimeline,
+    /// Tracks worker connection and loss events
+    worker_timeline: WorkerTimeline,
 }
 
 impl DashboardData {
@@ -35,14 +37,38 @@ impl DashboardData {
             .or(self.fetched_until);
 
         // Update data views
-        self.worker_count_timeline.handle_new_events(&events);
+        self.worker_timeline.handle_new_events(&events);
 
         self.events.append(&mut events);
     }
 
     /// Calculates the number of workers connected to the cluster at the specified `time`.
     pub fn worker_count_at(&self, time: SystemTime) -> usize {
-        self.worker_count_timeline.get_worker_count(time)
+        self.worker_timeline.get_worker_count(time)
+    }
+
+    pub fn get_latest_overview(&self) -> Vec<&WorkerOverview> {
+        let mut overview_vec: Vec<&WorkerOverview> = vec![];
+        let connected_worker_ids = self
+            .worker_timeline
+            .get_connected_worker_ids(SystemTime::now());
+        for id in connected_worker_ids {
+            if let Some(last_overview) = self.get_last_overview_for(id) {
+                overview_vec.push(last_overview);
+            }
+        }
+        overview_vec
+    }
+
+    fn get_last_overview_for(&self, worker_id: WorkerId) -> Option<&WorkerOverview> {
+        for evt in self.events.iter().rev() {
+            if let MonitoringEventPayload::OverviewUpdate(overview) = &evt.payload {
+                if worker_id == overview.id {
+                    return Some(overview);
+                }
+            }
+        }
+        None
     }
 }
 
