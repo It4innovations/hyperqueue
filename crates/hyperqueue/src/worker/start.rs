@@ -293,6 +293,8 @@ async fn run_task(
         }
     };
 
+    log::trace!("Running command {:?}", command);
+
     let mut child = command
         .spawn()
         .map_err(|error| map_spawn_error(error, &program))?;

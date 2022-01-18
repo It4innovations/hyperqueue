@@ -20,6 +20,9 @@ cargo test
 # Build Rust binaries
 cargo build --all
 
+# Build Python binding
+maturin develop --manifest-path crates/pyhq/Cargo.toml
+
 # Test Python code
 python -m pytest tests -n32
 

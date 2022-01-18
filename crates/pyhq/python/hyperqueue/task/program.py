@@ -1,27 +1,28 @@
-import dataclasses
 from typing import Dict, List, Optional, Union
 
-from .common import GenericPath
-from .output import Output, gather_outputs
-from .validation import ValidationException, validate_args
+from ..common import GenericPath
+from ..output import Output, gather_outputs
+from ..validation import ValidationException, validate_args
+from .task import Task
 
 EnvType = Optional[Dict[str, str]]
 ProgramArgs = Union[List[str], str]
 
 
-class Task:
-    pass
-
-
 class ExternalProgram(Task):
     def __init__(
-        self, args: List[str], env: EnvType = None, cwd: Optional[GenericPath] = None
+        self,
+        args: List[str],
+        env: EnvType = None,
+        cwd: Optional[GenericPath] = None,
+        dependencies: List[Task] = None,
     ):
+        super().__init__(dependencies)
         args = to_arg_list(args)
         validate_args(args)
         self.args = args
         self.env = env or {}
-        self.cwd = str(cwd)
+        self.cwd = str(cwd) if cwd else None
         self.outputs = get_task_outputs(self)
 
     def __getitem__(self, key: str):
@@ -31,6 +32,12 @@ class ExternalProgram(Task):
 
     def __repr__(self):
         return f"Task(args={self.args}, env={self.env}, cwd={self.cwd}, outputs={self.outputs})"
+
+
+def to_arg_list(args: ProgramArgs) -> List[str]:
+    if isinstance(args, str):
+        return [args]
+    return args
 
 
 def get_task_outputs(task: ExternalProgram) -> Dict[str, Output]:
@@ -46,35 +53,3 @@ def get_task_outputs(task: ExternalProgram) -> Dict[str, Output]:
             )
         output_map[output.name] = output
     return output_map
-
-
-@dataclasses.dataclass
-class TaskConfig:
-    id: int
-    args: List[str]
-    env: Dict[str, str]
-    cwd: Optional[List[str]]
-
-
-# ["cp", task["output"], ""] -> ["cp", "%{task:1000-HQ_TASK_ID}.txt", ""]
-
-# {task:[100:1000]/TASK_ID}
-
-# JOB_ID - OK
-# TASK_ID - OK
-
-
-def build_tasks(tasks: List[ExternalProgram]) -> List[TaskConfig]:
-    id_map = {task: index for (index, task) in enumerate(tasks)}
-    configs = []
-    for task in tasks:
-        configs.append(
-            TaskConfig(id=id_map[task], args=task.args, env=task.env, cwd=task.cwd)
-        )
-    return configs
-
-
-def to_arg_list(args: ProgramArgs) -> List[str]:
-    if isinstance(args, str):
-        return [args]
-    return args
