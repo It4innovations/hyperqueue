@@ -29,7 +29,7 @@ use crate::transfer::messages::{
     FromClientMessage, JobDescription, ResubmitRequest, Selector, SubmitRequest, TaskDescription,
     ToClientMessage,
 };
-use crate::{rpc_call, JobTaskCount, Map};
+use crate::{arg_wrapper, rpc_call, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 
@@ -99,18 +99,14 @@ impl FromStr for ArgEnvironmentVar {
     }
 }
 
-/// Represents a filepath. If "none" is passed to it, it will behave as if no path is needed.
-struct StdioArg(StdioDef);
+// Represents a filepath. If "none" is passed to it, it will behave as if no path is needed.
+arg_wrapper!(StdioArg, StdioDef, parse_stdio_arg);
 
-impl FromStr for StdioArg {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(StdioArg(match s {
-            "none" => StdioDef::Null,
-            _ => StdioDef::File(s.into()),
-        }))
-    }
+fn parse_stdio_arg(input: &str) -> anyhow::Result<StdioDef> {
+    Ok(match input {
+        "none" => StdioDef::Null,
+        _ => StdioDef::File(input.into()),
+    })
 }
 
 /* This is a special kind of parser because some argument may be used setted
