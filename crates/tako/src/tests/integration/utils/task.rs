@@ -141,7 +141,7 @@ pub struct TaskConfig {
     stdout: StdioDef,
     #[builder(default)]
     stderr: StdioDef,
-    #[builder(default)]
+    #[builder(default = "std::env::current_dir().unwrap()")]
     cwd: PathBuf,
 }
 

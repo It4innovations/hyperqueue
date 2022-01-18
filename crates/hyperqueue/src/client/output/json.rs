@@ -13,6 +13,7 @@ use tako::messages::common::{ProgramDefinition, StdioDef, WorkerConfiguration};
 use tako::messages::gateway::ResourceRequest;
 
 use crate::client::job::WorkerMap;
+use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
 use crate::client::output::outputs::Output;
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::AccessRecord;
@@ -25,7 +26,7 @@ use crate::transfer::messages::{
     AutoAllocListResponse, JobDescription, JobDetail, JobInfo, QueueDescriptorData, StatsResponse,
     TaskDescription, WaitForJobsResponse, WorkerInfo,
 };
-use crate::Map;
+use crate::{JobTaskId, Map};
 
 #[derive(Default)]
 pub struct JsonOutput;
@@ -74,6 +75,8 @@ impl Output for JsonOutput {
         self.print(tasks.into_iter().map(format_job_info).collect());
     }
     fn print_job_detail(&self, job: JobDetail, _worker_map: WorkerMap) {
+        let task_paths = resolve_task_paths(&job);
+
         let JobDetail {
             info,
             job_desc,
@@ -126,8 +129,8 @@ impl Output for JsonOutput {
                 "args": args.into_iter().map(|args| args.to_string()).collect::<Vec<_>>(),
                 "env": env.into_iter().map(|(key, value)| (key.to_string(), value.to_string())).collect::<Map<String, String>>(),
                 "cwd": cwd,
-                "stderr": format_stdio_def(stderr),
-                "stdout": format_stdio_def(stdout),
+                "stderr": format_stdio_def(&stderr),
+                "stdout": format_stdio_def(&stdout),
             });
             json["resources"] = json!({
                 "cpus": format_cpu_request(cpus),
@@ -139,11 +142,12 @@ impl Output for JsonOutput {
             json["time_limit"] = json!(time_limit.map(format_duration));
         }
 
-        json["tasks"] = format_tasks(tasks);
+        json["tasks"] = format_tasks(tasks, task_paths);
         self.print(json);
     }
     fn print_job_tasks(&self, job: JobDetail, _worker_map: WorkerMap) {
-        self.print(format_tasks(job.tasks));
+        let map = resolve_task_paths(&job);
+        self.print(format_tasks(job.tasks, map));
     }
 
     fn print_job_wait(&self, duration: Duration, response: &WaitForJobsResponse) {
@@ -201,12 +205,17 @@ impl Output for JsonOutput {
 fn fill_task_started_data(dict: &mut Value, data: StartedTaskData) {
     dict["started_at"] = format_datetime(data.start_date);
     dict["worker"] = data.worker_id.as_num().into();
-    dict["cwd"] = data.context.cwd.to_str().unwrap().into();
-    dict["stdout"] = format_stdio_def(data.context.stdout);
-    dict["stderr"] = format_stdio_def(data.context.stderr);
 }
 
-fn format_stdio_def(stdio: StdioDef) -> Value {
+fn fill_task_paths(dict: &mut Value, map: &TaskToPathsMap, task_id: JobTaskId) {
+    if let Some(ref paths) = map[&task_id] {
+        dict["cwd"] = paths.cwd.to_str().unwrap().into();
+        dict["stdout"] = format_stdio_def(&paths.stdout);
+        dict["stderr"] = format_stdio_def(&paths.stderr);
+    }
+}
+
+fn format_stdio_def(stdio: &StdioDef) -> Value {
     json!(stdio)
 }
 
@@ -250,7 +259,7 @@ fn format_cpu_request(request: CpuRequest) -> serde_json::Value {
     })
 }
 
-fn format_tasks(tasks: Vec<JobTaskInfo>) -> serde_json::Value {
+fn format_tasks(tasks: Vec<JobTaskInfo>, map: TaskToPathsMap) -> serde_json::Value {
     tasks
         .into_iter()
         .map(|task| {
@@ -265,6 +274,8 @@ fn format_tasks(tasks: Vec<JobTaskInfo>) -> serde_json::Value {
                 "id": task.task_id,
                 "state": state,
             });
+            fill_task_paths(&mut data, &map, task.task_id);
+
             match task.state {
                 JobTaskState::Running { started_data } => {
                     fill_task_started_data(&mut data, started_data);
