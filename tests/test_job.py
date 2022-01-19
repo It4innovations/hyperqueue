@@ -8,6 +8,7 @@ import pytest
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
+from .utils.io import check_file_contents
 from .utils.job import default_task_output
 
 
@@ -123,8 +124,7 @@ def test_custom_working_dir(hq_env: HqEnv, tmpdir):
     hq_env.start_worker(cpus=1)
     wait_for_job_state(hq_env, 1, ["FINISHED"])
 
-    with open(default_task_output(submit_dir=submit_dir)) as f:
-        assert f.read() == test_string
+    check_file_contents(default_task_output(submit_dir=submit_dir), test_string)
 
 
 def test_job_output_default(hq_env: HqEnv, tmp_path):
@@ -136,19 +136,16 @@ def test_job_output_default(hq_env: HqEnv, tmp_path):
 
     wait_for_job_state(hq_env, [1, 2, 3], ["FINISHED", "FAILED"])
 
-    with open(
-        os.path.join(tmp_path, default_task_output(job_id=1, type="stdout"))
-    ) as f:
-        assert f.read() == "hello\n"
-    with open(
-        os.path.join(tmp_path, default_task_output(job_id=1, type="stderr"))
-    ) as f:
-        assert f.read() == ""
+    check_file_contents(
+        os.path.join(tmp_path, default_task_output(job_id=1, type="stdout")), "hello\n"
+    )
+    check_file_contents(
+        os.path.join(tmp_path, default_task_output(job_id=1, type="stderr")), ""
+    )
+    check_file_contents(
+        os.path.join(tmp_path, default_task_output(job_id=2, type="stdout")), ""
+    )
 
-    with open(
-        os.path.join(tmp_path, default_task_output(job_id=2, type="stdout"))
-    ) as f:
-        assert f.read() == ""
     with open(
         os.path.join(tmp_path, default_task_output(job_id=2, type="stderr"))
     ) as f:
@@ -156,14 +153,12 @@ def test_job_output_default(hq_env: HqEnv, tmp_path):
         assert "No such file or directory" in data
         assert data.startswith("ls:")
 
-    with open(
-        os.path.join(tmp_path, default_task_output(job_id=3, type="stdout"))
-    ) as f:
-        assert f.read() == ""
-    with open(
-        os.path.join(tmp_path, default_task_output(job_id=3, type="stderr"))
-    ) as f:
-        assert f.read() == ""
+    check_file_contents(
+        os.path.join(tmp_path, default_task_output(job_id=3, type="stdout")), ""
+    )
+    check_file_contents(
+        os.path.join(tmp_path, default_task_output(job_id=3, type="stderr")), ""
+    )
 
 
 def test_create_output_folders(hq_env: HqEnv):
@@ -196,10 +191,8 @@ def test_job_output_configured(hq_env: HqEnv, tmp_path):
     )
     wait_for_job_state(hq_env, 1, "FINISHED")
 
-    with open(os.path.join(tmp_path, "abc")) as f:
-        assert f.read() == "hello\n"
-    with open(os.path.join(tmp_path, "xyz")) as f:
-        assert f.read() == ""
+    check_file_contents(os.path.join(tmp_path, "abc"), "hello\n")
+    check_file_contents(os.path.join(tmp_path, "xyz"), "")
 
 
 def test_job_output_absolute_path(hq_env: HqEnv, tmp_path):
@@ -218,10 +211,8 @@ def test_job_output_absolute_path(hq_env: HqEnv, tmp_path):
     )
     wait_for_job_state(hq_env, 1, "FINISHED")
 
-    with open(os.path.join(tmp_path, "abc")) as f:
-        assert f.read() == "hello\n"
-    with open(os.path.join(tmp_path, "xyz")) as f:
-        assert f.read() == ""
+    check_file_contents(os.path.join(tmp_path, "abc"), "hello\n")
+    check_file_contents(os.path.join(tmp_path, "xyz"), "")
 
 
 def test_job_output_none(hq_env: HqEnv, tmp_path):
@@ -455,8 +446,9 @@ def test_set_env(hq_env: HqEnv):
     )
     wait_for_job_state(hq_env, 1, "FINISHED")
 
-    with open(os.path.join(hq_env.work_path, default_task_output())) as f:
-        assert f.read().strip() == "BAR BAR2"
+    check_file_contents(
+        os.path.join(hq_env.work_path, default_task_output()), "BAR BAR2\n"
+    )
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
     table.check_row_value("Environment", "FOO=BAR\nFOO2=BAR2")
@@ -861,3 +853,25 @@ def test_hq_directives_from_file(hq_env: HqEnv, tmp_path):
     hq_env.command(["submit", "--directives", "test"])
     table = hq_env.command(["job", "info", "5"], as_table=True)
     assert table.get_row_value("Name") == "abc"
+
+
+def test_job_shell_script_fail_without_interpreter(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus="1")
+    Path("test.sh").write_text("""echo 'Hello' > out.txt""")
+    hq_env.command(["submit", "test.sh"])
+    wait_for_job_state(hq_env, 1, "FAILED")
+
+
+def test_job_shell_script_read_interpreter(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus="1")
+    Path("test.sh").write_text(
+        """#!/bin/bash
+echo 'Hello' > out.txt
+"""
+    )
+    hq_env.command(["submit", "test.sh"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    check_file_contents("out.txt", "Hello\n")

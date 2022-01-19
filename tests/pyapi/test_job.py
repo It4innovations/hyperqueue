@@ -2,6 +2,7 @@ from pathlib import Path
 
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
+from ..utils.io import check_file_contents
 from . import bash, prepare_job_client
 
 
@@ -38,5 +39,4 @@ def test_submit_env(hq_env: HqEnv):
     job_id = client.submit(job)
 
     wait_for_job_state(hq_env, job_id, "FINISHED")
-    with open("out.txt") as f:
-        assert f.read() == "BAR\n123\n"
+    check_file_contents("out.txt", "BAR\n123\n")

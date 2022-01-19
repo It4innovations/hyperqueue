@@ -4,6 +4,7 @@ import pytest
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
+from .utils.io import check_file_contents
 from .utils.job import default_task_output
 
 
@@ -27,9 +28,7 @@ def test_entries_no_newline(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     for i, test in enumerate(["One\n", "Two\n", "Three\n", "Four\n"]):
-        with open(default_task_output(job_id=1, task_id=i)) as f:
-            line = f.read()
-        assert line == test
+        check_file_contents(default_task_output(job_id=1, task_id=i), test)
     assert not os.path.isfile(default_task_output(job_id=1, task_id=4))
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
@@ -56,9 +55,7 @@ def test_entries_with_newline(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     for i, test in enumerate(["One\n", "Two\n", "Three\n", "Four\n"]):
-        with open(default_task_output(job_id=1, task_id=i)) as f:
-            line = f.read()
-        assert line == test
+        check_file_contents(default_task_output(job_id=1, task_id=i), test)
     assert not os.path.isfile(default_task_output(task_id=4))
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
@@ -85,9 +82,7 @@ def test_entries_from_json_entry(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     for i, test in enumerate(["123\n", '{"x":[1,2,3]}\n', "2.5\n"]):
-        with open(default_task_output(job_id=1, task_id=i)) as f:
-            line = f.read()
-        assert line == test
+        check_file_contents(default_task_output(job_id=1, task_id=i), test)
     assert not os.path.isfile(default_task_output(task_id=3))
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
