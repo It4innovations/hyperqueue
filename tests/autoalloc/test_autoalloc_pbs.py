@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List
 
 from ..conftest import HqEnv
+from ..utils.io import check_file_contents
 from ..utils.wait import wait_until
 from .pbs_mock import JobState, NewJobFailed, NewJobId, PbsMock
 from .utils import (
@@ -184,10 +185,9 @@ print("1")
             wait_until(lambda: os.path.isfile(qsub_path))
             wait_until(lambda: os.path.isfile(qstat_path))
 
-            with open(qsub_path) as f:
-                assert f.read() == str(
-                    Path(hq_env.server_dir) / "001/autoalloc/1-foo/001"
-                )
+            check_file_contents(
+                qsub_path, Path(hq_env.server_dir) / "001/autoalloc/1-foo/001"
+            )
 
 
 def test_pbs_ignore_job_changes_after_finish(hq_env: HqEnv):

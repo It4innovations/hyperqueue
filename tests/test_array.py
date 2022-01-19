@@ -5,6 +5,7 @@ import time
 
 from .conftest import HqEnv
 from .utils import JOB_TABLE_ROWS, wait_for_job_state
+from .utils.io import check_file_contents
 from .utils.job import default_task_output
 
 
@@ -38,8 +39,7 @@ def test_job_array_submit(hq_env: HqEnv):
                 default_task_output(job_id=1, task_id=i, type="stderr"),
             )
         )
-        with open(stdout) as f:
-            assert f.read() == f"1-{i}\n"
+        check_file_contents(stdout, f"1-{i}\n")
 
 
 def test_job_array_report(hq_env: HqEnv):

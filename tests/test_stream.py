@@ -2,6 +2,7 @@ import time
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
+from .utils.io import check_file_contents
 
 
 def check_no_stream_connections(hq_env: HqEnv):
@@ -245,9 +246,7 @@ def test_stream_partial(hq_env: HqEnv):
     assert result[1] == "0: > stream closed"
 
     check_no_stream_connections(hq_env)
-
-    with open("task-1-0-0.out") as f:
-        assert f.read() == "Ok\n"
+    check_file_contents("task-1-0-0.out", "Ok\n")
 
 
 def test_stream_unfinished_small(hq_env: HqEnv):

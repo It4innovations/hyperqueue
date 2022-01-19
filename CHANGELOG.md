@@ -18,10 +18,21 @@
 
 ## New features
 
-
-### Job configurations
+### Job submission
    * ``#HQ`` directives - Job arguments can be defined inside a submitted script, e.g.
      ``#HQ --cpus=4``.
+
+   * HyperQueue will now attempt to parse shebang (like `#!/bin/bash`) if you provide a path to a
+     shell script (`.sh`) as the first command in `hq submit`. If the parsing is successful, HyperQueue
+     will use the parsed interpreter path to execute the shell script. In practice, this means that
+     you can now submit scripts beginning with a shebang like this:
+
+        ```bash
+        $ hq submit script.sh
+        ```
+
+        This previously failed, unless you provided an interpreter, or provided a path starting with
+        `.` or an absolute path to the script.
 
 
 ### Worker configuration

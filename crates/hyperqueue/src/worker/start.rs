@@ -1,15 +1,14 @@
-use std::ffi::OsStr;
 use std::fmt::Write;
+use std::fs::File;
 use std::io;
-use std::io::ErrorKind;
-use std::os::unix::prelude::OsStrExt;
+use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::rc::Rc;
 use std::time::Duration;
 
 use anyhow::anyhow;
-use bstr::{BStr, ByteSlice};
+use bstr::{BStr, BString, ByteSlice};
 use futures::TryFutureExt;
 use tempdir::TempDir;
 use tokio::io::AsyncReadExt;
@@ -29,6 +28,7 @@ use tako::{InstanceId, TaskId};
 
 use crate::client::commands::worker::{ManagerOpts, WorkerStartOpts};
 use crate::common::env::{HQ_CPUS, HQ_INSTANCE_ID, HQ_PIN, HQ_SUBMIT_DIR};
+use crate::common::fsutils::{bytes_to_path, is_implicit_path, path_has_extension};
 use crate::common::manager::info::{ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::manager::{pbs, slurm};
 use crate::common::placeholders::{
@@ -68,7 +68,7 @@ impl TaskLauncher for HqTaskLauncher {
         task_id: TaskId,
         stop_receiver: Receiver<StopReason>,
     ) -> tako::Result<TaskLaunchData> {
-        let (program, job_id, job_task_id, instance_id): (
+        let (mut program, job_id, job_task_id, instance_id): (
             ProgramDefinition,
             JobId,
             JobTaskId,
@@ -119,6 +119,8 @@ impl TaskLauncher for HqTaskLauncher {
 
         let context = RunningTaskContext { instance_id };
         let serialized_context = serialize(&context)?;
+
+        try_add_interpreter(&mut program);
 
         let task_future = run_task(
             self.streamer_ref.clone(),
@@ -212,11 +214,45 @@ fn insert_resources_into_env(
 }
 
 fn pin_program(program: &mut ProgramDefinition, allocation: &ResourceAllocation) {
-    program.args.insert(0, "taskset".into());
-    program.args.insert(1, "-c".into());
-    program
-        .args
-        .insert(2, allocation.comma_delimited_cpu_ids().into());
+    let mut args: Vec<BString> = vec![
+        "taskset".into(),
+        "-c".into(),
+        allocation.comma_delimited_cpu_ids().into(),
+    ];
+    args.append(&mut program.args);
+
+    program.args = args;
+}
+
+#[allow(clippy::unused_io_amount)]
+fn read_interpreter(path: &Path) -> io::Result<BString> {
+    let mut file = File::open(path)?;
+    let mut buffer = [0; 256];
+    file.read(&mut buffer)?;
+
+    let bytes: &BStr = buffer.as_ref().into();
+    if let Some(line) = bytes.lines().next() {
+        let line = line.trim();
+        if line.starts_with(b"#!") {
+            return Ok(BString::from(&line[2..]));
+        }
+    }
+    Err(io::ErrorKind::NotFound.into())
+}
+
+/// If the program's first argument is a shell script passed as a path without absolute (/) or
+/// relative (.) prefix, this function will try to parse a shebang from its first line.
+///
+/// If the parsing is successful, the parsed interpreter path will be prepended to the commands of
+/// the program definition.
+fn try_add_interpreter(program: &mut ProgramDefinition) {
+    let command = &program.args[0];
+    let path = bytes_to_path(command.as_ref());
+    if is_implicit_path(path) && path_has_extension(path, "sh") {
+        if let Ok(interpreter) = read_interpreter(path) {
+            program.args.insert(0, interpreter);
+        }
+    }
 }
 
 /// Zero-worker mode measures pure overhead of HyperQueue.
@@ -243,8 +279,8 @@ fn map_spawn_error(error: std::io::Error, program: &ProgramDefinition) -> tako::
                 file
             );
 
-            let path = Path::new(OsStr::from_bytes(file.as_bytes()));
-            if !path.is_absolute() && !path.starts_with(".") {
+            let path = bytes_to_path(file.as_ref());
+            if is_implicit_path(path) {
                 let possible_path = program.cwd.join(path);
                 if possible_path.is_file() {
                     msg.write_fmt(format_args!(
