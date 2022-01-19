@@ -36,7 +36,7 @@ impl ClusterOverviewChart {
             .into_iter()
             .map(|time| WorkerCountRecord {
                 time,
-                count: data.worker_count_at(time),
+                count: data.query_connected_worker_ids(time).count(),
             })
             .collect();
     }

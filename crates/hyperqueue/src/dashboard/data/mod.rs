@@ -1,6 +1,7 @@
 use crate::dashboard::data::worker_timeline::WorkerTimeline;
 use std::time::{Duration, SystemTime};
 use tako::common::WrappedRcRefCell;
+use tako::messages::common::WorkerConfiguration;
 use tako::messages::gateway::MonitoringEventRequest;
 use tako::messages::worker::WorkerOverview;
 use tako::server::monitoring::{MonitoringEvent, MonitoringEventPayload};
@@ -42,25 +43,32 @@ impl DashboardData {
         self.events.append(&mut events);
     }
 
-    /// Calculates the number of workers connected to the cluster at the specified `time`.
-    pub fn worker_count_at(&self, time: SystemTime) -> usize {
-        self.worker_timeline.get_worker_count(time)
+    pub fn query_worker_info_for(&self, worker_id: &WorkerId) -> Option<&WorkerConfiguration> {
+        self.worker_timeline.get_worker_info_for(worker_id)
     }
 
-    pub fn get_latest_overview(&self) -> Vec<&WorkerOverview> {
+    /// Calculates the number of workers connected to the cluster at the specified `time`.
+    pub fn query_connected_worker_ids(
+        &self,
+        time: SystemTime,
+    ) -> impl Iterator<Item = WorkerId> + '_ {
+        self.worker_timeline.get_connected_worker_ids(time)
+    }
+
+    pub fn query_latest_overview(&self) -> Vec<&WorkerOverview> {
         let mut overview_vec: Vec<&WorkerOverview> = vec![];
         let connected_worker_ids = self
             .worker_timeline
             .get_connected_worker_ids(SystemTime::now());
         for id in connected_worker_ids {
-            if let Some(last_overview) = self.get_last_overview_for(id) {
+            if let Some(last_overview) = self.query_last_overview_for(id) {
                 overview_vec.push(last_overview);
             }
         }
         overview_vec
     }
 
-    fn get_last_overview_for(&self, worker_id: WorkerId) -> Option<&WorkerOverview> {
+    fn query_last_overview_for(&self, worker_id: WorkerId) -> Option<&WorkerOverview> {
         for evt in self.events.iter().rev() {
             if let MonitoringEventPayload::OverviewUpdate(overview) = &evt.payload {
                 if worker_id == overview.id {

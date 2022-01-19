@@ -8,11 +8,13 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
 
 use crate::dashboard::data::DashboardData;
+use crate::dashboard::ui::screens::home::worker_info_table::WorkerInfoTable;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
 pub struct HomeScreen {
     worker_util_table: WorkerUtilTable,
+    worker_info_table: WorkerInfoTable,
     cluster_overview: ClusterOverviewChart,
 }
 
@@ -23,11 +25,14 @@ impl Screen for HomeScreen {
 
         self.cluster_overview.draw(layout.chart_chunk, frame);
         self.worker_util_table.draw(layout.body_chunk, frame);
+        self.worker_info_table.draw(layout.info_chunk, frame);
     }
 
     fn update(&mut self, data: &DashboardData) {
         self.worker_util_table.update(data);
         self.cluster_overview.update(data);
+        self.worker_info_table
+            .update(data, self.worker_util_table.get_selected_item());
     }
 
     /// Handles key presses for the components of the screen
@@ -50,7 +55,7 @@ impl Screen for HomeScreen {
  **/
 struct HomeLayout {
     chart_chunk: Rect,
-    _info_chunk: Rect,
+    info_chunk: Rect,
     header_chunk: Rect,
     body_chunk: Rect,
 }
@@ -74,7 +79,7 @@ impl HomeLayout {
 
         Self {
             chart_chunk: info_chunks[0],
-            _info_chunk: info_chunks[1],
+            info_chunk: info_chunks[1],
             header_chunk: base_chunks[1],
             body_chunk: base_chunks[2],
         }

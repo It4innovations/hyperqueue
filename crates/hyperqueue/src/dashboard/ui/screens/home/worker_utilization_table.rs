@@ -17,7 +17,7 @@ pub struct WorkerUtilTable {
 
 impl WorkerUtilTable {
     pub fn update(&mut self, data: &DashboardData) {
-        let overview = data.get_latest_overview();
+        let overview = data.query_latest_overview();
         let rows = create_rows(overview);
         self.table.set_items(rows);
     }
