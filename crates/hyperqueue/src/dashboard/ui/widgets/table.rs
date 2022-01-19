@@ -85,13 +85,14 @@ impl<T> StatefulTable<T> {
     }
 
     pub fn draw<'a, F>(
-        &mut self,
+        &'a mut self,
         rect: Rect,
         frame: &mut DashboardFrame,
         columns: TableColumnHeaders,
         row_cell_mapper: F,
     ) where
-        F: Fn(&T) -> Row<'a>,
+        T: 'a,
+        F: Fn(&'a T) -> Row<'a>,
     {
         let title = styles::table_title(columns.title);
         let body_block = styles::table_block_with_title(title);
