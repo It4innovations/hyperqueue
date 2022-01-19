@@ -202,7 +202,8 @@ pub struct SubmitJobConfOpts {
 }
 
 impl SubmitJobConfOpts {
-    pub fn merge(self, mut other: SubmitJobConfOpts) -> SubmitJobConfOpts {
+    /// Overwrite options in `other` with values from `self`.
+    pub fn overwrite(self, mut other: SubmitJobConfOpts) -> SubmitJobConfOpts {
         let mut env = self.env;
         env.append(&mut other.env);
 
@@ -237,6 +238,27 @@ impl SubmitJobConfOpts {
     }
 }
 
+pub enum DirectivesMode {
+    Auto,
+    Always,
+    Off,
+}
+
+arg_wrapper!(DirectivesModeArg, DirectivesMode, parse_directives_mode);
+
+fn parse_directives_mode(input: &str) -> anyhow::Result<DirectivesMode> {
+    Ok(match input.to_ascii_lowercase().as_str() {
+        "always" => DirectivesMode::Always,
+        "auto" => DirectivesMode::Auto,
+        "off" => DirectivesMode::Off,
+        _ => {
+            return Err(anyhow!(
+                "Invalid `--diresctives` value. Allowed values are `auto`, `always` or `stop`"
+            ));
+        }
+    })
+}
+
 #[derive(Parser)]
 #[clap(setting = clap::AppSettings::TrailingVarArg)]
 pub struct JobSubmitOpts {
@@ -255,10 +277,23 @@ pub struct JobSubmitOpts {
     #[clap(long, conflicts_with("wait"))]
     progress: bool,
 
-    /// Parse directives from submited file
-    /// (it is done automatically if suffix of command is ".sh"
-    #[clap(long)]
-    directives: bool,
+    /// Select directives parsing mode.
+    ///
+    /// `auto`: Directives will be parsed if the suffix of the first command is ".sh".{n}
+    /// `always`: Directives will be parsed regardless of the first command extension.{n}
+    /// `off`: Directives will not be parsed.{n}
+    ///
+    /// If enabled, HQ will parse `#HQ` directives from a file located in the first entered command.
+    /// Parameters following the `#HQ` prefix will be used as parameters for `hq submit`.
+    ///
+    /// Example (script.sh):{n}
+    /// #!/bin/bash{n}
+    /// #HQ --name my-job{n}
+    /// #HQ --cpus=2{n}
+    /// {n}
+    /// program --foo=bar{n}
+    #[clap(long, default_value = "auto", possible_values = &["auto", "always", "off"])]
+    directives: DirectivesModeArg,
 }
 
 impl JobSubmitOpts {
@@ -304,16 +339,29 @@ fn create_stdio(arg: Option<StdioArg>, log: &Option<PathBuf>, default: &str) -> 
     })
 }
 
+fn handle_directives(mut opts: JobSubmitOpts) -> anyhow::Result<JobSubmitOpts> {
+    if let Some(command) = opts.commands.get(0) {
+        let parse_directives = match opts.directives.get() {
+            DirectivesMode::Auto => command.ends_with(".sh"),
+            DirectivesMode::Always => true,
+            DirectivesMode::Off => false,
+        };
+        if parse_directives {
+            let parsed_opts = parse_hq_directives(&PathBuf::from(&command)).map_err(|error| {
+                anyhow::anyhow!("Could not parse directives from {}: {:?}", command, error)
+            })?;
+            opts.conf = opts.conf.overwrite(parsed_opts);
+        }
+    }
+    Ok(opts)
+}
+
 pub async fn submit_computation(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
-    mut opts: JobSubmitOpts,
+    opts: JobSubmitOpts,
 ) -> anyhow::Result<()> {
-    if let Some(command) = opts.commands.get(0) {
-        if opts.directives || command.ends_with(".sh") {
-            opts.conf = parse_hq_directives(&PathBuf::from(&command), opts.conf)?;
-        }
-    }
+    let opts = handle_directives(opts)?;
 
     let resources = opts.resource_request();
     let (ids, entries) = get_ids_and_entries(&opts)?;

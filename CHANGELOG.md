@@ -18,9 +18,12 @@
 
 ## New features
 
+
 ### Job submission
-   * ``#HQ`` directives - Job arguments can be defined inside a submitted script, e.g.
-     ``#HQ --cpus=4``.
+   * `#HQ` directives - You can now specify job parameters using a shell script passed to `hq submit`
+     by using HQ directives such as `#HQ --cpus=4`. This feature was inspired by similar functionality
+     that is present in e.g. PBS or Slurm. You can find more information in the
+     [documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/directives/).
 
    * HyperQueue will now attempt to parse shebang (like `#!/bin/bash`) if you provide a path to a
      shell script (`.sh`) as the first command in `hq submit`. If the parsing is successful, HyperQueue

@@ -1,22 +1,45 @@
-## HQ Directives
+# Directives
+You can specify job parameters using special comments (`directives`) specified in a submitted shell
+script. Directives are lines that begin with the `#HQ` prefix. Any text following this prefix will
+be interpreted as a command line argument for `hq submit`.
 
-A submitted script may contain a defined job properties via comments that starts with ``#HQ``.
+## Example directive file
 
-## HQ directive example
-
+Suppose that `script.sh` has the following content:
 ```bash
 #!/bin/bash
 
 #HQ --name=Example
 #HQ --cpus="2 compact" --pin
 
-./do-something
+./my-program
 ```
 
-## HQ directive rules
+If you execute
+```bash
+$ hq submit script.sh
+```
+it will behave as if you have executed
+```bash
+$ hq submit --name=Example --cpus="2 compact" --pin script.sh
+```
 
-* Directives are parsed when the submitted file has the suffix ``.sh``. For other files it has to be enabled via ``hq submit --directives ...`` 
-* Directives have to be defined at the beginning of the file. Only comments or empty lines are allowed to precede the directives.   
+## Directives mode
+You can select three modes using the `--directives` flag of `hq submit`. The mode will
+determine when should HyperQueue attempt to parse directives from the provided command.
+
+* `auto` (default) - Directives will be parsed if the first command passed to `hq submit` has the
+  `.sh` extension.
+* `always` - Directives will be parsed from the first command passed to `hq submit`.
+* `off` - Directives will not be parsed.
+
+## Notes
+
+* Directives have to be defined at the beginning of the file. Only comments or empty lines are allowed
+  to precede the directives.   
 * Directives have to be defined in the first 32KiB of the file, the rest of the file is ignored.
-* Parameters set via CLI overrides parameters set through directives.
-* A script may contain more lines with ``#HQ`` prefix, such lines are merged and evaluated as one.
+* Parameters set via CLI have precedence over parameters set via direectives:
+    * Parameters that cannot occur multiple times (like `--name`) **will be overriden** by values set from CLI.
+    * Parameters that can occur multiple times (like `--resource`) will be combined from CLI and from directives.
+* A script may contain more lines with the `#HQ` prefix, such lines are combined and evaluated as a
+continuous list of parameters.

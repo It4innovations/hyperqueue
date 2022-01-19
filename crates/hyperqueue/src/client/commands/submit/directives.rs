@@ -1,7 +1,8 @@
 use crate::client::commands::submit::SubmitJobConfOpts;
 use crate::common::parser::{consume_all, NomResult};
 use bstr::{BStr, BString, ByteSlice};
-use clap::Parser;
+use clap::AppSettings::DisableHelpFlag;
+use clap::{FromArgMatches, IntoApp};
 use nom::branch::alt;
 use nom::bytes::complete::escaped;
 use nom::character::complete::{char, space1};
@@ -68,30 +69,35 @@ fn extract_directives(data: &BStr) -> crate::Result<Vec<String>> {
     Ok(args)
 }
 
-pub(crate) fn parse_hq_directives(
-    path: &Path,
-    opts: SubmitJobConfOpts,
-) -> crate::Result<SubmitJobConfOpts> {
+pub(crate) fn parse_hq_directives(path: &Path) -> anyhow::Result<SubmitJobConfOpts> {
     log::debug!("Extracting directives from file");
+
     let mut f = File::open(&path)?;
     let mut buffer = [0; MAX_PREFIX_OF_SCRIPT];
     let size = f.read(&mut buffer)?;
+
     let prefix = BString::from(&buffer[..size]);
     let mut directives = Vec::new();
     for directive in extract_directives(prefix.as_bstr())? {
         let mut args = parse_args(&directive)?;
         directives.append(&mut args);
     }
+
     // clap parses first argument as name of the program
     directives.insert(0, "".to_string());
-    log::debug!("Applying directive from file: {:?}", directives);
-    match SubmitJobConfOpts::try_parse_from(&directives) {
-        Ok(new) => Ok(opts.merge(new)),
-        Err(e) => {
-            log::error!("Error encountered while parsing #HQ directive in script");
-            e.exit()
-        }
-    }
+    log::debug!("Applying directive(s) from file: {:?}", directives);
+
+    let app = SubmitJobConfOpts::into_app()
+        .setting(DisableHelpFlag)
+        .override_usage("#HQ <hq submit parameters>");
+    let matches = app.try_get_matches_from(&directives).map_err(|error| {
+        anyhow::anyhow!(
+            "You have used invalid parameter(s) after a #HQ directive.\n{}",
+            error
+        )
+    })?;
+
+    Ok(SubmitJobConfOpts::from_arg_matches(&matches).unwrap())
 }
 
 #[cfg(test)]
