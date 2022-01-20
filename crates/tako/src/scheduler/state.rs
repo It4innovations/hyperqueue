@@ -162,7 +162,7 @@ impl SchedulerState {
                     task.set_fresh_flag(false);
                 }
                 let task = tasks.get_task(task_id);
-                comm.send_worker_message(worker_id, &task.make_compute_message(tasks));
+                comm.send_worker_message(worker_id, &task.make_compute_message());
             }
         }
     }

@@ -265,7 +265,7 @@ pub async fn worker_receive_loop<
                 on_task_error(&mut core, &mut *comm, worker_id, msg.id, msg.info);
             }
             FromWorkerMessage::DataDownloaded(msg) => {
-                on_tasks_transferred(&mut core, &mut *comm, worker_id, msg.id)
+                on_tasks_transferred(&mut core, worker_id, msg.id)
             }
             FromWorkerMessage::StealResponse(msg) => {
                 on_steal_response(&mut core, &mut *comm, worker_id, msg)

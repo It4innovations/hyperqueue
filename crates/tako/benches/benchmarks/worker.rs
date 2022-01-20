@@ -41,13 +41,11 @@ impl TaskLauncher for BenchmarkTaskLauncher {
 fn create_worker_state() -> WorkerStateRef {
     let worker = create_worker(1);
     let (tx, _) = unbounded_channel();
-    let (tx2, _) = unbounded_channel();
     WorkerStateRef::new(
         worker.id,
         worker.configuration,
         None,
         tx,
-        tx2,
         Default::default(),
         Default::default(),
         Box::new(BenchmarkTaskLauncher),
@@ -58,7 +56,6 @@ fn create_worker_task(id: u64) -> Task {
     Task::new(ComputeTaskMsg {
         id: TaskId::new(id as <TaskId as ItemId>::IdType),
         instance_id: Default::default(),
-        dep_info: vec![],
         user_priority: 0,
         scheduler_priority: 0,
         resources: Default::default(),

@@ -1,4 +1,3 @@
-pub mod data;
 pub(crate) mod hwmonitor;
 pub mod launcher;
 pub mod pool;

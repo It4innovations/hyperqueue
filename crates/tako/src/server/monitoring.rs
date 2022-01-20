@@ -45,7 +45,7 @@ pub enum MonitoringEventPayload {
 }
 
 // Keep the size of the event structure in check
-static_assert_size!(MonitoringEventPayload, 160);
+static_assert_size!(MonitoringEventPayload, 136);
 
 impl Default for EventStorage {
     fn default() -> Self {
