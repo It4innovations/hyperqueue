@@ -7,6 +7,7 @@ from .conftest import HqEnv
 from .utils import JOB_TABLE_ROWS, wait_for_job_state
 from .utils.io import check_file_contents
 from .utils.job import default_task_output
+from .utils.table import parse_multiline_cell
 
 
 def test_job_array_submit(hq_env: HqEnv):
@@ -150,7 +151,7 @@ def test_job_array_error_all(hq_env: HqEnv):
 
     task_table = hq_env.command(["job", "tasks", "1"], as_table=True)
     for i in range(10):
-        assert task_table.get_column_value("Task ID")[i] == str(i)
+        assert task_table.get_column_value("ID")[i] == str(i)
         assert task_table.get_column_value("State")[i] == "FAILED"
         assert "No such file or directory" in task_table.get_column_value("Error")[i]
 
@@ -233,11 +234,8 @@ def test_array_times(hq_env: HqEnv):
 
     table = hq_env.command(["job", "tasks", "1"], as_table=True)
     for i in range(3):
-        start = datetime.datetime.strptime(
-            table.get_column_value("Start time")[i][:-7], "%Y-%m-%d %H:%M:%S.%f"
-        )
-        end = datetime.datetime.strptime(
-            table.get_column_value("End time")[i][:-7], "%Y-%m-%d %H:%M:%S.%f"
-        )
+        cell = parse_multiline_cell(table.get_column_value("Times")[i])
+        start = datetime.datetime.strptime(cell["Start"], "%d.%m.%Y %H:%M:%S")
+        end = datetime.datetime.strptime(cell["End"], "%d.%m.%Y %H:%M:%S")
         seconds = (end - start).total_seconds()
         assert 0.9 <= seconds <= 1.1

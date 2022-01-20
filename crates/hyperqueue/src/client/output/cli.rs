@@ -124,11 +124,11 @@ impl CliOutput {
         ]);
         rows.push(vec![
             "Stdout".cell().bold(true),
-            stdio_to_cell(&program.stdout),
+            stdio_to_str(&program.stdout).cell(),
         ]);
         rows.push(vec![
             "Stderr".cell().bold(true),
-            stdio_to_cell(&program.stderr),
+            stdio_to_str(&program.stderr).cell(),
         ]);
         let mut env_vars: Vec<(_, _)> = program.env.iter().filter(|(k, _)| !is_hq_env(k)).collect();
         env_vars.sort_by_key(|item| item.0);
@@ -495,17 +495,25 @@ impl Output for CliOutput {
                         _ => "",
                     }
                     .cell(),
-                    start
-                        .map(|x| x.to_string())
-                        .unwrap_or_else(|| "".to_string())
-                        .cell(),
-                    end.map(|x| x.to_string())
-                        .unwrap_or_else(|| "".to_string())
-                        .cell(),
-                    format_task_duration(start, end).cell(),
-                    cwd,
-                    stdout,
-                    stderr,
+                    multiline_cell(vec![
+                        (
+                            "Start",
+                            start
+                                .map(|x| format_time(x).to_string())
+                                .unwrap_or_else(|| "".to_string()),
+                        ),
+                        (
+                            "End",
+                            end.map(|x| format_time(x).to_string())
+                                .unwrap_or_else(|| "".to_string()),
+                        ),
+                        ("Makespan", format_task_duration(start, end)),
+                    ]),
+                    multiline_cell(vec![
+                        ("Workdir", cwd),
+                        ("Stdout", stdout),
+                        ("Stderr", stderr),
+                    ]),
                     match &task.state {
                         JobTaskState::Failed { error, .. } => {
                             error.to_owned().cell().foreground_color(Some(Color::Red))
@@ -516,15 +524,11 @@ impl Output for CliOutput {
             })
             .collect();
         let header = vec![
-            "Task ID".cell().bold(true),
+            "ID".cell().bold(true),
             "State".cell().bold(true),
             "Worker".cell().bold(true),
-            "Start time".cell().bold(true),
-            "End time".cell().bold(true),
-            "Time".cell().bold(true),
-            "Working directory".cell().bold(true),
-            "Stdout".cell().bold(true),
-            "Stderr".cell().bold(true),
+            "Times".cell().bold(true),
+            "Paths".cell().bold(true),
             "Error".cell().bold(true),
         ];
         self.print_horizontal_table(rows, header);
@@ -670,7 +674,7 @@ impl Output for CliOutput {
             .map(|event| {
                 vec![
                     event_name(&event),
-                    format_time(event.date).cell(),
+                    format_systemtime(event.date).cell(),
                     event_message(&event),
                 ]
             })
@@ -686,7 +690,7 @@ impl Output for CliOutput {
 
     fn print_allocations(&self, mut allocations: Vec<Allocation>) {
         let format_time = |time: Option<SystemTime>| match time {
-            Some(time) => format_time(time).cell(),
+            Some(time) => format_systemtime(time).cell(),
             None => "".cell(),
         };
 
@@ -747,11 +751,23 @@ impl AllocationTimes {
     }
 }
 
-fn stdio_to_cell(stdio: &StdioDef) -> CellStruct {
+fn multiline_cell<T: AsRef<str>>(rows: Vec<(&'static str, T)>) -> CellStruct {
+    if rows.iter().all(|(_, value)| value.as_ref().is_empty()) {
+        return "".cell();
+    }
+
+    rows.into_iter()
+        .map(|(label, value)| format!("{label}: {}", value.as_ref()))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .cell()
+}
+
+fn stdio_to_str(stdio: &StdioDef) -> &str {
     match stdio {
-        StdioDef::Null => "<None>".cell(),
-        StdioDef::File(filename) => filename.display().cell(),
-        StdioDef::Pipe => "<Stream>".cell(),
+        StdioDef::Null => "<None>",
+        StdioDef::File(filename) => filename.to_str().unwrap(),
+        StdioDef::Pipe => "<Stream>",
     }
 }
 
@@ -963,17 +979,17 @@ fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<DateTim
 }
 
 /// Returns (working directory, stdout, stderr)
-fn get_task_paths(
-    task_map: &TaskToPathsMap,
+fn get_task_paths<'a>(
+    task_map: &'a TaskToPathsMap,
     state: &JobTaskInfo,
-) -> (CellStruct, CellStruct, CellStruct) {
+) -> (&'a str, &'a str, &'a str) {
     match task_map[&state.task_id] {
         Some(ref paths) => (
-            paths.cwd.to_str().unwrap().cell(),
-            stdio_to_cell(&paths.stdout),
-            stdio_to_cell(&paths.stderr),
+            paths.cwd.to_str().unwrap(),
+            stdio_to_str(&paths.stdout),
+            stdio_to_str(&paths.stderr),
         ),
-        None => ("".cell(), "".cell(), "".cell()),
+        None => ("", "", ""),
     }
 }
 
@@ -985,7 +1001,12 @@ fn format_task_duration(start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>
     }
 }
 
-fn format_time(time: SystemTime) -> impl Display {
+fn format_systemtime(time: SystemTime) -> impl Display {
+    let datetime: DateTime<Local> = time.into();
+    datetime.format("%d.%m.%Y %H:%M:%S")
+}
+
+fn format_time(time: DateTime<Utc>) -> impl Display {
     let datetime: DateTime<Local> = time.into();
     datetime.format("%d.%m.%Y %H:%M:%S")
 }

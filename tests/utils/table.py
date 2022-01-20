@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 JOB_TABLE_ROWS = 16
 
@@ -116,3 +116,8 @@ def parse_table(table_string: str) -> Table:
                 if item:
                     rows[-1][i] += "\n" + item
     return Table(rows, header=header)
+
+
+def parse_multiline_cell(cell: str) -> Dict[str, str]:
+    lines = cell.splitlines(keepends=False)
+    return dict(line.split(": ") for line in lines)

@@ -3,6 +3,7 @@ from pathlib import Path
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
 from ..utils.io import check_file_contents
+from ..utils.table import parse_multiline_cell
 from . import bash, prepare_job_client
 
 
@@ -27,7 +28,8 @@ def test_submit_cwd(hq_env: HqEnv):
     wait_for_job_state(hq_env, job_id, "FINISHED")
 
     table = hq_env.command(["job", "tasks", str(job_id)], as_table=True)
-    table.check_column_value("Working directory", 0, str(cwd))
+    cell = table.get_column_value("Paths")[0]
+    assert parse_multiline_cell(cell)["Workdir"] == str(cwd)
 
 
 def test_submit_env(hq_env: HqEnv):
