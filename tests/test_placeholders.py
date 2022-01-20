@@ -1,11 +1,13 @@
 import os
 from os.path import abspath
+from typing import Tuple
 
 import pytest
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
 from .utils.job import default_task_output
+from .utils.table import Table, parse_multiline_cell
 
 
 def test_cwd_recursive_placeholder(hq_env: HqEnv):
@@ -29,23 +31,29 @@ def test_job_paths_prefilled_placeholders(hq_env: HqEnv):
     assert table.get_row_value("Stdout") == default_task_output(task_id="%{TASK_ID}")
 
 
+# (cwd, stdout, stderr)
+def get_paths(task_table: Table) -> Tuple[str, str, str]:
+    cell = parse_multiline_cell(task_table.get_column_value("Paths")[0])
+    return (cell["Workdir"], cell["Stdout"], cell["Stderr"])
+
+
 def test_task_resolve_submit_placeholders(hq_env: HqEnv):
     hq_env.start_server()
 
     hq_env.command(["submit", "echo", "test"])
     table = hq_env.command(["job", "tasks", "1"], as_table=True)
     wait_for_job_state(hq_env, 1, "WAITING")
-    table.check_column_value("Working directory", 0, "")
-    table.check_column_value("Stdout", 0, "")
-    table.check_column_value("Stderr", 0, "")
+    assert table.get_column_value("Paths")[0] == ""
 
     hq_env.start_worker()
 
     wait_for_job_state(hq_env, 1, "FINISHED")
     table = hq_env.command(["job", "tasks", "1"], as_table=True)
-    table.check_column_value("Working directory", 0, os.getcwd())
-    table.check_column_value("Stdout", 0, default_task_output())
-    table.check_column_value("Stderr", 0, default_task_output(type="stderr"))
+    assert get_paths(table) == (
+        os.getcwd(),
+        default_task_output(),
+        default_task_output(type="stderr"),
+    )
 
 
 def test_task_resolve_worker_placeholders(hq_env: HqEnv):
@@ -66,17 +74,13 @@ def test_task_resolve_worker_placeholders(hq_env: HqEnv):
     )
     table = hq_env.command(["job", "tasks", "1"], as_table=True)
     wait_for_job_state(hq_env, 1, "WAITING")
-    table.check_column_value("Working directory", 0, "")
-    table.check_column_value("Stdout", 0, "")
-    table.check_column_value("Stderr", 0, "")
+    assert table.get_column_value("Paths")[0] == ""
 
     hq_env.start_worker()
 
     wait_for_job_state(hq_env, 1, "FINISHED")
     table = hq_env.command(["job", "tasks", "1"], as_table=True)
-    table.check_column_value("Working directory", 0, abspath("0-dir"))
-    table.check_column_value("Stdout", 0, abspath("0.out"))
-    table.check_column_value("Stderr", 0, abspath("0.err"))
+    assert get_paths(table) == (abspath("0-dir"), abspath("0.out"), abspath("0.err"))
 
 
 def test_stream_submit_placeholder(hq_env: HqEnv):

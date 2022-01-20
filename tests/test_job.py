@@ -10,6 +10,7 @@ from .conftest import HqEnv
 from .utils import wait_for_job_state
 from .utils.io import check_file_contents
 from .utils.job import default_task_output
+from .utils.table import parse_multiline_cell
 
 
 def test_job_submit(hq_env: HqEnv):
@@ -291,7 +292,7 @@ def test_job_fail(hq_env: HqEnv):
     table.check_row_value("State", "FAILED")
 
     table = hq_env.command(["job", "tasks", "1"], as_table=True)
-    table.check_column_value("Task ID", 0, "0")
+    table.check_column_value("ID", 0, "0")
     assert "No such file or directory" in table.get_column_value("Error")[0]
 
 
@@ -738,7 +739,9 @@ def test_job_completion_time(hq_env: HqEnv):
     assert table.get_row_value("Makespan").startswith("1s")
 
     table = hq_env.command(["job", "tasks", "1"], as_table=True)
-    table.get_column_value("Time")[0].startswith("1s")
+    parse_multiline_cell(table.get_column_value("Times")[0])["Makespan"].startswith(
+        "1s"
+    )
 
 
 def test_job_timeout(hq_env: HqEnv):
