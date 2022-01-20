@@ -488,7 +488,7 @@ impl Output for CliOutput {
                 let (cwd, stdout, stderr) = get_task_paths(&task_to_paths, task);
 
                 vec![
-                    task.task_id.cell(),
+                    task.task_id.cell().justify(Justify::Right),
                     task_status_to_cell(task_status(&task.state)),
                     match task.state.get_worker() {
                         Some(worker) => format_worker(worker, &worker_map),
