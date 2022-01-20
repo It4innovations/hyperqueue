@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::{Bytes, BytesMut};
-use futures::stream::FuturesUnordered;
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::aead::streaming::{StreamOpener, StreamSealer};
 use orion::aead::SecretKey;
@@ -26,17 +25,14 @@ use crate::server::rpc::ConnectionDescriptor;
 use crate::transfer::auth::{
     do_authentication, forward_queue_to_sealed_sink, open_message, seal_message, serialize,
 };
-use crate::transfer::fetch::fetch_data;
-use crate::transfer::transport::{connect_to_worker, make_protocol_builder};
+use crate::transfer::transport::make_protocol_builder;
 use crate::transfer::DataConnection;
-use crate::worker::data::{DataObjectRef, DataObjectState};
 use crate::worker::hwmonitor::HwSampler;
 use crate::worker::launcher::TaskLauncher;
 use crate::worker::reactor::run_task;
 use crate::worker::state::{ServerLostPolicy, WorkerState, WorkerStateRef};
 use crate::worker::task::Task;
-use crate::PriorityTuple;
-use crate::{Priority, WorkerId};
+use crate::WorkerId;
 use futures::future::Either;
 use tokio::sync::Notify;
 
@@ -164,8 +160,6 @@ pub async fn run_worker(
     }
 
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
-    let (download_sender, download_reader) =
-        tokio::sync::mpsc::unbounded_channel::<(DataObjectRef, (Priority, Priority))>();
     let heartbeat_interval = configuration.heartbeat_interval;
     let send_overview_interval = configuration.send_overview_interval;
     let time_limit = configuration.time_limit;
@@ -181,7 +175,6 @@ pub async fn run_worker(
                         configuration.clone(),
                         secret_key,
                         queue_sender,
-                        download_sender,
                         message.worker_addresses,
                         ResourceMap::from_vec(message.resource_names),
                         launcher_setup,
@@ -209,21 +202,7 @@ pub async fn run_worker(
     Ok(((worker_id, configuration), async move {
         tokio::select! {
             () = try_start_tasks => { unreachable!() }
-            /*worker_res = worker_message_loop(state.clone(), receiver, opener) => {
-                if let Err(e) = worker_res {
-                    panic!("Main worker loop failed: {}", e);
-                }
-            }
-            _ = forward_queue_to_sealed_sink(queue_receiver, sender, sealer) => {
-                panic!("Cannot send a message to server");
-            }*/
             _ = handle_server_connection(state.clone(), receiver, opener, queue_receiver, sender, sealer) => {}
-            /*_result = taskset.run_until(connection_initiator(listener, state.clone())) => {
-                panic!("Taskset failed");
-            }*/
-            _ = worker_data_downloader(state, download_reader) => {
-                unreachable!()
-            }
             _ = heartbeat => { unreachable!() }
             _ = overview_loop => { unreachable!() }
             _ = time_limit_fut => {
@@ -278,101 +257,6 @@ async fn heartbeat_process(heartbeat_interval: Duration, state_ref: WrappedRcRef
     }
 }
 
-const MAX_RUNNING_DOWNLOADS: usize = 32;
-const MAX_ATTEMPTS: u32 = 8;
-
-async fn download_data(state_ref: WorkerStateRef, data_ref: DataObjectRef) {
-    for attempt in 0..MAX_ATTEMPTS {
-        let (worker_id, data_id) = {
-            let data_obj = data_ref.get();
-            let workers = match &data_obj.state {
-                DataObjectState::Remote(rs) => &rs.workers,
-                DataObjectState::Local(_) | DataObjectState::Removed => {
-                    /* It is already finished */
-                    return;
-                }
-            };
-            if data_obj.consumers.is_empty() {
-                // Task that requested data was removed (because of work stealing)
-                return;
-            }
-            let worker_id: WorkerId = *state_ref.get_mut().random_choice(workers);
-            (worker_id, data_obj.id)
-        };
-
-        let worker_conn = state_ref.get_mut().pop_worker_connection(worker_id);
-        let stream = if let Some(stream) = worker_conn {
-            stream
-        } else {
-            let address = state_ref
-                .get()
-                .get_worker_address(worker_id)
-                .unwrap()
-                .clone();
-            connect_to_worker(address).await.unwrap()
-        };
-
-        match fetch_data(stream, data_id).await {
-            Ok((stream, data, serializer)) => {
-                let mut state = state_ref.get_mut();
-                state.return_worker_connection(worker_id, stream);
-                state.on_data_downloaded(data_ref, data, serializer);
-                return;
-            }
-            Err(e) => {
-                log::error!(
-                    "Download of id={} failed; error={}; attempt={}/{}",
-                    data_ref.get().id,
-                    e,
-                    attempt,
-                    MAX_ATTEMPTS
-                );
-                sleep(Duration::from_secs(1)).await;
-            }
-        }
-    }
-    log::error!(
-        "Failed to download id={} after all attemps",
-        data_ref.get().id
-    );
-    todo!();
-}
-
-async fn worker_data_downloader(
-    state_ref: WorkerStateRef,
-    mut stream: tokio::sync::mpsc::UnboundedReceiver<(DataObjectRef, PriorityTuple)>,
-) {
-    // TODO: Limit downloads, more parallel downloads, respect priorities
-    // TODO: Reuse connections
-    let mut queue: priority_queue::PriorityQueue<DataObjectRef, PriorityTuple> = Default::default();
-    //let mut random = SmallRng::from_entropy();
-    //let mut stream = stream;
-
-    let mut running = FuturesUnordered::new();
-
-    loop {
-        tokio::select! {
-            s = stream.recv() => {
-               let (data_ref, priority) = s.unwrap();
-               queue.push_increase(data_ref, priority);
-               while let Some((data_ref, priority)) = stream.recv().await {
-                    queue.push_increase(data_ref, priority);
-               }
-            },
-            _ = running.next(), if !running.is_empty() => {}
-        }
-
-        while running.len() < MAX_RUNNING_DOWNLOADS {
-            if let Some((data_ref, _)) = queue.pop() {
-                log::debug!("Getting data={} from download queue", data_ref.get().id);
-                running.push(download_data(state_ref.clone(), data_ref));
-            } else {
-                break;
-            }
-        }
-    }
-}
-
 async fn worker_message_loop(
     state_ref: WorkerStateRef,
     mut stream: impl Stream<Item = Result<BytesMut, std::io::Error>> + Unpin,
@@ -383,17 +267,10 @@ async fn worker_message_loop(
         let message: ToWorkerMessage = open_message(&mut opener, &data)?;
         let mut state = state_ref.get_mut();
         match message {
-            ToWorkerMessage::ComputeTask(mut msg) => {
+            ToWorkerMessage::ComputeTask(msg) => {
                 log::debug!("Task assigned: {}", msg.id);
-                let dep_info = std::mem::take(&mut msg.dep_info);
                 let task = Task::new(msg);
-                for (task_id, size, workers) in dep_info {
-                    state.add_dependency(&task, task_id, size, workers);
-                }
                 state.add_task(task);
-            }
-            ToWorkerMessage::DeleteData(msg) => {
-                state.remove_data_by_id(msg.id);
             }
             ToWorkerMessage::StealTasks(msg) => {
                 log::debug!("Steal {} attempts", msg.ids.len());
@@ -450,7 +327,6 @@ async fn send_overview_loop(state_ref: WorkerStateRef, interval: Duration) -> cr
                     // TODO: Modify this when more cpus are allowed
                 })
                 .collect(),
-            placed_data: worker_state.data_objects.keys().copied().collect(),
             hw_state: Some(WorkerHwStateMessage {
                 state: sampler.fetch_hw_state()?,
             }),

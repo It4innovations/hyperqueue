@@ -1,8 +1,6 @@
 use crate::common::resources::ResourceAllocation;
 use crate::common::stablemap::ExtractKey;
-use crate::common::WrappedRcRefCell;
 use crate::messages::worker::ComputeTaskMsg;
-use crate::worker::data::DataObjectRef;
 use crate::worker::taskenv::TaskEnv;
 use crate::{InstanceId, Priority, TaskId};
 use std::time::Duration;
@@ -16,7 +14,6 @@ pub struct Task {
     pub id: TaskId,
     pub state: TaskState,
     pub priority: (Priority, Priority),
-    pub deps: Vec<DataObjectRef>,
     pub instance_id: InstanceId,
 
     pub resources: crate::common::resources::ResourceRequest,
@@ -31,7 +28,6 @@ impl Task {
             id: message.id,
             priority: (message.user_priority, message.scheduler_priority),
             state: TaskState::Waiting(0),
-            deps: Default::default(),
             instance_id: message.instance_id,
             resources: message.resources,
             time_limit: message.time_limit,
@@ -94,24 +90,6 @@ impl Task {
             }
             _ => unreachable!(),
         }
-    }
-}
-
-pub type TaskRef = WrappedRcRefCell<Task>;
-
-impl TaskRef {
-    pub fn new(message: ComputeTaskMsg) -> Self {
-        TaskRef::wrap(Task {
-            id: message.id,
-            priority: (message.user_priority, message.scheduler_priority),
-            state: TaskState::Waiting(0),
-            deps: Default::default(),
-            instance_id: message.instance_id,
-            resources: message.resources,
-            time_limit: message.time_limit,
-            n_outputs: message.n_outputs,
-            body: message.body,
-        })
     }
 }
 

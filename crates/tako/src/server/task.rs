@@ -270,25 +270,10 @@ impl Task {
         self.instance_id = InstanceId(self.instance_id.as_num() + 1);
     }
 
-    pub fn make_compute_message(&self, taskmap: &TaskMap) -> ToWorkerMessage {
-        let dep_info: Vec<_> = self
-            .inputs
-            .iter()
-            .filter_map(|ti| {
-                //let task_ref = core.get_task_by_id_or_panic(*task_id);
-                ti.output_id().map(|output_id| {
-                    assert_eq!(output_id, 0);
-                    let task = taskmap.get_task(ti.task());
-                    let addresses: Vec<_> = task.get_placement().unwrap().iter().copied().collect();
-                    (task.id, task.data_info().unwrap().data_info.size, addresses)
-                })
-            })
-            .collect();
-
+    pub fn make_compute_message(&self) -> ToWorkerMessage {
         ToWorkerMessage::ComputeTask(ComputeTaskMsg {
             id: self.id,
             instance_id: self.instance_id,
-            dep_info,
             user_priority: self.configuration.user_priority,
             scheduler_priority: self.scheduler_priority,
             resources: self.configuration.resources.clone(),

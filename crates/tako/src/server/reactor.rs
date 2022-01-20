@@ -2,8 +2,8 @@ use crate::common::{Map, Set};
 use crate::messages::common::TaskFailInfo;
 use crate::messages::gateway::LostWorkerReason;
 use crate::messages::worker::{
-    NewWorkerMsg, StealResponse, StealResponseMsg, TaskFinishedMsg, TaskIdMsg, TaskIdsMsg,
-    TaskRunningMsg, ToWorkerMessage,
+    NewWorkerMsg, StealResponse, StealResponseMsg, TaskFinishedMsg, TaskIdsMsg, TaskRunningMsg,
+    ToWorkerMessage,
 };
 use crate::server::comm::Comm;
 use crate::server::core::Core;
@@ -302,7 +302,7 @@ pub fn on_steal_response(
                     log::debug!("Task stealing was successful task={}", task_id);
                     if let Some(w_id) = to_worker_id {
                         let task = core.get_task(task_id);
-                        comm.send_worker_message(w_id, &task.make_compute_message(core.task_map()));
+                        comm.send_worker_message(w_id, &task.make_compute_message());
                         TaskRuntimeState::Assigned(w_id)
                     } else {
                         comm.ask_for_scheduling();
@@ -483,35 +483,10 @@ pub fn on_cancel_tasks(
     (to_unregister.into_iter().collect(), already_finished)
 }
 
-fn get_task_or_send_delete<'core>(
-    core: &'core mut Core,
-    comm: &mut impl Comm,
-    worker_id: WorkerId,
-    task_id: TaskId,
-) -> Option<&'core mut Task> {
-    let result = core.find_task_mut(task_id);
-    if result.is_none() {
-        log::debug!(
-            "Task id={} is not known to server; replaying with delete",
-            task_id
-        );
-        comm.send_worker_message(
-            worker_id,
-            &ToWorkerMessage::DeleteData(TaskIdMsg { id: task_id }),
-        );
-    }
-    result
-}
-
-pub fn on_tasks_transferred(
-    core: &mut Core,
-    comm: &mut impl Comm,
-    worker_id: WorkerId,
-    task_id: TaskId,
-) {
+pub fn on_tasks_transferred(core: &mut Core, worker_id: WorkerId, task_id: TaskId) {
     log::debug!("Task id={} transferred to worker={}", task_id, worker_id);
     // TODO handle the race when task is removed from server before this message arrives
-    if let Some(task) = get_task_or_send_delete(core, comm, worker_id, task_id) {
+    if let Some(task) = core.find_task_mut(task_id) {
         match &mut task.state {
             TaskRuntimeState::Finished(ref mut winfo) => {
                 winfo.placement.insert(worker_id);
@@ -540,24 +515,14 @@ fn unregister_as_consumer(core: &mut Core, comm: &mut impl Comm, task_id: TaskId
     }
 }
 
-fn remove_task_if_possible(core: &mut Core, comm: &mut impl Comm, task_id: TaskId) {
+fn remove_task_if_possible(core: &mut Core, _comm: &mut impl Comm, task_id: TaskId) {
     if !core.get_task(task_id).is_removable() {
         return;
     }
 
-    let ws = match core.remove_task(task_id) {
+    match core.remove_task(task_id) {
         TaskRuntimeState::Finished(finfo) => finfo.placement,
         _ => unreachable!(),
     };
-    for worker_id in ws {
-        log::debug!(
-            "Task id={} is no longer needed, deleting from worker={}",
-            task_id,
-            worker_id
-        );
-        comm.send_worker_message(
-            worker_id,
-            &ToWorkerMessage::DeleteData(TaskIdMsg { id: task_id }),
-        );
-    }
+    log::debug!("Task id={task_id} is no longer needed");
 }

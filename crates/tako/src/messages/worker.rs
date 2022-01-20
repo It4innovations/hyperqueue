@@ -34,8 +34,6 @@ pub struct ComputeTaskMsg {
 
     pub instance_id: InstanceId,
 
-    pub dep_info: Vec<(TaskId, u64, Vec<WorkerId>)>,
-
     pub user_priority: Priority,
     pub scheduler_priority: Priority,
 
@@ -67,7 +65,6 @@ pub struct TaskIdMsg {
 //#[serde(tag = "op")]
 pub enum ToWorkerMessage {
     ComputeTask(ComputeTaskMsg),
-    DeleteData(TaskIdMsg),
     StealTasks(TaskIdsMsg),
     CancelTasks(TaskIdsMsg),
     NewWorker(NewWorkerMsg),
@@ -141,7 +138,6 @@ pub struct TaskResourceAllocation {
 pub struct WorkerOverview {
     pub id: WorkerId,
     pub running_tasks: Vec<(TaskId, TaskResourceAllocation)>,
-    pub placed_data: Vec<TaskId>,
     pub hw_state: Option<WorkerHwStateMessage>,
 }
 

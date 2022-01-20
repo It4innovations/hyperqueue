@@ -6,7 +6,7 @@ use crate::common::Set;
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
 use crate::messages::gateway::LostWorkerReason;
 use crate::messages::worker::{
-    ComputeTaskMsg, NewWorkerMsg, TaskFinishedMsg, TaskIdMsg, TaskIdsMsg, ToWorkerMessage,
+    ComputeTaskMsg, NewWorkerMsg, TaskFinishedMsg, TaskIdsMsg, ToWorkerMessage,
 };
 use crate::messages::worker::{StealResponse, StealResponseMsg};
 use crate::scheduler::state::SchedulerState;
@@ -240,14 +240,7 @@ fn test_assignments_and_finish() {
     check_worker_tasks_exact(&core, 101, &[id2]);
     check_worker_tasks_exact(&core, 102, &[]);
 
-    let msgs = comm.take_worker_msgs(100, 1);
-    assert!(matches!(
-        msgs[0],
-        ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(15) })
-    ));
-
     comm.check_need_scheduling();
-
     comm.emptiness_check();
 
     assert!(core.find_task(15.into()).is_none());
@@ -315,25 +308,9 @@ fn test_assignments_and_finish() {
 
     assert_eq!(comm.take_client_task_finished(1), vec![13].to_ids());
 
-    let msgs = comm.take_worker_msgs(100, 1);
-    assert!(matches!(
-        msgs[0],
-        ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(11) })
-    ));
-
-    let msgs = comm.take_worker_msgs(101, 1);
-    assert!(matches!(
-        msgs[0],
-        ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(12) })
-    ));
     comm.emptiness_check();
 
     on_reset_keep_flag(&mut core, &mut comm, 13.into());
-    let msgs = comm.take_worker_msgs(101, 1);
-    assert!(matches!(
-        msgs[0],
-        ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(13) })
-    ));
     comm.emptiness_check();
     core.sanity_check();
 
@@ -368,11 +345,6 @@ fn test_running_task_on_error() {
     );
     assert!(!worker_has_task(&core, 102, 13));
 
-    let msgs = comm.take_worker_msgs(100, 1);
-    assert!(matches!(
-        msgs[0],
-        ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(11) })
-    ));
     let mut msgs = comm.take_client_task_errors(1);
     let (id, cs, _) = msgs.pop().unwrap();
     assert_eq!(id.as_num(), 13);
@@ -388,14 +360,7 @@ fn test_running_task_on_error() {
 fn test_running_task_on_task_transferred_invalid() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1]);
-    let mut comm = create_test_comm();
-    on_tasks_transferred(&mut core, &mut comm, 102.into(), 42.into());
-    let msgs = comm.take_worker_msgs(102, 1);
-    assert!(matches!(
-        msgs[0],
-        ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(42) })
-    ));
-    comm.emptiness_check();
+    on_tasks_transferred(&mut core, 102.into(), 42.into());
     core.sanity_check();
 }
 
@@ -408,10 +373,7 @@ fn test_running_task_on_task_transferred() {
     start_and_finish_on_worker(&mut core, 12, 101, 1000);
     start_on_worker(&mut core, 13, 101);
 
-    let mut comm = create_test_comm();
-    on_tasks_transferred(&mut core, &mut comm, 101.into(), 11.into());
-
-    comm.emptiness_check();
+    on_tasks_transferred(&mut core, 101.into(), 11.into());
 
     let ws = core.get_task(11.into()).get_placement().unwrap().clone();
     let mut set = Set::new();
@@ -591,14 +553,9 @@ fn test_task_cancel() {
         matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if ids == &vec![41].to_ids())
     );
 
-    let msgs = comm.take_worker_msgs(101, 2);
-    dbg!(&msgs);
-    assert!(matches!(
-        &msgs[0],
-        &ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(11) })
-    ));
+    let msgs = comm.take_worker_msgs(101, 1);
     assert!(
-        matches!(&msgs[1], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if sorted_vec(ids.clone()) == vec![12, 40].to_ids())
+        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if sorted_vec(ids.clone()) == vec![12, 40].to_ids())
     );
 
     assert_eq!(core.task_map().len(), 1);
@@ -682,11 +639,7 @@ fn test_finished_before_steal_response() {
             size: 0,
         },
     );
-    let msgs = comm.take_worker_msgs(101, 1);
-    assert!(matches!(
-        msgs[0],
-        ToWorkerMessage::DeleteData(TaskIdMsg { id: TaskId(1) })
-    ));
+
     comm.check_need_scheduling();
     comm.emptiness_check();
 
