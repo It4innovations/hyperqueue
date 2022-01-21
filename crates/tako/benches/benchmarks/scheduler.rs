@@ -3,7 +3,7 @@ use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 
 use tako::messages::common::{TaskFailInfo, WorkerConfiguration};
 use tako::messages::gateway::LostWorkerReason;
-use tako::messages::worker::ToWorkerMessage;
+use tako::messages::worker::{ToWorkerMessage, WorkerOverview};
 use tako::scheduler::metrics::compute_b_level_metric;
 use tako::scheduler::state::SchedulerState;
 use tako::server::comm::Comm;
@@ -117,4 +117,6 @@ impl Comm for NullComm {
         _reason: LostWorkerReason,
     ) {
     }
+
+    fn send_client_worker_overview(&mut self, _overview: WorkerOverview) {}
 }

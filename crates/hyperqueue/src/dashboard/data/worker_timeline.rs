@@ -1,5 +1,5 @@
-use crate::events::events::MonitoringEventPayload;
-use crate::events::MonitoringEvent;
+use crate::event::events::MonitoringEventPayload;
+use crate::event::MonitoringEvent;
 use crate::WorkerId;
 use std::time::SystemTime;
 use tako::messages::common::WorkerConfiguration;
