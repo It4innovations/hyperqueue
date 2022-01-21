@@ -216,43 +216,52 @@ class HqEnv(Env):
         cwd=None,
         wait=True,
         expect_fail=None,
+        stdin=None,
+        log=False,
     ):
         if isinstance(args, str):
             args = [args]
         else:
             args = list(args)
 
+        if isinstance(stdin, str):
+            stdin = stdin.encode()
+
         args = [get_hq_binary(self.debug), "--server-dir", self.server_dir] + args
         cwd = cwd or self.work_path
-        env = self.make_default_env(log=False)
-        try:
-            if not wait:
-                return subprocess.Popen(
-                    args, stderr=subprocess.STDOUT, cwd=cwd, env=env
-                )
+        env = self.make_default_env(log=log)
+        if not wait:
+            return subprocess.Popen(args, stderr=subprocess.STDOUT, cwd=cwd, env=env)
 
-            output = subprocess.check_output(
-                args, stderr=subprocess.STDOUT, cwd=cwd, env=env
+        else:
+            process = subprocess.Popen(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                cwd=cwd,
+                env=env,
+                stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
             )
+            stdout = process.communicate(stdin)[0].decode()
+            if process.returncode != 0:
+                if expect_fail:
+                    if expect_fail not in stdout:
+                        raise Exception(
+                            f"Command should failed with message '{expect_fail}' but got:\n{stdout}"
+                        )
+                    else:
+                        return
+                print(f"Process output: {stdout}")
+                raise Exception(
+                    f"Process failed with exit-code {process.returncode}\n\n{stdout}"
+                )
             if expect_fail is not None:
                 raise Exception("Command should failed")
-            output = output.decode()
             if as_table:
-                return parse_table(output)
+                return parse_table(stdout)
             if as_lines:
-                return output.rstrip().split("\n")
-            return output
-        except subprocess.CalledProcessError as e:
-            stdout = e.stdout.decode()
-            if expect_fail:
-                if expect_fail not in stdout:
-                    raise Exception(
-                        f"Command should failed with message '{expect_fail}' but got:\n{stdout}"
-                    )
-                else:
-                    return
-            print(f"Process output: {stdout}")
-            raise Exception(f"Process failed with exit-code {e.returncode}\n\n{stdout}")
+                return stdout.rstrip().split("\n")
+            return stdout
 
     def final_check(self):
         pass

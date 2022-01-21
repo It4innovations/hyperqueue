@@ -978,6 +978,7 @@ mod tests {
             env: Default::default(),
             stdout: Default::default(),
             stderr: Default::default(),
+            stdin: vec![],
             cwd: Default::default(),
         };
         let resources = ResourceRequest {

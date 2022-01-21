@@ -813,6 +813,39 @@ The file "{join(os.getcwd(), 'foo')}" exists, maybe you have meant `./foo` inste
     )
 
 
+def test_job_stdin_basic(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus="1")
+
+    hq_env.command(["submit", "bash"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    with open(default_task_output(1), "rb") as f:
+        assert f.read() == b""
+
+    hq_env.command(["submit", "bash"], stdin="echo Hello")
+    wait_for_job_state(hq_env, 2, "FINISHED")
+    with open(default_task_output(2), "rb") as f:
+        assert f.read() == b""
+
+    hq_env.command(["submit", "--stdin", "bash"], stdin="echo Hello")
+    wait_for_job_state(hq_env, 3, "FINISHED")
+    with open(default_task_output(3), "rb") as f:
+        assert f.read() == b"Hello\n"
+
+
+def test_job_stdin_read_part(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus="1")
+
+    code = "import sys; sys.stdin.readline()"
+    hq_env.command(["submit", "--stdin", "python", "-c", code], stdin="Line\n" * 20_000)
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    code = "import sys; sys.stdin.readline(); sys.stdin.close()"
+    hq_env.command(["submit", "--stdin", "python", "-c", code], stdin="Line\n" * 20_000)
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+
 def test_job_shell_script_fail_without_interpreter(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus="1")

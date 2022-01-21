@@ -407,6 +407,7 @@ mod tests {
             env,
             stdout: stdout.map(|v| StdioDef::File(v.into())).unwrap_or_default(),
             stderr: stderr.map(|v| StdioDef::File(v.into())).unwrap_or_default(),
+            stdin: vec![],
             cwd: cwd.into(),
         }
     }

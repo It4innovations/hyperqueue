@@ -69,14 +69,17 @@ fn extract_directives(data: &BStr) -> crate::Result<Vec<String>> {
     Ok(args)
 }
 
-pub(crate) fn parse_hq_directives(path: &Path) -> anyhow::Result<SubmitJobConfOpts> {
-    log::debug!("Extracting directives from file");
+pub(crate) fn parse_hq_directives_from_file(path: &Path) -> anyhow::Result<SubmitJobConfOpts> {
+    log::debug!("Extracting directives from file: {}", path.display());
 
     let mut f = File::open(&path)?;
     let mut buffer = [0; MAX_PREFIX_OF_SCRIPT];
     let size = f.read(&mut buffer)?;
+    parse_hq_directives(&buffer[..size])
+}
 
-    let prefix = BString::from(&buffer[..size]);
+pub(crate) fn parse_hq_directives(data: &[u8]) -> anyhow::Result<SubmitJobConfOpts> {
+    let prefix = BString::from(data);
     let mut directives = Vec::new();
     for directive in extract_directives(prefix.as_bstr())? {
         let mut args = parse_args(&directive)?;
@@ -85,7 +88,7 @@ pub(crate) fn parse_hq_directives(path: &Path) -> anyhow::Result<SubmitJobConfOp
 
     // clap parses first argument as name of the program
     directives.insert(0, "".to_string());
-    log::debug!("Applying directive(s) from file: {:?}", directives);
+    log::debug!("Applying directive(s): {:?}", directives);
 
     let app = SubmitJobConfOpts::into_app()
         .setting(DisableHelpFlag)
@@ -96,7 +99,6 @@ pub(crate) fn parse_hq_directives(path: &Path) -> anyhow::Result<SubmitJobConfOp
             error
         )
     })?;
-
     Ok(SubmitJobConfOpts::from_arg_matches(&matches).unwrap())
 }
 

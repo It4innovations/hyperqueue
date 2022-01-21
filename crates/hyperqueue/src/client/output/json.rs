@@ -111,6 +111,7 @@ impl Output for JsonOutput {
                             stdout,
                             stderr,
                             cwd,
+                            stdin: _,
                         },
                     resources:
                         ResourceRequest {

@@ -74,6 +74,7 @@ fn build_task_desc(
             env: env.into_iter().map(|(k, v)| (k.into(), v.into())).collect(),
             stdout: Default::default(),
             stderr: Default::default(),
+            stdin: vec![],
             cwd,
         },
         resources: Default::default(),

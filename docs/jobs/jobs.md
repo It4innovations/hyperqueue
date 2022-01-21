@@ -279,6 +279,19 @@ There are three ways of waiting until a job completes:
         $ hq job progress <selector>
         ```
 
+## Attaching stdio
+
+When ``--stdin`` flag is used, then HQ capture stdio and attach it to each task of a job.
+This can be used to submitting scripts  without creating file.
+The following command will capture stdin and executes it in Bash 
+
+    ```bash
+    $ hq submit --stdin bash
+    ```
+
+If you want to parse #HQ directives from stdin, you can use ``--directives=stdin``.
+
+
 ## Useful job commands
 Here is a list of useful job commands:
 
