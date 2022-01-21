@@ -1,6 +1,8 @@
 from pathlib import Path
 
 from .conftest import HqEnv
+from .utils import wait_for_job_state
+from .utils.job import default_task_output
 
 
 def test_hq_directives_from_file(hq_env: HqEnv):
@@ -43,7 +45,7 @@ def test_hq_directives_from_file(hq_env: HqEnv):
     table = hq_env.command(["job", "info", "4"], as_table=True)
     assert table.get_row_value("Name") == "test"
 
-    hq_env.command(["submit", "--directives", "always", "test"])
+    hq_env.command(["submit", "--directives", "file", "test"])
     table = hq_env.command(["job", "info", "5"], as_table=True)
     assert table.get_row_value("Name") == "abc"
 
@@ -65,9 +67,9 @@ def test_hq_directives_mode_auto(hq_env: HqEnv):
     )
 
 
-def test_hq_directives_mode_always(hq_env: HqEnv):
+def test_hq_directives_mode_file(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.start_worker(cpus="1")
+    hq_env.start_worker()
 
     content = """#! /bin/bash
 #HQ --foo=bar
@@ -77,9 +79,30 @@ def test_hq_directives_mode_always(hq_env: HqEnv):
     Path("program").write_text(content)
 
     hq_env.command(
-        ["submit", "--directives", "always", "program"],
+        ["submit", "--directives", "file", "program"],
         expect_fail="Found argument '--foo' which wasn't expected",
     )
+
+
+def test_hq_directives_mode_stdin(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.command(
+        ["submit", "--stdin", "--directives=stdin", "bash"],
+        stdin="#!/bin/bash\n#HQ --name=abc\necho Hello\n",
+    )
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    with open(default_task_output(1), "rb") as f:
+        assert f.read() == b"Hello\n"
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Name", "abc")
+
+    hq_env.command(
+        ["submit", "--name", "xyz", "--stdin", "--directives=stdin", "bash"],
+        stdin="#!/bin/bash\n#HQ --name=abc\necho Hello\n",
+    )
+    table = hq_env.command(["job", "info", "2"], as_table=True)
+    table.check_row_value("Name", "xyz")
 
 
 def test_hq_directives_mode_off(hq_env: HqEnv):

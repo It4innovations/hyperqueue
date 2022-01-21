@@ -30,7 +30,8 @@ determine when should HyperQueue attempt to parse directives from the provided c
 
 * `auto` (default) - Directives will be parsed if the first command passed to `hq submit` has the
   `.sh` extension.
-* `always` - Directives will be parsed from the first command passed to `hq submit`.
+* `file` - Directives will be parsed from the first command passed to `hq submit`.
+* `stdin` - Directives will be parsed from stdin (see ``--stdin``) 
 * `off` - Directives will not be parsed.
 
 ## Notes

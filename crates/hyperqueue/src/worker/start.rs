@@ -11,7 +11,7 @@ use anyhow::anyhow;
 use bstr::{BStr, BString, ByteSlice};
 use futures::TryFutureExt;
 use tempdir::TempDir;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
 
@@ -310,6 +310,30 @@ fn map_spawn_error(error: std::io::Error, program: &ProgramDefinition) -> tako::
     tako::Error::GenericError(message)
 }
 
+async fn write_stdin(mut stdin: tokio::process::ChildStdin, stdin_data: &[u8]) {
+    log::debug!("Writing {} bytes on task stdin", stdin_data.len());
+    if let Err(e) = stdin.write_all(stdin_data).await {
+        log::debug!("Writing stdin data failed: {}", e);
+    }
+    drop(stdin);
+    futures::future::pending::<()>().await;
+}
+
+async fn child_wait(
+    mut child: tokio::process::Child,
+    stdin_data: &[u8],
+) -> Result<ExitStatus, std::io::Error> {
+    if let Some(stdin) = child.stdin.take() {
+        let r = tokio::select! {
+            () = write_stdin(stdin, stdin_data) => { unreachable!() }
+            r = child.wait() => r
+        };
+        Ok(r?)
+    } else {
+        Ok(child.wait().await?)
+    }
+}
+
 #[cfg(not(feature = "zero-worker"))]
 async fn run_task(
     streamer_ref: StreamerRef,
@@ -359,7 +383,7 @@ async fn run_task(
             let stdout = child.stdout.take();
             let stderr = child.stderr.take();
             let response = tokio::try_join!(
-                child.wait().map_err(DsError::from),
+                child_wait(child, &program.stdin).map_err(DsError::from),
                 resend_stdio(job_id, job_task_id, 0, stdout, stream2.clone())
                     .map_err(streamer_error),
                 resend_stdio(job_id, job_task_id, 1, stderr, stream2).map_err(streamer_error),
@@ -407,7 +431,7 @@ async fn run_task(
                 r = end_receiver => {
                     Ok(r.unwrap().into())
                 }
-                r = child.wait() => status_to_result(r?)
+                r = child_wait(child, &program.stdin) => status_to_result(r?)
         }
     }
 }

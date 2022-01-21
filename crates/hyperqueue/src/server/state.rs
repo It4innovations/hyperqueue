@@ -266,6 +266,7 @@ mod tests {
             env: Default::default(),
             stdout: StdioDef::Null,
             stderr: StdioDef::Null,
+            stdin: vec![],
             cwd: Default::default(),
         }
     }

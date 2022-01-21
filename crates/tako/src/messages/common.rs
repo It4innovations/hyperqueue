@@ -72,6 +72,10 @@ pub struct ProgramDefinition {
     pub stderr: StdioDef,
 
     #[serde(default)]
+    #[serde(with = "serde_bytes")]
+    pub stdin: Vec<u8>,
+
+    #[serde(default)]
     pub cwd: PathBuf,
 }
 

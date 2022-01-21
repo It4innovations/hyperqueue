@@ -12,6 +12,7 @@ use crate::messages::common::{ProgramDefinition, WorkerConfiguration};
 use crate::server::core::CoreRef;
 use derive_builder::Builder;
 use orion::auth::SecretKey;
+use tokio::io::AsyncWriteExt;
 use tokio::sync::oneshot::Receiver;
 use tokio::task::LocalSet;
 
@@ -238,7 +239,16 @@ pub(super) async fn start_worker(
 
 async fn launcher_main(program: ProgramDefinition) -> crate::Result<()> {
     let mut command = command_from_definitions(&program)?;
-    let status = command.status().await?;
+    let mut process = command.spawn()?;
+
+    if !program.stdin.is_empty() {
+        let mut stdin = process.stdin.take().unwrap();
+        log::debug!("Writing {} bytes on task stdin", program.stdin.len());
+        stdin.write_all(&program.stdin).await?;
+    };
+
+    let status = process.wait().await?;
+
     if !status.success() {
         let code = status.code().unwrap_or(-1);
         return crate::Result::Err(DsError::GenericError(format!(

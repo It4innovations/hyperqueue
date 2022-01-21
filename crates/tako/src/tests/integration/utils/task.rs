@@ -89,6 +89,7 @@ pub fn build_task_def_from_config(
         env: env.into_iter().map(|(k, v)| (k.into(), v.into())).collect(),
         stdout,
         stderr,
+        stdin: vec![],
         cwd,
     };
     let body = rmp_serde::to_vec(&program_def).unwrap();

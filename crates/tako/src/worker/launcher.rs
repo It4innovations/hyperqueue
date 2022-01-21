@@ -94,6 +94,12 @@ pub fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result
     command.stdout(create_output_stream(&definition.stdout, &definition.cwd)?);
     command.stderr(create_output_stream(&definition.stderr, &definition.cwd)?);
 
+    command.stdin(if definition.stdin.is_empty() {
+        Stdio::null()
+    } else {
+        Stdio::piped()
+    });
+
     for (k, v) in definition.env.iter() {
         command.env(k.to_os_str_lossy(), v.to_os_str_lossy());
     }

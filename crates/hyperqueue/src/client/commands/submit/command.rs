@@ -1,4 +1,4 @@
-use std::io::BufRead;
+use std::io::{BufRead, Read};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{fs, io};
@@ -11,6 +11,7 @@ use tako::messages::common::{ProgramDefinition, StdioDef};
 use tako::messages::gateway::{GenericResourceRequest, ResourceRequest};
 
 use super::directives::parse_hq_directives;
+use crate::client::commands::submit::directives::parse_hq_directives_from_file;
 use crate::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
@@ -240,7 +241,8 @@ impl SubmitJobConfOpts {
 
 pub enum DirectivesMode {
     Auto,
-    Always,
+    File,
+    Stdin,
     Off,
 }
 
@@ -248,12 +250,13 @@ arg_wrapper!(DirectivesModeArg, DirectivesMode, parse_directives_mode);
 
 fn parse_directives_mode(input: &str) -> anyhow::Result<DirectivesMode> {
     Ok(match input.to_ascii_lowercase().as_str() {
-        "always" => DirectivesMode::Always,
+        "file" => DirectivesMode::File,
+        "stdin" => DirectivesMode::Stdin,
         "auto" => DirectivesMode::Auto,
         "off" => DirectivesMode::Off,
         _ => {
             return Err(anyhow!(
-                "Invalid `--diresctives` value. Allowed values are `auto`, `always` or `stop`"
+                "Invalid `--directives` value. Allowed values are `auto`, `file`, `stdin`, or `stop`"
             ));
         }
     })
@@ -277,6 +280,11 @@ pub struct JobSubmitOpts {
     #[clap(long, conflicts_with("wait"))]
     progress: bool,
 
+    /// Capture stdin and start the task with the given stdin;
+    /// the job will be submitted when the stdin is closed.
+    #[clap(long)]
+    stdin: bool,
+
     /// Select directives parsing mode.
     ///
     /// `auto`: Directives will be parsed if the suffix of the first command is ".sh".{n}
@@ -292,7 +300,7 @@ pub struct JobSubmitOpts {
     /// #HQ --cpus=2{n}
     /// {n}
     /// program --foo=bar{n}
-    #[clap(long, default_value = "auto", possible_values = &["auto", "always", "off"])]
+    #[clap(long, default_value = "auto", possible_values = &["auto", "file", "stdin", "off"])]
     directives: DirectivesModeArg,
 }
 
@@ -339,19 +347,21 @@ fn create_stdio(arg: Option<StdioArg>, log: &Option<PathBuf>, default: &str) -> 
     })
 }
 
-fn handle_directives(mut opts: JobSubmitOpts) -> anyhow::Result<JobSubmitOpts> {
-    if let Some(command) = opts.commands.get(0) {
-        let parse_directives = match opts.directives.get() {
-            DirectivesMode::Auto => command.ends_with(".sh"),
-            DirectivesMode::Always => true,
-            DirectivesMode::Off => false,
-        };
-        if parse_directives {
-            let parsed_opts = parse_hq_directives(&PathBuf::from(&command)).map_err(|error| {
-                anyhow::anyhow!("Could not parse directives from {}: {:?}", command, error)
-            })?;
-            opts.conf = opts.conf.overwrite(parsed_opts);
-        }
+fn handle_directives(mut opts: JobSubmitOpts, stdin: &[u8]) -> anyhow::Result<JobSubmitOpts> {
+    let parse_file = |command: &String| {
+        parse_hq_directives_from_file(&PathBuf::from(command)).map_err(|error| {
+            anyhow::anyhow!("Could not parse directives from {}: {:?}", command, error)
+        })
+    };
+
+    let command = &opts.commands[0];
+    if let Some(update) = match opts.directives.get() {
+        DirectivesMode::Auto if command.ends_with(".sh") => Some(parse_file(command)?),
+        DirectivesMode::File => Some(parse_file(command)?),
+        DirectivesMode::Stdin => Some(parse_hq_directives(stdin)?),
+        DirectivesMode::Auto | DirectivesMode::Off => None,
+    } {
+        opts.conf = opts.conf.overwrite(update);
     }
     Ok(opts)
 }
@@ -361,7 +371,17 @@ pub async fn submit_computation(
     connection: &mut ClientConnection,
     opts: JobSubmitOpts,
 ) -> anyhow::Result<()> {
-    let opts = handle_directives(opts)?;
+    let stdin = if opts.stdin {
+        let mut buf = Vec::new();
+        println!("Reading data from stdin. In the interactive mode press Ctrl-D to submit.");
+        std::io::stdin().lock().read_to_end(&mut buf)?;
+        log::debug!("{} bytes read from stdin", buf.len());
+        buf
+    } else {
+        Vec::new()
+    };
+
+    let opts = handle_directives(opts, &stdin)?;
 
     let resources = opts.resource_request();
     let (ids, entries) = get_ids_and_entries(&opts)?;
@@ -373,6 +393,7 @@ pub async fn submit_computation(
         commands,
         wait,
         progress,
+        stdin: _,
         directives: _,
         conf:
             SubmitJobConfOpts {
@@ -427,6 +448,7 @@ pub async fn submit_computation(
         stdout,
         stderr,
         cwd,
+        stdin,
     };
 
     let task_desc = TaskDescription {

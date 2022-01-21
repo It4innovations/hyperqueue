@@ -48,6 +48,13 @@
         This previously failed, unless you provided an interpreter, or provided a path starting with
         `.` or an absolute path to the script.
 
+   * Capturing stdio and attaching it to each task of a job. This can be used to submitting scripts
+     without creating file. The following command will capture stdin and executes it in Bash 
+
+    ```bash
+    $ hq submit --stdin bash
+    ```
+
 
 ### Worker configuration
   * You can now select what should happen when a worker loses its connection to the server using the
