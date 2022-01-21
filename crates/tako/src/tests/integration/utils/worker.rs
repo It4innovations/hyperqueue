@@ -47,7 +47,7 @@ pub struct ResourceConfig {
 pub struct WorkerConfig {
     #[builder(default)]
     idle_timeout: Option<Duration>,
-    #[builder(default = "Some(Duration::from_millis(50))")]
+    #[builder(default = "Some(Duration::from_millis(250))")]
     send_overview_interval: Option<Duration>,
     #[builder(default)]
     secret_key: WorkerSecretKey,

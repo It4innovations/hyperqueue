@@ -3,7 +3,9 @@ use std::time::{Duration, Instant};
 use crate::common::resources::CpuRequest;
 use tokio::time::sleep;
 
-use crate::tests::integration::utils::api::{get_latest_overview, wait_for_task_start};
+use crate::tests::integration::utils::api::{
+    wait_for_task_start, wait_for_worker_overview, wait_for_workers_overview,
+};
 use crate::tests::integration::utils::server::run_test;
 use crate::tests::integration::utils::task::{
     simple_args, simple_task, GraphBuilder as GB, GraphBuilder, ResourceRequestConfigBuilder as RR,
@@ -28,24 +30,18 @@ async fn test_submit_2_sleeps_on_1() {
         let worker = handler.start_worker(config).await.unwrap();
 
         wait_for_task_start(&mut handler, 1).await;
-        let overview1 = get_latest_overview(&mut handler, vec![worker.id]).await;
-        assert_eq!(overview1[&worker.id].running_tasks.len(), 1);
+        let overview1 = wait_for_worker_overview(&mut handler, worker.id).await;
+        assert_eq!(overview1.running_tasks.len(), 1);
 
         sleep(Duration::from_millis(100)).await;
-        let overview2 = get_latest_overview(&mut handler, vec![worker.id]).await;
-        assert_eq!(overview2[&worker.id].running_tasks.len(), 1);
-        assert_eq!(
-            overview1[&worker.id].running_tasks,
-            overview2[&worker.id].running_tasks
-        );
+        let overview2 = wait_for_worker_overview(&mut handler, worker.id).await;
+        assert_eq!(overview2.running_tasks.len(), 1);
+        assert_eq!(overview1.running_tasks, overview2.running_tasks);
 
         wait_for_task_start(&mut handler, 2).await;
-        let overview3 = get_latest_overview(&mut handler, vec![worker.id]).await;
-        assert_eq!(overview3[&worker.id].running_tasks.len(), 1);
-        assert_ne!(
-            overview2[&worker.id].running_tasks,
-            overview3[&worker.id].running_tasks
-        );
+        let overview3 = wait_for_worker_overview(&mut handler, worker.id).await;
+        assert_eq!(overview3.running_tasks.len(), 1);
+        assert_ne!(overview2.running_tasks, overview3.running_tasks);
     })
     .await;
 }
@@ -73,8 +69,9 @@ async fn test_submit_2_sleeps_on_2() {
 
         wait_for_task_start(&mut handler, 1).await;
         wait_for_task_start(&mut handler, 2).await;
-        let overview1 = get_latest_overview(&mut handler, vec![worker.id]).await;
-        assert_eq!(overview1[&worker.id].running_tasks.len(), 2);
+
+        let overview = wait_for_worker_overview(&mut handler, worker.id).await;
+        assert_eq!(overview.running_tasks.len(), 2);
 
         handler.wait(&[1, 2]).await.assert_all_finished();
     })
@@ -102,7 +99,7 @@ async fn test_submit_2_sleeps_on_separated_2() {
         wait_for_task_start(&mut handler, 1).await;
         wait_for_task_start(&mut handler, 2).await;
 
-        let overview = get_latest_overview(&mut handler, worker_ids).await;
+        let overview = wait_for_workers_overview(&mut handler, &worker_ids).await;
         let empty_workers: Vec<_> = overview
             .iter()
             .map(|(_, overview)| overview)
@@ -157,7 +154,7 @@ async fn test_submit_sleeps_more_cpus1() {
 
         wait_for_task_start(&mut handler, 1).await;
         wait_for_task_start(&mut handler, 2).await;
-        let overview = get_latest_overview(&mut handler, worker_ids).await;
+        let overview = wait_for_workers_overview(&mut handler, &worker_ids).await;
         let mut rts: Vec<_> = overview
             .iter()
             .map(|(_, overview)| overview.running_tasks.len())

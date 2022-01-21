@@ -302,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_find_job_id_by_task_id() {
-        let state_ref = StateRef::new(Duration::from_secs(1));
+        let state_ref = StateRef::new(Duration::from_secs(1), Default::default());
         let mut state = state_ref.get_mut();
         state.add_job(test_job(IntArray::from_range(0, 10), 223, 100));
         state.add_job(test_job(IntArray::from_range(0, 15), 224, 110));

@@ -4,7 +4,7 @@ use crate::common::resources::{GenericResourceDescriptor, NumOfCpus, ResourceDes
 use crate::common::Map;
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
 use crate::messages::gateway::LostWorkerReason;
-use crate::messages::worker::ToWorkerMessage;
+use crate::messages::worker::{ToWorkerMessage, WorkerOverview};
 use crate::scheduler::state::SchedulerState;
 use crate::server::comm::Comm;
 use crate::server::core::Core;
@@ -231,6 +231,7 @@ pub struct TestComm {
 
     pub new_workers: Vec<(WorkerId, WorkerConfiguration)>,
     pub lost_workers: Vec<(WorkerId, Vec<TaskId>)>,
+    pub worker_overviews: Vec<WorkerOverview>,
 
     pub need_scheduling: bool,
 }
@@ -359,6 +360,10 @@ impl Comm for TestComm {
         _reason: LostWorkerReason,
     ) {
         self.lost_workers.push((worker_id, running_tasks));
+    }
+
+    fn send_client_worker_overview(&mut self, overview: WorkerOverview) {
+        self.worker_overviews.push(overview);
     }
 }
 
