@@ -56,7 +56,6 @@ impl Backend {
         key: Arc<SecretKey>,
         idle_timeout: Option<Duration>,
         worker_port: Option<u16>,
-        event_store_size: usize,
     ) -> crate::Result<(Backend, impl Future<Output = crate::Result<()>>)> {
         let msd = Duration::from_millis(20);
 
@@ -73,7 +72,6 @@ impl Backend {
             from_tako_sender.clone(),
             false,
             idle_timeout,
-            event_store_size,
             Some(Box::new(move |connection| {
                 assert!(stream_server_control2
                     .send(StreamServerControlMessage::AddConnection(connection))

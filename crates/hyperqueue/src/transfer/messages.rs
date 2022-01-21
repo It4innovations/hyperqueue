@@ -13,8 +13,8 @@ use bstr::BString;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::events::MonitoringEvent;
 use tako::messages::gateway::{LostWorkerReason, MonitoringEventRequest, ResourceRequest};
-use tako::server::monitoring::MonitoringEvent;
 use tako::worker::state::ServerLostPolicy;
 
 // Messages client -> server

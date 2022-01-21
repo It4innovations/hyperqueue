@@ -14,7 +14,7 @@ use crate::messages::gateway::LostWorkerReason;
 use crate::messages::worker::{
     ConnectionRegistration, FromWorkerMessage, RegisterWorker, WorkerRegistrationResponse,
 };
-use crate::server::comm::CommSenderRef;
+use crate::server::comm::{Comm, CommSenderRef};
 use crate::server::core::CoreRef;
 use crate::server::reactor::{
     on_new_worker, on_remove_worker, on_steal_response, on_task_error, on_task_finished,
@@ -150,8 +150,6 @@ async fn worker_rpc_loop(
         let worker = Worker::new(worker_id, configuration.clone(), core.create_resource_map());
 
         on_new_worker(&mut core, &mut *comm_ref.get_mut(), worker);
-        core.get_event_storage()
-            .on_worker_added(worker_id, configuration);
     }
 
     /* Send registration message, this has to be after on_new_worker
@@ -235,8 +233,6 @@ async fn worker_rpc_loop(
         reason
     };
 
-    core.get_event_storage()
-        .on_remove_worker(worker_id, reason.clone());
     on_remove_worker(&mut core, &mut *comm, worker_id, reason);
     Ok(())
 }
@@ -277,7 +273,7 @@ pub async fn worker_receive_loop<
                 };
             }
             FromWorkerMessage::Overview(overview) => {
-                core.get_event_storage().on_overview_received(overview);
+                comm.send_client_worker_overview(overview);
             }
         }
     }

@@ -8,7 +8,6 @@ use crate::common::resources::map::{ResourceIdAllocator, ResourceMap};
 use crate::common::resources::{GenericResourceId, ResourceRequest};
 use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::gateway::ServerInfo;
-use crate::server::monitoring::EventStorage;
 use crate::server::rpc::ConnectionDescriptor;
 use crate::server::task::{Task, TaskRuntimeState};
 use crate::server::taskmap::TaskMap;
@@ -23,7 +22,6 @@ pub type CustomConnectionHandler = Box<dyn Fn(ConnectionDescriptor)>;
 pub struct Core {
     tasks: TaskMap,
     workers: WorkerMap,
-    event_storage: EventStorage,
 
     /* Scheduler items */
     parked_resources: Set<WorkerResources>, // Resources of workers that has flag NOTHING_TO_LOAD
@@ -55,18 +53,13 @@ impl CoreRef {
         worker_listen_port: u16,
         secret_key: Option<Arc<SecretKey>>,
         idle_timeout: Option<Duration>,
-        event_store_size: usize,
         custom_conn_handler: Option<CustomConnectionHandler>,
     ) -> Self {
-        /*let mut core = Core::default();
-        core.worker_listen_port = worker_listen_port;
-        core.secret_key = secret_key;*/
         CoreRef::wrap(Core {
             worker_listen_port,
             secret_key,
             idle_timeout,
             custom_conn_handler,
-            event_storage: EventStorage::new(event_store_size),
             ..Default::default()
         })
     }
@@ -121,10 +114,6 @@ impl Core {
     }
 
     pub fn reset_waiting_resources(&mut self) {}
-
-    pub fn get_event_storage(&mut self) -> &mut EventStorage {
-        &mut self.event_storage
-    }
 
     pub fn get_server_info(&self) -> ServerInfo {
         ServerInfo {

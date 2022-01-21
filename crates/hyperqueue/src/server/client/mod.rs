@@ -8,12 +8,13 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{oneshot, Notify};
 
 use tako::messages::gateway::{
-    CancelTasks, FromGatewayMessage, MonitoringEventRequest, StopWorkerRequest, ToGatewayMessage,
+    CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage,
 };
 
 use crate::client::status::{job_status, Status};
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::ServerDir;
+use crate::events::MonitoringEvent;
 use crate::server::autoalloc::{
     DescriptorId, PbsHandler, QueueDescriptor, QueueHandler, QueueInfo, SlurmHandler,
 };
@@ -121,7 +122,13 @@ pub async fn client_rpc_loop<
                         handle_wait_for_jobs_message(&state_ref, msg.selector).await
                     }
                     FromClientMessage::MonitoringEvents(request) => {
-                        get_monitoring_events(&tako_ref, request).await
+                        let events: Vec<MonitoringEvent> = state_ref
+                            .get()
+                            .get_event_storage()
+                            .get_events_after(request.after_id.unwrap_or(0))
+                            .cloned()
+                            .collect();
+                        ToClientMessage::MonitoringEventsResponse(events)
                     }
                 };
                 assert!(tx.send(response).await.is_ok());
@@ -587,20 +594,4 @@ async fn handle_worker_info(state_ref: &StateRef, worker_id: WorkerId) -> ToClie
     let state = state_ref.get();
 
     ToClientMessage::WorkerInfoResponse(state.get_worker(worker_id).map(|w| w.make_info()))
-}
-
-async fn get_monitoring_events(
-    tako_ref: &Backend,
-    request: MonitoringEventRequest,
-) -> ToClientMessage {
-    let response = tako_ref
-        .send_tako_message(FromGatewayMessage::GetMonitoringEvents(request))
-        .await
-        .unwrap();
-    match response {
-        ToGatewayMessage::MonitoringEvents(events) => {
-            ToClientMessage::MonitoringEventsResponse(events)
-        }
-        _ => ToClientMessage::Error("Failed to fetch events".to_string()),
-    }
 }

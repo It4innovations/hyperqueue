@@ -1,51 +1,17 @@
-use crate::messages::gateway::LostWorkerReason;
-use crate::messages::worker::WorkerOverview;
-use crate::{static_assert_size, WorkerId};
-
-use crate::messages::common::WorkerConfiguration;
-use serde::{Deserialize, Serialize};
+use crate::events::events::MonitoringEventPayload;
+use crate::events::{MonitoringEvent, MonitoringEventId};
+use crate::WorkerId;
 use std::collections::VecDeque;
 use std::time::SystemTime;
+use tako::messages::common::WorkerConfiguration;
+use tako::messages::gateway::LostWorkerReason;
+use tako::messages::worker::WorkerOverview;
 
 pub struct EventStorage {
     event_store_size: usize,
     event_queue: VecDeque<MonitoringEvent>,
     last_event_id: u32,
 }
-
-pub type MonitoringEventId = u32;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MonitoringEvent {
-    pub id: MonitoringEventId,
-    pub time: SystemTime,
-    pub payload: MonitoringEventPayload,
-}
-
-impl MonitoringEvent {
-    #[inline]
-    pub fn id(&self) -> MonitoringEventId {
-        self.id
-    }
-    #[inline]
-    pub fn time(&self) -> SystemTime {
-        self.time
-    }
-    #[inline]
-    pub fn payload(&self) -> &MonitoringEventPayload {
-        &self.payload
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum MonitoringEventPayload {
-    WorkerConnected(WorkerId, Box<WorkerConfiguration>),
-    WorkerLost(WorkerId, LostWorkerReason),
-    OverviewUpdate(WorkerOverview),
-}
-
-// Keep the size of the event structure in check
-static_assert_size!(MonitoringEventPayload, 136);
 
 impl Default for EventStorage {
     fn default() -> Self {

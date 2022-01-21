@@ -5,6 +5,7 @@ use tako::messages::gateway::{
     TaskFailedMessage, TaskState, TaskUpdate, ToGatewayMessage,
 };
 
+use crate::events::storage::EventStorage;
 use crate::server::autoalloc::AutoAllocState;
 use crate::server::job::Job;
 use crate::server::rpc::Backend;
@@ -38,6 +39,7 @@ pub struct State {
     task_id_counter: <TaskId as ItemId>::IdType,
 
     autoalloc_state: AutoAllocState,
+    event_storage: EventStorage,
 }
 
 define_wrapped_type!(StateRef, State, pub);
@@ -221,10 +223,14 @@ impl State {
     pub fn get_autoalloc_state_mut(&mut self) -> &mut AutoAllocState {
         &mut self.autoalloc_state
     }
+
+    pub fn get_event_storage(&self) -> &EventStorage {
+        &self.event_storage
+    }
 }
 
 impl StateRef {
-    pub fn new(autoalloc_interval: Duration) -> StateRef {
+    pub fn new(autoalloc_interval: Duration, event_storage: EventStorage) -> StateRef {
         Self(WrappedRcRefCell::wrap(State {
             jobs: Default::default(),
             workers: Default::default(),
@@ -232,6 +238,7 @@ impl StateRef {
             job_id_counter: 1,
             task_id_counter: 1,
             autoalloc_state: AutoAllocState::new(autoalloc_interval),
+            event_storage,
         }))
     }
 }
