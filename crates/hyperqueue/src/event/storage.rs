@@ -1,5 +1,5 @@
-use crate::events::events::MonitoringEventPayload;
-use crate::events::{MonitoringEvent, MonitoringEventId};
+use crate::event::events::MonitoringEventPayload;
+use crate::event::{MonitoringEvent, MonitoringEventId};
 use crate::WorkerId;
 use std::collections::VecDeque;
 use std::time::SystemTime;
@@ -54,7 +54,7 @@ impl EventStorage {
     }
 
     #[inline]
-    pub fn on_remove_worker(&mut self, id: WorkerId, reason: LostWorkerReason) {
+    pub fn on_worker_lost(&mut self, id: WorkerId, reason: LostWorkerReason) {
         self.insert_event(MonitoringEventPayload::WorkerLost(id, reason));
     }
 

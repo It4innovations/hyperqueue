@@ -5,7 +5,7 @@ use tako::messages::gateway::{
     TaskFailedMessage, TaskState, TaskUpdate, ToGatewayMessage,
 };
 
-use crate::events::storage::EventStorage;
+use crate::event::storage::EventStorage;
 use crate::server::autoalloc::AutoAllocState;
 use crate::server::job::Job;
 use crate::server::rpc::Backend;
@@ -198,7 +198,9 @@ impl State {
 
     pub fn process_worker_new(&mut self, msg: NewWorkerMessage) {
         log::debug!("New worker id={}", msg.worker_id);
-        self.add_worker(Worker::new(msg.worker_id, msg.configuration));
+        self.add_worker(Worker::new(msg.worker_id, msg.configuration.clone()));
+        self.event_storage
+            .on_worker_added(msg.worker_id, msg.configuration);
     }
 
     pub fn process_worker_lost(&mut self, msg: LostWorkerMessage) {
@@ -214,18 +216,22 @@ impl State {
             let job = self.get_job_mut_by_tako_task_id(task_id).unwrap();
             job.set_waiting_state(task_id);
         }
+
+        self.event_storage.on_worker_lost(msg.worker_id, msg.reason);
     }
 
     pub fn get_autoalloc_state(&self) -> &AutoAllocState {
         &self.autoalloc_state
     }
-
     pub fn get_autoalloc_state_mut(&mut self) -> &mut AutoAllocState {
         &mut self.autoalloc_state
     }
 
     pub fn get_event_storage(&self) -> &EventStorage {
         &self.event_storage
+    }
+    pub fn get_event_storage_mut(&mut self) -> &mut EventStorage {
+        &mut self.event_storage
     }
 }
 

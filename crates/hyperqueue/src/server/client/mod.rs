@@ -14,7 +14,7 @@ use tako::messages::gateway::{
 use crate::client::status::{job_status, Status};
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::ServerDir;
-use crate::events::MonitoringEvent;
+use crate::event::MonitoringEvent;
 use crate::server::autoalloc::{
     DescriptorId, PbsHandler, QueueDescriptor, QueueHandler, QueueInfo, SlurmHandler,
 };

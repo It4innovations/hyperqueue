@@ -10,7 +10,7 @@ use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::serverdir::{default_server_directory, AccessRecord, ServerDir, SYMLINK_PATH};
-use crate::events::storage::EventStorage;
+use crate::event::storage::EventStorage;
 use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;

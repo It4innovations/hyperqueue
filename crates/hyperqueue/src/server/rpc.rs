@@ -108,10 +108,21 @@ impl Backend {
                         ToGatewayMessage::LostWorker(msg) => {
                             state_ref.get_mut().process_worker_lost(msg)
                         }
-                        m => {
+                        ToGatewayMessage::WorkerOverview(overview) => {
+                            state_ref
+                                .get_mut()
+                                .get_event_storage_mut()
+                                .on_overview_received(overview);
+                        }
+                        ToGatewayMessage::NewTasksResponse(_)
+                        | ToGatewayMessage::CancelTasksResponse(_)
+                        | ToGatewayMessage::TaskInfo(_)
+                        | ToGatewayMessage::Error(_)
+                        | ToGatewayMessage::ServerInfo(_)
+                        | ToGatewayMessage::WorkerStopped => {
                             let response =
                                 server2.inner.get_mut().tako_responses.pop_front().unwrap();
-                            response.send(m).unwrap();
+                            response.send(message).unwrap();
                         }
                     }
                 }
