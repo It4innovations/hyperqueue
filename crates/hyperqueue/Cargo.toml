@@ -46,6 +46,7 @@ tui = { version = "0.16" }
 termion = "1.5"
 indicatif = "0.16.2"
 textwrap = "0.14"
+async-compression = { version = "0.3.8", features = ["tokio", "gzip"] }
 
 # Tako
 tako = { path = "../tako" }

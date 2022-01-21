@@ -20,7 +20,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 // ID types
 use tako::define_id_type;
 
-pub type WorkerId = tako::WorkerId;
+pub use tako::WorkerId;
 pub type TakoTaskId = tako::TaskId;
 pub type Priority = tako::Priority;
 
