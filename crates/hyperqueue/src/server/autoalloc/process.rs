@@ -933,7 +933,7 @@ mod tests {
     }
 
     fn create_state(waiting_tasks: u32) -> StateRef {
-        let state = StateRef::new(Duration::from_millis(100));
+        let state = StateRef::new(Duration::from_millis(100), Default::default());
         if waiting_tasks > 0 {
             state
                 .get_mut()

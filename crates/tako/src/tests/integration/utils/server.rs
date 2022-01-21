@@ -72,6 +72,12 @@ impl<T> From<ToGatewayMessage> for MessageFilter<T> {
 }
 
 impl ServerHandle {
+    /// Removes currently received out-of-band messages, so that the next `recv_msg` call will
+    /// receive the latest data.
+    pub fn flush_messages(&mut self) {
+        self.out_of_band_messages.clear();
+    }
+
     pub async fn send(&self, msg: FromGatewayMessage) {
         assert_eq!(self.send_with_response(msg).await, None);
     }
@@ -91,8 +97,18 @@ impl ServerHandle {
     /// Use this to wait for a specific message to be received.
     pub async fn recv_msg<CheckMsg: FnMut(ToGatewayMessage) -> MessageFilter<T>, T>(
         &mut self,
-        mut check_fn: CheckMsg,
+        check_fn: CheckMsg,
     ) -> T {
+        self.recv_msg_with_timeout(check_fn, WAIT_TIMEOUT)
+            .await
+            .expect("Timeout reached when waiting for a specific message")
+    }
+
+    pub async fn recv_msg_with_timeout<CheckMsg: FnMut(ToGatewayMessage) -> MessageFilter<T>, T>(
+        &mut self,
+        mut check_fn: CheckMsg,
+        max_duration: Duration,
+    ) -> Option<T> {
         let mut found_oob = None;
         self.out_of_band_messages = std::mem::take(&mut self.out_of_band_messages)
             .into_iter()
@@ -111,7 +127,7 @@ impl ServerHandle {
             })
             .collect();
         if let Some(found) = found_oob {
-            return found;
+            return Some(found);
         }
 
         let fut = async move {
@@ -128,9 +144,9 @@ impl ServerHandle {
                 }
             }
         };
-        match timeout(WAIT_TIMEOUT, fut).await {
-            Ok(result) => result,
-            Err(_) => panic!("Timeout reached when waiting for a specific message"),
+        match timeout(max_duration, fut).await {
+            Ok(result) => Some(result),
+            Err(_) => None,
         }
     }
 
@@ -215,7 +231,6 @@ async fn create_handle(
         client_sender.clone(),
         config.panic_on_worker_lost,
         config.idle_timeout,
-        1_000_000,
         None,
     )
     .await

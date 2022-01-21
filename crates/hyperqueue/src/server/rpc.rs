@@ -155,8 +155,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_server_connect_worker() {
-        let state = StateRef::new(Duration::from_secs(1));
-        let (server, _fut) = Backend::start(state, Default::default(), None, None, 1_000_000)
+        let state = StateRef::new(Duration::from_secs(1), Default::default());
+        let (server, _fut) = Backend::start(state, Default::default(), None, None)
             .await
             .unwrap();
         TcpStream::connect(format!("127.0.0.1:{}", server.worker_port()))
@@ -166,8 +166,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_server_info() {
-        let state = StateRef::new(Duration::from_secs(1));
-        let (server, fut) = Backend::start(state, Default::default(), None, None, 1_000_000)
+        let state = StateRef::new(Duration::from_secs(1), Default::default());
+        let (server, fut) = Backend::start(state, Default::default(), None, None)
             .await
             .unwrap();
         run_concurrent(fut, async move {

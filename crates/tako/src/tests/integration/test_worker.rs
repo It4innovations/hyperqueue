@@ -2,15 +2,13 @@ use std::time::Duration;
 
 use tokio::time::sleep;
 
-use crate::messages::gateway::LostWorkerReason;
-use crate::server::events::events::MonitoringEventPayload;
-use crate::server::events::MonitoringEvent;
+use crate::messages::gateway::{LostWorkerReason, ToGatewayMessage};
 use crate::tests::integration::utils::api::{
-    get_current_event_id, get_latest_overview, wait_for_event, wait_for_task_start,
-    wait_for_worker_lost,
+    wait_for_task_start, wait_for_worker_connected, wait_for_worker_lost, wait_for_worker_overview,
 };
 use crate::tests::integration::utils::server::run_test;
 use crate::tests::integration::utils::task::{simple_task, GraphBuilder};
+use crate::try_wait_for_msg;
 
 use super::utils::server::ServerConfigBuilder;
 use super::utils::worker::WorkerConfigBuilder;
@@ -22,8 +20,8 @@ async fn test_hw_monitoring() {
             WorkerConfigBuilder::default().send_overview_interval(Some(Duration::from_millis(10)));
         let worker = handler.start_worker(config).await.unwrap();
 
-        let overview = get_latest_overview(&mut handler, vec![worker.id]).await;
-        let usage = overview[&worker.id]
+        let overview = wait_for_worker_overview(&mut handler, worker.id).await;
+        let usage = overview
             .hw_state
             .as_ref()
             .unwrap()
@@ -51,19 +49,7 @@ async fn test_worker_connected_event() {
                 .await
                 .unwrap();
 
-            wait_for_event(
-                &mut handler,
-                |event| {
-                    matches!(
-                        event.payload,
-                        MonitoringEventPayload::WorkerConnected(id, _) if id == worker.id
-                    )
-                },
-                Duration::from_secs(3),
-                None,
-            )
-            .await
-            .unwrap();
+            wait_for_worker_connected(&mut handler, worker.id).await;
         }
     })
     .await;
@@ -77,10 +63,10 @@ async fn test_worker_lost_killed() {
             .await
             .unwrap();
         handler.kill_worker(worker.id).await;
-        let event = wait_for_worker_lost(&mut handler, worker.id).await;
-        assert!(matches!(event.payload, MonitoringEventPayload::WorkerLost(id, LostWorkerReason::ConnectionLost) if id == worker.id));
+        let reason = wait_for_worker_lost(&mut handler, worker.id).await;
+        assert!(matches!(reason, LostWorkerReason::ConnectionLost));
     })
-        .await;
+    .await;
 }
 
 #[tokio::test]
@@ -91,10 +77,10 @@ async fn test_worker_lost_stopped() {
             .await
             .unwrap();
         handler.stop_worker(worker.id).await;
-        let event = wait_for_worker_lost(&mut handler, worker.id).await;
-        assert!(matches!(event.payload, MonitoringEventPayload::WorkerLost(id, LostWorkerReason::Stopped) if id == worker.id));
+        let reason = wait_for_worker_lost(&mut handler, worker.id).await;
+        assert!(matches!(reason, LostWorkerReason::Stopped));
     })
-        .await;
+    .await;
 }
 
 #[tokio::test]
@@ -104,8 +90,8 @@ async fn test_worker_lost_heartbeat_expired() {
         let worker = handler.start_worker(config).await.unwrap();
         let _token = worker.pause().await;
 
-        let event = wait_for_worker_lost(&mut handler, worker.id).await;
-        assert!(matches!(event.payload, MonitoringEventPayload::WorkerLost(id, LostWorkerReason::HeartbeatLost) if id == worker.id));
+        let reason = wait_for_worker_lost(&mut handler, worker.id).await;
+        assert!(matches!(reason, LostWorkerReason::HeartbeatLost));
     })
     .await;
 }
@@ -116,8 +102,8 @@ async fn test_worker_lost_idle_timeout() {
         let builder = WorkerConfigBuilder::default().idle_timeout(Some(Duration::from_millis(200)));
         let worker = handler.start_worker(builder).await.unwrap();
 
-        let event = wait_for_worker_lost(&mut handler, worker.id).await;
-        assert!(matches!(event.payload, MonitoringEventPayload::WorkerLost(id, LostWorkerReason::IdleTimeout) if id == worker.id));
+        let reason = wait_for_worker_lost(&mut handler, worker.id).await;
+        assert!(matches!(reason, LostWorkerReason::IdleTimeout));
     })
     .await;
 }
@@ -136,16 +122,8 @@ async fn test_worker_idle_timeout_stays_alive_with_tasks() {
         let builder = WorkerConfigBuilder::default().idle_timeout(Some(Duration::from_millis(250)));
         let worker = handler.start_worker(builder).await.unwrap();
 
-        let worker_lost_matcher = |event: &MonitoringEvent| match &event.payload {
-            MonitoringEventPayload::WorkerLost(id, _) if *id == worker.id => true,
-            _ => false,
-        };
-
-        let wait_duration = Duration::from_millis(900);
-        let event_id = get_current_event_id(&mut handler).await;
-        let event =
-            wait_for_event(&mut handler, worker_lost_matcher, wait_duration, event_id).await;
-        assert!(event.is_none());
+        let msg = try_wait_for_msg!(handler, Duration::from_millis(900), ToGatewayMessage::LostWorker(_) => true);
+        assert!(msg.is_none());
         wait_for_worker_lost(&mut handler, worker.id).await;
     })
     .await;
