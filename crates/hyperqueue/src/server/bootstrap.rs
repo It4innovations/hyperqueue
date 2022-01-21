@@ -1,15 +1,18 @@
 use std::future::Future;
 use std::net::{Ipv4Addr, SocketAddr};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::Arc;
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use tokio::net::TcpListener;
 use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::serverdir::{default_server_directory, AccessRecord, ServerDir, SYMLINK_PATH};
+use crate::event::log::start_event_streaming;
+use crate::event::log::EventLogWriter;
 use crate::event::storage::EventStorage;
 use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
@@ -31,7 +34,8 @@ pub struct ServerConfig {
     pub autoalloc_interval: Option<Duration>,
     pub client_port: Option<u16>,
     pub worker_port: Option<u16>,
-    pub event_store_size: usize,
+    pub event_buffer_size: usize,
+    pub event_log_file: Option<PathBuf>,
 }
 
 /// This function initializes the HQ server.
@@ -119,7 +123,7 @@ async fn initialize_server(
     let hq_secret_key = Arc::new(generate_key());
     let tako_secret_key = Arc::new(generate_key());
 
-    let event_storage = EventStorage::new(server_cfg.event_store_size);
+    let (event_storage, event_stream_fut) = prepare_event_management(&server_cfg).await?;
     let state_ref = StateRef::new(
         server_cfg
             .autoalloc_interval
@@ -180,10 +184,40 @@ async fn initialize_server(
             _ = crate::server::autoalloc::autoalloc_process(state_ref.clone()) => { Ok(()) }
             r = tako_future => { r.map_err(|e| e.into()) }
         };
+
+        log::debug!("Shutting down automatic allocator");
         crate::server::autoalloc::autoalloc_shutdown(state_ref).await;
+
+        log::debug!("Shutting down event streaming");
+        event_stream_fut.await;
+
         result
     };
     Ok((fut, end_flag_ret))
+}
+
+async fn prepare_event_management(
+    server_cfg: &ServerConfig,
+) -> anyhow::Result<(EventStorage, Pin<Box<dyn Future<Output = ()>>>)> {
+    Ok(if let Some(ref log_path) = server_cfg.event_log_file {
+        let writer = EventLogWriter::create(log_path).await.map_err(|error| {
+            anyhow!(
+                "Cannot create event log file at `{}`: {error:?}",
+                log_path.display()
+            )
+        })?;
+
+        let (tx, stream_fut) = start_event_streaming(writer);
+        (
+            EventStorage::new(server_cfg.event_buffer_size, Some(tx)),
+            Box::pin(stream_fut),
+        )
+    } else {
+        (
+            EventStorage::new(server_cfg.event_buffer_size, None),
+            Box::pin(futures::future::ready(())),
+        )
+    })
 }
 
 async fn start_server(
@@ -244,7 +278,8 @@ mod tests {
             autoalloc_interval: None,
             client_port: None,
             worker_port: None,
-            event_store_size: 1_000_000,
+            event_buffer_size: 1_000_000,
+            event_log_file: None,
         };
         initialize_server(&gsettings, server_cfg).await.unwrap()
     }

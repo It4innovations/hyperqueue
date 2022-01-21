@@ -1,4 +1,5 @@
 pub mod events;
+pub mod log;
 pub mod storage;
 
 use events::MonitoringEventPayload;
