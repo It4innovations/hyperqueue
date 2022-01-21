@@ -3,7 +3,8 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::messages::gateway::LostWorkerReason;
-use crate::server::monitoring::{MonitoringEvent, MonitoringEventPayload};
+use crate::server::events::events::MonitoringEventPayload;
+use crate::server::events::MonitoringEvent;
 use crate::tests::integration::utils::api::{
     get_current_event_id, get_latest_overview, wait_for_event, wait_for_task_start,
     wait_for_worker_lost,

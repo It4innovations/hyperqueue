@@ -10,7 +10,7 @@ use crate::messages::gateway::{
     LostWorkerMessage, LostWorkerReason, NewWorkerMessage, TaskFailedMessage, TaskState,
     TaskUpdate, ToGatewayMessage,
 };
-use crate::messages::worker::ToWorkerMessage;
+use crate::messages::worker::{ToWorkerMessage, WorkerOverview};
 use crate::server::task::SerializedTaskContext;
 use crate::transfer::auth::serialize;
 use crate::{TaskId, WorkerId};
@@ -27,7 +27,6 @@ pub trait Comm {
         worker_id: WorkerId,
         context: SerializedTaskContext,
     );
-    //fn send_client_task_removed(&mut self, task_id: TaskId);
     fn send_client_task_error(
         &mut self,
         task_id: TaskId,
@@ -42,6 +41,7 @@ pub trait Comm {
         running_tasks: Vec<TaskId>,
         reason: LostWorkerReason,
     );
+    fn send_client_worker_overview(&mut self, overview: WorkerOverview);
 }
 
 pub struct CommSender {
@@ -181,6 +181,15 @@ impl Comm for CommSender {
             }))
         {
             log::error!("Error while sending worker lost message to client: {:?}", e);
+        }
+    }
+
+    fn send_client_worker_overview(&mut self, overview: WorkerOverview) {
+        if let Err(error) = self
+            .client_sender
+            .send(ToGatewayMessage::WorkerOverview(overview))
+        {
+            log::error!("Error while sending worker overview message to client: {error:?}");
         }
     }
 }

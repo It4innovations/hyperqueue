@@ -6,7 +6,8 @@ use crate::messages::gateway::{
     TaskUpdate, ToGatewayMessage,
 };
 use crate::messages::worker::WorkerOverview;
-use crate::server::monitoring::{MonitoringEvent, MonitoringEventId, MonitoringEventPayload};
+use crate::server::events::events::MonitoringEventPayload;
+use crate::server::events::{MonitoringEvent, MonitoringEventId};
 use crate::tests::integration::utils::server::ServerHandle;
 use crate::{TaskId, WorkerId};
 use std::collections::HashMap;

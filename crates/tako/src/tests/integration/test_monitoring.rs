@@ -1,4 +1,4 @@
-use crate::server::monitoring::MonitoringEvent;
+use crate::server::events::MonitoringEvent;
 use crate::tests::integration::utils::api::get_events_after;
 use crate::tests::integration::utils::server::run_test;
 use crate::tests::integration::utils::worker::WorkerHandle;

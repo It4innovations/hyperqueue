@@ -4,8 +4,9 @@ use tako::common::WrappedRcRefCell;
 use tako::messages::common::WorkerConfiguration;
 use tako::messages::gateway::MonitoringEventRequest;
 use tako::messages::worker::WorkerOverview;
-use tako::server::monitoring::{MonitoringEvent, MonitoringEventPayload};
 
+use crate::events::events::MonitoringEventPayload;
+use crate::events::MonitoringEvent;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use crate::{rpc_call, WorkerId};

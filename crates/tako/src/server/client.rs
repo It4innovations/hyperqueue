@@ -11,7 +11,6 @@ use crate::messages::gateway::{
 use crate::messages::worker::ToWorkerMessage;
 use crate::server::comm::{Comm, CommSender, CommSenderRef};
 use crate::server::core::{Core, CoreRef};
-use crate::server::monitoring::MonitoringEvent;
 use crate::server::reactor::{on_cancel_tasks, on_new_tasks, on_set_observe_flag};
 use crate::server::task::{Task, TaskConfiguration, TaskInput, TaskRuntimeState};
 use crate::transfer::transport::make_protocol_builder;
@@ -195,20 +194,6 @@ pub async fn process_client_message(
             } else {
                 Some(format!("Worker with id {} not found", msg.worker_id))
             }
-        }
-        FromGatewayMessage::GetMonitoringEvents(request) => {
-            let after_id = request.after_id.unwrap_or(0);
-
-            let mut core = core_ref.get_mut();
-            let events: Vec<MonitoringEvent> = core
-                .get_event_storage()
-                .get_events_after(after_id)
-                .cloned()
-                .collect();
-            assert!(client_sender
-                .send(ToGatewayMessage::MonitoringEvents(events))
-                .is_ok());
-            None
         }
     }
 }

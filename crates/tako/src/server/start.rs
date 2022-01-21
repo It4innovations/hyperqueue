@@ -22,7 +22,6 @@ pub async fn server_start(
     client_sender: UnboundedSender<ToGatewayMessage>,
     panic_on_worker_lost: bool,
     idle_timeout: Option<Duration>,
-    event_store_size: usize,
     custom_conn_handler: Option<CustomConnectionHandler>,
 ) -> crate::Result<(
     CoreRef,
@@ -40,13 +39,7 @@ pub async fn server_start(
         client_sender,
         panic_on_worker_lost,
     );
-    let core_ref = CoreRef::new(
-        listener_port,
-        secret_key,
-        idle_timeout,
-        event_store_size,
-        custom_conn_handler,
-    );
+    let core_ref = CoreRef::new(listener_port, secret_key, idle_timeout, custom_conn_handler);
     let connections =
         crate::server::rpc::connection_initiator(listener, core_ref.clone(), comm_ref.clone());
 

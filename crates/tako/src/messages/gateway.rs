@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::common::resources::CpuRequest;
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
-use crate::server::monitoring::MonitoringEvent;
+use crate::messages::worker::WorkerOverview;
 use crate::server::task::SerializedTaskContext;
 use crate::{Priority, TaskId, WorkerId};
 use std::time::Duration;
@@ -96,7 +96,6 @@ pub enum FromGatewayMessage {
     CancelTasks(CancelTasks),
     GetTaskInfo(TaskInfoRequest),
     ServerInfo,
-    GetMonitoringEvents(MonitoringEventRequest),
     StopWorker(StopWorkerRequest),
 }
 
@@ -220,6 +219,6 @@ pub enum ToGatewayMessage {
     ServerInfo(ServerInfo),
     NewWorker(NewWorkerMessage),
     LostWorker(LostWorkerMessage),
+    WorkerOverview(WorkerOverview),
     WorkerStopped,
-    MonitoringEvents(Vec<MonitoringEvent>),
 }

@@ -10,6 +10,7 @@ use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::serverdir::{default_server_directory, AccessRecord, ServerDir, SYMLINK_PATH};
+use crate::events::storage::EventStorage;
 use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
@@ -118,17 +119,18 @@ async fn initialize_server(
     let hq_secret_key = Arc::new(generate_key());
     let tako_secret_key = Arc::new(generate_key());
 
+    let event_storage = EventStorage::new(server_cfg.event_store_size);
     let state_ref = StateRef::new(
         server_cfg
             .autoalloc_interval
             .unwrap_or(DEFAULT_AUTOALLOC_REFRESH_INTERVAL),
+        event_storage,
     );
     let (tako_server, tako_future) = Backend::start(
         state_ref.clone(),
         tako_secret_key.clone(),
         server_cfg.idle_timeout,
         server_cfg.worker_port,
-        server_cfg.event_store_size,
     )
     .await?;
 
