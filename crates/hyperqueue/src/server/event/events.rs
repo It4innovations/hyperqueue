@@ -1,3 +1,4 @@
+use crate::server::autoalloc::AllocationId;
 use crate::server::autoalloc::DescriptorId;
 use crate::transfer::messages::AllocationQueueParams;
 use crate::WorkerId;
@@ -16,6 +17,12 @@ pub enum MonitoringEventPayload {
     // Allocations
     AllocationQueueCreated(DescriptorId, Box<AllocationQueueParams>),
     AllocationQueueRemoved(DescriptorId),
+    AllocationQueued {
+        allocation_id: AllocationId,
+        worker_count: u64,
+    },
+    AllocationStarted(AllocationId),
+    AllocationFinished(AllocationId),
 }
 
 // Keep the size of the event structure in check
