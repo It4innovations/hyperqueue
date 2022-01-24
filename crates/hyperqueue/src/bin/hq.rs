@@ -14,8 +14,7 @@ use hyperqueue::client::commands::job::{
     JobCancelOpts, JobCatOpts, JobInfoOpts, JobListOpts, JobTasksOpts,
 };
 use hyperqueue::client::commands::log::{command_log, LogOpts};
-use hyperqueue::client::commands::stats::print_server_stats;
-use hyperqueue::client::commands::stop::stop_server;
+use hyperqueue::client::commands::server::{command_server, ServerOpts};
 use hyperqueue::client::commands::submit::{
     resubmit_computation, submit_computation, JobResubmitOpts, JobSubmitOpts,
 };
@@ -32,11 +31,8 @@ use hyperqueue::client::output::quiet::Quiet;
 use hyperqueue::common::cli::SelectorArg;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
-use hyperqueue::common::timeutils::ArgDuration;
 use hyperqueue::dashboard::ui_loop::start_ui_loop;
-use hyperqueue::server::bootstrap::{
-    get_client_connection, init_hq_server, print_server_info, ServerConfig,
-};
+use hyperqueue::server::bootstrap::get_client_connection;
 use hyperqueue::transfer::messages::{FromClientMessage, JobInfoRequest, ToClientMessage};
 use hyperqueue::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resource};
 use hyperqueue::WorkerId;
@@ -118,64 +114,6 @@ enum SubCommand {
     Dashboard(DashboardOpts),
     /// Generate shell completion script
     GenerateCompletion(GenerateCompletionOpts),
-}
-
-// Server CLI options
-#[derive(Parser)]
-struct ServerStartOpts {
-    /// Hostname/IP of the machine under which is visible to others, default: hostname
-    #[clap(long)]
-    host: Option<String>,
-
-    /// Duration after which will an idle worker automatically stop
-    #[clap(long)]
-    idle_timeout: Option<ArgDuration>,
-
-    /// How often should the auto allocator perform its actions
-    #[clap(long)]
-    autoalloc_interval: Option<ArgDuration>,
-
-    /// Port for client connections (used e.g. for `hq submit`)
-    #[clap(long)]
-    client_port: Option<u16>,
-
-    /// Port for worker connections
-    #[clap(long)]
-    worker_port: Option<u16>,
-
-    /// The maximum number of events tako server will store in memory
-    #[clap(long, default_value = "1000000")]
-    event_store_size: usize,
-
-    /// Path to a log file where events will be stored.
-    #[clap(long, hide(true))]
-    event_log_path: Option<PathBuf>,
-}
-
-#[derive(Parser)]
-struct ServerStopOpts {}
-
-#[derive(Parser)]
-struct ServerInfoOpts {
-    /// Show internal internal state of server
-    #[clap(long)]
-    stats: bool,
-}
-
-#[derive(Parser)]
-struct ServerOpts {
-    #[clap(subcommand)]
-    subcmd: ServerCommand,
-}
-
-#[derive(Parser)]
-enum ServerCommand {
-    /// Start the HyperQueue server
-    Start(ServerStartOpts),
-    /// Stop the HyperQueue server, if it is running
-    Stop(ServerStopOpts),
-    /// Show info of running HyperQueue server
-    Info(ServerInfoOpts),
 }
 
 // Worker CLI options
@@ -286,46 +224,6 @@ struct GenerateCompletionOpts {
 }
 
 // Commands
-
-async fn command_server_start(
-    gsettings: &GlobalSettings,
-    opts: ServerStartOpts,
-) -> anyhow::Result<()> {
-    let server_cfg = ServerConfig {
-        host: opts
-            .host
-            .unwrap_or_else(|| gethostname::gethostname().into_string().unwrap()),
-        idle_timeout: opts.idle_timeout.map(|x| x.unpack()),
-        autoalloc_interval: opts.autoalloc_interval.map(|x| x.unpack()),
-        client_port: opts.client_port,
-        worker_port: opts.worker_port,
-        event_buffer_size: opts.event_store_size,
-        event_log_path: opts.event_log_path,
-    };
-
-    init_hq_server(gsettings, server_cfg).await
-}
-
-async fn command_server_stop(
-    gsettings: &GlobalSettings,
-    _opts: ServerStopOpts,
-) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    stop_server(&mut connection).await?;
-    Ok(())
-}
-
-async fn command_server_info(
-    gsettings: &GlobalSettings,
-    opts: ServerInfoOpts,
-) -> anyhow::Result<()> {
-    if opts.stats {
-        let mut connection = get_client_connection(gsettings.server_directory()).await?;
-        print_server_stats(gsettings, &mut connection).await
-    } else {
-        print_server_info(gsettings).await
-    }
-}
 
 async fn command_job_list(gsettings: &GlobalSettings, opts: JobListOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
@@ -546,15 +444,7 @@ async fn main() -> hyperqueue::Result<()> {
     let gsettings = make_global_settings(top_opts.common);
 
     let result = match top_opts.subcmd {
-        SubCommand::Server(ServerOpts {
-            subcmd: ServerCommand::Start(opts),
-        }) => command_server_start(&gsettings, opts).await,
-        SubCommand::Server(ServerOpts {
-            subcmd: ServerCommand::Stop(opts),
-        }) => command_server_stop(&gsettings, opts).await,
-        SubCommand::Server(ServerOpts {
-            subcmd: ServerCommand::Info(opts),
-        }) => command_server_info(&gsettings, opts).await,
+        SubCommand::Server(opts) => command_server(&gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Start(opts),
         }) => command_worker_start(&gsettings, opts).await,
