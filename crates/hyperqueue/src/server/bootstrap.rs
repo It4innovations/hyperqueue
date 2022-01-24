@@ -14,6 +14,7 @@ use crate::common::serverdir::{default_server_directory, AccessRecord, ServerDir
 use crate::server::event::log::start_event_streaming;
 use crate::server::event::log::EventLogWriter;
 use crate::server::event::storage::EventStorage;
+use crate::server::replay::replay_server_state;
 use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
@@ -36,6 +37,7 @@ pub struct ServerConfig {
     pub worker_port: Option<u16>,
     pub event_buffer_size: usize,
     pub event_log_path: Option<PathBuf>,
+    pub restore_from: Option<PathBuf>,
 }
 
 /// This function initializes the HQ server.
@@ -130,6 +132,10 @@ async fn initialize_server(
             .unwrap_or(DEFAULT_AUTOALLOC_REFRESH_INTERVAL),
         event_storage,
     );
+    if let Some(path) = server_cfg.restore_from {
+        replay_server_state(&mut state_ref.get_mut(), &path).await?;
+    }
+
     let (tako_server, tako_future) = Backend::start(
         state_ref.clone(),
         tako_secret_key.clone(),

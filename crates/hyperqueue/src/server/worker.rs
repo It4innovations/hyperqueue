@@ -41,14 +41,18 @@ impl Worker {
         });
     }
 
+    pub fn ended(&self) -> Option<WorkerExitInfo> {
+        match &self.state {
+            WorkerState::Online => None,
+            Offline(d) => Some(d.clone()),
+        }
+    }
+
     pub fn make_info(&self) -> WorkerInfo {
         WorkerInfo {
             id: self.worker_id,
             configuration: self.configuration.clone(),
-            ended: match &self.state {
-                WorkerState::Online => None,
-                Offline(d) => Some(d.clone()),
-            },
+            ended: self.ended(),
         }
     }
 }

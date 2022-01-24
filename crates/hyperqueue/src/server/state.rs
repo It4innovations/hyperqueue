@@ -95,6 +95,11 @@ impl State {
         assert!(self.workers.insert(worker_id, worker).is_none())
     }
 
+    pub fn remove_worker(&mut self, worker_id: WorkerId, reason: LostWorkerReason) {
+        let worker = self.workers.get_mut(&worker_id).unwrap();
+        worker.set_offline_state(reason);
+    }
+
     pub fn add_job(&mut self, job: Job) {
         let job_id = job.job_id;
         assert!(self
@@ -205,13 +210,8 @@ impl State {
 
     pub fn process_worker_lost(&mut self, msg: LostWorkerMessage) {
         log::debug!("Worker lost id={}", msg.worker_id);
-        let worker = self.workers.get_mut(&msg.worker_id).unwrap();
-        worker.set_offline_state(match msg.reason {
-            LostWorkerReason::Stopped => LostWorkerReason::Stopped,
-            LostWorkerReason::ConnectionLost => LostWorkerReason::ConnectionLost,
-            LostWorkerReason::HeartbeatLost => LostWorkerReason::HeartbeatLost,
-            LostWorkerReason::IdleTimeout => LostWorkerReason::IdleTimeout,
-        });
+        self.remove_worker(msg.worker_id, msg.reason.clone());
+
         for task_id in msg.running_tasks {
             let job = self.get_job_mut_by_tako_task_id(task_id).unwrap();
             job.set_waiting_state(task_id);
