@@ -1,4 +1,4 @@
-# DEV
+# 0.8.0
 
 ## Fixes
 
@@ -51,17 +51,9 @@
    * Capturing stdio and attaching it to each task of a job. This can be used to submitting scripts
      without creating file. The following command will capture stdin and executes it in Bash 
 
-    ```bash
-    $ hq submit --stdin bash
-    ```
-
-   * You can now store HyperQueue events into a log file and later export them to JSON for further
-     processing. You can find more information in the
-     [documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/directives/). 
-
-     *Note that this functionality is quite low-level, and it's designed primarily for
-     tool builders that use HyperQueue programmatically, not regular users. It is also currently
-     unstable.*
+     ```bash
+     $ hq submit --stdin bash
+     ```
 
 ### Worker configuration
   * You can now select what should happen when a worker loses its connection to the server using the
@@ -107,6 +99,24 @@ individual tasks of a job, please use the new `hq job tasks <job-id>` command.
 
 * Tables outputted by various informational commands (like `hq job info` or `hq worker list`)
 are now more densely packed and should thus better fit on terminal screens.
+
+
+## Preview features
+
+* You can now store HyperQueue events into a log file and later export them to JSON for further
+     processing. You can find more information in the
+     [documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/directives/). 
+
+     *Note that this functionality is quite low-level, and it's designed primarily for
+     tool builders that use HyperQueue programmatically, not regular users. It is also currently
+     unstable.*
+
+* Release the preview version of HQ dashboard. It can be started via:
+
+  ```bash
+  $ hq dashboard
+  ```
+
 
 # v0.7.0
 
