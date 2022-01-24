@@ -11,9 +11,9 @@ use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::serverdir::{default_server_directory, AccessRecord, ServerDir, SYMLINK_PATH};
-use crate::event::log::start_event_streaming;
-use crate::event::log::EventLogWriter;
-use crate::event::storage::EventStorage;
+use crate::server::event::log::start_event_streaming;
+use crate::server::event::log::EventLogWriter;
+use crate::server::event::storage::EventStorage;
 use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;

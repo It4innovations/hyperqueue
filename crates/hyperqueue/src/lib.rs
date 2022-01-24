@@ -8,7 +8,6 @@ pub mod stream;
 pub mod transfer;
 pub mod worker;
 
-pub mod event;
 #[cfg(test)]
 pub(crate) mod tests;
 

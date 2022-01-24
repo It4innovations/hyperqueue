@@ -14,10 +14,10 @@ use tako::messages::gateway::{
 use crate::client::status::{job_status, Status};
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::ServerDir;
-use crate::event::MonitoringEvent;
 use crate::server::autoalloc::{
     DescriptorId, PbsHandler, QueueDescriptor, QueueHandler, QueueInfo, SlurmHandler,
 };
+use crate::server::event::MonitoringEvent;
 use crate::server::job::JobTaskCounters;
 use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};

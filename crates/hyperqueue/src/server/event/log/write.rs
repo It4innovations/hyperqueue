@@ -1,5 +1,5 @@
-use crate::event::log::canonical_header;
-use crate::event::MonitoringEvent;
+use crate::server::event::log::canonical_header;
+use crate::server::event::MonitoringEvent;
 use async_compression::tokio::write::GzipEncoder;
 use async_compression::Level;
 use std::path::Path;

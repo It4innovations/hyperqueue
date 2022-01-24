@@ -1,6 +1,6 @@
-use crate::event::events::MonitoringEventPayload;
-use crate::event::log::EventStreamSender;
-use crate::event::{MonitoringEvent, MonitoringEventId};
+use crate::server::event::events::MonitoringEventPayload;
+use crate::server::event::log::EventStreamSender;
+use crate::server::event::{MonitoringEvent, MonitoringEventId};
 use crate::WorkerId;
 use std::collections::VecDeque;
 use std::time::SystemTime;

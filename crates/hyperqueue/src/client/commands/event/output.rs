@@ -1,6 +1,6 @@
 use crate::client::output::json::format_datetime;
-use crate::event::events::MonitoringEventPayload;
-use crate::event::MonitoringEvent;
+use crate::server::event::events::MonitoringEventPayload;
+use crate::server::event::MonitoringEvent;
 use serde_json::json;
 use tako::messages::worker::WorkerOverview;
 
