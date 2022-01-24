@@ -251,7 +251,6 @@ mod tests {
     use tempdir::TempDir;
     use tokio::sync::Notify;
 
-    use crate::client::commands::stop::stop_server;
     use crate::common::serverdir::{store_access_record, AccessRecord, ServerDir, SYMLINK_PATH};
     use crate::server::bootstrap::{
         get_client_connection, get_server_status, initialize_server, ServerConfig,
@@ -260,6 +259,7 @@ mod tests {
     use super::ServerStatus;
     use crate::client::globalsettings::GlobalSettings;
     use crate::client::output::cli::CliOutput;
+    use crate::client::server::client_stop_server;
     use crate::tests::utils::run_concurrent;
     use cli_table::ColorChoice;
     use std::future::Future;
@@ -328,7 +328,7 @@ mod tests {
         let (fut, _) = init_test_server(&tmp_dir).await;
         let (set, handle) = run_concurrent(fut, async {
             let mut connection = get_client_connection(&tmp_dir).await.unwrap();
-            stop_server(&mut connection).await.unwrap();
+            client_stop_server(&mut connection).await.unwrap();
         })
         .await;
         set.run_until(handle).await.unwrap().unwrap();
