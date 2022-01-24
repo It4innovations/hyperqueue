@@ -11,6 +11,11 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
+         <loc>https://it4innovations.github.io/hyperqueue/stable/events/</loc>
+         <lastmod>2022-01-24</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/faq/</loc>
          <lastmod>2022-01-24</lastmod>
          <changefreq>daily</changefreq>
