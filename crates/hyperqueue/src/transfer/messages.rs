@@ -149,7 +149,7 @@ pub enum AutoAllocRequest {
     },
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AllocationQueueParams {
     pub workers_per_alloc: u32,
     pub backlog: u32,
