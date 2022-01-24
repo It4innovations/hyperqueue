@@ -1,6 +1,6 @@
 use crate::common::strutils::pluralize;
-use crate::event::log::write::EventLogWriter;
-use crate::event::MonitoringEvent;
+use crate::server::event::log::write::EventLogWriter;
+use crate::server::event::MonitoringEvent;
 use std::future::Future;
 use std::time::Duration;
 use tokio::sync::mpsc;

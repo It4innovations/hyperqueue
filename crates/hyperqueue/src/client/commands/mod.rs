@@ -3,7 +3,6 @@ pub mod event;
 pub mod job;
 pub mod log;
 pub mod server;
-pub mod stats;
 pub mod submit;
 pub mod wait;
 pub mod worker;

@@ -2,7 +2,7 @@ mod output;
 
 use crate::client::commands::event::output::format_event;
 use crate::common::strutils::pluralize;
-use crate::event::log::EventLogReader;
+use crate::server::event::log::EventLogReader;
 use anyhow::anyhow;
 use clap::{Parser, ValueHint};
 use std::io::{BufWriter, Write};

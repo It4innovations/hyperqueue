@@ -5,8 +5,8 @@ use tako::messages::gateway::{
     TaskFailedMessage, TaskState, TaskUpdate, ToGatewayMessage,
 };
 
-use crate::event::storage::EventStorage;
 use crate::server::autoalloc::AutoAllocState;
+use crate::server::event::storage::EventStorage;
 use crate::server::job::Job;
 use crate::server::rpc::Backend;
 use crate::server::worker::Worker;

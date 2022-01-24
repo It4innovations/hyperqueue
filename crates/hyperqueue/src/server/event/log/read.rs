@@ -1,5 +1,5 @@
-use crate::event::log::{canonical_header, LogFileHeader};
-use crate::event::MonitoringEvent;
+use crate::server::event::log::{canonical_header, LogFileHeader};
+use crate::server::event::MonitoringEvent;
 use anyhow::anyhow;
 use flate2::read::GzDecoder;
 use rmp_serde::decode::Error;
@@ -49,11 +49,11 @@ impl Iterator for EventLogReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::event::events::MonitoringEventPayload;
-    use crate::event::log::{
+    use crate::server::event::events::MonitoringEventPayload;
+    use crate::server::event::log::{
         EventLogReader, EventLogWriter, LogFileHeader, HQ_LOG_HEADER, HQ_LOG_VERSION,
     };
-    use crate::event::MonitoringEvent;
+    use crate::server::event::MonitoringEvent;
     use std::fs::File;
     use std::io::Write;
     use std::time::SystemTime;
