@@ -173,6 +173,7 @@ impl State {
                 cancel_tasks_from_callback(state_ref, tako_ref, job.job_id, task_ids);
             }
         }
+        self.event_storage.on_task_finished(msg.id);
     }
 
     pub fn process_task_update(&mut self, msg: TaskUpdate, backend: &Backend) {
@@ -180,15 +181,17 @@ impl State {
         match msg.state {
             TaskState::Running { worker_id, context } => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
-                job.set_running_state(msg.id, worker_id, context)
+                job.set_running_state(msg.id, worker_id, context);
+                self.event_storage.on_task_started(msg.id, worker_id);
             }
             TaskState::Finished => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
-                job.set_finished_state(msg.id, backend)
+                job.set_finished_state(msg.id, backend);
+                self.event_storage.on_task_finished(msg.id);
             }
             TaskState::Waiting => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
-                job.set_waiting_state(msg.id)
+                job.set_waiting_state(msg.id);
             }
             TaskState::Invalid => {
                 unreachable!()
