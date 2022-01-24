@@ -55,6 +55,13 @@
     $ hq submit --stdin bash
     ```
 
+   * You can now store HyperQueue events into a log file and later export them to JSON for further
+     processing. You can find more information in the
+     [documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/directives/). 
+
+     *Note that this functionality is quite low-level, and it's designed primarily for
+     tool builders that use HyperQueue programmatically, not regular users. It is also currently
+     unstable.*
 
 ### Worker configuration
   * You can now select what should happen when a worker loses its connection to the server using the

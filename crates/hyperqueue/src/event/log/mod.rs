@@ -1,6 +1,8 @@
+mod read;
 mod stream;
 mod write;
 
+pub use read::EventLogReader;
 pub use stream::{start_event_streaming, EventStreamSender};
 pub use write::EventLogWriter;
 

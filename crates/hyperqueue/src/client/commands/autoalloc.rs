@@ -42,13 +42,13 @@ enum AutoAllocCommand {
 }
 
 #[derive(Parser)]
-pub struct AddQueueOpts {
+struct AddQueueOpts {
     #[clap(subcommand)]
     subcmd: AddQueueCommand,
 }
 
 #[derive(Parser)]
-pub struct RemoveQueueOpts {
+struct RemoveQueueOpts {
     /// ID of the allocation queue that should be removed
     queue_id: DescriptorId,
 
@@ -59,7 +59,7 @@ pub struct RemoveQueueOpts {
 }
 
 #[derive(Parser)]
-pub enum AddQueueCommand {
+enum AddQueueCommand {
     /// Create a PBS allocation queue
     Pbs(SharedQueueOpts),
     /// Create a SLURM allocation queue
@@ -68,7 +68,7 @@ pub enum AddQueueCommand {
 
 #[derive(Parser)]
 #[clap(setting = clap::AppSettings::TrailingVarArg)]
-pub struct SharedQueueOpts {
+struct SharedQueueOpts {
     /// How many jobs should be waiting in the queue to be started
     #[clap(long, short, default_value = "4")]
     backlog: u32,
@@ -116,13 +116,13 @@ pub struct SharedQueueOpts {
 }
 
 #[derive(Parser)]
-pub struct DryRunOpts {
+struct DryRunOpts {
     #[clap(subcommand)]
     subcmd: DryRunCommand,
 }
 
 #[derive(Parser)]
-pub enum DryRunCommand {
+enum DryRunCommand {
     /// Try to create a PBS allocation
     Pbs(SharedQueueOpts),
     /// Try to create a SLURM allocation
@@ -130,13 +130,13 @@ pub enum DryRunCommand {
 }
 
 #[derive(Parser)]
-pub struct EventsOpts {
+struct EventsOpts {
     /// ID of the allocation queue
     queue: u32,
 }
 
 #[derive(Parser)]
-pub struct AllocationsOpts {
+struct AllocationsOpts {
     /// ID of the allocation queue
     queue: u32,
 

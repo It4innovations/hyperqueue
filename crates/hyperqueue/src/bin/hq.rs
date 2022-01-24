@@ -8,6 +8,7 @@ use cli_table::ColorChoice;
 
 use clap::ArgSettings::HiddenShortHelp;
 use hyperqueue::client::commands::autoalloc::{command_autoalloc, AutoAllocOpts};
+use hyperqueue::client::commands::event::{command_event_log, EventLogOpts};
 use hyperqueue::client::commands::job::{
     cancel_job, output_job_cat, output_job_detail, output_job_list, output_job_tasks,
     JobCancelOpts, JobCatOpts, JobInfoOpts, JobListOpts, JobTasksOpts,
@@ -111,6 +112,8 @@ enum SubCommand {
     /// Automatic allocation management
     #[clap(name = "alloc")]
     AutoAlloc(AutoAllocOpts),
+    /// Event log management
+    EventLog(EventLogOpts),
     ///Commands for the dashboard
     Dashboard(DashboardOpts),
     /// Generate shell completion script
@@ -146,7 +149,7 @@ struct ServerStartOpts {
 
     /// Path to a log file where events will be stored.
     #[clap(long, hide(true))]
-    event_log_file: Option<PathBuf>,
+    event_log_path: Option<PathBuf>,
 }
 
 #[derive(Parser)]
@@ -297,7 +300,7 @@ async fn command_server_start(
         client_port: opts.client_port,
         worker_port: opts.worker_port,
         event_buffer_size: opts.event_store_size,
-        event_log_file: opts.event_log_file,
+        event_log_path: opts.event_log_path,
     };
 
     init_hq_server(gsettings, server_cfg).await
@@ -601,6 +604,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Dashboard(opts) => command_dashboard_start(&gsettings, opts).await,
         SubCommand::Log(opts) => command_log(&gsettings, opts),
         SubCommand::AutoAlloc(opts) => command_autoalloc(&gsettings, opts).await,
+        SubCommand::EventLog(opts) => command_event_log(opts),
         SubCommand::GenerateCompletion(opts) => generate_completion(opts),
     };
 

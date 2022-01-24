@@ -35,7 +35,7 @@ pub struct ServerConfig {
     pub client_port: Option<u16>,
     pub worker_port: Option<u16>,
     pub event_buffer_size: usize,
-    pub event_log_file: Option<PathBuf>,
+    pub event_log_path: Option<PathBuf>,
 }
 
 /// This function initializes the HQ server.
@@ -188,6 +188,8 @@ async fn initialize_server(
         log::debug!("Shutting down automatic allocator");
         crate::server::autoalloc::autoalloc_shutdown(state_ref).await;
 
+        // StateRef needs to be dropped at this moment, because it may contain a sender
+        // that has to be shut-down for `event_stream_fut` to resolve.
         log::debug!("Shutting down event streaming");
         event_stream_fut.await;
 
@@ -199,7 +201,7 @@ async fn initialize_server(
 async fn prepare_event_management(
     server_cfg: &ServerConfig,
 ) -> anyhow::Result<(EventStorage, Pin<Box<dyn Future<Output = ()>>>)> {
-    Ok(if let Some(ref log_path) = server_cfg.event_log_file {
+    Ok(if let Some(ref log_path) = server_cfg.event_log_path {
         let writer = EventLogWriter::create(log_path).await.map_err(|error| {
             anyhow!(
                 "Cannot create event log file at `{}`: {error:?}",
@@ -279,7 +281,7 @@ mod tests {
             client_port: None,
             worker_port: None,
             event_buffer_size: 1_000_000,
-            event_log_file: None,
+            event_log_path: None,
         };
         initialize_server(&gsettings, server_cfg).await.unwrap()
     }
