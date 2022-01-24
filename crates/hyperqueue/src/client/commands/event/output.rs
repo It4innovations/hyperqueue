@@ -23,10 +23,24 @@ fn format_payload(event: MonitoringEventPayload) -> serde_json::Value {
             "id": id,
             "reason": reason
         }),
-        MonitoringEventPayload::OverviewUpdate(WorkerOverview { id, hw_state, .. }) => json!({
-            "type": "worker-overview",
-            "id": id,
-            "hw_state": hw_state
-        }),
+        MonitoringEventPayload::WorkerOverviewReceived(WorkerOverview { id, hw_state, .. }) => {
+            json!({
+                "type": "worker-overview",
+                "id": id,
+                "hw_state": hw_state
+            })
+        }
+        MonitoringEventPayload::AllocationQueueCreated(id, _params) => {
+            json!({
+                "type": "autoalloc-queue-created",
+                "id": id
+            })
+        }
+        MonitoringEventPayload::AllocationQueueRemoved(id) => {
+            json!({
+                "type": "autoalloc-queue-removed",
+                "id": id
+            })
+        }
     }
 }

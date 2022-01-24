@@ -1,6 +1,8 @@
+use crate::server::autoalloc::DescriptorId;
 use crate::server::event::events::MonitoringEventPayload;
 use crate::server::event::log::EventStreamSender;
 use crate::server::event::{MonitoringEvent, MonitoringEventId};
+use crate::transfer::messages::AllocationQueueParams;
 use crate::WorkerId;
 use std::collections::VecDeque;
 use std::time::SystemTime;
@@ -49,7 +51,6 @@ impl EventStorage {
             .take_while(move |event| event.id > id)
     }
 
-    #[inline]
     pub fn on_worker_added(&mut self, id: WorkerId, configuration: WorkerConfiguration) {
         self.insert_event(MonitoringEventPayload::WorkerConnected(
             id,
@@ -57,14 +58,30 @@ impl EventStorage {
         ));
     }
 
-    #[inline]
     pub fn on_worker_lost(&mut self, id: WorkerId, reason: LostWorkerReason) {
         self.insert_event(MonitoringEventPayload::WorkerLost(id, reason));
     }
 
     #[inline]
     pub fn on_overview_received(&mut self, worker_overview: WorkerOverview) {
-        self.insert_event(MonitoringEventPayload::OverviewUpdate(worker_overview));
+        self.insert_event(MonitoringEventPayload::WorkerOverviewReceived(
+            worker_overview,
+        ));
+    }
+
+    pub fn on_allocation_queue_created(
+        &mut self,
+        id: DescriptorId,
+        parameters: AllocationQueueParams,
+    ) {
+        self.insert_event(MonitoringEventPayload::AllocationQueueCreated(
+            id,
+            Box::new(parameters),
+        ))
+    }
+
+    pub fn on_allocation_queue_removed(&mut self, id: DescriptorId) {
+        self.insert_event(MonitoringEventPayload::AllocationQueueRemoved(id))
     }
 
     fn insert_event(&mut self, payload: MonitoringEventPayload) {

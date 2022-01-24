@@ -71,7 +71,7 @@ impl DashboardData {
 
     fn query_last_overview_for(&self, worker_id: WorkerId) -> Option<&WorkerOverview> {
         for evt in self.events.iter().rev() {
-            if let MonitoringEventPayload::OverviewUpdate(overview) = &evt.payload {
+            if let MonitoringEventPayload::WorkerOverviewReceived(overview) = &evt.payload {
                 if worker_id == overview.id {
                     return Some(overview);
                 }

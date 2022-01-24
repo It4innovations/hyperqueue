@@ -12,7 +12,7 @@ use crate::common::timeutils::ExtendedArgDuration;
 use crate::rpc_call;
 use crate::server::autoalloc::{Allocation, AllocationStatus, DescriptorId};
 use crate::server::bootstrap::get_client_connection;
-use crate::server::client::{create_allocation_handler, create_queue_info};
+use crate::server::client::autoalloc::{create_allocation_handler, create_queue_info};
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
     AllocationQueueParams, AutoAllocRequest, AutoAllocResponse, FromClientMessage, ToClientMessage,
