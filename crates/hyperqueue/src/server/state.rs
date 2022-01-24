@@ -233,6 +233,10 @@ impl State {
     pub fn get_event_storage_mut(&mut self) -> &mut EventStorage {
         &mut self.event_storage
     }
+
+    pub fn split_autoalloc_events_mut(&mut self) -> (&mut AutoAllocState, &mut EventStorage) {
+        (&mut self.autoalloc_state, &mut self.event_storage)
+    }
 }
 
 impl StateRef {

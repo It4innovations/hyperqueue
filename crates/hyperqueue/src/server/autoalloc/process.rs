@@ -113,10 +113,10 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
         let result = status_fut.await;
 
         let mut state = state_ref.get_mut();
-        let state = state.get_autoalloc_state_mut();
+        let (alloc_state, event_manager) = state.split_autoalloc_events_mut();
         match result {
             Ok(status) => {
-                let descriptor = get_or_continue!(state.get_descriptor_mut(id));
+                let descriptor = get_or_continue!(alloc_state.get_descriptor_mut(id));
                 let working_dir = get_or_continue!(descriptor.get_allocation(&allocation_id))
                     .working_dir
                     .clone();
@@ -130,17 +130,20 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
                                 let allocation =
                                     get_or_continue!(descriptor.get_allocation_mut(&allocation_id));
                                 if let AllocationStatus::Queued = allocation.status {
+                                    event_manager.on_allocation_started(allocation_id.clone());
                                     descriptor.add_event(AllocationEvent::AllocationStarted(
                                         allocation_id,
                                     ));
                                 }
                             }
                             AllocationStatus::Finished { .. } => {
+                                event_manager.on_allocation_finished(allocation_id.clone());
                                 descriptor
                                     .add_event(AllocationEvent::AllocationFinished(allocation_id));
                                 descriptor.add_inactive_directory(working_dir);
                             }
                             AllocationStatus::Failed { .. } => {
+                                event_manager.on_allocation_finished(allocation_id.clone());
                                 descriptor
                                     .add_event(AllocationEvent::AllocationFailed(allocation_id));
                                 descriptor.add_inactive_directory(working_dir);
@@ -164,7 +167,7 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
                     id,
                     err
                 );
-                let descriptor = get_or_continue!(state.get_descriptor_mut(id));
+                let descriptor = get_or_continue!(alloc_state.get_descriptor_mut(id));
                 descriptor.add_event(AllocationEvent::StatusFail {
                     error: format!("{:?}", err),
                 });
@@ -253,19 +256,19 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
         let result = schedule_fut.await;
 
         let mut state = state_ref.get_mut();
-        let state = state.get_autoalloc_state_mut();
-        let descriptor = get_or_return!(state.get_descriptor_mut(id));
+        let (alloc_state, event_manager) = state.split_autoalloc_events_mut();
+        let descriptor = get_or_return!(alloc_state.get_descriptor_mut(id));
         match result {
             Ok(submission_result) => {
                 let working_dir = submission_result.working_dir().to_path_buf();
                 match submission_result.into_id() {
                     Ok(allocation_id) => {
                         log::info!("Queued {} workers into queue {}", workers_to_spawn, id);
-                        descriptor.add_event(AllocationEvent::AllocationQueued(
-                            allocation_id.to_string(),
-                        ));
+                        event_manager.on_allocation_queued(allocation_id.clone(), workers_to_spawn);
+                        descriptor
+                            .add_event(AllocationEvent::AllocationQueued(allocation_id.clone()));
                         descriptor.add_allocation(Allocation {
-                            id: allocation_id.to_string(),
+                            id: allocation_id,
                             worker_count: workers_to_spawn,
                             queued_at: SystemTime::now(),
                             status: AllocationStatus::Queued,

@@ -14,9 +14,10 @@ pub fn format_event(event: MonitoringEvent) -> serde_json::Value {
 
 fn format_payload(event: MonitoringEventPayload) -> serde_json::Value {
     match event {
-        MonitoringEventPayload::WorkerConnected(id, ..) => json!({
+        MonitoringEventPayload::WorkerConnected(id, configuration) => json!({
             "type": "worker-connected",
-            "id": id
+            "id": id,
+            "extra": configuration.extra
         }),
         MonitoringEventPayload::WorkerLost(id, reason) => json!({
             "type": "worker-lost",
@@ -40,6 +41,28 @@ fn format_payload(event: MonitoringEventPayload) -> serde_json::Value {
             json!({
                 "type": "autoalloc-queue-removed",
                 "id": id
+            })
+        }
+        MonitoringEventPayload::AllocationQueued {
+            allocation_id,
+            worker_count,
+        } => {
+            json!({
+                "type": "autoalloc-allocation-queued",
+                "id": allocation_id,
+                "worker-count": worker_count
+            })
+        }
+        MonitoringEventPayload::AllocationStarted(id) => {
+            json!({
+                "type": "autoalloc-allocation-started",
+                "id": id,
+            })
+        }
+        MonitoringEventPayload::AllocationFinished(id) => {
+            json!({
+                "type": "autoalloc-allocation-finished",
+                "id": id,
             })
         }
     }

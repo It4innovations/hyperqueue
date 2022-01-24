@@ -17,5 +17,6 @@ pub use descriptor::pbs::PbsHandler;
 pub use descriptor::slurm::SlurmHandler;
 pub use descriptor::{QueueDescriptor, QueueHandler, QueueInfo};
 pub use state::{
-    Allocation, AllocationEvent, AllocationEventHolder, AllocationStatus, DescriptorId,
+    Allocation, AllocationEvent, AllocationEventHolder, AllocationId, AllocationStatus,
+    DescriptorId,
 };

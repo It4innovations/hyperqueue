@@ -1,4 +1,4 @@
-use crate::server::autoalloc::DescriptorId;
+use crate::server::autoalloc::{AllocationId, DescriptorId};
 use crate::server::event::events::MonitoringEventPayload;
 use crate::server::event::log::EventStreamSender;
 use crate::server::event::{MonitoringEvent, MonitoringEventId};
@@ -82,6 +82,21 @@ impl EventStorage {
 
     pub fn on_allocation_queue_removed(&mut self, id: DescriptorId) {
         self.insert_event(MonitoringEventPayload::AllocationQueueRemoved(id))
+    }
+
+    pub fn on_allocation_queued(&mut self, allocation_id: AllocationId, worker_count: u64) {
+        self.insert_event(MonitoringEventPayload::AllocationQueued {
+            allocation_id,
+            worker_count,
+        })
+    }
+
+    pub fn on_allocation_started(&mut self, allocation_id: AllocationId) {
+        self.insert_event(MonitoringEventPayload::AllocationStarted(allocation_id));
+    }
+
+    pub fn on_allocation_finished(&mut self, allocation_id: AllocationId) {
+        self.insert_event(MonitoringEventPayload::AllocationFinished(allocation_id));
     }
 
     fn insert_event(&mut self, payload: MonitoringEventPayload) {
