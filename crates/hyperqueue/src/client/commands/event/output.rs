@@ -65,5 +65,14 @@ fn format_payload(event: MonitoringEventPayload) -> serde_json::Value {
                 "id": id,
             })
         }
+        MonitoringEventPayload::TaskStarted { task_id, worker_id } => json!({
+            "type": "task-started",
+            "id": task_id,
+            "worker": worker_id
+        }),
+        MonitoringEventPayload::TaskFinished(task_id) => json!({
+            "type": "task-finished",
+            "id": task_id
+        }),
     }
 }

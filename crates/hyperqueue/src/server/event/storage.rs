@@ -9,6 +9,7 @@ use std::time::SystemTime;
 use tako::messages::common::WorkerConfiguration;
 use tako::messages::gateway::LostWorkerReason;
 use tako::messages::worker::WorkerOverview;
+use tako::TaskId;
 
 pub struct EventStorage {
     event_store_size: usize,
@@ -67,6 +68,16 @@ impl EventStorage {
         self.insert_event(MonitoringEventPayload::WorkerOverviewReceived(
             worker_overview,
         ));
+    }
+
+    #[inline]
+    pub fn on_task_started(&mut self, task_id: TaskId, worker_id: WorkerId) {
+        self.insert_event(MonitoringEventPayload::TaskStarted { task_id, worker_id });
+    }
+
+    #[inline]
+    pub fn on_task_finished(&mut self, task_id: TaskId) {
+        self.insert_event(MonitoringEventPayload::TaskFinished(task_id));
     }
 
     pub fn on_allocation_queue_created(

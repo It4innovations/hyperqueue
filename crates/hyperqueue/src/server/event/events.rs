@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tako::messages::common::WorkerConfiguration;
 use tako::messages::gateway::LostWorkerReason;
 use tako::messages::worker::WorkerOverview;
-use tako::static_assert_size;
+use tako::{static_assert_size, TaskId};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum MonitoringEventPayload {
@@ -14,6 +14,12 @@ pub enum MonitoringEventPayload {
     WorkerConnected(WorkerId, Box<WorkerConfiguration>),
     WorkerLost(WorkerId, LostWorkerReason),
     WorkerOverviewReceived(WorkerOverview),
+    // Tasks
+    TaskStarted {
+        task_id: TaskId,
+        worker_id: WorkerId,
+    },
+    TaskFinished(TaskId),
     // Allocations
     AllocationQueueCreated(DescriptorId, Box<AllocationQueueParams>),
     AllocationQueueRemoved(DescriptorId),
