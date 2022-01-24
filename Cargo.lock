@@ -773,6 +773,7 @@ dependencies = [
  "derive_builder",
  "dirs",
  "env_logger",
+ "flate2",
  "futures",
  "gethostname",
  "hex",

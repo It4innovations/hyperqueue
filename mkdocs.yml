@@ -29,6 +29,7 @@ nav:
   - CLI:
     - Shortcuts: cli/shortcuts.md
     - Output mode: cli/output-mode.md
+  - Events: events.md
   - FAQ: faq.md
   - Comparison With Other Tools: other-tools.md
 

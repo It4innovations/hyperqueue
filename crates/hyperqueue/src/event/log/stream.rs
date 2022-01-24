@@ -1,3 +1,4 @@
+use crate::common::strutils::pluralize;
 use crate::event::log::write::EventLogWriter;
 use crate::event::MonitoringEvent;
 use std::future::Future;
@@ -48,6 +49,7 @@ async fn streaming_process(
     mut receiver: EventStreamReceiver,
 ) -> anyhow::Result<()> {
     let mut flush_fut = tokio::time::interval(FLUSH_PERIOD);
+    let mut events = 0;
 
     loop {
         tokio::select! {
@@ -59,6 +61,7 @@ async fn streaming_process(
                     Some(event) => {
                         log::trace!("Event: {event:?}");
                         writer.store(event).await?;
+                        events += 1;
                     }
                     None => break
                 }
@@ -66,5 +69,11 @@ async fn streaming_process(
         }
     }
     writer.finish().await?;
+
+    log::debug!(
+        "Written {events} {} into the event log.",
+        pluralize("event", events)
+    );
+
     Ok(())
 }

@@ -472,6 +472,6 @@ fn format_duration(duration: Duration) -> serde_json::Value {
     let value = duration.as_secs() as f64 + duration.subsec_nanos() as f64 * 1e-9;
     json!(value)
 }
-fn format_datetime<T: Into<DateTime<Utc>>>(time: T) -> serde_json::Value {
+pub fn format_datetime<T: Into<DateTime<Utc>>>(time: T) -> serde_json::Value {
     json!(time.into())
 }
