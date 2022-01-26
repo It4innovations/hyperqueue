@@ -5,12 +5,14 @@ use tako::messages::common::WorkerConfiguration;
 use tako::messages::gateway::MonitoringEventRequest;
 use tako::messages::worker::WorkerOverview;
 
+use crate::dashboard::data::tasks_timeline::TasksTimeline;
 use crate::server::event::events::MonitoringEventPayload;
 use crate::server::event::MonitoringEvent;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use crate::{rpc_call, WorkerId};
 
+pub mod tasks_timeline;
 pub mod worker_timeline;
 
 #[derive(Default)]
@@ -21,6 +23,8 @@ pub struct DashboardData {
     events: Vec<MonitoringEvent>,
     /// Tracks worker connection and loss events
     worker_timeline: WorkerTimeline,
+    /// Tracks the running and finishing of tasks
+    tasks_timeline: TasksTimeline,
 }
 
 impl DashboardData {
@@ -40,7 +44,7 @@ impl DashboardData {
 
         // Update data views
         self.worker_timeline.handle_new_events(&events);
-
+        self.tasks_timeline.handle_new_events(&events);
         self.events.append(&mut events);
     }
 
