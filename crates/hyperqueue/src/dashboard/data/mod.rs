@@ -60,11 +60,33 @@ impl DashboardData {
         self.worker_timeline.get_connected_worker_ids(time)
     }
 
-    pub fn query_latest_overview(&self) -> Vec<&WorkerOverview> {
+    pub fn query_worker_cpu_util(&self, worker_id: WorkerId, time: SystemTime) -> Vec<f32> {
+        //todo: avoid clone?
+        let hw_states: Option<&WorkerOverview> = self
+            .query_overview_at(time)
+            .iter()
+            .find(|overview| overview.id == worker_id)
+            .cloned();
+        if let Some(Some(states)) = hw_states.map(|state| &state.hw_state) {
+            //todo: avoid clone?
+            return states
+                .state
+                .worker_cpu_usage
+                .cpu_per_core_percent_usage
+                .clone();
+        }
+        vec![]
+    }
+
+    pub fn query_task_count_for_worker(&self, worker_id: &WorkerId, time: SystemTime) -> usize {
+        self.tasks_timeline
+            .get_tasks_running_on_worker(*worker_id, time)
+            .count()
+    }
+
+    pub fn query_overview_at(&self, time: SystemTime) -> Vec<&WorkerOverview> {
         let mut overview_vec: Vec<&WorkerOverview> = vec![];
-        let connected_worker_ids = self
-            .worker_timeline
-            .get_connected_worker_ids(SystemTime::now());
+        let connected_worker_ids = self.worker_timeline.get_connected_worker_ids(time);
         for id in connected_worker_ids {
             if let Some(last_overview) = self.query_last_overview_for(id) {
                 overview_vec.push(last_overview);
