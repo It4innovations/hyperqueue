@@ -8,19 +8,22 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
 
 use crate::dashboard::data::DashboardData;
+use crate::dashboard::state::{DashboardScreen, ScreenController};
+use tako::common::WrappedRcRefCell;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
-#[derive(Default)]
 pub struct ClusterOverviewScreen {
     worker_util_table: WorkerUtilTable,
     cluster_overview: ClusterOverviewChart,
+    screen_controller: WrappedRcRefCell<ScreenController>,
 }
 
 impl ClusterOverviewScreen {
-    pub fn new() -> Self {
+    pub fn new(screen_controller: WrappedRcRefCell<ScreenController>) -> Self {
         Self {
             worker_util_table: Default::default(),
             cluster_overview: Default::default(),
+            screen_controller,
         }
     }
 }
@@ -45,9 +48,9 @@ impl Screen for ClusterOverviewScreen {
         match key {
             Key::Down => self.worker_util_table.select_next_worker(),
             Key::Up => self.worker_util_table.select_previous_worker(),
-            Key::Right => {
-                //self.dashboard_state.change_screen(DashboardScreen::WorkerOverviewScreen(self.worker_util_table))
-            }
+            Key::Right => self.screen_controller.get_mut().change_screen(
+                DashboardScreen::WorkerOverviewScreen(self.worker_util_table.get_selected_item()),
+            ),
             _ => {}
         }
     }

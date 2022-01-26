@@ -1,6 +1,7 @@
 use std::ops::ControlFlow;
 use std::{io, thread};
 
+use tako::common::WrappedRcRefCell;
 use termion::event::Key;
 use termion::input::TermRead;
 use tokio::sync::mpsc::UnboundedSender;
@@ -10,7 +11,7 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::dashboard::data;
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::events::DashboardEvent;
-use crate::dashboard::state::DashboardState;
+use crate::dashboard::state::{DashboardScreen, DashboardState, ScreenController};
 use crate::dashboard::ui::terminal::{initialize_terminal, DashboardTerminal};
 use crate::server::bootstrap::get_client_connection;
 
@@ -20,9 +21,11 @@ pub async fn start_ui_loop(gsettings: &GlobalSettings) -> anyhow::Result<()> {
 
     // TODO: When we start the dashboard and connect to the server, the server may have already forgotten
     // some of its events. Therefore we should bootstrap the state with the most recent overview snapshot.
-
     let data = DashboardData::default();
-    let mut state = DashboardState::new(data);
+    let controller = ScreenController {
+        current_screen: DashboardScreen::ClusterOverviewScreen,
+    };
+    let mut state = DashboardState::new(data, WrappedRcRefCell::wrap(controller));
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     start_key_event_listener(tx.clone());

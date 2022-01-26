@@ -44,7 +44,7 @@ impl WorkerAvgCpuUtilChart {
     }
 
     pub fn draw(&mut self, rect: Rect, frame: &mut DashboardFrame) {
-        let max_workers_in_view = self
+        let max_util_in_view = self
             .cpu_util_records
             .iter()
             .map(|record| record.avg_util)
@@ -84,10 +84,10 @@ impl WorkerAvgCpuUtilChart {
             .y_axis(
                 Axis::default()
                     .style(Style::default().fg(Color::Gray))
-                    .bounds([0.0, max_workers_in_view])
+                    .bounds([0.0, 100.0])
                     .labels(vec![
                         Span::from(0.to_string()),
-                        Span::from(max_workers_in_view.to_string()),
+                        Span::from(max_util_in_view.to_string()),
                     ]),
             );
         frame.render_widget(chart, rect);
