@@ -8,31 +8,36 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
 
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::screens::worker::worker_info_table::WorkerInfoTable;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
-pub struct HomeScreen {
+pub struct ClusterOverviewScreen {
     worker_util_table: WorkerUtilTable,
-    worker_info_table: WorkerInfoTable,
     cluster_overview: ClusterOverviewChart,
 }
 
-impl Screen for HomeScreen {
+impl ClusterOverviewScreen {
+    pub fn new() -> Self {
+        Self {
+            worker_util_table: Default::default(),
+            cluster_overview: Default::default(),
+        }
+    }
+}
+
+impl Screen for ClusterOverviewScreen {
     fn draw(&mut self, frame: &mut DashboardFrame) {
         let layout = HomeLayout::new(frame);
         draw_text("HQ top", layout.header_chunk, frame, style_header_text());
 
-        self.cluster_overview.draw(layout.chart_chunk, frame);
-        self.worker_util_table.draw(layout.body_chunk, frame);
-        self.worker_info_table.draw(layout.info_chunk, frame);
+        self.cluster_overview.draw(layout.worker_count_chunk, frame);
+        self.worker_util_table
+            .draw(layout.worker_util_table_chunk, frame);
     }
 
     fn update(&mut self, data: &DashboardData) {
         self.worker_util_table.update(data);
         self.cluster_overview.update(data);
-        self.worker_info_table
-            .update(data, self.worker_util_table.get_selected_item());
     }
 
     /// Handles key presses for the components of the screen
@@ -40,6 +45,9 @@ impl Screen for HomeScreen {
         match key {
             Key::Down => self.worker_util_table.select_next_worker(),
             Key::Up => self.worker_util_table.select_previous_worker(),
+            Key::Right => {
+                //self.dashboard_state.change_screen(DashboardScreen::WorkerOverviewScreen(self.worker_util_table))
+            }
             _ => {}
         }
     }
@@ -54,10 +62,10 @@ impl Screen for HomeScreen {
    -------------------------
  **/
 struct HomeLayout {
-    chart_chunk: Rect,
-    info_chunk: Rect,
+    worker_count_chunk: Rect,
+    _task_timeline_chart: Rect,
     header_chunk: Rect,
-    body_chunk: Rect,
+    worker_util_table_chunk: Rect,
 }
 
 impl HomeLayout {
@@ -78,10 +86,10 @@ impl HomeLayout {
             .split(base_chunks[0]);
 
         Self {
-            chart_chunk: info_chunks[0],
-            info_chunk: info_chunks[1],
+            worker_count_chunk: info_chunks[0],
+            _task_timeline_chart: info_chunks[1],
             header_chunk: base_chunks[1],
-            body_chunk: base_chunks[2],
+            worker_util_table_chunk: base_chunks[2],
         }
     }
 }

@@ -12,6 +12,14 @@ pub fn style_header_text() -> Style {
         .add_modifier(Modifier::BOLD)
 }
 
+/// The Style associated with the Worker Overview footer
+pub fn style_overview_footer() -> Style {
+    Style::default()
+        .fg(Color::Green)
+        .bg(Color::Black)
+        .add_modifier(Modifier::BOLD)
+}
+
 pub fn style_table_title() -> Style {
     Style::default()
         .fg(Color::White)

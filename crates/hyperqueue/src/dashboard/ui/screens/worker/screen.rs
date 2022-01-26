@@ -1,7 +1,7 @@
 use termion::event::Key;
 
 use crate::dashboard::ui::screen::Screen;
-use crate::dashboard::ui::styles::style_header_text;
+use crate::dashboard::ui::styles::{style_header_text, style_overview_footer};
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
 
@@ -13,7 +13,7 @@ use tako::WorkerId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
-pub struct WorkerInfoScreen {
+pub struct WorkerOverviewScreen {
     /// The worker info screen shows data for this worker
     worker_id: WorkerId,
 
@@ -22,7 +22,13 @@ pub struct WorkerInfoScreen {
     worker_util_chart: WorkerAvgCpuUtilChart,
 }
 
-impl Screen for WorkerInfoScreen {
+impl WorkerOverviewScreen {
+    pub fn set_worker_id(&mut self, worker_id: WorkerId) {
+        self.worker_id = worker_id;
+    }
+}
+
+impl Screen for WorkerOverviewScreen {
     fn draw(&mut self, frame: &mut DashboardFrame) {
         let layout = WorkerScreenLayout::new(frame);
         draw_text(
@@ -30,6 +36,12 @@ impl Screen for WorkerInfoScreen {
             layout.header_chunk,
             frame,
             style_header_text(),
+        );
+        draw_text(
+            "Press Backspace to go back to Cluster Overview",
+            layout.footer_chunk,
+            frame,
+            style_overview_footer(),
         );
 
         self.worker_util_chart
@@ -48,8 +60,10 @@ impl Screen for WorkerInfoScreen {
     }
 
     /// Handles key presses for the components of the screen
-    fn handle_key(&mut self, _key: Key) {
-        // none for now
+    fn handle_key(&mut self, key: Key) {
+        if key == Key::Left {
+            //self.dashboard_state.change_screen(DashboardScreen::ClusterOverviewScreen)
+        }
     }
 }
 
@@ -59,22 +73,26 @@ impl Screen for WorkerInfoScreen {
    |--------Header---------|
    |-----------------------|
    |     Info Table        |
-   -------------------------
+   |-----------------------|
+   |--------Footer---------|
+   |-----------------------|
  **/
 struct WorkerScreenLayout {
     worker_util_chart_chunk: Rect,
     worker_tasks_chart_chunk: Rect,
     header_chunk: Rect,
     worker_info_table_chunk: Rect,
+    footer_chunk: Rect,
 }
 
 impl WorkerScreenLayout {
     fn new(frame: &DashboardFrame) -> Self {
         let base_chunks = tui::layout::Layout::default()
             .constraints(vec![
-                Constraint::Percentage(30),
+                Constraint::Percentage(40),
                 Constraint::Percentage(10),
-                Constraint::Percentage(30),
+                Constraint::Percentage(40),
+                Constraint::Percentage(10),
             ])
             .direction(Direction::Vertical)
             .split(frame.size());
@@ -90,6 +108,7 @@ impl WorkerScreenLayout {
             worker_tasks_chart_chunk: info_chunks[1],
             header_chunk: base_chunks[1],
             worker_info_table_chunk: base_chunks[2],
+            footer_chunk: base_chunks[3],
         }
     }
 }
