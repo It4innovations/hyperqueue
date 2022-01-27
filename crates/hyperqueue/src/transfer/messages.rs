@@ -101,7 +101,7 @@ pub enum Selector {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ResubmitRequest {
     pub job_id: JobId,
-    pub status: Option<Vec<Status>>,
+    pub filter: Vec<Status>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

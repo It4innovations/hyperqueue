@@ -225,14 +225,21 @@ struct GenerateCompletionOpts {
 
 // Commands
 
+async fn command_submit(gsettings: &GlobalSettings, opts: JobSubmitOpts) -> anyhow::Result<()> {
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    submit_computation(gsettings, &mut connection, opts).await
+}
+
 async fn command_job_list(gsettings: &GlobalSettings, opts: JobListOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    output_job_list(gsettings, &mut connection, opts.job_filters).await
+    output_job_list(gsettings, &mut connection, opts.filter).await
 }
 
 async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> anyhow::Result<()> {
     if matches!(opts.selector_arg, SelectorArg::All) {
-        log::warn!("Job detail doesn't support the `all` selector, did you mean to use `hq jobs`?");
+        log::warn!(
+            "Job detail doesn't support the `all` selector, did you mean to use `hq job list`?"
+        );
         return Ok(());
     }
 
@@ -257,14 +264,39 @@ async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow
     .await
 }
 
-async fn command_submit(gsettings: &GlobalSettings, opts: JobSubmitOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    submit_computation(gsettings, &mut connection, opts).await
-}
-
-async fn command_cancel(gsettings: &GlobalSettings, opts: JobCancelOpts) -> anyhow::Result<()> {
+async fn command_job_cancel(gsettings: &GlobalSettings, opts: JobCancelOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
     cancel_job(gsettings, &mut connection, opts.selector_arg.into()).await
+}
+
+async fn command_job_resubmit(
+    gsettings: &GlobalSettings,
+    opts: JobResubmitOpts,
+) -> anyhow::Result<()> {
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    resubmit_computation(gsettings, &mut connection, opts).await
+}
+
+async fn command_job_wait(gsettings: &GlobalSettings, opts: JobWaitOpts) -> anyhow::Result<()> {
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    wait_for_jobs(gsettings, &mut connection, opts.selector_arg.into()).await
+}
+
+async fn command_job_progress(
+    gsettings: &GlobalSettings,
+    opts: JobProgressOpts,
+) -> anyhow::Result<()> {
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    let selector = opts.selector_arg.into();
+    let response = hyperqueue::rpc_call!(
+        connection,
+        FromClientMessage::JobInfo(JobInfoRequest {
+            selector,
+        }),
+        ToClientMessage::JobInfoResponse(r) => r
+    )
+    .await?;
+    wait_for_jobs_with_progress(&mut connection, response.jobs).await
 }
 
 async fn command_worker_start(
@@ -308,11 +340,6 @@ async fn command_worker_info(
     Ok(())
 }
 
-async fn command_resubmit(gsettings: &GlobalSettings, opts: JobResubmitOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    resubmit_computation(gsettings, &mut connection, opts).await
-}
-
 fn command_worker_hwdetect(gsettings: &GlobalSettings, opts: HwDetectOpts) -> anyhow::Result<()> {
     let cpus = if opts.no_hyperthreading {
         detect_cpus_no_ht()?
@@ -339,25 +366,6 @@ async fn command_worker_address(
     }
 
     Ok(())
-}
-
-async fn command_wait(gsettings: &GlobalSettings, opts: JobWaitOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    wait_for_jobs(gsettings, &mut connection, opts.selector_arg.into()).await
-}
-
-async fn command_progress(gsettings: &GlobalSettings, opts: JobProgressOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    let selector = opts.selector_arg.into();
-    let response = hyperqueue::rpc_call!(
-        connection,
-        FromClientMessage::JobInfo(JobInfoRequest {
-            selector,
-        }),
-        ToClientMessage::JobInfoResponse(r) => r
-    )
-    .await?;
-    wait_for_jobs_with_progress(&mut connection, response.jobs).await
 }
 
 ///Starts the hq Dashboard
@@ -481,16 +489,16 @@ async fn main() -> hyperqueue::Result<()> {
         }) => command_submit(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Cancel(opts),
-        }) => command_cancel(&gsettings, opts).await,
+        }) => command_job_cancel(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Resubmit(opts),
-        }) => command_resubmit(&gsettings, opts).await,
+        }) => command_job_resubmit(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Wait(opts),
-        }) => command_wait(&gsettings, opts).await,
+        }) => command_job_wait(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Progress(opts),
-        }) => command_progress(&gsettings, opts).await,
+        }) => command_job_progress(&gsettings, opts).await,
         SubCommand::Dashboard(opts) => command_dashboard_start(&gsettings, opts).await,
         SubCommand::Log(opts) => command_log(&gsettings, opts),
         SubCommand::AutoAlloc(opts) => command_autoalloc(&gsettings, opts).await,

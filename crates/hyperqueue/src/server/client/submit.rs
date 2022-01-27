@@ -142,7 +142,7 @@ pub async fn handle_resubmit(
                 }
             }
 
-            let job_desc = if let Some(filter) = &message.status {
+            let job_desc = if !message.filter.is_empty() {
                 match &job.job_desc {
                     JobDescription::Array {
                         task_desc,
@@ -153,7 +153,7 @@ pub async fn handle_resubmit(
                             .tasks
                             .values()
                             .filter_map(|v| {
-                                if filter.contains(&task_status(&v.state)) {
+                                if message.filter.contains(&task_status(&v.state)) {
                                     Some(v.task_id.as_num())
                                 } else {
                                     None
