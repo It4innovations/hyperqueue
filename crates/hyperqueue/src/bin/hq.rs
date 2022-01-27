@@ -251,7 +251,7 @@ async fn command_job_list(gsettings: &GlobalSettings, opts: JobListOpts) -> anyh
 async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> anyhow::Result<()> {
     if matches!(opts.selector_arg, SelectorArg::All) {
         log::warn!(
-            "Job detail doesn't support the `all` selector, did you mean to use `hq job list`?"
+            "Job detail doesn't support the `all` selector, did you mean to use `hq job list --all`?"
         );
         return Ok(());
     }

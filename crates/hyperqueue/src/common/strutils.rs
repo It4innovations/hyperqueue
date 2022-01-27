@@ -8,3 +8,12 @@ pub fn pluralize(value: &str, count: usize) -> Cow<str> {
         Cow::Owned(format!("{}s", value))
     }
 }
+
+/// Select `single` variant if `count` is one or `other` variant otherwise.
+pub fn select_plural<'a>(single: &'a str, other: &'a str, count: usize) -> Cow<'a, str> {
+    if count == 1 {
+        Cow::Borrowed(single)
+    } else {
+        Cow::Borrowed(other)
+    }
+}

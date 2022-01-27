@@ -71,8 +71,8 @@ impl Output for JsonOutput {
         }))
     }
 
-    fn print_job_list(&self, tasks: Vec<JobInfo>) {
-        self.print(tasks.into_iter().map(format_job_info).collect());
+    fn print_job_list(&self, jobs: Vec<JobInfo>, _total_jobs: usize) {
+        self.print(jobs.into_iter().map(format_job_info).collect());
     }
     fn print_job_detail(&self, job: JobDetail, _worker_map: WorkerMap) {
         let task_paths = resolve_task_paths(&job);

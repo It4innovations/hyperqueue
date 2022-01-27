@@ -68,7 +68,7 @@ pub trait Output {
 
     // Jobs
     fn print_job_submitted(&self, job: JobDetail);
-    fn print_job_list(&self, tasks: Vec<JobInfo>);
+    fn print_job_list(&self, jobs: Vec<JobInfo>, total_jobs: usize);
     fn print_job_detail(&self, job: JobDetail, worker_map: WorkerMap);
     fn print_job_tasks(&self, job: JobDetail, worker_map: WorkerMap);
     fn print_job_wait(&self, duration: Duration, response: &WaitForJobsResponse);
