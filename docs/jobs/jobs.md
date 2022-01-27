@@ -295,25 +295,30 @@ If you want to parse #HQ directives from stdin, you can use ``--directives=stdin
 ## Useful job commands
 Here is a list of useful job commands:
 
-### Display all jobs
+### Display job table
 
-```bash
-$ hq job list
-```
+=== "List queued and running jobs"
+    ```bash
+    $ hq job list
+    ```
+=== "List all jobs"
+    ```bash
+    $ hq job list --all
+    ```
+=== "List jobs by status"
+    You can display only jobs having the selected [states](#job-state) by using the `--filter` flag:
 
-You can display only jobs having the selected [states](#job-state) by appending them to the command:
+    ```bash
+    $ hq job list --filter running,waiting
+    ```
 
-```bash
-$ hq job list running waiting
-```
+    Valid filter values are:
 
-Valid filter values are:
-
-- `waiting`
-- `running`
-- `finished`
-- `failed`
-- `canceled`
+    - `waiting`
+    - `running`
+    - `finished`
+    - `failed`
+    - `canceled`
 
 ### Display information about a specific job
 
