@@ -74,8 +74,9 @@ impl Output for Quiet {
         job: JobDetail,
         task_selector: Option<Selector>,
         output_stream: OutputStream,
+        task_header: bool,
     ) -> anyhow::Result<()> {
-        print_job_output(job, task_selector, output_stream)
+        print_job_output(job, task_selector, output_stream, task_header)
     }
 
     // Log

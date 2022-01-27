@@ -172,6 +172,7 @@ impl Output for JsonOutput {
         _job: JobDetail,
         _task_selector: Option<Selector>,
         _output_stream: OutputStream,
+        _task_header: bool,
     ) -> anyhow::Result<()> {
         anyhow::bail!("JSON output mode doesn't support job output");
     }

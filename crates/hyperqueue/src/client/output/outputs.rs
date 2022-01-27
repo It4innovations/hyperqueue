@@ -77,6 +77,7 @@ pub trait Output {
         job: JobDetail,
         task_selector: Option<Selector>,
         output_stream: OutputStream,
+        task_header: bool,
     ) -> anyhow::Result<()>;
 
     // Log

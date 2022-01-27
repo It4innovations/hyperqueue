@@ -2,6 +2,7 @@ use cli_table::format::{Justify, Separator};
 use cli_table::{print_stdout, Cell, CellStruct, Color, ColorChoice, Style, Table, TableStruct};
 
 use std::fmt::{Display, Write};
+use std::io::Write as write;
 
 use crate::client::job::WorkerMap;
 use crate::client::output::outputs::{Output, OutputStream, MAX_DISPLAYED_WORKERS};
@@ -575,8 +576,9 @@ impl Output for CliOutput {
         job: JobDetail,
         task_selector: Option<Selector>,
         output_stream: OutputStream,
+        task_header: bool,
     ) -> anyhow::Result<()> {
-        print_job_output(job, task_selector, output_stream)
+        print_job_output(job, task_selector, output_stream, task_header)
     }
 
     fn print_summary(&self, filename: &Path, summary: Summary) {
@@ -915,23 +917,31 @@ pub(crate) fn job_progress_bar(
 }
 
 pub fn print_job_output(
-    job: JobDetail,
+    mut job: JobDetail,
     task_selector: Option<Selector>,
     output_stream: OutputStream,
+    task_header: bool,
 ) -> anyhow::Result<()> {
     let task_to_paths = resolve_task_paths(&job);
 
     let read_stream = |task_info: &JobTaskInfo, output_stream: &OutputStream| {
-        let (_, stdout, stderr) = get_task_paths(&task_to_paths, task_info);
+        let stdout = std::io::stdout();
+        let mut stdout = stdout.lock();
+
+        let (_, stdout_path, stderr_path) = get_task_paths(&task_to_paths, task_info);
         let (opt_path, stream_name) = match output_stream {
-            OutputStream::Stdout => (stdout, "stdout"),
-            OutputStream::Stderr => (stderr, "stderr"),
+            OutputStream::Stdout => (stdout_path, "stdout"),
+            OutputStream::Stderr => (stderr_path, "stderr"),
         };
+
+        if task_header {
+            writeln!(stdout, "# Task {}", task_info.task_id).expect("Could not write output");
+        }
 
         if let Some(path) = opt_path {
             match File::open(path) {
                 Ok(mut file) => {
-                    let copy = std::io::copy(&mut file, &mut std::io::stdout().lock());
+                    let copy = std::io::copy(&mut file, &mut stdout);
                     if let Err(error) = copy {
                         log::warn!("Could not output contents of `{path}`: {error:?}");
                     }
@@ -948,6 +958,7 @@ pub fn print_job_output(
 
     match task_selector {
         None | Some(Selector::All) => {
+            job.tasks.sort_unstable_by_key(|task| task.task_id);
             job.tasks.iter().for_each(|task| {
                 read_stream(task, &output_stream);
             });

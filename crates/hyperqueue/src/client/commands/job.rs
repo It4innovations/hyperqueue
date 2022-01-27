@@ -57,6 +57,11 @@ pub struct JobCatOpts {
     #[clap(long)]
     pub tasks: Option<SelectorArg>,
 
+    /// Prepend the output of each task with a header line that identifies the task
+    /// which produced that output.
+    #[clap(long)]
+    pub print_task_header: bool,
+
     /// Type of output stream to display
     #[clap(possible_values = &["stdout", "stderr"])]
     pub stream: OutputStream,
@@ -160,6 +165,7 @@ pub async fn output_job_cat(
     job_id: u32,
     task_selector: Option<Selector>,
     output_stream: OutputStream,
+    task_header: bool,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::JobDetail(JobDetailRequest {
         selector: Selector::Specific(IntArray::from_id(job_id)),
@@ -169,9 +175,12 @@ pub async fn output_job_cat(
         rpc_call!(connection, message, ToClientMessage::JobDetailResponse(r) => r).await?;
 
     if let Some(job) = responses.pop().and_then(|v| v.1) {
-        return gsettings
-            .printer()
-            .print_job_output(job, task_selector, output_stream);
+        return gsettings.printer().print_job_output(
+            job,
+            task_selector,
+            output_stream,
+            task_header,
+        );
     } else {
         log::error!("Job {job_id} not found");
     }
