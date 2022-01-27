@@ -8,6 +8,7 @@ def test_parse_table_horizontal():
 +---------+--------------+
 | a | b |
 | c   | d |
++---------+--------------+
 """
     )
     assert table.header == ["Id", "Name"]
@@ -67,9 +68,24 @@ def test_parse_table_multiline_value():
 def test_parse_table_empty():
     table = parse_table(
         """
-    +---------+--------------+
-    +---------+--------------+
++---------+--------------+
++---------+--------------+
     """
     )
     assert table.header is None
-    assert table.rows == [[]]
+    assert table.rows == []
+
+
+def test_parse_table_ignore_suffix():
+    table = parse_table(
+        """
++---------+--------------+
+|a|b|
++---------+--------------+
+|c|d|
++---------+--------------+
+hello world
+    """
+    )
+    assert table.header == ["a", "b"]
+    assert table.rows == [["c", "d"]]

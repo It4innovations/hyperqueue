@@ -32,7 +32,7 @@ use tako::common::resources::{CpuRequest, ResourceDescriptor};
 use tako::messages::common::StdioDef;
 
 use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
-use crate::common::strutils::pluralize;
+use crate::common::strutils::{pluralize, select_plural};
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
 use anyhow::Error;
 use colored::Color as Colorization;
@@ -388,8 +388,9 @@ impl Output for CliOutput {
         );
     }
 
-    fn print_job_list(&self, tasks: Vec<JobInfo>) {
-        let rows: Vec<_> = tasks
+    fn print_job_list(&self, jobs: Vec<JobInfo>, total_jobs: usize) {
+        let job_count = jobs.len();
+        let rows: Vec<_> = jobs
             .into_iter()
             .map(|t| {
                 let status = task_status_to_cell(job_status(&t));
@@ -409,6 +410,14 @@ impl Output for CliOutput {
             "Tasks".cell().bold(true),
         ];
         self.print_horizontal_table(rows, header);
+
+        if job_count != total_jobs {
+            println!(
+                "There {} {total_jobs} {} in total. Use `--all` to display all jobs.",
+                select_plural("is", "are", total_jobs),
+                pluralize("job", total_jobs)
+            );
+        }
     }
 
     fn print_job_detail(&self, job: JobDetail, worker_map: WorkerMap) {

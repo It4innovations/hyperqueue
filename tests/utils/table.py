@@ -89,32 +89,40 @@ def assert_equals(a, b):
 def parse_table(table_string: str) -> Table:
     lines = table_string.strip().split("\n")
     rows = []
-    new_row = True
+    current_rows = []
+    divider_count = 0
     header = None
 
     for line in lines:
+        line = line.strip()
+
         # Log output
         if line.startswith("["):
             continue
         if line.startswith("+-"):
-            if len(rows) == 1 and not header:
-                # Second +- has appeared, the previous row was a header
-                header = rows[0]
-                rows.clear()
-            new_row = True
+            if divider_count == 1 and header is None and len(current_rows) == 1:
+                # The first row was probably a header
+                header = current_rows.pop()
+            elif divider_count > 0:
+                # Commit rows to table
+                rows.extend(current_rows)
+                current_rows = []
+
+            divider_count += 1
             continue
         items = [x.strip() for x in line.split("|")[1:-1]]
 
-        # Empty first column = previous row continues
-        if items and items[0]:
-            new_row = True
-        if new_row:
-            rows.append(items)
-            new_row = False
-        else:
-            for i, item in enumerate(items):
-                if item:
-                    rows[-1][i] += "\n" + item
+        if items:
+            if not items[0]:
+                # Empty first column = previous row continues
+                assert current_rows
+                for i, item in enumerate(items):
+                    if item:
+                        current_rows[-1][i] += f"\n{item}"
+            else:
+                # New row was found
+                current_rows.append(items)
+
     return Table(rows, header=header)
 
 

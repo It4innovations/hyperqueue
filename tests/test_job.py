@@ -288,6 +288,22 @@ def test_job_filters(hq_env: HqEnv):
     assert len(table_failed) == 2
 
 
+def test_job_list_hidden_jobs(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.command(["submit", "hostname"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    output = hq_env.command(["job", "list"])
+    assert "There is 1 job in total." in output
+
+    hq_env.command(["submit", "hostname"])
+    wait_for_job_state(hq_env, 2, "FINISHED")
+
+    output = hq_env.command(["job", "list"])
+    assert "There are 2 jobs in total." in output
+
+
 def test_job_fail(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus=1)

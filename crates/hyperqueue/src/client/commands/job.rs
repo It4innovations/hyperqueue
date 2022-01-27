@@ -95,13 +95,16 @@ pub async fn output_job_list(
     let mut response =
         rpc_call!(connection, message, ToClientMessage::JobInfoResponse(r) => r).await?;
 
+    let total_count = response.jobs.len();
     if !job_filters.is_empty() {
         response
             .jobs
             .retain(|j| job_filters.contains(&job_status(j)));
     }
     response.jobs.sort_unstable_by_key(|j| j.id);
-    gsettings.printer().print_job_list(response.jobs);
+    gsettings
+        .printer()
+        .print_job_list(response.jobs, total_count);
     Ok(())
 }
 

@@ -59,8 +59,8 @@ impl Output for Quiet {
     fn print_job_submitted(&self, job: JobDetail) {
         println!("{}", job.info.id)
     }
-    fn print_job_list(&self, tasks: Vec<JobInfo>) {
-        for task in tasks {
+    fn print_job_list(&self, jobs: Vec<JobInfo>, _total_jobs: usize) {
+        for task in jobs {
             let status = job_status(&task);
             println!("{} {}", task.id, format_status(&status))
         }
