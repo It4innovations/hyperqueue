@@ -254,10 +254,14 @@ def test_job_filters(hq_env: HqEnv):
     table.check_column_value("State", 2, "WAITING")
     assert len(table) == 3
 
-    table_canceled = hq_env.command(["job", "list", "canceled"], as_table=True)
+    table_canceled = hq_env.command(
+        ["job", "list", "--filter", "canceled"], as_table=True
+    )
     assert len(table_canceled) == 1
 
-    table_waiting = hq_env.command(["job", "list", "waiting"], as_table=True)
+    table_waiting = hq_env.command(
+        ["job", "list", "--filter", "waiting"], as_table=True
+    )
     assert len(table_waiting) == 2
 
     hq_env.start_worker(cpus=1)
@@ -265,14 +269,23 @@ def test_job_filters(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 4, "RUNNING")
 
-    table_running = hq_env.command(["job", "list", "running"], as_table=True)
+    table_running = hq_env.command(
+        ["job", "list", "--filter", "running"], as_table=True
+    )
     assert len(table_running) == 1
 
-    table_finished = hq_env.command(["job", "list", "finished"], as_table=True)
+    table_finished = hq_env.command(
+        ["job", "list", "--filter", "finished"], as_table=True
+    )
     assert len(table_finished) == 1
 
-    table_failed = hq_env.command(["job", "list", "failed"], as_table=True)
+    table_failed = hq_env.command(["job", "list", "--filter", "failed"], as_table=True)
     assert len(table_failed) == 1
+
+    table_failed = hq_env.command(
+        ["job", "list", "--filter", "failed,finished"], as_table=True
+    )
+    assert len(table_failed) == 2
 
 
 def test_job_fail(hq_env: HqEnv):
@@ -577,10 +590,10 @@ def test_job_resubmit_with_status(hq_env: HqEnv):
     hq_env.start_workers(2, cpus=1)
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    table = hq_env.command(["job", "resubmit", "1", "--status=failed"], as_table=True)
+    table = hq_env.command(["job", "resubmit", "1", "--filter=failed"], as_table=True)
     table.check_row_value("Tasks", "4; Ids: 4-6, 8")
 
-    table = hq_env.command(["job", "resubmit", "1", "--status=finished"], as_table=True)
+    table = hq_env.command(["job", "resubmit", "1", "--filter=finished"], as_table=True)
     table.check_row_value("Tasks", "3; Ids: 3, 7, 9")
 
 

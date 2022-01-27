@@ -16,7 +16,7 @@ use crate::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
 use crate::client::resources::{parse_cpu_request, parse_resource_request};
-use crate::client::status::StatusList;
+use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::fsutils::get_current_dir;
 use crate::common::placeholders::{
@@ -624,9 +624,10 @@ pub struct JobResubmitOpts {
     /// Job that should be resubmitted
     job_id: u32,
 
-    /// Filter only tasks in a given state
-    #[clap(long)]
-    status: Option<StatusList>,
+    /// Resubmit only tasks with the given states.
+    /// You can use multiple states separated by a comma.
+    #[clap(long, multiple_occurrences(false), use_delimiter(true))]
+    filter: Vec<Status>,
 }
 
 pub async fn resubmit_computation(
@@ -636,7 +637,7 @@ pub async fn resubmit_computation(
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::Resubmit(ResubmitRequest {
         job_id: opts.job_id.into(),
-        status: opts.status.map(|x| x.to_vec()),
+        filter: opts.filter,
     });
     let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
     gsettings

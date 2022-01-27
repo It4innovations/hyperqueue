@@ -15,8 +15,10 @@ use clap::Parser;
 
 #[derive(Parser)]
 pub struct JobListOpts {
-    /// Only jobs with the passed statuses will be shown
-    pub job_filters: Vec<Status>,
+    /// List only jobs with the given states.
+    /// You can use multiple states separated by a comma.
+    #[clap(long, multiple_occurrences(false), use_delimiter(true))]
+    pub filter: Vec<Status>,
 }
 
 #[derive(Parser)]
