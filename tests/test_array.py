@@ -6,7 +6,7 @@ import time
 from .conftest import HqEnv
 from .utils import JOB_TABLE_ROWS, wait_for_job_state
 from .utils.io import check_file_contents
-from .utils.job import default_task_output
+from .utils.job import default_task_output, list_jobs
 from .utils.table import parse_multiline_cell
 
 
@@ -48,7 +48,7 @@ def test_job_array_report(hq_env: HqEnv):
     hq_env.start_worker(cpus=4)
     hq_env.command(["submit", "--array=10-19", "--", "sleep", "1"])
     time.sleep(1.6)
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     table.check_column_value("State", 0, "RUNNING")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
@@ -81,7 +81,7 @@ def test_job_array_error_some(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     table.check_column_value("State", 0, "FAILED")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
@@ -134,7 +134,7 @@ def test_job_array_error_all(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     table.check_column_value("State", 0, "FAILED")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
@@ -175,7 +175,7 @@ def test_job_array_cancel(hq_env: HqEnv):
     assert c.get("FINISHED") == 4
     assert c.get("CANCELED") == 6
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     table.check_column_value("State", 0, "CANCELED")
 
 
@@ -214,7 +214,7 @@ def test_array_mix_with_simple_jobs(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, list(range(1, 101)), "FINISHED")
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     for i in range(100):
         assert table.get_column_value("ID")[i] == str(i + 1)
         assert table.get_column_value("State")[i] == "FINISHED"

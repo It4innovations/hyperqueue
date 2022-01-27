@@ -626,7 +626,12 @@ pub struct JobResubmitOpts {
 
     /// Resubmit only tasks with the given states.
     /// You can use multiple states separated by a comma.
-    #[clap(long, multiple_occurrences(false), use_delimiter(true))]
+    #[clap(
+        long,
+        multiple_occurrences(false),
+        use_delimiter(true),
+        possible_values = &["waiting", "running", "finished", "failed", "canceled"]
+    )]
     filter: Vec<Status>,
 }
 

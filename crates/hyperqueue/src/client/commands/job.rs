@@ -15,9 +15,18 @@ use clap::Parser;
 
 #[derive(Parser)]
 pub struct JobListOpts {
-    /// List only jobs with the given states.
+    /// Display all jobs.
+    #[clap(long, conflicts_with("filter"))]
+    pub all: bool,
+
+    /// Display only jobs with the given states.
     /// You can use multiple states separated by a comma.
-    #[clap(long, multiple_occurrences(false), use_delimiter(true))]
+    #[clap(
+        long,
+        multiple_occurrences(false),
+        use_delimiter(true),
+        possible_values = &["waiting", "running", "finished", "failed", "canceled"]
+    )]
     pub filter: Vec<Status>,
 }
 

@@ -9,13 +9,13 @@ import pytest
 from .conftest import HqEnv
 from .utils import wait_for_job_state
 from .utils.io import check_file_contents
-from .utils.job import default_task_output
+from .utils.job import default_task_output, list_jobs
 from .utils.table import parse_multiline_cell
 
 
 def test_job_submit(hq_env: HqEnv):
     hq_env.start_server()
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     assert len(table) == 0
     assert table.header[:3] == ["ID", "Name", "State"]
 
@@ -24,7 +24,7 @@ def test_job_submit(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, [1, 2], "WAITING")
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     assert len(table) == 2
     table.check_columns_value(["ID", "Name", "State"], 0, ["1", "bash", "WAITING"])
     table.check_columns_value(["ID", "Name", "State"], 1, ["2", "bash", "WAITING"])
@@ -33,7 +33,7 @@ def test_job_submit(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, [1, 2], "FINISHED")
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     assert len(table) == 2
     table.check_columns_value(["ID", "Name", "State"], 0, ["1", "bash", "FINISHED"])
     table.check_columns_value(["ID", "Name", "State"], 1, ["2", "bash", "FINISHED"])
@@ -42,7 +42,7 @@ def test_job_submit(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 3, "RUNNING", sleep_s=0.2)
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     assert len(table) == 3
     table.check_columns_value(["ID", "Name", "State"], 0, ["1", "bash", "FINISHED"])
     table.check_columns_value(["ID", "Name", "State"], 1, ["2", "bash", "FINISHED"])
@@ -50,7 +50,7 @@ def test_job_submit(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 3, "FINISHED")
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     assert len(table) == 3
     table.check_columns_value(["ID", "Name", "State"], 0, ["1", "bash", "FINISHED"])
     table.check_columns_value(["ID", "Name", "State"], 1, ["2", "bash", "FINISHED"])
@@ -81,7 +81,7 @@ def test_custom_name(hq_env: HqEnv):
     hq_env.command(["submit", "--name=sleep_prog", "sleep", "1"])
     wait_for_job_state(hq_env, 1, "WAITING")
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     assert len(table) == 1
     table.check_columns_value(
         ["ID", "Name", "State"], 0, ["1", "sleep_prog", "WAITING"]
@@ -101,7 +101,7 @@ def test_custom_name(hq_env: HqEnv):
             ]
         )
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     assert len(table) == 1
 
 
@@ -248,7 +248,7 @@ def test_job_filters(hq_env: HqEnv):
     r = hq_env.command(["job", "cancel", "1"])
     assert "Job 1 canceled" in r
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     table.check_column_value("State", 0, "CANCELED")
     table.check_column_value("State", 1, "WAITING")
     table.check_column_value("State", 2, "WAITING")
@@ -294,7 +294,7 @@ def test_job_fail(hq_env: HqEnv):
     hq_env.command(["submit", "--", "/non-existent-program"])
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     assert len(table) == 1
     table.check_column_value("ID", 0, "1")
     table.check_column_value("Name", 0, "non-existent-program")
@@ -321,10 +321,10 @@ def test_cancel_without_workers(hq_env: HqEnv):
     hq_env.command(["submit", "/bin/hostname"])
     r = hq_env.command(["job", "cancel", "1"])
     assert "Job 1 canceled" in r
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     table.check_column_value("State", 0, "CANCELED")
     hq_env.start_worker(cpus=1)
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     table.check_column_value("State", 0, "CANCELED")
 
 
@@ -335,11 +335,11 @@ def test_cancel_running(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "RUNNING")
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     table.check_column_value("State", 0, "RUNNING")
     r = hq_env.command(["job", "cancel", "1"])
     assert "Job 1 canceled" in r
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     table.check_column_value("State", 0, "CANCELED")
 
     r = hq_env.command(["job", "cancel", "1"])
@@ -359,7 +359,7 @@ def test_cancel_finished(hq_env: HqEnv):
     r = hq_env.command(["job", "cancel", "2"])
     assert "Canceling job 2 failed" in r
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     table.check_column_value("State", 0, "FINISHED")
     table.check_column_value("State", 1, "FAILED")
 
@@ -385,7 +385,7 @@ def test_cancel_some(hq_env: HqEnv):
     r = hq_env.command(["job", "cancel", "1-4"])
     assert "Canceling job 4 failed" in r
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     for i in range(3):
         table.check_column_value("State", i, "CANCELED")
 
@@ -413,14 +413,14 @@ def test_reporting_state_after_worker_lost(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, [1, 2], "RUNNING")
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     table.check_column_value("State", 0, "RUNNING")
     table.check_column_value("State", 1, "RUNNING")
     hq_env.kill_worker(1)
 
     time.sleep(0.25)
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     if table.get_column_value("State")[0] == "WAITING":
         idx, other = 0, 1
     elif table.get_column_value("State")[1] == "WAITING":
@@ -431,13 +431,13 @@ def test_reporting_state_after_worker_lost(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, other + 1, "FINISHED")
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     assert table.get_column_value("State")[other] == "FINISHED"
     assert table.get_column_value("State")[idx] == "RUNNING"
 
     wait_for_job_state(hq_env, idx + 1, "FINISHED")
 
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     assert table.get_column_value("State")[other] == "FINISHED"
     assert table.get_column_value("State")[idx] == "FINISHED"
 

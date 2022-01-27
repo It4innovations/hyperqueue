@@ -1,5 +1,8 @@
 import os
-from typing import Optional
+from typing import List, Optional
+
+from ..conftest import HqEnv
+from .table import Table
 
 
 def default_task_output(
@@ -7,3 +10,14 @@ def default_task_output(
 ) -> str:
     submit_dir = submit_dir if submit_dir else os.getcwd()
     return f"{submit_dir}/job-{job_id}/{task_id}.{type}"
+
+
+def list_jobs(hq_env: HqEnv, all=True, filters: List[str] = None) -> Table:
+    args = ["job", "list"]
+    if all:
+        assert filters is None
+        args.append("--all")
+    elif filters:
+        args.extend(["--filter", ",".join(filters)])
+
+    return hq_env.command(args, as_table=True)
