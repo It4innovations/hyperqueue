@@ -1,4 +1,5 @@
 use termion::event::Key;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::screens::home::cluster_overview_chart::ClusterOverviewChart;
@@ -8,22 +9,23 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
 
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::state::{DashboardScreen, ScreenController};
-use tako::common::WrappedRcRefCell;
+use crate::dashboard::events::DashboardEvent;
+use crate::dashboard::state::DashboardScreenState;
+use tako::WorkerId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
 pub struct ClusterOverviewScreen {
     worker_util_table: WorkerUtilTable,
     cluster_overview: ClusterOverviewChart,
-    screen_controller: WrappedRcRefCell<ScreenController>,
+    screen_switcher: UnboundedSender<DashboardEvent>,
 }
 
 impl ClusterOverviewScreen {
-    pub fn new(screen_controller: WrappedRcRefCell<ScreenController>) -> Self {
+    pub fn new(screen_controller: UnboundedSender<DashboardEvent>) -> Self {
         Self {
             worker_util_table: Default::default(),
             cluster_overview: Default::default(),
-            screen_controller,
+            screen_switcher: screen_controller,
         }
     }
 }
@@ -48,11 +50,22 @@ impl Screen for ClusterOverviewScreen {
         match key {
             Key::Down => self.worker_util_table.select_next_worker(),
             Key::Up => self.worker_util_table.select_previous_worker(),
-            Key::Right => self.screen_controller.get_mut().change_screen(
-                DashboardScreen::WorkerOverviewScreen(self.worker_util_table.get_selected_item()),
-            ),
+            Key::Right => {
+                if let Some(id) = self.worker_util_table.get_selected_item() {
+                    change_to_worker_overview_screen(self.screen_switcher.clone(), id);
+                    //todo: get rid of clone?
+                }
+            }
             _ => {}
         }
+    }
+}
+
+fn change_to_worker_overview_screen(sender: UnboundedSender<DashboardEvent>, id: WorkerId) {
+    if let Err(err) = sender.send(DashboardEvent::ScreenChange(
+        DashboardScreenState::WorkerOverviewScreen(id),
+    )) {
+        log::error!("Error in switching screen: {}", err);
     }
 }
 
