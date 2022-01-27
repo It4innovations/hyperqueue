@@ -97,6 +97,11 @@ individual tasks of a job, please use the new `hq job tasks <job-id>` command.
     # Now: submits a single task that executes `foo --array 1-4`
     ```
 
+* `hq job list` will now only show queued and running jobs by default. You can use the `--all` flag
+  to display all jobs or the `--filter` flag to filter jobs that are in specified states.
+
+* The `--status` flag of `hq job resubmit` has been renamed to `--filter`.
+
 * Tables outputted by various informational commands (like `hq job info` or `hq worker list`)
 are now more densely packed and should thus better fit on terminal screens.
 
@@ -111,7 +116,7 @@ are now more densely packed and should thus better fit on terminal screens.
      tool builders that use HyperQueue programmatically, not regular users. It is also currently
      unstable.*
 
-* Release the preview version of HQ dashboard. It can be started via:
+* You can now try the preview version of HQ dashboard. It can be started via:
 
   ```bash
   $ hq dashboard
