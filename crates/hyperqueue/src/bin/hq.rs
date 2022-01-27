@@ -28,6 +28,7 @@ use hyperqueue::client::output::cli::CliOutput;
 use hyperqueue::client::output::json::JsonOutput;
 use hyperqueue::client::output::outputs::{Output, Outputs};
 use hyperqueue::client::output::quiet::Quiet;
+use hyperqueue::client::status::Status;
 use hyperqueue::common::cli::SelectorArg;
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
@@ -184,7 +185,8 @@ struct JobOpts {
 #[allow(clippy::large_enum_variant)]
 #[derive(Parser)]
 enum JobCommand {
-    /// Display information about jobs
+    /// Display information about jobs.
+    /// By default, only queued or running jobs will be displayed.
     List(JobListOpts),
     /// Display detailed information of the selected job
     Info(JobInfoOpts),
@@ -232,7 +234,18 @@ async fn command_submit(gsettings: &GlobalSettings, opts: JobSubmitOpts) -> anyh
 
 async fn command_job_list(gsettings: &GlobalSettings, opts: JobListOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    output_job_list(gsettings, &mut connection, opts.filter).await
+
+    let filter = if opts.filter.is_empty() {
+        if opts.all {
+            vec![]
+        } else {
+            vec![Status::Waiting, Status::Running]
+        }
+    } else {
+        opts.filter
+    };
+
+    output_job_list(gsettings, &mut connection, filter).await
 }
 
 async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> anyhow::Result<()> {

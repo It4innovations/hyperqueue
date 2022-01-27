@@ -2,10 +2,11 @@ import time
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
+from .utils.job import list_jobs
 
 
 def test_job_time_request1(hq_env: HqEnv):
-    # Tests that tasks are send only to worker3 and worker 4 (because of time requests)
+    # Tests that tasks are sent only to worker3 and worker 4 (because of time requests)
     hq_env.start_server()
     hq_env.start_worker(args=["--time-limit", "2s"])
     hq_env.start_worker(args=["--time-limit", "4s"])
@@ -29,6 +30,6 @@ def test_job_time_request2(hq_env: HqEnv):
     # hq_env.start_worker(args=["--time-limit", "5s"])
 
     wait_for_job_state(hq_env, 1, "FINISHED")
-    table = hq_env.command(["job", "list"], as_table=True)
+    table = list_jobs(hq_env)
     assert table.get_column_value("State")[0] == "FINISHED"
     assert table.get_column_value("State")[1] == "WAITING"
