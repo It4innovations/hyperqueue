@@ -273,6 +273,7 @@ async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow
         opts.job_id,
         opts.tasks.map(|selector| selector.into()),
         opts.stream,
+        opts.print_task_header,
     )
     .await
 }

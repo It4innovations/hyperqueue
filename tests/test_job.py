@@ -957,3 +957,70 @@ def test_job_cat_no_output(hq_env: HqEnv):
 
     output = hq_env.command(["job", "cat", "1", "stderr"])
     assert "Task 0 has no `stderr` stream associated with it" in output.strip()
+
+
+def test_job_cat_header(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--array",
+            "1-3",
+            "--",
+            "python3",
+            "-c",
+            """
+import sys
+import os
+print(os.environ['HQ_TASK_ID'], file=sys.stdout)
+print("out1", file=sys.stdout)
+print("out2", file=sys.stdout)
+
+print(os.environ['HQ_TASK_ID'], file=sys.stderr)
+print("err1", file=sys.stderr)
+""",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    output = hq_env.command(
+        ["job", "cat", "--tasks", "all", "1", "stdout", "--print-task-header"]
+    )
+    print(output)
+    assert (
+        output
+        == """
+# Task 1
+1
+out1
+out2
+# Task 2
+2
+out1
+out2
+# Task 3
+3
+out1
+out2
+""".lstrip()
+    )
+
+    output = hq_env.command(
+        ["job", "cat", "--tasks", "all", "1", "stderr", "--print-task-header"]
+    )
+    assert (
+        output
+        == """
+# Task 1
+1
+err1
+# Task 2
+2
+err1
+# Task 3
+3
+err1
+""".lstrip()
+    )
