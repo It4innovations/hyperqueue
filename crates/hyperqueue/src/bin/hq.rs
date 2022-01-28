@@ -19,6 +19,7 @@ use hyperqueue::client::commands::submit::{
     resubmit_computation, submit_computation, JobResubmitOpts, JobSubmitOpts,
 };
 use hyperqueue::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
+use hyperqueue::client::commands::worker::WorkerFilter;
 use hyperqueue::client::commands::worker::{
     get_worker_info, get_worker_list, start_hq_worker, stop_worker, WorkerStartOpts,
 };
@@ -131,7 +132,8 @@ enum WorkerCommand {
     Start(WorkerStartOpts),
     /// Stop worker
     Stop(WorkerStopOpts),
-    /// Display information about workers
+    /// Display information about workers.
+    /// By default, only running workers will be displayed.
     List(WorkerListOpts),
     /// Hwdetect
     #[clap(name = "hwdetect")]
@@ -150,9 +152,13 @@ struct WorkerStopOpts {
 
 #[derive(Parser)]
 struct WorkerListOpts {
-    /// Include offline workers in the list
-    #[clap(long)]
+    /// Display all workers.
+    #[clap(long, conflicts_with("filter"))]
     all: bool,
+
+    /// Select only workers with the given state.
+    #[clap(long, possible_values(&["running", "offline"]))]
+    filter: Option<WorkerFilter>,
 }
 
 #[derive(Parser)]
@@ -335,7 +341,16 @@ async fn command_worker_list(
     opts: WorkerListOpts,
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    let workers = get_worker_list(&mut connection, opts.all).await?;
+
+    let filter = opts.filter.or_else(|| {
+        if opts.all {
+            None
+        } else {
+            Some(WorkerFilter::Running)
+        }
+    });
+
+    let workers = get_worker_list(&mut connection, filter).await?;
     gsettings.printer().print_worker_list(workers);
     Ok(())
 }

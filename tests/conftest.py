@@ -3,7 +3,7 @@ import os
 import signal
 import subprocess
 import time
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import pytest
 
@@ -141,9 +141,11 @@ class HqEnv(Env):
         self.check_running_processes()
         return process
 
-    def start_workers(self, count, **kwargs):
+    def start_workers(self, count, **kwargs) -> List[subprocess.Popen]:
+        workers = []
         for _ in range(count):
-            self.start_worker(**kwargs)
+            workers.append(self.start_worker(**kwargs))
+        return workers
 
     def start_worker(
         self,

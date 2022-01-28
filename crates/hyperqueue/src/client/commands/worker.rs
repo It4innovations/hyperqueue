@@ -22,6 +22,30 @@ use tako::worker::state::ServerLostPolicy;
 use tokio::net::lookup_host;
 use tokio::task::LocalSet;
 
+#[derive(Debug)]
+pub enum WorkerFilter {
+    Running,
+    Offline,
+}
+
+impl FromStr for WorkerFilter {
+    type Err = anyhow::Error;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let filter = match input {
+            "running" => WorkerFilter::Running,
+            "offline" => WorkerFilter::Offline,
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "Invalid worker filter value `{}`. Allowed values are `running` or `offline`.",
+                    input
+                ))
+            }
+        };
+        Ok(filter)
+    }
+}
+
 #[derive(Parser)]
 pub enum ManagerOpts {
     Detect,
@@ -91,7 +115,7 @@ pub struct WorkerStartOpts {
     pub time_limit: Option<ArgDuration>,
 
     /// What HPC job manager should be used by the worker.
-    #[clap(long, default_value = "detect", possible_values = &["detect", "slurm", "pbs", "none"])]
+    #[clap(long, default_value = "detect", possible_values = & ["detect", "slurm", "pbs", "none"])]
     pub manager: ManagerOpts,
 
     /// Overwrite worker hostname
@@ -161,22 +185,26 @@ pub async fn start_hq_worker(
 
 pub async fn get_worker_list(
     connection: &mut ClientConnection,
-    include_offline: bool,
+    filter: Option<WorkerFilter>,
 ) -> crate::Result<Vec<WorkerInfo>> {
-    let mut msg = rpc_call!(
+    let msg = rpc_call!(
         connection,
         FromClientMessage::WorkerList,
         ToClientMessage::WorkerListResponse(r) => r
     )
     .await?;
 
-    msg.workers.sort_unstable_by_key(|w| w.id);
+    let mut workers = msg.workers;
 
-    if !include_offline {
-        msg.workers.retain(|w| w.ended.is_none());
+    if let Some(filter) = filter {
+        match filter {
+            WorkerFilter::Running => workers.retain(|w| w.ended.is_none()),
+            WorkerFilter::Offline => workers.retain(|w| w.ended.is_some()),
+        };
     }
 
-    Ok(msg.workers)
+    workers.sort_unstable_by_key(|w| w.id);
+    Ok(workers)
 }
 
 pub async fn get_worker_info(

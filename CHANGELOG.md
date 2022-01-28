@@ -1,3 +1,10 @@
+# Dev
+
+## New features
+
+### CLI
+* Add `--filter` flag to `worker list` to allow filtering workers by their status.
+
 # 0.8.0
 
 ## Fixes
