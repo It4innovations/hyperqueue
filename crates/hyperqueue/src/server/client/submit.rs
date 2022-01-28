@@ -12,7 +12,7 @@ use tako::messages::gateway::{
 };
 use tako::TaskId;
 
-use crate::client::status::task_status;
+use crate::client::status::get_task_status;
 use crate::common::arraydef::IntArray;
 use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::placeholders::{
@@ -153,7 +153,7 @@ pub async fn handle_resubmit(
                             .tasks
                             .values()
                             .filter_map(|v| {
-                                if message.filter.contains(&task_status(&v.state)) {
+                                if message.filter.contains(&get_task_status(&v.state)) {
                                     Some(v.task_id.as_num())
                                 } else {
                                     None

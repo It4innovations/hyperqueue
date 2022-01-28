@@ -1,7 +1,6 @@
 use crate::common::serverdir::AccessRecord;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, Selector, StatsResponse, WaitForJobsResponse,
-    WorkerInfo,
+    AutoAllocListResponse, JobDetail, JobInfo, StatsResponse, WaitForJobsResponse, WorkerInfo,
 };
 
 use crate::client::job::WorkerMap;
@@ -10,6 +9,8 @@ use crate::stream::reader::logfile::Summary;
 use std::path::Path;
 use std::str::FromStr;
 
+use crate::client::output::common::TaskToPathsMap;
+use crate::server::job::JobTaskInfo;
 use clap::Parser;
 use core::time::Duration;
 use tako::common::resources::ResourceDescriptor;
@@ -74,10 +75,10 @@ pub trait Output {
     fn print_job_wait(&self, duration: Duration, response: &WaitForJobsResponse);
     fn print_job_output(
         &self,
-        job: JobDetail,
-        task_selector: Option<Selector>,
+        tasks: Vec<JobTaskInfo>,
         output_stream: OutputStream,
         task_header: bool,
+        task_paths: TaskToPathsMap,
     ) -> anyhow::Result<()>;
 
     // Log

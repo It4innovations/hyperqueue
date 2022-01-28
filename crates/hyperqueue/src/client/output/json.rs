@@ -23,8 +23,8 @@ use crate::server::autoalloc::{
 use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, QueueDescriptorData, Selector,
-    StatsResponse, TaskDescription, WaitForJobsResponse, WorkerInfo,
+    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, QueueDescriptorData, StatsResponse,
+    TaskDescription, WaitForJobsResponse, WorkerInfo,
 };
 use crate::{JobTaskId, Map};
 
@@ -169,10 +169,10 @@ impl Output for JsonOutput {
 
     fn print_job_output(
         &self,
-        _job: JobDetail,
-        _task_selector: Option<Selector>,
+        _tasks: Vec<JobTaskInfo>,
         _output_stream: OutputStream,
         _task_header: bool,
+        _task_paths: TaskToPathsMap,
     ) -> anyhow::Result<()> {
         anyhow::bail!("JSON output mode doesn't support job output");
     }

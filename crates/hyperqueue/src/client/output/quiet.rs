@@ -8,14 +8,16 @@ use tako::messages::gateway::LostWorkerReason;
 
 use crate::client::job::WorkerMap;
 use crate::client::output::cli::print_job_output;
+use crate::client::output::common::TaskToPathsMap;
 use crate::client::output::outputs::{Output, OutputStream};
 use crate::client::status::{job_status, Status};
 use crate::common::serverdir::AccessRecord;
 use crate::server::autoalloc::{Allocation, AllocationEventHolder};
+use crate::server::job::JobTaskInfo;
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, Selector, StatsResponse, WaitForJobsResponse,
-    WorkerExitInfo, WorkerInfo,
+    AutoAllocListResponse, JobDetail, JobInfo, StatsResponse, WaitForJobsResponse, WorkerExitInfo,
+    WorkerInfo,
 };
 
 #[derive(Default)]
@@ -71,12 +73,12 @@ impl Output for Quiet {
 
     fn print_job_output(
         &self,
-        job: JobDetail,
-        task_selector: Option<Selector>,
+        tasks: Vec<JobTaskInfo>,
         output_stream: OutputStream,
         task_header: bool,
+        task_paths: TaskToPathsMap,
     ) -> anyhow::Result<()> {
-        print_job_output(job, task_selector, output_stream, task_header)
+        print_job_output(tasks, output_stream, task_header, task_paths)
     }
 
     // Log
