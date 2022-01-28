@@ -49,6 +49,30 @@ def test_worker_list(hq_env: HqEnv):
     table.check_columns_value(["ID", "State"], 2, ["3", "RUNNING"])
 
 
+def test_worker_list_filter(hq_env: HqEnv):
+    hq_env.start_server()
+    workers = hq_env.start_workers(10)
+    hq_env.command(["worker", "stop", "8-10"])
+    for worker in workers[7:]:
+        worker.wait(timeout=5)
+        hq_env.check_process_exited(worker)
+
+    table = hq_env.command(["worker", "list", "--filter", "offline"], as_table=True)
+    assert len(table.rows) == 3
+    for i in table.rows:
+        assert i[1] == "STOPPED"
+
+    table = hq_env.command(["worker", "list", "--filter", "running"], as_table=True)
+    assert len(table.rows) == 7
+    for i in table.rows:
+        assert i[1] == "RUNNING"
+
+    table = hq_env.command(["worker", "list", "--all"], as_table=True)
+    assert len(table.rows) == 10
+    for i in table.rows:
+        assert i[1] in ("RUNNING", "STOPPED")
+
+
 def test_worker_stop(hq_env: HqEnv):
     hq_env.start_server()
     process = hq_env.start_worker()
