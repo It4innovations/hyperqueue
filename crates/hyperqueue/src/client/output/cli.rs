@@ -6,7 +6,7 @@ use std::io::Write as write;
 
 use crate::client::job::WorkerMap;
 use crate::client::output::outputs::{Output, OutputStream, MAX_DISPLAYED_WORKERS};
-use crate::client::status::{job_status, task_status, Status};
+use crate::client::status::{get_task_status, job_status, Status};
 use crate::common::env::is_hq_env;
 use crate::common::format::{human_duration, human_size};
 use crate::common::manager::info::GetManagerInfo;
@@ -17,10 +17,10 @@ use crate::server::autoalloc::{
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, Selector, StatsResponse,
-    TaskDescription, WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
+    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, StatsResponse, TaskDescription,
+    WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
 };
-use crate::{JobTaskCount, JobTaskId, WorkerId};
+use crate::{JobTaskCount, WorkerId};
 
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use core::time::Duration;
@@ -38,7 +38,7 @@ use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
 use anyhow::Error;
 use colored::Color as Colorization;
 use colored::Colorize;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 use std::fs::File;
 use tako::messages::gateway::{LostWorkerReason, ResourceRequest};
 
@@ -500,7 +500,7 @@ impl Output for CliOutput {
 
                 vec![
                     task.task_id.cell().justify(Justify::Right),
-                    task_status_to_cell(task_status(&task.state)),
+                    task_status_to_cell(get_task_status(&task.state)),
                     match task.state.get_worker() {
                         Some(worker) => format_worker(worker, &worker_map),
                         _ => "",
@@ -573,12 +573,12 @@ impl Output for CliOutput {
 
     fn print_job_output(
         &self,
-        job: JobDetail,
-        task_selector: Option<Selector>,
+        tasks: Vec<JobTaskInfo>,
         output_stream: OutputStream,
         task_header: bool,
+        task_paths: TaskToPathsMap,
     ) -> anyhow::Result<()> {
-        print_job_output(job, task_selector, output_stream, task_header)
+        print_job_output(tasks, output_stream, task_header, task_paths)
     }
 
     fn print_summary(&self, filename: &Path, summary: Summary) {
@@ -917,18 +917,16 @@ pub(crate) fn job_progress_bar(
 }
 
 pub fn print_job_output(
-    mut job: JobDetail,
-    task_selector: Option<Selector>,
+    tasks: Vec<JobTaskInfo>,
     output_stream: OutputStream,
     task_header: bool,
+    task_paths: TaskToPathsMap,
 ) -> anyhow::Result<()> {
-    let task_to_paths = resolve_task_paths(&job);
-
     let read_stream = |task_info: &JobTaskInfo, output_stream: &OutputStream| {
         let stdout = std::io::stdout();
         let mut stdout = stdout.lock();
 
-        let (_, stdout_path, stderr_path) = get_task_paths(&task_to_paths, task_info);
+        let (_, stdout_path, stderr_path) = get_task_paths(&task_paths, task_info);
         let (opt_path, stream_name) = match output_stream {
             OutputStream::Stdout => (stdout_path, "stdout"),
             OutputStream::Stderr => (stderr_path, "stderr"),
@@ -956,42 +954,10 @@ pub fn print_job_output(
         }
     };
 
-    match task_selector {
-        None | Some(Selector::All) => {
-            job.tasks.sort_unstable_by_key(|task| task.task_id);
-            job.tasks.iter().for_each(|task| {
-                read_stream(task, &output_stream);
-            });
-        }
-        Some(Selector::Specific(arr)) => {
-            let tasks_map: HashMap<JobTaskId, JobTaskInfo> = job
-                .tasks
-                .into_iter()
-                .map(|info| (info.task_id, info))
-                .collect();
-
-            let tasks: Vec<(JobTaskId, Option<&JobTaskInfo>)> = arr
-                .iter()
-                .map(|task_id| {
-                    let task_id: JobTaskId = task_id.into();
-                    (task_id, tasks_map.get(&task_id))
-                })
-                .collect();
-
-            for (id, task) in tasks {
-                match task {
-                    None => log::warn!("Task {id} not found"),
-                    Some(info) => read_stream(info, &output_stream),
-                }
-            }
-        }
-        Some(Selector::LastN(_)) => {
-            let last_task = job.tasks.iter().max_by_key(|&x| x.task_id);
-            if let Some(task) = last_task {
-                read_stream(task, &output_stream);
-            }
-        }
+    for task in tasks {
+        read_stream(&task, &output_stream);
     }
+
     Ok(())
 }
 

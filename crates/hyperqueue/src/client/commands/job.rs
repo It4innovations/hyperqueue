@@ -1,17 +1,20 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
 use crate::client::output::outputs::OutputStream;
-use crate::client::status::{job_status, Status};
+use crate::client::output::resolve_task_paths;
+use crate::client::status::{get_task_status, job_status, Status};
 use crate::common::arraydef::IntArray;
 use crate::common::cli::SelectorArg;
-use crate::rpc_call;
+use crate::server::job::JobTaskInfo;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
     CancelJobResponse, CancelRequest, FromClientMessage, JobDetailRequest, JobInfoRequest,
     Selector, ToClientMessage,
 };
-use crate::JobId;
+use crate::{rpc_call, JobTaskId};
+use crate::{JobId, Set};
 use clap::Parser;
+use std::collections::HashMap;
 
 #[derive(Parser)]
 pub struct JobListOpts {
@@ -56,6 +59,16 @@ pub struct JobCatOpts {
     /// Select task(s) outputs to view
     #[clap(long)]
     pub tasks: Option<SelectorArg>,
+
+    /// Display only task(s) with the given states.
+    /// You can use multiple states separated by a comma.
+    #[clap(
+        long,
+        multiple_occurrences(false),
+        use_delimiter(true),
+        possible_values = &["waiting", "running", "finished", "failed", "canceled"]
+    )]
+    pub task_status: Vec<Status>,
 
     /// Prepend the output of each task with a header line that identifies the task
     /// which produced that output.
@@ -166,6 +179,7 @@ pub async fn output_job_cat(
     task_selector: Option<Selector>,
     output_stream: OutputStream,
     task_header: bool,
+    task_status: Vec<Status>,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::JobDetail(JobDetailRequest {
         selector: Selector::Specific(IntArray::from_id(job_id)),
@@ -174,13 +188,58 @@ pub async fn output_job_cat(
     let mut responses =
         rpc_call!(connection, message, ToClientMessage::JobDetailResponse(r) => r).await?;
 
-    if let Some(job) = responses.pop().and_then(|v| v.1) {
-        return gsettings.printer().print_job_output(
-            job,
-            task_selector,
-            output_stream,
-            task_header,
-        );
+    if let Some(mut job) = responses.pop().and_then(|v| v.1) {
+        let all_ids: Set<JobTaskId> = job.tasks.iter().map(|task| task.task_id).collect();
+        if !task_status.is_empty() {
+            job.tasks
+                .retain(|task_info| task_status.contains(&get_task_status(&task_info.state)));
+        }
+
+        let task_paths = resolve_task_paths(&job);
+
+        let tasks: Vec<JobTaskInfo> = match task_selector {
+            None | Some(Selector::All) => {
+                job.tasks.sort_unstable_by_key(|task| task.task_id);
+                job.tasks
+            }
+
+            Some(Selector::Specific(arr)) => {
+                let tasks_map: HashMap<JobTaskId, JobTaskInfo> = job
+                    .tasks
+                    .into_iter()
+                    .map(|info| (info.task_id, info))
+                    .collect();
+
+                arr.iter()
+                    .filter_map(|task_id| {
+                        let task_id: JobTaskId = task_id.into();
+                        let task_opt = tasks_map.get(&task_id);
+
+                        if task_opt.is_none() && !all_ids.contains(&task_id) {
+                            log::warn!("Task {task_id} not found");
+                        }
+                        task_opt.cloned()
+                    })
+                    .collect()
+            }
+
+            Some(Selector::LastN(_)) => {
+                let last_task = job.tasks.iter().max_by_key(|&x| x.task_id);
+                match last_task {
+                    None => vec![],
+                    Some(task) => vec![task.clone()],
+                }
+            }
+        };
+
+        if tasks.is_empty() {
+            log::warn!("No tasks were selected, there is nothing to print");
+            return Ok(());
+        }
+
+        return gsettings
+            .printer()
+            .print_job_output(tasks, output_stream, task_header, task_paths);
     } else {
         log::error!("Job {job_id} not found");
     }

@@ -1024,3 +1024,96 @@ err1
 err1
 """.lstrip()
     )
+
+
+def test_job_cat_status(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--array=3-9",
+            "--",
+            "python3",
+            "-c",
+            """
+import sys
+import os
+print(os.environ['HQ_TASK_ID'], file=sys.stdout)
+print("out", file=sys.stdout)
+
+assert os.environ['HQ_TASK_ID'] not in ['4', '5', '6', '8']
+""",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "FAILED")
+
+    output = hq_env.command(
+        ["job", "cat", "--task-status=finished", "1", "stdout", "--print-task-header"]
+    )
+    assert (
+        output
+        == """
+# Task 3
+3
+out
+# Task 7
+7
+out
+# Task 9
+9
+out
+""".lstrip()
+    )
+
+    output = hq_env.command(
+        ["job", "cat", "--task-status=finished", "--tasks=last", "1", "stdout"]
+    )
+    assert (
+        output
+        == """
+9
+out
+""".lstrip()
+    )
+
+    output = hq_env.command(
+        ["job", "cat", "--task-status=failed", "--tasks=3-7", "1", "stdout"]
+    )
+    assert (
+        output
+        == """
+4
+out
+5
+out
+6
+out
+""".lstrip()
+    )
+
+    output_selected = hq_env.command(
+        ["job", "cat", "--task-status=finished,failed", "1", "stdout"]
+    )
+    output_default = hq_env.command(["job", "cat", "1", "stdout"])
+    assert (
+        output_selected
+        == output_default
+        == """
+3
+out
+4
+out
+5
+out
+6
+out
+7
+out
+8
+out
+9
+out
+""".lstrip()
+    )
