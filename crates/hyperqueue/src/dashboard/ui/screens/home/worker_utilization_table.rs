@@ -5,6 +5,7 @@ use crate::dashboard::ui::widgets::progressbar::{
 };
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::dashboard::utils::{calculate_memory_usage_percent, get_average_cpu_usage_for_worker};
+use std::time::SystemTime;
 use tako::messages::worker::WorkerOverview;
 use tako::WorkerId;
 use tui::layout::{Constraint, Rect};
@@ -17,7 +18,7 @@ pub struct WorkerUtilTable {
 
 impl WorkerUtilTable {
     pub fn update(&mut self, data: &DashboardData) {
-        let overview = data.query_latest_overview();
+        let overview = data.query_overview_at(SystemTime::now());
         let rows = create_rows(overview);
         self.table.set_items(rows);
     }
