@@ -40,7 +40,6 @@ impl DashboardData {
 
         // Update data views
         self.worker_timeline.handle_new_events(&events);
-
         self.events.append(&mut events);
     }
 
@@ -56,11 +55,9 @@ impl DashboardData {
         self.worker_timeline.get_connected_worker_ids(time)
     }
 
-    pub fn query_latest_overview(&self) -> Vec<&WorkerOverview> {
+    pub fn query_overview_at(&self, time: SystemTime) -> Vec<&WorkerOverview> {
         let mut overview_vec: Vec<&WorkerOverview> = vec![];
-        let connected_worker_ids = self
-            .worker_timeline
-            .get_connected_worker_ids(SystemTime::now());
+        let connected_worker_ids = self.worker_timeline.get_connected_worker_ids(time);
         for id in connected_worker_ids {
             if let Some(last_overview) = self.query_last_overview_for(id) {
                 overview_vec.push(last_overview);

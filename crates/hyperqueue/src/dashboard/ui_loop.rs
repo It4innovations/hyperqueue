@@ -11,6 +11,7 @@ use crate::dashboard::data;
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::events::DashboardEvent;
 use crate::dashboard::state::DashboardState;
+use crate::dashboard::ui::screen::controller::ScreenController;
 use crate::dashboard::ui::terminal::{initialize_terminal, DashboardTerminal};
 use crate::server::bootstrap::get_client_connection;
 
@@ -20,12 +21,11 @@ pub async fn start_ui_loop(gsettings: &GlobalSettings) -> anyhow::Result<()> {
 
     // TODO: When we start the dashboard and connect to the server, the server may have already forgotten
     // some of its events. Therefore we should bootstrap the state with the most recent overview snapshot.
-
     let data = DashboardData::default();
-    let mut state = DashboardState::new(data);
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     start_key_event_listener(tx.clone());
+    let mut state = DashboardState::new(data, ScreenController::new(tx.clone()));
 
     let ui_ticker = send_event_every(100, tx, DashboardEvent::UiTick);
 
@@ -45,10 +45,12 @@ pub async fn start_ui_loop(gsettings: &GlobalSettings) -> anyhow::Result<()> {
                         }
                     }
                     DashboardEvent::UiTick => draw(&mut state, &mut terminal),
+                    DashboardEvent::ScreenChange(evt) => state.change_current_screen(evt),
                 }
             }
         }
     };
+
     tokio::select! {
         _ = ui_ticker => {
             log::warn!("UI event process has ended");
@@ -70,8 +72,8 @@ fn handle_key(state: &mut DashboardState, input: Key) -> ControlFlow<anyhow::Res
         // Quits the dashboard
         ControlFlow::Break(Ok(()))
     } else {
-        let screen = state.get_current_screen_mut();
-        screen.handle_key(input);
+        let (screen, controller) = state.get_current_screen_and_controller();
+        screen.handle_key(input, controller);
         ControlFlow::Continue(())
     }
 }
@@ -80,9 +82,9 @@ fn draw(state: &mut DashboardState, terminal: &mut DashboardTerminal) {
     terminal
         .draw(|frame| {
             let data = state.get_data_source().clone();
-            let screen = state.get_current_screen_mut();
+            let (screen, controller) = state.get_current_screen_and_controller();
 
-            screen.update(&data.get());
+            screen.update(&data.get(), controller);
             screen.draw(frame);
         })
         .expect("An error occurred while drawing the dashboard");

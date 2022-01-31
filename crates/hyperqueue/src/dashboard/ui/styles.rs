@@ -12,6 +12,14 @@ pub fn style_header_text() -> Style {
         .add_modifier(Modifier::BOLD)
 }
 
+/// The Style for the footer text on screens
+pub fn style_footer() -> Style {
+    Style::default()
+        .fg(Color::Green)
+        .bg(Color::Black)
+        .add_modifier(Modifier::BOLD)
+}
+
 pub fn style_table_title() -> Style {
     Style::default()
         .fg(Color::White)
