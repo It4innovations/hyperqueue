@@ -426,6 +426,7 @@ impl Output for CliOutput {
             info,
             job_desc,
             mut tasks,
+            tasks_not_found: _,
             max_fails: _,
             submission_date,
             completion_date_or_now,

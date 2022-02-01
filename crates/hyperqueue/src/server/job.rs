@@ -1,13 +1,17 @@
 use serde::{Deserialize, Serialize};
 
+use crate::client::status::get_task_status;
 use crate::server::rpc::Backend;
 use crate::stream::server::control::StreamServerControlMessage;
-use crate::transfer::messages::{JobDescription, JobDetail, JobInfo};
+use crate::transfer::messages::{
+    JobDescription, JobDetail, JobInfo, TaskIdSelector, TaskSelector, TaskStatusSelector,
+};
 use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 use tako::common::index::ItemId;
+use tako::common::Set;
 use tako::server::task::SerializedTaskContext;
 use tako::transfer::auth::deserialize;
 use tako::TaskId;
@@ -185,16 +189,35 @@ impl Job {
         }
     }
 
-    pub fn make_job_detail(&self, include_tasks: bool) -> JobDetail {
-        let tasks = if include_tasks {
-            self.tasks.values().cloned().collect()
-        } else {
-            Vec::new()
-        };
+    pub fn make_job_detail(&self, task_selector: Option<&TaskSelector>) -> JobDetail {
+        let mut tasks: Vec<JobTaskInfo> = Vec::new();
+        let mut tasks_not_found: Vec<JobTaskId> = vec![];
+
+        if let Some(selector) = task_selector {
+            filter_tasks(self.tasks.values(), selector, &mut tasks);
+
+            if let TaskIdSelector::Specific(requested_ids) = &selector.id_selector {
+                let task_ids: Set<_> = self
+                    .tasks
+                    .values()
+                    .map(|task| task.task_id.as_num())
+                    .collect();
+                tasks_not_found.extend(
+                    requested_ids
+                        .iter()
+                        .filter(|id| !task_ids.contains(id))
+                        .map(JobTaskId::new),
+                );
+            }
+        }
+
+        tasks.sort_unstable_by_key(|task| task.task_id);
+
         JobDetail {
             info: self.make_job_info(),
             job_desc: self.job_desc.clone(),
             tasks,
+            tasks_not_found,
             max_fails: self.max_fails,
             submission_date: self.submission_date,
             submit_dir: self.submit_dir.clone(),
@@ -358,5 +381,34 @@ impl Job {
         let (tx, rx) = oneshot::channel();
         self.completion_callbacks.push(tx);
         rx
+    }
+}
+
+/// Applies ID and status filters from `selector` to filter `tasks`.
+fn filter_tasks<'a, T: Iterator<Item = &'a JobTaskInfo>>(
+    tasks: T,
+    selector: &TaskSelector,
+    result: &mut Vec<JobTaskInfo>,
+) {
+    for task in tasks {
+        match &selector.id_selector {
+            TaskIdSelector::Specific(ids) => {
+                if !ids.contains(task.task_id.as_num()) {
+                    continue;
+                }
+            }
+            TaskIdSelector::All => {}
+        }
+
+        match &selector.status_selector {
+            TaskStatusSelector::Specific(states) => {
+                if !states.contains(&get_task_status(&task.state)) {
+                    continue;
+                }
+            }
+            TaskStatusSelector::All => {}
+        }
+
+        result.push(task.clone());
     }
 }

@@ -938,9 +938,6 @@ print(os.environ['HQ_TASK_ID'], file=sys.stderr)
     output = hq_env.command(["job", "cat", "1", "stderr"])
     assert output.splitlines() == ["1", "2"]
 
-    output = hq_env.command(["job", "cat", "--tasks", "last", "1", "stderr"])
-    assert output.strip() == "2"
-
     output = hq_env.command(["job", "cat", "--tasks", "3", "1", "stdout"])
     assert "Task 3 not found" in output.strip()
 
@@ -985,9 +982,7 @@ print("err1", file=sys.stderr)
     )
     wait_for_job_state(hq_env, 1, "FINISHED")
 
-    output = hq_env.command(
-        ["job", "cat", "--tasks", "all", "1", "stdout", "--print-task-header"]
-    )
+    output = hq_env.command(["job", "cat", "1", "stdout", "--print-task-header"])
     print(output)
     assert (
         output
@@ -1007,9 +1002,7 @@ out2
 """.lstrip()
     )
 
-    output = hq_env.command(
-        ["job", "cat", "--tasks", "all", "1", "stderr", "--print-task-header"]
-    )
+    output = hq_env.command(["job", "cat", "1", "stderr", "--print-task-header"])
     assert (
         output
         == """
@@ -1068,18 +1061,7 @@ out
     )
 
     output = hq_env.command(
-        ["job", "cat", "--task-status=finished", "--tasks=last", "1", "stdout"]
-    )
-    assert (
-        output
-        == """
-9
-out
-""".lstrip()
-    )
-
-    output = hq_env.command(
-        ["job", "cat", "--task-status=failed", "--tasks=3-7", "1", "stdout"]
+        ["job", "cat", "--task-status=failed", "--tasks", "3-7", "1", "stdout"]
     )
     assert (
         output
@@ -1094,7 +1076,7 @@ out
     )
 
     output_selected = hq_env.command(
-        ["job", "cat", "--task-status=finished,failed", "1", "stdout"]
+        ["job", "cat", "--task-status", "finished,failed", "1", "stdout"]
     )
     output_default = hq_env.command(["job", "cat", "1", "stdout"])
     assert (
