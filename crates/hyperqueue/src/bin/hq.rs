@@ -29,7 +29,7 @@ use hyperqueue::client::output::json::JsonOutput;
 use hyperqueue::client::output::outputs::{Output, Outputs};
 use hyperqueue::client::output::quiet::Quiet;
 use hyperqueue::client::status::Status;
-use hyperqueue::common::cli::SelectorArg;
+use hyperqueue::common::cli::{get_task_selector, IdSelectorArg};
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::dashboard::ui_loop::start_ui_loop;
@@ -146,7 +146,7 @@ enum WorkerCommand {
 #[derive(Parser)]
 struct WorkerStopOpts {
     /// Select worker(s) to stop
-    selector_arg: SelectorArg,
+    selector_arg: IdSelectorArg,
 }
 
 #[derive(Parser)]
@@ -214,13 +214,13 @@ enum JobCommand {
 #[derive(Parser)]
 pub struct JobWaitOpts {
     /// Select job(s) to wait for
-    selector_arg: SelectorArg,
+    selector_arg: IdSelectorArg,
 }
 
 #[derive(Parser)]
 pub struct JobProgressOpts {
     /// Select job(s) to observe
-    selector_arg: SelectorArg,
+    selector_arg: IdSelectorArg,
 }
 
 #[derive(Parser)]
@@ -254,7 +254,7 @@ async fn command_job_list(gsettings: &GlobalSettings, opts: JobListOpts) -> anyh
 }
 
 async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> anyhow::Result<()> {
-    if matches!(opts.selector_arg, SelectorArg::All) {
+    if matches!(opts.selector_arg, IdSelectorArg::All) {
         log::warn!(
             "Job detail doesn't support the `all` selector, did you mean to use `hq job list --all`?"
         );
@@ -267,7 +267,13 @@ async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> an
 
 async fn command_job_tasks(gsettings: &GlobalSettings, opts: JobTasksOpts) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    output_job_tasks(gsettings, &mut connection, opts.job_id.into()).await
+    output_job_tasks(
+        gsettings,
+        &mut connection,
+        opts.job_id.into(),
+        get_task_selector(Some(opts.task_selector)),
+    )
+    .await
 }
 
 async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow::Result<()> {
@@ -276,10 +282,9 @@ async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow
         gsettings,
         &mut connection,
         opts.job_id,
-        opts.tasks.map(|selector| selector.into()),
+        get_task_selector(Some(opts.task_selector)),
         opts.stream,
         opts.print_task_header,
-        opts.task_status,
     )
     .await
 }

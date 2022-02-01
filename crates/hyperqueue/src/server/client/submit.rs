@@ -24,7 +24,7 @@ use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
     JobDescription, ResubmitRequest, SubmitRequest, SubmitResponse, TaskBody, TaskDescription,
-    TaskWithDependencies, ToClientMessage,
+    TaskIdSelector, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
 use crate::{JobId, JobTaskId, TakoTaskId};
 
@@ -83,7 +83,10 @@ pub async fn handle_submit(
         log.clone(),
         submit_dir,
     );
-    let job_detail = job.make_job_detail(false);
+    let job_detail = job.make_job_detail(Some(&TaskSelector {
+        id_selector: TaskIdSelector::All,
+        status_selector: TaskStatusSelector::All,
+    }));
     state_ref.get_mut().add_job(job);
 
     if let Some(log) = log {

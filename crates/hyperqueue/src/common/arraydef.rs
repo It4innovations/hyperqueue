@@ -21,6 +21,11 @@ impl IntRange {
     pub fn iter(&self) -> impl Iterator<Item = u32> {
         (self.start..self.start + self.count).step_by(self.step as usize)
     }
+
+    pub fn contains(&self, value: u32) -> bool {
+        let end = self.start + self.count;
+        self.start <= value && value < end && ((value - self.start) % self.step == 0)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -58,12 +63,19 @@ impl IntArray {
         }
     }
 
+    #[inline]
     pub fn id_count(&self) -> u32 {
         self.ranges.iter().map(|x| x.count).sum()
     }
 
+    #[inline]
     pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
         self.ranges.iter().flat_map(|x| x.iter())
+    }
+
+    #[inline]
+    pub fn contains(&self, id: u32) -> bool {
+        self.ranges.iter().any(|range| range.contains(id))
     }
 }
 
@@ -93,5 +105,44 @@ impl fmt::Display for IntArray {
             }
         }
         write!(f, "{}", &str[0..str.len() - 2])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::common::arraydef::IntRange;
+
+    #[test]
+    fn range_iterate() {
+        assert_eq!(
+            IntRange::new(1, 5, 1).iter().collect::<Vec<_>>(),
+            vec![1, 2, 3, 4, 5]
+        );
+        assert_eq!(
+            IntRange::new(2, 9, 3).iter().collect::<Vec<_>>(),
+            vec![2, 5, 8]
+        );
+        assert_eq!(
+            IntRange::new(2, 10, 3).iter().collect::<Vec<_>>(),
+            vec![2, 5, 8, 11]
+        );
+    }
+
+    #[test]
+    fn range_contains() {
+        assert!(!IntRange::new(1, 5, 1).contains(0));
+        assert!(IntRange::new(1, 5, 1).contains(1));
+        assert!(IntRange::new(1, 5, 1).contains(2));
+        assert!(IntRange::new(1, 5, 1).contains(5));
+        assert!(!IntRange::new(1, 5, 1).contains(6));
+
+        assert!(IntRange::new(1, 8, 3).contains(1));
+        assert!(!IntRange::new(1, 8, 3).contains(2));
+        assert!(!IntRange::new(1, 8, 3).contains(3));
+        assert!(IntRange::new(1, 8, 3).contains(4));
+        assert!(!IntRange::new(1, 8, 3).contains(5));
+        assert!(!IntRange::new(1, 8, 3).contains(6));
+        assert!(IntRange::new(1, 8, 3).contains(7));
+        assert!(!IntRange::new(1, 8, 3).contains(8));
     }
 }

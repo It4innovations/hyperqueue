@@ -14,7 +14,7 @@ use crate::server::job::JobTaskCounters;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::JobInfoRequest;
 use crate::transfer::messages::{
-    FromClientMessage, JobInfo, Selector, ToClientMessage, WaitForJobsRequest,
+    FromClientMessage, IdSelector, JobInfo, ToClientMessage, WaitForJobsRequest,
 };
 use crate::{rpc_call, JobId, JobTaskCount, Set};
 use colored::Colorize;
@@ -22,7 +22,7 @@ use colored::Colorize;
 pub async fn wait_for_jobs(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
-    selector: Selector,
+    selector: IdSelector,
 ) -> anyhow::Result<()> {
     let start = SystemTime::now();
     let response = rpc_call!(
@@ -75,7 +75,7 @@ pub async fn wait_for_jobs_with_progress(
             let response = rpc_call!(
                 connection,
                 FromClientMessage::JobInfo(JobInfoRequest {
-                    selector: Selector::Specific(IntArray::from_ids(ids_ref.iter().map(|&id| id.into()).collect())),
+                    selector: IdSelector::Specific(IntArray::from_ids(ids_ref.iter().map(|&id| id.into()).collect())),
                 }),
                 ToClientMessage::JobInfoResponse(r) => r
             )

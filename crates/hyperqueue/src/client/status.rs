@@ -34,6 +34,7 @@ pub fn is_terminated(info: &JobInfo) -> bool {
     info.counters.n_running_tasks == 0 && info.counters.n_waiting_tasks(info.n_tasks) == 0
 }
 
+#[inline]
 pub fn get_task_status(status: &JobTaskState) -> Status {
     match status {
         JobTaskState::Waiting => Status::Waiting,

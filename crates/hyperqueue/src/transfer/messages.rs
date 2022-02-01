@@ -92,10 +92,28 @@ pub struct SubmitRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Selector {
+pub enum IdSelector {
     All,
     LastN(u32),
     Specific(IntArray),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum TaskIdSelector {
+    All,
+    Specific(IntArray),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum TaskStatusSelector {
+    All,
+    Specific(Vec<Status>),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TaskSelector {
+    pub id_selector: TaskIdSelector,
+    pub status_selector: TaskStatusSelector,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -106,23 +124,23 @@ pub struct ResubmitRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CancelRequest {
-    pub selector: Selector,
+    pub selector: IdSelector,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JobInfoRequest {
-    pub selector: Selector,
+    pub selector: IdSelector,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JobDetailRequest {
-    pub selector: Selector,
-    pub include_tasks: bool,
+    pub job_id_selector: IdSelector,
+    pub task_selector: Option<TaskSelector>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StopWorkerMessage {
-    pub selector: Selector,
+    pub selector: IdSelector,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -165,7 +183,7 @@ pub struct AllocationQueueParams {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WaitForJobsRequest {
-    pub selector: Selector,
+    pub selector: IdSelector,
 }
 
 // Messages server -> client
@@ -260,6 +278,7 @@ pub struct JobDetail {
     pub info: JobInfo,
     pub job_desc: JobDescription,
     pub tasks: Vec<JobTaskInfo>,
+    pub tasks_not_found: Vec<JobTaskId>,
     pub max_fails: Option<JobTaskCount>,
 
     // Date when job was submitted

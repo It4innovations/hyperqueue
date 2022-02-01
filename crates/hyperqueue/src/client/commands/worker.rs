@@ -4,7 +4,7 @@ use crate::common::timeutils::ArgDuration;
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    FromClientMessage, Selector, StopWorkerMessage, StopWorkerResponse, ToClientMessage,
+    FromClientMessage, IdSelector, StopWorkerMessage, StopWorkerResponse, ToClientMessage,
     WorkerInfo, WorkerInfoRequest,
 };
 use crate::worker::parser::{ArgCpuDefinition, ArgGenericResourceDef};
@@ -186,7 +186,7 @@ pub async fn get_worker_info(
 
 pub async fn stop_worker(
     connection: &mut ClientConnection,
-    selector: Selector,
+    selector: IdSelector,
 ) -> crate::Result<()> {
     let message = FromClientMessage::StopWorker(StopWorkerMessage { selector });
     let mut responses =

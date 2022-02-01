@@ -81,6 +81,7 @@ impl Output for JsonOutput {
             info,
             job_desc,
             tasks,
+            tasks_not_found: _,
             max_fails,
             submission_date,
             completion_date_or_now,

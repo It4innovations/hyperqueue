@@ -27,7 +27,7 @@ use crate::common::strutils::pluralize;
 use crate::common::timeutils::ArgDuration;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    FromClientMessage, JobDescription, ResubmitRequest, Selector, SubmitRequest, TaskDescription,
+    FromClientMessage, IdSelector, JobDescription, ResubmitRequest, SubmitRequest, TaskDescription,
     ToClientMessage,
 };
 use crate::{arg_wrapper, rpc_call, JobTaskCount, Map};
@@ -468,7 +468,7 @@ pub async fn submit_computation(
         wait_for_jobs(
             gsettings,
             connection,
-            Selector::Specific(IntArray::from_id(info.id.into())),
+            IdSelector::Specific(IntArray::from_id(info.id.into())),
         )
         .await?;
     } else if progress {

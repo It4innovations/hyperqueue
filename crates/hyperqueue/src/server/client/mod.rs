@@ -20,8 +20,8 @@ use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::WaitForJobsResponse;
 use crate::transfer::messages::{
-    CancelJobResponse, FromClientMessage, JobDetail, JobInfoResponse, Selector, StatsResponse,
-    StopWorkerResponse, ToClientMessage, WorkerListResponse,
+    CancelJobResponse, FromClientMessage, IdSelector, JobDetail, JobInfoResponse, StatsResponse,
+    StopWorkerResponse, TaskSelector, ToClientMessage, WorkerListResponse,
 };
 use crate::{JobId, JobTaskCount, WorkerId};
 
@@ -88,7 +88,7 @@ pub async fn client_rpc_loop<
                     FromClientMessage::Submit(msg) => {
                         submit::handle_submit(&state_ref, &tako_ref, msg).await
                     }
-                    FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, msg.selector),
+                    FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, &msg.selector),
                     FromClientMessage::Resubmit(msg) => {
                         submit::handle_resubmit(&state_ref, &tako_ref, msg).await
                     }
@@ -104,10 +104,10 @@ pub async fn client_rpc_loop<
                         handle_worker_stop(&state_ref, &tako_ref, msg.selector).await
                     }
                     FromClientMessage::Cancel(msg) => {
-                        handle_job_cancel(&state_ref, &tako_ref, msg.selector).await
+                        handle_job_cancel(&state_ref, &tako_ref, &msg.selector).await
                     }
                     FromClientMessage::JobDetail(msg) => {
-                        compute_job_detail(&state_ref, msg.selector, msg.include_tasks)
+                        compute_job_detail(&state_ref, msg.job_id_selector, msg.task_selector)
                     }
                     FromClientMessage::Stats => compose_server_stats(&state_ref, &tako_ref).await,
                     FromClientMessage::AutoAlloc(msg) => {
@@ -149,7 +149,10 @@ pub async fn client_rpc_loop<
 
 /// Waits until all jobs matched by the `selector` are finished (either by completing successfully,
 /// failing or being canceled).
-async fn handle_wait_for_jobs_message(state_ref: &StateRef, selector: Selector) -> ToClientMessage {
+async fn handle_wait_for_jobs_message(
+    state_ref: &StateRef,
+    selector: IdSelector,
+) -> ToClientMessage {
     let update_counters = |response: &mut WaitForJobsResponse, counters: &JobTaskCounters| {
         if counters.n_canceled_tasks > 0 {
             response.canceled += 1;
@@ -162,7 +165,7 @@ async fn handle_wait_for_jobs_message(state_ref: &StateRef, selector: Selector) 
 
     let (receivers, mut response) = {
         let mut state = state_ref.get_mut();
-        let job_ids: Vec<JobId> = get_job_ids(&state, selector);
+        let job_ids: Vec<JobId> = get_job_ids(&state, &selector);
 
         let mut response = WaitForJobsResponse::default();
         let mut receivers = vec![];
@@ -204,21 +207,21 @@ async fn handle_wait_for_jobs_message(state_ref: &StateRef, selector: Selector) 
 async fn handle_worker_stop(
     state_ref: &StateRef,
     tako_ref: &Backend,
-    selector: Selector,
+    selector: IdSelector,
 ) -> ToClientMessage {
     log::debug!("Client asked for worker termination {:?}", selector);
     let mut responses: Vec<(WorkerId, StopWorkerResponse)> = Vec::new();
 
     let worker_ids: Vec<WorkerId> = match selector {
-        Selector::Specific(array) => array.iter().map(|id| id.into()).collect(),
-        Selector::All => state_ref
+        IdSelector::Specific(array) => array.iter().map(|id| id.into()).collect(),
+        IdSelector::All => state_ref
             .get()
             .get_workers()
             .iter()
             .filter(|(_, worker)| worker.make_info().ended.is_none())
             .map(|(_, worker)| worker.worker_id())
             .collect(),
-        Selector::LastN(n) => {
+        IdSelector::LastN(n) => {
             let mut ids: Vec<_> = state_ref.get().get_workers().keys().copied().collect();
             ids.sort_by_key(|&k| std::cmp::Reverse(k));
             ids.truncate(n as usize);
@@ -267,18 +270,18 @@ async fn handle_worker_stop(
 
 fn compute_job_detail(
     state_ref: &StateRef,
-    selector: Selector,
-    include_tasks: bool,
+    job_id_selector: IdSelector,
+    task_selector: Option<TaskSelector>,
 ) -> ToClientMessage {
     let state = state_ref.get();
 
-    let job_ids: Vec<JobId> = get_job_ids(&state, selector);
+    let job_ids: Vec<JobId> = get_job_ids(&state, &job_id_selector);
 
     let mut responses: Vec<(JobId, Option<JobDetail>)> = Vec::new();
     for job_id in job_ids {
         let opt_detail = state
             .get_job(job_id)
-            .map(|j| j.make_job_detail(include_tasks));
+            .map(|j| j.make_job_detail(task_selector.as_ref()));
 
         if let Some(detail) = opt_detail {
             responses.push((job_id, Some(detail)));
@@ -289,11 +292,11 @@ fn compute_job_detail(
     ToClientMessage::JobDetailResponse(responses)
 }
 
-fn get_job_ids(state: &State, selector: Selector) -> Vec<JobId> {
-    match selector {
-        Selector::All => state.jobs().map(|job| job.job_id).collect(),
-        Selector::LastN(n) => state.last_n_ids(n).collect(),
-        Selector::Specific(array) => array.iter().map(|id| id.into()).collect(),
+fn get_job_ids(state: &State, selector: &IdSelector) -> Vec<JobId> {
+    match &selector {
+        IdSelector::All => state.jobs().map(|job| job.job_id).collect(),
+        IdSelector::LastN(n) => state.last_n_ids(*n).collect(),
+        IdSelector::Specific(array) => array.iter().map(|id| id.into()).collect(),
     }
 }
 
@@ -306,17 +309,17 @@ async fn compose_server_stats(_state_ref: &StateRef, backend: &Backend) -> ToCli
     ToClientMessage::StatsResponse(StatsResponse { stream_stats })
 }
 
-fn compute_job_info(state_ref: &StateRef, selector: Selector) -> ToClientMessage {
+fn compute_job_info(state_ref: &StateRef, selector: &IdSelector) -> ToClientMessage {
     let state = state_ref.get();
 
     let jobs: Vec<_> = match selector {
-        Selector::All => state.jobs().map(|j| j.make_job_info()).collect(),
-        Selector::LastN(n) => state
-            .last_n_ids(n)
+        IdSelector::All => state.jobs().map(|j| j.make_job_info()).collect(),
+        IdSelector::LastN(n) => state
+            .last_n_ids(*n)
             .filter_map(|id| state.get_job(id))
             .map(|j| j.make_job_info())
             .collect(),
-        Selector::Specific(array) => array
+        IdSelector::Specific(array) => array
             .iter()
             .filter_map(|id| state.get_job(JobId::new(id)))
             .map(|j| j.make_job_info())
@@ -328,18 +331,18 @@ fn compute_job_info(state_ref: &StateRef, selector: Selector) -> ToClientMessage
 async fn handle_job_cancel(
     state_ref: &StateRef,
     tako_ref: &Backend,
-    selector: Selector,
+    selector: &IdSelector,
 ) -> ToClientMessage {
     let job_ids: Vec<JobId> = match selector {
-        Selector::All => state_ref
+        IdSelector::All => state_ref
             .get()
             .jobs()
             .map(|job| job.make_job_info())
             .filter(|job_info| matches!(job_status(job_info), Status::Waiting | Status::Running))
             .map(|job_info| job_info.id)
             .collect(),
-        Selector::LastN(n) => state_ref.get().last_n_ids(n).collect(),
-        Selector::Specific(array) => array.iter().map(|id| id.into()).collect(),
+        IdSelector::LastN(n) => state_ref.get().last_n_ids(*n).collect(),
+        IdSelector::Specific(array) => array.iter().map(|id| id.into()).collect(),
     };
 
     let mut responses: Vec<(JobId, CancelJobResponse)> = Vec::new();
