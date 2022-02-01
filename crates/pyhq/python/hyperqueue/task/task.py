@@ -1,8 +1,10 @@
-from typing import List
+from typing import Sequence
 
 TaskId = int
 
 
 class Task:
-    def __init__(self, dependencies: List["Task"] = None):
-        self.dependencies = dependencies or ()
+
+    def __init__(self, dependencies: Sequence["Task"] = ()):
+        assert dependencies is not None
+        self.dependencies = dependencies

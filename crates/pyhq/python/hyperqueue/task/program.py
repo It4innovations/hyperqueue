@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Sequence
 
 from ..common import GenericPath
 from ..output import Output, gather_outputs
@@ -15,7 +15,7 @@ class ExternalProgram(Task):
         args: List[str],
         env: EnvType = None,
         cwd: Optional[GenericPath] = None,
-        dependencies: List[Task] = None,
+        dependencies: Sequence[Task] = (),
     ):
         super().__init__(dependencies)
         args = to_arg_list(args)
