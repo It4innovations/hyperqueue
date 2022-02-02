@@ -7,6 +7,9 @@ class TaskDescription:
     id: int
     args: List[str]
     cwd: Optional[str]
+    stdout: Optional[str]
+    stderr: Optional[str]
+    stdin: Optional[bytes]
     env: Dict[str, str]
     dependencies: List[int]
 

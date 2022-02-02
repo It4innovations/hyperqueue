@@ -13,7 +13,6 @@ class HqContext:
 
 
 class Connection:
-
     def __init__(self, directory: Optional[str] = None):
         self.ctx: HqContext = ffi.connect_to_server(directory)
 

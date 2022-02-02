@@ -42,3 +42,17 @@ def test_submit_env(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, job_id, "FINISHED")
     check_file_contents("out.txt", "BAR\n123\n")
+
+
+def test_submit_stdio(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+    job.program(
+        args=bash("echo Test1; cat -; >&2 echo Test2"),
+        stdout="out",
+        stderr="err",
+        stdin=b"Hello\n",
+    )
+    job_id = client.submit(job)
+    wait_for_job_state(hq_env, job_id, "FINISHED")
+    check_file_contents("out", "Test1\nHello\n")
+    check_file_contents("err", "Test2\n")
