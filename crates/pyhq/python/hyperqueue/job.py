@@ -1,4 +1,4 @@
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Union
 
 from .common import GenericPath
 from .ffi.protocol import JobDescription, TaskDescription
@@ -15,11 +15,23 @@ class Job:
     def program(
         self,
         args: ProgramArgs,
+        *,
         env: EnvType = None,
         cwd: Optional[GenericPath] = None,
+        stdout: Optional[GenericPath] = None,
+        stderr: Optional[GenericPath] = None,
+        stdin: Optional[Union[str, bytes]] = None,
         depends: Sequence[Task] = (),
     ) -> ExternalProgram:
-        task = ExternalProgram(args=args, env=env, cwd=cwd, dependencies=depends)
+        task = ExternalProgram(
+            args=args,
+            env=env,
+            cwd=cwd,
+            dependencies=depends,
+            stdout=stdout,
+            stderr=stderr,
+            stdin=stdin,
+        )
         self.tasks.append(task)
         return task
 
@@ -27,14 +39,5 @@ class Job:
         id_map = {task: index for (index, task) in enumerate(self.tasks)}
         task_descriptions = []
         for task in self.tasks:
-            depends_on = [id_map[dependency] for dependency in task.dependencies]
-            task_descriptions.append(
-                TaskDescription(
-                    id=id_map[task],
-                    args=task.args,
-                    env=task.env,
-                    cwd=task.cwd,
-                    dependencies=depends_on,
-                )
-            )
+            task_descriptions.append(task.build(id_map))
         return JobDescription(task_descriptions)

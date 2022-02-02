@@ -6,7 +6,6 @@ from .job import Job, JobId
 
 
 class Client:
-
     def __init__(self, path: Optional[Path] = None):
         path = str(path) if path else None
         self.connection = Connection(path)

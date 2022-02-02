@@ -1,9 +1,10 @@
-from typing import Dict, List, Optional, Union, Sequence
+from typing import Dict, List, Optional, Sequence, Union
 
 from ..common import GenericPath
+from ..ffi.protocol import TaskDescription
 from ..output import Output, gather_outputs
 from ..validation import ValidationException, validate_args
-from .task import Task
+from .task import Task, TaskId
 
 EnvType = Optional[Dict[str, str]]
 ProgramArgs = Union[List[str], str]
@@ -12,9 +13,13 @@ ProgramArgs = Union[List[str], str]
 class ExternalProgram(Task):
     def __init__(
         self,
+        *,
         args: List[str],
         env: EnvType = None,
         cwd: Optional[GenericPath] = None,
+        stdout: Optional[GenericPath] = None,
+        stderr: Optional[GenericPath] = None,
+        stdin: Optional[Union[str, bytes]] = None,
         dependencies: Sequence[Task] = (),
     ):
         super().__init__(dependencies)
@@ -23,7 +28,30 @@ class ExternalProgram(Task):
         self.args = args
         self.env = env or {}
         self.cwd = str(cwd) if cwd else None
+        self.stdout = str(stdout) if stdout else None
+        self.stderr = str(stderr) if stdout else None
+
+        if stdin is None or isinstance(stdin, bytes):
+            self.stdin = stdin
+        elif isinstance(stdin, str):
+            self.stdin = stdin.encode()
+        else:
+            raise Exception("stdin has to be str, bytes, or None")
+
         self.outputs = get_task_outputs(self)
+
+    def build(self, id_map: Dict[Task, TaskId]):
+        depends_on = [id_map[dependency] for dependency in self.dependencies]
+        return TaskDescription(
+            id=id_map[self],
+            args=self.args,
+            env=self.env,
+            stdout=self.stdout,
+            stderr=self.stderr,
+            stdin=self.stdin,
+            cwd=self.cwd,
+            dependencies=depends_on,
+        )
 
     def __getitem__(self, key: str):
         if key not in self.outputs:

@@ -1,6 +1,6 @@
 use hyperqueue::common::fsutils::get_current_dir;
 use hyperqueue::rpc_call;
-use hyperqueue::tako::messages::common::ProgramDefinition;
+use hyperqueue::tako::messages::common::{ProgramDefinition, StdioDef};
 use hyperqueue::transfer::messages::{
     FromClientMessage, JobDescription as HqJobDescription, SubmitRequest,
     TaskDescription as HqTaskDescription, TaskWithDependencies, ToClientMessage,
@@ -18,6 +18,9 @@ pub struct TaskDescription {
     args: Vec<String>,
     cwd: Option<PathBuf>,
     env: HashMap<String, String>,
+    stdout: Option<PathBuf>,
+    stderr: Option<PathBuf>,
+    stdin: Option<Vec<u8>>,
     dependencies: Vec<u32>,
 }
 
@@ -51,30 +54,36 @@ pub(crate) fn submit_job_impl(py: Python, ctx: ContextPtr, job: JobDescription) 
 fn build_tasks(tasks: Vec<TaskDescription>, submit_dir: &Path) -> Vec<TaskWithDependencies> {
     tasks
         .into_iter()
-        .map(|task| TaskWithDependencies {
+        .map(|mut task| TaskWithDependencies {
             id: task.id.into(),
-            task_desc: build_task_desc(
-                task.args,
-                task.env,
-                task.cwd.unwrap_or_else(|| submit_dir.to_path_buf()),
-            ),
-            dependencies: task.dependencies.into_iter().map(|id| id.into()).collect(),
+            dependencies: std::mem::take(&mut task.dependencies)
+                .into_iter()
+                .map(|id| id.into())
+                .collect(),
+            task_desc: build_task_desc(task, submit_dir),
         })
         .collect()
 }
 
-fn build_task_desc(
-    args: Vec<String>,
-    env: HashMap<String, String>,
-    cwd: PathBuf,
-) -> HqTaskDescription {
+fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> HqTaskDescription {
+    let args = desc.args.into_iter().map(|arg| arg.into()).collect();
+    let env = desc
+        .env
+        .into_iter()
+        .map(|(k, v)| (k.into(), v.into()))
+        .collect();
+    let stdout = desc.stdout.map(StdioDef::File).unwrap_or_default();
+    let stderr = desc.stderr.map(StdioDef::File).unwrap_or_default();
+    let stdin = desc.stdin.unwrap_or_default();
+    let cwd = desc.cwd.unwrap_or_else(|| submit_dir.to_path_buf());
+
     HqTaskDescription {
         program: ProgramDefinition {
-            args: args.into_iter().map(|arg| arg.into()).collect(),
-            env: env.into_iter().map(|(k, v)| (k.into(), v.into())).collect(),
-            stdout: Default::default(),
-            stderr: Default::default(),
-            stdin: vec![],
+            args,
+            env,
+            stdout,
+            stderr,
+            stdin,
             cwd,
         },
         resources: Default::default(),
