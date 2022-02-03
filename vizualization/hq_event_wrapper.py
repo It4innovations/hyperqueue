@@ -6,7 +6,7 @@ from events_type import *
 
 
 class Event:
-    test1: str
+    pass
 
 
 class Events(list):
