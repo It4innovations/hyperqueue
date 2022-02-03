@@ -17,7 +17,7 @@ class Events(list):
         return [i for i in self.get_by_type(WorkerEvents) if i['id'] == id]
 
 
-class HQEventWrapper:
+class HQEventCLIWrapper:
 
     def __init__(self, hq_event_bin_path: str, cwd: str = "", hq_bin_path: str = ""):
         self.hq_bin_path = os.path.join(hq_bin_path, "hq")
@@ -36,7 +36,7 @@ class HQEventWrapper:
         return wrapper
 
     @_invoke_at
-    def _get_events(self) -> bytes:
+    def _get_events(self):
         output = sp.run([self.hq_bin_path, "event-log", "export", self.hq_event_bin], capture_output=True)
         assert len(output.stdout) > 0
         json_events = output.stdout
@@ -54,7 +54,21 @@ class HQEventWrapper:
         return Events(objects)
 
 
+class HQEventFileWrapper(HQEventCLIWrapper):
+
+    def __init__(self, json_path: str):
+        self.json_path = json_path
+        self._get_events()
+
+    def _get_events(self):
+        with open(self.json_path, 'r') as fp:
+            self.json_events_raw = [row for row in fp.readlines()]
+
+
+
 if __name__ == "__main__":
-    event_wrapper = HQEventWrapper("events.bin", "/home/fredy/IT4I/rust/hyperqueue", "target/debug")
+    # event_wrapper = HQEventCLIWrapper("events.bin", "/home/fredy/IT4I/rust/hyperqueue", "target/debug")
+    # eventy = event_wrapper.get_objects()
+    event_wrapper = HQEventFileWrapper('/home/fredy/IT4I/rust/hyperqueue/output.json')
     eventy = event_wrapper.get_objects()
-    print(eventy)
+    print('ok')
