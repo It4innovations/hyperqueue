@@ -7,55 +7,27 @@ use crate::client::job::WorkerMap;
 use crate::server::autoalloc::{Allocation, AllocationEventHolder};
 use crate::stream::reader::logfile::Summary;
 use std::path::Path;
-use std::str::FromStr;
 
 use crate::client::output::common::TaskToPathsMap;
 use crate::server::job::JobTaskInfo;
-use clap::Parser;
 use core::time::Duration;
 use tako::common::resources::ResourceDescriptor;
 
 pub const MAX_DISPLAYED_WORKERS: usize = 2;
 
-#[derive(Parser)]
+#[derive(clap::ArgEnum, Clone)]
 pub enum Outputs {
     CLI,
     JSON,
     Quiet,
 }
 
-impl FromStr for Outputs {
-    type Err = anyhow::Error;
-
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        match input {
-            "cli" => Ok(Outputs::CLI),
-            "json" => Ok(Outputs::JSON),
-            "quiet" => Ok(Outputs::Quiet),
-            _ => {
-                anyhow::bail!("Invalid output mode. Possible values are `cli`, `json` or `quiet`.")
-            }
-        }
-    }
-}
-
+#[derive(clap::ArgEnum, Clone)]
 pub enum OutputStream {
     /// Displays stdout output stream for given job and task(s)
     Stdout,
     /// Displays stderr output stream for given job and task(s)
     Stderr,
-}
-
-impl FromStr for OutputStream {
-    type Err = anyhow::Error;
-
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        match input {
-            "stdout" => Ok(OutputStream::Stdout),
-            "stderr" => Ok(OutputStream::Stderr),
-            _ => anyhow::bail!("Invalid output stream. Possible values are `stdout` or `stderr`."),
-        }
-    }
 }
 
 pub trait Output {

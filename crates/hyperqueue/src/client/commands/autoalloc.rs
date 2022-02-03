@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use std::time::SystemTime;
 
 use clap::Parser;
@@ -98,7 +97,7 @@ struct SharedQueueOpts {
     resource: Vec<PassThroughArgument<ArgGenericResourceDef>>,
 
     /// Behavior when a connection to a server is lost
-    #[clap(long, default_value = "finish-running", possible_values = &["stop", "finish-running"])]
+    #[clap(long, default_value = "finish-running", arg_enum)]
     on_server_lost: ArgServerLostPolicy,
 
     /// Maximum number of directories of inactive (finished, failed, unsubmitted) allocations
@@ -141,29 +140,16 @@ struct AllocationsOpts {
     queue: u32,
 
     /// Display only allocations with the given state
-    #[clap(long, possible_values = &["queued", "running", "finished", "failed"])]
+    #[clap(long, arg_enum)]
     filter: Option<AllocationStateFilter>,
 }
 
+#[derive(clap::ArgEnum, Clone)]
 enum AllocationStateFilter {
     Queued,
     Running,
     Finished,
     Failed,
-}
-
-impl FromStr for AllocationStateFilter {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "queued" => Ok(AllocationStateFilter::Queued),
-            "running" => Ok(AllocationStateFilter::Running),
-            "finished" => Ok(AllocationStateFilter::Finished),
-            "failed" => Ok(AllocationStateFilter::Failed),
-            _ => Err(anyhow::anyhow!("Invalid allocation state filter")),
-        }
-    }
 }
 
 pub async fn command_autoalloc(
@@ -221,7 +207,7 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
         worker_cpu_arg: cpus.map(|v| v.into()),
         worker_resources_args: resource.into_iter().map(|v| v.into()).collect(),
         max_worker_count,
-        on_server_lost: on_server_lost.unpack(),
+        on_server_lost: on_server_lost.into(),
         max_kept_directories,
     }
 }

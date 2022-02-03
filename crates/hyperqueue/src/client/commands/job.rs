@@ -24,12 +24,7 @@ pub struct JobListOpts {
 
     /// Display only jobs with the given states.
     /// You can use multiple states separated by a comma.
-    #[clap(
-        long,
-        multiple_occurrences(false),
-        use_delimiter(true),
-        possible_values = &["waiting", "running", "finished", "failed", "canceled"]
-    )]
+    #[clap(long, multiple_occurrences(false), use_delimiter(true), arg_enum)]
     pub filter: Vec<Status>,
 }
 
@@ -62,12 +57,7 @@ pub struct JobCatOpts {
 
     /// Display only task(s) with the given states.
     /// You can use multiple states separated by a comma.
-    #[clap(
-        long,
-        multiple_occurrences(false),
-        use_delimiter(true),
-        possible_values = &["waiting", "running", "finished", "failed", "canceled"]
-    )]
+    #[clap(long, multiple_occurrences(false), use_delimiter(true), arg_enum)]
     pub task_status: Vec<Status>,
 
     /// Prepend the output of each task with a header line that identifies the task
@@ -76,7 +66,7 @@ pub struct JobCatOpts {
     pub print_task_header: bool,
 
     /// Type of output stream to display
-    #[clap(possible_values = &["stdout", "stderr"])]
+    #[clap(arg_enum)]
     pub stream: OutputStream,
 }
 

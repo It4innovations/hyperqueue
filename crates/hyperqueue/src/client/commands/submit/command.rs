@@ -239,27 +239,12 @@ impl SubmitJobConfOpts {
     }
 }
 
+#[derive(clap::ArgEnum, Clone)]
 pub enum DirectivesMode {
     Auto,
     File,
     Stdin,
     Off,
-}
-
-arg_wrapper!(DirectivesModeArg, DirectivesMode, parse_directives_mode);
-
-fn parse_directives_mode(input: &str) -> anyhow::Result<DirectivesMode> {
-    Ok(match input.to_ascii_lowercase().as_str() {
-        "file" => DirectivesMode::File,
-        "stdin" => DirectivesMode::Stdin,
-        "auto" => DirectivesMode::Auto,
-        "off" => DirectivesMode::Off,
-        _ => {
-            return Err(anyhow!(
-                "Invalid `--directives` value. Allowed values are `auto`, `file`, `stdin`, or `stop`"
-            ));
-        }
-    })
 }
 
 #[derive(Parser)]
@@ -288,7 +273,9 @@ pub struct JobSubmitOpts {
     /// Select directives parsing mode.
     ///
     /// `auto`: Directives will be parsed if the suffix of the first command is ".sh".{n}
-    /// `always`: Directives will be parsed regardless of the first command extension.{n}
+    /// `file`: Directives will be parsed regardless of the first command extension.{n}
+    /// `stdin`: Directives will be parsed from standard input passed to `hq submit` instead
+    ///  from the submitted command.{n}
     /// `off`: Directives will not be parsed.{n}
     ///
     /// If enabled, HQ will parse `#HQ` directives from a file located in the first entered command.
@@ -300,8 +287,8 @@ pub struct JobSubmitOpts {
     /// #HQ --cpus=2{n}
     /// {n}
     /// program --foo=bar{n}
-    #[clap(long, default_value = "auto", possible_values = &["auto", "file", "stdin", "off"])]
-    directives: DirectivesModeArg,
+    #[clap(long, default_value = "auto", arg_enum)]
+    directives: DirectivesMode,
 }
 
 impl JobSubmitOpts {
@@ -355,7 +342,7 @@ fn handle_directives(mut opts: JobSubmitOpts, stdin: &[u8]) -> anyhow::Result<Jo
     };
 
     let command = &opts.commands[0];
-    if let Some(update) = match opts.directives.get() {
+    if let Some(update) = match opts.directives {
         DirectivesMode::Auto if command.ends_with(".sh") => Some(parse_file(command)?),
         DirectivesMode::File => Some(parse_file(command)?),
         DirectivesMode::Stdin => Some(parse_hq_directives(stdin)?),
@@ -626,12 +613,7 @@ pub struct JobResubmitOpts {
 
     /// Resubmit only tasks with the given states.
     /// You can use multiple states separated by a comma.
-    #[clap(
-        long,
-        multiple_occurrences(false),
-        use_delimiter(true),
-        possible_values = &["waiting", "running", "finished", "failed", "canceled"]
-    )]
+    #[clap(long, multiple_occurrences(false), use_delimiter(true), arg_enum)]
     filter: Vec<Status>,
 }
 

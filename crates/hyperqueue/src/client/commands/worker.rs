@@ -1,5 +1,4 @@
 use crate::client::globalsettings::GlobalSettings;
-use crate::common::error::error;
 use crate::common::serverdir::ServerDir;
 use crate::common::timeutils::ArgDuration;
 use crate::rpc_call;
@@ -15,38 +14,19 @@ use crate::worker::streamer::StreamerRef;
 use crate::WorkerId;
 use anyhow::Context;
 use clap::Parser;
-use std::str::FromStr;
 use std::time::Duration;
 use tako::worker::rpc::run_worker;
 use tako::worker::state::ServerLostPolicy;
 use tokio::net::lookup_host;
 use tokio::task::LocalSet;
 
-#[derive(Debug)]
+#[derive(clap::ArgEnum, Clone)]
 pub enum WorkerFilter {
     Running,
     Offline,
 }
 
-impl FromStr for WorkerFilter {
-    type Err = anyhow::Error;
-
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let filter = match input {
-            "running" => WorkerFilter::Running,
-            "offline" => WorkerFilter::Offline,
-            _ => {
-                return Err(anyhow::anyhow!(
-                    "Invalid worker filter value `{}`. Allowed values are `running` or `offline`.",
-                    input
-                ))
-            }
-        };
-        Ok(filter)
-    }
-}
-
-#[derive(Parser)]
+#[derive(clap::ArgEnum, Clone)]
 pub enum ManagerOpts {
     Detect,
     None,
@@ -54,38 +34,19 @@ pub enum ManagerOpts {
     Slurm,
 }
 
-impl FromStr for ManagerOpts {
-    type Err = crate::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s.to_ascii_lowercase().as_str() {
-            "detect" => Self::Detect,
-            "none" => Self::None,
-            "pbs" => Self::Pbs,
-            "slurm" => Self::Slurm,
-            _ => {
-                return error(
-                    "Invalid manager value. Allowed values are 'detect', 'none', 'pbs', 'slurm'"
-                        .to_string(),
-                );
-            }
-        })
-    }
+#[derive(clap::ArgEnum, Clone)]
+pub enum ArgServerLostPolicy {
+    Stop,
+    FinishRunning,
 }
 
-crate::arg_wrapper!(ArgServerLostPolicy, ServerLostPolicy, parse_on_server_lost);
-
-fn parse_on_server_lost(s: &str) -> crate::Result<ServerLostPolicy> {
-    Ok(match s.to_ascii_lowercase().as_str() {
-        "stop" => ServerLostPolicy::Stop,
-        "finish-running" => ServerLostPolicy::FinishRunning,
-        _ => {
-            return error(
-                "Invalid on-server-lost value. Allowed values are 'stop', 'finish-running'"
-                    .to_string(),
-            );
+impl From<ArgServerLostPolicy> for ServerLostPolicy {
+    fn from(policy: ArgServerLostPolicy) -> Self {
+        match policy {
+            ArgServerLostPolicy::Stop => ServerLostPolicy::Stop,
+            ArgServerLostPolicy::FinishRunning => ServerLostPolicy::FinishRunning,
         }
-    })
+    }
 }
 
 #[derive(Parser)]
@@ -115,7 +76,7 @@ pub struct WorkerStartOpts {
     pub time_limit: Option<ArgDuration>,
 
     /// What HPC job manager should be used by the worker.
-    #[clap(long, default_value = "detect", possible_values = & ["detect", "slurm", "pbs", "none"])]
+    #[clap(long, default_value = "detect", arg_enum)]
     pub manager: ManagerOpts,
 
     /// Overwrite worker hostname
@@ -123,7 +84,7 @@ pub struct WorkerStartOpts {
     pub hostname: Option<String>,
 
     /// Behavior when a connection to a server is lost
-    #[clap(long, default_value = "stop", possible_values = &["stop", "finish-running"])]
+    #[clap(long, default_value = "stop", arg_enum)]
     pub on_server_lost: ArgServerLostPolicy,
 }
 

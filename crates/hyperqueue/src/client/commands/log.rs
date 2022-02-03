@@ -3,7 +3,6 @@ use crate::common::arraydef::IntArray;
 use crate::stream::reader::logfile::LogFile;
 use clap::Parser;
 use std::path::PathBuf;
-use std::str::FromStr;
 
 #[derive(Parser)]
 pub struct LogOpts {
@@ -21,7 +20,7 @@ pub struct SummaryOpts {}
 #[derive(Parser)]
 pub struct ShowOpts {
     /// Filter only specific channel
-    #[clap(long)]
+    #[clap(long, arg_enum)]
     pub channel: Option<Channel>,
 
     /// Show close message even for tasks with empty stream
@@ -32,6 +31,7 @@ pub struct ShowOpts {
 #[derive(Parser)]
 pub struct CatOpts {
     /// Channel name: "stdout" or "stderr"
+    #[clap(arg_enum)]
     pub channel: Channel,
 
     /// Print only the specified task(s) output. You can use the array syntax to specify multiple tasks.
@@ -55,22 +55,10 @@ pub enum LogCommand {
     Cat(CatOpts),
 }
 
-#[derive(Parser)]
+#[derive(clap::ArgEnum, Clone)]
 pub enum Channel {
     Stdout,
     Stderr,
-}
-
-impl FromStr for Channel {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "stdout" => Ok(Channel::Stdout),
-            "stderr" => Ok(Channel::Stderr),
-            _ => Err("Invalid channel"),
-        }
-    }
 }
 
 pub fn command_log(gsettings: &GlobalSettings, opts: LogOpts) -> anyhow::Result<()> {

@@ -553,7 +553,7 @@ pub fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfi
         hostname,
         work_dir,
         log_dir,
-        on_server_lost: opts.on_server_lost.unpack(),
+        on_server_lost: opts.on_server_lost.into(),
         heartbeat_interval: opts.heartbeat.unpack(),
         idle_timeout: opts.idle_timeout.map(|x| x.unpack()),
         send_overview_interval: Some(Duration::from_millis(1000)),

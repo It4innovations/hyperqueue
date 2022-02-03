@@ -1,6 +1,5 @@
 use std::io;
 use std::path::PathBuf;
-use std::str::FromStr;
 
 use clap::{IntoApp, Parser, ValueHint};
 use clap_complete::{generate, Shell};
@@ -57,7 +56,7 @@ struct CommonOpts {
     server_dir: Option<PathBuf>,
 
     /// Console color policy.
-    #[clap(long, default_value = "auto", possible_values = &["auto", "always", "never"])]
+    #[clap(long, default_value = "auto", arg_enum)]
     #[clap(
         global = true,
         help_heading("GLOBAL OPTIONS"),
@@ -66,7 +65,7 @@ struct CommonOpts {
     colors: ColorPolicy,
 
     /// How should the output of the command be formatted.
-    #[clap(long, env = "HQ_OUTPUT_MODE", default_value = "cli", possible_values = &["cli", "json", "quiet"])]
+    #[clap(long, env = "HQ_OUTPUT_MODE", default_value = "cli", arg_enum)]
     #[clap(
         global = true,
         help_heading("GLOBAL OPTIONS"),
@@ -157,7 +156,7 @@ struct WorkerListOpts {
     all: bool,
 
     /// Select only workers with the given state.
-    #[clap(long, possible_values(&["running", "offline"]))]
+    #[clap(long, arg_enum)]
     filter: Option<WorkerFilter>,
 }
 
@@ -407,23 +406,11 @@ async fn command_dashboard_start(
     Ok(())
 }
 
+#[derive(clap::ArgEnum, Clone)]
 pub enum ColorPolicy {
     Auto,
     Always,
     Never,
-}
-
-impl FromStr for ColorPolicy {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
-            "auto" => Self::Auto,
-            "always" => Self::Always,
-            "never" => Self::Never,
-            _ => anyhow::bail!("Invalid color policy"),
-        })
-    }
 }
 
 fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
