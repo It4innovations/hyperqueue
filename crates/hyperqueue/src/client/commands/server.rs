@@ -55,6 +55,10 @@ struct ServerStartOpts {
     /// Path to a log file where events will be stored.
     #[clap(long, hide(true))]
     event_log_path: Option<PathBuf>,
+
+    /// Restore server state from the provided event log path
+    #[clap(long, hide(true))]
+    restore_from: Option<PathBuf>,
 }
 
 #[derive(Parser)]
@@ -86,6 +90,7 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
         worker_port: opts.worker_port,
         event_buffer_size: opts.event_store_size,
         event_log_path: opts.event_log_path,
+        restore_from: opts.restore_from,
     };
 
     init_hq_server(gsettings, server_cfg).await
