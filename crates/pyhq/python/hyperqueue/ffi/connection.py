@@ -1,7 +1,7 @@
 from typing import Optional
 
 from .. import hyperqueue as ffi
-from ..job import Job, JobId
+from ..job import JobId
 from .protocol import JobDescription
 
 

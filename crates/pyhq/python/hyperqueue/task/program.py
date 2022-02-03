@@ -40,7 +40,7 @@ class ExternalProgram(Task):
 
         self.outputs = get_task_outputs(self)
 
-    def build(self, id_map: Dict[Task, TaskId]):
+    def _build(self, client, id_map: Dict[Task, TaskId]):
         depends_on = [id_map[dependency] for dependency in self.dependencies]
         return TaskDescription(
             id=id_map[self],

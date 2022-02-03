@@ -10,3 +10,4 @@ classifiers = [
 ]
 requires-python = ">=3.6"
 description = "HyperQueue Python API"
+dependencies = ["cloudpickle==2.0"]

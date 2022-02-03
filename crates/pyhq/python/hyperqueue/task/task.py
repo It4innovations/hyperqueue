@@ -8,5 +8,5 @@ class Task:
         assert dependencies is not None
         self.dependencies = dependencies
 
-    def build(self, id_map: Dict["Task", TaskId]):
+    def _build(self, client, id_map: Dict["Task", TaskId]):
         raise NotImplementedError
