@@ -36,7 +36,7 @@ class Table:
         row = self.get_row_value(key)
         if row is None:
             raise Exception(f"Key `{key!r}` not found in\n{self}")
-        assert_equals(row, value)
+        assert row == value
 
     def get_column_value(self, key: str) -> Optional[List[str]]:
         """
@@ -55,7 +55,7 @@ class Table:
         if not column:
             raise Exception(f"Value for key `{key!r}` not found in\n{self}")
         row = column[index]
-        assert_equals(row, value)
+        assert row == value
 
     def check_columns_value(self, keys: List[str], index: int, values: List[str]):
         assert len(keys) == len(values)
@@ -75,15 +75,6 @@ class Table:
         rows = [self.header] if self.header else []
         rows.extend(self.rows)
         return "\n".join(" | ".join(val) for val in rows)
-
-
-def assert_equals(a, b):
-    """
-    Workaround for pytest.
-    Without this it won't show the differing values if an assert error happens inside some method.
-    """
-    if a != b:
-        raise Exception(f"{a!r} does not equal {b!r}")
 
 
 def parse_table(table_string: str) -> Table:
