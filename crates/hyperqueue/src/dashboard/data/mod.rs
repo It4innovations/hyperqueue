@@ -55,6 +55,16 @@ impl DashboardData {
         self.worker_timeline.get_connected_worker_ids(time)
     }
 
+    pub fn query_worker_overview_at(
+        &self,
+        worker_id: WorkerId,
+        time: SystemTime,
+    ) -> Option<&WorkerOverview> {
+        self.query_overview_at(time)
+            .into_iter()
+            .find(|overview| overview.id == worker_id)
+    }
+
     pub fn query_overview_at(&self, time: SystemTime) -> Vec<&WorkerOverview> {
         let mut overview_vec: Vec<&WorkerOverview> = vec![];
         let connected_worker_ids = self.worker_timeline.get_connected_worker_ids(time);

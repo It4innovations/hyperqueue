@@ -8,6 +8,9 @@ use crate::dashboard::ui::widgets::text::draw_text;
 
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::screen::controller::ScreenController;
+use crate::dashboard::ui::screens::worker::cpu_util_table::{
+    get_column_constraints, render_cpu_util_table,
+};
 use crate::dashboard::ui::screens::worker::worker_config_table::WorkerConfigTable;
 use tako::WorkerId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
@@ -17,6 +20,8 @@ pub struct WorkerOverviewScreen {
     /// The worker info screen shows data for this worker
     worker_id: Option<WorkerId>,
     worker_info_table: WorkerConfigTable,
+
+    worker_per_core_cpu_util: Vec<f32>,
 }
 
 impl WorkerOverviewScreen {
@@ -45,11 +50,31 @@ impl Screen for WorkerOverviewScreen {
             style_footer(),
         );
 
+        let cpu_usage_columns = get_column_constraints(
+            layout.worker_util_chunk,
+            self.worker_per_core_cpu_util.len(),
+        );
+        render_cpu_util_table(
+            &self.worker_per_core_cpu_util,
+            layout.worker_util_chunk,
+            frame,
+            &cpu_usage_columns,
+        );
+
         self.worker_info_table
             .draw(layout.worker_info_table_chunk, frame);
     }
 
     fn update(&mut self, data: &DashboardData, controller: &mut ScreenController) {
+        if let Some(cpu_util) = self
+            .worker_id
+            .and_then(|worker_id| data.query_worker_overview_at(worker_id, SystemTime::now()))
+            .and_then(|overview| overview.hw_state.as_ref())
+            .map(|hw_state| &hw_state.state.worker_cpu_usage.cpu_per_core_percent_usage)
+        {
+            self.worker_per_core_cpu_util = cpu_util.clone()
+        }
+
         let configuration = self
             .worker_id
             .and_then(|worker_id| {
@@ -57,6 +82,7 @@ impl Screen for WorkerOverviewScreen {
                     .find(|id| id == &worker_id)
             })
             .and_then(|worker_id| data.query_worker_info_for(&worker_id));
+
         match configuration {
             Some(configuration) => self.worker_info_table.update(configuration),
             None => controller.show_cluster_overview(),
@@ -73,18 +99,17 @@ impl Screen for WorkerOverviewScreen {
 
 /**
 *  __________________________
-   |     UChart | TChart   |
    |--------Header---------|
+   |       Cpu Util        |
    |-----------------------|
-   |     Info Table        |
+   |     Worker Info       |
    |-----------------------|
    |--------Footer---------|
    |-----------------------|
  **/
 struct WorkerScreenLayout {
-    _worker_util_chart_chunk: Rect,
-    _worker_tasks_chart_chunk: Rect,
     header_chunk: Rect,
+    worker_util_chunk: Rect,
     worker_info_table_chunk: Rect,
     footer_chunk: Rect,
 }
@@ -93,24 +118,17 @@ impl WorkerScreenLayout {
     fn new(frame: &DashboardFrame) -> Self {
         let base_chunks = tui::layout::Layout::default()
             .constraints(vec![
-                Constraint::Percentage(45),
-                Constraint::Percentage(5),
-                Constraint::Percentage(45),
+                Constraint::Percentage(10),
+                Constraint::Percentage(30),
+                Constraint::Percentage(55),
                 Constraint::Percentage(5),
             ])
             .direction(Direction::Vertical)
             .split(frame.size());
 
-        let info_chunks = Layout::default()
-            .constraints(vec![Constraint::Percentage(30), Constraint::Percentage(70)])
-            .direction(Direction::Horizontal)
-            .margin(0)
-            .split(base_chunks[0]);
-
         Self {
-            _worker_util_chart_chunk: info_chunks[0],
-            _worker_tasks_chart_chunk: info_chunks[1],
-            header_chunk: base_chunks[1],
+            header_chunk: base_chunks[0],
+            worker_util_chunk: base_chunks[1],
             worker_info_table_chunk: base_chunks[2],
             footer_chunk: base_chunks[3],
         }

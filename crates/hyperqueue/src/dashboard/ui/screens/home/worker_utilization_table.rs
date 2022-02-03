@@ -60,10 +60,10 @@ impl WorkerUtilTable {
                 let cpu_progress = (data.average_cpu_usage.unwrap_or(0.0)) / 100.0;
                 let mem_progress = (data.memory_usage.unwrap_or(0) as f32) / 100.0;
                 let cpu_prog_bar =
-                    render_progress_bar_at(cpu_progress, 12, ProgressPrintStyle::default());
+                    render_progress_bar_at(None, cpu_progress, 18, ProgressPrintStyle::default());
 
                 let mem_prog_bar =
-                    render_progress_bar_at(mem_progress, 12, ProgressPrintStyle::default());
+                    render_progress_bar_at(None, mem_progress, 18, ProgressPrintStyle::default());
 
                 Row::new(vec![
                     Cell::from(data.id.to_string()),

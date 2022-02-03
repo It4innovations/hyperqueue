@@ -82,7 +82,7 @@ impl HomeLayout {
             .split(frame.size());
 
         let info_chunks = Layout::default()
-            .constraints(vec![Constraint::Percentage(30), Constraint::Percentage(70)])
+            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
             .direction(Direction::Horizontal)
             .margin(0)
             .split(base_chunks[0]);

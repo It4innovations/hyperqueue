@@ -38,13 +38,15 @@ pub fn get_progress_bar_color(progress: f32) -> Style {
  * Creates a string progress bar for 0 < progress < 1
  */
 pub fn render_progress_bar_at(
+    label: Option<String>,
     progress: f32,
     num_characters: u8,
     style: ProgressPrintStyle,
 ) -> String {
     assert!((0.00..=1.00).contains(&progress));
-    //to keep the length of the progressbar correct after the padding
-    let num_characters = num_characters - 2;
+    let label = label.unwrap_or_default();
+    //to keep the length of the progressbar correct after the padding and %usage label
+    let num_characters = num_characters - 8 - label.len() as u8;
     let indicator_count = (progress * (num_characters as f32)).ceil();
     let start_block = style.start_block;
     let indicator = std::iter::repeat(style.indicator)
@@ -55,7 +57,8 @@ pub fn render_progress_bar_at(
         .collect::<String>();
 
     format!(
-        "{}{}{}{}: {}%",
+        "{}{}{}{}{}: {}%",
+        label,
         start_block,
         indicator,
         filler,
