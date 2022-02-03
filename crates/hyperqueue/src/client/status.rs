@@ -1,35 +1,16 @@
-use std::str::FromStr;
-
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::server::job::JobTaskState;
 use crate::transfer::messages::JobInfo;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(clap::ArgEnum, Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Status {
     Waiting,
     Running,
     Finished,
     Failed,
     Canceled,
-}
-
-impl FromStr for Status {
-    type Err = anyhow::Error;
-
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        Ok(match input {
-            "waiting" => Self::Waiting,
-            "running" => Self::Running,
-            "finished" => Self::Finished,
-            "failed" => Self::Failed,
-            "canceled" => Self::Canceled,
-            _ => {
-                anyhow::bail!("Invalid job status, possible options: `waiting`, `running`, `finished`, `failed` or `canceled`.")
-            }
-        })
-    }
 }
 
 pub fn job_status(info: &JobInfo) -> Status {
