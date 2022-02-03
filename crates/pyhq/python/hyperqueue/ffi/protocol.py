@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
 
 @dataclasses.dataclass()
@@ -10,8 +10,8 @@ class TaskDescription:
     stdout: Optional[str]
     stderr: Optional[str]
     stdin: Optional[bytes]
-    env: Dict[str, str]
-    dependencies: List[int]
+    env: Optional[Dict[str, str]]
+    dependencies: Sequence[int]
 
 
 @dataclasses.dataclass
