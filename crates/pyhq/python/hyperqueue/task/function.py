@@ -19,6 +19,20 @@ def cloud_wrap(fn, cache=True):
     return CloudWrapper(fn, cache=cache)
 
 
+class PythonEnv:
+    def __init__(self, python_bin="python3", prologue=None, shell="bash"):
+        code = (
+            "import sys;import cloudpickle;import pickle;"
+            "fn,a,kw=pickle.loads(sys.stdin.buffer.read());"
+            "fn(*a, **(kw if kw is not None else {}))"
+        )
+
+        if prologue:
+            self.args = [shell, "-c", f'{prologue}\n\n{python_bin} -c "{code}"']
+        else:
+            self.args = [python_bin, "-c", code]
+
+
 class PythonFunction(Task):
     def __init__(
         self,
@@ -28,7 +42,7 @@ class PythonFunction(Task):
         kwargs=None,
         stdout=None,
         stderr=None,
-        dependencies=()
+        dependencies=(),
     ):
         super().__init__(dependencies)
 
@@ -48,13 +62,7 @@ class PythonFunction(Task):
         depends_on = [id_map[dependency] for dependency in self.dependencies]
         return TaskDescription(
             id=id_map[self],
-            args=[
-                client.python_bin,
-                "-c",
-                "import sys;import cloudpickle;import pickle;"
-                "fn,a,kw=pickle.loads(sys.stdin.buffer.read());"
-                "fn(*a, **(kw if kw is not None else {}))",
-            ],
+            args=client.python_env.args,
             stdout=self.stdout,
             stderr=self.stderr,
             env={},
