@@ -148,7 +148,13 @@ impl Output for JsonOutput {
         self.print(json);
     }
 
-    fn print_job_wait(&self, duration: Duration, response: &WaitForJobsResponse) {
+    fn print_job_wait(
+        &self,
+        duration: Duration,
+        response: &WaitForJobsResponse,
+        _details: &[(JobId, Option<JobDetail>)],
+        _worker_map: WorkerMap,
+    ) {
         let WaitForJobsResponse {
             finished,
             failed,

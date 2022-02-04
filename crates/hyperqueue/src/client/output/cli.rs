@@ -158,7 +158,7 @@ impl CliOutput {
         ]);
     }
 
-    fn print_task_summary(&self, tasks: Vec<JobTaskInfo>, info: JobInfo, worker_map: &WorkerMap) {
+    fn print_task_summary(&self, tasks: &[JobTaskInfo], info: &JobInfo, worker_map: &WorkerMap) {
         const SHOWN_TASKS: usize = 5;
 
         let fail_rows: Vec<_> = tasks
@@ -189,13 +189,12 @@ impl CliOutput {
 
             let counters = info.counters;
             if count < counters.n_failed_tasks {
-                log::warn!(
+                println!(
                     "{} tasks failed. ({} shown)",
-                    counters.n_failed_tasks,
-                    count
+                    counters.n_failed_tasks, count
                 );
             } else {
-                log::warn!("{} tasks failed.", counters.n_failed_tasks);
+                println!("{} tasks failed.", counters.n_failed_tasks);
             }
         }
     }
@@ -484,10 +483,16 @@ impl Output for CliOutput {
         self.print_vertical_table(rows);
 
         tasks.sort_unstable_by_key(|t| t.task_id);
-        self.print_task_summary(tasks, info, &worker_map);
+        self.print_task_summary(&tasks, &info, &worker_map);
     }
 
-    fn print_job_wait(&self, duration: Duration, response: &WaitForJobsResponse) {
+    fn print_job_wait(
+        &self,
+        duration: Duration,
+        response: &WaitForJobsResponse,
+        details: &[(JobId, Option<JobDetail>)],
+        worker_map: WorkerMap,
+    ) {
         let mut msgs = vec![];
 
         let mut format = |count: u32, action: &str, color| {
@@ -506,7 +511,16 @@ impl Output for CliOutput {
         format(response.canceled, "canceled", TASK_COLOR_CANCELED);
         format(response.invalid, "invalid", TASK_COLOR_INVALID);
 
-        log::info!(
+        for detail in details {
+            match detail {
+                (id, None) => log::warn!("Job {id} not found"),
+                (_id, Some(detail)) => {
+                    self.print_task_summary(&detail.tasks, &detail.info, &worker_map)
+                }
+            }
+        }
+
+        println!(
             "Wait finished in {}: {}",
             humantime::format_duration(duration),
             msgs.join(", ")

@@ -3,18 +3,19 @@ use std::time::{Duration, SystemTime};
 use tokio::time::sleep;
 
 use crate::client::globalsettings::GlobalSettings;
+use crate::client::job::get_worker_map;
 use crate::client::output::cli::{
     job_progress_bar, TASK_COLOR_CANCELED, TASK_COLOR_FAILED, TASK_COLOR_FINISHED,
     TASK_COLOR_RUNNING,
 };
-use crate::client::status::is_terminated;
+use crate::client::status::{is_terminated, Status};
 use crate::common::arraydef::IntArray;
 use crate::common::strutils::pluralize;
 use crate::server::job::JobTaskCounters;
 use crate::transfer::connection::ClientConnection;
-use crate::transfer::messages::JobInfoRequest;
 use crate::transfer::messages::{
-    FromClientMessage, IdSelector, JobInfo, ToClientMessage, WaitForJobsRequest,
+    FromClientMessage, IdSelector, JobDetailRequest, JobInfo, JobInfoRequest, TaskIdSelector,
+    TaskSelector, TaskStatusSelector, ToClientMessage, WaitForJobsRequest,
 };
 use crate::{rpc_call, JobId, JobTaskCount, Set};
 use colored::Colorize;
@@ -28,14 +29,37 @@ pub async fn wait_for_jobs(
     let response = rpc_call!(
         connection,
         FromClientMessage::WaitForJobs(WaitForJobsRequest {
-            selector,
+            selector: selector.clone(),
         }),
         ToClientMessage::WaitForJobsResponse(r) => r
     )
     .await?;
 
+    let detail = match response.failed > 0 {
+        false => vec![],
+        true => {
+            rpc_call!(
+                connection,
+                FromClientMessage::JobDetail(JobDetailRequest {
+                    job_id_selector: selector,
+                    task_selector: Some(TaskSelector {
+                        id_selector: TaskIdSelector::All,
+                        status_selector: TaskStatusSelector::Specific(vec![Status::Failed]),
+                    })
+                }),
+                ToClientMessage::JobDetailResponse(r) => r
+            )
+            .await?
+        }
+    };
+
     let duration = start.elapsed()?;
-    gsettings.printer().print_job_wait(duration, &response);
+    gsettings.printer().print_job_wait(
+        duration,
+        &response,
+        &detail,
+        get_worker_map(connection).await?,
+    );
 
     if response.failed > 0 || response.canceled > 0 {
         return Err(anyhow::anyhow!(
