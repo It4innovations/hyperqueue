@@ -69,7 +69,15 @@ impl Output for Quiet {
         }
     }
     fn print_job_detail(&self, _job: JobDetail, _worker_map: WorkerMap) {}
-    fn print_job_wait(&self, _duration: Duration, _response: &WaitForJobsResponse) {}
+
+    fn print_job_wait(
+        &self,
+        _duration: Duration,
+        _response: &WaitForJobsResponse,
+        _details: &[(JobId, Option<JobDetail>)],
+        _worker_map: WorkerMap,
+    ) {
+    }
     fn print_job_output(
         &self,
         tasks: Vec<JobTaskInfo>,
