@@ -45,7 +45,9 @@ class Job:
         stdout: Optional[GenericPath] = None,
         stderr: Optional[GenericPath] = None,
     ):
-        task = PythonFunction(fn, args=args, kwargs=kwargs, stdout=stdout, stderr=stderr)
+        task = PythonFunction(
+            fn, args=args, kwargs=kwargs, stdout=stdout, stderr=stderr
+        )
         self.tasks.append(task)
         return task
 
