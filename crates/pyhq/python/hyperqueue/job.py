@@ -23,13 +23,13 @@ class Job:
         stdout: Optional[GenericPath] = None,
         stderr: Optional[GenericPath] = None,
         stdin: Optional[Union[str, bytes]] = None,
-        depends: Sequence[Task] = (),
+        dependencies: Sequence[Task] = (),
     ) -> ExternalProgram:
         task = ExternalProgram(
             args=args,
             env=env,
             cwd=cwd,
-            dependencies=depends,
+            dependencies=dependencies,
             stdout=stdout,
             stderr=stderr,
             stdin=stdin,
@@ -45,9 +45,10 @@ class Job:
         kwargs=None,
         stdout: Optional[GenericPath] = None,
         stderr: Optional[GenericPath] = None,
+        dependencies: Sequence[Task] = (),
     ):
         task = PythonFunction(
-            fn, args=args, kwargs=kwargs, stdout=stdout, stderr=stderr
+            fn, args=args, kwargs=kwargs, stdout=stdout, stderr=stderr, dependencies=dependencies
         )
         self.tasks.append(task)
         return task
