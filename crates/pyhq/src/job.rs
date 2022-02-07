@@ -1,16 +1,19 @@
+use hyperqueue::common::arraydef::IntArray;
+use hyperqueue::common::fsutils::get_current_dir;
 use hyperqueue::common::utils::fs::get_current_dir;
-use hyperqueue::rpc_call;
 use hyperqueue::tako::messages::common::{ProgramDefinition, StdioDef};
 use hyperqueue::transfer::messages::{
-    FromClientMessage, JobDescription as HqJobDescription, SubmitRequest,
+    FromClientMessage, IdSelector, JobDescription as HqJobDescription, SubmitRequest,
     TaskDescription as HqTaskDescription, TaskWithDependencies, ToClientMessage,
+    WaitForJobsRequest,
 };
+use hyperqueue::{rpc_call, JobTaskCount};
 use pyo3::{PyResult, Python};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::utils::error::ToPyResult;
-use crate::{borrow_mut, run_future, ContextPtr, FromPyObject};
+use crate::{borrow_mut, run_future, ContextPtr, FromPyObject, PyJobId};
 
 #[derive(Debug, FromPyObject)]
 pub struct TaskDescription {
@@ -27,6 +30,7 @@ pub struct TaskDescription {
 #[derive(Debug, FromPyObject)]
 pub struct JobDescription {
     tasks: Vec<TaskDescription>,
+    max_fails: Option<JobTaskCount>,
 }
 
 pub(crate) fn submit_job_impl(py: Python, ctx: ContextPtr, job: JobDescription) -> PyResult<u32> {
@@ -38,7 +42,7 @@ pub(crate) fn submit_job_impl(py: Python, ctx: ContextPtr, job: JobDescription) 
         let message = FromClientMessage::Submit(SubmitRequest {
             job_desc,
             name: "".to_string(),
-            max_fails: None,
+            max_fails: job.max_fails,
             submit_dir,
             log: None,
         });
@@ -92,4 +96,23 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> HqTaskDescriptio
         time_limit: None,
         priority: 0,
     }
+}
+
+pub(crate) fn wait_for_jobs_impl(
+    py: Python,
+    ctx: ContextPtr,
+    job_ids: Vec<PyJobId>,
+) -> PyResult<u32> {
+    run_future(async move {
+        let message = FromClientMessage::WaitForJobs(WaitForJobsRequest {
+            selector: IdSelector::Specific(IntArray::from_ids(job_ids)),
+        });
+
+        let mut ctx = borrow_mut!(py, ctx);
+        let response =
+            rpc_call!(ctx.connection, message, ToClientMessage::WaitForJobsResponse(r) => r)
+                .await
+                .map_py_err()?;
+        Ok(response.finished)
+    })
 }

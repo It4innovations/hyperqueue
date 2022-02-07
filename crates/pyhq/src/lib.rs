@@ -5,7 +5,7 @@ use tokio::runtime::Builder;
 
 use hyperqueue::transfer::connection::ClientConnection;
 
-use crate::job::{submit_job_impl, JobDescription};
+use crate::job::{submit_job_impl, wait_for_jobs_impl, JobDescription};
 use crate::server::{connect_to_server_impl, stop_server_impl};
 use crate::utils::run_future;
 
@@ -23,6 +23,8 @@ struct HqContext {
 
 type ContextPtr = Py<HqContext>;
 
+type PyJobId = u32;
+
 #[pyfunction]
 fn connect_to_server(py: Python, directory: Option<String>) -> PyResult<ContextPtr> {
     connect_to_server_impl(py, directory)
@@ -34,8 +36,13 @@ fn stop_server(py: Python, ctx: ContextPtr) -> PyResult<()> {
 }
 
 #[pyfunction]
-fn submit_job(py: Python, ctx: ContextPtr, job: JobDescription) -> PyResult<u32> {
+fn submit_job(py: Python, ctx: ContextPtr, job: JobDescription) -> PyResult<PyJobId> {
     submit_job_impl(py, ctx, job)
+}
+
+#[pyfunction]
+fn wait_for_jobs(py: Python, ctx: ContextPtr, job_ids: Vec<PyJobId>) -> PyResult<u32> {
+    wait_for_jobs_impl(py, ctx, job_ids)
 }
 
 #[pymodule]
@@ -46,8 +53,14 @@ fn hyperqueue(_py: Python, m: &PyModule) -> PyResult<()> {
     pyo3_asyncio::tokio::init(builder);
 
     m.add_class::<HqContext>()?;
+
+    // Server
     m.add_function(wrap_pyfunction!(connect_to_server, m)?)?;
     m.add_function(wrap_pyfunction!(stop_server, m)?)?;
+
+    // Jobs
     m.add_function(wrap_pyfunction!(submit_job, m)?)?;
+    m.add_function(wrap_pyfunction!(wait_for_jobs, m)?)?;
+
     Ok(())
 }

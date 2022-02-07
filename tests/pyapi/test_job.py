@@ -1,10 +1,14 @@
 from pathlib import Path
 
+import pytest
+
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
 from ..utils.io import check_file_contents
 from ..utils.table import parse_multiline_cell
 from . import bash, prepare_job_client
+
+from hyperqueue.job import Job
 
 
 def test_submit_simple(hq_env: HqEnv):
@@ -56,3 +60,22 @@ def test_submit_stdio(hq_env: HqEnv):
     wait_for_job_state(hq_env, job_id, "FINISHED")
     check_file_contents("out", "Test1\nHello\n")
     check_file_contents("err", "Test2\n")
+
+
+def test_wait_for_job(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+
+    job.program(
+        args=bash("exit 1"),
+    )
+    job_id = client.submit(job)
+    with pytest.raises(Exception, match="Job 1 failed"):
+        client.wait_for_job(job_id)
+
+    job = Job()
+    job.program(
+        args=bash("echo Test1 > output"),
+    )
+    job_id = client.submit(job)
+    client.wait_for_job(job_id)
+    check_file_contents("output", "Test1\n")

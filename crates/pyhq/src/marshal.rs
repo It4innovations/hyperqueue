@@ -3,7 +3,8 @@
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
-use pyo3::types::PyFloat;
+use hyperqueue::JobId;
+use pyo3::types::{PyFloat, PyInt};
 use pyo3::{FromPyObject, PyAny, PyResult};
 use pythonize::depythonize;
 use serde::de::DeserializeOwned;

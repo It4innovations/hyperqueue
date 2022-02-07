@@ -10,8 +10,9 @@ JobId = int
 
 
 class Job:
-    def __init__(self):
+    def __init__(self, max_fails: Optional[int] = 1):
         self.tasks: List[Task] = []
+        self.max_fails = max_fails
 
     def program(
         self,
@@ -56,4 +57,4 @@ class Job:
         task_descriptions = []
         for task in self.tasks:
             task_descriptions.append(task._build(client, id_map))
-        return JobDescription(task_descriptions)
+        return JobDescription(task_descriptions, self.max_fails)
