@@ -1,8 +1,6 @@
-import dataclasses
 import subprocess as sp
 import os
 import json
-from events_type import *
 
 
 class Event:
@@ -16,10 +14,30 @@ class Events(list):
     def get_by_type(self, event_type) -> list:
         if type(event_type) not in [list, tuple]:
             event_type = [event_type]
-        return [i for i in self if type(i).__name__ in event_type]
+        return Events([i for i in self if type(i).__name__ in event_type])
 
-    def get_by_worker_id(self, id) -> list:
-        return [i for i in self.get_by_type(WorkerEvents) if i.id == id]
+    def get_by_id(self, id):
+        return Events([i for i in self if i.id == id])
+
+    def get_by(self, keyword, value):
+        output = []
+        for i in self:
+            if keyword in type(i).__dict__.keys():
+                if type(i).__dict__[keyword] == value:
+                    output.append(i)
+
+        return Events(output)
+
+    def get_workers_ids(self):
+        return Events([i.id for i in self.get_by_type('worker-connected')])
+
+    def get_ids(self):
+        output = []
+        for i in self:
+            if i.id not in output:
+                output.append(i.id)
+
+        return output
 
 
 class HQEventCLIWrapper:
@@ -57,7 +75,7 @@ class HQEventCLIWrapper:
                     event['event']['time'] = event['time']
                     class_name = event['event']['type']
                     event['event'].pop('type', None)
-                    new_event = type(class_name, (Event,), event['event'])
+                    new_event = type(class_name, (object,), event['event'])
                     objects.append(new_event())
 
         return Events(objects)
@@ -72,12 +90,3 @@ class HQEventFileWrapper(HQEventCLIWrapper):
     def _get_events(self):
         with open(self.json_path, 'r') as fp:
             self.json_events_raw = [row for row in fp.readlines()]
-
-
-if __name__ == "__main__":
-    # event_wrapper = HQEventCLIWrapper("events.bin", "/home/fredy/IT4I/rust/hyperqueue", "target/debug")
-    # eventy = event_wrapper.get_objects()
-    event_wrapper = HQEventFileWrapper('/home/fredy/IT4I/rust/hyperqueue/output.json')
-    eventy = event_wrapper.get_objects()
-    print(eventy.get_by_type(WorkerEvents))
-    print(eventy.get_by_worker_id(1))
