@@ -99,6 +99,7 @@ impl CliOutput {
             pin,
             time_limit,
             priority,
+            task_dir: _,
         } = task_desc;
 
         let resources = format_resource_request(resources);

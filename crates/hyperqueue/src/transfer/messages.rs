@@ -40,6 +40,7 @@ pub enum FromClientMessage {
 pub struct TaskBody {
     pub program: ProgramDefinition,
     pub pin: bool,
+    pub task_dir: bool,
     pub job_id: JobId,
     pub task_id: JobTaskId,
 }
@@ -49,6 +50,7 @@ pub struct TaskDescription {
     pub program: ProgramDefinition,
     pub resources: ResourceRequest,
     pub pin: bool,
+    pub task_dir: bool,
     pub time_limit: Option<Duration>,
     pub priority: tako::Priority,
 }

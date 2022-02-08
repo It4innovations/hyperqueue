@@ -160,6 +160,8 @@ class HqEnv(Env):
         self.id_counter += 1
         worker_id = self.id_counter
         worker_env = self.make_default_env()
+        work_dir = f"workdir{worker_id}"
+
         if env:
             worker_env.update(env)
         worker_args = [
@@ -168,6 +170,7 @@ class HqEnv(Env):
             self.server_dir,
             "worker",
             "start",
+            f"--work-dir={work_dir}",
             f"--on-server-lost={on_server_lost}",
             "--no-detect-resources",  # Ignore resources on testing machine
         ]

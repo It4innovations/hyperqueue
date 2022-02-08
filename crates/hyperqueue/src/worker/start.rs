@@ -27,7 +27,7 @@ use tako::worker::taskenv::{StopReason, TaskResult};
 use tako::{InstanceId, TaskId};
 
 use crate::client::commands::worker::{ManagerOpts, WorkerStartOpts};
-use crate::common::env::{HQ_CPUS, HQ_INSTANCE_ID, HQ_PIN, HQ_SUBMIT_DIR};
+use crate::common::env::{HQ_CPUS, HQ_INSTANCE_ID, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR};
 use crate::common::fsutils::{bytes_to_path, is_implicit_path, path_has_extension};
 use crate::common::manager::info::{ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::manager::{pbs, slurm};
@@ -68,11 +68,12 @@ impl TaskLauncher for HqTaskLauncher {
         task_id: TaskId,
         stop_receiver: Receiver<StopReason>,
     ) -> tako::Result<TaskLaunchData> {
-        let (mut program, job_id, job_task_id, instance_id): (
+        let (mut program, job_id, job_task_id, instance_id, task_dir): (
             ProgramDefinition,
             JobId,
             JobTaskId,
             InstanceId,
+            Option<TempDir>,
         ) = {
             let task = state.get_task(task_id);
             let allocation = task
@@ -88,12 +89,29 @@ impl TaskLauncher for HqTaskLauncher {
             );
 
             let body: TaskBody = tako::transfer::auth::deserialize(&task.body)?;
-            let mut program = body.program;
+            let TaskBody {
+                mut program,
+                pin,
+                task_dir,
+                job_id,
+                task_id,
+            } = body;
 
-            if body.pin {
+            if pin {
                 pin_program(&mut program, allocation);
                 program.env.insert(HQ_PIN.into(), "1".into());
             }
+
+            let task_dir = if task_dir {
+                let task_dir = TempDir::new_in(&state.configuration.work_dir, "t")?;
+                program.env.insert(
+                    HQ_TASK_DIR.into(),
+                    task_dir.path().to_string_lossy().to_string().into(),
+                );
+                Some(task_dir)
+            } else {
+                None
+            };
 
             insert_resources_into_env(state, task, allocation, &mut program);
 
@@ -103,8 +121,8 @@ impl TaskLauncher for HqTaskLauncher {
                 .insert(HQ_INSTANCE_ID.into(), task.instance_id.to_string().into());
 
             let ctx = CompletePlaceholderCtx {
-                job_id: body.job_id,
-                task_id: body.task_id,
+                job_id,
+                task_id,
                 instance_id: task.instance_id,
                 submit_dir: &submit_dir,
             };
@@ -114,7 +132,7 @@ impl TaskLauncher for HqTaskLauncher {
             create_directory_if_needed(&program.stdout)?;
             create_directory_if_needed(&program.stderr)?;
 
-            (program, body.job_id, body.task_id, task.instance_id)
+            (program, job_id, task_id, task.instance_id, task_dir)
         };
 
         let context = RunningTaskContext { instance_id };
@@ -129,6 +147,7 @@ impl TaskLauncher for HqTaskLauncher {
             job_task_id,
             instance_id,
             stop_receiver,
+            task_dir,
         );
 
         Ok(TaskLaunchData::new(
@@ -265,6 +284,7 @@ async fn run_task(
     _job_task_id: JobTaskId,
     _instance_id: InstanceId,
     _end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
+    _task_dir: Option<TempDir>,
 ) -> tako::Result<TaskResult> {
     Ok(TaskResult::Finished)
 }
@@ -342,6 +362,7 @@ async fn run_task(
     job_task_id: JobTaskId,
     instance_id: InstanceId,
     end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
+    _task_dir: Option<TempDir>,
 ) -> tako::Result<TaskResult> {
     let mut command = command_from_definitions(&program)?;
 
@@ -525,7 +546,10 @@ pub fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfi
 
     let (work_dir, log_dir) = {
         let tmpdir = TempDir::new("hq-worker").unwrap().into_path();
-        (tmpdir.join("work"), tmpdir.join("logs"))
+        (
+            opts.work_dir.unwrap_or_else(|| tmpdir.join("work")),
+            tmpdir.join("logs"),
+        )
     };
 
     let manager_info = gather_manager_info(opts.manager)?;

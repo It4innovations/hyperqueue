@@ -230,6 +230,7 @@ fn serialize_task_body(
     let body_msg = TaskBody {
         program,
         pin: task_desc.pin,
+        task_dir: task_desc.task_dir,
         job_id: ctx.job_id,
         task_id,
     };
@@ -485,6 +486,7 @@ mod tests {
                 min_time: Duration::from_secs(2),
             },
             pin: false,
+            task_dir: false,
             time_limit,
             priority,
         }

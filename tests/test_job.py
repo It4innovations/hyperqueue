@@ -1099,3 +1099,33 @@ out
 out
 """.lstrip()
     )
+
+
+@pytest.mark.parametrize("mode", ["FINISHED", "FAILED", "CANCELED"])
+def test_submit_task_dir(hq_env: HqEnv, mode):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--stdout=out",
+            "--task-dir",
+            "--",
+            "bash",
+            "-c",
+            "echo $HQ_TASK_DIR; touch $HQ_TASK_DIR/xyz; sleep 2; {}".format(
+                "exit 1" if mode == "FAILED" else ""
+            ),
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "RUNNING", sleep_s=0.2)
+    with open("out", "r") as f:
+        path = f.read().rstrip()
+    assert os.path.isfile(os.path.join(path, "xyz"))
+
+    if mode == "CANCELED":
+        hq_env.command(["job", "cancel", "all"])
+
+    wait_for_job_state(hq_env, 1, mode)
+    assert not os.path.exists(path)
