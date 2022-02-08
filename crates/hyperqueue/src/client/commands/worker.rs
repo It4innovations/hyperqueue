@@ -14,6 +14,7 @@ use crate::worker::streamer::StreamerRef;
 use crate::WorkerId;
 use anyhow::Context;
 use clap::Parser;
+use std::path::PathBuf;
 use std::time::Duration;
 use tako::worker::rpc::run_worker;
 use tako::worker::state::ServerLostPolicy;
@@ -86,6 +87,11 @@ pub struct WorkerStartOpts {
     /// Behavior when a connection to a server is lost
     #[clap(long, default_value = "stop", arg_enum)]
     pub on_server_lost: ArgServerLostPolicy,
+
+    /// Working directory of a worker. Temp directory by default.
+    /// It should *NOT* be placed on a network filesystem.
+    #[clap(long)]
+    pub work_dir: Option<PathBuf>,
 }
 
 pub async fn start_hq_worker(
@@ -105,6 +111,9 @@ pub async fn start_hq_worker(
     log::info!("Connecting to: {}", server_address);
 
     let configuration = start::gather_configuration(opts)?;
+
+    std::fs::create_dir_all(&configuration.work_dir)?;
+    std::fs::create_dir_all(&configuration.log_dir)?;
 
     let server_addr = lookup_host(&server_address)
         .await?

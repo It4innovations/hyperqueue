@@ -998,6 +998,7 @@ mod tests {
                     program: def,
                     resources: resources.clone(),
                     pin: false,
+                    task_dir: false,
                     time_limit: None,
                     priority: 0,
                 },

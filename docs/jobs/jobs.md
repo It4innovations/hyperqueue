@@ -292,6 +292,12 @@ The following command will capture stdin and executes it in Bash
 If you want to parse #HQ directives from stdin, you can use ``--directives=stdin``.
 
 
+## Task directory
+
+When a job is submitted with ``--task-dir`` then a temporary directory is created for each task and
+passed via environment variable ``HQ_TASK_DIR``. This directory is automatically deleted
+when a task is completed (for any reason).
+
 ## Useful job commands
 Here is a list of useful job commands:
 

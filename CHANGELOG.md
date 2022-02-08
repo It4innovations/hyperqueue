@@ -2,7 +2,13 @@
 
 ## New features
 
+### Tasks
+
+* Task may be started with a temporary directory that is automatically deleted when the task is finished.
+  (flag ``--task-dir``)
+
 ### CLI
+ 
 * You can now use the `hq task list <job-selector>` command to display a list of tasks across multiple jobs. 
 * Add `--filter` flag to `worker list` to allow filtering workers by their status.
 

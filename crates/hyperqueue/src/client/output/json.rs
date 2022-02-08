@@ -123,6 +123,7 @@ impl Output for JsonOutput {
                     pin,
                     time_limit,
                     priority,
+                    task_dir,
                 },
             ..
         } = job_desc
@@ -142,6 +143,7 @@ impl Output for JsonOutput {
             json["pin"] = json!(pin);
             json["priority"] = json!(priority);
             json["time_limit"] = json!(time_limit.map(format_duration));
+            json["task_dir"] = json!(task_dir);
         }
 
         json["tasks"] = format_tasks(tasks, task_paths);

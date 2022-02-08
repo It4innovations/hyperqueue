@@ -200,6 +200,11 @@ pub struct SubmitJobConfOpts {
     /// Stream the output of tasks into this log file.
     #[clap(long)]
     log: Option<PathBuf>,
+
+    /// Create a temporary directory for task, path is provided in HQ_TASK_DIR
+    /// The directory is automatically deleted when task is finished
+    #[clap(long)]
+    task_dir: bool,
 }
 
 impl SubmitJobConfOpts {
@@ -224,6 +229,7 @@ impl SubmitJobConfOpts {
             time_request: self.time_request.or(other.time_request),
             name: self.name.or(other.name),
             pin: self.pin || other.pin,
+            task_dir: self.task_dir || other.task_dir,
             cwd: self.cwd.or(other.cwd),
             stdout: self.stdout.or(other.stdout),
             stderr: self.stderr.or(other.stderr),
@@ -389,6 +395,7 @@ pub async fn submit_computation(
                 time_request: _,
                 name,
                 pin,
+                task_dir,
                 cwd,
                 stdout,
                 stderr,
@@ -444,6 +451,7 @@ pub async fn submit_computation(
         pin,
         priority,
         time_limit,
+        task_dir,
     };
 
     let job_desc = JobDescription::Array {

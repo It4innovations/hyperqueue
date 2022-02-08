@@ -88,6 +88,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> HqTaskDescriptio
         },
         resources: Default::default(),
         pin: false,
+        task_dir: false,
         time_limit: None,
         priority: 0,
     }

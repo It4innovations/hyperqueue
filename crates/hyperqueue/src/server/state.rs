@@ -290,6 +290,7 @@ mod tests {
                 program: dummy_program_definition(),
                 resources: Default::default(),
                 pin: false,
+                task_dir: false,
                 time_limit: None,
                 priority: 0,
             },
