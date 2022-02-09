@@ -141,23 +141,30 @@ pub async fn output_job_detail(
 pub async fn output_job_tasks(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
-    job_id: JobId,
+    job_id_selector: IdSelector,
     task_selector: Option<TaskSelector>,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::JobDetail(JobDetailRequest {
-        job_id_selector: IdSelector::Specific(IntArray::from_id(job_id.into())),
+        job_id_selector,
         task_selector,
     });
-    let mut response =
+    let responses =
         rpc_call!(connection, message, ToClientMessage::JobDetailResponse(r) => r).await?;
 
-    if let Some(job) = response.pop().and_then(|item| item.1) {
-        gsettings
-            .printer()
-            .print_job_tasks(job, get_worker_map(connection).await?);
-    } else {
-        log::error!("Job {} not found", job_id);
-    }
+    let jobs = responses
+        .into_iter()
+        .filter_map(|(job_id, opt_job)| match opt_job {
+            Some(job) => Some((job_id, job)),
+            None => {
+                log::warn!("Job {job_id} not found");
+                None
+            }
+        })
+        .collect();
+
+    gsettings
+        .printer()
+        .print_tasks(jobs, get_worker_map(connection).await?);
     Ok(())
 }
 

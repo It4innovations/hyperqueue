@@ -26,7 +26,7 @@ use crate::transfer::messages::{
     AutoAllocListResponse, JobDescription, JobDetail, JobInfo, QueueDescriptorData, StatsResponse,
     TaskDescription, WaitForJobsResponse, WorkerInfo,
 };
-use crate::{JobTaskId, Map};
+use crate::{JobId, JobTaskId, Map};
 
 #[derive(Default)]
 pub struct JsonOutput;
@@ -147,10 +147,6 @@ impl Output for JsonOutput {
         json["tasks"] = format_tasks(tasks, task_paths);
         self.print(json);
     }
-    fn print_job_tasks(&self, job: JobDetail, _worker_map: WorkerMap) {
-        let map = resolve_task_paths(&job);
-        self.print(format_tasks(job.tasks, map));
-    }
 
     fn print_job_wait(&self, duration: Duration, response: &WaitForJobsResponse) {
         let WaitForJobsResponse {
@@ -176,6 +172,15 @@ impl Output for JsonOutput {
         _task_paths: TaskToPathsMap,
     ) -> anyhow::Result<()> {
         anyhow::bail!("JSON output mode doesn't support job output");
+    }
+
+    fn print_tasks(&self, jobs: Vec<(JobId, JobDetail)>, _worker_map: WorkerMap) {
+        let mut json_obj = json!({});
+        for (id, job) in jobs {
+            let map = resolve_task_paths(&job);
+            json_obj[id.to_string()] = format_tasks(job.tasks, map);
+        }
+        self.print(json_obj);
     }
 
     fn print_summary(&self, filename: &Path, summary: Summary) {

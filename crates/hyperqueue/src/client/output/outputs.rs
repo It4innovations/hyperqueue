@@ -10,6 +10,7 @@ use std::path::Path;
 
 use crate::client::output::common::TaskToPathsMap;
 use crate::server::job::JobTaskInfo;
+use crate::JobId;
 use core::time::Duration;
 use tako::common::resources::ResourceDescriptor;
 
@@ -43,7 +44,6 @@ pub trait Output {
     fn print_job_submitted(&self, job: JobDetail);
     fn print_job_list(&self, jobs: Vec<JobInfo>, total_jobs: usize);
     fn print_job_detail(&self, job: JobDetail, worker_map: WorkerMap);
-    fn print_job_tasks(&self, job: JobDetail, worker_map: WorkerMap);
     fn print_job_wait(&self, duration: Duration, response: &WaitForJobsResponse);
     fn print_job_output(
         &self,
@@ -52,6 +52,9 @@ pub trait Output {
         task_header: bool,
         task_paths: TaskToPathsMap,
     ) -> anyhow::Result<()>;
+
+    // Tasks
+    fn print_tasks(&self, jobs: Vec<(JobId, JobDetail)>, worker_map: WorkerMap);
 
     // Log
     fn print_summary(&self, filename: &Path, summary: Summary);
