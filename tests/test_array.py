@@ -151,7 +151,7 @@ def test_job_array_error_all(hq_env: HqEnv):
 
     task_table = hq_env.command(["job", "tasks", "1"], as_table=True)
     for i in range(10):
-        assert task_table.get_column_value("ID")[i] == str(i)
+        assert task_table.get_column_value("Task ID")[i] == str(i)
         assert task_table.get_column_value("State")[i] == "FAILED"
         assert "No such file or directory" in task_table.get_column_value("Error")[i]
 

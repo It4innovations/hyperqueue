@@ -332,6 +332,12 @@ $ hq job info <job-selector>
 $ hq job tasks <job-id>
 ```
 
+### Display information about individual tasks across multiple jobs
+
+```bash
+$ hq tasks <job-selector>
+```
+
 ### Display job `stdout`/`stderr`
 
 ```bash

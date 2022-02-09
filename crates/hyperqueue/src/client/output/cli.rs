@@ -20,7 +20,7 @@ use crate::transfer::messages::{
     AutoAllocListResponse, JobDescription, JobDetail, JobInfo, StatsResponse, TaskDescription,
     WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
 };
-use crate::{JobTaskCount, WorkerId};
+use crate::{JobId, JobTaskCount, WorkerId};
 
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use core::time::Duration;
@@ -487,65 +487,6 @@ impl Output for CliOutput {
         self.print_task_summary(tasks, info, &worker_map);
     }
 
-    fn print_job_tasks(&self, job: JobDetail, worker_map: WorkerMap) {
-        let task_to_paths = resolve_task_paths(&job);
-
-        let mut tasks = job.tasks;
-        tasks.sort_unstable_by_key(|t| t.task_id);
-
-        let rows: Vec<_> = tasks
-            .iter()
-            .map(|task| {
-                let (start, end) = get_task_time(&task.state);
-                let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, task);
-
-                vec![
-                    task.task_id.cell().justify(Justify::Right),
-                    task_status_to_cell(get_task_status(&task.state)),
-                    match task.state.get_worker() {
-                        Some(worker) => format_worker(worker, &worker_map),
-                        _ => "",
-                    }
-                    .cell(),
-                    multiline_cell(vec![
-                        (
-                            "Start",
-                            start
-                                .map(|x| format_time(x).to_string())
-                                .unwrap_or_else(|| "".to_string()),
-                        ),
-                        (
-                            "End",
-                            end.map(|x| format_time(x).to_string())
-                                .unwrap_or_else(|| "".to_string()),
-                        ),
-                        ("Makespan", format_task_duration(start, end)),
-                    ]),
-                    multiline_cell(vec![
-                        ("Workdir", cwd),
-                        ("Stdout", stdout),
-                        ("Stderr", stderr),
-                    ]),
-                    match &task.state {
-                        JobTaskState::Failed { error, .. } => {
-                            error.to_owned().cell().foreground_color(Some(Color::Red))
-                        }
-                        _ => "".cell(),
-                    },
-                ]
-            })
-            .collect();
-        let header = vec![
-            "ID".cell().bold(true),
-            "State".cell().bold(true),
-            "Worker".cell().bold(true),
-            "Times".cell().bold(true),
-            "Paths".cell().bold(true),
-            "Error".cell().bold(true),
-        ];
-        self.print_horizontal_table(rows, header);
-    }
-
     fn print_job_wait(&self, duration: Duration, response: &WaitForJobsResponse) {
         let mut msgs = vec![];
 
@@ -580,6 +521,87 @@ impl Output for CliOutput {
         task_paths: TaskToPathsMap,
     ) -> anyhow::Result<()> {
         print_job_output(tasks, output_stream, task_header, task_paths)
+    }
+
+    fn print_tasks(&self, mut jobs: Vec<(JobId, JobDetail)>, worker_map: WorkerMap) {
+        jobs.sort_unstable_by_key(|x| x.0);
+        let mut rows: Vec<Vec<CellStruct>> = vec![];
+        let jobs_len = jobs.len();
+
+        for (id, job) in jobs {
+            let task_to_paths = resolve_task_paths(&job);
+
+            let mut tasks = job.tasks;
+            tasks.sort_unstable_by_key(|t| t.task_id);
+
+            rows.append(
+                &mut tasks
+                    .iter()
+                    .map(|task| {
+                        let (start, end) = get_task_time(&task.state);
+                        let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, task);
+
+                        let mut job_rows = match jobs_len {
+                            1 => vec![],
+                            _ => vec![id.cell().justify(Justify::Right)],
+                        };
+
+                        job_rows.append(&mut vec![
+                            task.task_id.cell().justify(Justify::Right),
+                            task_status_to_cell(get_task_status(&task.state)),
+                            match task.state.get_worker() {
+                                Some(worker) => format_worker(worker, &worker_map),
+                                _ => "",
+                            }
+                            .cell(),
+                            multiline_cell(vec![
+                                (
+                                    "Start",
+                                    start
+                                        .map(|x| format_time(x).to_string())
+                                        .unwrap_or_else(|| "".to_string()),
+                                ),
+                                (
+                                    "End",
+                                    end.map(|x| format_time(x).to_string())
+                                        .unwrap_or_else(|| "".to_string()),
+                                ),
+                                ("Makespan", format_task_duration(start, end)),
+                            ]),
+                            multiline_cell(vec![
+                                ("Workdir", cwd),
+                                ("Stdout", stdout),
+                                ("Stderr", stderr),
+                            ]),
+                            match &task.state {
+                                JobTaskState::Failed { error, .. } => {
+                                    error.to_owned().cell().foreground_color(Some(Color::Red))
+                                }
+                                _ => "".cell(),
+                            },
+                        ]);
+
+                        job_rows
+                    })
+                    .collect(),
+            );
+        }
+
+        let mut header = match jobs_len {
+            1 => vec![],
+            _ => vec!["Job ID".cell().bold(true)],
+        };
+
+        header.append(&mut vec![
+            "Task ID".cell().bold(true),
+            "State".cell().bold(true),
+            "Worker".cell().bold(true),
+            "Times".cell().bold(true),
+            "Paths".cell().bold(true),
+            "Error".cell().bold(true),
+        ]);
+
+        self.print_horizontal_table(rows, header);
     }
 
     fn print_summary(&self, filename: &Path, summary: Summary) {

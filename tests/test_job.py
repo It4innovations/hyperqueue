@@ -321,7 +321,7 @@ def test_job_fail(hq_env: HqEnv):
     table.check_row_value("State", "FAILED")
 
     table = hq_env.command(["job", "tasks", "1"], as_table=True)
-    table.check_column_value("ID", 0, "0")
+    table.check_column_value("Task ID", 0, "0")
     assert "No such file or directory" in table.get_column_value("Error")[0]
 
 

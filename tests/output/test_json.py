@@ -151,7 +151,7 @@ def test_print_job_tasks(hq_env: HqEnv):
     hq_env.command(["submit", "--array=1-4", "echo", "tt"])
     output = parse_json_output(hq_env, ["--output-mode=json", "job", "tasks", "1"])
 
-    schema = Schema([{"id": id, "state": "waiting"} for id in range(1, 5)])
+    schema = Schema({"1": [{"id": id, "state": "waiting"} for id in range(1, 5)]})
     schema.validate(output)
 
 

@@ -29,7 +29,8 @@ use hyperqueue::client::output::json::JsonOutput;
 use hyperqueue::client::output::outputs::{Output, Outputs};
 use hyperqueue::client::output::quiet::Quiet;
 use hyperqueue::client::status::Status;
-use hyperqueue::common::cli::{get_task_selector, IdSelectorArg};
+use hyperqueue::common::arraydef::IntArray;
+use hyperqueue::common::cli::{get_task_selector, IdSelectorArg, TaskSelectorArg};
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::dashboard::ui_loop::start_ui_loop;
@@ -100,6 +101,8 @@ enum SubCommand {
     Server(ServerOpts),
     /// Commands for controlling HyperQueue jobs
     Job(JobOpts),
+    /// Commands for displaying task(s)
+    Task(TaskOpts),
     /// Submit a job to HyperQueue
     Submit(JobSubmitOpts),
     /// Commands for controlling HyperQueue workers
@@ -111,7 +114,7 @@ enum SubCommand {
     AutoAlloc(AutoAllocOpts),
     /// Event log management
     EventLog(EventLogOpts),
-    ///Commands for the dashboard
+    /// Commands for the dashboard
     Dashboard(DashboardOpts),
     /// Generate shell completion script
     GenerateCompletion(GenerateCompletionOpts),
@@ -223,6 +226,31 @@ pub struct JobProgressOpts {
     selector_arg: IdSelectorArg,
 }
 
+// Task CLI options
+
+#[derive(Parser)]
+pub struct TaskOpts {
+    #[clap(subcommand)]
+    subcmd: TaskCommand,
+}
+
+#[derive(Parser)]
+enum TaskCommand {
+    /// Displays task(s) associated with selected job(s)
+    List(TaskListOpts),
+}
+
+#[derive(Parser)]
+struct TaskListOpts {
+    /// Job id(s) selector
+    pub job_ids: IdSelectorArg,
+
+    /// Filter task(s) by status.
+    /// You can use multiple states separated by a comma.
+    #[clap(long, multiple_occurrences(false), use_delimiter(true), arg_enum)]
+    pub task_status: Vec<Status>,
+}
+
 #[derive(Parser)]
 struct GenerateCompletionOpts {
     /// Shell flavour for which the completion script should be generated
@@ -270,7 +298,7 @@ async fn command_job_tasks(gsettings: &GlobalSettings, opts: JobTasksOpts) -> an
     output_job_tasks(
         gsettings,
         &mut connection,
-        opts.job_id.into(),
+        IdSelectorArg::Id(IntArray::from_id(opts.job_id)).into(),
         get_task_selector(Some(opts.task_selector)),
     )
     .await
@@ -322,6 +350,20 @@ async fn command_job_progress(
     )
     .await?;
     wait_for_jobs_with_progress(&mut connection, response.jobs).await
+}
+
+async fn command_task_list(gsettings: &GlobalSettings, opts: TaskListOpts) -> anyhow::Result<()> {
+    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    output_job_tasks(
+        gsettings,
+        &mut connection,
+        opts.job_ids.into(),
+        get_task_selector(Some(TaskSelectorArg {
+            tasks: None,
+            task_status: opts.task_status,
+        })),
+    )
+    .await
 }
 
 async fn command_worker_start(
@@ -521,6 +563,9 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Progress(opts),
         }) => command_job_progress(&gsettings, opts).await,
+        SubCommand::Task(TaskOpts {
+            subcmd: TaskCommand::List(opts),
+        }) => command_task_list(&gsettings, opts).await,
         SubCommand::Dashboard(opts) => command_dashboard_start(&gsettings, opts).await,
         SubCommand::Log(opts) => command_log(&gsettings, opts),
         SubCommand::AutoAlloc(opts) => command_autoalloc(&gsettings, opts).await,

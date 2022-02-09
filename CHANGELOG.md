@@ -3,6 +3,7 @@
 ## New features
 
 ### CLI
+* You can now use the `hq task list <job-selector>` command to display a list of tasks across multiple jobs. 
 * Add `--filter` flag to `worker list` to allow filtering workers by their status.
 
 ## Fixes

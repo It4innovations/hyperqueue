@@ -19,6 +19,7 @@ use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, StatsResponse, WaitForJobsResponse, WorkerExitInfo,
     WorkerInfo,
 };
+use crate::JobId;
 
 #[derive(Default)]
 pub struct Quiet;
@@ -68,9 +69,7 @@ impl Output for Quiet {
         }
     }
     fn print_job_detail(&self, _job: JobDetail, _worker_map: WorkerMap) {}
-    fn print_job_tasks(&self, _job: JobDetail, _worker_map: WorkerMap) {}
     fn print_job_wait(&self, _duration: Duration, _response: &WaitForJobsResponse) {}
-
     fn print_job_output(
         &self,
         tasks: Vec<JobTaskInfo>,
@@ -80,6 +79,9 @@ impl Output for Quiet {
     ) -> anyhow::Result<()> {
         print_job_output(tasks, output_stream, task_header, task_paths)
     }
+
+    // Tasks
+    fn print_tasks(&self, _jobs: Vec<(JobId, JobDetail)>, _worker_map: WorkerMap) {}
 
     // Log
     fn print_summary(&self, _filename: &Path, _summary: Summary) {}
