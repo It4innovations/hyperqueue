@@ -5,6 +5,11 @@
 ### CLI
 * Add `--filter` flag to `worker list` to allow filtering workers by their status.
 
+## Fixes
+* HQ will no longer warn that `stdout`/`stderr` path does not contain the `%{TASK_ID}` placeholder
+when submitting array jobs if the placeholder is contained within the working directory path and
+`stdout`/`stderr` contains the `%{CWD}` placeholder.
+
 # 0.8.0
 
 ## Fixes

@@ -528,14 +528,27 @@ fn warn_array_task_count(opts: &JobSubmitOpts, task_count: u32) {
 
 /// Warns the user that an array job does not contain task ID within stdout/stderr path.
 fn warn_missing_task_id(opts: &JobSubmitOpts, task_count: u32) {
+    let cwd_has_task_id = opts
+        .conf
+        .cwd
+        .as_ref()
+        .and_then(|p| p.to_str())
+        .map(|p| parse_resolvable_string(p).contains(&StringPart::Placeholder(CWD_PLACEHOLDER)))
+        .unwrap_or(false);
+
     let check_path = |path: Option<&StdioArg>, stream: &str| {
         let path = path.and_then(|stdio| match &stdio.0 {
-            StdioDef::File(path) => path.to_str(),
+            StdioDef::File(path) => Some(opts.conf.cwd.clone().unwrap_or_default().join(path)),
             _ => None,
         });
-        if let Some(path) = path {
+        if let Some(path) = path.as_ref().and_then(|p| p.to_str()) {
             let placeholders = parse_resolvable_string(path);
-            if !placeholders.contains(&StringPart::Placeholder(TASK_ID_PLACEHOLDER)) {
+            // Either the path has to contain TASK_ID, or it has to contain CWD that itself contains
+            // TASK_ID.
+            let path_has_task_id =
+                placeholders.contains(&StringPart::Placeholder(TASK_ID_PLACEHOLDER));
+            let path_has_cwd = placeholders.contains(&StringPart::Placeholder(CWD_PLACEHOLDER));
+            if !path_has_task_id && (!path_has_cwd || !cwd_has_task_id) {
                 log::warn!("You have submitted an array job, but the `{}` path does not contain the task ID placeholder.\n\
         Individual tasks might thus overwrite the file. Consider adding `%{{{}}}` to the `--{}` value.", stream, TASK_ID_PLACEHOLDER, stream);
             }
