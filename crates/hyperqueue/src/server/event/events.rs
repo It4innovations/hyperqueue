@@ -10,24 +10,31 @@ use tako::{static_assert_size, TaskId};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum MonitoringEventPayload {
-    // Workers
+    /// New worker has connected to the server
     WorkerConnected(WorkerId, Box<WorkerConfiguration>),
+    /// Worker has disconnected from the server
     WorkerLost(WorkerId, LostWorkerReason),
+    /// Worker has proactively send its overview (task status and HW utilization report) to the server
     WorkerOverviewReceived(WorkerOverview),
-    // Tasks
+    /// Task has started to execute on some worker
     TaskStarted {
         task_id: TaskId,
         worker_id: WorkerId,
     },
+    /// Task has been finished
     TaskFinished(TaskId),
-    // Allocations
+    /// New allocation queue has been created
     AllocationQueueCreated(DescriptorId, Box<AllocationQueueParams>),
+    /// Allocation queue has been removed
     AllocationQueueRemoved(DescriptorId),
+    /// Allocation was submitted into PBS/Slurm
     AllocationQueued {
         allocation_id: AllocationId,
         worker_count: u64,
     },
+    /// PBS/Slurm allocation started executing
     AllocationStarted(AllocationId),
+    /// PBS/Slurm allocation has finished executing
     AllocationFinished(AllocationId),
 }
 
