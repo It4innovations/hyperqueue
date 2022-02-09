@@ -110,6 +110,23 @@ def test_warning_missing_placeholder_in_output(hq_env: HqEnv, channel: str):
     assert f"Consider adding `%{{TASK_ID}}` to the `--{channel}` value."
 
 
+@pytest.mark.parametrize("channel", ("stdout", "stderr"))
+def test_missing_placeholder_in_output_present_in_cwd(hq_env: HqEnv, channel: str):
+    hq_env.start_server()
+    output = hq_env.command(
+        [
+            "submit",
+            "--array=1-4",
+            "--cwd",
+            "task-%{TASK_ID}",
+            f"--{channel}",
+            "%{CWD}/foo",
+            "/bin/hostname",
+        ]
+    )
+    assert "path does not contain the task ID placeholder." not in output
+
+
 def test_unknown_placeholder(hq_env: HqEnv):
     hq_env.start_server()
     output = hq_env.command(
