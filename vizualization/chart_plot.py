@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 from events_type import *
 from hq_event_wrapper import HQEventCLIWrapper, Events, HQEventFileWrapper
+from tqdm import tqdm
 
 
 def events_to_workers_boxes(eventy, worker_ids):
@@ -53,14 +54,39 @@ def create_alloc_chart(eventy):
         qued = eventy.get_by_type('autoalloc-allocation-qued').get_by_id(id)[0]
         que_started = eventy.get_by_type('autoalloc-allocation-started').get_by_id(id)[0]
         que_finished = eventy.get_by_type('autoalloc-allocation-finished').get_by_id(id)[0]
-        que = [dict(id=f"qeue {id}", start=p.parse(qued.time), stop=p.parse(que_started.time), type='allocation-qeued'),
+        worker_connected = eventy.get_by_type('worker-connected')
+        que_workers = []
+        for worker in worker_connected:
+            if p.parse(worker.time) >= p.parse(que_started.time) and p.parse(worker.time) <= p.parse(que_finished.time):
+                que_workers.append(worker)
+
+        que_workers = Events(que_workers)
+        if len(que_workers) > 0:
+            worker_overviews = []
+            for worker in que_workers:
+                worker_overviews.extend(eventy.get_by_type('worker-overview').get_by_id(worker.id))
+            que_workers = []
+            for overview in tqdm(worker_overviews):
+                if p.parse(overview.time) >= p.parse(que_started.time) and p.parse(overview.time) <= p.parse(
+                        que_finished.time):
+                    que_workers.append(
+                        dict(id=overview.id,
+                             cpu_usage=overview.hw_state['state']['worker_cpu_usage']['cpu_per_core_percent_usage'],
+                             qeue=id))
+            que_workers = pd.DataFrame(que_workers)
+            que_workers['average'] = que_workers['cpu_usage'].apply(lambda x: sum(x) / len(x))
+            cpu_usage = que_workers['average'].sum() / len(que_workers['average'])
+        else:
+            cpu_usage = 0
+        que = [dict(id=f"qeue {id}", start=p.parse(qued.time), stop=p.parse(que_started.time), type='allocation-qeued',
+                    cpu_usage=0),
                dict(id=f"qeue {id}", start=p.parse(que_started.time), stop=p.parse(que_finished.time),
-                    type='allocation-running')]
+                    type='allocation-running', cpu_usage=cpu_usage)]
         data.extend(que)
 
     data = pd.DataFrame(data)
-    fig = create_chart(data, x_start="start", x_end="stop", y="id", color='type')
-    fig.u
+    fig = create_chart(data, x_start="start", x_end="stop", y="id", color='cpu_usage',text='type')
+
     fig.show()
 
 
@@ -81,6 +107,7 @@ def create_workers_chart_JSON(json_file):
     eventy = event_wrapper.get_objects()
     create_workers_chart(eventy)
 
+#TODO:add into aloc_sim workers event creation
 
 @click.command(name="FILE-chart")
 @click.argument('json-file')
@@ -125,5 +152,3 @@ cli_alloc.add_command(create_alloc_chart_CLI)
 cli.add_command(cli_job)
 cli.add_command(cli_alloc)
 cli()
-
-

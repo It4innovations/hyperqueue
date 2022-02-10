@@ -71,14 +71,15 @@ class HQEventCLIWrapper:
             if row != '':
                 event = json.loads(row)
 
-                if event['event']['type'] != 'worker-overview':
-                    event['event']['time'] = event['time']
-                    class_name = event['event']['type']
-                    event['event'].pop('type', None)
-                    new_event = type(class_name, (object,), event['event'])
-                    objects.append(new_event())
+                event['event']['time'] = event['time']
+                class_name = event['event']['type']
+                event['event'].pop('type', None)
+                new_event = type(class_name, (object,), event['event'])
+                objects.append(new_event())
 
         return Events(objects)
+
+
 
 
 class HQEventFileWrapper(HQEventCLIWrapper):
