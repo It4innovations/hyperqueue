@@ -61,19 +61,22 @@ def create_timeline_chart_JSON(json_file):
 @click.group("jobs")
 def cli_job():
     pass
+
+
+# TODO: create alloc events generator to simlute incoming data
 @click.group("alloc")
 def cli_alloc():
     pass
+
 
 @click.group()
 def cli():
     pass
 
+
 cli_job.add_command(create_timeline_chart_CLI)
 cli_job.add_command(create_timeline_chart_JSON)
 # cli_job()
-
-
 
 
 cli.add_command(cli_job)
