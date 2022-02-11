@@ -13,7 +13,7 @@ def purge_cache():
     _PICKLE_CACHE = {}
 
 
-def cloud_wrap(fn, cache=True):
+def cloud_wrap(fn, cache=True) -> CloudWrapper:
     if isinstance(fn, CloudWrapper):
         return fn
     return CloudWrapper(fn, cache=cache)

@@ -31,7 +31,12 @@ class CloudWrapper:
         )
         if hasattr(self.fn, "__name__"):
             self.__name__ = self.fn.__name__
-        self.__signature__ = inspect.signature(self.fn)
+
+        # Build-in functions does not have signature
+        try:
+            self.__signature__ = inspect.signature(self.fn)
+        except ValueError:
+            pass
 
     def is_generator_function(self):
         return inspect.isgeneratorfunction(self.fn)
