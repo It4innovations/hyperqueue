@@ -12,6 +12,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::time::sleep;
 use tokio::time::timeout;
 
+use crate::common::error::DsError;
 use crate::common::resources::map::ResourceMap;
 use crate::common::resources::{GenericResourceAllocationValue, ResourceAllocation};
 use crate::common::WrappedRcRefCell;
@@ -109,13 +110,12 @@ pub async fn handle_server_connection(
         r = forward_queue_to_sealed_sink(queue_receiver, sender, sealer) => r.map_err(|e| e.into())
     } {
         let on_server_lost = state.get().configuration.on_server_lost.clone();
-        log::error!(
+        let error = Err(DsError::GenericError(format!(
             "Server connection failed: {}, on-server-lost: {:?}",
-            e,
-            on_server_lost,
-        );
+            e, on_server_lost,
+        )));
         match on_server_lost {
-            ServerLostPolicy::Stop => Ok(()),
+            ServerLostPolicy::Stop => error,
             ServerLostPolicy::FinishRunning => {
                 state.get_mut().drop_non_running_tasks();
                 let notify = Rc::new(Notify::new());
@@ -128,7 +128,7 @@ pub async fn handle_server_connection(
                     notify.notified().await;
                     log::info!("All running tasks were finished");
                 }
-                Ok(())
+                error
             }
         }
     } else {
@@ -141,7 +141,10 @@ pub async fn run_worker(
     mut configuration: WorkerConfiguration,
     secret_key: Option<Arc<SecretKey>>,
     launcher_setup: Box<dyn TaskLauncher>,
-) -> crate::Result<((WorkerId, WorkerConfiguration), impl Future<Output = ()>)> {
+) -> crate::Result<(
+    (WorkerId, WorkerConfiguration),
+    impl Future<Output = crate::Result<()>>,
+)> {
     let (_listener, address) = start_listener().await?;
     configuration.listen_address = address;
     let ConnectionDescriptor {
@@ -202,11 +205,12 @@ pub async fn run_worker(
     Ok(((worker_id, configuration), async move {
         tokio::select! {
             () = try_start_tasks => { unreachable!() }
-            _ = handle_server_connection(state.clone(), receiver, opener, queue_receiver, sender, sealer) => {}
+            res = handle_server_connection(state.clone(), receiver, opener, queue_receiver, sender, sealer) => res,
             _ = heartbeat => { unreachable!() }
             _ = overview_loop => { unreachable!() }
             _ = time_limit_fut => {
                 log::info!("Time limit reached");
+                Ok(())
             }
         }
     }))
