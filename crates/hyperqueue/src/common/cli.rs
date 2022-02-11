@@ -46,21 +46,44 @@ pub struct TaskSelectorArg {
 
 pub fn get_task_selector(opt_task_selector_arg: Option<TaskSelectorArg>) -> Option<TaskSelector> {
     opt_task_selector_arg.map(|arg| TaskSelector {
-        id_selector: get_id_selector(arg.tasks),
-        status_selector: get_status_selector(arg.task_status),
+        id_selector: get_task_id_selector(arg.tasks),
+        status_selector: get_task_status_selector(arg.task_status),
     })
 }
 
-fn get_id_selector(id_selector_arg: Option<IntArray>) -> TaskIdSelector {
+fn get_task_id_selector(id_selector_arg: Option<IntArray>) -> TaskIdSelector {
     id_selector_arg
         .map(TaskIdSelector::Specific)
         .unwrap_or(TaskIdSelector::All)
 }
 
-fn get_status_selector(status_selector_arg: Vec<Status>) -> TaskStatusSelector {
+fn get_task_status_selector(status_selector_arg: Vec<Status>) -> TaskStatusSelector {
     if status_selector_arg.is_empty() {
         TaskStatusSelector::All
     } else {
         TaskStatusSelector::Specific(status_selector_arg)
+    }
+}
+
+pub enum JobSelectorArg {
+    Last,
+    Id(u32),
+}
+
+impl FromStr for JobSelectorArg {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "last" => Ok(JobSelectorArg::Last),
+            _ => Ok(JobSelectorArg::Id(u32::from_str(s)?)),
+        }
+    }
+}
+
+pub fn get_id_selector(job_selector_arg: JobSelectorArg) -> IdSelector {
+    match job_selector_arg {
+        JobSelectorArg::Last => IdSelector::LastN(1),
+        JobSelectorArg::Id(id) => IdSelector::Specific(IntArray::from_id(id)),
     }
 }

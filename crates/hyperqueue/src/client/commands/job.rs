@@ -3,8 +3,7 @@ use crate::client::job::get_worker_map;
 use crate::client::output::outputs::OutputStream;
 use crate::client::output::resolve_task_paths;
 use crate::client::status::{job_status, Status};
-use crate::common::arraydef::IntArray;
-use crate::common::cli::{IdSelectorArg, TaskSelectorArg};
+use crate::common::cli::{get_id_selector, IdSelectorArg, JobSelectorArg, TaskSelectorArg};
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
@@ -34,8 +33,8 @@ pub struct JobInfoOpts {
 
 #[derive(Parser)]
 pub struct JobTasksOpts {
-    /// Job ID
-    pub job_id: u32,
+    /// Select specific job
+    pub job_selector: JobSelectorArg,
 
     #[clap(flatten)]
     pub task_selector: TaskSelectorArg,
@@ -49,8 +48,8 @@ pub struct JobCancelOpts {
 
 #[derive(Parser)]
 pub struct JobCatOpts {
-    /// Select job
-    pub job_id: u32,
+    /// Select specific job
+    pub job_selector: JobSelectorArg,
 
     #[clap(flatten)]
     pub task_selector: TaskSelectorArg,
@@ -171,38 +170,42 @@ pub async fn output_job_tasks(
 pub async fn output_job_cat(
     gsettings: &GlobalSettings,
     connection: &mut ClientConnection,
-    job_id: u32,
+    job_selector: JobSelectorArg,
     task_selector: Option<TaskSelector>,
     output_stream: OutputStream,
     task_header: bool,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::JobDetail(JobDetailRequest {
-        job_id_selector: IdSelector::Specific(IntArray::from_id(job_id)),
+        job_id_selector: get_id_selector(job_selector),
         task_selector,
     });
     let mut responses =
         rpc_call!(connection, message, ToClientMessage::JobDetailResponse(r) => r).await?;
 
-    if let Some(job) = responses.pop().and_then(|v| v.1) {
-        let task_paths = resolve_task_paths(&job);
+    if let Some((job_id, opt_job)) = responses.pop() {
+        match opt_job {
+            None => log::error!("Job {job_id} was not found"),
+            Some(job) => {
+                let task_paths = resolve_task_paths(&job);
+                for task_id in job.tasks_not_found {
+                    log::warn!("Task {task_id} not found");
+                }
 
-        for task_id in job.tasks_not_found {
-            log::warn!("Task {task_id} not found");
+                if job.tasks.is_empty() {
+                    log::warn!("No tasks were selected, there is nothing to print");
+                    return Ok(());
+                }
+
+                return gsettings.printer().print_job_output(
+                    job.tasks,
+                    output_stream,
+                    task_header,
+                    task_paths,
+                );
+            }
         }
-
-        if job.tasks.is_empty() {
-            log::warn!("No tasks were selected, there is nothing to print");
-            return Ok(());
-        }
-
-        return gsettings.printer().print_job_output(
-            job.tasks,
-            output_stream,
-            task_header,
-            task_paths,
-        );
     } else {
-        log::error!("Job {job_id} not found");
+        log::error!("No jobs were found");
     }
     Ok(())
 }

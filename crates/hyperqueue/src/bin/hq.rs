@@ -29,8 +29,7 @@ use hyperqueue::client::output::json::JsonOutput;
 use hyperqueue::client::output::outputs::{Output, Outputs};
 use hyperqueue::client::output::quiet::Quiet;
 use hyperqueue::client::status::Status;
-use hyperqueue::common::arraydef::IntArray;
-use hyperqueue::common::cli::{get_task_selector, IdSelectorArg, TaskSelectorArg};
+use hyperqueue::common::cli::{get_id_selector, get_task_selector, IdSelectorArg, TaskSelectorArg};
 use hyperqueue::common::fsutils::absolute_path;
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::dashboard::ui_loop::start_ui_loop;
@@ -298,7 +297,7 @@ async fn command_job_tasks(gsettings: &GlobalSettings, opts: JobTasksOpts) -> an
     output_job_tasks(
         gsettings,
         &mut connection,
-        IdSelectorArg::Id(IntArray::from_id(opts.job_id)).into(),
+        get_id_selector(opts.job_selector),
         get_task_selector(Some(opts.task_selector)),
     )
     .await
@@ -309,7 +308,7 @@ async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow
     output_job_cat(
         gsettings,
         &mut connection,
-        opts.job_id,
+        opts.job_selector,
         get_task_selector(Some(opts.task_selector)),
         opts.stream,
         opts.print_task_header,
