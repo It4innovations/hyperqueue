@@ -1,8 +1,10 @@
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::{Duration, SystemTime};
 
+use crate::common::fsutils::get_current_dir;
+use crate::Map;
 use anyhow::Context;
 use bstr::ByteSlice;
 
@@ -14,9 +16,13 @@ use crate::common::timeutils::local_to_system_time;
 use crate::server::autoalloc::descriptor::common::{
     build_worker_args, create_allocation_dir, create_command, submit_script, ExternalHandler,
 };
-use crate::server::autoalloc::descriptor::{common, AllocationSubmissionResult, QueueHandler};
+use crate::server::autoalloc::descriptor::{
+    common, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
+};
 use crate::server::autoalloc::state::AllocationStatus;
-use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId, QueueInfo};
+use crate::server::autoalloc::{
+    Allocation, AllocationId, AutoAllocResult, DescriptorId, QueueInfo,
+};
 
 pub struct SlurmHandler {
     handler: ExternalHandler,
@@ -75,68 +81,25 @@ impl QueueHandler for SlurmHandler {
         })
     }
 
-    fn get_allocation_status(
+    fn get_status_of_allocations(
         &self,
-        allocation: &Allocation,
-    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>> {
-        let allocation_id = allocation.id.clone();
-        let workdir = allocation.working_dir.clone();
+        allocations: &[&Allocation],
+    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationStatusMap>>>> {
+        let allocation_ids: Vec<AllocationId> =
+            allocations.iter().map(|alloc| alloc.id.clone()).collect();
+        let workdir = allocations
+            .first()
+            .map(|alloc| alloc.working_dir.clone())
+            .unwrap_or_else(get_current_dir);
 
         Box::pin(async move {
-            let arguments = vec!["scontrol", "show", "job", &allocation_id];
-            log::debug!("Running Slurm command `{}`", arguments.join(" "));
+            let mut result = Map::with_capacity(allocation_ids.len());
+            for allocation_id in allocation_ids {
+                let status = get_allocation_status(&allocation_id, &workdir).await;
+                result.insert(allocation_id, status);
+            }
 
-            let mut command = create_command(arguments, &workdir);
-            let output = command.output().await.context("scontrol start failed")?;
-            let output =
-                common::check_command_output(output).context("scontrol execution failed")?;
-
-            let output = output
-                .stdout
-                .to_str()
-                .map_err(|err| anyhow::anyhow!("Invalid UTF-8 in scontrol output: {:?}", err))?;
-            let items = get_scontrol_items(output);
-
-            let get_key = |key: &str| -> AutoAllocResult<&str> {
-                let value = items.get(key);
-                value
-                    .ok_or_else(|| anyhow::anyhow!("Missing key {} in Slurm scontrol output", key))
-                    .map(|v| *v)
-            };
-            let parse_time = |time: &str| -> AutoAllocResult<SystemTime> {
-                Ok(local_to_system_time(parse_slurm_datetime(time).map_err(
-                    |err| anyhow::anyhow!("Cannot parse Slurm datetime {}: {:?}", time, err),
-                )?))
-            };
-
-            let status = get_key("JobState")?;
-            let status = match status {
-                "PENDING" | "CONFIGURING" => AllocationStatus::Queued,
-                "RUNNING" | "COMPLETING" => {
-                    let started_at = parse_time(get_key("StartTime")?)?;
-                    AllocationStatus::Running { started_at }
-                }
-                "COMPLETED" | "CANCELLED" | "FAILED" | "TIMEOUT" => {
-                    let finished = matches!(status, "COMPLETED" | "TIMEOUT");
-                    let started_at = parse_time(get_key("StartTime")?)?;
-                    let finished_at = parse_time(get_key("EndTime")?)?;
-
-                    if finished {
-                        AllocationStatus::Finished {
-                            started_at,
-                            finished_at,
-                        }
-                    } else {
-                        AllocationStatus::Failed {
-                            started_at,
-                            finished_at,
-                        }
-                    }
-                }
-                _ => anyhow::bail!("Unknown Slurm job status {}", status),
-            };
-
-            Ok(Some(status))
+            Ok(result)
         })
     }
 
@@ -156,6 +119,67 @@ impl QueueHandler for SlurmHandler {
             Ok(())
         })
     }
+}
+
+async fn get_allocation_status(
+    allocation_id: &str,
+    workdir: &Path,
+) -> AutoAllocResult<AllocationStatus> {
+    let arguments = vec!["scontrol", "show", "job", allocation_id];
+    log::debug!("Running Slurm command `{}`", arguments.join(" "));
+
+    let mut command = create_command(arguments, workdir);
+    let output = command.output().await.context("scontrol start failed")?;
+    let output = common::check_command_output(output).context("scontrol execution failed")?;
+
+    let output = output
+        .stdout
+        .to_str()
+        .map_err(|err| anyhow::anyhow!("Invalid UTF-8 in scontrol output: {:?}", err))?;
+    let items = get_scontrol_items(output);
+    parse_slurm_status(items)
+}
+
+fn parse_slurm_status(items: Map<&str, &str>) -> AutoAllocResult<AllocationStatus> {
+    let get_key = |key: &str| -> AutoAllocResult<&str> {
+        let value = items.get(key);
+        value
+            .ok_or_else(|| anyhow::anyhow!("Missing key {} in Slurm scontrol output", key))
+            .map(|v| *v)
+    };
+    let parse_time = |time: &str| -> AutoAllocResult<SystemTime> {
+        Ok(local_to_system_time(parse_slurm_datetime(time).map_err(
+            |err| anyhow::anyhow!("Cannot parse Slurm datetime {}: {:?}", time, err),
+        )?))
+    };
+
+    let status = get_key("JobState")?;
+    let status = match status {
+        "PENDING" | "CONFIGURING" => AllocationStatus::Queued,
+        "RUNNING" | "COMPLETING" => {
+            let started_at = parse_time(get_key("StartTime")?)?;
+            AllocationStatus::Running { started_at }
+        }
+        "COMPLETED" | "CANCELLED" | "FAILED" | "TIMEOUT" => {
+            let finished = matches!(status, "COMPLETED" | "TIMEOUT");
+            let started_at = parse_time(get_key("StartTime")?)?;
+            let finished_at = parse_time(get_key("EndTime")?)?;
+
+            if finished {
+                AllocationStatus::Finished {
+                    started_at,
+                    finished_at,
+                }
+            } else {
+                AllocationStatus::Failed {
+                    started_at,
+                    finished_at,
+                }
+            }
+        }
+        _ => anyhow::bail!("Unknown Slurm job status {}", status),
+    };
+    Ok(status)
 }
 
 #[allow(clippy::too_many_arguments)]

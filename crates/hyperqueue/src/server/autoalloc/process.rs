@@ -4,7 +4,8 @@ use std::time::SystemTime;
 use crate::server::autoalloc::state::{
     Allocation, AllocationEvent, AllocationStatus, DescriptorState,
 };
-use crate::server::autoalloc::{DescriptorId, QueueInfo};
+use crate::server::autoalloc::{AllocationId, AutoAllocResult, DescriptorId, QueueInfo};
+use crate::server::event::storage::EventStorage;
 use crate::server::job::Job;
 use crate::server::state::{State, StateRef};
 use crate::transfer::messages::{JobDescription, TaskDescription};
@@ -14,15 +15,6 @@ macro_rules! get_or_return {
         match $e {
             Some(v) => v,
             _ => return,
-        }
-    };
-}
-
-macro_rules! get_or_continue {
-    ($e:expr) => {
-        match $e {
-            Some(v) => v,
-            _ => continue,
         }
     };
 }
@@ -92,88 +84,102 @@ async fn process_descriptor(id: DescriptorId, state: &StateRef) {
 /// Go through the allocations of descriptor with the given name and refresh their status.
 /// Queue allocations might become running or finished, running allocations might become finished,
 /// etc.
-#[allow(clippy::needless_collect)]
 async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
-    let allocation_ids: Vec<_> =
-        get_or_return!(state_ref.get().get_autoalloc_state().get_descriptor(id))
+    let (status_fut, allocation_ids) = {
+        let state = state_ref.get();
+        let allocations: Vec<_> = get_or_return!(state.get_autoalloc_state().get_descriptor(id))
             .active_allocations()
+            .collect();
+        if allocations.is_empty() {
+            return;
+        }
+
+        let fut = get_or_return!(state.get_autoalloc_state().get_descriptor(id))
+            .descriptor
+            .handler()
+            .get_status_of_allocations(&allocations);
+        let allocation_ids: Vec<AllocationId> = allocations
+            .into_iter()
             .map(|alloc| alloc.id.clone())
             .collect();
-    for allocation_id in allocation_ids.into_iter() {
-        let status_fut = {
-            let state = state_ref.get();
-            let descriptor = get_or_return!(state.get_autoalloc_state().get_descriptor(id));
-            let allocation = get_or_continue!(descriptor.get_allocation(&allocation_id));
-            descriptor
-                .descriptor
-                .handler()
-                .get_allocation_status(allocation)
-        };
+        (fut, allocation_ids)
+    };
 
-        let result = status_fut.await;
+    let result = status_fut.await;
 
-        let mut state = state_ref.get_mut();
-        let (alloc_state, event_manager) = state.split_autoalloc_events_mut();
-        match result {
-            Ok(status) => {
-                let descriptor = get_or_continue!(alloc_state.get_descriptor_mut(id));
-                let working_dir = get_or_continue!(descriptor.get_allocation(&allocation_id))
-                    .working_dir
-                    .clone();
-
-                match status {
-                    Some(status) => {
-                        let id = allocation_id.clone();
-                        log::debug!("Status of allocation {}: {:?}", allocation_id, status);
-                        match status {
-                            AllocationStatus::Running { .. } => {
-                                let allocation =
-                                    get_or_continue!(descriptor.get_allocation_mut(&allocation_id));
-                                if let AllocationStatus::Queued = allocation.status {
-                                    event_manager.on_allocation_started(allocation_id.clone());
-                                    descriptor.add_event(AllocationEvent::AllocationStarted(
-                                        allocation_id,
-                                    ));
-                                }
-                            }
-                            AllocationStatus::Finished { .. } => {
-                                event_manager.on_allocation_finished(allocation_id.clone());
-                                descriptor
-                                    .add_event(AllocationEvent::AllocationFinished(allocation_id));
-                                descriptor.add_inactive_directory(working_dir);
-                            }
-                            AllocationStatus::Failed { .. } => {
-                                event_manager.on_allocation_finished(allocation_id.clone());
-                                descriptor
-                                    .add_event(AllocationEvent::AllocationFailed(allocation_id));
-                                descriptor.add_inactive_directory(working_dir);
-                            }
-                            AllocationStatus::Queued => {}
-                        };
-                        get_or_continue!(descriptor.get_allocation_mut(&id)).status = status;
-                    }
-                    None => {
-                        log::warn!("Allocation {} was not found", allocation_id);
-                        descriptor.remove_allocation(&allocation_id);
-                        descriptor.add_event(AllocationEvent::AllocationDisappeared(allocation_id));
-                        descriptor.add_inactive_directory(working_dir);
-                    }
-                };
-            }
-            Err(err) => {
-                log::error!(
-                    "Failed to get allocation {} status from {}: {:?}",
-                    allocation_id,
-                    id,
-                    err
-                );
-                let descriptor = get_or_continue!(alloc_state.get_descriptor_mut(id));
-                descriptor.add_event(AllocationEvent::StatusFail {
-                    error: format!("{:?}", err),
-                });
+    let mut state = state_ref.get_mut();
+    let (alloc_state, event_manager) = state.split_autoalloc_events_mut();
+    match result {
+        Ok(mut status_map) => {
+            let descriptor = get_or_return!(alloc_state.get_descriptor_mut(id));
+            for allocation_id in allocation_ids {
+                let status = status_map.remove(&allocation_id);
+                handle_allocation_status(descriptor, event_manager, allocation_id, status);
             }
         }
+        Err(err) => {
+            log::error!(
+                "Failed to get allocations status from queue {}: {:?}",
+                id,
+                err
+            );
+            let descriptor = get_or_return!(alloc_state.get_descriptor_mut(id));
+            descriptor.add_event(AllocationEvent::StatusFail {
+                error: format!("{:?}", err),
+            });
+        }
     }
+}
+
+fn handle_allocation_status(
+    descriptor: &mut DescriptorState,
+    event_manager: &mut EventStorage,
+    allocation_id: AllocationId,
+    status: Option<AutoAllocResult<AllocationStatus>>,
+) {
+    let working_dir = get_or_return!(descriptor.get_allocation(&allocation_id))
+        .working_dir
+        .clone();
+
+    match status {
+        Some(status) => match status {
+            Ok(status) => {
+                let id = allocation_id.clone();
+                log::debug!("Status of allocation {}: {:?}", allocation_id, status);
+                match status {
+                    AllocationStatus::Running { .. } => {
+                        let allocation =
+                            get_or_return!(descriptor.get_allocation_mut(&allocation_id));
+                        if let AllocationStatus::Queued = allocation.status {
+                            event_manager.on_allocation_started(allocation_id.clone());
+                            descriptor.add_event(AllocationEvent::AllocationStarted(allocation_id));
+                        }
+                    }
+                    AllocationStatus::Finished { .. } => {
+                        event_manager.on_allocation_finished(allocation_id.clone());
+                        descriptor.add_event(AllocationEvent::AllocationFinished(allocation_id));
+                        descriptor.add_inactive_directory(working_dir);
+                    }
+                    AllocationStatus::Failed { .. } => {
+                        event_manager.on_allocation_finished(allocation_id.clone());
+                        descriptor.add_event(AllocationEvent::AllocationFailed(allocation_id));
+                        descriptor.add_inactive_directory(working_dir);
+                    }
+                    AllocationStatus::Queued => {}
+                };
+                get_or_return!(descriptor.get_allocation_mut(&id)).status = status;
+            }
+            Err(error) => {
+                log::warn!("Failed to get allocation {allocation_id} status: {error:?}");
+            }
+        },
+        None => {
+            log::warn!("Allocation {} was not found", allocation_id);
+            descriptor.remove_allocation(&allocation_id);
+            descriptor.add_event(AllocationEvent::AllocationDisappeared(allocation_id));
+            descriptor.add_inactive_directory(working_dir);
+        }
+    };
 }
 
 /// Find out if workers spawned in this queue can possibly provide computational resources
@@ -344,7 +350,7 @@ mod tests {
 
     use crate::common::manager::info::ManagerType;
     use crate::server::autoalloc::descriptor::{
-        AllocationSubmissionResult, QueueDescriptor, QueueHandler, QueueInfo,
+        AllocationStatusMap, AllocationSubmissionResult, QueueDescriptor, QueueHandler, QueueInfo,
     };
     use crate::server::autoalloc::process::autoalloc_tick;
     use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
@@ -769,15 +775,26 @@ mod tests {
             Box::pin(async move { (schedule_fn.get())(custom_state.clone(), worker_count).await })
         }
 
-        fn get_allocation_status(
+        fn get_status_of_allocations(
             &self,
-            allocation: &Allocation,
-        ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>> {
+            allocations: &[&Allocation],
+        ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationStatusMap>>>> {
             let status_fn = self.status_fn.clone();
             let custom_state = self.custom_state.clone();
-            let allocation_id = allocation.id.clone();
+            let allocation_ids: Vec<AllocationId> =
+                allocations.iter().map(|alloc| alloc.id.clone()).collect();
 
-            Box::pin(async move { (status_fn.get())(custom_state.clone(), allocation_id).await })
+            Box::pin(async move {
+                let mut result = Map::default();
+                for allocation_id in allocation_ids {
+                    let status =
+                        (status_fn.get())(custom_state.clone(), allocation_id.clone()).await;
+                    if let Some(status) = status.transpose() {
+                        result.insert(allocation_id, status);
+                    }
+                }
+                Ok(result)
+            })
         }
 
         fn remove_allocation(
