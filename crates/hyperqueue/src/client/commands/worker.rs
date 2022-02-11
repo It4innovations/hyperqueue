@@ -142,15 +142,15 @@ pub async fn start_hq_worker(
         ended: None,
     });
     let local_set = LocalSet::new();
-    local_set
+    let result = local_set
         .run_until(async move {
             tokio::select! {
-                () = worker_future => {}
-                () = streamer_future => {}
+                res = worker_future => res,
+                () = streamer_future => { Ok(()) }
             }
         })
         .await;
-    Ok(())
+    result.map_err(|e| e.into())
 }
 
 pub async fn get_worker_list(
