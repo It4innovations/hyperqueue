@@ -109,7 +109,7 @@ impl QueueHandler for PbsHandler {
 
             let status = match state {
                 "Q" => AllocationStatus::Queued,
-                "R" => AllocationStatus::Running {
+                "R" | "E" => AllocationStatus::Running {
                     started_at: parse_time(start_time_key)?,
                 },
                 "F" => {
