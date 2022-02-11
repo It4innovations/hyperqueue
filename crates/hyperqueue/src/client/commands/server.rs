@@ -37,8 +37,8 @@ struct ServerStartOpts {
     idle_timeout: Option<ArgDuration>,
 
     /// How often should the auto allocator perform its actions
-    #[clap(long)]
-    autoalloc_interval: Option<ArgDuration>,
+    #[clap(long, default_value = "30s")]
+    autoalloc_interval: ArgDuration,
 
     /// Port for client connections (used e.g. for `hq submit`)
     #[clap(long)]
@@ -81,7 +81,7 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
             .host
             .unwrap_or_else(|| gethostname::gethostname().into_string().unwrap()),
         idle_timeout: opts.idle_timeout.map(|x| x.unpack()),
-        autoalloc_interval: opts.autoalloc_interval.map(|x| x.unpack()),
+        autoalloc_interval: opts.autoalloc_interval.unpack(),
         client_port: opts.client_port,
         worker_port: opts.worker_port,
         event_buffer_size: opts.event_store_size,

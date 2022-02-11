@@ -21,8 +21,6 @@ use crate::transfer::connection::{ClientConnection, HqConnection};
 use std::rc::Rc;
 use std::time::Duration;
 
-const DEFAULT_AUTOALLOC_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
-
 enum ServerStatus {
     Offline(AccessRecord),
     Online(AccessRecord),
@@ -31,7 +29,7 @@ enum ServerStatus {
 pub struct ServerConfig {
     pub host: String,
     pub idle_timeout: Option<Duration>,
-    pub autoalloc_interval: Option<Duration>,
+    pub autoalloc_interval: Duration,
     pub client_port: Option<u16>,
     pub worker_port: Option<u16>,
     pub event_buffer_size: usize,
@@ -124,12 +122,7 @@ async fn initialize_server(
     let tako_secret_key = Arc::new(generate_key());
 
     let (event_storage, event_stream_fut) = prepare_event_management(&server_cfg).await?;
-    let state_ref = StateRef::new(
-        server_cfg
-            .autoalloc_interval
-            .unwrap_or(DEFAULT_AUTOALLOC_REFRESH_INTERVAL),
-        event_storage,
-    );
+    let state_ref = StateRef::new(server_cfg.autoalloc_interval, event_storage);
     let (tako_server, tako_future) = Backend::start(
         state_ref.clone(),
         tako_secret_key.clone(),
@@ -265,6 +258,7 @@ mod tests {
     use std::future::Future;
     use std::path::Path;
     use std::rc::Rc;
+    use std::time::Duration;
 
     pub async fn init_test_server(
         tmp_dir: &Path,
@@ -277,7 +271,7 @@ mod tests {
         let server_cfg = ServerConfig {
             host: "localhost".to_string(),
             idle_timeout: None,
-            autoalloc_interval: None,
+            autoalloc_interval: Duration::from_secs(60),
             client_port: None,
             worker_port: None,
             event_buffer_size: 1_000_000,
