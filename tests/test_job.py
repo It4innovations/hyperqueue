@@ -1101,6 +1101,26 @@ out
     )
 
 
+def test_job_cat_last(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    output = hq_env.command(["job", "cat", "last", "stdout"])
+    assert "No jobs were found" in output
+
+    hq_env.command(["submit", "--", "bash", "-c", "echo '1'"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    hq_env.command(["submit", "--", "bash", "-c", "echo '2'"])
+    wait_for_job_state(hq_env, 2, "FINISHED")
+
+    output = hq_env.command(["job", "cat", "last", "stdout"])
+    assert output.rstrip() == "2"
+
+    output = hq_env.command(["job", "cat", "last", "stderr"])
+    assert output == ""
+
+
 @pytest.mark.parametrize("mode", ["FINISHED", "FAILED", "CANCELED"])
 def test_submit_task_dir(hq_env: HqEnv, mode):
     hq_env.start_server()
