@@ -1,8 +1,10 @@
+use crate::Map;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::Duration;
 
+use crate::common::fsutils::get_current_dir;
 use anyhow::Context;
 
 use crate::common::manager::info::ManagerType;
@@ -12,9 +14,13 @@ use crate::server::autoalloc::descriptor::common::{
     build_worker_args, check_command_output, create_allocation_dir, create_command, submit_script,
     ExternalHandler,
 };
-use crate::server::autoalloc::descriptor::{AllocationSubmissionResult, QueueHandler};
+use crate::server::autoalloc::descriptor::{
+    AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
+};
 use crate::server::autoalloc::state::AllocationStatus;
-use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId, QueueInfo};
+use crate::server::autoalloc::{
+    Allocation, AllocationId, AutoAllocResult, DescriptorId, QueueInfo,
+};
 
 pub struct PbsHandler {
     handler: ExternalHandler,
@@ -70,69 +76,48 @@ impl QueueHandler for PbsHandler {
         })
     }
 
-    fn get_allocation_status(
+    fn get_status_of_allocations(
         &self,
-        allocation: &Allocation,
-    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>> {
-        let allocation_id = allocation.id.clone();
-        let workdir = allocation.working_dir.clone();
+        allocations: &[&Allocation],
+    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationStatusMap>>>> {
+        let mut arguments = vec!["qstat"];
+        for &allocation in allocations {
+            arguments.extend_from_slice(&["-f", &allocation.id]);
+        }
+
+        // -x will also display finished jobs
+        arguments.extend_from_slice(&["-F", "json", "-x"]);
+
+        let allocation_ids: Vec<AllocationId> =
+            allocations.iter().map(|alloc| alloc.id.clone()).collect();
+        let workdir = allocations
+            .first()
+            .map(|alloc| alloc.working_dir.clone())
+            .unwrap_or_else(get_current_dir);
+
+        log::debug!("Running PBS command `{}`", arguments.join(" "));
+
+        let mut command = create_command(arguments, &workdir);
 
         Box::pin(async move {
-            // -x will also display finished jobs
-            let arguments = vec!["qstat", "-f", &allocation_id, "-F", "json", "-x"];
-            log::debug!("Running PBS command `{}`", arguments.join(" "));
-
-            let mut command = create_command(arguments, &workdir);
             let output = command.output().await.context("qstat start failed")?;
             let output = check_command_output(output).context("qstat execution failed")?;
 
             let data: serde_json::Value =
                 serde_json::from_slice(&output.stdout).context("Cannot parse qstat JSON output")?;
-            let job = &data["Jobs"][&allocation_id];
 
-            // Job was not found
-            if job.is_null() {
-                return Ok(None);
+            let mut result = Map::with_capacity(allocation_ids.len());
+
+            let jobs = &data["Jobs"];
+            for allocation_id in allocation_ids {
+                let allocation = &jobs[&allocation_id];
+                if !allocation.is_null() {
+                    let status = parse_allocation_status(allocation);
+                    result.insert(allocation_id, status);
+                }
             }
 
-            let state = get_json_str(&job["job_state"], "Job state")?;
-            let start_time_key = "stime";
-            let modification_time_key = "mtime";
-
-            let parse_time = |key: &str| {
-                let value = &job[key];
-                value
-                    .as_str()
-                    .ok_or_else(|| anyhow::anyhow!("Missing time key {} in PBS", key))
-                    .and_then(|v| AutoAllocResult::Ok(local_to_system_time(parse_pbs_datetime(v)?)))
-            };
-
-            let status = match state {
-                "Q" => AllocationStatus::Queued,
-                "R" | "E" => AllocationStatus::Running {
-                    started_at: parse_time(start_time_key)?,
-                },
-                "F" => {
-                    let exit_status = get_json_number(&job["Exit_status"], "Exit status")?;
-                    let started_at = parse_time(start_time_key)?;
-                    let finished_at = parse_time(modification_time_key)?;
-
-                    if exit_status == 0 {
-                        AllocationStatus::Finished {
-                            started_at,
-                            finished_at,
-                        }
-                    } else {
-                        AllocationStatus::Failed {
-                            started_at,
-                            finished_at,
-                        }
-                    }
-                }
-                status => anyhow::bail!("Unknown PBS job status {}", status),
-            };
-
-            Ok(Some(status))
+            Ok(result)
         })
     }
 
@@ -153,6 +138,46 @@ impl QueueHandler for PbsHandler {
             Ok(())
         })
     }
+}
+
+fn parse_allocation_status(allocation: &serde_json::Value) -> AutoAllocResult<AllocationStatus> {
+    let state = get_json_str(&allocation["job_state"], "Job state")?;
+    let start_time_key = "stime";
+    let modification_time_key = "mtime";
+
+    let parse_time = |key: &str| {
+        let value = &allocation[key];
+        value
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Missing time key {} in PBS", key))
+            .and_then(|v| AutoAllocResult::Ok(local_to_system_time(parse_pbs_datetime(v)?)))
+    };
+
+    let status = match state {
+        "Q" => AllocationStatus::Queued,
+        "R" | "E" => AllocationStatus::Running {
+            started_at: parse_time(start_time_key)?,
+        },
+        "F" => {
+            let exit_status = get_json_number(&allocation["Exit_status"], "Exit status")?;
+            let started_at = parse_time(start_time_key)?;
+            let finished_at = parse_time(modification_time_key)?;
+
+            if exit_status == 0 {
+                AllocationStatus::Finished {
+                    started_at,
+                    finished_at,
+                }
+            } else {
+                AllocationStatus::Failed {
+                    started_at,
+                    finished_at,
+                }
+            }
+        }
+        status => anyhow::bail!("Unknown PBS job status {}", status),
+    };
+    Ok(status)
 }
 
 #[allow(clippy::too_many_arguments)]

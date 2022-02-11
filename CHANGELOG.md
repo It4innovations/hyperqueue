@@ -16,6 +16,8 @@
 * HQ will no longer warn that `stdout`/`stderr` path does not contain the `%{TASK_ID}` placeholder
 when submitting array jobs if the placeholder is contained within the working directory path and
 `stdout`/`stderr` contains the `%{CWD}` placeholder.
+* The automatic allocator will query PBS allocation statuses less often. It will now also ask for status
+of all allocations per allocation queue in a single `qstat` call.
 
 # 0.8.0
 

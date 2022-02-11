@@ -5,6 +5,7 @@ pub mod slurm;
 use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
 use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId};
+use crate::Map;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -163,6 +164,8 @@ impl AllocationSubmissionResult {
     }
 }
 
+pub type AllocationStatusMap = Map<AllocationId, AutoAllocResult<AllocationStatus>>;
+
 /// Handler that can communicate with some allocation queue (e.g. PBS/Slurm queue)
 pub trait QueueHandler {
     /// Submit an allocation that will start the corresponding number of workers.
@@ -177,12 +180,12 @@ pub trait QueueHandler {
         worker_count: u64,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationSubmissionResult>>>>;
 
-    /// Get status of an existing allocation
-    /// TODO: get status of multiple allocations to amortize qstat cost
-    fn get_allocation_status(
+    /// Get statuses of a set of existing allocations.
+    /// This function takes multiple allocations at once to amortize the query cost.
+    fn get_status_of_allocations(
         &self,
-        allocation: &Allocation,
-    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<Option<AllocationStatus>>>>>;
+        allocations: &[&Allocation],
+    ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationStatusMap>>>>;
 
     /// Remove allocation, if it still exists.
     fn remove_allocation(

@@ -79,14 +79,14 @@ else:
 import sys
 import json
 
-jobid = None
+job_ids = []
 args = sys.argv[1:]
 for (index, arg) in enumerate(args[:-1]):
     if arg == "-f":
-        jobid = args[index + 1]
-        break
+        job_ids.append(args[index + 1])
 
-assert jobid is not None
+if not job_ids:
+    raise Exception(f"Did not find -f in arguments: {{args}}")
 
 with open("{self.qstat_path}") as f:
     jobdata = json.loads(f.read())
