@@ -9,21 +9,21 @@ edition = "2021"
 [dependencies]
 futures = "0.3"
 tokio = { version= "1.15", features = ["full"] }
-tokio-util = { version = "0.6", features = ["codec"] }
+tokio-util = { version = "0.7", features = ["codec"] }
 bytes = "1.0"
 byteorder = "1.4"
 smallvec = { version = "1.6", features = ["serde"] }
-rmp-serde = "0.15.4"
+rmp-serde = "1.0.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_bytes = "0.11"
 serde_json = "1.0"
 thiserror = "1"
 rand = { version = "0.8", features = ["small_rng"] }
-hashbrown = { version = "0.11", features = ["serde", "inline-more"], default-features = false }
+hashbrown = { version = "0.12", features = ["serde", "inline-more"], default-features = false }
 gethostname = "0.2"
 log = "0.4"
 tracing = "0.1"
-tracing-subscriber = "0.2"
+tracing-subscriber = { version = "0.3", features = ["json"] }
 priority-queue = "1.0"
 bitflags = "1.2"
 orion = "0.17.0"

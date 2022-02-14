@@ -65,7 +65,7 @@ impl std::io::Write for FileGuard {
 
 struct Timestamp;
 impl FormatTime for Timestamp {
-    fn format_time(&self, w: &mut dyn fmt::Write) -> fmt::Result {
+    fn format_time(&self, w: &mut tracing_subscriber::fmt::format::Writer) -> fmt::Result {
         write!(
             w,
             "{}",
