@@ -1,7 +1,8 @@
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::ServerDir;
 use crate::server::autoalloc::{
-    DescriptorId, PbsHandler, QueueDescriptor, QueueHandler, QueueInfo, SlurmHandler,
+    prepare_descriptor_cleanup, DescriptorId, PbsHandler, QueueDescriptor, QueueHandler, QueueInfo,
+    SlurmHandler,
 };
 use crate::server::state::StateRef;
 use crate::transfer::messages::{
@@ -56,8 +57,6 @@ async fn remove_queue(state_ref: &StateRef, id: DescriptorId, force: bool) -> To
 
         let fut = match descriptor_state {
             Some(state) => {
-                let handler = state.descriptor.handler();
-
                 let has_running_allocations =
                     state.all_allocations().any(|alloc| alloc.is_running());
                 if has_running_allocations && !force {
@@ -68,15 +67,7 @@ not be removed. Use `--force` if you want to remove the queue anyway"
                     );
                 }
 
-                let futures: Vec<_> = state
-                    .active_allocations()
-                    .map(move |alloc| {
-                        let allocation_id = alloc.id.clone();
-                        let future = handler.remove_allocation(alloc);
-                        async move { (future.await, allocation_id) }
-                    })
-                    .collect();
-                futures
+                prepare_descriptor_cleanup(state)
             }
             None => return ToClientMessage::Error("Allocation queue not found".to_string()),
         };
