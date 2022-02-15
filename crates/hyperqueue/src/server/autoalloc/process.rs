@@ -290,6 +290,7 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
                             error: format!("{:?}", err),
                         });
                         descriptor.add_inactive_directory(working_dir);
+                        break;
                     }
                 }
             }
@@ -302,6 +303,7 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
                 descriptor.add_event(AllocationEvent::QueueFail {
                     error: format!("{:?}", err),
                 });
+                break;
             }
         }
     }
@@ -336,6 +338,7 @@ async fn remove_inactive_directories(id: DescriptorId, state_ref: &StateRef) {
 
 #[cfg(test)]
 mod tests {
+    use anyhow::anyhow;
     use derive_builder::Builder;
     use std::future::Future;
     use std::pin::Pin;
@@ -526,6 +529,27 @@ mod tests {
         // 5 tasks, 3 * 2 workers -> last two allocations should be ignored
         autoalloc_tick(&state).await;
         assert_eq!(get_allocations(&state, 0).len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_stop_allocating_on_error() {
+        let state = create_state(5);
+
+        let alloc_state = WrappedRcRefCell::wrap(AllocationState::default());
+        let handler = stateful_handler(alloc_state.clone());
+        add_descriptor(&state, handler, QueueBuilder::default().backlog(5));
+
+        alloc_state.get_mut().allocation_will_fail = true;
+
+        // Only try the first allocation in the backlog
+        autoalloc_tick(&state).await;
+        assert_eq!(alloc_state.get().allocation_attempts, 1);
+
+        alloc_state.get_mut().allocation_will_fail = false;
+
+        // Finish the rest
+        autoalloc_tick(&state).await;
+        assert_eq!(alloc_state.get().allocation_attempts, 6);
     }
 
     #[tokio::test]
@@ -813,6 +837,8 @@ mod tests {
     struct AllocationState {
         state: Map<AllocationId, AllocationStatus>,
         spawned_allocations: usize,
+        allocation_attempts: usize,
+        allocation_will_fail: bool,
     }
 
     impl AllocationState {
@@ -871,14 +897,25 @@ mod tests {
         Handler::new(
             state.clone(),
             move |state, _worker_count| async move {
-                let id_state = &mut state.get_mut().spawned_allocations;
-                let id = *id_state;
-                *id_state += 1;
-
+                let mut state = state.get_mut();
                 let tempdir = TempDir::new("hq").unwrap();
                 let dir = tempdir.into_path();
 
-                Ok(AllocationSubmissionResult::new(Ok(id.to_string()), dir))
+                state.allocation_attempts += 1;
+
+                if state.allocation_will_fail {
+                    Ok(AllocationSubmissionResult::new(
+                        AutoAllocResult::Err(anyhow!("Fail")),
+                        dir,
+                    ))
+                } else {
+                    let id_state = &mut state.spawned_allocations;
+
+                    let id = *id_state;
+                    *id_state += 1;
+
+                    Ok(AllocationSubmissionResult::new(Ok(id.to_string()), dir))
+                }
             },
             move |state, id| async move {
                 let state = &mut state.get_mut().state;
