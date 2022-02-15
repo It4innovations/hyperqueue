@@ -1,4 +1,5 @@
 use futures::future::join_all;
+use std::future::Future;
 use std::time::SystemTime;
 
 use crate::server::autoalloc::state::{
@@ -37,17 +38,7 @@ pub async fn autoalloc_shutdown(state_ref: StateRef) {
             .get()
             .get_autoalloc_state()
             .descriptors()
-            .flat_map(|(_, descriptor)| {
-                let handler = descriptor.descriptor.handler();
-                descriptor
-                    .all_allocations()
-                    .filter(|alloc| alloc.is_active())
-                    .map(move |alloc| {
-                        let fut = handler.remove_allocation(alloc);
-                        let id = alloc.id.clone();
-                        async move { (fut.await, id) }
-                    })
-            })
+            .flat_map(|(_, descriptor)| prepare_descriptor_cleanup(descriptor))
             .collect()
     };
 
@@ -61,6 +52,21 @@ pub async fn autoalloc_shutdown(state_ref: StateRef) {
             }
         }
     }
+}
+
+/// Creates a vector of futures that clean up the active allocations of the given descriptor.
+pub fn prepare_descriptor_cleanup(
+    state: &DescriptorState,
+) -> Vec<impl Future<Output = (AutoAllocResult<()>, AllocationId)>> {
+    let handler = state.descriptor.handler();
+    state
+        .active_allocations()
+        .map(move |alloc| {
+            let allocation_id = alloc.id.clone();
+            let future = handler.remove_allocation(alloc);
+            async move { (future.await, allocation_id) }
+        })
+        .collect()
 }
 
 async fn autoalloc_tick(state_ref: &StateRef) {
