@@ -1,5 +1,4 @@
-use std::time::Duration;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use anyhow::anyhow;
 use chrono::TimeZone;
@@ -55,6 +54,48 @@ fn p_hms_time(input: &str) -> NomResult<Duration> {
 /// Individual time values may be zero padded.
 pub fn parse_hms_time(input: &str) -> anyhow::Result<Duration> {
     consume_all(p_hms_time, input)
+}
+
+#[cfg(not(test))]
+pub fn now_monotonic() -> std::time::Instant {
+    std::time::Instant::now()
+}
+
+#[cfg(test)]
+pub use mock_time::now_monotonic;
+
+/// Testing utilities for mocking (monotonic) timestamps.
+/// Use the `now_monotonic` function if you want to be able to mock the time in tests.
+#[cfg(test)]
+pub mod mock_time {
+    use std::cell::RefCell;
+    use std::time::Instant;
+
+    thread_local! {
+        static MOCK_TIME: RefCell<Option<Instant>> = RefCell::new(None);
+    }
+
+    pub struct MockTime;
+
+    impl MockTime {
+        pub fn mock(time: Instant) -> Self {
+            MOCK_TIME.with(|cell| {
+                assert!(cell.borrow().is_none());
+                *cell.borrow_mut() = Some(time);
+            });
+            MockTime
+        }
+    }
+
+    impl Drop for MockTime {
+        fn drop(&mut self) {
+            MOCK_TIME.with(|cell| *cell.borrow_mut() = None);
+        }
+    }
+
+    pub fn now_monotonic() -> Instant {
+        MOCK_TIME.with(|cell| cell.borrow().as_ref().cloned().unwrap_or_else(Instant::now))
+    }
 }
 
 #[cfg(test)]

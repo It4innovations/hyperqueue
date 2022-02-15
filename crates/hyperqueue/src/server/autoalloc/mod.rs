@@ -19,5 +19,5 @@ pub use descriptor::{QueueDescriptor, QueueHandler, QueueInfo};
 pub use process::prepare_descriptor_cleanup;
 pub use state::{
     Allocation, AllocationEvent, AllocationEventHolder, AllocationId, AllocationStatus,
-    DescriptorId,
+    DescriptorId, RateLimiter,
 };
