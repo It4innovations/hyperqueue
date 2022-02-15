@@ -2,7 +2,7 @@ use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::ServerDir;
 use crate::server::autoalloc::{
     prepare_descriptor_cleanup, DescriptorId, PbsHandler, QueueDescriptor, QueueHandler, QueueInfo,
-    SlurmHandler,
+    RateLimiter, SlurmHandler,
 };
 use crate::server::state::StateRef;
 use crate::transfer::messages::{
@@ -10,6 +10,7 @@ use crate::transfer::messages::{
     QueueDescriptorData, ToClientMessage,
 };
 use std::path::PathBuf;
+use std::time::Duration;
 
 pub async fn handle_autoalloc_message(
     server_dir: &ServerDir,
@@ -159,6 +160,23 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
     )
 }
 
+fn create_rate_limiter() -> RateLimiter {
+    RateLimiter::new(
+        vec![
+            Duration::ZERO,
+            Duration::from_secs(5),
+            Duration::from_secs(30),
+            Duration::from_secs(5 * 60),
+            Duration::from_secs(10 * 60),
+            Duration::from_secs(15 * 60),
+            Duration::from_secs(30 * 60),
+            Duration::from_secs(60 * 60),
+        ],
+        50,
+        10,
+    )
+}
+
 fn create_queue(
     server_dir: &ServerDir,
     state_ref: &StateRef,
@@ -178,10 +196,12 @@ fn create_queue(
             let id = {
                 let mut state = state_ref.get_mut();
                 let id = state.get_autoalloc_state_mut().create_id();
-                state
-                    .get_autoalloc_state_mut()
-                    .add_descriptor(id, descriptor);
 
+                state.get_autoalloc_state_mut().add_descriptor(
+                    id,
+                    descriptor,
+                    create_rate_limiter(),
+                );
                 state
                     .get_event_storage_mut()
                     .on_allocation_queue_created(id, params);

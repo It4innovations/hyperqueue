@@ -3,8 +3,10 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
+use std::time::Instant;
 
 use crate::common::idcounter::IdCounter;
+use crate::common::timeutils::now_monotonic;
 use crate::server::autoalloc::descriptor::QueueDescriptor;
 use crate::Map;
 
@@ -37,8 +39,14 @@ impl AutoAllocState {
         self.descriptor_id_counter.increment()
     }
 
-    pub fn add_descriptor(&mut self, id: DescriptorId, descriptor: QueueDescriptor) {
-        assert!(self.descriptors.insert(id, descriptor.into()).is_none());
+    pub fn add_descriptor(
+        &mut self,
+        id: DescriptorId,
+        descriptor: QueueDescriptor,
+        limiter: RateLimiter,
+    ) {
+        let state = DescriptorState::new(descriptor, limiter);
+        assert!(self.descriptors.insert(id, state).is_none());
     }
     pub fn remove_descriptor(&mut self, id: DescriptorId) {
         assert!(self.descriptors.remove(&id).is_some());
@@ -70,20 +78,20 @@ pub struct DescriptorState {
     events: VecDeque<AllocationEventHolder>,
     /// Directories of allocations that are no longer active and serve only for debugging purposes.
     inactive_allocation_directories: VecDeque<PathBuf>,
+    rate_limiter: RateLimiter,
 }
 
-impl From<QueueDescriptor> for DescriptorState {
-    fn from(descriptor: QueueDescriptor) -> Self {
+impl DescriptorState {
+    pub fn new(descriptor: QueueDescriptor, rate_limiter: RateLimiter) -> Self {
         Self {
             descriptor,
             allocations: Default::default(),
             events: Default::default(),
             inactive_allocation_directories: Default::default(),
+            rate_limiter,
         }
     }
-}
 
-impl DescriptorState {
     pub fn add_event<T: Into<AllocationEventHolder>>(&mut self, event: T) {
         self.events.push_back(event.into());
 
@@ -145,6 +153,13 @@ impl DescriptorState {
             to_remove.push(directory);
         }
         to_remove
+    }
+
+    pub fn get_limiter(&self) -> &RateLimiter {
+        &self.rate_limiter
+    }
+    pub fn get_limiter_mut(&mut self) -> &mut RateLimiter {
+        &mut self.rate_limiter
     }
 }
 
@@ -212,6 +227,108 @@ impl From<AllocationEvent> for AllocationEventHolder {
         Self {
             date: SystemTime::now(),
             event,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum RateLimiterStatus {
+    Ok,
+    Wait,
+    TooManyFailedSubmissions,
+    TooManyFailedAllocations,
+}
+
+/// Limits how often does the automatic allocation subsystem submits new submissions.
+/// Each descriptor has its own rate limiter.
+///
+/// The limiter uses a Vec of delays which are used to block off submission.
+/// When an allocation or a submission fails, the delay is increased, until it reaches the last
+/// element of the Vec.
+///
+/// When the maximum number of (successive) allocation or submission failures is reached, the `status`
+/// method will return [`RateLimiterStatus::TooManyFailedSubmissions`] or [`RateLimiterStatus::TooManyFailedAllocations`].
+pub struct RateLimiter {
+    delays: Vec<Duration>,
+    /// Which delay rate to currently use.
+    /// Index into `delays`.
+    current_delay: usize,
+    last_check: Instant,
+    /// How many times has an allocation failed in a row.
+    allocation_fails: usize,
+    max_allocation_fails: usize,
+    /// How many times has the submission failed in a row.
+    submission_fails: usize,
+    max_submission_fails: usize,
+}
+
+impl RateLimiter {
+    pub fn new(
+        delays: Vec<Duration>,
+        max_submission_fails: usize,
+        max_allocation_fails: usize,
+    ) -> Self {
+        assert!(!delays.is_empty());
+        Self {
+            delays,
+            current_delay: 0,
+            last_check: now_monotonic(),
+            allocation_fails: 0,
+            max_allocation_fails,
+            submission_fails: 0,
+            max_submission_fails,
+        }
+    }
+
+    /// An allocation was submitted successfully into the target system.
+    pub fn on_submission_success(&mut self) {
+        self.submission_fails = 0;
+        if self.allocation_fails == 0 {
+            self.current_delay = 0;
+        }
+    }
+    /// An allocation was not submitted successfully, it was rejected by the target system.
+    pub fn on_submission_fail(&mut self) {
+        self.submission_fails += 1;
+        self.increase_delay();
+    }
+    /// An allocation has finished its execution time and exited with a success exit code.
+    pub fn on_allocation_success(&mut self) {
+        self.allocation_fails = 0;
+        self.current_delay = 0;
+    }
+    /// An allocation has finished with an error.
+    pub fn on_allocation_fail(&mut self) {
+        self.allocation_fails += 1;
+        self.increase_delay();
+    }
+
+    /// Submission will be attempted, reset the limiter timer.
+    pub fn on_submission_attempt(&mut self) {
+        self.last_check = now_monotonic();
+    }
+
+    pub fn status(&self) -> RateLimiterStatus {
+        if self.allocation_fails >= self.max_allocation_fails {
+            return RateLimiterStatus::TooManyFailedAllocations;
+        }
+        if self.submission_fails >= self.max_submission_fails {
+            return RateLimiterStatus::TooManyFailedSubmissions;
+        }
+        let time = now_monotonic();
+        let duration = time.duration_since(self.last_check);
+        let delay = self.delays[self.current_delay];
+
+        if duration < delay {
+            RateLimiterStatus::Wait
+        } else {
+            RateLimiterStatus::Ok
+        }
+    }
+
+    fn increase_delay(&mut self) {
+        if self.current_delay < self.delays.len() - 1 {
+            self.current_delay += 1;
         }
     }
 }

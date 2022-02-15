@@ -3,7 +3,7 @@ use std::future::Future;
 use std::time::SystemTime;
 
 use crate::server::autoalloc::state::{
-    Allocation, AllocationEvent, AllocationStatus, DescriptorState,
+    Allocation, AllocationEvent, AllocationStatus, DescriptorState, RateLimiterStatus,
 };
 use crate::server::autoalloc::{AllocationId, AutoAllocResult, DescriptorId, QueueInfo};
 use crate::server::event::storage::EventStorage;
@@ -82,9 +82,25 @@ async fn autoalloc_tick(state_ref: &StateRef) {
 }
 
 async fn process_descriptor(id: DescriptorId, state: &StateRef) {
-    // TODO: check only once in a while
     refresh_allocations(id, state).await;
-    schedule_new_allocations(id, state).await
+
+    let submission_allowed = {
+        let mut state = state.get_mut();
+        let descriptor = get_or_return!(state.get_autoalloc_state_mut().get_descriptor_mut(id));
+        let limiter = descriptor.get_limiter_mut();
+
+        let allowed = matches!(limiter.status(), RateLimiterStatus::Ok);
+        if allowed {
+            limiter.on_submission_attempt();
+        }
+        allowed
+    };
+
+    if submission_allowed {
+        submit_new_allocations(id, state).await;
+    }
+    remove_inactive_directories(id, state).await;
+    try_remove_descriptor(id, state).await;
 }
 
 /// Go through the allocations of descriptor with the given name and refresh their status.
@@ -165,11 +181,13 @@ fn handle_allocation_status(
                         event_manager.on_allocation_finished(allocation_id.clone());
                         descriptor.add_event(AllocationEvent::AllocationFinished(allocation_id));
                         descriptor.add_inactive_directory(working_dir);
+                        descriptor.get_limiter_mut().on_allocation_success();
                     }
                     AllocationStatus::Failed { .. } => {
                         event_manager.on_allocation_finished(allocation_id.clone());
                         descriptor.add_event(AllocationEvent::AllocationFailed(allocation_id));
                         descriptor.add_inactive_directory(working_dir);
+                        descriptor.get_limiter_mut().on_allocation_fail();
                     }
                     AllocationStatus::Queued => {}
                 };
@@ -219,10 +237,11 @@ fn count_active_workers(descriptor: &DescriptorState) -> u64 {
 }
 
 /// Schedule new allocations for the descriptor with the given name.
-async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
+async fn submit_new_allocations(id: DescriptorId, state_ref: &StateRef) {
     let (allocations_to_create, workers_per_alloc, mut waiting_tasks, mut available_workers) = {
         let state = state_ref.get();
         let descriptor = get_or_return!(state.get_autoalloc_state().get_descriptor(id));
+
         let allocs_in_queue = descriptor.queued_allocations().count();
 
         let waiting_tasks = count_available_tasks(&state, descriptor.descriptor.info());
@@ -286,6 +305,7 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
                             status: AllocationStatus::Queued,
                             working_dir,
                         });
+                        descriptor.get_limiter_mut().on_submission_success();
 
                         waiting_tasks = waiting_tasks.saturating_sub(workers_to_spawn);
                         available_workers = available_workers.saturating_sub(workers_to_spawn);
@@ -295,6 +315,7 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
                         descriptor.add_event(AllocationEvent::QueueFail {
                             error: format!("{:?}", err),
                         });
+                        descriptor.get_limiter_mut().on_submission_fail();
                         descriptor.add_inactive_directory(working_dir);
                         break;
                     }
@@ -309,12 +330,11 @@ async fn schedule_new_allocations(id: DescriptorId, state_ref: &StateRef) {
                 descriptor.add_event(AllocationEvent::QueueFail {
                     error: format!("{:?}", err),
                 });
+                descriptor.get_limiter_mut().on_submission_fail();
                 break;
             }
         }
     }
-
-    remove_inactive_directories(id, state_ref).await;
 }
 
 /// Removes directories of inactive allocations scheduled for removal.
@@ -342,14 +362,45 @@ async fn remove_inactive_directories(id: DescriptorId, state_ref: &StateRef) {
     }
 }
 
+/// Removes the descriptor if the rate limiter decides that it had too many failures.
+async fn try_remove_descriptor(id: DescriptorId, state_ref: &StateRef) {
+    let futures = {
+        let mut state = state_ref.get_mut();
+        let state = state.get_autoalloc_state_mut();
+        let descriptor = get_or_return!(state.get_descriptor_mut(id));
+        let limiter = descriptor.get_limiter();
+
+        let status = limiter.status();
+        match status {
+            RateLimiterStatus::TooManyFailedSubmissions
+            | RateLimiterStatus::TooManyFailedAllocations => {
+                if let RateLimiterStatus::TooManyFailedSubmissions = status {
+                    log::error!(
+                        "The descriptor {id} had too many failed submissions, it will be removed."
+                    );
+                } else {
+                    log::error!(
+                        "The descriptor {id} had too many failed allocations, it will be removed."
+                    );
+                }
+                let futures = prepare_descriptor_cleanup(descriptor);
+                state.remove_descriptor(id);
+                futures
+            }
+            RateLimiterStatus::Ok | RateLimiterStatus::Wait => return,
+        }
+    };
+    futures::future::join_all(futures).await;
+}
+
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
     use derive_builder::Builder;
     use std::future::Future;
     use std::pin::Pin;
-    use std::time::{Duration, SystemTime};
-    use tako::common::Map;
+    use std::time::{Duration, Instant, SystemTime};
+    use tako::common::{Map, Set};
     use tempdir::TempDir;
 
     use crate::common::arraydef::IntArray;
@@ -358,12 +409,13 @@ mod tests {
     use tako::messages::gateway::ResourceRequest;
 
     use crate::common::manager::info::ManagerType;
+    use crate::common::timeutils::mock_time::MockTime;
     use crate::server::autoalloc::descriptor::{
         AllocationStatusMap, AllocationSubmissionResult, QueueDescriptor, QueueHandler, QueueInfo,
     };
     use crate::server::autoalloc::process::autoalloc_tick;
     use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
-    use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId};
+    use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId, RateLimiter};
     use crate::server::job::Job;
     use crate::server::state::StateRef;
     use crate::transfer::messages::{JobDescription, TaskDescription};
@@ -751,6 +803,125 @@ mod tests {
         check_dir("1", false);
     }
 
+    #[tokio::test]
+    async fn test_remove_descriptor_when_submission_fails_too_many_times() {
+        let state = create_state(100);
+
+        let shared = WrappedRcRefCell::wrap(AllocationState::default());
+        let handler = stateful_handler(shared.clone());
+
+        let descriptor_id = add_descriptor(
+            &state,
+            handler,
+            QueueBuilder::default()
+                .backlog(5)
+                .limiter_max_submit_fails(2),
+        );
+
+        shared.get_mut().allocation_will_fail = true;
+
+        autoalloc_tick(&state).await;
+        check_queue_exists(&state, descriptor_id);
+        autoalloc_tick(&state).await;
+        check_queue_doesnt_exist(state, descriptor_id);
+    }
+
+    #[tokio::test]
+    async fn test_remove_descriptor_when_allocation_fails_too_many_times() {
+        let state = create_state(100);
+
+        let shared = WrappedRcRefCell::wrap(AllocationState::default());
+        let handler = stateful_handler(shared.clone());
+
+        let descriptor_id = add_descriptor(
+            &state,
+            handler,
+            QueueBuilder::default()
+                .backlog(5)
+                .limiter_max_alloc_fails(2),
+        );
+
+        {
+            let mut shared = shared.get_mut();
+            shared.fail("1");
+            shared.fail("2");
+        }
+
+        autoalloc_tick(&state).await;
+        check_queue_exists(&state, descriptor_id);
+        autoalloc_tick(&state).await;
+        check_queue_doesnt_exist(state, descriptor_id);
+    }
+
+    #[tokio::test]
+    async fn test_respect_rate_limiter() {
+        let state = create_state(100);
+
+        let shared = WrappedRcRefCell::wrap(AllocationState::default());
+        let handler = stateful_handler(shared.clone());
+
+        add_descriptor(
+            &state,
+            handler,
+            QueueBuilder::default()
+                .backlog(5)
+                .limiter_max_alloc_fails(100)
+                .limiter_delays(vec![
+                    Duration::ZERO,
+                    Duration::from_secs(1),
+                    Duration::from_secs(10),
+                ]),
+        );
+
+        shared.get_mut().allocation_will_fail = true;
+
+        let check_alloc_count = |count: usize| {
+            assert_eq!(shared.get().allocation_attempts, count);
+        };
+
+        let mut now = Instant::now();
+        {
+            let _mock = MockTime::mock(now);
+            autoalloc_tick(&state).await;
+            check_alloc_count(1);
+        }
+
+        // Now we should sleep until +1 sec
+        {
+            now += Duration::from_millis(500);
+            let _mock = MockTime::mock(now);
+            autoalloc_tick(&state).await;
+            check_alloc_count(1);
+        }
+        {
+            now += Duration::from_millis(1500);
+            let _mock = MockTime::mock(now);
+            autoalloc_tick(&state).await;
+            check_alloc_count(2);
+        }
+
+        // Now we should sleep until +10 sec
+        {
+            now += Duration::from_millis(5000);
+            let _mock = MockTime::mock(now);
+            autoalloc_tick(&state).await;
+            check_alloc_count(2);
+        }
+        {
+            now += Duration::from_millis(6000);
+            let _mock = MockTime::mock(now);
+            autoalloc_tick(&state).await;
+            check_alloc_count(3);
+        }
+        // The delay shouldn't increase any more when we have reached the maximum delay
+        {
+            now += Duration::from_millis(11000);
+            let _mock = MockTime::mock(now);
+            autoalloc_tick(&state).await;
+            check_alloc_count(4);
+        }
+    }
+
     struct Handler<ScheduleFn, StatusFn, RemoveFn, State> {
         schedule_fn: WrappedRcRefCell<ScheduleFn>,
         status_fn: WrappedRcRefCell<StatusFn>,
@@ -842,9 +1013,10 @@ mod tests {
     #[derive(Default)]
     struct AllocationState {
         state: Map<AllocationId, AllocationStatus>,
-        spawned_allocations: usize,
+        spawned_allocations: Set<AllocationId>,
         allocation_attempts: usize,
         allocation_will_fail: bool,
+        deleted_allocations: Set<AllocationId>,
     }
 
     impl AllocationState {
@@ -915,10 +1087,9 @@ mod tests {
                         dir,
                     ))
                 } else {
-                    let id_state = &mut state.spawned_allocations;
-
-                    let id = *id_state;
-                    *id_state += 1;
+                    let spawned = &mut state.spawned_allocations;
+                    let id = spawned.len();
+                    spawned.insert(id.to_string());
 
                     Ok(AllocationSubmissionResult::new(Ok(id.to_string()), dir))
                 }
@@ -928,7 +1099,10 @@ mod tests {
                 let status = state.get(&id).cloned().unwrap_or(AllocationStatus::Queued);
                 Ok(Some(status))
             },
-            |_, _| async move { Ok(()) },
+            |state, id| async move {
+                state.get_mut().deleted_allocations.insert(id);
+                Ok(())
+            },
         )
     }
 
@@ -946,16 +1120,25 @@ mod tests {
         max_worker_count: Option<u32>,
         #[builder(default = "1")]
         max_kept_dirs: usize,
+        #[builder(default = "100")]
+        limiter_max_alloc_fails: usize,
+        #[builder(default = "100")]
+        limiter_max_submit_fails: usize,
+        #[builder(default = "vec![Duration::ZERO]")]
+        limiter_delays: Vec<Duration>,
     }
 
     impl QueueBuilder {
-        fn build(self) -> (QueueInfo, usize) {
+        fn build(self) -> (QueueInfo, usize, RateLimiter) {
             let Queue {
                 backlog,
                 workers_per_alloc,
                 timelimit,
                 max_worker_count,
                 max_kept_dirs,
+                limiter_max_alloc_fails,
+                limiter_max_submit_fails,
+                limiter_delays,
             } = self.finish().unwrap();
             (
                 QueueInfo::new(
@@ -969,6 +1152,11 @@ mod tests {
                     max_worker_count,
                 ),
                 max_kept_dirs,
+                RateLimiter::new(
+                    limiter_delays,
+                    limiter_max_submit_fails,
+                    limiter_max_alloc_fails,
+                ),
             )
         }
     }
@@ -979,7 +1167,7 @@ mod tests {
         handler: Box<dyn QueueHandler>,
         queue_builder: QueueBuilder,
     ) -> DescriptorId {
-        let (queue_info, max_kept_directories) = queue_builder.build();
+        let (queue_info, max_kept_directories, limiter) = queue_builder.build();
         let descriptor = QueueDescriptor::new(
             ManagerType::Pbs,
             queue_info,
@@ -991,7 +1179,7 @@ mod tests {
         let mut state = state_ref.get_mut();
         let state = state.get_autoalloc_state_mut();
         let id = state.descriptors().count() as DescriptorId;
-        state.add_descriptor(id, descriptor);
+        state.add_descriptor(id, descriptor, limiter);
         id
     }
 
@@ -1070,5 +1258,20 @@ mod tests {
             None,
             Default::default(),
         )
+    }
+
+    fn check_queue_exists(state: &StateRef, id: DescriptorId) {
+        assert!(state
+            .get()
+            .get_autoalloc_state()
+            .get_descriptor(id)
+            .is_some());
+    }
+    fn check_queue_doesnt_exist(state: StateRef, id: DescriptorId) {
+        assert!(state
+            .get()
+            .get_autoalloc_state()
+            .get_descriptor(id)
+            .is_none());
     }
 }
