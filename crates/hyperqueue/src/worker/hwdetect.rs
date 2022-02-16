@@ -1,4 +1,5 @@
 use crate::common::parser::{consume_all, p_u32, NomResult};
+use crate::tako::common::resources::descriptor::GenericResourceKindSum;
 
 use tako::common::resources::{
     CpuId, CpusDescriptor, GenericResourceDescriptor, GenericResourceDescriptorKind,
@@ -60,12 +61,25 @@ pub fn detect_generic_resource() -> anyhow::Result<Vec<GenericResourceDescriptor
             })
         }
     }
+
+    if let Ok(mem) = read_linux_mem() {
+        log::debug!("Mem detected: {}", mem);
+        generic.push(GenericResourceDescriptor {
+            name: "mem".to_string(),
+            kind: GenericResourceDescriptorKind::Sum(GenericResourceKindSum { size: mem }),
+        })
+    }
     Ok(generic)
 }
 
 /// Try to find out how many Nvidia GPUs are available on the current node.
 fn read_linux_gpu_count() -> anyhow::Result<usize> {
     Ok(std::fs::read_dir("/proc/driver/nvidia/gpus")?.count())
+}
+
+/// Try to get free memory on the current node.
+fn read_linux_mem() -> anyhow::Result<u64> {
+    Ok(psutil::memory::virtual_memory()?.total())
 }
 
 /// Try to find the CPU NUMA configuration.

@@ -788,6 +788,7 @@ dependencies = [
  "nom-supreme",
  "num_cpus",
  "orion",
+ "psutil",
  "rmp-serde",
  "rmpv",
  "serde",
