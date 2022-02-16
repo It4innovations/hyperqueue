@@ -41,8 +41,8 @@ impl WorkerUtilTable {
             rect,
             frame,
             TableColumnHeaders {
-                title: "worker hardware utilization".to_string(),
-                inline_help: "".to_string(),
+                title: "worker hardware utilization",
+                inline_help: "",
                 table_headers: Some(vec![
                     "worker_id",
                     "#running tasks",

@@ -23,6 +23,8 @@ pub enum MonitoringEventPayload {
     },
     /// Task has been finished
     TaskFinished(TaskId),
+    // Task that failed to execute
+    TaskFailed(TaskId),
     /// New allocation queue has been created
     AllocationQueueCreated(DescriptorId, Box<AllocationQueueParams>),
     /// Allocation queue has been removed

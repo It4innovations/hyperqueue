@@ -96,22 +96,3 @@ impl HomeLayout {
         }
     }
 }
-
-pub fn vertical_chunks(constraints: Vec<Constraint>, size: Rect) -> Vec<Rect> {
-    tui::layout::Layout::default()
-        .constraints(constraints.as_ref())
-        .direction(Direction::Vertical)
-        .split(size)
-}
-
-pub fn horizontal_chunks_with_margin(
-    constraints: Vec<Constraint>,
-    size: Rect,
-    margin: u16,
-) -> Vec<Rect> {
-    Layout::default()
-        .constraints(constraints.as_ref())
-        .direction(Direction::Horizontal)
-        .margin(margin)
-        .split(size)
-}
