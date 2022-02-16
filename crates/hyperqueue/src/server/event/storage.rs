@@ -80,6 +80,11 @@ impl EventStorage {
         self.insert_event(MonitoringEventPayload::TaskFinished(task_id));
     }
 
+    #[inline]
+    pub fn on_task_failed(&mut self, task_id: TaskId) {
+        self.insert_event(MonitoringEventPayload::TaskFailed(task_id));
+    }
+
     pub fn on_allocation_queue_created(
         &mut self,
         id: DescriptorId,

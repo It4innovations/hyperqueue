@@ -8,8 +8,8 @@ use tui::text::Spans;
 static HIGHLIGHT: &str = "=> ";
 
 pub struct TableColumnHeaders {
-    pub title: String,
-    pub inline_help: String,
+    pub title: &'static str,
+    pub inline_help: &'static str,
     pub table_headers: Option<Vec<&'static str>>,
     pub column_widths: Vec<Constraint>,
 }
@@ -50,6 +50,10 @@ impl<T> StatefulTable<T> {
             return self.items.get(selection_index);
         }
         None
+    }
+
+    pub fn clear_selection(&mut self) {
+        self.state.select(None)
     }
 
     /// Select next item in the table, wrapping to the beginning if the selection was at the last
@@ -94,7 +98,7 @@ impl<T> StatefulTable<T> {
         T: 'a,
         F: Fn(&'a T) -> Row<'a>,
     {
-        let title = styles::table_title(columns.title);
+        let title = styles::table_title(columns.title.to_string());
         let body_block = styles::table_block_with_title(title);
 
         if self.has_items() {

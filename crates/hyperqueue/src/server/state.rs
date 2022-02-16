@@ -173,7 +173,7 @@ impl State {
                 cancel_tasks_from_callback(state_ref, tako_ref, job.job_id, task_ids);
             }
         }
-        self.event_storage.on_task_finished(msg.id);
+        self.event_storage.on_task_failed(msg.id);
     }
 
     pub fn process_task_update(&mut self, msg: TaskUpdate, backend: &Backend) {

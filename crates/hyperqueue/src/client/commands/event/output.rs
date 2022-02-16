@@ -74,5 +74,9 @@ fn format_payload(event: MonitoringEventPayload) -> serde_json::Value {
             "type": "task-finished",
             "id": task_id
         }),
+        MonitoringEventPayload::TaskFailed(task_id) => json!({
+            "type": "task-failed",
+            "id": task_id
+        }),
     }
 }

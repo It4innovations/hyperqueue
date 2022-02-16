@@ -1,15 +1,14 @@
 use tako::messages::common::MemoryStats;
 use tako::messages::worker::WorkerHwStateMessage;
 
-#[allow(unused)]
 pub fn calculate_memory_usage_percent(memory_stats: &MemoryStats) -> u64 {
     if memory_stats.total == 0 {
         return 0;
     }
-    (((memory_stats.free as f64) / (memory_stats.total as f64)) * 100.00) as u64
+    (((memory_stats.total - memory_stats.free) as f64 / (memory_stats.total as f64)) * 100.00)
+        as u64
 }
 
-#[allow(unused)]
 pub fn get_average_cpu_usage_for_worker(hw_state: &WorkerHwStateMessage) -> f32 {
     let num_cpus = hw_state
         .state
