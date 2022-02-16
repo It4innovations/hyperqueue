@@ -4,6 +4,8 @@ import pandas as pd
 import plotly.express as px
 from events_type import *
 from hq_event_wrapper import HQEventCLIWrapper, Events, HQEventFileWrapper
+import numpy as np
+import plotly.graph_objects as go
 
 
 def events_to_workers_boxes(eventy, worker_ids):
@@ -90,6 +92,54 @@ def create_alloc_chart(eventy):
     fig.show()
 
 
+def create_worker_cpu_usage_chart(eventy: Events, worker_id):
+    worker_ids = eventy.get_workers_ids()
+    cpu_usage_per_worker = []
+
+    for id in worker_ids:
+        worker_overviews = eventy.get_by_type('worker-overview').get_by_id(id)
+        cpu_usages = []
+
+        for worker_overview in worker_overviews:
+            cpu_usage = worker_overview.hw_state['worker_cpu_usage']['cpu_per_core_percent_usage']
+            cpu_usages.append([id, *cpu_usage, worker_overview.time])
+
+        cpu_usage_per_worker.append(pd.DataFrame(cpu_usages))
+
+    header = ['id']
+    cpus_header = [f"cpu_{i}" for i in range(len(cpu_usage_per_worker[0].columns) - 2)]
+    header.extend(cpus_header)
+    header.append('time')
+    for i in cpu_usage_per_worker:
+        i.columns = header
+    data = cpu_usage_per_worker[worker_id - 1]
+
+    fig = go.Figure()
+    for cpu in cpus_header:
+        fig.add_trace(go.Scatter(x=data['time'], y=data[cpu], mode='lines+markers', name=cpu))
+    fig.show()
+
+
+@click.command(name="JSON-chart")
+@click.argument("worker-id")
+@click.argument("data-file")
+def create_worker_cpu_usage_chart_JSON(worker_id, data_file):
+    wrapper = HQEventFileWrapper(data_file)
+    eventy = wrapper.get_objects()
+    create_worker_cpu_usage_chart(eventy, worker_id)
+
+
+@click.command(name="CLI-chart")
+@click.argument("worker-id")
+@click.option("--bin_file", default='events.bin')
+@click.option("--bin_pwd", default='../')
+@click.option('--hq_bin_file', default='target/debug')
+def create_worker_cpu_usage_chart_CLI(worker_id, bin_file, bin_pwd, hq_bin_file):
+    event_wrapper = HQEventCLIWrapper(bin_file, bin_pwd, hq_bin_file)
+    eventy = event_wrapper.get_objects()
+    create_worker_cpu_usage_chart(eventy, worker_id)
+
+
 @click.command(name="CLI-chart")
 @click.option("--bin_file", default='events.bin')
 @click.option("--bin_pwd", default='../')
@@ -107,8 +157,6 @@ def create_workers_chart_JSON(json_file):
     eventy = event_wrapper.get_objects()
     create_workers_chart(eventy)
 
-
-# TODO:add into aloc_sim workers event creation
 
 @click.command(name="FILE-chart")
 @click.argument('json-file')
@@ -133,6 +181,11 @@ def cli_job():
     pass
 
 
+@click.group(name="worker")
+def cli_workers():
+    pass
+
+
 @click.group("alloc")
 def cli_alloc():
     pass
@@ -143,6 +196,9 @@ def cli():
     pass
 
 
+cli_workers.add_command(create_worker_cpu_usage_chart_JSON)
+cli_workers.add_command(create_workers_chart_CLI)
+
 cli_job.add_command(create_workers_chart_CLI)
 cli_job.add_command(create_workers_chart_JSON)
 # cli_job()
@@ -152,4 +208,6 @@ cli_alloc.add_command(create_alloc_chart_CLI)
 
 cli.add_command(cli_job)
 cli.add_command(cli_alloc)
+cli.add_command(cli_workers)
 cli()
+
