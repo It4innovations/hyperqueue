@@ -48,6 +48,7 @@ indicatif = "0.16.2"
 textwrap = "0.14"
 async-compression = { version = "0.3.8", features = ["tokio", "gzip"] }
 flate2 = { version = "1.0.22", features = ["default"] }
+psutil = "3.2.1"
 
 # Tako
 tako = { path = "../tako" }
