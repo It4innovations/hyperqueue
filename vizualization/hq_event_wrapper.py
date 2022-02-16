@@ -25,6 +25,9 @@ class Events(list):
             if keyword in type(i).__dict__.keys():
                 if type(i).__dict__[keyword] == value:
                     output.append(i)
+            elif keyword in i.__dict__.keys():
+                if i.__dict__[keyword] == value:
+                    output.append(i)
 
         return Events(output)
 
