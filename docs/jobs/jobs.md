@@ -279,24 +279,26 @@ There are three ways of waiting until a job completes:
         $ hq job progress <selector>
         ```
 
-## Attaching stdio
+## Attaching standard input
 
-When ``--stdin`` flag is used, then HQ capture stdio and attach it to each task of a job.
-This can be used to submitting scripts  without creating file.
+When ``--stdin`` flag is used, HQ captures standard input and attaches it to each task of a job.
+When a task is started then the attached data is written into the standard input of the task.
+
+This can be used to submitting scripts without creating file.
 The following command will capture stdin and executes it in Bash 
 
-    ```bash
-    $ hq submit --stdin bash
-    ```
+```bash
+$ hq submit --stdin bash
+```
 
-If you want to parse #HQ directives from stdin, you can use ``--directives=stdin``.
+If you want to parse #HQ directives from standard input, you can use ``--directives=stdin``.
 
 
 ## Task directory
 
 When a job is submitted with ``--task-dir`` then a temporary directory is created for each task and
 passed via environment variable ``HQ_TASK_DIR``. This directory is automatically deleted
-when a task is completed (for any reason).
+when the task is completed (for any reason).
 
 ## Useful job commands
 Here is a list of useful job commands:
