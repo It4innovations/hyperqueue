@@ -109,6 +109,13 @@ struct SharedQueueOpts {
     #[clap(long, default_value = "20")]
     max_kept_directories: usize,
 
+    /// Disables dry-run, which submits an allocation with the specified parameters to verify
+    /// whether the parameters are correct.
+    // This flag currently cannot be in [`AddQueueOpts`] because of a bug in clap:
+    //https://github.com/clap-rs/clap/issues/1570.
+    #[clap(long, global = true)]
+    no_dry_run: bool,
+
     /// Additional arguments passed to the submit command
     #[clap()]
     additional_args: Vec<String>,
@@ -178,7 +185,7 @@ pub async fn command_autoalloc(
             remove_queue(connection, opts.queue_id, opts.force).await?;
         }
         AutoAllocCommand::DryRun(opts) => {
-            dry_run(opts).await?;
+            dry_run_command(opts).await?;
         }
     }
     Ok(())
@@ -196,6 +203,7 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
         additional_args,
         on_server_lost,
         max_kept_directories,
+        no_dry_run: _,
     } = args;
 
     AllocationQueueParams {
@@ -212,12 +220,7 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
     }
 }
 
-async fn dry_run(opts: DryRunOpts) -> anyhow::Result<()> {
-    let (manager, params) = match opts.subcmd {
-        DryRunCommand::Pbs(params) => (ManagerType::Pbs, args_to_params(params)),
-        DryRunCommand::Slurm(params) => (ManagerType::Slurm, args_to_params(params)),
-    };
-
+async fn try_submit_job(manager: ManagerType, params: AllocationQueueParams) -> anyhow::Result<()> {
     let tmpdir = TempDir::new("hq")?;
     let mut handler =
         create_allocation_handler(&manager, params.name.clone(), tmpdir.as_ref().to_path_buf())?;
@@ -252,11 +255,34 @@ resources."
     Ok(())
 }
 
-async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyhow::Result<()> {
-    let (manager, parameters) = match opts.subcmd {
-        AddQueueCommand::Pbs(params) => (ManagerType::Pbs, args_to_params(params)),
-        AddQueueCommand::Slurm(params) => (ManagerType::Slurm, args_to_params(params)),
+async fn dry_run_command(opts: DryRunOpts) -> anyhow::Result<()> {
+    let (manager, params) = match opts.subcmd {
+        DryRunCommand::Pbs(params) => (ManagerType::Pbs, args_to_params(params)),
+        DryRunCommand::Slurm(params) => (ManagerType::Slurm, args_to_params(params)),
     };
+    try_submit_job(manager, params).await
+}
+
+async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyhow::Result<()> {
+    let (manager, parameters, no_dry_run) = match opts.subcmd {
+        AddQueueCommand::Pbs(params) => {
+            let no_dry_run = params.no_dry_run;
+            (ManagerType::Pbs, args_to_params(params), no_dry_run)
+        }
+        AddQueueCommand::Slurm(params) => {
+            let no_dry_run = params.no_dry_run;
+            (ManagerType::Slurm, args_to_params(params), no_dry_run)
+        }
+    };
+
+    if !no_dry_run {
+        try_submit_job(manager.clone(), parameters.clone())
+            .await
+            .map_err(|error| {
+                anyhow::anyhow!("{error:?}\nPlease verify that the entered parameters are correct.")
+            })?;
+    }
+
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue {
         manager,
         parameters,

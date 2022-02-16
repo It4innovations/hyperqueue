@@ -46,9 +46,12 @@ def add_queue(
     additional_worker_args: List[str] = None,
     additional_args=None,
     time_limit="1h",
+    dry_run=False,
     **kwargs,
 ) -> str:
     args = ["alloc", "add", manager]
+    if not dry_run:
+        args.append("--no-dry-run")
     if name is not None:
         args.extend(["--name", name])
     args.extend(
