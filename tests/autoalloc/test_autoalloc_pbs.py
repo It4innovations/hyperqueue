@@ -379,6 +379,7 @@ def dry_run_cmd() -> List[str]:
 
 
 def test_pbs_dry_run_missing_qsub(hq_env: HqEnv):
+    hq_env.start_server()
     hq_env.command(
         dry_run_cmd(),
         expect_fail="Could not submit allocation: qsub start failed",
@@ -389,6 +390,7 @@ def test_pbs_dry_run_submit_error(hq_env: HqEnv):
     mock = PbsMock(hq_env, new_job_responses=[NewJobFailed(message="FOOBAR")])
 
     with mock.activate():
+        hq_env.start_server()
         hq_env.command(dry_run_cmd(), expect_fail="Stderr: FOOBAR")
 
 
@@ -396,6 +398,7 @@ def test_pbs_dry_run_cancel_error(hq_env: HqEnv):
     mock = PbsMock(hq_env, new_job_responses=[NewJobId(id="job1")], qdel_code="exit(1)")
 
     with mock.activate():
+        hq_env.start_server()
         hq_env.command(dry_run_cmd(), expect_fail="Could not cancel allocation job1")
 
 
@@ -403,10 +406,11 @@ def test_pbs_dry_run_success(hq_env: HqEnv):
     mock = PbsMock(hq_env, new_job_responses=[NewJobId(id="job1")])
 
     with mock.activate():
+        hq_env.start_server()
         hq_env.command(dry_run_cmd())
 
 
-def test_pbs_add_queue_wrong_parameters(hq_env: HqEnv):
+def test_pbs_add_queue_dry_run_fail(hq_env: HqEnv):
     hq_env.start_server(args=["--autoalloc-interval", "100ms"])
 
     mock = PbsMock(hq_env, [NewJobFailed("failed to allocate")])

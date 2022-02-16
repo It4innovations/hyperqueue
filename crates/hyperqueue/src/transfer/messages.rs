@@ -162,6 +162,11 @@ pub enum AutoAllocRequest {
     AddQueue {
         manager: ManagerType,
         parameters: AllocationQueueParams,
+        dry_run: bool,
+    },
+    DryRun {
+        manager: ManagerType,
+        parameters: AllocationQueueParams,
     },
     RemoveQueue {
         descriptor: DescriptorId,
@@ -305,6 +310,7 @@ pub struct WorkerInfoResponse {
 pub enum AutoAllocResponse {
     QueueCreated(DescriptorId),
     QueueRemoved(DescriptorId),
+    DryRunSuccessful,
     Events(Vec<AllocationEventHolder>),
     Info(Vec<Allocation>),
     List(AutoAllocListResponse),

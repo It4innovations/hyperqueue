@@ -26,7 +26,7 @@ when submitting array jobs if the placeholder is contained within the working di
 * The automatic allocator will query PBS allocation statuses less often. It will now ask for status
 of all allocations per allocation queue in a single `qstat` call, and it now also contains backoff
 that will slow down new allocations if there are submission errors. If too many submissions (50) or
-allocations (10) fail, its corresponding allocation queue will be automatically removed.
+allocations (10) fail in a succession, its corresponding allocation queue will be automatically removed.
 
 # 0.8.0
 
