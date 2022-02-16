@@ -26,6 +26,7 @@ jobs:
     outputs:
       sha: ${{ env.SHA }}
       tag: ${{ env.TAG }}
+      prerelease: ${{ env.PRERELEASE }}
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -39,11 +40,14 @@ jobs:
         run: |
           echo "SHA=${{ github.event.inputs.sha }}" >> $GITHUB_ENV
           echo "TAG=${{ github.event.inputs.tag }}" >> $GITHUB_ENV
+      - name: Set env if version is pre-release
+        run: |
+          echo "PRERELEASE=${{ toJSON(contains(env.TAG, '-'))  }}" >> $GITHUB_ENV
       - name: Check values
         run: |
-          echo "sha: ${{ env.SHA }}"
-          echo "tag: ${{ env.TAG }}"
-
+          echo "SHA: ${{ env.SHA }}"
+          echo "Tag: ${{ env.TAG }}"
+          echo "Pre-release: ${{ env.PRERELEASE }}"
   build-binaries-x64:
     runs-on: ubuntu-latest
     # Use a container with GLIBC 2.17
@@ -166,11 +170,13 @@ jobs:
           bodyFile: generated-changelog.md
           commit: ${{ needs.set-env.outputs.sha }}
           allowUpdates: true
+          prerelease: ${{ fromJSON(needs.set-env.outputs.prerelease) }}
           removeArtifacts: true
           artifacts: archive-*/**
   upload-python-wheel:
     runs-on: ubuntu-latest
-    needs: [create-release]
+    needs: [set-env, create-release]
+    if: ${{ !fromJSON(needs.set-env.outputs.prerelease) }}
     steps:
       - name: Download archive
         uses: actions/download-artifact@v2

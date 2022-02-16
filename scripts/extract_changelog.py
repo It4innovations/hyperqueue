@@ -30,7 +30,12 @@ if __name__ == "__main__":
     with open(CHANGELOG_PATH) as f:
         text = f.read()
 
+    lines = list(get_matching_lines(text, tag))
+    if not lines and "-" in tag:
+        # Try to find a version without pre-release modifier
+        lines = list(get_matching_lines(text, tag[: tag.index("-")]))
+
     output = f"# HyperQueue {tag}\n"
-    for line in get_matching_lines(text, tag):
+    for line in lines:
         output += f"{line}\n"
     print(output)
