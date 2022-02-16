@@ -1,8 +1,8 @@
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::ServerDir;
 use crate::server::autoalloc::{
-    prepare_descriptor_cleanup, DescriptorId, PbsHandler, QueueDescriptor, QueueHandler, QueueInfo,
-    RateLimiter, SlurmHandler,
+    prepare_descriptor_cleanup, Allocation, AllocationStatus, DescriptorId, PbsHandler,
+    QueueDescriptor, QueueHandler, QueueInfo, RateLimiter, SlurmHandler,
 };
 use crate::server::state::StateRef;
 use crate::transfer::messages::{
@@ -10,7 +10,8 @@ use crate::transfer::messages::{
     QueueDescriptorData, ToClientMessage,
 };
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
+use tempdir::TempDir;
 
 pub async fn handle_autoalloc_message(
     server_dir: &ServerDir,
@@ -37,10 +38,29 @@ pub async fn handle_autoalloc_message(
                     .collect(),
             }))
         }
+        AutoAllocRequest::DryRun {
+            manager,
+            parameters,
+        } => {
+            if let Err(e) = try_submit_allocation(manager, parameters).await {
+                ToClientMessage::Error(e.to_string())
+            } else {
+                ToClientMessage::AutoAllocResponse(AutoAllocResponse::DryRunSuccessful)
+            }
+        }
         AutoAllocRequest::AddQueue {
             manager,
             parameters,
-        } => create_queue(server_dir, state_ref, manager, parameters),
+            dry_run,
+        } => {
+            if dry_run {
+                if let Err(e) = try_submit_allocation(manager.clone(), parameters.clone()).await {
+                    return ToClientMessage::Error(e.to_string());
+                }
+            }
+
+            create_queue(server_dir, state_ref, manager, parameters)
+        }
         AutoAllocRequest::Events { descriptor } => get_event_log(state_ref, descriptor),
         AutoAllocRequest::Info { descriptor } => get_allocations(state_ref, descriptor),
         AutoAllocRequest::RemoveQueue { descriptor, force } => {
@@ -212,4 +232,38 @@ fn create_queue(
         }
         Err(err) => ToClientMessage::Error(format!("Could not create autoalloc queue: {}", err)),
     }
+}
+
+async fn try_submit_allocation(
+    manager: ManagerType,
+    params: AllocationQueueParams,
+) -> anyhow::Result<()> {
+    let tmpdir = TempDir::new("hq")?;
+    let mut handler =
+        create_allocation_handler(&manager, params.name.clone(), tmpdir.as_ref().to_path_buf())?;
+    let worker_count = params.workers_per_alloc;
+    let queue_info = create_queue_info(params);
+
+    let allocation = handler
+        .submit_allocation(0, &queue_info, worker_count as u64)
+        .await
+        .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
+
+    let working_dir = allocation.working_dir().to_path_buf();
+    let id = allocation
+        .into_id()
+        .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
+    let allocation = Allocation {
+        id: id.to_string(),
+        worker_count: 1,
+        queued_at: SystemTime::now(),
+        status: AllocationStatus::Queued,
+        working_dir,
+    };
+    handler
+        .remove_allocation(&allocation)
+        .await
+        .map_err(|e| anyhow::anyhow!("Could not cancel allocation {}: {:?}", allocation.id, e))?;
+
+    Ok(())
 }

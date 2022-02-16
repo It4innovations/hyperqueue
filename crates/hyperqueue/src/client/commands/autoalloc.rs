@@ -1,7 +1,4 @@
-use std::time::SystemTime;
-
 use clap::Parser;
-use tempdir::TempDir;
 
 use crate::client::commands::worker::ArgServerLostPolicy;
 use crate::client::globalsettings::GlobalSettings;
@@ -11,7 +8,6 @@ use crate::common::timeutils::ExtendedArgDuration;
 use crate::rpc_call;
 use crate::server::autoalloc::{Allocation, AllocationStatus, DescriptorId};
 use crate::server::bootstrap::get_client_connection;
-use crate::server::client::autoalloc::{create_allocation_handler, create_queue_info};
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
     AllocationQueueParams, AutoAllocRequest, AutoAllocResponse, FromClientMessage, ToClientMessage,
@@ -112,7 +108,7 @@ struct SharedQueueOpts {
     /// Disables dry-run, which submits an allocation with the specified parameters to verify
     /// whether the parameters are correct.
     // This flag currently cannot be in [`AddQueueOpts`] because of a bug in clap:
-    //https://github.com/clap-rs/clap/issues/1570.
+    // https://github.com/clap-rs/clap/issues/1570.
     #[clap(long, global = true)]
     no_dry_run: bool,
 
@@ -163,29 +159,26 @@ pub async fn command_autoalloc(
     gsettings: &GlobalSettings,
     opts: AutoAllocOpts,
 ) -> anyhow::Result<()> {
+    let connection = get_client_connection(gsettings.server_directory()).await?;
+
     match opts.subcmd {
         AutoAllocCommand::List => {
-            let connection = get_client_connection(gsettings.server_directory()).await?;
             print_allocation_queues(gsettings, connection).await?;
         }
         AutoAllocCommand::Add(opts) => {
-            let connection = get_client_connection(gsettings.server_directory()).await?;
             add_queue(connection, opts).await?;
         }
         AutoAllocCommand::Events(opts) => {
-            let connection = get_client_connection(gsettings.server_directory()).await?;
             print_event_log(gsettings, connection, opts).await?;
         }
         AutoAllocCommand::Info(opts) => {
-            let connection = get_client_connection(gsettings.server_directory()).await?;
             print_allocations(gsettings, connection, opts).await?;
         }
         AutoAllocCommand::Remove(opts) => {
-            let connection = get_client_connection(gsettings.server_directory()).await?;
             remove_queue(connection, opts.queue_id, opts.force).await?;
         }
         AutoAllocCommand::DryRun(opts) => {
-            dry_run_command(opts).await?;
+            dry_run_command(connection, opts).await?;
         }
     }
     Ok(())
@@ -220,78 +213,57 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
     }
 }
 
-async fn try_submit_job(manager: ManagerType, params: AllocationQueueParams) -> anyhow::Result<()> {
-    let tmpdir = TempDir::new("hq")?;
-    let mut handler =
-        create_allocation_handler(&manager, params.name.clone(), tmpdir.as_ref().to_path_buf())?;
-    let worker_count = params.workers_per_alloc;
-    let queue_info = create_queue_info(params);
-
-    let allocation = handler
-        .submit_allocation(0, &queue_info, worker_count as u64)
-        .await
-        .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
-
-    let working_dir = allocation.working_dir().to_path_buf();
-    let id = allocation
-        .into_id()
-        .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
-    let allocation = Allocation {
-        id: id.to_string(),
-        worker_count: 1,
-        queued_at: SystemTime::now(),
-        status: AllocationStatus::Queued,
-        working_dir,
+async fn dry_run_command(mut connection: ClientConnection, opts: DryRunOpts) -> anyhow::Result<()> {
+    let (manager, parameters) = match opts.subcmd {
+        DryRunCommand::Pbs(params) => (ManagerType::Pbs, args_to_params(params)),
+        DryRunCommand::Slurm(params) => (ManagerType::Slurm, args_to_params(params)),
     };
-    handler
-        .remove_allocation(&allocation)
-        .await
-        .map_err(|e| anyhow::anyhow!("Could not cancel allocation {}: {:?}", allocation.id, e))?;
+    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::DryRun {
+        manager,
+        parameters,
+    });
+
+    rpc_call!(connection, message,
+        ToClientMessage::AutoAllocResponse(AutoAllocResponse::DryRunSuccessful) => ()
+    )
+    .await?;
 
     log::info!(
-        "Allocation was submitted successfully. It was immediately canceled to avoid wasting
+        "A trial allocation was submitted successfully. It was immediately canceled to avoid wasting
 resources."
     );
     Ok(())
 }
 
-async fn dry_run_command(opts: DryRunOpts) -> anyhow::Result<()> {
-    let (manager, params) = match opts.subcmd {
-        DryRunCommand::Pbs(params) => (ManagerType::Pbs, args_to_params(params)),
-        DryRunCommand::Slurm(params) => (ManagerType::Slurm, args_to_params(params)),
-    };
-    try_submit_job(manager, params).await
-}
-
 async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyhow::Result<()> {
-    let (manager, parameters, no_dry_run) = match opts.subcmd {
+    let (manager, parameters, dry_run) = match opts.subcmd {
         AddQueueCommand::Pbs(params) => {
             let no_dry_run = params.no_dry_run;
-            (ManagerType::Pbs, args_to_params(params), no_dry_run)
+            (ManagerType::Pbs, args_to_params(params), !no_dry_run)
         }
         AddQueueCommand::Slurm(params) => {
             let no_dry_run = params.no_dry_run;
-            (ManagerType::Slurm, args_to_params(params), no_dry_run)
+            (ManagerType::Slurm, args_to_params(params), !no_dry_run)
         }
     };
-
-    if !no_dry_run {
-        try_submit_job(manager.clone(), parameters.clone())
-            .await
-            .map_err(|error| {
-                anyhow::anyhow!("{error:?}\nPlease verify that the entered parameters are correct.")
-            })?;
-    }
 
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue {
         manager,
         parameters,
+        dry_run,
     });
 
     let queue_id = rpc_call!(connection, message,
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreated(id)) => id
     )
     .await?;
+
+    if dry_run {
+        log::info!(
+        "A trial allocation was submitted successfully. It was immediately canceled to avoid wasting
+resources."
+        );
+    }
 
     log::info!("Allocation queue {} successfully created", queue_id);
     Ok(())
