@@ -406,6 +406,19 @@ def test_pbs_dry_run_success(hq_env: HqEnv):
         hq_env.command(dry_run_cmd())
 
 
+def test_pbs_add_queue_wrong_parameters(hq_env: HqEnv):
+    hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+
+    mock = PbsMock(hq_env, [NewJobFailed("failed to allocate")])
+
+    with mock.activate():
+        add_queue(
+            hq_env,
+            dry_run=True,
+            expect_fail="Could not submit allocation: qsub execution failed",
+        )
+
+
 def test_pbs_too_high_time_request(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 

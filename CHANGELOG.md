@@ -12,12 +12,21 @@
 * You can now use the `hq task list <job-selector>` command to display a list of tasks across multiple jobs. 
 * Add `--filter` flag to `worker list` to allow filtering workers by their status.
 
+## Changes
+
+### Automatic allocation
+* When adding a new allocation queue, HyperQueue will now try to immediately submit a job into the queue
+to quickly test whether the entered configuration is correct. If you want to avoid this behaviour, you
+can use the `--no-dry-run` flag for `hq alloc add <pbs/slurm>`.
+
 ## Fixes
 * HQ will no longer warn that `stdout`/`stderr` path does not contain the `%{TASK_ID}` placeholder
 when submitting array jobs if the placeholder is contained within the working directory path and
 `stdout`/`stderr` contains the `%{CWD}` placeholder.
-* The automatic allocator will query PBS allocation statuses less often. It will now also ask for status
-of all allocations per allocation queue in a single `qstat` call.
+* The automatic allocator will query PBS allocation statuses less often. It will now ask for status
+of all allocations per allocation queue in a single `qstat` call, and it now also contains backoff
+that will slow down new allocations if there are submission errors. If too many submissions (50) or
+allocations (10) fail, its corresponding allocation queue will be automatically removed.
 
 # 0.8.0
 
