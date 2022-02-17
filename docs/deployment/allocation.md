@@ -140,10 +140,20 @@ to debug its behavior. To aid with this process, HyperQueue provides a "dry-run"
 use to test allocation parameters. HyperQueue also provides various sources of information that can help you
 find out what is going on.
 
+To mitigate the case of incorrectly entered allocation parameters, HQ will also try to submit a test
+allocation (do a "dry run") into the target HPC job manager when you add a new allocation queue.
+If the test allocation fails, the queue will not be created. You can avoid this behaviour by passing
+the `--no-dry-run` flag to `hq alloc add`.
+
+There are also additional safety limits. If `50` allocations in a succession fail to be submitted,
+or if `10` allocations that were submitted fail during runtime in a succession, the corresponding
+allocation queue will be automatically removed.
+
 ### Dry-run command
-To test whether PBS/Slurm will accept the submit parameters that you provide to the auto allocator,
-you can use the `dry-run` command. It accepts the same parameters as `hq alloc add`, which it will use
-to immediately submit an allocation and print any encountered errors.
+To test whether PBS/Slurm will accept the submit parameters that you provide to the auto allocator
+without creating an allocation queue, you can use the `dry-run` command. It accepts the same
+parameters as `hq alloc add`, which it will use to immediately submit an allocation and print
+any encountered errors.
 
 ```bash
 $ hq alloc dry-run pbs --timelimit 2h -- q qexp -A Project1
