@@ -243,16 +243,6 @@ pub struct SubmitResponse {
     pub job: JobDetail,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub enum JobStatus {
-    Submitted,
-    Waiting,
-    Running,
-    Finished,
-    Failed(String),
-    Canceled,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobInfo {
     pub id: JobId,
