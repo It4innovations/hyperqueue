@@ -121,7 +121,7 @@ def create_worker_cpu_usage_chart(eventy: Events, worker_id):
 
 
 @click.command(name="JSON-chart")
-@click.argument("worker-id")
+@click.argument("worker-id", type=int)
 @click.argument("data-file")
 def create_worker_cpu_usage_chart_JSON(worker_id, data_file):
     wrapper = HQEventFileWrapper(data_file)
@@ -130,7 +130,7 @@ def create_worker_cpu_usage_chart_JSON(worker_id, data_file):
 
 
 @click.command(name="CLI-chart")
-@click.argument("worker-id")
+@click.argument("worker-id", type=int)
 @click.option("--bin_file", default='events.bin')
 @click.option("--bin_pwd", default='../')
 @click.option('--hq_bin_file', default='target/debug')
@@ -210,4 +210,3 @@ cli.add_command(cli_job)
 cli.add_command(cli_alloc)
 cli.add_command(cli_workers)
 cli()
-
