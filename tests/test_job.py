@@ -705,6 +705,26 @@ def test_job_tasks_table(hq_env: HqEnv):
     assert worker == "" or worker == "worker1"
 
 
+def test_job_tasks_makespan(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["submit", "sleep", "10"])
+    hq_env.command(["job", "cancel", "1"])
+    wait_for_job_state(hq_env, 1, "CANCELED")
+
+    times_1 = hq_env.command(["job", "tasks", "1"], as_table=True).get_column_value(
+        "Times"
+    )
+    times_2 = hq_env.command(["job", "tasks", "1"], as_table=True).get_column_value(
+        "Times"
+    )
+    assert times_1 == times_2
+
+    makespan = times_1[0].split("\n")[2]
+    assert makespan != "Makespan: "
+
+
 def test_job_wait(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()

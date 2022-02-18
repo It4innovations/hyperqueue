@@ -43,6 +43,7 @@ pub enum JobTaskState {
     },
     Canceled {
         started_data: Option<StartedTaskData>,
+        cancelled_date: DateTime<Utc>,
     },
 }
 
@@ -52,7 +53,7 @@ impl JobTaskState {
             JobTaskState::Running { started_data, .. }
             | JobTaskState::Finished { started_data, .. }
             | JobTaskState::Failed { started_data, .. } => Some(started_data),
-            JobTaskState::Canceled { started_data } => started_data.as_ref(),
+            JobTaskState::Canceled { started_data, .. } => started_data.as_ref(),
             _ => None,
         }
     }
@@ -357,11 +358,15 @@ impl Job {
             JobTaskState::Running { started_data, .. } => {
                 *state = JobTaskState::Canceled {
                     started_data: Some(started_data.clone()),
+                    cancelled_date: now,
                 };
                 self.counters.n_running_tasks -= 1;
             }
             JobTaskState::Waiting => {
-                *state = JobTaskState::Canceled { started_data: None };
+                *state = JobTaskState::Canceled {
+                    started_data: None,
+                    cancelled_date: now,
+                };
             }
             state => panic!(
                 "Invalid job state that is being canceled: {:?} {:?}",
