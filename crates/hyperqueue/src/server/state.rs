@@ -53,6 +53,7 @@ fn cancel_tasks_from_callback(
     if tasks.is_empty() {
         return;
     }
+    log::debug!("Canceling {:?} tasks", tasks);
     let tako_ref = tako_ref.clone();
     let state_ref = state_ref.clone();
     tokio::task::spawn_local(async move {
@@ -63,6 +64,8 @@ fn cancel_tasks_from_callback(
             ToGatewayMessage::CancelTasksResponse(msg) => {
                 let mut state = state_ref.get_mut();
                 let job = state.get_job_mut(job_id).unwrap();
+                log::debug!("Tasks {:?} canceled", msg.cancelled_tasks);
+                log::debug!("Tasks {:?} already finished", msg.already_finished);
                 for tako_id in msg.cancelled_tasks {
                     job.set_cancel_state(tako_id, &tako_ref);
                 }
@@ -165,6 +168,13 @@ impl State {
         log::debug!("Task id={} failed: {:?}", msg.id, msg.info);
 
         let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
+        for task_id in msg.cancelled_tasks {
+            log::debug!(
+                "Task id={} canceled because of task dependency fails",
+                task_id
+            );
+            job.set_cancel_state(task_id, tako_ref);
+        }
         job.set_failed_state(msg.id, msg.info.message, tako_ref);
 
         if let Some(max_fails) = job.max_fails {

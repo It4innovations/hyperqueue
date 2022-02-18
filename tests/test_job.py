@@ -505,7 +505,7 @@ def test_max_fails_0(hq_env: HqEnv):
     )
     hq_env.start_workers(1, cpus=2)
 
-    wait_for_job_state(hq_env, 1, "CANCELED")
+    wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
     states = table.get_row_value("State").split("\n")
@@ -564,7 +564,7 @@ def test_max_fails_many(hq_env: HqEnv):
     hq_env.start_workers(1)
 
     time.sleep(5)
-    wait_for_job_state(hq_env, 1, "CANCELED")
+    wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
     states = table.get_row_value("State").split("\n")
