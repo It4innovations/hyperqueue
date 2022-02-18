@@ -36,6 +36,7 @@ pub fn resolve_task_paths(job: &JobDetail) -> TaskToPathsMap {
             let paths = match &task.state {
                 JobTaskState::Canceled {
                     started_data: Some(started_data),
+                    ..
                 }
                 | JobTaskState::Running { started_data, .. }
                 | JobTaskState::Finished { started_data, .. }
