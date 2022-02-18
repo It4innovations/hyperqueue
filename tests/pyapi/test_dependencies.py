@@ -15,3 +15,25 @@ def test_single_dep(hq_env: HqEnv):
     job_id = client.submit(job)
 
     wait_for_job_state(hq_env, job_id, "FINISHED")
+
+
+def test_dep_failed(hq_env: HqEnv):
+    """
+    Check that consumers of a failed tasks are canceled
+    """
+
+    (job, client) = prepare_job_client(hq_env, with_worker=True)
+
+    t1 = job.program(args=bash("exit 1"))
+    t2 = job.program(args=bash("echo 'hello' > foo1.txt"), depends=[t1])
+    job.program(args=bash("echo 'hello' > foo2.txt"), depends=[t2])
+    job.program(args=bash("exit 0"))
+    job_id = client.submit(job)
+
+    wait_for_job_state(hq_env, job_id, "FAILED")
+
+    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    assert table.get_row_value("0") == "FAILED"
+    assert table.get_row_value("1") == "CANCELED"
+    assert table.get_row_value("2") == "CANCELED"
+    assert table.get_row_value("3") == "FINISHED"

@@ -233,8 +233,8 @@ matches from the following list of rules:
 
 1. If at least one task is `Running`, then job state is `Running`.
 2. If at least one task has not been `completed` yet, then job state is `Waiting`.
-3. If at least one task is `Canceled`, then job state is `Canceled`.
-4. If at least one task is `Failed`, then job state is `Failed`.
+3. If at least one task is `Failed`, then job state is `Failed`.
+4. If at least one task is `Canceled`, then job state is `Canceled`.
 5. All tasks have to be `Finished`, therefore the job state will also be `Finished`.
 
 ## Cancelling jobs
