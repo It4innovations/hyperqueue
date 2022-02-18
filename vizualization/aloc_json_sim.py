@@ -69,7 +69,7 @@ def alloc_start(id, WorkerId):
     alloc_run = random.randrange(1, 60, 1)
     print(f"{id} worker loop")
     for i in range(alloc_run):
-        for w_id in range(WorkerId - worker_count, WorkerId + worker_count, 1):
+        for w_id in range(WorkerId - worker_count, WorkerId, 1):
             cpus = []
             for z in range(8):
                 cpus.append(random.randrange(0, 100, 1))

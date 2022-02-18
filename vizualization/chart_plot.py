@@ -1,3 +1,5 @@
+import datetime
+
 import click
 import dateutil.parser as p
 import pandas as pd
@@ -54,13 +56,23 @@ def worker_mean_cpu_usage(eventy, id):
         overviews = eventy.get_by_type('worker-overview').get_by_id(worker.id)
         cpus = []
         for overview in overviews:
-            cpus.append(dict(cpus=overview.hw_state['worker_cpu_usage']['cpu_per_core_percent_usage']))
+            cpus.append(
+                dict(cpus=overview.hw_state['worker_cpu_usage']['cpu_per_core_percent_usage'], time=overview.time))
         data_frame = pd.DataFrame(cpus)
         data_frame['average'] = data_frame['cpus'].apply(lambda x: sum(x) / len(x))
-        worker_average = sum(data_frame['average']) / len(data_frame['average'])
-        que_worker_cpu_usage.append(worker_average)
+        worker_cpus = []
+        for data in data_frame.iterrows():
+            start = p.parse(data[1]['time'])
+            stop = start + datetime.timedelta(seconds=2)
+            que = dict(id=f"qeue {id}", start=start, stop=stop, cpu_usage=data[1]['average'])
 
-    return sum(que_worker_cpu_usage) / len(que_worker_cpu_usage)
+            worker_cpus.append(que)
+
+        que_worker_cpu_usage.extend(worker_cpus)
+        # worker_average = sum(data_frame['average']) / len(data_frame['average'])
+        # que_worker_cpu_usage.append(worker_average)
+
+    return que_worker_cpu_usage
 
 
 def create_alloc_chart(eventy):
@@ -78,11 +90,12 @@ def create_alloc_chart(eventy):
         que_finished = eventy.get_by_type('autoalloc-allocation-finished').get_by_id(id)[0]
 
         que_worker_cpu_usage = worker_mean_cpu_usage(eventy, id)
-
+        que_worker_cpu_usage[len(que_worker_cpu_usage) - 1]['type'] = 'allocation-running'
+        data.extend(que_worker_cpu_usage)
         que = [dict(id=f"qeue {id}", start=p.parse(qued.time), stop=p.parse(que_started.time), type='allocation-qeued',
-                    cpu_usage=0),
-               dict(id=f"qeue {id}", start=p.parse(que_started.time), stop=p.parse(que_finished.time),
-                    type='allocation-running', cpu_usage=que_worker_cpu_usage)]
+                    cpu_usage=0)]
+        # dict(id=f"qeue {id}", start=p.parse(que_started.time), stop=p.parse(que_finished.time),
+        #      type='allocation-running', cpu_usage=0)]
         data.extend(que)
 
     data = pd.DataFrame(data)
@@ -120,7 +133,7 @@ def create_worker_cpu_usage_chart(eventy: Events, worker_id):
     fig.show()
 
 
-@click.command(name="JSON-chart")
+@click.command(name="FILE-chart")
 @click.argument("worker-id", type=int)
 @click.argument("data-file")
 def create_worker_cpu_usage_chart_JSON(worker_id, data_file):
