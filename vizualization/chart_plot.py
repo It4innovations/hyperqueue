@@ -75,6 +75,10 @@ def worker_mean_cpu_usage(eventy, id):
     return que_worker_cpu_usage
 
 
+ColorScale = [[0, "#00FF0C"], [0.1, "#90EF46"], [0.2, "#DDEF48"], [0.3, "#FBD641"], [0.4, "#FEAE35"], [0.5, "#FF8B2C"],
+              [0.6, "#FF6C24"], [0.7, "#FF4E1D"], [0.8, "#FF3419"], [0.9, "#FF1C16"], [1.0, "#FF0915"]]
+
+
 def create_alloc_chart(eventy):
     ques = eventy.get_by_type('autoalloc-allocation-qued')
     ques_id = ques.get_ids()
@@ -100,7 +104,7 @@ def create_alloc_chart(eventy):
 
     data = pd.DataFrame(data)
     fig = create_chart(data, x_start="start", x_end="stop", y="id", color='cpu_usage', text='type',
-                       range_color=(0, 100))
+                       range_color=(0, 100), color_continuous_scale=ColorScale)
 
     fig.show()
 
