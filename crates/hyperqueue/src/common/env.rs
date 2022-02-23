@@ -21,3 +21,8 @@ pub const HQ_ENTRY: &str = create_hq_env!("ENTRY");
 pub const HQ_PIN: &str = create_hq_env!("PIN");
 pub const HQ_TASK_DIR: &str = create_hq_env!("TASK_DIR");
 pub const HQ_CPUS: &str = create_hq_env!("CPUS");
+
+/// Returns true if HyperQueue is being executed under tests.
+pub fn is_inside_test_mode() -> bool {
+    std::env::var("HQ_TEST").is_ok()
+}

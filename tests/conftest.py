@@ -115,6 +115,7 @@ class HqEnv(Env):
         if log:
             env["RUST_LOG"] = "tako=trace,hyperqueue=trace"
         env["RUST_BACKTRACE"] = "full"
+        env["HQ_TEST"] = "1"
         self.mock.update_env(env)
         return env
 

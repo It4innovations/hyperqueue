@@ -65,7 +65,7 @@ enum AddQueueCommand {
 #[clap(setting = clap::AppSettings::TrailingVarArg)]
 struct SharedQueueOpts {
     /// How many jobs should be waiting in the queue to be started
-    #[clap(long, short, default_value = "4")]
+    #[clap(long, short, default_value = "1")]
     backlog: u32,
 
     /// Time limit (walltime) of PBS/Slurm allocations

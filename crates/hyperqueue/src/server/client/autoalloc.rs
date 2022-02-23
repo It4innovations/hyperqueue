@@ -180,20 +180,24 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
     )
 }
 
+/// Maximum number of successive allocation submission failures permitted
+/// before the allocation queue will be removed.
+const MAX_SUBMISSION_FAILS: usize = 10;
+/// Maximum number of successive allocation execution failures permitted
+/// before the allocation queue will be removed.
+const MAX_ALLOCATION_FAILS: usize = 3;
+
 fn create_rate_limiter() -> RateLimiter {
     RateLimiter::new(
         vec![
             Duration::ZERO,
-            Duration::from_secs(5),
-            Duration::from_secs(30),
-            Duration::from_secs(5 * 60),
-            Duration::from_secs(10 * 60),
+            Duration::from_secs(60),
             Duration::from_secs(15 * 60),
             Duration::from_secs(30 * 60),
             Duration::from_secs(60 * 60),
         ],
-        50,
-        10,
+        MAX_SUBMISSION_FAILS,
+        MAX_ALLOCATION_FAILS,
     )
 }
 
