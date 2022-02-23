@@ -166,6 +166,13 @@ impl AllocationSubmissionResult {
 
 pub type AllocationStatusMap = Map<AllocationId, AutoAllocResult<AllocationStatus>>;
 
+pub enum SubmitMode {
+    /// Submit an allocation in a normal way.
+    Submit,
+    /// Submit an allocation only to test queue parameters.
+    DryRun,
+}
+
 /// Handler that can communicate with some allocation queue (e.g. PBS/Slurm queue)
 pub trait QueueHandler {
     /// Submit an allocation that will start the corresponding number of workers.
@@ -178,6 +185,7 @@ pub trait QueueHandler {
         descriptor_id: DescriptorId,
         queue_info: &QueueInfo,
         worker_count: u64,
+        mode: SubmitMode,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationSubmissionResult>>>>;
 
     /// Get statuses of a set of existing allocations.

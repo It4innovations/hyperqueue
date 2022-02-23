@@ -2,6 +2,7 @@ use futures::future::join_all;
 use std::future::Future;
 use std::time::SystemTime;
 
+use crate::server::autoalloc::descriptor::SubmitMode;
 use crate::server::autoalloc::state::{
     Allocation, AllocationEvent, AllocationStatus, DescriptorState, RateLimiterStatus,
 };
@@ -278,10 +279,12 @@ async fn submit_new_allocations(id: DescriptorId, state_ref: &StateRef) {
             let mut state = state_ref.get_mut();
             let descriptor = get_or_return!(state.get_autoalloc_state_mut().get_descriptor_mut(id));
             let info = descriptor.descriptor.info().clone();
-            descriptor
-                .descriptor
-                .handler_mut()
-                .submit_allocation(id, &info, workers_to_spawn)
+            descriptor.descriptor.handler_mut().submit_allocation(
+                id,
+                &info,
+                workers_to_spawn,
+                SubmitMode::Submit,
+            )
         };
 
         let result = schedule_fut.await;
@@ -415,7 +418,9 @@ mod tests {
     };
     use crate::server::autoalloc::process::autoalloc_tick;
     use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
-    use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId, RateLimiter};
+    use crate::server::autoalloc::{
+        Allocation, AutoAllocResult, DescriptorId, RateLimiter, SubmitMode,
+    };
     use crate::server::job::Job;
     use crate::server::state::StateRef;
     use crate::transfer::messages::{JobDescription, TaskDescription};
@@ -969,6 +974,7 @@ mod tests {
             _descriptor_id: DescriptorId,
             _queue_info: &QueueInfo,
             worker_count: u64,
+            _mode: SubmitMode,
         ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationSubmissionResult>>>> {
             let schedule_fn = self.schedule_fn.clone();
             let custom_state = self.custom_state.clone();
