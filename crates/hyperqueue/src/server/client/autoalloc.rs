@@ -2,7 +2,7 @@ use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::ServerDir;
 use crate::server::autoalloc::{
     prepare_descriptor_cleanup, Allocation, AllocationStatus, DescriptorId, PbsHandler,
-    QueueDescriptor, QueueHandler, QueueInfo, RateLimiter, SlurmHandler,
+    QueueDescriptor, QueueHandler, QueueInfo, RateLimiter, SlurmHandler, SubmitMode,
 };
 use crate::server::state::StateRef;
 use crate::transfer::messages::{
@@ -245,7 +245,7 @@ async fn try_submit_allocation(
     let queue_info = create_queue_info(params);
 
     let allocation = handler
-        .submit_allocation(0, &queue_info, worker_count as u64)
+        .submit_allocation(0, &queue_info, worker_count as u64, SubmitMode::DryRun)
         .await
         .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
 

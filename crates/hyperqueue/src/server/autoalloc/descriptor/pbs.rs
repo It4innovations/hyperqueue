@@ -15,7 +15,7 @@ use crate::server::autoalloc::descriptor::common::{
     ExternalHandler,
 };
 use crate::server::autoalloc::descriptor::{
-    AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
+    AllocationStatusMap, AllocationSubmissionResult, QueueHandler, SubmitMode,
 };
 use crate::server::autoalloc::state::AllocationStatus;
 use crate::server::autoalloc::{
@@ -39,6 +39,7 @@ impl QueueHandler for PbsHandler {
         descriptor_id: DescriptorId,
         queue_info: &QueueInfo,
         worker_count: u64,
+        mode: SubmitMode,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationSubmissionResult>>>> {
         let queue_info = queue_info.clone();
         let timelimit = queue_info.timelimit;
@@ -65,6 +66,7 @@ impl QueueHandler for PbsHandler {
                 &directory.join("stderr").display().to_string(),
                 &queue_info.additional_args.join(" "),
                 &worker_args,
+                mode,
             );
             let job_id =
                 submit_script(script, "qsub", &directory, |output| Ok(output.to_string())).await;
@@ -189,6 +191,7 @@ fn build_pbs_submit_script(
     stderr: &str,
     qsub_args: &str,
     worker_cmd: &str,
+    mode: SubmitMode,
 ) -> String {
     let mut script = format!(
         r##"#!/bin/bash
@@ -207,6 +210,10 @@ fn build_pbs_submit_script(
 
     if !qsub_args.is_empty() {
         script.push_str(&format!("#PBS {}\n", qsub_args));
+    }
+    match mode {
+        SubmitMode::DryRun => script.push_str("#PBS -h\n"),
+        SubmitMode::Submit => {}
     }
 
     script.push_str(&format!("\n{}", worker_cmd));

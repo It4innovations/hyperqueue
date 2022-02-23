@@ -21,7 +21,7 @@ use crate::server::autoalloc::descriptor::{
 };
 use crate::server::autoalloc::state::AllocationStatus;
 use crate::server::autoalloc::{
-    Allocation, AllocationId, AutoAllocResult, DescriptorId, QueueInfo,
+    Allocation, AllocationId, AutoAllocResult, DescriptorId, QueueInfo, SubmitMode,
 };
 
 pub struct SlurmHandler {
@@ -41,6 +41,7 @@ impl QueueHandler for SlurmHandler {
         descriptor_id: DescriptorId,
         queue_info: &QueueInfo,
         worker_count: u64,
+        _mode: SubmitMode,
     ) -> Pin<Box<dyn Future<Output = AutoAllocResult<AllocationSubmissionResult>>>> {
         let queue_info = queue_info.clone();
         let timelimit = queue_info.timelimit;

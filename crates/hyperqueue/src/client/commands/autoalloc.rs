@@ -229,8 +229,8 @@ async fn dry_run_command(mut connection: ClientConnection, opts: DryRunOpts) -> 
     .await?;
 
     log::info!(
-        "A trial allocation was submitted successfully. It was immediately canceled to avoid wasting
-resources."
+        "A trial allocation was submitted successfully. It was immediately canceled to avoid \
+wasting resources."
     );
     Ok(())
 }
@@ -260,8 +260,8 @@ async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyh
 
     if dry_run {
         log::info!(
-        "A trial allocation was submitted successfully. It was immediately canceled to avoid wasting
-resources."
+            "A trial allocation was submitted successfully. It was immediately canceled to avoid \
+wasting resources."
         );
     }
 
