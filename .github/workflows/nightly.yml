@@ -32,7 +32,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.58.0
+          toolchain: 1.59.0
           override: true
 
       - uses: Swatinem/rust-cache@v1
@@ -46,9 +46,6 @@ jobs:
         with:
           command: build
           args: --release
-
-      - name: Strip binary
-        run: strip target/release/hq
 
       - name: Prepare archive
         id: archive
@@ -72,7 +69,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.58.0
+          toolchain: 1.59.0
           override: true
 
       - uses: Swatinem/rust-cache@v1
