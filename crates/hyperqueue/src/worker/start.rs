@@ -27,7 +27,9 @@ use tako::worker::taskenv::{StopReason, TaskResult};
 use tako::{InstanceId, TaskId};
 
 use crate::client::commands::worker::{ManagerOpts, WorkerStartOpts};
-use crate::common::env::{HQ_CPUS, HQ_INSTANCE_ID, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR};
+use crate::common::env::{
+    HQ_CPUS, HQ_ERROR_FILENAME, HQ_INSTANCE_ID, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR,
+};
 use crate::common::fsutils::{bytes_to_path, is_implicit_path, path_has_extension};
 use crate::common::manager::info::{ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::manager::{pbs, slurm};
@@ -43,6 +45,8 @@ use crate::worker::streamer::StreamerRef;
 use crate::Map;
 use crate::{JobId, JobTaskId};
 use serde::{Deserialize, Serialize};
+
+const MAX_CUSTOM_ERROR_LENGTH: usize = 2048; // 2KiB
 
 /// Data created when a task is started on a worker.
 /// It can be accessed through the state of a running task.
@@ -107,6 +111,13 @@ impl TaskLauncher for HqTaskLauncher {
                 program.env.insert(
                     HQ_TASK_DIR.into(),
                     task_dir.path().to_string_lossy().to_string().into(),
+                );
+                program.env.insert(
+                    HQ_ERROR_FILENAME.into(),
+                    get_custom_error_filename(&task_dir)
+                        .to_string_lossy()
+                        .to_string()
+                        .into(),
                 );
                 Some(task_dir)
             } else {
@@ -190,6 +201,10 @@ fn create_directory_if_needed(file: &StdioDef) -> io::Result<()> {
         }
     }
     Ok(())
+}
+
+fn get_custom_error_filename(task_dir: &TempDir) -> PathBuf {
+    task_dir.path().join("hq-error")
 }
 
 fn insert_resources_into_env(
@@ -354,6 +369,24 @@ async fn child_wait(
     }
 }
 
+#[inline(never)]
+fn check_error_filename(task_dir: TempDir) -> Option<DsError> {
+    let mut f = File::open(&get_custom_error_filename(&task_dir)).ok()?;
+    let mut buffer = [0; MAX_CUSTOM_ERROR_LENGTH];
+    let size = f
+        .read(&mut buffer)
+        .map_err(|e| log::debug!("Reading error file failed: {}", e))
+        .ok()?;
+    let msg = String::from_utf8_lossy(&buffer[..size]);
+    Some(if size == 0 {
+        DsError::GenericError("Task created an error file, but it is empty".to_string())
+    } else if size == MAX_CUSTOM_ERROR_LENGTH {
+        DsError::GenericError(format!("{}\n[The message was truncated]", msg))
+    } else {
+        DsError::GenericError(msg.to_string())
+    })
+}
+
 #[cfg(not(feature = "zero-worker"))]
 async fn run_task(
     streamer_ref: StreamerRef,
@@ -362,13 +395,18 @@ async fn run_task(
     job_task_id: JobTaskId,
     instance_id: InstanceId,
     end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
-    _task_dir: Option<TempDir>,
+    task_dir: Option<TempDir>,
 ) -> tako::Result<TaskResult> {
     let mut command = command_from_definitions(&program)?;
 
     let status_to_result = |status: ExitStatus| {
         if !status.success() {
             let code = status.code().unwrap_or(-1);
+            if let Some(dir) = task_dir {
+                if let Some(e) = check_error_filename(dir) {
+                    return tako::Result::Err(e);
+                }
+            }
             return tako::Result::Err(DsError::GenericError(format!(
                 "Program terminated with exit code {}",
                 code

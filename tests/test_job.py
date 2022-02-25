@@ -1169,3 +1169,72 @@ def test_submit_task_dir(hq_env: HqEnv, mode):
 
     wait_for_job_state(hq_env, 1, mode)
     assert not os.path.exists(path)
+
+
+def test_custom_error_message(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--task-dir",
+            "--",
+            "bash",
+            "-c",
+            # "echo $HQ_ERROR",
+            "echo 'Testing message' > \"${HQ_ERROR_FILENAME}\"; exit 1",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "FAILED")
+
+    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    assert table.get_column_value("Error")[0] == "Error: Testing message"
+    # print(table)
+
+
+def test_long_custom_error_message(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--task-dir",
+            "--",
+            "python",
+            "-c",
+            "import os; f = open(os.environ['HQ_ERROR_FILENAME'], 'w');"
+            "f.write('a' * 10_000); f.flush(); sys.exit(1)",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "FAILED")
+
+    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    assert table.get_column_value("Error")[0].endswith(
+        "aaaaaa\n[The message was truncated]"
+    )
+
+
+def test_zero_custom_error_message(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--task-dir",
+            "--",
+            "python",
+            "-c",
+            "import os; f = open(os.environ['HQ_ERROR_FILENAME'], 'w');" "sys.exit(1)",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "FAILED")
+
+    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    assert (
+        table.get_column_value("Error")[0]
+        == "Error: Task created an error file, but it is empty"
+    )
+    # print(table)
