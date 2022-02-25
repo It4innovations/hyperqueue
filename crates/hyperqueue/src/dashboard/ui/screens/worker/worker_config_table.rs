@@ -52,7 +52,7 @@ fn create_rows(worker_info: &WorkerConfiguration) -> Vec<WorkerConfigDataRow> {
             data: (worker_info
                 .work_dir
                 .to_str()
-                .unwrap_or_else(|| missing_data_str.as_str())
+                .unwrap_or(missing_data_str.as_str())
                 .to_string()),
         },
         WorkerConfigDataRow {
@@ -60,7 +60,7 @@ fn create_rows(worker_info: &WorkerConfiguration) -> Vec<WorkerConfigDataRow> {
             data: worker_info
                 .log_dir
                 .to_str()
-                .unwrap_or_else(|| missing_data_str.as_str())
+                .unwrap_or(missing_data_str.as_str())
                 .to_string(),
         },
         WorkerConfigDataRow {

@@ -80,8 +80,7 @@ impl ResourcePool {
             .cpus
             .iter()
             .enumerate()
-            .map(|(i, c)| c.iter().map(move |&v| (v, SocketId::new(i as u32))))
-            .flatten()
+            .flat_map(|(i, c)| c.iter().map(move |&v| (v, SocketId::new(i as u32))))
             .collect();
         let socket_size = desc.cpus.iter().map(|v| v.len()).max().unwrap() as NumOfCpus;
 

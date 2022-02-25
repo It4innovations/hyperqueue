@@ -213,10 +213,7 @@ impl ResourceRequestLowerBound {
             CpuRequest::Compact(n_cpus)
             | CpuRequest::ForceCompact(n_cpus)
             | CpuRequest::Scatter(n_cpus) => {
-                self.n_cpus = self
-                    .n_cpus
-                    .map(|n| n.min(*n_cpus))
-                    .or_else(|| Some(*n_cpus));
+                self.n_cpus = self.n_cpus.map(|n| n.min(*n_cpus)).or(Some(*n_cpus));
             }
             CpuRequest::All => {
                 self.all = true;

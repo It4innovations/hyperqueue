@@ -387,7 +387,7 @@ async fn command_worker_list(
 ) -> anyhow::Result<()> {
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
 
-    let filter = opts.filter.or_else(|| {
+    let filter = opts.filter.or({
         if opts.all {
             None
         } else {
