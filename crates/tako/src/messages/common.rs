@@ -96,6 +96,17 @@ pub struct WorkerConfiguration {
     pub extra: Map<String, String>,
 }
 
+/// This function is used from both the server and the worker to keep the same values
+/// in the worker configuration without the need for repeated configuration exchange.
+pub fn sync_worker_configuration(
+    configuration: &mut WorkerConfiguration,
+    server_idle_timeout: Option<Duration>,
+) {
+    if configuration.idle_timeout.is_none() {
+        configuration.idle_timeout = server_idle_timeout;
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct CpuStats {
     pub cpu_per_core_percent_usage: Vec<f32>,

@@ -227,6 +227,12 @@ impl Output for CliOutput {
                             reason: LostWorkerReason::Stopped,
                             ..
                         }) => "STOPPED".cell().foreground_color(Some(Color::Magenta)),
+                        Some(WorkerExitInfo {
+                            reason: LostWorkerReason::TimeLimitReached,
+                            ..
+                        }) => "TIME LIMIT REACHED"
+                            .cell()
+                            .foreground_color(Some(Color::Cyan)),
                     },
                     worker.configuration.hostname.cell(),
                     worker.configuration.resources.summary(false).cell(),

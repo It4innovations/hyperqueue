@@ -43,6 +43,10 @@ impl Output for Quiet {
                     ..
                 }) => "IDLE TIMEOUT",
                 Some(WorkerExitInfo {
+                    reason: LostWorkerReason::TimeLimitReached,
+                    ..
+                }) => "TIME LIMIT REACHED",
+                Some(WorkerExitInfo {
                     reason: LostWorkerReason::Stopped,
                     ..
                 }) => "STOPPED",

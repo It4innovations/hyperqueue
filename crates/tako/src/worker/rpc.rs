@@ -5,22 +5,21 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::{Bytes, BytesMut};
-use futures::{Sink, SinkExt, Stream, StreamExt};
-use orion::aead::streaming::{StreamOpener, StreamSealer};
+use futures::{SinkExt, Stream, StreamExt};
+use orion::aead::streaming::StreamOpener;
 use orion::aead::SecretKey;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::sleep;
 use tokio::time::timeout;
 
-use crate::common::error::DsError;
 use crate::common::resources::map::ResourceMap;
 use crate::common::resources::{GenericResourceAllocationValue, ResourceAllocation};
 use crate::common::WrappedRcRefCell;
-use crate::messages::common::WorkerConfiguration;
+use crate::messages::common::{sync_worker_configuration, WorkerConfiguration};
 use crate::messages::worker::{
     ConnectionRegistration, FromWorkerMessage, RegisterWorker, StealResponseMsg,
     TaskResourceAllocation, ToWorkerMessage, WorkerHwStateMessage, WorkerOverview,
-    WorkerRegistrationResponse,
+    WorkerRegistrationResponse, WorkerStopReason,
 };
 use crate::server::rpc::ConnectionDescriptor;
 use crate::transfer::auth::{
@@ -97,45 +96,6 @@ pub async fn connect_to_server_and_authenticate(
     })
 }
 
-pub async fn handle_server_connection(
-    state: WorkerStateRef,
-    receiver: impl Stream<Item = Result<BytesMut, std::io::Error>> + Unpin,
-    opener: Option<StreamOpener>,
-    queue_receiver: tokio::sync::mpsc::UnboundedReceiver<bytes::Bytes>,
-    sender: impl Sink<Bytes, Error = std::io::Error> + Unpin,
-    sealer: std::option::Option<StreamSealer>,
-) -> crate::Result<()> {
-    if let Err(e) = tokio::select! {
-        r = worker_message_loop(state.clone(), receiver, opener) => r,
-        r = forward_queue_to_sealed_sink(queue_receiver, sender, sealer) => r.map_err(|e| e.into())
-    } {
-        let on_server_lost = state.get().configuration.on_server_lost.clone();
-        let error = Err(DsError::GenericError(format!(
-            "Server connection failed: {}, on-server-lost: {:?}",
-            e, on_server_lost,
-        )));
-        match on_server_lost {
-            ServerLostPolicy::Stop => error,
-            ServerLostPolicy::FinishRunning => {
-                state.get_mut().drop_non_running_tasks();
-                let notify = Rc::new(Notify::new());
-                state.get_mut().worker_is_empty_notify = Some(notify.clone());
-                let is_empty = state.get().is_empty();
-                if is_empty {
-                    log::info!("No running tasks remain")
-                } else {
-                    log::info!("Waiting for finishing running tasks");
-                    notify.notified().await;
-                    log::info!("All running tasks were finished");
-                }
-                error
-            }
-        }
-    } else {
-        Ok(())
-    }
-}
-
 pub async fn run_worker(
     scheduler_address: SocketAddr,
     mut configuration: WorkerConfiguration,
@@ -170,16 +130,24 @@ pub async fn run_worker(
     let (worker_id, state) = {
         match timeout(Duration::from_secs(15), receiver.next()).await {
             Ok(Some(data)) => {
-                let message: WorkerRegistrationResponse = open_message(&mut opener, &data?)?;
+                let WorkerRegistrationResponse {
+                    worker_id,
+                    worker_addresses,
+                    resource_names,
+                    server_idle_timeout,
+                } = open_message(&mut opener, &data?)?;
+
+                sync_worker_configuration(&mut configuration, server_idle_timeout);
+
                 (
-                    message.worker_id,
+                    worker_id,
                     WorkerStateRef::new(
-                        message.worker_id,
+                        worker_id,
                         configuration.clone(),
                         secret_key,
                         queue_sender,
-                        message.worker_addresses,
-                        ResourceMap::from_vec(message.resource_names),
+                        worker_addresses,
+                        ResourceMap::from_vec(resource_names),
                         launcher_setup,
                     ),
                 )
@@ -189,10 +157,13 @@ pub async fn run_worker(
         }
     };
 
-    let try_start_tasks = task_starter_process(state.clone());
+    let heartbeat_fut = heartbeat_process(heartbeat_interval, state.clone());
+    let idle_timeout_fut = match configuration.idle_timeout {
+        Some(timeout) => Either::Left(idle_timeout_process(timeout, state.clone())),
+        None => Either::Right(futures::future::pending()),
+    };
 
-    let heartbeat = heartbeat_process(heartbeat_interval, state.clone());
-    let overview_loop = match send_overview_interval {
+    let overview_fut = match send_overview_interval {
         None => Either::Left(futures::future::pending()),
         Some(interval) => Either::Right(send_overview_loop(state.clone(), interval)),
     };
@@ -202,18 +173,85 @@ pub async fn run_worker(
         Some(d) => Either::Right(tokio::time::sleep(d)),
     };
 
-    Ok(((worker_id, configuration), async move {
-        tokio::select! {
-            () = try_start_tasks => { unreachable!() }
-            res = handle_server_connection(state.clone(), receiver, opener, queue_receiver, sender, sealer) => res,
-            _ = heartbeat => { unreachable!() }
-            _ = overview_loop => { unreachable!() }
+    let future = async move {
+        let try_start_tasks = task_starter_process(state.clone());
+        let send_loop = forward_queue_to_sealed_sink(queue_receiver, sender, sealer);
+        tokio::pin! {
+            let send_loop = send_loop;
+            let try_start_tasks = try_start_tasks;
+        }
+
+        let result: crate::Result<Option<FromWorkerMessage>> = tokio::select! {
+            r = worker_message_loop(state.clone(), receiver, opener) => {
+                log::debug!("Server read connection has disconnected");
+                r.map(|_| None)
+            }
+            r = &mut send_loop => {
+                log::debug!("Server write connection has disconnected");
+                r.map_err(|e| e.into()).map(|_| None)
+            },
             _ = time_limit_fut => {
                 log::info!("Time limit reached");
+                Ok(Some(FromWorkerMessage::Stop(WorkerStopReason::TimeLimitReached)))
+            }
+            _ = idle_timeout_fut => {
+                log::info!("Idle timeout reached");
+                Ok(Some(FromWorkerMessage::Stop(WorkerStopReason::IdleTimeout)))
+            }
+            _ = &mut try_start_tasks => { unreachable!() }
+            _ = heartbeat_fut => { unreachable!() }
+            _ = overview_fut => { unreachable!() }
+        };
+
+        match result {
+            Ok(Some(msg)) => {
+                // Worker wants to end gracefully, send message to the server
+                {
+                    let mut state = state.get_mut();
+                    state.send_message_to_server(msg);
+                    state.drop_sender();
+                }
+                send_loop.await?;
                 Ok(())
             }
+            Ok(None) => {
+                // Graceful shutdown from server
+                Ok(())
+            }
+            Err(e) => {
+                // Server has disconnected
+                tokio::select! {
+                    _ = &mut try_start_tasks => { unreachable!() }
+                    r = finish_tasks_on_server_lost(state) => r
+                }
+                Err(e)
+            }
         }
-    }))
+    };
+    Ok(((worker_id, configuration), future))
+}
+
+async fn finish_tasks_on_server_lost(state: WorkerStateRef) {
+    let on_server_lost = state.get().configuration.on_server_lost.clone();
+    match on_server_lost {
+        ServerLostPolicy::Stop => {}
+        ServerLostPolicy::FinishRunning => {
+            let notify = Rc::new(Notify::new());
+            let is_empty = {
+                let mut state = state.get_mut();
+                state.drop_non_running_tasks();
+                state.worker_is_empty_notify = Some(notify.clone());
+                state.is_empty()
+            };
+            if is_empty {
+                log::info!("No running tasks remain")
+            } else {
+                log::info!("Waiting for finishing running tasks");
+                notify.notified().await;
+                log::info!("All running tasks were finished");
+            }
+        }
+    }
 }
 
 /// Tries to start tasks after a new task appears or some task finishes.
@@ -261,6 +299,25 @@ async fn heartbeat_process(heartbeat_interval: Duration, state_ref: WrappedRcRef
     }
 }
 
+/// Runs until an idle timeout happens.
+/// Idle timeout occurs when the worker doesn't have anything to do for the specified duration.
+async fn idle_timeout_process(idle_timeout: Duration, state_ref: WrappedRcRefCell<WorkerState>) {
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+
+    loop {
+        interval.tick().await;
+
+        let state = state_ref.get();
+        if !state.has_tasks() {
+            let elapsed = state.last_task_finish_time.elapsed();
+            if elapsed > idle_timeout {
+                break;
+            }
+        }
+    }
+}
+
+/// Runs until there are messages coming from the server.
 async fn worker_message_loop(
     state_ref: WorkerStateRef,
     mut stream: impl Stream<Item = Result<BytesMut, std::io::Error>> + Unpin,
@@ -302,7 +359,10 @@ async fn worker_message_loop(
                     .insert(msg.worker_id, msg.address)
                     .is_none())
             }
-            ToWorkerMessage::Stop => return Ok(()),
+            ToWorkerMessage::Stop => {
+                log::info!("Received stop command");
+                return Ok(());
+            }
         }
     }
     log::debug!("Connection to server is closed");
