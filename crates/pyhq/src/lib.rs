@@ -1,11 +1,12 @@
 use pyo3::types::PyModule;
 use pyo3::{pyclass, pyfunction, pymodule, FromPyObject};
 use pyo3::{wrap_pyfunction, Py, PyResult, Python};
+use std::collections::HashMap;
 use tokio::runtime::Builder;
 
 use hyperqueue::transfer::connection::ClientConnection;
 
-use crate::job::{submit_job_impl, wait_for_jobs_impl, JobDescription};
+use crate::job::{get_error_messages_impl, submit_job_impl, wait_for_jobs_impl, JobDescription};
 use crate::server::{connect_to_server_impl, stop_server_impl};
 use crate::utils::run_future;
 
@@ -24,6 +25,7 @@ struct HqContext {
 type ContextPtr = Py<HqContext>;
 
 type PyJobId = u32;
+type PyTaskId = u32;
 
 #[pyfunction]
 fn connect_to_server(py: Python, directory: Option<String>) -> PyResult<ContextPtr> {
@@ -45,6 +47,15 @@ fn wait_for_jobs(py: Python, ctx: ContextPtr, job_ids: Vec<PyJobId>) -> PyResult
     wait_for_jobs_impl(py, ctx, job_ids)
 }
 
+#[pyfunction]
+fn get_error_messages(
+    py: Python,
+    ctx: ContextPtr,
+    job_ids: Vec<PyJobId>,
+) -> PyResult<HashMap<PyJobId, HashMap<PyTaskId, String>>> {
+    get_error_messages_impl(py, ctx, job_ids)
+}
+
 #[pymodule]
 fn hyperqueue(_py: Python, m: &PyModule) -> PyResult<()> {
     // Use a single-threaded Tokio runtime for all Rust async operations
@@ -61,6 +72,7 @@ fn hyperqueue(_py: Python, m: &PyModule) -> PyResult<()> {
     // Jobs
     m.add_function(wrap_pyfunction!(submit_job, m)?)?;
     m.add_function(wrap_pyfunction!(wait_for_jobs, m)?)?;
+    m.add_function(wrap_pyfunction!(get_error_messages, m)?)?;
 
     Ok(())
 }

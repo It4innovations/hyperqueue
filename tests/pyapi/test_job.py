@@ -69,13 +69,29 @@ def test_wait_for_job(hq_env: HqEnv):
         args=bash("exit 1"),
     )
     job_id = client.submit(job)
-    with pytest.raises(Exception, match="Job 1 failed"):
-        client.wait_for_job(job_id)
+    assert not client.wait_for_job(job_id)
 
     job = Job()
     job.program(
         args=bash("echo Test1 > output"),
     )
     job_id = client.submit(job)
-    client.wait_for_job(job_id)
+    assert client.wait_for_job(job_id)
     check_file_contents("output", "Test1\n")
+
+
+def test_get_error_messages(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+
+    job.program(
+        args=bash("echo a"),
+    )
+    job.program(
+        args=bash("exit 1"),
+    )
+    job.program(
+        args=bash("echo b"),
+    )
+    job_id = client.submit(job)
+    assert not client.wait_for_job(job_id)
+    assert client.get_error_messages(job_id) == {1: 'Error: Program terminated with exit code 1'}

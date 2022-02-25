@@ -1,8 +1,11 @@
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Dict
 
 from .. import hyperqueue as ffi
-from ..job import JobId
 from .protocol import JobDescription
+
+
+JobId = int
+TaskId = int
 
 
 class HqContext:
@@ -25,4 +28,7 @@ class Connection:
 
     def stop_server(self):
         return ffi.stop_server(self.ctx)
+
+    def get_error_messages(self, job_ids: Sequence[JobId]) -> Dict[JobId, Dict[TaskId, str]]:
+        return ffi.get_error_messages(self.ctx, job_ids)
 

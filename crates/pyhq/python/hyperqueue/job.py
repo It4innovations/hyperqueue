@@ -6,8 +6,6 @@ from .task.function import PythonFunction
 from .task.program import EnvType, ExternalProgram, ProgramArgs
 from .task.task import Task
 
-JobId = int
-
 
 class Job:
     def __init__(self, max_fails: Optional[int] = 1):

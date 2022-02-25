@@ -1,11 +1,12 @@
+use hyperqueue::client::status::Status;
 use hyperqueue::common::arraydef::IntArray;
-use hyperqueue::common::fsutils::get_current_dir;
 use hyperqueue::common::utils::fs::get_current_dir;
+use hyperqueue::server::job::JobTaskState;
 use hyperqueue::tako::messages::common::{ProgramDefinition, StdioDef};
 use hyperqueue::transfer::messages::{
-    FromClientMessage, IdSelector, JobDescription as HqJobDescription, SubmitRequest,
-    TaskDescription as HqTaskDescription, TaskWithDependencies, ToClientMessage,
-    WaitForJobsRequest,
+    FromClientMessage, IdSelector, JobDescription as HqJobDescription, JobDetailRequest,
+    SubmitRequest, TaskDescription as HqTaskDescription, TaskIdSelector, TaskSelector,
+    TaskStatusSelector, TaskWithDependencies, ToClientMessage, WaitForJobsRequest,
 };
 use hyperqueue::{rpc_call, JobTaskCount};
 use pyo3::{PyResult, Python};
@@ -13,7 +14,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::utils::error::ToPyResult;
-use crate::{borrow_mut, run_future, ContextPtr, FromPyObject, PyJobId};
+use crate::{borrow_mut, run_future, ContextPtr, FromPyObject, PyJobId, PyTaskId};
 
 #[derive(Debug, FromPyObject)]
 pub struct TaskDescription {
@@ -114,5 +115,45 @@ pub(crate) fn wait_for_jobs_impl(
                 .await
                 .map_py_err()?;
         Ok(response.finished)
+    })
+}
+
+pub(crate) fn get_error_messages_impl(
+    py: Python,
+    ctx: ContextPtr,
+    job_ids: Vec<PyJobId>,
+) -> PyResult<HashMap<PyJobId, HashMap<PyTaskId, String>>> {
+    run_future(async move {
+        let message = FromClientMessage::JobDetail(JobDetailRequest {
+            job_id_selector: IdSelector::Specific(IntArray::from_ids(job_ids)),
+            task_selector: Some(TaskSelector {
+                id_selector: TaskIdSelector::All,
+                status_selector: TaskStatusSelector::Specific(vec![Status::Failed]),
+            }),
+        });
+
+        let mut ctx = borrow_mut!(py, ctx);
+        let response =
+            rpc_call!(ctx.connection, message, ToClientMessage::JobDetailResponse(r) => r)
+                .await
+                .map_py_err()?;
+
+        Ok(response
+            .into_iter()
+            .filter_map(|(job_id, opt_job)| {
+                opt_job.map(|job| {
+                    (
+                        job_id.as_num(),
+                        job.tasks
+                            .into_iter()
+                            .map(|t| match t.state {
+                                JobTaskState::Failed { error, .. } => (t.task_id.as_num(), error),
+                                _ => panic!("Invalid state"),
+                            })
+                            .collect::<HashMap<PyTaskId, String>>(),
+                    )
+                })
+            })
+            .collect())
     })
 }
