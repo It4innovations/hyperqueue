@@ -10,9 +10,11 @@ use tokio::time::timeout;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 use crate::common::error::DsError;
+use crate::messages::common::sync_worker_configuration;
 use crate::messages::gateway::LostWorkerReason;
 use crate::messages::worker::{
     ConnectionRegistration, FromWorkerMessage, RegisterWorker, WorkerRegistrationResponse,
+    WorkerStopReason,
 };
 use crate::server::comm::{Comm, CommSenderRef};
 use crate::server::core::CoreRef;
@@ -95,7 +97,7 @@ pub async fn worker_authentication(
 
     let message_data = timeout(Duration::from_secs(15), reader.next())
         .await
-        .map_err(|_| "Worker registration did not arrived")?
+        .map_err(|_| "Worker registration did not arrive")?
         .ok_or_else(|| {
             DsError::from("The remote side closed connection without worker registration")
         })??;
@@ -133,10 +135,8 @@ async fn worker_rpc_loop(
     assert!(heartbeat_interval.as_millis() > 150);
 
     let mut configuration = msg.configuration;
-    // Update idle_timeout configuration from server default
-    if configuration.idle_timeout.is_none() {
-        configuration.idle_timeout = *core_ref.get().idle_timeout();
-    }
+    sync_worker_configuration(&mut configuration, *core_ref.get().idle_timeout());
+
     let idle_timeout = configuration.idle_timeout;
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
 
@@ -158,6 +158,7 @@ async fn worker_rpc_loop(
         worker_id,
         worker_addresses: core_ref.get().get_worker_addresses(),
         resource_names: core_ref.get().create_resource_map().into_vec(),
+        server_idle_timeout: *core_ref.get().idle_timeout(),
     };
     queue_sender
         .send(serialize(&message).unwrap().into())
@@ -179,21 +180,9 @@ async fn worker_rpc_loop(
         loop {
             interval.tick().await;
             let now = Instant::now();
-            let mut core = core_ref.get_mut();
-            let mut worker = core.get_worker_mut_by_id_or_panic(worker_id);
+            let core = core_ref.get();
+            let worker = core.get_worker_by_id_or_panic(worker_id);
             let elapsed = now - worker.last_heartbeat;
-
-            if let Some(timeout) = worker.configuration.idle_timeout {
-                if worker.tasks().is_empty() {
-                    let elapsed = now - worker.last_occupied;
-                    if elapsed > timeout {
-                        log::debug!("Idle timeout, worker={}", worker.id);
-                        break LostWorkerReason::IdleTimeout;
-                    }
-                } else {
-                    worker.last_occupied = now;
-                }
-            }
 
             if elapsed > heartbeat_interval * 2 {
                 log::debug!("Heartbeat not arrived, worker={}", worker.id);
@@ -203,9 +192,16 @@ async fn worker_rpc_loop(
     };
 
     let reason = tokio::select! {
-        e = worker_receive_loop(core_ref.clone(), comm_ref.clone(), worker_id, connection.receiver, connection.opener) => {
-            log::debug!("Receive loop terminated ({:?}), worker={}", e, worker_id);
-            LostWorkerReason::ConnectionLost
+        result = worker_receive_loop(core_ref.clone(), comm_ref.clone(), worker_id, connection.receiver, connection.opener) => {
+            log::debug!("Receive loop terminated ({result:?}), worker={worker_id}");
+            if let Ok(Some(reason)) = result {
+                match reason {
+                    WorkerStopReason::IdleTimeout => LostWorkerReason::IdleTimeout,
+                    WorkerStopReason::TimeLimitReached => LostWorkerReason::TimeLimitReached
+                }
+            } else {
+                LostWorkerReason::ConnectionLost
+            }
         }
         e = snd_loop => {
             log::debug!("Sending loop terminated: {:?}, worker={}", e, worker_id);
@@ -245,7 +241,7 @@ pub async fn worker_receive_loop<
     worker_id: WorkerId,
     mut receiver: Reader,
     mut opener: Option<StreamOpener>,
-) -> crate::Result<()> {
+) -> crate::Result<Option<WorkerStopReason>> {
     while let Some(message) = receiver.next().await {
         let message: FromWorkerMessage = open_message(&mut opener, &message?)?;
         let mut core = core_ref.get_mut();
@@ -275,7 +271,10 @@ pub async fn worker_receive_loop<
             FromWorkerMessage::Overview(overview) => {
                 comm.send_client_worker_overview(overview);
             }
+            FromWorkerMessage::Stop(reason) => {
+                return Ok(Some(reason));
+            }
         }
     }
-    Ok(())
+    Ok(None)
 }

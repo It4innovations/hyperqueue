@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Instant;
 
 use bytes::Bytes;
 use orion::aead::SecretKey;
@@ -36,7 +37,7 @@ pub enum ServerLostPolicy {
 }
 
 pub struct WorkerState {
-    pub sender: UnboundedSender<Bytes>,
+    sender: Option<UnboundedSender<Bytes>>,
     tasks: TaskMap,
     pub ready_task_queue: ResourceWaitQueue,
     pub running_tasks: Set<TaskId>,
@@ -55,6 +56,7 @@ pub struct WorkerState {
     pub secret_key: Option<Arc<SecretKey>>,
 
     pub start_time: std::time::Instant,
+    pub last_task_finish_time: std::time::Instant,
 
     resource_map: ResourceMap,
 }
@@ -85,13 +87,18 @@ impl WorkerState {
     }
 
     pub fn send_message_to_server(&self, message: FromWorkerMessage) {
-        if self
-            .sender
-            .send(serialize(&message).unwrap().into())
-            .is_err()
-        {
-            log::debug!("Message could not be sent to server");
+        if let Some(sender) = self.sender.as_ref() {
+            if sender.send(serialize(&message).unwrap().into()).is_err() {
+                log::debug!("Message could not be sent to server");
+            }
+        } else {
+            log::debug!(
+                "Attempting to send a message to server, but server has already disconnected"
+            );
         }
+    }
+    pub fn drop_sender(&mut self) {
+        self.sender = None;
     }
 
     pub fn add_ready_task(&mut self, task: &Task) {
@@ -129,6 +136,11 @@ impl WorkerState {
         }
     }
 
+    #[inline]
+    pub fn has_tasks(&self) -> bool {
+        !self.tasks.is_empty()
+    }
+
     fn remove_task(&mut self, task_id: TaskId, just_finished: bool) {
         match self.tasks.remove(&task_id).unwrap().state {
             TaskState::Waiting(x) => {
@@ -153,6 +165,7 @@ impl WorkerState {
                 notify.notify_one()
             }
         }
+        self.last_task_finish_time = Instant::now();
     }
 
     pub fn pop_worker_connection(&mut self, worker_id: WorkerId) -> Option<DataConnection> {
@@ -273,10 +286,12 @@ impl WorkerStateRef {
         task_launcher: Box<dyn TaskLauncher>,
     ) -> Self {
         let ready_task_queue = ResourceWaitQueue::new(&configuration.resources, &resource_map);
+        let now = std::time::Instant::now();
+
         Self::wrap(WorkerState {
             worker_id,
             worker_addresses,
-            sender,
+            sender: Some(sender),
             configuration,
             task_launcher,
             secret_key,
@@ -287,9 +302,10 @@ impl WorkerStateRef {
             start_task_scheduled: false,
             start_task_notify: Rc::new(Notify::new()),
             running_tasks: Default::default(),
-            start_time: std::time::Instant::now(),
+            start_time: now,
             resource_map,
             worker_is_empty_notify: None,
+            last_task_finish_time: now,
         })
     }
 }

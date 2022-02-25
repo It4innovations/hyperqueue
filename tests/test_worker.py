@@ -207,7 +207,7 @@ def test_worker_time_limit(hq_env: HqEnv):
     w = hq_env.start_worker(args=["--time-limit", "1s 200ms"])
     wait_for_worker_state(hq_env, 1, "RUNNING")
     start = time.time()
-    wait_for_worker_state(hq_env, 1, "CONNECTION LOST")
+    wait_for_worker_state(hq_env, 1, "TIME LIMIT REACHED")
     hq_env.check_process_exited(w, expected_code=None)
     duration = time.time() - start
     assert 0.9 < duration < 1.5
@@ -246,7 +246,7 @@ def test_server_lost_no_tasks(hq_env: HqEnv, policy: str):
     worker = hq_env.start_worker(on_server_lost=policy)
     hq_env.kill_server()
     time.sleep(0.5)
-    hq_env.check_process_exited(worker)
+    hq_env.check_process_exited(worker, expected_code=1)
 
 
 def test_server_lost_stop_with_task(hq_env: HqEnv):
@@ -259,7 +259,7 @@ def test_server_lost_stop_with_task(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "RUNNING")
     hq_env.kill_server()
     time.sleep(0.5)
-    hq_env.check_process_exited(worker)
+    hq_env.check_process_exited(worker, expected_code=1)
     assert not os.path.isfile(path)
 
 
@@ -282,12 +282,28 @@ def test_server_lost_finish_running_with_task(hq_env: HqEnv):
     time.sleep(0.5)
     assert worker.poll() is None
     time.sleep(2.0)
-    hq_env.check_process_exited(worker)
+    hq_env.check_process_exited(worker, expected_code=1)
 
     files = [
         path for path in os.listdir(hq_env.work_path) if path.startswith("finished-")
     ]
     assert len(files) == 1
+
+
+def test_server_lost_finish_running_explicit_stop(hq_env: HqEnv):
+    hq_env.start_server()
+    worker = hq_env.start_worker(on_server_lost="finish-running")
+    hq_env.command(
+        [
+            "submit",
+            "sleep",
+            "3600",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    hq_env.command(["worker", "stop", "1"])
+    wait_for_worker_state(hq_env, 1, "STOPPED")
+    hq_env.check_process_exited(worker)
 
 
 def list_all_workers(hq_env: HqEnv) -> Table:

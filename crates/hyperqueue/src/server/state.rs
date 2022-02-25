@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use tako::messages::gateway::{
-    CancelTasks, FromGatewayMessage, LostWorkerMessage, LostWorkerReason, NewWorkerMessage,
-    TaskFailedMessage, TaskState, TaskUpdate, ToGatewayMessage,
+    CancelTasks, FromGatewayMessage, LostWorkerMessage, NewWorkerMessage, TaskFailedMessage,
+    TaskState, TaskUpdate, ToGatewayMessage,
 };
 
 use crate::server::autoalloc::AutoAllocState;
@@ -219,12 +219,7 @@ impl State {
     pub fn process_worker_lost(&mut self, msg: LostWorkerMessage) {
         log::debug!("Worker lost id={}", msg.worker_id);
         let worker = self.workers.get_mut(&msg.worker_id).unwrap();
-        worker.set_offline_state(match msg.reason {
-            LostWorkerReason::Stopped => LostWorkerReason::Stopped,
-            LostWorkerReason::ConnectionLost => LostWorkerReason::ConnectionLost,
-            LostWorkerReason::HeartbeatLost => LostWorkerReason::HeartbeatLost,
-            LostWorkerReason::IdleTimeout => LostWorkerReason::IdleTimeout,
-        });
+        worker.set_offline_state(msg.reason.clone());
         for task_id in msg.running_tasks {
             let job = self.get_job_mut_by_tako_task_id(task_id).unwrap();
             job.set_waiting_state(task_id);

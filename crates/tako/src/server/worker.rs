@@ -37,13 +37,11 @@ pub struct Worker {
 
     // COLD DATA move it into a box (?)
     pub last_heartbeat: std::time::Instant,
-    pub last_occupied: std::time::Instant,
     pub configuration: WorkerConfiguration,
 }
 
 impl fmt::Debug for Worker {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        //let task_ids : Vec<_> = self.tasks.iter().map(|r| r.get().id.to_string()).collect();
         f.debug_struct("Worker")
             .field("id", &self.id)
             .field("resources", &self.configuration.resources)
@@ -171,7 +169,6 @@ impl Worker {
             tasks: Default::default(),
             flags: WorkerFlags::empty(),
             last_heartbeat: now,
-            last_occupied: now,
         }
     }
 }

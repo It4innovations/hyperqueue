@@ -26,6 +26,7 @@ pub struct WorkerRegistrationResponse {
     pub worker_id: WorkerId,
     pub worker_addresses: Map<WorkerId, String>,
     pub resource_names: Vec<String>,
+    pub server_idle_timeout: Option<Duration>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -142,6 +143,12 @@ pub struct WorkerOverview {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub enum WorkerStopReason {
+    IdleTimeout,
+    TimeLimitReached,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 //#[serde(tag = "op")]
 pub enum FromWorkerMessage {
     TaskFinished(TaskFinishedMsg),
@@ -151,4 +158,5 @@ pub enum FromWorkerMessage {
     StealResponse(StealResponseMsg),
     Overview(WorkerOverview),
     Heartbeat,
+    Stop(WorkerStopReason),
 }

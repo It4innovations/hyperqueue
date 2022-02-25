@@ -198,6 +198,7 @@ pub enum LostWorkerReason {
     ConnectionLost,
     HeartbeatLost,
     IdleTimeout,
+    TimeLimitReached,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
