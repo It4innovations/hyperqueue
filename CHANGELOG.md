@@ -7,6 +7,8 @@
 * Task may be started with a temporary directory that is automatically deleted when the task is finished.
   (flag `--task-dir`).
 
+* Task may provide its own error message by creating a file with name passed by ``HQ_ERROR_FILENAME``. 
+
 ### CLI
  
 * You can now use the `hq task list <job-selector>` command to display a list of tasks across multiple jobs. 

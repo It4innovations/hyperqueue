@@ -300,6 +300,21 @@ When a job is submitted with ``--task-dir`` then a temporary directory is create
 passed via environment variable ``HQ_TASK_DIR``. This directory is automatically deleted
 when the task is completed (for any reason).
 
+## Providing own error message
+
+A task may pass its own error message into the HyperQueue. 
+HyperQueue provides a filename via environment variable ``HQ_ERROR_FILENAME``,
+if a task creates this file and terminates with a non-zero return code,
+then the content of this file is taken as an error message.
+
+``HQ_ERROR_FILENAME`` is provided only if task directory is set on. The filename is always
+placed inside the task directory.
+
+If the message is longer than 2KiB, then it is truncated to 2KiB.
+
+If task terminates with zero return code, then the error file is ignored.
+
+
 ## Useful job commands
 Here is a list of useful job commands:
 
