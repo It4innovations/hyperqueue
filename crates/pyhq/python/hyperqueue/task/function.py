@@ -47,6 +47,7 @@ class PythonEnv:
 class PythonFunction(Task):
     def __init__(
         self,
+        task_id: int,
         fn: Callable,
         *,
         args=(),
@@ -55,7 +56,7 @@ class PythonFunction(Task):
         stderr=None,
         dependencies=(),
     ):
-        super().__init__(dependencies)
+        super().__init__(task_id, dependencies)
 
         fn_id = id(fn)
         wrapper = _CLOUDWRAPPER_CACHE.get(fn_id)
@@ -69,10 +70,10 @@ class PythonFunction(Task):
         self.stdout = stdout
         self.stderr = stderr
 
-    def _build(self, client, id_map: Dict[Task, TaskId]) -> TaskDescription:
-        depends_on = [id_map[dependency] for dependency in self.dependencies]
+    def _build(self, client) -> TaskDescription:
+        depends_on = [dependency.task_id for dependency in self.dependencies]
         return TaskDescription(
-            id=id_map[self],
+            id=self.task_id,
             args=client.python_env.args,
             stdout=self.stdout,
             stderr=self.stderr,
