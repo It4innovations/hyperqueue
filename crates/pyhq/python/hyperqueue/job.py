@@ -25,6 +25,7 @@ class Job:
         task_dir: bool = False,
     ) -> ExternalProgram:
         task = ExternalProgram(
+            len(self.tasks),
             args=args,
             env=env,
             cwd=cwd,
@@ -48,14 +49,13 @@ class Job:
         dependencies: Sequence[Task] = (),
     ):
         task = PythonFunction(
-            fn, args=args, kwargs=kwargs, stdout=stdout, stderr=stderr, dependencies=dependencies
+            len(self.tasks), fn, args=args, kwargs=kwargs, stdout=stdout, stderr=stderr, dependencies=dependencies
         )
         self.tasks.append(task)
         return task
 
     def _build(self, client) -> JobDescription:
-        id_map = {task: index for (index, task) in enumerate(self.tasks)}
         task_descriptions = []
         for task in self.tasks:
-            task_descriptions.append(task._build(client, id_map))
+            task_descriptions.append(task._build(client))
         return JobDescription(task_descriptions, self.max_fails)

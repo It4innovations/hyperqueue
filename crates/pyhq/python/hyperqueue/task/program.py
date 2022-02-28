@@ -13,6 +13,7 @@ ProgramArgs = Union[List[str], str]
 class ExternalProgram(Task):
     def __init__(
         self,
+        task_id,
         *,
         args: List[str],
         env: EnvType = None,
@@ -23,7 +24,7 @@ class ExternalProgram(Task):
         dependencies: Sequence[Task] = (),
         task_dir: bool = False,
     ):
-        super().__init__(dependencies)
+        super().__init__(task_id, dependencies)
         args = to_arg_list(args)
         validate_args(args)
         self.args = args
@@ -42,10 +43,10 @@ class ExternalProgram(Task):
 
         self.outputs = get_task_outputs(self)
 
-    def _build(self, client, id_map: Dict[Task, TaskId]):
-        depends_on = [id_map[dependency] for dependency in self.dependencies]
+    def _build(self, client):
+        depends_on = [dependency.task_id for dependency in self.dependencies]
         return TaskDescription(
-            id=id_map[self],
+            id=self.task_id,
             args=self.args,
             env=self.env,
             stdout=self.stdout,
