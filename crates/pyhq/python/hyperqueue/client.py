@@ -6,6 +6,10 @@ from .job import Job
 from .task.function import PythonEnv
 
 
+class TaskFailedException(Exception):
+    pass
+
+
 class Client:
     def __init__(
         self, path: Optional[Path] = None, python_env: Optional[PythonEnv] = None
@@ -19,10 +23,15 @@ class Client:
     def submit(self, job: Job) -> JobId:
         return self.connection.submit_job(job._build(self))
 
-    def wait_for_job(self, job_id: JobId):
+    def wait_for_job(self, job_id: JobId, raise_on_error=True):
         """ Returns True if all tasks were successfully finished """
-        finished = self.connection.wait_for_jobs([job_id])
-        return bool(finished)
+        finished = bool(self.connection.wait_for_jobs([job_id]))
+        if not finished and raise_on_error:
+            errors = self.get_error_messages(job_id)
+            min_id = min(errors.keys())
+            raise TaskFailedException(f"Task {min_id} failed:\n{errors[min_id]}")
+        else:
+            return finished
 
     def get_error_messages(self, job_id: JobId) -> Dict[TaskId, str]:
         result = self.connection.get_error_messages([job_id])

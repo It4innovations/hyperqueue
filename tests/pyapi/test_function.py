@@ -41,3 +41,17 @@ def test_submit_python_prologue(hq_env: HqEnv):
     job_id = client.submit(job)
     wait_for_job_state(hq_env, job_id, "FINISHED")
     check_file_contents("out", "xyz\n")
+
+
+def test_submit_pyfunction_fail(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+
+    def body():
+        raise Exception("MyException")
+
+    job.function(body, stderr="err")
+    job_id = client.submit(job)
+    client.wait_for_job(job_id, raise_on_error=False)
+    errors = client.get_error_messages(job_id)
+    assert list(errors.keys()) == [0]
+    assert errors[0].endswith('    raise Exception("MyException")\nException: MyException\n')

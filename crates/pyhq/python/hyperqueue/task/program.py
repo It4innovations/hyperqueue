@@ -21,6 +21,7 @@ class ExternalProgram(Task):
         stderr: Optional[GenericPath] = None,
         stdin: Optional[Union[str, bytes]] = None,
         dependencies: Sequence[Task] = (),
+        task_dir: bool = False,
     ):
         super().__init__(dependencies)
         args = to_arg_list(args)
@@ -30,6 +31,7 @@ class ExternalProgram(Task):
         self.cwd = str(cwd) if cwd else None
         self.stdout = str(stdout) if stdout else None
         self.stderr = str(stderr) if stdout else None
+        self.task_dir = task_dir
 
         if stdin is None or isinstance(stdin, bytes):
             self.stdin = stdin
@@ -51,6 +53,7 @@ class ExternalProgram(Task):
             stdin=self.stdin,
             cwd=self.cwd,
             dependencies=depends_on,
+            task_dir=self.task_dir,
         )
 
     def __getitem__(self, key: str):

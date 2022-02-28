@@ -26,6 +26,7 @@ pub struct TaskDescription {
     stderr: Option<PathBuf>,
     stdin: Option<Vec<u8>>,
     dependencies: Vec<u32>,
+    task_dir: bool,
 }
 
 #[derive(Debug, FromPyObject)]
@@ -93,7 +94,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> HqTaskDescriptio
         },
         resources: Default::default(),
         pin: false,
-        task_dir: false,
+        task_dir: desc.task_dir,
         time_limit: None,
         priority: 0,
     }

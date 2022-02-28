@@ -22,9 +22,16 @@ def cloud_wrap(fn, cache=True) -> CloudWrapper:
 class PythonEnv:
     def __init__(self, python_bin="python3", prologue=None, shell="bash"):
         code = (
-            "import sys;import cloudpickle;import pickle;"
-            "fn,a,kw=pickle.loads(sys.stdin.buffer.read());"
-            "fn(*a, **(kw if kw is not None else {}))"
+            "import sys,pickle\n"
+            "try:\n"
+            " fn,a,kw=pickle.loads(sys.stdin.buffer.read())\n"
+            " fn(*a, **(kw if kw is not None else {}))\n"
+            "except Exception as e:\n"
+            " import os, traceback\n"
+            " t = traceback.format_exc()\n"
+            " with open(os.environ['HQ_ERROR_FILENAME'], 'w') as f:\n"
+            "  f.write(t)\n"
+            " sys.exit(1)"
         )
 
         if prologue:
@@ -69,4 +76,5 @@ class PythonFunction(Task):
             stdin=pickle.dumps((self.fn, self.args, self.kwargs)),
             cwd=None,
             dependencies=depends_on,
+            task_dir=True,
         )
