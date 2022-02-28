@@ -22,6 +22,7 @@ class Job:
         stderr: Optional[GenericPath] = None,
         stdin: Optional[Union[str, bytes]] = None,
         dependencies: Sequence[Task] = (),
+        task_dir: bool = False,
     ) -> ExternalProgram:
         task = ExternalProgram(
             args=args,
@@ -31,6 +32,7 @@ class Job:
             stdout=stdout,
             stderr=stderr,
             stdin=stdin,
+            task_dir=task_dir
         )
         self.tasks.append(task)
         return task

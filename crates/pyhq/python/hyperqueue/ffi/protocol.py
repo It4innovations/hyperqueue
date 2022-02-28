@@ -12,6 +12,7 @@ class TaskDescription:
     stdin: Optional[bytes]
     env: Optional[Dict[str, str]]
     dependencies: Sequence[int]
+    task_dir: bool
 
 
 @dataclasses.dataclass
