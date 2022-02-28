@@ -19,19 +19,23 @@ def cloud_wrap(fn, cache=True) -> CloudWrapper:
     return CloudWrapper(fn, cache=cache)
 
 
+def task_main():
+    import sys, pickle
+    try:
+        fn, a, kw=pickle.loads(sys.stdin.buffer.read())
+        fn(*a, **(kw if kw is not None else {}))
+    except Exception as e:
+        import os, traceback
+        t = traceback.format_exc()
+        with open(os.environ['HQ_ERROR_FILENAME'], 'w') as f:
+            f.write(t)
+        sys.exit(1)
+
+
 class PythonEnv:
     def __init__(self, python_bin="python3", prologue=None, shell="bash"):
         code = (
-            "import sys,pickle\n"
-            "try:\n"
-            " fn,a,kw=pickle.loads(sys.stdin.buffer.read())\n"
-            " fn(*a, **(kw if kw is not None else {}))\n"
-            "except Exception as e:\n"
-            " import os, traceback\n"
-            " t = traceback.format_exc()\n"
-            " with open(os.environ['HQ_ERROR_FILENAME'], 'w') as f:\n"
-            "  f.write(t)\n"
-            " sys.exit(1)"
+            "from hyperqueue.task.function import task_main as m; m()"
         )
 
         if prologue:
@@ -78,3 +82,6 @@ class PythonFunction(Task):
             dependencies=depends_on,
             task_dir=True,
         )
+
+    def __repr__(self):
+        return f"<PyFunction fn={self.fn.__name__}>"
