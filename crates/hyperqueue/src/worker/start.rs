@@ -38,7 +38,7 @@ use crate::common::placeholders::{
 };
 use crate::transfer::messages::TaskBody;
 use crate::transfer::stream::ChannelId;
-use crate::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resource};
+use crate::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resources};
 use crate::worker::parser::CpuDefinition;
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
@@ -570,7 +570,7 @@ pub fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfi
     let mut generic = if opts.no_detect_resources {
         Vec::new()
     } else {
-        detect_generic_resource()?
+        detect_generic_resources()?
     };
     for def in opts.resource {
         let descriptor = def.unpack();

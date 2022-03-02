@@ -35,7 +35,7 @@ use hyperqueue::common::setup::setup_logging;
 use hyperqueue::dashboard::ui_loop::start_ui_loop;
 use hyperqueue::server::bootstrap::get_client_connection;
 use hyperqueue::transfer::messages::{FromClientMessage, JobInfoRequest, ToClientMessage};
-use hyperqueue::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resource};
+use hyperqueue::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resources};
 use hyperqueue::WorkerId;
 use tako::common::resources::ResourceDescriptor;
 
@@ -421,7 +421,7 @@ fn command_worker_hwdetect(gsettings: &GlobalSettings, opts: HwDetectOpts) -> an
     } else {
         detect_cpus()?
     };
-    let generic = detect_generic_resource()?;
+    let generic = detect_generic_resources()?;
     gsettings
         .printer()
         .print_hw(&ResourceDescriptor::new(cpus, generic));
