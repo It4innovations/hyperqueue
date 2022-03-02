@@ -7,6 +7,7 @@ use tui::text::Span;
 use tui::widgets::{Axis, Block, Borders, Chart, Dataset};
 
 use crate::dashboard::data::DashboardData;
+use crate::dashboard::ui::styles::chart_style_deselected;
 use crate::dashboard::ui::terminal::DashboardFrame;
 
 struct WorkerCountRecord {
@@ -61,6 +62,7 @@ impl ClusterOverviewChart {
             .data(&worker_counts)];
 
         let chart = Chart::new(datasets)
+            .style(chart_style_deselected())
             .block(
                 Block::default()
                     .title(Span::styled(

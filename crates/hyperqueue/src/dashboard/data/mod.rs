@@ -5,13 +5,18 @@ use tako::messages::common::WorkerConfiguration;
 use tako::messages::gateway::MonitoringEventRequest;
 use tako::messages::worker::WorkerOverview;
 
+use crate::dashboard::data::alloc_timeline::{
+    AllocationInfo, AllocationQueueInfo, AllocationTimeline,
+};
 use crate::dashboard::data::task_timeline::{TaskInfo, TaskTimeline};
+use crate::server::autoalloc::{AllocationId, DescriptorId};
 use crate::server::event::events::MonitoringEventPayload;
 use crate::server::event::MonitoringEvent;
 use crate::transfer::connection::ClientConnection;
-use crate::transfer::messages::{FromClientMessage, ToClientMessage};
+use crate::transfer::messages::{AllocationQueueParams, FromClientMessage, ToClientMessage};
 use crate::{rpc_call, WorkerId};
 
+pub mod alloc_timeline;
 pub mod task_timeline;
 pub mod worker_timeline;
 
@@ -25,6 +30,8 @@ pub struct DashboardData {
     worker_timeline: WorkerTimeline,
     /// Tracks task related events
     tasks_timeline: TaskTimeline,
+    /// Tracks the automatic allocator events
+    alloc_timeline: AllocationTimeline,
 }
 
 impl DashboardData {
@@ -45,6 +52,7 @@ impl DashboardData {
         // Update data views
         self.worker_timeline.handle_new_events(&events);
         self.tasks_timeline.handle_new_events(&events);
+        self.alloc_timeline.handle_new_events(&events);
         self.events.append(&mut events);
     }
 
@@ -54,6 +62,30 @@ impl DashboardData {
     ) -> impl Iterator<Item = &TaskInfo> + '_ {
         self.tasks_timeline
             .get_worker_task_history(worker_id, SystemTime::now())
+    }
+
+    pub fn query_allocation_queues_at(
+        &self,
+        time: SystemTime,
+    ) -> impl Iterator<Item = (&DescriptorId, &AllocationQueueInfo)> + '_ {
+        self.alloc_timeline.get_queue_infos_at(time)
+    }
+
+    pub fn query_allocation_params(
+        &self,
+        descriptor_id: DescriptorId,
+    ) -> Option<&AllocationQueueParams> {
+        self.alloc_timeline.get_queue_params_for(&descriptor_id)
+    }
+
+    /// The Queued and Running allocations at `time` for a queue.
+    pub fn query_allocations_info_at(
+        &self,
+        descriptor_id: DescriptorId,
+        time: SystemTime,
+    ) -> Option<impl Iterator<Item = (&AllocationId, &AllocationInfo)> + '_> {
+        self.alloc_timeline
+            .get_allocations_for_queue(descriptor_id, time)
     }
 
     pub fn query_worker_info_for(&self, worker_id: &WorkerId) -> Option<&WorkerConfiguration> {

@@ -1,3 +1,4 @@
+use crate::dashboard::ui::styles::table_style_deselected;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use tako::messages::common::WorkerConfiguration;
@@ -32,6 +33,7 @@ impl WorkerConfigTable {
                 column_widths: vec![Constraint::Percentage(30), Constraint::Percentage(70)],
             },
             |data| Row::new(vec![Cell::from(data.label), Cell::from(data.data.as_str())]),
+            table_style_deselected(),
         );
     }
 }

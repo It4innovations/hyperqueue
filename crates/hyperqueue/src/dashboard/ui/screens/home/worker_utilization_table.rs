@@ -1,4 +1,5 @@
 use crate::dashboard::data::DashboardData;
+use crate::dashboard::ui::styles::table_style_selected;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::progressbar::{
     get_progress_bar_color, render_progress_bar_at, ProgressPrintStyle,
@@ -72,6 +73,7 @@ impl WorkerUtilTable {
                     Cell::from(mem_prog_bar).style(get_progress_bar_color(mem_progress)),
                 ])
             },
+            table_style_selected(),
         );
     }
 }

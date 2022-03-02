@@ -137,7 +137,7 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
             let descriptor = get_or_return!(alloc_state.get_descriptor_mut(id));
             for allocation_id in allocation_ids {
                 let status = status_map.remove(&allocation_id);
-                handle_allocation_status(descriptor, event_manager, allocation_id, status);
+                handle_allocation_status(descriptor, event_manager, id, allocation_id, status);
             }
         }
         Err(err) => {
@@ -157,6 +157,7 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
 fn handle_allocation_status(
     descriptor: &mut DescriptorState,
     event_manager: &mut EventStorage,
+    descriptor_id: DescriptorId,
     allocation_id: AllocationId,
     status: Option<AutoAllocResult<AllocationStatus>>,
 ) {
@@ -174,18 +175,19 @@ fn handle_allocation_status(
                         let allocation =
                             get_or_return!(descriptor.get_allocation_mut(&allocation_id));
                         if let AllocationStatus::Queued = allocation.status {
-                            event_manager.on_allocation_started(allocation_id.clone());
+                            event_manager
+                                .on_allocation_started(descriptor_id, allocation_id.clone());
                             descriptor.add_event(AllocationEvent::AllocationStarted(allocation_id));
                         }
                     }
                     AllocationStatus::Finished { .. } => {
-                        event_manager.on_allocation_finished(allocation_id.clone());
+                        event_manager.on_allocation_finished(descriptor_id, allocation_id.clone());
                         descriptor.add_event(AllocationEvent::AllocationFinished(allocation_id));
                         descriptor.add_inactive_directory(working_dir);
                         descriptor.get_limiter_mut().on_allocation_success();
                     }
                     AllocationStatus::Failed { .. } => {
-                        event_manager.on_allocation_finished(allocation_id.clone());
+                        event_manager.on_allocation_finished(descriptor_id, allocation_id.clone());
                         descriptor.add_event(AllocationEvent::AllocationFailed(allocation_id));
                         descriptor.add_inactive_directory(working_dir);
                         descriptor.get_limiter_mut().on_allocation_fail();
@@ -298,7 +300,11 @@ async fn submit_new_allocations(id: DescriptorId, state_ref: &StateRef) {
                 match submission_result.into_id() {
                     Ok(allocation_id) => {
                         log::info!("Queued {} workers into queue {}", workers_to_spawn, id);
-                        event_manager.on_allocation_queued(allocation_id.clone(), workers_to_spawn);
+                        event_manager.on_allocation_queued(
+                            id,
+                            allocation_id.clone(),
+                            workers_to_spawn,
+                        );
                         descriptor
                             .add_event(AllocationEvent::AllocationQueued(allocation_id.clone()));
                         descriptor.add_allocation(Allocation {

@@ -54,6 +54,18 @@ pub fn style_table_highlight() -> Style {
         .fg(Color::Black)
 }
 
-pub fn style_table_row() -> Style {
+pub fn chart_style_deselected() -> Style {
     Style::default().fg(Color::Gray).bg(Color::Black)
+}
+
+pub fn table_style_deselected() -> Style {
+    Style::default().fg(Color::Gray).bg(Color::Black)
+}
+
+pub fn table_style_selected() -> Style {
+    Style::default().fg(Color::Yellow).bg(Color::Black)
+}
+
+pub fn style_no_data() -> Style {
+    Style::default().fg(Color::Magenta).bg(Color::Black)
 }

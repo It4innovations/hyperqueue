@@ -31,13 +31,14 @@ pub enum MonitoringEventPayload {
     AllocationQueueRemoved(DescriptorId),
     /// Allocation was submitted into PBS/Slurm
     AllocationQueued {
+        descriptor_id: DescriptorId,
         allocation_id: AllocationId,
         worker_count: u64,
     },
     /// PBS/Slurm allocation started executing
-    AllocationStarted(AllocationId),
+    AllocationStarted(DescriptorId, AllocationId),
     /// PBS/Slurm allocation has finished executing
-    AllocationFinished(AllocationId),
+    AllocationFinished(DescriptorId, AllocationId),
 }
 
 // Keep the size of the event structure in check

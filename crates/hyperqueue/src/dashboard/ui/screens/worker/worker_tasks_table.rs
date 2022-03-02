@@ -1,5 +1,6 @@
 use crate::common::format::human_duration;
 use crate::dashboard::data::task_timeline::{DashboardTaskState, TaskInfo};
+use crate::dashboard::ui::styles::table_style_selected;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use chrono::{DateTime, Local};
@@ -68,6 +69,7 @@ impl WorkerTasksTable {
                     Cell::from(task_row.run_time.as_str()),
                 ])
             },
+            table_style_selected(),
         );
     }
 }
