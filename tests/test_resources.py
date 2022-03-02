@@ -106,3 +106,14 @@ def test_task_resources2(hq_env: HqEnv):
             all_values += values
     assert all(31 <= x <= 36 for x in all_values)
     assert len(set(all_values)) == 6
+
+
+def test_worker_resource_mem(hq_env: HqEnv):
+    hq_env.start_server()
+    resources = hq_env.command(["worker", "hwdetect"])
+
+    assert "mem" in resources
+    for resource in resources.splitlines():
+        if "mem" in resource:
+            value = resource.split("mem: ")[1]
+            assert value != "" and value != "Sum(0)"

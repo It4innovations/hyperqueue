@@ -47,7 +47,7 @@ pub fn detect_cpus_no_ht() -> anyhow::Result<CpusDescriptor> {
     Ok(new_desc)
 }
 
-pub fn detect_generic_resource() -> anyhow::Result<Vec<GenericResourceDescriptor>> {
+pub fn detect_generic_resources() -> anyhow::Result<Vec<GenericResourceDescriptor>> {
     let mut generic = Vec::new();
     if let Ok(count) = read_linux_gpu_count() {
         if count > 0 {
@@ -62,7 +62,7 @@ pub fn detect_generic_resource() -> anyhow::Result<Vec<GenericResourceDescriptor
         }
     }
 
-    if let Ok(mem) = read_linux_mem() {
+    if let Ok(mem) = read_linux_memory() {
         log::debug!("Mem detected: {}", mem);
         generic.push(GenericResourceDescriptor {
             name: "mem".to_string(),
@@ -77,8 +77,8 @@ fn read_linux_gpu_count() -> anyhow::Result<usize> {
     Ok(std::fs::read_dir("/proc/driver/nvidia/gpus")?.count())
 }
 
-/// Try to get free memory on the current node.
-fn read_linux_mem() -> anyhow::Result<u64> {
+/// Try to get total memory on the current node.
+fn read_linux_memory() -> anyhow::Result<u64> {
     Ok(psutil::memory::virtual_memory()?.total())
 }
 
