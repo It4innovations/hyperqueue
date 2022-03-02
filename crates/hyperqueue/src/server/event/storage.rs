@@ -100,19 +100,39 @@ impl EventStorage {
         self.insert_event(MonitoringEventPayload::AllocationQueueRemoved(id))
     }
 
-    pub fn on_allocation_queued(&mut self, allocation_id: AllocationId, worker_count: u64) {
+    pub fn on_allocation_queued(
+        &mut self,
+        descriptor_id: DescriptorId,
+        allocation_id: AllocationId,
+        worker_count: u64,
+    ) {
         self.insert_event(MonitoringEventPayload::AllocationQueued {
+            descriptor_id,
             allocation_id,
             worker_count,
         })
     }
 
-    pub fn on_allocation_started(&mut self, allocation_id: AllocationId) {
-        self.insert_event(MonitoringEventPayload::AllocationStarted(allocation_id));
+    pub fn on_allocation_started(
+        &mut self,
+        descriptor_id: DescriptorId,
+        allocation_id: AllocationId,
+    ) {
+        self.insert_event(MonitoringEventPayload::AllocationStarted(
+            descriptor_id,
+            allocation_id,
+        ));
     }
 
-    pub fn on_allocation_finished(&mut self, allocation_id: AllocationId) {
-        self.insert_event(MonitoringEventPayload::AllocationFinished(allocation_id));
+    pub fn on_allocation_finished(
+        &mut self,
+        descriptor_id: DescriptorId,
+        allocation_id: AllocationId,
+    ) {
+        self.insert_event(MonitoringEventPayload::AllocationFinished(
+            descriptor_id,
+            allocation_id,
+        ));
     }
 
     fn insert_event(&mut self, payload: MonitoringEventPayload) {

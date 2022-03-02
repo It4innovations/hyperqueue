@@ -1,5 +1,6 @@
 use std::cmp;
 use tui::layout::{Constraint, Rect};
+use tui::style::Style;
 use tui::widgets::{Cell, Row, Table};
 
 use crate::dashboard::ui::styles;
@@ -15,6 +16,7 @@ pub fn render_cpu_util_table(
     rect: Rect,
     frame: &mut DashboardFrame,
     constraints: &[Constraint],
+    table_style: Style,
 ) {
     let indexed_util: Vec<(&f32, i32)> = cpu_util_list.iter().zip(1..).collect();
     let rows: Vec<Row> = indexed_util
@@ -59,7 +61,7 @@ pub fn render_cpu_util_table(
     let table = Table::new(rows)
         .block(body_block)
         .highlight_style(styles::style_table_highlight())
-        .style(styles::style_table_row())
+        .style(table_style)
         .widths(constraints);
 
     frame.render_widget(table, rect);

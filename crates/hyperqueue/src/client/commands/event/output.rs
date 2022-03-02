@@ -28,41 +28,45 @@ fn format_payload(event: MonitoringEventPayload) -> serde_json::Value {
             json!({
                 "type": "worker-overview",
                 "id": id,
-                "hw_state": hw_state
+                "hw-state": hw_state
             })
         }
         MonitoringEventPayload::AllocationQueueCreated(id, _params) => {
             json!({
                 "type": "autoalloc-queue-created",
-                "id": id
+                "descriptor-id": id
             })
         }
         MonitoringEventPayload::AllocationQueueRemoved(id) => {
             json!({
                 "type": "autoalloc-queue-removed",
-                "id": id
+                "descriptor-id": id
             })
         }
         MonitoringEventPayload::AllocationQueued {
+            descriptor_id,
             allocation_id,
             worker_count,
         } => {
             json!({
                 "type": "autoalloc-allocation-queued",
-                "id": allocation_id,
+                "descriptor-id": descriptor_id,
+                "allocation-id": allocation_id,
                 "worker-count": worker_count
             })
         }
-        MonitoringEventPayload::AllocationStarted(id) => {
+        MonitoringEventPayload::AllocationStarted(descriptor_id, allocation_id) => {
             json!({
                 "type": "autoalloc-allocation-started",
-                "id": id,
+                "descriptor-id": descriptor_id,
+                "allocation-id": allocation_id,
             })
         }
-        MonitoringEventPayload::AllocationFinished(id) => {
+        MonitoringEventPayload::AllocationFinished(descriptor_id, allocation_id) => {
             json!({
                 "type": "autoalloc-allocation-finished",
-                "id": id,
+                "descriptor-id": descriptor_id,
+                "allocation-id": allocation_id,
             })
         }
         MonitoringEventPayload::TaskStarted { task_id, worker_id } => json!({

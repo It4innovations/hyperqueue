@@ -48,6 +48,7 @@ impl Screen for ClusterOverviewScreen {
                     controller.show_worker_screen(worker_id);
                 }
             }
+            Key::Left => controller.show_auto_allocator_screen(),
             _ => {}
         }
     }
