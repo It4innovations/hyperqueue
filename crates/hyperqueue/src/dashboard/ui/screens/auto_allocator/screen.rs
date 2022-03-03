@@ -35,8 +35,8 @@ enum FocusedComponent {
 }
 
 impl Screen for AutoAllocatorScreen {
-    fn draw(&mut self, frame: &mut DashboardFrame) {
-        let layout = AutoAllocScreenLayout::new(frame);
+    fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
+        let layout = AutoAllocScreenLayout::new(&in_area);
         draw_text(
             "AutoAlloc Info",
             layout.header_chunk,
@@ -138,7 +138,7 @@ struct AutoAllocScreenLayout {
 }
 
 impl AutoAllocScreenLayout {
-    fn new(frame: &DashboardFrame) -> Self {
+    fn new(rect: &Rect) -> Self {
         let auto_alloc_screen_chunks = tui::layout::Layout::default()
             .constraints(vec![
                 Constraint::Percentage(5),
@@ -147,7 +147,7 @@ impl AutoAllocScreenLayout {
                 Constraint::Percentage(5),
             ])
             .direction(Direction::Vertical)
-            .split(frame.size());
+            .split(*rect);
 
         let component_area = Layout::default()
             .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])

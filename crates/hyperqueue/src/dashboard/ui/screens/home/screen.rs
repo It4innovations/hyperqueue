@@ -18,8 +18,8 @@ pub struct ClusterOverviewScreen {
 }
 
 impl Screen for ClusterOverviewScreen {
-    fn draw(&mut self, frame: &mut DashboardFrame) {
-        let layout = HomeLayout::new(frame);
+    fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
+        let layout = HomeLayout::new(&in_area);
         draw_text("HQ top", layout.header_chunk, frame, style_header_text());
         draw_text(
             "Press up_arrow and bottom_arrow to select a worker, press right_arrow for details about the selected worker",
@@ -71,7 +71,7 @@ struct HomeLayout {
 }
 
 impl HomeLayout {
-    fn new(frame: &DashboardFrame) -> Self {
+    fn new(rect: &Rect) -> Self {
         let base_chunks = tui::layout::Layout::default()
             .constraints(vec![
                 Constraint::Percentage(40),
@@ -80,7 +80,7 @@ impl HomeLayout {
                 Constraint::Percentage(5),
             ])
             .direction(Direction::Vertical)
-            .split(frame.size());
+            .split(*rect);
 
         let info_chunks = Layout::default()
             .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])

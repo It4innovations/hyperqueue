@@ -38,8 +38,8 @@ enum FocusedComponent {
 }
 
 impl Screen for JobScreen {
-    fn draw(&mut self, frame: &mut DashboardFrame) {
-        let layout = JobScreenLayout::new(frame);
+    fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
+        let layout = JobScreenLayout::new(&in_area);
         draw_text("Job Info", layout.header_chunk, frame, style_header_text());
 
         let (jobs_table_style, tasks_table_style) = match self.component_in_focus {
@@ -126,7 +126,7 @@ struct JobScreenLayout {
 }
 
 impl JobScreenLayout {
-    fn new(frame: &DashboardFrame) -> Self {
+    fn new(rect: &Rect) -> Self {
         let job_screen_chunks = tui::layout::Layout::default()
             .constraints(vec![
                 Constraint::Percentage(5),
@@ -135,7 +135,7 @@ impl JobScreenLayout {
                 Constraint::Percentage(5),
             ])
             .direction(Direction::Vertical)
-            .split(frame.size());
+            .split(*rect);
 
         let graph_and_details_area = Layout::default()
             .constraints(vec![Constraint::Percentage(35), Constraint::Percentage(65)])
