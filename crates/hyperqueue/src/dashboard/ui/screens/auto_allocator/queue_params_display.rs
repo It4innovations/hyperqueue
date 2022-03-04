@@ -84,9 +84,5 @@ fn create_rows(params: &AllocationQueueParams) -> Vec<QueueParamsDataRow> {
                 .map(|count| count.to_string())
                 .unwrap_or_default(),
         },
-        QueueParamsDataRow {
-            label: "Max Kept Directories: ",
-            data: params.max_kept_directories.to_string(),
-        },
     ]
 }

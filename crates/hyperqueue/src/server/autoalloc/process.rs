@@ -1,96 +1,342 @@
-use futures::future::join_all;
 use std::future::Future;
-use std::time::SystemTime;
+use std::path::PathBuf;
+use std::time::{Duration, SystemTime};
 
-use crate::server::autoalloc::descriptor::SubmitMode;
+use futures::future::join_all;
+use tempdir::TempDir;
+
+use tako::common::{Map, Set};
+
+use tako::messages::gateway::LostWorkerReason;
+use tako::WorkerId;
+
+use crate::common::manager::info::{ManagerInfo, ManagerType};
+use crate::common::rpc::RpcReceiver;
+
+use crate::get_or_return;
+use crate::server::autoalloc::queue::pbs::PbsHandler;
+use crate::server::autoalloc::queue::slurm::SlurmHandler;
+use crate::server::autoalloc::queue::{AllocationExternalStatus, QueueHandler, SubmitMode};
+use crate::server::autoalloc::service::AutoAllocMessage;
 use crate::server::autoalloc::state::{
-    Allocation, AllocationEvent, AllocationStatus, DescriptorState, RateLimiterStatus,
+    AllocationState, AutoAllocState, QueueState, RateLimiter, RateLimiterStatus,
 };
-use crate::server::autoalloc::{AllocationId, AutoAllocResult, DescriptorId, QueueInfo};
-use crate::server::event::storage::EventStorage;
+use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
 use crate::server::job::Job;
 use crate::server::state::{State, StateRef};
-use crate::transfer::messages::{JobDescription, TaskDescription};
+use crate::transfer::messages::{
+    AllocationQueueParams, JobDescription, QueueData, TaskDescription,
+};
 
-macro_rules! get_or_return {
-    ($e:expr) => {
-        match $e {
-            Some(v) => v,
-            _ => return,
+pub async fn autoalloc_process(
+    state_ref: StateRef,
+    mut autoalloc: AutoAllocState,
+    mut receiver: RpcReceiver<AutoAllocMessage>,
+) {
+    let max_wait_for_message = Duration::from_secs(60 * 60);
+    loop {
+        match tokio::time::timeout(max_wait_for_message, receiver.recv()).await {
+            Ok(Some(message)) => {
+                let queue_id = handle_message(&mut autoalloc, &state_ref, message).await;
+                refresh_state(&state_ref, &mut autoalloc, queue_id).await;
+            }
+            Ok(None) => break,
+            Err(_) => {
+                refresh_state(&state_ref, &mut autoalloc, None).await;
+            }
         }
-    };
+    }
+    stop_all_allocations(&autoalloc).await;
 }
 
-/// The main entrypoint of the autoalloc background process.
-/// It invokes the autoalloc logic in fixed time intervals.
-pub async fn autoalloc_process(state_ref: StateRef) {
-    let duration = state_ref.get().get_autoalloc_state().refresh_interval();
-    let mut interval = tokio::time::interval(duration);
-    loop {
-        interval.tick().await;
-        autoalloc_tick(&state_ref).await;
+/// Reacts to auto allocation message and returns a queue that should be refreshed.
+/// If `None` is returned, all queues will be refreshed.
+async fn handle_message(
+    autoalloc: &mut AutoAllocState,
+    state_ref: &StateRef,
+    message: AutoAllocMessage,
+) -> Option<QueueId> {
+    match message {
+        AutoAllocMessage::WorkerConnected(id, manager_info) => {
+            log::debug!(
+                "Registering worker {id} for allocation {}",
+                manager_info.allocation_id
+            );
+            on_worker_connected(state_ref, autoalloc, id, &manager_info);
+            autoalloc.get_queue_id_by_allocation(&manager_info.allocation_id)
+        }
+        AutoAllocMessage::WorkerLost(id, manager_info, reason) => {
+            log::debug!(
+                "Removing worker {id} from allocation {}",
+                manager_info.allocation_id
+            );
+            on_worker_lost(state_ref, autoalloc, id, &manager_info, reason);
+            autoalloc.get_queue_id_by_allocation(&manager_info.allocation_id)
+        }
+        AutoAllocMessage::JobCreated(_) => None,
+        AutoAllocMessage::GetQueues(response) => {
+            let queues: Map<QueueId, QueueData> = autoalloc
+                .queues()
+                .map(|(id, queue)| {
+                    (
+                        id,
+                        QueueData {
+                            info: queue.info().clone(),
+                            name: queue.name().map(|name| name.to_string()),
+                            manager_type: queue.manager().clone(),
+                        },
+                    )
+                })
+                .collect();
+            response.respond(queues);
+            None
+        }
+        AutoAllocMessage::AddQueue {
+            server_directory,
+            manager,
+            params,
+            response,
+        } => {
+            let result = create_queue(autoalloc, state_ref, server_directory, manager, params);
+            let queue_id = result.as_ref().ok().copied();
+            response.respond(result);
+            queue_id
+        }
+        AutoAllocMessage::RemoveQueue {
+            id,
+            force,
+            response,
+        } => {
+            let result = remove_queue(autoalloc, state_ref, id, force).await;
+            response.respond(result);
+            None
+        }
+        AutoAllocMessage::GetAllocations(queue_id, response) => {
+            let result = match autoalloc.get_queue(queue_id) {
+                Some(queue) => Ok(queue.all_allocations().cloned().collect()),
+                None => Err(anyhow::anyhow!("Queue {queue_id} not found")),
+            };
+            response.respond(result);
+            None
+        }
     }
 }
 
-/// Removes all remaining active allocations
-pub async fn autoalloc_shutdown(state_ref: StateRef) {
-    let futures: Vec<_> = {
-        state_ref
-            .get()
-            .get_autoalloc_state()
-            .descriptors()
-            .flat_map(|(_, descriptor)| prepare_descriptor_cleanup(descriptor))
-            .collect()
+pub async fn try_submit_allocation(
+    manager: ManagerType,
+    params: AllocationQueueParams,
+) -> anyhow::Result<()> {
+    let tmpdir = TempDir::new("hq")?;
+    let mut handler =
+        create_allocation_handler(&manager, params.name.clone(), tmpdir.as_ref().to_path_buf())?;
+    let worker_count = params.workers_per_alloc;
+    let queue_info = create_queue_info(params);
+
+    let allocation = handler
+        .submit_allocation(0, &queue_info, worker_count as u64, SubmitMode::DryRun)
+        .await
+        .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
+
+    let working_dir = allocation.working_dir().to_path_buf();
+    let id = allocation
+        .into_id()
+        .map_err(|e| anyhow::anyhow!("Could not submit allocation: {:?}", e))?;
+    let allocation = Allocation::new(id.to_string(), worker_count as u64, working_dir);
+    handler
+        .remove_allocation(&allocation)
+        .await
+        .map_err(|e| anyhow::anyhow!("Could not cancel allocation {}: {:?}", allocation.id, e))?;
+
+    Ok(())
+}
+
+// The code doesn't compile if the Box closures are removed
+#[allow(clippy::redundant_closure)]
+pub fn create_allocation_handler(
+    manager: &ManagerType,
+    name: Option<String>,
+    directory: PathBuf,
+) -> anyhow::Result<Box<dyn QueueHandler>> {
+    match manager {
+        ManagerType::Pbs => {
+            let handler = PbsHandler::new(directory, name);
+            handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler))
+        }
+        ManagerType::Slurm => {
+            let handler = SlurmHandler::new(directory, name);
+            handler.map::<Box<dyn QueueHandler>, _>(|handler| Box::new(handler))
+        }
+    }
+}
+
+pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
+    let AllocationQueueParams {
+        name: _name,
+        workers_per_alloc,
+        backlog,
+        timelimit,
+        additional_args,
+        worker_cpu_arg,
+        worker_resources_args,
+        max_worker_count,
+        on_server_lost,
+    } = params;
+    QueueInfo::new(
+        backlog,
+        workers_per_alloc,
+        timelimit,
+        on_server_lost,
+        additional_args,
+        worker_cpu_arg,
+        worker_resources_args,
+        max_worker_count,
+    )
+}
+
+/// Maximum number of successive allocation submission failures permitted
+/// before the allocation queue will be removed.
+const MAX_SUBMISSION_FAILS: usize = 10;
+/// Maximum number of successive allocation execution failures permitted
+/// before the allocation queue will be removed.
+const MAX_ALLOCATION_FAILS: usize = 3;
+/// Status (e.g. qstat) will now be called more often than this duration.
+const STATUS_CHECK_INTERVAL: Duration = Duration::from_secs(60 * 60);
+
+fn create_rate_limiter() -> RateLimiter {
+    RateLimiter::new(
+        vec![
+            Duration::ZERO,
+            Duration::from_secs(60),
+            Duration::from_secs(15 * 60),
+            Duration::from_secs(30 * 60),
+            Duration::from_secs(60 * 60),
+        ],
+        MAX_SUBMISSION_FAILS,
+        MAX_ALLOCATION_FAILS,
+        STATUS_CHECK_INTERVAL,
+    )
+}
+
+fn create_queue(
+    autoalloc: &mut AutoAllocState,
+    state_ref: &StateRef,
+    server_directory: PathBuf,
+    manager: ManagerType,
+    params: AllocationQueueParams,
+) -> anyhow::Result<QueueId> {
+    let name = params.name.clone();
+    let handler = create_allocation_handler(&manager, name.clone(), server_directory);
+    let queue_info = create_queue_info(params.clone());
+
+    match handler {
+        Ok(handler) => {
+            let queue = QueueState::new(manager, queue_info, name, handler, create_rate_limiter());
+            let id = {
+                let id = autoalloc.add_queue(queue);
+                state_ref
+                    .get_mut()
+                    .event_storage_mut()
+                    .on_allocation_queue_created(id, params);
+                id
+            };
+
+            Ok(id)
+        }
+        Err(error) => Err(anyhow::anyhow!("Could not create autoalloc queue: {error}")),
+    }
+}
+
+// TODO: use proper error type
+async fn remove_queue(
+    autoalloc: &mut AutoAllocState,
+    state_ref: &StateRef,
+    id: QueueId,
+    force: bool,
+) -> anyhow::Result<()> {
+    let remove_alloc_fut = {
+        let queue_state = autoalloc.get_queue_mut(id);
+
+        let fut = match queue_state {
+            Some(state) => {
+                let has_running_allocations =
+                    state.all_allocations().any(|alloc| alloc.is_running());
+                if has_running_allocations && !force {
+                    return Err(anyhow::anyhow!(
+                        "Allocation queue has running jobs, so it will \
+not be removed. Use `--force` if you want to remove the queue anyway"
+                    ));
+                }
+
+                prepare_queue_cleanup(state)
+            }
+            None => return Err(anyhow::anyhow!("Allocation queue not found")),
+        };
+
+        autoalloc.remove_queue(id);
+        fut
     };
+
+    for (result, allocation_id) in futures::future::join_all(remove_alloc_fut).await {
+        match result {
+            Ok(_) => log::info!("Allocation {} was removed", allocation_id),
+            Err(e) => log::error!("Failed to remove allocation {}: {:?}", allocation_id, e),
+        }
+    }
+
+    state_ref
+        .get_mut()
+        .event_storage_mut()
+        .on_allocation_queue_removed(id);
+
+    Ok(())
+}
+
+/// Removes all remaining active allocations
+async fn stop_all_allocations(autoalloc: &AutoAllocState) {
+    let futures = autoalloc
+        .queues()
+        .flat_map(|(_, queue)| prepare_queue_cleanup(queue));
 
     for (result, allocation_id) in futures::future::join_all(futures).await {
         match result {
             Ok(_) => {
-                log::info!("Allocation {} was removed", allocation_id);
+                log::info!("Allocation {allocation_id} was removed");
             }
             Err(e) => {
-                log::error!("Failed to remove allocation {}: {:?}", allocation_id, e);
+                log::error!("Failed to remove allocation {allocation_id}: {e:?}");
             }
         }
     }
 }
 
-/// Creates a vector of futures that clean up the active allocations of the given descriptor.
-pub fn prepare_descriptor_cleanup(
-    state: &DescriptorState,
-) -> Vec<impl Future<Output = (AutoAllocResult<()>, AllocationId)>> {
-    let handler = state.descriptor.handler();
-    state
-        .active_allocations()
-        .map(move |alloc| {
-            let allocation_id = alloc.id.clone();
-            let future = handler.remove_allocation(alloc);
-            async move { (future.await, allocation_id) }
-        })
-        .collect()
+/// Processes updates either for a single queue or for all queues and removes stale directories
+/// from disk.
+async fn refresh_state(
+    state: &StateRef,
+    autoalloc: &mut AutoAllocState,
+    queue_id: Option<QueueId>,
+) {
+    match queue_id {
+        Some(queue_id) => {
+            process_queue(state, autoalloc, queue_id).await;
+        }
+        None => {
+            for id in autoalloc.queue_ids().collect::<Vec<_>>() {
+                refresh_queue_allocations(state, autoalloc, id).await;
+                process_queue(state, autoalloc, id).await;
+            }
+        }
+    }
+
+    remove_inactive_directories(autoalloc).await;
 }
 
-async fn autoalloc_tick(state_ref: &StateRef) {
-    log::debug!("Running autoalloc");
-
-    let futures: Vec<_> = state_ref
-        .get()
-        .get_autoalloc_state()
-        .descriptor_ids()
-        .map(|id| process_descriptor(id, state_ref))
-        .collect();
-    futures::future::join_all(futures).await;
-}
-
-async fn process_descriptor(id: DescriptorId, state: &StateRef) {
-    refresh_allocations(id, state).await;
-
+async fn process_queue(state: &StateRef, autoalloc: &mut AutoAllocState, id: QueueId) {
     let submission_allowed = {
-        let mut state = state.get_mut();
-        let descriptor = get_or_return!(state.get_autoalloc_state_mut().get_descriptor_mut(id));
-        let limiter = descriptor.get_limiter_mut();
+        let queue = get_or_return!(autoalloc.get_queue_mut(id));
+        let limiter = queue.limiter_mut();
 
-        let allowed = matches!(limiter.status(), RateLimiterStatus::Ok);
+        let allowed = matches!(limiter.submission_status(), RateLimiterStatus::Ok);
         if allowed {
             limiter.on_submission_attempt();
         }
@@ -98,29 +344,46 @@ async fn process_descriptor(id: DescriptorId, state: &StateRef) {
     };
 
     if submission_allowed {
-        submit_new_allocations(id, state).await;
+        queue_try_submit(id, autoalloc, state).await;
     }
-    remove_inactive_directories(id, state).await;
-    try_remove_descriptor(id, state).await;
+    try_remove_queue(autoalloc, id).await;
 }
 
-/// Go through the allocations of descriptor with the given name and refresh their status.
-/// Queue allocations might become running or finished, running allocations might become finished,
-/// etc.
-async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
+fn get_data_from_worker<'a>(
+    state: &'a mut AutoAllocState,
+    id: WorkerId,
+    manager_info: &ManagerInfo,
+) -> Option<(&'a mut QueueState, QueueId, AllocationId)> {
+    let allocation_id = &manager_info.allocation_id;
+    match state.get_queue_id_by_allocation(allocation_id) {
+        Some(queue_id) => state
+            .get_queue_mut(queue_id)
+            .map(|queue| (queue, queue_id, allocation_id.clone())),
+        None => {
+            log::warn!("Worker {id} belongs to an unknown allocation {allocation_id}");
+            None
+        }
+    }
+}
+
+/// Synchronize the state of allocations with the external job manager.
+async fn refresh_queue_allocations(
+    state_ref: &StateRef,
+    autoalloc: &mut AutoAllocState,
+    id: QueueId,
+) {
+    let queue = get_or_return!(autoalloc.get_queue_mut(id));
+    if !queue.limiter().can_perform_status_check() {
+        return;
+    }
+
     let (status_fut, allocation_ids) = {
-        let state = state_ref.get();
-        let allocations: Vec<_> = get_or_return!(state.get_autoalloc_state().get_descriptor(id))
-            .active_allocations()
-            .collect();
+        let allocations: Vec<_> = queue.active_allocations().collect();
         if allocations.is_empty() {
             return;
         }
 
-        let fut = get_or_return!(state.get_autoalloc_state().get_descriptor(id))
-            .descriptor
-            .handler()
-            .get_status_of_allocations(&allocations);
+        let fut = queue.handler().get_status_of_allocations(&allocations);
         let allocation_ids: Vec<AllocationId> = allocations
             .into_iter()
             .map(|alloc| alloc.id.clone())
@@ -128,128 +391,245 @@ async fn refresh_allocations(id: DescriptorId, state_ref: &StateRef) {
         (fut, allocation_ids)
     };
 
+    queue.limiter_mut().on_status_attempt();
     let result = status_fut.await;
 
-    let mut state = state_ref.get_mut();
-    let (alloc_state, event_manager) = state.split_autoalloc_events_mut();
     match result {
         Ok(mut status_map) => {
-            let descriptor = get_or_return!(alloc_state.get_descriptor_mut(id));
+            let queue = get_or_return!(autoalloc.get_queue_mut(id));
             for allocation_id in allocation_ids {
-                let status = status_map.remove(&allocation_id);
-                handle_allocation_status(descriptor, event_manager, id, allocation_id, status);
+                let status = status_map.remove(&allocation_id).unwrap_or_else(|| {
+                    let now = SystemTime::now();
+                    Ok(AllocationExternalStatus::Failed {
+                        started_at: None,
+                        finished_at: now,
+                    })
+                });
+                match status {
+                    Ok(status) => match status {
+                        AllocationExternalStatus::Failed { .. }
+                        | AllocationExternalStatus::Finished { .. } => sync_allocation_status(
+                            state_ref,
+                            id,
+                            queue,
+                            &allocation_id,
+                            Some(status),
+                        ),
+                        _ => {}
+                    },
+                    Err(error) => {
+                        log::warn!("Could not get status of allocation {allocation_id}: {error:?}")
+                    }
+                }
             }
         }
-        Err(err) => {
-            log::error!(
-                "Failed to get allocations status from queue {}: {:?}",
-                id,
-                err
-            );
-            let descriptor = get_or_return!(alloc_state.get_descriptor_mut(id));
-            descriptor.add_event(AllocationEvent::StatusFail {
-                error: format!("{:?}", err),
-            });
+        Err(error) => {
+            log::error!("Failed to get allocations status from queue {id}: {error:?}",);
         }
     }
 }
 
-fn handle_allocation_status(
-    descriptor: &mut DescriptorState,
-    event_manager: &mut EventStorage,
-    descriptor_id: DescriptorId,
-    allocation_id: AllocationId,
-    status: Option<AutoAllocResult<AllocationStatus>>,
+// Event reactors
+fn on_worker_connected(
+    state_ref: &StateRef,
+    state: &mut AutoAllocState,
+    worker_id: WorkerId,
+    manager_info: &ManagerInfo,
 ) {
-    let working_dir = get_or_return!(descriptor.get_allocation(&allocation_id))
-        .working_dir
-        .clone();
+    let (queue, queue_id, allocation_id) =
+        get_or_return!(get_data_from_worker(state, worker_id, manager_info));
+    log::debug!("Worker {worker_id} connected to allocation {allocation_id}");
 
-    match status {
-        Some(status) => match status {
-            Ok(status) => {
-                let id = allocation_id.clone();
-                log::debug!("Status of allocation {}: {:?}", allocation_id, status);
-                match status {
-                    AllocationStatus::Running { .. } => {
-                        let allocation =
-                            get_or_return!(descriptor.get_allocation_mut(&allocation_id));
-                        if let AllocationStatus::Queued = allocation.status {
-                            event_manager
-                                .on_allocation_started(descriptor_id, allocation_id.clone());
-                            descriptor.add_event(AllocationEvent::AllocationStarted(allocation_id));
-                        }
-                    }
-                    AllocationStatus::Finished { .. } => {
-                        event_manager.on_allocation_finished(descriptor_id, allocation_id.clone());
-                        descriptor.add_event(AllocationEvent::AllocationFinished(allocation_id));
-                        descriptor.add_inactive_directory(working_dir);
-                        descriptor.get_limiter_mut().on_allocation_success();
-                    }
-                    AllocationStatus::Failed { .. } => {
-                        event_manager.on_allocation_finished(descriptor_id, allocation_id.clone());
-                        descriptor.add_event(AllocationEvent::AllocationFailed(allocation_id));
-                        descriptor.add_inactive_directory(working_dir);
-                        descriptor.get_limiter_mut().on_allocation_fail();
-                    }
-                    AllocationStatus::Queued => {}
-                };
-                get_or_return!(descriptor.get_allocation_mut(&id)).status = status;
+    let allocation = get_or_return!(queue.get_allocation_mut(&allocation_id));
+    match allocation.status {
+        AllocationState::Queued => {
+            allocation.status = AllocationState::Running {
+                connected_workers: Set::from_iter([worker_id]),
+                disconnected_workers: Default::default(),
+                started_at: SystemTime::now(),
+            };
+            state_ref
+                .get_mut()
+                .event_storage_mut()
+                .on_allocation_started(queue_id, allocation_id.clone());
+        }
+        AllocationState::Running {
+            ref mut connected_workers,
+            ..
+        } => {
+            if allocation.target_worker_count == connected_workers.len() as u64 {
+                log::warn!("Allocation {allocation_id} already has the expected number of workers, worker {worker_id} is not expected");
             }
-            Err(error) => {
-                log::warn!("Failed to get allocation {allocation_id} status: {error:?}");
+            if !connected_workers.insert(worker_id) {
+                log::warn!("Allocation {allocation_id} already had worker {worker_id} connected");
             }
-        },
-        None => {
-            log::warn!("Allocation {} was not found", allocation_id);
-            descriptor.remove_allocation(&allocation_id);
-            descriptor.add_event(AllocationEvent::AllocationDisappeared(allocation_id));
-            descriptor.add_inactive_directory(working_dir);
+        }
+        _ => {
+            log::warn!(
+                "Allocation {allocation_id} has status {:?} and does not expect new workers",
+                allocation.status
+            );
+        }
+    }
+}
+
+fn on_worker_lost(
+    state_ref: &StateRef,
+    state: &mut AutoAllocState,
+    worker_id: WorkerId,
+    manager_info: &ManagerInfo,
+    reason: LostWorkerReason,
+) {
+    let (queue, queue_id, allocation_id) =
+        get_or_return!(get_data_from_worker(state, worker_id, manager_info));
+    let allocation = get_or_return!(queue.get_allocation_mut(&allocation_id));
+
+    match allocation.status {
+        AllocationState::Queued => {
+            log::warn!(
+                "Worker {worker_id} has disconnected before it has connected to an allocation queue!"
+            );
+        }
+        AllocationState::Running {
+            ref mut disconnected_workers,
+            ref mut connected_workers,
+            ..
+        } => {
+            if !connected_workers.remove(&worker_id) {
+                log::warn!("Worker {worker_id} has disconnected multiple times!");
+            }
+            disconnected_workers.insert(worker_id, reason);
+            sync_allocation_status(state_ref, queue_id, queue, &allocation_id, None);
+        }
+        AllocationState::Finished { .. } => {
+            log::warn!(
+                "Worker {worker_id} has disconnected from an already finished allocation {}",
+                allocation.id
+            );
+        }
+        AllocationState::Invalid { .. } => {
+            log::warn!(
+                "Worker {worker_id} has disconnected from an invalid allocation {}",
+                allocation.id
+            );
+        }
+    }
+}
+
+fn sync_allocation_status(
+    state_ref: &StateRef,
+    queue_id: QueueId,
+    queue: &mut QueueState,
+    allocation_id: &str,
+    external_status: Option<AllocationExternalStatus>,
+) {
+    let allocation = get_or_return!(queue.get_allocation_mut(allocation_id));
+
+    enum Action {
+        Failure,
+        Success,
+    }
+
+    let action: Option<Action> = {
+        // Unexpected end of allocation
+        if let Some(status) = external_status {
+            let (connected, disconnected) = match &mut allocation.status {
+                AllocationState::Queued => (Default::default(), Default::default()),
+                AllocationState::Running {
+                    connected_workers,
+                    disconnected_workers,
+                    ..
+                } => (
+                    std::mem::take(connected_workers),
+                    std::mem::take(disconnected_workers),
+                ),
+                AllocationState::Finished { .. } | AllocationState::Invalid { .. } => {
+                    // The allocation was already finished before
+                    return;
+                }
+            };
+            let is_failed = matches!(status, AllocationExternalStatus::Failed { .. });
+            match status {
+                AllocationExternalStatus::Finished {
+                    started_at,
+                    finished_at,
+                }
+                | AllocationExternalStatus::Failed {
+                    started_at,
+                    finished_at,
+                } => {
+                    allocation.status = AllocationState::Invalid {
+                        connected_workers: connected,
+                        started_at,
+                        finished_at,
+                        disconnected_workers: disconnected,
+                        failed: is_failed,
+                    };
+                    Some(if is_failed {
+                        Action::Failure
+                    } else {
+                        Action::Success
+                    })
+                }
+                _ => None,
+            }
+        } else {
+            match &mut allocation.status {
+                AllocationState::Running {
+                    disconnected_workers,
+                    started_at,
+                    ..
+                } => {
+                    // All expected workers have disconnected, the allocation ends in a normal way
+                    if disconnected_workers.len() as u64 == allocation.target_worker_count {
+                        let is_failed = disconnected_workers
+                            .values()
+                            .any(|reason| reason.is_failure());
+
+                        allocation.status = AllocationState::Finished {
+                            started_at: *started_at,
+                            finished_at: SystemTime::now(),
+                            disconnected_workers: std::mem::take(disconnected_workers),
+                        };
+
+                        Some(if is_failed {
+                            Action::Failure
+                        } else {
+                            Action::Success
+                        })
+                    } else {
+                        None
+                    }
+                }
+                AllocationState::Invalid { .. }
+                | AllocationState::Finished { .. }
+                | AllocationState::Queued => None,
+            }
         }
     };
-}
 
-/// Find out if workers spawned in this queue can possibly provide computational resources
-/// for tasks of this job.
-fn can_provide_worker(job: &Job, queue_info: &QueueInfo) -> bool {
-    match &job.job_desc {
-        JobDescription::Array {
-            task_desc: TaskDescription { resources, .. },
-            ..
-        } => resources.min_time < queue_info.timelimit(),
-        JobDescription::Graph { .. } => {
-            todo!()
-        }
+    match action {
+        Some(Action::Success) => queue.limiter_mut().on_allocation_success(),
+        Some(Action::Failure) => queue.limiter_mut().on_allocation_fail(),
+        None => {}
+    }
+    if action.is_some() {
+        state_ref
+            .get_mut()
+            .event_storage_mut()
+            .on_allocation_finished(queue_id, allocation_id.to_string());
     }
 }
 
-fn count_available_tasks(state: &State, queue_info: &QueueInfo) -> u64 {
-    let waiting_tasks: u64 = state
-        .jobs()
-        .filter(|job| !job.is_terminated() && can_provide_worker(job, queue_info))
-        .map(|job| job.counters.n_waiting_tasks(job.n_tasks()) as u64)
-        .sum();
-    waiting_tasks
-}
-
-fn count_active_workers(descriptor: &DescriptorState) -> u64 {
-    descriptor
-        .active_allocations()
-        .map(|allocation| allocation.worker_count)
-        .sum()
-}
-
-/// Schedule new allocations for the descriptor with the given name.
-async fn submit_new_allocations(id: DescriptorId, state_ref: &StateRef) {
+async fn queue_try_submit(queue_id: QueueId, autoalloc: &mut AutoAllocState, state_ref: &StateRef) {
     let (allocations_to_create, workers_per_alloc, mut waiting_tasks, mut available_workers) = {
-        let state = state_ref.get();
-        let descriptor = get_or_return!(state.get_autoalloc_state().get_descriptor(id));
+        let queue = get_or_return!(autoalloc.get_queue(queue_id));
 
-        let allocs_in_queue = descriptor.queued_allocations().count();
+        let allocs_in_queue = queue.queued_allocations().count();
 
-        let waiting_tasks = count_available_tasks(&state, descriptor.descriptor.info());
-        let active_workers = count_active_workers(descriptor);
-        let info = descriptor.descriptor.info();
+        let info = queue.info();
+        let waiting_tasks = count_available_tasks(&state_ref.get(), info);
+        let active_workers = count_active_workers(queue);
         let available_workers = match info.max_worker_count() {
             Some(max) => (max as u64).saturating_sub(active_workers),
             None => u64::MAX,
@@ -278,11 +658,10 @@ async fn submit_new_allocations(id: DescriptorId, state_ref: &StateRef) {
 
         let workers_to_spawn = std::cmp::min(workers_per_alloc, available_workers);
         let schedule_fut = {
-            let mut state = state_ref.get_mut();
-            let descriptor = get_or_return!(state.get_autoalloc_state_mut().get_descriptor_mut(id));
-            let info = descriptor.descriptor.info().clone();
-            descriptor.descriptor.handler_mut().submit_allocation(
-                id,
+            let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
+            let info = queue.info().clone();
+            queue.handler_mut().submit_allocation(
+                queue_id,
                 &info,
                 workers_to_spawn,
                 SubmitMode::Submit,
@@ -292,108 +671,79 @@ async fn submit_new_allocations(id: DescriptorId, state_ref: &StateRef) {
         let result = schedule_fut.await;
 
         let mut state = state_ref.get_mut();
-        let (alloc_state, event_manager) = state.split_autoalloc_events_mut();
-        let descriptor = get_or_return!(alloc_state.get_descriptor_mut(id));
+        let event_manager = state.event_storage_mut();
         match result {
             Ok(submission_result) => {
                 let working_dir = submission_result.working_dir().to_path_buf();
                 match submission_result.into_id() {
                     Ok(allocation_id) => {
-                        log::info!("Queued {} workers into queue {}", workers_to_spawn, id);
+                        log::info!("Queued {workers_to_spawn} workers into queue {queue_id}");
                         event_manager.on_allocation_queued(
-                            id,
+                            queue_id,
                             allocation_id.clone(),
                             workers_to_spawn,
                         );
-                        descriptor
-                            .add_event(AllocationEvent::AllocationQueued(allocation_id.clone()));
-                        descriptor.add_allocation(Allocation {
-                            id: allocation_id,
-                            worker_count: workers_to_spawn,
-                            queued_at: SystemTime::now(),
-                            status: AllocationStatus::Queued,
-                            working_dir,
-                        });
-                        descriptor.get_limiter_mut().on_submission_success();
+                        let allocation =
+                            Allocation::new(allocation_id, workers_to_spawn, working_dir);
+                        autoalloc.add_allocation(allocation, queue_id);
+                        let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
+                        queue.limiter_mut().on_submission_success();
 
                         waiting_tasks = waiting_tasks.saturating_sub(workers_to_spawn);
                         available_workers = available_workers.saturating_sub(workers_to_spawn);
                     }
                     Err(err) => {
-                        log::error!("Failed to submit allocation into queue {}: {:?}", id, err);
-                        descriptor.add_event(AllocationEvent::QueueFail {
-                            error: format!("{:?}", err),
-                        });
-                        descriptor.get_limiter_mut().on_submission_fail();
-                        descriptor.add_inactive_directory(working_dir);
+                        log::error!("Failed to submit allocation into queue {queue_id}: {err:?}");
+                        autoalloc.add_inactive_directory(working_dir);
+                        let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
+                        queue.limiter_mut().on_submission_fail();
                         break;
                     }
                 }
             }
             Err(err) => {
-                log::error!(
-                    "Failed to create allocation directory for queue {}: {:?}",
-                    id,
-                    err
-                );
-                descriptor.add_event(AllocationEvent::QueueFail {
-                    error: format!("{:?}", err),
-                });
-                descriptor.get_limiter_mut().on_submission_fail();
+                log::error!("Failed to create allocation directory for queue {queue_id}: {err:?}");
+                let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
+                queue.limiter_mut().on_submission_fail();
                 break;
             }
         }
     }
 }
 
-/// Removes directories of inactive allocations scheduled for removal.
-async fn remove_inactive_directories(id: DescriptorId, state_ref: &StateRef) {
-    let to_remove = {
-        let mut state = state_ref.get_mut();
-        get_or_return!(state.get_autoalloc_state_mut().get_descriptor_mut(id))
-            .get_directories_for_removal()
-    };
-    let futures: Vec<_> = to_remove
-        .into_iter()
-        .map(|dir| async move {
-            let result = tokio::fs::remove_dir_all(&dir).await;
-            (result, dir)
-        })
-        .collect();
+async fn remove_inactive_directories(autoalloc: &mut AutoAllocState) {
+    let to_remove = autoalloc.get_directories_for_removal();
+    let futures = to_remove.into_iter().map(|dir| async move {
+        let result = tokio::fs::remove_dir_all(&dir).await;
+        (result, dir)
+    });
     for (result, directory) in join_all(futures).await {
         if let Err(err) = result {
-            log::error!(
-                "Failed to remove stale allocation directory {:?}: {:?}",
-                directory,
-                err
-            );
+            log::error!("Failed to remove stale allocation directory {directory:?}: {err:?}",);
         }
     }
 }
 
-/// Removes the descriptor if the rate limiter decides that it had too many failures.
-async fn try_remove_descriptor(id: DescriptorId, state_ref: &StateRef) {
+async fn try_remove_queue(autoalloc: &mut AutoAllocState, id: QueueId) {
     let futures = {
-        let mut state = state_ref.get_mut();
-        let state = state.get_autoalloc_state_mut();
-        let descriptor = get_or_return!(state.get_descriptor_mut(id));
-        let limiter = descriptor.get_limiter();
+        let queue = get_or_return!(autoalloc.get_queue_mut(id));
+        let limiter = queue.limiter();
 
-        let status = limiter.status();
+        let status = limiter.submission_status();
         match status {
             RateLimiterStatus::TooManyFailedSubmissions
             | RateLimiterStatus::TooManyFailedAllocations => {
                 if let RateLimiterStatus::TooManyFailedSubmissions = status {
                     log::error!(
-                        "The descriptor {id} had too many failed submissions, it will be removed."
+                        "The queue {id} had too many failed submissions, it will be removed."
                     );
                 } else {
                     log::error!(
-                        "The descriptor {id} had too many failed allocations, it will be removed."
+                        "The queue {id} had too many failed allocations, it will be removed."
                     );
                 }
-                let futures = prepare_descriptor_cleanup(descriptor);
-                state.remove_descriptor(id);
+                let futures = prepare_queue_cleanup(queue);
+                autoalloc.remove_queue(id);
                 futures
             }
             RateLimiterStatus::Ok | RateLimiterStatus::Wait => return,
@@ -402,298 +752,412 @@ async fn try_remove_descriptor(id: DescriptorId, state_ref: &StateRef) {
     futures::future::join_all(futures).await;
 }
 
+pub fn prepare_queue_cleanup(
+    state: &QueueState,
+) -> Vec<impl Future<Output = (AutoAllocResult<()>, AllocationId)>> {
+    let handler = state.handler();
+    state
+        .active_allocations()
+        .map(move |alloc| {
+            let allocation_id = alloc.id.clone();
+            let future = handler.remove_allocation(alloc);
+            async move { (future.await, allocation_id) }
+        })
+        .collect()
+}
+
+fn can_provide_worker(job: &Job, queue_info: &QueueInfo) -> bool {
+    match &job.job_desc {
+        JobDescription::Array {
+            task_desc: TaskDescription { resources, .. },
+            ..
+        } => resources.min_time < queue_info.timelimit(),
+        JobDescription::Graph { .. } => {
+            todo!()
+        }
+    }
+}
+
+fn count_available_tasks(state: &State, queue_info: &QueueInfo) -> u64 {
+    let waiting_tasks: u64 = state
+        .jobs()
+        .filter(|job| !job.is_terminated() && can_provide_worker(job, queue_info))
+        .map(|job| job.counters.n_waiting_tasks(job.n_tasks()) as u64)
+        .sum();
+    waiting_tasks
+}
+
+fn count_active_workers(queue: &QueueState) -> u64 {
+    queue
+        .active_allocations()
+        .map(|allocation| allocation.target_worker_count)
+        .sum()
+}
+
 #[cfg(test)]
 mod tests {
-    use anyhow::anyhow;
-    use derive_builder::Builder;
     use std::future::Future;
     use std::pin::Pin;
-    use std::time::{Duration, Instant, SystemTime};
-    use tako::common::{Map, Set};
+    use std::time::{Duration, Instant};
+
+    use anyhow::anyhow;
+    use derive_builder::Builder;
     use tempdir::TempDir;
 
-    use crate::common::arraydef::IntArray;
     use tako::common::resources::TimeRequest;
+    use tako::common::{Map, Set, WrappedRcRefCell};
     use tako::messages::common::ProgramDefinition;
-    use tako::messages::gateway::ResourceRequest;
+    use tako::messages::gateway::{LostWorkerReason, ResourceRequest};
+    use tako::worker::state::ServerLostPolicy;
+    use tako::WorkerId;
 
-    use crate::common::manager::info::ManagerType;
+    use crate::common::arraydef::IntArray;
+    use crate::common::manager::info::{ManagerInfo, ManagerType};
     use crate::common::timeutils::mock_time::MockTime;
-    use crate::server::autoalloc::descriptor::{
-        AllocationStatusMap, AllocationSubmissionResult, QueueDescriptor, QueueHandler, QueueInfo,
+    use crate::server::autoalloc::process::{
+        on_worker_connected, on_worker_lost, queue_try_submit, refresh_state,
     };
-    use crate::server::autoalloc::process::autoalloc_tick;
-    use crate::server::autoalloc::state::{AllocationEvent, AllocationId, AllocationStatus};
-    use crate::server::autoalloc::{
-        Allocation, AutoAllocResult, DescriptorId, RateLimiter, SubmitMode,
+    use crate::server::autoalloc::queue::{
+        AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
+        SubmitMode,
     };
+    use crate::server::autoalloc::state::{
+        AllocationState, AutoAllocState, QueueState, RateLimiter,
+    };
+    use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
     use crate::server::job::Job;
     use crate::server::state::StateRef;
+    use crate::tests::utils::create_hq_state;
     use crate::transfer::messages::{JobDescription, TaskDescription};
-    use crate::WrappedRcRefCell;
-    use tako::worker::state::ServerLostPolicy;
 
     #[tokio::test]
-    async fn test_log_failed_allocation_attempt_directory_fail() {
-        let state = create_state(1000);
-
-        let handler = Handler::new(
-            WrappedRcRefCell::wrap(()),
-            move |_, _| async move { anyhow::bail!("foo") },
-            move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
-            |_, _| async move { Ok(()) },
-        );
-        add_descriptor(&state, handler, QueueBuilder::default());
-
-        autoalloc_tick(&state).await;
-
-        let state = state.get();
-        let state = state.get_autoalloc_state();
-        let descriptor = state.get_descriptor(0).unwrap();
-        matches!(
-            descriptor.get_events()[0].event,
-            AllocationEvent::QueueFail { .. }
-        );
-    }
-
-    #[tokio::test]
-    async fn test_log_failed_allocation_attempt_submission_fail() {
-        let state = create_state(1000);
-
-        let handler = Handler::new(
-            WrappedRcRefCell::wrap(()),
-            move |_, _| async move {
-                Ok(AllocationSubmissionResult::new(
-                    Err(anyhow::anyhow!("foo")),
-                    Default::default(),
-                ))
-            },
-            move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
-            |_, _| async move { Ok(()) },
-        );
-        add_descriptor(&state, handler, QueueBuilder::default());
-
-        autoalloc_tick(&state).await;
-
-        let state = state.get();
-        let state = state.get_autoalloc_state();
-        let descriptor = state.get_descriptor(0).unwrap();
-        matches!(
-            descriptor.get_events()[0].event,
-            AllocationEvent::QueueFail { .. }
-        );
-    }
-
-    #[tokio::test]
-    async fn test_fill_backlog() {
-        let state = create_state(1000);
+    async fn fill_backlog() {
+        let hq_state = new_hq_state(1000);
+        let mut state = AutoAllocState::new();
 
         let handler = always_queued_handler();
-        add_descriptor(
-            &state,
+        let queue_id = add_queue(
+            &mut state,
             handler,
             QueueBuilder::default().backlog(4).workers_per_alloc(2),
         );
 
-        autoalloc_tick(&state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
 
-        let allocations = get_allocations(&state, 0);
+        let allocations = get_allocations(&state, queue_id);
         assert_eq!(allocations.len(), 4);
-        assert!(allocations.iter().all(|alloc| alloc.worker_count == 2));
+        assert!(allocations
+            .iter()
+            .all(|alloc| alloc.target_worker_count == 2));
     }
 
     #[tokio::test]
-    async fn test_do_nothing_on_full_backlog() {
-        let state = create_state(1000);
+    async fn do_nothing_on_full_backlog() {
+        let hq_state = new_hq_state(1000);
+        let mut state = AutoAllocState::new();
 
         let handler = always_queued_handler();
-        add_descriptor(&state, handler, QueueBuilder::default().backlog(4));
+        let queue_id = add_queue(&mut state, handler, QueueBuilder::default().backlog(4));
 
-        autoalloc_tick(&state).await;
-        autoalloc_tick(&state).await;
-        autoalloc_tick(&state).await;
-        autoalloc_tick(&state).await;
+        for _ in 0..5 {
+            queue_try_submit(queue_id, &mut state, &hq_state).await;
+        }
 
-        assert_eq!(get_allocations(&state, 0).len(), 4);
+        assert_eq!(get_allocations(&state, queue_id).len(), 4);
     }
 
     #[tokio::test]
-    async fn test_keep_backlog_filled() {
-        let state = create_state(1000);
+    async fn worker_connects_from_unknown_allocation() {
+        let hq_state = new_hq_state(1000);
+        let mut state = AutoAllocState::new();
 
-        let mut queue = Map::<AllocationId, isize>::new();
-        queue.insert("0".to_string(), 0); // run immediately
-        queue.insert("1".to_string(), 2); // run after two checks
-        queue.insert("2".to_string(), 3); // run after three checks
-
-        let handler = Handler::new(
-            WrappedRcRefCell::wrap((0, queue)),
-            move |state, _| async move {
-                let id_state = &mut state.get_mut().0;
-                let id = *id_state;
-                *id_state += 1;
-                Ok(AllocationSubmissionResult::new(
-                    Ok(id.to_string()),
-                    Default::default(),
-                ))
-            },
-            move |state, id| async move {
-                let queue_state = &mut state.get_mut().1;
-                let queue_time = *queue_state.get(&id).unwrap_or(&1000);
-                queue_state.insert(id, queue_time - 1);
-
-                let status = if queue_time <= 0 {
-                    AllocationStatus::Running {
-                        started_at: SystemTime::now(),
-                    }
-                } else {
-                    AllocationStatus::Queued
-                };
-                Ok(Some(status))
-            },
-            |_, _| async move { Ok(()) },
+        let handler = always_queued_handler();
+        let queue_id = add_queue(
+            &mut state,
+            handler,
+            QueueBuilder::default().backlog(1).workers_per_alloc(1),
         );
-        add_descriptor(&state, handler, QueueBuilder::default().backlog(3));
 
-        // schedule allocations
-        autoalloc_tick(&state).await;
-        check_allocation_count(get_allocations(&state, 0), 3, 0);
-
-        // add new job to queue
-        autoalloc_tick(&state).await;
-        check_allocation_count(get_allocations(&state, 0), 3, 1);
-
-        autoalloc_tick(&state).await;
-        check_allocation_count(get_allocations(&state, 0), 3, 1);
-
-        autoalloc_tick(&state).await;
-        check_allocation_count(get_allocations(&state, 0), 3, 2);
-
-        autoalloc_tick(&state).await;
-        check_allocation_count(get_allocations(&state, 0), 3, 3);
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        on_worker_connected(&hq_state, &mut state, 0.into(), &create_worker("foo"));
+        assert!(get_allocations(&state, queue_id)
+            .iter()
+            .all(|alloc| !alloc.is_running()));
     }
 
     #[tokio::test]
-    async fn test_do_not_create_allocations_without_tasks() {
-        let state = create_state(0);
+    async fn start_allocation_when_worker_connects() {
+        let hq_state = new_hq_state(1000);
+        let mut state = AutoAllocState::new();
 
         let handler = always_queued_handler();
-        add_descriptor(&state, handler, QueueBuilder::default().backlog(3));
+        let queue_id = add_queue(
+            &mut state,
+            handler,
+            QueueBuilder::default().backlog(1).workers_per_alloc(1),
+        );
 
-        autoalloc_tick(&state).await;
-        assert_eq!(get_allocations(&state, 0).len(), 0);
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        let allocs = get_allocations(&state, queue_id);
+
+        on_worker_connected(
+            &hq_state,
+            &mut state,
+            10.into(),
+            &create_worker(&allocs[0].id),
+        );
+        check_running_workers(get_allocations(&state, queue_id).get(0).unwrap(), vec![10]);
     }
 
     #[tokio::test]
-    async fn test_do_not_fill_backlog_when_tasks_run_out() {
-        let state = create_state(5);
+    async fn add_another_worker_to_allocation() {
+        let hq_state = new_hq_state(1000);
+        let mut state = AutoAllocState::new();
 
         let handler = always_queued_handler();
-        add_descriptor(
-            &state,
+        let queue_id = add_queue(
+            &mut state,
+            handler,
+            QueueBuilder::default().backlog(1).workers_per_alloc(2),
+        );
+
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        let allocs = get_allocations(&state, queue_id);
+
+        for id in [0, 1] {
+            on_worker_connected(
+                &hq_state,
+                &mut state,
+                id.into(),
+                &create_worker(&allocs[0].id),
+            );
+        }
+        check_running_workers(
+            get_allocations(&state, queue_id).get(0).unwrap(),
+            vec![0, 1],
+        );
+    }
+
+    #[tokio::test]
+    async fn finish_allocation_when_worker_disconnects() {
+        let hq_state = new_hq_state(1000);
+        let mut state = AutoAllocState::new();
+
+        let handler = always_queued_handler();
+        let queue_id = add_queue(
+            &mut state,
+            handler,
+            QueueBuilder::default().backlog(1).workers_per_alloc(1),
+        );
+
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        let allocs = get_allocations(&state, queue_id);
+
+        let worker_id: WorkerId = 0.into();
+        on_worker_connected(
+            &hq_state,
+            &mut state,
+            worker_id,
+            &create_worker(&allocs[0].id),
+        );
+        on_worker_lost(
+            &hq_state,
+            &mut state,
+            worker_id,
+            &create_worker(&allocs[0].id),
+            LostWorkerReason::ConnectionLost,
+        );
+        check_finished_workers(
+            get_allocations(&state, queue_id).get(0).unwrap(),
+            vec![(0, LostWorkerReason::ConnectionLost)],
+        );
+    }
+
+    #[tokio::test]
+    async fn finish_allocation_when_last_worker_disconnects() {
+        let hq_state = new_hq_state(1000);
+        let mut state = AutoAllocState::new();
+
+        let handler = always_queued_handler();
+        let queue_id = add_queue(
+            &mut state,
+            handler,
+            QueueBuilder::default().backlog(1).workers_per_alloc(2),
+        );
+
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        let allocs = get_allocations(&state, queue_id);
+
+        for id in [0, 1] {
+            on_worker_connected(
+                &hq_state,
+                &mut state,
+                id.into(),
+                &create_worker(&allocs[0].id),
+            );
+        }
+        on_worker_lost(
+            &hq_state,
+            &mut state,
+            0.into(),
+            &create_worker(&allocs[0].id),
+            LostWorkerReason::ConnectionLost,
+        );
+        let allocation = get_allocations(&state, queue_id)[0].clone();
+        check_running_workers(&allocation, vec![1]);
+        check_disconnected_running_workers(
+            &allocation,
+            vec![(0, LostWorkerReason::ConnectionLost)],
+        );
+        on_worker_lost(
+            &hq_state,
+            &mut state,
+            1.into(),
+            &create_worker(&allocs[0].id),
+            LostWorkerReason::HeartbeatLost,
+        );
+        let allocation = get_allocations(&state, queue_id)[0].clone();
+        check_finished_workers(
+            &allocation,
+            vec![
+                (0, LostWorkerReason::ConnectionLost),
+                (1, LostWorkerReason::HeartbeatLost),
+            ],
+        );
+    }
+
+    #[tokio::test]
+    async fn do_not_create_allocations_without_tasks() {
+        let hq_state = new_hq_state(0);
+        let mut state = AutoAllocState::new();
+
+        let handler = always_queued_handler();
+        let queue_id = add_queue(&mut state, handler, QueueBuilder::default().backlog(3));
+
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        assert_eq!(get_allocations(&state, queue_id).len(), 0);
+    }
+
+    #[tokio::test]
+    async fn do_not_fill_backlog_when_tasks_run_out() {
+        let hq_state = new_hq_state(5);
+        let mut state = AutoAllocState::new();
+
+        let handler = always_queued_handler();
+        let queue_id = add_queue(
+            &mut state,
             handler,
             QueueBuilder::default().backlog(5).workers_per_alloc(2),
         );
 
         // 5 tasks, 3 * 2 workers -> last two allocations should be ignored
-        autoalloc_tick(&state).await;
-        assert_eq!(get_allocations(&state, 0).len(), 3);
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        assert_eq!(get_allocations(&state, queue_id).len(), 3);
     }
 
     #[tokio::test]
-    async fn test_stop_allocating_on_error() {
-        let state = create_state(5);
+    async fn stop_allocating_on_error() {
+        let hq_state = new_hq_state(5);
+        let mut state = AutoAllocState::new();
 
-        let alloc_state = WrappedRcRefCell::wrap(AllocationState::default());
-        let handler = stateful_handler(alloc_state.clone());
-        add_descriptor(&state, handler, QueueBuilder::default().backlog(5));
+        let handler_state = WrappedRcRefCell::wrap(HandlerState::default());
+        let handler = stateful_handler(handler_state.clone());
+        let queue_id = add_queue(&mut state, handler, QueueBuilder::default().backlog(5));
 
-        alloc_state.get_mut().allocation_will_fail = true;
+        handler_state.get_mut().allocation_will_fail = true;
 
         // Only try the first allocation in the backlog
-        autoalloc_tick(&state).await;
-        assert_eq!(alloc_state.get().allocation_attempts, 1);
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        assert_eq!(handler_state.get().allocation_attempts, 1);
 
-        alloc_state.get_mut().allocation_will_fail = false;
+        handler_state.get_mut().allocation_will_fail = false;
 
         // Finish the rest
-        autoalloc_tick(&state).await;
-        assert_eq!(alloc_state.get().allocation_attempts, 6);
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        assert_eq!(handler_state.get().allocation_attempts, 6);
     }
 
     #[tokio::test]
-    async fn test_ignore_task_with_high_time_request() {
-        let state = create_state(0);
-        state
+    async fn ignore_task_with_high_time_request() {
+        let hq_state = new_hq_state(0);
+        hq_state
             .get_mut()
             .add_job(create_job(1, Duration::from_secs(60 * 60)));
+        let mut state = AutoAllocState::new();
 
         let handler = always_queued_handler();
-        add_descriptor(
-            &state,
+        let queue_id = add_queue(
+            &mut state,
             handler,
             QueueBuilder::default().timelimit(Duration::from_secs(60 * 30)),
         );
 
         // Allocations last for 30 minutes, but job requires 60 minutes
         // Nothing should be scheduled
-        autoalloc_tick(&state).await;
-        assert_eq!(get_allocations(&state, 0).len(), 0);
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        assert_eq!(get_allocations(&state, queue_id).len(), 0);
     }
 
     #[tokio::test]
-    async fn test_respect_max_worker_count() {
-        let state = create_state(100);
+    async fn respect_max_worker_count() {
+        let hq_state = new_hq_state(100);
+        let mut state = AutoAllocState::new();
 
-        let alloc_state = WrappedRcRefCell::wrap(AllocationState::default());
-        let handler = stateful_handler(alloc_state.clone());
+        let handler_state = WrappedRcRefCell::wrap(HandlerState::default());
+        let handler = stateful_handler(handler_state.clone());
 
-        add_descriptor(
-            &state,
+        let queue_id = add_queue(
+            &mut state,
             handler,
             QueueBuilder::default().backlog(4).max_worker_count(Some(5)),
         );
 
         // Put 4 allocations into the queue.
-        autoalloc_tick(&state).await;
-        assert_eq!(get_allocations(&state, 0).len(), 4);
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        let allocations = get_allocations(&state, queue_id);
+        assert_eq!(allocations.len(), 4);
 
         // Start 2 allocations
-        let now = SystemTime::now();
-        {
-            let alloc_state = &mut alloc_state.get_mut();
-            let running = AllocationStatus::Running { started_at: now };
-            alloc_state.set_status("0", running.clone());
-            alloc_state.set_status("1", running);
-        }
+        on_worker_connected(
+            &hq_state,
+            &mut state,
+            0.into(),
+            &create_worker(&allocations[0].id),
+        );
+        on_worker_connected(
+            &hq_state,
+            &mut state,
+            1.into(),
+            &create_worker(&allocations[1].id),
+        );
+
         // Create only one additional allocation
-        autoalloc_tick(&state).await;
-        assert_eq!(get_allocations(&state, 0).len(), 5);
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        assert_eq!(get_allocations(&state, queue_id).len(), 5);
 
         // Finish one allocation
-        {
-            let alloc_state = &mut alloc_state.get_mut();
-            alloc_state.set_status(
-                "0",
-                AllocationStatus::Finished {
-                    started_at: now,
-                    finished_at: now,
-                },
-            );
-        }
+        on_worker_lost(
+            &hq_state,
+            &mut state,
+            1.into(),
+            &create_worker(&allocations[1].id),
+            LostWorkerReason::ConnectionLost,
+        );
 
         // One worker was freed, create an additional allocation
-        autoalloc_tick(&state).await;
-        assert_eq!(get_allocations(&state, 0).len(), 6);
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        assert_eq!(get_allocations(&state, queue_id).len(), 6);
     }
 
     #[tokio::test]
-    async fn test_max_worker_count_shorten_last_allocation() {
-        let state = create_state(100);
+    async fn max_worker_count_shorten_last_allocation() {
+        let hq_state = new_hq_state(100);
+        let mut state = AutoAllocState::new();
+
         let handler = always_queued_handler();
 
-        add_descriptor(
-            &state,
+        let queue_id = add_queue(
+            &mut state,
             handler,
             QueueBuilder::default()
                 .backlog(2)
@@ -701,128 +1165,52 @@ mod tests {
                 .max_worker_count(Some(6)),
         );
 
-        autoalloc_tick(&state).await;
-        let allocations = get_allocations(&state, 0);
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        let allocations = get_allocations(&state, queue_id);
         assert_eq!(allocations.len(), 2);
-        assert_eq!(allocations[0].worker_count, 4);
-        assert_eq!(allocations[1].worker_count, 2);
+        assert_eq!(allocations[0].target_worker_count, 4);
+        assert_eq!(allocations[1].target_worker_count, 2);
     }
 
     #[tokio::test]
-    async fn test_delete_stale_directories_of_unsubmitted_allocations() {
-        let state = create_state(100);
+    async fn delete_stale_directories_of_unsubmitted_allocations() {
+        let hq_state = new_hq_state(100);
+        let mut state = AutoAllocState::new();
 
-        let shared = WrappedRcRefCell::wrap(Vec::new());
-        let handler = Handler::new(
-            shared.clone(),
-            move |state, _| async move {
-                let mut state = state.get_mut();
-
-                let tempdir = TempDir::new("hq").unwrap();
-                let dir = tempdir.into_path();
-                state.push(dir.clone());
-
-                Ok(AllocationSubmissionResult::new(
-                    Err(anyhow::anyhow!("failure")),
-                    dir,
-                ))
-            },
-            move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
-            |_, _| async move { Ok(()) },
-        );
-
-        let max_kept = 4;
-        add_descriptor(
-            &state,
-            handler,
-            QueueBuilder::default().max_kept_dirs(max_kept),
-        );
-
-        // Gather failures
-        for _ in 0..max_kept {
-            autoalloc_tick(&state).await;
-        }
-        for directory in shared.get().iter() {
-            assert!(directory.exists());
-        }
-
-        // Delete oldest directory
-        autoalloc_tick(&state).await;
-        assert!(!shared.get()[0].exists());
-        for directory in &shared.get()[1..] {
-            assert!(directory.exists());
-        }
-
-        // Delete second oldest directory
-        autoalloc_tick(&state).await;
-        assert!(!shared.get()[1].exists());
-        for directory in &shared.get()[2..] {
-            assert!(directory.exists());
-        }
-    }
-
-    #[tokio::test]
-    async fn test_delete_stale_directories_of_finished_allocations() {
-        let state = create_state(100);
-
-        let shared = WrappedRcRefCell::wrap(AllocationState::default());
-        let handler = stateful_handler(shared.clone());
-
-        let descriptor_id = add_descriptor(
-            &state,
-            handler,
-            QueueBuilder::default().backlog(1).max_kept_dirs(0),
-        );
-
-        let check_dir = |allocation_id: &str, exists: bool| {
-            let state = state.get();
-            let state = state.get_autoalloc_state();
-            let descriptor = state.get_descriptor(descriptor_id).unwrap();
-            let allocation = descriptor.get_allocation(allocation_id).unwrap();
-            assert_eq!(allocation.working_dir.exists(), exists);
+        let make_dir = || {
+            let tempdir = TempDir::new("hq").unwrap();
+            tempdir.into_path()
         };
 
-        // Spawn a single allocation
-        autoalloc_tick(&state).await;
+        let handler = fails_submit_handler();
 
-        // Check that queued job directory was not removed
-        autoalloc_tick(&state).await;
-        check_dir("0", true);
+        let max_kept = 2;
+        state.set_max_kept_directories(max_kept);
+        add_queue(&mut state, handler, QueueBuilder::default());
 
-        // Start the allocation
-        shared.get_mut().start("0");
+        let dirs = vec![make_dir(), make_dir()];
+        state.set_inactive_allocation_directories(dirs.iter().cloned().collect());
 
-        // Check that running job directory was not removed
-        autoalloc_tick(&state).await;
-        check_dir("0", true);
+        // Delete oldest directory
+        refresh_state(&hq_state, &mut state, None).await;
+        assert!(!dirs[0].exists());
+        assert!(dirs[1].exists());
 
-        // Finish the allocation
-        shared.get_mut().finish("0");
-
-        // Check that finished job directory was removed
-        autoalloc_tick(&state).await;
-        check_dir("0", false);
-
-        // Start next allocation
-        shared.get_mut().start("1");
-        autoalloc_tick(&state).await;
-        // Fail the allocation
-        shared.get_mut().fail("1");
-
-        // Check that failed job directory was removed
-        autoalloc_tick(&state).await;
-        check_dir("1", false);
+        // Delete second oldest directory
+        refresh_state(&hq_state, &mut state, None).await;
+        assert!(!dirs[1].exists());
     }
 
     #[tokio::test]
-    async fn test_remove_descriptor_when_submission_fails_too_many_times() {
-        let state = create_state(100);
+    async fn remove_queue_when_submission_fails_too_many_times() {
+        let hq_state = new_hq_state(100);
+        let mut state = AutoAllocState::new();
 
-        let shared = WrappedRcRefCell::wrap(AllocationState::default());
+        let shared = WrappedRcRefCell::wrap(HandlerState::default());
         let handler = stateful_handler(shared.clone());
 
-        let descriptor_id = add_descriptor(
-            &state,
+        let queue_id = add_queue(
+            &mut state,
             handler,
             QueueBuilder::default()
                 .backlog(5)
@@ -831,48 +1219,50 @@ mod tests {
 
         shared.get_mut().allocation_will_fail = true;
 
-        autoalloc_tick(&state).await;
-        check_queue_exists(&state, descriptor_id);
-        autoalloc_tick(&state).await;
-        check_queue_doesnt_exist(state, descriptor_id);
+        refresh_state(&hq_state, &mut state, None).await;
+        check_queue_exists(&state, queue_id);
+        refresh_state(&hq_state, &mut state, None).await;
+        check_queue_doesnt_exist(&state, queue_id);
     }
 
     #[tokio::test]
-    async fn test_remove_descriptor_when_allocation_fails_too_many_times() {
-        let state = create_state(100);
+    async fn remove_queue_when_allocation_fails_too_many_times() {
+        let hq_state = new_hq_state(100);
+        let mut state = AutoAllocState::new();
 
-        let shared = WrappedRcRefCell::wrap(AllocationState::default());
+        let shared = WrappedRcRefCell::wrap(HandlerState::default());
         let handler = stateful_handler(shared.clone());
 
-        let descriptor_id = add_descriptor(
-            &state,
+        let queue_id = add_queue(
+            &mut state,
             handler,
             QueueBuilder::default()
                 .backlog(5)
                 .limiter_max_alloc_fails(2),
         );
 
-        {
-            let mut shared = shared.get_mut();
-            shared.fail("1");
-            shared.fail("2");
-        }
+        queue_try_submit(queue_id, &mut state, &hq_state).await;
 
-        autoalloc_tick(&state).await;
-        check_queue_exists(&state, descriptor_id);
-        autoalloc_tick(&state).await;
-        check_queue_doesnt_exist(state, descriptor_id);
+        let allocations = get_allocations(&state, queue_id);
+        fail_allocation(&hq_state, &mut state, &allocations[0].id);
+        refresh_state(&hq_state, &mut state, Some(queue_id)).await;
+        check_queue_exists(&state, queue_id);
+
+        fail_allocation(&hq_state, &mut state, &allocations[1].id);
+        refresh_state(&hq_state, &mut state, Some(queue_id)).await;
+        check_queue_doesnt_exist(&state, queue_id);
     }
 
     #[tokio::test]
-    async fn test_respect_rate_limiter() {
-        let state = create_state(100);
+    async fn respect_rate_limiter() {
+        let hq_state = new_hq_state(100);
+        let mut state = AutoAllocState::new();
 
-        let shared = WrappedRcRefCell::wrap(AllocationState::default());
+        let shared = WrappedRcRefCell::wrap(HandlerState::default());
         let handler = stateful_handler(shared.clone());
 
-        add_descriptor(
-            &state,
+        add_queue(
+            &mut state,
             handler,
             QueueBuilder::default()
                 .backlog(5)
@@ -893,7 +1283,7 @@ mod tests {
         let mut now = Instant::now();
         {
             let _mock = MockTime::mock(now);
-            autoalloc_tick(&state).await;
+            refresh_state(&hq_state, &mut state, None).await;
             check_alloc_count(1);
         }
 
@@ -901,13 +1291,13 @@ mod tests {
         {
             now += Duration::from_millis(500);
             let _mock = MockTime::mock(now);
-            autoalloc_tick(&state).await;
+            refresh_state(&hq_state, &mut state, None).await;
             check_alloc_count(1);
         }
         {
             now += Duration::from_millis(1500);
             let _mock = MockTime::mock(now);
-            autoalloc_tick(&state).await;
+            refresh_state(&hq_state, &mut state, None).await;
             check_alloc_count(2);
         }
 
@@ -915,24 +1305,25 @@ mod tests {
         {
             now += Duration::from_millis(5000);
             let _mock = MockTime::mock(now);
-            autoalloc_tick(&state).await;
+            refresh_state(&hq_state, &mut state, None).await;
             check_alloc_count(2);
         }
         {
             now += Duration::from_millis(6000);
             let _mock = MockTime::mock(now);
-            autoalloc_tick(&state).await;
+            refresh_state(&hq_state, &mut state, None).await;
             check_alloc_count(3);
         }
         // The delay shouldn't increase any more when we have reached the maximum delay
         {
             now += Duration::from_millis(11000);
             let _mock = MockTime::mock(now);
-            autoalloc_tick(&state).await;
+            refresh_state(&hq_state, &mut state, None).await;
             check_alloc_count(4);
         }
     }
 
+    // Utilities
     struct Handler<ScheduleFn, StatusFn, RemoveFn, State> {
         schedule_fn: WrappedRcRefCell<ScheduleFn>,
         status_fn: WrappedRcRefCell<StatusFn>,
@@ -945,7 +1336,7 @@ mod tests {
             ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
             ScheduleFnFut: Future<Output = AutoAllocResult<AllocationSubmissionResult>>,
             StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
-            StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationStatus>>>,
+            StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationExternalStatus>>>,
             RemoveFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> RemoveFnFut,
             RemoveFnFut: Future<Output = AutoAllocResult<()>>,
         > Handler<ScheduleFn, StatusFn, RemoveFn, State>
@@ -970,14 +1361,14 @@ mod tests {
             ScheduleFn: 'static + Fn(WrappedRcRefCell<State>, u64) -> ScheduleFnFut,
             ScheduleFnFut: Future<Output = AutoAllocResult<AllocationSubmissionResult>>,
             StatusFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> StatusFnFut,
-            StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationStatus>>>,
+            StatusFnFut: Future<Output = AutoAllocResult<Option<AllocationExternalStatus>>>,
             RemoveFn: 'static + Fn(WrappedRcRefCell<State>, AllocationId) -> RemoveFnFut,
             RemoveFnFut: Future<Output = AutoAllocResult<()>>,
         > QueueHandler for Handler<ScheduleFn, StatusFn, RemoveFn, State>
     {
         fn submit_allocation(
             &mut self,
-            _descriptor_id: DescriptorId,
+            _queue_id: QueueId,
             _queue_info: &QueueInfo,
             worker_count: u64,
             _mode: SubmitMode,
@@ -1023,44 +1414,12 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct AllocationState {
-        state: Map<AllocationId, AllocationStatus>,
+    struct HandlerState {
+        state: Map<AllocationId, AllocationExternalStatus>,
         spawned_allocations: Set<AllocationId>,
         allocation_attempts: usize,
         allocation_will_fail: bool,
         deleted_allocations: Set<AllocationId>,
-    }
-
-    impl AllocationState {
-        fn set_status(&mut self, allocation: &str, status: AllocationStatus) {
-            self.state.insert(allocation.to_string(), status);
-        }
-        fn start(&mut self, allocation: &str) {
-            self.set_status(
-                allocation,
-                AllocationStatus::Running {
-                    started_at: SystemTime::now(),
-                },
-            );
-        }
-        fn finish(&mut self, allocation: &str) {
-            self.set_status(
-                allocation,
-                AllocationStatus::Finished {
-                    started_at: SystemTime::now(),
-                    finished_at: SystemTime::now(),
-                },
-            );
-        }
-        fn fail(&mut self, allocation: &str) {
-            self.set_status(
-                allocation,
-                AllocationStatus::Failed {
-                    started_at: SystemTime::now(),
-                    finished_at: SystemTime::now(),
-                },
-            );
-        }
     }
 
     // Handlers
@@ -1076,14 +1435,30 @@ mod tests {
                     Default::default(),
                 ))
             },
-            move |_, _| async move { Ok(Some(AllocationStatus::Queued)) },
+            move |_, _| async move { Ok(Some(AllocationExternalStatus::Queued)) },
+            |_, _| async move { Ok(()) },
+        )
+    }
+    fn fails_submit_handler() -> Box<dyn QueueHandler> {
+        Handler::new(
+            WrappedRcRefCell::wrap(()),
+            move |_, _| async move {
+                let tempdir = TempDir::new("hq").unwrap();
+                let dir = tempdir.into_path();
+
+                Ok(AllocationSubmissionResult::new(
+                    Err(anyhow::anyhow!("failure")),
+                    dir,
+                ))
+            },
+            move |_, _| async move { Ok(Some(AllocationExternalStatus::Queued)) },
             |_, _| async move { Ok(()) },
         )
     }
 
     /// Handler that spawns allocations with sequentially increasing IDs (starting at *0*) and
-    /// returns allocation statuses from [`AllocationState`].
-    fn stateful_handler(state: WrappedRcRefCell<AllocationState>) -> Box<dyn QueueHandler> {
+    /// returns allocation statuses from [`HandlerState`].
+    fn stateful_handler(state: WrappedRcRefCell<HandlerState>) -> Box<dyn QueueHandler> {
         Handler::new(
             state.clone(),
             move |state, _worker_count| async move {
@@ -1108,7 +1483,10 @@ mod tests {
             },
             move |state, id| async move {
                 let state = &mut state.get_mut().state;
-                let status = state.get(&id).cloned().unwrap_or(AllocationStatus::Queued);
+                let status = state
+                    .get(&id)
+                    .cloned()
+                    .unwrap_or(AllocationExternalStatus::Queued);
                 Ok(Some(status))
             },
             |state, id| async move {
@@ -1130,8 +1508,6 @@ mod tests {
         timelimit: Duration,
         #[builder(default)]
         max_worker_count: Option<u32>,
-        #[builder(default = "1")]
-        max_kept_dirs: usize,
         #[builder(default = "100")]
         limiter_max_alloc_fails: usize,
         #[builder(default = "100")]
@@ -1141,13 +1517,12 @@ mod tests {
     }
 
     impl QueueBuilder {
-        fn build(self) -> (QueueInfo, usize, RateLimiter) {
+        fn build(self) -> (QueueInfo, RateLimiter) {
             let Queue {
                 backlog,
                 workers_per_alloc,
                 timelimit,
                 max_worker_count,
-                max_kept_dirs,
                 limiter_max_alloc_fails,
                 limiter_max_submit_fails,
                 limiter_delays,
@@ -1163,40 +1538,28 @@ mod tests {
                     vec![],
                     max_worker_count,
                 ),
-                max_kept_dirs,
                 RateLimiter::new(
                     limiter_delays,
                     limiter_max_submit_fails,
                     limiter_max_alloc_fails,
+                    Duration::from_secs(1),
                 ),
             )
         }
     }
 
-    // Helper functions
-    fn add_descriptor(
-        state_ref: &StateRef,
+    fn add_queue(
+        autoalloc: &mut AutoAllocState,
         handler: Box<dyn QueueHandler>,
         queue_builder: QueueBuilder,
-    ) -> DescriptorId {
-        let (queue_info, max_kept_directories, limiter) = queue_builder.build();
-        let descriptor = QueueDescriptor::new(
-            ManagerType::Pbs,
-            queue_info,
-            None,
-            handler,
-            max_kept_directories,
-        );
-
-        let mut state = state_ref.get_mut();
-        let state = state.get_autoalloc_state_mut();
-        let id = state.descriptors().count() as DescriptorId;
-        state.add_descriptor(id, descriptor, limiter);
-        id
+    ) -> QueueId {
+        let (queue_info, limiter) = queue_builder.build();
+        let queue = QueueState::new(ManagerType::Pbs, queue_info, None, handler, limiter);
+        autoalloc.add_queue(queue)
     }
 
-    fn create_state(waiting_tasks: u32) -> StateRef {
-        let state = StateRef::new(Duration::from_millis(100), Default::default());
+    fn new_hq_state(waiting_tasks: u32) -> StateRef {
+        let state = create_hq_state();
         if waiting_tasks > 0 {
             state
                 .get_mut()
@@ -1205,34 +1568,15 @@ mod tests {
         state
     }
 
-    fn get_allocations(state: &StateRef, descriptor: DescriptorId) -> Vec<Allocation> {
-        let state = state.get();
-        let state = state.get_autoalloc_state();
-        let mut allocations: Vec<_> = state
-            .get_descriptor(descriptor)
+    fn get_allocations(autoalloc: &AutoAllocState, queue_id: QueueId) -> Vec<Allocation> {
+        let mut allocations: Vec<_> = autoalloc
+            .get_queue(queue_id)
             .unwrap()
             .all_allocations()
             .cloned()
             .collect();
         allocations.sort_by(|a, b| a.id.cmp(&b.id));
         allocations
-    }
-
-    fn check_allocation_count(allocations: Vec<Allocation>, queued: usize, running: usize) {
-        assert_eq!(
-            queued,
-            allocations
-                .iter()
-                .filter(|a| matches!(a.status, AllocationStatus::Queued))
-                .count()
-        );
-        assert_eq!(
-            running,
-            allocations
-                .iter()
-                .filter(|a| matches!(a.status, AllocationStatus::Running { .. }))
-                .count()
-        );
     }
 
     fn create_job(tasks: u32, min_time: TimeRequest) -> Job {
@@ -1271,19 +1615,82 @@ mod tests {
             Default::default(),
         )
     }
-
-    fn check_queue_exists(state: &StateRef, id: DescriptorId) {
-        assert!(state
-            .get()
-            .get_autoalloc_state()
-            .get_descriptor(id)
-            .is_some());
+    fn create_worker(allocation_id: &str) -> ManagerInfo {
+        ManagerInfo {
+            manager: ManagerType::Pbs,
+            allocation_id: allocation_id.to_string(),
+            time_limit: Some(Duration::from_secs(60 * 60)),
+        }
     }
-    fn check_queue_doesnt_exist(state: StateRef, id: DescriptorId) {
-        assert!(state
-            .get()
-            .get_autoalloc_state()
-            .get_descriptor(id)
-            .is_none());
+
+    fn check_running_workers(allocation: &Allocation, workers: Vec<u32>) {
+        let workers: Vec<WorkerId> = workers.into_iter().map(|id| WorkerId::from(id)).collect();
+        match &allocation.status {
+            AllocationState::Running {
+                connected_workers, ..
+            } => {
+                let mut connected: Vec<WorkerId> = connected_workers.iter().cloned().collect();
+                connected.sort_unstable();
+                assert_eq!(connected, workers);
+            }
+            _ => panic!("Allocation should be in running status"),
+        }
+    }
+    fn check_disconnected_running_workers(
+        allocation: &Allocation,
+        workers: Vec<(u32, LostWorkerReason)>,
+    ) {
+        let workers: Vec<(WorkerId, LostWorkerReason)> = workers
+            .into_iter()
+            .map(|(id, reason)| (WorkerId::from(id), reason))
+            .collect();
+        match &allocation.status {
+            AllocationState::Running {
+                disconnected_workers,
+                ..
+            } => {
+                let mut disconnected: Vec<_> = disconnected_workers.clone().into_iter().collect();
+                disconnected.sort_unstable_by_key(|(id, _)| *id);
+                assert_eq!(disconnected, workers);
+            }
+            _ => panic!("Allocation should be in running status"),
+        }
+    }
+    fn check_finished_workers(allocation: &Allocation, workers: Vec<(u32, LostWorkerReason)>) {
+        let workers: Vec<(WorkerId, LostWorkerReason)> = workers
+            .into_iter()
+            .map(|(id, reason)| (WorkerId::from(id), reason))
+            .collect();
+        match &allocation.status {
+            AllocationState::Finished {
+                disconnected_workers,
+                ..
+            } => {
+                let mut disconnected: Vec<_> = disconnected_workers.clone().into_iter().collect();
+                disconnected.sort_unstable_by_key(|(id, _)| *id);
+                assert_eq!(disconnected, workers);
+            }
+            _ => panic!("Allocation should be in finished status"),
+        }
+    }
+
+    fn check_queue_exists(autoalloc: &AutoAllocState, id: QueueId) {
+        assert!(autoalloc.get_queue(id).is_some());
+    }
+    fn check_queue_doesnt_exist(autoalloc: &AutoAllocState, id: QueueId) {
+        assert!(autoalloc.get_queue(id).is_none());
+    }
+
+    fn fail_allocation(hq_state: &StateRef, autoalloc: &mut AutoAllocState, allocation_id: &str) {
+        let minfo = create_worker(allocation_id);
+        let worker_id: WorkerId = 0.into();
+        on_worker_connected(hq_state, autoalloc, worker_id, &minfo);
+        on_worker_lost(
+            &hq_state,
+            autoalloc,
+            worker_id,
+            &minfo,
+            LostWorkerReason::ConnectionLost,
+        );
     }
 }

@@ -1,4 +1,4 @@
-use crate::server::autoalloc::{AllocationId, DescriptorId};
+use crate::server::autoalloc::{AllocationId, QueueId};
 use crate::server::event::events::MonitoringEventPayload;
 use crate::server::event::MonitoringEvent;
 use crate::transfer::messages::AllocationQueueParams;
@@ -45,7 +45,7 @@ pub fn get_allocation_status(info: &AllocationInfo, query_time: SystemTime) -> A
 /// Stores the state of different allocation queues and their allocations
 #[derive(Default)]
 pub struct AllocationTimeline {
-    queue_timelines: Map<DescriptorId, AllocationQueueInfo>,
+    queue_timelines: Map<QueueId, AllocationQueueInfo>,
 }
 
 impl AllocationQueueInfo {
@@ -108,32 +108,32 @@ impl AllocationTimeline {
                         },
                     );
                 }
-                MonitoringEventPayload::AllocationQueueRemoved(descriptor_id) => {
-                    let queue_state = self.queue_timelines.get_mut(descriptor_id).unwrap();
+                MonitoringEventPayload::AllocationQueueRemoved(queue_id) => {
+                    let queue_state = self.queue_timelines.get_mut(queue_id).unwrap();
                     queue_state.removal_time = Some(event.time);
                 }
                 MonitoringEventPayload::AllocationQueued {
-                    descriptor_id,
+                    queue_id,
                     allocation_id,
                     worker_count,
                 } => {
-                    let queue_state = self.queue_timelines.get_mut(descriptor_id).unwrap();
+                    let queue_state = self.queue_timelines.get_mut(queue_id).unwrap();
                     queue_state.add_queued_allocation(
                         allocation_id.clone(),
                         *worker_count,
                         event.time,
                     );
                 }
-                MonitoringEventPayload::AllocationStarted(descriptor_id, allocation_id) => {
-                    let queue_state = self.queue_timelines.get_mut(descriptor_id).unwrap();
+                MonitoringEventPayload::AllocationStarted(queue_id, allocation_id) => {
+                    let queue_state = self.queue_timelines.get_mut(queue_id).unwrap();
                     queue_state.update_allocation_state(
                         allocation_id,
                         AllocationStatus::Running,
                         event.time,
                     );
                 }
-                MonitoringEventPayload::AllocationFinished(descriptor_id, allocation_id) => {
-                    let queue_state = self.queue_timelines.get_mut(descriptor_id).unwrap();
+                MonitoringEventPayload::AllocationFinished(queue_id, allocation_id) => {
+                    let queue_state = self.queue_timelines.get_mut(queue_id).unwrap();
                     queue_state.update_allocation_state(
                         allocation_id,
                         AllocationStatus::Finished,
@@ -148,28 +148,25 @@ impl AllocationTimeline {
     pub fn get_queue_infos_at(
         &self,
         time: SystemTime,
-    ) -> impl Iterator<Item = (&DescriptorId, &AllocationQueueInfo)> + '_ {
+    ) -> impl Iterator<Item = (&QueueId, &AllocationQueueInfo)> + '_ {
         self.queue_timelines
             .iter()
             .filter(move |(_, info)| info.creation_time <= time)
     }
 
-    pub fn get_queue_params_for(
-        &self,
-        descriptor_id: &DescriptorId,
-    ) -> Option<&AllocationQueueParams> {
+    pub fn get_queue_params_for(&self, queue_id: &QueueId) -> Option<&AllocationQueueParams> {
         self.queue_timelines
-            .get(descriptor_id)
+            .get(queue_id)
             .map(|queue_info| &queue_info.queue_params)
     }
 
     pub fn get_allocations_for_queue(
         &self,
-        descriptor_id: DescriptorId,
+        queue_id: QueueId,
         time: SystemTime,
     ) -> Option<impl Iterator<Item = (&AllocationId, &AllocationInfo)> + '_> {
         self.get_queue_infos_at(time)
-            .find(|(id, _)| **id == descriptor_id)
+            .find(|(id, _)| **id == queue_id)
             .map(move |(_, info)| {
                 info.allocations
                     .iter()

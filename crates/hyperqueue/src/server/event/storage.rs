@@ -1,4 +1,4 @@
-use crate::server::autoalloc::{AllocationId, DescriptorId};
+use crate::server::autoalloc::{AllocationId, QueueId};
 use crate::server::event::events::MonitoringEventPayload;
 use crate::server::event::log::EventStreamSender;
 use crate::server::event::{MonitoringEvent, MonitoringEventId};
@@ -85,52 +85,40 @@ impl EventStorage {
         self.insert_event(MonitoringEventPayload::TaskFailed(task_id));
     }
 
-    pub fn on_allocation_queue_created(
-        &mut self,
-        id: DescriptorId,
-        parameters: AllocationQueueParams,
-    ) {
+    pub fn on_allocation_queue_created(&mut self, id: QueueId, parameters: AllocationQueueParams) {
         self.insert_event(MonitoringEventPayload::AllocationQueueCreated(
             id,
             Box::new(parameters),
         ))
     }
 
-    pub fn on_allocation_queue_removed(&mut self, id: DescriptorId) {
+    pub fn on_allocation_queue_removed(&mut self, id: QueueId) {
         self.insert_event(MonitoringEventPayload::AllocationQueueRemoved(id))
     }
 
     pub fn on_allocation_queued(
         &mut self,
-        descriptor_id: DescriptorId,
+        queue_id: QueueId,
         allocation_id: AllocationId,
         worker_count: u64,
     ) {
         self.insert_event(MonitoringEventPayload::AllocationQueued {
-            descriptor_id,
+            queue_id,
             allocation_id,
             worker_count,
         })
     }
 
-    pub fn on_allocation_started(
-        &mut self,
-        descriptor_id: DescriptorId,
-        allocation_id: AllocationId,
-    ) {
+    pub fn on_allocation_started(&mut self, queue_id: QueueId, allocation_id: AllocationId) {
         self.insert_event(MonitoringEventPayload::AllocationStarted(
-            descriptor_id,
+            queue_id,
             allocation_id,
         ));
     }
 
-    pub fn on_allocation_finished(
-        &mut self,
-        descriptor_id: DescriptorId,
-        allocation_id: AllocationId,
-    ) {
+    pub fn on_allocation_finished(&mut self, queue_id: QueueId, allocation_id: AllocationId) {
         self.insert_event(MonitoringEventPayload::AllocationFinished(
-            descriptor_id,
+            queue_id,
             allocation_id,
         ));
     }

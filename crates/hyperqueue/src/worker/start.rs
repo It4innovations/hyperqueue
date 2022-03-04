@@ -504,8 +504,13 @@ fn try_get_pbs_info() -> anyhow::Result<ManagerInfo> {
     let manager_job_id =
         std::env::var("PBS_JOBID").expect("PBS_JOBID not found in environment variables");
 
-    let time_limit =
-        pbs::get_remaining_timelimit(&manager_job_id).expect("Could not get PBS timelimit");
+    let time_limit = match pbs::get_remaining_timelimit(&manager_job_id) {
+        Ok(time_limit) => Some(time_limit),
+        Err(error) => {
+            log::warn!("Cannot get time-limit from PBS: {error:?}");
+            None
+        }
+    };
 
     log::info!("PBS environment detected");
 
@@ -533,7 +538,7 @@ fn try_get_slurm_info() -> anyhow::Result<ManagerInfo> {
     Ok(ManagerInfo::new(
         ManagerType::Slurm,
         manager_job_id,
-        duration,
+        Some(duration),
     ))
 }
 
@@ -611,7 +616,7 @@ pub fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfi
         time_limit: opts
             .time_limit
             .map(|x| x.unpack())
-            .or_else(|| manager_info.map(|m| m.time_limit)),
+            .or_else(|| manager_info.and_then(|m| m.time_limit)),
         hostname,
         work_dir,
         log_dir,

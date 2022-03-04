@@ -3,6 +3,7 @@ use std::future::Future;
 use tokio::task::{JoinHandle, LocalSet};
 
 use crate::common::parser::{consume_all, NomResult};
+use crate::server::state::StateRef;
 
 pub fn check_parse_error<F: FnMut(&str) -> NomResult<O>, O>(
     parser: F,
@@ -30,4 +31,8 @@ pub async fn run_concurrent<
     let handle = set.spawn_local(background_fut);
     set.run_until(fut).await;
     (set, handle)
+}
+
+pub fn create_hq_state() -> StateRef {
+    StateRef::new(Default::default())
 }

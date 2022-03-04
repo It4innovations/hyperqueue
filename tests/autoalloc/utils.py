@@ -1,7 +1,6 @@
 from typing import List, Optional
 
 from ..conftest import HqEnv
-from ..utils.wait import wait_until
 
 
 def program_code_store_args_json(path: str) -> str:
@@ -75,18 +74,6 @@ def add_queue(
 
 def prepare_tasks(hq_env: HqEnv, count=1000):
     hq_env.command(["submit", f"--array=0-{count}", "sleep", "1"])
-
-
-def wait_for_event(hq_env: HqEnv, state: str):
-    """
-    Wait for auto allocation event with the given `state` to appear.
-    """
-
-    def wait():
-        table = hq_env.command(["alloc", "events", "1"], as_table=True)
-        return state in table.get_column_value("Event")
-
-    wait_until(wait)
 
 
 def remove_queue(hq_env: HqEnv, queue_id: int, force=False, **kwargs):

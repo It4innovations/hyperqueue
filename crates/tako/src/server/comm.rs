@@ -116,12 +116,15 @@ impl Comm for CommSender {
     #[inline]
     fn send_client_task_finished(&mut self, task_id: TaskId) {
         log::debug!("Informing client about finished task={}", task_id);
-        self.client_sender
+        if let Err(error) = self
+            .client_sender
             .send(ToGatewayMessage::TaskUpdate(TaskUpdate {
                 id: task_id,
                 state: TaskState::Finished,
             }))
-            .unwrap();
+        {
+            log::error!("Error while task finished message to client: {error:?}");
+        }
     }
 
     fn send_client_task_started(
@@ -131,12 +134,15 @@ impl Comm for CommSender {
         context: SerializedTaskContext,
     ) {
         log::debug!("Informing client about running task={}", task_id);
-        self.client_sender
+        if let Err(error) = self
+            .client_sender
             .send(ToGatewayMessage::TaskUpdate(TaskUpdate {
                 id: task_id,
                 state: TaskState::Running { worker_id, context },
             }))
-            .unwrap();
+        {
+            log::error!("Error while task started message to client: {error:?}");
+        }
     }
 
     fn send_client_task_error(
@@ -145,25 +151,27 @@ impl Comm for CommSender {
         consumers_id: Vec<TaskId>,
         error_info: TaskFailInfo,
     ) {
-        self.client_sender
-            .send(ToGatewayMessage::TaskFailed({
-                TaskFailedMessage {
-                    id: task_id,
-                    info: error_info,
-                    cancelled_tasks: consumers_id,
-                }
-            }))
-            .unwrap();
+        if let Err(error) = self.client_sender.send(ToGatewayMessage::TaskFailed({
+            TaskFailedMessage {
+                id: task_id,
+                info: error_info,
+                cancelled_tasks: consumers_id,
+            }
+        })) {
+            log::error!("Error while task error message to client: {error:?}");
+        }
     }
 
     fn send_client_worker_new(&mut self, worker_id: WorkerId, configuration: &WorkerConfiguration) {
-        assert!(self
+        if let Err(error) = self
             .client_sender
             .send(ToGatewayMessage::NewWorker(NewWorkerMessage {
                 worker_id,
                 configuration: configuration.clone(),
             }))
-            .is_ok());
+        {
+            log::error!("Error while new worker message to client: {error:?}");
+        }
     }
 
     fn send_client_worker_lost(
@@ -172,15 +180,15 @@ impl Comm for CommSender {
         running_tasks: Vec<TaskId>,
         reason: LostWorkerReason,
     ) {
-        if let Err(e) = self
-            .client_sender
-            .send(ToGatewayMessage::LostWorker(LostWorkerMessage {
-                worker_id,
-                running_tasks,
-                reason,
-            }))
+        if let Err(error) =
+            self.client_sender
+                .send(ToGatewayMessage::LostWorker(LostWorkerMessage {
+                    worker_id,
+                    running_tasks,
+                    reason,
+                }))
         {
-            log::error!("Error while sending worker lost message to client: {:?}", e);
+            log::error!("Error while sending worker lost message to client: {error:?}");
         }
     }
 

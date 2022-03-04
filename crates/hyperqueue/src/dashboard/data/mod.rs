@@ -9,7 +9,7 @@ use crate::dashboard::data::alloc_timeline::{
     AllocationInfo, AllocationQueueInfo, AllocationTimeline,
 };
 use crate::dashboard::data::task_timeline::{TaskInfo, TaskTimeline};
-use crate::server::autoalloc::{AllocationId, DescriptorId};
+use crate::server::autoalloc::{AllocationId, QueueId};
 use crate::server::event::events::MonitoringEventPayload;
 use crate::server::event::MonitoringEvent;
 use crate::transfer::connection::ClientConnection;
@@ -67,25 +67,22 @@ impl DashboardData {
     pub fn query_allocation_queues_at(
         &self,
         time: SystemTime,
-    ) -> impl Iterator<Item = (&DescriptorId, &AllocationQueueInfo)> + '_ {
+    ) -> impl Iterator<Item = (&QueueId, &AllocationQueueInfo)> + '_ {
         self.alloc_timeline.get_queue_infos_at(time)
     }
 
-    pub fn query_allocation_params(
-        &self,
-        descriptor_id: DescriptorId,
-    ) -> Option<&AllocationQueueParams> {
-        self.alloc_timeline.get_queue_params_for(&descriptor_id)
+    pub fn query_allocation_params(&self, queue_id: QueueId) -> Option<&AllocationQueueParams> {
+        self.alloc_timeline.get_queue_params_for(&queue_id)
     }
 
     /// The Queued and Running allocations at `time` for a queue.
     pub fn query_allocations_info_at(
         &self,
-        descriptor_id: DescriptorId,
+        queue_id: QueueId,
         time: SystemTime,
     ) -> Option<impl Iterator<Item = (&AllocationId, &AllocationInfo)> + '_> {
         self.alloc_timeline
-            .get_allocations_for_queue(descriptor_id, time)
+            .get_allocations_for_queue(queue_id, time)
     }
 
     pub fn query_worker_info_for(&self, worker_id: &WorkerId) -> Option<&WorkerConfiguration> {

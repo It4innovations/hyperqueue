@@ -1,5 +1,5 @@
 use crate::server::autoalloc::AllocationId;
-use crate::server::autoalloc::DescriptorId;
+use crate::server::autoalloc::QueueId;
 use crate::transfer::messages::AllocationQueueParams;
 use crate::WorkerId;
 use serde::{Deserialize, Serialize};
@@ -26,19 +26,19 @@ pub enum MonitoringEventPayload {
     // Task that failed to execute
     TaskFailed(TaskId),
     /// New allocation queue has been created
-    AllocationQueueCreated(DescriptorId, Box<AllocationQueueParams>),
+    AllocationQueueCreated(QueueId, Box<AllocationQueueParams>),
     /// Allocation queue has been removed
-    AllocationQueueRemoved(DescriptorId),
+    AllocationQueueRemoved(QueueId),
     /// Allocation was submitted into PBS/Slurm
     AllocationQueued {
-        descriptor_id: DescriptorId,
+        queue_id: QueueId,
         allocation_id: AllocationId,
         worker_count: u64,
     },
     /// PBS/Slurm allocation started executing
-    AllocationStarted(DescriptorId, AllocationId),
+    AllocationStarted(QueueId, AllocationId),
     /// PBS/Slurm allocation has finished executing
-    AllocationFinished(DescriptorId, AllocationId),
+    AllocationFinished(QueueId, AllocationId),
 }
 
 // Keep the size of the event structure in check

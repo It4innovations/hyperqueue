@@ -5,6 +5,7 @@ use anyhow::Error;
 use chrono::{DateTime, Utc};
 use serde_json;
 use serde_json::{json, Value};
+use tako::common::Map;
 
 use tako::common::resources::{
     CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, ResourceDescriptor,
@@ -17,16 +18,14 @@ use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
 use crate::client::output::outputs::{Output, OutputStream};
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::AccessRecord;
-use crate::server::autoalloc::{
-    Allocation, AllocationEvent, AllocationEventHolder, AllocationStatus, DescriptorId,
-};
+use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
 use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, QueueDescriptorData, StatsResponse,
+    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, QueueData, StatsResponse,
     TaskDescription, WaitForJobsResponse, WorkerInfo,
 };
-use crate::{JobId, JobTaskId, Map};
+use crate::{JobId, JobTaskId};
 
 #[derive(Default)]
 pub struct JsonOutput;
@@ -200,20 +199,17 @@ impl Output for JsonOutput {
     }
 
     fn print_autoalloc_queues(&self, info: AutoAllocListResponse) {
-        let mut descriptors: Vec<_> = info.descriptors.into_iter().collect();
-        descriptors.sort_by_key(|descriptor| descriptor.0);
+        let mut queues: Vec<_> = info.queues.into_iter().collect();
+        queues.sort_by_key(|descriptor| descriptor.0);
 
         self.print(
-            descriptors
+            queues
                 .iter()
-                .map(|(key, descriptor)| format_queue_descriptor(*key, descriptor))
+                .map(|(key, queue)| format_autoalloc_queue(*key, queue))
                 .collect(),
         );
     }
 
-    fn print_event_log(&self, events: Vec<AllocationEventHolder>) {
-        self.print(events.into_iter().map(format_allocation_event).collect());
-    }
     fn print_allocations(&self, allocations: Vec<Allocation>) {
         self.print(allocations.into_iter().map(format_allocation).collect());
     }
@@ -328,10 +324,7 @@ fn format_tasks(tasks: Vec<JobTaskInfo>, map: TaskToPathsMap) -> serde_json::Val
         .collect()
 }
 
-fn format_queue_descriptor(
-    id: DescriptorId,
-    descriptor: &QueueDescriptorData,
-) -> serde_json::Value {
+fn format_autoalloc_queue(id: QueueId, descriptor: &QueueData) -> serde_json::Value {
     let manager = match descriptor.manager_type {
         ManagerType::Pbs => "PBS",
         ManagerType::Slurm => "Slurm",
@@ -355,67 +348,37 @@ fn format_queue_descriptor(
 fn format_allocation(allocation: Allocation) -> serde_json::Value {
     let Allocation {
         id,
-        worker_count,
+        target_worker_count,
         queued_at,
         status,
         working_dir,
     } = allocation;
 
     let status_name = match &status {
-        AllocationStatus::Queued => "queued",
-        AllocationStatus::Running { .. } => "running",
-        AllocationStatus::Finished { .. } => "finished",
-        AllocationStatus::Failed { .. } => "failed",
+        AllocationState::Queued => "queued",
+        AllocationState::Running { .. } => "running",
+        AllocationState::Finished { .. } if status.is_failed() => "failed",
+        AllocationState::Invalid { .. } => "failed",
+        AllocationState::Finished { .. } => "finished",
     };
     let started_at = match status {
-        AllocationStatus::Running { started_at }
-        | AllocationStatus::Finished { started_at, .. }
-        | AllocationStatus::Failed { started_at, .. } => Some(started_at),
+        AllocationState::Running { started_at, .. }
+        | AllocationState::Finished { started_at, .. } => Some(started_at),
         _ => None,
     };
     let ended_at = match status {
-        AllocationStatus::Finished { finished_at, .. }
-        | AllocationStatus::Failed { finished_at, .. } => Some(finished_at),
+        AllocationState::Finished { finished_at, .. } => Some(finished_at),
         _ => None,
     };
 
     json!({
         "id": id,
-        "worker_count": worker_count,
+        "target_worker_count": target_worker_count,
         "queued_at": format_datetime(queued_at),
         "started_at": started_at.map(format_datetime),
         "ended_at": ended_at.map(format_datetime),
         "status": status_name,
         "workdir": working_dir
-    })
-}
-fn format_allocation_event(event: AllocationEventHolder) -> serde_json::Value {
-    let name = match &event.event {
-        AllocationEvent::AllocationQueued(_) => "allocation-queued",
-        AllocationEvent::AllocationStarted(_) => "allocation-started",
-        AllocationEvent::AllocationFinished(_) => "allocation-finished",
-        AllocationEvent::AllocationFailed(_) => "allocation-failed",
-        AllocationEvent::AllocationDisappeared(_) => "allocation-disappeared",
-        AllocationEvent::QueueFail { .. } => "queue-fail",
-        AllocationEvent::StatusFail { .. } => "status-fail",
-    };
-    let params = match event.event {
-        AllocationEvent::AllocationQueued(id)
-        | AllocationEvent::AllocationStarted(id)
-        | AllocationEvent::AllocationFinished(id)
-        | AllocationEvent::AllocationFailed(id)
-        | AllocationEvent::AllocationDisappeared(id) => {
-            json!({ "id": id })
-        }
-        AllocationEvent::QueueFail { error } | AllocationEvent::StatusFail { error } => {
-            json!({ "error": error })
-        }
-    };
-
-    json!({
-        "date": format_datetime(event.date),
-        "event": name,
-        "params": params
     })
 }
 

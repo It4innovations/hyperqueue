@@ -34,38 +34,38 @@ fn format_payload(event: MonitoringEventPayload) -> serde_json::Value {
         MonitoringEventPayload::AllocationQueueCreated(id, _params) => {
             json!({
                 "type": "autoalloc-queue-created",
-                "descriptor-id": id
+                "queue-id": id
             })
         }
         MonitoringEventPayload::AllocationQueueRemoved(id) => {
             json!({
                 "type": "autoalloc-queue-removed",
-                "descriptor-id": id
+                "queue-id": id
             })
         }
         MonitoringEventPayload::AllocationQueued {
-            descriptor_id,
+            queue_id,
             allocation_id,
             worker_count,
         } => {
             json!({
                 "type": "autoalloc-allocation-queued",
-                "descriptor-id": descriptor_id,
+                "queue-id": queue_id,
                 "allocation-id": allocation_id,
                 "worker-count": worker_count
             })
         }
-        MonitoringEventPayload::AllocationStarted(descriptor_id, allocation_id) => {
+        MonitoringEventPayload::AllocationStarted(queue_id, allocation_id) => {
             json!({
                 "type": "autoalloc-allocation-started",
-                "descriptor-id": descriptor_id,
+                "queue-id": queue_id,
                 "allocation-id": allocation_id,
             })
         }
-        MonitoringEventPayload::AllocationFinished(descriptor_id, allocation_id) => {
+        MonitoringEventPayload::AllocationFinished(queue_id, allocation_id) => {
             json!({
                 "type": "autoalloc-allocation-finished",
-                "descriptor-id": descriptor_id,
+                "queue-id": queue_id,
                 "allocation-id": allocation_id,
             })
         }

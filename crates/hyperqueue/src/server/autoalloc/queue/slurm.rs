@@ -1,28 +1,25 @@
+use crate::common::fsutils::get_current_dir;
+use anyhow::Context;
+use bstr::ByteSlice;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::{Duration, SystemTime};
-
-use crate::common::fsutils::get_current_dir;
-use crate::Map;
-use anyhow::Context;
-use bstr::ByteSlice;
+use tako::common::Map;
 
 use crate::common::manager::info::ManagerType;
 use crate::common::manager::slurm::{
     format_slurm_duration, get_scontrol_items, parse_slurm_datetime,
 };
 use crate::common::timeutils::local_to_system_time;
-use crate::server::autoalloc::descriptor::common::{
+use crate::server::autoalloc::queue::common::{
     build_worker_args, create_allocation_dir, create_command, submit_script, ExternalHandler,
 };
-use crate::server::autoalloc::descriptor::{
-    common, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
+use crate::server::autoalloc::queue::{
+    common, AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult,
+    QueueHandler, SubmitMode,
 };
-use crate::server::autoalloc::state::AllocationStatus;
-use crate::server::autoalloc::{
-    Allocation, AllocationId, AutoAllocResult, DescriptorId, QueueInfo, SubmitMode,
-};
+use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
 
 pub struct SlurmHandler {
     handler: ExternalHandler,
@@ -38,7 +35,7 @@ impl SlurmHandler {
 impl QueueHandler for SlurmHandler {
     fn submit_allocation(
         &mut self,
-        descriptor_id: DescriptorId,
+        queue_id: QueueId,
         queue_info: &QueueInfo,
         worker_count: u64,
         _mode: SubmitMode,
@@ -53,7 +50,7 @@ impl QueueHandler for SlurmHandler {
         Box::pin(async move {
             let working_dir = create_allocation_dir(
                 server_directory.clone(),
-                descriptor_id,
+                queue_id,
                 name.as_ref(),
                 allocation_num,
             )?;
@@ -63,7 +60,7 @@ impl QueueHandler for SlurmHandler {
             let script = build_slurm_submit_script(
                 worker_count,
                 timelimit,
-                &format!("hq-alloc-{}", descriptor_id),
+                &format!("hq-alloc-{}", queue_id),
                 &working_dir.join("stdout").display().to_string(),
                 &working_dir.join("stderr").display().to_string(),
                 &queue_info.additional_args.join(" "),
@@ -125,7 +122,7 @@ impl QueueHandler for SlurmHandler {
 async fn get_allocation_status(
     allocation_id: &str,
     workdir: &Path,
-) -> AutoAllocResult<AllocationStatus> {
+) -> AutoAllocResult<AllocationExternalStatus> {
     let arguments = vec!["scontrol", "show", "job", allocation_id];
     log::debug!("Running Slurm command `{}`", arguments.join(" "));
 
@@ -141,7 +138,7 @@ async fn get_allocation_status(
     parse_slurm_status(items)
 }
 
-fn parse_slurm_status(items: Map<&str, &str>) -> AutoAllocResult<AllocationStatus> {
+fn parse_slurm_status(items: Map<&str, &str>) -> AutoAllocResult<AllocationExternalStatus> {
     let get_key = |key: &str| -> AutoAllocResult<&str> {
         let value = items.get(key);
         value
@@ -156,24 +153,22 @@ fn parse_slurm_status(items: Map<&str, &str>) -> AutoAllocResult<AllocationStatu
 
     let status = get_key("JobState")?;
     let status = match status {
-        "PENDING" | "CONFIGURING" => AllocationStatus::Queued,
-        "RUNNING" | "COMPLETING" => {
-            let started_at = parse_time(get_key("StartTime")?)?;
-            AllocationStatus::Running { started_at }
-        }
+        "PENDING" | "CONFIGURING" => AllocationExternalStatus::Queued,
+        "RUNNING" | "COMPLETING" => AllocationExternalStatus::Running,
         "COMPLETED" | "CANCELLED" | "FAILED" | "TIMEOUT" => {
             let finished = matches!(status, "COMPLETED" | "TIMEOUT");
             let started_at = parse_time(get_key("StartTime")?)?;
             let finished_at = parse_time(get_key("EndTime")?)?;
 
             if finished {
-                AllocationStatus::Finished {
-                    started_at,
+                AllocationExternalStatus::Finished {
+                    // TODO: handle case where the allocation didn't start at all
+                    started_at: Some(started_at),
                     finished_at,
                 }
             } else {
-                AllocationStatus::Failed {
-                    started_at,
+                AllocationExternalStatus::Failed {
+                    started_at: Some(started_at),
                     finished_at,
                 }
             }

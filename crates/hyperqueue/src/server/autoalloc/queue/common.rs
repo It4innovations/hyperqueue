@@ -8,7 +8,7 @@ use std::time::Duration;
 use tokio::process::Command;
 
 use crate::server::autoalloc::state::AllocationId;
-use crate::server::autoalloc::{AutoAllocResult, DescriptorId, QueueInfo};
+use crate::server::autoalloc::{AutoAllocResult, QueueId, QueueInfo};
 
 /// Name of a script that will be submitted to Slurm/PBS.
 const SUBMIT_SCRIPT_NAME: &str = "hq-submit.sh";
@@ -42,7 +42,7 @@ impl ExternalHandler {
 
 pub fn create_allocation_dir(
     server_directory: PathBuf,
-    id: DescriptorId,
+    id: QueueId,
     name: Option<&String>,
     allocation_num: u64,
 ) -> Result<PathBuf, std::io::Error> {

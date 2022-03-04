@@ -2,68 +2,15 @@ mod common;
 pub mod pbs;
 pub mod slurm;
 
-use crate::common::manager::info::ManagerType;
-use crate::server::autoalloc::state::{AllocationId, AllocationStatus};
-use crate::server::autoalloc::{Allocation, AutoAllocResult, DescriptorId};
-use crate::Map;
+use crate::server::autoalloc::state::AllocationId;
+use crate::server::autoalloc::{Allocation, AutoAllocResult, QueueId};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
+use tako::common::Map;
 use tako::worker::state::ServerLostPolicy;
-
-/// Describes an allocation queue. Holds both input parameters of the queue (`info`) and a handler
-/// that can communicate with the queue.
-pub struct QueueDescriptor {
-    manager: ManagerType,
-    info: QueueInfo,
-    name: Option<String>,
-    handler: Box<dyn QueueHandler>,
-    max_kept_directories: usize,
-}
-
-impl QueueDescriptor {
-    pub fn new(
-        manager: ManagerType,
-        info: QueueInfo,
-        name: Option<String>,
-        handler: Box<dyn QueueHandler>,
-        max_kept_directories: usize,
-    ) -> Self {
-        Self {
-            manager,
-            info,
-            name,
-            handler,
-            max_kept_directories,
-        }
-    }
-
-    pub fn manager(&self) -> &ManagerType {
-        &self.manager
-    }
-
-    pub fn info(&self) -> &QueueInfo {
-        &self.info
-    }
-
-    pub fn name(&self) -> Option<&str> {
-        self.name.as_deref()
-    }
-
-    pub fn handler(&self) -> &dyn QueueHandler {
-        self.handler.as_ref()
-    }
-
-    pub fn handler_mut(&mut self) -> &mut dyn QueueHandler {
-        self.handler.as_mut()
-    }
-
-    pub fn max_kept_directories(&self) -> usize {
-        self.max_kept_directories
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueueInfo {
@@ -151,10 +98,6 @@ impl AllocationSubmissionResult {
         Self { id, working_dir }
     }
 
-    pub fn is_success(&self) -> bool {
-        self.id.is_ok()
-    }
-
     pub fn into_id(self) -> AutoAllocResult<AllocationId> {
         self.id
     }
@@ -164,14 +107,28 @@ impl AllocationSubmissionResult {
     }
 }
 
-pub type AllocationStatusMap = Map<AllocationId, AutoAllocResult<AllocationStatus>>;
-
 pub enum SubmitMode {
     /// Submit an allocation in a normal way.
     Submit,
     /// Submit an allocation only to test queue parameters.
     DryRun,
 }
+
+#[derive(Clone)]
+pub enum AllocationExternalStatus {
+    Queued,
+    Running,
+    Finished {
+        started_at: Option<SystemTime>,
+        finished_at: SystemTime,
+    },
+    Failed {
+        started_at: Option<SystemTime>,
+        finished_at: SystemTime,
+    },
+}
+
+pub type AllocationStatusMap = Map<AllocationId, AutoAllocResult<AllocationExternalStatus>>;
 
 /// Handler that can communicate with some allocation queue (e.g. PBS/Slurm queue)
 pub trait QueueHandler {
@@ -182,7 +139,7 @@ pub trait QueueHandler {
     /// `id` field of `AllocationSubmissionResult`.
     fn submit_allocation(
         &mut self,
-        descriptor_id: DescriptorId,
+        queue_id: QueueId,
         queue_info: &QueueInfo,
         worker_count: u64,
         mode: SubmitMode,

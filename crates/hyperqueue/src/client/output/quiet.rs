@@ -12,7 +12,7 @@ use crate::client::output::common::TaskToPathsMap;
 use crate::client::output::outputs::{Output, OutputStream};
 use crate::client::status::{job_status, Status};
 use crate::common::serverdir::AccessRecord;
-use crate::server::autoalloc::{Allocation, AllocationEventHolder};
+use crate::server::autoalloc::Allocation;
 use crate::server::job::JobTaskInfo;
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
@@ -100,7 +100,6 @@ impl Output for Quiet {
 
     // Autoalloc
     fn print_autoalloc_queues(&self, _info: AutoAllocListResponse) {}
-    fn print_event_log(&self, _events: Vec<AllocationEventHolder>) {}
     fn print_allocations(&self, _allocations: Vec<Allocation>) {}
 
     // Hw

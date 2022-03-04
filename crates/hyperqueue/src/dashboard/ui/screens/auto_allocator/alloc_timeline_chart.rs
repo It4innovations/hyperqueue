@@ -7,7 +7,7 @@ use tui::widgets::canvas::{Canvas, Context, Painter, Shape};
 use crate::dashboard::data::alloc_timeline::{get_allocation_status, AllocationStatus};
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::terminal::DashboardFrame;
-use crate::server::autoalloc::{AllocationId, DescriptorId};
+use crate::server::autoalloc::{AllocationId, QueueId};
 use chrono::{DateTime, Local};
 use std::default::Default;
 use tui::style::{Color, Style};
@@ -45,7 +45,7 @@ pub struct AllocationsChart {
 }
 
 impl AllocationsChart {
-    pub fn update(&mut self, data: &DashboardData, query_descriptor: DescriptorId) {
+    pub fn update(&mut self, data: &DashboardData, query_descriptor: QueueId) {
         self.chart_data.end_time = SystemTime::now();
 
         let mut query_time = self.chart_data.end_time - self.chart_data.view_size;

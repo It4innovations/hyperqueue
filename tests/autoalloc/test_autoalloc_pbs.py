@@ -3,11 +3,12 @@ import os
 import time
 from os.path import dirname, join
 from pathlib import Path
+from subprocess import Popen
 from typing import List
 
 from ..conftest import HqEnv
 from ..utils.io import check_file_contents
-from ..utils.wait import wait_until
+from ..utils.wait import TimeoutException, wait_until
 from .pbs_mock import JobState, NewJobFailed, NewJobId, PbsMock
 from .utils import (
     add_queue,
@@ -16,12 +17,11 @@ from .utils import (
     program_code_store_args_json,
     program_code_store_cwd_json,
     remove_queue,
-    wait_for_event,
 )
 
 
 def test_add_pbs_descriptor(hq_env: HqEnv):
-    hq_env.start_server(args=["--autoalloc-interval", "500ms"])
+    hq_env.start_server()
     output = add_queue(
         hq_env,
         manager="pbs",
@@ -35,29 +35,12 @@ def test_add_pbs_descriptor(hq_env: HqEnv):
     info.check_column_value("ID", 0, "1")
 
 
-def test_pbs_queue_qsub_fail(hq_env: HqEnv):
-    mock = PbsMock(hq_env, new_job_responses=[NewJobFailed("failure")])
-
-    with mock.activate():
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
-        prepare_tasks(hq_env)
-
-        add_queue(hq_env)
-        wait_for_event(hq_env, "Allocation submission failed")
-        table = hq_env.command(["alloc", "events", "1"], as_table=True)
-        table.check_column_value(
-            "Message",
-            0,
-            "qsub execution failed\nCaused by:\nExit code: 1\nStderr: failure\nStdout:",
-        )
-
-
 def test_pbs_queue_qsub_args(hq_env: HqEnv):
     path = join(hq_env.work_path, "qsub.out")
     qsub_code = program_code_store_args_json(path)
 
     with hq_env.mock.mock_program("qsub", qsub_code):
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env, time_limit="3m", additional_args="--foo=bar a b --baz 42")
@@ -83,173 +66,69 @@ def test_pbs_queue_qsub_success(hq_env: HqEnv):
     mock = PbsMock(hq_env, new_job_responses=[NewJobId(id="123.job")])
 
     with mock.activate():
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env)
-        wait_for_event(hq_env, "Allocation queued")
-        table = hq_env.command(["alloc", "events", "1"], as_table=True)
-        table.check_column_value("Message", 0, "123.job")
+        wait_for_alloc(hq_env, "QUEUED", "123.job")
 
 
-def test_pbs_events_job_lifecycle(hq_env: HqEnv):
+def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 
     job_id = mock.job_id(0)
 
     with mock.activate():
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.start_server()
         prepare_tasks(hq_env)
 
         mock.update_job_state(job_id, JobState(status="Q"))
         add_queue(hq_env)
 
         # Queued
-        wait_for_event(hq_env, "Allocation queued")
+        wait_for_alloc(hq_env, "QUEUED", job_id)
 
         # Started
-        mock.update_job_state(
-            job_id, JobState(status="R", stime="Thu Aug 19 13:05:39 2021")
-        )
-        wait_for_event(hq_env, "Allocation started")
+        worker = add_worker(hq_env, job_id)
+        wait_for_alloc(hq_env, "RUNNING", job_id)
 
         # Finished
-        mock.update_job_state(
-            job_id, JobState(status="F", mtime="Thu Aug 19 13:06:39 2021", exit_code=0)
-        )
-        wait_for_event(hq_env, "Allocation finished")
-
-
-def test_pbs_events_job_failed(hq_env: HqEnv):
-    mock = PbsMock(hq_env)
-    mock.update_job_state(
-        mock.job_id(0),
-        JobState(
-            status="F",
-            stime="Thu Aug 19 13:05:39 2021",
-            mtime="Thu Aug 19 13:05:39 2021",
-            exit_code=1,
-        ),
-    )
-
-    with mock.activate():
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
-        prepare_tasks(hq_env)
-
-        add_queue(hq_env)
-
-        wait_for_event(hq_env, "Allocation failed")
-
-
-def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
-    mock = PbsMock(hq_env)
-    mock.update_job_state(
-        mock.job_id(0),
-        JobState(
-            status="Q",
-            qtime="Thu Aug 19 13:05:38 2021",
-            stime="Thu Aug 19 13:05:39 2021",
-            mtime="Thu Aug 19 13:05:39 2021",
-        ),
-    )
-
-    with mock.activate():
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
-        prepare_tasks(hq_env)
-
-        add_queue(hq_env, name="foo")
-        wait_for_alloc(hq_env, "Queued")
-
-        mock.update_job_state(mock.job_id(0), JobState(status="R"))
-        wait_for_alloc(hq_env, "Running")
-
-        mock.update_job_state(mock.job_id(0), JobState(status="F", exit_code=0))
-        wait_for_alloc(hq_env, "Finished")
+        worker.kill()
+        worker.wait()
+        hq_env.check_process_exited(worker, expected_code="error")
+        wait_for_alloc(hq_env, "FAILED", job_id)
 
 
 def test_pbs_check_working_directory(hq_env: HqEnv):
     """Check that qsub and qstat are invoked from an autoalloc working directory"""
     qsub_path = join(hq_env.work_path, "qsub.out")
-    qstat_path = join(hq_env.work_path, "qstat.out")
     qsub_code = f"""
 {program_code_store_cwd_json(qsub_path)}
 print("1")
 """
 
     with hq_env.mock.mock_program("qsub", qsub_code):
-        with hq_env.mock.mock_program("qstat", program_code_store_cwd_json(qstat_path)):
-            hq_env.start_server(args=["--autoalloc-interval", "100ms"])
-            prepare_tasks(hq_env)
-
-            add_queue(hq_env, name="foo")
-            wait_until(lambda: os.path.isfile(qsub_path))
-            wait_until(lambda: os.path.isfile(qstat_path))
-
-            check_file_contents(
-                qsub_path, Path(hq_env.server_dir) / "001/autoalloc/1-foo/001"
-            )
-
-
-def test_pbs_ignore_job_changes_after_finish(hq_env: HqEnv):
-    mock = PbsMock(hq_env)
-    for index in range(2):
-        mock.update_job_state(
-            mock.job_id(index),
-            JobState(
-                status="F",
-                qtime="Thu Aug 19 13:05:38 2021",
-                stime="Thu Aug 19 13:05:39 2021",
-                mtime="Thu Aug 19 13:05:39 2021",
-                exit_code=0,
-            ),
-        )
-
-    with mock.activate():
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.start_server()
         prepare_tasks(hq_env)
 
-        add_queue(hq_env)
-        wait_for_alloc(hq_env, "Finished")
-        wait_for_alloc(hq_env, "Finished", index=1)
+        add_queue(hq_env, name="foo")
+        wait_until(lambda: os.path.isfile(qsub_path))
 
-        mock.update_job_state(mock.job_id(0), JobState(status="R"))
-        time.sleep(0.5)
-
-        table = hq_env.command(["alloc", "info", "1"], as_table=True)
-        table.check_column_value("State", 0, "Finished")
-        table.check_column_value("State", 1, "Finished")
+        check_file_contents(
+            qsub_path, Path(hq_env.server_dir) / "001/autoalloc/1-foo/001"
+        )
 
 
 def test_pbs_cancel_active_jobs_on_server_stop(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 
-    # Keep 2 running and 2 queued jobs
-    for index in range(2):
-        mock.update_job_state(
-            mock.job_id(index),
-            JobState(
-                status="R",
-                qtime="Thu Aug 19 13:05:38 2021",
-                stime="Thu Aug 19 13:05:39 2021",
-                mtime="Thu Aug 19 13:05:39 2021",
-            ),
-        )
-    for index in range(2, 4):
-        mock.update_job_state(
-            mock.job_id(index),
-            JobState(
-                status="Q",
-                qtime="Thu Aug 19 13:05:38 2021",
-                stime="Thu Aug 19 13:05:39 2021",
-                mtime="Thu Aug 19 13:05:39 2021",
-            ),
-        )
-
     with mock.activate():
-        process = hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        process = hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
+        w1 = add_worker(hq_env, mock.job_id(0))
+        w2 = add_worker(hq_env, mock.job_id(1))
 
         def wait_until_fixpoint():
             jobs = hq_env.command(["alloc", "info", "1"], as_table=True)
@@ -261,6 +140,11 @@ def test_pbs_cancel_active_jobs_on_server_stop(hq_env: HqEnv):
         hq_env.command(["server", "stop"])
         process.wait()
         hq_env.check_process_exited(process)
+
+        w1.wait()
+        hq_env.check_process_exited(w1, expected_code="error")
+        w2.wait()
+        hq_env.check_process_exited(w2, expected_code="error")
 
         expected_job_ids = set(mock.job_id(index) for index in range(4))
         wait_until(lambda: expected_job_ids == set(mock.deleted_jobs()))
@@ -281,7 +165,7 @@ def test_pbs_cancel_queued_jobs_on_remove_descriptor(hq_env: HqEnv):
         )
 
     with mock.activate():
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
@@ -302,23 +186,15 @@ def test_pbs_cancel_queued_jobs_on_remove_descriptor(hq_env: HqEnv):
 def test_fail_on_remove_descriptor_with_running_jobs(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 
-    mock.update_job_state(
-        mock.job_id(0),
-        JobState(
-            status="R",
-            qtime="Thu Aug 19 13:05:38 2021",
-            stime="Thu Aug 19 13:05:39 2021",
-            mtime="Thu Aug 19 13:05:39 2021",
-        ),
-    )
-
     with mock.activate():
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
+        job_id = mock.job_id(0)
 
-        wait_for_alloc(hq_env, "Running")
+        add_worker(hq_env, job_id)
+        wait_for_alloc(hq_env, "RUNNING", job_id)
 
         remove_queue(
             hq_env,
@@ -326,39 +202,23 @@ def test_fail_on_remove_descriptor_with_running_jobs(hq_env: HqEnv):
             expect_fail="Allocation queue has running jobs, so it will not be removed. "
             "Use `--force` if you want to remove the queue anyway",
         )
-        wait_for_alloc(hq_env, "Running")
+        wait_for_alloc(hq_env, "RUNNING", job_id)
 
 
 def test_pbs_cancel_active_jobs_on_forced_remove_descriptor(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 
-    # Keep 2 running and 2 queued jobs
-    for index in range(2):
-        mock.update_job_state(
-            mock.job_id(index),
-            JobState(
-                status="R",
-                qtime="Thu Aug 19 13:05:38 2021",
-                stime="Thu Aug 19 13:05:39 2021",
-                mtime="Thu Aug 19 13:05:39 2021",
-            ),
-        )
-    for index in range(2, 4):
-        mock.update_job_state(
-            mock.job_id(index),
-            JobState(
-                status="Q",
-                qtime="Thu Aug 19 13:05:38 2021",
-                stime="Thu Aug 19 13:05:39 2021",
-                mtime="Thu Aug 19 13:05:39 2021",
-            ),
-        )
-
     with mock.activate():
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
+
+        job_a = mock.job_id(0)
+        job_b = mock.job_id(1)
+
+        add_worker(hq_env, job_a)
+        add_worker(hq_env, job_b)
 
         def wait_until_fixpoint():
             jobs = hq_env.command(["alloc", "info", "1"], as_table=True)
@@ -411,7 +271,7 @@ def test_pbs_dry_run_success(hq_env: HqEnv):
 
 
 def test_pbs_add_queue_dry_run_fail(hq_env: HqEnv):
-    hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+    hq_env.start_server()
 
     mock = PbsMock(hq_env, [NewJobFailed("failed to allocate")])
 
@@ -427,7 +287,7 @@ def test_pbs_too_high_time_request(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 
     with mock.activate():
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.start_server()
         hq_env.command(["submit", "--time-request", "1h", "sleep", "1"])
 
         add_queue(hq_env, name="foo", time_limit="30m")
@@ -442,7 +302,7 @@ def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
     qsub_code = program_code_store_args_json(path)
 
     with hq_env.mock.mock_program("qsub", qsub_code):
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(
@@ -488,20 +348,32 @@ def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
         ]
 
 
-def wait_for_alloc(hq_env: HqEnv, state: str, index=0):
+def wait_for_alloc(hq_env: HqEnv, state: str, allocation_id: str):
     """
     Wait until an allocation has the given `state`.
     Assumes a single allocation queue.
     """
 
-    def wait():
-        table = hq_env.command(["alloc", "info", "1"], as_table=True)
-        alloc_states = table.get_column_value("State")
-        if index >= len(alloc_states):
-            return False
-        return alloc_states[index] == state
+    last_table = None
 
-    wait_until(wait)
+    def wait():
+        nonlocal last_table
+
+        last_table = hq_env.command(["alloc", "info", "1"], as_table=True)
+        for index in range(len(last_table)):
+            if (
+                last_table.get_column_value("ID")[index] == allocation_id
+                and last_table.get_column_value("State")[index] == state
+            ):
+                return True
+        return False
+
+    try:
+        wait_until(wait)
+    except TimeoutException as e:
+        if last_table is not None:
+            raise Exception(f"{e}, most recent table:\n{last_table}")
+        raise e
 
 
 def test_pbs_pass_on_server_lost(hq_env: HqEnv):
@@ -509,7 +381,7 @@ def test_pbs_pass_on_server_lost(hq_env: HqEnv):
     qsub_code = program_code_store_args_json(path)
 
     with hq_env.mock.mock_program("qsub", qsub_code):
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(
@@ -540,3 +412,10 @@ def test_pbs_pass_on_server_lost(hq_env: HqEnv):
             f"{hq_env.server_dir}/001",
             "--on-server-lost=stop",
         ]
+
+
+def add_worker(hq_env: HqEnv, allocation_id: str) -> Popen:
+    return hq_env.start_worker(
+        env={"PBS_JOBID": allocation_id, "PBS_ENVIRONMENT": "1"},
+        args=["--manager", "pbs", "--time-limit", "30m"],
+    )

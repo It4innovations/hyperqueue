@@ -11,9 +11,7 @@ use crate::common::env::is_hq_env;
 use crate::common::format::{human_duration, human_size};
 use crate::common::manager::info::GetManagerInfo;
 use crate::common::serverdir::AccessRecord;
-use crate::server::autoalloc::{
-    Allocation, AllocationEvent, AllocationEventHolder, AllocationStatus,
-};
+use crate::server::autoalloc::{Allocation, AllocationState};
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
@@ -243,7 +241,7 @@ impl Output for CliOutput {
                         .cell(),
                     manager_info
                         .as_ref()
-                        .map(|info| info.job_id.as_str())
+                        .map(|info| info.allocation_id.as_str())
                         .unwrap_or("N/A")
                         .to_string()
                         .cell(),
@@ -332,7 +330,7 @@ impl Output for CliOutput {
                 "Manager Job ID".cell().bold(true),
                 manager_info
                     .as_ref()
-                    .map(|info| info.job_id.as_str())
+                    .map(|info| info.allocation_id.as_str())
                     .unwrap_or("N/A")
                     .cell(),
             ],
@@ -663,10 +661,10 @@ impl Output for CliOutput {
     }
 
     fn print_autoalloc_queues(&self, info: AutoAllocListResponse) {
-        let mut descriptors: Vec<_> = info.descriptors.into_iter().collect();
-        descriptors.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        let mut queues: Vec<_> = info.queues.into_iter().collect();
+        queues.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
-        let rows: Vec<_> = descriptors
+        let rows: Vec<_> = queues
             .into_iter()
             .map(|(id, data)| {
                 vec![
@@ -695,64 +693,6 @@ impl Output for CliOutput {
         self.print_horizontal_table(rows, header);
     }
 
-    fn print_event_log(&self, events: Vec<AllocationEventHolder>) {
-        let event_name = |event: &AllocationEventHolder| -> CellStruct {
-            match event.event {
-                AllocationEvent::AllocationQueued(..) => "Allocation queued"
-                    .cell()
-                    .foreground_color(Some(Color::Yellow)),
-                AllocationEvent::AllocationStarted(..) => "Allocation started"
-                    .cell()
-                    .foreground_color(Some(Color::Green)),
-                AllocationEvent::AllocationFinished(..) => "Allocation finished"
-                    .cell()
-                    .foreground_color(Some(Color::Blue)),
-                AllocationEvent::AllocationFailed(..) => "Allocation failed"
-                    .cell()
-                    .foreground_color(Some(Color::Red)),
-                AllocationEvent::AllocationDisappeared(..) => "Allocation disappeared"
-                    .cell()
-                    .foreground_color(Some(Color::Red)),
-                AllocationEvent::QueueFail { .. } => "Allocation submission failed"
-                    .cell()
-                    .foreground_color(Some(Color::Red)),
-                AllocationEvent::StatusFail { .. } => "Allocation status check failed"
-                    .cell()
-                    .foreground_color(Some(Color::Red)),
-            }
-        };
-        let event_message = |event: &AllocationEventHolder| -> CellStruct {
-            match &event.event {
-                AllocationEvent::AllocationQueued(id)
-                | AllocationEvent::AllocationStarted(id)
-                | AllocationEvent::AllocationFailed(id)
-                | AllocationEvent::AllocationFinished(id)
-                | AllocationEvent::AllocationDisappeared(id) => id.cell(),
-                AllocationEvent::QueueFail { error } | AllocationEvent::StatusFail { error } => {
-                    error.cell()
-                }
-            }
-        };
-
-        let rows: Vec<_> = events
-            .into_iter()
-            .map(|event| {
-                vec![
-                    event_name(&event),
-                    format_systemtime(event.date).cell(),
-                    event_message(&event),
-                ]
-            })
-            .collect();
-
-        let header = vec![
-            "Event".cell().bold(true),
-            "Time".cell().bold(true),
-            "Message".cell().bold(true),
-        ];
-        self.print_horizontal_table(rows, header);
-    }
-
     fn print_allocations(&self, mut allocations: Vec<Allocation>) {
         let format_time = |time: Option<SystemTime>| match time {
             Some(time) => format_systemtime(time).cell(),
@@ -768,7 +708,7 @@ impl Output for CliOutput {
                     allocation.id.cell(),
                     allocation_status_to_cell(&allocation.status),
                     allocation.working_dir.display().cell(),
-                    allocation.worker_count.cell(),
+                    allocation.target_worker_count.cell(),
                     format_time(Some(times.get_queued_at())),
                     format_time(times.get_started_at()),
                     format_time(times.get_finished_at()),
@@ -836,19 +776,24 @@ fn stdio_to_str(stdio: &StdioDef) -> &str {
     }
 }
 
-/// Allocation
-fn allocation_status_to_cell(status: &AllocationStatus) -> CellStruct {
+// Allocation
+fn allocation_status_to_cell(status: &AllocationState) -> CellStruct {
     match status {
-        AllocationStatus::Queued => "Queued"
+        AllocationState::Queued => "QUEUED"
             .cell()
             .foreground_color(Some(cli_table::Color::Yellow)),
-        AllocationStatus::Running { .. } => "Running"
+        AllocationState::Running { .. } => "RUNNING"
             .cell()
             .foreground_color(Some(cli_table::Color::Blue)),
-        AllocationStatus::Finished { .. } => "Finished"
-            .cell()
-            .foreground_color(Some(cli_table::Color::Green)),
-        AllocationStatus::Failed { .. } => "Failed"
+        AllocationState::Finished { .. } => match status.is_failed() {
+            true => "FAILED"
+                .cell()
+                .foreground_color(Some(cli_table::Color::Red)),
+            false => "FINISHED"
+                .cell()
+                .foreground_color(Some(cli_table::Color::Green)),
+        },
+        AllocationState::Invalid { .. } => "FAILED"
             .cell()
             .foreground_color(Some(cli_table::Color::Red)),
     }
@@ -859,26 +804,31 @@ fn allocation_times_from_alloc(allocation: &Allocation) -> AllocationTimes {
     let mut finished = None;
 
     match &allocation.status {
-        AllocationStatus::Queued => {}
-        AllocationStatus::Running { started_at } => {
+        AllocationState::Queued => {}
+        AllocationState::Running { started_at, .. } => {
             started = Some(started_at);
         }
-        AllocationStatus::Finished {
+        AllocationState::Finished {
             started_at,
             finished_at,
-        }
-        | AllocationStatus::Failed {
-            started_at,
-            finished_at,
+            ..
         } => {
             started = Some(started_at);
+            finished = Some(finished_at);
+        }
+        AllocationState::Invalid {
+            started_at,
+            finished_at,
+            ..
+        } => {
+            started = started_at.as_ref();
             finished = Some(finished_at);
         }
     }
     AllocationTimes {
         queued_at: allocation.queued_at,
-        started_at: started.cloned(),
-        finished_at: finished.cloned(),
+        started_at: started.copied(),
+        finished_at: finished.copied(),
     }
 }
 

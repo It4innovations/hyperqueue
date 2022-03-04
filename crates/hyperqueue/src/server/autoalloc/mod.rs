@@ -4,20 +4,14 @@
 //!
 //! The term `allocation` represents a PBS/Slurm job in this module, to distinguish itself from
 //! HQ jobs.
-pub use process::{autoalloc_process, autoalloc_shutdown};
-pub use state::AutoAllocState;
-
-mod descriptor;
 mod process;
+mod queue;
+mod service;
 mod state;
 
 pub type AutoAllocResult<T> = anyhow::Result<T>;
 
-pub use descriptor::pbs::PbsHandler;
-pub use descriptor::slurm::SlurmHandler;
-pub use descriptor::{QueueDescriptor, QueueHandler, QueueInfo, SubmitMode};
-pub use process::prepare_descriptor_cleanup;
-pub use state::{
-    Allocation, AllocationEvent, AllocationEventHolder, AllocationId, AllocationStatus,
-    DescriptorId, RateLimiter,
-};
+pub use process::try_submit_allocation;
+pub use queue::QueueInfo;
+pub use service::{create_autoalloc_service, AutoAllocService};
+pub use state::{Allocation, AllocationId, AllocationState, QueueId};

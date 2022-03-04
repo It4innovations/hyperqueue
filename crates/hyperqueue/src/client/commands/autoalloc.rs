@@ -6,7 +6,7 @@ use crate::client::utils::PassThroughArgument;
 use crate::common::manager::info::ManagerType;
 use crate::common::timeutils::ExtendedArgDuration;
 use crate::rpc_call;
-use crate::server::autoalloc::{Allocation, AllocationStatus, DescriptorId};
+use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
 use crate::server::bootstrap::get_client_connection;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
@@ -24,8 +24,6 @@ pub struct AutoAllocOpts {
 enum AutoAllocCommand {
     /// Displays allocation queues
     List,
-    /// Display event log for a specified allocation queue
-    Events(EventsOpts),
     /// Display allocations of the specified allocation queue
     Info(AllocationsOpts),
     /// Add new allocation queue
@@ -45,7 +43,7 @@ struct AddQueueOpts {
 #[derive(Parser)]
 struct RemoveQueueOpts {
     /// ID of the allocation queue that should be removed
-    queue_id: DescriptorId,
+    queue_id: QueueId,
 
     /// Remove the queue even if there are currently running jobs.
     /// The running jobs will be canceled.
@@ -96,15 +94,6 @@ struct SharedQueueOpts {
     #[clap(long, default_value = "finish-running", arg_enum)]
     on_server_lost: ArgServerLostPolicy,
 
-    /// Maximum number of directories of inactive (finished, failed, unsubmitted) allocations
-    /// that should be stored on the disk. When the number of inactive directories surpasses this
-    /// value, the least recent directories will be removed.
-    ///
-    /// If you do not need to access the directories (e.g. to debug automatic allocation), you can
-    /// set this to a smaller number to save disk space.
-    #[clap(long, default_value = "20")]
-    max_kept_directories: usize,
-
     /// Disables dry-run, which submits an allocation with the specified parameters to verify
     /// whether the parameters are correct.
     // This flag currently cannot be in [`AddQueueOpts`] because of a bug in clap:
@@ -147,7 +136,7 @@ struct AllocationsOpts {
     filter: Option<AllocationStateFilter>,
 }
 
-#[derive(clap::ArgEnum, Clone)]
+#[derive(clap::ArgEnum, Clone, Eq, PartialEq)]
 enum AllocationStateFilter {
     Queued,
     Running,
@@ -167,9 +156,6 @@ pub async fn command_autoalloc(
         }
         AutoAllocCommand::Add(opts) => {
             add_queue(connection, opts).await?;
-        }
-        AutoAllocCommand::Events(opts) => {
-            print_event_log(gsettings, connection, opts).await?;
         }
         AutoAllocCommand::Info(opts) => {
             print_allocations(gsettings, connection, opts).await?;
@@ -195,7 +181,6 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
         resource,
         additional_args,
         on_server_lost,
-        max_kept_directories,
         no_dry_run: _,
     } = args;
 
@@ -209,7 +194,6 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
         worker_resources_args: resource.into_iter().map(|v| v.into()).collect(),
         max_worker_count,
         on_server_lost: on_server_lost.into(),
-        max_kept_directories,
     }
 }
 
@@ -265,23 +249,23 @@ wasting resources."
         );
     }
 
-    log::info!("Allocation queue {} successfully created", queue_id);
+    log::info!("Allocation queue {queue_id} successfully created");
     Ok(())
 }
 
 async fn remove_queue(
     mut connection: ClientConnection,
-    descriptor: DescriptorId,
+    queue_id: QueueId,
     force: bool,
 ) -> anyhow::Result<()> {
-    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::RemoveQueue { descriptor, force });
+    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::RemoveQueue { queue_id, force });
 
     rpc_call!(connection, message,
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueRemoved(_)) => ()
     )
     .await?;
 
-    log::info!("Allocation queue {} successfully removed", descriptor);
+    log::info!("Allocation queue {queue_id} successfully removed");
     Ok(())
 }
 
@@ -299,30 +283,13 @@ async fn print_allocation_queues(
     Ok(())
 }
 
-async fn print_event_log(
-    gsettings: &GlobalSettings,
-    mut connection: ClientConnection,
-    opts: EventsOpts,
-) -> anyhow::Result<()> {
-    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::Events {
-        descriptor: opts.queue,
-    });
-    let response = rpc_call!(connection, message,
-        ToClientMessage::AutoAllocResponse(AutoAllocResponse::Events(logs)) => logs
-    )
-    .await?;
-
-    gsettings.printer().print_event_log(response);
-    Ok(())
-}
-
 async fn print_allocations(
     gsettings: &GlobalSettings,
     mut connection: ClientConnection,
     opts: AllocationsOpts,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::Info {
-        descriptor: opts.queue,
+        queue_id: opts.queue,
     });
     let mut allocations = rpc_call!(connection, message,
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::Info(allocs)) => allocs
@@ -338,14 +305,16 @@ fn filter_allocations(allocations: &mut Vec<Allocation>, filter: Option<Allocati
         allocations.retain(|allocation| {
             let status = &allocation.status;
             match filter {
-                AllocationStateFilter::Queued => matches!(status, AllocationStatus::Queued),
+                AllocationStateFilter::Queued => matches!(status, AllocationState::Queued),
                 AllocationStateFilter::Running => {
-                    matches!(status, AllocationStatus::Running { .. })
+                    matches!(status, AllocationState::Running { .. })
                 }
                 AllocationStateFilter::Finished => {
-                    matches!(status, AllocationStatus::Finished { .. })
+                    matches!(status, AllocationState::Finished { .. })
                 }
-                AllocationStateFilter::Failed => matches!(status, AllocationStatus::Failed { .. }),
+                AllocationStateFilter::Failed => {
+                    matches!(status, AllocationState::Finished { .. }) && status.is_failed()
+                }
             }
         })
     }
