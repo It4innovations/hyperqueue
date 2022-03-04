@@ -192,13 +192,22 @@ pub struct NewWorkerMessage {
     pub configuration: WorkerConfiguration,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub enum LostWorkerReason {
     Stopped,
     ConnectionLost,
     HeartbeatLost,
     IdleTimeout,
     TimeLimitReached,
+}
+
+impl LostWorkerReason {
+    pub fn is_failure(&self) -> bool {
+        matches!(
+            self,
+            LostWorkerReason::ConnectionLost | LostWorkerReason::HeartbeatLost
+        )
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

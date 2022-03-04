@@ -111,7 +111,7 @@ impl Backend {
                         ToGatewayMessage::WorkerOverview(overview) => {
                             state_ref
                                 .get_mut()
-                                .get_event_storage_mut()
+                                .event_storage_mut()
                                 .on_overview_received(overview);
                         }
                         ToGatewayMessage::NewTasksResponse(_)
@@ -160,13 +160,11 @@ mod tests {
     use tokio::net::TcpStream;
 
     use crate::server::rpc::Backend;
-    use crate::server::state::StateRef;
-    use crate::tests::utils::run_concurrent;
-    use std::time::Duration;
+    use crate::tests::utils::{create_hq_state, run_concurrent};
 
     #[tokio::test]
     async fn test_server_connect_worker() {
-        let state = StateRef::new(Duration::from_secs(1), Default::default());
+        let state = create_hq_state();
         let (server, _fut) = Backend::start(state, Default::default(), None, None)
             .await
             .unwrap();
@@ -177,7 +175,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_server_info() {
-        let state = StateRef::new(Duration::from_secs(1), Default::default());
+        let state = create_hq_state();
         let (server, fut) = Backend::start(state, Default::default(), None, None)
             .await
             .unwrap();

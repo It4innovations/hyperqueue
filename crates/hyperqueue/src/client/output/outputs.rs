@@ -4,7 +4,7 @@ use crate::transfer::messages::{
 };
 
 use crate::client::job::WorkerMap;
-use crate::server::autoalloc::{Allocation, AllocationEventHolder};
+use crate::server::autoalloc::Allocation;
 use crate::stream::reader::logfile::Summary;
 use std::path::Path;
 
@@ -67,7 +67,6 @@ pub trait Output {
 
     // Autoalloc
     fn print_autoalloc_queues(&self, info: AutoAllocListResponse);
-    fn print_event_log(&self, events: Vec<AllocationEventHolder>);
     fn print_allocations(&self, allocations: Vec<Allocation>);
 
     // Hw

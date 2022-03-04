@@ -1,7 +1,7 @@
 use crate::dashboard::data::alloc_timeline::AllocationQueueInfo;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
-use crate::server::autoalloc::DescriptorId;
+use crate::server::autoalloc::QueueId;
 use chrono::{DateTime, Local};
 use termion::event::Key;
 use tui::layout::{Constraint, Rect};
@@ -14,7 +14,7 @@ pub struct AllocationQueueInfoTable {
 }
 
 impl AllocationQueueInfoTable {
-    pub fn update(&mut self, queue_infos: Vec<(&DescriptorId, &AllocationQueueInfo)>) {
+    pub fn update(&mut self, queue_infos: Vec<(&QueueId, &AllocationQueueInfo)>) {
         let rows = create_rows(queue_infos);
         self.table.set_items(rows);
     }
@@ -27,9 +27,9 @@ impl AllocationQueueInfoTable {
         self.table.select_previous_wrap();
     }
 
-    pub fn get_selected_queue_descriptor(&self) -> Option<DescriptorId> {
+    pub fn get_selected_queue_descriptor(&self) -> Option<QueueId> {
         let selection = self.table.current_selection();
-        selection.map(|row| row.descriptor_id)
+        selection.map(|row| row.queue_id)
     }
 
     pub fn draw(&mut self, rect: Rect, frame: &mut DashboardFrame, table_style: Style) {
@@ -54,7 +54,7 @@ impl AllocationQueueInfoTable {
             },
             |data| {
                 Row::new(vec![
-                    Cell::from(data.descriptor_id.to_string()),
+                    Cell::from(data.queue_id.to_string()),
                     Cell::from(data.num_allocations.to_string()),
                     Cell::from(data.creation_time.as_str()),
                     Cell::from(data.removal_time.as_str()),
@@ -74,17 +74,17 @@ impl AllocationQueueInfoTable {
 }
 
 struct QueueInfoRow {
-    descriptor_id: DescriptorId,
+    queue_id: QueueId,
     num_allocations: u32,
     creation_time: String,
     removal_time: String,
 }
 
-fn create_rows(mut queues: Vec<(&DescriptorId, &AllocationQueueInfo)>) -> Vec<QueueInfoRow> {
+fn create_rows(mut queues: Vec<(&QueueId, &AllocationQueueInfo)>) -> Vec<QueueInfoRow> {
     queues.sort_by_key(|(_, queue_info)| queue_info.creation_time);
     queues
         .iter()
-        .map(|(descriptor_id, info)| {
+        .map(|(queue_id, info)| {
             let creation_time: DateTime<Local> = info.creation_time.into();
             let removal_time = info
                 .removal_time
@@ -95,7 +95,7 @@ fn create_rows(mut queues: Vec<(&DescriptorId, &AllocationQueueInfo)>) -> Vec<Qu
                 .unwrap_or_else(|| "".to_string());
 
             QueueInfoRow {
-                descriptor_id: **descriptor_id,
+                queue_id: **queue_id,
                 num_allocations: info.allocations.len() as u32,
                 creation_time: creation_time.format("%b %e, %T").to_string(),
                 removal_time,

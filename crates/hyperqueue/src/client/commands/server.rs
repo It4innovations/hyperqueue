@@ -1,6 +1,5 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::server::client_stop_server;
-use crate::common::env::is_inside_test_mode;
 use crate::common::timeutils::ArgDuration;
 use crate::rpc_call;
 use crate::server::bootstrap::{
@@ -8,10 +7,8 @@ use crate::server::bootstrap::{
 };
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{FromClientMessage, StatsResponse, ToClientMessage};
-use anyhow::anyhow;
 use clap::Parser;
 use std::path::PathBuf;
-use std::time::Duration;
 
 #[derive(Parser)]
 pub struct ServerOpts {
@@ -38,10 +35,6 @@ struct ServerStartOpts {
     /// Duration after which will an idle worker automatically stop
     #[clap(long)]
     idle_timeout: Option<ArgDuration>,
-
-    /// How often should the auto allocator perform its actions
-    #[clap(long, default_value = "10m")]
-    autoalloc_interval: ArgDuration,
 
     /// Port for client connections (used e.g. for `hq submit`)
     #[clap(long)]
@@ -79,19 +72,11 @@ pub async fn command_server(gsettings: &GlobalSettings, opts: ServerOpts) -> any
 }
 
 async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyhow::Result<()> {
-    let autoalloc_interval = opts.autoalloc_interval.unpack();
-    if !is_inside_test_mode() && autoalloc_interval < Duration::from_secs(60) {
-        return Err(anyhow!(
-            "Autoalloc interval cannot be shorter than one minute"
-        ));
-    }
-
     let server_cfg = ServerConfig {
         host: opts
             .host
             .unwrap_or_else(|| gethostname::gethostname().into_string().unwrap()),
         idle_timeout: opts.idle_timeout.map(|x| x.unpack()),
-        autoalloc_interval,
         client_port: opts.client_port,
         worker_port: opts.worker_port,
         event_buffer_size: opts.event_store_size,

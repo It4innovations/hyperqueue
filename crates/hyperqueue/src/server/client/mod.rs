@@ -43,6 +43,7 @@ pub async fn handle_client_connections(
         let key = key.clone();
         let server_dir = server_dir.clone();
 
+        // TODO: remove this spawn
         tokio::task::spawn_local(async move {
             if let Err(e) =
                 handle_client(connection, server_dir, state_ref, tako_ref, end_flag, key).await
@@ -119,7 +120,7 @@ pub async fn client_rpc_loop<
                     FromClientMessage::MonitoringEvents(request) => {
                         let events: Vec<MonitoringEvent> = state_ref
                             .get()
-                            .get_event_storage()
+                            .event_storage()
                             .get_events_after(request.after_id.unwrap_or(0))
                             .cloned()
                             .collect();

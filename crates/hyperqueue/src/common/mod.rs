@@ -1,6 +1,7 @@
 pub mod arraydef;
 pub mod arrayparser;
 pub mod cli;
+pub mod controlflowutils;
 pub mod env;
 pub mod error;
 pub mod format;
@@ -9,6 +10,7 @@ pub mod idcounter;
 pub mod manager;
 pub mod parser;
 pub mod placeholders;
+pub mod rpc;
 pub mod serverdir;
 pub mod setup;
 pub mod strutils;

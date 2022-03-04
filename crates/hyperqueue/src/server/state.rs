@@ -5,7 +5,7 @@ use tako::messages::gateway::{
     TaskState, TaskUpdate, ToGatewayMessage,
 };
 
-use crate::server::autoalloc::AutoAllocState;
+use crate::server::autoalloc::AutoAllocService;
 use crate::server::event::storage::EventStorage;
 use crate::server::job::Job;
 use crate::server::rpc::Backend;
@@ -13,7 +13,6 @@ use crate::server::worker::Worker;
 use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
 use std::cmp::min;
-use std::time::Duration;
 use tako::common::index::ItemId;
 use tako::{define_wrapped_type, TaskId};
 
@@ -38,7 +37,7 @@ pub struct State {
     job_id_counter: <JobId as ItemId>::IdType,
     task_id_counter: <TaskId as ItemId>::IdType,
 
-    autoalloc_state: AutoAllocState,
+    pub(crate) autoalloc_service: Option<AutoAllocService>,
     event_storage: EventStorage,
 }
 
@@ -105,6 +104,10 @@ impl State {
             .insert(job.base_task_id, job_id)
             .is_none());
         assert!(self.jobs.insert(job_id, job).is_none());
+
+        if let Some(autoalloc) = &self.autoalloc_service {
+            autoalloc.on_job_created(job_id);
+        }
     }
 
     pub fn get_job_mut_by_tako_task_id(&mut self, task_id: TakoTaskId) -> Option<&mut Job> {
@@ -212,6 +215,11 @@ impl State {
     pub fn process_worker_new(&mut self, msg: NewWorkerMessage) {
         log::debug!("New worker id={}", msg.worker_id);
         self.add_worker(Worker::new(msg.worker_id, msg.configuration.clone()));
+        // TODO: use observer in event storage instead of sending these messages directly
+        if let Some(autoalloc) = &self.autoalloc_service {
+            autoalloc.on_worker_connected(msg.worker_id, &msg.configuration);
+        }
+
         self.event_storage
             .on_worker_added(msg.worker_id, msg.configuration);
     }
@@ -220,6 +228,11 @@ impl State {
         log::debug!("Worker lost id={}", msg.worker_id);
         let worker = self.workers.get_mut(&msg.worker_id).unwrap();
         worker.set_offline_state(msg.reason.clone());
+
+        if let Some(autoalloc) = &self.autoalloc_service {
+            autoalloc.on_worker_lost(msg.worker_id, &worker.configuration, msg.reason.clone());
+        }
+
         for task_id in msg.running_tasks {
             let job = self.get_job_mut_by_tako_task_id(task_id).unwrap();
             job.set_waiting_state(task_id);
@@ -228,34 +241,32 @@ impl State {
         self.event_storage.on_worker_lost(msg.worker_id, msg.reason);
     }
 
-    pub fn get_autoalloc_state(&self) -> &AutoAllocState {
-        &self.autoalloc_state
-    }
-    pub fn get_autoalloc_state_mut(&mut self) -> &mut AutoAllocState {
-        &mut self.autoalloc_state
+    pub fn stop_autoalloc(&mut self) {
+        // Drop the sender
+        self.autoalloc_service = None;
     }
 
-    pub fn get_event_storage(&self) -> &EventStorage {
+    pub fn event_storage(&self) -> &EventStorage {
         &self.event_storage
     }
-    pub fn get_event_storage_mut(&mut self) -> &mut EventStorage {
+    pub fn event_storage_mut(&mut self) -> &mut EventStorage {
         &mut self.event_storage
     }
 
-    pub fn split_autoalloc_events_mut(&mut self) -> (&mut AutoAllocState, &mut EventStorage) {
-        (&mut self.autoalloc_state, &mut self.event_storage)
+    pub fn autoalloc(&self) -> &AutoAllocService {
+        self.autoalloc_service.as_ref().unwrap()
     }
 }
 
 impl StateRef {
-    pub fn new(autoalloc_interval: Duration, event_storage: EventStorage) -> StateRef {
+    pub fn new(event_storage: EventStorage) -> StateRef {
         Self(WrappedRcRefCell::wrap(State {
             jobs: Default::default(),
             workers: Default::default(),
             base_task_id_to_job_id: Default::default(),
             job_id_counter: 1,
             task_id_counter: 1,
-            autoalloc_state: AutoAllocState::new(autoalloc_interval),
+            autoalloc_service: None,
             event_storage,
         }))
     }
@@ -267,10 +278,10 @@ mod tests {
 
     use crate::common::arraydef::IntArray;
     use crate::server::job::Job;
-    use crate::server::state::{State, StateRef};
+    use crate::server::state::State;
+    use crate::tests::utils::create_hq_state;
     use crate::transfer::messages::{JobDescription, TaskDescription};
     use crate::{JobId, TakoTaskId};
-    use std::time::Duration;
 
     fn dummy_program_definition() -> ProgramDefinition {
         ProgramDefinition {
@@ -322,7 +333,7 @@ mod tests {
 
     #[test]
     fn test_find_job_id_by_task_id() {
-        let state_ref = StateRef::new(Duration::from_secs(1), Default::default());
+        let state_ref = create_hq_state();
         let mut state = state_ref.get_mut();
         state.add_job(test_job(IntArray::from_range(0, 10), 223, 100));
         state.add_job(test_job(IntArray::from_range(0, 15), 224, 110));

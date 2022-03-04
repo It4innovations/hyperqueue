@@ -6,7 +6,7 @@ use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::ManagerType;
-use crate::server::autoalloc::{Allocation, AllocationEventHolder, DescriptorId, QueueInfo};
+use crate::server::autoalloc::{Allocation, QueueId, QueueInfo};
 use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
 use bstr::BString;
@@ -153,11 +153,8 @@ pub struct WorkerInfoRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AutoAllocRequest {
     List,
-    Events {
-        descriptor: DescriptorId,
-    },
     Info {
-        descriptor: DescriptorId,
+        queue_id: QueueId,
     },
     AddQueue {
         manager: ManagerType,
@@ -169,7 +166,7 @@ pub enum AutoAllocRequest {
         parameters: AllocationQueueParams,
     },
     RemoveQueue {
-        descriptor: DescriptorId,
+        queue_id: QueueId,
         force: bool,
     },
 }
@@ -185,7 +182,6 @@ pub struct AllocationQueueParams {
     pub worker_cpu_arg: Option<String>,
     pub worker_resources_args: Vec<String>,
     pub max_worker_count: Option<u32>,
-    pub max_kept_directories: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -298,21 +294,20 @@ pub struct WorkerInfoResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AutoAllocResponse {
-    QueueCreated(DescriptorId),
-    QueueRemoved(DescriptorId),
+    QueueCreated(QueueId),
+    QueueRemoved(QueueId),
     DryRunSuccessful,
-    Events(Vec<AllocationEventHolder>),
     Info(Vec<Allocation>),
     List(AutoAllocListResponse),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AutoAllocListResponse {
-    pub descriptors: Map<DescriptorId, QueueDescriptorData>,
+    pub queues: Map<QueueId, QueueData>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct QueueDescriptorData {
+pub struct QueueData {
     pub info: QueueInfo,
     pub name: Option<String>,
     pub manager_type: ManagerType,

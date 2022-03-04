@@ -11,6 +11,7 @@ use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::serverdir::{default_server_directory, AccessRecord, ServerDir, SYMLINK_PATH};
+use crate::server::autoalloc::create_autoalloc_service;
 use crate::server::event::log::start_event_streaming;
 use crate::server::event::log::EventLogWriter;
 use crate::server::event::storage::EventStorage;
@@ -29,7 +30,6 @@ enum ServerStatus {
 pub struct ServerConfig {
     pub host: String,
     pub idle_timeout: Option<Duration>,
-    pub autoalloc_interval: Duration,
     pub client_port: Option<u16>,
     pub worker_port: Option<u16>,
     pub event_buffer_size: usize,
@@ -122,7 +122,11 @@ async fn initialize_server(
     let tako_secret_key = Arc::new(generate_key());
 
     let (event_storage, event_stream_fut) = prepare_event_management(&server_cfg).await?;
-    let state_ref = StateRef::new(server_cfg.autoalloc_interval, event_storage);
+    let state_ref = StateRef::new(event_storage);
+    let (autoalloc_service, autoalloc_process) = create_autoalloc_service(state_ref.clone());
+    // TODO: remove this hack
+    state_ref.get_mut().autoalloc_service = Some(autoalloc_service);
+
     let (tako_server, tako_future) = Backend::start(
         state_ref.clone(),
         tako_secret_key.clone(),
@@ -162,6 +166,10 @@ async fn initialize_server(
 
     let key = hq_secret_key;
     let fut = async move {
+        tokio::pin! {
+            let autoalloc_process = autoalloc_process;
+        };
+
         let result = tokio::select! {
             _ = stop_check => {
                 Ok(())
@@ -174,16 +182,19 @@ async fn initialize_server(
                 end_flag,
                 key
             ) => { Ok(()) }
-            _ = crate::server::autoalloc::autoalloc_process(state_ref.clone()) => { Ok(()) }
+            _ = &mut autoalloc_process => { Ok(()) }
             r = tako_future => { r.map_err(|e| e.into()) }
         };
 
-        log::debug!("Shutting down automatic allocator");
-        crate::server::autoalloc::autoalloc_shutdown(state_ref).await;
+        log::debug!("Shutting down auto allocation");
+        state_ref.get_mut().stop_autoalloc();
+        autoalloc_process.await;
+
+        log::debug!("Shutting down event streaming");
 
         // StateRef needs to be dropped at this moment, because it may contain a sender
         // that has to be shut-down for `event_stream_fut` to resolve.
-        log::debug!("Shutting down event streaming");
+        drop(state_ref);
         event_stream_fut.await;
 
         result
@@ -258,7 +269,6 @@ mod tests {
     use std::future::Future;
     use std::path::Path;
     use std::rc::Rc;
-    use std::time::Duration;
 
     pub async fn init_test_server(
         tmp_dir: &Path,
@@ -271,7 +281,6 @@ mod tests {
         let server_cfg = ServerConfig {
             host: "localhost".to_string(),
             idle_timeout: None,
-            autoalloc_interval: Duration::from_secs(60),
             client_port: None,
             worker_port: None,
             event_buffer_size: 1_000_000,

@@ -1,26 +1,23 @@
-use crate::Map;
+use crate::common::fsutils::get_current_dir;
+use anyhow::Context;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::Duration;
-
-use crate::common::fsutils::get_current_dir;
-use anyhow::Context;
+use tako::common::Map;
 
 use crate::common::manager::info::ManagerType;
 use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};
 use crate::common::timeutils::local_to_system_time;
-use crate::server::autoalloc::descriptor::common::{
+use crate::server::autoalloc::queue::common::{
     build_worker_args, check_command_output, create_allocation_dir, create_command, submit_script,
     ExternalHandler,
 };
-use crate::server::autoalloc::descriptor::{
-    AllocationStatusMap, AllocationSubmissionResult, QueueHandler, SubmitMode,
+use crate::server::autoalloc::queue::{
+    AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
+    SubmitMode,
 };
-use crate::server::autoalloc::state::AllocationStatus;
-use crate::server::autoalloc::{
-    Allocation, AllocationId, AutoAllocResult, DescriptorId, QueueInfo,
-};
+use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
 
 pub struct PbsHandler {
     handler: ExternalHandler,
@@ -36,7 +33,7 @@ impl PbsHandler {
 impl QueueHandler for PbsHandler {
     fn submit_allocation(
         &mut self,
-        descriptor_id: DescriptorId,
+        queue_id: QueueId,
         queue_info: &QueueInfo,
         worker_count: u64,
         mode: SubmitMode,
@@ -51,7 +48,7 @@ impl QueueHandler for PbsHandler {
         Box::pin(async move {
             let directory = create_allocation_dir(
                 server_directory.clone(),
-                descriptor_id,
+                queue_id,
                 name.as_ref(),
                 allocation_num,
             )?;
@@ -61,7 +58,7 @@ impl QueueHandler for PbsHandler {
             let script = build_pbs_submit_script(
                 worker_count,
                 timelimit,
-                &format!("hq-alloc-{}", descriptor_id),
+                &format!("hq-alloc-{}", queue_id),
                 &directory.join("stdout").display().to_string(),
                 &directory.join("stderr").display().to_string(),
                 &queue_info.additional_args.join(" "),
@@ -142,7 +139,9 @@ impl QueueHandler for PbsHandler {
     }
 }
 
-fn parse_allocation_status(allocation: &serde_json::Value) -> AutoAllocResult<AllocationStatus> {
+fn parse_allocation_status(
+    allocation: &serde_json::Value,
+) -> AutoAllocResult<AllocationExternalStatus> {
     let state = get_json_str(&allocation["job_state"], "Job state")?;
     let start_time_key = "stime";
     let modification_time_key = "mtime";
@@ -156,22 +155,20 @@ fn parse_allocation_status(allocation: &serde_json::Value) -> AutoAllocResult<Al
     };
 
     let status = match state {
-        "Q" => AllocationStatus::Queued,
-        "R" | "E" => AllocationStatus::Running {
-            started_at: parse_time(start_time_key)?,
-        },
+        "Q" => AllocationExternalStatus::Queued,
+        "R" | "E" => AllocationExternalStatus::Running,
         "F" => {
             let exit_status = get_json_number(&allocation["Exit_status"], "Exit status")?;
-            let started_at = parse_time(start_time_key)?;
+            let started_at = parse_time(start_time_key).ok();
             let finished_at = parse_time(modification_time_key)?;
 
             if exit_status == 0 {
-                AllocationStatus::Finished {
+                AllocationExternalStatus::Finished {
                     started_at,
                     finished_at,
                 }
             } else {
-                AllocationStatus::Failed {
+                AllocationExternalStatus::Failed {
                     started_at,
                     finished_at,
                 }

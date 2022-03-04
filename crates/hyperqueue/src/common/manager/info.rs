@@ -20,19 +20,19 @@ impl Display for ManagerType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ManagerInfo {
     pub manager: ManagerType,
-    pub job_id: String,
+    pub allocation_id: String,
     /// Time that remains until the job ends
-    pub time_limit: Duration,
+    pub time_limit: Option<Duration>,
 }
 
 impl ManagerInfo {
-    pub fn new(manager: ManagerType, job_id: String, time_limit: Duration) -> Self {
+    pub fn new(manager: ManagerType, job_id: String, time_limit: Option<Duration>) -> Self {
         Self {
             manager,
-            job_id,
+            allocation_id: job_id,
             time_limit,
         }
     }

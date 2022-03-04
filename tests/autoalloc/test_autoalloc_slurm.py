@@ -9,12 +9,11 @@ from .utils import (
     extract_script_args,
     prepare_tasks,
     program_code_store_args_json,
-    wait_for_event,
 )
 
 
 def test_add_slurm_descriptor(hq_env: HqEnv):
-    hq_env.start_server(args=["--autoalloc-interval", "500ms"])
+    hq_env.start_server()
     output = add_queue(
         hq_env,
         manager="slurm",
@@ -28,29 +27,12 @@ def test_add_slurm_descriptor(hq_env: HqEnv):
     info.check_column_value("ID", 0, "1")
 
 
-def test_slurm_queue_sbatch_fail(hq_env: HqEnv):
-    sbatch_code = "exit(1)"
-
-    with hq_env.mock.mock_program("sbatch", sbatch_code):
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
-        prepare_tasks(hq_env)
-
-        add_queue(hq_env, manager="slurm")
-        wait_for_event(hq_env, "Allocation submission failed")
-        table = hq_env.command(["alloc", "events", "1"], as_table=True)
-        table.check_column_value(
-            "Message",
-            0,
-            "sbatch execution failed\nCaused by:\nExit code: 1\nStderr:\nStdout:",
-        )
-
-
 def test_slurm_queue_sbatch_args(hq_env: HqEnv):
     path = join(hq_env.work_path, "sbatch.out")
     sbatch_code = program_code_store_args_json(path)
 
     with hq_env.mock.mock_program("sbatch", sbatch_code):
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
+        hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(
@@ -74,16 +56,3 @@ def test_slurm_queue_sbatch_args(hq_env: HqEnv):
                 "--time=00:03:00",
                 "--foo=bar a b --baz 42",
             ]
-
-
-def test_slurm_queue_sbatch_success(hq_env: HqEnv):
-    sbatch_code = """print("Submitted batch job 123.job")"""
-
-    with hq_env.mock.mock_program("sbatch", sbatch_code):
-        hq_env.start_server(args=["--autoalloc-interval", "100ms"])
-        prepare_tasks(hq_env)
-
-        add_queue(hq_env, manager="slurm")
-        wait_for_event(hq_env, "Allocation queued")
-        table = hq_env.command(["alloc", "events", "1"], as_table=True)
-        table.check_column_value("Message", 0, "123.job")

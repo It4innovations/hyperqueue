@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+pub mod autoalloc;
 pub mod commands;
 pub mod globalsettings;
 pub mod job;

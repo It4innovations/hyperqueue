@@ -16,7 +16,7 @@ use crate::dashboard::ui::screens::auto_allocator::alloc_timeline_chart::Allocat
 use crate::dashboard::ui::screens::auto_allocator::allocations_info_table::AllocationInfoTable;
 use crate::dashboard::ui::screens::auto_allocator::queue_info_table::AllocationQueueInfoTable;
 use crate::dashboard::ui::screens::auto_allocator::queue_params_display::QueueParamsTable;
-use crate::server::autoalloc::DescriptorId;
+use crate::server::autoalloc::QueueId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
@@ -73,7 +73,7 @@ impl Screen for AutoAllocatorScreen {
     }
 
     fn update(&mut self, data: &DashboardData, _controller: &mut ScreenController) {
-        let queue_infos: Vec<(&DescriptorId, &AllocationQueueInfo)> =
+        let queue_infos: Vec<(&QueueId, &AllocationQueueInfo)> =
             data.query_allocation_queues_at(SystemTime::now()).collect();
         self.queue_info_table.update(queue_infos);
 
@@ -84,7 +84,7 @@ impl Screen for AutoAllocatorScreen {
         if let Some(queue_params) = self
             .queue_info_table
             .get_selected_queue_descriptor()
-            .and_then(|descriptor_id| data.query_allocation_params(descriptor_id))
+            .and_then(|queue_id| data.query_allocation_params(queue_id))
         {
             self.queue_params_table.update(queue_params)
         }
@@ -92,9 +92,7 @@ impl Screen for AutoAllocatorScreen {
         if let Some(allocations_map) = self
             .queue_info_table
             .get_selected_queue_descriptor()
-            .and_then(|descriptor_id| {
-                data.query_allocations_info_at(descriptor_id, SystemTime::now())
-            })
+            .and_then(|queue_id| data.query_allocations_info_at(queue_id, SystemTime::now()))
         {
             self.allocations_info_table.update(allocations_map);
         }

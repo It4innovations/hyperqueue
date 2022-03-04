@@ -4,7 +4,7 @@ from ..conftest import HqEnv
 from .utils import add_queue, remove_queue
 
 
-def test_autoalloc_descriptor_list(hq_env: HqEnv):
+def test_autoalloc_queue_list(hq_env: HqEnv):
     hq_env.start_server()
     add_queue(hq_env, name=None, backlog=5)
 
@@ -77,7 +77,7 @@ def test_require_timelimit(hq_env: HqEnv, manager: str):
     )
 
 
-def test_remove_descriptor(hq_env: HqEnv):
+def test_remove_queue(hq_env: HqEnv):
     hq_env.start_server()
     add_queue(hq_env)
     add_queue(hq_env)

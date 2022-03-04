@@ -118,15 +118,12 @@ def test_manager_pbs(hq_env: HqEnv):
 
 def test_manager_pbs_no_qstat(hq_env: HqEnv):
     hq_env.start_server()
-
-    process = hq_env.start_worker(
+    hq_env.start_worker(
         cpus=1,
         args=["--manager", "pbs"],
         env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"},
         wait_for_start=False,
     )
-    process.wait(5)
-    hq_env.check_process_exited(process, expected_code="error")
 
 
 def test_manager_slurm_no_env(hq_env: HqEnv):
