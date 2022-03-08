@@ -3,6 +3,11 @@ from typing import Dict, List, Optional, Sequence
 
 
 @dataclasses.dataclass()
+class ResourceRequest:
+    cpus: str
+
+
+@dataclasses.dataclass()
 class TaskDescription:
     id: int
     args: List[str]
@@ -13,6 +18,7 @@ class TaskDescription:
     env: Optional[Dict[str, str]]
     dependencies: Sequence[int]
     task_dir: bool
+    resource_request: Optional[ResourceRequest]
 
 
 @dataclasses.dataclass

@@ -1,3 +1,4 @@
+use hyperqueue::client::resources::parse_cpu_request;
 use hyperqueue::client::status::Status;
 use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::utils::fs::get_current_dir;
@@ -8,13 +9,18 @@ use hyperqueue::transfer::messages::{
     SubmitRequest, TaskDescription as HqTaskDescription, TaskIdSelector, TaskSelector,
     TaskStatusSelector, TaskWithDependencies, ToClientMessage, WaitForJobsRequest,
 };
-use hyperqueue::{rpc_call, JobTaskCount};
+use hyperqueue::{rpc_call, tako, JobTaskCount};
 use pyo3::{PyResult, Python};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::utils::error::ToPyResult;
 use crate::{borrow_mut, run_future, ContextPtr, FromPyObject, PyJobId, PyTaskId};
+
+#[derive(Debug, FromPyObject)]
+pub struct ResourceRequestDescription {
+    cpus: String,
+}
 
 #[derive(Debug, FromPyObject)]
 pub struct TaskDescription {
@@ -27,6 +33,7 @@ pub struct TaskDescription {
     stdin: Option<Vec<u8>>,
     dependencies: Vec<u32>,
     task_dir: bool,
+    resource_request: Option<ResourceRequestDescription>,
 }
 
 #[derive(Debug, FromPyObject)]
@@ -38,7 +45,7 @@ pub struct JobDescription {
 pub(crate) fn submit_job_impl(py: Python, ctx: ContextPtr, job: JobDescription) -> PyResult<u32> {
     run_future(async move {
         let submit_dir = get_current_dir();
-        let tasks = build_tasks(job.tasks, &submit_dir);
+        let tasks = build_tasks(job.tasks, &submit_dir)?;
         let job_desc = HqJobDescription::Graph { tasks };
 
         let message = FromClientMessage::Submit(SubmitRequest {
@@ -57,21 +64,26 @@ pub(crate) fn submit_job_impl(py: Python, ctx: ContextPtr, job: JobDescription) 
     })
 }
 
-fn build_tasks(tasks: Vec<TaskDescription>, submit_dir: &Path) -> Vec<TaskWithDependencies> {
+fn build_tasks(
+    tasks: Vec<TaskDescription>,
+    submit_dir: &Path,
+) -> anyhow::Result<Vec<TaskWithDependencies>> {
     tasks
         .into_iter()
-        .map(|mut task| TaskWithDependencies {
-            id: task.id.into(),
-            dependencies: std::mem::take(&mut task.dependencies)
-                .into_iter()
-                .map(|id| id.into())
-                .collect(),
-            task_desc: build_task_desc(task, submit_dir),
+        .map(|mut task| {
+            Ok(TaskWithDependencies {
+                id: task.id.into(),
+                dependencies: std::mem::take(&mut task.dependencies)
+                    .into_iter()
+                    .map(|id| id.into())
+                    .collect(),
+                task_desc: build_task_desc(task, submit_dir)?,
+            })
         })
         .collect()
 }
 
-fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> HqTaskDescription {
+fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<HqTaskDescription> {
     let args = desc.args.into_iter().map(|arg| arg.into()).collect();
     let env = desc
         .env
@@ -83,7 +95,16 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> HqTaskDescriptio
     let stdin = desc.stdin.unwrap_or_default();
     let cwd = desc.cwd.unwrap_or_else(|| submit_dir.to_path_buf());
 
-    HqTaskDescription {
+    let resources = if let Some(rs) = desc.resource_request {
+        tako::messages::gateway::ResourceRequest {
+            cpus: parse_cpu_request(&rs.cpus)?,
+            ..Default::default()
+        }
+    } else {
+        Default::default()
+    };
+
+    Ok(HqTaskDescription {
         program: ProgramDefinition {
             args,
             env,
@@ -92,12 +113,12 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> HqTaskDescriptio
             stdin,
             cwd,
         },
-        resources: Default::default(),
+        resources,
         pin: false,
         task_dir: desc.task_dir,
         time_limit: None,
         priority: 0,
-    }
+    })
 }
 
 pub(crate) fn wait_for_jobs_impl(

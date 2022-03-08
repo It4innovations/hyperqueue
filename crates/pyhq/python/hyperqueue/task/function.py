@@ -1,9 +1,9 @@
 import pickle
-from typing import Callable, Dict
+from typing import Callable, Optional
 
-from ..ffi.protocol import TaskDescription
+from ..ffi.protocol import ResourceRequest, TaskDescription
 from ..wrapper import CloudWrapper
-from .task import Task, TaskId
+from .task import Task
 
 _CLOUDWRAPPER_CACHE = {}
 
@@ -20,23 +20,25 @@ def cloud_wrap(fn, cache=True) -> CloudWrapper:
 
 
 def task_main():
-    import sys, pickle
+    import pickle
+    import sys
+
     try:
-        fn, a, kw=pickle.loads(sys.stdin.buffer.read())
+        fn, a, kw = pickle.loads(sys.stdin.buffer.read())
         fn(*a, **(kw if kw is not None else {}))
-    except Exception as e:
-        import os, traceback
+    except Exception:
+        import os
+        import traceback
+
         t = traceback.format_exc()
-        with open(os.environ['HQ_ERROR_FILENAME'], 'w') as f:
+        with open(os.environ["HQ_ERROR_FILENAME"], "w") as f:
             f.write(t)
         sys.exit(1)
 
 
 class PythonEnv:
     def __init__(self, python_bin="python3", prologue=None, shell="bash"):
-        code = (
-            "from hyperqueue.task.function import task_main as m; m()"
-        )
+        code = "from hyperqueue.task.function import task_main as m; m()"
 
         if prologue:
             self.args = [shell, "-c", f'{prologue}\n\n{python_bin} -c "{code}"']
@@ -55,8 +57,9 @@ class PythonFunction(Task):
         stdout=None,
         stderr=None,
         dependencies=(),
+        resources: Optional[ResourceRequest] = None,
     ):
-        super().__init__(task_id, dependencies)
+        super().__init__(task_id, dependencies, resources)
 
         fn_id = id(fn)
         wrapper = _CLOUDWRAPPER_CACHE.get(fn_id)
@@ -82,6 +85,7 @@ class PythonFunction(Task):
             cwd=None,
             dependencies=depends_on,
             task_dir=True,
+            resource_request=self.resources,
         )
 
     def __repr__(self):

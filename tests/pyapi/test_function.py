@@ -1,7 +1,9 @@
 import os.path
+import time
 from pathlib import Path
 
 from hyperqueue.client import Client, PythonEnv
+from hyperqueue.ffi.protocol import ResourceRequest
 from hyperqueue.job import Job
 
 from ..conftest import HqEnv
@@ -51,7 +53,22 @@ def test_submit_pyfunction_fail(hq_env: HqEnv):
 
     job.function(body, stderr="err")
     job_id = client.submit(job)
-    client.wait_for_job(job_id, raise_on_error=False)
+    client.wait_for_jobs([job_id], raise_on_error=False)
     errors = client.get_error_messages(job_id)
     assert list(errors.keys()) == [0]
-    assert errors[0].endswith('    raise Exception("MyException")\nException: MyException\n')
+    assert errors[0].endswith(
+        '    raise Exception("MyException")\nException: MyException\n'
+    )
+
+
+def test_function_resources(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+
+    job.function(lambda: 1, resources=ResourceRequest(cpus="1"))
+    job.function(lambda: 1, resources=ResourceRequest(cpus="2"))
+    job.function(lambda: 1, resources=ResourceRequest(cpus="all"))
+    job_id = client.submit(job)
+    time.sleep(2.0)
+
+    table = hq_env.command(["job", "tasks", str(job_id)], as_table=True)
+    assert table.get_column_value("State") == ["FINISHED", "WAITING", "FINISHED"]

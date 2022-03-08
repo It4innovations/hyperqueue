@@ -1,15 +1,16 @@
+import time
 from pathlib import Path
 
 import pytest
-
 from hyperqueue.client import TaskFailedException
+from hyperqueue.ffi.protocol import ResourceRequest
+from hyperqueue.job import Job
+
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
 from ..utils.io import check_file_contents
 from ..utils.table import parse_multiline_cell
 from . import bash, prepare_job_client
-
-from hyperqueue.job import Job
 
 
 def test_submit_simple(hq_env: HqEnv):
@@ -71,14 +72,14 @@ def test_wait_for_job(hq_env: HqEnv):
     )
     job_id = client.submit(job)
     with pytest.raises(TaskFailedException):
-        client.wait_for_job(job_id)
+        client.wait_for_jobs([job_id])
 
     job = Job()
     job.program(
         args=bash("echo Test1 > output"),
     )
     job_id = client.submit(job)
-    client.wait_for_job(job_id)
+    client.wait_for_jobs([job_id])
     check_file_contents("output", "Test1\n")
 
 
@@ -95,5 +96,20 @@ def test_get_error_messages(hq_env: HqEnv):
         args=bash("echo b"),
     )
     job_id = client.submit(job)
-    assert not client.wait_for_job(job_id, raise_on_error=False)
-    assert client.get_error_messages(job_id) == {1: 'Error: Program terminated with exit code 1'}
+    assert not client.wait_for_jobs([job_id], raise_on_error=False)
+    assert client.get_error_messages(job_id) == {
+        1: "Error: Program terminated with exit code 1"
+    }
+
+
+def test_job_resources(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+
+    job.program(args=bash("echo Hello"), resources=ResourceRequest(cpus="1"))
+    job.program(args=bash("echo Hello"), resources=ResourceRequest(cpus="2"))
+    job.program(args=bash("echo Hello"), resources=ResourceRequest(cpus="all"))
+    job_id = client.submit(job)
+    time.sleep(1.0)
+
+    table = hq_env.command(["job", "tasks", str(job_id)], as_table=True)
+    assert table.get_column_value("State") == ["FINISHED", "WAITING", "FINISHED"]
