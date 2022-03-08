@@ -1,7 +1,7 @@
 from pathlib import Path
-from typing import Optional, Sequence, Dict
+from typing import Dict, Optional, Sequence
 
-from .ffi.connection import Connection, TaskId, JobId
+from .ffi.connection import Connection, JobId, TaskId
 from .job import Job
 from .task.function import PythonEnv
 
@@ -23,17 +23,19 @@ class Client:
     def submit(self, job: Job) -> JobId:
         return self.connection.submit_job(job._build(self))
 
-    def wait_for_job(self, job_id: JobId, raise_on_error=True):
-        """ Returns True if all tasks were successfully finished """
-        finished = bool(self.connection.wait_for_jobs([job_id]))
+    def wait_for_jobs(self, job_ids: Sequence[JobId], raise_on_error=True):
+        """Returns True if all tasks were successfully finished"""
+        finished = bool(self.connection.wait_for_jobs(job_ids))
         if not finished and raise_on_error:
-            errors = self.get_error_messages(job_id)
-            min_id = min(errors.keys())
-            raise TaskFailedException(f"Task {min_id} failed:\n{errors[min_id]}")
+            errors = self.connection.get_error_messages(job_ids)
+            for es in errors.values():
+                if not es:
+                    continue
+                min_id = min(es.keys())
+                raise TaskFailedException(f"Task {min_id} failed:\n{es[min_id]}")
         else:
             return finished
 
     def get_error_messages(self, job_id: JobId) -> Dict[TaskId, str]:
         result = self.connection.get_error_messages([job_id])
         return result[job_id]
-
