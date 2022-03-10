@@ -11,6 +11,7 @@ use crate::transfer::messages::{
 };
 use anyhow::Context;
 use chrono::{NaiveTime, Timelike};
+use serde_json::Value;
 use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;
@@ -299,6 +300,10 @@ fn get_pbs_queue_limit(queue_type: String) -> anyhow::Result<Option<QueueLimits>
         .and_then(|x| x.get(&queue_type))
         .context("can't find queue info")?;
 
+    parse_pbs_queue_limit(queue)
+}
+
+fn parse_pbs_queue_limit(queue: &Value) -> anyhow::Result<Option<QueueLimits>> {
     let (walltime, backlog, workers_max, workers_available) = (
         "resources_max/walltime",
         "max_queued",
@@ -467,7 +472,8 @@ async fn try_submit_allocation(
 
 #[cfg(test)]
 mod tests {
-    use crate::server::client::autoalloc::get_arg_by_key;
+    use crate::server::client::autoalloc::{get_arg_by_key, parse_pbs_queue_limit};
+    use std::time::Duration;
 
     #[test]
     fn test_get_arg_by_key() {
@@ -504,5 +510,73 @@ mod tests {
             .is_some(),
             true
         );
+    }
+
+    #[test]
+    fn test_get_pbs_queue_limit() {
+        let queue_json = r#"{
+    "timestamp":1646895019,
+    "pbs_version":"20.0.1",
+    "pbs_server":"isrv1.barbora.it4i.cz",
+    "Queue":{
+        "qexp":{
+            "queue_type":"Execution",
+            "Priority":150,
+            "total_jobs":2,
+            "state_count":"Transit:0 Queued:0 Held:2 Waiting:0 Running:0 Exiting:0 Begun:0 ",
+            "max_queued":"[u:PBS_GENERIC=5]",
+            "resources_max":{
+                "ncpus":144,
+                "nodect":4,
+                "walltime":"01:00:00"
+            },
+            "resources_default":{
+                "ncpus":36,
+                "walltime":"01:00:00"
+            },
+            "default_chunk":{
+                "ncpus":36,
+                "Qlist":"qexp"
+            },
+            "resources_available":{
+                "ncpus":576,
+                "nodect":16
+            },
+            "resources_assigned":{
+                "mem":"0kb",
+                "mpiprocs":0,
+                "ncpus":0,
+                "nodect":0
+            },
+            "max_run":"[u:PBS_GENERIC=1]",
+            "max_run_res":{
+                "ncpus":"[u:PBS_GENERIC=144]",
+                "nodect":"[u:PBS_GENERIC=4]"
+            },
+            "enabled":"True",
+            "started":"True"
+        }
+    }
+}"#;
+        // Get queue info
+        let json: serde_json::Value = serde_json::from_str(&queue_json).unwrap();
+        let queue = json
+            .get("Queue")
+            .and_then(|x| x.get(&String::from("qexp")))
+            .unwrap();
+
+        // Check values
+        let result = parse_pbs_queue_limit(queue);
+        match result {
+            Ok(Some(limit)) => {
+                // Max-queued
+                assert_eq!(limit.backlog == Some(5), true);
+                // resources_max/nodect for this queue
+                assert_eq!(limit.workers == Some(4), true);
+                // resources_max/walltime
+                assert_eq!(limit.walltime == Some(Duration::from_secs(3600)), true);
+            }
+            _ => assert!(false),
+        }
     }
 }
