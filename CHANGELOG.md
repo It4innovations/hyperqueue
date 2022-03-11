@@ -7,7 +7,8 @@
 * Task may be started with a temporary directory that is automatically deleted when the task is finished.
   (flag `--task-dir`).
 
-* Task may provide its own error message by creating a file with name passed by ``HQ_ERROR_FILENAME``. 
+* Task may provide its own error message by creating a file with name passed by environment variable
+`HQ_ERROR_FILENAME`. 
 
 ### CLI
  
@@ -17,24 +18,22 @@
 ## Changes
 
 ### Automatic allocation
+* Automatic allocation has been rewritten from scratch. It will no longer query PBS/Slurm allocation
+statuses periodically, instead it will try to derive allocation state from workers that connect
+to it from allocations.
 * When adding a new allocation queue, HyperQueue will now try to immediately submit a job into the queue
 to quickly test whether the entered configuration is correct. If you want to avoid this behaviour, you
 can use the `--no-dry-run` flag for `hq alloc add <pbs/slurm>`.
-* The automatic allocator will now be invoked much less frequently, which should reduce stress put
-on the used HPC job manager (e.g. PBS). You might thus see up to 10-minute delays before the HQ
-allocation list will display updated information or before a new allocation will be submitted.
-We plan to rework the automatic allocator in future versions to allow more frequent updates while
-avoiding generating too many requests to the HPC job manager.
+* If too many submissions (10) or running allocations (3) fail in a succession, the corresponding
+allocation queue will be automatically removed to avoid error loops.
+* `hq alloc events` command has been removed.
+* The `--max-kept-directories` parameter for allocation queues has been removed. HyperQueue will now keep
+`20` last allocation directories amongst all allocation queues.
 
 ## Fixes
 * HQ will no longer warn that `stdout`/`stderr` path does not contain the `%{TASK_ID}` placeholder
 when submitting array jobs if the placeholder is contained within the working directory path and
 `stdout`/`stderr` contains the `%{CWD}` placeholder.
-* The automatic allocator will query PBS allocation statuses less often. It will now ask for status
-of all allocations per allocation queue in a single `qstat` call, and it now also contains backoff
-that will slow down new allocations if there are submission errors. If too many submissions (10) or
-running allocations (3) fail in a succession, its corresponding allocation queue will be automatically
-removed.
 
 # 0.8.0
 
