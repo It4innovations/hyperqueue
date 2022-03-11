@@ -24,6 +24,7 @@ use crate::transfer::messages::{
     StopWorkerResponse, TaskSelector, ToClientMessage, WorkerListResponse,
 };
 use crate::{JobId, JobTaskCount, WorkerId};
+use tako::common::taskgroup::TaskGroup;
 
 pub mod autoalloc;
 mod submit;
@@ -36,15 +37,15 @@ pub async fn handle_client_connections(
     end_flag: Rc<Notify>,
     key: Arc<SecretKey>,
 ) {
-    while let Ok((connection, _)) = listener.accept().await {
+    let group = TaskGroup::default();
+    while let Ok((connection, _)) = group.run_until(listener.accept()).await {
         let state_ref = state_ref.clone();
         let tako_ref = tako_ref.clone();
         let end_flag = end_flag.clone();
         let key = key.clone();
         let server_dir = server_dir.clone();
 
-        // TODO: remove this spawn
-        tokio::task::spawn_local(async move {
+        group.add_task(async move {
             if let Err(e) =
                 handle_client(connection, server_dir, state_ref, tako_ref, end_flag, key).await
             {

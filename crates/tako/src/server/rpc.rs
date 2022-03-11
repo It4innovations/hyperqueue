@@ -10,6 +10,7 @@ use tokio::time::timeout;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 use crate::common::error::DsError;
+use crate::common::taskgroup::TaskGroup;
 use crate::messages::common::sync_worker_configuration;
 use crate::messages::gateway::LostWorkerReason;
 use crate::messages::worker::{
@@ -42,12 +43,13 @@ pub async fn connection_initiator(
     core_ref: CoreRef,
     comm_ref: CommSenderRef,
 ) -> crate::Result<()> {
+    let group = TaskGroup::default();
     loop {
-        let (socket, address) = listener.accept().await?;
+        let (socket, address) = group.run_until(listener.accept()).await?;
         socket.set_nodelay(true)?;
         let core_ref2 = core_ref.clone();
         let comm_ref = comm_ref.clone();
-        let rpc_task = tokio::task::spawn_local(async move {
+        group.add_task(async move {
             log::debug!("New connection: {}", address);
             let (connection, message) =
                 match worker_authentication(&core_ref2, socket, address).await {
@@ -71,7 +73,6 @@ pub async fn connection_initiator(
                 }
             }
         });
-        core_ref.get_mut().add_rpc_handle(rpc_task);
     }
 }
 
