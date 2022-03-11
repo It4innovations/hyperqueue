@@ -48,7 +48,7 @@ pub async fn server_start(
     let future = async move {
         tokio::select! {
             () = scheduler => {},
-            r = connections => r ?,
+            r = connections => r?,
         };
         log::debug!("Waiting for scheduler to shut down...");
         log::info!("tako ends");

@@ -5,7 +5,7 @@ use std::time::Duration;
 use serde_json::Value;
 
 use crate::common::manager::common::format_duration;
-use crate::common::timeutils::parse_hms_time;
+use crate::common::utils::time::parse_hms_time;
 
 fn parse_pbs_job_remaining_time(job_id: &str, data: &str) -> anyhow::Result<Duration> {
     let data_json: Value = serde_json::from_str(data)?;

@@ -1,7 +1,7 @@
 mod output;
 
 use crate::client::commands::event::output::format_event;
-use crate::common::strutils::pluralize;
+use crate::common::utils::str::pluralize;
 use crate::server::event::log::EventLogReader;
 use anyhow::anyhow;
 use clap::{Parser, ValueHint};

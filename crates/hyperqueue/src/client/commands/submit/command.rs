@@ -18,13 +18,13 @@ use crate::client::job::get_worker_map;
 use crate::client::resources::{parse_cpu_request, parse_resource_request};
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
-use crate::common::fsutils::get_current_dir;
 use crate::common::placeholders::{
     get_unknown_placeholders, parse_resolvable_string, StringPart, CWD_PLACEHOLDER,
     JOB_ID_PLACEHOLDER, SUBMIT_DIR_PLACEHOLDER, TASK_ID_PLACEHOLDER,
 };
-use crate::common::strutils::pluralize;
-use crate::common::timeutils::ArgDuration;
+use crate::common::utils::fs::get_current_dir;
+use crate::common::utils::str::pluralize;
+use crate::common::utils::time::ArgDuration;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDescription, ResubmitRequest, SubmitRequest, TaskDescription,

@@ -100,7 +100,7 @@ pub mod mock_time {
 
 #[cfg(test)]
 mod tests {
-    use crate::common::timeutils::{p_hms_time, parse_hms_time};
+    use crate::common::utils::time::{p_hms_time, parse_hms_time};
     use crate::tests::utils::check_parse_error;
 
     #[test]

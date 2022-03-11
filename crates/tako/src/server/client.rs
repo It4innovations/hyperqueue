@@ -3,7 +3,7 @@ use futures::StreamExt;
 use tokio::net::UnixListener;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use crate::common::rpc::forward_queue_to_sink_with_map;
+use crate::common::rpc::forward_queue_to_sink;
 use crate::messages::gateway::{
     CancelTasksResponse, ErrorResponse, FromGatewayMessage, NewTasksMessage, NewTasksResponse,
     SharedTaskConfiguration, TaskInfo, TaskState, TaskUpdate, TasksInfoResponse, ToGatewayMessage,
@@ -26,7 +26,7 @@ pub async fn client_connection_handler(
     if let Ok((stream, _)) = listener.accept().await {
         let framed = make_protocol_builder().new_framed(stream);
         let (sender, mut receiver) = framed.split();
-        let send_loop = forward_queue_to_sink_with_map(client_receiver, sender, |msg| {
+        let send_loop = forward_queue_to_sink(client_receiver, sender, |msg| {
             rmp_serde::to_vec_named(&msg).unwrap().into()
         });
         {

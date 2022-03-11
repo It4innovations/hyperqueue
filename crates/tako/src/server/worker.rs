@@ -7,7 +7,7 @@ use crate::common::Set;
 use crate::messages::common::WorkerConfiguration;
 use crate::server::task::Task;
 use crate::server::taskmap::TaskMap;
-use crate::server::worker_load::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
+use crate::server::workerload::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
 use crate::{TaskId, WorkerId};
 use std::time::Duration;
 

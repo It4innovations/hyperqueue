@@ -2,7 +2,6 @@ pub use wrapped::WrappedRcRefCell;
 
 pub use data_structures::{Map, Set};
 
-pub mod data;
 pub mod error;
 pub mod resources;
 pub mod rpc;

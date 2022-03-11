@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use orion::aead::SecretKey;
-use tokio::task::JoinHandle;
 
 use crate::common::resources::map::{ResourceIdAllocator, ResourceMap};
 use crate::common::resources::{GenericResourceId, ResourceRequest};
@@ -12,7 +11,7 @@ use crate::server::rpc::ConnectionDescriptor;
 use crate::server::task::{Task, TaskRuntimeState};
 use crate::server::taskmap::TaskMap;
 use crate::server::worker::Worker;
-use crate::server::worker_load::WorkerResources;
+use crate::server::workerload::WorkerResources;
 use crate::server::workermap::WorkerMap;
 use crate::{TaskId, WorkerId};
 
@@ -41,9 +40,6 @@ pub struct Core {
     secret_key: Option<Arc<SecretKey>>,
 
     custom_conn_handler: Option<CustomConnectionHandler>,
-
-    #[cfg(test)]
-    rpc_handles: Vec<JoinHandle<()>>,
 }
 
 pub type CoreRef = WrappedRcRefCell<Core>;
@@ -388,20 +384,6 @@ impl Core {
 
     pub fn secret_key(&self) -> &Option<Arc<SecretKey>> {
         &self.secret_key
-    }
-
-    /// Add a task handle to a connection RPC loop.
-    #[cfg(test)]
-    pub fn add_rpc_handle(&mut self, handle: JoinHandle<()>) {
-        self.rpc_handles.push(handle);
-    }
-
-    #[cfg(not(test))]
-    pub fn add_rpc_handle(&mut self, _handle: JoinHandle<()>) {}
-
-    #[cfg(test)]
-    pub fn take_rpc_handles(&mut self) -> Vec<JoinHandle<()>> {
-        std::mem::take(&mut self.rpc_handles)
     }
 }
 

@@ -53,9 +53,9 @@ pub struct ServerConfig {
 pub struct ServerHandle {
     server_to_client: UnboundedReceiver<ToGatewayMessage>,
     client_sender: UnboundedSender<ToGatewayMessage>,
-    pub(super) core_ref: CoreRef,
+    core_ref: CoreRef,
     comm_ref: CommSenderRef,
-    pub(super) secret_key: Option<Arc<SecretKey>>,
+    secret_key: Option<Arc<SecretKey>>,
     workers: Map<WorkerId, WorkerContext>,
     out_of_band_messages: Vec<ToGatewayMessage>,
 }
@@ -251,24 +251,11 @@ async fn create_handle(
 }
 
 pub struct ServerCompletion {
-    core_ref: CoreRef,
     set: LocalSet,
     server_handle: JoinHandle<crate::Result<()>>,
 }
 
 impl ServerCompletion {
-    /// Waits until all RPC connections (workers, custom connections) are finished.
-    pub async fn finish_rpc(&mut self) {
-        timeout(WAIT_TIMEOUT, async move {
-            let handles = self.core_ref.get_mut().take_rpc_handles();
-            for handle in handles {
-                self.set.run_until(handle).await.unwrap();
-            }
-        })
-        .await
-        .unwrap();
-    }
-
     /// Finish the main server future.
     pub async fn finish(self) {
         timeout(WAIT_TIMEOUT, async move {
@@ -292,16 +279,11 @@ pub async fn run_test<
     create_fut: CreateTestFut,
 ) -> ServerCompletion {
     let (handle, server_future) = create_handle(builder).await;
-    let core_ref = handle.core_ref.clone();
     let test_future = create_fut(handle);
 
     let set = tokio::task::LocalSet::new();
     let server_handle = set.spawn_local(server_future);
     set.run_until(test_future).await;
 
-    ServerCompletion {
-        core_ref,
-        server_handle,
-        set,
-    }
+    ServerCompletion { server_handle, set }
 }

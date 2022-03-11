@@ -15,7 +15,7 @@ use crate::server::core::{Core, CoreRef};
 use crate::server::task::{Task, TaskRuntimeState};
 use crate::server::taskmap::TaskMap;
 use crate::server::worker::Worker;
-use crate::server::worker_load::ResourceRequestLowerBound;
+use crate::server::workerload::ResourceRequestLowerBound;
 use crate::{TaskId, WorkerId};
 
 use super::metrics::compute_b_level_metric;

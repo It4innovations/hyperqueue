@@ -1,4 +1,4 @@
-use crate::common::fsutils::get_current_dir;
+use crate::common::utils::fs::get_current_dir;
 use anyhow::Context;
 use bstr::ByteSlice;
 use std::future::Future;
@@ -11,7 +11,7 @@ use crate::common::manager::info::ManagerType;
 use crate::common::manager::slurm::{
     format_slurm_duration, get_scontrol_items, parse_slurm_datetime,
 };
-use crate::common::timeutils::local_to_system_time;
+use crate::common::utils::time::local_to_system_time;
 use crate::server::autoalloc::queue::common::{
     build_worker_args, create_allocation_dir, create_command, submit_script, ExternalHandler,
 };

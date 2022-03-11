@@ -10,7 +10,7 @@ use crate::client::output::cli::{
 };
 use crate::client::status::{is_terminated, Status};
 use crate::common::arraydef::IntArray;
-use crate::common::strutils::pluralize;
+use crate::common::utils::str::pluralize;
 use crate::server::job::JobTaskCounters;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{

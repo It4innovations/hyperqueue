@@ -1,6 +1,6 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::serverdir::ServerDir;
-use crate::common::timeutils::ArgDuration;
+use crate::common::utils::time::ArgDuration;
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{

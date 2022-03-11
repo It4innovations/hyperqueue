@@ -4,7 +4,7 @@ use crate::client::commands::worker::ArgServerLostPolicy;
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::utils::PassThroughArgument;
 use crate::common::manager::info::ManagerType;
-use crate::common::timeutils::ExtendedArgDuration;
+use crate::common::utils::time::ExtendedArgDuration;
 use crate::rpc_call;
 use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
 use crate::server::bootstrap::get_client_connection;

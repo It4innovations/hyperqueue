@@ -1,6 +1,6 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::server::client_stop_server;
-use crate::common::timeutils::ArgDuration;
+use crate::common::utils::time::ArgDuration;
 use crate::rpc_call;
 use crate::server::bootstrap::{
     get_client_connection, init_hq_server, print_server_info, ServerConfig,

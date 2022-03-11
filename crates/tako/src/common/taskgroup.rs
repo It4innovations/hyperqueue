@@ -4,16 +4,9 @@ use tokio::task::LocalSet;
 /// Enables spawning a group of tasks that will no longer be polled after the group is dropped.
 /// Does not allow getting the results of the individual tasks, they thus have to be
 /// "fire-and-forget" tasks.
+#[derive(Default)]
 pub struct TaskGroup {
     set: LocalSet,
-}
-
-impl Default for TaskGroup {
-    fn default() -> Self {
-        Self {
-            set: Default::default(),
-        }
-    }
 }
 
 impl TaskGroup {
