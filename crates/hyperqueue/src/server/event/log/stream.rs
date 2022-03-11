@@ -1,4 +1,4 @@
-use crate::common::strutils::pluralize;
+use crate::common::utils::str::pluralize;
 use crate::server::event::log::write::EventLogWriter;
 use crate::server::event::MonitoringEvent;
 use std::future::Future;

@@ -1,5 +1,5 @@
 use crate::common::manager::common::format_duration;
-use crate::common::timeutils::parse_hms_time;
+use crate::common::utils::time::parse_hms_time;
 use crate::Map;
 use std::process::Command;
 use std::time::Duration;

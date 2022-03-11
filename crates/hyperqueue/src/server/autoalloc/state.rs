@@ -10,7 +10,7 @@ use tako::WorkerId;
 
 use crate::common::idcounter::IdCounter;
 use crate::common::manager::info::ManagerType;
-use crate::common::timeutils::now_monotonic;
+use crate::common::utils::time::now_monotonic;
 use crate::server::autoalloc::config::MAX_KEPT_DIRECTORIES;
 use crate::server::autoalloc::queue::QueueHandler;
 use crate::server::autoalloc::QueueInfo;

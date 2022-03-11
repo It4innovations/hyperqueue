@@ -808,7 +808,7 @@ mod tests {
 
     use crate::common::arraydef::IntArray;
     use crate::common::manager::info::{ManagerInfo, ManagerType};
-    use crate::common::timeutils::mock_time::MockTime;
+    use crate::common::utils::time::mock_time::MockTime;
     use crate::server::autoalloc::process::{
         on_worker_connected, on_worker_lost, queue_try_submit, refresh_state,
     };

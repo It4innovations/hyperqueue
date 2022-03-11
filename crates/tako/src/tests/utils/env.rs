@@ -11,7 +11,7 @@ use crate::server::core::Core;
 use crate::server::reactor::on_new_worker;
 use crate::server::task::{SerializedTaskContext, Task};
 use crate::server::worker::Worker;
-use crate::server::worker_load::WorkerLoad;
+use crate::server::workerload::WorkerLoad;
 use crate::tests::utils;
 use crate::tests::utils::resources::cpus_compact;
 use crate::tests::utils::schedule;

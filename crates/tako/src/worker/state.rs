@@ -17,7 +17,6 @@ use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
 use crate::messages::worker::{FromWorkerMessage, StealResponse, TaskFailedMsg, TaskFinishedMsg};
 use crate::transfer::auth::serialize;
-use crate::transfer::DataConnection;
 use crate::worker::launcher::TaskLauncher;
 use crate::worker::rqueue::ResourceWaitQueue;
 use crate::worker::task::{Task, TaskState};
@@ -46,7 +45,6 @@ pub struct WorkerState {
 
     pub worker_id: WorkerId,
     pub worker_addresses: Map<WorkerId, String>,
-    pub worker_connections: Map<WorkerId, Vec<DataConnection>>,
     pub random: SmallRng,
 
     pub worker_is_empty_notify: Option<Rc<Notify>>,
@@ -168,19 +166,6 @@ impl WorkerState {
         self.last_task_finish_time = Instant::now();
     }
 
-    pub fn pop_worker_connection(&mut self, worker_id: WorkerId) -> Option<DataConnection> {
-        self.worker_connections
-            .get_mut(&worker_id)
-            .and_then(|connections| connections.pop())
-    }
-
-    pub fn return_worker_connection(&mut self, worker_id: WorkerId, connection: DataConnection) {
-        self.worker_connections
-            .entry(worker_id)
-            .or_default()
-            .push(connection);
-    }
-
     pub fn get_worker_address(&self, worker_id: WorkerId) -> Option<&String> {
         self.worker_addresses.get(&worker_id)
     }
@@ -298,7 +283,6 @@ impl WorkerStateRef {
             tasks: Default::default(),
             ready_task_queue,
             random: SmallRng::from_entropy(),
-            worker_connections: Default::default(),
             start_task_scheduled: false,
             start_task_notify: Rc::new(Notify::new()),
             running_tasks: Default::default(),

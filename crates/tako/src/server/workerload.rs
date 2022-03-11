@@ -246,7 +246,7 @@ impl ResourceRequestLowerBound {
 #[cfg(test)]
 mod tests {
     use crate::common::resources::ResourceRequest;
-    use crate::server::worker_load::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
+    use crate::server::workerload::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
     use crate::tests::utils::resources::{cpus_all, cpus_compact};
 
     #[test]

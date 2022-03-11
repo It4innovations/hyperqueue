@@ -1,4 +1,4 @@
-use hyperqueue::common::fsutils::get_current_dir;
+use hyperqueue::common::utils::fs::get_current_dir;
 use hyperqueue::rpc_call;
 use hyperqueue::tako::messages::common::{ProgramDefinition, StdioDef};
 use hyperqueue::transfer::messages::{

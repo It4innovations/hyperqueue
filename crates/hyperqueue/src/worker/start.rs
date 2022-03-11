@@ -30,12 +30,12 @@ use crate::client::commands::worker::{ManagerOpts, WorkerStartOpts};
 use crate::common::env::{
     HQ_CPUS, HQ_ERROR_FILENAME, HQ_INSTANCE_ID, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR,
 };
-use crate::common::fsutils::{bytes_to_path, is_implicit_path, path_has_extension};
 use crate::common::manager::info::{ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::manager::{pbs, slurm};
 use crate::common::placeholders::{
     fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
 };
+use crate::common::utils::fs::{bytes_to_path, is_implicit_path, path_has_extension};
 use crate::transfer::messages::TaskBody;
 use crate::transfer::stream::ChannelId;
 use crate::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resources};

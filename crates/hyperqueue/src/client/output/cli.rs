@@ -31,7 +31,7 @@ use tako::common::resources::{CpuRequest, ResourceDescriptor};
 use tako::messages::common::StdioDef;
 
 use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
-use crate::common::strutils::{pluralize, select_plural};
+use crate::common::utils::str::{pluralize, select_plural};
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
 use anyhow::Error;
 use colored::Color as Colorization;

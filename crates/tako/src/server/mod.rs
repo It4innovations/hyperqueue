@@ -9,5 +9,5 @@ mod start;
 pub mod task;
 pub mod taskmap;
 pub mod worker;
-pub mod worker_load;
+pub mod workerload;
 pub mod workermap;

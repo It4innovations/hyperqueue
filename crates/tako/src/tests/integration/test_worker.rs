@@ -133,12 +133,11 @@ async fn test_worker_idle_timeout_stays_alive_with_tasks() {
 #[should_panic]
 async fn test_panic_on_worker_lost() {
     let config = ServerConfigBuilder::default().panic_on_worker_lost(true);
-    let mut completion = run_test(config, |mut handle| async move {
+    let completion = run_test(config, |mut handle| async move {
         let worker = handle.start_worker(Default::default()).await.unwrap();
         handle.kill_worker(worker.id).await;
     })
     .await;
-    completion.finish_rpc().await;
     completion.finish().await;
 }
 
