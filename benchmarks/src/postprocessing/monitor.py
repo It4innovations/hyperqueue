@@ -10,9 +10,8 @@ from typing import Callable, Iterator, List, Optional, Tuple, TypeVar
 
 import humanize
 import pandas as pd
-from bokeh.embed import file_html
 from bokeh.io import save
-from bokeh.layouts import column, gridplot
+from bokeh.layouts import column
 from bokeh.model import Model
 from bokeh.models import (
     Column,
@@ -32,12 +31,11 @@ from bokeh.plotting import Figure, figure
 from bokeh.resources import CDN
 from cluster.cluster import Cluster, Node, ProcessInfo
 from pandas import Timestamp
-from tornado import ioloop, web
 
 from ..clusterutils.profiler import (
-    CachegrindProfiler,
     FlamegraphProfiler,
     PerfEventsProfiler,
+    CachegrindProfiler,
 )
 from ..monitoring.record import MonitoringRecord, ProcessRecord
 from ..utils import ensure_directory
@@ -67,8 +65,11 @@ class TimeRange:
 
 def resample(df: pd.DataFrame, time_index: pd.Series, period="1S"):
     """Resamples the dataframe with the given `period` while using `time` as an index."""
+    time_range = get_time_range(time_index)
+    time_length = time_range.start - time_range.end
     df.index = time_index
-    df = df.resample(period).first()
+    if pd.Timedelta(period) < time_length:
+        df = df.resample(period).first()
     return df.interpolate()
 
 
@@ -96,7 +97,10 @@ def prepare_time_range_figure(
     fig = figure(
         plot_width=width,
         plot_height=height,
-        x_range=[range.start, range.end],
+        x_range=[
+            range.start - datetime.timedelta(seconds=1),
+            range.end + datetime.timedelta(seconds=1),
+        ],
         x_axis_type="datetime",
         **kwargs,
     )
@@ -163,7 +167,8 @@ def render_node_per_cpu_pct_utilization(figure: Figure, df: pd.DataFrame):
 
 
 def render_node_mem_pct_utilization(figure: Figure, df: pd.DataFrame):
-    mem = resample(df[MEM_KEY], df[DATETIME_KEY])
+    time = df[DATETIME_KEY]
+    mem = resample(df[MEM_KEY], time)
     figure.yaxis[0].formatter = NumeralTickFormatter(format="0 %")
     figure.y_range = Range1d(0, 1)
 
@@ -174,8 +179,9 @@ def render_node_mem_pct_utilization(figure: Figure, df: pd.DataFrame):
 
 
 def render_node_network_connections(figure: Figure, df: pd.DataFrame):
+    time = df[DATETIME_KEY]
     connections_series = df[NETWORK_CONNECTIONS_KEY]
-    connections = resample(connections_series, df[DATETIME_KEY])
+    connections = resample(connections_series, time)
     figure.y_range = Range1d(0, connections_series.max() + 10)
 
     figure.add_tools(HoverTool(tooltips=[("Connection count", "@count")]))
@@ -186,10 +192,12 @@ def render_node_network_connections(figure: Figure, df: pd.DataFrame):
 def render_bytes_sent_received(
     figure: Figure, df: pd.DataFrame, label: str, read_col: str, write_col: str
 ):
+    time = df[DATETIME_KEY]
+
     def accumulate(column):
         values = df[column]
         values = values - values.min()
-        return resample(values, df[DATETIME_KEY])
+        return resample(values, time)
 
     read = accumulate(read_col)
     write = accumulate(write_col)
@@ -201,6 +209,10 @@ def render_bytes_sent_received(
 
     figure.add_tools(HoverTool(tooltips=tooltips))
     figure.yaxis[0].formatter = NumeralTickFormatter(format="0.0b")
+
+    y_max = max(max(data.data["rx"]), max(data.data["tx"]))
+    figure.y_range = Range1d(0, y_max + 0.01)
+
     figure.line(
         x="x", y="rx", color="blue", legend_label="{} RX".format(label), source=data
     )
@@ -240,8 +252,8 @@ def render_node_utilization(df: pd.DataFrame) -> LayoutDOM:
     io_activity = render(render_node_io_activity, "I/O activity")
     net_connections = render(render_node_network_connections, "Network connections")
 
-    layout = [[cpu, net_activity, net_connections], [mem, io_activity]]
-    return gridplot(layout)
+    layout = [cpu, mem, net_activity, net_connections, io_activity]
+    return column(layout)
 
 
 def get_node_description(report: ClusterReport, hostname: str) -> str:
@@ -269,7 +281,6 @@ def render_nodes_resource_usage(
             render_as_text=True,
             style={"font-size": "20px", "font-weight": "bold"},
         )
-
         rows.append(Column(children=[header, utilization]))
     return column(rows)
 
@@ -279,6 +290,7 @@ def render_global_percent_resource_usage(
     source: ColumnDataSource,
     report: ClusterReport,
     hostnames: List[str],
+    period=1000.0,
 ):
     node_count = len(hostnames)
     figure.y_range = Range1d(0, node_count + 1)
@@ -288,8 +300,7 @@ def render_global_percent_resource_usage(
     colors = select_colors(hostnames)
     figure.vbar_stack(
         hostnames,
-        x="x_start",
-        width=1000.0,
+        width=period,
         color=colors,
         line_color="black",
         legend_label=[get_node_description(report, hostname) for hostname in hostnames],
@@ -335,19 +346,15 @@ def render_global_resource_usage(
     df[CPU_KEY] = df[CPU_KEY].apply(lambda entry: average(entry))
     df.index = df[DATETIME_KEY]
 
-    range = get_time_range(df[DATETIME_KEY])
+    range = get_time_range(df.index)
     time_index = df[DATETIME_KEY].resample("1S").count().index
-
     hostnames = sorted(df[HOSTNAME_KEY].unique())
 
     def render(title: str, key: str) -> Column:
         (source, tooltips) = create_global_resource_datasource_and_tooltips(
             time_index, df, key
         )
-
-        figure = prepare_time_range_figure(
-            range, width=1000, height=500, tooltips=tooltips
-        )
+        figure = prepare_time_range_figure(range, tooltips=tooltips)
         render_global_percent_resource_usage(figure, source, report, hostnames)
         return Column(children=[Div(text=title), figure])
 
@@ -408,7 +415,7 @@ def render_flamegraph(flamegraph: Path):
     with open(flamegraph, "rb") as f:
         data = f.read()
         base64_content = base64.b64encode(data).decode()
-        content = f"""<object type="image/svg+xml" width="1600px"
+        content = f"""<object type="image/svg+xml" width="1600px""
  data="data:image/svg+xml;base64,{base64_content}"></object>"""
         return Div(text=content)
 
@@ -429,11 +436,11 @@ def render_flamegraph_from_records(file: Path):
     folded_path = file.parent.joinpath("stacks.folded")
     flamegraph_path = file.parent.joinpath("profile.svg")
 
-    flame_cmd = (
+    flameCmd = (
         f"perf script -i {file} | inferno-collapse-perf > {folded_path}; "
         f"cat {folded_path} | inferno-flamegraph > {flamegraph_path}"
     )
-    subprocess.call(flame_cmd, shell=True)
+    subprocess.call(flameCmd, shell=True)
     return render_flamegraph(flamegraph_path)
 
 
@@ -555,9 +562,9 @@ def render_process_resource_usage(report: ClusterReport, per_process_df: pd.Data
             range = get_time_range(process_data[DATETIME_KEY])
 
             mib_divisor = 1024.0 * 1024
-            mem = resample(
-                process_data[RSS_KEY] / mib_divisor, process_data[DATETIME_KEY]
-            )
+
+            time = process_data[DATETIME_KEY]
+            mem = resample(process_data[RSS_KEY] / mib_divisor, time)
             mem_figure = prepare_time_range_figure(range)
             mem_figure.yaxis[0].formatter = NumeralTickFormatter()
             mem_figure.yaxis.axis_label = "RSS (MiB)"
@@ -569,7 +576,7 @@ def render_process_resource_usage(report: ClusterReport, per_process_df: pd.Data
                 x="x", y="rss", color="red", legend_label="Memory", source=data
             )
 
-            cpu = resample(process_data[AVG_CPU_KEY], process_data[DATETIME_KEY])
+            cpu = resample(process_data[AVG_CPU_KEY], time)
             cpu_figure = prepare_time_range_figure(range)
             cpu_figure.yaxis[0].formatter = NumeralTickFormatter(format="0 %")
             cpu_figure.yaxis.axis_label = "Avg. CPU usage (%)"
@@ -600,7 +607,6 @@ Avg. CPU: {avg_cpu:.02f} %
 
 def create_page(report: ClusterReport):
     structure = []
-
     per_node_df = create_global_resources_df(report.monitoring)
 
     if not per_node_df.empty:
@@ -608,8 +614,12 @@ def create_page(report: ClusterReport):
             (
                 "Global utilization",
                 lambda r: render_global_resource_usage(r, per_node_df),
-            ),
-            ("Node utilization", lambda r: render_nodes_resource_usage(r, per_node_df)),
+            )
+        ]
+
+    if not per_node_df.empty:
+        structure += [
+            ("Node utilization", lambda r: render_nodes_resource_usage(r, per_node_df))
         ]
 
     per_process_df = create_per_process_resources_df(report.monitoring)
@@ -641,20 +651,3 @@ def generate_cluster_report(report: ClusterReport, output: Path):
     ensure_directory(output.parent)
     logging.info(f"Generating monitoring report into {output}")
     save(page, output, title="Cluster monitor", resources=CDN)
-
-
-def serve_cluster_report(report: ClusterReport, port: int):
-    class Handler(web.RequestHandler):
-        def get(self):
-            page = create_page(report)
-            self.write(file_html(page, CDN, "Cluster report"))
-
-    app = web.Application(
-        [
-            (r"/", Handler),
-        ]
-    )
-    app.listen(port)
-
-    logging.info(f"Serving report at http://0.0.0.0:{port}")
-    ioloop.IOLoop.current().start()
