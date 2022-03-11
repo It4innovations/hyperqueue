@@ -87,36 +87,31 @@ creating a new allocation queue:
     `hq worker start`).
 
 - `--name <name>` Name of the allocation queue. Will be used to name allocations. Serves for debug purposes only.
-- `--max-kept-directories <number>` Each allocation that finishes (either successfully or unsuccessfully)
-will leave a directory containing debugging information on the filesystem. To avoid wasting disk space,
-HyperQueue will by default keep only the most recent `N` directories and remove the older ones. You
-can change the number of kept directories with this parameter.
 
 [^1]: You can use various [shortcuts](../cli/shortcuts.md#duration) for the duration value.
 
 ## Behavior
-The automatic allocator is a periodic process that runs every few seconds and does the following:
-
-1. If there are no waiting tasks in HQ, it immediately ends. This avoids queuing allocations if there is nothing to
-compute.
-
-2. Otherwise, the allocator queues new allocations to make sure that there are is a specific number of allocations waiting
-to be started by the job manager. This number is called **backlog** and you can [set it](#parameters) when creating the
-queue.
+The automatic allocator will submit allocations to make sure that there are is a specific number
+of allocations waiting to be started by the job manager. This number is called **backlog** and you
+can [set it](#parameters) when creating the queue.
 
     For example, if **backlog** was set to `4` and there is currently only one allocation queued into the job manager,
     the allocator would queue three more allocations.
 
-    The backlog serves to pre-queue allocations, because it can take some time before the job manager starts them, and
-    also as a load balancing factor, since it will allocate as many resources as the job manager allows.
+    The backlog serves to pre-queue allocations, because it can take some time before the job manager
+    starts them, and also as a load balancing factor, since it will allocate as many resources as the job manager allows.
 
     !!! note
 
         The **backlog** value does not limit the number of running allocations, only the number of queued allocations.
 
-3. When an allocation starts, a HyperQueue [worker](worker.md) will start and connect to the HyperQueue server that
-queued the allocation. The worker has the [idle timeout](worker.md#idle-timeout) set to five minutes, therefore it will
-terminate if it doesn't receive any new tasks for five minutes.
+    !!! warning
+
+        Do not set the `backlog` to a large number to avoid overloading the job manager.
+
+When an allocation starts, a HyperQueue [worker](worker.md) will start and connect to the HyperQueue
+server that queued the allocation. The worker has the [idle timeout](worker.md#idle-timeout) set to
+five minutes, therefore it will terminate if it doesn't receive any new tasks for five minutes.
 
 ## Stopping automatic allocation
 If you want to remove an allocation queue, use the following command:
@@ -145,8 +140,8 @@ allocation (do a "dry run") into the target HPC job manager when you add a new a
 If the test allocation fails, the queue will not be created. You can avoid this behaviour by passing
 the `--no-dry-run` flag to `hq alloc add`.
 
-There are also additional safety limits. If `50` allocations in a succession fail to be submitted,
-or if `10` allocations that were submitted fail during runtime in a succession, the corresponding
+There are also additional safety limits. If `10` allocations in a succession fail to be submitted,
+or if `3` allocations that were submitted fail during runtime in a succession, the corresponding
 allocation queue will be automatically removed.
 
 ### Dry-run command
@@ -162,11 +157,8 @@ $ hq alloc dry-run pbs --timelimit 2h -- q qexp -A Project1
 If the allocation was submitted successfully, it will be canceled immediately to avoid wasting resources.
 
 ### Finding information about allocations
-- **[`Basic queue information`](#display-information-about-an-allocation-queue)** This command will show you details about
-allocations created by the automatic allocator.
-- **[`Allocator events`](#display-events-of-an-allocation-queue)** Each time the allocator performs some action or notices
-that a status of some allocation was changed, it will create a corresponding event. You can use this command to list
-most recent events to see what was the allocator doing.
+- **[`Basic queue information`](#display-information-about-an-allocation-queue)** This command will
+show you details about allocations created by the automatic allocator.
 - **Extended logging** To get more information about what is happening inside the allocator, start the HyperQueue
 [server](server.md) with the following environment variable:
 
@@ -202,8 +194,3 @@ $ hq alloc info <queue-id>
 ```
 
 You can filter allocations by their state (`queued`, `running`, `finished`, `failed`) using the `--filter` option.
-
-### Display events of an allocation queue
-```bash
-$ hq alloc events <queue-id>
-```
