@@ -1,17 +1,18 @@
 import dataclasses
 import itertools
 import logging
+import typer
+
 from pathlib import Path
 from typing import List, Optional
 
-import typer
 from src.benchmark.identifier import BenchmarkDescriptor
 from src.benchmark_defs import create_basic_hq_benchmarks
 from src.build.hq import BuildConfig, iterate_binaries
 from src.build.repository import TAG_WORKSPACE
 from src.clusterutils import ClusterInfo
 from src.clusterutils.node_list import Local
-from src.clusterutils.profiler import PerfRecordsProfiler
+from src.clusterutils.profiler import PerfEventsProfiler, FlamegraphProfiler, CachegrindProfiler
 from src.environment import EnvironmentDescriptor
 from src.environment.hq import HqClusterInfo, HqWorkerConfig
 from src.environment.snake import SnakeEnvironmentDescriptor
@@ -83,7 +84,7 @@ def sleep():
                 environment_params=dict(worker_count=1),
                 workers=[HqWorkerConfig()],
                 binary=hq_path,
-                worker_profilers=[PerfRecordsProfiler()]
+                worker_profilers=[FlamegraphProfiler(50)],
             )
         ],
     )

@@ -22,6 +22,11 @@ class Profiler:
         raise NotImplementedError
 
 
+# Process into flamegraphs
+# 1. Apply profiling records
+# 2. perf script -i perf-records.txt | inferno-collapse-perf > stacks.folded
+# (Visualize)   cat stacks.folded | inferno-flamegraph > profile.svg
+# (Compare)     inferno-diff-folded stacks1.folded stacks2.folded | inferno-flamegraph > flamediff.svg
 class FlamegraphProfiler(Profiler):
     TAG = "flamegraph"
 
@@ -29,24 +34,28 @@ class FlamegraphProfiler(Profiler):
         self.frequency = frequency
 
     def check_availability(self):
-        if not is_binary_available("flamegraph"):
+        if not is_binary_available("inferno-flamegraph"):
             raise Exception(
                 """Flamegraph profiling is not available.
-Please install cargo-flamegraph: `cargo install flamegraph` and make sure that `perf` is available.
+Please install cargo-inferno: `cargo install inferno` and make sure that `perf` is available.
 """.strip()
             )
 
     def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
-        path = output_dir / "flamegraph.svg"
+        path = output_dir / "perf-records.txt"
 
         args = [
-            "flamegraph",
-            "-o",
-            str(path),
+            "perf",
+            "record",
+            "--call-graph",
+            "dwarf",
             "--freq",
             str(self.frequency),
+            "-o",
+            str(path),
             "--",
         ] + command
+
         return ProfiledCommand(args=args, tag=FlamegraphProfiler.TAG, output_path=path)
 
     def __repr__(self):
@@ -111,34 +120,34 @@ class CachegrindProfiler(Profiler):
         return "CachegrindProfiler"
 
 
-# Process into flamegraphs
-# 1. Apply profiling records
-# 2. perf script -i perf-records.txt | inferno-collapse-perf > stacks.folded
-# (Optional: Vizualize) cat stacks.folded | inferno-flamegraph > profile.svg
-# (Optional: Compare) inferno-diff-folded stacks1.folded stacks2.folded | inferno-flamegraph > flamediff.svg
-class PerfRecordsProfiler(Profiler):
-    TAG = "perf-records"
-
-    def __init__(self):
-        pass
-
-    def check_availability(self):
-        if not is_binary_available("perf"):
-            raise Exception(
-                "Performance records profiling is not available. Please install `perf`."
-            )
-
-    def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
-        path = output_dir / "perf-records.txt"
-
-        args = [
-            "perf",
-            "record",
-            "-o",
-            str(path)
-        ] + command
-
-        return ProfiledCommand(args=args, tag=PerfRecordsProfiler.TAG, output_path=path)
-
-    def __repr__(self):
-        return "PerfRecordsProfiler"
+# class PerfRecordsProfiler(Profiler):
+#     TAG = "perf-records"
+#
+#     def __init__(self, frequency: int):
+#         self.frequency = frequency
+#
+#     def check_availability(self):
+#         if not is_binary_available("perf"):
+#             raise Exception(
+#                 "Performance records profiling is not available. Please install `perf`."
+#             )
+#
+#     def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
+#         path = output_dir / "perf-records.txt"
+#
+#         args = [
+#             "perf",
+#             "record",
+#             "--call-graph",
+#             "dwarf",
+#             "--freq",
+#             str(self.frequency),
+#             "-o",
+#             str(path),
+#             "--",
+#         ] + command
+#
+#         return ProfiledCommand(args=args, tag=PerfRecordsProfiler.TAG, output_path=path)
+#
+#     def __repr__(self):
+#         return "PerfRecordsProfiler"
