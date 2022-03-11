@@ -11,13 +11,12 @@ use tako::WorkerId;
 use crate::common::idcounter::IdCounter;
 use crate::common::manager::info::ManagerType;
 use crate::common::timeutils::now_monotonic;
+use crate::server::autoalloc::config::MAX_KEPT_DIRECTORIES;
 use crate::server::autoalloc::queue::QueueHandler;
 use crate::server::autoalloc::QueueInfo;
 use crate::Map;
 
 // Main state holder
-const DEFAULT_MAX_KEPT_DIRECTORIES: usize = 20;
-
 pub struct AutoAllocState {
     allocation_to_queue: Map<AllocationId, QueueId>,
     queues: Map<QueueId, QueueState>,
@@ -32,7 +31,7 @@ impl AutoAllocState {
             allocation_to_queue: Default::default(),
             queues: Default::default(),
             inactive_allocation_directories: Default::default(),
-            max_kept_directories: DEFAULT_MAX_KEPT_DIRECTORIES,
+            max_kept_directories: MAX_KEPT_DIRECTORIES,
             queue_id_counter: IdCounter::new(1),
         }
     }

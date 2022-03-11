@@ -114,7 +114,7 @@ pub enum SubmitMode {
     DryRun,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum AllocationExternalStatus {
     Queued,
     Running,

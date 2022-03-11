@@ -20,7 +20,7 @@ from .utils import (
 )
 
 
-def test_add_pbs_descriptor(hq_env: HqEnv):
+def test_add_pbs_queue(hq_env: HqEnv):
     hq_env.start_server()
     output = add_queue(
         hq_env,
@@ -150,7 +150,7 @@ def test_pbs_cancel_active_jobs_on_server_stop(hq_env: HqEnv):
         wait_until(lambda: expected_job_ids == set(mock.deleted_jobs()))
 
 
-def test_pbs_cancel_queued_jobs_on_remove_descriptor(hq_env: HqEnv):
+def test_pbs_cancel_queued_jobs_on_remove_queue(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 
     for index in range(2):
@@ -183,7 +183,7 @@ def test_pbs_cancel_queued_jobs_on_remove_descriptor(hq_env: HqEnv):
         wait_until(lambda: expected_job_ids == set(mock.deleted_jobs()))
 
 
-def test_fail_on_remove_descriptor_with_running_jobs(hq_env: HqEnv):
+def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 
     with mock.activate():
@@ -205,7 +205,7 @@ def test_fail_on_remove_descriptor_with_running_jobs(hq_env: HqEnv):
         wait_for_alloc(hq_env, "RUNNING", job_id)
 
 
-def test_pbs_cancel_active_jobs_on_forced_remove_descriptor(hq_env: HqEnv):
+def test_pbs_cancel_active_jobs_on_forced_remove_queue(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 
     with mock.activate():
@@ -232,6 +232,72 @@ def test_pbs_cancel_active_jobs_on_forced_remove_descriptor(hq_env: HqEnv):
 
         expected_job_ids = set(mock.job_id(index) for index in range(4))
         wait_until(lambda: expected_job_ids == set(mock.deleted_jobs()))
+
+
+def test_pbs_refresh_allocation_remove_queued_job(hq_env: HqEnv):
+    mock = PbsMock(hq_env)
+
+    with mock.activate():
+        start_server(hq_env)
+        prepare_tasks(hq_env)
+
+        add_queue(hq_env, name="foo")
+
+        mock.update_job_state(
+            mock.job_id(0),
+            JobState(
+                status="Q",
+                qtime="Thu Aug 19 13:05:38 2021",
+            ),
+        )
+        wait_for_alloc(hq_env, "QUEUED", mock.job_id(0))
+
+        mock.update_job_state(mock.job_id(0), None)
+        wait_for_alloc(hq_env, "FAILED", mock.job_id(0))
+
+
+def test_pbs_refresh_allocation_finish_queued_job(hq_env: HqEnv):
+    mock = PbsMock(hq_env)
+
+    with mock.activate():
+        start_server(hq_env)
+        prepare_tasks(hq_env)
+
+        add_queue(hq_env, name="foo")
+        wait_for_alloc(hq_env, "QUEUED", mock.job_id(0))
+        mock.update_job_state(
+            mock.job_id(0),
+            JobState(
+                status="F",
+                qtime="Thu Aug 19 13:05:38 2021",
+                stime="Thu Aug 19 13:05:38 2021",
+                mtime="Thu Aug 19 13:05:38 2021",
+                exit_code=0,
+            ),
+        )
+        wait_for_alloc(hq_env, "FINISHED", mock.job_id(0))
+
+
+def test_pbs_refresh_allocation_fail_queued_job(hq_env: HqEnv):
+    mock = PbsMock(hq_env)
+
+    with mock.activate():
+        start_server(hq_env)
+        prepare_tasks(hq_env)
+
+        add_queue(hq_env, name="foo")
+        wait_for_alloc(hq_env, "QUEUED", mock.job_id(0))
+        mock.update_job_state(
+            mock.job_id(0),
+            JobState(
+                status="F",
+                qtime="Thu Aug 19 13:05:38 2021",
+                stime="Thu Aug 19 13:05:38 2021",
+                mtime="Thu Aug 19 13:05:38 2021",
+                exit_code=1,
+            ),
+        )
+        wait_for_alloc(hq_env, "FAILED", mock.job_id(0))
 
 
 def dry_run_cmd() -> List[str]:
@@ -418,4 +484,15 @@ def add_worker(hq_env: HqEnv, allocation_id: str) -> Popen:
     return hq_env.start_worker(
         env={"PBS_JOBID": allocation_id, "PBS_ENVIRONMENT": "1"},
         args=["--manager", "pbs", "--time-limit", "30m"],
+    )
+
+
+def start_server(
+    hq_env: HqEnv, autoalloc_refresh_ms=100, autoalloc_status_check_ms=100
+):
+    hq_env.start_server(
+        env={
+            "HQ_AUTOALLOC_REFRESH_INTERVAL_MS": str(autoalloc_refresh_ms),
+            "HQ_AUTOALLOC_STATUS_CHECK_INTERVAL_MS": str(autoalloc_status_check_ms),
+        }
     )

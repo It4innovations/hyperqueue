@@ -131,13 +131,17 @@ class HqEnv(Env):
             "start",
         ]
 
-    def start_server(self, server_dir="hq-server", args=None) -> subprocess.Popen:
+    def start_server(
+        self, server_dir="hq-server", args=None, env=None
+    ) -> subprocess.Popen:
         self.server_dir = os.path.join(self.work_path, server_dir)
-        env = self.make_default_env()
+        environment = self.make_default_env()
+        if env:
+            environment.update(env)
         server_args = self.server_args(self.server_dir, debug=self.debug)
         if args:
             server_args += args
-        process = self.start_process("server", server_args, env=env)
+        process = self.start_process("server", server_args, env=environment)
         time.sleep(0.2)
         self.check_running_processes()
         return process

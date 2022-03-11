@@ -158,11 +158,11 @@ fn parse_allocation_status(
         "Q" => AllocationExternalStatus::Queued,
         "R" | "E" => AllocationExternalStatus::Running,
         "F" => {
-            let exit_status = get_json_number(&allocation["Exit_status"], "Exit status")?;
+            let exit_status = get_json_number(&allocation["Exit_status"], "Exit status").ok();
             let started_at = parse_time(start_time_key).ok();
             let finished_at = parse_time(modification_time_key)?;
 
-            if exit_status == 0 {
+            if exit_status == Some(0) {
                 AllocationExternalStatus::Finished {
                     started_at,
                     finished_at,

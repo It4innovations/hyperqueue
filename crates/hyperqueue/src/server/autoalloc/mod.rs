@@ -4,6 +4,7 @@
 //!
 //! The term `allocation` represents a PBS/Slurm job in this module, to distinguish itself from
 //! HQ jobs.
+mod config;
 mod process;
 mod queue;
 mod service;
