@@ -111,6 +111,7 @@ with open(os.path.join("{self.qdel_dir}", jobid), "w") as f:
         )
 
         self.jobs: Dict[str, JobState] = {}
+        self.write_job_data()
 
     def job_id(self, index: int) -> str:
         return self.new_job_responses[index].id
@@ -122,13 +123,18 @@ with open(os.path.join("{self.qdel_dir}", jobid), "w") as f:
                 with self.hq_env.mock.mock_program("qdel", self.qdel_code):
                     yield
 
-    def update_job_state(self, job_id: str, state: JobState):
+    def update_job_state(self, job_id: str, state: Optional[JobState]):
         if job_id in self.jobs:
-            changes = {
-                k: v for (k, v) in dataclasses.asdict(state).items() if v is not None
-            }
-            self.jobs[job_id] = dataclasses.replace(self.jobs[job_id], **changes)
-        else:
+            if state is None:
+                del self.jobs[job_id]
+            else:
+                changes = {
+                    k: v
+                    for (k, v) in dataclasses.asdict(state).items()
+                    if v is not None
+                }
+                self.jobs[job_id] = dataclasses.replace(self.jobs[job_id], **changes)
+        elif state is not None:
             self.jobs[job_id] = state
         self.write_job_data()
 

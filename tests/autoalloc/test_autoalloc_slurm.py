@@ -12,7 +12,7 @@ from .utils import (
 )
 
 
-def test_add_slurm_descriptor(hq_env: HqEnv):
+def test_add_slurm_queue(hq_env: HqEnv):
     hq_env.start_server()
     output = add_queue(
         hq_env,

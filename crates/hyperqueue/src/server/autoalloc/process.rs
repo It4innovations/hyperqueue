@@ -1,6 +1,6 @@
 use std::future::Future;
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 use futures::future::join_all;
 use tempdir::TempDir;
@@ -14,6 +14,10 @@ use crate::common::manager::info::{ManagerInfo, ManagerType};
 use crate::common::rpc::RpcReceiver;
 
 use crate::get_or_return;
+use crate::server::autoalloc::config::{
+    get_refresh_timeout, get_status_check_interval, MAX_ALLOCATION_FAILS, MAX_SUBMISSION_FAILS,
+    SUBMISSION_DELAYS,
+};
 use crate::server::autoalloc::queue::pbs::PbsHandler;
 use crate::server::autoalloc::queue::slurm::SlurmHandler;
 use crate::server::autoalloc::queue::{AllocationExternalStatus, QueueHandler, SubmitMode};
@@ -33,15 +37,19 @@ pub async fn autoalloc_process(
     mut autoalloc: AutoAllocState,
     mut receiver: RpcReceiver<AutoAllocMessage>,
 ) {
-    let max_wait_for_message = Duration::from_secs(60 * 60);
+    let timeout = get_refresh_timeout();
     loop {
-        match tokio::time::timeout(max_wait_for_message, receiver.recv()).await {
+        match tokio::time::timeout(timeout, receiver.recv()).await {
             Ok(Some(message)) => {
                 let queue_id = handle_message(&mut autoalloc, &state_ref, message).await;
                 refresh_state(&state_ref, &mut autoalloc, queue_id).await;
             }
             Ok(None) => break,
             Err(_) => {
+                log::debug!(
+                    "No message received in {} ms, refreshing state",
+                    timeout.as_millis()
+                );
                 refresh_state(&state_ref, &mut autoalloc, None).await;
             }
         }
@@ -56,6 +64,7 @@ async fn handle_message(
     state_ref: &StateRef,
     message: AutoAllocMessage,
 ) -> Option<QueueId> {
+    log::debug!("Handling message {message:?}");
     match message {
         AutoAllocMessage::WorkerConnected(id, manager_info) => {
             log::debug!(
@@ -193,27 +202,12 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
     )
 }
 
-/// Maximum number of successive allocation submission failures permitted
-/// before the allocation queue will be removed.
-const MAX_SUBMISSION_FAILS: usize = 10;
-/// Maximum number of successive allocation execution failures permitted
-/// before the allocation queue will be removed.
-const MAX_ALLOCATION_FAILS: usize = 3;
-/// Status (e.g. qstat) will now be called more often than this duration.
-const STATUS_CHECK_INTERVAL: Duration = Duration::from_secs(60 * 60);
-
 fn create_rate_limiter() -> RateLimiter {
     RateLimiter::new(
-        vec![
-            Duration::ZERO,
-            Duration::from_secs(60),
-            Duration::from_secs(15 * 60),
-            Duration::from_secs(30 * 60),
-            Duration::from_secs(60 * 60),
-        ],
+        SUBMISSION_DELAYS.to_vec(),
         MAX_SUBMISSION_FAILS,
         MAX_ALLOCATION_FAILS,
-        STATUS_CHECK_INTERVAL,
+        get_status_check_interval(),
     )
 }
 
@@ -316,16 +310,13 @@ async fn refresh_state(
     autoalloc: &mut AutoAllocState,
     queue_id: Option<QueueId>,
 ) {
-    match queue_id {
-        Some(queue_id) => {
-            process_queue(state, autoalloc, queue_id).await;
-        }
-        None => {
-            for id in autoalloc.queue_ids().collect::<Vec<_>>() {
-                refresh_queue_allocations(state, autoalloc, id).await;
-                process_queue(state, autoalloc, id).await;
-            }
-        }
+    let queue_ids = queue_id
+        .map(|id| vec![id])
+        .unwrap_or_else(|| autoalloc.queue_ids().collect());
+
+    for id in queue_ids {
+        refresh_queue_allocations(state, autoalloc, id).await;
+        process_queue(state, autoalloc, id).await;
     }
 
     remove_inactive_directories(autoalloc).await;
@@ -372,8 +363,10 @@ async fn refresh_queue_allocations(
     autoalloc: &mut AutoAllocState,
     id: QueueId,
 ) {
+    log::debug!("Attempt to refresh allocations of queue {id}");
     let queue = get_or_return!(autoalloc.get_queue_mut(id));
     if !queue.limiter().can_perform_status_check() {
+        log::debug!("Refresh attempt was rate limited");
         return;
     }
 
@@ -394,15 +387,16 @@ async fn refresh_queue_allocations(
     queue.limiter_mut().on_status_attempt();
     let result = status_fut.await;
 
+    log::debug!("Allocations of {id} have been refreshed: {result:?}");
+
     match result {
         Ok(mut status_map) => {
             let queue = get_or_return!(autoalloc.get_queue_mut(id));
             for allocation_id in allocation_ids {
                 let status = status_map.remove(&allocation_id).unwrap_or_else(|| {
-                    let now = SystemTime::now();
                     Ok(AllocationExternalStatus::Failed {
                         started_at: None,
-                        finished_at: now,
+                        finished_at: SystemTime::now(),
                     })
                 });
                 match status {
@@ -548,7 +542,7 @@ fn sync_allocation_status(
                     return;
                 }
             };
-            let is_failed = matches!(status, AllocationExternalStatus::Failed { .. });
+            let failed = matches!(status, AllocationExternalStatus::Failed { .. });
             match status {
                 AllocationExternalStatus::Finished {
                     started_at,
@@ -558,14 +552,15 @@ fn sync_allocation_status(
                     started_at,
                     finished_at,
                 } => {
+                    log::debug!("Setting allocation {allocation_id} status to invalid because of external status {status:?}.");
                     allocation.status = AllocationState::Invalid {
                         connected_workers: connected,
                         started_at,
                         finished_at,
                         disconnected_workers: disconnected,
-                        failed: is_failed,
+                        failed,
                     };
-                    Some(if is_failed {
+                    Some(if failed {
                         Action::Failure
                     } else {
                         Action::Success
@@ -677,7 +672,7 @@ async fn queue_try_submit(queue_id: QueueId, autoalloc: &mut AutoAllocState, sta
                 let working_dir = submission_result.working_dir().to_path_buf();
                 match submission_result.into_id() {
                     Ok(allocation_id) => {
-                        log::info!("Queued {workers_to_spawn} workers into queue {queue_id}");
+                        log::info!("Queued {workers_to_spawn} worker(s) into queue {queue_id}: {allocation_id}");
                         event_manager.on_allocation_queued(
                             queue_id,
                             allocation_id.clone(),

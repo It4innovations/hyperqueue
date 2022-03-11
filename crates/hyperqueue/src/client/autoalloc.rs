@@ -9,7 +9,8 @@ impl AllocationState {
             } => disconnected_workers
                 .values()
                 .any(|reason| reason.is_failure()),
-            _ => false,
+            AllocationState::Invalid { failed, .. } => *failed,
+            AllocationState::Queued | AllocationState::Running { .. } => false,
         }
     }
 }

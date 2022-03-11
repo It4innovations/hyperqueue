@@ -785,17 +785,16 @@ fn allocation_status_to_cell(status: &AllocationState) -> CellStruct {
         AllocationState::Running { .. } => "RUNNING"
             .cell()
             .foreground_color(Some(cli_table::Color::Blue)),
-        AllocationState::Finished { .. } => match status.is_failed() {
-            true => "FAILED"
-                .cell()
-                .foreground_color(Some(cli_table::Color::Red)),
-            false => "FINISHED"
-                .cell()
-                .foreground_color(Some(cli_table::Color::Green)),
-        },
-        AllocationState::Invalid { .. } => "FAILED"
-            .cell()
-            .foreground_color(Some(cli_table::Color::Red)),
+        AllocationState::Finished { .. } | AllocationState::Invalid { .. } => {
+            match status.is_failed() {
+                true => "FAILED"
+                    .cell()
+                    .foreground_color(Some(cli_table::Color::Red)),
+                false => "FINISHED"
+                    .cell()
+                    .foreground_color(Some(cli_table::Color::Green)),
+            }
+        }
     }
 }
 
