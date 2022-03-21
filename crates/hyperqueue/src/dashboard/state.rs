@@ -3,6 +3,7 @@ use crate::dashboard::ui::screen::controller::{ChangeScreenCommand, ScreenContro
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::screens::auto_allocator::screen::AutoAllocatorScreen;
 use crate::dashboard::ui::screens::home::screen::ClusterOverviewScreen;
+use crate::dashboard::ui::screens::job::screen::JobScreen;
 use crate::dashboard::ui::screens::worker::screen::WorkerOverviewScreen;
 use tako::common::WrappedRcRefCell;
 
@@ -10,6 +11,7 @@ pub struct DashboardState {
     cluster_overview_screen: ClusterOverviewScreen,
     worker_overview_screen: WorkerOverviewScreen,
     auto_allocator_screen: AutoAllocatorScreen,
+    job_overview_screen: JobScreen,
 
     data_source: WrappedRcRefCell<DashboardData>,
 
@@ -21,6 +23,7 @@ enum DashboardScreenState {
     ClusterOverview,
     WorkerOverview,
     AutoAllocator,
+    JobOverview,
 }
 
 impl DashboardState {
@@ -30,6 +33,7 @@ impl DashboardState {
             cluster_overview_screen: ClusterOverviewScreen::default(),
             worker_overview_screen: WorkerOverviewScreen::default(),
             auto_allocator_screen: Default::default(),
+            job_overview_screen: Default::default(),
             current_screen: DashboardScreenState::ClusterOverview,
             controller,
         }
@@ -52,6 +56,9 @@ impl DashboardState {
             ChangeScreenCommand::AutoAllocatorScreen => {
                 self.current_screen = DashboardScreenState::AutoAllocator;
             }
+            ChangeScreenCommand::JobOverviewScreen => {
+                self.current_screen = DashboardScreenState::JobOverview;
+            }
         }
     }
 
@@ -67,6 +74,9 @@ impl DashboardState {
             }
             DashboardScreenState::AutoAllocator => {
                 (&mut self.auto_allocator_screen, &mut self.controller)
+            }
+            DashboardScreenState::JobOverview => {
+                (&mut self.job_overview_screen, &mut self.controller)
             }
         }
     }

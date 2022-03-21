@@ -8,28 +8,25 @@ use tako::messages::worker::WorkerOverview;
 use crate::dashboard::data::alloc_timeline::{
     AllocationInfo, AllocationQueueInfo, AllocationTimeline,
 };
-use crate::dashboard::data::task_timeline::{TaskInfo, TaskTimeline};
+use crate::dashboard::data::job_timeline::{DashboardJobInfo, JobTimeline, TaskInfo};
 use crate::server::autoalloc::{AllocationId, QueueId};
-use crate::server::event::events::MonitoringEventPayload;
 use crate::server::event::MonitoringEvent;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{AllocationQueueParams, FromClientMessage, ToClientMessage};
-use crate::{rpc_call, WorkerId};
+use crate::{rpc_call, JobId, TakoTaskId, WorkerId};
 
 pub mod alloc_timeline;
-pub mod task_timeline;
+pub mod job_timeline;
 pub mod worker_timeline;
 
 #[derive(Default)]
 pub struct DashboardData {
     /// The event_id until which the data has already been fetched for
     fetched_until: Option<u32>,
-    /// All events received from the client
-    events: Vec<MonitoringEvent>,
     /// Tracks worker connection and loss events
     worker_timeline: WorkerTimeline,
-    /// Tracks task related events
-    tasks_timeline: TaskTimeline,
+    /// Tracks job related events
+    job_timeline: JobTimeline,
     /// Tracks the automatic allocator events
     alloc_timeline: AllocationTimeline,
 }
@@ -51,19 +48,41 @@ impl DashboardData {
 
         // Update data views
         self.worker_timeline.handle_new_events(&events);
-        self.tasks_timeline.handle_new_events(&events);
+        self.job_timeline.handle_new_events(&events);
         self.alloc_timeline.handle_new_events(&events);
-        self.events.append(&mut events);
     }
 
+    pub fn query_job_info_for_job(&self, job_id: JobId) -> Option<&DashboardJobInfo> {
+        self.job_timeline.get_job_info_for_job(job_id)
+    }
+
+    /// Gets the list of jobs that were created before `time`
+    pub fn query_jobs_created_before(
+        &self,
+        time: SystemTime,
+    ) -> impl Iterator<Item = (&JobId, &DashboardJobInfo)> + '_ {
+        self.job_timeline.get_jobs_created_before(time)
+    }
+
+    /// Get the list of tasks for a job where the tasks have started before `time`
+    pub fn query_task_history_for_job(
+        &self,
+        job_id: JobId,
+        time: SystemTime,
+    ) -> impl Iterator<Item = (&TakoTaskId, &TaskInfo)> + '_ {
+        self.job_timeline.get_job_task_history(job_id, time)
+    }
+
+    /// Gets the list of tasks that have run on a worker.
     pub fn query_task_history_for_worker(
         &self,
         worker_id: WorkerId,
-    ) -> impl Iterator<Item = &TaskInfo> + '_ {
-        self.tasks_timeline
+    ) -> impl Iterator<Item = (&TakoTaskId, &TaskInfo)> + '_ {
+        self.job_timeline
             .get_worker_task_history(worker_id, SystemTime::now())
     }
 
+    /// Gets an iterator over the list of different allocation queues created before `time`.
     pub fn query_allocation_queues_at(
         &self,
         time: SystemTime,
@@ -71,6 +90,7 @@ impl DashboardData {
         self.alloc_timeline.get_queue_infos_at(time)
     }
 
+    /// Gets the information about a given allocation queue.
     pub fn query_allocation_params(&self, queue_id: QueueId) -> Option<&AllocationQueueParams> {
         self.alloc_timeline.get_queue_params_for(&queue_id)
     }
@@ -85,6 +105,7 @@ impl DashboardData {
             .get_allocations_for_queue(queue_id, time)
     }
 
+    /// Gets the `WorkerConfiguration` for specified `worker_id` if the worker has ever connected.
     pub fn query_worker_info_for(&self, worker_id: &WorkerId) -> Option<&WorkerConfiguration> {
         self.worker_timeline.get_worker_info_for(worker_id)
     }
@@ -97,36 +118,18 @@ impl DashboardData {
         self.worker_timeline.get_connected_worker_ids(time)
     }
 
+    /// Gets the last `WorkerOverview` for a `worker_id` at a specific `time`
     pub fn query_worker_overview_at(
         &self,
         worker_id: WorkerId,
         time: SystemTime,
     ) -> Option<&WorkerOverview> {
-        self.query_overview_at(time)
-            .into_iter()
-            .find(|overview| overview.id == worker_id)
+        self.worker_timeline.get_worker_overview_at(worker_id, time)
     }
 
-    pub fn query_overview_at(&self, time: SystemTime) -> Vec<&WorkerOverview> {
-        let mut overview_vec: Vec<&WorkerOverview> = vec![];
-        let connected_worker_ids = self.worker_timeline.get_connected_worker_ids(time);
-        for id in connected_worker_ids {
-            if let Some(last_overview) = self.query_last_overview_for(id) {
-                overview_vec.push(last_overview);
-            }
-        }
-        overview_vec
-    }
-
-    fn query_last_overview_for(&self, worker_id: WorkerId) -> Option<&WorkerOverview> {
-        for evt in self.events.iter().rev() {
-            if let MonitoringEventPayload::WorkerOverviewReceived(overview) = &evt.payload {
-                if worker_id == overview.id {
-                    return Some(overview);
-                }
-            }
-        }
-        None
+    /// Gets the last received worker overviews from all workers that have sent an overview.
+    pub fn query_last_received_overviews(&self, time: SystemTime) -> Vec<&WorkerOverview> {
+        self.worker_timeline.get_last_received_overviews(time)
     }
 }
 

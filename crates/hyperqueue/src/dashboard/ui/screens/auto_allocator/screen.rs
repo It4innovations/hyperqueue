@@ -65,7 +65,7 @@ impl Screen for AutoAllocatorScreen {
             .draw(layout.allocation_queue_params_chunk, frame);
 
         draw_text(
-            "Press right_arrow to go to Cluster Overview",
+            "Press <- for Jobs Overview, -> for Cluster Overview",
             layout.footer_chunk,
             frame,
             style_footer(),
@@ -107,6 +107,7 @@ impl Screen for AutoAllocatorScreen {
 
         match key {
             Key::Right => controller.show_cluster_overview(),
+            Key::Left => controller.show_job_screen(),
             Key::Char('1') => {
                 self.component_in_focus = FocusedComponent::QueueParamsTable;
                 self.allocations_info_table.clear_selection();

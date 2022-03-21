@@ -2,18 +2,21 @@ use std::time::SystemTime;
 use termion::event::Key;
 
 use crate::dashboard::ui::screen::Screen;
-use crate::dashboard::ui::styles::{style_footer, style_header_text, table_style_deselected};
+use crate::dashboard::ui::styles::{
+    style_footer, style_header_text, table_style_deselected, table_style_selected,
+};
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
 
-use crate::dashboard::data::task_timeline::TaskInfo;
+use crate::dashboard::data::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::screen::controller::ScreenController;
 use crate::dashboard::ui::screens::worker::cpu_util_table::{
     get_column_constraints, render_cpu_util_table,
 };
 use crate::dashboard::ui::screens::worker::worker_config_table::WorkerConfigTable;
-use crate::dashboard::ui::screens::worker::worker_tasks_table::WorkerTasksTable;
+use crate::dashboard::ui::widgets::tasks_table::TasksTable;
+use crate::TakoTaskId;
 use tako::WorkerId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
@@ -22,7 +25,7 @@ pub struct WorkerOverviewScreen {
     /// The worker info screen shows data for this worker
     worker_id: Option<WorkerId>,
     worker_info_table: WorkerConfigTable,
-    worker_tasks_table: WorkerTasksTable,
+    worker_tasks_table: TasksTable,
 
     worker_per_core_cpu_util: Vec<f32>,
 }
@@ -65,8 +68,12 @@ impl Screen for WorkerOverviewScreen {
             table_style_deselected(),
         );
 
-        self.worker_tasks_table
-            .draw(layout.tasks_table_chunk, frame);
+        self.worker_tasks_table.draw(
+            "Tasks On Worker",
+            layout.tasks_table_chunk,
+            frame,
+            table_style_selected(),
+        );
         self.worker_info_table
             .draw(layout.worker_info_table_chunk, frame);
     }
@@ -86,7 +93,7 @@ impl Screen for WorkerOverviewScreen {
                     self.worker_per_core_cpu_util = cpu_util.clone()
                 }
                 // Update Tasks Table
-                let tasks_info: Vec<&TaskInfo> =
+                let tasks_info: Vec<(&TakoTaskId, &TaskInfo)> =
                     data.query_task_history_for_worker(worker_id).collect();
                 self.worker_tasks_table.update(tasks_info);
                 // Update Worker Configuration Information
