@@ -1,10 +1,11 @@
 use crate::server::autoalloc::{AllocationId, QueueId};
-use crate::server::event::events::MonitoringEventPayload;
+use crate::server::event::events::{JobInfo, MonitoringEventPayload};
 use crate::server::event::log::EventStreamSender;
 use crate::server::event::{MonitoringEvent, MonitoringEventId};
 use crate::transfer::messages::AllocationQueueParams;
-use crate::WorkerId;
-use std::collections::VecDeque;
+use crate::{JobId, TakoTaskId, WorkerId};
+use chrono::{DateTime, Utc};
+use std::collections::vec_deque::VecDeque;
 use std::time::SystemTime;
 use tako::messages::common::WorkerConfiguration;
 use tako::messages::gateway::LostWorkerReason;
@@ -71,7 +72,20 @@ impl EventStorage {
     }
 
     #[inline]
-    pub fn on_task_started(&mut self, task_id: TaskId, worker_id: WorkerId) {
+    pub fn on_job_submitted(&mut self, job_id: JobId, job_info: JobInfo) {
+        self.insert_event(MonitoringEventPayload::JobCreated(
+            job_id,
+            Box::new(job_info),
+        ));
+    }
+
+    #[inline]
+    pub fn on_job_completed(&mut self, job_id: JobId, at_time: DateTime<Utc>) {
+        self.insert_event(MonitoringEventPayload::JobCompleted(job_id, at_time));
+    }
+
+    #[inline]
+    pub fn on_task_started(&mut self, task_id: TakoTaskId, worker_id: WorkerId) {
         self.insert_event(MonitoringEventPayload::TaskStarted { task_id, worker_id });
     }
 

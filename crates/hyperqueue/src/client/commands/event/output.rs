@@ -82,5 +82,13 @@ fn format_payload(event: MonitoringEventPayload) -> serde_json::Value {
             "type": "task-failed",
             "id": task_id
         }),
+        MonitoringEventPayload::JobCreated(job_id, job_info) => json!({
+            "job-id": job_id,
+            "job-info": job_info,
+        }),
+        MonitoringEventPayload::JobCompleted(job_id, completion_date) => json!({
+            "job-id": job_id,
+            "completion-date": completion_date
+        }),
     }
 }

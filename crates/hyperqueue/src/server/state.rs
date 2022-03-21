@@ -6,6 +6,7 @@ use tako::messages::gateway::{
 };
 
 use crate::server::autoalloc::AutoAllocService;
+use crate::server::event::events::JobInfo;
 use crate::server::event::storage::EventStorage;
 use crate::server::job::Job;
 use crate::server::rpc::Backend;
@@ -103,6 +104,17 @@ impl State {
             .base_task_id_to_job_id
             .insert(job.base_task_id, job_id)
             .is_none());
+        self.event_storage.on_job_submitted(
+            job_id,
+            JobInfo {
+                name: job.name.clone(),
+                job_desc: job.job_desc.clone(),
+                task_ids: job.tasks.iter().map(|(id, _)| *id).collect(),
+                max_fails: job.max_fails,
+                log: job.log.clone(),
+                submission_date: job.submission_date,
+            },
+        );
         assert!(self.jobs.insert(job_id, job).is_none());
 
         if let Some(autoalloc) = &self.autoalloc_service {
@@ -191,6 +203,7 @@ impl State {
 
     pub fn process_task_update(&mut self, msg: TaskUpdate, backend: &Backend) {
         log::debug!("Task id={} updated {:?}", msg.id, msg.state);
+        let (mut job_id, mut is_job_terminated): (Option<JobId>, bool) = (None, false);
         match msg.state {
             TaskState::Running { worker_id, context } => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
@@ -200,6 +213,7 @@ impl State {
             TaskState::Finished => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
                 job.set_finished_state(msg.id, backend);
+                (job_id, is_job_terminated) = (Some(job.job_id), job.is_terminated());
                 self.event_storage.on_task_finished(msg.id);
             }
             TaskState::Waiting => {
@@ -210,6 +224,11 @@ impl State {
                 unreachable!()
             }
         };
+
+        if is_job_terminated {
+            self.event_storage
+                .on_job_completed(job_id.unwrap(), chrono::offset::Utc::now());
+        }
     }
 
     pub fn process_worker_new(&mut self, msg: NewWorkerMessage) {

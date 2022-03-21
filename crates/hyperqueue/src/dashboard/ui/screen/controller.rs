@@ -5,6 +5,7 @@ use tokio::sync::mpsc::UnboundedSender;
 #[derive(Debug, Clone, Copy)]
 pub enum ChangeScreenCommand {
     ClusterOverviewScreen,
+    JobOverviewScreen,
     WorkerOverviewScreen(WorkerId),
     AutoAllocatorScreen,
 }
@@ -20,6 +21,10 @@ impl ScreenController {
 
     pub fn show_worker_screen(&mut self, worker_id: WorkerId) {
         self.send_change_command(ChangeScreenCommand::WorkerOverviewScreen(worker_id))
+    }
+
+    pub fn show_job_screen(&mut self) {
+        self.send_change_command(ChangeScreenCommand::JobOverviewScreen)
     }
 
     pub fn show_cluster_overview(&mut self) {
