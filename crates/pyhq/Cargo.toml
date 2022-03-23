@@ -20,7 +20,7 @@ pyo3 = { version = "0.15.1", features = ["extension-module", "abi3", "abi3-py36"
 pyo3-asyncio = { version = "0.15.0", features = ["tokio-runtime", "attributes"] }
 pythonize = "0.15.0"
 serde = "1.0.130"
-tokio = "1.15.0"
+tokio = "1.17.0"
 anyhow = "1.0.44"
 
 [package.metadata.maturin]

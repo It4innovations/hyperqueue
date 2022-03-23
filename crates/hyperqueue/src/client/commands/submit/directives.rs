@@ -1,7 +1,6 @@
 use crate::client::commands::submit::SubmitJobConfOpts;
 use crate::common::parser::{consume_all, NomResult};
 use bstr::{BStr, BString, ByteSlice};
-use clap::AppSettings::DisableHelpFlag;
 use clap::{FromArgMatches, IntoApp};
 use nom::branch::alt;
 use nom::bytes::complete::escaped;
@@ -90,8 +89,8 @@ pub(crate) fn parse_hq_directives(data: &[u8]) -> anyhow::Result<SubmitJobConfOp
     directives.insert(0, "".to_string());
     log::debug!("Applying directive(s): {:?}", directives);
 
-    let app = SubmitJobConfOpts::into_app()
-        .setting(DisableHelpFlag)
+    let app = SubmitJobConfOpts::command()
+        .disable_help_flag(true)
         .override_usage("#HQ <hq submit parameters>");
     let matches = app.try_get_matches_from(&directives).map_err(|error| {
         anyhow::anyhow!(
