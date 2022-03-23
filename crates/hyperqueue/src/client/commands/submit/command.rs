@@ -123,7 +123,7 @@ pub struct SubmitJobConfOpts {
     cpus: Option<ArgCpuRequest>,
 
     /// Generic resource request in form <NAME>=<AMOUNT>
-    #[clap(long, setting = clap::ArgSettings::MultipleOccurrences)]
+    #[clap(long, multiple_occurrences(true))]
     resource: Vec<ArgNamedResourceRequest>,
 
     /// Minimal lifetime of the worker needed to start the job
@@ -254,7 +254,7 @@ pub enum DirectivesMode {
 }
 
 #[derive(Parser)]
-#[clap(setting = clap::AppSettings::TrailingVarArg)]
+#[clap(trailing_var_arg(true))]
 pub struct JobSubmitOpts {
     /// Command that should be executed by each task
     #[clap(required = true)]
@@ -634,7 +634,7 @@ pub struct JobResubmitOpts {
 
     /// Resubmit only tasks with the given states.
     /// You can use multiple states separated by a comma.
-    #[clap(long, multiple_occurrences(false), use_delimiter(true), arg_enum)]
+    #[clap(long, multiple_occurrences(false), use_value_delimiter(true), arg_enum)]
     filter: Vec<Status>,
 }
 

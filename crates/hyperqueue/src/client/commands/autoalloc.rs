@@ -60,7 +60,7 @@ enum AddQueueCommand {
 }
 
 #[derive(Parser)]
-#[clap(setting = clap::AppSettings::TrailingVarArg)]
+#[clap(trailing_var_arg(true))]
 struct SharedQueueOpts {
     /// How many jobs should be waiting in the queue to be started
     #[clap(long, short, default_value = "1")]
@@ -87,7 +87,7 @@ struct SharedQueueOpts {
     cpus: Option<PassThroughArgument<ArgCpuDefinition>>,
 
     /// What resources should the workers spawned inside allocations contain
-    #[clap(long, setting = clap::ArgSettings::MultipleOccurrences)]
+    #[clap(long, multiple_occurrences(true))]
     resource: Vec<PassThroughArgument<ArgGenericResourceDef>>,
 
     /// Behavior when a connection to a server is lost

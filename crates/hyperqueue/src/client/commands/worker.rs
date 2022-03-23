@@ -57,7 +57,7 @@ pub struct WorkerStartOpts {
     pub cpus: ArgCpuDefinition,
 
     /// Resources
-    #[clap(long, setting = clap::ArgSettings::MultipleOccurrences)]
+    #[clap(long, multiple_occurrences(true))]
     pub resource: Vec<ArgGenericResourceDef>,
 
     #[clap(long = "no-detect-resources")]

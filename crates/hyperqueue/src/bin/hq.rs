@@ -5,7 +5,6 @@ use clap::{IntoApp, Parser, ValueHint};
 use clap_complete::{generate, Shell};
 use cli_table::ColorChoice;
 
-use clap::ArgSettings::HiddenShortHelp;
 use hyperqueue::client::commands::autoalloc::{command_autoalloc, AutoAllocOpts};
 use hyperqueue::client::commands::event::{command_event_log, EventLogOpts};
 use hyperqueue::client::commands::job::{
@@ -48,37 +47,25 @@ static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 struct CommonOpts {
     /// Path to a directory that stores HyperQueue access files
     #[clap(long, value_hint = ValueHint::DirPath)]
-    #[clap(
-        global = true,
-        help_heading("GLOBAL OPTIONS"),
-        setting(HiddenShortHelp)
-    )]
+    #[clap(global = true, help_heading("GLOBAL OPTIONS"), hide_short_help(true))]
     server_dir: Option<PathBuf>,
 
     /// Console color policy.
     #[clap(long, default_value = "auto", arg_enum)]
-    #[clap(
-        global = true,
-        help_heading("GLOBAL OPTIONS"),
-        setting(HiddenShortHelp)
-    )]
+    #[clap(global = true, help_heading("GLOBAL OPTIONS"), hide_short_help(true))]
     colors: ColorPolicy,
 
     /// How should the output of the command be formatted.
     #[clap(long, env = "HQ_OUTPUT_MODE", default_value = "cli", arg_enum)]
-    #[clap(
-        global = true,
-        help_heading("GLOBAL OPTIONS"),
-        setting(HiddenShortHelp)
-    )]
+    #[clap(global = true, help_heading("GLOBAL OPTIONS"), hide_short_help(true))]
     output_mode: Outputs,
 }
 
 // Root CLI options
 #[derive(Parser)]
 #[clap(author, about, version(option_env!("HQ_BUILD_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))))]
-#[clap(global_setting = clap::AppSettings::DisableHelpSubcommand)]
-#[clap(global_setting = clap::AppSettings::HelpExpected)]
+#[clap(disable_help_subcommand(true))]
+#[clap(help_expected(true))]
 struct Opts {
     #[clap(flatten)]
     common: CommonOpts,
@@ -90,7 +77,6 @@ struct Opts {
 /// HyperQueue Dashboard
 #[allow(clippy::large_enum_variant)]
 #[derive(Parser)]
-#[clap(setting = clap::AppSettings::Hidden)]
 struct DashboardOpts {}
 
 #[allow(clippy::large_enum_variant)]
@@ -246,7 +232,7 @@ struct TaskListOpts {
 
     /// Filter task(s) by status.
     /// You can use multiple states separated by a comma.
-    #[clap(long, multiple_occurrences(false), use_delimiter(true), arg_enum)]
+    #[clap(long, multiple_occurrences(false), use_value_delimiter(true), arg_enum)]
     pub task_status: Vec<Status>,
 }
 
@@ -501,7 +487,7 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
 fn generate_completion(opts: GenerateCompletionOpts) -> anyhow::Result<()> {
     let generator = opts.shell;
 
-    let mut app = Opts::into_app();
+    let mut app = Opts::command();
     eprintln!("Generating completion file for {}...", generator);
     generate(generator, &mut app, "hq".to_string(), &mut io::stdout());
     Ok(())
