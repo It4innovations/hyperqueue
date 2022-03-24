@@ -1,9 +1,14 @@
 import logging
 from pathlib import Path
+from typing import List
 
 import typer
 from src.postprocessing.monitor import generate_cluster_report, serve_cluster_report
-from src.postprocessing.overview import generate_summary_html, generate_summary_text
+from src.postprocessing.overview import (
+    generate_summary_html,
+    generate_summary_text,
+    generate_comparison_html,
+)
 from src.postprocessing.report import ClusterReport
 from src.utils.benchmark import load_database
 
@@ -55,6 +60,17 @@ def summary_html(
     database = load_database(database_path)
     file = generate_summary_html(database, directory)
     logging.info(f"You can find the summary in {file}")
+
+
+@summary.command("compare")
+def summary_compare(
+    benchmarks: List[str],
+    database_path: Path = typer.Argument(..., exists=True),
+    directory: Path = Path("summary"),
+):
+    """Creates a HTML summary of benchmark comparison for the given directory"""
+    database = load_database(database_path)
+    generate_comparison_html(benchmarks, database, directory)
 
 
 if __name__ == "__main__":

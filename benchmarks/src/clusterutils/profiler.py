@@ -23,6 +23,8 @@ class Profiler:
 
 
 # Process into flamegraphs
+# Enable stats rights at /proc/sys/kernel/perf_event_paranoid
+# cargo inferno
 # 1. Apply profiling records
 # 2. perf script -i perf-records.txt | inferno-collapse-perf > stacks.folded
 # (Visualize)   cat stacks.folded | inferno-flamegraph > profile.svg
@@ -112,42 +114,9 @@ class CachegrindProfiler(Profiler):
         args = [
             "valgrind",
             "--tool=cachegrind",
-            "--log-file="+str(path),
+            "--log-file=" + str(path),
         ] + command
         return ProfiledCommand(args=args, tag=CachegrindProfiler.TAG, output_path=path)
 
     def __repr__(self):
         return "CachegrindProfiler"
-
-
-# class PerfRecordsProfiler(Profiler):
-#     TAG = "perf-records"
-#
-#     def __init__(self, frequency: int):
-#         self.frequency = frequency
-#
-#     def check_availability(self):
-#         if not is_binary_available("perf"):
-#             raise Exception(
-#                 "Performance records profiling is not available. Please install `perf`."
-#             )
-#
-#     def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
-#         path = output_dir / "perf-records.txt"
-#
-#         args = [
-#             "perf",
-#             "record",
-#             "--call-graph",
-#             "dwarf",
-#             "--freq",
-#             str(self.frequency),
-#             "-o",
-#             str(path),
-#             "--",
-#         ] + command
-#
-#         return ProfiledCommand(args=args, tag=PerfRecordsProfiler.TAG, output_path=path)
-#
-#     def __repr__(self):
-#         return "PerfRecordsProfiler"

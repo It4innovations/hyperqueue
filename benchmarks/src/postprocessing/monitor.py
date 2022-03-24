@@ -34,7 +34,11 @@ from cluster.cluster import Cluster, Node, ProcessInfo
 from pandas import Timestamp
 from tornado import ioloop, web
 
-from ..clusterutils.profiler import FlamegraphProfiler, PerfEventsProfiler, CachegrindProfiler
+from ..clusterutils.profiler import (
+    FlamegraphProfiler,
+    PerfEventsProfiler,
+    CachegrindProfiler,
+)
 from ..monitoring.record import MonitoringRecord, ProcessRecord
 from ..utils import ensure_directory
 from .common import average
@@ -236,8 +240,8 @@ def render_node_utilization(df: pd.DataFrame) -> LayoutDOM:
     io_activity = render(render_node_io_activity, "I/O activity")
     net_connections = render(render_node_network_connections, "Network connections")
 
-    layout = [[cpu, net_activity, net_connections], [mem, io_activity]]
-    return gridplot(layout)
+    layout = [cpu, net_activity, net_connections, mem, io_activity]
+    return column(layout)
 
 
 def get_node_description(report: ClusterReport, hostname: str) -> str:
@@ -265,7 +269,6 @@ def render_nodes_resource_usage(
             render_as_text=True,
             style={"font-size": "20px", "font-weight": "bold"},
         )
-
         rows.append(Column(children=[header, utilization]))
     return column(rows)
 
@@ -341,9 +344,7 @@ def render_global_resource_usage(
             time_index, df, key
         )
 
-        figure = prepare_time_range_figure(
-            range, width=1000, height=500, tooltips=tooltips
-        )
+        figure = prepare_time_range_figure(range, tooltips=tooltips)
         render_global_percent_resource_usage(figure, source, report, hostnames)
         return Column(children=[Div(text=title), figure])
 
@@ -404,7 +405,7 @@ def render_flamegraph(flamegraph: Path):
     with open(flamegraph, "rb") as f:
         data = f.read()
         base64_content = base64.b64encode(data).decode()
-        content = f"""<object type="image/svg+xml" width="1600px"
+        content = f"""<object type="image/svg+xml" width="1600px""
  data="data:image/svg+xml;base64,{base64_content}"></object>"""
         return Div(text=content)
 
@@ -425,10 +426,16 @@ def render_flamegraph_from_records(file: Path):
     folded_path = file.parent.joinpath("stacks.folded")
     flamegraph_path = file.parent.joinpath("profile.svg")
 
-    flameCmd = f"perf script -i {file} | inferno-collapse-perf > {folded_path}; "\
-               f"cat {folded_path} | inferno-flamegraph > {flamegraph_path}"
+    flameCmd = (
+        f"perf script -i {file} | inferno-collapse-perf > {folded_path}; "
+        f"cat {folded_path} | inferno-flamegraph > {flamegraph_path}"
+    )
     subprocess.call(flameCmd, shell=True)
     return render_flamegraph(flamegraph_path)
+
+
+def render_comparator():
+    return PreText(text="TODO")
 
 
 def render_profiling_data(report: ClusterReport):
@@ -446,9 +453,6 @@ def render_profiling_data(report: ClusterReport):
             elif tag == CachegrindProfiler.TAG:
                 name = "Cachegrind"
                 widget = render_cachegrind_events(file)
-            # elif tag == PerfRecordsProfiler.TAG:
-            #     name = "Flamegraph"
-            #     widget = render_flamegraph_from_records(file)
             else:
                 name = "Unknown"
                 msg = f"Unknown profiler tag encountered: `{tag}` ({file})"
@@ -597,7 +601,6 @@ Avg. CPU: {avg_cpu:.02f} %
 
 def create_page(report: ClusterReport):
     structure = []
-
     per_node_df = create_global_resources_df(report.monitoring)
 
     if not per_node_df.empty:
