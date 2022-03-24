@@ -1,14 +1,13 @@
 from typing import Optional, Sequence
 
-from hyperqueue.ffi.protocol import ResourceRequest
-
-TaskId = int
+from ..ffi import TaskId
+from ..ffi.protocol import ResourceRequest
 
 
 class Task:
     def __init__(
         self,
-        task_id: int,
+        task_id: TaskId,
         dependencies: Sequence["Task"] = (),
         resources: Optional[ResourceRequest] = None,
     ):

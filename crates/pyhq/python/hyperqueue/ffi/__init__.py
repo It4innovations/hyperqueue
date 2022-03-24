@@ -1,0 +1,2 @@
+JobId = int
+TaskId = int

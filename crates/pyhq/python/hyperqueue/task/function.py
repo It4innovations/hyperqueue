@@ -1,6 +1,7 @@
 import pickle
 from typing import Callable, Optional
 
+from ..ffi import TaskId
 from ..ffi.protocol import ResourceRequest, TaskDescription
 from ..wrapper import CloudWrapper
 from .task import Task
@@ -49,7 +50,7 @@ class PythonEnv:
 class PythonFunction(Task):
     def __init__(
         self,
-        task_id: int,
+        task_id: TaskId,
         fn: Callable,
         *,
         args=(),

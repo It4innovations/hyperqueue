@@ -1,10 +1,8 @@
 from typing import Dict, List, Optional, Sequence
 
 from .. import hyperqueue as ffi
+from . import JobId, TaskId
 from .protocol import JobDescription
-
-JobId = int
-TaskId = int
 
 
 class HqContext:
