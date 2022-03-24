@@ -11,7 +11,7 @@ def test_single_dep(hq_env: HqEnv):
     hq_env.start_worker(cpus=2)
 
     t1 = job.program(args=bash("sleep 1; echo 'hello' > foo.txt"))
-    job.program(args=bash("cat foo.txt"), dependencies=[t1])
+    job.program(args=bash("cat foo.txt"), deps=[t1])
     job_id = client.submit(job)
 
     wait_for_job_state(hq_env, job_id, "FINISHED")
@@ -25,8 +25,8 @@ def test_dep_failed(hq_env: HqEnv):
     (job, client) = prepare_job_client(hq_env, with_worker=True)
 
     t1 = job.program(args=bash("exit 1"))
-    t2 = job.program(args=bash("echo 'hello' > foo1.txt"), dependencies=[t1])
-    job.program(args=bash("echo 'hello' > foo2.txt"), dependencies=[t2])
+    t2 = job.program(args=bash("echo 'hello' > foo1.txt"), deps=[t1])
+    job.program(args=bash("echo 'hello' > foo2.txt"), deps=[t2])
     job.program(args=bash("exit 0"))
     job_id = client.submit(job)
 

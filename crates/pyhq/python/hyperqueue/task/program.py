@@ -1,6 +1,7 @@
 from typing import Dict, List, Optional, Sequence, Union
 
 from ..common import GenericPath
+from ..ffi import TaskId
 from ..ffi.protocol import ResourceRequest, TaskDescription
 from ..output import Output, gather_outputs
 from ..validation import ValidationException, validate_args
@@ -13,7 +14,7 @@ ProgramArgs = Union[List[str], str]
 class ExternalProgram(Task):
     def __init__(
         self,
-        task_id,
+        task_id: TaskId,
         *,
         args: List[str],
         env: EnvType = None,
