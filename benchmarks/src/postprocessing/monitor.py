@@ -34,6 +34,7 @@ from cluster.cluster import Cluster, Node, ProcessInfo
 from pandas import Timestamp
 from tornado import ioloop, web
 
+from ..benchmark.database import Database
 from ..clusterutils.profiler import (
     FlamegraphProfiler,
     PerfEventsProfiler,
@@ -41,7 +42,7 @@ from ..clusterutils.profiler import (
 )
 from ..monitoring.record import MonitoringRecord, ProcessRecord
 from ..utils import ensure_directory
-from .common import average
+from .common import average, create_database_df, groupby_workload
 from .report import ClusterReport, MonitoringData
 
 DATETIME_KEY = "datetime"
@@ -641,20 +642,3 @@ def generate_cluster_report(report: ClusterReport, output: Path):
     ensure_directory(output.parent)
     logging.info(f"Generating monitoring report into {output}")
     save(page, output, title="Cluster monitor", resources=CDN)
-
-
-def serve_cluster_report(report: ClusterReport, port: int):
-    class Handler(web.RequestHandler):
-        def get(self):
-            page = create_page(report)
-            self.write(file_html(page, CDN, "Cluster report"))
-
-    app = web.Application(
-        [
-            (r"/", Handler),
-        ]
-    )
-    app.listen(port)
-
-    logging.info(f"Serving report at http://0.0.0.0:{port}")
-    ioloop.IOLoop.current().start()

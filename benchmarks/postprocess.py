@@ -3,7 +3,9 @@ from pathlib import Path
 from typing import List
 
 import typer
-from src.postprocessing.monitor import generate_cluster_report, serve_cluster_report
+
+from src.postprocessing.serve import serve_cluster_report, serve_summary_html
+from src.postprocessing.monitor import generate_cluster_report
 from src.postprocessing.overview import (
     generate_summary_html,
     generate_summary_text,
@@ -60,6 +62,17 @@ def summary_html(
     database = load_database(database_path)
     file = generate_summary_html(database, directory)
     logging.info(f"You can find the summary in {file}")
+
+
+@summary.command("serve")
+def serve_html(
+    database_path: Path = typer.Argument(..., exists=True),
+    directory: Path = Path("summary"),
+    port: int = 5555,
+):
+    """Serves a HTML summary of benchmark results, includes comparisons"""
+    database = load_database(database_path)
+    serve_summary_html(database, directory, port)
 
 
 @summary.command("compare")

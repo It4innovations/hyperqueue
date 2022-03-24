@@ -1,14 +1,19 @@
-import dataclasses
 import logging
+from abc import ABC
+
+from dataclasses import dataclass
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from tornado import ioloop, web
 
 import humanize
 import numpy as np
 import pandas as pd
 import tqdm
-from bokeh.io import save
+import pathlib
+import json
+from bokeh.io import save, show
 from bokeh.models import (
     Column,
     Div,
@@ -52,7 +57,7 @@ from .monitor import (
 from .report import ClusterReport
 
 
-@dataclasses.dataclass
+@dataclass
 class BenchmarkEntry:
     record: DatabaseRecord
     report: ClusterReport
@@ -134,46 +139,53 @@ def render_benchmark(entry: BenchmarkEntry):
 
 def render_comparison(
     entries: [BenchmarkEntry],
-    selectors: List[str] = [
-        "Global utilization",
-        "Node utilization",
-        "Process utilization",
-        "Profiler",
-    ],
+    selectors: List[str],
+    data: pd.DataFrame,
 ):
     tabs = []
-    reports = [entry.report for entry in entries]
 
-    # Apply selectors
-    for selector in selectors:
-        widgets = []
-        for report in reports:
-            if selector == "Profiler":
-                widgets.append(render_profiling_data(report))
-            elif selector == "Global utilization":
-                per_node_df = create_global_resources_df(report.monitoring)
-                if not per_node_df.empty:
-                    widgets.append(render_global_resource_usage(report, per_node_df))
-                else:
-                    widgets = []
-                    break
-            elif selector == "Node utilization":
-                per_node_df = create_global_resources_df(report.monitoring)
-                if not per_node_df.empty:
-                    widgets.append(render_nodes_resource_usage(report, per_node_df))
-                else:
-                    widgets = []
-                    break
-            elif selector == "Process utilization":
-                per_process_df = create_per_process_resources_df(report.monitoring)
-                if not per_process_df.empty:
-                    widgets.append(
-                        render_process_resource_usage(report, per_process_df)
-                    )
-                else:
-                    widgets = []
-                    break
-        tabs.append(Panel(child=row(widgets), title=selector))
+    # HQ Comparison
+    if len(entries) == len(data):
+        reports = [entry.report for entry in entries]
+        for selector in selectors:
+            widgets = []
+            for report in reports:
+                if selector == "Profiler":
+                    widgets.append(render_profiling_data(report))
+                elif selector == "Global utilization":
+                    per_node_df = create_global_resources_df(report.monitoring)
+                    if not per_node_df.empty:
+                        widgets.append(
+                            render_global_resource_usage(report, per_node_df)
+                        )
+                    else:
+                        widgets = []
+                        break
+                elif selector == "Node utilization":
+                    per_node_df = create_global_resources_df(report.monitoring)
+                    if not per_node_df.empty:
+                        widgets.append(render_nodes_resource_usage(report, per_node_df))
+                    else:
+                        widgets = []
+                        break
+                elif selector == "Process utilization":
+                    per_process_df = create_per_process_resources_df(report.monitoring)
+                    if not per_process_df.empty:
+                        widgets.append(
+                            render_process_resource_usage(report, per_process_df)
+                        )
+                    else:
+                        widgets = []
+                        break
+            tabs.append(Panel(child=row(widgets), title=selector))
+    else:
+        tabs.append(
+            Panel(
+                child=Div(text="Comparison is currently supported for HQ benches only"),
+                title="Error",
+            )
+        )
+
     return Tabs(tabs=tabs)
 
 
@@ -283,13 +295,7 @@ def pregenerate_entries(database: Database, directory: Path) -> EntryMap:
 
 
 def generate_summary_html(database: Database, directory: Path) -> Path:
-    entry_map = pregenerate_entries(database, directory)
-    df = create_database_df(database)
-
-    tabs = []
-    for (group, group_data) in groupby_workload(df):
-        tabs.append(render_workload(0, entry_map, group[0], group[1], group_data))
-    page = Tabs(tabs=tabs)
+    page = create_summary_page(database, directory)
     ensure_directory(directory)
     result_path = directory / "index.html"
     save(page, result_path, title="Benchmarks", resources=CDN)
@@ -335,22 +341,31 @@ def two_level_summary(
 
 
 def generate_comparison_html(
-    benchmarks: List[str], database: Database, directory: Path
+    benchmarks: List[str], database: Database, directory: Path, selectors=None
 ):
+    if selectors is None:
+        selectors = [
+            "Global utilization",
+            "Node utilization",
+            "Process utilization",
+            "Profiler",
+        ]
     entry_map = pregenerate_entries(database, directory)
+    ensure_directory(directory.joinpath("comparisons"))
+
+    df = create_database_df(database)
+    data = df.loc[df["key"].isin(benchmarks)]
 
     benchmark_entries = []
     for benchmark in benchmarks:
-        entry = entry_map[benchmark]
-        if entry is None:
-            print(f"Benchmark {benchmark} does not exist")
-            return
-        benchmark_entries.append(entry)
+        entry = entry_map.get(benchmark)
+        if entry is not None:
+            benchmark_entries.append(entry)
 
-    comparison = render_comparison(benchmark_entries)
+    comparison = render_comparison(benchmark_entries, selectors, data)
     save(
         comparison,
-        directory.joinpath("_".join(benchmarks) + ".html"),
+        directory.joinpath('comparisons', "_".join(benchmarks) + ".html"),
         title="Bench Comparison",
         resources=CDN,
     )
@@ -380,3 +395,71 @@ def generate_summary_text(database: Database, file):
             generate(f)
     else:
         generate(file)
+
+
+def create_summary_page(database: Database, directory: Path):
+    entry_map = pregenerate_entries(database, directory)
+    df = create_database_df(database)
+
+    tabs = []
+    for (group, group_data) in groupby_workload(df):
+        tabs.append(render_workload(0, entry_map, group[0], group[1], group_data))
+    return Tabs(tabs=tabs)
+
+
+def create_comparer_page(
+    database: Database, directory: Path, app: web.Application, addr: str
+):
+    entry_map = pregenerate_entries(database, directory)
+    df = create_database_df(database)
+    ensure_directory(directory.joinpath("comparisons"))
+
+    comparisons = []
+    comparisons_col = column(comparisons)
+
+    class ComparisonHandler(web.RequestHandler):
+        def initialize(self, name):
+            self.name = name
+
+        def get(self):
+            self.render(self.name)
+
+    def callback():
+        data = df.loc[df["key"].isin(bench_choice.value)]
+
+        entries = []
+        for bench in bench_choice.value:
+            if entry_map.get(bench) is not None:
+                entries.append(entry_map[bench])
+
+        page = render_comparison(entries, comparison_choice.value, data)
+        name = "_".join(bench_choice.value) + ".html"
+        location = directory.joinpath("comparisons", name)
+        save(page, location, CDN, "Comparison")
+        app.add_handlers(
+            r".*",
+            [
+                (
+                    "/" + str(name),
+                    ComparisonHandler,
+                    {"name": str(pathlib.Path().resolve().joinpath(location))},
+                )
+            ],
+        )
+        comparisons.append(Div(text=f"""<a href={addr}/{str(name)}>{str(name)}</a>"""))
+        comparisons_col.update(children=comparisons)
+
+    bench_opts = df["key"].to_list()
+    bench_choice = MultiChoice(options=bench_opts)
+
+    comparison_opts = [
+        "Global utilization",
+        "Node utilization",
+        "Process utilization",
+        "Profiler",
+    ]
+    comparison_choice = MultiChoice(options=comparison_opts)
+
+    btn = Button(label="Compare", button_type="success")
+    btn.on_click(callback)
+    return column(row(bench_choice, comparison_choice, btn), comparisons_col)
