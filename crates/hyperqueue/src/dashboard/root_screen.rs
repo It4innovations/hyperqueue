@@ -1,10 +1,9 @@
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::fragments::auto_allocator::fragment::AutoAllocatorFragment;
-use crate::dashboard::ui::fragments::job::fragment::JobFragment;
-use crate::dashboard::ui::fragments::overview::fragment::ClusterOverviewFragment;
-use crate::dashboard::ui::fragments::worker::fragment::WorkerOverviewFragment;
 use crate::dashboard::ui::screen::controller::{ChangeScreenCommand, ScreenController};
-use crate::dashboard::ui::screen::Fragment;
+use crate::dashboard::ui::screen::Screen;
+use crate::dashboard::ui::screens::autoalloc_screen::AutoAllocScreen;
+use crate::dashboard::ui::screens::job_screen::JobScreen;
+use crate::dashboard::ui::screens::overview_screen::OverviewScreen;
 use crate::dashboard::ui::terminal::{DashboardFrame, DashboardTerminal};
 use std::ops::ControlFlow;
 use tako::common::WrappedRcRefCell;
@@ -15,10 +14,9 @@ use tui::text::{Span, Spans};
 use tui::widgets::{Block, Borders, Tabs};
 
 pub struct RootScreen {
-    cluster_overview_screen: ClusterOverviewFragment,
-    worker_overview_screen: WorkerOverviewFragment,
-    auto_allocator_screen: AutoAllocatorFragment,
-    job_overview_screen: JobFragment,
+    cluster_overview_screen: OverviewScreen,
+    auto_allocator_screen: AutoAllocScreen,
+    job_overview_screen: JobScreen,
 
     data_source: WrappedRcRefCell<DashboardData>,
 
@@ -34,7 +32,6 @@ pub struct RootChunks {
 #[derive(Clone, Copy)]
 pub enum DashboardScreenState {
     ClusterOverview,
-    WorkerOverview,
     AutoAllocator,
     JobOverview,
 }
@@ -43,8 +40,7 @@ impl RootScreen {
     pub fn new(data_source: WrappedRcRefCell<DashboardData>, controller: ScreenController) -> Self {
         Self {
             data_source,
-            cluster_overview_screen: ClusterOverviewFragment::default(),
-            worker_overview_screen: WorkerOverviewFragment::default(),
+            cluster_overview_screen: Default::default(),
             auto_allocator_screen: Default::default(),
             job_overview_screen: Default::default(),
             current_screen: DashboardScreenState::ClusterOverview,
@@ -87,10 +83,6 @@ impl RootScreen {
             ChangeScreenCommand::ClusterOverviewScreen => {
                 self.current_screen = DashboardScreenState::ClusterOverview;
             }
-            ChangeScreenCommand::WorkerOverviewScreen(worker_id) => {
-                self.worker_overview_screen.set_worker_id(worker_id);
-                self.current_screen = DashboardScreenState::WorkerOverview;
-            }
             ChangeScreenCommand::AutoAllocatorScreen => {
                 self.current_screen = DashboardScreenState::AutoAllocator;
             }
@@ -100,13 +92,10 @@ impl RootScreen {
         }
     }
 
-    fn get_current_screen_and_controller(&mut self) -> (&mut dyn Fragment, &mut ScreenController) {
+    fn get_current_screen_and_controller(&mut self) -> (&mut dyn Screen, &mut ScreenController) {
         match self.current_screen {
             DashboardScreenState::ClusterOverview => {
                 (&mut self.cluster_overview_screen, &mut self.controller)
-            }
-            DashboardScreenState::WorkerOverview => {
-                (&mut self.worker_overview_screen, &mut self.controller)
             }
             DashboardScreenState::AutoAllocator => {
                 (&mut self.auto_allocator_screen, &mut self.controller)
@@ -136,7 +125,7 @@ pub fn render_screen_tabs(
     rect: Rect,
     frame: &mut DashboardFrame,
 ) {
-    let screen_names = vec!["Jobs", "AutoAllocator", "ClusterOverview", "WorkerOverview"];
+    let screen_names = vec!["Jobs", "AutoAllocator", "ClusterOverview"];
 
     let tab_titles = screen_names
         .iter()
@@ -153,7 +142,6 @@ pub fn render_screen_tabs(
         DashboardScreenState::JobOverview => 0,
         DashboardScreenState::AutoAllocator => 1,
         DashboardScreenState::ClusterOverview => 2,
-        DashboardScreenState::WorkerOverview => 3,
     };
 
     let tabs = Tabs::new(tab_titles)

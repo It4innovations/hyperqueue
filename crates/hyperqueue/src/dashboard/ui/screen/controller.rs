@@ -1,12 +1,10 @@
 use crate::dashboard::events::DashboardEvent;
-use tako::WorkerId;
 use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ChangeScreenCommand {
     ClusterOverviewScreen,
     JobOverviewScreen,
-    WorkerOverviewScreen(WorkerId),
     AutoAllocatorScreen,
 }
 
@@ -17,10 +15,6 @@ pub struct ScreenController {
 impl ScreenController {
     pub fn new(event_channel: UnboundedSender<DashboardEvent>) -> Self {
         Self { event_channel }
-    }
-
-    pub fn show_worker_screen(&mut self, worker_id: WorkerId) {
-        self.send_change_command(ChangeScreenCommand::WorkerOverviewScreen(worker_id))
     }
 
     pub fn show_job_screen(&mut self) {

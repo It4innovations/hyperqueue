@@ -43,11 +43,7 @@ impl Fragment for ClusterOverviewFragment {
         match key {
             Key::Down => self.worker_util_table.select_next_worker(),
             Key::Up => self.worker_util_table.select_previous_worker(),
-            Key::Right => {
-                if let Some(worker_id) = self.worker_util_table.get_selected_item() {
-                    controller.show_worker_screen(worker_id);
-                }
-            }
+            Key::Right => (), //todo: implement tab switching within screen
             Key::Left => controller.show_auto_allocator_screen(),
             _ => {}
         }
