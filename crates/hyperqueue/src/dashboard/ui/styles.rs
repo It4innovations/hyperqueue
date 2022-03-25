@@ -12,7 +12,7 @@ pub fn style_header_text() -> Style {
         .add_modifier(Modifier::BOLD)
 }
 
-/// The Style for the footer text on screens
+/// The Style for the footer text on fragments
 pub fn style_footer() -> Style {
     Style::default()
         .fg(Color::Green)

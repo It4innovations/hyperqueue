@@ -1,7 +1,7 @@
 use std::time::SystemTime;
 use termion::event::Key;
 
-use crate::dashboard::ui::screen::Screen;
+use crate::dashboard::ui::screen::Fragment;
 use crate::dashboard::ui::styles::{
     style_footer, style_header_text, table_style_deselected, table_style_selected,
 };
@@ -10,18 +10,18 @@ use crate::dashboard::ui::widgets::text::draw_text;
 
 use crate::dashboard::data::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::screen::controller::ScreenController;
-use crate::dashboard::ui::screens::worker::cpu_util_table::{
+use crate::dashboard::ui::fragments::worker::cpu_util_table::{
     get_column_constraints, render_cpu_util_table,
 };
-use crate::dashboard::ui::screens::worker::worker_config_table::WorkerConfigTable;
+use crate::dashboard::ui::fragments::worker::worker_config_table::WorkerConfigTable;
+use crate::dashboard::ui::screen::controller::ScreenController;
 use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 use crate::TakoTaskId;
 use tako::WorkerId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
-pub struct WorkerOverviewScreen {
+pub struct WorkerOverviewFragment {
     /// The worker info screen shows data for this worker
     worker_id: Option<WorkerId>,
     worker_info_table: WorkerConfigTable,
@@ -30,15 +30,15 @@ pub struct WorkerOverviewScreen {
     worker_per_core_cpu_util: Vec<f32>,
 }
 
-impl WorkerOverviewScreen {
+impl WorkerOverviewFragment {
     pub fn set_worker_id(&mut self, worker_id: WorkerId) {
         self.worker_id = Some(worker_id);
     }
 }
 
-impl Screen for WorkerOverviewScreen {
+impl Fragment for WorkerOverviewFragment {
     fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
-        let layout = WorkerScreenLayout::new(&in_area);
+        let layout = WorkerFragmentLayout::new(&in_area);
         draw_text(
             format!(
                 "Details for Worker {}",
@@ -129,7 +129,7 @@ impl Screen for WorkerOverviewScreen {
    |--------Footer---------|
    |-----------------------|
  **/
-struct WorkerScreenLayout {
+struct WorkerFragmentLayout {
     header_chunk: Rect,
     tasks_table_chunk: Rect,
     worker_util_chunk: Rect,
@@ -137,7 +137,7 @@ struct WorkerScreenLayout {
     footer_chunk: Rect,
 }
 
-impl WorkerScreenLayout {
+impl WorkerFragmentLayout {
     fn new(rect: &Rect) -> Self {
         let base_chunks = tui::layout::Layout::default()
             .constraints(vec![

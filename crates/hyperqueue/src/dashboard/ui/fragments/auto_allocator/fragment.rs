@@ -2,7 +2,7 @@ use std::default::Default;
 use std::time::SystemTime;
 use termion::event::Key;
 
-use crate::dashboard::ui::screen::Screen;
+use crate::dashboard::ui::screen::Fragment;
 use crate::dashboard::ui::styles::{
     style_footer, style_header_text, table_style_deselected, table_style_selected,
 };
@@ -11,16 +11,16 @@ use crate::dashboard::ui::widgets::text::draw_text;
 
 use crate::dashboard::data::alloc_timeline::AllocationQueueInfo;
 use crate::dashboard::data::DashboardData;
+use crate::dashboard::ui::fragments::auto_allocator::alloc_timeline_chart::AllocationsChart;
+use crate::dashboard::ui::fragments::auto_allocator::allocations_info_table::AllocationInfoTable;
+use crate::dashboard::ui::fragments::auto_allocator::queue_info_table::AllocationQueueInfoTable;
+use crate::dashboard::ui::fragments::auto_allocator::queue_params_display::QueueParamsTable;
 use crate::dashboard::ui::screen::controller::ScreenController;
-use crate::dashboard::ui::screens::auto_allocator::alloc_timeline_chart::AllocationsChart;
-use crate::dashboard::ui::screens::auto_allocator::allocations_info_table::AllocationInfoTable;
-use crate::dashboard::ui::screens::auto_allocator::queue_info_table::AllocationQueueInfoTable;
-use crate::dashboard::ui::screens::auto_allocator::queue_params_display::QueueParamsTable;
 use crate::server::autoalloc::QueueId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
-pub struct AutoAllocatorScreen {
+pub struct AutoAllocatorFragment {
     queue_info_table: AllocationQueueInfoTable,
     queue_params_table: QueueParamsTable,
     allocations_info_table: AllocationInfoTable,
@@ -34,9 +34,9 @@ enum FocusedComponent {
     AllocationInfoTable,
 }
 
-impl Screen for AutoAllocatorScreen {
+impl Fragment for AutoAllocatorFragment {
     fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
-        let layout = AutoAllocScreenLayout::new(&in_area);
+        let layout = AutoAllocFragmentLayout::new(&in_area);
         draw_text(
             "AutoAlloc Info",
             layout.header_chunk,
@@ -128,7 +128,7 @@ impl Screen for AutoAllocatorScreen {
    | q_params |            |
    |________Footer_________|
  **/
-struct AutoAllocScreenLayout {
+struct AutoAllocFragmentLayout {
     chart_chunk: Rect,
     allocation_queue_params_chunk: Rect,
     header_chunk: Rect,
@@ -137,7 +137,7 @@ struct AutoAllocScreenLayout {
     footer_chunk: Rect,
 }
 
-impl AutoAllocScreenLayout {
+impl AutoAllocFragmentLayout {
     fn new(rect: &Rect) -> Self {
         let auto_alloc_screen_chunks = tui::layout::Layout::default()
             .constraints(vec![

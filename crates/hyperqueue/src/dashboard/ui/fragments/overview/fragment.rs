@@ -1,8 +1,8 @@
 use termion::event::Key;
 
-use crate::dashboard::ui::screen::Screen;
-use crate::dashboard::ui::screens::home::cluster_overview_chart::ClusterOverviewChart;
-use crate::dashboard::ui::screens::home::worker_utilization_table::WorkerUtilTable;
+use crate::dashboard::ui::fragments::overview::cluster_overview_chart::ClusterOverviewChart;
+use crate::dashboard::ui::fragments::overview::worker_utilization_table::WorkerUtilTable;
+use crate::dashboard::ui::screen::Fragment;
 use crate::dashboard::ui::styles::{style_footer, style_header_text};
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
@@ -12,14 +12,14 @@ use crate::dashboard::ui::screen::controller::ScreenController;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
-pub struct ClusterOverviewScreen {
+pub struct ClusterOverviewFragment {
     worker_util_table: WorkerUtilTable,
     cluster_overview: ClusterOverviewChart,
 }
 
-impl Screen for ClusterOverviewScreen {
+impl Fragment for ClusterOverviewFragment {
     fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
-        let layout = HomeLayout::new(&in_area);
+        let layout = OverviewFragmentLayout::new(&in_area);
         draw_text("HQ top", layout.header_chunk, frame, style_header_text());
         draw_text(
             "Press up_arrow and bottom_arrow to select a worker, press right_arrow for details about the selected worker",
@@ -62,7 +62,7 @@ impl Screen for ClusterOverviewScreen {
    |          BODY         |
    -------------------------
  **/
-struct HomeLayout {
+struct OverviewFragmentLayout {
     worker_count_chunk: Rect,
     _task_timeline_chart: Rect,
     header_chunk: Rect,
@@ -70,7 +70,7 @@ struct HomeLayout {
     footer_chunk: Rect,
 }
 
-impl HomeLayout {
+impl OverviewFragmentLayout {
     fn new(rect: &Rect) -> Self {
         let base_chunks = tui::layout::Layout::default()
             .constraints(vec![

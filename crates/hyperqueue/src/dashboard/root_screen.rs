@@ -1,10 +1,10 @@
 use crate::dashboard::data::DashboardData;
+use crate::dashboard::ui::fragments::auto_allocator::fragment::AutoAllocatorFragment;
+use crate::dashboard::ui::fragments::job::fragment::JobFragment;
+use crate::dashboard::ui::fragments::overview::fragment::ClusterOverviewFragment;
+use crate::dashboard::ui::fragments::worker::fragment::WorkerOverviewFragment;
 use crate::dashboard::ui::screen::controller::{ChangeScreenCommand, ScreenController};
-use crate::dashboard::ui::screen::Screen;
-use crate::dashboard::ui::screens::auto_allocator::screen::AutoAllocatorScreen;
-use crate::dashboard::ui::screens::home::screen::ClusterOverviewScreen;
-use crate::dashboard::ui::screens::job::screen::JobScreen;
-use crate::dashboard::ui::screens::worker::screen::WorkerOverviewScreen;
+use crate::dashboard::ui::screen::Fragment;
 use crate::dashboard::ui::terminal::{DashboardFrame, DashboardTerminal};
 use std::ops::ControlFlow;
 use tako::common::WrappedRcRefCell;
@@ -15,10 +15,10 @@ use tui::text::{Span, Spans};
 use tui::widgets::{Block, Borders, Tabs};
 
 pub struct RootScreen {
-    cluster_overview_screen: ClusterOverviewScreen,
-    worker_overview_screen: WorkerOverviewScreen,
-    auto_allocator_screen: AutoAllocatorScreen,
-    job_overview_screen: JobScreen,
+    cluster_overview_screen: ClusterOverviewFragment,
+    worker_overview_screen: WorkerOverviewFragment,
+    auto_allocator_screen: AutoAllocatorFragment,
+    job_overview_screen: JobFragment,
 
     data_source: WrappedRcRefCell<DashboardData>,
 
@@ -43,8 +43,8 @@ impl RootScreen {
     pub fn new(data_source: WrappedRcRefCell<DashboardData>, controller: ScreenController) -> Self {
         Self {
             data_source,
-            cluster_overview_screen: ClusterOverviewScreen::default(),
-            worker_overview_screen: WorkerOverviewScreen::default(),
+            cluster_overview_screen: ClusterOverviewFragment::default(),
+            worker_overview_screen: WorkerOverviewFragment::default(),
             auto_allocator_screen: Default::default(),
             job_overview_screen: Default::default(),
             current_screen: DashboardScreenState::ClusterOverview,
@@ -100,7 +100,7 @@ impl RootScreen {
         }
     }
 
-    fn get_current_screen_and_controller(&mut self) -> (&mut dyn Screen, &mut ScreenController) {
+    fn get_current_screen_and_controller(&mut self) -> (&mut dyn Fragment, &mut ScreenController) {
         match self.current_screen {
             DashboardScreenState::ClusterOverview => {
                 (&mut self.cluster_overview_screen, &mut self.controller)

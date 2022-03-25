@@ -2,7 +2,7 @@ use std::default::Default;
 use std::time::SystemTime;
 use termion::event::Key;
 
-use crate::dashboard::ui::screen::Screen;
+use crate::dashboard::ui::screen::Fragment;
 use crate::dashboard::ui::styles::{
     style_footer, style_header_text, table_style_deselected, table_style_selected,
 };
@@ -13,16 +13,16 @@ use crate::dashboard::data::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::screen::controller::ScreenController;
 
-use crate::dashboard::ui::screens::job::jobs_table::JobsTable;
+use crate::dashboard::ui::fragments::job::jobs_table::JobsTable;
 use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 
-use crate::dashboard::ui::screens::job::job_info_display::JobInfoTable;
-use crate::dashboard::ui::screens::job::job_tasks_chart::JobTaskChart;
+use crate::dashboard::ui::fragments::job::job_info_display::JobInfoTable;
+use crate::dashboard::ui::fragments::job::job_tasks_chart::JobTaskChart;
 use crate::TakoTaskId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
-pub struct JobScreen {
+pub struct JobFragment {
     job_task_chart: JobTaskChart,
 
     jobs_list: JobsTable,
@@ -37,9 +37,9 @@ enum FocusedComponent {
     JobTasksTable,
 }
 
-impl Screen for JobScreen {
+impl Fragment for JobFragment {
     fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
-        let layout = JobScreenLayout::new(&in_area);
+        let layout = JobFragmentLayout::new(&in_area);
         draw_text("Job Info", layout.header_chunk, frame, style_header_text());
 
         let (jobs_table_style, tasks_table_style) = match self.component_in_focus {
@@ -116,7 +116,7 @@ impl Screen for JobScreen {
    |  j_info  |   j_tasks  |
    |________Footer_________|
  **/
-struct JobScreenLayout {
+struct JobFragmentLayout {
     header_chunk: Rect,
     chart_chunk: Rect,
     job_info_chunk: Rect,
@@ -125,7 +125,7 @@ struct JobScreenLayout {
     footer_chunk: Rect,
 }
 
-impl JobScreenLayout {
+impl JobFragmentLayout {
     fn new(rect: &Rect) -> Self {
         let job_screen_chunks = tui::layout::Layout::default()
             .constraints(vec![

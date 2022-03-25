@@ -7,7 +7,7 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 
 pub mod controller;
 
-pub trait Screen {
+pub trait Fragment {
     fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame);
     fn update(&mut self, data: &DashboardData, controller: &mut ScreenController);
     fn handle_key(&mut self, key: Key, controller: &mut ScreenController);
