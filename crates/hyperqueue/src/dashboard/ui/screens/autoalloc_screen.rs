@@ -25,9 +25,15 @@ impl Screen for AutoAllocScreen {
     }
 
     fn handle_key(&mut self, key: Key, controller: &mut ScreenController) {
-        self.get_active_fragment()
-            .unwrap()
-            .handle_key(key, controller);
+        match key {
+            Key::Right => controller.show_cluster_overview(),
+            Key::Left => controller.show_job_screen(),
+            _ => {
+                self.get_active_fragment()
+                    .unwrap()
+                    .handle_key(key, controller);
+            }
+        }
     }
 }
 

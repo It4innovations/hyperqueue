@@ -26,9 +26,14 @@ impl Screen for JobScreen {
     }
 
     fn handle_key(&mut self, key: Key, controller: &mut ScreenController) {
-        self.get_active_fragment()
-            .unwrap()
-            .handle_key(key, controller);
+        match key {
+            Key::Right => controller.show_auto_allocator_screen(),
+            _ => {
+                self.get_active_fragment()
+                    .unwrap()
+                    .handle_key(key, controller);
+            }
+        }
     }
 }
 

@@ -2,7 +2,7 @@ use termion::event::Key;
 
 use crate::dashboard::ui::fragments::overview::cluster_overview_chart::ClusterOverviewChart;
 use crate::dashboard::ui::fragments::overview::worker_utilization_table::WorkerUtilTable;
-use crate::dashboard::ui::screen::Fragment;
+use crate::dashboard::ui::screen::{Fragment, FromFragmentMessage, ToFragmentMessage};
 use crate::dashboard::ui::styles::{style_footer, style_header_text};
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
@@ -38,15 +38,34 @@ impl Fragment for ClusterOverviewFragment {
         self.cluster_overview.update(data);
     }
 
+    fn handle_message(&mut self, _message: ToFragmentMessage) {
+        todo!()
+    }
+
     /// Handles key presses for the components of the screen
-    fn handle_key(&mut self, key: Key, controller: &mut ScreenController) {
+    fn handle_key(
+        &mut self,
+        key: Key,
+        _controller: &mut ScreenController,
+    ) -> Option<FromFragmentMessage> {
         match key {
-            Key::Down => self.worker_util_table.select_next_worker(),
-            Key::Up => self.worker_util_table.select_previous_worker(),
-            Key::Right => (), //todo: implement tab switching within screen
-            Key::Left => controller.show_auto_allocator_screen(),
+            Key::Down => {
+                self.worker_util_table.select_next_worker();
+                return self
+                    .worker_util_table
+                    .get_selected_item()
+                    .map(FromFragmentMessage::WorkerIdChanged);
+            }
+            Key::Up => {
+                self.worker_util_table.select_previous_worker();
+                return self
+                    .worker_util_table
+                    .get_selected_item()
+                    .map(FromFragmentMessage::WorkerIdChanged);
+            }
             _ => {}
         }
+        None
     }
 }
 

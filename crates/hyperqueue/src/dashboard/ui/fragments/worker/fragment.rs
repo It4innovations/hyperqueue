@@ -1,7 +1,7 @@
 use std::time::SystemTime;
 use termion::event::Key;
 
-use crate::dashboard::ui::screen::Fragment;
+use crate::dashboard::ui::screen::{Fragment, FromFragmentMessage, ToFragmentMessage};
 use crate::dashboard::ui::styles::{
     style_footer, style_header_text, table_style_deselected, table_style_selected,
 };
@@ -105,8 +105,18 @@ impl Fragment for WorkerOverviewFragment {
         }
     }
 
+    fn handle_message(&mut self, message: ToFragmentMessage) {
+        match message {
+            ToFragmentMessage::SetWorkerId(worker_id) => self.set_worker_id(worker_id),
+        }
+    }
+
     /// Handles key presses for the components of the screen
-    fn handle_key(&mut self, key: Key, controller: &mut ScreenController) {
+    fn handle_key(
+        &mut self,
+        key: Key,
+        controller: &mut ScreenController,
+    ) -> Option<FromFragmentMessage> {
         match key {
             Key::Down => self.worker_tasks_table.select_next_task(),
             Key::Up => self.worker_tasks_table.select_previous_task(),
@@ -116,6 +126,7 @@ impl Fragment for WorkerOverviewFragment {
             }
             _ => {}
         }
+        None
     }
 }
 

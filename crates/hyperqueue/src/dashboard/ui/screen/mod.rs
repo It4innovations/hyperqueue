@@ -1,3 +1,4 @@
+use tako::WorkerId;
 use termion::event::Key;
 use tui::layout::Rect;
 
@@ -10,7 +11,12 @@ pub mod controller;
 pub trait Fragment {
     fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame);
     fn update(&mut self, data: &DashboardData, controller: &mut ScreenController);
-    fn handle_key(&mut self, key: Key, controller: &mut ScreenController);
+    fn handle_message(&mut self, message: ToFragmentMessage);
+    fn handle_key(
+        &mut self,
+        key: Key,
+        controller: &mut ScreenController,
+    ) -> Option<FromFragmentMessage>;
 }
 
 #[derive(Debug, Clone)]
@@ -24,4 +30,14 @@ pub trait Screen {
     fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame);
     fn update(&mut self, data: &DashboardData, controller: &mut ScreenController);
     fn handle_key(&mut self, key: Key, controller: &mut ScreenController);
+}
+
+/// The different messages the screens can send to the fragments to pass data.
+pub enum ToFragmentMessage {
+    SetWorkerId(WorkerId),
+}
+
+/// The messages a fragment can send to a screen upon a key event.
+pub enum FromFragmentMessage {
+    WorkerIdChanged(WorkerId),
 }

@@ -2,7 +2,7 @@ use std::default::Default;
 use std::time::SystemTime;
 use termion::event::Key;
 
-use crate::dashboard::ui::screen::Fragment;
+use crate::dashboard::ui::screen::{Fragment, FromFragmentMessage, ToFragmentMessage};
 use crate::dashboard::ui::styles::{
     style_footer, style_header_text, table_style_deselected, table_style_selected,
 };
@@ -89,15 +89,22 @@ impl Fragment for JobFragment {
         self.job_task_chart.update(data);
     }
 
+    fn handle_message(&mut self, _message: ToFragmentMessage) {
+        todo!()
+    }
+
     /// Handles key presses for the components of the screen
-    fn handle_key(&mut self, key: Key, controller: &mut ScreenController) {
+    fn handle_key(
+        &mut self,
+        key: Key,
+        _controller: &mut ScreenController,
+    ) -> Option<FromFragmentMessage> {
         match self.component_in_focus {
             FocusedComponent::JobsTable => self.jobs_list.handle_key(key),
             FocusedComponent::JobTasksTable => self.job_tasks_table.handle_key(key),
         };
 
         match key {
-            Key::Right => controller.show_auto_allocator_screen(),
             Key::Char('1') => {
                 self.component_in_focus = FocusedComponent::JobsTable;
                 self.job_tasks_table.clear_selection();
@@ -105,6 +112,7 @@ impl Fragment for JobFragment {
             Key::Char('2') => self.component_in_focus = FocusedComponent::JobTasksTable,
             _ => {}
         }
+        None
     }
 }
 
