@@ -1,6 +1,6 @@
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::screen::controller::{ChangeScreenCommand, ScreenController};
-use crate::dashboard::ui::screen::Screen;
+use crate::dashboard::ui::screen::{Screen, ScreenTab};
 use crate::dashboard::ui::screens::autoalloc_screen::AutoAllocScreen;
 use crate::dashboard::ui::screens::job_screen::JobScreen;
 use crate::dashboard::ui::screens::overview_screen::OverviewScreen;
@@ -58,6 +58,7 @@ impl RootScreen {
 
                 render_screen_tabs(
                     screen_state,
+                    screen.get_tabs(),
                     get_root_screen_chunks(frame).screen_tabs,
                     frame,
                 );
@@ -109,7 +110,7 @@ impl RootScreen {
 
 pub fn get_root_screen_chunks(frame: &DashboardFrame) -> RootChunks {
     let root_screen_chunks = Layout::default()
-        .constraints(vec![Constraint::Min(3), Constraint::Min(40)])
+        .constraints(vec![Constraint::Min(6), Constraint::Min(40)])
         .direction(Direction::Vertical)
         .split(frame.size());
 
@@ -122,12 +123,29 @@ pub fn get_root_screen_chunks(frame: &DashboardFrame) -> RootChunks {
 /// Renders the top `tab bar` of the dashboard.
 pub fn render_screen_tabs(
     current_screen: DashboardScreenState,
+    current_screen_tabs: (Vec<&ScreenTab>, usize),
     rect: Rect,
     frame: &mut DashboardFrame,
 ) {
     let screen_names = vec!["Jobs", "AutoAllocator", "ClusterOverview"];
+    let fragment_names: Vec<&str> = current_screen_tabs
+        .0
+        .iter()
+        .map(|tab| tab.tab_title.as_str())
+        .collect();
 
     let tab_titles = screen_names
+        .iter()
+        .map(|t| {
+            let (first, rest) = t.split_at(1);
+            Spans::from(vec![
+                Span::styled(first, Style::default().fg(Color::Yellow)),
+                Span::styled(rest, Style::default().fg(Color::Green)),
+            ])
+        })
+        .collect();
+
+    let fragment_titles = fragment_names
         .iter()
         .map(|t| {
             let (first, rest) = t.split_at(1);
@@ -144,7 +162,12 @@ pub fn render_screen_tabs(
         DashboardScreenState::ClusterOverview => 2,
     };
 
-    let tabs = Tabs::new(tab_titles)
+    let tab_chunks = Layout::default()
+        .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
+        .direction(Direction::Vertical)
+        .split(rect);
+
+    let screen_tabs = Tabs::new(tab_titles)
         .block(Block::default().borders(Borders::ALL).title("Screens"))
         .select(selected_index)
         .style(Style::default().fg(Color::Cyan))
@@ -154,5 +177,18 @@ pub fn render_screen_tabs(
                 .fg(Color::White)
                 .bg(Color::Black),
         );
-    frame.render_widget(tabs, rect);
+
+    let fragment_tabs = Tabs::new(fragment_titles)
+        .block(Block::default().borders(Borders::ALL).title("Tabs"))
+        .select(current_screen_tabs.1)
+        .style(Style::default().fg(Color::Cyan))
+        .highlight_style(
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .fg(Color::White)
+                .bg(Color::Black),
+        );
+
+    frame.render_widget(screen_tabs, tab_chunks[0]);
+    frame.render_widget(fragment_tabs, tab_chunks[1]);
 }

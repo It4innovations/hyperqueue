@@ -26,7 +26,7 @@ pub struct ScreenTab {
 }
 
 pub trait Screen {
-    fn get_tabs(&self) -> &(Vec<ScreenTab>, usize);
+    fn get_tabs(&self) -> (Vec<&ScreenTab>, usize);
     fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame);
     fn update(&mut self, data: &DashboardData, controller: &mut ScreenController);
     fn handle_key(&mut self, key: Key, controller: &mut ScreenController);

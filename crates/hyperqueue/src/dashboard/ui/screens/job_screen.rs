@@ -13,8 +13,9 @@ pub struct JobScreen {
 }
 
 impl Screen for JobScreen {
-    fn get_tabs(&self) -> &(Vec<ScreenTab>, usize) {
-        todo!()
+    fn get_tabs(&self) -> (Vec<&ScreenTab>, usize) {
+        let tabs: Vec<&ScreenTab> = self.job_fragments.iter().map(|(tab, _)| tab).collect();
+        (tabs, self.active_fragment)
     }
 
     fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
