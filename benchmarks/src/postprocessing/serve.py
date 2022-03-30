@@ -6,12 +6,13 @@ from bokeh.embed import file_html
 from bokeh.application import Application
 from bokeh.application.handlers import FunctionHandler
 from bokeh.server.server import Server
+from bokeh.plotting import curdoc, figure
 from bokeh.resources import CDN
 from tornado import ioloop, web
 from tornado.ioloop import IOLoop
 
 from .monitor import create_page
-from .overview import create_summary_page, create_comparer_page
+from .overview import create_summary_page, create_comparer_page, pregenerate_entries
 from ..benchmark.database import Database
 from .report import ClusterReport
 
@@ -34,27 +35,49 @@ def serve_cluster_report(report: ClusterReport, port: int):
 
 
 def serve_summary_html(database: Database, directory: Path, port: int):
+    entries = pregenerate_entries(database, directory)
     io_loop = IOLoop.current()
 
-    # Create custom app that will host all created comparisons and summary
     class SummaryHandler(web.RequestHandler):
         def get(self):
             page = create_summary_page(database, directory)
             self.write(file_html(page, CDN, "Summary"))
 
-    app = web.Application([(r"/", SummaryHandler)])
-    app.listen(port)
-    logging.info(f"Serving report at http://0.0.0.0:{port}")
+    class ClusterHandler(web.RequestHandler):
+        def get(self, key: str):
+            report = entries[str(Path(key).stem)].report
+            page = create_page(report)
+            self.write(file_html(page, CDN, "Cluster report"))
 
-    # Create bokeh server that will host dynamic comparer
-    def update_comparer(doc):
-        page = create_comparer_page(database, directory, app, f"http://0.0.0.0:{port}")
+    class ComparisonHandler(web.RequestHandler):
+        def get(self, key: str):
+            html_file = open(
+                Path("summary/comparisons").joinpath(key), "r", encoding="utf-8"
+            )
+            source_code = html_file.read()
+            self.write(source_code)
+
+    app = web.Application(
+        [
+            (r"/comparisons/(.*)", ComparisonHandler),
+            (r"/monitoring/(.*)", ClusterHandler),
+            (r"/", SummaryHandler),
+        ]
+    )
+
+    app.listen(port)
+    logging.info(f"Serving report at http://localhost:{port}")
+    logging.info(f"Serving comparator at http://localhost:5006")
+
+    def comparer(doc):
+        page = create_comparer_page(database, directory, f"http://localhost:{port}")
         doc.add_root(page)
 
-    server = Server(
-        {"/": Application(FunctionHandler(update_comparer))},
+    Server(
+        {
+            "/": Application(FunctionHandler(comparer)),
+        },
         io_loop=io_loop,
     )
 
-    io_loop.add_callback(server.show, "/")
     io_loop.start()
