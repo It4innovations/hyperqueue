@@ -10,7 +10,7 @@ use crate::tests::utils::env::TestComm;
 use crate::tests::utils::task::task_running_msg;
 use crate::worker::state::ServerLostPolicy;
 use crate::{TaskId, WorkerId};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub fn create_test_workers(core: &mut Core, cpus: &[u32]) {
     for (i, c) in cpus.iter().enumerate() {
@@ -108,5 +108,5 @@ pub fn start_and_finish_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
 }
 
 pub(crate) fn create_test_scheduler() -> SchedulerState {
-    SchedulerState::new()
+    SchedulerState::new(Instant::now())
 }
