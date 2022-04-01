@@ -2,9 +2,6 @@ use std::cmp::{Ordering, Reverse};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use rand::rngs::SmallRng;
-use rand::seq::SliceRandom;
-use rand::SeedableRng;
 use tokio::sync::Notify;
 use tokio::time::sleep;
 
@@ -28,47 +25,10 @@ pub struct SchedulerState {
     // Which tasks has modified state, this map holds the original state
     dirty_tasks: Map<TaskId, TaskRuntimeState>,
 
-    random: SmallRng,
-}
-
-/// Selects a worker that is able to execute the given task.
-///
-/// The `workers` Vec is passed from the outside as an optimization, to reuse its allocated buffer.
-///
-/// If no worker is available, returns `None`.
-fn choose_worker_for_task(
-    task: &Task,
-    taskmap: &TaskMap,
-    worker_map: &Map<WorkerId, Worker>,
-    random: &mut SmallRng,
-    workers: &mut Vec<WorkerId>,
+    /// Use in choose_worker_for_task to reuse allocated buffer
+    tmp_workers: Vec<WorkerId>,
+    choose_counter: usize,
     now: std::time::Instant,
-) -> Option<WorkerId> {
-    workers.clear();
-
-    let mut costs = u64::MAX;
-    for worker in worker_map.values() {
-        if !worker.is_capable_to_run(&task.configuration.resources, now) {
-            continue;
-        }
-
-        let c = task_transfer_cost(taskmap, task, worker.id);
-        match c.cmp(&costs) {
-            Ordering::Less => {
-                costs = c;
-                workers.clear();
-                workers.push(worker.id);
-            }
-            Ordering::Equal => workers.push(worker.id),
-            Ordering::Greater => { /* Do nothing */ }
-        }
-    }
-
-    match workers.len() {
-        1 => Some(workers.pop().unwrap()),
-        0 => None,
-        _ => Some(*workers.choose(random).unwrap()),
-    }
 }
 
 pub async fn scheduler_loop(
@@ -78,17 +38,16 @@ pub async fn scheduler_loop(
     minimum_delay: Duration,
 ) {
     let mut last_schedule = Instant::now() - minimum_delay * 2;
-    let mut state = SchedulerState {
-        dirty_tasks: Default::default(),
-        random: SmallRng::from_entropy(),
-    };
     loop {
         scheduler_wakeup.notified().await;
-        let since_last_schedule = last_schedule.elapsed();
+        let mut now = Instant::now();
+        let since_last_schedule = now - last_schedule;
         if minimum_delay > since_last_schedule {
             sleep(minimum_delay - since_last_schedule).await;
+            now = Instant::now();
         }
         let mut comm = comm_ref.get_mut();
+        let mut state = SchedulerState::new(now);
         state.run_scheduling(&mut core_ref.get_mut(), &mut *comm);
         comm.reset_scheduling_flag();
         last_schedule = Instant::now();
@@ -96,15 +55,65 @@ pub async fn scheduler_loop(
 }
 
 impl SchedulerState {
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> SchedulerState {
-        Self {
-            dirty_tasks: Default::default(),
-            random: SmallRng::from_seed([
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0,
-            ]),
+    pub fn new(now: std::time::Instant) -> Self {
+        SchedulerState {
+            dirty_tasks: Map::new(),
+            choose_counter: 0,
+            tmp_workers: Vec::new(),
+            now,
         }
+    }
+
+    fn pick_worker(&mut self) -> Option<WorkerId> {
+        match self.tmp_workers.len() {
+            1 => Some(self.tmp_workers.pop().unwrap()),
+            0 => None,
+            _ => {
+                let worker_id = self.tmp_workers[self.choose_counter % self.tmp_workers.len()];
+                self.choose_counter += 1;
+                Some(worker_id)
+            }
+        }
+    }
+
+    /// Selects a worker that is able to execute the given task.
+    /// If no worker is available, returns `None`.
+    fn choose_worker_for_task(
+        &mut self,
+        task: &Task,
+        taskmap: &TaskMap,
+        worker_map: &Map<WorkerId, Worker>,
+    ) -> Option<WorkerId> {
+        self.tmp_workers.clear();
+        let mut costs = u64::MAX;
+        for worker in worker_map.values() {
+            if !worker.is_capable_to_run(&task.configuration.resources, self.now) {
+                continue;
+            }
+
+            let c = task_transfer_cost(taskmap, task, worker.id);
+            match c.cmp(&costs) {
+                Ordering::Less => {
+                    costs = c;
+                    self.tmp_workers.clear();
+                    self.tmp_workers.push(worker.id);
+                }
+                Ordering::Equal => self.tmp_workers.push(worker.id),
+                Ordering::Greater => { /* Do nothing */ }
+            }
+        }
+        self.pick_worker()
+    }
+
+    #[cfg(test)]
+    pub fn run_scheduling_without_balancing(
+        &mut self,
+        core: &mut Core,
+        comm: &mut impl Comm,
+    ) -> bool {
+        let need_balance = self.schedule_available_tasks(core);
+        self.finish_scheduling(core, comm);
+        need_balance
     }
 
     pub fn run_scheduling(&mut self, core: &mut Core, comm: &mut impl Comm) {
@@ -239,8 +248,6 @@ impl SchedulerState {
 
         let ready_tasks = core.take_ready_to_assign();
         if !ready_tasks.is_empty() {
-            let now = std::time::Instant::now();
-            let mut tmp_workers = Vec::with_capacity(core.get_worker_map().len());
             for task_id in ready_tasks.into_iter() {
                 let worker_id = {
                     let configuration = if let Some(task) = core.find_task(task_id) {
@@ -251,13 +258,10 @@ impl SchedulerState {
                     };
                     core.try_wakeup_parked_resources(&configuration.resources);
 
-                    choose_worker_for_task(
+                    self.choose_worker_for_task(
                         core.get_task(task_id),
                         core.task_map(),
                         core.get_worker_map(),
-                        &mut self.random,
-                        &mut tmp_workers,
-                        now,
                     )
                     //log::debug!("Task {} initially assigned to {}", task.id, worker_id);
                 };
@@ -265,7 +269,10 @@ impl SchedulerState {
                     debug_assert!(core
                         .get_worker_map()
                         .get_worker(worker_id)
-                        .is_capable_to_run(&core.get_task(task_id).configuration.resources, now));
+                        .is_capable_to_run(
+                            &core.get_task(task_id).configuration.resources,
+                            self.now
+                        ));
                     self.assign(core, task_id, worker_id);
                 } else {
                     core.add_sleeping_task(task_id);

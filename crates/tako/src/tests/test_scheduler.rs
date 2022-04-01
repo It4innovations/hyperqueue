@@ -4,6 +4,7 @@ use crate::common::index::ItemId;
 use crate::common::resources::{GenericResourceDescriptor, NumOfCpus};
 use crate::common::Set;
 use crate::messages::worker::{StealResponse, StealResponseMsg, ToWorkerMessage};
+use crate::scheduler::state::SchedulerState;
 use crate::server::core::Core;
 use crate::server::reactor::on_steal_response;
 use crate::server::task::Task;
@@ -18,8 +19,35 @@ use crate::tests::utils::workflows::submit_example_1;
 use crate::{TaskId, WorkerId};
 use std::time::Duration;
 
+impl SchedulerState {}
+
 #[test]
-fn test_no_deps_distribute() {
+fn test_no_deps_distribute_without_balance() {
+    let mut core = Core::default();
+    create_test_workers(&mut core, &[10, 10, 10]);
+
+    let tasks: Vec<Task> = (1..=150).map(|i| task(i)).collect();
+    submit_test_tasks(&mut core, tasks);
+
+    let mut scheduler = create_test_scheduler();
+    let mut comm = create_test_comm();
+    let need_balance = scheduler.run_scheduling_without_balancing(&mut core, &mut comm);
+
+    let m1 = comm.take_worker_msgs(100, 0);
+    let m2 = comm.take_worker_msgs(101, 0);
+    let m3 = comm.take_worker_msgs(102, 0);
+    comm.emptiness_check();
+    core.sanity_check();
+
+    assert_eq!(m1.len() + m2.len() + m3.len(), 150);
+    assert_eq!(m1.len(), 50);
+    assert_eq!(m2.len(), 50);
+    assert_eq!(m3.len(), 50);
+    assert!(!need_balance);
+}
+
+#[test]
+fn test_no_deps_distribute_with_balance() {
     //setup_logging();
     let mut core = Core::default();
     create_test_workers(&mut core, &[2, 2, 2]);
@@ -44,9 +72,9 @@ fn test_no_deps_distribute() {
     core.sanity_check();
 
     assert_eq!(m1.len() + m2.len() + m3.len(), 300);
-    assert!(m1.len() >= 10);
-    assert!(m2.len() >= 10);
-    assert!(m3.len() >= 10);
+    assert!(m1.len() >= 29);
+    assert!(m2.len() >= 29);
+    assert!(m3.len() >= 29);
 
     for w in core.get_workers() {
         assert!(!w.is_underloaded());
