@@ -244,9 +244,7 @@ impl TestComm {
     ) -> Vec<ToWorkerMessage> {
         let worker_id: WorkerId = worker_id.into();
         let msgs = match self.worker_msgs.remove(&worker_id) {
-            None => {
-                panic!("No messages for worker {}", worker_id)
-            }
+            None => vec![],
             Some(x) => x,
         };
         if len != 0 {

@@ -21,12 +21,16 @@ use super::utils::task_transfer_cost;
 // Long duration - 1 year
 const LONG_DURATION: std::time::Duration = std::time::Duration::from_secs(365 * 24 * 60 * 60);
 
+// Knobs
+const MAX_TASKS_FOR_TRY_PREV_WORKER_HEURISTICS: usize = 1000;
+
 pub struct SchedulerState {
     // Which tasks has modified state, this map holds the original state
     dirty_tasks: Map<TaskId, TaskRuntimeState>,
 
     /// Use in choose_worker_for_task to reuse allocated buffer
     tmp_workers: Vec<WorkerId>,
+
     choose_counter: usize,
     now: std::time::Instant,
 }
@@ -64,13 +68,21 @@ impl SchedulerState {
         }
     }
 
+    fn get_last(&mut self) -> Option<WorkerId> {
+        if !self.tmp_workers.is_empty() {
+            Some(self.tmp_workers[self.choose_counter % self.tmp_workers.len()])
+        } else {
+            None
+        }
+    }
+
     fn pick_worker(&mut self) -> Option<WorkerId> {
         match self.tmp_workers.len() {
             1 => Some(self.tmp_workers.pop().unwrap()),
             0 => None,
-            _ => {
-                let worker_id = self.tmp_workers[self.choose_counter % self.tmp_workers.len()];
+            n => {
                 self.choose_counter += 1;
+                let worker_id = self.tmp_workers[self.choose_counter % n];
                 Some(worker_id)
             }
         }
@@ -83,8 +95,25 @@ impl SchedulerState {
         task: &Task,
         taskmap: &TaskMap,
         worker_map: &Map<WorkerId, Worker>,
+        try_prev_worker: bool, // Enable heuristics that tries to fit tasks on fewer workers
     ) -> Option<WorkerId> {
-        self.tmp_workers.clear();
+        // Fast path
+        if try_prev_worker && task.inputs.is_empty() {
+            // Note: We are *not* using "is_capable_to_run" but "have_immediate_resources_for_rq",
+            // because we want to enable fast path only if task can be directly executed
+            // We want to avoid creation of overloaded
+            if let Some(worker_id) = self.get_last() {
+                let worker = &worker_map[&worker_id];
+                if worker.has_time_to_run(task.configuration.resources.min_time(), self.now)
+                    && worker.have_immediate_resources_for_rq(&task.configuration.resources)
+                {
+                    return Some(worker_id);
+                }
+            }
+        }
+
+        self.tmp_workers.clear(); // This has to be called AFTER fast path
+
         let mut costs = u64::MAX;
         for worker in worker_map.values() {
             if !worker.is_capable_to_run(&task.configuration.resources, self.now) {
@@ -248,6 +277,7 @@ impl SchedulerState {
 
         let ready_tasks = core.take_ready_to_assign();
         if !ready_tasks.is_empty() {
+            let try_prev_worker = ready_tasks.len() < MAX_TASKS_FOR_TRY_PREV_WORKER_HEURISTICS;
             for task_id in ready_tasks.into_iter() {
                 let worker_id = {
                     let configuration = if let Some(task) = core.find_task(task_id) {
@@ -262,6 +292,7 @@ impl SchedulerState {
                         core.get_task(task_id),
                         core.task_map(),
                         core.get_worker_map(),
+                        try_prev_worker,
                     )
                     //log::debug!("Task {} initially assigned to {}", task.id, worker_id);
                 };

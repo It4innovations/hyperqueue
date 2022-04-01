@@ -1,5 +1,6 @@
 use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
+use std::time::Instant;
 
 use tako::messages::common::{TaskFailInfo, WorkerConfiguration};
 use tako::messages::gateway::LostWorkerReason;
@@ -54,7 +55,7 @@ fn bench_schedule(c: &mut BenchmarkGroup<WallTime>) {
                                 core.new_worker(create_worker(worker_id as u64));
                             }
 
-                            let scheduler = SchedulerState::new();
+                            let scheduler = SchedulerState::new(Instant::now());
                             (core, scheduler)
                         },
                         |(core, scheduler)| {

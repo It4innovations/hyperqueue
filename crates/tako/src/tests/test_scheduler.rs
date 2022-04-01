@@ -4,7 +4,6 @@ use crate::common::index::ItemId;
 use crate::common::resources::{GenericResourceDescriptor, NumOfCpus};
 use crate::common::Set;
 use crate::messages::worker::{StealResponse, StealResponseMsg, ToWorkerMessage};
-use crate::scheduler::state::SchedulerState;
 use crate::server::core::Core;
 use crate::server::reactor::on_steal_response;
 use crate::server::task::Task;
@@ -19,7 +18,67 @@ use crate::tests::utils::workflows::submit_example_1;
 use crate::{TaskId, WorkerId};
 use std::time::Duration;
 
-impl SchedulerState {}
+#[test]
+fn test_no_deps_scattering_1() {
+    let mut core = Core::default();
+    create_test_workers(&mut core, &[5, 5, 5]);
+
+    let tasks: Vec<Task> = (1..=4).map(|i| task(i)).collect();
+    submit_test_tasks(&mut core, tasks);
+
+    let mut scheduler = create_test_scheduler();
+    let mut comm = create_test_comm();
+    scheduler.run_scheduling_without_balancing(&mut core, &mut comm);
+
+    let m1 = comm.take_worker_msgs(100, 0);
+    let m2 = comm.take_worker_msgs(101, 0);
+    let m3 = comm.take_worker_msgs(102, 0);
+    comm.emptiness_check();
+    core.sanity_check();
+
+    assert_eq!(m1.len() + m2.len() + m3.len(), 4);
+    assert!(
+        (m1.len() == 4 && m2.len() == 0 && m3.len() == 0)
+            || (m1.len() == 0 && m2.len() == 4 && m3.len() == 0)
+            || (m1.len() == 0 && m2.len() == 0 && m3.len() == 4)
+    );
+}
+
+#[test]
+fn test_no_deps_scattering_2() {
+    let mut core = Core::default();
+    create_test_workers(&mut core, &[5, 5, 5]);
+
+    let mut scheduler = create_test_scheduler();
+    let mut comm = create_test_comm();
+
+    let mut submit_and_check = |id, expected| {
+        let t = task(id);
+        submit_test_tasks(&mut core, vec![t]);
+        scheduler.run_scheduling_without_balancing(&mut core, &mut comm);
+        let mut counts: Vec<_> = core.get_workers().map(|w| w.tasks().len()).collect();
+        counts.sort();
+        assert_eq!(counts, expected);
+    };
+
+    for i in 1..=5 {
+        submit_and_check(i, vec![0, 0, i as usize])
+    }
+
+    for i in 1..=5 {
+        submit_and_check(i + 100, vec![0, i as usize, 5]);
+    }
+
+    for i in 1..=5 {
+        submit_and_check(i + 200, vec![i as usize, 5, 5]);
+    }
+
+    submit_and_check(300, vec![5, 5, 6]);
+    submit_and_check(301, vec![5, 6, 6]);
+    submit_and_check(302, vec![6, 6, 6]);
+    submit_and_check(303, vec![6, 6, 7]);
+    submit_and_check(304, vec![6, 7, 7]);
+}
 
 #[test]
 fn test_no_deps_distribute_without_balance() {
@@ -39,7 +98,6 @@ fn test_no_deps_distribute_without_balance() {
     comm.emptiness_check();
     core.sanity_check();
 
-    assert_eq!(m1.len() + m2.len() + m3.len(), 150);
     assert_eq!(m1.len(), 50);
     assert_eq!(m2.len(), 50);
     assert_eq!(m3.len(), 50);

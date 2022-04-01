@@ -7,6 +7,13 @@
 
 * Less verbose log output by default. You can use "--debug" to turn on the old behavior.
 
+## Changes
+
+### Scheduler
+
+* When there is only a few tasks, scheduler tries to fit tasks on fewer workers.
+  Goal is to enable earlier stopping of workers because of idle timeout. 
+  
 
 # 0.9.0
 
