@@ -1,11 +1,9 @@
 import logging
-from abc import ABC
 
 from dataclasses import dataclass
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
-from tornado import ioloop, web
 from glob import glob
 
 import os
@@ -13,28 +11,19 @@ import humanize
 import numpy as np
 import pandas as pd
 import tqdm
-import pathlib
-import json
-from bokeh.io import save, show
+from bokeh.io import save
 from bokeh.models import (
-    Column,
     Div,
-    LayoutDOM,
     Panel,
     Tabs,
-    ColumnDataSource,
     Button,
-    CustomJS,
-    Select,
     MultiChoice,
 )
-from bokeh.plotting import figure, curdoc
-from bokeh.models.widgets import DataTable, DateFormatter, TableColumn
+from bokeh.plotting import figure
 from bokeh.resources import CDN
-from bokeh.layouts import column, row, widgetbox, gridplot
-from jinja2 import Template, Environment, FileSystemLoader
+from bokeh.layouts import column, row
+from jinja2 import Template
 
-from . import report
 from ..benchmark.database import Database, DatabaseRecord
 from ..utils import ensure_directory
 from .common import (
@@ -48,7 +37,6 @@ from .common import (
 )
 from .monitor import (
     generate_cluster_report,
-    create_page,
     render_profiling_data,
     create_global_resources_df,
     render_global_resource_usage,
@@ -199,32 +187,6 @@ def render_environment(
     environment_params: str,
     data: pd.DataFrame,
 ):
-    # tabs = []
-    #
-    # durations = data["duration"]
-    # table = durations.describe().to_frame().transpose()
-    # Columns = [TableColumn(field=Ci, title=Ci) for Ci in table.columns]
-    # tabs.append(
-    #     Panel(
-    #         child=DataTable(columns=Columns, source=ColumnDataSource(table)),
-    #         title="Aggregated durations",
-    #     )
-    # )
-    #
-    # runs = []
-    # items = sorted(data.itertuples(index=False), key=lambda v: v.index)
-    # for item in items:
-    #     entry = entry_map.get(item.key)
-    #     if entry is not None:
-    #         benchmark_content = render_benchmark(entry)
-    #         runs.append(Panel(child=benchmark_content, title=str(item.index)))
-    # tabs.append(Panel(child=Tabs(tabs=runs), title="Individual runs"))
-    #
-    # return Panel(
-    #     child=Tabs(tabs=tabs),
-    #     title=environment + f"({environment_params})",
-    # )
-
     content = "<h3>Aggregated durations</h3>"
     with pd_print_all():
         table = data["duration"].describe().to_frame().transpose()
@@ -304,7 +266,9 @@ def generate_summary_html(database: Database, directory: Path) -> Path:
     page = create_summary_page(database, directory)
     ensure_directory(directory)
     result_path = directory / "index.html"
-    save(page, result_path, title="Benchmarks", resources=CDN)
+    # to save the results
+    with open(result_path, "w") as file:
+        file.write(page)
     return result_path
 
 
@@ -397,13 +361,6 @@ def generate_summary_text(database: Database, file):
 
 
 def create_summary_page(database: Database, directory: Path):
-    # entry_map = pregenerate_entries(database, directory)
-    # df = create_database_df(database)
-    #
-    # tabs = []
-    # for (group, group_data) in groupby_workload(df):
-    #     tabs.append(render_workload(0, entry_map, group[0], group[1], group_data))
-    # return Tabs(tabs=tabs)
     with open(
         os.path.join(os.path.dirname(__file__), "templates/summary.html")
     ) as file:
