@@ -1,0 +1,45 @@
+<b>Duration</b>: {{ "%.4f"|format(benchmark.record.duration) }} s
+{% if benchmark.process_stats %}
+    <h3>Process utilization</h3>
+    <table>
+        <thead>
+        <th>Hostname</th>
+        <th>Key</th>
+        <th>Avg. CPU</th>
+        <th>Max. RSS</th>
+        </thead>
+        <tbody>
+        {% for (k, v) in benchmark.process_stats.items() %}
+            <tr>
+                <td>{{ k[0] }}</td>
+                <td>{{ k[1] }}</td>
+                <td>{{ "%.2f"|format(v.avg_cpu) }} %</td>
+                <td>{{ format_bytes(v.max_rss) }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+{% endif %}
+{% if node_utilization %}
+    <h3>Node utilization</h3>
+    <table>
+        <thead>
+        <th>Hostname</th>
+        <th>Avg. CPU</th>
+        <th>Avg. memory</th>
+        </thead>
+        <tbody>
+        {% for (hostname, data) in node_utilization.items() %}
+            <tr>
+                <td>{{ hostname }}</td>
+                <td>{{ "%.2f"|format(data["cpu"]) }} %</td>
+                <td>{{ "%.2f"|format(data["memory"]) }} %</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+{% endif %}
+{% if benchmark.monitoring_report %}
+    <a href='{{ benchmark.monitoring_report }}'>Cluster report</a>
+{% endif %}
+<a href='http://localhost:5006/'> Comparator </a>

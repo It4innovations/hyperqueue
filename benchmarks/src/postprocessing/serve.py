@@ -1,18 +1,16 @@
 import logging
-from abc import ABC
 
 from pathlib import Path
 from bokeh.embed import file_html
 from bokeh.application import Application
 from bokeh.application.handlers import FunctionHandler
 from bokeh.server.server import Server
-from bokeh.plotting import curdoc, figure
 from bokeh.resources import CDN
 from tornado import ioloop, web
 from tornado.ioloop import IOLoop
 
 from .monitor import create_page
-from .overview import create_summary_page, create_comparer_page, pregenerate_entries
+from .overview import pregenerate_entries, create_summary_page, create_comparer_page
 from ..benchmark.database import Database
 from .report import ClusterReport
 
@@ -41,7 +39,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
     class SummaryHandler(web.RequestHandler):
         def get(self):
             page = create_summary_page(database, directory)
-            self.write(file_html(page, CDN, "Summary"))
+            self.write(page)
 
     class ClusterHandler(web.RequestHandler):
         def get(self, key: str):

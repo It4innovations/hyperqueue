@@ -32,7 +32,7 @@ from bokeh.plotting import figure, curdoc
 from bokeh.models.widgets import DataTable, DateFormatter, TableColumn
 from bokeh.resources import CDN
 from bokeh.layouts import column, row, widgetbox, gridplot
-from jinja2 import Template
+from jinja2 import Template, Environment, FileSystemLoader
 
 from . import report
 from ..benchmark.database import Database, DatabaseRecord
@@ -81,6 +81,11 @@ def style(level=0) -> Dict[str, Any]:
 
 
 def render_benchmark(entry: BenchmarkEntry):
+    with open(
+        os.path.join(os.path.dirname(__file__), "templates/benchmark.html")
+    ) as file:
+        template = file.read()
+
     node_utilization = {
         node.hostname: {
             "cpu": average([average(record.resources.cpu) for record in records]),
@@ -89,55 +94,7 @@ def render_benchmark(entry: BenchmarkEntry):
         for (node, records) in entry.report.monitoring.items()
     }
 
-    tabs = []
-    tabs.append(
-        Panel(
-            child=Div(
-                text=render(
-                    """
-<b>Duration</b>: {{ "%.4f"|format(benchmark.record.duration) }} s
-{% if benchmark.process_stats %}
-    <h3>Process utilization</h3>
-    <table>
-        <thead><th>Hostname</th><th>Key</th><th>Avg. CPU</th><th>Max. RSS</th></thead>
-        <tbody>
-            {% for (k, v) in benchmark.process_stats.items() %}
-                <tr>
-                    <td>{{ k[0] }}</td><td>{{ k[1] }}</td><td>{{ "%.2f"|format(v.avg_cpu) }} %</td>
-                    <td>{{ format_bytes(v.max_rss) }}</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-{% endif %}
-{% if node_utilization %}
-    <h3>Node utilization</h3>
-    <table>
-        <thead><th>Hostname</th><th>Avg. CPU</th><th>Avg. memory</th></thead>
-        <tbody>
-            {% for (hostname, data) in node_utilization.items() %}
-                <tr>
-                    <td>{{ hostname }}</td><td>{{ "%.2f"|format(data["cpu"]) }} %</td>
-                    <td>{{ "%.2f"|format(data["memory"]) }} %</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-{% endif %}
-{% if benchmark.monitoring_report %}
-    <a href='{{ benchmark.monitoring_report }}'>Cluster report</a>
-{% endif %}
-<a href='http://localhost:5006/'> Comparator </a>
-""",
-                    benchmark=entry,
-                    node_utilization=node_utilization,
-                )
-            ),
-            title="Results",
-        )
-    )
-    # tabs.append(Panel(child=create_page(entry.report), title="Cluster report"))
-    return Tabs(tabs=tabs)
+    return render(template, benchmark=entry, node_utilization=node_utilization)
 
 
 def render_comparison(
@@ -242,31 +199,45 @@ def render_environment(
     environment_params: str,
     data: pd.DataFrame,
 ):
-    tabs = []
+    # tabs = []
+    #
+    # durations = data["duration"]
+    # table = durations.describe().to_frame().transpose()
+    # Columns = [TableColumn(field=Ci, title=Ci) for Ci in table.columns]
+    # tabs.append(
+    #     Panel(
+    #         child=DataTable(columns=Columns, source=ColumnDataSource(table)),
+    #         title="Aggregated durations",
+    #     )
+    # )
+    #
+    # runs = []
+    # items = sorted(data.itertuples(index=False), key=lambda v: v.index)
+    # for item in items:
+    #     entry = entry_map.get(item.key)
+    #     if entry is not None:
+    #         benchmark_content = render_benchmark(entry)
+    #         runs.append(Panel(child=benchmark_content, title=str(item.index)))
+    # tabs.append(Panel(child=Tabs(tabs=runs), title="Individual runs"))
+    #
+    # return Panel(
+    #     child=Tabs(tabs=tabs),
+    #     title=environment + f"({environment_params})",
+    # )
 
-    durations = data["duration"]
-    table = durations.describe().to_frame().transpose()
-    Columns = [TableColumn(field=Ci, title=Ci) for Ci in table.columns]
-    tabs.append(
-        Panel(
-            child=DataTable(columns=Columns, source=ColumnDataSource(table)),
-            title="Aggregated durations",
-        )
-    )
+    content = "<h3>Aggregated durations</h3>"
+    with pd_print_all():
+        table = data["duration"].describe().to_frame().transpose()
+        table = table.to_html(justify="center")
+        content += table
 
-    runs = []
     items = sorted(data.itertuples(index=False), key=lambda v: v.index)
     for item in items:
         entry = entry_map.get(item.key)
         if entry is not None:
-            benchmark_content = render_benchmark(entry)
-            runs.append(Panel(child=benchmark_content, title=str(item.index)))
-    tabs.append(Panel(child=Tabs(tabs=runs), title="Individual runs"))
+            content += render_benchmark(entry)
 
-    return Panel(
-        child=Tabs(tabs=tabs),
-        title=environment + f"({environment_params})",
-    )
+    return content
 
 
 def render_workload(
@@ -276,12 +247,18 @@ def render_workload(
     workload_params: str,
     data: pd.DataFrame,
 ):
-    tabs = []
+    with open(
+        os.path.join(os.path.dirname(__file__), "templates/workload.html")
+    ) as file:
+        template = file.read()
+
+    environments = {}
     for (group, group_data) in groupby_environment(data):
-        tabs.append(
-            render_environment(level + 1, entry_map, group[0], group[1], group_data)
+        key = group[0] + "(" + group[1] + ") [" + workload + ":" + workload_params + "]"
+        environments[key] = render_environment(
+            level + 1, entry_map, group[0], group[1], group_data
         )
-    return Panel(child=Tabs(tabs=tabs), title=workload + f"({workload_params})")
+    return render(template, environments=environments)
 
 
 def generate_entry(args: Tuple[DatabaseRecord, Path]) -> Optional[BenchmarkEntry]:
@@ -420,13 +397,26 @@ def generate_summary_text(database: Database, file):
 
 
 def create_summary_page(database: Database, directory: Path):
+    # entry_map = pregenerate_entries(database, directory)
+    # df = create_database_df(database)
+    #
+    # tabs = []
+    # for (group, group_data) in groupby_workload(df):
+    #     tabs.append(render_workload(0, entry_map, group[0], group[1], group_data))
+    # return Tabs(tabs=tabs)
+    with open(
+        os.path.join(os.path.dirname(__file__), "templates/summary.html")
+    ) as file:
+        template = file.read()
+
     entry_map = pregenerate_entries(database, directory)
     df = create_database_df(database)
 
-    tabs = []
+    workloads = {}
     for (group, group_data) in groupby_workload(df):
-        tabs.append(render_workload(0, entry_map, group[0], group[1], group_data))
-    return Tabs(tabs=tabs)
+        name = group[0] + f"({group[1]})"
+        workloads[name] = render_workload(0, entry_map, group[0], group[1], group_data)
+    return render(template, workloads=workloads)
 
 
 def create_comparer_page(database: Database, directory: Path, addr: str):

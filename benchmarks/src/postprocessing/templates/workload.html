@@ -1,0 +1,34 @@
+<style>
+    .upperMenu {
+      overflow: hidden;
+      background-color: #EEEEEE;
+    }
+
+    .upperMenu a {
+      float: left;
+      text-align: center;
+      padding: 25px 16px;
+      text-decoration: none;
+      font-size: 17px;
+    }
+
+    .upperMenu a:hover {
+      background-color: #DDDDDD;
+    }
+</style>
+
+<div class="upperMenu">
+    {% for key in environments %}
+        <a onclick="showEnvironment('{{key}}')">{{ key }}</a>
+    {% endfor %}
+</div>
+
+{% for key in environments %}
+    <div id="{{key}}" style="display:none;">{{ environments[key] }}</div>
+{% endfor %}
+
+<script>
+function showEnvironment(key) {
+    document.getElementById("environment").innerHTML = document.getElementById(key).innerHTML
+}
+</script>
