@@ -1,3 +1,13 @@
+
+# DEV
+
+## New features
+
+### CLI
+
+* Less verbose log output by default. You can use "--debug" to turn on the old behavior.
+
+
 # 0.9.0
 
 ## New features
