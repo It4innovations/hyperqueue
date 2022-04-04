@@ -59,6 +59,11 @@ struct CommonOpts {
     #[clap(long, env = "HQ_OUTPUT_MODE", default_value = "cli", arg_enum)]
     #[clap(global = true, help_heading("GLOBAL OPTIONS"), hide_short_help(true))]
     output_mode: Outputs,
+
+    /// Turn on a more detailed log output
+    #[clap(long, env = "HQ_DEBUG")]
+    #[clap(global = true, help_heading("GLOBAL OPTIONS"), hide_short_help(true))]
+    debug: bool,
 }
 
 // Root CLI options
@@ -496,7 +501,7 @@ fn generate_completion(opts: GenerateCompletionOpts) -> anyhow::Result<()> {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> hyperqueue::Result<()> {
     let top_opts: Opts = Opts::parse();
-    setup_logging();
+    setup_logging(top_opts.common.debug);
 
     let gsettings = make_global_settings(top_opts.common);
 
