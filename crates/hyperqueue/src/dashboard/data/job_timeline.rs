@@ -1,6 +1,6 @@
 use crate::server::event::events::{JobInfo, MonitoringEventPayload};
 use crate::server::event::MonitoringEvent;
-use crate::{JobId, TakoTaskId, WorkerId};
+use crate::{JobId, JobTaskId, TakoTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use std::time::SystemTime;
 use tako::common::Map;
@@ -113,10 +113,15 @@ impl JobTimeline {
         &self,
         job_id: JobId,
         time: SystemTime,
-    ) -> impl Iterator<Item = (&TakoTaskId, &TaskInfo)> + '_ {
-        self.get_jobs_created_before(time)
-            .filter(move |(&id, _)| id == job_id)
-            .flat_map(|(_, info)| &info.job_tasks_info)
+    ) -> impl Iterator<Item = (JobTaskId, &TaskInfo)> + '_ {
+        let job_info = self.job_timeline.get(&job_id);
+        let base_id = job_info
+            .map(|info| info.job_info.base_task_id.as_num())
+            .unwrap();
+        job_info
+            .map(|info| info.job_tasks_info.iter())
+            .unwrap()
+            .map(move |(task_id, info)| (JobTaskId::new(task_id.as_num() - base_id + 1), info))
             .filter(move |(_, task_info)| task_info.start_time <= time)
     }
 
@@ -124,9 +129,14 @@ impl JobTimeline {
         &self,
         worker_id: WorkerId,
         at_time: SystemTime,
-    ) -> impl Iterator<Item = (&TakoTaskId, &TaskInfo)> + '_ {
+    ) -> impl Iterator<Item = (JobTaskId, &TaskInfo)> + '_ {
         self.get_jobs_created_before(at_time)
-            .flat_map(|(_, info)| &info.job_tasks_info)
+            .flat_map(move |(_, info)| {
+                let base_id = info.job_info.base_task_id.as_num();
+                info.job_tasks_info.iter().map(move |(task_id, info)| {
+                    (JobTaskId::new(task_id.as_num() - base_id + 1), info)
+                })
+            })
             .filter(move |(_, task_info)| {
                 task_info.worker_id == worker_id && task_info.start_time <= at_time
             })

@@ -3,10 +3,10 @@ use crate::dashboard::data::job_timeline::{DashboardTaskState, TaskInfo};
 
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
-use crate::TakoTaskId;
+use crate::JobTaskId;
 use chrono::{DateTime, Local};
 use std::time::SystemTime;
-use tako::{TaskId, WorkerId};
+use tako::WorkerId;
 use termion::event::Key;
 use tui::layout::{Constraint, Rect};
 use tui::style::{Color, Modifier, Style};
@@ -23,7 +23,7 @@ pub struct TasksTable {
 }
 
 impl TasksTable {
-    pub fn update(&mut self, tasks_info: Vec<(&TakoTaskId, &TaskInfo)>) {
+    pub fn update(&mut self, tasks_info: Vec<(JobTaskId, &TaskInfo)>) {
         let rows = create_rows(tasks_info);
         self.table.set_items(rows);
     }
@@ -40,7 +40,7 @@ impl TasksTable {
         self.table.select_previous_wrap();
     }
 
-    pub fn get_selected_item(&self) -> Option<(TaskId, WorkerId)> {
+    pub fn get_selected_item(&self) -> Option<(JobTaskId, WorkerId)> {
         let selection = self.table.current_selection();
         selection.map(|row| (row.task_id, row.worker_id))
     }
@@ -66,18 +66,27 @@ impl TasksTable {
             TableColumnHeaders {
                 title,
                 inline_help: "",
-                table_headers: Some(vec!["Task ID", "State", "Start", "End", "Makespan"]),
+                table_headers: Some(vec![
+                    "Task ID",
+                    "Worker ID",
+                    "State",
+                    "Start",
+                    "End",
+                    "Makespan",
+                ]),
                 column_widths: vec![
-                    Constraint::Percentage(20),
-                    Constraint::Percentage(20),
-                    Constraint::Percentage(20),
-                    Constraint::Percentage(20),
-                    Constraint::Percentage(20),
+                    Constraint::Percentage(16),
+                    Constraint::Percentage(16),
+                    Constraint::Percentage(16),
+                    Constraint::Percentage(16),
+                    Constraint::Percentage(16),
+                    Constraint::Percentage(16),
                 ],
             },
             |task_row| {
                 Row::new(vec![
                     Cell::from(task_row.task_id.to_string()),
+                    Cell::from(task_row.worker_id.to_string()),
                     Cell::from(task_row.task_state.as_str())
                         .style(get_task_state_color(&task_row.task_state)),
                     Cell::from(task_row.start_time.as_str()),
@@ -92,14 +101,14 @@ impl TasksTable {
 
 struct TaskRow {
     worker_id: WorkerId,
-    task_id: TaskId,
+    task_id: JobTaskId,
     task_state: String,
     start_time: String,
     end_time: String,
     run_time: String,
 }
 
-fn create_rows(mut rows: Vec<(&TakoTaskId, &TaskInfo)>) -> Vec<TaskRow> {
+fn create_rows(mut rows: Vec<(JobTaskId, &TaskInfo)>) -> Vec<TaskRow> {
     rows.sort_by_key(|(_, task_info)| {
         let status_index = match task_info.get_task_state_at(SystemTime::now()).unwrap() {
             DashboardTaskState::Running => 0,
@@ -131,7 +140,7 @@ fn create_rows(mut rows: Vec<(&TakoTaskId, &TaskInfo)>) -> Vec<TaskRow> {
             .unwrap_or_default();
 
             TaskRow {
-                task_id: **task_id,
+                task_id: *task_id,
                 worker_id: task_info.worker_id,
                 task_state: match task_info.get_task_state_at(SystemTime::now()).unwrap() {
                     DashboardTaskState::Running => RUNNING.to_string(),

@@ -109,6 +109,7 @@ impl State {
             JobInfo {
                 name: job.name.clone(),
                 job_desc: job.job_desc.clone(),
+                base_task_id: job.base_task_id,
                 task_ids: job.tasks.iter().map(|(id, _)| *id).collect(),
                 max_fails: job.max_fails,
                 log: job.log.clone(),
