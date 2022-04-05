@@ -1,7 +1,7 @@
 use std::ops::ControlFlow;
 use std::{io, thread};
 
-use termion::event::Key;
+use tako::common::WrappedRcRefCell;
 use termion::input::TermRead;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Duration;
@@ -10,9 +10,8 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::dashboard::data;
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::events::DashboardEvent;
-use crate::dashboard::state::DashboardState;
-use crate::dashboard::ui::screen::controller::ScreenController;
-use crate::dashboard::ui::terminal::{initialize_terminal, DashboardTerminal};
+use crate::dashboard::ui::screens::root_screen::RootScreen;
+use crate::dashboard::ui::terminal::initialize_terminal;
 use crate::server::bootstrap::get_client_connection;
 
 /// Starts the dashboard UI with a keyboard listener and tick provider
@@ -21,31 +20,31 @@ pub async fn start_ui_loop(gsettings: &GlobalSettings) -> anyhow::Result<()> {
 
     // TODO: When we start the dashboard and connect to the server, the server may have already forgotten
     // some of its events. Therefore we should bootstrap the state with the most recent overview snapshot.
-    let data = DashboardData::default();
+    let dashboard_data = WrappedRcRefCell::wrap(DashboardData::default());
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     start_key_event_listener(tx.clone());
-    let mut state = DashboardState::new(data, ScreenController::new(tx.clone()));
+    let mut root_screen = RootScreen::default();
 
-    let ui_ticker = send_event_every(100, tx, DashboardEvent::UiTick);
-
-    let data_source = state.get_data_source().clone();
+    let ui_ticker = send_event_every(100, tx.clone(), DashboardEvent::UiTick);
     let data_fetch_process =
-        data::create_data_fetch_process(Duration::from_secs(1), data_source, connection);
+        data::create_data_fetch_process(Duration::from_secs(1), dashboard_data.clone(), connection);
 
     let mut terminal = initialize_terminal()?;
 
-    let event_loop = async move {
+    let event_loop = async {
         loop {
             if let Some(dashboard_event) = rx.recv().await {
                 match dashboard_event {
                     DashboardEvent::KeyPressEvent(input) => {
-                        if let ControlFlow::Break(res) = handle_key(&mut state, input) {
+                        if let ControlFlow::Break(res) = root_screen.handle_key(input) {
                             break res;
                         }
                     }
-                    DashboardEvent::UiTick => draw(&mut state, &mut terminal),
-                    DashboardEvent::ScreenChange(evt) => state.change_current_screen(evt),
+                    DashboardEvent::UiTick => {
+                        let data = dashboard_data.get();
+                        root_screen.draw(&mut terminal, &data);
+                    }
                 }
             }
         }
@@ -65,29 +64,6 @@ pub async fn start_ui_loop(gsettings: &GlobalSettings) -> anyhow::Result<()> {
             result
         }
     }
-}
-
-fn handle_key(state: &mut DashboardState, input: Key) -> ControlFlow<anyhow::Result<()>> {
-    if input == Key::Char('q') {
-        // Quits the dashboard
-        ControlFlow::Break(Ok(()))
-    } else {
-        let (screen, controller) = state.get_current_screen_and_controller();
-        screen.handle_key(input, controller);
-        ControlFlow::Continue(())
-    }
-}
-
-fn draw(state: &mut DashboardState, terminal: &mut DashboardTerminal) {
-    terminal
-        .draw(|frame| {
-            let data = state.get_data_source().clone();
-            let (screen, controller) = state.get_current_screen_and_controller();
-
-            screen.update(&data.get(), controller);
-            screen.draw(frame);
-        })
-        .expect("An error occurred while drawing the dashboard");
 }
 
 /// Handles key press events when the dashboard_ui is active

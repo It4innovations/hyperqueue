@@ -6,7 +6,7 @@ use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::TakoTaskId;
 use chrono::{DateTime, Local};
 use std::time::SystemTime;
-use tako::TaskId;
+use tako::{TaskId, WorkerId};
 use termion::event::Key;
 use tui::layout::{Constraint, Rect};
 use tui::style::{Color, Modifier, Style};
@@ -40,9 +40,9 @@ impl TasksTable {
         self.table.select_previous_wrap();
     }
 
-    pub fn get_selected_item(&self) -> Option<TaskId> {
+    pub fn get_selected_item(&self) -> Option<(TaskId, WorkerId)> {
         let selection = self.table.current_selection();
-        selection.map(|row| row.task_id)
+        selection.map(|row| (row.task_id, row.worker_id))
     }
 
     pub fn handle_key(&mut self, key: Key) {
@@ -91,6 +91,7 @@ impl TasksTable {
 }
 
 struct TaskRow {
+    worker_id: WorkerId,
     task_id: TaskId,
     task_state: String,
     start_time: String,
@@ -131,6 +132,7 @@ fn create_rows(mut rows: Vec<(&TakoTaskId, &TaskInfo)>) -> Vec<TaskRow> {
 
             TaskRow {
                 task_id: **task_id,
+                worker_id: task_info.worker_id,
                 task_state: match task_info.get_task_state_at(SystemTime::now()).unwrap() {
                     DashboardTaskState::Running => RUNNING.to_string(),
                     DashboardTaskState::Finished => FINISHED.to_string(),

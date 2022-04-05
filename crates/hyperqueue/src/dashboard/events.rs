@@ -1,4 +1,3 @@
-use crate::dashboard::ui::screen::controller::ChangeScreenCommand;
 use termion::event::Key;
 
 #[derive(Debug, Clone, Copy)]
@@ -7,6 +6,4 @@ pub enum DashboardEvent {
     KeyPressEvent(Key),
     /// Updates the dashboard ui with the latest data
     UiTick,
-    /// Changes the current screen
-    ScreenChange(ChangeScreenCommand),
 }

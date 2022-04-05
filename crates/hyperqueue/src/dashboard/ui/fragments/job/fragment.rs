@@ -2,7 +2,6 @@ use std::default::Default;
 use std::time::SystemTime;
 use termion::event::Key;
 
-use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::styles::{
     style_footer, style_header_text, table_style_deselected, table_style_selected,
 };
@@ -11,18 +10,18 @@ use crate::dashboard::ui::widgets::text::draw_text;
 
 use crate::dashboard::data::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::screen::controller::ScreenController;
 
-use crate::dashboard::ui::screens::job::jobs_table::JobsTable;
+use crate::dashboard::ui::fragments::job::jobs_table::JobsTable;
 use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 
-use crate::dashboard::ui::screens::job::job_info_display::JobInfoTable;
-use crate::dashboard::ui::screens::job::job_tasks_chart::JobTaskChart;
+use crate::dashboard::ui::fragments::job::job_info_display::JobInfoTable;
+use crate::dashboard::ui::fragments::job::job_tasks_chart::JobTaskChart;
 use crate::TakoTaskId;
+use tako::WorkerId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
-pub struct JobScreen {
+pub struct JobFragment {
     job_task_chart: JobTaskChart,
 
     jobs_list: JobsTable,
@@ -37,9 +36,9 @@ enum FocusedComponent {
     JobTasksTable,
 }
 
-impl Screen for JobScreen {
-    fn draw(&mut self, frame: &mut DashboardFrame) {
-        let layout = JobScreenLayout::new(frame);
+impl JobFragment {
+    pub fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
+        let layout = JobFragmentLayout::new(&in_area);
         draw_text("Job Info", layout.header_chunk, frame, style_header_text());
 
         let (jobs_table_style, tasks_table_style) = match self.component_in_focus {
@@ -59,14 +58,14 @@ impl Screen for JobScreen {
         );
 
         draw_text(
-            "Press -> to go to Allocations Screen",
+            "<\u{21F5}> select, <1> Jobs, <2> Started Tasks, <i> worker details for selected task",
             layout.footer_chunk,
             frame,
             style_footer(),
         );
     }
 
-    fn update(&mut self, data: &DashboardData, _controller: &mut ScreenController) {
+    pub fn update(&mut self, data: &DashboardData) {
         self.jobs_list.update(data);
 
         if let Some(job_id) = self.jobs_list.get_selected_item() {
@@ -90,14 +89,8 @@ impl Screen for JobScreen {
     }
 
     /// Handles key presses for the components of the screen
-    fn handle_key(&mut self, key: Key, controller: &mut ScreenController) {
-        match self.component_in_focus {
-            FocusedComponent::JobsTable => self.jobs_list.handle_key(key),
-            FocusedComponent::JobTasksTable => self.job_tasks_table.handle_key(key),
-        };
-
+    pub fn handle_key(&mut self, key: Key) {
         match key {
-            Key::Right => controller.show_auto_allocator_screen(),
             Key::Char('1') => {
                 self.component_in_focus = FocusedComponent::JobsTable;
                 self.job_tasks_table.clear_selection();
@@ -105,6 +98,14 @@ impl Screen for JobScreen {
             Key::Char('2') => self.component_in_focus = FocusedComponent::JobTasksTable,
             _ => {}
         }
+        match self.component_in_focus {
+            FocusedComponent::JobsTable => self.jobs_list.handle_key(key),
+            FocusedComponent::JobTasksTable => self.job_tasks_table.handle_key(key),
+        };
+    }
+
+    pub fn get_selected_task(&self) -> Option<(TakoTaskId, WorkerId)> {
+        self.job_tasks_table.get_selected_item()
     }
 }
 
@@ -116,7 +117,7 @@ impl Screen for JobScreen {
    |  j_info  |   j_tasks  |
    |________Footer_________|
  **/
-struct JobScreenLayout {
+struct JobFragmentLayout {
     header_chunk: Rect,
     chart_chunk: Rect,
     job_info_chunk: Rect,
@@ -125,8 +126,8 @@ struct JobScreenLayout {
     footer_chunk: Rect,
 }
 
-impl JobScreenLayout {
-    fn new(frame: &DashboardFrame) -> Self {
+impl JobFragmentLayout {
+    fn new(rect: &Rect) -> Self {
         let job_screen_chunks = tui::layout::Layout::default()
             .constraints(vec![
                 Constraint::Percentage(5),
@@ -135,7 +136,7 @@ impl JobScreenLayout {
                 Constraint::Percentage(5),
             ])
             .direction(Direction::Vertical)
-            .split(frame.size());
+            .split(*rect);
 
         let graph_and_details_area = Layout::default()
             .constraints(vec![Constraint::Percentage(35), Constraint::Percentage(65)])
