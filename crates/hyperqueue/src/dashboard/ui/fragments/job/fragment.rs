@@ -16,7 +16,7 @@ use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 
 use crate::dashboard::ui::fragments::job::job_info_display::JobInfoTable;
 use crate::dashboard::ui::fragments::job::job_tasks_chart::JobTaskChart;
-use crate::TakoTaskId;
+use crate::JobTaskId;
 use tako::WorkerId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
@@ -50,12 +50,8 @@ impl JobFragment {
         self.job_task_chart.draw(layout.chart_chunk, frame);
         self.jobs_list
             .draw(layout.job_list_chunk, frame, tasks_table_style);
-        self.job_tasks_table.draw(
-            "Started Tasks <2>",
-            layout.job_tasks_chunk,
-            frame,
-            jobs_table_style,
-        );
+        self.job_tasks_table
+            .draw("Tasks <2>", layout.job_tasks_chunk, frame, jobs_table_style);
 
         draw_text(
             "<\u{21F5}> select, <1> Jobs, <2> Started Tasks, <i> worker details for selected task",
@@ -69,7 +65,7 @@ impl JobFragment {
         self.jobs_list.update(data);
 
         if let Some(job_id) = self.jobs_list.get_selected_item() {
-            let task_infos: Vec<(&TakoTaskId, &TaskInfo)> = data
+            let task_infos: Vec<(JobTaskId, &TaskInfo)> = data
                 .query_task_history_for_job(job_id, SystemTime::now())
                 .collect();
             self.job_tasks_table.update(task_infos);
@@ -104,7 +100,7 @@ impl JobFragment {
         };
     }
 
-    pub fn get_selected_task(&self) -> Option<(TakoTaskId, WorkerId)> {
+    pub fn get_selected_task(&self) -> Option<(JobTaskId, WorkerId)> {
         self.job_tasks_table.get_selected_item()
     }
 }

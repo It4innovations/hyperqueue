@@ -13,7 +13,7 @@ use crate::server::autoalloc::{AllocationId, QueueId};
 use crate::server::event::MonitoringEvent;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{AllocationQueueParams, FromClientMessage, ToClientMessage};
-use crate::{rpc_call, JobId, TakoTaskId, WorkerId};
+use crate::{rpc_call, JobId, JobTaskId, WorkerId};
 
 pub mod alloc_timeline;
 pub mod job_timeline;
@@ -69,7 +69,7 @@ impl DashboardData {
         &self,
         job_id: JobId,
         time: SystemTime,
-    ) -> impl Iterator<Item = (&TakoTaskId, &TaskInfo)> + '_ {
+    ) -> impl Iterator<Item = (JobTaskId, &TaskInfo)> + '_ {
         self.job_timeline.get_job_task_history(job_id, time)
     }
 
@@ -77,7 +77,7 @@ impl DashboardData {
     pub fn query_task_history_for_worker(
         &self,
         worker_id: WorkerId,
-    ) -> impl Iterator<Item = (&TakoTaskId, &TaskInfo)> + '_ {
+    ) -> impl Iterator<Item = (JobTaskId, &TaskInfo)> + '_ {
         self.job_timeline
             .get_worker_task_history(worker_id, SystemTime::now())
     }

@@ -54,6 +54,7 @@ pub struct JobInfo {
     pub name: String,
     pub job_desc: JobDescription,
 
+    pub base_task_id: TakoTaskId,
     pub task_ids: Vec<TakoTaskId>,
     pub max_fails: Option<JobTaskCount>,
     pub log: Option<PathBuf>,
