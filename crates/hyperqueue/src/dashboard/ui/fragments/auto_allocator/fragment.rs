@@ -2,7 +2,6 @@ use std::default::Default;
 use std::time::SystemTime;
 use termion::event::Key;
 
-use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::styles::{
     style_footer, style_header_text, table_style_deselected, table_style_selected,
 };
@@ -11,16 +10,15 @@ use crate::dashboard::ui::widgets::text::draw_text;
 
 use crate::dashboard::data::alloc_timeline::AllocationQueueInfo;
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::screen::controller::ScreenController;
-use crate::dashboard::ui::screens::auto_allocator::alloc_timeline_chart::AllocationsChart;
-use crate::dashboard::ui::screens::auto_allocator::allocations_info_table::AllocationInfoTable;
-use crate::dashboard::ui::screens::auto_allocator::queue_info_table::AllocationQueueInfoTable;
-use crate::dashboard::ui::screens::auto_allocator::queue_params_display::QueueParamsTable;
+use crate::dashboard::ui::fragments::auto_allocator::alloc_timeline_chart::AllocationsChart;
+use crate::dashboard::ui::fragments::auto_allocator::allocations_info_table::AllocationInfoTable;
+use crate::dashboard::ui::fragments::auto_allocator::queue_info_table::AllocationQueueInfoTable;
+use crate::dashboard::ui::fragments::auto_allocator::queue_params_display::QueueParamsTable;
 use crate::server::autoalloc::QueueId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
-pub struct AutoAllocatorScreen {
+pub struct AutoAllocatorFragment {
     queue_info_table: AllocationQueueInfoTable,
     queue_params_table: QueueParamsTable,
     allocations_info_table: AllocationInfoTable,
@@ -34,9 +32,9 @@ enum FocusedComponent {
     AllocationInfoTable,
 }
 
-impl Screen for AutoAllocatorScreen {
-    fn draw(&mut self, frame: &mut DashboardFrame) {
-        let layout = AutoAllocScreenLayout::new(frame);
+impl AutoAllocatorFragment {
+    pub fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
+        let layout = AutoAllocFragmentLayout::new(&in_area);
         draw_text(
             "AutoAlloc Info",
             layout.header_chunk,
@@ -65,14 +63,14 @@ impl Screen for AutoAllocatorScreen {
             .draw(layout.allocation_queue_params_chunk, frame);
 
         draw_text(
-            "Press <- for Jobs Overview, -> for Cluster Overview",
+            "<1>: Allocation Queues, <2>: Allocations",
             layout.footer_chunk,
             frame,
             style_footer(),
         );
     }
 
-    fn update(&mut self, data: &DashboardData, _controller: &mut ScreenController) {
+    pub fn update(&mut self, data: &DashboardData) {
         let queue_infos: Vec<(&QueueId, &AllocationQueueInfo)> =
             data.query_allocation_queues_at(SystemTime::now()).collect();
         self.queue_info_table.update(queue_infos);
@@ -99,15 +97,13 @@ impl Screen for AutoAllocatorScreen {
     }
 
     /// Handles key presses for the components of the screen
-    fn handle_key(&mut self, key: Key, controller: &mut ScreenController) {
+    pub fn handle_key(&mut self, key: Key) {
         match self.component_in_focus {
             FocusedComponent::QueueParamsTable => self.queue_info_table.handle_key(key),
             FocusedComponent::AllocationInfoTable => self.allocations_info_table.handle_key(key),
         };
 
         match key {
-            Key::Right => controller.show_cluster_overview(),
-            Key::Left => controller.show_job_screen(),
             Key::Char('1') => {
                 self.component_in_focus = FocusedComponent::QueueParamsTable;
                 self.allocations_info_table.clear_selection();
@@ -128,7 +124,7 @@ impl Screen for AutoAllocatorScreen {
    | q_params |            |
    |________Footer_________|
  **/
-struct AutoAllocScreenLayout {
+struct AutoAllocFragmentLayout {
     chart_chunk: Rect,
     allocation_queue_params_chunk: Rect,
     header_chunk: Rect,
@@ -137,8 +133,8 @@ struct AutoAllocScreenLayout {
     footer_chunk: Rect,
 }
 
-impl AutoAllocScreenLayout {
-    fn new(frame: &DashboardFrame) -> Self {
+impl AutoAllocFragmentLayout {
+    fn new(rect: &Rect) -> Self {
         let auto_alloc_screen_chunks = tui::layout::Layout::default()
             .constraints(vec![
                 Constraint::Percentage(5),
@@ -147,7 +143,7 @@ impl AutoAllocScreenLayout {
                 Constraint::Percentage(5),
             ])
             .direction(Direction::Vertical)
-            .split(frame.size());
+            .split(*rect);
 
         let component_area = Layout::default()
             .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])

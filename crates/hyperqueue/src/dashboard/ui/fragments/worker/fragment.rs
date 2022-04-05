@@ -1,7 +1,6 @@
 use std::time::SystemTime;
 use termion::event::Key;
 
-use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::styles::{
     style_footer, style_header_text, table_style_deselected, table_style_selected,
 };
@@ -10,18 +9,17 @@ use crate::dashboard::ui::widgets::text::draw_text;
 
 use crate::dashboard::data::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::screen::controller::ScreenController;
-use crate::dashboard::ui::screens::worker::cpu_util_table::{
+use crate::dashboard::ui::fragments::worker::cpu_util_table::{
     get_column_constraints, render_cpu_util_table,
 };
-use crate::dashboard::ui::screens::worker::worker_config_table::WorkerConfigTable;
+use crate::dashboard::ui::fragments::worker::worker_config_table::WorkerConfigTable;
 use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 use crate::TakoTaskId;
 use tako::WorkerId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
-pub struct WorkerOverviewScreen {
+pub struct WorkerOverviewFragment {
     /// The worker info screen shows data for this worker
     worker_id: Option<WorkerId>,
     worker_info_table: WorkerConfigTable,
@@ -30,15 +28,19 @@ pub struct WorkerOverviewScreen {
     worker_per_core_cpu_util: Vec<f32>,
 }
 
-impl WorkerOverviewScreen {
+impl WorkerOverviewFragment {
+    pub fn clear_worker_id(&mut self) {
+        self.worker_id = None;
+    }
+
     pub fn set_worker_id(&mut self, worker_id: WorkerId) {
         self.worker_id = Some(worker_id);
     }
 }
 
-impl Screen for WorkerOverviewScreen {
-    fn draw(&mut self, frame: &mut DashboardFrame) {
-        let layout = WorkerScreenLayout::new(frame);
+impl WorkerOverviewFragment {
+    pub fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
+        let layout = WorkerFragmentLayout::new(&in_area);
         draw_text(
             format!(
                 "Details for Worker {}",
@@ -50,7 +52,7 @@ impl Screen for WorkerOverviewScreen {
             style_header_text(),
         );
         draw_text(
-            "Press left_arrow to go back to Cluster Overview",
+            "<backspace>: Back",
             layout.footer_chunk,
             frame,
             style_footer(),
@@ -78,42 +80,37 @@ impl Screen for WorkerOverviewScreen {
             .draw(layout.worker_info_table_chunk, frame);
     }
 
-    fn update(&mut self, data: &DashboardData, controller: &mut ScreenController) {
-        match self.worker_id.and_then(|worker_id| {
+    pub fn update(&mut self, data: &DashboardData) {
+        if let Some(worker_id) = self.worker_id.and_then(|worker_id| {
             data.query_connected_worker_ids(SystemTime::now())
                 .find(|connected_id| *connected_id == worker_id)
         }) {
-            Some(worker_id) => {
-                // Update CPU Util table.
-                if let Some(cpu_util) = data
-                    .query_worker_overview_at(worker_id, SystemTime::now())
-                    .and_then(|overview| overview.hw_state.as_ref())
-                    .map(|hw_state| &hw_state.state.worker_cpu_usage.cpu_per_core_percent_usage)
-                {
-                    self.worker_per_core_cpu_util = cpu_util.clone()
-                }
-                // Update Tasks Table
-                let tasks_info: Vec<(&TakoTaskId, &TaskInfo)> =
-                    data.query_task_history_for_worker(worker_id).collect();
-                self.worker_tasks_table.update(tasks_info);
-                // Update Worker Configuration Information
-                if let Some(configuration) = data.query_worker_info_for(&worker_id) {
-                    self.worker_info_table.update(configuration);
-                }
+            // Update CPU Util table.
+            if let Some(cpu_util) = data
+                .query_worker_overview_at(worker_id, SystemTime::now())
+                .and_then(|overview| overview.hw_state.as_ref())
+                .map(|hw_state| &hw_state.state.worker_cpu_usage.cpu_per_core_percent_usage)
+            {
+                self.worker_per_core_cpu_util = cpu_util.clone()
             }
-            None => controller.show_cluster_overview(),
+            // Update Tasks Table
+            let tasks_info: Vec<(&TakoTaskId, &TaskInfo)> =
+                data.query_task_history_for_worker(worker_id).collect();
+            self.worker_tasks_table.update(tasks_info);
+            // Update Worker Configuration Information
+            if let Some(configuration) = data.query_worker_info_for(&worker_id) {
+                self.worker_info_table.update(configuration);
+            }
         }
     }
 
     /// Handles key presses for the components of the screen
-    fn handle_key(&mut self, key: Key, controller: &mut ScreenController) {
+    pub fn handle_key(&mut self, key: Key) {
         match key {
             Key::Down => self.worker_tasks_table.select_next_task(),
             Key::Up => self.worker_tasks_table.select_previous_task(),
-            Key::Left => {
-                self.worker_tasks_table.clear_selection();
-                controller.show_cluster_overview();
-            }
+            Key::Backspace => self.worker_tasks_table.clear_selection(),
+
             _ => {}
         }
     }
@@ -129,7 +126,7 @@ impl Screen for WorkerOverviewScreen {
    |--------Footer---------|
    |-----------------------|
  **/
-struct WorkerScreenLayout {
+struct WorkerFragmentLayout {
     header_chunk: Rect,
     tasks_table_chunk: Rect,
     worker_util_chunk: Rect,
@@ -137,8 +134,8 @@ struct WorkerScreenLayout {
     footer_chunk: Rect,
 }
 
-impl WorkerScreenLayout {
-    fn new(frame: &DashboardFrame) -> Self {
+impl WorkerFragmentLayout {
+    fn new(rect: &Rect) -> Self {
         let base_chunks = tui::layout::Layout::default()
             .constraints(vec![
                 Constraint::Percentage(5),
@@ -147,7 +144,7 @@ impl WorkerScreenLayout {
                 Constraint::Percentage(5),
             ])
             .direction(Direction::Vertical)
-            .split(frame.size());
+            .split(*rect);
 
         let info_chunks = Layout::default()
             .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])

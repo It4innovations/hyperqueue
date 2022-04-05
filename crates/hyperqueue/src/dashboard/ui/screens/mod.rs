@@ -1,4 +1,4 @@
-pub mod auto_allocator;
-pub mod home;
-pub mod job;
-pub mod worker;
+pub mod autoalloc_screen;
+pub mod job_screen;
+pub mod overview_screen;
+pub mod root_screen;

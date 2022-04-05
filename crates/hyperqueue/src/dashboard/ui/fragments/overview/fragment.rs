@@ -1,28 +1,27 @@
 use termion::event::Key;
 
-use crate::dashboard::ui::screen::Screen;
-use crate::dashboard::ui::screens::home::cluster_overview_chart::ClusterOverviewChart;
-use crate::dashboard::ui::screens::home::worker_utilization_table::WorkerUtilTable;
+use crate::dashboard::ui::fragments::overview::cluster_overview_chart::ClusterOverviewChart;
+use crate::dashboard::ui::fragments::overview::worker_utilization_table::WorkerUtilTable;
 use crate::dashboard::ui::styles::{style_footer, style_header_text};
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
 
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::screen::controller::ScreenController;
+use tako::WorkerId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
-pub struct ClusterOverviewScreen {
+pub struct ClusterOverviewFragment {
     worker_util_table: WorkerUtilTable,
     cluster_overview: ClusterOverviewChart,
 }
 
-impl Screen for ClusterOverviewScreen {
-    fn draw(&mut self, frame: &mut DashboardFrame) {
-        let layout = HomeLayout::new(frame);
-        draw_text("HQ top", layout.header_chunk, frame, style_header_text());
+impl ClusterOverviewFragment {
+    pub fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
+        let layout = OverviewFragmentLayout::new(&in_area);
+        draw_text("Overview", layout.header_chunk, frame, style_header_text());
         draw_text(
-            "Press up_arrow and bottom_arrow to select a worker, press right_arrow for details about the selected worker",
+            "<\u{21F5}> select worker, <i> worker details",
             layout.footer_chunk,
             frame,
             style_footer(),
@@ -33,24 +32,26 @@ impl Screen for ClusterOverviewScreen {
             .draw(layout.worker_util_table_chunk, frame);
     }
 
-    fn update(&mut self, data: &DashboardData, _controller: &mut ScreenController) {
+    pub fn update(&mut self, data: &DashboardData) {
         self.worker_util_table.update(data);
         self.cluster_overview.update(data);
     }
 
     /// Handles key presses for the components of the screen
-    fn handle_key(&mut self, key: Key, controller: &mut ScreenController) {
+    pub fn handle_key(&mut self, key: Key) {
         match key {
-            Key::Down => self.worker_util_table.select_next_worker(),
-            Key::Up => self.worker_util_table.select_previous_worker(),
-            Key::Right => {
-                if let Some(worker_id) = self.worker_util_table.get_selected_item() {
-                    controller.show_worker_screen(worker_id);
-                }
+            Key::Down => {
+                self.worker_util_table.select_next_worker();
             }
-            Key::Left => controller.show_auto_allocator_screen(),
+            Key::Up => {
+                self.worker_util_table.select_previous_worker();
+            }
             _ => {}
         }
+    }
+
+    pub fn get_selected_worker(&self) -> Option<WorkerId> {
+        self.worker_util_table.get_selected_item()
     }
 }
 
@@ -62,7 +63,7 @@ impl Screen for ClusterOverviewScreen {
    |          BODY         |
    -------------------------
  **/
-struct HomeLayout {
+struct OverviewFragmentLayout {
     worker_count_chunk: Rect,
     _task_timeline_chart: Rect,
     header_chunk: Rect,
@@ -70,8 +71,8 @@ struct HomeLayout {
     footer_chunk: Rect,
 }
 
-impl HomeLayout {
-    fn new(frame: &DashboardFrame) -> Self {
+impl OverviewFragmentLayout {
+    fn new(rect: &Rect) -> Self {
         let base_chunks = tui::layout::Layout::default()
             .constraints(vec![
                 Constraint::Percentage(40),
@@ -80,7 +81,7 @@ impl HomeLayout {
                 Constraint::Percentage(5),
             ])
             .direction(Direction::Vertical)
-            .split(frame.size());
+            .split(*rect);
 
         let info_chunks = Layout::default()
             .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
