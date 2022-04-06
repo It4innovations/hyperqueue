@@ -29,6 +29,14 @@ pub struct DashboardData {
     job_timeline: JobTimeline,
     /// Tracks the automatic allocator events
     alloc_timeline: AllocationTimeline,
+    /// Tracks the time range for which data has been fetched for.
+    fetched_range: FetchedTimeRange,
+}
+
+#[derive(Clone, Copy)]
+pub struct FetchedTimeRange {
+    pub fetched_from: SystemTime,
+    pub fetched_until: SystemTime,
 }
 
 impl DashboardData {
@@ -38,6 +46,18 @@ impl DashboardData {
 
     pub fn update_data(&mut self, mut events: Vec<MonitoringEvent>) {
         events.sort_unstable_by_key(|e| e.time());
+        if let Some((from, until)) = events
+            .get(0)
+            .map(|e| e.time())
+            .zip(events.last().map(|e| e.time()))
+        {
+            if from < self.fetched_range.fetched_from {
+                self.fetched_range.fetched_from = from;
+            }
+            if until > self.fetched_range.fetched_until {
+                self.fetched_range.fetched_until = until;
+            }
+        }
 
         // Update maximum event ID
         self.fetched_until = events
@@ -50,6 +70,11 @@ impl DashboardData {
         self.worker_timeline.handle_new_events(&events);
         self.job_timeline.handle_new_events(&events);
         self.alloc_timeline.handle_new_events(&events);
+    }
+
+    /// Gets the time range the data has been fetched for.
+    pub fn query_time_range(&self) -> &FetchedTimeRange {
+        &self.fetched_range
     }
 
     pub fn query_job_info_for_job(&self, job_id: JobId) -> Option<&DashboardJobInfo> {
@@ -162,4 +187,13 @@ async fn fetch_events_after(
     )
     .await;
     response
+}
+
+impl Default for FetchedTimeRange {
+    fn default() -> Self {
+        FetchedTimeRange {
+            fetched_from: SystemTime::now(),
+            fetched_until: SystemTime::now(),
+        }
+    }
 }
