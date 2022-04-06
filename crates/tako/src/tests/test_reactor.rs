@@ -21,7 +21,7 @@ use crate::server::worker::Worker;
 use crate::tests::utils::env::create_test_comm;
 use crate::tests::utils::schedule::{
     create_test_scheduler, create_test_workers, finish_on_worker, force_assign,
-    start_and_finish_on_worker, start_on_worker, submit_test_tasks,
+    start_and_finish_on_worker, start_mn_task_on_worker, start_on_worker, submit_test_tasks,
 };
 use crate::tests::utils::sorted_vec;
 use crate::tests::utils::task::{task, task_running_msg, task_with_deps, TaskBuilder};
@@ -567,6 +567,139 @@ fn test_task_cancel() {
 }
 
 #[test]
+fn test_worker_lost_with_mn_task_non_root() {
+    let mut core = Core::default();
+    create_test_workers(&mut core, &[1, 1, 1, 1]);
+    let task1 = TaskBuilder::new(1).n_nodes(3).build();
+    submit_test_tasks(&mut core, vec![task1]);
+    start_mn_task_on_worker(
+        &mut core,
+        TaskId::new(1),
+        vec![WorkerId::new(103), WorkerId::new(101), WorkerId::new(100)],
+    );
+    let mut comm = create_test_comm();
+    on_remove_worker(
+        &mut core,
+        &mut comm,
+        101.into(),
+        LostWorkerReason::HeartbeatLost,
+    );
+    core.sanity_check();
+    assert_eq!(comm.take_lost_workers().len(), 1);
+    let msgs = comm.take_worker_msgs(103, 1);
+    assert!(
+        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if ids == &vec![1].to_ids())
+    );
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(core.get_task(TaskId::new(1)).is_waiting());
+}
+
+#[test]
+fn test_worker_lost_with_mn_task_root() {
+    let mut core = Core::default();
+    create_test_workers(&mut core, &[1, 1, 1, 1]);
+    let task1 = TaskBuilder::new(1).n_nodes(3).build();
+    submit_test_tasks(&mut core, vec![task1]);
+    start_mn_task_on_worker(
+        &mut core,
+        TaskId::new(1),
+        vec![WorkerId::new(103), WorkerId::new(101), WorkerId::new(100)],
+    );
+    let mut comm = create_test_comm();
+    on_remove_worker(
+        &mut core,
+        &mut comm,
+        103.into(),
+        LostWorkerReason::HeartbeatLost,
+    );
+    core.sanity_check();
+    assert_eq!(comm.take_lost_workers().len(), 1);
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(core.get_task(TaskId::new(1)).is_waiting());
+}
+
+#[test]
+fn test_task_mn_fail() {
+    let mut core = Core::default();
+    create_test_workers(&mut core, &[1, 1, 1, 1]);
+    let task1 = TaskBuilder::new(1).n_nodes(3).build();
+    submit_test_tasks(&mut core, vec![task1]);
+    start_mn_task_on_worker(
+        &mut core,
+        TaskId::new(1),
+        vec![WorkerId::new(103), WorkerId::new(101), WorkerId::new(100)],
+    );
+    let mut comm = create_test_comm();
+    on_task_error(
+        &mut core,
+        &mut comm,
+        103.into(),
+        1.into(),
+        TaskFailInfo {
+            message: "".to_string(),
+            data_type: "".to_string(),
+            error_data: vec![],
+        },
+    );
+    core.sanity_check();
+    let msgs = comm.take_client_task_errors(1);
+    assert_eq!(msgs[0].0, TaskId::new(1));
+    comm.emptiness_check();
+    assert!(core.find_task(1.into()).is_none());
+    for w in &[100, 101, 102, 103] {
+        assert!(core
+            .get_worker_map()
+            .get_worker((*w).into())
+            .mn_task()
+            .is_none());
+    }
+}
+
+#[test]
+fn test_task_mn_cancel() {
+    let mut core = Core::default();
+    create_test_workers(&mut core, &[1, 1, 1, 1]);
+    let task1 = TaskBuilder::new(1).n_nodes(3).build();
+    submit_test_tasks(&mut core, vec![task1]);
+    start_mn_task_on_worker(
+        &mut core,
+        TaskId::new(1),
+        vec![WorkerId::new(103), WorkerId::new(101), WorkerId::new(100)],
+    );
+    let mut comm = create_test_comm();
+    let (ct, ft) = on_cancel_tasks(&mut core, &mut comm, &[TaskId(1)]);
+    core.sanity_check();
+    let msgs = comm.take_worker_msgs(103, 1);
+    assert!(
+        matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if ids == &vec![1].to_ids())
+    );
+    comm.check_need_scheduling();
+    comm.emptiness_check();
+    assert!(ft.is_empty());
+    assert_eq!(ct, vec![TaskId::new(1)]);
+
+    let mut scheduler = create_test_scheduler();
+    scheduler.run_scheduling(&mut core, &mut comm);
+    core.sanity_check();
+    assert!(matches!(
+        &comm.take_worker_msgs(100, 1)[0],
+        &ToWorkerMessage::Reservation(false)
+    ));
+    assert!(matches!(
+        &comm.take_worker_msgs(101, 1)[0],
+        &ToWorkerMessage::Reservation(false)
+    ));
+    comm.emptiness_check();
+
+    assert!(core.find_task(1.into()).is_none());
+    for w in core.get_workers() {
+        assert!(w.mn_task.is_none());
+    }
+}
+
+#[test]
 fn test_running_task() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1]);
@@ -699,7 +832,7 @@ fn test_ready_to_assign_is_empty_after_cancel() {
     let t1 = task(1);
     submit_test_tasks(&mut core, vec![t1]);
     cancel_tasks(&mut core, &[1]);
-    assert!(core.take_ready_to_assign().is_empty());
+    assert!(core.take_single_node_ready_to_assign().is_empty());
 }
 
 #[test]
@@ -804,7 +937,7 @@ fn lost_worker_with_running_and_assign_tasks() {
         vec![(WorkerId::new(101), vec![12].to_ids())]
     );
 
-    assert_eq!(core.take_ready_to_assign().len(), 3);
+    assert_eq!(core.take_single_node_ready_to_assign().len(), 3);
     core.assert_ready(&[11, 12]);
     assert_eq!(core.get_task(12.into()).instance_id, 1.into());
     assert!(core.get_task(40.into()).is_ready());
@@ -827,7 +960,7 @@ fn lost_worker_with_running_and_assign_tasks() {
         },
     );
 
-    assert_eq!(core.take_ready_to_assign().len(), 1);
+    assert_eq!(core.take_single_node_ready_to_assign().len(), 1);
     core.assert_ready(&[41]);
     core.assert_fresh(&[41]);
 
@@ -888,15 +1021,15 @@ fn cancel_tasks<T: Into<TaskId> + Copy>(core: &mut Core, task_ids: &[T]) {
 
 fn check_worker_tasks_exact(core: &Core, worker_id: u32, tasks: &[TaskId]) {
     let worker = core.get_worker_by_id_or_panic(worker_id.into());
-    assert_eq!(worker.tasks().len(), tasks.len());
+    assert_eq!(worker.sn_tasks().len(), tasks.len());
     for task in tasks {
-        assert!(worker.tasks().contains(&task));
+        assert!(worker.sn_tasks().contains(&task));
     }
 }
 
 fn worker_has_task<T: Into<TaskId>>(core: &Core, worker_id: u32, task_id: T) -> bool {
     core.get_worker_by_id_or_panic(worker_id.into())
-        .tasks()
+        .sn_tasks()
         .contains(&task_id.into())
 }
 

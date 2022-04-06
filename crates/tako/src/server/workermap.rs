@@ -19,6 +19,11 @@ impl WorkerMap {
     pub fn get_worker_mut(&mut self, worker_id: WorkerId) -> &mut Worker {
         self.workers.get_mut(&worker_id).expect("Worker not found")
     }
+
+    #[inline]
+    pub fn get_workers_mut(&mut self) -> impl Iterator<Item = &mut Worker> {
+        self.workers.values_mut()
+    }
 }
 
 impl Deref for WorkerMap {

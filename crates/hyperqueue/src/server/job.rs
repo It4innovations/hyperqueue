@@ -9,6 +9,7 @@ use crate::transfer::messages::{
 use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
 use chrono::{DateTime, Utc};
+use smallvec::SmallVec;
 use std::path::PathBuf;
 use tako::common::index::ItemId;
 use tako::common::Set;
@@ -23,7 +24,7 @@ use tokio::sync::oneshot;
 pub struct StartedTaskData {
     pub start_date: DateTime<Utc>,
     pub context: RunningTaskContext,
-    pub worker_id: WorkerId,
+    pub worker_ids: SmallVec<[WorkerId; 1]>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -58,8 +59,8 @@ impl JobTaskState {
         }
     }
 
-    pub fn get_worker(&self) -> Option<WorkerId> {
-        self.started_data().map(|data| data.worker_id)
+    pub fn get_workers(&self) -> Option<&[WorkerId]> {
+        self.started_data().map(|data| data.worker_ids.as_slice())
     }
 }
 
@@ -274,7 +275,7 @@ impl Job {
     pub fn set_running_state(
         &mut self,
         tako_task_id: TakoTaskId,
-        worker: WorkerId,
+        workers: SmallVec<[WorkerId; 1]>,
         context: SerializedTaskContext,
     ) {
         let (_, state) = self.get_task_state_mut(tako_task_id);
@@ -287,7 +288,7 @@ impl Job {
                 started_data: StartedTaskData {
                     start_date: Utc::now(),
                     context,
-                    worker_id: worker,
+                    worker_ids: workers,
                 },
             };
             self.counters.n_running_tasks += 1;

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::common::error::DsError;
-use crate::common::resources::{GenericResourceAmount, GenericResourceId, NumOfCpus};
+use crate::common::resources::{GenericResourceAmount, GenericResourceId, NumOfCpus, NumOfNodes};
 use crate::worker::pool::ResourcePool;
 use smallvec::SmallVec;
 use std::time::Duration;
@@ -50,6 +50,8 @@ pub type TimeRequest = Duration;
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct ResourceRequest {
+    n_nodes: NumOfNodes,
+
     cpus: CpuRequest,
 
     // After normalization, this array is sorted by resource id
@@ -67,16 +69,26 @@ pub struct ResourceRequest {
 
 impl ResourceRequest {
     pub fn new(
+        n_nodes: NumOfNodes,
         cpu_request: CpuRequest,
         time: TimeRequest,
         mut generic_resources: GenericResourceRequests,
     ) -> ResourceRequest {
         generic_resources.sort_unstable_by_key(|r| r.resource);
         ResourceRequest {
+            n_nodes,
             cpus: cpu_request,
             generic: generic_resources,
             min_time: time,
         }
+    }
+
+    pub fn is_multi_node(&self) -> bool {
+        self.n_nodes > 0
+    }
+
+    pub fn n_nodes(&self) -> NumOfNodes {
+        self.n_nodes
     }
 
     pub fn generic_requests(&self) -> &GenericResourceRequests {

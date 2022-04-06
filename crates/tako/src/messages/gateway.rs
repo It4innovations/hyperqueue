@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::common::resources::CpuRequest;
+use crate::common::resources::{CpuRequest, NumOfNodes};
 use crate::messages::common::{TaskFailInfo, WorkerConfiguration};
 use crate::messages::worker::WorkerOverview;
 use crate::server::task::SerializedTaskContext;
 use crate::{Priority, TaskId, WorkerId};
+use smallvec::SmallVec;
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
@@ -15,6 +16,9 @@ pub struct GenericResourceRequest {
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct ResourceRequest {
+    #[serde(default)]
+    pub n_nodes: NumOfNodes,
+
     #[serde(default)]
     pub cpus: CpuRequest,
 
@@ -120,7 +124,7 @@ pub enum TaskState {
     Invalid,
     Waiting,
     Running {
-        worker_id: WorkerId,
+        worker_ids: SmallVec<[WorkerId; 1]>,
         context: SerializedTaskContext,
     },
     Finished,

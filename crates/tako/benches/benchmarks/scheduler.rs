@@ -91,7 +91,7 @@ impl Comm for NullComm {
     fn send_client_task_started(
         &mut self,
         _task_id: TaskId,
-        _worker_id: WorkerId,
+        _worker_id: &[WorkerId],
         _context: SerializedTaskContext,
     ) {
     }

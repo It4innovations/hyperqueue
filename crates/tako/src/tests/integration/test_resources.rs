@@ -7,9 +7,9 @@ use crate::tests::integration::utils::api::{
     wait_for_task_start, wait_for_worker_overview, wait_for_workers_overview,
 };
 use crate::tests::integration::utils::server::run_test;
+use crate::tests::integration::utils::task::ResourceRequestConfigBuilder as RR;
 use crate::tests::integration::utils::task::{
-    simple_args, simple_task, GraphBuilder as GB, GraphBuilder, ResourceRequestConfigBuilder as RR,
-    TaskConfigBuilder as TC,
+    simple_args, simple_task, GraphBuilder as GB, GraphBuilder, TaskConfigBuilder as TC,
 };
 use crate::tests::integration::utils::worker::{cpus, numa_cpus, WorkerConfigBuilder as WC};
 use crate::WorkerId;

@@ -61,6 +61,7 @@ fn create_worker_task(id: u64) -> Task {
         resources: Default::default(),
         time_limit: None,
         n_outputs: 0,
+        node_list: vec![],
         body: vec![],
     })
 }
@@ -192,6 +193,7 @@ fn bench_resource_queue_release_allocation(c: &mut BenchmarkGroup<WallTime>) {
                 let mut queue = create_resource_queue(64);
                 let mut task = create_worker_task(0);
                 task.resources = ResourceRequest::new(
+                    0,
                     CpuRequest::Compact(64),
                     TimeRequest::new(0, 0),
                     vec![GenericResourceRequest {
@@ -228,6 +230,7 @@ fn bench_resource_queue_start_tasks(c: &mut BenchmarkGroup<WallTime>) {
                         for id in 0..task_count {
                             let mut task = create_worker_task(id);
                             task.resources = ResourceRequest::new(
+                                0,
                                 CpuRequest::Compact(64),
                                 TimeRequest::new(0, 0),
                                 vec![GenericResourceRequest {

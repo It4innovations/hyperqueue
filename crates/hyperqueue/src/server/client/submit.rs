@@ -478,6 +478,7 @@ mod tests {
                 cwd: Default::default(),
             },
             resources: ResourceRequest {
+                n_nodes: 0,
                 cpus: CpuRequest::Compact(cpu_count),
                 generic: vec![GenericResourceRequest {
                     resource: "a".to_string(),

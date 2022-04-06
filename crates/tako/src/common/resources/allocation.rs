@@ -42,14 +42,20 @@ pub type GenericResourceAllocations = SmallVec<[GenericResourceAllocation; 2]>;
 
 #[derive(Debug)]
 pub struct ResourceAllocation {
+    pub nodes: Vec<String>,
     pub cpus: Vec<CpuId>,
     pub generic_allocations: GenericResourceAllocations,
 }
 
 impl ResourceAllocation {
     #[inline]
-    pub fn new(cpus: Vec<CpuId>, generic_allocations: GenericResourceAllocations) -> Self {
+    pub fn new(
+        nodes: Vec<String>,
+        cpus: Vec<CpuId>,
+        generic_allocations: GenericResourceAllocations,
+    ) -> Self {
         ResourceAllocation {
+            nodes,
             cpus,
             generic_allocations,
         }

@@ -54,6 +54,8 @@ pub struct WorkerState {
     pub secret_key: Option<Arc<SecretKey>>,
 
     pub start_time: std::time::Instant,
+
+    pub reservation: bool, // If true, idle timeout is blocked
     pub last_task_finish_time: std::time::Instant,
 
     resource_map: ResourceMap,
@@ -111,7 +113,6 @@ impl WorkerState {
         self.schedule_task_start();
     }
 
-    #[inline]
     pub fn add_task(&mut self, task: Task) {
         if task.is_ready() {
             log::debug!("Task {} is directly ready", task.id);
@@ -257,6 +258,12 @@ impl WorkerState {
     pub fn get_resource_map(&self) -> &ResourceMap {
         &self.resource_map
     }
+
+    pub fn worker_hostname(&self, worker_id: WorkerId) -> Option<&str> {
+        self.worker_addresses
+            .get(&worker_id)
+            .and_then(|address| address.split(':').next())
+    }
 }
 
 impl WorkerStateRef {
@@ -290,6 +297,7 @@ impl WorkerStateRef {
             resource_map,
             worker_is_empty_notify: None,
             last_task_finish_time: now,
+            reservation: false,
         })
     }
 }

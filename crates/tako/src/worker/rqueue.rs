@@ -214,6 +214,7 @@ mod tests {
         rq.add_task(worker_task(
             10,
             ResourceRequest::new(
+                0,
                 CpuRequest::Compact(1),
                 Duration::new(10, 0),
                 Default::default(),
@@ -234,38 +235,27 @@ mod tests {
         ));
         rq.add_task(worker_task(
             10,
-            ResourceRequest::new(
+            /*ResourceRequest::new(
                 CpuRequest::Compact(2),
                 Duration::new(10, 0),
                 Default::default(),
-            ),
+            ),*/
+            cpus_compact(2).min_time_secs(10).finish(),
             1,
         ));
         rq.add_task(worker_task(
             11,
-            ResourceRequest::new(
-                CpuRequest::Compact(2),
-                Duration::new(40, 0),
-                Default::default(),
-            ),
+            cpus_compact(2).min_time_secs(40).finish(),
             1,
         ));
         rq.add_task(worker_task(
             12,
-            ResourceRequest::new(
-                CpuRequest::Compact(2),
-                Duration::new(20, 0),
-                Default::default(),
-            ),
+            cpus_compact(2).min_time_secs(20).finish(),
             1,
         ));
         rq.add_task(worker_task(
             13,
-            ResourceRequest::new(
-                CpuRequest::Compact(2),
-                Duration::new(30, 0),
-                Default::default(),
-            ),
+            cpus_compact(2).min_time_secs(30).finish(),
             1,
         ));
 
@@ -284,38 +274,22 @@ mod tests {
         ));
         rq.add_task(worker_task(
             10,
-            ResourceRequest::new(
-                CpuRequest::Compact(2),
-                Duration::new(10, 0),
-                Default::default(),
-            ),
+            cpus_compact(2).min_time_secs(10).finish(),
             1,
         ));
         rq.add_task(worker_task(
             11,
-            ResourceRequest::new(
-                CpuRequest::Compact(2),
-                Duration::new(40, 0),
-                Default::default(),
-            ),
+            cpus_compact(2).min_time_secs(40).finish(),
             1,
         ));
         rq.add_task(worker_task(
             12,
-            ResourceRequest::new(
-                CpuRequest::Compact(2),
-                Duration::new(20, 0),
-                Default::default(),
-            ),
+            cpus_compact(2).min_time_secs(20).finish(),
             1,
         ));
         rq.add_task(worker_task(
             13,
-            ResourceRequest::new(
-                CpuRequest::Compact(2),
-                Duration::new(30, 0),
-                Default::default(),
-            ),
+            cpus_compact(2).min_time_secs(30).finish(),
             1,
         ));
 

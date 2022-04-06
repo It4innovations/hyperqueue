@@ -157,7 +157,7 @@ impl TestEnv {
         let ids = utils::sorted_vec(
             self.core
                 .get_worker_by_id_or_panic(worker_id)
-                .tasks()
+                .sn_tasks()
                 .iter()
                 .copied()
                 .collect(),
@@ -169,14 +169,17 @@ impl TestEnv {
     }
 
     pub fn worker_load<W: Into<WorkerId>>(&self, worker_id: W) -> &WorkerLoad {
-        &self.core.get_worker_by_id_or_panic(worker_id.into()).load
+        &self
+            .core
+            .get_worker_by_id_or_panic(worker_id.into())
+            .sn_load
     }
 
     pub fn check_worker_load_lower_bounds(&self, cpus: &[NumOfCpus]) {
         let found_cpus: Vec<NumOfCpus> = utils::sorted_vec(
             self.core
                 .get_workers()
-                .map(|w| w.load.get_n_cpus())
+                .map(|w| w.sn_load.get_n_cpus())
                 .collect(),
         );
         for (c, f) in cpus.iter().zip(found_cpus.iter()) {
@@ -193,9 +196,9 @@ impl TestEnv {
             println!(
                 "Worker {} ({}) {}",
                 worker.id,
-                worker.load.get_n_cpus(),
+                worker.sn_load.get_n_cpus(),
                 worker
-                    .tasks()
+                    .sn_tasks()
                     .iter()
                     .map(|&task_id| format!(
                         "{}:{:?}",
@@ -331,7 +334,7 @@ impl Comm for TestComm {
     fn send_client_task_started(
         &mut self,
         task_id: TaskId,
-        _worker_id: WorkerId,
+        _worker_id: &[WorkerId],
         _context: SerializedTaskContext,
     ) {
         self.client_task_running.push(task_id);

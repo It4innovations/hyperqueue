@@ -82,6 +82,7 @@ fn create_task_configuration(
         .collect();
 
     let resources = ResourceRequest::new(
+        resources_msg.n_nodes,
         resources_msg.cpus,
         resources_msg.min_time,
         generic_resources,
@@ -157,6 +158,7 @@ pub async fn process_client_message(
                             TaskRuntimeState::Assigned(_) => TaskState::Waiting,
                             TaskRuntimeState::Stealing(_, _) => TaskState::Waiting,
                             TaskRuntimeState::Running { .. } => TaskState::Waiting,
+                            TaskRuntimeState::RunningMultiNode(_) => TaskState::Waiting,
                             TaskRuntimeState::Finished(_) => TaskState::Finished,
                         },
                     }

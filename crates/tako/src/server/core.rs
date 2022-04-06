@@ -7,6 +7,7 @@ use crate::common::resources::map::{ResourceIdAllocator, ResourceMap};
 use crate::common::resources::{GenericResourceId, ResourceRequest};
 use crate::common::{Map, Set, WrappedRcRefCell};
 use crate::messages::gateway::ServerInfo;
+use crate::scheduler::multinode::MultiNodeQueue;
 use crate::server::rpc::ConnectionDescriptor;
 use crate::server::task::{Task, TaskRuntimeState};
 use crate::server::taskmap::TaskMap;
@@ -25,7 +26,9 @@ pub struct Core {
     /* Scheduler items */
     parked_resources: Set<WorkerResources>, // Resources of workers that has flag NOTHING_TO_LOAD
     // TODO: benchmark and possibly replace with a set
-    ready_to_assign: Vec<TaskId>,
+    single_node_ready_to_assign: Vec<TaskId>,
+    multi_node_ready_to_assign: Vec<TaskId>,
+    multi_node_queue: MultiNodeQueue,
     has_new_tasks: bool,
 
     sleeping_tasks: Vec<TaskId>, // Tasks that cannot be scheduled to any available worker
@@ -62,23 +65,23 @@ impl CoreRef {
 }
 
 impl Core {
-    #[inline]
-    pub fn split_tasks_workers(&self) -> (&TaskMap, &WorkerMap) {
-        (&self.tasks, &self.workers)
-    }
+    // #[inline]
+    // pub(crate) fn split_tasks_workers(&self) -> (&TaskMap, &WorkerMap) {
+    //     (&self.tasks, &self.workers)
+    // }
 
     #[inline]
-    pub fn split_tasks_workers_mut(&mut self) -> (&mut TaskMap, &mut WorkerMap) {
+    pub(crate) fn split_tasks_workers_mut(&mut self) -> (&mut TaskMap, &mut WorkerMap) {
         (&mut self.tasks, &mut self.workers)
     }
 
-    pub fn new_worker_id(&mut self) -> WorkerId {
+    pub(crate) fn new_worker_id(&mut self) -> WorkerId {
         self.worker_id_counter += 1;
         WorkerId::new(self.worker_id_counter)
     }
 
     #[inline]
-    pub fn is_used_task_id(&self, task_id: TaskId) -> bool {
+    pub(crate) fn is_used_task_id(&self, task_id: TaskId) -> bool {
         task_id <= self.maximal_task_id
     }
 
@@ -86,13 +89,23 @@ impl Core {
         &self.idle_timeout
     }
 
-    pub fn park_workers(&mut self) {
+    pub(crate) fn multi_node_queue_split(
+        &mut self,
+    ) -> (&mut MultiNodeQueue, &mut TaskMap, &mut WorkerMap) {
+        (
+            &mut self.multi_node_queue,
+            &mut self.tasks,
+            &mut self.workers,
+        )
+    }
+
+    pub(crate) fn park_workers(&mut self) {
         for worker in self.workers.values_mut() {
             if worker.is_underloaded()
                 && worker
-                    .tasks()
+                    .sn_tasks()
                     .iter()
-                    .all(|&task_id| self.tasks.get_task(task_id).is_running())
+                    .all(|&task_id| self.tasks.get_task(task_id).is_sn_running())
             {
                 log::debug!("Parking worker {}", worker.id);
                 worker.set_parked_flag(true);
@@ -101,15 +114,13 @@ impl Core {
         }
     }
 
-    pub fn add_sleeping_task(&mut self, task_id: TaskId) {
+    pub(crate) fn add_sleeping_task(&mut self, task_id: TaskId) {
         self.sleeping_tasks.push(task_id);
     }
 
-    pub fn take_sleeping_tasks(&mut self) -> Vec<TaskId> {
+    pub(crate) fn take_sleeping_tasks(&mut self) -> Vec<TaskId> {
         std::mem::take(&mut self.sleeping_tasks)
     }
-
-    pub fn reset_waiting_resources(&mut self) {}
 
     pub fn get_server_info(&self) -> ServerInfo {
         ServerInfo {
@@ -117,20 +128,19 @@ impl Core {
         }
     }
 
-    pub fn take_ready_to_assign(&mut self) -> Vec<TaskId> {
-        std::mem::take(&mut self.ready_to_assign)
+    pub(crate) fn take_single_node_ready_to_assign(&mut self) -> Vec<TaskId> {
+        std::mem::take(&mut self.single_node_ready_to_assign)
+    }
+
+    pub(crate) fn take_multi_node_ready_to_assign(&mut self) -> Vec<TaskId> {
+        std::mem::take(&mut self.multi_node_ready_to_assign)
     }
 
     pub fn get_worker_listen_port(&self) -> u16 {
         self.worker_listen_port
     }
 
-    pub fn update_max_task_id(&mut self, task_id: TaskId) {
-        assert!(task_id >= self.maximal_task_id);
-        self.maximal_task_id = task_id;
-    }
-
-    pub fn check_has_new_tasks_and_reset(&mut self) -> bool {
+    pub(crate) fn check_has_new_tasks_and_reset(&mut self) -> bool {
         let result = self.has_new_tasks;
         self.has_new_tasks = false;
         result
@@ -139,20 +149,14 @@ impl Core {
     pub fn new_worker(&mut self, worker: Worker) {
         /* Wake up sleeping tasks */
         let mut sleeping_tasks = self.take_sleeping_tasks();
-        self.ready_to_assign.append(&mut sleeping_tasks);
+        self.single_node_ready_to_assign.append(&mut sleeping_tasks);
 
         let worker_id = worker.id;
         self.workers.insert(worker_id, worker);
     }
 
-    pub fn remove_worker(&mut self, worker_id: WorkerId) -> Worker {
+    pub(crate) fn remove_worker(&mut self, worker_id: WorkerId) -> Worker {
         self.workers.remove(&worker_id).unwrap()
-    }
-
-    pub fn get_worker_by_address(&self, address: &str) -> Option<&Worker> {
-        self.workers
-            .values()
-            .find(|w| w.configuration.listen_address == address)
     }
 
     pub fn get_worker_addresses(&self) -> Map<WorkerId, String> {
@@ -207,15 +211,17 @@ impl Core {
     }
 
     pub fn add_task(&mut self, task: Task) {
-        if task.is_ready() {
-            self.add_ready_to_assign(task.id);
-        }
+        let is_ready = task.is_ready();
+        let task_id = task.id;
         self.has_new_tasks = true;
         assert!(self.tasks.insert(task).is_none());
+        if is_ready {
+            self.add_ready_to_assign(task_id);
+        }
     }
 
     #[inline(never)]
-    fn wakeup_parked_resources(&mut self) {
+    pub(crate) fn wakeup_parked_resources(&mut self) {
         log::debug!("Waking up parked resources");
         for worker in self.workers.values_mut() {
             worker.set_parked_flag(false);
@@ -223,19 +229,31 @@ impl Core {
         self.parked_resources.clear();
     }
 
-    #[inline]
-    pub fn try_wakeup_parked_resources(&mut self, request: &ResourceRequest) {
-        for res in &self.parked_resources {
-            if res.is_capable_to_run(request) {
-                self.wakeup_parked_resources();
-                break;
-            }
-        }
+    pub(crate) fn has_parked_resources(&mut self) -> bool {
+        !self.parked_resources.is_empty()
     }
 
     #[inline]
-    pub fn add_ready_to_assign(&mut self, task_id: TaskId) {
-        self.ready_to_assign.push(task_id);
+    pub(crate) fn check_parked_resources(&self, request: &ResourceRequest) -> bool {
+        for res in &self.parked_resources {
+            if res.is_capable_to_run(request) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub(crate) fn add_ready_to_assign(&mut self, task_id: TaskId) {
+        let is_multi_node = self
+            .get_task(task_id)
+            .configuration
+            .resources
+            .is_multi_node();
+        if is_multi_node {
+            self.multi_node_ready_to_assign.push(task_id);
+        } else {
+            self.single_node_ready_to_assign.push(task_id);
+        }
     }
 
     // TODO: move to TaskMap
@@ -257,7 +275,8 @@ impl Core {
         for &task_id in tasks {
             let _ = self.remove_task(task_id);
         }
-        self.ready_to_assign.retain(|t| !tasks.contains(t));
+        self.single_node_ready_to_assign
+            .retain(|t| !tasks.contains(t));
     }
 
     #[inline]
@@ -271,30 +290,31 @@ impl Core {
     }
 
     #[inline]
-    pub fn get_task(&self, task_id: TaskId) -> &Task {
+    pub(crate) fn get_task(&self, task_id: TaskId) -> &Task {
         self.tasks.get_task(task_id)
     }
 
     #[inline]
-    pub fn get_task_mut(&mut self, task_id: TaskId) -> &mut Task {
+    pub(crate) fn get_task_mut(&mut self, task_id: TaskId) -> &mut Task {
         self.tasks.get_task_mut(task_id)
     }
 
     #[inline]
-    pub fn find_task(&self, task_id: TaskId) -> Option<&Task> {
+    pub(crate) fn find_task(&self, task_id: TaskId) -> Option<&Task> {
         self.tasks.find_task(task_id)
     }
 
     #[inline]
-    pub fn find_task_mut(&mut self, task_id: TaskId) -> Option<&mut Task> {
+    pub(crate) fn find_task_mut(&mut self, task_id: TaskId) -> Option<&mut Task> {
         self.tasks.find_task_mut(task_id)
     }
 
-    pub fn custom_conn_handler(&self) -> &Option<CustomConnectionHandler> {
+    pub(crate) fn custom_conn_handler(&self) -> &Option<CustomConnectionHandler> {
         &self.custom_conn_handler
     }
 
-    pub fn sanity_check(&self) {
+    #[cfg(test)]
+    pub(crate) fn sanity_check(&self) {
         let fw_check = |task: &Task| {
             for input in &task.inputs {
                 assert!(self.tasks.get_task(input.task()).is_finished());
@@ -304,12 +324,15 @@ impl Core {
             }
         };
 
-        let worker_check = |core: &Core, task_id: TaskId, wid: WorkerId| {
+        let worker_check_sn = |core: &Core, task_id: TaskId, wid: WorkerId| {
             for (worker_id, worker) in core.workers.iter() {
+                if let Some(mn) = worker.mn_task() {
+                    assert_ne!(mn.task_id, task_id);
+                }
                 if wid == *worker_id {
-                    assert!(worker.tasks().contains(&task_id));
+                    assert!(worker.sn_tasks().contains(&task_id));
                 } else {
-                    assert!(!worker.tasks().contains(&task_id));
+                    assert!(!worker.sn_tasks().contains(&task_id));
                 }
             }
         };
@@ -337,7 +360,7 @@ impl Core {
                         assert!(self.tasks.get_task(task_id).is_waiting());
                     }
                     assert_eq!(winfo.unfinished_deps, count);
-                    worker_check(self, task.id, 0.into());
+                    worker_check_sn(self, task.id, 0.into());
                     assert!(task.is_fresh());
                 }
 
@@ -345,13 +368,13 @@ impl Core {
                 | TaskRuntimeState::Running { worker_id: wid, .. } => {
                     assert!(!task.is_fresh());
                     fw_check(task);
-                    worker_check(self, task.id, *wid);
+                    worker_check_sn(self, task.id, *wid);
                 }
 
                 TaskRuntimeState::Stealing(_, target) => {
                     assert!(!task.is_fresh());
                     fw_check(task);
-                    worker_check(self, task.id, target.unwrap_or(WorkerId::new(0)));
+                    worker_check_sn(self, task.id, target.unwrap_or(WorkerId::new(0)));
                 }
 
                 TaskRuntimeState::Finished(_) => {
@@ -359,30 +382,48 @@ impl Core {
                         assert!(self.tasks.get_task(ti.task()).is_finished());
                     }
                 }
+                TaskRuntimeState::RunningMultiNode(ws) => {
+                    assert!(!ws.is_empty());
+                    fw_check(task);
+                    let mut set = Set::new();
+                    for worker_id in ws {
+                        assert!(self.workers.contains_key(&worker_id));
+                        assert!(set.insert(*worker_id));
+                    }
+                    for (worker_id, worker) in self.workers.iter() {
+                        if set.contains(worker_id) {
+                            assert!(worker.sn_tasks().is_empty());
+                            let mn = worker.mn_task().unwrap();
+                            assert_eq!(mn.task_id, task_id);
+                            assert_eq!(ws[0] != *worker_id, mn.reservation_only);
+                        } else {
+                            assert!(!worker.sn_tasks().contains(&task_id));
+                            if let Some(mn) = worker.mn_task() {
+                                assert_ne!(mn.task_id, task_id);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
     #[inline]
-    pub fn get_or_create_generic_resource_id(&mut self, name: &str) -> GenericResourceId {
+    pub(crate) fn get_or_create_generic_resource_id(&mut self, name: &str) -> GenericResourceId {
         self.resource_map.get_or_allocate_id(name)
     }
 
     #[inline]
-    pub fn create_resource_map(&self) -> ResourceMap {
+    pub(crate) fn create_resource_map(&self) -> ResourceMap {
         self.resource_map.create_map()
     }
 
     #[inline]
-    pub fn resource_count(&self) -> usize {
+    pub(crate) fn resource_count(&self) -> usize {
         self.resource_map.resource_count()
     }
 
-    pub fn set_secret_key(&mut self, secret_key: Option<Arc<SecretKey>>) {
-        self.secret_key = secret_key
-    }
-
-    pub fn secret_key(&self) -> &Option<Arc<SecretKey>> {
+    pub(crate) fn secret_key(&self) -> &Option<Arc<SecretKey>> {
         &self.secret_key
     }
 }
@@ -398,11 +439,12 @@ mod tests {
 
     impl Core {
         pub fn get_read_to_assign(&self) -> &[TaskId] {
-            &self.ready_to_assign
+            &self.single_node_ready_to_assign
         }
 
         pub fn remove_from_ready_to_assign(&mut self, task_id: TaskId) {
-            self.ready_to_assign.retain(|&id| id != task_id);
+            self.single_node_ready_to_assign.retain(|&id| id != task_id);
+            self.multi_node_ready_to_assign.retain(|&id| id != task_id);
         }
 
         pub fn assert_task_condition<T: Copy + Into<TaskId>, F: Fn(&Task) -> bool>(
@@ -452,7 +494,7 @@ mod tests {
         }
 
         pub fn assert_running<T: Copy + Into<TaskId>>(&self, task_ids: &[T]) {
-            self.assert_task_condition(task_ids, |t| t.is_running());
+            self.assert_task_condition(task_ids, |t| t.is_sn_running());
         }
 
         pub fn assert_underloaded<W: Copy + Into<WorkerId>>(&self, worker_ids: &[W]) {

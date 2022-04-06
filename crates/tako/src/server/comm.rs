@@ -24,7 +24,7 @@ pub trait Comm {
     fn send_client_task_started(
         &mut self,
         task_id: TaskId,
-        worker_id: WorkerId,
+        worker_ids: &[WorkerId],
         context: SerializedTaskContext,
     );
     fn send_client_task_error(
@@ -130,7 +130,7 @@ impl Comm for CommSender {
     fn send_client_task_started(
         &mut self,
         task_id: TaskId,
-        worker_id: WorkerId,
+        worker_ids: &[WorkerId],
         context: SerializedTaskContext,
     ) {
         log::debug!("Informing client about running task={}", task_id);
@@ -138,7 +138,10 @@ impl Comm for CommSender {
             .client_sender
             .send(ToGatewayMessage::TaskUpdate(TaskUpdate {
                 id: task_id,
-                state: TaskState::Running { worker_id, context },
+                state: TaskState::Running {
+                    worker_ids: worker_ids.into(),
+                    context,
+                },
             }))
         {
             log::error!("Error while task started message to client: {error:?}");

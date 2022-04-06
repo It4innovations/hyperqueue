@@ -115,6 +115,7 @@ impl Output for JsonOutput {
                         },
                     resources:
                         ResourceRequest {
+                            n_nodes,
                             cpus,
                             generic,
                             min_time,
@@ -135,6 +136,7 @@ impl Output for JsonOutput {
                 "stdout": format_stdio_def(&stdout),
             });
             json["resources"] = json!({
+                "n_nodes": n_nodes,
                 "cpus": format_cpu_request(cpus),
                 "generic": generic,
                 "min_time": format_duration(min_time)
@@ -225,7 +227,16 @@ impl Output for JsonOutput {
 
 fn fill_task_started_data(dict: &mut Value, data: StartedTaskData) {
     dict["started_at"] = format_datetime(data.start_date);
-    dict["worker"] = data.worker_id.as_num().into();
+    if data.worker_ids.len() == 1 {
+        dict["worker"] = data.worker_ids[0].as_num().into();
+    } else {
+        dict["workers"] = data
+            .worker_ids
+            .iter()
+            .map(|worker_id| worker_id.as_num().into())
+            .collect::<Vec<Value>>()
+            .into();
+    }
 }
 
 fn fill_task_paths(dict: &mut Value, map: &TaskToPathsMap, task_id: JobTaskId) {

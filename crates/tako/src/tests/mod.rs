@@ -3,6 +3,8 @@ mod integration;
 #[cfg(test)]
 mod test_reactor;
 #[cfg(test)]
-mod test_scheduler;
+pub mod test_scheduler_mn;
+#[cfg(test)]
+mod test_scheduler_sn;
 
 pub mod utils;

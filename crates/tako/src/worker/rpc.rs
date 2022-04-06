@@ -2,7 +2,7 @@ use std::future::Future;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use bytes::{Bytes, BytesMut};
 use futures::{SinkExt, Stream, StreamExt};
@@ -35,19 +35,15 @@ use crate::WorkerId;
 use futures::future::Either;
 use tokio::sync::Notify;
 
-async fn start_listener() -> crate::Result<(TcpListener, String)> {
+async fn start_listener() -> crate::Result<(TcpListener, u16)> {
     let address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
     let listener = TcpListener::bind(address).await?;
-    let address = {
+    let port = {
         let socketaddr = listener.local_addr()?;
-        format!(
-            "{}:{}",
-            gethostname::gethostname().into_string().unwrap(),
-            socketaddr.port()
-        )
+        socketaddr.port()
     };
-    log::info!("Listening on {}", address);
-    Ok((listener, address))
+    log::info!("Listening on port {}", port);
+    Ok((listener, port))
 }
 
 async fn connect_to_server(address: SocketAddr) -> crate::Result<(TcpStream, SocketAddr)> {
@@ -104,8 +100,8 @@ pub async fn run_worker(
     (WorkerId, WorkerConfiguration),
     impl Future<Output = crate::Result<()>>,
 )> {
-    let (_listener, address) = start_listener().await?;
-    configuration.listen_address = address;
+    let (_listener, port) = start_listener().await?;
+    configuration.listen_address = format!("{}:{}", configuration.hostname, port);
     let ConnectionDescriptor {
         mut sender,
         mut receiver,
@@ -307,7 +303,7 @@ async fn idle_timeout_process(idle_timeout: Duration, state_ref: WrappedRcRefCel
         interval.tick().await;
 
         let state = state_ref.get();
-        if !state.has_tasks() {
+        if !state.has_tasks() && !state.reservation {
             let elapsed = state.last_task_finish_time.elapsed();
             if elapsed > idle_timeout {
                 break;
@@ -357,6 +353,12 @@ async fn worker_message_loop(
                     .worker_addresses
                     .insert(msg.worker_id, msg.address)
                     .is_none())
+            }
+            ToWorkerMessage::Reservation(on_off) => {
+                state.reservation = on_off;
+                if !on_off {
+                    state.last_task_finish_time = Instant::now();
+                }
             }
             ToWorkerMessage::Stop => {
                 log::info!("Received stop command");

@@ -323,7 +323,11 @@ impl ResourcePool {
                 value: pool.claim_resources(gr.amount),
             })
         }
-        Some(ResourceAllocation::new(cpus, generic_allocations))
+        Some(ResourceAllocation::new(
+            Vec::new(),
+            cpus,
+            generic_allocations,
+        ))
     }
 }
 
