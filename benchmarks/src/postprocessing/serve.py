@@ -13,6 +13,8 @@ from .monitor import create_page
 from .overview import pregenerate_entries, create_summary_page, create_comparer_page
 from ..benchmark.database import Database
 from .report import ClusterReport
+from .common import create_database_df, groupby_workload
+import re
 
 
 def serve_cluster_report(report: ClusterReport, port: int):
@@ -55,10 +57,21 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             source_code = html_file.read()
             self.write(source_code)
 
+    class CompareOverview(web.RequestHandler):
+        def get(self, key: str):
+            df = create_database_df(database)
+            key = key.split("(")[1].split(")")[0]
+            df = df[df['workload-params'] == key]
+            max_index = df['index'].max()
+            samples = [df[df['index'] == i] for i in range(max_index + 1)]
+            tables = [i['duration'].describe().to_frame().transpose().to_html() for i in samples]
+            self.write(key)
+
     app = web.Application(
         [
             (r"/comparisons/(.*)", ComparisonHandler),
             (r"/monitoring/(.*)", ClusterHandler),
+            (r"/compare/(.*)", CompareOverview),
             (r"/", SummaryHandler),
         ]
     )
