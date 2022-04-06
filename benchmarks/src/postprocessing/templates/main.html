@@ -1,0 +1,168 @@
+<!--
+Inspired by:
+    https://www.w3schools.com/css/css_navbar.asp
+    https://www.w3schools.com/howto/howto_css_searchbar.asp
+-->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        table, th, tr {
+            border: 1px solid black;
+        }
+
+        .wrapper, html, body {
+            height: 100%;
+            margin: 0;
+        }
+
+        .wrapper {
+            display: flex;
+            flex-direction: column;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        .left h2 {
+            padding-left: 8px;
+        }
+
+        .row {
+            flex: 2;
+            display: flex;
+        }
+
+        .row1 {
+            display: flex;
+            background-color: #EEEEEE;
+        }
+
+        .left {
+            flex: 15%;
+            padding: 0;
+            background-color: #EEEEEE;
+        }
+
+        .right {
+            flex: 85%;
+        }
+
+        #environment {
+            padding-left: 20px;
+        }
+
+        #searchBar {
+            width: 100%;
+            font-size: 18px;
+            padding: 11px;
+            border: 1px solid #ddd;
+        }
+
+        #leftMenu {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        #leftMenu li a {
+            padding: 12px;
+            text-decoration: none;
+            color: black;
+            display: block
+        }
+
+        #leftMenu li a:hover {
+            background-color: #DDDDDD;
+        }
+
+        a:link {
+            text-decoration: none;
+            color: black;
+        }
+
+        a:visited {
+            text-decoration: none;
+            color: black;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        a:active {
+            text-decoration: underline;
+        }
+    </style>
+
+</head>
+<body>
+<div class="wrapper">
+    <div class="row1">
+        <div class="left">
+            <a href="/"><h2>Summary</h2></a>
+        </div>
+        <div class="right">
+            <div id="bench">
+
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="left">
+            <input type="text" id="searchBar" onkeyup="searchNavigation()" placeholder="Enter...">
+            <ul id="leftMenu">
+                {% for key in workloads %}
+                    <li><a onclick="showWorkload('{{ key }}')">{{ key }}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="right">
+            <div id="environment" style="position: absolute">
+
+            </div>
+            <iframe style="border: none;height:100%;width:100%;position: relative"
+                    src="overview"
+                    id="iframe_environment"></iframe>
+
+
+        </div>
+    </div>
+    {% for key in workloads %}
+        <div id="{{ key }}" style="display:none;">{{ workloads[key] }}</div>
+    {% endfor %}
+</div>
+
+<script>
+    function showWorkload(key) {
+        document.getElementById("bench").innerHTML = document.getElementById(key).innerHTML;
+        document.getElementById("environment").innerHTML = "";
+        var iframe_env = document.getElementById("iframe_environment");
+        iframe_env.style['visibility'] = "visible";
+        console.log(key);
+        iframe_env.src = "compare/" + key;
+    }
+
+    function searchNavigation() {
+        var filter, menu, elements, a, i;
+        filter = document.getElementById("searchBar").value.toUpperCase();
+        menu = document.getElementById("leftMenu");
+        elements = menu.getElementsByTagName("elements");
+        for (i = 0; i < elements.length; i++) {
+            a = elements[i].getElementsByTagName("a")[0];
+            if (a.innerHTML.toUpperCase().indexOf(filter) > -1) {
+                elements[i].style.display = "";
+            } else {
+                elements[i].style.display = "none";
+            }
+        }
+    }
+</script>
+
+</body>
+</html>

@@ -1,20 +1,30 @@
 import logging
+
+from dataclasses import dataclass
 import os
 from dataclasses import dataclass
 from glob import glob
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from glob import glob
 
+import os
 import humanize
 import numpy as np
 import pandas as pd
 import tqdm
 from bokeh.io import save
-from bokeh.layouts import column, row
-from bokeh.models import Button, Div, MultiChoice, Panel, Tabs
+from bokeh.models import (
+    Div,
+    Panel,
+    Tabs,
+    Button,
+    MultiChoice,
+)
 from bokeh.plotting import figure
 from bokeh.resources import CDN
+from bokeh.layouts import column, row
 from jinja2 import Template
 
 from ..benchmark.database import Database, DatabaseRecord
@@ -29,13 +39,13 @@ from .common import (
     pd_print_all,
 )
 from .monitor import (
-    create_global_resources_df,
-    create_per_process_resources_df,
     generate_cluster_report,
+    render_profiling_data,
+    create_global_resources_df,
     render_global_resource_usage,
     render_nodes_resource_usage,
+    create_per_process_resources_df,
     render_process_resource_usage,
-    render_profiling_data,
 )
 from .report import ClusterReport
 
@@ -99,52 +109,68 @@ def render_hq_comparison(
                 create_subtabs(render_profiling_data(report), name)
             )
 
-    # Render Global usage
-    for report in reports:
-        per_node_df = create_global_resources_df(report.monitoring)
-        name = report.directory.name
-        if not per_node_df.empty:
-            widgets["Global usage"].append(
-                create_subtabs(render_global_resource_usage(report, per_node_df), name)
-            )
+    return render(template, benchmark=entry, node_utilization=node_utilization)
 
-    # Render Node usage
-    node_maxes = {}
-    for report in reports:
-        per_node_df = create_global_resources_df(report.monitoring)
-        name = report.directory.name
 
-        if not per_node_df.empty:
-            # Get y-axis max
-            nodes_subtab = render_nodes_resource_usage(report, per_node_df)
-            for fig in nodes_subtab.children[0].children[1].children:
-                figmax = fig.y_range.end
-                if node_maxes.get(fig.title.text) is not None:
-                    node_maxes[fig.title.text] = max(
-                        figmax, node_maxes.get(fig.title.text)
-                    )
-                else:
-                    node_maxes[fig.title.text] = figmax
-            widgets["Node usage"].append(create_subtabs(nodes_subtab, name))
-
-    # Update y-axis to max
-    for w in widgets["Node usage"]:
-        for fig in w.tabs[0].child.children[0].children[1].children:
-            fig.y_range.end = node_maxes[fig.title.text]
-
-    # Render Process usage
-    for report in reports:
-        per_process_df = create_per_process_resources_df(report.monitoring)
-        name = report.directory.name
-        if not per_process_df.empty:
-            process = render_process_resource_usage(report, per_process_df)
-            widgets["Process usage"].append(create_subtabs(process, name))
+def render_hq_comparison(
+    entries: [BenchmarkEntry],
+    data: pd.DataFrame,
+):
+    def render_bench_subtab(child, name):
+        return Tabs(tabs=[Panel(child=child, title=name)])
 
     tabs = []
+    reports = [entry.report for entry in entries]
+    widgets = {
+        "Profiling data": [],
+        "Global usage": [],
+        "Node usage": [],
+        "Process usage": [],
+    }
+    node_maxes = {}
+
     for key in widgets:
-        # Show only widgets that are full
-        if len(widgets[key]) == len(reports):
-            tabs.append(Panel(child=row(widgets[key]), title=key))
+        for report in reports:
+            name = report.directory.name
+            panel = Tabs()
+
+            if key == "Profiling data":
+                panel = render_bench_subtab(render_profiling_data(report), name)
+            elif key == "Global usage":
+                per_node_df = create_global_resources_df(report.monitoring)
+                panel = render_bench_subtab(
+                    render_global_resource_usage(report, per_node_df), name
+                )
+            elif key == "Node usage":
+                # Keep maximum of each subfigure for axis sync between rows
+                per_node_df = create_global_resources_df(report.monitoring)
+                child = render_nodes_resource_usage(report, per_node_df)
+                figs = child.children[0].children[1].children
+                for fig in figs:
+                    figmax = fig.y_range.end
+                    if node_maxes.get(fig.title.text) is not None:
+                        node_maxes[fig.title.text] = max(
+                            figmax, node_maxes[fig.title.text]
+                        )
+                    else:
+                        node_maxes[fig.title.text] = figmax
+                panel = render_bench_subtab(child, name)
+            elif key == "Process usage":
+                per_process_df = create_per_process_resources_df(report.monitoring)
+                panel = render_bench_subtab(
+                    render_process_resource_usage(report, per_process_df), name
+                )
+            widgets[key].append(panel)
+
+    for w in widgets["Node usage"]:
+        figs = w.tabs[0].child.children[0].children[1].children
+        for fig in figs:
+            ymax = node_maxes[fig.title.text]
+            fig.y_range.end = ymax
+
+    for key in widgets:
+        tabs.append(Panel(child=row(widgets[key]), title=key))
+
     return Tabs(tabs=tabs)
 
 
@@ -168,29 +194,29 @@ def render_durations(title: str, durations: List[float]):
 
 
 def render_environment(
+    level: int,
     entry_map: EntryMap,
-    group: pd.DataFrame,
+    environment: str,
+    environment_params: str,
+    data: pd.DataFrame,
 ):
     content = "<h3>Aggregated durations</h3>"
-    durations = group["duration"]
     with pd_print_all():
-        table = durations.describe().to_frame().transpose()
+        table = data["duration"].describe().to_frame().transpose()
         table = table.to_html(justify="center")
         content += table
 
-    content += "<h3>Runs</h3>"
-    items = sorted(group.itertuples(index=False), key=lambda v: v.index)
-    for idx, item in enumerate(items):
-        content += "<hr>"
-        content += f"{idx}: "
+    items = sorted(data.itertuples(index=False), key=lambda v: v.index)
+    for item in items:
         entry = entry_map.get(item.key)
         if entry is not None:
             content += render_benchmark(entry)
-    content += "<hr>"
+
     return content
 
 
 def render_workload(
+    level: int,
     entry_map: EntryMap,
     workload: str,
     workload_params: str,
@@ -204,7 +230,9 @@ def render_workload(
     environments = {}
     for (group, group_data) in groupby_environment(data):
         key = group[0] + "(" + group[1] + ") [" + workload + ":" + workload_params + "]"
-        environments[key] = render_environment(entry_map, group_data)
+        environments[key] = render_environment(
+            level + 1, entry_map, group[0], group[1], group_data
+        )
     return render(template, environments=environments)
 
 
@@ -295,6 +323,34 @@ def two_level_summary(
             print(file=file)
 
 
+def generate_comparison_html(
+    benchmarks: List[str], database: Database, directory: Path
+):
+    entry_map = pregenerate_entries(database, directory)
+    ensure_directory(directory.joinpath("comparisons"))
+
+    df = create_database_df(database)
+    data = df.loc[df["key"].isin(benchmarks)]
+
+    hq_benchmark_entries = []
+    for benchmark in benchmarks:
+        entry = entry_map.get(benchmark)
+        if entry is not None:
+            if entry.record.environment == "hq":
+                hq_benchmark_entries.append(entry)
+            else:
+                print("Only hq comparison is currently supported")
+                return
+
+    comparison = render_hq_comparison(hq_benchmark_entries, data)
+    save(
+        comparison,
+        directory.joinpath("comparisons", "_".join(benchmarks) + ".html"),
+        title="Bench Comparison",
+        resources=CDN,
+    )
+
+
 def generate_summary_text(database: Database, file):
     df = create_database_df(database)
     if df.empty:
@@ -323,7 +379,7 @@ def generate_summary_text(database: Database, file):
 
 def create_summary_page(database: Database, directory: Path):
     with open(
-        os.path.join(os.path.dirname(__file__), "templates/summary.html")
+        os.path.join(os.path.dirname(__file__), "templates/main.html")
     ) as file:
         template = file.read()
 
@@ -333,7 +389,7 @@ def create_summary_page(database: Database, directory: Path):
     workloads = {}
     for (group, group_data) in groupby_workload(df):
         name = group[0] + f"({group[1]})"
-        workloads[name] = render_workload(entry_map, group[0], group[1], group_data)
+        workloads[name] = render_workload(0, entry_map, group[0], group[1], group_data)
     return render(template, workloads=workloads)
 
 
@@ -357,23 +413,21 @@ def create_comparer_page(database: Database, directory: Path, addr: str):
     def callback():
         name = "_".join(bench_choice.value) + ".html"
         if comparisons.get(name) is None:
+            data = df.loc[df["key"].isin(bench_choice.value)]
+
             entries = []
             for bench in bench_choice.value:
                 if entry_map.get(bench) is not None:
                     entries.append(entry_map[bench])
 
-            page = render_hq_comparison(entries)
+            page = render_hq_comparison(entries, data)
             location = Path("comparisons").joinpath(name)
             save(page, directory.joinpath(location), CDN, "Comparison")
 
             comparisons[name] = create_href(addr, location, name)
             comparisons_col.update(children=list(comparisons.values()))
 
-    # Select benches that have monitoring
-    bench_opts = []
-    for bench in df["key"].to_list():
-        if entry_map[bench].monitoring_report:
-            bench_opts.append(bench)
+    bench_opts = df["key"].to_list()
     bench_choice = MultiChoice(options=bench_opts)
 
     btn = Button(label="Compare", button_type="success")
