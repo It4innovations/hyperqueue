@@ -20,8 +20,9 @@ impl AllocationInfoTable {
     pub fn update<'a>(
         &'a mut self,
         allocation_info: impl Iterator<Item = (&'a AllocationId, &'a AllocationInfo)>,
+        display_time: SystemTime,
     ) {
-        let rows = create_rows(allocation_info);
+        let rows = create_rows(allocation_info, display_time);
         self.table.set_items(rows);
     }
 
@@ -104,13 +105,14 @@ impl AllocationInfoTable {
 
 fn create_rows<'a>(
     allocations: impl Iterator<Item = (&'a AllocationId, &'a AllocationInfo)>,
+    display_time: SystemTime,
 ) -> Vec<(AllocationId, AllocationInfo)> {
     let mut info_rows: Vec<(AllocationId, AllocationInfo)> = allocations
         .map(|(alloc_id, info)| (alloc_id.clone(), *info))
         .collect();
 
     info_rows.sort_by_key(|(_, alloc_info_row)| {
-        let status_index = match get_allocation_status(alloc_info_row, SystemTime::now()) {
+        let status_index = match get_allocation_status(alloc_info_row, display_time) {
             AllocationStatus::Running => 0,
             AllocationStatus::Queued => 1,
             AllocationStatus::Finished => 2,

@@ -61,14 +61,14 @@ impl JobFragment {
         );
     }
 
-    pub fn update(&mut self, data: &DashboardData) {
-        self.jobs_list.update(data);
+    pub fn update(&mut self, data: &DashboardData, display_time: SystemTime) {
+        self.jobs_list.update(data, display_time);
 
         if let Some(job_id) = self.jobs_list.get_selected_item() {
             let task_infos: Vec<(JobTaskId, &TaskInfo)> = data
-                .query_task_history_for_job(job_id, SystemTime::now())
+                .query_task_history_for_job(job_id, display_time)
                 .collect();
-            self.job_tasks_table.update(task_infos);
+            self.job_tasks_table.update(task_infos, display_time);
             self.job_task_chart.set_job_id(job_id);
         } else {
             self.job_task_chart.clear_chart();
@@ -81,7 +81,7 @@ impl JobFragment {
             self.job_info_table.update(job_info);
         }
 
-        self.job_task_chart.update(data);
+        self.job_task_chart.update(data, display_time);
     }
 
     /// Handles key presses for the components of the screen

@@ -18,17 +18,19 @@ struct WorkerCountRecord {
 pub struct ClusterOverviewChart {
     /// Worker count records that should be currently displayed.
     worker_records: Vec<WorkerCountRecord>,
-    /// The time for which the data is plotted for.
+    /// The duration for which the data is plotted for.
     view_size: Duration,
+    /// The time until which data is plotted for.
+    end_time: SystemTime,
 }
 
 impl ClusterOverviewChart {
-    pub fn update(&mut self, data: &DashboardData) {
-        let end = SystemTime::now();
-        let mut start = end - self.view_size;
+    pub fn update(&mut self, data: &DashboardData, display_time: SystemTime) {
+        self.end_time = display_time;
+        let mut start = self.end_time - self.view_size;
         let mut times = vec![];
 
-        while start <= end {
+        while start <= self.end_time {
             times.push(start);
             start += Duration::from_secs(1);
         }
@@ -78,8 +80,8 @@ impl ClusterOverviewChart {
                     .title("time ->")
                     .style(Style::default().fg(Color::Gray))
                     .bounds([
-                        get_time_as_secs(SystemTime::now() - self.view_size) as f64,
-                        get_time_as_secs(SystemTime::now()) as f64,
+                        get_time_as_secs(self.end_time - self.view_size) as f64,
+                        get_time_as_secs(self.end_time) as f64,
                     ]),
             )
             .y_axis(
@@ -100,6 +102,7 @@ impl Default for ClusterOverviewChart {
         Self {
             worker_records: vec![],
             view_size: Duration::from_secs(300),
+            end_time: SystemTime::now(),
         }
     }
 }

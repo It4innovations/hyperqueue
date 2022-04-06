@@ -1,3 +1,4 @@
+use std::time::SystemTime;
 use termion::event::Key;
 
 use crate::dashboard::ui::fragments::overview::cluster_overview_chart::ClusterOverviewChart;
@@ -32,9 +33,9 @@ impl ClusterOverviewFragment {
             .draw(layout.worker_util_table_chunk, frame);
     }
 
-    pub fn update(&mut self, data: &DashboardData) {
-        self.worker_util_table.update(data);
-        self.cluster_overview.update(data);
+    pub fn update(&mut self, data: &DashboardData, display_time: SystemTime) {
+        self.worker_util_table.update(data, display_time);
+        self.cluster_overview.update(data, display_time);
     }
 
     /// Handles key presses for the components of the screen

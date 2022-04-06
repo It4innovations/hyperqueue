@@ -70,13 +70,14 @@ impl AutoAllocatorFragment {
         );
     }
 
-    pub fn update(&mut self, data: &DashboardData) {
+    pub fn update(&mut self, data: &DashboardData, display_time: SystemTime) {
         let queue_infos: Vec<(&QueueId, &AllocationQueueInfo)> =
-            data.query_allocation_queues_at(SystemTime::now()).collect();
+            data.query_allocation_queues_at(display_time).collect();
         self.queue_info_table.update(queue_infos);
 
         if let Some(descriptor) = self.queue_info_table.get_selected_queue_descriptor() {
-            self.allocations_chart.update(data, descriptor);
+            self.allocations_chart
+                .update(data, descriptor, display_time);
         }
 
         if let Some(queue_params) = self
@@ -90,9 +91,10 @@ impl AutoAllocatorFragment {
         if let Some(allocations_map) = self
             .queue_info_table
             .get_selected_queue_descriptor()
-            .and_then(|queue_id| data.query_allocations_info_at(queue_id, SystemTime::now()))
+            .and_then(|queue_id| data.query_allocations_info_at(queue_id, display_time))
         {
-            self.allocations_info_table.update(allocations_map);
+            self.allocations_info_table
+                .update(allocations_map, display_time);
         }
     }
 

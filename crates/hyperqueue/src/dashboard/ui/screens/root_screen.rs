@@ -51,6 +51,20 @@ impl TimelineScrubber {
             self.display_time = time_range.fetched_until;
         }
     }
+
+    pub fn scrub_reverse(&mut self) {
+        let past_time = self.display_time - self.scrub_duration;
+        if past_time > self.time_range.fetched_from {
+            self.display_time = past_time;
+        }
+    }
+
+    pub fn scrub_forward(&mut self) {
+        let future_time = self.display_time + self.scrub_duration;
+        if future_time < self.time_range.fetched_until {
+            self.display_time = future_time;
+        }
+    }
 }
 
 impl RootScreen {
@@ -61,7 +75,7 @@ impl RootScreen {
             .draw(|frame| {
                 let screen_state = self.current_screen;
                 let screen = self.get_current_screen_mut();
-                screen.update(data);
+                screen.update(data, timeline_scrubber.display_time);
 
                 render_screen_tabs(
                     screen_state,
@@ -92,6 +106,17 @@ impl RootScreen {
             }
             Key::Char('w') => {
                 self.current_screen = DashboardScreenState::WorkerOverview;
+            }
+            Key::Left => {
+                self.timeline_scrubber.is_live = false;
+                self.timeline_scrubber.scrub_reverse();
+            }
+            Key::Right => {
+                self.timeline_scrubber.is_live = false;
+                self.timeline_scrubber.scrub_forward();
+            }
+            Key::Char('l') => {
+                self.timeline_scrubber.is_live = true;
             }
 
             _ => {

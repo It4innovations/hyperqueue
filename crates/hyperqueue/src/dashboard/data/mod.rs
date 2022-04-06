@@ -102,9 +102,10 @@ impl DashboardData {
     pub fn query_task_history_for_worker(
         &self,
         worker_id: WorkerId,
+        until_time: SystemTime,
     ) -> impl Iterator<Item = (JobTaskId, &TaskInfo)> + '_ {
         self.job_timeline
-            .get_worker_task_history(worker_id, SystemTime::now())
+            .get_worker_task_history(worker_id, until_time)
     }
 
     /// Gets an iterator over the list of different allocation queues created before `time`.
