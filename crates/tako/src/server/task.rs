@@ -33,10 +33,12 @@ pub type SerializedTaskContext = Vec<u8>;
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum TaskRuntimeState {
-    Waiting(WaitingInfo), // Unfinished inputs
+    Waiting(WaitingInfo),
     Assigned(WorkerId),
     Stealing(WorkerId, Option<WorkerId>), // (from, to)
     Running { worker_id: WorkerId },
+    // The first worker is the root node where the command is executed, others are reserved
+    RunningMultiNode(Vec<WorkerId>),
     Finished(FinishInfo),
 }
 
@@ -47,6 +49,7 @@ impl fmt::Debug for TaskRuntimeState {
             Self::Assigned(w_id) => write!(f, "A({})", w_id),
             Self::Stealing(from_w, to_w) => write!(f, "S({}, {:?})", from_w, to_w),
             Self::Running { worker_id, .. } => write!(f, "R({})", worker_id),
+            Self::RunningMultiNode(ws) => write!(f, "M({:?})", ws),
             Self::Finished(_) => write!(f, "F"),
         }
     }
@@ -166,8 +169,13 @@ impl Task {
     }
 
     #[inline]
-    pub fn is_running(&self) -> bool {
+    pub fn is_sn_running(&self) -> bool {
         matches!(self.state, TaskRuntimeState::Running { .. })
+    }
+
+    #[inline]
+    pub fn is_mn_running(&self) -> bool {
+        matches!(self.state, TaskRuntimeState::RunningMultiNode { .. })
     }
 
     #[inline]
@@ -270,7 +278,7 @@ impl Task {
         self.instance_id = InstanceId(self.instance_id.as_num() + 1);
     }
 
-    pub fn make_compute_message(&self) -> ToWorkerMessage {
+    pub fn make_compute_message(&self, node_list: Vec<WorkerId>) -> ToWorkerMessage {
         ToWorkerMessage::ComputeTask(ComputeTaskMsg {
             id: self.id,
             instance_id: self.instance_id,
@@ -279,8 +287,20 @@ impl Task {
             resources: self.configuration.resources.clone(),
             time_limit: self.configuration.time_limit,
             n_outputs: self.configuration.n_outputs,
+            node_list,
             body: self.body.clone(),
         })
+    }
+
+    pub fn mn_placement(&self) -> Option<&[WorkerId]> {
+        match &self.state {
+            TaskRuntimeState::RunningMultiNode(ws) => Some(ws),
+            _ => None,
+        }
+    }
+
+    pub fn mn_root_worker(&self) -> Option<WorkerId> {
+        self.mn_placement().map(|ws| ws[0])
     }
 
     #[inline]
@@ -294,11 +314,12 @@ impl Task {
     }
 
     #[inline]
-    pub fn is_assigned_or_stealed_from(&self, worker_id: WorkerId) -> bool {
+    pub fn is_assigned_or_stolen_from(&self, worker_id: WorkerId) -> bool {
         match &self.state {
             TaskRuntimeState::Assigned(w)
             | TaskRuntimeState::Running { worker_id: w, .. }
             | TaskRuntimeState::Stealing(w, _) => worker_id == *w,
+            TaskRuntimeState::RunningMultiNode(ws) => ws[0] == worker_id,
             _ => false,
         }
     }
@@ -332,12 +353,13 @@ impl Task {
     #[inline]
     pub fn get_assigned_worker(&self) -> Option<WorkerId> {
         match &self.state {
-            TaskRuntimeState::Waiting(_) => None,
             TaskRuntimeState::Assigned(id)
             | TaskRuntimeState::Running { worker_id: id, .. }
             | TaskRuntimeState::Stealing(_, Some(id)) => Some(*id),
-            TaskRuntimeState::Stealing(_, None) => None,
-            TaskRuntimeState::Finished(_) => None,
+            TaskRuntimeState::Waiting(_)
+            | TaskRuntimeState::Stealing(_, None)
+            | TaskRuntimeState::RunningMultiNode(_)
+            | TaskRuntimeState::Finished(_) => None,
         }
     }
 

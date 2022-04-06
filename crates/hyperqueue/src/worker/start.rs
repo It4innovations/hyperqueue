@@ -1,7 +1,6 @@
-use std::fmt::Write;
 use std::fs::File;
 use std::io;
-use std::io::{ErrorKind, Read};
+use std::io::{BufWriter, ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::rc::Rc;
@@ -21,10 +20,10 @@ use tako::worker::launcher::{command_from_definitions, TaskLaunchData, TaskLaunc
 use tako::worker::state::WorkerState;
 use tako::worker::task::Task;
 use tako::worker::taskenv::{StopReason, TaskResult};
-use tako::{InstanceId, TaskId};
+use tako::{InstanceId, TaskId, WorkerId};
 
 use crate::common::env::{
-    HQ_CPUS, HQ_ERROR_FILENAME, HQ_INSTANCE_ID, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR,
+    HQ_CPUS, HQ_ERROR_FILENAME, HQ_INSTANCE_ID, HQ_NODE_FILE, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR,
 };
 use crate::common::placeholders::{
     fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
@@ -107,12 +106,23 @@ impl TaskLauncher for HqTaskLauncher {
                         .to_string()
                         .into(),
                 );
+                if !task.node_list.is_empty() {
+                    let filename = task_dir.path().join("hq-nodelist");
+                    write_node_file(state, &task.node_list, &filename)?;
+                    program.env.insert(
+                        HQ_NODE_FILE.into(),
+                        filename.to_string_lossy().to_string().into(),
+                    );
+                }
                 Some(task_dir)
             } else {
                 None
             };
 
-            insert_resources_into_env(state, task, allocation, &mut program);
+            // Do not insert resources for multi-node tasks, semantics has to be cleared
+            if task.node_list.is_empty() {
+                insert_resources_into_env(state, task, allocation, &mut program);
+            }
 
             let submit_dir: PathBuf = program.env[<&BStr>::from(HQ_SUBMIT_DIR)].to_string().into();
             program
@@ -193,6 +203,21 @@ fn create_directory_if_needed(file: &StdioDef) -> io::Result<()> {
 
 fn get_custom_error_filename(task_dir: &TempDir) -> PathBuf {
     task_dir.path().join("hq-error")
+}
+
+fn write_node_file(
+    state: &WorkerState,
+    node_list: &[WorkerId],
+    path: &Path,
+) -> std::io::Result<()> {
+    let file = File::create(path)?;
+    let mut file = BufWriter::new(file);
+    for worker_id in node_list {
+        file.write_all(state.worker_hostname(*worker_id).unwrap().as_bytes())?;
+        file.write_all(b"\n")?;
+    }
+    file.flush()?;
+    Ok(())
 }
 
 fn insert_resources_into_env(
@@ -326,6 +351,7 @@ async fn run_task(
 
 /// Provide a more detailed error message when a process fails to be spawned.
 fn map_spawn_error(error: std::io::Error, program: &ProgramDefinition) -> tako::Error {
+    use std::fmt::Write;
     let context = match &error.kind() {
         ErrorKind::NotFound => {
             let file = &program.args[0];

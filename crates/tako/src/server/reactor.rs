@@ -10,6 +10,7 @@ use crate::server::core::Core;
 use crate::server::task::{DataInfo, Task, TaskRuntimeState};
 use crate::server::task::{FinishInfo, WaitingInfo};
 use crate::server::worker::Worker;
+use crate::server::workermap::WorkerMap;
 use crate::{TaskId, WorkerId};
 
 pub fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worker) {
@@ -36,9 +37,10 @@ pub fn on_remove_worker(
     let mut removes = Vec::new();
     let mut running_tasks = Vec::new();
 
-    let task_ids: Vec<_> = core.task_map().task_ids().collect();
+    let (task_map, worker_map) = core.split_tasks_workers_mut();
+    let task_ids: Vec<_> = task_map.task_ids().collect();
     for task_id in task_ids {
-        let mut task = core.get_task_mut(task_id);
+        let mut task = task_map.get_task_mut(task_id);
 
         let new_state = match &mut task.state {
             TaskRuntimeState::Waiting(_) => continue,
@@ -51,7 +53,7 @@ pub fn on_remove_worker(
                     task.increment_instance_id();
                     task.set_fresh_flag(true);
                     ready_to_assign.push(task_id);
-                    if task.is_running() {
+                    if task.is_sn_running() {
                         running_tasks.push(task_id);
                     }
                     TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
@@ -86,6 +88,29 @@ pub fn on_remove_worker(
                 }
                 continue;
             }
+            TaskRuntimeState::RunningMultiNode(ws) => {
+                if ws.contains(&worker_id) {
+                    let root_worker_id = ws[0];
+                    for w in ws {
+                        worker_map.get_worker_mut(*w).reset_mn_task();
+                    }
+                    task.increment_instance_id();
+                    task.set_fresh_flag(true);
+                    ready_to_assign.push(task_id);
+                    running_tasks.push(task_id);
+
+                    // If non root then cancel task on root
+                    if worker_id != root_worker_id {
+                        comm.send_worker_message(
+                            root_worker_id,
+                            &ToWorkerMessage::CancelTasks(TaskIdsMsg { ids: vec![task_id] }),
+                        )
+                    }
+                    TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
+                } else {
+                    continue;
+                }
+            }
         };
         task.state = new_state;
     }
@@ -94,7 +119,7 @@ pub fn on_remove_worker(
         let (tasks, workers) = core.split_tasks_workers_mut();
         for (w_id, task_id) in removes {
             let task = tasks.get_task(task_id);
-            workers.get_worker_mut(w_id).remove_task(task)
+            workers.get_worker_mut(w_id).remove_sn_task(task)
         }
     }
 
@@ -155,20 +180,33 @@ pub fn on_task_running(
     } = message;
 
     let (tasks, workers) = core.split_tasks_workers_mut();
+    let simple_worker_list = &[worker_id];
     if let Some(mut task) = tasks.find_task_mut(task_id) {
-        task.state = match task.state {
+        let worker_ids = match &task.state {
             TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Stealing(w_id, None) => {
-                assert_eq!(w_id, worker_id);
-                TaskRuntimeState::Running { worker_id }
+                assert_eq!(*w_id, worker_id);
+                task.state = TaskRuntimeState::Running { worker_id };
+                simple_worker_list.as_slice()
             }
             TaskRuntimeState::Stealing(w_id, Some(target_id)) => {
-                assert_eq!(w_id, worker_id);
-                let worker = workers.get_worker_mut(target_id);
-                worker.remove_task(task);
-                let worker = workers.get_worker_mut(w_id);
-                worker.insert_task(task);
+                assert_eq!(*w_id, worker_id);
+                let worker = workers.get_worker_mut(*target_id);
+                worker.remove_sn_task(task);
+                let worker = workers.get_worker_mut(*w_id);
+                worker.insert_sn_task(task);
                 comm.ask_for_scheduling();
-                TaskRuntimeState::Running { worker_id }
+                task.state = TaskRuntimeState::Running { worker_id };
+                simple_worker_list.as_slice()
+            }
+            TaskRuntimeState::RunningMultiNode(ws) => {
+                // We have received that multi node task is started,
+                // Because we do not distinguish between assigned and running state
+                // for multi node tasks.
+                // (we are not overbooking multi-node tasks, assigned state is not interesting)
+                // we already have this task in running state
+                // So we do nothing here
+                assert_eq!(ws[0], worker_id);
+                ws.as_slice()
             }
             TaskRuntimeState::Running { .. }
             | TaskRuntimeState::Waiting(_)
@@ -178,8 +216,17 @@ pub fn on_task_running(
         };
 
         if task.is_observed() {
-            comm.send_client_task_started(task_id, worker_id, context);
+            comm.send_client_task_started(task_id, worker_ids, context);
         }
+    }
+}
+
+fn reset_mn_task_workers(worker_map: &mut WorkerMap, workers: &[WorkerId], task_id: TaskId) {
+    for w in workers {
+        let worker = worker_map.get_worker_mut(*w);
+        let mn = worker.mn_task().unwrap();
+        assert_eq!(mn.task_id, task_id);
+        worker.reset_mn_task();
     }
 }
 
@@ -193,7 +240,10 @@ pub fn on_task_finished(
         let (tasks, workers) = core.split_tasks_workers_mut();
         if let Some(mut task) = tasks.find_task_mut(msg.id) {
             log::debug!("Task id={} finished on worker={}", task.id, worker_id);
-            assert!(task.is_assigned_or_stealed_from(worker_id));
+
+            if task.configuration.resources.is_multi_node() {}
+
+            assert!(task.is_assigned_or_stolen_from(worker_id));
 
             match &task.state {
                 TaskRuntimeState::Assigned(w_id)
@@ -201,11 +251,15 @@ pub fn on_task_finished(
                     worker_id: w_id, ..
                 } => {
                     assert_eq!(*w_id, worker_id);
-                    workers.get_worker_mut(worker_id).remove_task(task);
+                    workers.get_worker_mut(worker_id).remove_sn_task(task);
+                }
+                TaskRuntimeState::RunningMultiNode(ws) => {
+                    assert_eq!(ws[0], worker_id);
+                    reset_mn_task_workers(workers, ws, task.id);
                 }
                 TaskRuntimeState::Stealing(w_id, Some(target_w)) => {
                     assert_eq!(*w_id, worker_id);
-                    workers.get_worker_mut(*target_w).remove_task(task);
+                    workers.get_worker_mut(*target_w).remove_sn_task(task);
                 }
                 TaskRuntimeState::Stealing(w_id, None) => {
                     assert_eq!(*w_id, worker_id);
@@ -302,7 +356,7 @@ pub fn on_steal_response(
                     log::debug!("Task stealing was successful task={}", task_id);
                     if let Some(w_id) = to_worker_id {
                         let task = core.get_task(task_id);
-                        comm.send_worker_message(w_id, &task.make_compute_message());
+                        comm.send_worker_message(w_id, &task.make_compute_message(Vec::new()));
                         TaskRuntimeState::Assigned(w_id)
                     } else {
                         comm.ask_for_scheduling();
@@ -316,9 +370,9 @@ pub fn on_steal_response(
                     let (tasks, workers) = core.split_tasks_workers_mut();
                     let task = tasks.get_task(task_id);
                     if let Some(w_id) = to_worker_id {
-                        workers.get_worker_mut(w_id).remove_task(task)
+                        workers.get_worker_mut(w_id).remove_sn_task(task)
                     }
-                    workers.get_worker_mut(from_worker_id).insert_task(task);
+                    workers.get_worker_mut(from_worker_id).insert_sn_task(task);
                     comm.ask_for_scheduling();
                     TaskRuntimeState::Running { worker_id }
                 }
@@ -372,11 +426,17 @@ pub fn on_task_error(
         let (tasks, workers) = core.split_tasks_workers_mut();
         if let Some(task) = tasks.find_task(task_id) {
             log::debug!("Task task {} failed", task_id);
-            assert!(task.is_assigned_or_stealed_from(worker_id));
-            workers.get_worker_mut(worker_id).remove_task(task);
-
+            if task.configuration.resources.is_multi_node() {
+                let ws = task.mn_placement().unwrap();
+                assert_eq!(ws[0], worker_id);
+                reset_mn_task_workers(workers, ws, task_id);
+            } else {
+                assert!(task.is_assigned_or_stolen_from(worker_id));
+                workers.get_worker_mut(worker_id).remove_sn_task(task);
+            }
             task.collect_consumers(tasks).into_iter().collect()
         } else {
+            log::debug!("Unknown task failed");
             return;
         }
     };
@@ -397,6 +457,7 @@ pub fn on_task_error(
         TaskRuntimeState::Assigned(_)
             | TaskRuntimeState::Running { .. }
             | TaskRuntimeState::Stealing(_, _)
+            | TaskRuntimeState::RunningMultiNode(_)
     ));
 
     for &consumer in &consumers {
@@ -444,14 +505,22 @@ pub fn on_cancel_tasks(
                 } => {
                     to_unregister.insert(task_id);
                     to_unregister.extend(task.collect_consumers(tasks).into_iter());
-                    workers.get_worker_mut(w_id).remove_task(task);
+                    workers.get_worker_mut(w_id).remove_sn_task(task);
                     running_ids.entry(w_id).or_default().push(task_id);
+                }
+                TaskRuntimeState::RunningMultiNode(ref ws) => {
+                    to_unregister.insert(task_id);
+                    to_unregister.extend(task.collect_consumers(tasks).into_iter());
+                    for w_id in ws {
+                        workers.get_worker_mut(*w_id).reset_mn_task();
+                    }
+                    running_ids.entry(ws[0]).or_default().push(task_id);
                 }
                 TaskRuntimeState::Stealing(from_id, to_id) => {
                     to_unregister.insert(task_id);
                     to_unregister.extend(task.collect_consumers(tasks).into_iter());
                     if let Some(to_id) = to_id {
-                        workers.get_worker_mut(to_id).remove_task(task);
+                        workers.get_worker_mut(to_id).remove_sn_task(task);
                     }
                     running_ids.entry(from_id).or_default().push(task_id);
                 }
@@ -493,6 +562,7 @@ pub fn on_tasks_transferred(core: &mut Core, worker_id: WorkerId, task_id: TaskI
             }
             TaskRuntimeState::Waiting(_)
             | TaskRuntimeState::Running { .. }
+            | TaskRuntimeState::RunningMultiNode(_)
             | TaskRuntimeState::Assigned(_)
             | TaskRuntimeState::Stealing(_, _) => {
                 panic!("Invalid task state");

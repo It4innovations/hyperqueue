@@ -1584,6 +1584,7 @@ mod tests {
             cwd: Default::default(),
         };
         let resources = ResourceRequest {
+            n_nodes: 0,
             cpus: Default::default(),
             generic: vec![],
             min_time,

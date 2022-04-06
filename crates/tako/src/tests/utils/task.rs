@@ -1,5 +1,7 @@
 use super::resources::ResBuilder;
-use crate::common::resources::{CpuRequest, GenericResourceAmount, GenericResourceId, NumOfCpus};
+use crate::common::resources::{
+    CpuRequest, GenericResourceAmount, GenericResourceId, NumOfCpus, NumOfNodes,
+};
 use crate::messages::worker::TaskRunningMsg;
 use crate::server::task::{Task, TaskConfiguration, TaskInput};
 use crate::{Priority, TaskId};
@@ -50,6 +52,11 @@ impl TaskBuilder {
 
     pub fn resources(mut self, resources: ResBuilder) -> TaskBuilder {
         self.resources = resources;
+        self
+    }
+
+    pub fn n_nodes(mut self, count: NumOfNodes) -> TaskBuilder {
+        self.resources = self.resources.n_nodes(count);
         self
     }
 

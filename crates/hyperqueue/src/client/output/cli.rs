@@ -23,6 +23,7 @@ use crate::{JobId, JobTaskCount, WorkerId};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use core::time::Duration;
 use humantime::format_duration;
+use std::borrow::Cow;
 
 use std::path::Path;
 use std::time::SystemTime;
@@ -169,12 +170,12 @@ impl CliOutput {
             .iter()
             .filter_map(|t: &JobTaskInfo| match &t.state {
                 JobTaskState::Failed {
-                    started_data: StartedTaskData { worker_id, .. },
+                    started_data: StartedTaskData { worker_ids, .. },
                     error,
                     ..
                 } => Some(vec![
                     t.task_id.cell(),
-                    format_worker(*worker_id, worker_map).cell(),
+                    format_workers(worker_ids, worker_map).cell(),
                     error.to_owned().cell().foreground_color(Some(Color::Red)),
                 ]),
                 _ => None,
@@ -573,9 +574,9 @@ impl Output for CliOutput {
                         job_rows.append(&mut vec![
                             task.task_id.cell().justify(Justify::Right),
                             task_status_to_cell(get_task_status(&task.state)),
-                            match task.state.get_worker() {
-                                Some(worker) => format_worker(worker, &worker_map),
-                                _ => "",
+                            match task.state.get_workers() {
+                                Some(workers) => format_workers(workers, &worker_map),
+                                _ => "".into(),
                             }
                             .cell(),
                             multiline_cell(vec![
@@ -960,6 +961,9 @@ fn task_status_to_cell(status: Status) -> CellStruct {
 }
 
 fn format_resource_request(rq: &ResourceRequest) -> String {
+    if rq.n_nodes > 0 {
+        return format!("nodes: {}", rq.n_nodes);
+    }
     let mut result = format_cpu_request(&rq.cpus);
     for grq in &rq.generic {
         result.push_str(&format!("\n{}: {}", grq.resource, grq.amount))
@@ -987,14 +991,15 @@ pub fn format_job_workers(tasks: &[JobTaskInfo], worker_map: &WorkerMap) -> Stri
     // BTreeSet is used to both filter duplicates and keep a stable order
     let worker_set: BTreeSet<_> = tasks
         .iter()
-        .filter_map(|task| task.state.get_worker())
+        .filter_map(|task| task.state.get_workers())
+        .flatten()
         .collect();
     let worker_count = worker_set.len();
 
     let mut result = worker_set
         .into_iter()
         .take(MAX_DISPLAYED_WORKERS)
-        .map(|id| format_worker(id, worker_map))
+        .map(|id| format_worker(*id, worker_map))
         .collect::<Vec<_>>()
         .join(", ");
 
@@ -1010,6 +1015,21 @@ fn format_worker(id: WorkerId, worker_map: &WorkerMap) -> &str {
         .get(&id)
         .map(|s| s.as_str())
         .unwrap_or_else(|| "N/A")
+}
+
+fn format_workers<'a>(ids: &[WorkerId], worker_map: &'a WorkerMap) -> Cow<'a, str> {
+    if ids.len() == 1 {
+        format_worker(ids[0], worker_map).into()
+    } else {
+        assert!(!ids.is_empty());
+        let mut result = String::new();
+        //result.push_str(format_worker(ids[0], worker_map));
+        for id in ids {
+            result.push_str(format_worker(*id, worker_map));
+            result.push('\n');
+        }
+        result.into()
+    }
 }
 
 fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<DateTime<Utc>>) {

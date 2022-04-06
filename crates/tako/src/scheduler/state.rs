@@ -13,6 +13,7 @@ use crate::server::task::{Task, TaskRuntimeState};
 use crate::server::taskmap::TaskMap;
 use crate::server::worker::Worker;
 use crate::server::workerload::ResourceRequestLowerBound;
+use crate::server::workermap::WorkerMap;
 use crate::{TaskId, WorkerId};
 
 use super::metrics::compute_b_level_metric;
@@ -155,8 +156,9 @@ impl SchedulerState {
     pub(crate) fn finish_scheduling(&mut self, core: &mut Core, comm: &mut impl Comm) {
         let mut task_steals: Map<WorkerId, Vec<TaskId>> = Default::default();
         let mut task_computes: Map<WorkerId, Vec<TaskId>> = Default::default();
+        let (task_map, worker_map) = core.split_tasks_workers_mut();
         for (task_id, old_state) in self.dirty_tasks.drain() {
-            let task = core.get_task(task_id);
+            let task = task_map.get_task(task_id);
             match (&task.state, old_state) {
                 (TaskRuntimeState::Assigned(w_id), TaskRuntimeState::Waiting(winfo)) => {
                     debug_assert_eq!(winfo.unfinished_deps, 0);
@@ -168,6 +170,22 @@ impl SchedulerState {
                     debug_assert!(!task.is_fresh());
                     task_steals.entry(w_id).or_default().push(task.id);
                 }
+                (TaskRuntimeState::RunningMultiNode(worker_ids), TaskRuntimeState::Waiting(_)) => {
+                    comm.send_worker_message(
+                        worker_ids[0],
+                        &task.make_compute_message(worker_ids.clone()),
+                    );
+                    for worker_id in &worker_ids[1..] {
+                        let worker = worker_map.get_worker_mut(*worker_id);
+                        if !worker.is_reserved() {
+                            worker.set_reservation(true);
+                            comm.send_worker_message(
+                                *worker_id,
+                                &ToWorkerMessage::Reservation(true),
+                            );
+                        }
+                    }
+                }
                 (
                     TaskRuntimeState::Stealing(from_w1, _to_w1),
                     TaskRuntimeState::Stealing(from_w2, _to_w2),
@@ -176,7 +194,7 @@ impl SchedulerState {
                     debug_assert_eq!(*from_w1, from_w2);
                 }
                 (new, old) => {
-                    panic!("Invalid task state, old = {:?}, new = {:?}", new, old);
+                    panic!("Invalid task state, new = {:?}, old = {:?}", new, old);
                 }
             }
         }
@@ -188,21 +206,51 @@ impl SchedulerState {
             );
         }
 
+        let (task_map, worker_map) = core.split_tasks_workers_mut();
         for (worker_id, mut task_ids) in task_computes {
             task_ids.sort_by_cached_key(|&task_id| {
-                let task = core.get_task(task_id);
+                let task = task_map.get_task(task_id);
                 Reverse((task.configuration.user_priority, task.scheduler_priority))
             });
-            let tasks = core.task_map_mut();
             for task_id in task_ids {
-                {
-                    let task = tasks.get_task_mut(task_id);
-                    task.set_fresh_flag(false);
-                }
-                let task = tasks.get_task(task_id);
-                comm.send_worker_message(worker_id, &task.make_compute_message());
+                let task = task_map.get_task_mut(task_id);
+                task.set_fresh_flag(false);
+                comm.send_worker_message(worker_id, &task.make_compute_message(Vec::new()));
             }
         }
+
+        // Try unreserve workers
+        for worker in worker_map.get_workers_mut() {
+            if worker.is_reserved() {
+                let unreserve = worker
+                    .mn_task()
+                    .map(|mn| {
+                        let task = task_map.get_task(mn.task_id);
+                        task.mn_root_worker().unwrap() == worker.id
+                    })
+                    .unwrap_or(true);
+                if unreserve {
+                    worker.set_reservation(false);
+                    comm.send_worker_message(worker.id, &ToWorkerMessage::Reservation(false));
+                }
+            }
+        }
+    }
+
+    pub(crate) fn assign_mn(
+        &mut self,
+        worker_map: &mut WorkerMap,
+        task: &mut Task,
+        workers: Vec<WorkerId>,
+    ) {
+        for worker_id in &workers {
+            let worker = worker_map.get_worker_mut(*worker_id);
+            worker.set_mn_task(task.id, worker_id != &workers[0]);
+        }
+
+        let old_state =
+            std::mem::replace(&mut task.state, TaskRuntimeState::RunningMultiNode(workers));
+        self.dirty_tasks.entry(task.id).or_insert(old_state);
     }
 
     pub(crate) fn assign(&mut self, core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
@@ -218,7 +266,7 @@ impl SchedulerState {
                     worker_id
                 );
                 assert_ne!(w_id, worker_id);
-                workers.get_worker_mut(w_id).remove_task(task);
+                workers.get_worker_mut(w_id).remove_sn_task(task);
             } else {
                 log::debug!(
                     "Fresh assignment of task={} to worker={}",
@@ -239,7 +287,7 @@ impl SchedulerState {
 
         let (tasks, workers) = core.split_tasks_workers_mut();
         let task = tasks.get_task_mut(task_id);
-        workers.get_worker_mut(worker_id).insert_task(task);
+        workers.get_worker_mut(worker_id).insert_sn_task(task);
         let new_state = match task.state {
             TaskRuntimeState::Waiting(_) => TaskRuntimeState::Assigned(worker_id),
             TaskRuntimeState::Assigned(old_w) => {
@@ -252,12 +300,66 @@ impl SchedulerState {
             TaskRuntimeState::Stealing(from_w, _) => {
                 TaskRuntimeState::Stealing(from_w, Some(worker_id))
             }
-            TaskRuntimeState::Running { .. } | TaskRuntimeState::Finished(_) => {
+            TaskRuntimeState::Running { .. }
+            | TaskRuntimeState::RunningMultiNode(_)
+            | TaskRuntimeState::Finished(_) => {
                 panic!("Invalid state {:?}", task.state);
             }
         };
         let old_state = std::mem::replace(&mut task.state, new_state);
         self.dirty_tasks.entry(task.id).or_insert(old_state);
+    }
+
+    // fn assign_multi_node_task(
+    //     &mut self,
+    //     comm: &mut impl Comm,
+    //     task: &mut Task,
+    //     worker_map: &mut WorkerMap,
+    //     worker_ids: Vec<WorkerId>,
+    // ) {
+    //     // assert!(task.is_waiting());
+    //     //
+    //     // for worker_id in &worker_ids {
+    //     //     let worker = worker_map.get_worker_mut(*worker_id);
+    //     //     if *worker_id == worker_ids[0] {
+    //     //         comm.send_worker_message(
+    //     //             worker_ids[0],
+    //     //             &task.make_compute_message(worker_ids.clone()),
+    //     //         );
+    //     //     } else {
+    //     //         for worker_id in &worker_ids[1..] {
+    //     //             if !worker.reservation_state() {
+    //     //                 comm.send_worker_message(*worker_id, &ToWorkerMessage::ReservationOn);
+    //     //             }
+    //     //         }
+    //     //     }
+    //     // }
+    // }
+
+    fn try_start_multinode_tasks(&mut self, core: &mut Core) {
+        let (mn_queue, task_map, worker_map) = core.multi_node_queue_split();
+        while let Some((task_id, _)) = mn_queue.queue.peek() {
+            let task = task_map.get_task_mut(*task_id);
+            let n_nodes = task.configuration.resources.n_nodes() as usize;
+            assert!(n_nodes > 0);
+            let mut selected_workers = Vec::new();
+            let mut found = false;
+            for worker in worker_map.values() {
+                if worker.is_free() {
+                    selected_workers.push(worker.id);
+                }
+                if selected_workers.len() == n_nodes {
+                    found = true;
+                    break;
+                }
+            }
+            if found {
+                mn_queue.queue.pop();
+                self.assign_mn(worker_map, task, selected_workers);
+            } else {
+                break;
+            }
+        }
     }
 
     /// Returns true if balancing is needed.
@@ -273,27 +375,50 @@ impl SchedulerState {
             trace_time!("scheduler", "blevel", {
                 compute_b_level_metric(core.task_map_mut())
             });
+
+            let (multi_node_queue, task_map, _) = core.multi_node_queue_split();
+            multi_node_queue.recompute_priorities(task_map);
         }
 
-        let ready_tasks = core.take_ready_to_assign();
+        let multi_node_ready_tasks = core.take_multi_node_ready_to_assign();
+        if !multi_node_ready_tasks.is_empty() {
+            let (multi_node_queue, task_map, _) = core.multi_node_queue_split();
+            for task_id in multi_node_ready_tasks {
+                if let Some(task) = task_map.find_task(task_id) {
+                    multi_node_queue.add_task(task)
+                }
+            }
+        }
+
+        self.try_start_multinode_tasks(core);
+
+        let ready_tasks = core.take_single_node_ready_to_assign();
         if !ready_tasks.is_empty() {
             let try_prev_worker = ready_tasks.len() < MAX_TASKS_FOR_TRY_PREV_WORKER_HEURISTICS;
+            let has_parked_resources = core.has_parked_resources();
             for task_id in ready_tasks.into_iter() {
                 let worker_id = {
-                    let configuration = if let Some(task) = core.find_task(task_id) {
-                        assert!(task.is_waiting());
-                        task.configuration.clone()
+                    if has_parked_resources {
+                        let wakeup = if let Some(task) = core.find_task(task_id) {
+                            core.check_parked_resources(&task.configuration.resources)
+                        } else {
+                            continue;
+                        };
+                        if wakeup {
+                            core.wakeup_parked_resources()
+                        }
+                    }
+
+                    if let Some(task) = core.find_task(task_id) {
+                        self.choose_worker_for_task(
+                            task,
+                            core.task_map(),
+                            core.get_worker_map(),
+                            try_prev_worker,
+                        )
                     } else {
                         continue;
-                    };
-                    core.try_wakeup_parked_resources(&configuration.resources);
-
-                    self.choose_worker_for_task(
-                        core.get_task(task_id),
-                        core.task_map(),
-                        core.get_worker_map(),
-                        try_prev_worker,
-                    )
+                    }
                     //log::debug!("Task {} initially assigned to {}", task.id, worker_id);
                 };
                 if let Some(worker_id) = worker_id {
@@ -333,9 +458,9 @@ impl SchedulerState {
             for worker in workers.values() {
                 let mut offered = 0;
                 let not_overloaded = !worker.is_overloaded();
-                for &task_id in worker.tasks() {
+                for &task_id in worker.sn_tasks() {
                     let task = tasks.get_task_mut(task_id);
-                    if task.is_running()
+                    if task.is_sn_running()
                         || (not_overloaded
                             && (task.is_fresh() || !task.inputs.is_empty())
                             && worker.has_time_to_run(task.configuration.resources.min_time(), now))
@@ -352,7 +477,7 @@ impl SchedulerState {
                         "Worker {} offers {}/{} tasks",
                         worker.id,
                         offered,
-                        worker.tasks().len()
+                        worker.sn_tasks().len()
                     );
                 }
             }
@@ -373,7 +498,7 @@ impl SchedulerState {
                 log::debug!(
                     "Worker {} is underloaded ({} tasks)",
                     worker.id,
-                    worker.tasks().len()
+                    worker.sn_tasks().len()
                 );
                 let mut ts = balanced_tasks.clone();
                 // Here we want to sort task such that [t1, ... tN]

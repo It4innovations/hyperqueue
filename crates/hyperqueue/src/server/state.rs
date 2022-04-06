@@ -206,10 +206,16 @@ impl State {
         log::debug!("Task id={} updated {:?}", msg.id, msg.state);
         let (mut job_id, mut is_job_terminated): (Option<JobId>, bool) = (None, false);
         match msg.state {
-            TaskState::Running { worker_id, context } => {
+            TaskState::Running {
+                worker_ids,
+                context,
+            } => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
-                job.set_running_state(msg.id, worker_id, context);
-                self.event_storage.on_task_started(msg.id, worker_id);
+                job.set_running_state(msg.id, worker_ids.clone(), context);
+
+                // TODO: Prepare it for multi-node tasks
+                // This (incomplete) version just takes the first worker as "the worker" for task
+                self.event_storage.on_task_started(msg.id, worker_ids[0]);
             }
             TaskState::Finished => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();

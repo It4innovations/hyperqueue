@@ -20,6 +20,7 @@ pub fn worker_task<T: Into<TaskId>>(
         resources,
         time_limit: None,
         n_outputs: 0,
+        node_list: vec![],
         body: vec![],
     })
 }

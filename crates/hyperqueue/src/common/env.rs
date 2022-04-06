@@ -22,3 +22,4 @@ pub const HQ_PIN: &str = create_hq_env!("PIN");
 pub const HQ_TASK_DIR: &str = create_hq_env!("TASK_DIR");
 pub const HQ_ERROR_FILENAME: &str = create_hq_env!("ERROR_FILENAME");
 pub const HQ_CPUS: &str = create_hq_env!("CPUS");
+pub const HQ_NODE_FILE: &str = create_hq_env!("NODE_FILE");

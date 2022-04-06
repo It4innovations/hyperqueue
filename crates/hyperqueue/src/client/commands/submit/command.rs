@@ -6,7 +6,7 @@ use std::{fs, io};
 use anyhow::anyhow;
 use bstr::BString;
 use clap::Parser;
-use tako::common::resources::{CpuRequest, GenericResourceAmount};
+use tako::common::resources::{CpuRequest, GenericResourceAmount, NumOfNodes};
 use tako::messages::common::{ProgramDefinition, StdioDef};
 use tako::messages::gateway::{GenericResourceRequest, ResourceRequest};
 
@@ -134,6 +134,18 @@ impl From<PinModeArg> for PinMode {
 */
 #[derive(Parser)]
 pub struct SubmitJobConfOpts {
+    /// Number of nodes; 0
+    /// [default: 0]
+    #[clap(
+        long,
+        conflicts_with("pin"),
+        conflicts_with("cpus"),
+        conflicts_with("time-request")
+    )]
+    nodes: Option<NumOfNodes>,
+    /* Other resource configurations is not yet supported in combination of nodes,
+      remove conflict_with as support is done
+    */
     /// Number and placement of CPUs for each job
     /// [default: 1]
     #[clap(long)]
@@ -241,6 +253,7 @@ impl SubmitJobConfOpts {
             };
 
         SubmitJobConfOpts {
+            nodes: self.nodes.or(other.nodes),
             cpus: self.cpus.or(other.cpus),
             resource,
             time_request: self.time_request.or(other.time_request),
@@ -330,6 +343,7 @@ impl JobSubmitOpts {
             .collect();
 
         ResourceRequest {
+            n_nodes: self.conf.nodes.unwrap_or(0),
             cpus: self
                 .conf
                 .cpus
@@ -407,6 +421,7 @@ pub async fn submit_computation(
         directives: _,
         conf:
             SubmitJobConfOpts {
+                nodes: _,
                 cpus: _,
                 resource: _,
                 time_request: _,
@@ -460,6 +475,13 @@ pub async fn submit_computation(
         stderr,
         cwd,
         stdin,
+    };
+
+    // Force task_dir for multi node tasks (for a place where to create node file)
+    let task_dir = if resources.n_nodes > 0 {
+        true
+    } else {
+        task_dir
     };
 
     let task_desc = TaskDescription {

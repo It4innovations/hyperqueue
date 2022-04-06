@@ -71,9 +71,9 @@ pub async fn wait_for_task_start<T: Into<TaskId>>(
 ) -> WorkerId {
     let task_id: TaskId = task_id.into();
     wait_for_msg!(handler, ToGatewayMessage::TaskUpdate(TaskUpdate {
-        state: TaskState::Running { worker_id, .. },
+        state: TaskState::Running { worker_ids, .. },
         id,
-    }) if id == task_id => worker_id)
+    }) if id == task_id => worker_ids[0])
 }
 
 #[derive(Debug)]

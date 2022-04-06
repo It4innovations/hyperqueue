@@ -1,6 +1,6 @@
 use crate::common::resources::{
     CpuRequest, GenericResourceAmount, GenericResourceId, GenericResourceRequest, NumOfCpus,
-    ResourceRequest,
+    NumOfNodes, ResourceRequest,
 };
 use derive_builder::Builder;
 use std::time::Duration;
@@ -10,6 +10,8 @@ pub use ResourceRequestConfigBuilder as ResBuilder;
 #[derive(Builder, Default, Clone)]
 #[builder(pattern = "owned", derive(Clone))]
 pub struct ResourceRequestConfig {
+    #[builder(default)]
+    n_nodes: NumOfNodes,
     #[builder(default)]
     cpus: CpuRequest,
     #[builder(default)]
@@ -33,13 +35,18 @@ impl ResourceRequestConfigBuilder {
         self
     }
 
+    pub fn min_time_secs(self, secs: u64) -> ResourceRequestConfigBuilder {
+        self.min_time(Duration::new(secs, 0))
+    }
+
     pub fn finish(self) -> ResourceRequest {
         let ResourceRequestConfig {
+            n_nodes,
             cpus,
             generic,
             min_time,
         }: ResourceRequestConfig = self.build().unwrap();
-        ResourceRequest::new(cpus, min_time, generic.into())
+        ResourceRequest::new(n_nodes, cpus, min_time, generic.into())
     }
 }
 

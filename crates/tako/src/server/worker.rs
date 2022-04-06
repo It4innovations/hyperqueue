@@ -19,21 +19,40 @@ bitflags::bitflags! {
         // The worker is in processed of being stopped. In the current implementation
         // it is always the case when the user ask for stop
         const STOPPING = 0b00000010;
+        // The server sent message ReservationOn to worker that causes
+        // that the worker will not be turned off because of idle timeout.
+        // This state induced by processing multi node tasks.
+        // It may occur when we are waiting for remaining workers for multi-node tasks
+        // and for non-master nodes of a multi-node tasks (because they will not receive any
+        // ComputeTask message).
+        const RESERVED = 0b00000100;
     }
+}
+
+#[derive(Debug)]
+pub struct MultiNodeTaskAssignment {
+    pub task_id: TaskId,
+
+    // If true, then task is assigned to this worker on a logical level and no other task
+    // is running. However, no work is done by HQ on this node.
+    // For example for MPI application, HQ starts "mpirun" on a root node and HQ
+    // does no other action other nodes expect ensuring that nothing else is running there.
+    pub reservation_only: bool,
 }
 
 pub struct Worker {
     pub id: WorkerId,
 
-    // This is list of assigned tasks
+    // This is list of single node assigned tasks
     // !! In case of stealing T from W1 to W2, T is in "tasks" of W2, even T was not yet canceled from W1.
-    tasks: Set<TaskId>,
-
-    pub load: WorkerLoad,
+    sn_tasks: Set<TaskId>,
+    pub sn_load: WorkerLoad,
     pub resources: WorkerResources,
     pub flags: WorkerFlags,
     // When the worker will be terminated
     pub termination_time: Option<std::time::Instant>,
+
+    pub mn_task: Option<MultiNodeTaskAssignment>,
 
     // COLD DATA move it into a box (?)
     pub last_heartbeat: std::time::Instant,
@@ -45,8 +64,8 @@ impl fmt::Debug for Worker {
         f.debug_struct("Worker")
             .field("id", &self.id)
             .field("resources", &self.configuration.resources)
-            .field("load", &self.load)
-            .field("tasks", &self.tasks.len())
+            .field("load", &self.sn_load)
+            .field("tasks", &self.sn_tasks.len())
             .finish()
     }
 }
@@ -56,55 +75,84 @@ impl Worker {
         self.id
     }
 
-    pub fn tasks(&self) -> &Set<TaskId> {
-        &self.tasks
+    pub fn sn_tasks(&self) -> &Set<TaskId> {
+        &self.sn_tasks
     }
 
-    pub fn insert_task(&mut self, task: &Task) {
-        assert!(self.tasks.insert(task.id));
-        self.load
+    pub fn mn_task(&self) -> Option<&MultiNodeTaskAssignment> {
+        self.mn_task.as_ref()
+    }
+
+    pub fn set_mn_task(&mut self, task_id: TaskId, reservation_only: bool) {
+        assert!(self.mn_task.is_none() && self.sn_tasks.is_empty());
+        self.mn_task = Some(MultiNodeTaskAssignment {
+            task_id,
+            reservation_only,
+        });
+    }
+
+    pub fn reset_mn_task(&mut self) {
+        self.mn_task = None;
+    }
+
+    pub fn set_reservation(&mut self, value: bool) {
+        self.flags.set(WorkerFlags::RESERVED, value);
+    }
+
+    pub fn is_reserved(&self) -> bool {
+        self.flags.contains(WorkerFlags::RESERVED)
+    }
+
+    pub fn is_free(&self) -> bool {
+        self.sn_tasks.is_empty() && self.mn_task.is_none() && !self.is_stopping()
+    }
+
+    pub fn insert_sn_task(&mut self, task: &Task) {
+        assert!(self.sn_tasks.insert(task.id));
+        self.sn_load
             .add_request(&task.configuration.resources, &self.resources);
     }
 
-    pub fn remove_task(&mut self, task: &Task) {
-        assert!(self.tasks.remove(&task.id));
-        self.load
+    pub fn remove_sn_task(&mut self, task: &Task) {
+        assert!(self.sn_tasks.remove(&task.id));
+        self.sn_load
             .remove_request(&task.configuration.resources, &self.resources);
     }
 
     pub fn sanity_check(&self, task_map: &TaskMap) {
+        assert!(self.sn_tasks.is_empty() || self.mn_task.is_none());
         let mut check_load = WorkerLoad::new(&self.resources);
-        for &task_id in &self.tasks {
+        for &task_id in &self.sn_tasks {
             let task = task_map.get_task(task_id);
             check_load.add_request(&task.configuration.resources, &self.resources);
         }
-        assert_eq!(self.load, check_load);
+        assert_eq!(self.sn_load, check_load);
     }
 
     pub fn load(&self) -> &WorkerLoad {
-        &self.load
+        &self.sn_load
     }
 
     pub fn is_underloaded(&self) -> bool {
-        self.load.is_underloaded(&self.resources)
+        self.sn_load.is_underloaded(&self.resources) && self.mn_task.is_none()
     }
 
     pub fn is_overloaded(&self) -> bool {
-        self.load.is_overloaded(&self.resources)
+        self.sn_load.is_overloaded(&self.resources)
     }
 
     pub fn have_immediate_resources_for_rq(&self, request: &ResourceRequest) -> bool {
-        self.load
+        self.sn_load
             .have_immediate_resources_for_rq(request, &self.resources)
     }
 
     pub fn have_immediate_resources_for_lb(&self, rrb: &ResourceRequestLowerBound) -> bool {
-        self.load
+        self.sn_load
             .have_immediate_resources_for_lb(rrb, &self.resources)
     }
 
     pub fn is_more_loaded_then(&self, worker: &Worker) -> bool {
-        self.load.is_more_loaded_then(&worker.load)
+        self.sn_load.is_more_loaded_then(&worker.sn_load)
     }
 
     pub fn get_free_cores(&self) -> NumOfCpus {
@@ -165,10 +213,11 @@ impl Worker {
             termination_time: configuration.time_limit.map(|duration| now + duration),
             configuration,
             resources,
-            load,
-            tasks: Default::default(),
+            sn_load: load,
+            sn_tasks: Default::default(),
             flags: WorkerFlags::empty(),
             last_heartbeat: now,
+            mn_task: None,
         }
     }
 }

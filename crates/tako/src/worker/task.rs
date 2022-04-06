@@ -2,7 +2,7 @@ use crate::common::resources::ResourceAllocation;
 use crate::common::stablemap::ExtractKey;
 use crate::messages::worker::ComputeTaskMsg;
 use crate::worker::taskenv::TaskEnv;
-use crate::{InstanceId, Priority, TaskId};
+use crate::{InstanceId, Priority, TaskId, WorkerId};
 use std::time::Duration;
 
 pub enum TaskState {
@@ -20,6 +20,7 @@ pub struct Task {
     pub time_limit: Option<Duration>,
     pub n_outputs: u32,
     pub body: Vec<u8>,
+    pub node_list: Vec<WorkerId>, // Filled in multi-node tasks; otherwise empty
 }
 
 impl Task {
@@ -33,6 +34,7 @@ impl Task {
             time_limit: message.time_limit,
             n_outputs: message.n_outputs,
             body: message.body,
+            node_list: message.node_list,
         }
     }
 

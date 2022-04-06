@@ -4,7 +4,7 @@ use std::time::Duration;
 use crate::common::index::ItemId;
 use derive_builder::Builder;
 
-use crate::common::resources::CpuRequest;
+use crate::common::resources::{CpuRequest, NumOfNodes};
 use crate::common::Map;
 use crate::messages::common::{ProgramDefinition, StdioDef};
 use crate::messages::gateway::{
@@ -82,7 +82,12 @@ pub fn build_task_def_from_config(
         stderr,
         cwd,
     }: TaskConfig = config;
-    let ResourceRequestConfig { cpus, generic }: ResourceRequestConfig = resources.build().unwrap();
+    let ResourceRequestConfig {
+        n_nodes,
+        cpus,
+        generic,
+        min_time,
+    }: ResourceRequestConfig = resources.build().unwrap();
 
     let program_def = ProgramDefinition {
         args: args.into_iter().map(|v| v.into()).collect(),
@@ -96,8 +101,9 @@ pub fn build_task_def_from_config(
 
     let conf = SharedTaskConfiguration {
         resources: ResourceRequest {
+            n_nodes,
             cpus,
-            min_time: Default::default(),
+            min_time,
             generic,
         },
         n_outputs: 0,
@@ -150,9 +156,13 @@ pub struct TaskConfig {
 #[builder(pattern = "owned", derive(Clone))]
 pub struct ResourceRequestConfig {
     #[builder(default)]
+    n_nodes: NumOfNodes,
+    #[builder(default)]
     cpus: CpuRequest,
     #[builder(default)]
     generic: Vec<GenericResourceRequest>,
+    #[builder(default)]
+    min_time: Duration,
 }
 
 pub fn simple_args(args: &[&'static str]) -> Vec<String> {

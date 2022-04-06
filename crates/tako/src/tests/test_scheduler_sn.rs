@@ -56,7 +56,7 @@ fn test_no_deps_scattering_2() {
         let t = task(id);
         submit_test_tasks(&mut core, vec![t]);
         scheduler.run_scheduling_without_balancing(&mut core, &mut comm);
-        let mut counts: Vec<_> = core.get_workers().map(|w| w.tasks().len()).collect();
+        let mut counts: Vec<_> = core.get_workers().map(|w| w.sn_tasks().len()).collect();
         counts.sort();
         assert_eq!(counts, expected);
     };
@@ -199,7 +199,7 @@ fn test_no_deps_distribute_with_balance() {
     finish_all(&mut core, n3, 102);
     assert_eq!(
         active_ids.len(),
-        core.get_worker_by_id_or_panic(101.into()).tasks().len()
+        core.get_worker_by_id_or_panic(101.into()).sn_tasks().len()
     );
 
     comm.emptiness_check();
@@ -497,8 +497,8 @@ fn test_resources_no_workers2() {
         assert_eq!(rt.worker_load(100).get_n_cpus(), 0);
         assert_eq!(rt.worker_load(101).get_n_cpus(), 0);
         assert_eq!(rt.worker_load(102).get_n_cpus(), 0);
-        assert_eq!(rt.worker(103).tasks().len(), 1);
-        assert_eq!(rt.worker(104).tasks().len(), 1);
+        assert_eq!(rt.worker(103).sn_tasks().len(), 1);
+        assert_eq!(rt.worker(104).sn_tasks().len(), 1);
 
         let s = rt.core().take_sleeping_tasks();
         assert_eq!(s.len(), 1);
@@ -589,7 +589,7 @@ fn test_generic_resource_assign2() {
         rt.core()
             .get_worker_by_id(101.into())
             .unwrap()
-            .tasks()
+            .sn_tasks()
             .len(),
         0
     );
@@ -597,7 +597,7 @@ fn test_generic_resource_assign2() {
         rt.core()
             .get_worker_by_id(100.into())
             .unwrap()
-            .tasks()
+            .sn_tasks()
             .len()
             > 10
     );
@@ -605,7 +605,7 @@ fn test_generic_resource_assign2() {
         rt.core()
             .get_worker_by_id(102.into())
             .unwrap()
-            .tasks()
+            .sn_tasks()
             .len()
             > 10
     );
@@ -613,12 +613,12 @@ fn test_generic_resource_assign2() {
         rt.core()
             .get_worker_by_id(100.into())
             .unwrap()
-            .tasks()
+            .sn_tasks()
             .len()
             + rt.core()
                 .get_worker_by_id(102.into())
                 .unwrap()
-                .tasks()
+                .sn_tasks()
                 .len(),
         100
     );
@@ -626,7 +626,7 @@ fn test_generic_resource_assign2() {
         .core()
         .get_worker_by_id(100.into())
         .unwrap()
-        .tasks()
+        .sn_tasks()
         .iter()
         .all(|task_id| task_id.as_num() < 50));
 
@@ -668,21 +668,21 @@ fn test_generic_resource_balance1() {
     assert_eq!(
         rt.core()
             .get_worker_by_id_or_panic(100.into())
-            .tasks()
+            .sn_tasks()
             .len(),
         2
     );
     assert_eq!(
         rt.core()
             .get_worker_by_id_or_panic(101.into())
-            .tasks()
+            .sn_tasks()
             .len(),
         0
     );
     assert_eq!(
         rt.core()
             .get_worker_by_id_or_panic(102.into())
-            .tasks()
+            .sn_tasks()
             .len(),
         2
     );
@@ -731,27 +731,27 @@ fn test_generic_resource_balance2() {
     dbg!(rt
         .core()
         .get_worker_by_id_or_panic(102.into())
-        .tasks()
+        .sn_tasks()
         .len());
 
     assert_eq!(
         rt.core()
             .get_worker_by_id_or_panic(100.into())
-            .tasks()
+            .sn_tasks()
             .len(),
         2
     );
     assert_eq!(
         rt.core()
             .get_worker_by_id_or_panic(101.into())
-            .tasks()
+            .sn_tasks()
             .len(),
         0
     );
     assert_eq!(
         rt.core()
             .get_worker_by_id_or_panic(102.into())
-            .tasks()
+            .sn_tasks()
             .len(),
         2
     );

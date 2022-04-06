@@ -15,6 +15,7 @@ pub use descriptor::{
 pub use request::{CpuRequest, GenericResourceRequest, ResourceRequest, TimeRequest};
 
 pub type NumOfCpus = u32;
+pub type NumOfNodes = u32;
 define_id_type!(CpuId, u32);
 define_id_type!(SocketId, u32);
 
