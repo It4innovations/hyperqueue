@@ -2,6 +2,7 @@ import time
 from pathlib import Path
 
 import pytest
+
 from hyperqueue.client import TaskFailedException
 from hyperqueue.ffi.protocol import ResourceRequest
 from hyperqueue.job import Job

@@ -3,6 +3,15 @@
 
 ## New features
 
+### Running tasks
+
+* HQ will now set the OpenMP `OMP_NUM_THREADS` environment variable for each task. The amount of threads
+will be set according to the number of requested cores. For example, this job submission:
+```
+$ hq submit --cpus=4 -- <program>
+```
+would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
+
 ### CLI
 
 * Less verbose log output by default. You can use "--debug" to turn on the old behavior.

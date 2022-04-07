@@ -63,6 +63,52 @@ def test_job_num_of_cpus(hq_env: HqEnv):
     assert list(range(12)) == lst
 
 
+def test_set_omp_num_threads(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus="4")
+
+    hq_env.command(
+        [
+            "submit",
+            "--cpus",
+            "4",
+            "--",
+            "bash",
+            "-c",
+            "echo $OMP_NUM_THREADS",
+        ]
+    )
+
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    with open(default_task_output()) as f:
+        assert int(f.read()) == 4
+
+
+def test_do_not_override_set_omp_num_threads(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus="4")
+
+    hq_env.command(
+        [
+            "submit",
+            "--cpus",
+            "4",
+            "--env",
+            "OMP_NUM_THREADS=100",
+            "--",
+            "bash",
+            "-c",
+            "echo $OMP_NUM_THREADS",
+        ]
+    )
+
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    with open(default_task_output()) as f:
+        assert int(f.read()) == 100
+
+
 @pytest.mark.skipif(RUNNING_IN_CI, reason="Processes in CI are already pre-pinned")
 def test_manual_taskset(hq_env: HqEnv):
     hq_env.start_server()

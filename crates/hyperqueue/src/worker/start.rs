@@ -217,6 +217,13 @@ fn insert_resources_into_env(
         .env
         .insert(HQ_CPUS.into(), allocation.comma_delimited_cpu_ids().into());
 
+    if !program.env.contains_key(b"OMP_NUM_THREADS".as_bstr()) {
+        program.env.insert(
+            "OMP_NUM_THREADS".into(),
+            allocation.cpus.len().to_string().into(),
+        );
+    }
+
     let resource_map = state.get_resource_map();
 
     for rq in task.resources.generic_requests() {

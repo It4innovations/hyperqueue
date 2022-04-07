@@ -22,6 +22,11 @@ Setting ``--cpus=all`` ensures that will request all CPUs of the worker and ensu
 $ hq submit --cpus=all <program_name> <args...>
 ```
 
+## CPU related environment variables
+
+* ``HQ_CPUS`` - List of cores assigned to task
+* ``HQ_PIN`` - Is set to "1" if task was pinned by HyperQueue (see below).
+* ``NUM_OMP_THREADS`` -- Set to number of cores assigned for task. (For compatibility with OpenMP).
 
 ## Pinning
 
@@ -108,7 +113,7 @@ it should work without need of any touch. If you want to see how is your seen by
 you can start ``$ hq worker hwdetect`` that only prints CPUs layout.
 
 
-### Manual specification of CPU configration
+### Manual specification of CPU configuration
 
 If automatic detection fails, or you want to manually configure set a CPU configuration, you can use
 ``--cpus`` parameter; for example as follows:
