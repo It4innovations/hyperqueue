@@ -12,6 +12,10 @@ $ hq submit --cpus=4 -- <program>
 ```
 would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 
+* New task OpenMP pinning mode was added. You can now use `--pin=omp` when submitting jobs. This
+CPU pin mode will generate the corresponding `OMP_PLACES` and `OMP_PROC_BIND` environment variables
+to make sure that OpenMP pins its threads to the exact cores allocated by HyperQueue.
+
 ### CLI
 
 * Less verbose log output by default. You can use "--debug" to turn on the old behavior.
@@ -22,7 +26,10 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 
 * When there is only a few tasks, scheduler tries to fit tasks on fewer workers.
   Goal is to enable earlier stopping of workers because of idle timeout. 
-  
+
+### CLI
+* The `--pin` boolean option for submitting jobs has been changed to take a value. You can get the
+original behaviour by specifying `--pin=taskset`.
 
 # 0.9.0
 

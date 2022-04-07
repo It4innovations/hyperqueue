@@ -1,5 +1,6 @@
 import os
 import subprocess
+from typing import List
 
 import pytest
 
@@ -8,9 +9,13 @@ from .utils import wait_for_job_state
 from .utils.job import default_task_output
 
 
-def read_list(filename):
+def read_list(filename) -> List[int]:
     with open(filename) as f:
-        return [int(x) for x in f.read().split(",")]
+        return split_numbers(f.read())
+
+
+def split_numbers(items) -> List[int]:
+    return [int(x) for x in items.split(",")]
 
 
 def test_job_num_of_cpus(hq_env: HqEnv):
@@ -168,28 +173,67 @@ def test_job_no_pin(hq_env: HqEnv):
         assert output == line
 
 
-def test_job_pin(hq_env: HqEnv):
+def test_job_show_pin_in_table(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(
-        [
-            "submit",
-            "--pin",
-            "--cpus",
-            "2 compact!",
-            "--",
-            "bash",
-            "-c",
-            "echo $HQ_CPUS; taskset -c -p $$;",
-        ]
+        ["submit", "--pin", "taskset", "--cpus", "2 compact!", "--", "hostname"]
     )
     hq_env.start_worker(cpus=2)
 
     wait_for_job_state(hq_env, 1, "FINISHED")
     table = hq_env.command(["job", "info", "1"], as_table=True)
-    table.print()
-    table.check_row_value("State", "FINISHED")
     table.check_row_value("Resources", "cpus: 2 compact! [pin]")
 
+
+def test_job_pin_taskset(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus=2)
+
+    hq_env.command(
+        [
+            "submit",
+            "--pin",
+            "taskset",
+            "--cpus",
+            "2 compact!",
+            "--",
+            "bash",
+            "-c",
+            # `taskset -c -p $$` prints the affinity of the current process
+            "echo $HQ_CPUS; taskset -c -p $$;",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
     with open(default_task_output()) as f:
-        hq_cpus = f.readline().rstrip()
-        assert hq_cpus == f.readline().rstrip().split(" ")[5]
+        hq_cpus = sorted(split_numbers(f.readline()))
+        taskset_cpus = sorted(split_numbers(f.readline().rstrip().split(" ")[-1]))
+        assert hq_cpus == taskset_cpus
+
+
+def test_job_pin_openmp(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus=2)
+
+    hq_env.command(
+        [
+            "submit",
+            "--pin",
+            "omp",
+            "--cpus",
+            "2 compact!",
+            "--",
+            "bash",
+            "-c",
+            "echo $OMP_PLACES; echo $OMP_PROC_BIND",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    with open(default_task_output()) as f:
+        places = f.readline().strip()
+        assert places.startswith("{")
+        assert places.endswith("}")
+        assert sorted(split_numbers(places[1:-1])) == [0, 1]
+        bind = f.readline().strip()
+        assert bind == "close"

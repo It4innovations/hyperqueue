@@ -119,7 +119,7 @@ impl Output for JsonOutput {
                             generic,
                             min_time,
                         },
-                    pin,
+                    pin_mode,
                     time_limit,
                     priority,
                     task_dir,
@@ -139,7 +139,7 @@ impl Output for JsonOutput {
                 "generic": generic,
                 "min_time": format_duration(min_time)
             });
-            json["pin"] = json!(pin);
+            json["pin_mode"] = json!(pin_mode);
             json["priority"] = json!(priority);
             json["time_limit"] = json!(time_limit.map(format_duration));
             json["task_dir"] = json!(task_dir);

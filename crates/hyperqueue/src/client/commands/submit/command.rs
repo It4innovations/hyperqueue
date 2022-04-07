@@ -27,8 +27,8 @@ use crate::common::utils::str::pluralize;
 use crate::common::utils::time::ArgDuration;
 use crate::transfer::connection::ClientConnection;
 use crate::transfer::messages::{
-    FromClientMessage, IdSelector, JobDescription, ResubmitRequest, SubmitRequest, TaskDescription,
-    ToClientMessage,
+    FromClientMessage, IdSelector, JobDescription, PinMode, ResubmitRequest, SubmitRequest,
+    TaskDescription, ToClientMessage,
 };
 use crate::{arg_wrapper, rpc_call, JobTaskCount, Map};
 
@@ -110,10 +110,27 @@ fn parse_stdio_arg(input: &str) -> anyhow::Result<StdioDef> {
     })
 }
 
-/* This is a special kind of parser because some argument may be used setted
-  through #HQ directives. This implies two things:
-  * Do not used "default_value" but write default in documentation and set default in code
-  * You may use conflicts_with(...) but do not forget to modify merge method
+#[derive(clap::ArgEnum, Clone)]
+enum PinModeArg {
+    #[clap(name = "taskset")]
+    TaskSet,
+    #[clap(name = "omp")]
+    OpenMP,
+}
+
+impl From<PinModeArg> for PinMode {
+    fn from(arg: PinModeArg) -> Self {
+        match arg {
+            PinModeArg::TaskSet => PinMode::TaskSet,
+            PinModeArg::OpenMP => PinMode::OpenMP,
+        }
+    }
+}
+
+/* This is a special kind of parser because some arguments may be configured
+ * through #HQ directives. This implies two things:
+ * Do not use "default_value", instead write the default in documentation and set default in code.
+ * You may use conflicts_with(...) but do not forget to modify the merge method.
 */
 #[derive(Parser)]
 pub struct SubmitJobConfOpts {
@@ -136,8 +153,8 @@ pub struct SubmitJobConfOpts {
     name: Option<String>,
 
     /// Pin the job to the cores specified in `--cpus`.
-    #[clap(long)]
-    pin: bool,
+    #[clap(long, arg_enum)]
+    pin: Option<PinModeArg>,
 
     /// Working directory for the submitted job.
     /// The path must be accessible from worker nodes
@@ -228,7 +245,7 @@ impl SubmitJobConfOpts {
             resource,
             time_request: self.time_request.or(other.time_request),
             name: self.name.or(other.name),
-            pin: self.pin || other.pin,
+            pin: self.pin.or(other.pin),
             task_dir: self.task_dir || other.task_dir,
             cwd: self.cwd.or(other.cwd),
             stdout: self.stdout.or(other.stdout),
@@ -448,7 +465,7 @@ pub async fn submit_computation(
     let task_desc = TaskDescription {
         program: program_def,
         resources,
-        pin,
+        pin_mode: pin.map(|arg| arg.into()).unwrap_or(PinMode::None),
         priority,
         time_limit,
         task_dir,

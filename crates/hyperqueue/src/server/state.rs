@@ -300,7 +300,7 @@ mod tests {
     use crate::server::job::Job;
     use crate::server::state::State;
     use crate::tests::utils::create_hq_state;
-    use crate::transfer::messages::{JobDescription, TaskDescription};
+    use crate::transfer::messages::{JobDescription, PinMode, TaskDescription};
     use crate::{JobId, TakoTaskId};
 
     fn dummy_program_definition() -> ProgramDefinition {
@@ -325,7 +325,7 @@ mod tests {
             task_desc: TaskDescription {
                 program: dummy_program_definition(),
                 resources: Default::default(),
-                pin: false,
+                pin_mode: PinMode::None,
                 task_dir: false,
                 time_limit: None,
                 priority: 0,

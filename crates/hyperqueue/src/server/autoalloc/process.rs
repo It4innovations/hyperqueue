@@ -823,7 +823,7 @@ mod tests {
     use crate::server::job::Job;
     use crate::server::state::StateRef;
     use crate::tests::utils::create_hq_state;
-    use crate::transfer::messages::{JobDescription, TaskDescription};
+    use crate::transfer::messages::{JobDescription, PinMode, TaskDescription};
 
     #[tokio::test]
     async fn fill_backlog() {
@@ -1596,7 +1596,7 @@ mod tests {
                 task_desc: TaskDescription {
                     program: def,
                     resources: resources.clone(),
-                    pin: false,
+                    pin_mode: PinMode::None,
                     task_dir: false,
                     time_limit: None,
                     priority: 0,

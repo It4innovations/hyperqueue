@@ -229,7 +229,7 @@ fn serialize_task_body(
     }
     let body_msg = TaskBody {
         program,
-        pin: task_desc.pin,
+        pin: task_desc.pin_mode.clone(),
         task_dir: task_desc.task_dir,
         job_id: ctx.job_id,
         task_id,
@@ -365,7 +365,7 @@ fn build_tasks_graph(
 #[cfg(test)]
 mod tests {
     use crate::server::client::submit::{build_tasks_graph, JobContext};
-    use crate::transfer::messages::{TaskDescription, TaskWithDependencies};
+    use crate::transfer::messages::{PinMode, TaskDescription, TaskWithDependencies};
     use std::path::{Path, PathBuf};
     use std::time::Duration;
     use tako::common::resources::CpuRequest;
@@ -485,7 +485,7 @@ mod tests {
                 }],
                 min_time: Duration::from_secs(2),
             },
-            pin: false,
+            pin_mode: PinMode::None,
             task_dir: false,
             time_limit,
             priority,
