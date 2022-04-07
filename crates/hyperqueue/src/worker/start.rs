@@ -36,7 +36,7 @@ use crate::common::placeholders::{
     fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
 };
 use crate::common::utils::fs::{bytes_to_path, is_implicit_path, path_has_extension};
-use crate::transfer::messages::TaskBody;
+use crate::transfer::messages::{PinMode, TaskBody};
 use crate::transfer::stream::ChannelId;
 use crate::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resources};
 use crate::worker::parser::CpuDefinition;
@@ -95,16 +95,13 @@ impl TaskLauncher for HqTaskLauncher {
             let body: TaskBody = tako::transfer::auth::deserialize(&task.body)?;
             let TaskBody {
                 mut program,
-                pin,
+                pin: pin_mode,
                 task_dir,
                 job_id,
                 task_id,
             } = body;
 
-            if pin {
-                pin_program(&mut program, allocation);
-                program.env.insert(HQ_PIN.into(), "1".into());
-            }
+            pin_program(&mut program, allocation, pin_mode);
 
             let task_dir = if task_dir {
                 let task_dir = TempDir::new_in(&state.configuration.work_dir, "t")?;
@@ -254,15 +251,40 @@ fn insert_resources_into_env(
     }
 }
 
-fn pin_program(program: &mut ProgramDefinition, allocation: &ResourceAllocation) {
-    let mut args: Vec<BString> = vec![
-        "taskset".into(),
-        "-c".into(),
-        allocation.comma_delimited_cpu_ids().into(),
-    ];
-    args.append(&mut program.args);
+fn pin_program(
+    program: &mut ProgramDefinition,
+    allocation: &ResourceAllocation,
+    pin_mode: PinMode,
+) {
+    match pin_mode {
+        PinMode::TaskSet => {
+            let mut args: Vec<BString> = vec![
+                "taskset".into(),
+                "-c".into(),
+                allocation.comma_delimited_cpu_ids().into(),
+            ];
+            args.append(&mut program.args);
 
-    program.args = args;
+            program.args = args;
+            program.env.insert(HQ_PIN.into(), "taskset".into());
+        }
+        PinMode::OpenMP => {
+            // OMP_PLACES specifies on which cores should the OpenMP threads execute.
+            // OMP_PROC_BIND makes sure that OpenMP will actually pin its threads
+            // to the specified places.
+            if !program.env.contains_key(b"OMP_PROC_BIND".as_bstr()) {
+                program.env.insert("OMP_PROC_BIND".into(), "close".into());
+            }
+            if !program.env.contains_key(b"OMP_PLACES".as_bstr()) {
+                let places = allocation.comma_delimited_cpu_ids();
+                program
+                    .env
+                    .insert("OMP_PLACES".into(), format!("{{{places}}}").into());
+            }
+            program.env.insert(HQ_PIN.into(), "omp".into());
+        }
+        PinMode::None => {}
+    }
 }
 
 #[allow(clippy::unused_io_amount)]

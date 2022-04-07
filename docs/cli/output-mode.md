@@ -176,7 +176,7 @@ Time-based items are formatted in the following way:
             }
           },
           "max_fails": null,
-          "pin": false,
+          "pin": null,
           "priority": 0,
           "program": {
             "args": [

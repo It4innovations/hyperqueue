@@ -119,7 +119,7 @@ def test_print_job_detail(hq_env: HqEnv):
             "resources": dict,
             "finished_at": None,
             "max_fails": None,
-            "pin": False,
+            "pin_mode": "None",
             "priority": 0,
             "program": {
                 "args": ["echo", "tt"],

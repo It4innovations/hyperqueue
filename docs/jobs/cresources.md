@@ -25,40 +25,60 @@ $ hq submit --cpus=all <program_name> <args...>
 ## CPU related environment variables
 
 * ``HQ_CPUS`` - List of cores assigned to task
-* ``HQ_PIN`` - Is set to "1" if task was pinned by HyperQueue (see below).
+* ``HQ_PIN`` - Is set to `taskset` or `omp` (depending on the used pin mode) if the task was pinned
+by HyperQueue (see below).
 * ``NUM_OMP_THREADS`` -- Set to number of cores assigned for task. (For compatibility with OpenMP).
 
 ## Pinning
 
 By default, HQ internally allocates CPUs on logical level without pinning.
-In other words, HQ ensures that the sum of requests of concurrently running tasks does not exceed the number of CPUs in the worker, but the the process placement is left on the system scheduler that may move processes across
-CPUs as it wants.
+In other words, HQ ensures that the sum of requests of concurrently running tasks does not exceed
+the number of CPUs in the worker, but the process placement is left on the system scheduler that may
+move processes across CPUs as it wants.
 
-If this is not desired, especially in case of NUMA, processes could be pinned, either manually or automatically.
-
+If this is not desired, especially in the case of NUMA, processes could be pinned, either manually
+or automatically.
 
 ### Automatic pinning
 
-If you just want to pin your processes to allocated CPUs, use ``--pin`` flag.
+HyperQueue can pin threads using two ways: with `taskset` or by setting `OpenMP` environment variables.
+You can use the `--pin` flag to choose between these two modes.
 
-```
-$ hq submit --pin --cpus=8 <your-program> <args>
-```
+=== "taskset"
 
-When an automatic pinning is enabled then the environment variable ``HQ_PIN`` is set to ``1`` in the task process.
+    ```bash
+    $ hq submit --pin taskset --cpus=8 <your-program> <args>
+    ```
 
+    will cause HyperQueue to execute your program like this:
+    ```bash
+    taskset -c "<allocated-cores>" <your-program> <args>`
+    ```
+
+=== "OpenMP"
+
+    ```
+    $ hq submit --pin omp --cpus=8 <your-program> <args>
+    ```
+
+    will cause HyperQueue to execute your program like this:
+    ```bash
+    OMP_PROC_BIND=close OMP_PLACES="{<allocated-cores>}" <your-program> <args>
+    ```
+
+If any automatic pinning mode is enabled, the environment variable `HQ_PIN` will be set.
 
 ### Manual pinning
 
-If you want to gain a full controll over pinning processes, you may pin the process by yourself.
+If you want to gain a full control over pinning processes, you may pin the process by yourself.
 
-The assigned CPUs is stored in environment ``HQ_CPUS`` as a comma-delimited list
-of CPU ids. You can use utilities as ``taskset`` or ``numactl`` and pass there  ``HQ_CPUS`` to pin a process to these CPUs.
+The assigned CPUs are stored in the environment variable `HQ_CPUS` as a comma-delimited list
+of CPU ids. You can use utilities such as ``taskset`` or ``numactl`` and pass them ``HQ_CPUS`` to
+pin a process to these CPUs.
 
 **Warning** If you manually pin your processes, do not use ``--pin`` flag in submit command. It may have some unwanted interferences.
 
-
-For example you can create a following ``script.sh`` (with executable permission)
+For example, you can create the following ``script.sh`` (with executable permission)
 
 ```bash
 #!/bin/bash
@@ -69,7 +89,7 @@ taskset -c $HQ_CPUS <your-program> <args...>
 If it is submitted as ``$ hq submit --cpus=4 script.sh``
 It will pin your program to 4 CPUs allocated by HQ.
 
-In case of ``numactl``, the equivalent script is:
+In the case of ``numactl``, the equivalent script would be:
 
 ```bash
 #!/bin/bash
@@ -83,7 +103,8 @@ numactl -C $HQ_CPUS <your-program> <args...>
 HQ currently ofsers the following allocation strategies how CPUs are allocated.
 It can be specified by ``--cpus`` argument in form ``"<#cpus> <policy>"``.
 
-Note: Specifying policy has effect only if you have more then one sockets(physical CPUs). In case of a single socket, policies are indistinguishable.
+Note: Specifying policy has effect only if you have more than one socket (physical CPUs).
+In case of a single socket, policies are indistinguishable.
 
 * Compact (``compact``) - Tries to allocate cores on as few sockets as possible in the current worker state.
 

@@ -36,10 +36,17 @@ pub enum FromClientMessage {
     MonitoringEvents(MonitoringEventRequest),
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum PinMode {
+    None,
+    TaskSet,
+    OpenMP,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskBody {
     pub program: ProgramDefinition,
-    pub pin: bool,
+    pub pin: PinMode,
     pub task_dir: bool,
     pub job_id: JobId,
     pub task_id: JobTaskId,
@@ -49,7 +56,7 @@ pub struct TaskBody {
 pub struct TaskDescription {
     pub program: ProgramDefinition,
     pub resources: ResourceRequest,
-    pub pin: bool,
+    pub pin_mode: PinMode,
     pub task_dir: bool,
     pub time_limit: Option<Duration>,
     pub priority: tako::Priority,

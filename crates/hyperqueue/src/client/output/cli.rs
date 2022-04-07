@@ -15,8 +15,8 @@ use crate::server::autoalloc::{Allocation, AllocationState};
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, StatsResponse, TaskDescription,
-    WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
+    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, PinMode, StatsResponse,
+    TaskDescription, WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
 };
 use crate::{JobId, JobTaskCount, WorkerId};
 
@@ -94,7 +94,7 @@ impl CliOutput {
         let TaskDescription {
             program,
             resources,
-            pin,
+            pin_mode,
             time_limit,
             priority,
             task_dir: _,
@@ -103,7 +103,7 @@ impl CliOutput {
         let resources = format_resource_request(resources);
         rows.push(vec![
             "Resources".cell().bold(true),
-            if *pin {
+            if !matches!(pin_mode, PinMode::None) {
                 format!("{} [pin]", resources)
             } else {
                 resources

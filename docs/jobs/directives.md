@@ -10,7 +10,7 @@ Suppose that `script.sh` has the following content:
 #!/bin/bash
 
 #HQ --name=Example
-#HQ --cpus="2 compact" --pin
+#HQ --cpus="2 compact" --pin taskset
 
 ./my-program
 ```
@@ -21,7 +21,7 @@ $ hq submit script.sh
 ```
 it will behave as if you have executed
 ```bash
-$ hq submit --name=Example --cpus="2 compact" --pin script.sh
+$ hq submit --name=Example --cpus="2 compact" --pin taskset script.sh
 ```
 
 ## Directives mode

@@ -5,7 +5,7 @@ use hyperqueue::common::utils::fs::get_current_dir;
 use hyperqueue::server::job::JobTaskState;
 use hyperqueue::tako::messages::common::{ProgramDefinition, StdioDef};
 use hyperqueue::transfer::messages::{
-    FromClientMessage, IdSelector, JobDescription as HqJobDescription, JobDetailRequest,
+    FromClientMessage, IdSelector, JobDescription as HqJobDescription, JobDetailRequest, PinMode,
     SubmitRequest, TaskDescription as HqTaskDescription, TaskIdSelector, TaskSelector,
     TaskStatusSelector, TaskWithDependencies, ToClientMessage, WaitForJobsRequest,
 };
@@ -114,7 +114,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
             cwd,
         },
         resources,
-        pin: false,
+        pin_mode: PinMode::None,
         task_dir: desc.task_dir,
         time_limit: None,
         priority: 0,
