@@ -137,4 +137,31 @@ mod tests {
         }
         assert!(reader.next().is_none());
     }
+
+    #[tokio::test]
+    async fn streaming_read_partial() {
+        let tmpdir = TempDir::new("hq").unwrap();
+        let path = tmpdir.path().join("foo");
+        let mut writer = EventLogWriter::create(&path).await.unwrap();
+
+        let time = SystemTime::now();
+        writer
+            .store(MonitoringEvent {
+                id: 42,
+                time,
+                payload: MonitoringEventPayload::AllocationFinished(0, "a".to_string()),
+            })
+            .await
+            .unwrap();
+        writer.flush().await.unwrap();
+
+        let mut reader = EventLogReader::open(&path).unwrap();
+        let event = reader.next().unwrap().unwrap();
+        assert_eq!(event.id, 42);
+        assert_eq!(event.time, time);
+        assert!(matches!(
+            event.payload,
+            MonitoringEventPayload::AllocationFinished(0, _)
+        ));
+    }
 }
