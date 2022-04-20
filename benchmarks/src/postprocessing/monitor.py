@@ -92,7 +92,7 @@ def select_colors(items: List) -> List[str]:
 
 
 def prepare_time_range_figure(
-    range: TimeRange, width=720, height=250, **kwargs
+        range: TimeRange, width=720, height=250, **kwargs
 ) -> Figure:
     fig = figure(
         plot_width=width,
@@ -115,6 +115,18 @@ def prepare_time_range_figure(
 def render_node_per_cpu_pct_utilization(figure: Figure, df: pd.DataFrame):
     time = df[DATETIME_KEY]
     cpu_series = df[CPU_KEY]
+
+    # Save TO CSV START
+    # js_data = pd.DataFrame(time)
+    # for (i, cpu_serie) in enumerate(cpu_series):
+    #     for j in range(len(cpu_serie)):
+    #         key = f"cpu_{j}"
+    #         js_data.at[i, key] = round(cpu_serie[j] / 100.0, 3)
+    # js_data[DATETIME_KEY] = js_data[DATETIME_KEY].dt.round('111L')
+    #
+    # filepath = Path('out.csv')
+    # filepath.parent.mkdir(parents=True, exist_ok=True)
+    # js_data.to_csv(index=False, path_or_buf=filepath)
 
     cpu_count = len(cpu_series.iloc[0])
     cpus = [
@@ -185,7 +197,7 @@ def render_node_network_connections(figure: Figure, df: pd.DataFrame):
 
 
 def render_bytes_sent_received(
-    figure: Figure, df: pd.DataFrame, label: str, read_col: str, write_col: str
+        figure: Figure, df: pd.DataFrame, label: str, read_col: str, write_col: str
 ):
     def accumulate(column):
         values = df[column]
@@ -194,7 +206,6 @@ def render_bytes_sent_received(
 
     read = accumulate(read_col)
     write = accumulate(write_col)
-
     data = ColumnDataSource(
         dict(rx=read, rx_kb=read / 1024, tx=write, tx_kb=write / 1024, x=read.index)
     )
@@ -202,6 +213,7 @@ def render_bytes_sent_received(
 
     figure.add_tools(HoverTool(tooltips=tooltips))
     figure.yaxis[0].formatter = NumeralTickFormatter(format="0.0b")
+    figure.y_range = Range1d(0, max(max(data.data['rx']), max(data.data['tx'])))
     figure.line(
         x="x", y="rx", color="blue", legend_label="{} RX".format(label), source=data
     )
@@ -257,7 +269,7 @@ def get_node_description(report: ClusterReport, hostname: str) -> str:
 
 
 def render_nodes_resource_usage(
-    report: ClusterReport, resources_df: pd.DataFrame
+        report: ClusterReport, resources_df: pd.DataFrame
 ) -> LayoutDOM:
     items = sorted(resources_df.groupby(HOSTNAME_KEY), key=lambda item: item[0])
     rows = []
@@ -275,10 +287,10 @@ def render_nodes_resource_usage(
 
 
 def render_global_percent_resource_usage(
-    figure: Figure,
-    source: ColumnDataSource,
-    report: ClusterReport,
-    hostnames: List[str],
+        figure: Figure,
+        source: ColumnDataSource,
+        report: ClusterReport,
+        hostnames: List[str],
 ):
     node_count = len(hostnames)
     figure.y_range = Range1d(0, node_count + 1)
@@ -306,7 +318,7 @@ def render_global_percent_resource_usage(
 
 
 def create_global_resource_datasource_and_tooltips(
-    time_index: pd.Series, df: pd.DataFrame, key: str
+        time_index: pd.Series, df: pd.DataFrame, key: str
 ) -> Tuple[ColumnDataSource, List[Tuple[str, str]]]:
     data = dict(x=time_index, x_start=time_index + datetime.timedelta(milliseconds=500))
     items = sorted(df.groupby(HOSTNAME_KEY), key=lambda item: item[0])
@@ -328,7 +340,7 @@ def create_global_resource_datasource_and_tooltips(
 
 
 def render_global_resource_usage(
-    report: ClusterReport, resources_df: pd.DataFrame
+        report: ClusterReport, resources_df: pd.DataFrame
 ) -> LayoutDOM:
     df = resources_df[[DATETIME_KEY, HOSTNAME_KEY, CPU_KEY, MEM_KEY]].copy()
     # Average CPUs per record

@@ -85,80 +85,58 @@ def render_benchmark(entry: BenchmarkEntry):
     return render(template, benchmark=entry, node_utilization=node_utilization)
 
 
-def render_comparison(
+def render_hq_comparison(
     entries: [BenchmarkEntry],
     data: pd.DataFrame,
 ):
+    def render_bench_subtab(child, name):
+        return Tabs(tabs=[Panel(child=child, title=name)])
+
     tabs = []
-    is_hq = len(entries) == len(data)
+    reports = [entry.report for entry in entries]
+    widgets = {
+        "Profiling data": [],
+        "Global usage": [],
+        "Node usage": [],
+        "Process usage": [],
+    }
+    node_maxes = {}
 
-    # HQ Comparison
-    if is_hq:
-        reports = [entry.report for entry in entries]
-        widgets = {
-            "Profiling data": [],
-            "Global usage": [],
-            "Node usage": [],
-            "Process usage": [],
-        }
+    for key in widgets:
         for report in reports:
-            per_node_df = create_global_resources_df(report.monitoring)
-            per_process_df = create_per_process_resources_df(report.monitoring)
-
             name = report.directory.name
-            widgets["Profiling data"].append(
-                Tabs(tabs=[Panel(child=render_profiling_data(report), title=name)])
-            )
+            panel = Tabs()
 
-            if not per_node_df.empty:
-                widgets["Global usage"].append(
-                    Tabs(
-                        tabs=[
-                            Panel(
-                                child=render_global_resource_usage(report, per_node_df),
-                                title=name,
-                            )
-                        ]
-                    )
-                )
+            if key == "Profiling data":
+                panel = render_bench_subtab(render_profiling_data(report), name)
+            elif key == "Global usage":
+                per_node_df = create_global_resources_df(report.monitoring)
+                panel = render_bench_subtab(render_global_resource_usage(report, per_node_df), name)
+            elif key == "Node usage":
+                # Keep maximum of each subfigure for axis sync between rows
+                per_node_df = create_global_resources_df(report.monitoring)
+                child = render_nodes_resource_usage(report, per_node_df)
+                figs = child.children[0].children[1].children
+                for fig in figs:
+                    figmax = fig.y_range.end
+                    if node_maxes.get(fig.title.text) is not None:
+                        node_maxes[fig.title.text] = max(figmax, node_maxes[fig.title.text])
+                    else:
+                        node_maxes[fig.title.text] = figmax
+                panel = render_bench_subtab(child, name)
+            elif key == "Process usage":
+                per_process_df = create_per_process_resources_df(report.monitoring)
+                panel = render_bench_subtab(render_process_resource_usage(report, per_process_df), name)
+            widgets[key].append(panel)
 
-            if not per_node_df.empty:
-                widgets["Node usage"].append(
-                    Tabs(
-                        tabs=[
-                            Panel(
-                                child=render_nodes_resource_usage(report, per_node_df),
-                                title=name,
-                            )
-                        ]
-                    )
-                )
+    for w in widgets["Node usage"]:
+        figs = w.tabs[0].child.children[0].children[1].children
+        for fig in figs:
+            ymax = node_maxes[fig.title.text]
+            fig.y_range.end = ymax
 
-            if not per_process_df.empty:
-                widgets["Process usage"].append(
-                    Tabs(
-                        tabs=[
-                            Panel(
-                                child=render_process_resource_usage(
-                                    report, per_process_df
-                                ),
-                                title=name,
-                            )
-                        ]
-                    )
-                )
-
-        for key in widgets:
-            tabs.append(Panel(child=row(widgets[key]), title=key))
-    else:
-        tabs.append(
-            Panel(
-                child=Div(
-                    text="Comparison is currently supported for HQ monitoring only"
-                ),
-                title="Error",
-            )
-        )
+    for key in widgets:
+        tabs.append(Panel(child=row(widgets[key]), title=key))
 
     return Tabs(tabs=tabs)
 
@@ -319,13 +297,17 @@ def generate_comparison_html(
     df = create_database_df(database)
     data = df.loc[df["key"].isin(benchmarks)]
 
-    benchmark_entries = []
+    hq_benchmark_entries = []
     for benchmark in benchmarks:
         entry = entry_map.get(benchmark)
         if entry is not None:
-            benchmark_entries.append(entry)
+            if entry.record.environment == 'hq':
+                hq_benchmark_entries.append(entry)
+            else:
+                print('Only hq comparison is currently supported')
+                return
 
-    comparison = render_comparison(benchmark_entries, data)
+    comparison = render_hq_comparison(hq_benchmark_entries, data)
     save(
         comparison,
         directory.joinpath("comparisons", "_".join(benchmarks) + ".html"),
@@ -403,7 +385,7 @@ def create_comparer_page(database: Database, directory: Path, addr: str):
                 if entry_map.get(bench) is not None:
                     entries.append(entry_map[bench])
 
-            page = render_comparison(entries, data)
+            page = render_hq_comparison(entries, data)
             location = Path("comparisons").joinpath(name)
             save(page, directory.joinpath(location), CDN, "Comparison")
 
