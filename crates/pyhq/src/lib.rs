@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::runtime::Builder;
 
-use hyperqueue_core::transfer::connection::ClientConnection;
+use hyperqueue::transfer::connection::ClientConnection;
 
 use crate::cluster::Cluster;
 use crate::utils::run_future;

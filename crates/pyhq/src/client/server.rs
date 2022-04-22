@@ -1,9 +1,9 @@
 use pyo3::{Py, PyResult, Python};
 use std::path::PathBuf;
 
-use hyperqueue_core::client::default_server_directory_path;
-use hyperqueue_core::server::bootstrap::get_client_connection;
-use hyperqueue_core::transfer::messages::FromClientMessage;
+use hyperqueue::client::default_server_directory_path;
+use hyperqueue::server::bootstrap::get_client_connection;
+use hyperqueue::transfer::messages::FromClientMessage;
 
 use crate::utils::error::ToPyResult;
 use crate::{borrow_mut, run_future, ClientContextPtr, HqClientContext};
