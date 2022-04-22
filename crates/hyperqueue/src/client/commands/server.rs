@@ -1,5 +1,6 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::server::client_stop_server;
+use crate::common::utils::network::get_hostname;
 use crate::common::utils::time::ArgDuration;
 use crate::rpc_call;
 use crate::server::bootstrap::{
@@ -73,9 +74,7 @@ pub async fn command_server(gsettings: &GlobalSettings, opts: ServerOpts) -> any
 
 async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyhow::Result<()> {
     let server_cfg = ServerConfig {
-        host: opts
-            .host
-            .unwrap_or_else(|| gethostname::gethostname().into_string().unwrap()),
+        host: get_hostname(opts.host),
         idle_timeout: opts.idle_timeout.map(|x| x.unpack()),
         client_port: opts.client_port,
         worker_port: opts.worker_port,

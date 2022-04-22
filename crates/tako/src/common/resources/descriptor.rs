@@ -49,6 +49,7 @@ pub struct GenericResourceDescriptor {
     pub kind: GenericResourceDescriptorKind,
 }
 
+/// (Node0(Cpu0, Cpu1), Node1(Cpu2, Cpu3), ...)
 pub type CpusDescriptor = Vec<Vec<CpuId>>;
 
 pub fn cpu_descriptor_from_socket_size(

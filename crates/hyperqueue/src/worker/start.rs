@@ -5,9 +5,7 @@ use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::rc::Rc;
-use std::time::Duration;
 
-use anyhow::anyhow;
 use bstr::{BStr, BString, ByteSlice};
 use futures::TryFutureExt;
 use tempdir::TempDir;
@@ -16,8 +14,7 @@ use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
 
 use tako::common::error::DsError;
-use tako::common::resources::{ResourceAllocation, ResourceDescriptor};
-use tako::messages::common::WorkerConfiguration;
+use tako::common::resources::ResourceAllocation;
 use tako::messages::common::{ProgramDefinition, StdioDef};
 use tako::transfer::auth::serialize;
 use tako::worker::launcher::{command_from_definitions, TaskLaunchData, TaskLauncher};
@@ -26,23 +23,17 @@ use tako::worker::task::Task;
 use tako::worker::taskenv::{StopReason, TaskResult};
 use tako::{InstanceId, TaskId};
 
-use crate::client::commands::worker::{ManagerOpts, WorkerStartOpts};
 use crate::common::env::{
     HQ_CPUS, HQ_ERROR_FILENAME, HQ_INSTANCE_ID, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR,
 };
-use crate::common::manager::info::{ManagerInfo, ManagerType, WORKER_EXTRA_MANAGER_KEY};
-use crate::common::manager::{pbs, slurm};
 use crate::common::placeholders::{
     fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
 };
 use crate::common::utils::fs::{bytes_to_path, is_implicit_path, path_has_extension};
 use crate::transfer::messages::{PinMode, TaskBody};
 use crate::transfer::stream::ChannelId;
-use crate::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resources};
-use crate::worker::parser::CpuDefinition;
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
-use crate::Map;
 use crate::{JobId, JobTaskId};
 use serde::{Deserialize, Serialize};
 
@@ -522,137 +513,4 @@ async fn run_task(
                 r = child_wait(child, &program.stdin) => status_to_result(r?)
         }
     }
-}
-
-fn try_get_pbs_info() -> anyhow::Result<ManagerInfo> {
-    log::debug!("Detecting PBS environment");
-
-    std::env::var("PBS_ENVIRONMENT")
-        .map_err(|_| anyhow!("PBS_ENVIRONMENT not found. The process is not running under PBS"))?;
-
-    let manager_job_id =
-        std::env::var("PBS_JOBID").expect("PBS_JOBID not found in environment variables");
-
-    let time_limit = match pbs::get_remaining_timelimit(&manager_job_id) {
-        Ok(time_limit) => Some(time_limit),
-        Err(error) => {
-            log::warn!("Cannot get time-limit from PBS: {error:?}");
-            None
-        }
-    };
-
-    log::info!("PBS environment detected");
-
-    Ok(ManagerInfo::new(
-        ManagerType::Pbs,
-        manager_job_id,
-        time_limit,
-    ))
-}
-
-fn try_get_slurm_info() -> anyhow::Result<ManagerInfo> {
-    log::debug!("Detecting SLURM environment");
-
-    let manager_job_id = std::env::var("SLURM_JOB_ID")
-        .or_else(|_| std::env::var("SLURM_JOBID"))
-        .map_err(|_| {
-            anyhow!("SLURM_JOB_ID/SLURM_JOBID not found. The process is not running under SLURM")
-        })?;
-
-    let duration = slurm::get_remaining_timelimit(&manager_job_id)
-        .expect("Could not get remaining time from scontrol");
-
-    log::info!("SLURM environment detected");
-
-    Ok(ManagerInfo::new(
-        ManagerType::Slurm,
-        manager_job_id,
-        Some(duration),
-    ))
-}
-
-fn gather_manager_info(opts: ManagerOpts) -> anyhow::Result<Option<ManagerInfo>> {
-    match opts {
-        ManagerOpts::Detect => {
-            log::debug!("Trying to detect manager");
-            Ok(try_get_pbs_info().or_else(|_| try_get_slurm_info()).ok())
-        }
-        ManagerOpts::None => {
-            log::debug!("Manager detection disabled");
-            Ok(None)
-        }
-        ManagerOpts::Pbs => Ok(Some(try_get_pbs_info()?)),
-        ManagerOpts::Slurm => Ok(Some(try_get_slurm_info()?)),
-    }
-}
-
-pub fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfiguration> {
-    log::debug!("Gathering worker configuration information");
-
-    let hostname = opts.hostname.unwrap_or_else(|| {
-        gethostname::gethostname()
-            .into_string()
-            .expect("Invalid hostname")
-    });
-
-    let cpus = match opts.cpus.unpack() {
-        CpuDefinition::Detect => detect_cpus()?,
-        CpuDefinition::DetectNoHyperThreading => detect_cpus_no_ht()?,
-        CpuDefinition::Custom(cpus) => cpus,
-    };
-
-    let mut generic = if opts.no_detect_resources {
-        Vec::new()
-    } else {
-        detect_generic_resources()?
-    };
-    for def in opts.resource {
-        let descriptor = def.unpack();
-        generic.retain(|desc| desc.name != descriptor.name);
-        generic.push(descriptor)
-    }
-
-    let resources = ResourceDescriptor::new(cpus, generic);
-
-    resources.validate()?;
-
-    let (work_dir, log_dir) = {
-        let tmpdir = TempDir::new("hq-worker").unwrap().into_path();
-        (
-            opts.work_dir.unwrap_or_else(|| tmpdir.join("work")),
-            tmpdir.join("logs"),
-        )
-    };
-
-    let manager_info = gather_manager_info(opts.manager)?;
-    let mut extra = Map::new();
-
-    if let Some(manager_info) = &manager_info {
-        extra.insert(
-            WORKER_EXTRA_MANAGER_KEY.to_string(),
-            serde_json::to_string(&manager_info)?,
-        );
-    }
-
-    extra.insert(
-        WORKER_EXTRA_PROCESS_PID.to_string(),
-        std::process::id().to_string(),
-    );
-
-    Ok(WorkerConfiguration {
-        resources,
-        listen_address: Default::default(), // Will be filled during init
-        time_limit: opts
-            .time_limit
-            .map(|x| x.unpack())
-            .or_else(|| manager_info.and_then(|m| m.time_limit)),
-        hostname,
-        work_dir,
-        log_dir,
-        on_server_lost: opts.on_server_lost.into(),
-        heartbeat_interval: opts.heartbeat.unpack(),
-        idle_timeout: opts.idle_timeout.map(|x| x.unpack()),
-        send_overview_interval: Some(Duration::from_millis(1000)),
-        extra,
-    })
 }
