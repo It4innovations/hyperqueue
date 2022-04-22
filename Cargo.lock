@@ -1358,10 +1358,13 @@ version = "0.9.0"
 dependencies = [
  "anyhow",
  "hyperqueue",
+ "log",
  "pyo3",
  "pyo3-asyncio",
  "pythonize",
  "serde",
+ "tempdir",
+ "termcolor",
  "tokio",
 ]
 

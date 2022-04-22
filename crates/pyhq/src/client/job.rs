@@ -1,21 +1,21 @@
-use hyperqueue::client::resources::parse_cpu_request;
-use hyperqueue::client::status::Status;
-use hyperqueue::common::arraydef::IntArray;
-use hyperqueue::common::utils::fs::get_current_dir;
-use hyperqueue::server::job::JobTaskState;
-use hyperqueue::tako::messages::common::{ProgramDefinition, StdioDef};
-use hyperqueue::transfer::messages::{
+use hyperqueue_core::client::resources::parse_cpu_request;
+use hyperqueue_core::client::status::Status;
+use hyperqueue_core::common::arraydef::IntArray;
+use hyperqueue_core::common::utils::fs::get_current_dir;
+use hyperqueue_core::server::job::JobTaskState;
+use hyperqueue_core::tako::messages::common::{ProgramDefinition, StdioDef};
+use hyperqueue_core::transfer::messages::{
     FromClientMessage, IdSelector, JobDescription as HqJobDescription, JobDetailRequest, PinMode,
     SubmitRequest, TaskDescription as HqTaskDescription, TaskIdSelector, TaskSelector,
     TaskStatusSelector, TaskWithDependencies, ToClientMessage, WaitForJobsRequest,
 };
-use hyperqueue::{rpc_call, tako, JobTaskCount};
+use hyperqueue_core::{rpc_call, tako, JobTaskCount};
 use pyo3::{PyResult, Python};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::utils::error::ToPyResult;
-use crate::{borrow_mut, run_future, ContextPtr, FromPyObject, PyJobId, PyTaskId};
+use crate::{borrow_mut, run_future, ClientContextPtr, FromPyObject, PyJobId, PyTaskId};
 
 #[derive(Debug, FromPyObject)]
 pub struct ResourceRequestDescription {
@@ -42,7 +42,11 @@ pub struct JobDescription {
     max_fails: Option<JobTaskCount>,
 }
 
-pub(crate) fn submit_job_impl(py: Python, ctx: ContextPtr, job: JobDescription) -> PyResult<u32> {
+pub(crate) fn submit_job_impl(
+    py: Python,
+    ctx: ClientContextPtr,
+    job: JobDescription,
+) -> PyResult<u32> {
     run_future(async move {
         let submit_dir = get_current_dir();
         let tasks = build_tasks(job.tasks, &submit_dir)?;
@@ -123,7 +127,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
 
 pub(crate) fn wait_for_jobs_impl(
     py: Python,
-    ctx: ContextPtr,
+    ctx: ClientContextPtr,
     job_ids: Vec<PyJobId>,
 ) -> PyResult<u32> {
     run_future(async move {
@@ -142,7 +146,7 @@ pub(crate) fn wait_for_jobs_impl(
 
 pub(crate) fn get_error_messages_impl(
     py: Python,
-    ctx: ContextPtr,
+    ctx: ClientContextPtr,
     job_ids: Vec<PyJobId>,
 ) -> PyResult<HashMap<PyJobId, HashMap<PyTaskId, String>>> {
     run_future(async move {

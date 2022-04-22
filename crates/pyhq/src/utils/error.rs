@@ -1,4 +1,4 @@
-use hyperqueue::common::error::HqError;
+use hyperqueue_core::common::error::HqError;
 use pyo3::exceptions::PyException;
 use pyo3::{PyErr, Python};
 
