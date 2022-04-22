@@ -1,7 +1,6 @@
 from typing import Dict, List, Optional, Sequence
 
-from . import ffi
-from . import JobId, TaskId
+from . import JobId, TaskId, ffi
 from .protocol import JobDescription
 
 

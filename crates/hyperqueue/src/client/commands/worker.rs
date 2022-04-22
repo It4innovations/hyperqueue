@@ -1,5 +1,17 @@
+use std::path::PathBuf;
+use std::time::Duration;
+
+use clap::Parser;
+use tako::common::resources::ResourceDescriptor;
+use tako::common::Map;
+use tako::messages::common::WorkerConfiguration;
+use tempdir::TempDir;
+
+use tako::worker::state::ServerLostPolicy;
+
 use crate::client::globalsettings::GlobalSettings;
-use crate::common::serverdir::ServerDir;
+use crate::common::manager::info::{ManagerInfo, WORKER_EXTRA_MANAGER_KEY};
+use crate::common::utils::network::get_hostname;
 use crate::common::utils::time::ArgDuration;
 use crate::rpc_call;
 use crate::transfer::connection::ClientConnection;
@@ -7,19 +19,12 @@ use crate::transfer::messages::{
     FromClientMessage, IdSelector, StopWorkerMessage, StopWorkerResponse, ToClientMessage,
     WorkerInfo, WorkerInfoRequest,
 };
-use crate::worker::parser::{ArgCpuDefinition, ArgGenericResourceDef};
-use crate::worker::start;
-use crate::worker::start::HqTaskLauncher;
-use crate::worker::streamer::StreamerRef;
+use crate::worker::bootstrap::{
+    finalize_configuration, initialize_worker, try_get_pbs_info, try_get_slurm_info,
+};
+use crate::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resources};
+use crate::worker::parser::{ArgCpuDefinition, ArgGenericResourceDef, CpuDefinition};
 use crate::WorkerId;
-use anyhow::Context;
-use clap::Parser;
-use std::path::PathBuf;
-use std::time::Duration;
-use tako::worker::rpc::run_worker;
-use tako::worker::state::ServerLostPolicy;
-use tokio::net::lookup_host;
-use tokio::task::LocalSet;
 
 #[derive(clap::ArgEnum, Clone)]
 pub enum WorkerFilter {
@@ -98,59 +103,93 @@ pub async fn start_hq_worker(
     gsettings: &GlobalSettings,
     opts: WorkerStartOpts,
 ) -> anyhow::Result<()> {
-    log::info!("Starting hyperqueue worker {}", env!("CARGO_PKG_VERSION"));
-    let server_dir =
-        ServerDir::open(gsettings.server_directory()).context("Cannot load server directory")?;
-    let record = server_dir.read_access_record().with_context(|| {
-        format!(
-            "Cannot load access record from {:?}",
-            server_dir.access_filename()
-        )
-    })?;
-    let server_address = format!("{}:{}", record.host(), record.worker_port());
-    log::info!("Connecting to: {}", server_address);
+    let mut configuration = gather_configuration(opts)?;
+    finalize_configuration(&mut configuration);
 
-    let configuration = start::gather_configuration(opts)?;
-
-    std::fs::create_dir_all(&configuration.work_dir)?;
-    std::fs::create_dir_all(&configuration.log_dir)?;
-
-    let server_addr = lookup_host(&server_address)
-        .await?
-        .next()
-        .expect("Invalid server address");
-
-    log::debug!("Starting streamer ...");
-    let (streamer_ref, streamer_future) = StreamerRef::start(
-        Duration::from_secs(10),
-        server_addr,
-        record.tako_secret_key().clone(),
-    );
-
-    log::debug!("Starting Tako worker ...");
-    let ((worker_id, configuration), worker_future) = run_worker(
-        server_addr,
-        configuration,
-        Some(record.tako_secret_key().clone()),
-        Box::new(HqTaskLauncher::new(streamer_ref)),
-    )
-    .await?;
+    let (future, worker) = initialize_worker(gsettings.server_directory(), configuration).await?;
 
     gsettings.printer().print_worker_info(WorkerInfo {
-        id: worker_id,
-        configuration,
+        id: worker.id,
+        configuration: worker.configuration,
         ended: None,
     });
-    let local_set = LocalSet::new();
-    let result = local_set
-        .run_until(async move {
-            tokio::select! {
-                res = worker_future => res,
-                () = streamer_future => { Ok(()) }
-            }
-        })
-        .await;
-    result.map_err(|e| e.into())
+    future.await.map_err(|e| e.into())
+}
+
+fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfiguration> {
+    log::debug!("Gathering worker configuration information");
+
+    let hostname = get_hostname(opts.hostname);
+
+    let cpus = match opts.cpus.unpack() {
+        CpuDefinition::Detect => detect_cpus()?,
+        CpuDefinition::DetectNoHyperThreading => detect_cpus_no_ht()?,
+        CpuDefinition::Custom(cpus) => cpus,
+    };
+
+    let mut generic = if opts.no_detect_resources {
+        Vec::new()
+    } else {
+        detect_generic_resources()?
+    };
+    for def in opts.resource {
+        let descriptor = def.unpack();
+        generic.retain(|desc| desc.name != descriptor.name);
+        generic.push(descriptor)
+    }
+
+    let resources = ResourceDescriptor::new(cpus, generic);
+    resources.validate()?;
+
+    let (work_dir, log_dir) = {
+        let tmpdir = TempDir::new("hq-worker").unwrap().into_path();
+        (
+            opts.work_dir.unwrap_or_else(|| tmpdir.join("work")),
+            tmpdir.join("logs"),
+        )
+    };
+
+    let manager_info = gather_manager_info(opts.manager)?;
+    let mut extra = Map::new();
+
+    if let Some(manager_info) = &manager_info {
+        extra.insert(
+            WORKER_EXTRA_MANAGER_KEY.to_string(),
+            serde_json::to_string(&manager_info)?,
+        );
+    }
+
+    Ok(WorkerConfiguration {
+        resources,
+        listen_address: Default::default(), // Will be filled during init
+        time_limit: opts
+            .time_limit
+            .map(|x| x.unpack())
+            .or_else(|| manager_info.and_then(|m| m.time_limit)),
+        hostname,
+        work_dir,
+        log_dir,
+        on_server_lost: opts.on_server_lost.into(),
+        heartbeat_interval: opts.heartbeat.unpack(),
+        idle_timeout: opts.idle_timeout.map(|x| x.unpack()),
+        send_overview_interval: Some(Duration::from_millis(1000)),
+        extra,
+    })
+}
+
+fn gather_manager_info(opts: ManagerOpts) -> anyhow::Result<Option<ManagerInfo>> {
+    match opts {
+        ManagerOpts::Detect => {
+            log::debug!("Trying to detect manager");
+            Ok(try_get_pbs_info().or_else(|_| try_get_slurm_info()).ok())
+        }
+        ManagerOpts::None => {
+            log::debug!("Manager detection disabled");
+            Ok(None)
+        }
+        ManagerOpts::Pbs => Ok(Some(try_get_pbs_info()?)),
+        ManagerOpts::Slurm => Ok(Some(try_get_slurm_info()?)),
+    }
 }
 
 pub async fn get_worker_list(

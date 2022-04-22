@@ -1,5 +1,6 @@
 use hyperqueue_core::client::globalsettings::GlobalSettings;
 use hyperqueue_core::client::output::cli::CliOutput;
+use hyperqueue_core::common::utils::network::get_hostname;
 use hyperqueue_core::server::bootstrap::{initialize_server, ServerConfig};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -27,7 +28,7 @@ impl RunningServer {
                 Box::new(CliOutput::new(termcolor::ColorChoice::Never)),
             );
             let config = ServerConfig {
-                host: "localhost".to_string(),
+                host: get_hostname(None),
                 idle_timeout: None,
                 client_port: None,
                 worker_port: None,

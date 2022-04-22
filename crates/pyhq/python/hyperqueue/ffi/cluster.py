@@ -15,9 +15,12 @@ class Cluster:
         self.directory = directory
         self.ctx: HqClusterContext = ffi.cluster_start(directory)
 
+    def add_worker(self, cores: int):
+        self.ctx.add_worker(cores)
+
     @property
     def server_dir(self) -> str:
         return self.ctx.server_dir
 
     def stop(self):
-        return ffi.cluster_stop(self.ctx)
+        return self.ctx.stop()

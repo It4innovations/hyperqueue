@@ -71,21 +71,22 @@ impl HqClusterContext {
     pub fn server_dir(&self) -> String {
         self.cluster.server_dir().to_string_lossy().into_owned()
     }
-}
 
-type ClusterContextPtr = Py<HqClusterContext>;
+    pub fn stop(&mut self) {
+        self.cluster.stop();
+    }
+
+    pub fn add_worker(&mut self, cores: usize) -> PyResult<()> {
+        self.cluster.add_worker(cores)?;
+        Ok(())
+    }
+}
 
 #[pyfunction]
 fn cluster_start(_py: Python, path: Option<String>) -> PyResult<HqClusterContext> {
     let path: Option<PathBuf> = path.map(|p| p.into());
     let cluster = Cluster::start(path)?;
     Ok(HqClusterContext { cluster })
-}
-
-#[pyfunction]
-fn cluster_stop(py: Python, ctx: ClusterContextPtr) {
-    let mut ctx = borrow_mut!(py, ctx);
-    ctx.cluster.stop();
 }
 
 #[pymodule]
@@ -109,7 +110,6 @@ fn hyperqueue(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<HqClusterContext>()?;
 
     m.add_function(wrap_pyfunction!(cluster_start, m)?)?;
-    m.add_function(wrap_pyfunction!(cluster_stop, m)?)?;
 
     Ok(())
 }
