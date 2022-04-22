@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use std::sync::Arc;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
@@ -34,7 +33,7 @@ pub async fn handle_client_connections(
     tako_ref: Backend,
     server_dir: ServerDir,
     listener: TcpListener,
-    end_flag: Rc<Notify>,
+    end_flag: Arc<Notify>,
     key: Arc<SecretKey>,
 ) {
     let group = TaskGroup::default();
@@ -60,7 +59,7 @@ async fn handle_client(
     server_dir: ServerDir,
     state_ref: StateRef,
     tako_ref: Backend,
-    end_flag: Rc<Notify>,
+    end_flag: Arc<Notify>,
     key: Arc<SecretKey>,
 ) -> crate::Result<()> {
     log::debug!("New client connection");
@@ -81,7 +80,7 @@ pub async fn client_rpc_loop<
     server_dir: ServerDir,
     state_ref: StateRef,
     tako_ref: Backend,
-    end_flag: Rc<Notify>,
+    end_flag: Arc<Notify>,
 ) {
     while let Some(message_result) = rx.next().await {
         match message_result {

@@ -19,7 +19,6 @@ use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
 use crate::transfer::connection::{ClientConnection, HqConnection};
-use std::rc::Rc;
 use std::time::Duration;
 
 enum ServerStatus {
@@ -104,10 +103,10 @@ async fn get_server_status(server_directory: &Path) -> crate::Result<ServerStatu
     Ok(ServerStatus::Online(record))
 }
 
-async fn initialize_server(
+pub async fn initialize_server(
     gsettings: &GlobalSettings,
     server_cfg: ServerConfig,
-) -> anyhow::Result<(impl Future<Output = anyhow::Result<()>>, Rc<Notify>)> {
+) -> anyhow::Result<(impl Future<Output = anyhow::Result<()>>, Arc<Notify>)> {
     let server_directory = gsettings.server_directory();
 
     let client_listener = TcpListener::bind(SocketAddr::new(
@@ -148,7 +147,7 @@ async fn initialize_server(
         .printer()
         .print_server_record(server_directory, &record);
 
-    let end_flag = Rc::new(Notify::new());
+    let end_flag = Arc::new(Notify::new());
     let end_flag_check = end_flag.clone();
     let end_flag_ret = end_flag.clone();
 
@@ -268,11 +267,11 @@ mod tests {
     use cli_table::ColorChoice;
     use std::future::Future;
     use std::path::Path;
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     pub async fn init_test_server(
         tmp_dir: &Path,
-    ) -> (impl Future<Output = anyhow::Result<()>>, Rc<Notify>) {
+    ) -> (impl Future<Output = anyhow::Result<()>>, Arc<Notify>) {
         // Create global settings with CliOutput
         let gsettings = GlobalSettings::new(
             tmp_dir.to_path_buf(),

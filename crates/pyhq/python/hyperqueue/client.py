@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Dict, Optional, Sequence
 
-from .ffi.connection import Connection, JobId, TaskId
+from .ffi.client import ClientConnection, JobId, TaskId
 from .job import Job
 from .task.function import PythonEnv
 
@@ -15,7 +15,7 @@ class Client:
         self, path: Optional[Path] = None, python_env: Optional[PythonEnv] = None
     ):
         path = str(path) if path else None
-        self.connection = Connection(path)
+        self.connection = ClientConnection(path)
         if python_env is None:
             python_env = PythonEnv()
         self.python_env = python_env

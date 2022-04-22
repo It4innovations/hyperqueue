@@ -1,20 +1,20 @@
 from typing import Dict, List, Optional, Sequence
 
-from .. import hyperqueue as ffi
+from . import ffi
 from . import JobId, TaskId
 from .protocol import JobDescription
 
 
-class HqContext:
+class HqClientContext:
     """
     Opaque class returned from `connect_to_server`.
     Should be passed to FFI methods that require it.
     """
 
 
-class Connection:
+class ClientConnection:
     def __init__(self, directory: Optional[str] = None):
-        self.ctx: HqContext = ffi.connect_to_server(directory)
+        self.ctx: HqClientContext = ffi.connect_to_server(directory)
 
     def submit_job(self, job_description: JobDescription) -> JobId:
         return ffi.submit_job(self.ctx, job_description)

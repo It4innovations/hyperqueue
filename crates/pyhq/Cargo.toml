@@ -12,16 +12,19 @@ name = "hyperqueue"
 # Downstream Rust code (including code in `bin/`, `examples/`, and `tests/`) will not be able
 # to `use string_sum;` unless the "rlib" or "lib" crate type is also included, e.g.:
 # crate-type = ["cdylib", "rlib"]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "lib"]
 
 [dependencies]
-hyperqueue = { path = "../hyperqueue" }
-pyo3 = { version = "0.15.1", features = ["extension-module", "abi3", "abi3-py36", "anyhow"] }
-pyo3-asyncio = { version = "0.15.0", features = ["tokio-runtime", "attributes"] }
-pythonize = "0.15.0"
-serde = "1.0.130"
-tokio = "1.17.0"
-anyhow = "1.0.44"
+hyperqueue_core = { path = "../hyperqueue", package = "hyperqueue" }
+pyo3 = { version = "0.15", features = ["extension-module", "abi3", "abi3-py36", "anyhow"] }
+pyo3-asyncio = { version = "0.15", features = ["tokio-runtime", "attributes"] }
+pythonize = "0.15"
+serde = "1.0"
+tokio = "1.17"
+anyhow = "1.0"
+termcolor = "1.1"
+log = "0.4"
+tempdir = "0.3.7"
 
 [package.metadata.maturin]
 python-source = "python"
