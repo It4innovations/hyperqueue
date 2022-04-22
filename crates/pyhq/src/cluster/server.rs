@@ -1,7 +1,7 @@
-use hyperqueue_core::client::globalsettings::GlobalSettings;
-use hyperqueue_core::client::output::cli::CliOutput;
-use hyperqueue_core::common::utils::network::get_hostname;
-use hyperqueue_core::server::bootstrap::{initialize_server, ServerConfig};
+use hyperqueue::client::globalsettings::GlobalSettings;
+use hyperqueue::client::output::cli::CliOutput;
+use hyperqueue::common::utils::network::get_hostname;
+use hyperqueue::server::bootstrap::{initialize_server, ServerConfig};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::JoinHandle;

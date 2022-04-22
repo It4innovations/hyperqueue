@@ -1,15 +1,15 @@
-use hyperqueue_core::client::resources::parse_cpu_request;
-use hyperqueue_core::client::status::Status;
-use hyperqueue_core::common::arraydef::IntArray;
-use hyperqueue_core::common::utils::fs::get_current_dir;
-use hyperqueue_core::server::job::JobTaskState;
-use hyperqueue_core::tako::messages::common::{ProgramDefinition, StdioDef};
-use hyperqueue_core::transfer::messages::{
+use hyperqueue::client::resources::parse_cpu_request;
+use hyperqueue::client::status::Status;
+use hyperqueue::common::arraydef::IntArray;
+use hyperqueue::common::utils::fs::get_current_dir;
+use hyperqueue::server::job::JobTaskState;
+use hyperqueue::tako::messages::common::{ProgramDefinition, StdioDef};
+use hyperqueue::transfer::messages::{
     FromClientMessage, IdSelector, JobDescription as HqJobDescription, JobDetailRequest, PinMode,
     SubmitRequest, TaskDescription as HqTaskDescription, TaskIdSelector, TaskSelector,
     TaskStatusSelector, TaskWithDependencies, ToClientMessage, WaitForJobsRequest,
 };
-use hyperqueue_core::{rpc_call, tako, JobTaskCount};
+use hyperqueue::{rpc_call, tako, JobTaskCount};
 use pyo3::{PyResult, Python};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

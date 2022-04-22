@@ -2,13 +2,13 @@ use std::path::Path;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use hyperqueue_core::common::utils::network::get_hostname;
+use hyperqueue::common::utils::network::get_hostname;
 use tokio::task::LocalSet;
 
-use hyperqueue_core::tako::common::resources::{CpuId, ResourceDescriptor};
-use hyperqueue_core::tako::messages::common::WorkerConfiguration;
-use hyperqueue_core::tako::worker::state::ServerLostPolicy;
-use hyperqueue_core::worker::bootstrap::{finalize_configuration, initialize_worker};
+use hyperqueue::tako::common::resources::{CpuId, ResourceDescriptor};
+use hyperqueue::tako::messages::common::WorkerConfiguration;
+use hyperqueue::tako::worker::state::ServerLostPolicy;
+use hyperqueue::worker::bootstrap::{finalize_configuration, initialize_worker};
 
 pub struct RunningWorker {
     #[allow(unused)]
