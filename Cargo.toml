@@ -13,6 +13,5 @@ default-members = [
 lto = true
 codegen-units = 1
 opt-level = 3
-# TODO: disable panic = "abort" for pyhq build
 panic = "abort"
 strip = "debuginfo"

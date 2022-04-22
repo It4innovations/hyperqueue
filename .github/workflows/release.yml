@@ -133,6 +133,9 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v2
       - uses: messense/maturin-action@v1
+        env:
+          CARGO_PROFILE_RELEASE_PANIC: unwind
+          CARGO_PROFILE_RELEASE_STRIP: none
         with:
           maturin-version: latest
           manylinux: 2014
