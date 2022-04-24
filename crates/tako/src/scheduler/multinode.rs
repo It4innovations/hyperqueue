@@ -31,4 +31,8 @@ impl MultiNodeQueue {
     pub(crate) fn add_task(&mut self, task: &Task) {
         self.queue.push(task.id, task_priority_tuple(task));
     }
+
+    pub(crate) fn remove_task(&mut self, task_id: TaskId) {
+        self.queue.remove(&task_id);
+    }
 }

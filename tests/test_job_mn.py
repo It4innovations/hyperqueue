@@ -62,7 +62,7 @@ def test_failed_mn_task(hq_env: HqEnv):
     assert set(ws).issubset(["worker1", "worker2", "worker3"])
 
 
-def test_cancel_mn_task(hq_env: HqEnv):
+def test_cancel_mn_task_running(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_workers(3)
     hq_env.command(["submit", "--nodes=3", "--", "bash", "-c", "sleep 10"])
@@ -71,6 +71,15 @@ def test_cancel_mn_task(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "CANCELED")
     hq_env.command(["submit", "--nodes=3", "--", "bash", "-c", "exit 0"])
     wait_for_job_state(hq_env, 2, "FINISHED")
+
+
+def test_cancel_mn_task_waiting(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.command(["submit", "--nodes=2", "--", "bash", "-c", "sleep 10"])
+    wait_for_job_state(hq_env, 1, "WAITING")
+    hq_env.command(["job", "cancel", "all"])
+    wait_for_job_state(hq_env, 1, "CANCELED")
 
 
 @pytest.mark.parametrize("root", (True, False))
