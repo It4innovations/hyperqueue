@@ -266,6 +266,9 @@ impl Core {
             .tasks
             .remove(task_id)
             .expect("Trying to remove non-existent task");
+        if task.configuration.resources.is_multi_node() {
+            self.multi_node_queue.remove_task(task.id);
+        }
         assert!(!task.has_consumers());
         task.state
     }
