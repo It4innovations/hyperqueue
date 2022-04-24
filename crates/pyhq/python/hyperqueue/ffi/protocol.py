@@ -4,7 +4,8 @@ from typing import Dict, List, Optional, Sequence
 
 @dataclasses.dataclass()
 class ResourceRequest:
-    cpus: str
+    n_nodes: int = 0
+    cpus: str = "1"
 
 
 @dataclasses.dataclass()
