@@ -25,6 +25,12 @@ def task_main():
     import sys
 
     try:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s %(name)s:%(levelname)-4s %(message)s",
+            datefmt="%d-%m-%Y %H:%M:%S",
+        )
+
         fn, a, kw = pickle.loads(sys.stdin.buffer.read())
         fn(*a, **(kw if kw is not None else {}))
     except Exception:
