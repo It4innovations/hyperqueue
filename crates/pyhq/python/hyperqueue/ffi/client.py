@@ -1,3 +1,4 @@
+import dataclasses
 from typing import Dict, List, Optional, Sequence
 
 from . import JobId, TaskId, ffi
@@ -9,6 +10,17 @@ class HqClientContext:
     Opaque class returned from `connect_to_server`.
     Should be passed to FFI methods that require it.
     """
+
+
+@dataclasses.dataclass(frozen=True)
+class FailedTaskContext:
+    error: str
+    cwd: Optional[str]
+    stdout: Optional[str]
+    stderr: Optional[str]
+
+
+TaskFailureMap = Dict[JobId, Dict[TaskId, FailedTaskContext]]
 
 
 class ClientConnection:
@@ -25,7 +37,18 @@ class ClientConnection:
     def stop_server(self):
         return ffi.stop_server(self.ctx)
 
-    def get_error_messages(
-        self, job_ids: Sequence[JobId]
-    ) -> Dict[JobId, Dict[TaskId, str]]:
-        return ffi.get_error_messages(self.ctx, job_ids)
+    def get_failed_tasks(self, job_ids: Sequence[JobId]) -> TaskFailureMap:
+        jobs = ffi.get_failed_tasks(self.ctx, job_ids)
+        # TODO: use a class directly, keep in dicts or use TypedDict
+        return {
+            job_id: {
+                task_id: FailedTaskContext(
+                    error=data["error"],
+                    cwd=data["cwd"],
+                    stdout=data["stdout"],
+                    stderr=data["stderr"],
+                )
+                for (task_id, data) in task_data.items()
+            }
+            for (job_id, task_data) in jobs.items()
+        }

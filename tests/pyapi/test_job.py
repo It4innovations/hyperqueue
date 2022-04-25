@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from hyperqueue.client import TaskFailedException
+from hyperqueue.client import FailedJobsException
 from hyperqueue.ffi.protocol import ResourceRequest
 from hyperqueue.job import Job
 
@@ -80,7 +80,7 @@ def test_wait_for_job(hq_env: HqEnv):
         args=bash("exit 1"),
     )
     job_id = client.submit(job)
-    with pytest.raises(TaskFailedException):
+    with pytest.raises(FailedJobsException):
         client.wait_for_jobs([job_id])
 
     job = Job()
@@ -92,7 +92,7 @@ def test_wait_for_job(hq_env: HqEnv):
     check_file_contents("output", "Test1\n")
 
 
-def test_get_error_messages(hq_env: HqEnv):
+def test_get_failed_tasks(hq_env: HqEnv):
     (job, client) = prepare_job_client(hq_env)
 
     job.program(
@@ -106,9 +106,10 @@ def test_get_error_messages(hq_env: HqEnv):
     )
     job_id = client.submit(job)
     assert not client.wait_for_jobs([job_id], raise_on_error=False)
-    assert client.get_error_messages(job_id) == {
-        1: "Error: Program terminated with exit code 1"
-    }
+
+    errors = client.get_failed_tasks(job_id)
+    assert len(errors) == 1
+    assert errors[1].error == "Error: Program terminated with exit code 1"
 
 
 def test_job_resources(hq_env: HqEnv):

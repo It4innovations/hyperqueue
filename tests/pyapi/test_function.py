@@ -54,11 +54,12 @@ def test_submit_pyfunction_fail(hq_env: HqEnv):
     job.function(body, stderr="err")
     job_id = client.submit(job)
     client.wait_for_jobs([job_id], raise_on_error=False)
-    errors = client.get_error_messages(job_id)
+    errors = client.get_failed_tasks(job_id)
     assert list(errors.keys()) == [0]
-    assert errors[0].endswith(
+    assert errors[0].error.endswith(
         '    raise Exception("MyException")\nException: MyException\n'
     )
+    assert errors[0].stderr == os.path.abspath("err")
 
 
 def test_function_resources(hq_env: HqEnv):

@@ -1,17 +1,43 @@
+import itertools
 import logging
 from pathlib import Path
 from typing import Dict, Optional, Sequence
 
 from tqdm import tqdm
 
-from .ffi.client import ClientConnection, JobId, TaskId
+from .ffi.client import (
+    ClientConnection,
+    FailedTaskContext,
+    JobId,
+    TaskFailureMap,
+    TaskId,
+)
 from .job import Job
 from .task.function import PythonEnv
 from .utils import pluralize
 
+MAX_PRINTED_TASKS = 5
 
-class TaskFailedException(Exception):
-    pass
+
+class FailedJobsException(Exception):
+    def __init__(self, jobs: TaskFailureMap):
+        self.jobs = jobs
+
+    def __str__(self):
+        error = ""
+        for (job_id, tasks) in self.jobs.items():
+            error += f"The following tasks of job `{job_id}` have failed:\n"
+            for (task_id, ctx) in itertools.islice(tasks.items(), MAX_PRINTED_TASKS):
+                error += f"Task {task_id}:\n{ctx.error}\n"
+                if ctx.cwd or ctx.stdout or ctx.stderr:
+                    error += "You can find more information here:\n"
+                    if ctx.cwd:
+                        error += f"Working directory: {ctx.cwd}\n"
+                    if ctx.stdout:
+                        error += f"Stdout: {ctx.stdout}\n"
+                    if ctx.stderr:
+                        error += f"Stderr: {ctx.stderr}\n"
+        return f"{error}\n"
 
 
 class Client:
@@ -47,16 +73,12 @@ class Client:
 
         failed_jobs = self.connection.wait_for_jobs(job_ids, callback)
         if failed_jobs and raise_on_error:
-            errors = self.connection.get_error_messages(job_ids)
-            for es in errors.values():
-                if not es:
-                    continue
-                min_id = min(es.keys())
-                raise TaskFailedException(f"Task {min_id} failed:\n{es[min_id]}")
+            failed_jobs = self.connection.get_failed_tasks(failed_jobs)
+            raise FailedJobsException(failed_jobs)
         return len(failed_jobs) == 0
 
-    def get_error_messages(self, job_id: JobId) -> Dict[TaskId, str]:
-        result = self.connection.get_error_messages([job_id])
+    def get_failed_tasks(self, job_id: JobId) -> Dict[TaskId, FailedTaskContext]:
+        result = self.connection.get_failed_tasks([job_id])
         return result[job_id]
 
 
