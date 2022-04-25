@@ -1,5 +1,5 @@
 use pyo3::types::PyModule;
-use pyo3::{pyclass, pyfunction, pymethods, pymodule, FromPyObject};
+use pyo3::{pyclass, pyfunction, pymethods, pymodule, FromPyObject, PyAny};
 use pyo3::{wrap_pyfunction, Py, PyResult, Python};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -45,9 +45,17 @@ fn submit_job(py: Python, ctx: ClientContextPtr, job: JobDescription) -> PyResul
     submit_job_impl(py, ctx, job)
 }
 
+/// Wait until the specified jobs finish.
+/// `progress_callback` is a function that receives [client::job::WaitStatus].
+/// It will be periodically called during waiting.
 #[pyfunction]
-fn wait_for_jobs(py: Python, ctx: ClientContextPtr, job_ids: Vec<PyJobId>) -> PyResult<u32> {
-    wait_for_jobs_impl(py, ctx, job_ids)
+fn wait_for_jobs(
+    py: Python,
+    ctx: ClientContextPtr,
+    job_ids: Vec<PyJobId>,
+    progress_callback: &PyAny,
+) -> PyResult<Vec<PyJobId>> {
+    wait_for_jobs_impl(py, ctx, job_ids, progress_callback)
 }
 
 #[pyfunction]

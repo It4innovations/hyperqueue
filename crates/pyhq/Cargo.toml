@@ -16,8 +16,9 @@ crate-type = ["cdylib"]
 
 [dependencies]
 hyperqueue = { path = "../hyperqueue" }
-pyo3 = { version = "0.15", features = ["extension-module", "abi3", "abi3-py36", "anyhow"] }
+pyo3 = { version = "0.15", features = ["extension-module", "abi3", "abi3-py36", "anyhow", "serde"] }
 pyo3-asyncio = { version = "0.15", features = ["tokio-runtime", "attributes"] }
+dict_derive = "0.4.0"
 pythonize = "0.15"
 serde = "1.0"
 tokio = "1.17"

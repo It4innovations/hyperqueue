@@ -1,18 +1,20 @@
 use hyperqueue::client::resources::parse_cpu_request;
-use hyperqueue::client::status::Status;
+use hyperqueue::client::status::{is_terminated, Status};
 use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::utils::fs::get_current_dir;
 use hyperqueue::server::job::JobTaskState;
 use hyperqueue::tako::messages::common::{ProgramDefinition, StdioDef};
 use hyperqueue::transfer::messages::{
-    FromClientMessage, IdSelector, JobDescription as HqJobDescription, JobDetailRequest, PinMode,
-    SubmitRequest, TaskDescription as HqTaskDescription, TaskIdSelector, TaskSelector,
-    TaskStatusSelector, TaskWithDependencies, ToClientMessage, WaitForJobsRequest,
+    FromClientMessage, IdSelector, JobDescription as HqJobDescription, JobDetailRequest,
+    JobInfoRequest, JobInfoResponse, PinMode, SubmitRequest, TaskDescription as HqTaskDescription,
+    TaskIdSelector, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
-use hyperqueue::{rpc_call, tako, JobTaskCount};
-use pyo3::{PyResult, Python};
+use hyperqueue::{rpc_call, tako, JobTaskCount, Set};
+use pyo3::types::PyTuple;
+use pyo3::{IntoPy, PyAny, PyResult, Python};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use crate::utils::error::ToPyResult;
 use crate::{borrow_mut, run_future, ClientContextPtr, FromPyObject, PyJobId, PyTaskId};
@@ -125,22 +127,80 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
     })
 }
 
+#[derive(dict_derive::IntoPyObject)]
+pub struct JobWaitStatus {
+    finished: u64,
+    failed: u64,
+    total: u64,
+    completed: bool,
+}
+
+/// Waits until the specified job(s) finish executing.
+/// Returns IDs of jobs that had any failures.
 pub(crate) fn wait_for_jobs_impl(
     py: Python,
     ctx: ClientContextPtr,
     job_ids: Vec<PyJobId>,
-) -> PyResult<u32> {
+    callback: &PyAny,
+) -> PyResult<Vec<PyJobId>> {
     run_future(async move {
-        let message = FromClientMessage::WaitForJobs(WaitForJobsRequest {
-            selector: IdSelector::Specific(IntArray::from_ids(job_ids)),
-        });
+        let mut remaining_job_ids: Set<PyJobId> = job_ids.iter().copied().collect();
 
         let mut ctx = borrow_mut!(py, ctx);
-        let response =
-            rpc_call!(ctx.connection, message, ToClientMessage::WaitForJobsResponse(r) => r)
-                .await
-                .map_py_err()?;
-        Ok(response.finished)
+        let mut response: JobInfoResponse;
+
+        loop {
+            let selector = IdSelector::Specific(IntArray::from_ids(
+                remaining_job_ids.iter().copied().collect(),
+            ));
+
+            response = hyperqueue::rpc_call!(
+                ctx.connection,
+                FromClientMessage::JobInfo(JobInfoRequest {
+                    selector,
+                }),
+                ToClientMessage::JobInfoResponse(r) => r
+            )
+            .await
+            .map_py_err()?;
+
+            for job in response.jobs.iter() {
+                if is_terminated(job) {
+                    remaining_job_ids.remove(&job.id.into());
+                }
+            }
+
+            let status: HashMap<PyJobId, JobWaitStatus> = response
+                .jobs
+                .iter()
+                .map(|job| {
+                    let counters = job.counters;
+                    let status = JobWaitStatus {
+                        finished: counters.n_finished_tasks.into(),
+                        failed: counters.n_failed_tasks.into(),
+                        total: job.n_tasks.into(),
+                        completed: is_terminated(job),
+                    };
+                    (job.id.into(), status)
+                })
+                .collect();
+            let args = PyTuple::new(py, &[status.into_py(py)]);
+            callback.call1(args)?;
+
+            if remaining_job_ids.is_empty() {
+                break;
+            }
+
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+
+        let failed_jobs = response
+            .jobs
+            .into_iter()
+            .filter(|j| j.counters.has_unsuccessful_tasks())
+            .map(|j| j.id.into())
+            .collect();
+        Ok(failed_jobs)
     })
 }
 
