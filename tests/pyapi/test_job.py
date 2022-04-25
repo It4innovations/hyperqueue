@@ -14,6 +14,12 @@ from ..utils.table import parse_multiline_cell
 from . import bash, prepare_job_client
 
 
+def test_submit_empty_job(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+    with pytest.raises(Exception, match="Submitted job must have at least a single task"):
+        client.submit(job)
+
+
 def test_submit_simple(hq_env: HqEnv):
     (job, client) = prepare_job_client(hq_env)
 

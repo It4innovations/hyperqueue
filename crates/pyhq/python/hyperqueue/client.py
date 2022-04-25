@@ -23,6 +23,10 @@ class Client:
 
     def submit(self, job: Job) -> JobId:
         job_desc = job._build(self)
+        task_count = len(job_desc.tasks)
+        if task_count < 1:
+            raise Exception("Submitted job must have at least a single task")
+
         job_id = self.connection.submit_job(job_desc)
         logging.info(f"Submitted job {job_id} with {len(job_desc.tasks)} task(s)")
         return job_id
