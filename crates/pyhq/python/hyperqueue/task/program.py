@@ -26,7 +26,9 @@ class ExternalProgram(Task):
         task_dir: bool = False,
         resources: Optional[ResourceRequest],
     ):
-        super().__init__(task_id, dependencies, resources, cwd=cwd, stdout=stdout, stderr=stderr)
+        super().__init__(
+            task_id, dependencies, resources, cwd=cwd, stdout=stdout, stderr=stderr
+        )
         args = to_arg_list(args)
         validate_args(args)
         self.args = args

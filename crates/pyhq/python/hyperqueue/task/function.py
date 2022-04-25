@@ -69,7 +69,9 @@ class PythonFunction(Task):
         dependencies=(),
         resources: Optional[ResourceRequest] = None,
     ):
-        super().__init__(task_id, dependencies, resources, cwd=cwd, stdout=stdout, stderr=stderr)
+        super().__init__(
+            task_id, dependencies, resources, cwd=cwd, stdout=stdout, stderr=stderr
+        )
 
         fn_id = id(fn)
         wrapper = _CLOUDWRAPPER_CACHE.get(fn_id)
