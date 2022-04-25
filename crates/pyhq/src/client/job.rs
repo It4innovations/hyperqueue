@@ -1,3 +1,4 @@
+use hyperqueue::client::output::resolve_task_paths;
 use hyperqueue::client::resources::parse_cpu_request;
 use hyperqueue::client::status::{is_terminated, Status};
 use hyperqueue::common::arraydef::IntArray;
@@ -204,11 +205,28 @@ pub(crate) fn wait_for_jobs_impl(
     })
 }
 
-pub(crate) fn get_error_messages_impl(
+#[derive(dict_derive::IntoPyObject)]
+pub struct FailedTaskContext {
+    stdout: Option<String>,
+    stderr: Option<String>,
+    cwd: Option<String>,
+    error: String,
+}
+
+pub type FailedTaskMap = HashMap<PyJobId, HashMap<PyTaskId, FailedTaskContext>>;
+
+fn stdio_to_string(stdio: StdioDef) -> Option<String> {
+    match stdio {
+        StdioDef::File(path) => Some(path.to_string_lossy().to_string()),
+        _ => None,
+    }
+}
+
+pub(crate) fn get_failed_tasks_impl(
     py: Python,
     ctx: ClientContextPtr,
     job_ids: Vec<PyJobId>,
-) -> PyResult<HashMap<PyJobId, HashMap<PyTaskId, String>>> {
+) -> PyResult<FailedTaskMap> {
     run_future(async move {
         let message = FromClientMessage::JobDetail(JobDetailRequest {
             job_id_selector: IdSelector::Specific(IntArray::from_ids(job_ids)),
@@ -224,22 +242,42 @@ pub(crate) fn get_error_messages_impl(
                 .await
                 .map_py_err()?;
 
-        Ok(response
-            .into_iter()
-            .filter_map(|(job_id, opt_job)| {
-                opt_job.map(|job| {
-                    (
-                        job_id.as_num(),
-                        job.tasks
-                            .into_iter()
-                            .map(|t| match t.state {
-                                JobTaskState::Failed { error, .. } => (t.task_id.as_num(), error),
-                                _ => panic!("Invalid state"),
-                            })
-                            .collect::<HashMap<PyTaskId, String>>(),
-                    )
-                })
-            })
-            .collect())
+        let mut result = HashMap::with_capacity(response.len());
+        for (job_id, job_detail) in response {
+            if let Some(job_detail) = job_detail {
+                let mut task_path_map = resolve_task_paths(&job_detail);
+                let mut tasks = HashMap::with_capacity(job_detail.tasks.len());
+                for task in job_detail.tasks {
+                    match task.state {
+                        JobTaskState::Failed { error, .. } => {
+                            let id = task.task_id.as_num();
+                            let path_ctx = task_path_map.remove(&id.into()).flatten();
+                            let (stdout, stderr, cwd) = match path_ctx {
+                                Some(paths) => (
+                                    stdio_to_string(paths.stdout),
+                                    stdio_to_string(paths.stderr),
+                                    Some(paths.cwd.to_string_lossy().to_string()),
+                                ),
+                                None => (None, None, None),
+                            };
+
+                            tasks.insert(
+                                id,
+                                FailedTaskContext {
+                                    stdout,
+                                    stderr,
+                                    cwd,
+                                    error,
+                                },
+                            );
+                        }
+                        _ => panic!("Invalid state"),
+                    }
+                }
+                result.insert(job_id.into(), tasks);
+            }
+        }
+
+        Ok(result)
     })
 }

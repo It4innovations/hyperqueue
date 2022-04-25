@@ -1,15 +1,15 @@
 use pyo3::types::PyModule;
 use pyo3::{pyclass, pyfunction, pymethods, pymodule, FromPyObject, PyAny};
 use pyo3::{wrap_pyfunction, Py, PyResult, Python};
-use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::runtime::Builder;
 
 use hyperqueue::transfer::connection::ClientConnection;
 
+use crate::client::job::FailedTaskMap;
 use crate::cluster::Cluster;
 use crate::utils::run_future;
-use client::job::{get_error_messages_impl, submit_job_impl, wait_for_jobs_impl, JobDescription};
+use client::job::{get_failed_tasks_impl, submit_job_impl, wait_for_jobs_impl, JobDescription};
 use client::server::{connect_to_server_impl, stop_server_impl};
 
 mod client;
@@ -59,12 +59,12 @@ fn wait_for_jobs(
 }
 
 #[pyfunction]
-fn get_error_messages(
+fn get_failed_tasks(
     py: Python,
     ctx: ClientContextPtr,
     job_ids: Vec<PyJobId>,
-) -> PyResult<HashMap<PyJobId, HashMap<PyTaskId, String>>> {
-    get_error_messages_impl(py, ctx, job_ids)
+) -> PyResult<FailedTaskMap> {
+    get_failed_tasks_impl(py, ctx, job_ids)
 }
 
 // Server code
@@ -112,7 +112,7 @@ fn hyperqueue(_py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_function(wrap_pyfunction!(submit_job, m)?)?;
     m.add_function(wrap_pyfunction!(wait_for_jobs, m)?)?;
-    m.add_function(wrap_pyfunction!(get_error_messages, m)?)?;
+    m.add_function(wrap_pyfunction!(get_failed_tasks, m)?)?;
 
     // Cluster
     m.add_class::<HqClusterContext>()?;
