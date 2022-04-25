@@ -1,6 +1,8 @@
+import logging
 import pickle
 from typing import Callable, Optional
 
+from ..common import GenericPath
 from ..ffi import TaskId
 from ..ffi.protocol import ResourceRequest, TaskDescription
 from ..wrapper import CloudWrapper
@@ -61,12 +63,13 @@ class PythonFunction(Task):
         *,
         args=(),
         kwargs=None,
-        stdout=None,
-        stderr=None,
+        cwd: Optional[GenericPath] = None,
+        stdout: Optional[GenericPath] = None,
+        stderr: Optional[GenericPath] = None,
         dependencies=(),
         resources: Optional[ResourceRequest] = None,
     ):
-        super().__init__(task_id, dependencies, resources)
+        super().__init__(task_id, dependencies, resources, cwd=cwd, stdout=stdout, stderr=stderr)
 
         fn_id = id(fn)
         wrapper = _CLOUDWRAPPER_CACHE.get(fn_id)
@@ -77,8 +80,6 @@ class PythonFunction(Task):
         self.fn = wrapper
         self.args = args
         self.kwargs = kwargs
-        self.stdout = stdout
-        self.stderr = stderr
 
     def _build(self, client) -> TaskDescription:
         depends_on = [dependency.task_id for dependency in self.dependencies]
@@ -89,7 +90,7 @@ class PythonFunction(Task):
             stderr=self.stderr,
             env={},
             stdin=pickle.dumps((self.fn, self.args, self.kwargs)),
-            cwd=None,
+            cwd=self.cwd,
             dependencies=depends_on,
             task_dir=True,
             resource_request=self.resources,

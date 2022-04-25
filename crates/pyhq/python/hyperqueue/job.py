@@ -2,6 +2,7 @@ from typing import List, Optional, Sequence, Union
 
 from .common import GenericPath
 from .ffi.protocol import JobDescription, ResourceRequest
+from .output import default_stderr, default_stdout
 from .task.function import PythonFunction
 from .task.program import EnvType, ExternalProgram, ProgramArgs
 from .task.task import Task
@@ -46,8 +47,9 @@ class Job:
         *,
         args=(),
         kwargs=None,
-        stdout: Optional[GenericPath] = None,
-        stderr: Optional[GenericPath] = None,
+        cwd: Optional[GenericPath] = None,
+        stdout: Optional[GenericPath] = default_stdout(),
+        stderr: Optional[GenericPath] = default_stderr(),
         deps: Sequence[Task] = (),
         resources: Optional[ResourceRequest] = None,
     ):
@@ -56,6 +58,7 @@ class Job:
             fn,
             args=args,
             kwargs=kwargs,
+            cwd=cwd,
             stdout=stdout,
             stderr=stderr,
             dependencies=deps,
