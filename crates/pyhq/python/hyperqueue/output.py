@@ -4,6 +4,19 @@ from typing import List, Optional
 from .validation import ValidationException
 
 
+# Keep in sync with `DEFAULT_STDOUT_PATH`
+def default_output(ext: str) -> str:
+    return "%{SUBMIT_DIR}/job-%{JOB_ID}/%{TASK_ID}." + ext
+
+
+def default_stdout() -> str:
+    return default_output("stdout")
+
+
+def default_stderr() -> str:
+    return default_output("stderr")
+
+
 # TODO: how to resolve TASK_ID in the context of some other task?
 class Output:
     def __init__(

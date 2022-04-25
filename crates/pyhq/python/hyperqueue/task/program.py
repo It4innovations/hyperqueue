@@ -26,14 +26,11 @@ class ExternalProgram(Task):
         task_dir: bool = False,
         resources: Optional[ResourceRequest],
     ):
-        super().__init__(task_id, dependencies, resources)
+        super().__init__(task_id, dependencies, resources, cwd=cwd, stdout=stdout, stderr=stderr)
         args = to_arg_list(args)
         validate_args(args)
         self.args = args
         self.env = env or {}
-        self.cwd = str(cwd) if cwd else None
-        self.stdout = str(stdout) if stdout else None
-        self.stderr = str(stderr) if stdout else None
         self.task_dir = task_dir
 
         if stdin is None or isinstance(stdin, bytes):

@@ -34,7 +34,7 @@ use crate::{arg_wrapper, rpc_call, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 
-// Keep in sync with tests/util/job.py::default_task_output
+// Keep in sync with `tests/util/job.py::default_task_output` and `pyhq/python/hyperqueue/output.py`
 const DEFAULT_STDOUT_PATH: &str = const_format::concatcp!(
     "%{",
     SUBMIT_DIR_PLACEHOLDER,

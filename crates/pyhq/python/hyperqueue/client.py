@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Dict, Optional, Sequence
 
@@ -21,9 +22,12 @@ class Client:
         self.python_env = python_env
 
     def submit(self, job: Job) -> JobId:
-        return self.connection.submit_job(job._build(self))
+        job_desc = job._build(self)
+        job_id = self.connection.submit_job(job_desc)
+        logging.info(f"Submitted job {job_id} with {len(job_desc.tasks)} task(s)")
+        return job_id
 
-    def wait_for_jobs(self, job_ids: Sequence[JobId], raise_on_error=True):
+    def wait_for_jobs(self, job_ids: Sequence[JobId], raise_on_error=True) -> bool:
         """Returns True if all tasks were successfully finished"""
         finished = bool(self.connection.wait_for_jobs(job_ids))
         if not finished and raise_on_error:
