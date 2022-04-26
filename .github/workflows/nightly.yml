@@ -11,7 +11,7 @@ jobs:
       version: ${{ env.HQ_VERSION }}
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Set HQ nightly version
         run: |
           echo "HQ_VERSION=nightly-$(date +'%Y-%m-%d')-${{ github.sha }}" >> $GITHUB_ENV
@@ -27,7 +27,7 @@ jobs:
       - name: Show GLIBC
         run: ldd --version
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -64,7 +64,7 @@ jobs:
     needs: [ set-env ]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -101,7 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - uses: messense/maturin-action@v1
         with:
           maturin-version: latest
@@ -118,7 +118,7 @@ jobs:
     needs: [ set-env, build-binaries-x64, build-binaries-powerpc, build-python-binding ]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Create tag
         uses: rickstaa/action-create-tag@v1
         with:
@@ -130,7 +130,7 @@ jobs:
     needs: [ set-env, create-tag ]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Generate changelog
         run: python3 scripts/extract_changelog.py DEV > generated-changelog.md
