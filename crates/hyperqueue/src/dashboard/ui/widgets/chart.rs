@@ -26,8 +26,6 @@ pub struct DashboardChart {
     end_time: SystemTime,
     /// The duration for which the data is plotted for.
     view_size: Duration,
-    /// if true, the `end_time` is always updated to current time.
-    is_live: bool,
 }
 
 #[derive(Copy, Clone)]
@@ -60,10 +58,8 @@ impl DashboardChart {
         self.chart_plotters.push(chart_plotter);
     }
 
-    pub fn update(&mut self, data: &DashboardData) {
-        if self.is_live {
-            self.end_time = SystemTime::now();
-        }
+    pub fn update(&mut self, data: &DashboardData, display_time: SystemTime) {
+        self.end_time = display_time;
         // Clears the old data, TODO: load only the new data points
         self.datasets.clear();
         let mut start = self.end_time - self.view_size;
@@ -174,7 +170,6 @@ impl Default for DashboardChart {
             dataset_styles: Default::default(),
             end_time: SystemTime::now(),
             view_size: Duration::from_secs(300),
-            is_live: true,
         }
     }
 }

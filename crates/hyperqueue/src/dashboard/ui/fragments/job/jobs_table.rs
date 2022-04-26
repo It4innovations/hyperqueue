@@ -19,9 +19,9 @@ pub struct JobsTable {
 }
 
 impl JobsTable {
-    pub fn update(&mut self, data: &DashboardData) {
+    pub fn update(&mut self, data: &DashboardData, display_time: SystemTime) {
         let jobs: Vec<(&JobId, &DashboardJobInfo)> =
-            data.query_jobs_created_before(SystemTime::now()).collect();
+            data.query_jobs_created_before(display_time).collect();
         let rows = create_rows(jobs);
         self.table.set_items(rows);
     }

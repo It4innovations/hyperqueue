@@ -45,8 +45,13 @@ pub struct AllocationsChart {
 }
 
 impl AllocationsChart {
-    pub fn update(&mut self, data: &DashboardData, query_descriptor: QueueId) {
-        self.chart_data.end_time = SystemTime::now();
+    pub fn update(
+        &mut self,
+        data: &DashboardData,
+        query_descriptor: QueueId,
+        display_time: SystemTime,
+    ) {
+        self.chart_data.end_time = display_time;
 
         let mut query_time = self.chart_data.end_time - self.chart_data.view_size;
         let mut query_times = vec![];

@@ -3,6 +3,7 @@ use crate::dashboard::ui::fragments::job::fragment::JobFragment;
 use crate::dashboard::ui::fragments::worker::fragment::WorkerOverviewFragment;
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::terminal::DashboardFrame;
+use std::time::SystemTime;
 use termion::event::Key;
 use tui::layout::Rect;
 
@@ -26,10 +27,10 @@ impl Screen for JobScreen {
         }
     }
 
-    fn update(&mut self, data: &DashboardData) {
+    fn update(&mut self, data: &DashboardData, display_time: SystemTime) {
         match self.active_fragment {
-            ScreenState::JobInfo => self.job_overview_fragment.update(data),
-            ScreenState::TaskWorkerDetail => self.task_runner_worker.update(data),
+            ScreenState::JobInfo => self.job_overview_fragment.update(data, display_time),
+            ScreenState::TaskWorkerDetail => self.task_runner_worker.update(data, display_time),
         }
     }
 

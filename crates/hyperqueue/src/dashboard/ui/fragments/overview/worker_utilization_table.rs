@@ -18,8 +18,8 @@ pub struct WorkerUtilTable {
 }
 
 impl WorkerUtilTable {
-    pub fn update(&mut self, data: &DashboardData) {
-        let overview = data.query_last_received_overviews(SystemTime::now());
+    pub fn update(&mut self, data: &DashboardData, display_time: SystemTime) {
+        let overview = data.query_last_received_overviews(display_time);
         let rows = create_rows(overview);
         self.table.set_items(rows);
     }

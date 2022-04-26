@@ -80,23 +80,24 @@ impl WorkerOverviewFragment {
             .draw(layout.worker_info_table_chunk, frame);
     }
 
-    pub fn update(&mut self, data: &DashboardData) {
+    pub fn update(&mut self, data: &DashboardData, display_time: SystemTime) {
         if let Some(worker_id) = self.worker_id.and_then(|worker_id| {
-            data.query_connected_worker_ids(SystemTime::now())
+            data.query_connected_worker_ids(display_time)
                 .find(|connected_id| *connected_id == worker_id)
         }) {
             // Update CPU Util table.
             if let Some(cpu_util) = data
-                .query_worker_overview_at(worker_id, SystemTime::now())
+                .query_worker_overview_at(worker_id, display_time)
                 .and_then(|overview| overview.hw_state.as_ref())
                 .map(|hw_state| &hw_state.state.worker_cpu_usage.cpu_per_core_percent_usage)
             {
                 self.worker_per_core_cpu_util = cpu_util.clone()
             }
             // Update Tasks Table
-            let tasks_info: Vec<(JobTaskId, &TaskInfo)> =
-                data.query_task_history_for_worker(worker_id).collect();
-            self.worker_tasks_table.update(tasks_info);
+            let tasks_info: Vec<(JobTaskId, &TaskInfo)> = data
+                .query_task_history_for_worker(worker_id, display_time)
+                .collect();
+            self.worker_tasks_table.update(tasks_info, display_time);
             // Update Worker Configuration Information
             if let Some(configuration) = data.query_worker_info_for(&worker_id) {
                 self.worker_info_table.update(configuration);

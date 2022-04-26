@@ -2,6 +2,7 @@ use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::fragments::auto_allocator::fragment::AutoAllocatorFragment;
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::terminal::DashboardFrame;
+use std::time::SystemTime;
 use termion::event::Key;
 use tui::layout::Rect;
 
@@ -15,8 +16,8 @@ impl Screen for AutoAllocScreen {
         self.auto_allocator_fragment.draw(in_area, frame);
     }
 
-    fn update(&mut self, data: &DashboardData) {
-        self.auto_allocator_fragment.update(data);
+    fn update(&mut self, data: &DashboardData, display_time: SystemTime) {
+        self.auto_allocator_fragment.update(data, display_time);
     }
 
     fn handle_key(&mut self, key: Key) {

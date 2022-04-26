@@ -43,10 +43,10 @@ impl JobTaskChart {
 }
 
 impl JobTaskChart {
-    pub fn update(&mut self, data: &DashboardData) {
+    pub fn update(&mut self, data: &DashboardData, display_time: SystemTime) {
         if let Some(job_id) = self.job_id {
             let (num_running_tasks, num_failed_tasks, num_finished_tasks) =
-                get_task_counts_for_job(job_id, data, SystemTime::now());
+                get_task_counts_for_job(job_id, data, display_time);
             self.chart.set_chart_name(
                 format!("Running: {num_running_tasks}, Finished: {num_finished_tasks}, Failed: {num_failed_tasks}").as_str(),
             );
@@ -54,7 +54,7 @@ impl JobTaskChart {
             self.chart
                 .set_chart_name("Please select a Job to show Task counts");
         }
-        self.chart.update(data);
+        self.chart.update(data, display_time);
     }
 
     pub fn draw(&mut self, rect: Rect, frame: &mut DashboardFrame) {
