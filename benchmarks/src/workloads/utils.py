@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 from ..environment import Environment
 from ..environment.hq import HqEnvironment
 from ..environment.snake import SnakeEnvironment
+from ..environment.merlin import MerlinEnvironment
 from ..utils import activate_cwd
 from ..utils.timing import Timings
 from .workload import WorkloadExecutionResult
@@ -69,6 +70,26 @@ rule benchmark:
     timer = Timings()
     with timer.time():
         env.submit(args, cpus_per_task)
+    return result(timer.duration())
+
+
+def measure_merlin_tasks(
+    env: Environment, file_function, command: str, task_count: int
+) -> WorkloadExecutionResult:
+    assert isinstance(env, MerlinEnvironment)
+
+    args = f"""study:
+    - name: step_1
+      description: benchmark
+      run:
+          cmd: {command}
+"""
+    logging.debug(f"[Merlin] Submitting {args}")
+
+    timer = Timings()
+    with timer.time():
+        file_function()
+        env.submit(args)
     return result(timer.duration())
 
 

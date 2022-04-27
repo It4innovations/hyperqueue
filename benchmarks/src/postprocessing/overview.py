@@ -111,7 +111,9 @@ def render_hq_comparison(
                 panel = render_bench_subtab(render_profiling_data(report), name)
             elif key == "Global usage":
                 per_node_df = create_global_resources_df(report.monitoring)
-                panel = render_bench_subtab(render_global_resource_usage(report, per_node_df), name)
+                panel = render_bench_subtab(
+                    render_global_resource_usage(report, per_node_df), name
+                )
             elif key == "Node usage":
                 # Keep maximum of each subfigure for axis sync between rows
                 per_node_df = create_global_resources_df(report.monitoring)
@@ -120,13 +122,17 @@ def render_hq_comparison(
                 for fig in figs:
                     figmax = fig.y_range.end
                     if node_maxes.get(fig.title.text) is not None:
-                        node_maxes[fig.title.text] = max(figmax, node_maxes[fig.title.text])
+                        node_maxes[fig.title.text] = max(
+                            figmax, node_maxes[fig.title.text]
+                        )
                     else:
                         node_maxes[fig.title.text] = figmax
                 panel = render_bench_subtab(child, name)
             elif key == "Process usage":
                 per_process_df = create_per_process_resources_df(report.monitoring)
-                panel = render_bench_subtab(render_process_resource_usage(report, per_process_df), name)
+                panel = render_bench_subtab(
+                    render_process_resource_usage(report, per_process_df), name
+                )
             widgets[key].append(panel)
 
     for w in widgets["Node usage"]:
@@ -301,10 +307,10 @@ def generate_comparison_html(
     for benchmark in benchmarks:
         entry = entry_map.get(benchmark)
         if entry is not None:
-            if entry.record.environment == 'hq':
+            if entry.record.environment == "hq":
                 hq_benchmark_entries.append(entry)
             else:
-                print('Only hq comparison is currently supported')
+                print("Only hq comparison is currently supported")
                 return
 
     comparison = render_hq_comparison(hq_benchmark_entries, data)

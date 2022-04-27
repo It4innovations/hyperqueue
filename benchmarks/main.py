@@ -20,9 +20,10 @@ from src.clusterutils.profiler import (
 from src.environment import EnvironmentDescriptor
 from src.environment.hq import HqClusterInfo, HqWorkerConfig
 from src.environment.snake import SnakeEnvironmentDescriptor
+from src.environment.merlin import MerlinEnvironmentDescriptor
 from src.utils.benchmark import run_benchmarks_with_postprocessing
 from src.workloads import Workload
-from src.workloads.sleep import SleepHQ, SleepSnake
+from src.workloads.sleep import SleepHQ, SleepSnake, SleepMerlin
 
 app = typer.Typer()
 
@@ -79,19 +80,22 @@ def sleep():
                 BenchmarkDescriptor(env_descriptor=env, workload=workload)
             )
 
-    add_product([SleepSnake(tc) for tc in task_counts], [SnakeEnvironmentDescriptor()])
+    # add_product([SleepSnake(tc) for tc in task_counts], [SnakeEnvironmentDescriptor()])
     add_product(
-        [SleepHQ(tc) for tc in task_counts],
-        [
-            HqClusterInfo(
-                cluster=ClusterInfo(monitor_nodes=True, node_list=Local()),
-                environment_params=dict(worker_count=1),
-                workers=[HqWorkerConfig()],
-                binary=hq_path,
-                worker_profilers=[CachegrindProfiler()],
-            )
-        ],
+        [SleepMerlin(tc) for tc in task_counts], [MerlinEnvironmentDescriptor()]
     )
+    # add_product(
+    #     [SleepHQ(tc) for tc in task_counts],
+    #     [
+    #         HqClusterInfo(
+    #             cluster=ClusterInfo(monitor_nodes=True, node_list=Local()),
+    #             environment_params=dict(worker_count=1),
+    #             workers=[HqWorkerConfig()],
+    #             binary=hq_path,
+    #             worker_profilers=[],
+    #         )
+    #     ],
+    # )
 
     run_benchmarks_with_postprocessing(workdir, descriptions)
 
