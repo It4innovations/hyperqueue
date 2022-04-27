@@ -8,42 +8,40 @@ from .utils import measure_hq_tasks, measure_snake_tasks, measure_merlin_tasks
 from .workload import Workload, WorkloadExecutionResult
 
 
-class Sleep(Workload, ABC):
-    def __init__(self, task_count: int, sleep_duration=0):
+class Echo(Workload, ABC):
+    def __init__(self, task_count: int, text="0"):
         self.task_count = task_count
-        self.sleep_duration = sleep_duration
+        self.text = text
 
     def parameters(self) -> Dict[str, Any]:
-        return dict(task_count=self.task_count, duration=self.sleep_duration)
+        return dict(task_count=self.task_count, text=self.text)
 
     def name(self) -> str:
-        return "sleep"
+        return "echo"
 
 
-class SleepHQ(Sleep):
+class EchoHQ(Echo):
     def execute(self, env: HqEnvironment) -> WorkloadExecutionResult:
+        print(["echo", str(self.text)])
         return measure_hq_tasks(
-            env,
-            ["sleep", str(self.sleep_duration)],
-            task_count=self.task_count,
-            stdout=False,
+            env, ["echo", self.text], task_count=self.task_count, stdout=True
         )
 
 
-class SleepSnake(Sleep):
+class EchoSnake(Echo):
     def execute(self, env: SnakeEnvironment) -> WorkloadExecutionResult:
         return measure_snake_tasks(
             env,
-            f"sleep {self.sleep_duration}; echo '' > {{output}}",
+            f"echo {self.text} > {{output}}",
             task_count=self.task_count,
         )
 
 
-class SleepMerlin(Sleep):
+class EchoMerlin(Echo):
     def execute(self, env: MerlinEnvironment) -> WorkloadExecutionResult:
         # Function that creates csv file with IDs that will be used in command
         def sleep_samples():
-            results = [str(self.sleep_duration) + "\n" for i in range(self.task_count)]
+            results = [str(self.text) + "\n" for i in range(self.task_count)]
             results = "".join(results)
             with open(env.merlinsamples, "w") as f:
                 f.write(results)
@@ -51,6 +49,6 @@ class SleepMerlin(Sleep):
         return measure_merlin_tasks(
             env,
             sleep_samples,
-            "sleep '$(ID)'",
+            "echo '$(ID)'",
             task_count=self.task_count,
         )

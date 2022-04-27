@@ -65,7 +65,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
 
     app.listen(port)
     logging.info(f"Serving report at http://localhost:{port}")
-    logging.info(f"Serving comparator at http://localhost:5006")
+    logging.info("Serving comparator at http://localhost:5006")
 
     def comparer(doc):
         page = create_comparer_page(database, directory, f"http://localhost:{port}")

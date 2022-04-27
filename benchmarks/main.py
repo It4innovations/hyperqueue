@@ -12,11 +12,12 @@ from src.build.hq import BuildConfig, iterate_binaries
 from src.build.repository import TAG_WORKSPACE
 from src.clusterutils import ClusterInfo
 from src.clusterutils.node_list import Local
-from src.clusterutils.profiler import (
-    PerfEventsProfiler,
-    FlamegraphProfiler,
-    CachegrindProfiler,
-)
+
+# from src.clusterutils.profiler import (
+#     PerfEventsProfiler,
+#     FlamegraphProfiler,
+#     CachegrindProfiler,
+# )
 from src.environment import EnvironmentDescriptor
 from src.environment.hq import HqClusterInfo, HqWorkerConfig
 from src.environment.snake import SnakeEnvironmentDescriptor
@@ -24,6 +25,7 @@ from src.environment.merlin import MerlinEnvironmentDescriptor
 from src.utils.benchmark import run_benchmarks_with_postprocessing
 from src.workloads import Workload
 from src.workloads.sleep import SleepHQ, SleepSnake, SleepMerlin
+from src.workloads.echo import EchoHQ, EchoSnake, EchoMerlin
 
 app = typer.Typer()
 
@@ -80,22 +82,59 @@ def sleep():
                 BenchmarkDescriptor(env_descriptor=env, workload=workload)
             )
 
-    # add_product([SleepSnake(tc) for tc in task_counts], [SnakeEnvironmentDescriptor()])
+    add_product([SleepSnake(tc) for tc in task_counts], [SnakeEnvironmentDescriptor()])
     add_product(
         [SleepMerlin(tc) for tc in task_counts], [MerlinEnvironmentDescriptor()]
     )
-    # add_product(
-    #     [SleepHQ(tc) for tc in task_counts],
-    #     [
-    #         HqClusterInfo(
-    #             cluster=ClusterInfo(monitor_nodes=True, node_list=Local()),
-    #             environment_params=dict(worker_count=1),
-    #             workers=[HqWorkerConfig()],
-    #             binary=hq_path,
-    #             worker_profilers=[],
-    #         )
-    #     ],
-    # )
+    add_product(
+        [SleepHQ(tc) for tc in task_counts],
+        [
+            HqClusterInfo(
+                cluster=ClusterInfo(monitor_nodes=True, node_list=Local()),
+                environment_params=dict(worker_count=1),
+                workers=[HqWorkerConfig()],
+                binary=hq_path,
+                worker_profilers=[],
+            )
+        ],
+    )
+
+    run_benchmarks_with_postprocessing(workdir, descriptions)
+
+
+@app.command()
+def echo():
+    """
+    Compare the echo benchmarks between various tools.
+    """
+    hq_path = list(iterate_binaries([BuildConfig()]))[0].binary_path
+    workdir = Path("benchmark/echo")
+
+    task_counts = (10, 100, 1000)
+    descriptions = []
+
+    def add_product(
+        workloads: List[Workload], environments: List[EnvironmentDescriptor]
+    ):
+        for (env, workload) in itertools.product(environments, workloads):
+            descriptions.append(
+                BenchmarkDescriptor(env_descriptor=env, workload=workload)
+            )
+
+    add_product([EchoSnake(tc) for tc in task_counts], [SnakeEnvironmentDescriptor()])
+    add_product([EchoMerlin(tc) for tc in task_counts], [MerlinEnvironmentDescriptor()])
+    add_product(
+        [EchoHQ(tc) for tc in task_counts],
+        [
+            HqClusterInfo(
+                cluster=ClusterInfo(monitor_nodes=True, node_list=Local()),
+                environment_params=dict(worker_count=1),
+                workers=[HqWorkerConfig()],
+                binary=hq_path,
+                worker_profilers=[],
+            )
+        ],
+    )
 
     run_benchmarks_with_postprocessing(workdir, descriptions)
 

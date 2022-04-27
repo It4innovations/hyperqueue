@@ -10,9 +10,8 @@ from typing import Callable, Iterator, List, Optional, Tuple, TypeVar
 
 import humanize
 import pandas as pd
-from bokeh.embed import file_html
 from bokeh.io import save
-from bokeh.layouts import column, gridplot
+from bokeh.layouts import column
 from bokeh.model import Model
 from bokeh.models import (
     Column,
@@ -32,9 +31,7 @@ from bokeh.plotting import Figure, figure
 from bokeh.resources import CDN
 from cluster.cluster import Cluster, Node, ProcessInfo
 from pandas import Timestamp
-from tornado import ioloop, web
 
-from ..benchmark.database import Database
 from ..clusterutils.profiler import (
     FlamegraphProfiler,
     PerfEventsProfiler,
@@ -42,7 +39,7 @@ from ..clusterutils.profiler import (
 )
 from ..monitoring.record import MonitoringRecord, ProcessRecord
 from ..utils import ensure_directory
-from .common import average, create_database_df, groupby_workload
+from .common import average
 from .report import ClusterReport, MonitoringData
 
 DATETIME_KEY = "datetime"

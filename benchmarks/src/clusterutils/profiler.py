@@ -27,8 +27,8 @@ class Profiler:
 # cargo inferno
 # 1. Apply profiling records
 # 2. perf script -i perf-records.txt | inferno-collapse-perf > stacks.folded
-# (Visualize)   cat stacks.folded | inferno-flamegraph > profile.svg
-# (Compare)     inferno-diff-folded stacks1.folded stacks2.folded | inferno-flamegraph > flamediff.svg
+# (Visualize) cat stacks.folded | inferno-flamegraph > profile.svg
+# (Compare) inferno-diff-folded stacks1.folded stacks2.folded | inferno-flamegraph > flamediff.svg
 class FlamegraphProfiler(Profiler):
     TAG = "flamegraph"
 

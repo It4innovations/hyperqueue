@@ -55,4 +55,5 @@ class StressHQ(Stress):
             ["stress", "--cpu", str(cpu_count), "--timeout", str(stress_duration)],
             task_count=task_count,
             cpus_per_task=cpu_count,
+            stdout=False,
         )

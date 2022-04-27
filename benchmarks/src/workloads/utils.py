@@ -14,6 +14,7 @@ def measure_hq_tasks(
     env: Environment,
     command: List[str],
     task_count: int,
+    stdout: bool,
     cpus_per_task=1,
     resources: Optional[Dict[str, int]] = None,
 ) -> WorkloadExecutionResult:
@@ -23,14 +24,15 @@ def measure_hq_tasks(
         "submit",
         "--array",
         f"1-{task_count}",
-        "--stdout",
-        "none",
         "--stderr",
         "none",
         "--wait",
         "--cpus",
         str(cpus_per_task),
     ]
+
+    if stdout is False:
+        args = args[:5] + ["--stdout", "none"] + args[5:]
 
     resources = resources or {}
     for (name, amount) in resources.items():

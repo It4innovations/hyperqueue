@@ -30,4 +30,5 @@ class SleepWithResourcesHQ(SleepWithResources):
             ["sleep", str(self.sleep_duration)],
             task_count=self.task_count,
             resources=self.resources,
+            stdout=False,
         )
