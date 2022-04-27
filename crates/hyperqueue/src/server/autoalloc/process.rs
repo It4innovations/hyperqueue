@@ -1,6 +1,6 @@
 use std::future::Future;
 use std::path::PathBuf;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use futures::future::join_all;
 use tempdir::TempDir;
@@ -767,8 +767,13 @@ fn can_provide_worker(job: &Job, queue_info: &QueueInfo) -> bool {
             task_desc: TaskDescription { resources, .. },
             ..
         } => resources.min_time < queue_info.timelimit(),
-        JobDescription::Graph { .. } => {
-            todo!()
+        JobDescription::Graph { tasks } => {
+            tasks
+                .iter()
+                .map(|t| t.task_desc.resources.min_time)
+                .min()
+                .unwrap_or(Duration::ZERO)
+                < queue_info.timelimit()
         }
     }
 }
