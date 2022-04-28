@@ -1,0 +1,2 @@
+include pyhq/Cargo.toml
+recursive-include pyhq/src *
