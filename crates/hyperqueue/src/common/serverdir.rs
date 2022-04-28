@@ -42,7 +42,7 @@ impl ServerDir {
 
         let server_dir = ServerDir::open(&dir_path)?;
         let access_file_path = server_dir.access_filename();
-        log::info!("Saving access file as '{:?}'", access_file_path);
+        log::info!("Saving access file as '{}'", access_file_path.display());
         store_access_record(record, access_file_path)?;
         create_symlink(&directory.join(SYMLINK_PATH), &dir_path)?;
 
