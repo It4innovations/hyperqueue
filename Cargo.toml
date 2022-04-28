@@ -2,7 +2,7 @@
 members = [
     "crates/hyperqueue",
     "crates/tako",
-    "crates/pyhq"
+    "crates/pyhq/pyhq"
 ]
 default-members = [
     "crates/hyperqueue",

@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "hyperqueue"
+name = "pyhq"
 # "cdylib" is necessary to produce a shared library for Python to import from.
 #
 # Downstream Rust code (including code in `bin/`, `examples/`, and `tests/`) will not be able
@@ -15,7 +15,7 @@ name = "hyperqueue"
 crate-type = ["cdylib"]
 
 [dependencies]
-hyperqueue = { path = "../hyperqueue" }
+hyperqueue = { path = "../../hyperqueue" }
 pyo3 = { version = "0.15", features = ["extension-module", "abi3", "abi3-py36", "anyhow"] }
 pyo3-asyncio = { version = "0.15", features = ["tokio-runtime", "attributes"] }
 pythonize = "0.15"
@@ -26,5 +26,5 @@ termcolor = "1.1"
 log = "0.4"
 tempdir = "0.3.7"
 
-[package.metadata.maturin]
-python-source = "python"
+# [package.metadata.maturin]
+# python-source = "python"
