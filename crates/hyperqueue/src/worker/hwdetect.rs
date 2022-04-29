@@ -1,10 +1,6 @@
 use crate::common::parser::{consume_all, p_u32, NomResult};
-use crate::tako::common::resources::descriptor::GenericResourceKindSum;
 
-use tako::common::resources::{
-    CpuId, CpusDescriptor, GenericResourceDescriptor, GenericResourceDescriptorKind,
-    GenericResourceIndex, NumOfCpus,
-};
+use tako::common::resources::{CpuId, CpusDescriptor, GenericResourceDescriptor, NumOfCpus};
 
 use nom::character::complete::{newline, space0};
 use nom::combinator::{map_res, opt};
@@ -12,9 +8,10 @@ use nom::multi::separated_list1;
 use nom::sequence::{preceded, terminated, tuple};
 use nom::Parser;
 use nom_supreme::tag::complete::tag;
-use tako::common::resources::descriptor::{
-    cpu_descriptor_from_socket_size, GenericResourceKindIndices,
-};
+use tako::common::resources::descriptor::cpu_descriptor_from_socket_size;
+
+pub const GPU_RESOURCE_NAME: &str = "gpus";
+pub const MEM_RESOURCE_NAME: &str = "mem";
 
 pub fn detect_cpus() -> anyhow::Result<CpusDescriptor> {
     read_linux_numa().or_else(|e| {
@@ -52,22 +49,17 @@ pub fn detect_generic_resources() -> anyhow::Result<Vec<GenericResourceDescripto
     if let Ok(count) = read_linux_gpu_count() {
         if count > 0 {
             log::debug!("Gpus detected: {}", count);
-            generic.push(GenericResourceDescriptor {
-                name: "gpus".to_string(),
-                kind: GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
-                    start: GenericResourceIndex::new(0),
-                    end: GenericResourceIndex::new(count as u32 - 1),
-                }),
-            })
+            generic.push(GenericResourceDescriptor::indices(
+                GPU_RESOURCE_NAME,
+                0,
+                count as u32 - 1,
+            ));
         }
     }
 
     if let Ok(mem) = read_linux_memory() {
         log::debug!("Mem detected: {}", mem);
-        generic.push(GenericResourceDescriptor {
-            name: "mem".to_string(),
-            kind: GenericResourceDescriptorKind::Sum(GenericResourceKindSum { size: mem }),
-        })
+        generic.push(GenericResourceDescriptor::sum(MEM_RESOURCE_NAME, mem));
     }
     Ok(generic)
 }
