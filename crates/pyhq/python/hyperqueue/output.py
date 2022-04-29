@@ -6,7 +6,7 @@ from .validation import ValidationException
 
 # Keep in sync with `DEFAULT_STDOUT_PATH`
 def default_output(ext: str) -> str:
-    return "%{SUBMIT_DIR}/job-%{JOB_ID}/%{TASK_ID}." + ext
+    return "%{CWD}/%{TASK_ID}." + ext
 
 
 def default_stdout() -> str:

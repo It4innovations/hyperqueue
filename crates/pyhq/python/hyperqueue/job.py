@@ -1,6 +1,7 @@
 from typing import List, Optional, Sequence, Union
 
 from .common import GenericPath
+from pathlib import Path
 from .ffi.protocol import JobDescription, ResourceRequest
 from .output import default_stderr, default_stdout
 from .task.function import PythonFunction
@@ -9,9 +10,10 @@ from .task.task import Task
 
 
 class Job:
-    def __init__(self, max_fails: Optional[int] = 1):
+    def __init__(self, default_workdir: Optional[GenericPath] = None, max_fails: Optional[int] = 1):
         self.tasks: List[Task] = []
         self.max_fails = max_fails
+        self.default_workdir = Path(default_workdir).resolve()
 
     def program(
         self,
@@ -19,8 +21,8 @@ class Job:
         *,
         env: EnvType = None,
         cwd: Optional[GenericPath] = None,
-        stdout: Optional[GenericPath] = None,
-        stderr: Optional[GenericPath] = None,
+        stdout: Optional[GenericPath] = default_stdout(),
+        stderr: Optional[GenericPath] = default_stderr(),
         stdin: Optional[Union[str, bytes]] = None,
         deps: Sequence[Task] = (),
         task_dir: bool = False,
@@ -30,7 +32,7 @@ class Job:
             len(self.tasks),
             args=args,
             env=env,
-            cwd=cwd,
+            cwd=cwd or self.default_workdir,
             dependencies=deps,
             stdout=stdout,
             stderr=stderr,
@@ -58,7 +60,7 @@ class Job:
             fn,
             args=args,
             kwargs=kwargs,
-            cwd=cwd,
+            cwd=cwd or self.default_workdir,
             stdout=stdout,
             stderr=stderr,
             dependencies=deps,
