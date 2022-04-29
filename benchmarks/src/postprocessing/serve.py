@@ -8,12 +8,17 @@ from bokeh.server.server import Server
 from bokeh.resources import CDN
 from tornado import ioloop, web
 from tornado.ioloop import IOLoop
-
+import seaborn as sns
 from .monitor import create_page
-from .overview import pregenerate_entries, create_summary_page, create_comparer_page
+from .overview import pregenerate_entries, create_summary_page, create_comparer_page, render
 from ..benchmark.database import Database
 from .report import ClusterReport
-
+from .common import create_database_df, groupby_workload
+import os
+import matplotlib.pyplot as plt
+from PIL import Image
+import numpy as np
+import io
 
 def serve_cluster_report(report: ClusterReport, port: int):
     class Handler(web.RequestHandler):
@@ -55,10 +60,50 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             source_code = html_file.read()
             self.write(source_code)
 
+    class CompareOverview(web.RequestHandler):
+        def get(self, key: str):
+            df = create_database_df(database)
+            key = key.split("(")[1].split(")")[0]
+            df = df[df['workload-params'] == key]
+            max_index = df['index'].max()
+            samples = [df[df['index'] == i] for i in range(max_index + 1)]
+            tables = [i['duration'].describe().to_frame() for i in samples]
+            compare1 = tables[0] > tables[1]
+            compare0 = tables[1] > tables[0]
+            color_0 = lambda x: ["background-color:red" if i[1][0] else "" for i in compare0.iterrows()]
+            color_1 = lambda x: ["background-color:red" if i[1][0] else "" for i in compare1.iterrows()]
+            # tables[1].style.apply_index(color_b)
+            output = ""
+            tables[0].style.set_uuid("table0")
+            tables[1].style.set_uuid("table1")
+            output += tables[0].style.apply(color_0).set_uuid("table0").to_html()
+            output += tables[1].style.apply(color_1).set_uuid("table1").to_html()
+
+            plt.scatter(df['index'], df["duration"], s=10)
+            plt.xticks(list(range(max_index + 1)))
+            plt.ylabel("Duration [ms]")
+            plt.savefig("img.png")
+            plt.clf()
+            with open(os.path.join(os.path.dirname(__file__), "templates/compare_table.html")) as fp:
+                file = fp.read()
+
+                self.write(render(file, tables=output))
+
+    class ImgHandler(web.RequestHandler):
+        def get(self):
+            img = Image.open('img.png')
+            s = io.BytesIO()
+            img.save(s,format="PNG")
+            o = s.getvalue()
+            self.write(o)
+            self.set_header("Content-type", "image/png")
+
     app = web.Application(
         [
             (r"/comparisons/(.*)", ComparisonHandler),
             (r"/monitoring/(.*)", ClusterHandler),
+            (r"/compare/(.*)", CompareOverview),
+            (r"/img", ImgHandler),
             (r"/", SummaryHandler),
         ]
     )

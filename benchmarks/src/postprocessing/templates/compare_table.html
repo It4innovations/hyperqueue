@@ -1,0 +1,52 @@
+<style>
+    th, td {
+        border: 1px solid black;
+    }
+    .blank{
+        visibility: hidden;
+    }
+    tr {
+        display: block;
+        float: left;
+    }
+
+    th, td {
+        display: block;
+    }
+
+    #T_table0 {
+        margin-right: auto;
+        position: absolute;
+        float: left;
+    }
+
+    #T_table1 {
+        margin-left: 40%;
+        postion: relative;
+
+    }
+    #scatter{
+        margin-left: auto;
+        margin-right: auto;
+        display: block;
+    }
+</style>
+
+{{tables}}
+<br>
+<img src="/img" id="scatter">
+
+<script>
+    var rows = document.getElementsByClassName("col_heading level0 col0");
+    for (let i = 0; i <= rows.length; i++) {
+        rows[i].style['visibility'] = "hidden";
+    }
+    var rows = document.getElementsByClassName("blank level0");
+    console.log(rows.length);
+    for (let i = 0; i <= rows.length; i++) {
+        console.log(rows[i]);
+        rows[i].style['visibility'] = "hidden";
+    }
+
+
+</script>

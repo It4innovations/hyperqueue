@@ -9,6 +9,10 @@ Inspired by:
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
+        table, th, tr {
+            border: 1px solid black;
+        }
+
         .wrapper, html, body {
             height: 100%;
             margin: 0;
@@ -20,11 +24,11 @@ Inspired by:
         }
 
         * {
-          box-sizing: border-box;
+            box-sizing: border-box;
         }
 
         .left h2 {
-          padding-left: 8px;
+            padding-left: 8px;
         }
 
         .row {
@@ -33,48 +37,48 @@ Inspired by:
         }
 
         .row1 {
-            display:flex;
+            display: flex;
             background-color: #EEEEEE;
         }
 
         .left {
-          flex: 15%;
-          padding: 0;
-          background-color: #EEEEEE;
+            flex: 15%;
+            padding: 0;
+            background-color: #EEEEEE;
         }
 
         .right {
-          flex: 85%;
+            flex: 85%;
         }
 
         #environment {
-          padding-left: 20px;
+            padding-left: 20px;
         }
 
         #searchBar {
-          width: 100%;
-          font-size: 18px;
-          padding: 11px;
-          border: 1px solid #ddd;
+            width: 100%;
+            font-size: 18px;
+            padding: 11px;
+            border: 1px solid #ddd;
         }
 
         #leftMenu {
-          list-style-type: none;
-          padding: 0;
-          margin: 0;
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
         }
 
         #leftMenu li a {
-          padding: 12px;
-          text-decoration: none;
-          color: black;
-          display: block
+            padding: 12px;
+            text-decoration: none;
+            color: black;
+            display: block
         }
 
         #leftMenu li a:hover {
-          background-color: #DDDDDD;
+            background-color: #DDDDDD;
         }
-</style>
+    </style>
 
 </head>
 <body>
@@ -87,7 +91,7 @@ Inspired by:
             <div id="bench">
 
             </div>
-         </div>
+        </div>
     </div>
 
     <div class="row">
@@ -95,42 +99,51 @@ Inspired by:
             <input type="text" id="searchBar" onkeyup="searchNavigation()" placeholder="Enter...">
             <ul id="leftMenu">
                 {% for key in workloads %}
-                    <li><a onclick="showWorkload('{{key}}')">{{ key }}</a></li>
+                <li><a onclick="showWorkload('{{key}}')">{{ key }}</a></li>
                 {% endfor %}
             </ul>
         </div>
 
         <div class="right">
-            <div id="environment">
+            <div id="environment" style="position: absolute">
 
             </div>
+            <iframe style="border: none;height:100%;width:100%;visibility: hidden;position: relative"
+                    src="https://www.google.com"
+                    id="iframe_environment"></iframe>
+
+
         </div>
     </div>
     {% for key in workloads %}
-        <div id="{{key}}" style="display:none;">{{workloads[key]}}</div>
+    <div id="{{key}}" style="display:none;">{{workloads[key]}}</div>
     {% endfor %}
 </div>
 
 <script>
-function showWorkload(key) {
-    document.getElementById("bench").innerHTML = document.getElementById(key).innerHTML;
-    document.getElementById("environment").innerHTML = "";
-}
+    function showWorkload(key) {
+        document.getElementById("bench").innerHTML = document.getElementById(key).innerHTML;
+        document.getElementById("environment").innerHTML = "";
+        var iframe_env = document.getElementById("iframe_environment");
+        iframe_env.style['visibility'] = "visible";
+        console.log(key);
+        iframe_env.src = "compare/" + key;
+    }
 
-function searchNavigation() {
-    var filter, menu, elements, a, i;
-    filter = document.getElementById("searchBar").value.toUpperCase();
-    menu = document.getElementById("leftMenu");
-    elements = menu.getElementsByTagName("elements");
-    for (i = 0; i < elements.length; i++) {
-        a = elements[i].getElementsByTagName("a")[0];
-        if (a.innerHTML.toUpperCase().indexOf(filter) > -1) {
-            elements[i].style.display = "";
-        } else {
-            elements[i].style.display = "none";
+    function searchNavigation() {
+        var filter, menu, elements, a, i;
+        filter = document.getElementById("searchBar").value.toUpperCase();
+        menu = document.getElementById("leftMenu");
+        elements = menu.getElementsByTagName("elements");
+        for (i = 0; i < elements.length; i++) {
+            a = elements[i].getElementsByTagName("a")[0];
+            if (a.innerHTML.toUpperCase().indexOf(filter) > -1) {
+                elements[i].style.display = "";
+            } else {
+                elements[i].style.display = "none";
+            }
         }
     }
-}
 </script>
 
 </body>
