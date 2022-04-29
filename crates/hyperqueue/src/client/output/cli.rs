@@ -27,17 +27,22 @@ use humantime::format_duration;
 use std::path::Path;
 use std::time::SystemTime;
 
-use tako::common::resources::{CpuRequest, ResourceDescriptor};
+use tako::common::resources::{
+    CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, ResourceDescriptor,
+};
 use tako::messages::common::StdioDef;
 
 use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
 use crate::common::utils::str::{pluralize, select_plural};
+use crate::worker::hwdetect::MEM_RESOURCE_NAME;
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
 use anyhow::Error;
 use colored::Color as Colorization;
 use colored::Colorize;
 use std::collections::BTreeSet;
 use std::fs::File;
+use tako::common::resources::descriptor::GenericResourceKindSum;
+use tako::common::Map;
 use tako::messages::gateway::{LostWorkerReason, ResourceRequest};
 
 pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
@@ -151,7 +156,7 @@ impl CliOutput {
         rows.push(vec![
             "Task time limit".cell().bold(true),
             time_limit
-                .map(|duration| humantime::format_duration(duration).to_string())
+                .map(|duration| format_duration(duration).to_string())
                 .unwrap_or_else(|| "None".to_string())
                 .cell(),
         ]);
@@ -233,7 +238,7 @@ impl Output for CliOutput {
                             .foreground_color(Some(Color::Cyan)),
                     },
                     worker.configuration.hostname.cell(),
-                    worker.configuration.resources.summary(false).cell(),
+                    resources_summary(&worker.configuration.resources, false).cell(),
                     manager_info
                         .as_ref()
                         .map(|info| info.manager.to_string())
@@ -299,7 +304,7 @@ impl Output for CliOutput {
             ],
             vec![
                 "Resources".cell().bold(true),
-                configuration.resources.summary(true).cell(),
+                resources_summary(&configuration.resources, true).cell(),
             ],
             vec![
                 "Time Limit".cell().bold(true),
@@ -527,7 +532,7 @@ impl Output for CliOutput {
 
         println!(
             "Wait finished in {}: {}",
-            humantime::format_duration(duration),
+            format_duration(duration),
             msgs.join(", ")
         );
     }
@@ -671,9 +676,7 @@ impl Output for CliOutput {
                     id.cell(),
                     data.info.backlog().cell(),
                     data.info.workers_per_alloc().cell(),
-                    humantime::format_duration(data.info.timelimit())
-                        .to_string()
-                        .cell(),
+                    format_duration(data.info.timelimit()).to_string().cell(),
                     data.manager_type.cell(),
                     data.name.unwrap_or_else(|| "".to_string()).cell(),
                     data.info.additional_args().join(",").cell(),
@@ -729,7 +732,7 @@ impl Output for CliOutput {
     }
 
     fn print_hw(&self, descriptor: &ResourceDescriptor) {
-        println!("Summary: {}", descriptor.summary(true));
+        println!("Summary: {}", resources_summary(descriptor, true));
         println!("Cpu Ids: {}", descriptor.full_describe());
     }
 
@@ -779,20 +782,12 @@ fn stdio_to_str(stdio: &StdioDef) -> &str {
 // Allocation
 fn allocation_status_to_cell(status: &AllocationState) -> CellStruct {
     match status {
-        AllocationState::Queued => "QUEUED"
-            .cell()
-            .foreground_color(Some(cli_table::Color::Yellow)),
-        AllocationState::Running { .. } => "RUNNING"
-            .cell()
-            .foreground_color(Some(cli_table::Color::Blue)),
+        AllocationState::Queued => "QUEUED".cell().foreground_color(Some(Color::Yellow)),
+        AllocationState::Running { .. } => "RUNNING".cell().foreground_color(Some(Color::Blue)),
         AllocationState::Finished { .. } | AllocationState::Invalid { .. } => {
             match status.is_failed() {
-                true => "FAILED"
-                    .cell()
-                    .foreground_color(Some(cli_table::Color::Red)),
-                false => "FINISHED"
-                    .cell()
-                    .foreground_color(Some(cli_table::Color::Green)),
+                true => "FAILED".cell().foreground_color(Some(Color::Red)),
+                false => "FINISHED".cell().foreground_color(Some(Color::Green)),
             }
         }
     }
@@ -1094,4 +1089,121 @@ fn format_systemtime(time: SystemTime) -> impl Display {
 fn format_time(time: DateTime<Utc>) -> impl Display {
     let datetime: DateTime<Local> = time.into();
     datetime.format("%d.%m.%Y %H:%M:%S")
+}
+
+fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String {
+    let mut result = if resources.cpus.len() == 1 {
+        format!("1x{} cpus", resources.cpus[0].len())
+    } else {
+        let mut counts = Map::<usize, usize>::default();
+        for group in &resources.cpus {
+            *counts.entry(group.len()).or_default() += 1;
+        }
+        let mut counts: Vec<_> = counts.into_iter().collect();
+        counts.sort_unstable();
+        format!(
+            "{} cpus",
+            counts
+                .iter()
+                .map(|(cores, count)| format!("{}x{}", count, cores))
+                .collect::<Vec<_>>()
+                .join(" ")
+        )
+    };
+
+    let special_format = |descriptor: &GenericResourceDescriptor| -> Option<String> {
+        if descriptor.name == MEM_RESOURCE_NAME {
+            if let GenericResourceDescriptorKind::Sum(GenericResourceKindSum { size }) =
+                descriptor.kind
+            {
+                return Some(human_size(size));
+            }
+        }
+        None
+    };
+
+    if multiline {
+        for descriptor in &resources.generic {
+            result.push_str(&format!(
+                "\n{}: {}",
+                &descriptor.name,
+                special_format(descriptor).unwrap_or_else(|| descriptor.kind.to_string())
+            ));
+        }
+    } else {
+        for descriptor in &resources.generic {
+            result.push_str(&format!(
+                "; {} {}",
+                &descriptor.name,
+                special_format(descriptor).unwrap_or_else(|| descriptor.kind.size().to_string())
+            ));
+        }
+    }
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::client::output::cli::resources_summary;
+    use crate::worker::hwdetect::MEM_RESOURCE_NAME;
+    use tako::common::index::AsIdVec;
+    use tako::common::resources::{GenericResourceDescriptor, ResourceDescriptor};
+
+    #[test]
+    fn test_resources_summary() {
+        let d = ResourceDescriptor::new(vec![vec![0].to_ids()], Vec::new());
+        assert_eq!(resources_summary(&d, false), "1x1 cpus");
+
+        let d = ResourceDescriptor::new(vec![vec![0, 1, 2].to_ids()], Vec::new());
+        assert_eq!(resources_summary(&d, true), "1x3 cpus");
+
+        let d = ResourceDescriptor::new(
+            vec![vec![0, 1, 2, 4].to_ids(), vec![10, 11, 12, 14].to_ids()],
+            Vec::new(),
+        );
+        assert_eq!(resources_summary(&d, true), "2x4 cpus");
+
+        let d = ResourceDescriptor::new(
+            vec![
+                vec![0, 1].to_ids(),
+                vec![10, 11].to_ids(),
+                vec![20, 21].to_ids(),
+                vec![30, 31].to_ids(),
+                vec![40, 41].to_ids(),
+                vec![50, 51, 52, 53, 54, 55].to_ids(),
+            ],
+            Vec::new(),
+        );
+        assert_eq!(resources_summary(&d, true), "5x2 1x6 cpus");
+
+        let generic = vec![
+            GenericResourceDescriptor::indices("Aaa", 0, 9),
+            GenericResourceDescriptor::indices("Ccc", 1, 132),
+            GenericResourceDescriptor::sum("Bbb", 100_000_000),
+        ];
+        let d = ResourceDescriptor::new(vec![vec![0, 1].to_ids()], generic);
+        assert_eq!(
+            resources_summary(&d, true),
+            "1x2 cpus\nAaa: Indices(0-9)\nBbb: Sum(100000000)\nCcc: Indices(1-132)"
+        );
+    }
+
+    #[test]
+    fn test_resources_summary_mem() {
+        let resources = ResourceDescriptor::new(
+            vec![vec![0].to_ids()],
+            vec![GenericResourceDescriptor::sum(
+                MEM_RESOURCE_NAME,
+                4 * 1024 * 1024 * 1024 + 123 * 1024 * 1024,
+            )],
+        );
+        assert_eq!(
+            resources_summary(&resources, false),
+            "1x1 cpus; mem 4.12 GiB"
+        );
+        assert_eq!(
+            resources_summary(&resources, true),
+            "1x1 cpus\nmem: 4.12 GiB"
+        );
+    }
 }
