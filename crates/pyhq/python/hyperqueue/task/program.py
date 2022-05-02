@@ -1,38 +1,36 @@
 from typing import Dict, List, Optional, Sequence, Union
 
+from .task import EnvType, Task
 from ..common import GenericPath
 from ..ffi import TaskId
 from ..ffi.protocol import ResourceRequest, TaskDescription
 from ..output import Output, gather_outputs
 from ..validation import ValidationException, validate_args
-from .task import Task
 
-EnvType = Optional[Dict[str, str]]
 ProgramArgs = Union[List[str], str]
 
 
 class ExternalProgram(Task):
     def __init__(
-        self,
-        task_id: TaskId,
-        *,
-        args: List[str],
-        env: EnvType = None,
-        cwd: Optional[GenericPath] = None,
-        stdout: Optional[GenericPath] = None,
-        stderr: Optional[GenericPath] = None,
-        stdin: Optional[Union[str, bytes]] = None,
-        dependencies: Sequence[Task] = (),
-        task_dir: bool = False,
-        resources: Optional[ResourceRequest],
+            self,
+            task_id: TaskId,
+            *,
+            args: List[str],
+            env: Optional[EnvType] = None,
+            cwd: Optional[GenericPath] = None,
+            stdout: Optional[GenericPath] = None,
+            stderr: Optional[GenericPath] = None,
+            stdin: Optional[Union[str, bytes]] = None,
+            dependencies: Sequence[Task] = (),
+            task_dir: bool = False,
+            resources: Optional[ResourceRequest],
     ):
         super().__init__(
-            task_id, dependencies, resources, cwd=cwd, stdout=stdout, stderr=stderr
+            task_id, dependencies, resources, env=env, cwd=cwd, stdout=stdout, stderr=stderr
         )
         args = to_arg_list(args)
         validate_args(args)
         self.args = args
-        self.env = env or {}
         self.task_dir = task_dir
 
         if stdin is None or isinstance(stdin, bytes):
