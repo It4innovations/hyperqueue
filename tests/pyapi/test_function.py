@@ -73,3 +73,15 @@ def test_function_resources(hq_env: HqEnv):
 
     table = hq_env.command(["job", "tasks", str(job_id)], as_table=True)
     assert table.get_column_value("State") == ["FINISHED", "WAITING", "FINISHED"]
+
+
+def test_default_workdir(hq_env: HqEnv):
+    workdir = Path("foo").resolve()
+    (job, client) = prepare_job_client(hq_env, default_workdir=workdir)
+
+    def fn():
+        assert os.getcwd() == str(workdir)
+
+    job.function(fn)
+    job_id = client.submit(job)
+    client.wait_for_jobs([job_id])
