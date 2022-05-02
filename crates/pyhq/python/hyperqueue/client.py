@@ -12,23 +12,31 @@ from .ffi.client import (
     TaskFailureMap,
     TaskId,
 )
-from .job import Job
+from .job import Job, SubmittedJob
 from .task.function import PythonEnv
 from .utils import pluralize
 
 MAX_PRINTED_TASKS = 5
 
 
+JobMap = Dict[JobId, Job]
+
+
 class FailedJobsException(Exception):
-    def __init__(self, jobs: TaskFailureMap):
-        self.jobs = jobs
+    def __init__(self, failed_tasks: TaskFailureMap, job_map: JobMap):
+        self.failed_tasks = failed_tasks
+        self.job_map = job_map
+
+    def task_label(self, job_id: JobId, task_id: TaskId) -> str:
+        return self.job_map[job_id].task_by_id(task_id).label
 
     def __str__(self):
         error = ""
-        for (job_id, tasks) in self.jobs.items():
+        for (job_id, tasks) in self.failed_tasks.items():
             error += f"The following tasks of job `{job_id}` have failed:\n"
             for (task_id, ctx) in itertools.islice(tasks.items(), MAX_PRINTED_TASKS):
-                error += f"Task {task_id}:\n{ctx.error}\n"
+                task_label = self.task_label(job_id, task_id)
+                error += f"Task {task_label} (id={task_id}):\n{ctx.error}\n"
                 if ctx.cwd or ctx.stdout or ctx.stderr:
                     error += "You can find more information here:\n"
                     if ctx.cwd:
@@ -50,7 +58,7 @@ class Client:
             python_env = PythonEnv()
         self.python_env = python_env
 
-    def submit(self, job: Job) -> JobId:
+    def submit(self, job: Job) -> SubmittedJob:
         job_desc = job._build(self)
         task_count = len(job_desc.tasks)
         if task_count < 1:
@@ -60,28 +68,31 @@ class Client:
         logging.info(
             f"Submitted job {job_id} with {task_count} {pluralize('task', task_count)}"
         )
-        return job_id
+        return SubmittedJob(job=job, id=job_id)
 
-    def wait_for_jobs(self, job_ids: Sequence[JobId], raise_on_error=True) -> bool:
+    def wait_for_jobs(self, jobs: Sequence[SubmittedJob], raise_on_error=True) -> bool:
         """Returns True if all tasks were successfully finished"""
+
+        job_ids = tuple(job.id for job in jobs)
         job_ids_str = ','.join(str(id) for id in job_ids)
-        if len(job_ids) > 1:
+        if len(jobs) > 1:
             job_ids_str = "{" + job_ids_str + "}"
         logging.info(
-            f"Waiting for {pluralize('job', len(job_ids))} {job_ids_str} to finish"
+            f"Waiting for {pluralize('job', len(jobs))} {job_ids_str} to finish"
         )
 
         callback = create_progress_callback()
 
         failed_jobs = self.connection.wait_for_jobs(job_ids, callback)
         if failed_jobs and raise_on_error:
-            failed_jobs = self.connection.get_failed_tasks(failed_jobs)
-            raise FailedJobsException(failed_jobs)
+            failed_tasks = self.connection.get_failed_tasks(failed_jobs)
+            job_map = {job.id: job.job for job in jobs}
+            raise FailedJobsException(failed_tasks, job_map)
         return len(failed_jobs) == 0
 
-    def get_failed_tasks(self, job_id: JobId) -> Dict[TaskId, FailedTaskContext]:
-        result = self.connection.get_failed_tasks([job_id])
-        return result[job_id]
+    def get_failed_tasks(self, job: SubmittedJob) -> Dict[TaskId, FailedTaskContext]:
+        result = self.connection.get_failed_tasks([job.id])
+        return result[job.id]
 
 
 def create_progress_callback():
