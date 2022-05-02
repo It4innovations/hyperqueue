@@ -3,11 +3,11 @@ import os
 import pickle
 from typing import Callable, Optional
 
-from ..common import GenericPath
-from ..ffi import TaskId
-from ..ffi.protocol import ResourceRequest, TaskDescription
-from ..wrapper import CloudWrapper
-from .task import EnvType, Task
+from .wrapper import CloudWrapper
+from ..task import EnvType, Task
+from ...common import GenericPath
+from ...ffi import TaskId
+from ...ffi.protocol import ResourceRequest, TaskDescription
 
 _CLOUDWRAPPER_CACHE = {}
 
@@ -49,13 +49,16 @@ def task_main():
 
         fn, a, kw = pickle.loads(sys.stdin.buffer.read())
         fn(*a, **(kw if kw is not None else {}))
-    except Exception:
+    except BaseException as e:
         import os
         import traceback
 
         t = traceback.format_exc()
         with open(os.environ["HQ_ERROR_FILENAME"], "w") as f:
             f.write(t)
+        print(t, file=sys.stderr)
+        sys.stdout.flush()
+        sys.stderr.flush()
         sys.exit(1)
 
 
@@ -71,21 +74,24 @@ class PythonEnv:
 
 class PythonFunction(Task):
     def __init__(
-        self,
-        task_id: TaskId,
-        fn: Callable,
-        *,
-        args=(),
-        kwargs=None,
-        env: Optional[EnvType] = None,
-        cwd: Optional[GenericPath] = None,
-        stdout: Optional[GenericPath] = None,
-        stderr: Optional[GenericPath] = None,
-        dependencies=(),
-        resources: Optional[ResourceRequest] = None,
+            self,
+            task_id: TaskId,
+            fn: Callable,
+            *,
+            args=(),
+            kwargs=None,
+            env: Optional[EnvType] = None,
+            cwd: Optional[GenericPath] = None,
+            stdout: Optional[GenericPath] = None,
+            stderr: Optional[GenericPath] = None,
+            name: Optional[str] = None,
+            dependencies=(),
+            resources: Optional[ResourceRequest] = None,
     ):
+        name = generate_task_name(task_id, name, fn)
         super().__init__(
-            task_id, dependencies, resources, env=env, cwd=cwd, stdout=stdout, stderr=stderr
+            task_id, dependencies, resources, env=env, cwd=cwd, stdout=stdout, stderr=stderr,
+            name=name
         )
 
         fn_id = id(fn)
@@ -115,3 +121,12 @@ class PythonFunction(Task):
 
     def __repr__(self):
         return f"<PyFunction fn={self.fn.__name__}>"
+
+
+def generate_task_name(id: TaskId, name: Optional[str], fn: Callable) -> Optional[str]:
+    if name is not None:
+        return name
+
+    if hasattr(fn, "__name__"):
+        return f"{fn.__name__}/{id}"
+    return None

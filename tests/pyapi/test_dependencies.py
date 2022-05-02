@@ -12,9 +12,9 @@ def test_single_dep(hq_env: HqEnv):
 
     t1 = job.program(args=bash("sleep 1; echo 'hello' > foo.txt"))
     job.program(args=bash("cat foo.txt"), deps=[t1])
-    job_id = client.submit(job)
+    submitted_job = client.submit(job)
 
-    wait_for_job_state(hq_env, job_id, "FINISHED")
+    wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
 
 
 def test_dep_failed(hq_env: HqEnv):
@@ -28,9 +28,9 @@ def test_dep_failed(hq_env: HqEnv):
     t2 = job.program(args=bash("echo 'hello' > foo1.txt"), deps=[t1])
     job.program(args=bash("echo 'hello' > foo2.txt"), deps=[t2])
     job.program(args=bash("exit 0"))
-    job_id = client.submit(job)
+    submitted_job = client.submit(job)
 
-    wait_for_job_state(hq_env, job_id, "FAILED")
+    wait_for_job_state(hq_env, submitted_job.id, "FAILED")
 
     table = hq_env.command(["job", "tasks", "1"], as_table=True)
     assert table.get_row_value("0") == "FAILED"

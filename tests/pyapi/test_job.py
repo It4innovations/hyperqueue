@@ -26,9 +26,9 @@ def test_submit_simple(hq_env: HqEnv):
     (job, client) = prepare_job_client(hq_env)
 
     job.program(args=["hostname"])
-    job_id = client.submit(job)
+    submitted_job = client.submit(job)
 
-    wait_for_job_state(hq_env, job_id, "FINISHED")
+    wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
 
 
 def test_submit_cwd(hq_env: HqEnv):
@@ -38,11 +38,11 @@ def test_submit_cwd(hq_env: HqEnv):
     cwd.mkdir()
 
     job.program(args=["hostname"], cwd=str(cwd))
-    job_id = client.submit(job)
+    submitted_job = client.submit(job)
 
-    wait_for_job_state(hq_env, job_id, "FINISHED")
+    wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
 
-    table = hq_env.command(["job", "tasks", str(job_id)], as_table=True)
+    table = hq_env.command(["job", "tasks", str(submitted_job.id)], as_table=True)
     cell = table.get_column_value("Paths")[0]
     assert parse_multiline_cell(cell)["Workdir"] == str(cwd)
 
@@ -53,9 +53,9 @@ def test_submit_env(hq_env: HqEnv):
         args=bash("echo $FOO > out.txt; echo $BAZ >> out.txt"),
         env={"FOO": "BAR", "BAZ": "123"},
     )
-    job_id = client.submit(job)
+    submitted_job = client.submit(job)
 
-    wait_for_job_state(hq_env, job_id, "FINISHED")
+    wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
     check_file_contents("out.txt", "BAR\n123\n")
 
 
@@ -67,8 +67,8 @@ def test_submit_stdio(hq_env: HqEnv):
         stderr="err",
         stdin=b"Hello\n",
     )
-    job_id = client.submit(job)
-    wait_for_job_state(hq_env, job_id, "FINISHED")
+    submitted_job = client.submit(job)
+    wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
     check_file_contents("out", "Test1\nHello\n")
     check_file_contents("err", "Test2\n")
 
@@ -118,8 +118,8 @@ def test_job_resources(hq_env: HqEnv):
     job.program(args=bash("echo Hello"), resources=ResourceRequest(cpus="1"))
     job.program(args=bash("echo Hello"), resources=ResourceRequest(cpus="2"))
     job.program(args=bash("echo Hello"), resources=ResourceRequest(cpus="all"))
-    job_id = client.submit(job)
+    submitted_job = client.submit(job)
     time.sleep(1.0)
 
-    table = hq_env.command(["job", "tasks", str(job_id)], as_table=True)
+    table = hq_env.command(["job", "tasks", str(submitted_job.id)], as_table=True)
     assert table.get_column_value("State") == ["FINISHED", "WAITING", "FINISHED"]

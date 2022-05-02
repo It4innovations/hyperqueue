@@ -21,12 +21,14 @@ class ExternalProgram(Task):
             stdout: Optional[GenericPath] = None,
             stderr: Optional[GenericPath] = None,
             stdin: Optional[Union[str, bytes]] = None,
+            name: Optional[str] = None,
             dependencies: Sequence[Task] = (),
             task_dir: bool = False,
             resources: Optional[ResourceRequest],
     ):
         super().__init__(
-            task_id, dependencies, resources, env=env, cwd=cwd, stdout=stdout, stderr=stderr
+            task_id, dependencies, resources, env=env, cwd=cwd, stdout=stdout, stderr=stderr,
+            name=name
         )
         args = to_arg_list(args)
         validate_args(args)
