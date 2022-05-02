@@ -64,9 +64,11 @@ class Client:
 
     def wait_for_jobs(self, job_ids: Sequence[JobId], raise_on_error=True) -> bool:
         """Returns True if all tasks were successfully finished"""
+        job_ids_str = ','.join(str(id) for id in job_ids)
+        if len(job_ids) > 1:
+            job_ids_str = "{" + job_ids_str + "}"
         logging.info(
-            f"Waiting for {pluralize('job', len(job_ids))} "
-            f"{{{','.join(str(id) for id in job_ids)}}} to finish"
+            f"Waiting for {pluralize('job', len(job_ids))} {job_ids_str} to finish"
         )
 
         callback = create_progress_callback()

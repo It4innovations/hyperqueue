@@ -1,4 +1,5 @@
 import logging
+import os
 import pickle
 from typing import Callable, Optional
 
@@ -6,7 +7,7 @@ from ..common import GenericPath
 from ..ffi import TaskId
 from ..ffi.protocol import ResourceRequest, TaskDescription
 from ..wrapper import CloudWrapper
-from .task import Task
+from .task import EnvType, Task
 
 _CLOUDWRAPPER_CACHE = {}
 
@@ -22,13 +23,26 @@ def cloud_wrap(fn, cache=True) -> CloudWrapper:
     return CloudWrapper(fn, cache=cache)
 
 
+LOG_LEVELS = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR
+}
+
+
+def get_logging_level(default: int) -> int:
+    level = os.environ.get("HQ_PYLOG")
+    return LOG_LEVELS.get(level, default)
+
+
 def task_main():
     import pickle
     import sys
 
     try:
         logging.basicConfig(
-            level=logging.INFO,
+            level=get_logging_level(logging.INFO),
             format="%(asctime)s %(name)s:%(levelname)-4s %(message)s",
             datefmt="%d-%m-%Y %H:%M:%S",
         )
@@ -63,6 +77,7 @@ class PythonFunction(Task):
         *,
         args=(),
         kwargs=None,
+        env: Optional[EnvType] = None,
         cwd: Optional[GenericPath] = None,
         stdout: Optional[GenericPath] = None,
         stderr: Optional[GenericPath] = None,
@@ -70,7 +85,7 @@ class PythonFunction(Task):
         resources: Optional[ResourceRequest] = None,
     ):
         super().__init__(
-            task_id, dependencies, resources, cwd=cwd, stdout=stdout, stderr=stderr
+            task_id, dependencies, resources, env=env, cwd=cwd, stdout=stdout, stderr=stderr
         )
 
         fn_id = id(fn)
@@ -90,8 +105,8 @@ class PythonFunction(Task):
             args=client.python_env.args,
             stdout=self.stdout,
             stderr=self.stderr,
-            env={},
             stdin=pickle.dumps((self.fn, self.args, self.kwargs)),
+            env=self.env,
             cwd=self.cwd,
             dependencies=depends_on,
             task_dir=True,

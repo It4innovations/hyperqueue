@@ -5,21 +5,23 @@ from pathlib import Path
 from .ffi.protocol import JobDescription, ResourceRequest
 from .output import default_stderr, default_stdout
 from .task.function import PythonFunction
-from .task.program import EnvType, ExternalProgram, ProgramArgs
-from .task.task import Task
+from .task.program import ExternalProgram, ProgramArgs
+from .task.task import EnvType, Task
 
 
 class Job:
-    def __init__(self, default_workdir: Optional[GenericPath] = None, max_fails: Optional[int] = 1):
+    def __init__(self, default_workdir: Optional[GenericPath] = None, max_fails: Optional[int] = 1,
+                 default_env: Optional[EnvType] = None):
         self.tasks: List[Task] = []
         self.max_fails = max_fails
         self.default_workdir = Path(default_workdir).resolve()
+        self.default_env = default_env or {}
 
     def program(
         self,
         args: ProgramArgs,
         *,
-        env: EnvType = None,
+        env: Optional[EnvType] = None,
         cwd: Optional[GenericPath] = None,
         stdout: Optional[GenericPath] = default_stdout(),
         stderr: Optional[GenericPath] = default_stderr(),
@@ -31,7 +33,7 @@ class Job:
         task = ExternalProgram(
             len(self.tasks),
             args=args,
-            env=env,
+            env=merge_envs(self.default_env, env),
             cwd=cwd or self.default_workdir,
             dependencies=deps,
             stdout=stdout,
@@ -49,6 +51,7 @@ class Job:
         *,
         args=(),
         kwargs=None,
+        env: Optional[EnvType] = None,
         cwd: Optional[GenericPath] = None,
         stdout: Optional[GenericPath] = default_stdout(),
         stderr: Optional[GenericPath] = default_stderr(),
@@ -60,6 +63,7 @@ class Job:
             fn,
             args=args,
             kwargs=kwargs,
+            env=merge_envs(self.default_env, env),
             cwd=cwd or self.default_workdir,
             stdout=stdout,
             stderr=stderr,
@@ -74,3 +78,10 @@ class Job:
         for task in self.tasks:
             task_descriptions.append(task._build(client))
         return JobDescription(task_descriptions, self.max_fails)
+
+
+def merge_envs(default: EnvType, env: Optional[EnvType]) -> EnvType:
+    environment = default.copy()
+    if env:
+        environment.update(env)
+    return environment
