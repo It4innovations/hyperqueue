@@ -14,3 +14,8 @@ dependencies = [
     "cloudpickle==2.0",
     "tqdm==4.64.0"
 ]
+
+[project.optional-dependencies]
+all = [
+    "pydot==1.4.2"
+]

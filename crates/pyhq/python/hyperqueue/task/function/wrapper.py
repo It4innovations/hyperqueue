@@ -56,7 +56,9 @@ class CloudWrapper:
         return pfn
 
     def __call__(self, *args, **kwargs):
-        logging.debug(f"Running function {self.fn} using args {args} and kwargs {kwargs}")
+        logging.debug(
+            f"Running function {self.fn} using args {args} and kwargs {kwargs}"
+        )
         return self.fn(*args, **kwargs)
 
     def __reduce__(self):

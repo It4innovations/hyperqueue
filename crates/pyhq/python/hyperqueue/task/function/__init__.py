@@ -3,11 +3,11 @@ import os
 import pickle
 from typing import Callable, Optional
 
-from .wrapper import CloudWrapper
-from ..task import EnvType, Task
 from ...common import GenericPath
 from ...ffi import TaskId
 from ...ffi.protocol import ResourceRequest, TaskDescription
+from ..task import EnvType, Task
+from .wrapper import CloudWrapper
 
 _CLOUDWRAPPER_CACHE = {}
 
@@ -27,7 +27,7 @@ LOG_LEVELS = {
     "DEBUG": logging.DEBUG,
     "INFO": logging.INFO,
     "WARNING": logging.WARNING,
-    "ERROR": logging.ERROR
+    "ERROR": logging.ERROR,
 }
 
 
@@ -49,7 +49,7 @@ def task_main():
 
         fn, a, kw = pickle.loads(sys.stdin.buffer.read())
         fn(*a, **(kw if kw is not None else {}))
-    except BaseException as e:
+    except BaseException:
         import os
         import traceback
 
@@ -74,24 +74,30 @@ class PythonEnv:
 
 class PythonFunction(Task):
     def __init__(
-            self,
-            task_id: TaskId,
-            fn: Callable,
-            *,
-            args=(),
-            kwargs=None,
-            env: Optional[EnvType] = None,
-            cwd: Optional[GenericPath] = None,
-            stdout: Optional[GenericPath] = None,
-            stderr: Optional[GenericPath] = None,
-            name: Optional[str] = None,
-            dependencies=(),
-            resources: Optional[ResourceRequest] = None,
+        self,
+        task_id: TaskId,
+        fn: Callable,
+        *,
+        args=(),
+        kwargs=None,
+        env: Optional[EnvType] = None,
+        cwd: Optional[GenericPath] = None,
+        stdout: Optional[GenericPath] = None,
+        stderr: Optional[GenericPath] = None,
+        name: Optional[str] = None,
+        dependencies=(),
+        resources: Optional[ResourceRequest] = None,
     ):
         name = generate_task_name(task_id, name, fn)
         super().__init__(
-            task_id, dependencies, resources, env=env, cwd=cwd, stdout=stdout, stderr=stderr,
-            name=name
+            task_id,
+            dependencies,
+            resources,
+            env=env,
+            cwd=cwd,
+            stdout=stdout,
+            stderr=stderr,
+            name=name,
         )
 
         fn_id = id(fn)

@@ -50,7 +50,8 @@ jobs:
       - name: Build Python binding
         run: |
           maturin build --manifest-path crates/pyhq/Cargo.toml --out wheels
-          python -m pip install wheels/hyperqueue-*.whl
+          WHEEL=`realpath wheels/*.whl`
+          python -m pip install $WHEEL[all]
 
       - name: Test Python
         id: python_test

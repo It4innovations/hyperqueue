@@ -9,15 +9,15 @@ EnvType = Dict[str, str]
 
 class Task:
     def __init__(
-            self,
-            task_id: TaskId,
-            dependencies: Sequence["Task"] = (),
-            resources: Optional[ResourceRequest] = None,
-            env: Optional[EnvType] = None,
-            cwd: Optional[GenericPath] = None,
-            stdout: Optional[GenericPath] = None,
-            stderr: Optional[GenericPath] = None,
-            name: Optional[str] = None
+        self,
+        task_id: TaskId,
+        dependencies: Sequence["Task"] = (),
+        resources: Optional[ResourceRequest] = None,
+        env: Optional[EnvType] = None,
+        cwd: Optional[GenericPath] = None,
+        stdout: Optional[GenericPath] = None,
+        stderr: Optional[GenericPath] = None,
+        name: Optional[str] = None,
     ):
         assert dependencies is not None
         self.task_id = task_id

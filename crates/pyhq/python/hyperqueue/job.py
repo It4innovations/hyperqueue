@@ -12,31 +12,38 @@ from .task.task import EnvType, Task
 
 
 class Job:
-    def __init__(self, default_workdir: Optional[GenericPath] = None, max_fails: Optional[int] = 1,
-                 default_env: Optional[EnvType] = None):
+    def __init__(
+        self,
+        default_workdir: Optional[GenericPath] = None,
+        max_fails: Optional[int] = 1,
+        default_env: Optional[EnvType] = None,
+    ):
         self.tasks: List[Task] = []
         self.task_map: Dict[TaskId, Task] = {}
         self.max_fails = max_fails
-        self.default_workdir = Path(
-            default_workdir).resolve() if default_workdir is not None else default_workdir
+        self.default_workdir = (
+            Path(default_workdir).resolve()
+            if default_workdir is not None
+            else default_workdir
+        )
         self.default_env = default_env or {}
 
     def task_by_id(self, id: TaskId) -> Optional[Task]:
         return self.task_map.get(id)
 
     def program(
-            self,
-            args: ProgramArgs,
-            *,
-            env: Optional[EnvType] = None,
-            cwd: Optional[GenericPath] = None,
-            stdout: Optional[GenericPath] = default_stdout(),
-            stderr: Optional[GenericPath] = default_stderr(),
-            stdin: Optional[Union[str, bytes]] = None,
-            deps: Sequence[Task] = (),
-            name: Optional[str] = None,
-            task_dir: bool = False,
-            resources: Optional[ResourceRequest] = None,
+        self,
+        args: ProgramArgs,
+        *,
+        env: Optional[EnvType] = None,
+        cwd: Optional[GenericPath] = None,
+        stdout: Optional[GenericPath] = default_stdout(),
+        stderr: Optional[GenericPath] = default_stderr(),
+        stdin: Optional[Union[str, bytes]] = None,
+        deps: Sequence[Task] = (),
+        name: Optional[str] = None,
+        task_dir: bool = False,
+        resources: Optional[ResourceRequest] = None,
     ) -> ExternalProgram:
         task = ExternalProgram(
             len(self.tasks),
