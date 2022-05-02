@@ -14,7 +14,8 @@ class Job:
                  default_env: Optional[EnvType] = None):
         self.tasks: List[Task] = []
         self.max_fails = max_fails
-        self.default_workdir = Path(default_workdir).resolve()
+        self.default_workdir = Path(
+            default_workdir).resolve() if default_workdir is not None else default_workdir
         self.default_env = default_env or {}
 
     def program(
