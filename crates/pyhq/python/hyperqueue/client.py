@@ -74,7 +74,7 @@ class Client:
         """Returns True if all tasks were successfully finished"""
 
         job_ids = tuple(job.id for job in jobs)
-        job_ids_str = ','.join(str(id) for id in job_ids)
+        job_ids_str = ",".join(str(id) for id in job_ids)
         if len(jobs) > 1:
             job_ids_str = "{" + job_ids_str + "}"
         logging.info(

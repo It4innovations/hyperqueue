@@ -7,10 +7,11 @@ import pytest
 from hyperqueue.client import Client, FailedJobsException, PythonEnv
 from hyperqueue.ffi.protocol import ResourceRequest
 from hyperqueue.job import Job
-from . import prepare_job_client
+
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
 from ..utils.io import check_file_contents
+from . import prepare_job_client
 
 
 def test_submit_pyfunction(hq_env: HqEnv):
