@@ -5,11 +5,10 @@ from pathlib import Path
 from hyperqueue.client import Client, PythonEnv
 from hyperqueue.ffi.protocol import ResourceRequest
 from hyperqueue.job import Job
-
+from . import prepare_job_client
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
 from ..utils.io import check_file_contents
-from . import prepare_job_client
 
 
 def test_submit_pyfunction(hq_env: HqEnv):
@@ -83,5 +82,29 @@ def test_default_workdir(hq_env: HqEnv):
         assert os.getcwd() == str(workdir)
 
     job.function(fn)
+    job_id = client.submit(job)
+    client.wait_for_jobs([job_id])
+
+
+def test_default_env(hq_env: HqEnv):
+    env = {"FOO": "1"}
+    (job, client) = prepare_job_client(hq_env, default_env=env)
+
+    def fn():
+        assert os.environ["FOO"] == "1"
+
+    job.function(fn)
+    job_id = client.submit(job)
+    client.wait_for_jobs([job_id])
+
+
+def test_default_env_overwrite_default(hq_env: HqEnv):
+    env = {"FOO": "1"}
+    (job, client) = prepare_job_client(hq_env, default_env=env)
+
+    def fn():
+        assert os.environ["FOO"] == "2"
+
+    job.function(fn, env=dict(FOO="2"))
     job_id = client.submit(job)
     client.wait_for_jobs([job_id])
