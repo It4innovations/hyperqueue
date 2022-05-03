@@ -96,7 +96,7 @@ class PerfEventsProfiler(Profiler):
 
 
 class CachegrindProfiler(Profiler):
-    TAG = "cache-grind"
+    TAG = "cachegrind"
 
     def check_availability(self):
         if not is_binary_available("valgrind"):
@@ -115,3 +115,25 @@ class CachegrindProfiler(Profiler):
 
     def __repr__(self):
         return "CachegrindProfiler"
+
+
+class CallgrindProfiler(Profiler):
+    TAG = "callgrind"
+
+    def check_availability(self):
+        if not is_binary_available("valgrind"):
+            raise Exception(
+                "Valgrind profiling is not available. Please install `valgrind`."
+            )
+
+    def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
+        path = output_dir / "callgrind.txt"
+        args = [
+            "valgrind",
+            "--tool=callgrind",
+            f"--log-file={path}",
+        ] + command
+        return ProfiledCommand(args=args, tag=CallgrindProfiler.TAG, output_path=path)
+
+    def __repr__(self):
+        return "CallgrindProfiler"

@@ -64,6 +64,9 @@ class HqClusterInfo(EnvironmentDescriptor):
 
     def __post_init__(self):
         self.binary = self.binary.absolute()
+        # Using multiple profilers at once is currently unsupported
+        assert len(self.server_profilers) < 2
+        assert len(self.worker_profilers) < 2
 
     def create_environment(self, workdir: Path) -> Environment:
         return HqEnvironment(self, workdir)
