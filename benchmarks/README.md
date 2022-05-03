@@ -24,6 +24,10 @@ Uses `perf` for stack sampling, results are rendered as a flamegraph.
 ### Perf events (`PerfEventsProfiler`)
 Uses `perf stat` to gather various CPU performance events.
 
+### Callgrind (`CallgrindProfiler`)
+Uses Callgrind to instrument the profiled binary. The results can be visualized e.g. using KCacheGrind.
+Note that using Callgrind can slow down the execution by orders of magnitude.
+
 ### Cachegrind (`CachegrindProfiler`)
 Uses Cachegrind to instrument the profiled binary. The results can be visualized e.g. using KCacheGrind.
 Note that using Cachegrind can slow down the execution by orders of magnitude.
