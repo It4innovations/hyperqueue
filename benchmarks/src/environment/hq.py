@@ -215,9 +215,10 @@ class HqEnvironment(Environment, EnvStateManager):
         path = self.server_dir / f"submit-{self.submit_id}"
         stdout = Path(f"{path}.out")
         stderr = Path(f"{path}.err")
-        result = execute_process(
-            self._shared_args() + args, stdout=stdout, stderr=stderr
-        )
+
+        args = self._shared_args() + args
+        logging.debug(f"[HQ] Submitting `{' '.join(args)}`")
+        result = execute_process(args, stdout=stdout, stderr=stderr)
 
         self.submit_id += 1
         return result

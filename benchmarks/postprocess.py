@@ -2,9 +2,10 @@ import logging
 from pathlib import Path
 
 import typer
-from src.postprocessing.monitor import generate_cluster_report, serve_cluster_report
+from src.postprocessing.monitor import generate_cluster_report
 from src.postprocessing.overview import generate_summary_html, generate_summary_text
 from src.postprocessing.report import ClusterReport
+from src.postprocessing.serve import serve_cluster_report
 from src.utils.benchmark import load_database
 
 app = typer.Typer()
@@ -28,7 +29,9 @@ def cluster_serve(
 
 @cluster.command("generate")
 def cluster_generate(
-    directory: Path = typer.Argument(..., exists=True, file_okay=False),
+    directory: Path = typer.Argument(
+        ..., exists=True, file_okay=False, help="Directory containing `cluster.json`"
+    ),
     output: Path = Path("out.html"),
 ):
     """Generate a HTML file with monitoring and profiling report for the given directory"""

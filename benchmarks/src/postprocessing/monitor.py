@@ -34,7 +34,11 @@ from cluster.cluster import Cluster, Node, ProcessInfo
 from pandas import Timestamp
 from tornado import ioloop, web
 
-from ..clusterutils.profiler import FlamegraphProfiler, PerfEventsProfiler
+from ..clusterutils.profiler import (
+    CachegrindProfiler,
+    FlamegraphProfiler,
+    PerfEventsProfiler,
+)
 from ..monitoring.record import MonitoringRecord, ProcessRecord
 from ..utils import ensure_directory
 from .common import average
@@ -415,6 +419,24 @@ def render_perf_events(file: Path):
         return PreText(text=data)
 
 
+def render_cachegrind_events(file: Path):
+    with open(file) as f:
+        data = f.read()
+        return PreText(text=data)
+
+
+def render_flamegraph_from_records(file: Path):
+    folded_path = file.parent.joinpath("stacks.folded")
+    flamegraph_path = file.parent.joinpath("profile.svg")
+
+    flame_cmd = (
+        f"perf script -i {file} | inferno-collapse-perf > {folded_path}; "
+        f"cat {folded_path} | inferno-flamegraph > {flamegraph_path}"
+    )
+    subprocess.call(flame_cmd, shell=True)
+    return render_flamegraph(flamegraph_path)
+
+
 def render_profiling_data(report: ClusterReport):
     def render_process(arg):
         key, records = arg
@@ -423,10 +445,13 @@ def render_profiling_data(report: ClusterReport):
             tag, file = arg
             if tag == FlamegraphProfiler.TAG:
                 name = "Flamegraph"
-                widget = render_flamegraph(file)
+                widget = render_flamegraph_from_records(file)
             elif tag == PerfEventsProfiler.TAG:
                 name = "Perf. events"
                 widget = render_perf_events(file)
+            elif tag == CachegrindProfiler.TAG:
+                name = "Cachegrind"
+                widget = render_cachegrind_events(file)
             else:
                 name = "Unknown"
                 msg = f"Unknown profiler tag encountered: `{tag}` ({file})"

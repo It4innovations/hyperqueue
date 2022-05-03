@@ -40,8 +40,6 @@ def measure_hq_tasks(
         *command,
     ]
 
-    logging.debug(f"[HQ] Submitting {' '.join(args)}")
-
     timer = Timings()
     with activate_cwd(env.workdir):
         with timer.time():

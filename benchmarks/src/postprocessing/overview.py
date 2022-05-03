@@ -103,6 +103,8 @@ def render_benchmark(entry: BenchmarkEntry) -> LayoutDOM:
 
 
 def render_durations(title: str, durations: List[float]):
+    durations = np.array(durations)
+    durations = durations[~np.isnan(durations)]
     hist, edges = np.histogram(durations, density=True, bins=50)
 
     fig = figure(title=title, width=400, height=300)
