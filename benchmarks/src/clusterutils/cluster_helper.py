@@ -34,6 +34,9 @@ class StartProcessArgs:
     init_cmd: List[str] = dataclasses.field(default_factory=list)
     metadata: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
+    def __repr__(self):
+        return f"Process `{self.name}/{self.hostname}`: `{' '.join(self.args)}` at `{self.workdir}`"
+
 
 class ClusterHelper:
     def __init__(self, cluster_info: ClusterInfo, workdir: Path):

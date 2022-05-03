@@ -22,6 +22,13 @@ class Profiler:
         raise NotImplementedError
 
 
+# Process into flamegraphs
+# Enable stats rights at /proc/sys/kernel/perf_event_paranoid
+# cargo inferno
+# 1. Apply profiling records
+# 2. perf script -i perf-records.txt | inferno-collapse-perf > stacks.folded
+# (Visualize) cat stacks.folded | inferno-flamegraph > profile.svg
+# (Compare)   inferno-diff-folded stacks1.folded stacks2.folded | inferno-flamegraph > flamediff.svg
 class FlamegraphProfiler(Profiler):
     TAG = "flamegraph"
 
@@ -29,24 +36,26 @@ class FlamegraphProfiler(Profiler):
         self.frequency = frequency
 
     def check_availability(self):
-        if not is_binary_available("flamegraph"):
+        if not is_binary_available("perf"):
             raise Exception(
-                """Flamegraph profiling is not available.
-Please install cargo-flamegraph: `cargo install flamegraph` and make sure that `perf` is available.
-""".strip()
+                "Flamegraph profiling is not available. Please make sure that `perf` is available."
             )
 
     def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
-        path = output_dir / "flamegraph.svg"
+        path = output_dir / "perf-records.txt"
 
         args = [
-            "flamegraph",
-            "-o",
-            str(path),
+            "perf",
+            "record",
+            "--call-graph",
+            "dwarf",
             "--freq",
             str(self.frequency),
+            "-o",
+            str(path),
             "--",
         ] + command
+
         return ProfiledCommand(args=args, tag=FlamegraphProfiler.TAG, output_path=path)
 
     def __repr__(self):
@@ -84,3 +93,25 @@ class PerfEventsProfiler(Profiler):
 
     def __repr__(self):
         return "PerfEventsProfiler"
+
+
+class CachegrindProfiler(Profiler):
+    TAG = "cache-grind"
+
+    def check_availability(self):
+        if not is_binary_available("valgrind"):
+            raise Exception(
+                "Valgrind profiling is not available. Please install `valgrind`."
+            )
+
+    def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
+        path = output_dir / "cachegrind.txt"
+        args = [
+            "valgrind",
+            "--tool=cachegrind",
+            f"--log-file={path}",
+        ] + command
+        return ProfiledCommand(args=args, tag=CachegrindProfiler.TAG, output_path=path)
+
+    def __repr__(self):
+        return "CachegrindProfiler"

@@ -91,8 +91,8 @@ def sleep():
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s:%(asctime)s:%(funcName)s: %(message)s",
+        level=logging.DEBUG,
+        format="%(levelname)s:%(asctime)s.%(msecs)03d:%(funcName)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     app()
