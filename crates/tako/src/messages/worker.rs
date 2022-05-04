@@ -70,7 +70,7 @@ pub enum ToWorkerMessage {
     StealTasks(TaskIdsMsg),
     CancelTasks(TaskIdsMsg),
     NewWorker(NewWorkerMsg),
-    Reservation(bool),
+    SetReservation(bool),
     Stop,
 }
 

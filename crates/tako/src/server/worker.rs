@@ -5,6 +5,8 @@ use crate::common::resources::ResourceRequest;
 use crate::common::resources::{NumOfCpus, TimeRequest};
 use crate::common::Set;
 use crate::messages::common::WorkerConfiguration;
+use crate::messages::worker::ToWorkerMessage;
+use crate::server::comm::Comm;
 use crate::server::task::Task;
 use crate::server::taskmap::TaskMap;
 use crate::server::workerload::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
@@ -95,8 +97,11 @@ impl Worker {
         self.mn_task = None;
     }
 
-    pub fn set_reservation(&mut self, value: bool) {
-        self.flags.set(WorkerFlags::RESERVED, value);
+    pub fn set_reservation(&mut self, value: bool, comm: &mut impl Comm) {
+        if self.is_reserved() != value {
+            self.flags.set(WorkerFlags::RESERVED, value);
+            comm.send_worker_message(self.id, &ToWorkerMessage::SetReservation(value))
+        }
     }
 
     pub fn is_reserved(&self) -> bool {

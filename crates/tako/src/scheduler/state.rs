@@ -177,13 +177,7 @@ impl SchedulerState {
                     );
                     for worker_id in &worker_ids[1..] {
                         let worker = worker_map.get_worker_mut(*worker_id);
-                        if !worker.is_reserved() {
-                            worker.set_reservation(true);
-                            comm.send_worker_message(
-                                *worker_id,
-                                &ToWorkerMessage::Reservation(true),
-                            );
-                        }
+                        worker.set_reservation(true, comm);
                     }
                 }
                 (
@@ -230,14 +224,13 @@ impl SchedulerState {
                     })
                     .unwrap_or(true);
                 if unreserve {
-                    worker.set_reservation(false);
-                    comm.send_worker_message(worker.id, &ToWorkerMessage::Reservation(false));
+                    worker.set_reservation(false, comm);
                 }
             }
         }
     }
 
-    pub(crate) fn assign_mn(
+    pub(crate) fn assign_multinode(
         &mut self,
         worker_map: &mut WorkerMap,
         task: &mut Task,
@@ -355,7 +348,7 @@ impl SchedulerState {
             }
             if found {
                 mn_queue.queue.pop();
-                self.assign_mn(worker_map, task, selected_workers);
+                self.assign_multinode(worker_map, task, selected_workers);
             } else {
                 break;
             }
