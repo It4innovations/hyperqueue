@@ -1,7 +1,5 @@
 #![deny(clippy::await_holding_refcell_ref)]
 
-extern crate core;
-
 #[macro_use]
 pub mod common;
 pub mod messages;

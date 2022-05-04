@@ -140,6 +140,10 @@ impl WorkerState {
         !self.tasks.is_empty()
     }
 
+    pub(crate) fn reset_idle_timer(&mut self) {
+        self.last_task_finish_time = Instant::now();
+    }
+
     fn remove_task(&mut self, task_id: TaskId, just_finished: bool) {
         match self.tasks.remove(&task_id).unwrap().state {
             TaskState::Waiting(x) => {
@@ -164,7 +168,7 @@ impl WorkerState {
                 notify.notify_one()
             }
         }
-        self.last_task_finish_time = Instant::now();
+        self.reset_idle_timer();
     }
 
     pub fn get_worker_address(&self, worker_id: WorkerId) -> Option<&String> {

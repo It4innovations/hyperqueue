@@ -43,15 +43,15 @@ fn check_worker_status_change(s1: WorkerStatus, s2: WorkerStatus, ms: &[ToWorker
             ms,
             &[
                 ToWorkerMessage::ComputeTask(_),
-                ToWorkerMessage::Reservation(false)
+                ToWorkerMessage::SetReservation(false)
             ]
         )),
         (WorkerStatus::NonRoot, WorkerStatus::None) => {
-            assert!(matches!(ms, &[ToWorkerMessage::Reservation(false)]))
+            assert!(matches!(ms, &[ToWorkerMessage::SetReservation(false)]))
         }
         (WorkerStatus::None, WorkerStatus::NonRoot)
         | (WorkerStatus::Root, WorkerStatus::NonRoot) => {
-            assert!(matches!(ms, &[ToWorkerMessage::Reservation(true)]))
+            assert!(matches!(ms, &[ToWorkerMessage::SetReservation(true)]))
         }
         (WorkerStatus::NonRoot, WorkerStatus::NonRoot)
         | (WorkerStatus::Root, WorkerStatus::None)
@@ -91,7 +91,7 @@ fn test_schedule_mn_simple() {
         }
         if reservation {
             let msgs = comm.take_worker_msgs(ws[1], 1);
-            assert!(matches!(&msgs[0], ToWorkerMessage::Reservation(true)));
+            assert!(matches!(&msgs[0], ToWorkerMessage::SetReservation(true)));
         }
         ws
     };
@@ -149,11 +149,11 @@ fn test_schedule_mn_reserve() {
     ));
     assert!(matches!(
         comm.take_worker_msgs(ws1[1], 1)[0],
-        ToWorkerMessage::Reservation(true)
+        ToWorkerMessage::SetReservation(true)
     ));
     assert!(matches!(
         comm.take_worker_msgs(ws1[2], 1)[0],
-        ToWorkerMessage::Reservation(true)
+        ToWorkerMessage::SetReservation(true)
     ));
     comm.emptiness_check();
     finish_on_worker(&mut core, 1, ws1[0], 0);

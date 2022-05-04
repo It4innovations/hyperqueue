@@ -2,7 +2,7 @@ use std::future::Future;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bytes::{Bytes, BytesMut};
 use futures::{SinkExt, Stream, StreamExt};
@@ -354,10 +354,10 @@ async fn worker_message_loop(
                     .insert(msg.worker_id, msg.address)
                     .is_none())
             }
-            ToWorkerMessage::Reservation(on_off) => {
+            ToWorkerMessage::SetReservation(on_off) => {
                 state.reservation = on_off;
                 if !on_off {
-                    state.last_task_finish_time = Instant::now();
+                    state.reset_idle_timer();
                 }
             }
             ToWorkerMessage::Stop => {

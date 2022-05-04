@@ -685,11 +685,11 @@ fn test_task_mn_cancel() {
     core.sanity_check();
     assert!(matches!(
         &comm.take_worker_msgs(100, 1)[0],
-        &ToWorkerMessage::Reservation(false)
+        &ToWorkerMessage::SetReservation(false)
     ));
     assert!(matches!(
         &comm.take_worker_msgs(101, 1)[0],
-        &ToWorkerMessage::Reservation(false)
+        &ToWorkerMessage::SetReservation(false)
     ));
     comm.emptiness_check();
 
