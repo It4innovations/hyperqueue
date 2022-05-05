@@ -16,6 +16,8 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 CPU pin mode will generate the corresponding `OMP_PLACES` and `OMP_PROC_BIND` environment variables
 to make sure that OpenMP pins its threads to the exact cores allocated by HyperQueue.
 
+* Preview version of multi-node tasks. You may submit multi-node task by ``hq submit --nodes=X ...``
+
 ### CLI
 
 * Less verbose log output by default. You can use "--debug" to turn on the old behavior.
