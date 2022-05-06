@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde::Serialize;
-use tako::messages::common::{ProgramDefinition, WorkerConfiguration};
 
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
@@ -14,8 +13,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::server::event::MonitoringEvent;
-use tako::messages::gateway::{LostWorkerReason, MonitoringEventRequest, ResourceRequest};
-use tako::worker::state::ServerLostPolicy;
+use tako::gateway::{LostWorkerReason, MonitoringEventRequest, ResourceRequest};
+use tako::program::ProgramDefinition;
+use tako::worker::{ServerLostPolicy, WorkerConfiguration};
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]

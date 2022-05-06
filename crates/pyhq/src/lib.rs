@@ -21,7 +21,7 @@ mod utils;
 /// Opaque object that is returned by `connect_to_server` and then passed from the Python side
 /// to various Rust functions.
 #[pyclass]
-struct HqClientContext {
+pub struct HqClientContext {
     connection: ClientConnection,
 }
 

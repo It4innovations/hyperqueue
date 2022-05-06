@@ -5,10 +5,10 @@ use std::time::Duration;
 use hyperqueue::common::utils::network::get_hostname;
 use tokio::task::LocalSet;
 
-use hyperqueue::tako::common::resources::{CpuId, ResourceDescriptor};
-use hyperqueue::tako::messages::common::WorkerConfiguration;
-use hyperqueue::tako::worker::state::ServerLostPolicy;
 use hyperqueue::worker::bootstrap::{finalize_configuration, initialize_worker};
+use tako::resources::{CpuId, ResourceDescriptor};
+use tako::worker::ServerLostPolicy;
+use tako::worker::WorkerConfiguration;
 
 pub struct RunningWorker {
     #[allow(unused)]

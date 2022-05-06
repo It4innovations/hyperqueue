@@ -11,10 +11,10 @@ use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use smallvec::SmallVec;
 use std::path::PathBuf;
-use tako::common::index::ItemId;
-use tako::common::Set;
-use tako::server::task::SerializedTaskContext;
-use tako::transfer::auth::deserialize;
+use tako::comm::deserialize;
+use tako::task::SerializedTaskContext;
+use tako::ItemId;
+use tako::Set;
 use tako::TaskId;
 use tokio::sync::oneshot;
 

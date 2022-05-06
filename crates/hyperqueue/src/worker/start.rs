@@ -12,15 +12,10 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
 
-use tako::common::error::DsError;
-use tako::common::resources::ResourceAllocation;
-use tako::messages::common::{ProgramDefinition, StdioDef};
-use tako::transfer::auth::serialize;
-use tako::worker::launcher::{command_from_definitions, TaskLaunchData, TaskLauncher};
-use tako::worker::state::WorkerState;
-use tako::worker::task::Task;
-use tako::worker::taskenv::{StopReason, TaskResult};
-use tako::{InstanceId, TaskId, WorkerId};
+use tako::launcher::{
+    command_from_definitions, LaunchContext, StopReason, TaskLaunchData, TaskLauncher, TaskResult,
+};
+use tako::InstanceId;
 
 use crate::common::env::{
     HQ_CPUS, HQ_ERROR_FILENAME, HQ_INSTANCE_ID, HQ_NODE_FILE, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR,
@@ -35,6 +30,9 @@ use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use crate::{JobId, JobTaskId};
 use serde::{Deserialize, Serialize};
+use tako::comm::serialize;
+use tako::program::{ProgramDefinition, StdioDef};
+use tako::resources::ResourceAllocation;
 
 const MAX_CUSTOM_ERROR_LENGTH: usize = 2048; // 2KiB
 
@@ -58,8 +56,7 @@ impl HqTaskLauncher {
 impl TaskLauncher for HqTaskLauncher {
     fn build_task(
         &self,
-        state: &WorkerState,
-        task_id: TaskId,
+        launch_ctx: LaunchContext,
         stop_receiver: Receiver<StopReason>,
     ) -> tako::Result<TaskLaunchData> {
         let (mut program, job_id, job_task_id, instance_id, task_dir): (
@@ -69,20 +66,15 @@ impl TaskLauncher for HqTaskLauncher {
             InstanceId,
             Option<TempDir>,
         ) = {
-            let task = state.get_task(task_id);
-            let allocation = task
-                .resource_allocation()
-                .expect("Missing resource allocation for running task");
-
             log::debug!(
                 "Starting program launcher task_id={} res={:?} alloc={:?} body_len={}",
-                task.id,
-                &task.resources,
-                allocation,
-                task.body.len(),
+                launch_ctx.task_id(),
+                launch_ctx.resources(),
+                launch_ctx.allocation(),
+                launch_ctx.body().len(),
             );
 
-            let body: TaskBody = tako::transfer::auth::deserialize(&task.body)?;
+            let body: TaskBody = tako::comm::deserialize(launch_ctx.body())?;
             let TaskBody {
                 mut program,
                 pin: pin_mode,
@@ -91,10 +83,10 @@ impl TaskLauncher for HqTaskLauncher {
                 task_id,
             } = body;
 
-            pin_program(&mut program, allocation, pin_mode);
+            pin_program(&mut program, launch_ctx.allocation(), pin_mode);
 
             let task_dir = if task_dir {
-                let task_dir = TempDir::new_in(&state.configuration.work_dir, "t")?;
+                let task_dir = TempDir::new_in(&launch_ctx.worker_configuration().work_dir, "t")?;
                 program.env.insert(
                     HQ_TASK_DIR.into(),
                     task_dir.path().to_string_lossy().to_string().into(),
@@ -106,9 +98,9 @@ impl TaskLauncher for HqTaskLauncher {
                         .to_string()
                         .into(),
                 );
-                if !task.node_list.is_empty() {
+                if !launch_ctx.node_list().is_empty() {
                     let filename = task_dir.path().join("hq-nodelist");
-                    write_node_file(state, &task.node_list, &filename)?;
+                    write_node_file(&launch_ctx, &filename)?;
                     program.env.insert(
                         HQ_NODE_FILE.into(),
                         filename.to_string_lossy().to_string().into(),
@@ -120,19 +112,20 @@ impl TaskLauncher for HqTaskLauncher {
             };
 
             // Do not insert resources for multi-node tasks, semantics has to be cleared
-            if task.node_list.is_empty() {
-                insert_resources_into_env(state, task, allocation, &mut program);
+            if launch_ctx.node_list().is_empty() {
+                insert_resources_into_env(&launch_ctx, &mut program);
             }
 
             let submit_dir: PathBuf = program.env[<&BStr>::from(HQ_SUBMIT_DIR)].to_string().into();
-            program
-                .env
-                .insert(HQ_INSTANCE_ID.into(), task.instance_id.to_string().into());
+            program.env.insert(
+                HQ_INSTANCE_ID.into(),
+                launch_ctx.instance_id().to_string().into(),
+            );
 
             let ctx = CompletePlaceholderCtx {
                 job_id,
                 task_id,
-                instance_id: task.instance_id,
+                instance_id: launch_ctx.instance_id(),
                 submit_dir: &submit_dir,
             };
             let paths = ResolvablePaths::from_program_def(&mut program);
@@ -141,7 +134,7 @@ impl TaskLauncher for HqTaskLauncher {
             create_directory_if_needed(&program.stdout)?;
             create_directory_if_needed(&program.stderr)?;
 
-            (program, job_id, task_id, task.instance_id, task_dir)
+            (program, job_id, task_id, launch_ctx.instance_id(), task_dir)
         };
 
         let context = RunningTaskContext { instance_id };
@@ -205,27 +198,19 @@ fn get_custom_error_filename(task_dir: &TempDir) -> PathBuf {
     task_dir.path().join("hq-error")
 }
 
-fn write_node_file(
-    state: &WorkerState,
-    node_list: &[WorkerId],
-    path: &Path,
-) -> std::io::Result<()> {
+fn write_node_file(ctx: &LaunchContext, path: &Path) -> std::io::Result<()> {
     let file = File::create(path)?;
     let mut file = BufWriter::new(file);
-    for worker_id in node_list {
-        file.write_all(state.worker_hostname(*worker_id).unwrap().as_bytes())?;
+    for worker_id in ctx.node_list() {
+        file.write_all(ctx.worker_hostname(*worker_id).unwrap().as_bytes())?;
         file.write_all(b"\n")?;
     }
     file.flush()?;
     Ok(())
 }
 
-fn insert_resources_into_env(
-    state: &WorkerState,
-    task: &Task,
-    allocation: &ResourceAllocation,
-    program: &mut ProgramDefinition,
-) {
+fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinition) {
+    let allocation = ctx.allocation();
     program
         .env
         .insert(HQ_CPUS.into(), allocation.comma_delimited_cpu_ids().into());
@@ -237,9 +222,9 @@ fn insert_resources_into_env(
         );
     }
 
-    let resource_map = state.get_resource_map();
+    let resource_map = ctx.get_resource_map();
 
-    for rq in task.resources.generic_requests() {
+    for rq in ctx.resources().generic_requests() {
         let resource_name = resource_map.get_name(rq.resource).unwrap();
         program.env.insert(
             format!("HQ_RESOURCE_REQUEST_{}", resource_name).into(),
@@ -434,7 +419,7 @@ async fn child_wait(
 }
 
 #[inline(never)]
-fn check_error_filename(task_dir: TempDir) -> Option<DsError> {
+fn check_error_filename(task_dir: TempDir) -> Option<tako::Error> {
     let mut f = File::open(&get_custom_error_filename(&task_dir)).ok()?;
     let mut buffer = [0; MAX_CUSTOM_ERROR_LENGTH];
     let size = f
@@ -443,11 +428,11 @@ fn check_error_filename(task_dir: TempDir) -> Option<DsError> {
         .ok()?;
     let msg = String::from_utf8_lossy(&buffer[..size]);
     Some(if size == 0 {
-        DsError::GenericError("Task created an error file, but it is empty".to_string())
+        tako::Error::GenericError("Task created an error file, but it is empty".to_string())
     } else if size == MAX_CUSTOM_ERROR_LENGTH {
-        DsError::GenericError(format!("{}\n[The message was truncated]", msg))
+        tako::Error::GenericError(format!("{}\n[The message was truncated]", msg))
     } else {
-        DsError::GenericError(msg.to_string())
+        tako::Error::GenericError(msg.to_string())
     })
 }
 
@@ -471,7 +456,7 @@ async fn run_task(
                     return tako::Result::Err(e);
                 }
             }
-            return tako::Result::Err(DsError::GenericError(format!(
+            return tako::Result::Err(tako::Error::GenericError(format!(
                 "Program terminated with exit code {}",
                 code
             )));
@@ -488,7 +473,7 @@ async fn run_task(
 
     if matches!(program.stdout, StdioDef::Pipe) || matches!(program.stderr, StdioDef::Pipe) {
         let streamer_error =
-            |e: DsError| DsError::GenericError(format!("Streamer: {:?}", e.to_string()));
+            |e: tako::Error| tako::Error::GenericError(format!("Streamer: {:?}", e.to_string()));
         let (close_sender, close_responder) = oneshot::channel();
         let stream = Rc::new(streamer_ref.get_mut().get_stream(
             &streamer_ref,
@@ -506,7 +491,7 @@ async fn run_task(
             let stdout = child.stdout.take();
             let stderr = child.stderr.take();
             let response = tokio::try_join!(
-                child_wait(child, &program.stdin).map_err(DsError::from),
+                child_wait(child, &program.stdin).map_err(tako::Error::from),
                 resend_stdio(job_id, job_task_id, 0, stdout, stream2.clone())
                     .map_err(streamer_error),
                 resend_stdio(job_id, job_task_id, 1, stderr, stream2).map_err(streamer_error),
@@ -534,16 +519,18 @@ async fn run_task(
                 close_responder
                     .await
                     .map_err(|_| {
-                        DsError::GenericError("Connection to stream failed while closing".into())
+                        tako::Error::GenericError(
+                            "Connection to stream failed while closing".into(),
+                        )
                     })?
                     .map_err(streamer_error)?;
                 result
             }
             futures::future::Either::Right((result, _)) => Err(match result {
-                Ok(_) => streamer_error(DsError::GenericError(
+                Ok(_) => streamer_error(tako::Error::GenericError(
                     "Internal error: Stream closed without calling close()".into(),
                 )),
-                Err(_) => streamer_error(DsError::GenericError(
+                Err(_) => streamer_error(tako::Error::GenericError(
                     "Connection to stream server closed".into(),
                 )),
             }),

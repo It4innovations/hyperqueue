@@ -5,8 +5,8 @@ use crate::server::job::JobTaskState;
 use crate::transfer::messages::{JobDescription, JobDetail, TaskDescription};
 use crate::JobTaskId;
 use std::path::PathBuf;
-use tako::common::Map;
-use tako::messages::common::StdioDef;
+use tako::program::StdioDef;
+use tako::Map;
 
 pub struct ResolvedTaskPaths {
     pub cwd: PathBuf,

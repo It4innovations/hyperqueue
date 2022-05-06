@@ -1375,6 +1375,7 @@ dependencies = [
  "pyo3-asyncio",
  "pythonize",
  "serde",
+ "tako",
  "tempdir",
  "termcolor",
  "tokio",

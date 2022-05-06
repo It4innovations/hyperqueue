@@ -2,7 +2,7 @@ use crate::client::output::json::format_datetime;
 use crate::server::event::events::MonitoringEventPayload;
 use crate::server::event::MonitoringEvent;
 use serde_json::json;
-use tako::messages::worker::WorkerOverview;
+use tako::worker::WorkerOverview;
 
 pub fn format_event(event: MonitoringEvent) -> serde_json::Value {
     json!({

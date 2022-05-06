@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use anyhow::Error;
 
-use tako::common::resources::ResourceDescriptor;
-use tako::messages::gateway::LostWorkerReason;
+use tako::gateway::LostWorkerReason;
+use tako::resources::ResourceDescriptor;
 
 use crate::client::job::WorkerMap;
 use crate::client::output::cli::print_job_output;

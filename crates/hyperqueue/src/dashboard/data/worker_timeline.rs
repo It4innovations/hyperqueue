@@ -2,9 +2,8 @@ use crate::server::event::events::MonitoringEventPayload;
 use crate::server::event::MonitoringEvent;
 use crate::WorkerId;
 use std::time::SystemTime;
-use tako::messages::common::WorkerConfiguration;
-use tako::messages::gateway::LostWorkerReason;
-use tako::messages::worker::WorkerOverview;
+use tako::gateway::LostWorkerReason;
+use tako::worker::{WorkerConfiguration, WorkerOverview};
 
 #[derive(Clone)]
 pub struct WorkerHistory {

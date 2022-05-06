@@ -4,7 +4,7 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::chart::{ChartPlotter, DashboardChart, PlotStyle};
 use crate::JobId;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tako::common::Map;
+use tako::Map;
 use tui::layout::Rect;
 use tui::style::Color;
 use tui::symbols::Marker;

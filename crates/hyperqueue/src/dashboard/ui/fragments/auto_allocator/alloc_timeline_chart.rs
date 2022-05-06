@@ -1,6 +1,6 @@
 use std::time::{Duration, SystemTime};
 
-use tako::common::Map;
+use tako::Map;
 use tui::layout::Rect;
 use tui::widgets::canvas::{Canvas, Context, Painter, Shape};
 

@@ -1,7 +1,7 @@
 use chrono::{DateTime, Local};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use tako::common::Map;
+use tako::Map;
 use tui::layout::Rect;
 use tui::style::{Color, Modifier, Style};
 use tui::symbols::Marker;

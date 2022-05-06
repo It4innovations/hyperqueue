@@ -7,10 +7,9 @@ use crate::{JobId, JobTaskCount, TakoTaskId};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tako::messages::common::WorkerConfiguration;
-use tako::messages::gateway::LostWorkerReason;
-use tako::messages::worker::WorkerOverview;
+use tako::gateway::LostWorkerReason;
 use tako::static_assert_size;
+use tako::worker::{WorkerConfiguration, WorkerOverview};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum MonitoringEventPayload {

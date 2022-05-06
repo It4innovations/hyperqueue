@@ -2,12 +2,11 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::Parser;
-use tako::common::resources::ResourceDescriptor;
-use tako::common::Map;
-use tako::messages::common::WorkerConfiguration;
+use tako::resources::ResourceDescriptor;
+use tako::Map;
 use tempdir::TempDir;
 
-use tako::worker::state::ServerLostPolicy;
+use tako::worker::{ServerLostPolicy, WorkerConfiguration};
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::manager::info::{ManagerInfo, WORKER_EXTRA_MANAGER_KEY};

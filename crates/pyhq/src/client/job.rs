@@ -4,8 +4,6 @@ use hyperqueue::client::status::{is_terminated, Status};
 use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::utils::fs::get_current_dir;
 use hyperqueue::server::job::JobTaskState;
-use hyperqueue::tako::common::resources::NumOfNodes;
-use hyperqueue::tako::messages::common::{ProgramDefinition, StdioDef};
 use hyperqueue::transfer::messages::{
     FromClientMessage, IdSelector, JobDescription as HqJobDescription, JobDetailRequest,
     JobInfoRequest, JobInfoResponse, PinMode, SubmitRequest, TaskDescription as HqTaskDescription,
@@ -17,6 +15,8 @@ use pyo3::{IntoPy, PyAny, PyResult, Python};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tako::program::{ProgramDefinition, StdioDef};
+use tako::resources::NumOfNodes;
 
 use crate::utils::error::ToPyResult;
 use crate::{borrow_mut, run_future, ClientContextPtr, FromPyObject, PyJobId, PyTaskId};
@@ -47,11 +47,7 @@ pub struct JobDescription {
     max_fails: Option<JobTaskCount>,
 }
 
-pub(crate) fn submit_job_impl(
-    py: Python,
-    ctx: ClientContextPtr,
-    job: JobDescription,
-) -> PyResult<u32> {
+pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: JobDescription) -> PyResult<u32> {
     run_future(async move {
         let submit_dir = get_current_dir();
         let tasks = build_tasks(job.tasks, &submit_dir)?;
@@ -105,7 +101,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
     let cwd = desc.cwd.unwrap_or_else(|| submit_dir.to_path_buf());
 
     let resources = if let Some(rs) = desc.resource_request {
-        tako::messages::gateway::ResourceRequest {
+        tako::gateway::ResourceRequest {
             n_nodes: rs.n_nodes,
             cpus: parse_cpu_request(&rs.cpus)?,
             ..Default::default()
@@ -141,7 +137,7 @@ pub struct JobWaitStatus {
 
 /// Waits until the specified job(s) finish executing.
 /// Returns IDs of jobs that had any failures.
-pub(crate) fn wait_for_jobs_impl(
+pub fn wait_for_jobs_impl(
     py: Python,
     ctx: ClientContextPtr,
     job_ids: Vec<PyJobId>,
@@ -225,7 +221,7 @@ fn stdio_to_string(stdio: StdioDef) -> Option<String> {
     }
 }
 
-pub(crate) fn get_failed_tasks_impl(
+pub fn get_failed_tasks_impl(
     py: Python,
     ctx: ClientContextPtr,
     job_ids: Vec<PyJobId>,

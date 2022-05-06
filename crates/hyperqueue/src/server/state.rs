@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use tako::messages::gateway::{
+use tako::gateway::{
     CancelTasks, FromGatewayMessage, LostWorkerMessage, NewWorkerMessage, TaskFailedMessage,
     TaskState, TaskUpdate, ToGatewayMessage,
 };
@@ -14,7 +14,7 @@ use crate::server::worker::Worker;
 use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
 use std::cmp::min;
-use tako::common::index::ItemId;
+use tako::ItemId;
 use tako::{define_wrapped_type, TaskId};
 
 pub struct State {
@@ -300,7 +300,7 @@ impl StateRef {
 
 #[cfg(test)]
 mod tests {
-    use tako::messages::common::{ProgramDefinition, StdioDef};
+    use tako::program::{ProgramDefinition, StdioDef};
 
     use crate::common::arraydef::IntArray;
     use crate::server::job::Job;

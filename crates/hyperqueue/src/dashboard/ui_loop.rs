@@ -1,7 +1,7 @@
 use std::ops::ControlFlow;
 use std::{io, thread};
 
-use tako::common::WrappedRcRefCell;
+use tako::WrappedRcRefCell;
 use termion::input::TermRead;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Duration;

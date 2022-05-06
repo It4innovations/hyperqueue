@@ -9,8 +9,8 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::{Duration, SystemTime};
-use tako::common::Map;
-use tako::worker::state::ServerLostPolicy;
+use tako::worker::ServerLostPolicy;
+use tako::Map;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueueInfo {

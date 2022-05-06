@@ -2,17 +2,17 @@ use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 use std::time::Instant;
 
-use tako::messages::common::{TaskFailInfo, WorkerConfiguration};
-use tako::messages::gateway::LostWorkerReason;
-use tako::messages::worker::{ToWorkerMessage, WorkerOverview};
-use tako::scheduler::metrics::compute_b_level_metric;
-use tako::scheduler::state::SchedulerState;
-use tako::server::comm::Comm;
-use tako::server::core::Core;
-use tako::server::task::SerializedTaskContext;
-use tako::{TaskId, WorkerId};
-
 use crate::{add_tasks, create_worker};
+use tako::gateway::LostWorkerReason;
+use tako::internal::messages::common::TaskFailInfo;
+use tako::internal::messages::worker::ToWorkerMessage;
+use tako::internal::scheduler::metrics::compute_b_level_metric;
+use tako::internal::scheduler::state::SchedulerState;
+use tako::internal::server::comm::Comm;
+use tako::internal::server::core::Core;
+use tako::task::SerializedTaskContext;
+use tako::worker::{WorkerConfiguration, WorkerOverview};
+use tako::{TaskId, WorkerId};
 
 fn bench_b_level(c: &mut BenchmarkGroup<WallTime>) {
     for task_count in [10, 1_000, 100_000] {

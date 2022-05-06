@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use std::time::Duration;
-use tako::messages::common::WorkerConfiguration;
+use tako::worker::WorkerConfiguration;
 
 pub const WORKER_EXTRA_MANAGER_KEY: &str = "JobManager";
 

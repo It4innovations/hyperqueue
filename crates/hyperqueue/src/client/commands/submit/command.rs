@@ -6,9 +6,9 @@ use std::{fs, io};
 use anyhow::anyhow;
 use bstr::BString;
 use clap::Parser;
-use tako::common::resources::{CpuRequest, GenericResourceAmount, NumOfNodes};
-use tako::messages::common::{ProgramDefinition, StdioDef};
-use tako::messages::gateway::{GenericResourceRequest, ResourceRequest};
+use tako::gateway::{GenericResourceRequest, ResourceRequest};
+use tako::program::{ProgramDefinition, StdioDef};
+use tako::resources::{CpuRequest, GenericResourceAmount, NumOfNodes};
 
 use super::directives::parse_hq_directives;
 use crate::client::commands::submit::directives::parse_hq_directives_from_file;

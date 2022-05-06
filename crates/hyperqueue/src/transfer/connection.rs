@@ -9,7 +9,7 @@ use orion::aead::streaming::{StreamOpener, StreamSealer};
 use orion::kdf::SecretKey;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use tako::transfer::auth::{do_authentication, open_message, seal_message};
+use tako::comm::{do_authentication, open_message, seal_message};
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
@@ -132,7 +132,7 @@ fn serialize_message<S: Serialize>(
     item: S,
     sealer: &mut Option<StreamSealer>,
 ) -> crate::Result<Bytes> {
-    let data = tako::transfer::auth::serialize(&item)?;
+    let data = tako::comm::serialize(&item)?;
     Ok(seal_message(sealer, data.into()))
 }
 
