@@ -2,6 +2,8 @@ import json
 import os
 from os.path import dirname, join
 
+import pytest
+
 from ..conftest import HqEnv
 from ..utils.wait import wait_until
 from .utils import (
@@ -12,19 +14,30 @@ from .utils import (
 )
 
 
-def test_add_slurm_queue(hq_env: HqEnv):
+def test_slurm_add_queue(hq_env: HqEnv):
     hq_env.start_server()
     output = add_queue(
         hq_env,
         manager="slurm",
         name="foo",
         backlog=5,
-        workers_per_alloc=2,
     )
     assert "Allocation queue 1 successfully created" in output
 
     info = hq_env.command(["alloc", "list"], as_table=True)
     info.check_column_value("ID", 0, "1")
+
+
+def test_slurm_add_queue_multiple_workers(hq_env: HqEnv):
+    hq_env.start_server()
+    with pytest.raises(BaseException):
+        add_queue(
+            hq_env,
+            manager="slurm",
+            name="foo",
+            backlog=5,
+            workers_per_alloc=2,
+        )
 
 
 def test_slurm_queue_sbatch_args(hq_env: HqEnv):

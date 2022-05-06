@@ -36,6 +36,17 @@ def extract_script_args(script: str, prefix: str) -> List[str]:
     ]
 
 
+def extract_script_commands(script: str) -> str:
+    """
+    Returns all non-empty lines as text from `script` that do not start with a bash comment (`#`).
+    """
+    return "\n".join(
+        line.strip()
+        for line in script.splitlines(keepends=False)
+        if not line.startswith("#") and line.strip()
+    )
+
+
 def add_queue(
     hq_env: HqEnv,
     manager="pbs",

@@ -3,7 +3,7 @@ import os
 import signal
 import subprocess
 import time
-from typing import List, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 import pytest
 
@@ -79,14 +79,20 @@ class Env:
             if not process.poll():
                 os.killpg(os.getpgid(process.pid), signal.SIGTERM)
 
-    def kill_process(self, name):
+    def get_processes_by_name(
+        self, name: str
+    ) -> Iterable[Tuple[int, subprocess.Popen]]:
         for i, (n, p) in enumerate(self.processes):
             if n == name:
-                del self.processes[i]
-                # Kill the whole group since the process may spawn a child
-                if p.returncode is None and not p.poll():
-                    os.killpg(os.getpgid(p.pid), signal.SIGTERM)
-                return
+                yield (i, p)
+
+    def kill_process(self, name: str):
+        for i, p in self.get_processes_by_name(name):
+            del self.processes[i]
+            # Kill the whole group since the process may spawn a child
+            if p.returncode is None and not p.poll():
+                os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+            return
         else:
             raise Exception("Process not found")
 
@@ -199,6 +205,12 @@ class HqEnv(Env):
 
             wait_until(wait_for_worker)
         return r
+
+    def stop_server(self):
+        self.command(["server", "stop"])
+        for (_, p) in self.get_processes_by_name("server"):
+            p.wait()
+            self.check_process_exited(p)
 
     def kill_server(self):
         self.kill_process("server")

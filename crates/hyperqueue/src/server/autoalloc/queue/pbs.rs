@@ -1,5 +1,6 @@
 use crate::common::utils::fs::get_current_dir;
 use anyhow::Context;
+use std::fmt::Write;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -151,7 +152,7 @@ fn parse_allocation_status(
         value
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Missing time key {} in PBS", key))
-            .and_then(|v| AutoAllocResult::Ok(local_to_system_time(parse_pbs_datetime(v)?)))
+            .and_then(|v| Ok(local_to_system_time(parse_pbs_datetime(v)?)))
     };
 
     let status = match state {
@@ -213,7 +214,13 @@ fn build_pbs_submit_script(
         SubmitMode::Submit => {}
     }
 
-    script.push_str(&format!("\n{}", worker_cmd));
+    script.push('\n');
+
+    if nodes > 1 {
+        write!(script, "pbsdsh -- bash -l -c '{worker_cmd}'").unwrap();
+    } else {
+        script.push_str(worker_cmd);
+    };
     script
 }
 
