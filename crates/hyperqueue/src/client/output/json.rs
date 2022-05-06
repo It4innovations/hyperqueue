@@ -5,13 +5,14 @@ use anyhow::Error;
 use chrono::{DateTime, Utc};
 use serde_json;
 use serde_json::{json, Value};
-use tako::common::Map;
+use tako::Map;
 
-use tako::common::resources::{
+use tako::gateway::ResourceRequest;
+use tako::program::{ProgramDefinition, StdioDef};
+use tako::resources::{
     CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, ResourceDescriptor,
 };
-use tako::messages::common::{ProgramDefinition, StdioDef, WorkerConfiguration};
-use tako::messages::gateway::ResourceRequest;
+use tako::worker::WorkerConfiguration;
 
 use crate::client::job::WorkerMap;
 use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};

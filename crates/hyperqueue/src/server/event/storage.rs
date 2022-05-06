@@ -7,9 +7,8 @@ use crate::{JobId, TakoTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use std::collections::vec_deque::VecDeque;
 use std::time::SystemTime;
-use tako::messages::common::WorkerConfiguration;
-use tako::messages::gateway::LostWorkerReason;
-use tako::messages::worker::WorkerOverview;
+use tako::gateway::LostWorkerReason;
+use tako::worker::{WorkerConfiguration, WorkerOverview};
 use tako::TaskId;
 
 pub struct EventStorage {

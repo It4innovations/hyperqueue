@@ -4,8 +4,7 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
 use orion::kdf::SecretKey;
-use tako::messages::gateway::{ErrorResponse, FromGatewayMessage, ToGatewayMessage};
-use tako::server::client::process_client_message;
+use tako::gateway::{FromGatewayMessage, ToGatewayMessage};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio::time::Duration;
@@ -60,12 +59,12 @@ impl Backend {
         let msd = Duration::from_millis(20);
 
         let (from_tako_sender, mut from_tako_receiver) = unbounded_channel::<ToGatewayMessage>();
-        let (to_tako_sender, mut to_tako_receiver) = unbounded_channel::<FromGatewayMessage>();
+        let (to_tako_sender, to_tako_receiver) = unbounded_channel::<FromGatewayMessage>();
 
         let stream_server_control = start_stream_server();
         let stream_server_control2 = stream_server_control.clone();
 
-        let (core_ref, comm_ref, server_future) = tako::server::server_start(
+        let (server_ref, server_future) = tako::server::server_start(
             SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), worker_port.unwrap_or(0)),
             Some(key),
             msd,
@@ -84,7 +83,7 @@ impl Backend {
             inner: WrappedRcRefCell::wrap(Inner {
                 tako_sender: to_tako_sender,
                 tako_responses: Default::default(),
-                worker_port: core_ref.get().get_worker_listen_port(),
+                worker_port: server_ref.get_worker_listen_port(),
                 stream_server_control,
             }),
         };
@@ -129,7 +128,7 @@ impl Backend {
                 error("Tako receive stream terminated".into()) as crate::Result<()>
             };
             let tako_msg_sender = async move {
-                while let Some(message) = to_tako_receiver.recv().await {
+                /*while let Some(message) = to_tako_receiver.recv().await {
                     let error =
                         process_client_message(&core_ref, &comm_ref, &from_tako_sender, message)
                             .await;
@@ -138,7 +137,10 @@ impl Backend {
                             .send(ToGatewayMessage::Error(ErrorResponse { message }))
                             .unwrap();
                     }
-                }
+                }*/
+                server_ref
+                    .process_messages(to_tako_receiver, from_tako_sender)
+                    .await;
 
                 error("Tako send stream terminated".into()) as crate::Result<()>
             };
@@ -156,7 +158,7 @@ impl Backend {
 
 #[cfg(test)]
 mod tests {
-    use tako::messages::gateway::{FromGatewayMessage, ServerInfo, ToGatewayMessage};
+    use tako::gateway::{FromGatewayMessage, ServerInfo, ToGatewayMessage};
     use tokio::net::TcpStream;
 
     use crate::server::rpc::Backend;

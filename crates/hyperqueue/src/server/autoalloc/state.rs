@@ -4,8 +4,8 @@ use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
-use tako::common::Set;
-use tako::messages::gateway::LostWorkerReason;
+use tako::gateway::LostWorkerReason;
+use tako::Set;
 use tako::WorkerId;
 
 use crate::common::idcounter::IdCounter;
@@ -99,11 +99,11 @@ impl AutoAllocState {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_max_kept_directories(&mut self, count: usize) {
+    pub fn set_max_kept_directories(&mut self, count: usize) {
         self.max_kept_directories = count;
     }
     #[cfg(test)]
-    pub(crate) fn set_inactive_allocation_directories(&mut self, dirs: VecDeque<PathBuf>) {
+    pub fn set_inactive_allocation_directories(&mut self, dirs: VecDeque<PathBuf>) {
         self.inactive_allocation_directories = dirs;
     }
 }
@@ -383,7 +383,7 @@ mod tests {
     use std::future::Future;
     use std::pin::Pin;
     use std::time::Duration;
-    use tako::worker::state::ServerLostPolicy;
+    use tako::worker::ServerLostPolicy;
 
     struct NullHandler;
     impl QueueHandler for NullHandler {

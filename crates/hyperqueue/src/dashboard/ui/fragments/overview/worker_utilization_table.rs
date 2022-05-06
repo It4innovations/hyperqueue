@@ -7,7 +7,7 @@ use crate::dashboard::ui::widgets::progressbar::{
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::dashboard::utils::{calculate_memory_usage_percent, get_average_cpu_usage_for_worker};
 use std::time::SystemTime;
-use tako::messages::worker::WorkerOverview;
+use tako::worker::WorkerOverview;
 use tako::WorkerId;
 use tui::layout::{Constraint, Rect};
 use tui::widgets::{Cell, Row};

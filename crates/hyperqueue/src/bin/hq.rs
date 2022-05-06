@@ -36,7 +36,7 @@ use hyperqueue::server::bootstrap::get_client_connection;
 use hyperqueue::transfer::messages::{FromClientMessage, JobInfoRequest, ToClientMessage};
 use hyperqueue::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resources};
 use hyperqueue::WorkerId;
-use tako::common::resources::ResourceDescriptor;
+use tako::resources::ResourceDescriptor;
 
 #[cfg(feature = "jemalloc")]
 #[global_allocator]
@@ -471,7 +471,7 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
     // Create Printer
     let printer: Box<dyn Output> = match opts.output_mode {
         Outputs::CLI => {
-            // Set colored settings for CLI
+            // Set colored public for CLI
             match color_policy {
                 ColorChoice::Always | ColorChoice::AlwaysAnsi => {
                     colored::control::set_override(true)

@@ -57,7 +57,7 @@ mod tests {
     use std::fs::File;
     use std::io::Write;
     use std::time::SystemTime;
-    use tako::messages::gateway::LostWorkerReason;
+    use tako::gateway::LostWorkerReason;
     use tempdir::TempDir;
 
     #[test]

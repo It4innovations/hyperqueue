@@ -181,7 +181,7 @@ fn format_error(error: ErrorTree<&str>, mut depth: u32, input: &str, buffer: &mu
     }
 }
 
-pub(crate) fn format_parse_error(error: nom::Err<ParserError<&str>>, input: &str) -> anyhow::Error {
+pub fn format_parse_error(error: nom::Err<ParserError<&str>>, input: &str) -> anyhow::Error {
     match error {
         nom::Err::Error(e) | nom::Err::Failure(e) => {
             let mut buffer = "Parse error\n".to_string();

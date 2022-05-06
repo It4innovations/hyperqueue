@@ -1,6 +1,6 @@
 use chrono::Utc;
-use tako::messages::common::WorkerConfiguration;
-use tako::messages::gateway::LostWorkerReason;
+use tako::gateway::LostWorkerReason;
+use tako::worker::WorkerConfiguration;
 
 use crate::server::worker::WorkerState::Offline;
 use crate::transfer::messages::{WorkerExitInfo, WorkerInfo};

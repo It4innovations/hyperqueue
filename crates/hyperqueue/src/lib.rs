@@ -11,7 +11,7 @@ pub mod worker;
 #[cfg(test)]
 pub(crate) mod tests;
 
-pub use tako::common::{Map, Set};
+pub use tako::{Map, Set};
 
 pub type Error = crate::common::error::HqError;
 pub type Result<T> = std::result::Result<T, Error>;
@@ -31,4 +31,4 @@ pub type JobTaskStep = u32;
 
 // Reexports
 pub use tako;
-pub use tako::common::WrappedRcRefCell;
+pub use tako::WrappedRcRefCell;

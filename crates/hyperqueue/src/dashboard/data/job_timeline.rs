@@ -3,7 +3,7 @@ use crate::server::event::MonitoringEvent;
 use crate::{JobId, JobTaskId, TakoTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use std::time::SystemTime;
-use tako::common::Map;
+use tako::Map;
 
 pub struct DashboardJobInfo {
     pub job_info: JobInfo,

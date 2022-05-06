@@ -5,7 +5,7 @@ use nom::sequence::{preceded, separated_pair, tuple};
 use nom_supreme::tag::complete::tag;
 use nom_supreme::ParserExt;
 
-use tako::common::resources::{CpuRequest, GenericResourceAmount};
+use tako::resources::{CpuRequest, GenericResourceAmount};
 
 use crate::common::parser::{consume_all, p_u32, p_u64, NomResult};
 

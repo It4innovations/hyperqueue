@@ -8,11 +8,11 @@ use nom::sequence::{delimited, preceded, separated_pair, tuple};
 use nom::Parser;
 use nom_supreme::tag::complete::tag;
 use nom_supreme::ParserExt;
-use tako::common::resources::descriptor::{
+use tako::resources::{
     cpu_descriptor_from_socket_size, GenericResourceDescriptorKind, GenericResourceKindIndices,
     GenericResourceKindSum,
 };
-use tako::common::resources::{CpuId, CpusDescriptor, GenericResourceDescriptor};
+use tako::resources::{CpuId, CpusDescriptor, GenericResourceDescriptor};
 
 fn p_cpu_list(input: &str) -> NomResult<Vec<CpuId>> {
     delimited(
@@ -122,7 +122,7 @@ fn parse_resource_definition(input: &str) -> anyhow::Result<GenericResourceDescr
 mod test {
     use super::*;
     use crate::tests::utils::check_parse_error;
-    use tako::common::index::AsIdVec;
+    use tako::AsIdVec;
 
     #[test]
     fn test_parse_cpu_def() {

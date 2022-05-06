@@ -5,9 +5,7 @@ use orion::kdf::SecretKey;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{oneshot, Notify};
 
-use tako::messages::gateway::{
-    CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage,
-};
+use tako::gateway::{CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage};
 
 use crate::client::status::{job_status, Status};
 use crate::common::serverdir::ServerDir;
@@ -23,7 +21,7 @@ use crate::transfer::messages::{
     StopWorkerResponse, TaskSelector, ToClientMessage, WorkerListResponse,
 };
 use crate::{JobId, JobTaskCount, WorkerId};
-use tako::common::taskgroup::TaskGroup;
+use tako::TaskGroup;
 
 pub mod autoalloc;
 mod submit;

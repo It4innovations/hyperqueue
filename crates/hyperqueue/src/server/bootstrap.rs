@@ -272,7 +272,7 @@ mod tests {
     pub async fn init_test_server(
         tmp_dir: &Path,
     ) -> (impl Future<Output = anyhow::Result<()>>, Arc<Notify>) {
-        // Create global settings with CliOutput
+        // Create global public with CliOutput
         let gsettings = GlobalSettings::new(
             tmp_dir.to_path_buf(),
             Box::new(CliOutput::new(ColorChoice::Never)),

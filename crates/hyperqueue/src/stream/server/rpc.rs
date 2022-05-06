@@ -4,8 +4,8 @@ use bytes::{BufMut, Bytes, BytesMut};
 use futures::stream::SplitStream;
 use futures::StreamExt;
 use orion::aead::streaming::StreamOpener;
-use tako::server::rpc::ConnectionDescriptor;
-use tako::transfer::auth::{forward_queue_to_sealed_sink, open_message};
+use tako::comm::{forward_queue_to_sealed_sink, open_message};
+use tako::server::ConnectionDescriptor;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc::{
@@ -89,7 +89,7 @@ impl StreamServerStateRef {
 fn send_error(sender: Option<UnboundedSender<Bytes>>, message: String) {
     if let Some(sender) = sender {
         let msg = ToStreamerMessage::Error(message);
-        let data = tako::transfer::auth::serialize(&msg).unwrap();
+        let data = tako::comm::serialize(&msg).unwrap();
         if sender.send(data.into()).is_err() {
             log::debug!("Sending stream error failed");
         }
@@ -156,7 +156,7 @@ async fn file_writer(receiver: &mut Receiver<StreamMessage>, path: &Path) -> any
                     return Err(e.into());
                 }
                 let msg = ToStreamerMessage::EndResponse(EndTaskStreamResponseMsg { task: s.task });
-                let data = tako::transfer::auth::serialize(&msg).unwrap();
+                let data = tako::comm::serialize(&msg).unwrap();
                 if let Some(response_sender) = response_sender {
                     let _ = response_sender.send(data.into());
                 }

@@ -28,10 +28,10 @@ use std::borrow::Cow;
 use std::path::Path;
 use std::time::SystemTime;
 
-use tako::common::resources::{
+use tako::program::StdioDef;
+use tako::resources::{
     CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, ResourceDescriptor,
 };
-use tako::messages::common::StdioDef;
 
 use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
 use crate::common::utils::str::{pluralize, select_plural};
@@ -42,9 +42,9 @@ use colored::Color as Colorization;
 use colored::Colorize;
 use std::collections::BTreeSet;
 use std::fs::File;
-use tako::common::resources::descriptor::GenericResourceKindSum;
-use tako::common::Map;
-use tako::messages::gateway::{LostWorkerReason, ResourceRequest};
+use tako::gateway::{LostWorkerReason, ResourceRequest};
+use tako::resources::GenericResourceKindSum;
+use tako::Map;
 
 pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
 pub const TASK_COLOR_FAILED: Colorization = Colorization::Red;
@@ -869,11 +869,7 @@ fn job_status_to_cell(info: &JobInfo) -> String {
     result
 }
 
-pub(crate) fn job_progress_bar(
-    counters: JobTaskCounters,
-    n_tasks: JobTaskCount,
-    width: usize,
-) -> String {
+pub fn job_progress_bar(counters: JobTaskCounters, n_tasks: JobTaskCount, width: usize) -> String {
     let mut buffer = String::from("[");
 
     let parts = vec![
@@ -1166,8 +1162,8 @@ fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String 
 mod tests {
     use crate::client::output::cli::resources_summary;
     use crate::worker::hwdetect::MEM_RESOURCE_NAME;
-    use tako::common::index::AsIdVec;
-    use tako::common::resources::{GenericResourceDescriptor, ResourceDescriptor};
+    use tako::resources::{GenericResourceDescriptor, ResourceDescriptor};
+    use tako::AsIdVec;
 
     #[test]
     fn test_resources_summary() {

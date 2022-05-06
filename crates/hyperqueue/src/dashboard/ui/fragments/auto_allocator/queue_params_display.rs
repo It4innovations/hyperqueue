@@ -3,7 +3,7 @@ use crate::dashboard::ui::styles::table_style_deselected;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::transfer::messages::AllocationQueueParams;
-use tako::worker::state::ServerLostPolicy;
+use tako::worker::ServerLostPolicy;
 use tui::layout::{Constraint, Rect};
 use tui::widgets::{Cell, Row};
 

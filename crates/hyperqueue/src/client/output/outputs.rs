@@ -12,7 +12,7 @@ use crate::client::output::common::TaskToPathsMap;
 use crate::server::job::JobTaskInfo;
 use crate::JobId;
 use core::time::Duration;
-use tako::common::resources::ResourceDescriptor;
+use tako::resources::ResourceDescriptor;
 
 pub const MAX_DISPLAYED_WORKERS: usize = 2;
 

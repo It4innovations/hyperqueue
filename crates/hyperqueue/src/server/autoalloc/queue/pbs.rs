@@ -5,7 +5,7 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::Duration;
-use tako::common::Map;
+use tako::Map;
 
 use crate::common::manager::info::ManagerType;
 use crate::common::manager::pbs::{format_pbs_duration, parse_pbs_datetime};

@@ -1,6 +1,6 @@
 use crate::common::parser::{consume_all, p_u32, NomResult};
 
-use tako::common::resources::{CpuId, CpusDescriptor, GenericResourceDescriptor, NumOfCpus};
+use tako::resources::{CpuId, CpusDescriptor, GenericResourceDescriptor, NumOfCpus};
 
 use nom::character::complete::{newline, space0};
 use nom::combinator::{map_res, opt};
@@ -8,7 +8,7 @@ use nom::multi::separated_list1;
 use nom::sequence::{preceded, terminated, tuple};
 use nom::Parser;
 use nom_supreme::tag::complete::tag;
-use tako::common::resources::descriptor::cpu_descriptor_from_socket_size;
+use tako::resources::cpu_descriptor_from_socket_size;
 
 pub const GPU_RESOURCE_NAME: &str = "gpus";
 pub const MEM_RESOURCE_NAME: &str = "mem";
@@ -126,7 +126,7 @@ fn parse_range(input: &str) -> anyhow::Result<Vec<CpuId>> {
 #[cfg(test)]
 mod tests {
     use super::{parse_range, read_linux_numa};
-    use tako::common::index::AsIdVec;
+    use tako::AsIdVec;
 
     #[test]
     fn test_parse_range() {

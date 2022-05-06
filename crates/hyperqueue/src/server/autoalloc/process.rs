@@ -5,9 +5,9 @@ use std::time::{Duration, SystemTime};
 use futures::future::join_all;
 use tempdir::TempDir;
 
-use tako::common::{Map, Set};
+use tako::{Map, Set};
 
-use tako::messages::gateway::LostWorkerReason;
+use tako::gateway::LostWorkerReason;
 use tako::WorkerId;
 
 use crate::common::manager::info::{ManagerInfo, ManagerType};
@@ -804,12 +804,12 @@ mod tests {
     use derive_builder::Builder;
     use tempdir::TempDir;
 
-    use tako::common::resources::TimeRequest;
-    use tako::common::{Map, Set, WrappedRcRefCell};
-    use tako::messages::common::ProgramDefinition;
-    use tako::messages::gateway::{LostWorkerReason, ResourceRequest};
-    use tako::worker::state::ServerLostPolicy;
+    use tako::gateway::{LostWorkerReason, ResourceRequest};
+    use tako::program::ProgramDefinition;
+    use tako::resources::TimeRequest;
+    use tako::worker::ServerLostPolicy;
     use tako::WorkerId;
+    use tako::{Map, Set, WrappedRcRefCell};
 
     use crate::common::arraydef::IntArray;
     use crate::common::manager::info::{ManagerInfo, ManagerType};

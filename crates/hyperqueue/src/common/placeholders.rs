@@ -8,7 +8,7 @@ use nom::sequence::delimited;
 use nom_supreme::tag::complete::tag;
 use tako::InstanceId;
 
-use tako::messages::common::{ProgramDefinition, StdioDef};
+use tako::program::{ProgramDefinition, StdioDef};
 
 use crate::common::parser::NomResult;
 use crate::{JobId, JobTaskId, Map};
@@ -221,7 +221,7 @@ pub fn parse_resolvable_string(data: &str) -> Vec<StringPart> {
 #[cfg(test)]
 mod tests {
     use std::path::{Path, PathBuf};
-    use tako::messages::common::{ProgramDefinition, StdioDef};
+    use tako::program::{ProgramDefinition, StdioDef};
 
     use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
     use crate::common::placeholders::{

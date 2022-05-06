@@ -4,13 +4,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context};
+use tako::Error as DsError;
 use tokio::net::lookup_host;
 use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
-use tako::common::error::DsError;
-use tako::messages::common::WorkerConfiguration;
-use tako::worker::rpc::run_worker;
+use tako::worker::{run_worker, WorkerConfiguration};
 use tako::WorkerId;
 
 use crate::common::manager::info::{ManagerInfo, ManagerType};

@@ -68,7 +68,7 @@ fn extract_directives(data: &BStr) -> crate::Result<Vec<String>> {
     Ok(args)
 }
 
-pub(crate) fn parse_hq_directives_from_file(path: &Path) -> anyhow::Result<SubmitJobConfOpts> {
+pub fn parse_hq_directives_from_file(path: &Path) -> anyhow::Result<SubmitJobConfOpts> {
     log::debug!("Extracting directives from file: {}", path.display());
 
     let mut f = File::open(&path)?;
@@ -77,7 +77,7 @@ pub(crate) fn parse_hq_directives_from_file(path: &Path) -> anyhow::Result<Submi
     parse_hq_directives(&buffer[..size])
 }
 
-pub(crate) fn parse_hq_directives(data: &[u8]) -> anyhow::Result<SubmitJobConfOpts> {
+pub fn parse_hq_directives(data: &[u8]) -> anyhow::Result<SubmitJobConfOpts> {
     let prefix = BString::from(data);
     let mut directives = Vec::new();
     for directive in extract_directives(prefix.as_bstr())? {

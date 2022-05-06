@@ -1,4 +1,4 @@
-use tako::worker::state::ServerLostPolicy;
+use tako::worker::ServerLostPolicy;
 
 pub fn human_duration(duration: chrono::Duration) -> String {
     // Truncate to reasonable precision

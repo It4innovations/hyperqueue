@@ -1,9 +1,9 @@
 use crate::dashboard::data::worker_timeline::WorkerTimeline;
 use std::time::{Duration, SystemTime};
-use tako::common::WrappedRcRefCell;
-use tako::messages::common::WorkerConfiguration;
-use tako::messages::gateway::MonitoringEventRequest;
-use tako::messages::worker::WorkerOverview;
+use tako::gateway::MonitoringEventRequest;
+use tako::worker::WorkerConfiguration;
+use tako::worker::WorkerOverview;
+use tako::WrappedRcRefCell;
 
 use crate::dashboard::data::alloc_timeline::{
     AllocationInfo, AllocationQueueInfo, AllocationTimeline,

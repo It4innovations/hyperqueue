@@ -2,23 +2,20 @@ use std::time::Duration;
 
 use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
-use tako::common::index::{AsIdVec, ItemId};
-use tako::common::resources::descriptor::GenericResourceKindIndices;
-use tako::common::resources::map::ResourceMap;
-use tako::common::resources::{
+use tako::internal::messages::worker::ComputeTaskMsg;
+use tako::internal::worker::rqueue::ResourceWaitQueue;
+use tako::launcher::{LaunchContext, StopReason, TaskLaunchData, TaskLauncher, TaskResult};
+use tako::resources::GenericResourceKindIndices;
+use tako::resources::ResourceMap;
+use tako::resources::{
     CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, GenericResourceRequest,
     ResourceDescriptor, ResourceRequest, TimeRequest,
 };
+use tako::{AsIdVec, ItemId};
 use tokio::sync::mpsc::unbounded_channel;
-use tokio::sync::oneshot::Receiver;
 
-use tako::messages::worker::ComputeTaskMsg;
-use tako::worker::launcher::{TaskLaunchData, TaskLauncher};
-use tako::worker::rqueue::ResourceWaitQueue;
-
-use tako::worker::state::{TaskMap, WorkerState, WorkerStateRef};
-use tako::worker::task::Task;
-use tako::worker::taskenv::{StopReason, TaskResult};
+use tako::internal::worker::state::{TaskMap, WorkerStateRef};
+use tako::internal::worker::task::Task;
 use tako::TaskId;
 
 use crate::create_worker;
@@ -28,9 +25,8 @@ struct BenchmarkTaskLauncher;
 impl TaskLauncher for BenchmarkTaskLauncher {
     fn build_task(
         &self,
-        _state: &WorkerState,
-        _task_id: TaskId,
-        _stop_receiver: Receiver<StopReason>,
+        _ctx: LaunchContext,
+        _stop_receiver: tokio::sync::oneshot::Receiver<StopReason>,
     ) -> tako::Result<TaskLaunchData> {
         Ok(TaskLaunchData::from_future(Box::pin(async move {
             Ok(TaskResult::Finished)
@@ -42,8 +38,8 @@ fn create_worker_state() -> WorkerStateRef {
     let worker = create_worker(1);
     let (tx, _) = unbounded_channel();
     WorkerStateRef::new(
-        worker.id,
-        worker.configuration,
+        worker.id(),
+        worker.configuration().clone(),
         None,
         tx,
         Default::default(),

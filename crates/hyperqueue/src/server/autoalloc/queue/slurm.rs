@@ -5,7 +5,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::{Duration, SystemTime};
-use tako::common::Map;
+use tako::Map;
 
 use crate::common::manager::info::ManagerType;
 use crate::common::manager::slurm::{

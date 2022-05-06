@@ -1,9 +1,9 @@
 use std::future::Future;
 use std::path::PathBuf;
-use tako::common::Map;
+use tako::Map;
 
-use tako::messages::common::WorkerConfiguration;
-use tako::messages::gateway::LostWorkerReason;
+use tako::gateway::LostWorkerReason;
+use tako::worker::WorkerConfiguration;
 use tako::WorkerId;
 
 use crate::common::manager::info::{GetManagerInfo, ManagerInfo, ManagerType};

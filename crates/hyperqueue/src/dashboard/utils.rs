@@ -1,5 +1,4 @@
-use tako::messages::common::MemoryStats;
-use tako::messages::worker::WorkerHwStateMessage;
+use tako::hwstats::{MemoryStats, WorkerHwStateMessage};
 
 pub fn calculate_memory_usage_percent(memory_stats: &MemoryStats) -> u64 {
     if memory_stats.total == 0 {

@@ -1,11 +1,11 @@
 use std::rc::Rc;
-use tako::common::index::ItemId;
-use tako::common::resources::ResourceDescriptor;
-use tako::messages::common::WorkerConfiguration;
-use tako::server::core::Core;
-use tako::server::task::{Task, TaskConfiguration};
-use tako::server::worker::Worker;
-use tako::worker::state::ServerLostPolicy;
+use tako::internal::server::core::Core;
+use tako::internal::server::task::{Task, TaskConfiguration};
+use tako::internal::server::worker::Worker;
+use tako::resources::ResourceDescriptor;
+use tako::worker::ServerLostPolicy;
+use tako::worker::WorkerConfiguration;
+use tako::ItemId;
 use tako::{TaskId, WorkerId};
 
 pub fn create_task(id: TaskId) -> Task {

@@ -1,15 +1,15 @@
 use std::path::{Path, PathBuf};
 
 use bstr::BString;
-use tako::common::index::ItemId;
-use tako::common::Map;
+use tako::ItemId;
+use tako::Map;
 use tokio::sync::oneshot;
 
-use tako::messages::common::ProgramDefinition;
-use tako::messages::gateway::{
+use tako::gateway::{
     FromGatewayMessage, NewTasksMessage, SharedTaskConfiguration, TaskConfiguration,
     ToGatewayMessage,
 };
+use tako::program::ProgramDefinition;
 use tako::TaskId;
 
 use crate::client::status::get_task_status;
@@ -234,7 +234,7 @@ fn serialize_task_body(
         job_id: ctx.job_id,
         task_id,
     };
-    tako::transfer::auth::serialize(&body_msg).expect("Could not serialize task body")
+    tako::comm::serialize(&body_msg).expect("Could not serialize task body")
 }
 
 fn build_tasks_array(
@@ -368,9 +368,9 @@ mod tests {
     use crate::transfer::messages::{PinMode, TaskDescription, TaskWithDependencies};
     use std::path::{Path, PathBuf};
     use std::time::Duration;
-    use tako::common::resources::CpuRequest;
-    use tako::messages::common::ProgramDefinition;
-    use tako::messages::gateway::{GenericResourceRequest, NewTasksMessage, ResourceRequest};
+    use tako::gateway::{GenericResourceRequest, NewTasksMessage, ResourceRequest};
+    use tako::program::ProgramDefinition;
+    use tako::resources::CpuRequest;
     use tako::Priority;
 
     #[test]
