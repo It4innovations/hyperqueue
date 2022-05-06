@@ -1,3 +1,4 @@
+use anyhow::bail;
 use clap::Parser;
 
 use crate::client::commands::worker::ArgServerLostPolicy;
@@ -226,6 +227,10 @@ async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyh
             (ManagerType::Pbs, args_to_params(params), !no_dry_run)
         }
         AddQueueCommand::Slurm(params) => {
+            if params.workers_per_alloc > 1 {
+                bail!("Multiple workers per allocation is currently unsupported for SLURM.");
+            }
+
             let no_dry_run = params.no_dry_run;
             (ManagerType::Slurm, args_to_params(params), !no_dry_run)
         }

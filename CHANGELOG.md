@@ -1,4 +1,3 @@
-
 # DEV
 
 ## New features
@@ -32,6 +31,12 @@ to make sure that OpenMP pins its threads to the exact cores allocated by HyperQ
 ### CLI
 * The `--pin` boolean option for submitting jobs has been changed to take a value. You can get the
 original behaviour by specifying `--pin=taskset`.
+
+## Fixes
+
+### Automatic allocation
+- PBS allocations using multiple workers will now correctly spawn a HyperQueue worker on all
+allocated nodes.
 
 # 0.9.0
 

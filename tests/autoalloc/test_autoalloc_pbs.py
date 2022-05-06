@@ -6,13 +6,23 @@ from pathlib import Path
 from subprocess import Popen
 from typing import List
 
-from ..conftest import HqEnv
+import pytest
+
+from ..conftest import HqEnv, get_hq_binary
 from ..utils.io import check_file_contents
-from ..utils.wait import TimeoutException, wait_until
+from ..utils.wait import (
+    DEFAULT_TIMEOUT,
+    TimeoutException,
+    wait_for_job_state,
+    wait_for_worker_state,
+    wait_until,
+)
+from .conftest import PBS_AVAILABLE, PBS_TIMEOUT, pbs_test
 from .pbs_mock import JobState, NewJobFailed, NewJobId, PbsMock
 from .utils import (
     add_queue,
     extract_script_args,
+    extract_script_commands,
     prepare_tasks,
     program_code_store_args_json,
     program_code_store_cwd_json,
@@ -71,6 +81,29 @@ def test_pbs_queue_qsub_success(hq_env: HqEnv):
 
         add_queue(hq_env)
         wait_for_alloc(hq_env, "QUEUED", "123.job")
+
+
+def test_pbs_qsub_command_multinode_allocation(hq_env: HqEnv):
+    path = join(hq_env.work_path, "qsub.out")
+    qsub_code = program_code_store_args_json(path)
+
+    with hq_env.mock.mock_program("qsub", qsub_code):
+        hq_env.start_server()
+        prepare_tasks(hq_env)
+
+        add_queue(hq_env, workers_per_alloc=2)
+        wait_until(lambda: os.path.exists(path))
+
+        with open(path) as f:
+            args = json.loads(f.read())
+            qsub_script_path = args[1]
+        with open(qsub_script_path) as f:
+            commands = extract_script_commands(f.read())
+            assert (
+                commands
+                == f"pbsdsh -- bash -l -c '{get_hq_binary()} worker start --idle-timeout 5m \
+--manager pbs --server-dir {hq_env.server_dir}/001 --on-server-lost=finish-running'"
+            )
 
 
 def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
@@ -238,7 +271,7 @@ def test_pbs_refresh_allocation_remove_queued_job(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 
     with mock.activate():
-        start_server(hq_env)
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo")
@@ -260,7 +293,7 @@ def test_pbs_refresh_allocation_finish_queued_job(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 
     with mock.activate():
-        start_server(hq_env)
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo")
@@ -282,7 +315,7 @@ def test_pbs_refresh_allocation_fail_queued_job(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 
     with mock.activate():
-        start_server(hq_env)
+        start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo")
@@ -304,6 +337,9 @@ def dry_run_cmd() -> List[str]:
     return ["alloc", "dry-run", "pbs", "--time-limit", "1h"]
 
 
+@pytest.mark.skipif(
+    PBS_AVAILABLE, reason="This test will not work properly if `qsub` is available"
+)
 def test_pbs_dry_run_missing_qsub(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(
@@ -414,7 +450,9 @@ def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
         ]
 
 
-def wait_for_alloc(hq_env: HqEnv, state: str, allocation_id: str):
+def wait_for_alloc(
+    hq_env: HqEnv, state: str, allocation_id: str, timeout=DEFAULT_TIMEOUT
+):
     """
     Wait until an allocation has the given `state`.
     Assumes a single allocation queue.
@@ -435,7 +473,7 @@ def wait_for_alloc(hq_env: HqEnv, state: str, allocation_id: str):
         return False
 
     try:
-        wait_until(wait)
+        wait_until(wait, timeout_s=timeout)
     except TimeoutException as e:
         if last_table is not None:
             raise Exception(f"{e}, most recent table:\n{last_table}")
@@ -480,6 +518,28 @@ def test_pbs_pass_on_server_lost(hq_env: HqEnv):
         ]
 
 
+@pbs_test
+def test_external_pbs_submit_single_worker(pbs_hq_env: HqEnv):
+    pbs_hq_env.start_server()
+    prepare_tasks(pbs_hq_env, count=10)
+
+    add_queue(pbs_hq_env, additional_args="-qqexp", time_limit="5m")
+    wait_for_worker_state(pbs_hq_env, 1, "RUNNING", timeout_s=PBS_TIMEOUT)
+    wait_for_job_state(pbs_hq_env, 1, "FINISHED")
+
+
+@pbs_test
+def test_external_pbs_submit_multiple_workers(pbs_hq_env: HqEnv):
+    pbs_hq_env.start_server()
+    prepare_tasks(pbs_hq_env, count=100)
+
+    add_queue(
+        pbs_hq_env, additional_args="-qqexp", time_limit="5m", workers_per_alloc=2
+    )
+    wait_for_worker_state(pbs_hq_env, [1, 2], "RUNNING", timeout_s=PBS_TIMEOUT)
+    wait_for_job_state(pbs_hq_env, 1, "FINISHED")
+
+
 def add_worker(hq_env: HqEnv, allocation_id: str) -> Popen:
     return hq_env.start_worker(
         env={"PBS_JOBID": allocation_id, "PBS_ENVIRONMENT": "1"},
@@ -487,7 +547,7 @@ def add_worker(hq_env: HqEnv, allocation_id: str) -> Popen:
     )
 
 
-def start_server(
+def start_server_with_quick_refresh(
     hq_env: HqEnv, autoalloc_refresh_ms=100, autoalloc_status_check_ms=100
 ):
     hq_env.start_server(
