@@ -1,5 +1,6 @@
 import functools
 import inspect
+import os
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +11,15 @@ from ..conftest import run_hq_env
 
 PBS_AVAILABLE = shutil.which("qsub") is not None
 PBS_TIMEOUT = 5 * 60
+
+
+@pytest.fixture(scope="session")
+def pbs_credentials() -> str:
+    """
+    Returns credentials passed to `hq alloc pbs add` additional arguments.
+    """
+    queue = os.environ.get("PBS_QUEUE", "qexp")
+    return f"-q{queue}"
 
 
 @pytest.fixture(autouse=False, scope="function")
