@@ -35,7 +35,7 @@ original behaviour by specifying `--pin=taskset`.
 ## Fixes
 
 ### Automatic allocation
-- PBS allocations using multiple workers will now correctly spawn a HyperQueue worker on all
+- PBS/Slurm allocations using multiple workers will now correctly spawn a HyperQueue worker on all
 allocated nodes.
 
 # 0.9.0

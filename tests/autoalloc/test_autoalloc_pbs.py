@@ -519,25 +519,33 @@ def test_pbs_pass_on_server_lost(hq_env: HqEnv):
 
 
 @pbs_test
-def test_external_pbs_submit_single_worker(pbs_hq_env: HqEnv, pbs_credentials: str):
-    pbs_hq_env.start_server()
-    prepare_tasks(pbs_hq_env, count=10)
+def test_external_pbs_submit_single_worker(cluster_hq_env: HqEnv, pbs_credentials: str):
+    cluster_hq_env.start_server()
+    prepare_tasks(cluster_hq_env, count=10)
 
-    add_queue(pbs_hq_env, additional_args=pbs_credentials, time_limit="5m")
-    wait_for_worker_state(pbs_hq_env, 1, "RUNNING", timeout_s=PBS_TIMEOUT)
-    wait_for_job_state(pbs_hq_env, 1, "FINISHED")
+    add_queue(
+        cluster_hq_env, additional_args=pbs_credentials, time_limit="5m", dry_run=True
+    )
+    wait_for_worker_state(cluster_hq_env, 1, "RUNNING", timeout_s=PBS_TIMEOUT)
+    wait_for_job_state(cluster_hq_env, 1, "FINISHED")
 
 
 @pbs_test
-def test_external_pbs_submit_multiple_workers(pbs_hq_env: HqEnv, pbs_credentials: str):
-    pbs_hq_env.start_server()
-    prepare_tasks(pbs_hq_env, count=100)
+def test_external_pbs_submit_multiple_workers(
+    cluster_hq_env: HqEnv, pbs_credentials: str
+):
+    cluster_hq_env.start_server()
+    prepare_tasks(cluster_hq_env, count=100)
 
     add_queue(
-        pbs_hq_env, additional_args=pbs_credentials, time_limit="5m", workers_per_alloc=2
+        cluster_hq_env,
+        additional_args=pbs_credentials,
+        time_limit="5m",
+        dry_run=True,
+        workers_per_alloc=2,
     )
-    wait_for_worker_state(pbs_hq_env, [1, 2], "RUNNING", timeout_s=PBS_TIMEOUT)
-    wait_for_job_state(pbs_hq_env, 1, "FINISHED")
+    wait_for_worker_state(cluster_hq_env, [1, 2], "RUNNING", timeout_s=PBS_TIMEOUT)
+    wait_for_job_state(cluster_hq_env, 1, "FINISHED")
 
 
 def add_worker(hq_env: HqEnv, allocation_id: str) -> Popen:
