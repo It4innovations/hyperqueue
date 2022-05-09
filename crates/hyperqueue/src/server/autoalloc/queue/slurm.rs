@@ -207,6 +207,7 @@ fn build_slurm_submit_script(
         script.push_str(&format!("#SBATCH {}\n", sbatch_args));
     }
 
-    script.push_str(&format!("\n{}", worker_cmd));
+    let prefix = if nodes > 1 { "srun " } else { "" };
+    script.push_str(&format!("\n{prefix}{worker_cmd}"));
     script
 }
