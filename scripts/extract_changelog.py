@@ -38,4 +38,11 @@ if __name__ == "__main__":
     output = f"# HyperQueue {tag}\n"
     for line in lines:
         output += f"{line}\n"
+    output += f"""
+# Artifact summary:
+- **hq-v{tag}-\\***: Main HyperQueue build containing the `hq` binary. **Download this archive to
+use HyperQueue from the command line**.
+- **hyperqueue-{tag}-\\***: Wheel containing the `hyperqueue` package with HyperQueue Python
+bindings.
+"""
     print(output)
