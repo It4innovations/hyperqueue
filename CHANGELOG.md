@@ -1,4 +1,4 @@
-# DEV
+# v0.10.0
 
 ## New features
 
@@ -38,7 +38,7 @@ original behaviour by specifying `--pin=taskset`.
 - PBS/Slurm allocations using multiple workers will now correctly spawn a HyperQueue worker on all
 allocated nodes.
 
-# 0.9.0
+# v0.9.0
 
 ## New features
 
@@ -75,7 +75,7 @@ allocation queue will be automatically removed to avoid error loops.
 when submitting array jobs if the placeholder is contained within the working directory path and
 `stdout`/`stderr` contains the `%{CWD}` placeholder.
 
-# 0.8.0
+# v0.8.0
 
 ## Fixes
 
