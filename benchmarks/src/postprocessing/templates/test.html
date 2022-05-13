@@ -1,0 +1,20 @@
+<html>
+<body>
+{% for group in keys %}
+<p > <b>{{ group|e }}</b></p>
+    <p>
+    {% for x in data[group] %}
+        {{ x|e }}<br>
+        {% endfor %}
+    </p>
+{% endfor %}
+<p><b>Grouped by benchmark:</b></p>
+{% for name,group in data["Grouped by benchmark:"] %}
+    {{ name|e }}<br>
+    {{ group }}<br>
+
+{% endfor %}
+<p></p>
+</body>
+
+</html>

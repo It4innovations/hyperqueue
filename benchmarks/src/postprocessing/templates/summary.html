@@ -78,6 +78,25 @@ Inspired by:
         #leftMenu li a:hover {
             background-color: #DDDDDD;
         }
+
+        a:link {
+            text-decoration: none;
+            color: black;
+        }
+
+        a:visited {
+            text-decoration: none;
+            color: black;
+        }
+
+        a:hover {
+            text-decoration: underline;
+            background-color: red;
+        }
+
+        a:active {
+            text-decoration: underline;
+        }
     </style>
 
 </head>
@@ -85,7 +104,7 @@ Inspired by:
 <div class="wrapper">
     <div class="row1">
         <div class="left">
-            <h2>Summary</h2>
+            <a href="/"><h2>Summary</h2></a>
         </div>
         <div class="right">
             <div id="bench">
@@ -99,7 +118,7 @@ Inspired by:
             <input type="text" id="searchBar" onkeyup="searchNavigation()" placeholder="Enter...">
             <ul id="leftMenu">
                 {% for key in workloads %}
-                <li><a onclick="showWorkload('{{key}}')">{{ key }}</a></li>
+                    <li><a onclick="showWorkload('{{ key }}')">{{ key }}</a></li>
                 {% endfor %}
             </ul>
         </div>
@@ -108,15 +127,15 @@ Inspired by:
             <div id="environment" style="position: absolute">
 
             </div>
-            <iframe style="border: none;height:100%;width:100%;visibility: hidden;position: relative"
-                    src="https://www.google.com"
+            <iframe style="border: none;height:100%;width:100%;position: relative"
+                    src="test"
                     id="iframe_environment"></iframe>
 
 
         </div>
     </div>
     {% for key in workloads %}
-    <div id="{{key}}" style="display:none;">{{workloads[key]}}</div>
+        <div id="{{ key }}" style="display:none;">{{ workloads[key] }}</div>
     {% endfor %}
 </div>
 
