@@ -857,7 +857,7 @@ def test_job_submit_program_not_found_file_exists(hq_env: HqEnv):
     assert (
         f"""Error: Cannot execute "foo": No such file or directory (os error 2)
 The program that you have tried to execute (`foo`) was not found.
-The file "{join(os.getcwd(), 'foo')}" exists, maybe you have meant `./foo` instead?"""
+The file `{join(os.getcwd(), 'foo')}` exists, maybe you have meant `./foo` instead?"""
         == table.get_column_value("Error")[0]
     )
 
@@ -895,24 +895,35 @@ def test_job_stdin_read_part(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FINISHED")
 
 
-def test_job_shell_script_fail_without_interpreter(hq_env: HqEnv):
+def test_job_shell_script_fail_not_executable(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.start_worker(cpus="1")
+    hq_env.start_worker()
     Path("test.sh").write_text("""echo 'Hello' > out.txt""")
-    hq_env.command(["submit", "test.sh"])
+    hq_env.command(["submit", "./test.sh"])
     wait_for_job_state(hq_env, 1, "FAILED")
+
+    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    assert (
+        """Error: Cannot execute "./test.sh": Permission denied (os error 13)
+The script that you have tried to execute (`./test.sh`) is not executable.
+Try making it executable or add a shebang line to it."""
+        == table.get_column_value("Error")[0]
+    )
 
 
 def test_job_shell_script_read_interpreter(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.start_worker(cpus="1")
+    hq_env.start_worker()
     Path("test.sh").write_text(
         """#!/bin/bash
 echo 'Hello' > out.txt
 """
     )
-    hq_env.command(["submit", "test.sh"])
-    wait_for_job_state(hq_env, 1, "FINISHED")
+    for (job_id, path) in enumerate(
+        ("test.sh", "./test.sh", os.path.realpath("test.sh"))
+    ):
+        hq_env.command(["submit", path])
+        wait_for_job_state(hq_env, job_id + 1, "FINISHED")
 
     check_file_contents("out.txt", "Hello\n")
 

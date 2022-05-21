@@ -319,16 +319,21 @@ fn read_interpreter(path: &Path) -> io::Result<BString> {
     Err(io::ErrorKind::NotFound.into())
 }
 
-/// If the program's first argument is a shell script passed as a path without absolute (/) or
-/// relative (.) prefix, this function will try to parse a shebang from its first line.
+fn looks_like_bash_script(path: &Path) -> bool {
+    path_has_extension(path, "sh")
+}
+
+/// If the program's first argument is a shell script, this function will try to parse a shebang
+/// from its first line.
 ///
 /// If the parsing is successful, the parsed interpreter path will be prepended to the commands of
 /// the program definition.
 fn try_add_interpreter(program: &mut ProgramDefinition) {
     let command = &program.args[0];
     let path = bytes_to_path(command.as_ref());
-    if is_implicit_path(path) && path_has_extension(path, "sh") {
+    if looks_like_bash_script(path) {
         if let Ok(interpreter) = read_interpreter(path) {
+            log::debug!("Adding interpreter {interpreter:?} to command {command:?}");
             program.args.insert(0, interpreter);
         }
     }
@@ -365,14 +370,27 @@ fn map_spawn_error(error: std::io::Error, program: &ProgramDefinition) -> tako::
                 let possible_path = program.cwd.join(path);
                 if possible_path.is_file() {
                     msg.write_fmt(format_args!(
-                        "\nThe file {:?} exists, maybe you have meant `./{}` instead?",
-                        possible_path, file
+                        "\nThe file `{}` exists, maybe you have meant `./{}` instead?",
+                        possible_path.display(),
+                        path.display()
                     ))
                     .unwrap();
                 }
             }
 
             msg
+        }
+        ErrorKind::PermissionDenied => {
+            let file = bytes_to_path(program.args[0].as_ref());
+            if looks_like_bash_script(file) {
+                format!(
+                    "\nThe script that you have tried to execute (`{}`) is not executable.
+Try making it executable or add a shebang line to it.",
+                    file.display()
+                )
+            } else {
+                "".to_string()
+            }
         }
         _ => "".to_string(),
     };
