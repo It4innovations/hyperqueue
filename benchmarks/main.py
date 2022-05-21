@@ -1,11 +1,10 @@
 import dataclasses
 import itertools
 import logging
-import typer
-
 from pathlib import Path
 from typing import List, Optional
 
+import typer
 from src.benchmark.identifier import BenchmarkDescriptor
 from src.benchmark_defs import create_basic_hq_benchmarks
 from src.build.hq import BuildConfig, iterate_binaries

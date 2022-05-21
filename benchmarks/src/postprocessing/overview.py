@@ -1,27 +1,20 @@
 import logging
-
+import os
 from dataclasses import dataclass
+from glob import glob
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
-from glob import glob
 
-import os
 import humanize
 import numpy as np
 import pandas as pd
 import tqdm
 from bokeh.io import save
-from bokeh.models import (
-    Div,
-    Panel,
-    Tabs,
-    Button,
-    MultiChoice,
-)
+from bokeh.layouts import column, row
+from bokeh.models import Button, Div, MultiChoice, Panel, Tabs
 from bokeh.plotting import figure
 from bokeh.resources import CDN
-from bokeh.layouts import column, row
 from jinja2 import Template
 
 from ..benchmark.database import Database, DatabaseRecord
@@ -36,13 +29,13 @@ from .common import (
     pd_print_all,
 )
 from .monitor import (
-    generate_cluster_report,
-    render_profiling_data,
     create_global_resources_df,
+    create_per_process_resources_df,
+    generate_cluster_report,
     render_global_resource_usage,
     render_nodes_resource_usage,
-    create_per_process_resources_df,
     render_process_resource_usage,
+    render_profiling_data,
 )
 from .report import ClusterReport
 

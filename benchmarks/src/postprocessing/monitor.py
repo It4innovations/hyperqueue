@@ -33,9 +33,9 @@ from cluster.cluster import Cluster, Node, ProcessInfo
 from pandas import Timestamp
 
 from ..clusterutils.profiler import (
+    CachegrindProfiler,
     FlamegraphProfiler,
     PerfEventsProfiler,
-    CachegrindProfiler,
 )
 from ..monitoring.record import MonitoringRecord, ProcessRecord
 from ..utils import ensure_directory

@@ -1,14 +1,11 @@
 import logging
-import typer
 from pathlib import Path
 
-from src.postprocessing.serve import serve_cluster_report, serve_summary_html
+import typer
 from src.postprocessing.monitor import generate_cluster_report
-from src.postprocessing.overview import (
-    generate_summary_html,
-    generate_summary_text,
-)
+from src.postprocessing.overview import generate_summary_html, generate_summary_text
 from src.postprocessing.report import ClusterReport
+from src.postprocessing.serve import serve_cluster_report, serve_summary_html
 from src.utils.benchmark import load_database
 
 app = typer.Typer()

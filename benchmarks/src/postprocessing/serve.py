@@ -1,17 +1,17 @@
 import logging
-
 from pathlib import Path
-from bokeh.embed import file_html
+
 from bokeh.application import Application
 from bokeh.application.handlers import FunctionHandler
-from bokeh.server.server import Server
+from bokeh.embed import file_html
 from bokeh.resources import CDN
+from bokeh.server.server import Server
 from tornado import ioloop, web
 from tornado.ioloop import IOLoop
 
-from .monitor import create_page
-from .overview import pregenerate_entries, create_summary_page, create_comparer_page
 from ..benchmark.database import Database
+from .monitor import create_page
+from .overview import create_comparer_page, create_summary_page, pregenerate_entries
 from .report import ClusterReport
 
 

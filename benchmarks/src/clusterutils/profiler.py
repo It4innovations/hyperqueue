@@ -1,7 +1,7 @@
 import dataclasses
-
 from pathlib import Path
 from typing import List
+
 from ..utils import is_binary_available
 
 PROFILER_METADATA_KEY = "profiler"
