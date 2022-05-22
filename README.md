@@ -2,12 +2,16 @@
 <img src="docs/imgs/hq.png">
 </p>
 
-
-[Documentation](https://it4innovations.github.io/hyperqueue/)
-
 **HyperQueue** (HQ) lets you build a computation plan consisting of a large amount of tasks and then
 execute it transparently over a system like SLURM/PBS. It dynamically groups jobs into SLURM/PBS jobs and distributes
 them to fully utilize allocated notes. You thus do not have to manually aggregate your tasks into SLURM/PBS jobs.
+
+[Documentation](https://it4innovations.github.io/hyperqueue/)
+
+If you find a bug or a problem with HyperQueue, please create an [issue](https://github.com/It4innovations/hyperqueue/issues).
+For more general discussion or feature requests, please use our
+[discussion forum](https://github.com/It4innovations/hyperqueue/discussions). If you want to chat
+with the HyperQueue developers, you can use our [Zulip](https://hyperqueue.zulipchat.com/) server.
 
 ## Features
 
