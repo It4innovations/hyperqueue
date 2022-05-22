@@ -11,6 +11,8 @@ load-balance tasks across all allocated nodes and cores.
 - [Installation](installation.md)
 - [Quick start](quickstart.md)
 - [Repository](https://github.com/It4innovations/hyperqueue)
+- [Discussion forum](https://github.com/It4innovations/hyperqueue/discussions)
+- [Zulip (chat platform)](https://hyperqueue.zulipchat.com/)
 
 ## Features
 **Resource management**
