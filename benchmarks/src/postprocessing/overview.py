@@ -350,7 +350,7 @@ def generate_summary_text(database: Database, file):
 
 def create_summary_page(database: Database, directory: Path):
     with open(
-        os.path.join(os.path.dirname(__file__), "templates/summary.html")
+        os.path.join(os.path.dirname(__file__), "templates/main.html")
     ) as file:
         template = file.read()
 

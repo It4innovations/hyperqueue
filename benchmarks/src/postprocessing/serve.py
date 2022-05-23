@@ -100,7 +100,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             self.write(o)
             self.set_header("Content-type", "image/png")
 
-    class TestHandler(web.RequestHandler):
+    class OverViewHandler(web.RequestHandler):
         KEY_GROUPS = ["Grouped by workload:", "Grouped by environment:", "Grouped by benchmark:"]
 
         def summary_reader(self):
@@ -134,17 +134,23 @@ def serve_summary_html(database: Database, directory: Path, port: int):
         def get(self):
             data = self.summary_reader()
             df = create_database_df(database)
-            grouped = df.groupby(["workload", "workload-params", "env", "env-params"])[
+            grouped = df.groupby(["workload", "workload-params", "env", "env-params","index"])[
                 "duration"
             ]
             pairs = []
             for pair in list(grouped):
-                pairs.append((pair[0],pair[1].describe().to_frame().T.to_html()))
+                pairs.append([pair[0], pair[1].describe().to_frame().T.to_html()])
             data["Grouped by benchmark:"] = pairs
-            with open(os.path.join(os.path.dirname(__file__), "templates/test.html")) as fp:
+            for i in range(len(data["Grouped by benchmark:"])):
+                formated_str = "-".join([str(z) for z in data["Grouped by benchmark:"][i][0]])
+                formated_str = formated_str.replace(",","_")
+                data["Grouped by benchmark:"][i][0] = formated_str
+            with open(os.path.join(os.path.dirname(__file__), "templates/summary.html")) as fp:
                 file = fp.read()
                 self.write(render(file, data=data, keys=list(data.keys())[:2]))
             # self.write(data)
+
+
 
     app = web.Application(
         [
@@ -153,7 +159,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             (r"/compare/(.*)", CompareOverview),
             (r"/img", ImgHandler),
             (r"/", SummaryHandler),
-            (r"/test", TestHandler)
+            (r"/overview", OverViewHandler)
         ]
     )
 
