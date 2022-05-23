@@ -1,4 +1,5 @@
 use std::ffi::OsStr;
+use std::io::Read;
 use std::os::unix::prelude::OsStrExt;
 use std::path::{Path, PathBuf};
 
@@ -34,4 +35,11 @@ pub fn bytes_to_path(path: &[u8]) -> &Path {
 
 pub fn path_has_extension(path: &Path, extension: &str) -> bool {
     path.extension() == Some(OsStr::from_bytes(extension.as_bytes()))
+}
+
+/// Reads at most `count` bytes from `source` and returns them.
+pub fn read_at_most<R: Read>(source: R, count: usize) -> std::io::Result<Vec<u8>> {
+    let mut buffer: Vec<u8> = Vec::with_capacity(count);
+    source.take(count as u64).read_to_end(&mut buffer)?;
+    Ok(buffer)
 }

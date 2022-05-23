@@ -17,6 +17,21 @@ detect available GPU resources from the `CUDA_VISIBLE_DEVICES` environment varia
 
 ## Changes
 
+### CLI
+* [#420](https://github.com/It4innovations/hyperqueue/pull/420) Shebang (e.g. `#!/bin/bash`) will
+  now be read from submitted program based on the provided
+  [directives mode](https://it4innovations.github.io/hyperqueue/stable/jobs/directives/). If a shebang
+  is found, HQ will execute the program located at the shebang path and pass it the rest of the
+  submitted arguments.
+
+    By default, directives and shebang will be read from the submitted program only if its filename ends
+    with `.sh`.  If you want to explicitly enable reading the shebang, pass `--directives=file` to
+    `hq submit`.
+
+    Another change is that the shebang is now read by the client (i.e. it will be read on the node that
+    submits the job), not on worker nodes as previously. This means that the submitted file has to be
+    accessible on the client node.
+
 ### Resource management
 * [#427](https://github.com/It4innovations/hyperqueue/pull/427) (**Backwards incompatible change**)
 The environment variable `HQ_RESOURCE_INDICES_<resource-name>`, which is passed to tasks with

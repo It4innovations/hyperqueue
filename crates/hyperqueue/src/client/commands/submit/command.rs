@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{fs, io};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use bstr::BString;
 use clap::Parser;
 use tako::gateway::{GenericResourceRequest, ResourceRequest};
@@ -275,7 +275,7 @@ impl SubmitJobConfOpts {
     }
 }
 
-#[derive(clap::ArgEnum, Clone)]
+#[derive(clap::ArgEnum, Clone, PartialEq)]
 pub enum DirectivesMode {
     Auto,
     File,
@@ -371,21 +371,32 @@ fn create_stdio(arg: Option<StdioArg>, log: &Option<PathBuf>, default: &str) -> 
     })
 }
 
-fn handle_directives(mut opts: JobSubmitOpts, stdin: &[u8]) -> anyhow::Result<JobSubmitOpts> {
+fn handle_directives(
+    mut opts: JobSubmitOpts,
+    stdin: Option<&[u8]>,
+) -> anyhow::Result<JobSubmitOpts> {
     let parse_file = |command: &String| {
         parse_hq_directives_from_file(&PathBuf::from(command)).map_err(|error| {
             anyhow::anyhow!("Could not parse directives from {}: {:?}", command, error)
         })
     };
 
+    let stdin_present = stdin.is_some();
     let command = &opts.commands[0];
-    if let Some(update) = match opts.directives {
+    if let Some((update, shebang)) = match opts.directives {
         DirectivesMode::Auto if command.ends_with(".sh") => Some(parse_file(command)?),
         DirectivesMode::File => Some(parse_file(command)?),
-        DirectivesMode::Stdin => Some(parse_hq_directives(stdin)?),
+        DirectivesMode::Stdin => Some(parse_hq_directives(
+            stdin.expect("Stdin directives is not present"),
+        )?),
         DirectivesMode::Auto | DirectivesMode::Off => None,
     } {
         opts.conf = opts.conf.overwrite(update);
+        if let Some(shebang) = shebang {
+            if !stdin_present {
+                opts.commands.insert(0, shebang.into());
+            }
+        }
     }
     Ok(opts)
 }
@@ -400,12 +411,16 @@ pub async fn submit_computation(
         println!("Reading data from stdin. In the interactive mode press Ctrl-D to submit.");
         std::io::stdin().lock().read_to_end(&mut buf)?;
         log::debug!("{} bytes read from stdin", buf.len());
-        buf
+        Some(buf)
     } else {
-        Vec::new()
+        None
     };
 
-    let opts = handle_directives(opts, &stdin)?;
+    if opts.directives == DirectivesMode::Stdin && stdin.is_none() {
+        bail!("You have to use `--stdin` when you specify `--directives=stdin`.");
+    }
+
+    let opts = handle_directives(opts, stdin.as_deref())?;
 
     let resources = opts.resource_request();
     let (ids, entries) = get_ids_and_entries(&opts)?;
@@ -474,7 +489,7 @@ pub async fn submit_computation(
         stdout,
         stderr,
         cwd,
-        stdin,
+        stdin: stdin.unwrap_or_default(),
     };
 
     // Force task_dir for multi node tasks (for a place where to create node file)

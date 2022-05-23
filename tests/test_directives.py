@@ -105,6 +105,25 @@ def test_hq_directives_mode_stdin(hq_env: HqEnv):
     table.check_row_value("Name", "xyz")
 
 
+def test_hq_directives_mode_stdin_no_stdin(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.command(
+        ["submit", "--directives=stdin", "bash"],
+        expect_fail="You have to use `--stdin` when you specify `--directives=stdin`",
+    )
+
+
+def test_hq_directives_stdin_ignore_shebang(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.command(
+        ["submit", "--stdin", "--directives=stdin", "bash"],
+        stdin="#!/foo/bar\necho 'Hello'",
+    )
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+
 def test_hq_directives_mode_off(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus="1")
