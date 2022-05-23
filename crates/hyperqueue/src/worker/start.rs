@@ -59,7 +59,7 @@ impl TaskLauncher for HqTaskLauncher {
         launch_ctx: LaunchContext,
         stop_receiver: Receiver<StopReason>,
     ) -> tako::Result<TaskLaunchData> {
-        let (mut program, job_id, job_task_id, instance_id, task_dir): (
+        let (program, job_id, job_task_id, instance_id, task_dir): (
             ProgramDefinition,
             JobId,
             JobTaskId,
@@ -139,8 +139,6 @@ impl TaskLauncher for HqTaskLauncher {
 
         let context = RunningTaskContext { instance_id };
         let serialized_context = serialize(&context)?;
-
-        try_add_interpreter(&mut program);
 
         let task_future = run_task(
             self.streamer_ref.clone(),
@@ -288,40 +286,8 @@ fn pin_program(
     }
 }
 
-#[allow(clippy::unused_io_amount)]
-fn read_interpreter(path: &Path) -> io::Result<BString> {
-    let mut file = File::open(path)?;
-    let mut buffer = [0; 256];
-    file.read(&mut buffer)?;
-
-    let bytes: &BStr = buffer.as_ref().into();
-    if let Some(line) = bytes.lines().next() {
-        let line = line.trim();
-        if line.starts_with(b"#!") {
-            return Ok(BString::from(&line[2..]));
-        }
-    }
-    Err(io::ErrorKind::NotFound.into())
-}
-
 fn looks_like_bash_script(path: &Path) -> bool {
     path_has_extension(path, "sh")
-}
-
-/// If the program's first argument is a shell script, this function will try to parse a shebang
-/// from its first line.
-///
-/// If the parsing is successful, the parsed interpreter path will be prepended to the commands of
-/// the program definition.
-fn try_add_interpreter(program: &mut ProgramDefinition) {
-    let command = &program.args[0];
-    let path = bytes_to_path(command.as_ref());
-    if looks_like_bash_script(path) {
-        if let Ok(interpreter) = read_interpreter(path) {
-            log::debug!("Adding interpreter {interpreter:?} to command {command:?}");
-            program.args.insert(0, interpreter);
-        }
-    }
 }
 
 /// Zero-worker mode measures pure overhead of HyperQueue.

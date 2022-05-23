@@ -34,6 +34,11 @@ determine when should HyperQueue attempt to parse directives from the provided c
 * `stdin` - Directives will be parsed from stdin (see ``--stdin``) 
 * `off` - Directives will not be parsed.
 
+!!! tip
+
+    When HQ parses directives from a file, it will also try to parse a shebang line from the
+    script and use it to select an interpreter for running the script.
+
 ## Notes
 
 * Directives have to be defined at the beginning of the file. Only comments or empty lines are allowed

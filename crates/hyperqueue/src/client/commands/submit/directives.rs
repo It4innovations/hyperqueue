@@ -1,5 +1,6 @@
-use crate::client::commands::submit::SubmitJobConfOpts;
-use crate::common::parser::{consume_all, NomResult};
+use std::fs::File;
+use std::path::Path;
+
 use bstr::{BStr, BString, ByteSlice};
 use clap::{FromArgMatches, IntoApp};
 use nom::branch::alt;
@@ -9,11 +10,12 @@ use nom::character::complete::{none_of, one_of};
 use nom::combinator::{cut, map, opt};
 use nom::multi::separated_list0;
 use nom::sequence::{preceded, terminated, tuple};
-use std::fs::File;
-use std::io::Read;
-use std::path::Path;
 
-const MAX_PREFIX_OF_SCRIPT: usize = 32 * 1024; // 32KiB
+use crate::client::commands::submit::SubmitJobConfOpts;
+use crate::common::parser::{consume_all, NomResult};
+use crate::common::utils::fs::read_at_most;
+
+const MAX_PREFIX_OF_SUBMIT_SCRIPT: usize = 32 * 1024; // 32KiB
 
 fn p_double_quoted(input: &str) -> NomResult<&str> {
     preceded(
@@ -49,62 +51,92 @@ fn parse_args(input: &str) -> anyhow::Result<Vec<String>> {
     consume_all(separated_list0(space1, p_arg), input)
 }
 
-fn extract_directives(data: &BStr) -> crate::Result<Vec<String>> {
-    let mut args = Vec::new();
-    for line in data.lines() {
+pub struct Shebang(String);
+
+impl From<Shebang> for String {
+    fn from(arg: Shebang) -> Self {
+        arg.0
+    }
+}
+
+struct FileMetadata {
+    shebang: Option<Shebang>,
+    directives: Vec<String>,
+}
+
+fn extract_metadata(data: &BStr) -> crate::Result<FileMetadata> {
+    let mut shebang = None;
+
+    let mut directives = Vec::new();
+    for (index, line) in data.lines().enumerate() {
         let line = line.trim_start();
         if line.starts_with(b"#HQ ") {
             let value = &line[4..].trim();
             if !value.is_empty() {
-                args.push(String::from_utf8_lossy(value).to_string());
+                directives.push(String::from_utf8_lossy(value).to_string());
             }
             continue;
+        } else if index == 0 && line.starts_with(b"#!") {
+            shebang = Some(Shebang(
+                String::from_utf8_lossy(line[2..].trim()).to_string(),
+            ));
         }
+
         match line.get(0) {
             Some(b'#') | None => continue,
             _ => break,
         }
     }
-    Ok(args)
+    Ok(FileMetadata {
+        shebang,
+        directives,
+    })
 }
 
-pub fn parse_hq_directives_from_file(path: &Path) -> anyhow::Result<SubmitJobConfOpts> {
+pub fn parse_hq_directives_from_file(
+    path: &Path,
+) -> anyhow::Result<(SubmitJobConfOpts, Option<Shebang>)> {
     log::debug!("Extracting directives from file: {}", path.display());
 
-    let mut f = File::open(&path)?;
-    let mut buffer = [0; MAX_PREFIX_OF_SCRIPT];
-    let size = f.read(&mut buffer)?;
-    parse_hq_directives(&buffer[..size])
+    let file = File::open(&path)?;
+    let buffer = read_at_most(file, MAX_PREFIX_OF_SUBMIT_SCRIPT)?;
+    parse_hq_directives(&buffer)
 }
 
-pub fn parse_hq_directives(data: &[u8]) -> anyhow::Result<SubmitJobConfOpts> {
+pub fn parse_hq_directives(data: &[u8]) -> anyhow::Result<(SubmitJobConfOpts, Option<Shebang>)> {
     let prefix = BString::from(data);
-    let mut directives = Vec::new();
-    for directive in extract_directives(prefix.as_bstr())? {
+
+    let metadata = extract_metadata(prefix.as_bstr())?;
+    let mut arguments = Vec::new();
+    for directive in metadata.directives {
         let mut args = parse_args(&directive)?;
-        directives.append(&mut args);
+        arguments.append(&mut args);
     }
 
     // clap parses first argument as name of the program
-    directives.insert(0, "".to_string());
-    log::debug!("Applying directive(s): {:?}", directives);
+    arguments.insert(0, "".to_string());
+    log::debug!("Applying directive(s): {:?}", arguments);
 
     let app = SubmitJobConfOpts::command()
         .disable_help_flag(true)
         .override_usage("#HQ <hq submit parameters>");
-    let matches = app.try_get_matches_from(&directives).map_err(|error| {
+    let matches = app.try_get_matches_from(&arguments).map_err(|error| {
         anyhow::anyhow!(
             "You have used invalid parameter(s) after a #HQ directive.\n{}",
             error
         )
     })?;
-    Ok(SubmitJobConfOpts::from_arg_matches(&matches).unwrap())
+
+    let opts = SubmitJobConfOpts::from_arg_matches(&matches)?;
+
+    Ok((opts, metadata.shebang))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_directives, parse_args};
     use bstr::{BString, ByteSlice};
+
+    use super::{extract_metadata, parse_args};
 
     #[test]
     fn test_arg_parser() {
@@ -145,9 +177,24 @@ sleep 1
 "
             .as_ref(),
         );
+        let metadata = extract_metadata(data.as_bstr()).unwrap();
         assert_eq!(
-            extract_directives(data.as_bstr()).unwrap(),
+            metadata.directives,
             vec![BString::from("--abc --xyz"), BString::from("next arg")]
         );
+        assert_eq!(metadata.shebang.unwrap().0, "/bin/bash".to_string());
+    }
+
+    #[test]
+    fn test_parse_directives_no_shebang() {
+        let data = BString::from(
+            b"
+# Comment
+#HQ --abc --xyz
+"
+            .as_ref(),
+        );
+        let metadata = extract_metadata(data.as_bstr()).unwrap();
+        assert!(metadata.shebang.is_none());
     }
 }
