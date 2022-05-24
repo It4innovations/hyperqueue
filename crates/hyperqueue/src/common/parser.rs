@@ -1,8 +1,9 @@
+use std::error::Error;
 use std::fmt::{Debug, Write};
 
 use nom::character::complete::satisfy;
 use nom::combinator::{all_consuming, map, map_res};
-use nom::error::{ContextError, ErrorKind, FromExternalError, ParseError};
+use nom::error::{ErrorKind, FromExternalError, ParseError};
 use nom::multi::many0;
 use nom::sequence::tuple;
 use nom::{AsChar, IResult, InputLength, Parser};
@@ -35,9 +36,12 @@ impl<I> TagError<I, &'static str> for ParserError<I> {
     }
 }
 
-impl<I> ContextError<I> for ParserError<I> {
+impl<I> nom_supreme::context::ContextError<I, &'static str> for ParserError<I> {
     fn add_context(location: I, ctx: &'static str, other: Self) -> Self {
-        ErrorTree::add_context(location, ctx, other.0).into()
+        <ErrorTree<I> as nom_supreme::context::ContextError<I, &'static str>>::add_context(
+            location, ctx, other.0,
+        )
+        .into()
     }
 }
 
@@ -68,7 +72,9 @@ impl<I, E: Into<anyhow::Error>> FromExternalError<I, E> for ParserError<I> {
     }
 }
 
-fn format_kind(kind: BaseErrorKind) -> String {
+fn format_kind(
+    kind: BaseErrorKind<&'static str, Box<dyn Error + Send + Sync + 'static>>,
+) -> String {
     match kind {
         BaseErrorKind::Expected(expectation) => match expectation {
             Expectation::Tag(tag) => format!(r#"expected "{}""#, tag),
