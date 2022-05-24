@@ -5,31 +5,29 @@ use crate::internal::common::Set;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GenericResourceKindIndices {
-    pub start: GenericResourceIndex,
-    pub end: GenericResourceIndex,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GenericResourceKindSum {
-    pub size: GenericResourceAmount,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum GenericResourceDescriptorKind {
-    Indices(GenericResourceKindIndices),
+    List {
+        values: Vec<GenericResourceIndex>,
+    },
+    Range {
+        start: GenericResourceIndex,
+        end: GenericResourceIndex,
+    },
     // TODO: Named(Vec<String>),
-    Sum(GenericResourceKindSum),
+    Sum {
+        size: GenericResourceAmount,
+    },
 }
 
 impl GenericResourceDescriptorKind {
     pub fn size(&self) -> GenericResourceAmount {
         match self {
-            GenericResourceDescriptorKind::Indices(idx) if idx.end >= idx.start => {
-                (idx.end.as_num() + 1 - idx.start.as_num()) as u64
+            GenericResourceDescriptorKind::List { values } => values.len() as GenericResourceAmount,
+            GenericResourceDescriptorKind::Range { start, end } if end >= start => {
+                (end.as_num() + 1 - start.as_num()) as u64
             }
-            GenericResourceDescriptorKind::Indices(_) => 0,
-            GenericResourceDescriptorKind::Sum(x) => x.size,
+            GenericResourceDescriptorKind::Range { .. } => 0,
+            GenericResourceDescriptorKind::Sum { size } => *size,
         }
     }
 }
@@ -37,10 +35,21 @@ impl GenericResourceDescriptorKind {
 impl std::fmt::Display for GenericResourceDescriptorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GenericResourceDescriptorKind::Indices(idx) => {
-                write!(f, "Indices({}-{})", idx.start, idx.end)
+            GenericResourceDescriptorKind::List { values } => {
+                write!(
+                    f,
+                    "List({})",
+                    values
+                        .iter()
+                        .map(|idx| idx.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
             }
-            GenericResourceDescriptorKind::Sum(v) => write!(f, "Sum({})", v.size),
+            GenericResourceDescriptorKind::Range { start, end } => {
+                write!(f, "Range({start}-{end})")
+            }
+            GenericResourceDescriptorKind::Sum { size } => write!(f, "Sum({size})"),
         }
     }
 }
@@ -52,23 +61,19 @@ pub struct GenericResourceDescriptor {
 }
 
 impl GenericResourceDescriptor {
-    pub fn indices<Index: Into<GenericResourceIndex>>(
-        name: &str,
-        start: Index,
-        end: Index,
-    ) -> Self {
+    pub fn range<Index: Into<GenericResourceIndex>>(name: &str, start: Index, end: Index) -> Self {
         GenericResourceDescriptor {
             name: name.to_string(),
-            kind: GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
+            kind: GenericResourceDescriptorKind::Range {
                 start: start.into(),
                 end: end.into(),
-            }),
+            },
         }
     }
     pub fn sum(name: &str, size: GenericResourceAmount) -> Self {
         GenericResourceDescriptor {
             name: name.to_string(),
-            kind: GenericResourceDescriptorKind::Sum(GenericResourceKindSum { size }),
+            kind: GenericResourceDescriptorKind::Sum { size },
         }
     }
 }

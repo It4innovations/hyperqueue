@@ -305,9 +305,9 @@ mod tests {
     fn test_rqueue_generic_resource1_priorities() {
         let cpus = cpu_descriptor_from_socket_size(1, 4);
         let generic = vec![
-            GenericResourceDescriptor::indices("Res0", 1, 20),
+            GenericResourceDescriptor::range("Res0", 1, 20),
             GenericResourceDescriptor::sum("Res1", 100_000_000),
-            GenericResourceDescriptor::indices("Res2", 1, 50),
+            GenericResourceDescriptor::range("Res2", 1, 50),
         ];
         let descriptor = ResourceDescriptor::new(cpus, generic);
         let mut rq = RB::new(ResourceWaitQueue::new(
@@ -329,9 +329,9 @@ mod tests {
     fn test_rqueue_generic_resource2_priorities() {
         let cpus = cpu_descriptor_from_socket_size(1, 4);
         let generic = vec![
-            GenericResourceDescriptor::indices("Res0", 1, 20),
+            GenericResourceDescriptor::range("Res0", 1, 20),
             GenericResourceDescriptor::sum("Res1", 100_000_000),
-            GenericResourceDescriptor::indices("Res2", 1, 50),
+            GenericResourceDescriptor::range("Res2", 1, 50),
         ];
         let descriptor = ResourceDescriptor::new(cpus, generic);
 
@@ -359,9 +359,9 @@ mod tests {
     fn test_rqueue_generic_resource3_priorities() {
         let cpus = cpu_descriptor_from_socket_size(1, 4);
         let generic = vec![
-            GenericResourceDescriptor::indices("Res0", 1, 20),
+            GenericResourceDescriptor::range("Res0", 1, 20),
             GenericResourceDescriptor::sum("Res1", 100_000_000),
-            GenericResourceDescriptor::indices("Res2", 1, 50),
+            GenericResourceDescriptor::range("Res2", 1, 50),
         ];
         let descriptor = ResourceDescriptor::new(cpus, generic);
 

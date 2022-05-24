@@ -8,10 +8,7 @@ use nom::sequence::{delimited, preceded, separated_pair, tuple};
 use nom::Parser;
 use nom_supreme::tag::complete::tag;
 use nom_supreme::ParserExt;
-use tako::resources::{
-    cpu_descriptor_from_socket_size, GenericResourceDescriptorKind, GenericResourceKindIndices,
-    GenericResourceKindSum,
-};
+use tako::resources::{cpu_descriptor_from_socket_size, GenericResourceDescriptorKind};
 use tako::resources::{CpuId, CpusDescriptor, GenericResourceDescriptor};
 
 fn p_cpu_list(input: &str) -> NomResult<Vec<CpuId>> {
@@ -67,18 +64,29 @@ arg_wrapper!(
     parse_resource_definition
 );
 
-fn p_kind_indices(input: &str) -> NomResult<GenericResourceDescriptorKind> {
+fn p_kind_list(input: &str) -> NomResult<GenericResourceDescriptorKind> {
     map(
         delimited(
-            tuple((tag("indices"), multispace0, char('('), multispace0)),
+            tuple((tag("list"), multispace0, char('('), multispace0)),
+            separated_list1(tag(","), p_u32).context("At least a single index has to be provided"),
+            tuple((multispace0, char(')'), multispace0)),
+        ),
+        |values| GenericResourceDescriptorKind::List {
+            values: values.into_iter().map(|idx| idx.into()).collect(),
+        },
+    )(input)
+}
+
+fn p_kind_range(input: &str) -> NomResult<GenericResourceDescriptorKind> {
+    map(
+        delimited(
+            tuple((tag("range"), multispace0, char('('), multispace0)),
             separated_pair(p_u32, tuple((multispace0, char('-'), multispace0)), p_u32),
             tuple((multispace0, char(')'), multispace0)),
         ),
-        |(start, end)| {
-            GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
-                start: start.into(),
-                end: end.into(),
-            })
+        |(start, end)| GenericResourceDescriptorKind::Range {
+            start: start.into(),
+            end: end.into(),
         },
     )(input)
 }
@@ -90,14 +98,15 @@ fn p_kind_sum(input: &str) -> NomResult<GenericResourceDescriptorKind> {
             p_u64,
             tuple((multispace0, char(')'), multispace0)),
         ),
-        |size| GenericResourceDescriptorKind::Sum(GenericResourceKindSum { size }),
+        |size| GenericResourceDescriptorKind::Sum { size },
     )
     .parse(input)
 }
 
 fn p_resource_kind(input: &str) -> NomResult<GenericResourceDescriptorKind> {
     alt((
-        p_kind_indices.context("Index resource"),
+        p_kind_list.context("List resource"),
+        p_kind_range.context("Range resource"),
         p_kind_sum.context("Sum resource"),
     ))(input)
 }
@@ -106,7 +115,7 @@ pub fn p_resource_definition(input: &str) -> NomResult<GenericResourceDescriptor
     let parser = separated_pair(
         alphanumeric1.context("Resource identifier"),
         tuple((multispace0, char('='), multispace0)),
-        p_resource_kind.context("Resource kind (sum or indices)"),
+        p_resource_kind.context("Resource kind (sum, range or list)"),
     );
     map(parser, |(name, kind)| GenericResourceDescriptor {
         name: name.to_string(),
@@ -163,25 +172,72 @@ mod test {
     }
 
     #[test]
-    fn test_parse_resource_def() {
-        let rd = parse_resource_definition("gpu=indices(10-123)").unwrap();
+    fn test_parse_resource_def_range() {
+        let rd = parse_resource_definition("gpu=range(10-123)").unwrap();
         assert_eq!(rd.name, "gpu");
         match rd.kind {
-            GenericResourceDescriptorKind::Indices(indices) => {
-                assert_eq!(indices.start.as_num(), 10);
-                assert_eq!(indices.end.as_num(), 123);
+            GenericResourceDescriptorKind::Range { start, end } => {
+                assert_eq!(start.as_num(), 10);
+                assert_eq!(end.as_num(), 123);
             }
             _ => panic!("Wrong result"),
         }
+    }
 
+    #[test]
+    fn test_parse_resource_def_sum() {
         let rd = parse_resource_definition("mem=sum(1000_3000_2000)").unwrap();
         assert_eq!(rd.name, "mem");
         assert!(matches!(
             rd.kind,
-            GenericResourceDescriptorKind::Sum(GenericResourceKindSum {
+            GenericResourceDescriptorKind::Sum {
                 size: 1000_3000_2000
-            })
+            }
         ));
+    }
+
+    #[test]
+    fn test_parse_resource_def_list_single() {
+        let rd = parse_resource_definition("mem=list(1)").unwrap();
+        assert_eq!(rd.name, "mem");
+        match rd.kind {
+            GenericResourceDescriptorKind::List { values } => {
+                assert_eq!(values, vec![1.into()]);
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn test_parse_resource_def_list_multiple() {
+        let rd = parse_resource_definition("mem=list(12,34,58)").unwrap();
+        assert_eq!(rd.name, "mem");
+        match rd.kind {
+            GenericResourceDescriptorKind::List { values } => {
+                assert_eq!(values, vec![12.into(), 34.into(), 58.into()]);
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn test_parse_resource_def_list_empty() {
+        check_parse_error(
+            p_resource_definition,
+            "mem=list()",
+            r#"Parse error
+expected Resource kind (sum, range or list) at character 4: "list()"
+  expected one of the following 3 variants:
+    expected List resource at character 4: "list()"
+    expected At least a single index has to be provided at character 9: ")"
+    expected integer at character 9: ")"
+    or
+    expected Range resource at character 4: "list()"
+      expected "range" at character 4: "list()"
+    or
+    expected Sum resource at character 4: "list()"
+      expected "sum" at character 4: "list()""#,
+        );
     }
 
     #[test]
@@ -211,10 +267,13 @@ expected "=" at the end of input"#,
             p_resource_definition,
             "x=",
             r#"Parse error
-expected Resource kind (sum or indices) at the end of input
-  expected one of the following 2 variants:
-    expected Index resource at the end of input
-      expected "indices" at the end of input
+expected Resource kind (sum, range or list) at the end of input
+  expected one of the following 3 variants:
+    expected List resource at the end of input
+      expected "list" at the end of input
+    or
+    expected Range resource at the end of input
+      expected "range" at the end of input
     or
     expected Sum resource at the end of input
       expected "sum" at the end of input"#,
@@ -227,10 +286,13 @@ expected Resource kind (sum or indices) at the end of input
             p_resource_definition,
             "x=1",
             r#"Parse error
-expected Resource kind (sum or indices) at character 2: "1"
-  expected one of the following 2 variants:
-    expected Index resource at character 2: "1"
-      expected "indices" at character 2: "1"
+expected Resource kind (sum, range or list) at character 2: "1"
+  expected one of the following 3 variants:
+    expected List resource at character 2: "1"
+      expected "list" at character 2: "1"
+    or
+    expected Range resource at character 2: "1"
+      expected "range" at character 2: "1"
     or
     expected Sum resource at character 2: "1"
       expected "sum" at character 2: "1""#,
@@ -243,10 +305,13 @@ expected Resource kind (sum or indices) at character 2: "1"
             p_resource_definition,
             "x=sum",
             r#"Parse error
-expected Resource kind (sum or indices) at character 2: "sum"
-  expected one of the following 2 variants:
-    expected Index resource at character 2: "sum"
-      expected "indices" at character 2: "sum"
+expected Resource kind (sum, range or list) at character 2: "sum"
+  expected one of the following 3 variants:
+    expected List resource at character 2: "sum"
+      expected "list" at character 2: "sum"
+    or
+    expected Range resource at character 2: "sum"
+      expected "range" at character 2: "sum"
     or
     expected Sum resource at character 2: "sum"
       expected "(" at the end of input"#,
@@ -259,10 +324,13 @@ expected Resource kind (sum or indices) at character 2: "sum"
             p_resource_definition,
             "x=sum()",
             r#"Parse error
-expected Resource kind (sum or indices) at character 2: "sum()"
-  expected one of the following 2 variants:
-    expected Index resource at character 2: "sum()"
-      expected "indices" at character 2: "sum()"
+expected Resource kind (sum, range or list) at character 2: "sum()"
+  expected one of the following 3 variants:
+    expected List resource at character 2: "sum()"
+      expected "list" at character 2: "sum()"
+    or
+    expected Range resource at character 2: "sum()"
+      expected "range" at character 2: "sum()"
     or
     expected Sum resource at character 2: "sum()"
     expected integer at character 6: ")""#,
@@ -275,10 +343,13 @@ expected Resource kind (sum or indices) at character 2: "sum()"
             p_resource_definition,
             "x=sum(x)",
             r#"Parse error
-expected Resource kind (sum or indices) at character 2: "sum(x)"
-  expected one of the following 2 variants:
-    expected Index resource at character 2: "sum(x)"
-      expected "indices" at character 2: "sum(x)"
+expected Resource kind (sum, range or list) at character 2: "sum(x)"
+  expected one of the following 3 variants:
+    expected List resource at character 2: "sum(x)"
+      expected "list" at character 2: "sum(x)"
+    or
+    expected Range resource at character 2: "sum(x)"
+      expected "range" at character 2: "sum(x)"
     or
     expected Sum resource at character 2: "sum(x)"
     expected integer at character 6: "x)""#,

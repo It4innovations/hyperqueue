@@ -43,7 +43,6 @@ use colored::Colorize;
 use std::collections::BTreeSet;
 use std::fs::File;
 use tako::gateway::{LostWorkerReason, ResourceRequest};
-use tako::resources::GenericResourceKindSum;
 use tako::Map;
 
 pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
@@ -1129,9 +1128,7 @@ fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String 
 
     let special_format = |descriptor: &GenericResourceDescriptor| -> Option<String> {
         if descriptor.name == MEM_RESOURCE_NAME {
-            if let GenericResourceDescriptorKind::Sum(GenericResourceKindSum { size }) =
-                descriptor.kind
-            {
+            if let GenericResourceDescriptorKind::Sum { size } = descriptor.kind {
                 return Some(human_size(size));
             }
         }
@@ -1151,7 +1148,7 @@ fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String 
             result.push_str(&format!(
                 "; {} {}",
                 &descriptor.name,
-                special_format(descriptor).unwrap_or_else(|| descriptor.kind.size().to_string())
+                special_format(descriptor).unwrap_or_else(|| descriptor.kind.to_string())
             ));
         }
     }
@@ -1193,14 +1190,14 @@ mod tests {
         assert_eq!(resources_summary(&d, true), "5x2 1x6 cpus");
 
         let generic = vec![
-            GenericResourceDescriptor::indices("Aaa", 0, 9),
-            GenericResourceDescriptor::indices("Ccc", 1, 132),
+            GenericResourceDescriptor::range("Aaa", 0, 9),
+            GenericResourceDescriptor::range("Ccc", 1, 132),
             GenericResourceDescriptor::sum("Bbb", 100_000_000),
         ];
         let d = ResourceDescriptor::new(vec![vec![0, 1].to_ids()], generic);
         assert_eq!(
             resources_summary(&d, true),
-            "1x2 cpus\nAaa: Indices(0-9)\nBbb: Sum(100000000)\nCcc: Indices(1-132)"
+            "1x2 cpus\nAaa: Range(0-9)\nBbb: Sum(100000000)\nCcc: Range(1-132)"
         );
     }
 

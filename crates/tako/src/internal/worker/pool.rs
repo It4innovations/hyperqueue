@@ -94,12 +94,17 @@ impl ResourcePool {
                 .expect("Internal error, resource name not received")
                 .as_num() as usize;
             generic_resources[idx] = match &descriptor.kind {
-                GenericResourceDescriptorKind::Indices(idx) => GenericResourcePool::Indices(
-                    (idx.start.as_num()..=idx.end.as_num())
-                        .map(|id| id.into())
-                        .collect(),
-                ),
-                GenericResourceDescriptorKind::Sum(v) => GenericResourcePool::Sum(v.size),
+                GenericResourceDescriptorKind::List { values } => {
+                    GenericResourcePool::Indices(values.clone())
+                }
+                GenericResourceDescriptorKind::Range { start, end } => {
+                    GenericResourcePool::Indices(
+                        (start.as_num()..=end.as_num())
+                            .map(|id| id.into())
+                            .collect(),
+                    )
+                }
+                GenericResourceDescriptorKind::Sum { size } => GenericResourcePool::Sum(*size),
             }
         }
 
@@ -604,10 +609,10 @@ mod tests {
     fn test_pool_generic_resources() {
         let cpus = cpu_descriptor_from_socket_size(1, 4);
         let generic = vec![
-            GenericResourceDescriptor::indices("Res0", 5, 100),
+            GenericResourceDescriptor::range("Res0", 5, 100),
             GenericResourceDescriptor::sum("Res1", 100_000_000),
-            GenericResourceDescriptor::indices("Res2", 0, 1),
-            GenericResourceDescriptor::indices("Res3", 0, 1),
+            GenericResourceDescriptor::range("Res2", 0, 1),
+            GenericResourceDescriptor::range("Res3", 0, 1),
         ];
         let descriptor = ResourceDescriptor::new(cpus, generic);
 
