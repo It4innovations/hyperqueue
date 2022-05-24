@@ -47,7 +47,12 @@ static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 struct CommonOpts {
     /// Path to a directory that stores HyperQueue access files
     #[clap(long, value_hint = ValueHint::DirPath)]
-    #[clap(global = true, help_heading("GLOBAL OPTIONS"), hide_short_help(true))]
+    #[clap(
+        global = true,
+        env = "HQ_SERVER_DIR",
+        help_heading("GLOBAL OPTIONS"),
+        hide_short_help(true)
+    )]
     server_dir: Option<PathBuf>,
 
     /// Console color policy.
