@@ -1,3 +1,10 @@
+# Dev
+
+## New features
+
+### CLI
+* You can now specify the server directory using the `HQ_SERVER_DIR` environment variable.
+
 # v0.10.0
 
 ## New features
