@@ -446,16 +446,20 @@ fn format_generic_resource(resource: &GenericResourceDescriptor) -> serde_json::
     json!({
         "name": resource.name,
         "kind": match &resource.kind {
-            GenericResourceDescriptorKind::Indices(_) => "indices",
-            GenericResourceDescriptorKind::Sum(_) => "sum",
+            GenericResourceDescriptorKind::List { .. } => "list",
+            GenericResourceDescriptorKind::Range { .. } => "range",
+            GenericResourceDescriptorKind::Sum { .. } => "sum",
         },
         "params": match &resource.kind {
-            GenericResourceDescriptorKind::Indices(params) => json!({
-                "start": params.start,
-                "end": params.end
+            GenericResourceDescriptorKind::List { values } => json!({
+                "values": values,
             }),
-            GenericResourceDescriptorKind::Sum(params) => json!({
-                "size": params.size
+            GenericResourceDescriptorKind::Range { start, end } => json!({
+                "start": start,
+                "end": end
+            }),
+            GenericResourceDescriptorKind::Sum { size } => json!({
+                "size": size
             }),
         }
     })

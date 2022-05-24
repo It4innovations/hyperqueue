@@ -49,7 +49,7 @@ pub fn detect_generic_resources() -> anyhow::Result<Vec<GenericResourceDescripto
     if let Ok(count) = read_linux_gpu_count() {
         if count > 0 {
             log::debug!("Gpus detected: {}", count);
-            generic.push(GenericResourceDescriptor::indices(
+            generic.push(GenericResourceDescriptor::range(
                 GPU_RESOURCE_NAME,
                 0,
                 count as u32 - 1,

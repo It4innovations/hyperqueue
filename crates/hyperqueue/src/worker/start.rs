@@ -245,7 +245,7 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
                     .insert("CUDA_DEVICE_ORDER".into(), "PCI_BUS_ID".into());
             }
             program.env.insert(
-                format!("HQ_RESOURCE_INDICES_{}", resource_name).into(),
+                format!("HQ_RESOURCE_VALUES_{}", resource_name).into(),
                 indices.into(),
             );
         }

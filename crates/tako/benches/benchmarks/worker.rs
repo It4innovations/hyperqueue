@@ -5,7 +5,6 @@ use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 use tako::internal::messages::worker::ComputeTaskMsg;
 use tako::internal::worker::rqueue::ResourceWaitQueue;
 use tako::launcher::{LaunchContext, StopReason, TaskLaunchData, TaskLauncher, TaskResult};
-use tako::resources::GenericResourceKindIndices;
 use tako::resources::ResourceMap;
 use tako::resources::{
     CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, GenericResourceRequest,
@@ -162,10 +161,10 @@ fn create_resource_queue(num_cpus: u32) -> ResourceWaitQueue {
             cpus: vec![(0..num_cpus).collect::<Vec<_>>().to_ids()],
             generic: vec![GenericResourceDescriptor {
                 name: "GPU".to_string(),
-                kind: GenericResourceDescriptorKind::Indices(GenericResourceKindIndices {
+                kind: GenericResourceDescriptorKind::Range {
                     start: 0.into(),
                     end: 8.into(),
-                }),
+                },
             }],
         },
         &ResourceMap::from_vec(vec!["GPU".to_string()]),

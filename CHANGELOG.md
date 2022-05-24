@@ -3,7 +3,35 @@
 ## New features
 
 ### CLI
-* You can now specify the server directory using the `HQ_SERVER_DIR` environment variable.
+* [#423](https://github.com/It4innovations/hyperqueue/pull/423) You can now specify the server
+directory using the `HQ_SERVER_DIR` environment variable.
+### Resource management
+* [#427](https://github.com/It4innovations/hyperqueue/pull/427) A new specifier has been added to
+  specify **indexed pool** resources for workers as a set of individual resource indices.
+    ```bash
+    $ hq worker start --resource "gpus=list(1,3,8)"
+    ```
+
+## Changes
+
+### Resource management
+* [#427](https://github.com/It4innovations/hyperqueue/pull/427) (**Backwards incompatible change**)
+The environment variable `HQ_RESOURCE_INDICES_<resource-name>`, which is passed to tasks with
+[resource requests](https://it4innovations.github.io/hyperqueue/stable/jobs/gresources/#resource-request),
+has been renamed to `HQ_RESOURCE_VALUES_<resource-name>`.
+* [#427](https://github.com/It4innovations/hyperqueue/pull/427) (**Backwards incompatible change**)
+  The specifier for specifying **indexed pool** resources for workers as a range has been renamed from
+  `indices` to `range`.
+
+    ```bash
+    # before
+    $ hq worker start --resource "gpus=indices(1-3)"
+    # now
+    $ hq worker start --resource "gpus=range(1-3)"
+    ```
+* [#427](https://github.com/It4innovations/hyperqueue/pull/427) The
+[generic resource](https://it4innovations.github.io/hyperqueue/stable/jobs/gresources/)
+documentation has been rewritten and improved.
 
 # v0.10.0
 
