@@ -5,12 +5,15 @@
 ### CLI
 * [#423](https://github.com/It4innovations/hyperqueue/pull/423) You can now specify the server
 directory using the `HQ_SERVER_DIR` environment variable.
+
 ### Resource management
 * [#427](https://github.com/It4innovations/hyperqueue/pull/427) A new specifier has been added to
   specify **indexed pool** resources for workers as a set of individual resource indices.
     ```bash
     $ hq worker start --resource "gpus=list(1,3,8)"
     ```
+* [#428](https://github.com/It4innovations/hyperqueue/pull/427) Workers will now attempt to automatically
+detect available GPU resources from the `CUDA_VISIBLE_DEVICES` environment variable.
 
 ## Changes
 

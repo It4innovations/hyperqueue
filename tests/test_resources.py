@@ -20,13 +20,13 @@ def test_worker_resources_display(hq_env: HqEnv):
     )
     table = hq_env.command(["worker", "list"], as_table=True)
     assert table.get_column_value("Resources") == [
-        "1x4 cpus; fairy Sum(10001000); potato Range(1-12); shark List(1,3,5,2)"
+        "1x4 cpus; fairy Sum(10001000); potato Range(1-12); shark List(1,2,3,5)"
     ]
 
     table = hq_env.command(["worker", "info", "1"], as_table=True)
     assert (
         table.get_row_value("Resources")
-        == "1x4 cpus\nfairy: Sum(10001000)\npotato: Range(1-12)\nshark: List(1,3,5,2)"
+        == "1x4 cpus\nfairy: Sum(10001000)\npotato: Range(1-12)\nshark: List(1,2,3,5)"
     )
 
 
@@ -133,8 +133,16 @@ def test_worker_resource_hwdetect_mem(hq_env: HqEnv):
     hq_env.start_server()
     resources = hq_env.command(["worker", "hwdetect"])
 
-    assert "mem" in resources
+    assert "mem:" in resources
     for resource in resources.splitlines():
-        if "mem" in resource:
+        if "mem:" in resource:
             value = resource.split("mem: ")[1]
-            assert value != "" and value != "Sum(0)"
+            assert value != ""
+
+
+def test_worker_detect_gpus_from_env(hq_env: HqEnv):
+    hq_env.start_server()
+    resources = hq_env.command(
+        ["worker", "hwdetect"], env={"CUDA_VISIBLE_DEVICES": "1,3"}
+    )
+    assert "gpus: List(1,3)" in resources

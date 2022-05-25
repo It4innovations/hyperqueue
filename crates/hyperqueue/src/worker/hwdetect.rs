@@ -1,14 +1,15 @@
 use crate::common::parser::{consume_all, p_u32, NomResult};
 
-use tako::resources::{CpuId, CpusDescriptor, GenericResourceDescriptor, NumOfCpus};
-
+use crate::common::format::human_size;
 use nom::character::complete::{newline, space0};
 use nom::combinator::{map_res, opt};
 use nom::multi::separated_list1;
 use nom::sequence::{preceded, terminated, tuple};
 use nom::Parser;
 use nom_supreme::tag::complete::tag;
+use tako::format_comma_delimited;
 use tako::resources::cpu_descriptor_from_socket_size;
+use tako::resources::{CpuId, CpusDescriptor, GenericResourceDescriptor, NumOfCpus};
 
 pub const GPU_RESOURCE_NAME: &str = "gpus";
 pub const MEM_RESOURCE_NAME: &str = "mem";
@@ -46,9 +47,12 @@ pub fn detect_cpus_no_ht() -> anyhow::Result<CpusDescriptor> {
 
 pub fn detect_generic_resources() -> anyhow::Result<Vec<GenericResourceDescriptor>> {
     let mut generic = Vec::new();
-    if let Ok(count) = read_linux_gpu_count() {
+
+    if let Some(gpus) = detect_gpus_from_env() {
+        generic.push(gpus);
+    } else if let Ok(count) = read_linux_gpu_count() {
         if count > 0 {
-            log::debug!("Gpus detected: {}", count);
+            log::info!("Detected {} GPUs from procs", count);
             generic.push(GenericResourceDescriptor::range(
                 GPU_RESOURCE_NAME,
                 0,
@@ -58,10 +62,35 @@ pub fn detect_generic_resources() -> anyhow::Result<Vec<GenericResourceDescripto
     }
 
     if let Ok(mem) = read_linux_memory() {
-        log::debug!("Mem detected: {}", mem);
+        log::info!("Detected {mem}B of memory ({})", human_size(mem));
         generic.push(GenericResourceDescriptor::sum(MEM_RESOURCE_NAME, mem));
     }
     Ok(generic)
+}
+
+/// Tries to detect available Nvidia GPUs from the `CUDA_VISIBLE_DEVICES` environment variable.
+fn detect_gpus_from_env() -> Option<GenericResourceDescriptor> {
+    if let Ok(devices_str) = std::env::var("CUDA_VISIBLE_DEVICES") {
+        if let Ok(mut devices) = parse_comma_separated_numbers(&devices_str) {
+            log::info!(
+                "Detected GPUs {} from `CUDA_VISIBLE_DEVICES`",
+                format_comma_delimited(&devices)
+            );
+
+            let count = devices.len();
+            devices.sort_unstable();
+            devices.dedup();
+
+            if count != devices.len() {
+                log::warn!("CUDA_VISIBLE_DEVICES contains duplicates ({})", devices_str);
+            }
+
+            let list = GenericResourceDescriptor::list(GPU_RESOURCE_NAME, devices)
+                .expect("List values were not unique");
+            return Some(list);
+        }
+    }
+    None
 }
 
 /// Try to find out how many Nvidia GPUs are available on the current node.
@@ -121,6 +150,10 @@ fn p_cpu_ranges(input: &str) -> NomResult<Vec<CpuId>> {
 fn parse_range(input: &str) -> anyhow::Result<Vec<CpuId>> {
     let parser = terminated(p_cpu_ranges, opt(newline));
     consume_all(parser, input)
+}
+
+fn parse_comma_separated_numbers(input: &str) -> anyhow::Result<Vec<u32>> {
+    consume_all(separated_list1(tag(","), p_u32), input)
 }
 
 #[cfg(test)]
