@@ -2,6 +2,7 @@ use crate::internal::common::resources::CpuId;
 use crate::internal::common::resources::{
     GenericResourceAmount, GenericResourceId, GenericResourceIndex,
 };
+use crate::internal::common::utils::format_comma_delimited;
 use smallvec::SmallVec;
 
 #[derive(Debug)]
@@ -22,13 +23,9 @@ impl GenericResourceAllocationValue {
 
     pub fn to_comma_delimited_list(&self) -> Option<String> {
         match self {
-            GenericResourceAllocationValue::Indices(indices) => Some(
-                indices
-                    .iter()
-                    .map(|x| x.to_string())
-                    .collect::<Vec<_>>()
-                    .join(","),
-            ),
+            GenericResourceAllocationValue::Indices(indices) => {
+                Some(format_comma_delimited(indices))
+            }
             GenericResourceAllocationValue::Sum(_) => None,
         }
     }
@@ -64,10 +61,6 @@ impl ResourceAllocation {
     }
 
     pub fn comma_delimited_cpu_ids(&self) -> String {
-        self.cpus
-            .iter()
-            .map(|x| x.to_string())
-            .collect::<Vec<_>>()
-            .join(",")
+        format_comma_delimited(&self.cpus)
     }
 }

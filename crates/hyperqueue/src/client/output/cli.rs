@@ -43,7 +43,7 @@ use colored::Colorize;
 use std::collections::BTreeSet;
 use std::fs::File;
 use tako::gateway::{LostWorkerReason, ResourceRequest};
-use tako::Map;
+use tako::{format_comma_delimited, Map};
 
 pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
 pub const TASK_COLOR_FAILED: Colorization = Colorization::Red;
@@ -991,12 +991,12 @@ pub fn format_job_workers(tasks: &[JobTaskInfo], worker_map: &WorkerMap) -> Stri
         .collect();
     let worker_count = worker_set.len();
 
-    let mut result = worker_set
-        .into_iter()
-        .take(MAX_DISPLAYED_WORKERS)
-        .map(|id| format_worker(*id, worker_map))
-        .collect::<Vec<_>>()
-        .join(", ");
+    let mut result = format_comma_delimited(
+        worker_set
+            .into_iter()
+            .take(MAX_DISPLAYED_WORKERS)
+            .map(|id| format_worker(*id, worker_map)),
+    );
 
     if worker_count > MAX_DISPLAYED_WORKERS {
         write!(result, ", … ({} total)", worker_count).unwrap();

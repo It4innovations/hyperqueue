@@ -2,7 +2,7 @@ use crate::arg_wrapper;
 use crate::common::parser::{consume_all, p_u32, p_u64, NomResult};
 use nom::branch::alt;
 use nom::character::complete::{alphanumeric1, char, multispace0, space0};
-use nom::combinator::{map, opt};
+use nom::combinator::{map, map_res, opt};
 use nom::multi::separated_list1;
 use nom::sequence::{delimited, preceded, separated_pair, tuple};
 use nom::Parser;
@@ -65,14 +65,14 @@ arg_wrapper!(
 );
 
 fn p_kind_list(input: &str) -> NomResult<GenericResourceDescriptorKind> {
-    map(
+    map_res(
         delimited(
             tuple((tag("list"), multispace0, char('('), multispace0)),
             separated_list1(tag(","), p_u32).context("At least a single index has to be provided"),
             tuple((multispace0, char(')'), multispace0)),
         ),
-        |values| GenericResourceDescriptorKind::List {
-            values: values.into_iter().map(|idx| idx.into()).collect(),
+        |values| {
+            GenericResourceDescriptorKind::list(values.into_iter().map(|idx| idx.into()).collect())
         },
     )(input)
 }
@@ -218,6 +218,25 @@ mod test {
             }
             _ => panic!(),
         }
+    }
+
+    #[test]
+    fn test_parse_resource_def_list_non_unique() {
+        check_parse_error(
+            p_resource_definition,
+            "mem=list(1,2,1)",
+            r#"Parse error
+expected Resource kind (sum, range or list) at character 4: "list(1,2,1)"
+  expected one of the following 3 variants:
+    expected List resource at character 4: "list(1,2,1)"
+      "Items in a list-based generic resource have to be unique" at character 4: "list(1,2,1)"
+    or
+    expected Range resource at character 4: "list(1,2,1)"
+      expected "range" at character 4: "list(1,2,1)"
+    or
+    expected Sum resource at character 4: "list(1,2,1)"
+      expected "sum" at character 4: "list(1,2,1)""#,
+        );
     }
 
     #[test]

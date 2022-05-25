@@ -241,6 +241,7 @@ class HqEnv(Env):
         stdin=None,
         log=False,
         ignore_stderr=False,
+        env=None,
     ):
         if isinstance(args, str):
             args = [args]
@@ -252,11 +253,13 @@ class HqEnv(Env):
 
         args = [get_hq_binary(self.debug), "--server-dir", self.server_dir] + args
         cwd = cwd or self.work_path
-        env = self.make_default_env(log=log)
+        environment = self.make_default_env(log=log)
+        if env is not None:
+            environment.update(env)
         stderr = subprocess.DEVNULL if ignore_stderr else subprocess.STDOUT
 
         if not wait:
-            return subprocess.Popen(args, stderr=stderr, cwd=cwd, env=env)
+            return subprocess.Popen(args, stderr=stderr, cwd=cwd, env=environment)
 
         else:
             process = subprocess.Popen(
@@ -264,7 +267,7 @@ class HqEnv(Env):
                 stdout=subprocess.PIPE,
                 stderr=stderr,
                 cwd=cwd,
-                env=env,
+                env=environment,
                 stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
             )
             stdout = process.communicate(stdin)[0].decode()

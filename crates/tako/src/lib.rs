@@ -15,6 +15,7 @@ pub mod program;
 
 pub use crate::internal::common::index::{AsIdVec, ItemId};
 pub use crate::internal::common::taskgroup::TaskGroup;
+pub use crate::internal::common::utils::format_comma_delimited;
 pub use crate::internal::common::WrappedRcRefCell;
 pub use crate::internal::common::{Map, Set};
 

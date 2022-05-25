@@ -72,7 +72,12 @@ size.
 ### Automatically detected resources
 
 * Nvidia GPUs that are available when a worker is started are automatically detected under the resource
-name `gpus`.
+name `gpus`. You can use the environment variable `CUDA_VISIBLE_DEVICES` when starting a worker to
+override the list of available GPUs:
+
+```bash
+$ CUDA_VISIBLE_DEVICES=2,3 hq worker start
+```
 
 ## Resource request
 

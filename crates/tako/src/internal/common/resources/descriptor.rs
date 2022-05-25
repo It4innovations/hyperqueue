@@ -1,9 +1,19 @@
 use crate::internal::common::resources::{
     CpuId, GenericResourceAmount, GenericResourceIndex, NumOfCpus,
 };
+use crate::internal::common::utils::format_comma_delimited;
 use crate::internal::common::Set;
 use serde::{Deserialize, Serialize};
 
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum DescriptorError {
+    #[error("Items in a list-based generic resource have to be unique")]
+    GenericResourceListItemsNotUnique,
+}
+
+// Do now construct these directly, use the appropriate constructors
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum GenericResourceDescriptorKind {
     List {
@@ -20,6 +30,18 @@ pub enum GenericResourceDescriptorKind {
 }
 
 impl GenericResourceDescriptorKind {
+    pub fn list(mut values: Vec<GenericResourceIndex>) -> Result<Self, DescriptorError> {
+        let count = values.len();
+        values.sort_unstable();
+        values.dedup();
+
+        if values.len() < count {
+            Err(DescriptorError::GenericResourceListItemsNotUnique)
+        } else {
+            Ok(GenericResourceDescriptorKind::List { values })
+        }
+    }
+
     pub fn size(&self) -> GenericResourceAmount {
         match self {
             GenericResourceDescriptorKind::List { values } => values.len() as GenericResourceAmount,
@@ -36,15 +58,7 @@ impl std::fmt::Display for GenericResourceDescriptorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             GenericResourceDescriptorKind::List { values } => {
-                write!(
-                    f,
-                    "List({})",
-                    values
-                        .iter()
-                        .map(|idx| idx.to_string())
-                        .collect::<Vec<_>>()
-                        .join(",")
-                )
+                write!(f, "List({})", format_comma_delimited(values))
             }
             GenericResourceDescriptorKind::Range { start, end } => {
                 write!(f, "Range({start}-{end})")
@@ -61,6 +75,17 @@ pub struct GenericResourceDescriptor {
 }
 
 impl GenericResourceDescriptor {
+    pub fn list<Index: Into<GenericResourceIndex>>(
+        name: &str,
+        values: Vec<Index>,
+    ) -> Result<Self, DescriptorError> {
+        Ok(GenericResourceDescriptor {
+            name: name.to_string(),
+            kind: GenericResourceDescriptorKind::list(
+                values.into_iter().map(|idx| idx.into()).collect(),
+            )?,
+        })
+    }
     pub fn range<Index: Into<GenericResourceIndex>>(name: &str, start: Index, end: Index) -> Self {
         GenericResourceDescriptor {
             name: name.to_string(),
@@ -114,20 +139,11 @@ impl ResourceDescriptor {
     }
 
     pub fn full_describe(&self) -> String {
-        self.cpus
-            .iter()
-            .map(|socket| {
-                format!(
-                    "[{}]",
-                    socket
-                        .iter()
-                        .map(|x| x.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(", ")
+        format_comma_delimited(
+            self.cpus
+                .iter()
+                .map(|socket| format!("[{}]", format_comma_delimited(socket))),
+        )
     }
 
     pub fn validate(&self) -> crate::Result<()> {
@@ -174,6 +190,6 @@ mod tests {
             vec![vec![0, 1, 2, 4].to_ids(), vec![10, 11, 12, 14].to_ids()],
             Vec::new(),
         );
-        assert_eq!(&d.full_describe(), "[0, 1, 2, 4], [10, 11, 12, 14]");
+        assert_eq!(&d.full_describe(), "[0,1,2,4],[10,11,12,14]");
     }
 }

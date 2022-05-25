@@ -4,6 +4,7 @@ use crate::internal::common::resources::descriptor::cpu_descriptor_from_socket_s
 use crate::internal::common::resources::{
     GenericResourceDescriptor, NumOfCpus, ResourceDescriptor,
 };
+use crate::internal::common::utils::format_comma_delimited;
 use crate::internal::common::Map;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{ToWorkerMessage, WorkerOverview};
@@ -200,16 +201,11 @@ impl TestEnv {
                 "Worker {} ({}) {}",
                 worker.id,
                 worker.sn_load.get_n_cpus(),
-                worker
-                    .sn_tasks()
-                    .iter()
-                    .map(|&task_id| format!(
-                        "{}:{:?}",
-                        task_id,
-                        self.core.get_task(task_id).configuration.resources
-                    ))
-                    .collect::<Vec<String>>()
-                    .join(", ")
+                format_comma_delimited(worker.sn_tasks().iter().map(|&task_id| format!(
+                    "{}:{:?}",
+                    task_id,
+                    self.core.get_task(task_id).configuration.resources
+                )))
             );
         }
     }
