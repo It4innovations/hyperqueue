@@ -23,7 +23,7 @@ def test_submit_mn(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "RUNNING")
 
-    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1"], as_table=True)
     ws = table.get_column_value("Worker")[0].split("\n")
     assert len(ws) == 3
     assert set(ws).issubset(["worker1", "worker2", "worker3", "worker4"])
@@ -52,7 +52,7 @@ def test_failed_mn_task(hq_env: HqEnv):
     hq_env.command(["submit", "--nodes=3", "--", "bash", "-c", "exit 1"])
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1"], as_table=True)
     ws = table.get_column_value("Worker")[0].split("\n")
     assert len(ws) == 3
     assert set(ws).issubset(["worker1", "worker2", "worker3"])
@@ -85,7 +85,7 @@ def test_worker_lost_mn_task(hq_env: HqEnv, root: bool):
     hq_env.command(["submit", "--nodes=3", "--", "bash", "-c", "sleep 2"])
     wait_for_job_state(hq_env, 1, "RUNNING")
 
-    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1"], as_table=True)
     ws = table.get_column_value("Worker")[0].split("\n")
     worker_ids = [int(w[len("worker") :]) for w in ws]
     hq_env.kill_worker(worker_ids[0 if root else 1])

@@ -18,6 +18,10 @@ detect available GPU resources from the `CUDA_VISIBLE_DEVICES` environment varia
 ## Changes
 
 ### CLI
+* [#433](https://github.com/It4innovations/hyperqueue/pull/433) (**Backwards incompatible change**)
+  The CLI command `hq job tasks` has been removed and its functionality has been incorporated into the
+  `hq task list` command instead.
+  [resource requests](https://it4innovations.github.io/hyperqueue/stable/jobs/gresources/#resource-request),
 * [#420](https://github.com/It4innovations/hyperqueue/pull/420) Shebang (e.g. `#!/bin/bash`) will
   now be read from submitted program based on the provided
   [directives mode](https://it4innovations.github.io/hyperqueue/stable/jobs/directives/). If a shebang
@@ -216,7 +220,7 @@ find more information in the [documentation](https://it4innovations.github.io/hy
   | `hq submit`         | `hq submit` or `hq job submit` |
 
 * The `--tasks` flag of the `hq job info <job-id>` command has been removed. If you want to display the
-individual tasks of a job, please use the new `hq job tasks <job-id>` command.
+individual tasks of a job, please use the `hq task list <job-id>` command.
 
 * The command line parsing of `hq submit` has been changed slightly. All flags and arguments that appear
   after the first positional argument will now be considered to belong to the executed program, not to

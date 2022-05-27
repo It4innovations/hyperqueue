@@ -110,7 +110,7 @@ def test_job_array_error_some(hq_env: HqEnv):
         == "Error: Program terminated with exit code 1"
     )
 
-    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1"], as_table=True)
     for i, state in enumerate(
         [
             "FINISHED",
@@ -149,7 +149,7 @@ def test_job_array_error_all(hq_env: HqEnv):
     states = table.get_row_value("State").split("\n")
     assert "FAILED (10)" in states
 
-    task_table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    task_table = hq_env.command(["task", "list", "1"], as_table=True)
     for i in range(10):
         assert task_table.get_column_value("Task ID")[i] == str(i)
         assert task_table.get_column_value("State")[i] == "FAILED"
@@ -169,7 +169,7 @@ def test_job_array_cancel(hq_env: HqEnv):
     assert "FINISHED (4)" in states
     assert "CANCELED (6)" in states
 
-    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1"], as_table=True)
     task_states = table.get_column_value("State")
     c = collections.Counter(task_states)
     assert c.get("FINISHED") == 4
@@ -189,7 +189,7 @@ def test_array_reporting_state_after_worker_lost(hq_env: HqEnv):
     table = hq_env.command(["job", "info", "1"], as_table=True)
     assert "WAITING (4)" in table.get_row_value("State").split("\n")
 
-    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1"], as_table=True)
     task_states = table.get_column_value("State")
     c = collections.Counter(task_states)
     assert c.get("WAITING") == 4
@@ -199,7 +199,7 @@ def test_array_reporting_state_after_worker_lost(hq_env: HqEnv):
     table = hq_env.command(["job", "info", "1"], as_table=True)
     assert "FINISHED (4)" in table.get_row_value("State").split("\n")
 
-    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1"], as_table=True)
     task_states = table.get_column_value("State")
     c = collections.Counter(task_states)
     assert c.get("FINISHED") == 4
@@ -232,7 +232,7 @@ def test_array_times(hq_env: HqEnv):
         1.2
     )  # This sleep is not redundant, we check that after finished time is not moving
 
-    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1"], as_table=True)
     for i in range(3):
         cell = parse_multiline_cell(table.get_column_value("Times")[i])
         start = datetime.datetime.strptime(cell["Start"], "%d.%m.%Y %H:%M:%S")

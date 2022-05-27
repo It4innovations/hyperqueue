@@ -349,16 +349,10 @@ Here is a list of useful job commands:
 $ hq job info <job-selector>
 ```
 
-### Display information about individual tasks of a specific job
+### Display information about individual tasks (potentially across multiple jobs)
 
 ```bash
-$ hq job tasks <job-id>
-```
-
-### Display information about individual tasks across multiple jobs
-
-```bash
-$ hq tasks <job-selector>
+$ hq task list <job-selector> [--task-status <status>] [--tasks <task-selector>]
 ```
 
 ### Display job `stdout`/`stderr`

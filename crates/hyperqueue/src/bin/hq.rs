@@ -8,8 +8,8 @@ use cli_table::ColorChoice;
 use hyperqueue::client::commands::autoalloc::{command_autoalloc, AutoAllocOpts};
 use hyperqueue::client::commands::event::{command_event_log, EventLogOpts};
 use hyperqueue::client::commands::job::{
-    cancel_job, output_job_cat, output_job_detail, output_job_list, output_job_tasks,
-    JobCancelOpts, JobCatOpts, JobInfoOpts, JobListOpts, JobTasksOpts,
+    cancel_job, output_job_cat, output_job_detail, output_job_list, JobCancelOpts, JobCatOpts,
+    JobInfoOpts, JobListOpts,
 };
 use hyperqueue::client::commands::log::{command_log, LogOpts};
 use hyperqueue::client::commands::server::{command_server, ServerOpts};
@@ -28,7 +28,8 @@ use hyperqueue::client::output::json::JsonOutput;
 use hyperqueue::client::output::outputs::{Output, Outputs};
 use hyperqueue::client::output::quiet::Quiet;
 use hyperqueue::client::status::Status;
-use hyperqueue::common::cli::{get_id_selector, get_task_selector, IdSelectorArg, TaskSelectorArg};
+use hyperqueue::client::task::{output_job_tasks, TaskCommand, TaskListOpts, TaskOpts};
+use hyperqueue::common::cli::{get_id_selector, get_task_selector, IdSelectorArg};
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
 use hyperqueue::dashboard::ui_loop::start_ui_loop;
@@ -193,8 +194,6 @@ enum JobCommand {
     List(JobListOpts),
     /// Display detailed information of the selected job
     Info(JobInfoOpts),
-    /// Display individual tasks of the selected job
-    Tasks(JobTasksOpts),
     /// Cancel a specific job
     Cancel(JobCancelOpts),
     /// Shows task(s) streams(stdout, stderr) of a specific job
@@ -219,31 +218,6 @@ pub struct JobWaitOpts {
 pub struct JobProgressOpts {
     /// Select job(s) to observe
     selector_arg: IdSelectorArg,
-}
-
-// Task CLI options
-
-#[derive(Parser)]
-pub struct TaskOpts {
-    #[clap(subcommand)]
-    subcmd: TaskCommand,
-}
-
-#[derive(Parser)]
-enum TaskCommand {
-    /// Displays task(s) associated with selected job(s)
-    List(TaskListOpts),
-}
-
-#[derive(Parser)]
-struct TaskListOpts {
-    /// Job id(s) selector
-    pub job_ids: IdSelectorArg,
-
-    /// Filter task(s) by status.
-    /// You can use multiple states separated by a comma.
-    #[clap(long, multiple_occurrences(false), use_value_delimiter(true), arg_enum)]
-    pub task_status: Vec<Status>,
 }
 
 #[derive(Parser)]
@@ -286,17 +260,6 @@ async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> an
 
     let mut connection = get_client_connection(gsettings.server_directory()).await?;
     output_job_detail(gsettings, &mut connection, opts.selector_arg.into()).await
-}
-
-async fn command_job_tasks(gsettings: &GlobalSettings, opts: JobTasksOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    output_job_tasks(
-        gsettings,
-        &mut connection,
-        get_id_selector(opts.job_selector),
-        get_task_selector(Some(opts.task_selector)),
-    )
-    .await
 }
 
 async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow::Result<()> {
@@ -352,11 +315,8 @@ async fn command_task_list(gsettings: &GlobalSettings, opts: TaskListOpts) -> an
     output_job_tasks(
         gsettings,
         &mut connection,
-        opts.job_ids.into(),
-        get_task_selector(Some(TaskSelectorArg {
-            tasks: None,
-            task_status: opts.task_status,
-        })),
+        get_id_selector(opts.job_selector),
+        get_task_selector(Some(opts.task_selector)),
     )
     .await
 }
@@ -536,9 +496,6 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Info(opts),
         }) => command_job_detail(&gsettings, opts).await,
-        SubCommand::Job(JobOpts {
-            subcmd: JobCommand::Tasks(opts),
-        }) => command_job_tasks(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Cat(opts),
         }) => command_job_cat(&gsettings, opts).await,

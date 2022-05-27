@@ -32,7 +32,7 @@ def test_dep_failed(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, submitted_job.id, "FAILED")
 
-    table = hq_env.command(["job", "tasks", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1"], as_table=True)
     assert table.get_row_value("0") == "FAILED"
     assert table.get_row_value("1") == "CANCELED"
     assert table.get_row_value("2") == "CANCELED"

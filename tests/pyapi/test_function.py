@@ -73,7 +73,7 @@ def test_function_resources(hq_env: HqEnv):
     submitted_job = client.submit(job)
     time.sleep(2.0)
 
-    table = hq_env.command(["job", "tasks", str(submitted_job.id)], as_table=True)
+    table = hq_env.command(["task", "list", str(submitted_job.id)], as_table=True)
     assert table.get_column_value("State") == ["FINISHED", "WAITING", "FINISHED"]
 
 
