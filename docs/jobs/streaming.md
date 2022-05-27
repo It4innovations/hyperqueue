@@ -134,3 +134,13 @@ output on some channel). You can change that with the flag `--show-empty`.
 !!! note
 
     Superseded streams are completely ignored by the `show` subcommand.
+
+### Exporting log
+
+Log can be exported into JSON by the following command:
+
+```commandline
+$ hq log <log-file-path> export
+```
+
+This prints the log file into a JSON format on standard output.

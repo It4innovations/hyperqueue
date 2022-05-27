@@ -62,6 +62,16 @@ def test_stream_submit(hq_env: HqEnv):
     assert result[0] == "Hello from 3"
     assert result[1] == "Hello from 4"
     assert result[2] == "Hello from 2"
+
+    result = hq_env.command(["log", "mylog", "export", "--task=3-4,2"], as_json=True)
+    assert result == [
+        {"finished": True, "id": 3, "stdout": "Hello from 3\n"},
+        {"finished": True, "id": 4, "stdout": "Hello from 4\n"},
+        {"finished": True, "id": 2, "stdout": "Hello from 2\n"},
+    ]
+
+    print(result)
+
     check_no_stream_connections(hq_env)
 
 
