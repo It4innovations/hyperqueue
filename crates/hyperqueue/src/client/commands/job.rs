@@ -32,15 +32,6 @@ pub struct JobInfoOpts {
 }
 
 #[derive(Parser)]
-pub struct JobTasksOpts {
-    /// Select specific job
-    pub job_selector: JobSelectorArg,
-
-    #[clap(flatten)]
-    pub task_selector: TaskSelectorArg,
-}
-
-#[derive(Parser)]
 pub struct JobCancelOpts {
     /// Select job(s) to cancel
     pub selector_arg: IdSelectorArg,
@@ -134,36 +125,6 @@ pub async fn output_job_detail(
             log::error!("Job {} not found", response.0);
         }
     }
-    Ok(())
-}
-
-pub async fn output_job_tasks(
-    gsettings: &GlobalSettings,
-    connection: &mut ClientConnection,
-    job_id_selector: IdSelector,
-    task_selector: Option<TaskSelector>,
-) -> anyhow::Result<()> {
-    let message = FromClientMessage::JobDetail(JobDetailRequest {
-        job_id_selector,
-        task_selector,
-    });
-    let responses =
-        rpc_call!(connection, message, ToClientMessage::JobDetailResponse(r) => r).await?;
-
-    let jobs = responses
-        .into_iter()
-        .filter_map(|(job_id, opt_job)| match opt_job {
-            Some(job) => Some((job_id, job)),
-            None => {
-                log::warn!("Job {job_id} not found");
-                None
-            }
-        })
-        .collect();
-
-    gsettings
-        .printer()
-        .print_tasks(jobs, get_worker_map(connection).await?);
     Ok(())
 }
 

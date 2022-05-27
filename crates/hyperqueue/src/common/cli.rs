@@ -67,7 +67,7 @@ fn get_task_status_selector(status_selector_arg: Vec<Status>) -> TaskStatusSelec
 
 pub enum JobSelectorArg {
     Last,
-    Id(u32),
+    Id(IntArray),
 }
 
 impl FromStr for JobSelectorArg {
@@ -76,7 +76,7 @@ impl FromStr for JobSelectorArg {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "last" => Ok(JobSelectorArg::Last),
-            _ => Ok(JobSelectorArg::Id(u32::from_str(s)?)),
+            _ => Ok(JobSelectorArg::Id(IntArray::from_str(s)?)),
         }
     }
 }
@@ -84,6 +84,6 @@ impl FromStr for JobSelectorArg {
 pub fn get_id_selector(job_selector_arg: JobSelectorArg) -> IdSelector {
     match job_selector_arg {
         JobSelectorArg::Last => IdSelector::LastN(1),
-        JobSelectorArg::Id(id) => IdSelector::Specific(IntArray::from_id(id)),
+        JobSelectorArg::Id(ids) => IdSelector::Specific(ids),
     }
 }

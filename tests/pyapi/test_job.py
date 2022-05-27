@@ -42,7 +42,7 @@ def test_submit_cwd(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
 
-    table = hq_env.command(["job", "tasks", str(submitted_job.id)], as_table=True)
+    table = hq_env.command(["task", "list", str(submitted_job.id)], as_table=True)
     cell = table.get_column_value("Paths")[0]
     assert parse_multiline_cell(cell)["Workdir"] == str(cwd)
 
@@ -121,5 +121,5 @@ def test_job_resources(hq_env: HqEnv):
     submitted_job = client.submit(job)
     time.sleep(1.0)
 
-    table = hq_env.command(["job", "tasks", str(submitted_job.id)], as_table=True)
+    table = hq_env.command(["task", "list", str(submitted_job.id)], as_table=True)
     assert table.get_column_value("State") == ["FINISHED", "WAITING", "FINISHED"]

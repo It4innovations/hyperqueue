@@ -8,6 +8,7 @@ pub mod output;
 pub mod resources;
 pub mod server;
 pub mod status;
+pub mod task;
 pub mod utils;
 
 pub fn default_server_directory_path() -> PathBuf {
