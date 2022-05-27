@@ -1,4 +1,5 @@
 import contextlib
+import json
 import os
 import signal
 import subprocess
@@ -235,6 +236,7 @@ class HqEnv(Env):
         args,
         as_table=False,
         as_lines=False,
+        as_json=False,
         cwd=None,
         wait=True,
         expect_fail=None,
@@ -289,6 +291,8 @@ class HqEnv(Env):
                 return parse_table(stdout)
             if as_lines:
                 return stdout.rstrip().split("\n")
+            if as_json:
+                return json.loads(stdout)
             return stdout
 
     def final_check(self):

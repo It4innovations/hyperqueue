@@ -44,6 +44,13 @@ pub struct CatOpts {
 }
 
 #[derive(Parser)]
+pub struct ExportOpts {
+    /// Export only the specified task(s) output. You can use the array syntax to specify multiple tasks.
+    #[clap(long)]
+    pub task: Option<IntArray>,
+}
+
+#[derive(Parser)]
 pub enum LogCommand {
     /// Prints summary of log file
     Summary(SummaryOpts),
@@ -53,6 +60,9 @@ pub enum LogCommand {
 
     /// Prints a raw content of one channel
     Cat(CatOpts),
+
+    /// Export log into JSON
+    Export(ExportOpts),
 }
 
 #[derive(clap::ArgEnum, Clone)]
@@ -74,6 +84,9 @@ pub fn command_log(gsettings: &GlobalSettings, opts: LogOpts) -> anyhow::Result<
         }
         LogCommand::Cat(cat_opts) => {
             log_file.cat(&cat_opts)?;
+        }
+        LogCommand::Export(export_opts) => {
+            log_file.export(&export_opts)?;
         }
     }
 

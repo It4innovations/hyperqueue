@@ -1,5 +1,4 @@
 import datetime
-import json
 import os
 import socket
 from typing import List
@@ -13,7 +12,7 @@ from ..utils.job import default_task_output
 
 
 def parse_json_output(hq_env: HqEnv, command: List[str]):
-    return json.loads(hq_env.command(command, ignore_stderr=True))
+    return hq_env.command(command, ignore_stderr=True, as_json=True)
 
 
 def test_print_worker_list(hq_env: HqEnv):

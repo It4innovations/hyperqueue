@@ -15,6 +15,9 @@ directory using the `HQ_SERVER_DIR` environment variable.
 * [#428](https://github.com/It4innovations/hyperqueue/pull/427) Workers will now attempt to automatically
 detect available GPU resources from the `CUDA_VISIBLE_DEVICES` environment variable.
 
+### Stream log
+* Basic export of stream log into JSON (``hq log <log_file> export`)
+
 ## Changes
 
 ### CLI

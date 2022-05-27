@@ -1,9 +1,11 @@
-use crate::client::commands::log::{CatOpts, Channel, ShowOpts};
+use crate::client::commands::log::{CatOpts, Channel, ExportOpts, ShowOpts};
+use crate::common::arraydef::IntArray;
 use crate::transfer::stream::ChannelId;
 use crate::{JobTaskCount, JobTaskId, Map, Set};
 use byteorder::ReadBytesExt;
 use colored::{Color, Colorize};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use smallvec::SmallVec;
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -33,10 +35,20 @@ pub struct TaskInfo {
     instances: SmallVec<[InstanceInfo; 1]>,
 }
 
+impl InstanceInfo {
+    fn channel_size(&self, channel_id: ChannelId) -> u64 {
+        self.channels[channel_id as usize]
+            .iter()
+            .map(|x| x.size as u64)
+            .sum()
+    }
+}
+
 impl TaskInfo {
     pub fn last_instance(&self) -> &InstanceInfo {
         self.instances.last().unwrap()
     }
+
     pub fn superseded(&self) -> impl Iterator<Item = &InstanceInfo> {
         self.instances[0..self.instances.len() - 1].iter()
     }
@@ -78,6 +90,7 @@ pub struct LogFile {
     file: BufReader<File>,
     index: BTreeMap<JobTaskId, TaskInfo>,
     start_pos: u64,
+    current_pos: u64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -116,10 +129,12 @@ impl LogFile {
         LogFile::check_header(&mut file)?;
         let start_pos = file.stream_position()?;
         let index = LogFile::make_index(&mut file)?;
+        file.seek(SeekFrom::Start(start_pos))?;
         Ok(LogFile {
             file,
             index,
             start_pos,
+            current_pos: start_pos,
         })
     }
 
@@ -158,14 +173,12 @@ impl LogFile {
 
         for task_info in self.index.values() {
             let info = task_info.last_instance();
-            stdout_size += info.channels[0].iter().map(|c| c.size as u64).sum::<u64>();
-            stderr_size += info.channels[1].iter().map(|c| c.size as u64).sum::<u64>();
+            stdout_size += info.channel_size(0);
+            stderr_size += info.channel_size(1);
 
             for info in task_info.superseded() {
-                superseded_stdout_size +=
-                    info.channels[0].iter().map(|c| c.size as u64).sum::<u64>();
-                superseded_stderr_size +=
-                    info.channels[1].iter().map(|c| c.size as u64).sum::<u64>();
+                superseded_stdout_size += info.channel_size(0);
+                superseded_stderr_size += info.channel_size(1);
             }
         }
 
@@ -181,38 +194,15 @@ impl LogFile {
         }
     }
 
-    pub fn cat(&mut self, opts: &CatOpts) -> anyhow::Result<()> {
-        self.file.seek(SeekFrom::Start(self.start_pos))?;
-        let selected_channel_id = match opts.channel {
-            Channel::Stdout => 0,
-            Channel::Stderr => 1,
-        };
-        let mut buffer = Vec::new();
-        let mut last_pos: i64 = self.start_pos as i64;
-        let stdout = std::io::stdout();
-        let mut stdout_buf = BufWriter::new(stdout.lock());
-
-        let mut print_instance =
-            |file: &mut BufReader<File>, instance: &InstanceInfo| -> anyhow::Result<()> {
-                for chunk in &instance.channels[selected_channel_id] {
-                    // We are using seek_relative which makes things slightly
-                    // more complicated, but it does drop caches if it is not necessary
-                    // in comparison to self.file.seek
-                    let diff = chunk.position as i64 - last_pos;
-                    file.seek_relative(diff)?;
-                    buffer.resize(chunk.size as usize, 0u8);
-                    file.read_exact(&mut buffer)?;
-                    stdout_buf.write_all(&buffer)?;
-                    last_pos = chunk.position as i64 + chunk.size as i64;
-                }
-                Ok(())
-            };
-
-        let task_infos = match opts.task {
+    fn _gather_infos<'a>(
+        index: &'a BTreeMap<JobTaskId, TaskInfo>,
+        tasks: &Option<IntArray>,
+    ) -> anyhow::Result<Vec<(JobTaskId, &'a InstanceInfo)>> {
+        Ok(match tasks {
             Some(ref array) => {
                 let mut infos = Vec::new();
                 for task_id in array.iter() {
-                    if let Some(task_info) = self.index.get(&JobTaskId::new(task_id)) {
+                    if let Some(task_info) = index.get(&JobTaskId::new(task_id)) {
                         infos.push((JobTaskId::new(task_id), task_info.last_instance()));
                     } else {
                         anyhow::bail!("Task {} not found", task_id);
@@ -220,12 +210,85 @@ impl LogFile {
                 }
                 infos
             }
-            None => self
-                .index
+            None => index
                 .iter()
                 .map(|(&task_id, task_info)| (task_id, task_info.last_instance()))
                 .collect(),
+        })
+    }
+
+    fn read_buffer(
+        file: &mut BufReader<File>,
+        current_pos: &mut u64,
+        position: u64,
+        buffer: &mut [u8],
+    ) -> anyhow::Result<()> {
+        // We are using seek_relative which makes things slightly
+        // more complicated, but it does not drop caches if it is not necessary
+        // in comparison to file.seek
+        let diff = position as i64 - *current_pos as i64;
+        file.seek_relative(diff)?;
+        file.read_exact(buffer)?;
+        *current_pos = position + buffer.len() as u64;
+        Ok(())
+    }
+
+    pub fn export(&mut self, opts: &ExportOpts) -> anyhow::Result<()> {
+        let task_infos = Self::_gather_infos(&self.index, &opts.task)?;
+        let mut result = Vec::new();
+        let mut buffer = Vec::new();
+        for (task_id, instance) in &task_infos {
+            buffer.resize(instance.channel_size(0) as usize, 0u8);
+            let mut buf_pos = 0;
+            for chunk in &instance.channels[0] {
+                let size = chunk.size as usize;
+                Self::read_buffer(
+                    &mut self.file,
+                    &mut self.current_pos,
+                    chunk.position,
+                    &mut buffer[buf_pos..buf_pos + size],
+                )?;
+                buf_pos += size;
+            }
+            debug_assert!(buf_pos == buffer.len());
+            result.push(json!({
+                "id": task_id,
+                "finished": instance.finished,
+                "stdout": String::from_utf8_lossy(&buffer),
+            }));
+        }
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::Value::Array(result))
+                .expect("Could not format JSON")
+        );
+        Ok(())
+    }
+
+    pub fn cat(&mut self, opts: &CatOpts) -> anyhow::Result<()> {
+        let selected_channel_id = match opts.channel {
+            Channel::Stdout => 0,
+            Channel::Stderr => 1,
         };
+        let mut buffer = Vec::new();
+        let stdout = std::io::stdout();
+        let mut stdout_buf = BufWriter::new(stdout.lock());
+
+        let mut print_instance = |instance: &InstanceInfo| -> anyhow::Result<()> {
+            for chunk in &instance.channels[selected_channel_id] {
+                buffer.resize(chunk.size as usize, 0u8);
+                Self::read_buffer(
+                    &mut self.file,
+                    &mut self.current_pos,
+                    chunk.position,
+                    &mut buffer,
+                )?;
+                stdout_buf.write_all(&buffer)?;
+            }
+            Ok(())
+        };
+
+        let task_infos = Self::_gather_infos(&self.index, &opts.task)?;
 
         if !opts.allow_unfinished {
             for (task_id, instance) in &task_infos {
@@ -236,7 +299,7 @@ impl LogFile {
         }
 
         for (_, instance) in &task_infos {
-            print_instance(&mut self.file, instance)?;
+            print_instance(instance)?;
         }
 
         Ok(())
