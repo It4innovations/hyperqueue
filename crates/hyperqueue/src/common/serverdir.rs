@@ -144,6 +144,10 @@ pub struct AccessRecord {
     /// Version of HQ
     version: String,
 
+    /// UID of the server instance
+    #[serde(default)]
+    server_uid: String,
+
     /// Hostname or IP address of the HyperQueue server
     host: String,
 
@@ -170,6 +174,7 @@ pub struct AccessRecord {
 impl AccessRecord {
     pub fn new(
         host: String,
+        server_uid: String,
         server_port: u16,
         worker_port: u16,
         hq_secret_key: Arc<SecretKey>,
@@ -178,6 +183,7 @@ impl AccessRecord {
         Self {
             version: env!("CARGO_PKG_VERSION").to_string(),
             host,
+            server_uid,
             server_port,
             worker_port,
             start_date: Utc::now(),
@@ -194,6 +200,9 @@ impl AccessRecord {
     }
     pub fn pid(&self) -> u32 {
         self.pid
+    }
+    pub fn server_uid(&self) -> &str {
+        &self.server_uid
     }
     pub fn server_port(&self) -> u16 {
         self.server_port

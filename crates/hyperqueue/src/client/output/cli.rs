@@ -349,6 +349,7 @@ impl Output for CliOutput {
                 "Server directory".cell().bold(true),
                 server_dir.display().cell(),
             ],
+            vec!["UID".cell().bold(true), record.server_uid().cell()],
             vec!["Host".cell().bold(true), record.host().cell()],
             vec!["Pid".cell().bold(true), record.pid().cell()],
             vec!["HQ port".cell().bold(true), record.server_port().cell()],
