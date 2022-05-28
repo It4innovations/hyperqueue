@@ -41,7 +41,6 @@ pub struct Core {
     idle_timeout: Option<Duration>,
 
     secret_key: Option<Arc<SecretKey>>,
-
     custom_conn_handler: Option<CustomConnectionHandler>,
 }
 

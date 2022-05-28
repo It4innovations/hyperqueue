@@ -19,6 +19,8 @@ use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
 use crate::transfer::connection::{ClientConnection, HqConnection};
+use rand::distributions::Alphanumeric;
+use rand::Rng;
 use std::time::Duration;
 
 enum ServerStatus {
@@ -103,6 +105,14 @@ async fn get_server_status(server_directory: &Path) -> crate::Result<ServerStatu
     Ok(ServerStatus::Online(record))
 }
 
+fn generate_server_uid() -> String {
+    rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(6)
+        .map(char::from)
+        .collect()
+}
+
 pub async fn initialize_server(
     gsettings: &GlobalSettings,
     server_cfg: ServerConfig,
@@ -119,9 +129,10 @@ pub async fn initialize_server(
 
     let hq_secret_key = Arc::new(generate_key());
     let tako_secret_key = Arc::new(generate_key());
+    let server_uid = generate_server_uid();
 
     let (event_storage, event_stream_fut) = prepare_event_management(&server_cfg).await?;
-    let state_ref = StateRef::new(event_storage);
+    let state_ref = StateRef::new(event_storage, server_uid.clone());
     let (autoalloc_service, autoalloc_process) = create_autoalloc_service(state_ref.clone());
     // TODO: remove this hack
     state_ref.get_mut().autoalloc_service = Some(autoalloc_service);
@@ -136,6 +147,7 @@ pub async fn initialize_server(
 
     let record = AccessRecord::new(
         server_cfg.host,
+        server_uid,
         server_port,
         tako_server.worker_port(),
         hq_secret_key.clone(),

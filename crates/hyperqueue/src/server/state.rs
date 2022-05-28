@@ -40,6 +40,8 @@ pub struct State {
 
     pub(crate) autoalloc_service: Option<AutoAllocService>,
     event_storage: EventStorage,
+
+    uid: String,
 }
 
 define_wrapped_type!(StateRef, State, pub);
@@ -285,7 +287,7 @@ impl State {
 }
 
 impl StateRef {
-    pub fn new(event_storage: EventStorage) -> StateRef {
+    pub fn new(event_storage: EventStorage, uid: String) -> StateRef {
         Self(WrappedRcRefCell::wrap(State {
             jobs: Default::default(),
             workers: Default::default(),
@@ -294,6 +296,7 @@ impl StateRef {
             task_id_counter: 1,
             autoalloc_service: None,
             event_storage,
+            uid,
         }))
     }
 }

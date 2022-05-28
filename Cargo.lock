@@ -810,6 +810,7 @@ dependencies = [
  "num_cpus",
  "orion",
  "psutil",
+ "rand 0.8.5",
  "rmp-serde",
  "rmpv",
  "serde",

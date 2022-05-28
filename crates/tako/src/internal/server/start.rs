@@ -68,6 +68,7 @@ pub async fn server_start(
         client_sender,
         panic_on_worker_lost,
     );
+
     let core_ref = CoreRef::new(listener_port, secret_key, idle_timeout, custom_conn_handler);
     let connections = crate::internal::server::rpc::connection_initiator(
         listener,

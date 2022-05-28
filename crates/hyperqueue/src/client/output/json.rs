@@ -52,6 +52,7 @@ impl Output for JsonOutput {
     fn print_server_record(&self, server_dir: &Path, record: &AccessRecord) {
         let json = json!({
             "server_dir": server_dir,
+            "server_uid": record.server_uid(),
             "host": record.host(),
             "pid": record.pid(),
             "hq_port": record.server_port(),
