@@ -82,8 +82,11 @@ def test_server_info(hq_env: HqEnv):
     table.check_row_value("Server directory", hq_env.server_dir)
     table.check_row_value("Host", socket.gethostname())
     table.check_row_value("Pid", str(process.pid))
+    server_uid = table.get_row_value("Server UID")
+    assert len(server_uid) == 6
+    assert server_uid.isalnum()
 
-    assert len(table) == 7
+    assert len(table) == 8
 
 
 def test_server_stop(hq_env: HqEnv):

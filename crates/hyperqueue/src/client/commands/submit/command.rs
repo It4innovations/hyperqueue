@@ -25,7 +25,7 @@ use crate::common::placeholders::{
 use crate::common::utils::fs::get_current_dir;
 use crate::common::utils::str::pluralize;
 use crate::common::utils::time::ArgDuration;
-use crate::transfer::connection::ClientConnection;
+use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDescription, PinMode, ResubmitRequest, SubmitRequest,
     TaskDescription, ToClientMessage,
@@ -403,7 +403,7 @@ fn handle_directives(
 
 pub async fn submit_computation(
     gsettings: &GlobalSettings,
-    connection: &mut ClientConnection,
+    session: &mut ClientSession,
     opts: JobSubmitOpts,
 ) -> anyhow::Result<()> {
     let stdin = if opts.stdin {
@@ -522,19 +522,20 @@ pub async fn submit_computation(
         log,
     });
 
-    let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
+    let response =
+        rpc_call!(session.connection(), message, ToClientMessage::SubmitResponse(r) => r).await?;
     let info = response.job.info.clone();
 
     gsettings.printer().print_job_submitted(response.job);
     if wait {
         wait_for_jobs(
             gsettings,
-            connection,
+            session,
             IdSelector::Specific(IntArray::from_id(info.id.into())),
         )
         .await?;
     } else if progress {
-        wait_for_jobs_with_progress(connection, vec![info]).await?;
+        wait_for_jobs_with_progress(session, vec![info]).await?;
     }
     Ok(())
 }
@@ -694,17 +695,20 @@ pub struct JobResubmitOpts {
 
 pub async fn resubmit_computation(
     gsettings: &GlobalSettings,
-    connection: &mut ClientConnection,
+    session: &mut ClientSession,
     opts: JobResubmitOpts,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::Resubmit(ResubmitRequest {
         job_id: opts.job_id.into(),
         filter: opts.filter,
     });
-    let response = rpc_call!(connection, message, ToClientMessage::SubmitResponse(r) => r).await?;
-    gsettings
-        .printer()
-        .print_job_detail(response.job, get_worker_map(connection).await?);
+    let response =
+        rpc_call!(session.connection(), message, ToClientMessage::SubmitResponse(r) => r).await?;
+    gsettings.printer().print_job_detail(
+        response.job,
+        get_worker_map(session).await?,
+        session.server_uid(),
+    );
     Ok(())
 }
 

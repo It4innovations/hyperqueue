@@ -11,7 +11,7 @@ use crate::dashboard::data::alloc_timeline::{
 use crate::dashboard::data::job_timeline::{DashboardJobInfo, JobTimeline, TaskInfo};
 use crate::server::autoalloc::{AllocationId, QueueId};
 use crate::server::event::MonitoringEvent;
-use crate::transfer::connection::ClientConnection;
+use crate::transfer::connection::{ClientConnection, ClientSession};
 use crate::transfer::messages::{AllocationQueueParams, FromClientMessage, ToClientMessage};
 use crate::{rpc_call, JobId, JobTaskId, WorkerId};
 
@@ -136,12 +136,12 @@ impl DashboardData {
 pub async fn create_data_fetch_process(
     refresh_interval: Duration,
     data: WrappedRcRefCell<DashboardData>,
-    mut connection: ClientConnection,
+    mut session: ClientSession,
 ) -> anyhow::Result<()> {
     let mut tick_duration = tokio::time::interval(refresh_interval);
     loop {
         let fetched_until = data.get().last_fetched_id();
-        let events = fetch_events_after(&mut connection, fetched_until).await?;
+        let events = fetch_events_after(session.connection(), fetched_until).await?;
         data.get_mut().update_data(events);
         tick_duration.tick().await;
     }

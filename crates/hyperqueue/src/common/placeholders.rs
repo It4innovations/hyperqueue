@@ -13,13 +13,15 @@ use tako::program::{ProgramDefinition, StdioDef};
 use crate::common::parser::NomResult;
 use crate::{JobId, JobTaskId, Map};
 
+pub const SERVER_UID_PLACEHOLDER: &str = "SERVER_UID";
 pub const TASK_ID_PLACEHOLDER: &str = "TASK_ID";
 pub const JOB_ID_PLACEHOLDER: &str = "JOB_ID";
 pub const INSTANCE_ID_PLACEHOLDER: &str = "INSTANCE_ID";
 pub const CWD_PLACEHOLDER: &str = "CWD";
 pub const SUBMIT_DIR_PLACEHOLDER: &str = "SUBMIT_DIR";
 
-const KNOWN_PLACEHOLDERS: [&str; 5] = [
+const KNOWN_PLACEHOLDERS: [&str; 6] = [
+    SERVER_UID_PLACEHOLDER,
     TASK_ID_PLACEHOLDER,
     JOB_ID_PLACEHOLDER,
     INSTANCE_ID_PLACEHOLDER,
@@ -34,6 +36,7 @@ pub struct CompletePlaceholderCtx<'a> {
     pub task_id: JobTaskId,
     pub instance_id: InstanceId,
     pub submit_dir: &'a Path,
+    pub server_uid: &'a str,
 }
 
 pub struct ResolvablePaths<'a> {
@@ -62,6 +65,7 @@ pub fn fill_placeholders_in_paths(paths: ResolvablePaths, ctx: CompletePlacehold
         SUBMIT_DIR_PLACEHOLDER,
         ctx.submit_dir.to_str().unwrap().into(),
     );
+    placeholders.insert(SERVER_UID_PLACEHOLDER, ctx.server_uid.to_string().into());
 
     resolve_program_paths(placeholders, paths, ctx.submit_dir, true);
 }
@@ -71,9 +75,10 @@ pub fn fill_placeholders_after_submit(
     program: &mut ProgramDefinition,
     job_id: JobId,
     submit_dir: &Path,
+    server_uid: &str,
 ) {
     let mut placeholders = PlaceholderMap::new();
-    insert_submit_data(&mut placeholders, job_id, submit_dir);
+    insert_submit_data(&mut placeholders, job_id, submit_dir, server_uid);
     resolve_program_paths(
         placeholders,
         ResolvablePaths::from_program_def(program),
@@ -82,9 +87,14 @@ pub fn fill_placeholders_after_submit(
     );
 }
 
-pub fn fill_placeholders_log(value: &mut PathBuf, job_id: JobId, submit_dir: &Path) {
+pub fn fill_placeholders_log(
+    value: &mut PathBuf,
+    job_id: JobId,
+    submit_dir: &Path,
+    server_uid: &str,
+) {
     let mut placeholders = PlaceholderMap::new();
-    insert_submit_data(&mut placeholders, job_id, submit_dir);
+    insert_submit_data(&mut placeholders, job_id, submit_dir, server_uid);
     *value = resolve(&placeholders, value.to_str().unwrap())
         .into_owned()
         .into();
@@ -103,9 +113,15 @@ pub fn get_unknown_placeholders(input: &str) -> Vec<&str> {
     unknown
 }
 
-fn insert_submit_data<'a>(map: &mut PlaceholderMap<'a>, job_id: JobId, submit_dir: &'a Path) {
+fn insert_submit_data<'a>(
+    map: &mut PlaceholderMap<'a>,
+    job_id: JobId,
+    submit_dir: &'a Path,
+    server_id: &'a str,
+) {
     map.insert(JOB_ID_PLACEHOLDER, job_id.to_string().into());
     map.insert(SUBMIT_DIR_PLACEHOLDER, submit_dir.to_str().unwrap().into());
+    map.insert(SERVER_UID_PLACEHOLDER, server_id.into());
 }
 
 fn resolve_program_paths<'a>(
@@ -304,15 +320,15 @@ mod tests {
     #[test]
     fn test_replace_after_submit() {
         let mut program = program_def(
-            "%{SUBMIT_DIR}/%{JOB_ID}-%{TASK_ID}",
+            "%{SUBMIT_DIR}/%{SERVER_UID}/%{JOB_ID}-%{TASK_ID}",
             Some("%{CWD}.out"),
             Some("%{CWD}.err"),
             "/foo",
             99,
             99,
         );
-        fill_placeholders_after_submit(&mut program, 5.into(), &PathBuf::from("/foo"));
-        assert_eq!(program.cwd, PathBuf::from("/foo/5-%{TASK_ID}"));
+        fill_placeholders_after_submit(&mut program, 5.into(), &PathBuf::from("/foo/"), "testHQ");
+        assert_eq!(program.cwd, PathBuf::from("/foo/testHQ/5-%{TASK_ID}"));
         assert_eq!(program.stdout, StdioDef::File("%{CWD}.out".into()));
         assert_eq!(program.stderr, StdioDef::File("%{CWD}.err".into()));
     }
@@ -320,15 +336,15 @@ mod tests {
     #[test]
     fn test_replace_paths() {
         let submit_dir = PathBuf::from("/foo");
-        let ctx = ctx(5, 10, 6, &submit_dir);
+        let ctx = ctx(5, 10, 6, &submit_dir, "testHQ");
         let mut paths = paths(
-            "%{TASK_ID}-%{INSTANCE_ID}",
+            "%{SERVER_UID}-%{TASK_ID}-%{INSTANCE_ID}",
             "%{JOB_ID}/stdout",
             "%{JOB_ID}/stderr",
         );
 
         fill_placeholders_in_paths(ResolvablePaths::from_paths(&mut paths), ctx);
-        assert_eq!(paths.cwd, PathBuf::from("/foo/10-6"));
+        assert_eq!(paths.cwd, PathBuf::from("/foo/testHQ-10-6"));
         assert_eq!(paths.stdout, StdioDef::File("/foo/5/stdout".into()));
         assert_eq!(paths.stderr, StdioDef::File("/foo/5/stderr".into()));
     }
@@ -336,7 +352,7 @@ mod tests {
     #[test]
     fn test_fill_cwd_into_output_paths() {
         let submit_dir = PathBuf::from("/foo");
-        let ctx = ctx(1, 2, 3, &submit_dir);
+        let ctx = ctx(1, 2, 3, &submit_dir, "testHQ");
         let mut paths = paths(
             "bar/%{JOB_ID}",
             "%{CWD}/%{TASK_ID}.out",
@@ -373,17 +389,19 @@ mod tests {
         }
     }
 
-    fn ctx(
+    fn ctx<'a>(
         job_id: u32,
         task_id: u32,
         instance_id: u32,
-        submit_dir: &Path,
-    ) -> CompletePlaceholderCtx {
+        submit_dir: &'a Path,
+        server_uid: &'a str,
+    ) -> CompletePlaceholderCtx<'a> {
         CompletePlaceholderCtx {
             job_id: job_id.into(),
             task_id: task_id.into(),
             instance_id: instance_id.into(),
             submit_dir,
+            server_uid,
         }
     }
 

@@ -6,6 +6,7 @@ import pytest
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
+from .utils.io import check_file_contents
 from .utils.job import default_task_output
 from .utils.table import Table, parse_multiline_cell
 
@@ -94,6 +95,44 @@ def test_stream_submit_placeholder(hq_env: HqEnv):
     lines = set(hq_env.command(["log", "log-1", "show"], as_lines=True))
     assert "0:0> Hello" in lines
     assert "0: > stream closed" in lines
+
+
+def test_server_uid_placeholder(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_workers(1)
+
+    server_info = hq_env.command(["server", "--output-mode=json", "info"], as_json=True)
+    server_uid = server_info["server_uid"]
+
+    hq_env.command(
+        [
+            "submit",
+            "--stdout",
+            "out-%{SERVER_UID}-%{JOB_ID}",
+            "--",
+            "bash",
+            "-c",
+            "echo Hello",
+        ]
+    )
+    hq_env.command(
+        [
+            "submit",
+            "--log",
+            "log-%{SERVER_UID}-%{JOB_ID}",
+            "--",
+            "bash",
+            "-c",
+            "echo Hello",
+        ]
+    )
+    wait_for_job_state(hq_env, [1, 2], "FINISHED")
+
+    check_file_contents(os.path.join(tmp_path, f"out-{server_uid}-1"), "Hello\n")
+    assert os.path.isfile(os.path.join(tmp_path, f"log-{server_uid}-2"))
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Stdout", f"out-{server_uid}-1")
 
 
 @pytest.mark.parametrize("channel", ("stdout", "stderr"))

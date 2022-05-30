@@ -12,11 +12,11 @@ use crate::dashboard::data::DashboardData;
 use crate::dashboard::events::DashboardEvent;
 use crate::dashboard::ui::screens::root_screen::RootScreen;
 use crate::dashboard::ui::terminal::initialize_terminal;
-use crate::server::bootstrap::get_client_connection;
+use crate::server::bootstrap::get_client_session;
 
 /// Starts the dashboard UI with a keyboard listener and tick provider
 pub async fn start_ui_loop(gsettings: &GlobalSettings) -> anyhow::Result<()> {
-    let connection = get_client_connection(gsettings.server_directory()).await?;
+    let connection = get_client_session(gsettings.server_directory()).await?;
 
     // TODO: When we start the dashboard and connect to the server, the server may have already forgotten
     // some of its events. Therefore we should bootstrap the state with the most recent overview snapshot.

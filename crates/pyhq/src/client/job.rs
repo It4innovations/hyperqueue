@@ -62,9 +62,10 @@ pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: JobDescription) -
         });
 
         let mut ctx = borrow_mut!(py, ctx);
-        let response = rpc_call!(ctx.connection, message, ToClientMessage::SubmitResponse(r) => r)
-            .await
-            .map_py_err()?;
+        let response =
+            rpc_call!(ctx.session.connection(), message, ToClientMessage::SubmitResponse(r) => r)
+                .await
+                .map_py_err()?;
         Ok(response.job.info.id.as_num())
     })
 }
@@ -155,7 +156,7 @@ pub fn wait_for_jobs_impl(
             ));
 
             response = hyperqueue::rpc_call!(
-                ctx.connection,
+                ctx.session.connection(),
                 FromClientMessage::JobInfo(JobInfoRequest {
                     selector,
                 }),
@@ -237,14 +238,14 @@ pub fn get_failed_tasks_impl(
 
         let mut ctx = borrow_mut!(py, ctx);
         let response =
-            rpc_call!(ctx.connection, message, ToClientMessage::JobDetailResponse(r) => r)
+            rpc_call!(ctx.session.connection(), message, ToClientMessage::JobDetailResponse(r) => r)
                 .await
                 .map_py_err()?;
 
         let mut result = HashMap::with_capacity(response.len());
         for (job_id, job_detail) in response {
             if let Some(job_detail) = job_detail {
-                let mut task_path_map = resolve_task_paths(&job_detail);
+                let mut task_path_map = resolve_task_paths(&job_detail, ctx.session.server_uid());
                 let mut tasks = HashMap::with_capacity(job_detail.tasks.len());
                 for task in job_detail.tasks {
                     match task.state {

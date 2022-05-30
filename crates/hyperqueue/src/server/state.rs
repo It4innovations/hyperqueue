@@ -41,7 +41,7 @@ pub struct State {
     pub(crate) autoalloc_service: Option<AutoAllocService>,
     event_storage: EventStorage,
 
-    uid: String,
+    server_uid: String,
 }
 
 define_wrapped_type!(StateRef, State, pub);
@@ -274,6 +274,10 @@ impl State {
         self.autoalloc_service = None;
     }
 
+    pub fn server_uid(&self) -> &str {
+        &self.server_uid
+    }
+
     pub fn event_storage(&self) -> &EventStorage {
         &self.event_storage
     }
@@ -296,7 +300,7 @@ impl StateRef {
             task_id_counter: 1,
             autoalloc_service: None,
             event_storage,
-            uid,
+            server_uid: uid,
         }))
     }
 }

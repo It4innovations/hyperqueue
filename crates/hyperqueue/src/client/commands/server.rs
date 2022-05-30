@@ -4,9 +4,9 @@ use crate::common::utils::network::get_hostname;
 use crate::common::utils::time::ArgDuration;
 use crate::rpc_call;
 use crate::server::bootstrap::{
-    get_client_connection, init_hq_server, print_server_info, ServerConfig,
+    get_client_session, init_hq_server, print_server_info, ServerConfig,
 };
-use crate::transfer::connection::ClientConnection;
+use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{FromClientMessage, StatsResponse, ToClientMessage};
 use clap::Parser;
 use std::path::PathBuf;
@@ -86,8 +86,8 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
 }
 
 async fn stop_server(gsettings: &GlobalSettings, _opts: ServerStopOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    client_stop_server(&mut connection).await?;
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    client_stop_server(session.connection()).await?;
     Ok(())
 }
 
@@ -96,8 +96,8 @@ async fn command_server_info(
     opts: ServerInfoOpts,
 ) -> anyhow::Result<()> {
     if opts.stats {
-        let mut connection = get_client_connection(gsettings.server_directory()).await?;
-        print_server_stats(gsettings, &mut connection).await
+        let mut session = get_client_session(gsettings.server_directory()).await?;
+        print_server_stats(gsettings, &mut session).await
     } else {
         print_server_info(gsettings).await
     }
@@ -105,10 +105,10 @@ async fn command_server_info(
 
 async fn print_server_stats(
     gsettings: &GlobalSettings,
-    connection: &mut ClientConnection,
+    session: &mut ClientSession,
 ) -> anyhow::Result<()> {
     let response: StatsResponse = rpc_call!(
-        connection,
+        session.connection(),
         FromClientMessage::Stats,
         ToClientMessage::StatsResponse(r) => r
     )

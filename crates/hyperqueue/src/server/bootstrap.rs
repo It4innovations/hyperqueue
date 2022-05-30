@@ -18,7 +18,7 @@ use crate::server::event::storage::EventStorage;
 use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
-use crate::transfer::connection::{ClientConnection, HqConnection};
+use crate::transfer::connection::ClientSession;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use std::time::Duration;
@@ -63,7 +63,7 @@ pub async fn init_hq_server(
     }
 }
 
-pub async fn get_client_connection(server_directory: &Path) -> anyhow::Result<ClientConnection> {
+pub async fn get_client_session(server_directory: &Path) -> anyhow::Result<ClientSession> {
     let default_home = default_server_directory();
     let sd = ServerDir::open(server_directory).context("Invalid server directory")?;
     let server_dir_msg = if default_home != server_directory {
@@ -80,7 +80,7 @@ pub async fn get_client_connection(server_directory: &Path) -> anyhow::Result<Cl
         )
     })?;
 
-    let connection = HqConnection::connect_to_server(&access_record)
+    let session = ClientSession::connect_to_server(&access_record)
         .await
         .with_context(|| {
             format!(
@@ -92,13 +92,13 @@ pub async fn get_client_connection(server_directory: &Path) -> anyhow::Result<Cl
             )
         })?;
 
-    Ok(connection)
+    Ok(session)
 }
 
 async fn get_server_status(server_directory: &Path) -> crate::Result<ServerStatus> {
     let record = ServerDir::open(server_directory).and_then(|sd| sd.read_access_record())?;
 
-    if HqConnection::connect_to_server(&record).await.is_err() {
+    if ClientSession::connect_to_server(&record).await.is_err() {
         return Ok(ServerStatus::Offline(record));
     }
 
@@ -268,7 +268,7 @@ mod tests {
 
     use crate::common::serverdir::{store_access_record, AccessRecord, ServerDir, SYMLINK_PATH};
     use crate::server::bootstrap::{
-        get_client_connection, get_server_status, initialize_server, ServerConfig,
+        get_client_session, get_server_status, initialize_server, ServerConfig,
     };
 
     use super::ServerStatus;
@@ -311,8 +311,14 @@ mod tests {
         let tmp_dir = TempDir::new("foo").unwrap();
         let tmp_path = tmp_dir.into_path();
         let server_dir = ServerDir::open(&tmp_path).unwrap();
-        let record =
-            AccessRecord::new("foo".into(), 42, 43, Default::default(), Default::default());
+        let record = AccessRecord::new(
+            "foo".into(),
+            "testHQ".into(),
+            42,
+            43,
+            Default::default(),
+            Default::default(),
+        );
         store_access_record(&record, server_dir.access_filename()).unwrap();
 
         let res = get_server_status(&tmp_path).await.unwrap();
@@ -327,8 +333,14 @@ mod tests {
         std::os::unix::fs::symlink(&actual_dir, tmp_dir.join(SYMLINK_PATH)).unwrap();
 
         let server_dir = ServerDir::open(&actual_dir).unwrap();
-        let record =
-            AccessRecord::new("foo".into(), 42, 43, Default::default(), Default::default());
+        let record = AccessRecord::new(
+            "foo".into(),
+            "testHQ".into(),
+            42,
+            43,
+            Default::default(),
+            Default::default(),
+        );
         store_access_record(&record, server_dir.access_filename()).unwrap();
 
         //let server_dir = ServerDir::open(&tmp_dir).unwrap();
@@ -341,8 +353,8 @@ mod tests {
         let tmp_dir = TempDir::new("foo").unwrap().into_path();
         let (fut, _) = init_test_server(&tmp_dir).await;
         let (set, handle) = run_concurrent(fut, async {
-            let mut connection = get_client_connection(&tmp_dir).await.unwrap();
-            client_stop_server(&mut connection).await.unwrap();
+            let mut session = get_client_session(&tmp_dir).await.unwrap();
+            client_stop_server(session.connection()).await.unwrap();
         })
         .await;
         set.run_until(handle).await.unwrap().unwrap();

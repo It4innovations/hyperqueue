@@ -12,7 +12,7 @@ use crate::client::status::{is_terminated, Status};
 use crate::common::arraydef::IntArray;
 use crate::common::utils::str::pluralize;
 use crate::server::job::JobTaskCounters;
-use crate::transfer::connection::ClientConnection;
+use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDetailRequest, JobInfo, JobInfoRequest, TaskIdSelector,
     TaskSelector, TaskStatusSelector, ToClientMessage, WaitForJobsRequest,
@@ -22,12 +22,12 @@ use colored::Colorize;
 
 pub async fn wait_for_jobs(
     gsettings: &GlobalSettings,
-    connection: &mut ClientConnection,
+    session: &mut ClientSession,
     selector: IdSelector,
 ) -> anyhow::Result<()> {
     let start = SystemTime::now();
     let response = rpc_call!(
-        connection,
+        session.connection(),
         FromClientMessage::WaitForJobs(WaitForJobsRequest {
             selector: selector.clone(),
         }),
@@ -39,7 +39,7 @@ pub async fn wait_for_jobs(
         false => vec![],
         true => {
             rpc_call!(
-                connection,
+                session.connection(),
                 FromClientMessage::JobDetail(JobDetailRequest {
                     job_id_selector: selector,
                     task_selector: Some(TaskSelector {
@@ -58,7 +58,7 @@ pub async fn wait_for_jobs(
         duration,
         &response,
         &detail,
-        get_worker_map(connection).await?,
+        get_worker_map(session).await?,
     );
 
     if response.failed > 0 || response.canceled > 0 {
@@ -71,7 +71,7 @@ pub async fn wait_for_jobs(
 }
 
 pub async fn wait_for_jobs_with_progress(
-    connection: &mut ClientConnection,
+    session: &mut ClientSession,
     mut jobs: Vec<JobInfo>,
 ) -> anyhow::Result<()> {
     jobs.retain(|info| !is_terminated(info));
@@ -97,7 +97,7 @@ pub async fn wait_for_jobs_with_progress(
         loop {
             let ids_ref = &mut remaining_job_ids;
             let response = rpc_call!(
-                connection,
+                session.connection(),
                 FromClientMessage::JobInfo(JobInfoRequest {
                     selector: IdSelector::Specific(IntArray::from_ids(ids_ref.iter().map(|&id| id.into()).collect())),
                 }),

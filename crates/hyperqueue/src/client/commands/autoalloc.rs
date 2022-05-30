@@ -7,8 +7,8 @@ use crate::common::manager::info::ManagerType;
 use crate::common::utils::time::ExtendedArgDuration;
 use crate::rpc_call;
 use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
-use crate::server::bootstrap::get_client_connection;
-use crate::transfer::connection::ClientConnection;
+use crate::server::bootstrap::get_client_session;
+use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     AllocationQueueParams, AutoAllocRequest, AutoAllocResponse, FromClientMessage, ToClientMessage,
 };
@@ -148,23 +148,23 @@ pub async fn command_autoalloc(
     gsettings: &GlobalSettings,
     opts: AutoAllocOpts,
 ) -> anyhow::Result<()> {
-    let connection = get_client_connection(gsettings.server_directory()).await?;
+    let session = get_client_session(gsettings.server_directory()).await?;
 
     match opts.subcmd {
         AutoAllocCommand::List => {
-            print_allocation_queues(gsettings, connection).await?;
+            print_allocation_queues(gsettings, session).await?;
         }
         AutoAllocCommand::Add(opts) => {
-            add_queue(connection, opts).await?;
+            add_queue(session, opts).await?;
         }
         AutoAllocCommand::Info(opts) => {
-            print_allocations(gsettings, connection, opts).await?;
+            print_allocations(gsettings, session, opts).await?;
         }
         AutoAllocCommand::Remove(opts) => {
-            remove_queue(connection, opts.queue_id, opts.force).await?;
+            remove_queue(session, opts.queue_id, opts.force).await?;
         }
         AutoAllocCommand::DryRun(opts) => {
-            dry_run_command(connection, opts).await?;
+            dry_run_command(session, opts).await?;
         }
     }
     Ok(())
@@ -197,7 +197,7 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
     }
 }
 
-async fn dry_run_command(mut connection: ClientConnection, opts: DryRunOpts) -> anyhow::Result<()> {
+async fn dry_run_command(mut session: ClientSession, opts: DryRunOpts) -> anyhow::Result<()> {
     let (manager, parameters) = match opts.subcmd {
         DryRunCommand::Pbs(params) => (ManagerType::Pbs, args_to_params(params)),
         DryRunCommand::Slurm(params) => (ManagerType::Slurm, args_to_params(params)),
@@ -207,7 +207,7 @@ async fn dry_run_command(mut connection: ClientConnection, opts: DryRunOpts) -> 
         parameters,
     });
 
-    rpc_call!(connection, message,
+    rpc_call!(session.connection(), message,
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::DryRunSuccessful) => ()
     )
     .await?;
@@ -219,7 +219,7 @@ wasting resources."
     Ok(())
 }
 
-async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyhow::Result<()> {
+async fn add_queue(mut session: ClientSession, opts: AddQueueOpts) -> anyhow::Result<()> {
     let (manager, parameters, dry_run) = match opts.subcmd {
         AddQueueCommand::Pbs(params) => {
             let no_dry_run = params.no_dry_run;
@@ -237,7 +237,7 @@ async fn add_queue(mut connection: ClientConnection, opts: AddQueueOpts) -> anyh
         dry_run,
     });
 
-    let queue_id = rpc_call!(connection, message,
+    let queue_id = rpc_call!(session.connection(), message,
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreated(id)) => id
     )
     .await?;
@@ -254,13 +254,13 @@ wasting resources."
 }
 
 async fn remove_queue(
-    mut connection: ClientConnection,
+    mut session: ClientSession,
     queue_id: QueueId,
     force: bool,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::RemoveQueue { queue_id, force });
 
-    rpc_call!(connection, message,
+    rpc_call!(session.connection(), message,
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueRemoved(_)) => ()
     )
     .await?;
@@ -271,10 +271,10 @@ async fn remove_queue(
 
 async fn print_allocation_queues(
     gsettings: &GlobalSettings,
-    mut connection: ClientConnection,
+    mut session: ClientSession,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::List);
-    let response = rpc_call!(connection, message,
+    let response = rpc_call!(session.connection(), message,
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::List(r)) => r
     )
     .await?;
@@ -285,13 +285,13 @@ async fn print_allocation_queues(
 
 async fn print_allocations(
     gsettings: &GlobalSettings,
-    mut connection: ClientConnection,
+    mut session: ClientSession,
     opts: AllocationsOpts,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::Info {
         queue_id: opts.queue,
     });
-    let mut allocations = rpc_call!(connection, message,
+    let mut allocations = rpc_call!(session.connection(), message,
         ToClientMessage::AutoAllocResponse(AutoAllocResponse::Info(allocs)) => allocs
     )
     .await?;

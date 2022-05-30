@@ -183,13 +183,16 @@ Placeholders are enclosed in curly braces (`{}`) and prefixed with a percent (`%
 
 You can use the following placeholders:
 
-| Placeholder      | Will be replaced by                         | Available for                    |
-|------------------|---------------------------------------------|----------------------------------|
-| `%{JOB_ID}`      | Job ID                                      | `stdout`, `stderr`, `cwd`, `log` |
-| `%{TASK_ID}`     | Task ID                                     | `stdout`, `stderr`, `cwd`        |
-| `%{INSTANCE_ID}` | [Instance ID](failure.md#task-restart)      | `stdout`, `stderr`, `cwd`        |
-| `%{SUBMIT_DIR}`  | Directory from which the job was submitted. | `stdout`, `stderr`, `cwd`, `log` |
-| `%{CWD}`         | Working directory of the task.              | `stdout`, `stderr`               |
+| Placeholder      | Will be replaced by                           | Available for                    |
+|------------------|-----------------------------------------------|----------------------------------|
+| `%{JOB_ID}`      | Job ID                                        | `stdout`, `stderr`, `cwd`, `log` |
+| `%{TASK_ID}`     | Task ID                                       | `stdout`, `stderr`, `cwd`        |
+| `%{INSTANCE_ID}` | [Instance ID](failure.md#task-restart)        | `stdout`, `stderr`, `cwd`        |
+| `%{SUBMIT_DIR}`  | Directory from which the job was submitted.   | `stdout`, `stderr`, `cwd`, `log` |
+| `%{CWD}`         | Working directory of the task.                | `stdout`, `stderr`               |
+| `%{SERVER_UID}`  | Server unique ID (a string of length 6)[^uid] | `stdout`, `stderr`, `cwd`, `log` |
+
+[^uid] Server generates a random `SERVER_UID` string every time a new server is started (`hq server start`).
 
 ## State
 At any moment in time, each task and job has a specific *state* that represents what is currently happening to it. You

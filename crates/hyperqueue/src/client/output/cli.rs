@@ -349,7 +349,7 @@ impl Output for CliOutput {
                 "Server directory".cell().bold(true),
                 server_dir.display().cell(),
             ],
-            vec!["UID".cell().bold(true), record.server_uid().cell()],
+            vec!["Server UID".cell().bold(true), record.server_uid().cell()],
             vec!["Host".cell().bold(true), record.host().cell()],
             vec!["Pid".cell().bold(true), record.pid().cell()],
             vec!["HQ port".cell().bold(true), record.server_port().cell()],
@@ -431,7 +431,7 @@ impl Output for CliOutput {
         }
     }
 
-    fn print_job_detail(&self, job: JobDetail, worker_map: WorkerMap) {
+    fn print_job_detail(&self, job: JobDetail, worker_map: WorkerMap, _server_uid: &str) {
         let JobDetail {
             info,
             job_desc,
@@ -548,13 +548,18 @@ impl Output for CliOutput {
         print_job_output(tasks, output_stream, task_header, task_paths)
     }
 
-    fn print_tasks(&self, mut jobs: Vec<(JobId, JobDetail)>, worker_map: WorkerMap) {
+    fn print_tasks(
+        &self,
+        mut jobs: Vec<(JobId, JobDetail)>,
+        worker_map: WorkerMap,
+        server_uid: &str,
+    ) {
         jobs.sort_unstable_by_key(|x| x.0);
         let mut rows: Vec<Vec<CellStruct>> = vec![];
         let jobs_len = jobs.len();
 
         for (id, job) in jobs {
-            let task_to_paths = resolve_task_paths(&job);
+            let task_to_paths = resolve_task_paths(&job, server_uid);
 
             let mut tasks = job.tasks;
             tasks.sort_unstable_by_key(|t| t.task_id);

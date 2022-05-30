@@ -2,7 +2,7 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
 use crate::common::cli::{JobSelectorArg, TaskSelectorArg};
 use crate::rpc_call;
-use crate::transfer::connection::ClientConnection;
+use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDetailRequest, TaskSelector, ToClientMessage,
 };
@@ -30,7 +30,7 @@ pub struct TaskListOpts {
 
 pub async fn output_job_tasks(
     gsettings: &GlobalSettings,
-    connection: &mut ClientConnection,
+    session: &mut ClientSession,
     job_id_selector: IdSelector,
     task_selector: Option<TaskSelector>,
 ) -> anyhow::Result<()> {
@@ -39,7 +39,8 @@ pub async fn output_job_tasks(
         task_selector,
     });
     let responses =
-        rpc_call!(connection, message, ToClientMessage::JobDetailResponse(r) => r).await?;
+        rpc_call!(session.connection(), message, ToClientMessage::JobDetailResponse(r) => r)
+            .await?;
 
     let jobs = responses
         .into_iter()
@@ -54,6 +55,6 @@ pub async fn output_job_tasks(
 
     gsettings
         .printer()
-        .print_tasks(jobs, get_worker_map(connection).await?);
+        .print_tasks(jobs, get_worker_map(session).await?, session.server_uid());
     Ok(())
 }
