@@ -75,8 +75,8 @@ impl Output for JsonOutput {
     fn print_job_list(&self, jobs: Vec<JobInfo>, _total_jobs: usize) {
         self.print(jobs.into_iter().map(format_job_info).collect());
     }
-    fn print_job_detail(&self, job: JobDetail, _worker_map: WorkerMap) {
-        let task_paths = resolve_task_paths(&job);
+    fn print_job_detail(&self, job: JobDetail, _worker_map: WorkerMap, server_uid: &str) {
+        let task_paths = resolve_task_paths(&job, server_uid);
 
         let JobDetail {
             info,
@@ -185,10 +185,10 @@ impl Output for JsonOutput {
         anyhow::bail!("JSON output mode doesn't support job output");
     }
 
-    fn print_tasks(&self, jobs: Vec<(JobId, JobDetail)>, _worker_map: WorkerMap) {
+    fn print_tasks(&self, jobs: Vec<(JobId, JobDetail)>, _worker_map: WorkerMap, server_uid: &str) {
         let mut json_obj = json!({});
         for (id, job) in jobs {
-            let map = resolve_task_paths(&job);
+            let map = resolve_task_paths(&job, server_uid);
             json_obj[id.to_string()] = format_tasks(job.tasks, map);
         }
         self.print(json_obj);

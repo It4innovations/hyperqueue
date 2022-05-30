@@ -33,7 +33,7 @@ use hyperqueue::common::cli::{get_id_selector, get_task_selector, IdSelectorArg}
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
 use hyperqueue::dashboard::ui_loop::start_ui_loop;
-use hyperqueue::server::bootstrap::get_client_connection;
+use hyperqueue::server::bootstrap::get_client_session;
 use hyperqueue::transfer::messages::{FromClientMessage, JobInfoRequest, ToClientMessage};
 use hyperqueue::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resources};
 use hyperqueue::WorkerId;
@@ -230,12 +230,12 @@ struct GenerateCompletionOpts {
 // Commands
 
 async fn command_submit(gsettings: &GlobalSettings, opts: JobSubmitOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    submit_computation(gsettings, &mut connection, opts).await
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    submit_computation(gsettings, &mut session, opts).await
 }
 
 async fn command_job_list(gsettings: &GlobalSettings, opts: JobListOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    let mut connection = get_client_session(gsettings.server_directory()).await?;
 
     let filter = if opts.filter.is_empty() {
         if opts.all {
@@ -258,12 +258,12 @@ async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> an
         return Ok(());
     }
 
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    output_job_detail(gsettings, &mut connection, opts.selector_arg.into()).await
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    output_job_detail(gsettings, &mut session, opts.selector_arg.into()).await
 }
 
 async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    let mut connection = get_client_session(gsettings.server_directory()).await?;
     output_job_cat(
         gsettings,
         &mut connection,
@@ -276,7 +276,7 @@ async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow
 }
 
 async fn command_job_cancel(gsettings: &GlobalSettings, opts: JobCancelOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    let mut connection = get_client_session(gsettings.server_directory()).await?;
     cancel_job(gsettings, &mut connection, opts.selector_arg.into()).await
 }
 
@@ -284,12 +284,12 @@ async fn command_job_resubmit(
     gsettings: &GlobalSettings,
     opts: JobResubmitOpts,
 ) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    let mut connection = get_client_session(gsettings.server_directory()).await?;
     resubmit_computation(gsettings, &mut connection, opts).await
 }
 
 async fn command_job_wait(gsettings: &GlobalSettings, opts: JobWaitOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    let mut connection = get_client_session(gsettings.server_directory()).await?;
     wait_for_jobs(gsettings, &mut connection, opts.selector_arg.into()).await
 }
 
@@ -297,24 +297,24 @@ async fn command_job_progress(
     gsettings: &GlobalSettings,
     opts: JobProgressOpts,
 ) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    let mut session = get_client_session(gsettings.server_directory()).await?;
     let selector = opts.selector_arg.into();
     let response = hyperqueue::rpc_call!(
-        connection,
+        session.connection(),
         FromClientMessage::JobInfo(JobInfoRequest {
             selector,
         }),
         ToClientMessage::JobInfoResponse(r) => r
     )
     .await?;
-    wait_for_jobs_with_progress(&mut connection, response.jobs).await
+    wait_for_jobs_with_progress(&mut session, response.jobs).await
 }
 
 async fn command_task_list(gsettings: &GlobalSettings, opts: TaskListOpts) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    let mut session = get_client_session(gsettings.server_directory()).await?;
     output_job_tasks(
         gsettings,
-        &mut connection,
+        &mut session,
         get_id_selector(opts.job_selector),
         get_task_selector(Some(opts.task_selector)),
     )
@@ -332,8 +332,8 @@ async fn command_worker_stop(
     gsettings: &GlobalSettings,
     opts: WorkerStopOpts,
 ) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    stop_worker(&mut connection, opts.selector_arg.into()).await?;
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    stop_worker(&mut session, opts.selector_arg.into()).await?;
     Ok(())
 }
 
@@ -341,7 +341,7 @@ async fn command_worker_list(
     gsettings: &GlobalSettings,
     opts: WorkerListOpts,
 ) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
+    let mut session = get_client_session(gsettings.server_directory()).await?;
 
     let filter = opts.filter.or({
         if opts.all {
@@ -351,7 +351,7 @@ async fn command_worker_list(
         }
     });
 
-    let workers = get_worker_list(&mut connection, filter).await?;
+    let workers = get_worker_list(&mut session, filter).await?;
     gsettings.printer().print_worker_list(workers);
     Ok(())
 }
@@ -360,8 +360,8 @@ async fn command_worker_info(
     gsettings: &GlobalSettings,
     opts: WorkerInfoOpts,
 ) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    let response = get_worker_info(&mut connection, opts.worker_id).await?;
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    let response = get_worker_info(&mut session, opts.worker_id).await?;
 
     if let Some(worker) = response {
         gsettings.printer().print_worker_info(worker);
@@ -388,8 +388,8 @@ async fn command_worker_address(
     gsettings: &GlobalSettings,
     opts: WorkerAddressOpts,
 ) -> anyhow::Result<()> {
-    let mut connection = get_client_connection(gsettings.server_directory()).await?;
-    let response = get_worker_info(&mut connection, opts.worker_id).await?;
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    let response = get_worker_info(&mut session, opts.worker_id).await?;
 
     match response {
         Some(info) => println!("{}", info.configuration.hostname),

@@ -107,14 +107,30 @@ impl<R: DeserializeOwned, S: Serialize> HqConnection<R, S> {
 pub type ClientConnection = HqConnection<ToClientMessage, FromClientMessage>;
 pub type ServerConnection = HqConnection<FromClientMessage, ToClientMessage>;
 
+pub struct ClientSession {
+    connection: ClientConnection,
+    server_uid: String,
+}
+
 /// Client -> server connection
-impl ClientConnection {
-    pub async fn connect_to_server(record: &AccessRecord) -> crate::Result<ClientConnection> {
+impl ClientSession {
+    pub async fn connect_to_server(record: &AccessRecord) -> crate::Result<ClientSession> {
         let address = format!("{}:{}", record.host(), record.server_port());
         let connection = TcpStream::connect(address).await?;
 
         let key = record.hq_secret_key().clone();
-        HqConnection::init(connection, false, key).await
+        Ok(ClientSession {
+            connection: HqConnection::init(connection, false, key).await?,
+            server_uid: record.server_uid().to_string(),
+        })
+    }
+
+    pub fn connection(&mut self) -> &mut ClientConnection {
+        &mut self.connection
+    }
+
+    pub fn server_uid(&self) -> &str {
+        &self.server_uid
     }
 }
 

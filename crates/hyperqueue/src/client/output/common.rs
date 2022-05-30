@@ -17,7 +17,7 @@ pub struct ResolvedTaskPaths {
 pub type TaskToPathsMap = Map<JobTaskId, Option<ResolvedTaskPaths>>;
 
 /// Resolves task paths of the given job, as they would look like from the perspective of the worker.
-pub fn resolve_task_paths(job: &JobDetail) -> TaskToPathsMap {
+pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
     let task_to_desc_map: Map<JobTaskId, &TaskDescription> = match &job.job_desc {
         JobDescription::Array { .. } => Default::default(),
         JobDescription::Graph { tasks } => tasks.iter().map(|t| (t.id, &t.task_desc)).collect(),
@@ -46,6 +46,7 @@ pub fn resolve_task_paths(job: &JobDetail) -> TaskToPathsMap {
                         task_id: task.task_id,
                         instance_id: started_data.context.instance_id,
                         submit_dir: &job.submit_dir,
+                        server_uid,
                     };
 
                     let mut resolved_paths = ResolvedTaskPaths {

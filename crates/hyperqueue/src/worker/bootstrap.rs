@@ -61,7 +61,7 @@ pub async fn initialize_worker(
         server_addr,
         configuration,
         Some(record.tako_secret_key().clone()),
-        Box::new(HqTaskLauncher::new(streamer_ref)),
+        Box::new(HqTaskLauncher::new(record.server_uid(), streamer_ref)),
     )
     .await?;
 

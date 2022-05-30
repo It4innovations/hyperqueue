@@ -114,11 +114,16 @@ fn prepare_job(request: &mut SubmitRequest, state: &mut State) -> (JobId, TakoTa
         ref mut task_desc, ..
     } = request.job_desc
     {
-        fill_placeholders_after_submit(&mut task_desc.program, job_id, &request.submit_dir);
+        fill_placeholders_after_submit(
+            &mut task_desc.program,
+            job_id,
+            &request.submit_dir,
+            state.server_uid(),
+        );
     };
 
     if let Some(ref mut log) = request.log {
-        fill_placeholders_log(log, job_id, &request.submit_dir);
+        fill_placeholders_log(log, job_id, &request.submit_dir, state.server_uid());
         *log = normalize_path(log, &request.submit_dir);
     }
 

@@ -248,8 +248,14 @@ mod tests {
 
     #[test]
     fn test_roundtrip() {
-        let record =
-            AccessRecord::new("foo".into(), 42, 43, Default::default(), Default::default());
+        let record = AccessRecord::new(
+            "foo".into(),
+            "testHQ".into(),
+            42,
+            43,
+            Default::default(),
+            Default::default(),
+        );
         let path = TempDir::new("foo").unwrap().into_path().join("access.json");
         store_access_record(&record, path.clone()).unwrap();
         let loaded = load_access_file(path).unwrap();

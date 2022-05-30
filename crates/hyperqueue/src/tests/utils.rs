@@ -34,5 +34,5 @@ pub async fn run_concurrent<
 }
 
 pub fn create_hq_state() -> StateRef {
-    StateRef::new(Default::default())
+    StateRef::new(Default::default(), "testHQ".to_string())
 }

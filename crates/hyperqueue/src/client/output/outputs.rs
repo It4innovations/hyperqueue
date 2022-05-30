@@ -43,7 +43,7 @@ pub trait Output {
     // Jobs
     fn print_job_submitted(&self, job: JobDetail);
     fn print_job_list(&self, jobs: Vec<JobInfo>, total_jobs: usize);
-    fn print_job_detail(&self, job: JobDetail, worker_map: WorkerMap);
+    fn print_job_detail(&self, job: JobDetail, worker_map: WorkerMap, server_uid: &str);
     fn print_job_wait(
         &self,
         duration: Duration,
@@ -60,7 +60,7 @@ pub trait Output {
     ) -> anyhow::Result<()>;
 
     // Tasks
-    fn print_tasks(&self, jobs: Vec<(JobId, JobDetail)>, worker_map: WorkerMap);
+    fn print_tasks(&self, jobs: Vec<(JobId, JobDetail)>, worker_map: WorkerMap, server_uid: &str);
 
     // Log
     fn print_summary(&self, filename: &Path, summary: Summary);

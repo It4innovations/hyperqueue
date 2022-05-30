@@ -13,7 +13,7 @@ use crate::common::manager::info::{ManagerInfo, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::utils::network::get_hostname;
 use crate::common::utils::time::ArgDuration;
 use crate::rpc_call;
-use crate::transfer::connection::ClientConnection;
+use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     FromClientMessage, IdSelector, StopWorkerMessage, StopWorkerResponse, ToClientMessage,
     WorkerInfo, WorkerInfoRequest,
@@ -192,11 +192,11 @@ fn gather_manager_info(opts: ManagerOpts) -> anyhow::Result<Option<ManagerInfo>>
 }
 
 pub async fn get_worker_list(
-    connection: &mut ClientConnection,
+    session: &mut ClientSession,
     filter: Option<WorkerFilter>,
 ) -> crate::Result<Vec<WorkerInfo>> {
     let msg = rpc_call!(
-        connection,
+        session.connection(),
         FromClientMessage::WorkerList,
         ToClientMessage::WorkerListResponse(r) => r
     )
@@ -216,11 +216,11 @@ pub async fn get_worker_list(
 }
 
 pub async fn get_worker_info(
-    connection: &mut ClientConnection,
+    session: &mut ClientSession,
     worker_id: WorkerId,
 ) -> crate::Result<Option<WorkerInfo>> {
     let msg = rpc_call!(
-        connection,
+        session.connection(),
         FromClientMessage::WorkerInfo(WorkerInfoRequest {
             worker_id,
         }),
@@ -231,13 +231,11 @@ pub async fn get_worker_info(
     Ok(msg)
 }
 
-pub async fn stop_worker(
-    connection: &mut ClientConnection,
-    selector: IdSelector,
-) -> crate::Result<()> {
+pub async fn stop_worker(session: &mut ClientSession, selector: IdSelector) -> crate::Result<()> {
     let message = FromClientMessage::StopWorker(StopWorkerMessage { selector });
     let mut responses =
-        rpc_call!(connection, message, ToClientMessage::StopWorkerResponse(r) => r).await?;
+        rpc_call!(session.connection(), message, ToClientMessage::StopWorkerResponse(r) => r)
+            .await?;
 
     responses.sort_unstable_by_key(|x| x.0);
     for (id, response) in responses {

@@ -4,7 +4,7 @@ use pyo3::{wrap_pyfunction, Py, PyResult, Python};
 use std::path::PathBuf;
 use tokio::runtime::Builder;
 
-use hyperqueue::transfer::connection::ClientConnection;
+use hyperqueue::transfer::connection::ClientSession;
 
 use crate::client::job::FailedTaskMap;
 use crate::cluster::Cluster;
@@ -22,7 +22,7 @@ mod utils;
 /// to various Rust functions.
 #[pyclass]
 pub struct HqClientContext {
-    connection: ClientConnection,
+    session: ClientSession,
 }
 
 type ClientContextPtr = Py<HqClientContext>;

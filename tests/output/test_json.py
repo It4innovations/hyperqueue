@@ -63,6 +63,7 @@ def test_print_server_record(hq_env: HqEnv):
             "start_date": str,
             "version": str,
             "worker_port": int,
+            "server_uid": str,
         }
     )
     schema.validate(output)
@@ -74,6 +75,7 @@ def test_print_server_record(hq_env: HqEnv):
 
     assert 0 < int(output["hq_port"]) < 65536
     assert 0 < int(output["worker_port"]) < 65536
+    assert output["server_uid"].isalnum() and len(output["server_uid"]) == 6
 
 
 def test_print_job_list(hq_env: HqEnv):
