@@ -217,7 +217,7 @@ find more information in the [documentation](https://it4innovations.github.io/hy
   is `hq submit`, which is now a shortcut for `hq job submit`. Here is a table of changed commands:
 
   | **Previous command** | **New command**    |
-      |------------------|--------------------|
+  |------------------|--------------------|
   | `hq jobs`           | `hq job list`    |
   | `hq job`            | `hq job info`    |
   | `hq resubmit`       | `hq job resubmit` |
