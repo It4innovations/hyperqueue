@@ -52,6 +52,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-trait"
+version = "0.1.53"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed6aa3524a2dfcf9fe180c51eae2b58738348d819517ceadf95789c51fff7600"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -240,6 +251,18 @@ checksum = "b3616f750b84d8f0de8a58bda93e08e2a81ad3f523089b05f1dffecab48c6cbd"
 dependencies = [
  "atty",
  "lazy_static",
+ "winapi",
+]
+
+[[package]]
+name = "command-group"
+version = "1.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7a8a86f409b4a59df3a3e4bee2de0b83f1755fdd2a25e3a9684c396fc4bed2c"
+dependencies = [
+ "async-trait",
+ "nix 0.22.3",
+ "tokio",
  "winapi",
 ]
 
@@ -791,6 +814,7 @@ dependencies = [
  "clap_complete",
  "cli-table",
  "colored",
+ "command-group",
  "const_format",
  "derive_builder",
  "dirs",
@@ -802,6 +826,7 @@ dependencies = [
  "humantime",
  "indicatif",
  "jemallocator",
+ "libc",
  "log",
  "nom",
  "nom-supreme",
@@ -1051,6 +1076,19 @@ dependencies = [
  "log",
  "wasi 0.11.0+wasi-snapshot-preview1",
  "windows-sys",
+]
+
+[[package]]
+name = "nix"
+version = "0.22.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4916f159ed8e5de0082076562152a76b7a1f64a01fd9d1e0fea002c37624faf"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if",
+ "libc",
+ "memoffset",
 ]
 
 [[package]]
@@ -1346,7 +1384,7 @@ dependencies = [
  "derive_more",
  "glob",
  "mach",
- "nix",
+ "nix 0.23.1",
  "num_cpus",
  "once_cell",
  "platforms",

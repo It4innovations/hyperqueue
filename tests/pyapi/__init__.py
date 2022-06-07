@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import Tuple
 
 from hyperqueue.client import Client
 from hyperqueue.job import Job
@@ -14,7 +14,3 @@ def prepare_job_client(
         hq_env.start_worker()
     client = Client(hq_env.server_dir)
     return (Job(**job_args), client)
-
-
-def bash(command: str) -> List[str]:
-    return ["bash", "-c", command]

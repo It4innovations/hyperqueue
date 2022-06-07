@@ -1,4 +1,7 @@
 import os
+import signal
+
+import psutil
 import time
 from datetime import datetime
 from os.path import isdir, isfile, join
@@ -8,8 +11,8 @@ import pytest
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
-from .utils.io import check_file_contents
-from .utils.job import default_task_output, list_jobs
+from .utils.io import check_file_contents, read_file
+from .utils.job import bash, default_task_output, list_jobs, python
 from .utils.table import parse_multiline_cell
 
 
@@ -1249,3 +1252,35 @@ def test_zero_custom_error_message(hq_env: HqEnv):
         == "Error: Task created an error file, but it is empty"
     )
     # print(table)
+
+
+def test_propagate_signal_to_spawned_task(hq_env: HqEnv):
+    hq_env.start_server()
+    worker = hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--",
+            *python("""
+import signal
+import time
+
+def handle_signal(s, _other):
+    print(s)
+    exit()
+
+
+catchable_sigs = set(signal.Signals) - {signal.SIGKILL, signal.SIGSTOP}
+for sig in catchable_sigs:
+    signal.signal(sig, handle_signal)
+
+time.sleep(3600)
+""")
+        ]
+    )
+    worker.send_signal(signal.SIGTERM)
+    worker.wait()
+    hq_env.check_process_exited(worker, expected_code="error")
+
+    assert int(read_file(default_task_output())) == 15

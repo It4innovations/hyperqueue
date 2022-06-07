@@ -1,6 +1,7 @@
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
-from . import bash, prepare_job_client
+from . import prepare_job_client
+from utils.job import bash
 
 
 def test_single_dep(hq_env: HqEnv):

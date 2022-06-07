@@ -28,13 +28,19 @@ impl From<StopReason> for TaskResult {
         match r {
             StopReason::Cancel => TaskResult::Canceled,
             StopReason::Timeout => TaskResult::Timeouted,
+            StopReason::Signal(_) => TaskResult::Canceled,
         }
     }
+}
+
+pub enum ProcessSignal {
+    Term,
 }
 
 pub enum StopReason {
     Cancel,
     Timeout,
+    Signal(ProcessSignal),
 }
 
 pub type TaskFuture = Pin<Box<dyn Future<Output = crate::Result<TaskResult>>>>;

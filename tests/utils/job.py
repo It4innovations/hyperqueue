@@ -21,3 +21,17 @@ def list_jobs(hq_env: HqEnv, all=True, filters: List[str] = None) -> Table:
         args.extend(["--filter", ",".join(filters)])
 
     return hq_env.command(args, as_table=True)
+
+
+def bash(command: str) -> List[str]:
+    """
+    Returns commands that will run the specified command as a bash script.
+    """
+    return ["bash", "-c", command]
+
+
+def python(command: str) -> List[str]:
+    """
+    Returns commands that will run the specified command as a Python script.
+    """
+    return ["python3", "-c", command]

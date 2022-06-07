@@ -424,10 +424,10 @@ async fn run_task(
             let code = status.code().unwrap_or(-1);
             if let Some(dir) = task_dir {
                 if let Some(e) = check_error_filename(dir) {
-                    return tako::Result::Err(e);
+                    return Err(e);
                 }
             }
-            return tako::Result::Err(tako::Error::GenericError(format!(
+            return Err(tako::Error::GenericError(format!(
                 "Program terminated with exit code {}",
                 code
             )));
