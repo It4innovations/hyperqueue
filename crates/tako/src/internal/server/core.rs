@@ -31,7 +31,8 @@ pub struct Core {
     multi_node_queue: MultiNodeQueue,
     has_new_tasks: bool,
 
-    sleeping_tasks: Vec<TaskId>, // Tasks that cannot be scheduled to any available worker
+    sleeping_sn_tasks: Vec<TaskId>, // Tasks that cannot be scheduled to any available worker
+    sleeping_mn_tasks: Vec<TaskId>,
 
     maximal_task_id: TaskId,
     worker_id_counter: u32,
@@ -113,12 +114,18 @@ impl Core {
         }
     }
 
-    pub fn add_sleeping_task(&mut self, task_id: TaskId) {
-        self.sleeping_tasks.push(task_id);
+    pub fn add_sleeping_sn_task(&mut self, task_id: TaskId) {
+        self.sleeping_sn_tasks.push(task_id);
     }
 
-    pub fn take_sleeping_tasks(&mut self) -> Vec<TaskId> {
-        std::mem::take(&mut self.sleeping_tasks)
+    pub fn add_sleeping_mn_task(&mut self, task_id: TaskId) {
+        self.sleeping_mn_tasks.push(task_id);
+    }
+
+    pub fn take_sleeping_tasks(&mut self) -> (Vec<TaskId>, Vec<TaskId>) {
+        let sn = std::mem::take(&mut self.sleeping_sn_tasks);
+        let mn = std::mem::take(&mut self.sleeping_mn_tasks);
+        (sn, mn)
     }
 
     pub fn get_server_info(&self) -> ServerInfo {
@@ -147,8 +154,11 @@ impl Core {
 
     pub fn new_worker(&mut self, worker: Worker) {
         /* Wake up sleeping tasks */
-        let mut sleeping_tasks = self.take_sleeping_tasks();
-        self.single_node_ready_to_assign.append(&mut sleeping_tasks);
+        let (mut sleeping_sn_tasks, mut sleeping_mn_tasks) = self.take_sleeping_tasks();
+        self.single_node_ready_to_assign
+            .append(&mut sleeping_sn_tasks);
+        self.multi_node_ready_to_assign
+            .append(&mut sleeping_mn_tasks);
 
         let worker_id = worker.id;
         self.workers.insert(worker_id, worker);
@@ -440,6 +450,9 @@ mod tests {
     use crate::{TaskId, WorkerId};
 
     impl Core {
+        pub fn sleeping_mn_tasks(&self) -> &[TaskId] {
+            &self.sleeping_mn_tasks
+        }
         pub fn get_read_to_assign(&self) -> &[TaskId] {
             &self.single_node_ready_to_assign
         }

@@ -331,28 +331,47 @@ impl SchedulerState {
     // }
 
     fn try_start_multinode_tasks(&mut self, core: &mut Core) {
-        let (mn_queue, task_map, worker_map) = core.multi_node_queue_split();
-        while let Some((task_id, _)) = mn_queue.queue.peek() {
-            let task = task_map.get_task_mut(*task_id);
-            let n_nodes = task.configuration.resources.n_nodes() as usize;
-            assert!(n_nodes > 0);
-            let mut selected_workers = Vec::new();
-            let mut found = false;
-            for worker in worker_map.values() {
-                if worker.is_free() {
-                    selected_workers.push(worker.id);
+        loop {
+            // "while let" not used because of lifetime problems
+            let (mn_queue, task_map, worker_map) = core.multi_node_queue_split();
+            if let Some((task_id, _)) = mn_queue.queue.peek() {
+                let task_id = *task_id;
+                let task = task_map.get_task_mut(task_id);
+                let n_nodes = task.configuration.resources.n_nodes() as usize;
+                assert!(n_nodes > 0);
+
+                if worker_map.len() < n_nodes {
+                    log::debug!(
+                        "Multi-node task {} put into sleep. (n_nodes={}, workers={})",
+                        task_id,
+                        n_nodes,
+                        worker_map.len()
+                    );
+                    mn_queue.queue.pop();
+                    core.add_sleeping_mn_task(task_id);
+                    continue;
                 }
-                if selected_workers.len() == n_nodes {
-                    found = true;
-                    break;
+
+                let mut selected_workers = Vec::new();
+                let mut found = false;
+                for worker in worker_map.values() {
+                    if worker.is_free() {
+                        selected_workers.push(worker.id);
+                    }
+                    if selected_workers.len() == n_nodes {
+                        found = true;
+                        break;
+                    }
+                }
+                if found {
+                    mn_queue.queue.pop();
+                    self.assign_multinode(worker_map, task, selected_workers);
+                    continue;
+                } else {
+                    return;
                 }
             }
-            if found {
-                mn_queue.queue.pop();
-                self.assign_multinode(worker_map, task, selected_workers);
-            } else {
-                break;
-            }
+            return;
         }
     }
 
@@ -425,7 +444,7 @@ impl SchedulerState {
                         ));
                     self.assign(core, task_id, worker_id);
                 } else {
-                    core.add_sleeping_task(task_id);
+                    core.add_sleeping_sn_task(task_id);
                 }
             }
         }

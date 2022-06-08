@@ -19,6 +19,9 @@ detect available GPU resources from the `CUDA_VISIBLE_DEVICES` environment varia
 * Basic export of stream log into JSON (`hq log <log_file> export`)
 
 ### Server
+
+* Improved scheduling of multi-node tasks.
+
 * Server now generates a random unique ID (UID) string every time a new server is started (`hq server start`).
   It can be used as a placeholder `%{SERVER_ID}`.
 
