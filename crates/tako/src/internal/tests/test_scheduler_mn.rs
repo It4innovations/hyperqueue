@@ -5,8 +5,10 @@ use crate::internal::server::core::Core;
 use crate::internal::server::task::Task;
 use crate::internal::tests::utils::env::{create_test_comm, TestComm};
 use crate::internal::tests::utils::schedule::{
-    create_test_scheduler, create_test_workers, finish_on_worker, submit_test_tasks,
+    create_test_scheduler, create_test_worker, create_test_workers, finish_on_worker,
+    submit_test_tasks,
 };
+use crate::internal::tests::utils::sorted_vec;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::{Priority, TaskId, WorkerId};
 
@@ -224,7 +226,7 @@ fn test_mn_not_enough() {
     let mut core = Core::default();
     let mut comm = create_test_comm();
 
-    create_test_workers(&mut core, &[1]);
+    create_test_workers(&mut core, &[4]);
     let task1 = TaskBuilder::new(1).n_nodes(3).build();
     let task2 = TaskBuilder::new(2).n_nodes(5).build();
     let task3 = TaskBuilder::new(3).n_nodes(11).build();
@@ -239,4 +241,62 @@ fn test_mn_not_enough() {
     for t in &[1, 2, 3, 4] {
         assert!(core.get_task(TaskId::new(*t)).is_waiting());
     }
+
+    assert_eq!(
+        sorted_vec(core.sleeping_mn_tasks().to_owned()),
+        vec![
+            TaskId::new(1),
+            TaskId::new(2),
+            TaskId::new(3),
+            TaskId::new(4)
+        ]
+    );
+}
+
+#[test]
+fn test_mn_sleep_wakeup_one_by_one() {
+    let mut core = Core::default();
+    let mut comm = create_test_comm();
+
+    let task1 = TaskBuilder::new(1).n_nodes(4).user_priority(10).build();
+    submit_test_tasks(&mut core, vec![task1]);
+
+    create_test_workers(&mut core, &[4, 1]);
+
+    let mut scheduler = create_test_scheduler();
+    scheduler.run_scheduling(&mut core, &mut comm);
+    core.sanity_check();
+    assert!(core.task_map().get_task(1.into()).is_waiting());
+
+    let task2 = TaskBuilder::new(2).n_nodes(2).user_priority(1).build();
+    submit_test_tasks(&mut core, vec![task2]);
+    scheduler.run_scheduling(&mut core, &mut comm);
+    core.sanity_check();
+    assert!(core.task_map().get_task(1.into()).is_waiting());
+    assert!(core.task_map().get_task(2.into()).is_mn_running());
+
+    let w = core.task_map().get_task(2.into()).mn_root_worker().unwrap();
+    finish_on_worker(&mut core, 2, w, 0);
+    create_test_worker(&mut core, 500.into(), 1);
+    create_test_worker(&mut core, 501.into(), 1);
+    scheduler.run_scheduling(&mut core, &mut comm);
+    core.sanity_check();
+    assert!(core.task_map().get_task(1.into()).is_mn_running());
+}
+
+#[test]
+fn test_mn_sleep_wakeup_at_once() {
+    let mut core = Core::default();
+    let mut comm = create_test_comm();
+
+    create_test_workers(&mut core, &[4, 1]);
+    let task1 = TaskBuilder::new(1).n_nodes(4).user_priority(10).build();
+    let task2 = TaskBuilder::new(2).n_nodes(2).user_priority(1).build();
+    submit_test_tasks(&mut core, vec![task1, task2]);
+
+    let mut scheduler = create_test_scheduler();
+    scheduler.run_scheduling(&mut core, &mut comm);
+    core.sanity_check();
+    assert!(core.task_map().get_task(1.into()).is_waiting());
+    assert!(core.task_map().get_task(2.into()).is_mn_running());
 }

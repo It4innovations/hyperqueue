@@ -292,8 +292,6 @@ fn test_minimal_transfer_after_balance() {
     let mut comm = create_test_comm();
     scheduler.run_scheduling(&mut core, &mut comm);
 
-    dbg!(&comm);
-
     comm.take_worker_msgs(100, 1);
     comm.take_worker_msgs(101, 1);
 
@@ -467,8 +465,9 @@ fn test_resources_no_workers1() {
     assert_eq!(rt.worker_load(101).get_n_cpus(), 16);
     assert_eq!(rt.worker_load(102).get_n_cpus(), 0);
 
-    let s = rt.core().take_sleeping_tasks();
-    assert_eq!(s.len(), 2);
+    let (sn, mn) = rt.core().take_sleeping_tasks();
+    assert_eq!(sn.len(), 2);
+    assert_eq!(mn.len(), 0);
 }
 
 #[test]
@@ -500,9 +499,10 @@ fn test_resources_no_workers2() {
         assert_eq!(rt.worker(103).sn_tasks().len(), 1);
         assert_eq!(rt.worker(104).sn_tasks().len(), 1);
 
-        let s = rt.core().take_sleeping_tasks();
-        assert_eq!(s.len(), 1);
-        assert_eq!(s[0], TaskId::new(unschedulable_index));
+        let (sn, mn) = rt.core().take_sleeping_tasks();
+        assert_eq!(sn.len(), 1);
+        assert_eq!(sn[0], TaskId::new(unschedulable_index));
+        assert!(mn.is_empty());
     }
 
     check(&[9, 10, 11]);
@@ -728,11 +728,11 @@ fn test_generic_resource_balance2() {
     );
     rt.schedule();
 
-    dbg!(rt
-        .core()
-        .get_worker_by_id_or_panic(102.into())
-        .sn_tasks()
-        .len());
+    /*dbg!(rt
+    .core()
+    .get_worker_by_id_or_panic(102.into())
+    .sn_tasks()
+    .len());*/
 
     assert_eq!(
         rt.core()

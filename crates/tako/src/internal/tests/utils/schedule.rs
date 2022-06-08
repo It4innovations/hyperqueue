@@ -13,26 +13,29 @@ use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{TaskId, WorkerId};
 use std::time::{Duration, Instant};
 
+pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u32) {
+    let wcfg = WorkerConfiguration {
+        resources: ResourceDescriptor::simple(cpus),
+        listen_address: format!("1.1.1.{}:123", worker_id),
+        hostname: format!("test{}", worker_id),
+        work_dir: Default::default(),
+        log_dir: Default::default(),
+        heartbeat_interval: Duration::from_millis(1000),
+        send_overview_interval: Some(Duration::from_millis(1000)),
+        idle_timeout: None,
+        time_limit: None,
+        on_server_lost: ServerLostPolicy::Stop,
+        extra: Default::default(),
+    };
+
+    let worker = Worker::new(worker_id, wcfg, Default::default());
+    on_new_worker(core, &mut TestComm::default(), worker);
+}
+
 pub fn create_test_workers(core: &mut Core, cpus: &[u32]) {
     for (i, c) in cpus.iter().enumerate() {
         let worker_id = WorkerId::new((100 + i) as u32);
-
-        let wcfg = WorkerConfiguration {
-            resources: ResourceDescriptor::simple(*c),
-            listen_address: format!("1.1.1.{}:123", i),
-            hostname: format!("test{}", i),
-            work_dir: Default::default(),
-            log_dir: Default::default(),
-            heartbeat_interval: Duration::from_millis(1000),
-            send_overview_interval: Some(Duration::from_millis(1000)),
-            idle_timeout: None,
-            time_limit: None,
-            on_server_lost: ServerLostPolicy::Stop,
-            extra: Default::default(),
-        };
-
-        let worker = Worker::new(worker_id, wcfg, Default::default());
-        on_new_worker(core, &mut TestComm::default(), worker);
+        create_test_worker(core, worker_id, *c);
     }
 }
 
