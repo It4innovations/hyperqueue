@@ -27,7 +27,7 @@
 
 ??? question "What is a job in HQ?"
 
-    Job is a collection of tasks (a task graph). You can display and manage jobs in the CLI.
+    Job is a collection of tasks (a task graph). You can display and manage jobs using the CLI.
 
 ??? question "How to deploy HQ?"
 
@@ -54,7 +54,7 @@
 
 ??? question "Does HQ support job/task arrays?"
 
-    Yes. See [task arrays](jobs/arrays.md).
+    Yes, see [task arrays](jobs/arrays.md).
 
 ??? question "Does HQ support tasks with dependencies?"
 
@@ -77,7 +77,7 @@
 
 ??? question "Is HQ a replacement for SLURM or PBS?"
 
-    Definitely no. Multi-tenancy is out of the scope of HQ, i.e. HQ does not provide user isolation.
+    Definitely not. Multi-tenancy is out of the scope of HQ, i.e. HQ does not provide user isolation.
     HQ is light-weight and easy to deploy; on an HPC system each user (or a group of users that trust
     each other) may run their own instance of HQ.
 

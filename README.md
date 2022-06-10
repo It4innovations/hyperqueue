@@ -125,26 +125,25 @@ Check out the [documentation](https://it4innovations.github.io/hyperqueue/).
     <img width="600" src="docs/imgs/schema.png">
     </p>
 
+* **What is a task in HQ?**
+
+  Task is a unit of computation. Currently, it is either the execution of an arbitrary external
+  program (specified via CLI) or the execution of a single Python function (specified via our Python
+  API).
+
 * **What is a job in HQ?**
 
-  Right now, we support running arbitrary external programs or bash scripts. We plan to support Python defined
-  workflows (with a Dask-like API).
+  Job is a collection of tasks (a task graph). You can display and manage jobs using the CLI.
 
-* **How to deploy HQ?**
-
-  HQ is distributed as a single, self-contained and statically linked binary. It allows you to start the server, the
-  workers, and it also serves as CLI for submitting and controlling jobs. No other services are needed.
-  (See example below).
-
-* **Do I need to SLURM or PBS to run HQ?**
+* **Do I need to use SLURM or PBS to run HQ?**
 
   No. Even though HQ is designed to smoothly work on systems using SLURM/PBS, they are not required for HQ to work.
 
 * **Is HQ a replacement for SLURM or PBS?**
 
-  Definitely no. Multi-tenancy is out of the scope of HQ, i.e. HQ does not provide user isolation. HQ is
-  light-weight and easy to deploy; on a HPC system each user (or a group of users that trust each other) may run her own
-  instance of HQ.
+  Definitely not. Multi-tenancy is out of the scope of HQ, i.e. HQ does not provide user isolation. HQ is
+  light-weight and easy to deploy; on an HPC system each user (or a group of users that trust each other)
+  may run her own instance of HQ.
 
 * **Do I need an HPC cluster to run HQ?**
 
@@ -157,15 +156,6 @@ Check out the [documentation](https://it4innovations.github.io/hyperqueue/).
   access to it file may submit jobs and connect workers. Users without access to the secret file will only see that the
   service is running.
 
-* **What is the difference between HQ and Snakemake?**
-
-  In cluster mode, Snakemake submits each Snakemake job as one job into SLURM/PBS. If your jobs are too small, you will
-  have to manually aggregate them to avoid exhausting SLURM/PBS resources. Manual job aggregation is often quite arduous
-  and since the aggregation is static, it might also waste resources because of poor load balancing.
-
-  In the case of HQ, you do not have to aggregate jobs. You can submit millions of small jobs to HQ
-  and it will take care of assigning them dynamically to individual SLURM/PBS jobs and workers.
-
 * **How many jobs may I submit into HQ?**
 
   Our preliminary benchmarks show that overhead of HQ is around 0.1 ms per task.
@@ -174,36 +164,29 @@ Check out the [documentation](https://it4innovations.github.io/hyperqueue/).
 
 * **Does HQ support multi-CPU jobs?**
 
-  Yes. You can define number of CPUs for each job. HQ is NUMA aware and you can choose the allocation strategy.
+  Yes. You can define an arbitrary amount of cores for each task. HQ is also NUMA aware
+  and you can select the allocation strategy.
 
 * **Does HQ support job arrays?**
 
-  Yes.
+  Yes, see [task arrays](https://it4innovations.github.io/hyperqueue/stable/jobs/arrays).
 
 * **Does HQ support jobs with dependencies?**
 
-  Not yet. It is actually implemented in the scheduling core, but it has
-  no user interface yet.
-  But we consider it as a crucial must-have feature.
+  Yes, but only using the (currently experimental and undocumented) Python API. It is currently not
+  possible to specify dependencies using the CLI.
 
 * **How is HQ implemented?**
 
-  HQ is implemented in Rust and uses Tokio ecosystem. The scheduler is work-stealing scheduler implemented in
-  our project [Tako](https://github.com/spirali/tako/),
-  that is derived from our previous work [RSDS](https://github.com/It4innovations/rsds).
+  HQ is implemented in Rust and the Tokio async ecosystem. The scheduler is a work-stealing scheduler
+  implemented in our project [Tako](https://github.com/spirali/tako/),
+  which is derived from our previous work [RSDS](https://github.com/It4innovations/rsds).
   Integration tests are written in Python, but HQ itself does not depend on Python.
 
-* **Who stands behind HyperQueue?**
+# HyperQueue team
 
-  We are a group at [IT4Innovations](https://www.it4i.cz/), the Czech National Supercomputing Center.
-  We welcome any contribution from outside.
-
-# Future work
-
-* API for dependencies
-* Python API
-* Dashboard
-* Multi-node tasks
+We are a group of researchers working at [IT4Innovations](https://www.it4i.cz/), the Czech National
+Supercomputing Center. We welcome any outside contributions.
 
 # Acknowledgement
 
