@@ -1,11 +1,13 @@
-To compute something using HyperQueue, you have to create a **Job**. It is a unit of computation management – you can
-submit, query or cancel jobs. Each job consists of one or more **Tasks**. Task represents a single computation
-(currently, a single execution of some program) and is an indivisible unit of scheduling and computation.
+The main unit of computation within HyperQueue is called a **Task**. It represents a single computation
+(currently, a single execution of some program) that is scheduled and executed on a worker.
+
+To actually compute something, you have to create a **Job**, which is a collection of tasks (a task
+graph). Jobs are units of computation management - you can submit, query or cancel jobs using the CLI.
 
 !!! note
 
-    This section focuses on **simple jobs**, where each job contains exactly one task. See [Task arrays](arrays.md)
-    to find out how to create jobs with multiple tasks.
+    This section focuses on **simple jobs**, where each job contains exactly one task. See
+    [Task arrays](arrays.md) to find out how to create jobs with multiple tasks.
 
 ## Identification numbers
 Each job is identified by a positive integer that is assigned by the HyperQueue server when the job is submitted. We

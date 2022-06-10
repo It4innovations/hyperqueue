@@ -1,11 +1,11 @@
 It is a common use case to execute the same command for multiple input parameters, for example:
 
-- Performing a simulation for each input file in a directory
-- Training many machine learning models using *hyperparameter search*
+- Perform a simulation for each input file in a directory or for each line in a CSV file.
+- Train many machine learning models using *hyperparameter search* for each model configuration.
 
-HyperQueue allows you to do this using a [job](jobs.md) containing many tasks. We call such jobs **Task arrays**. You
-can create a task array with a single `submit` command and then manage all created tasks as a single group using its
-containing job.
+HyperQueue allows you to do this using a [job](jobs.md) that contains many tasks. We call such jobs
+**Task arrays**. You can create a task array with a single `submit` command and then manage all created
+tasks as a single group using its containing job.
 
 !!! note
 
@@ -15,7 +15,7 @@ containing job.
 
 ## Creating task arrays
 To create a task array, you must provide some **source** that will determine how many tasks should be created and what
-environment variables should be passed to each task so that you can differentiate them.
+inputs (environment variables) should be passed to each task so that you can differentiate them.
 
 Currently, you can create a task array from a [range of integers](#integer-range), from [each line](#lines-of-a-file)
 of a text file or from each item of a [JSON array](#json-array). You cannot combine these sources, as they are mutually
