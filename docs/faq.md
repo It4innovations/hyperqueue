@@ -37,11 +37,12 @@
 
 ??? question "How many jobs/tasks may I submit into HQ?"
 
-    Our preliminary benchmarks show that overhead of HQ is around 0.1 ms per task. It should be
-    possible jobs with tens or hundreds of thousands tasks into HQ.
+    Our preliminary benchmarks show that the overhead of HQ is around 0.1 ms per task. It should be
+    thus possible to submit a job with tens or hundreds of thousands tasks into HQ.
 
-    Note that HQ is not designed for such large number of jobs. If you want to perform a lot of
-    computations, use [task arrays](jobs/arrays.md).
+    Note that HQ is designed for a large number of tasks, not jobs. If you want to perform a lot of
+    computations, use [task arrays](jobs/arrays.md), i.e. create a job with many tasks, not many jobs
+    each with a single task.
 
     HQ also supports [streaming](jobs/streaming.md) of task outputs into a single file.
     This avoids creating many small files for each task on a distributed file system, which improves

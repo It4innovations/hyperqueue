@@ -156,11 +156,18 @@ Check out the [documentation](https://it4innovations.github.io/hyperqueue/).
   access to it file may submit jobs and connect workers. Users without access to the secret file will only see that the
   service is running.
 
-* **How many jobs may I submit into HQ?**
+* **How many jobs/tasks may I submit into HQ?**
 
-  Our preliminary benchmarks show that overhead of HQ is around 0.1 ms per task.
-  We also support streaming of task outputs into a single file (this file contains metadata, hence outputs for each task can be filtered or ordered).
-  This avoids creating many small files for each task on a distributed file system that may have a large impact on scaling.
+  Our preliminary benchmarks show that the overhead of HQ is around 0.1 ms per task. It should be
+  thus possible to submit a job with tens or hundreds of thousands tasks into HQ.
+
+  Note that HQ is designed for a large number of tasks, not jobs. If you want to perform a lot of
+  computations, use [task arrays](jobs/arrays.md), i.e. create a job with many tasks, not many jobs
+  each with a single task.
+
+  HQ also supports [streaming](jobs/streaming.md) of task outputs into a single file.
+  This avoids creating many small files for each task on a distributed file system, which improves
+  scaling.
 
 * **Does HQ support multi-CPU jobs?**
 
@@ -182,6 +189,8 @@ Check out the [documentation](https://it4innovations.github.io/hyperqueue/).
   implemented in our project [Tako](https://github.com/spirali/tako/),
   which is derived from our previous work [RSDS](https://github.com/It4innovations/rsds).
   Integration tests are written in Python, but HQ itself does not depend on Python.
+
+You can find more frequently asked questions [here](https://it4innovations.github.io/hyperqueue/stable/faq).
 
 # HyperQueue team
 
