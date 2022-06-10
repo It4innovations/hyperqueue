@@ -43,7 +43,7 @@
     Note that HQ is not designed for such large number of jobs. If you want to perform a lot of
     computations, use [task arrays](jobs/arrays.md).
 
-    HQ also supports [streaming](jobs/streamin.md) of task outputs into a single file.
+    HQ also supports [streaming](jobs/streaming.md) of task outputs into a single file.
     This avoids creating many small files for each task on a distributed file system, which improves
     scaling.
 
