@@ -13,9 +13,12 @@ def get_version(output: str):
         tags = [
             t.strip() for t in output.splitlines(keepends=False) if t.startswith("v")
         ]
+        tags = [tag for tag in tags if "-rc" not in tag]
         if not tags:
             return latest_version()
-        return {"type": "stable", "version": sorted(tags, reverse=True)[0]}
+        tags = sorted(tags)
+        tag = tags[0]
+        return {"type": "stable", "version": tag}
 
 
 if __name__ == "__main__":
