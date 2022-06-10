@@ -15,6 +15,11 @@ network to the server, which will continuously append it to a single file called
 
     In this section, we refer to `stdout` and `stderr` as **channels**.
 
+
+<p align="center">
+<img width="600" src="../../imgs/streaming.png">
+</p>
+
 ## Redirecting output to the log
 You can redirect the output of `stdout` and `stderr` to a log file and thus enable output streaming by passing a path
 to a filename where the log will be stored with the `--log` option:
