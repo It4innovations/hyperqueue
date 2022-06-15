@@ -1,6 +1,6 @@
 [package]
 name = "hyperqueue"
-version = "0.10.0"
+version = "0.11.0"
 authors = ["Stanislav Bohm <spirali@kreatrix.org>", "Jakub Beranek <berykubik@gmail.com>"]
 edition = "2021"
 description = "Job execution system"
