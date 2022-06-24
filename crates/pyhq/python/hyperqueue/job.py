@@ -1,3 +1,5 @@
+import os
+
 import dataclasses
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union
@@ -27,6 +29,11 @@ class Job:
             else default_workdir
         )
         self.default_env = default_env or {}
+        if "PYTHONPATH" not in self.default_env:
+            self.default_env["PYTHONPATH"] = os.getcwd()
+            pythonpath = os.environ.get("PYTHONPATH", "")
+            if pythonpath.strip() != "":
+                self.default_env["PYTHONPATH"] += f":{pythonpath}"
 
     def task_by_id(self, id: TaskId) -> Optional[Task]:
         return self.task_map.get(id)
