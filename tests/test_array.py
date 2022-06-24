@@ -149,7 +149,7 @@ def test_job_array_error_all(hq_env: HqEnv):
     states = table.get_row_value("State").split("\n")
     assert "FAILED (10)" in states
 
-    task_table = hq_env.command(["task", "list", "1"], as_table=True)
+    task_table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     for i in range(10):
         assert task_table.get_column_value("Task ID")[i] == str(i)
         assert task_table.get_column_value("State")[i] == "FAILED"

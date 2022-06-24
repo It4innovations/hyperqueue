@@ -9,6 +9,7 @@ use crate::stream::reader::logfile::Summary;
 use std::path::Path;
 
 use crate::client::output::common::TaskToPathsMap;
+use crate::client::output::Verbosity;
 use crate::server::job::JobTaskInfo;
 use crate::JobId;
 use core::time::Duration;
@@ -60,7 +61,13 @@ pub trait Output {
     ) -> anyhow::Result<()>;
 
     // Tasks
-    fn print_tasks(&self, jobs: Vec<(JobId, JobDetail)>, worker_map: WorkerMap, server_uid: &str);
+    fn print_tasks(
+        &self,
+        jobs: Vec<(JobId, JobDetail)>,
+        worker_map: WorkerMap,
+        server_uid: &str,
+        verbosity: Verbosity,
+    );
 
     // Log
     fn print_summary(&self, filename: &Path, summary: Summary);

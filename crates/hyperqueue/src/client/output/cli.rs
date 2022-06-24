@@ -34,6 +34,7 @@ use tako::resources::{
 };
 
 use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
+use crate::client::output::Verbosity;
 use crate::common::utils::str::{pluralize, select_plural};
 use crate::worker::hwdetect::MEM_RESOURCE_NAME;
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
@@ -52,6 +53,7 @@ pub const TASK_COLOR_RUNNING: Colorization = Colorization::Yellow;
 pub const TASK_COLOR_INVALID: Colorization = Colorization::BrightRed;
 
 const TERMINAL_WIDTH: usize = 80;
+const ERROR_TRUNCATE_LENGTH: usize = 16;
 
 pub struct CliOutput {
     color_policy: ColorChoice,
@@ -553,7 +555,9 @@ impl Output for CliOutput {
         mut jobs: Vec<(JobId, JobDetail)>,
         worker_map: WorkerMap,
         server_uid: &str,
+        verbosity: Verbosity,
     ) {
+        let mut is_truncated = false;
         jobs.sort_unstable_by_key(|x| x.0);
         let mut rows: Vec<Vec<CellStruct>> = vec![];
         let jobs_len = jobs.len();
@@ -603,8 +607,17 @@ impl Output for CliOutput {
                                 ("Stdout", stdout),
                                 ("Stderr", stderr),
                             ]),
-                            match &task.state {
-                                JobTaskState::Failed { error, .. } => {
+                            match (verbosity, &task.state) {
+                                (Verbosity::Normal, JobTaskState::Failed { error, .. }) => {
+                                    let mut error_mut = error.clone();
+                                    if error_mut.len() >= ERROR_TRUNCATE_LENGTH {
+                                        error_mut.truncate(ERROR_TRUNCATE_LENGTH);
+                                        error_mut.push_str("...");
+                                        is_truncated = true;
+                                    }
+                                    error_mut.cell().foreground_color(Some(Color::Red))
+                                }
+                                (Verbosity::Verbose, JobTaskState::Failed { error, .. }) => {
                                     error.to_owned().cell().foreground_color(Some(Color::Red))
                                 }
                                 _ => "".cell(),
@@ -632,6 +645,9 @@ impl Output for CliOutput {
         ]);
 
         self.print_horizontal_table(rows, header);
+        if is_truncated {
+            log::info!("An error message was truncated. Use -v to display the full error.");
+        }
     }
 
     fn print_summary(&self, filename: &Path, summary: Summary) {

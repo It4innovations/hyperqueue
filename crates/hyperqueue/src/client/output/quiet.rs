@@ -8,7 +8,7 @@ use tako::resources::ResourceDescriptor;
 
 use crate::client::job::WorkerMap;
 use crate::client::output::cli::print_job_output;
-use crate::client::output::common::TaskToPathsMap;
+use crate::client::output::common::{TaskToPathsMap, Verbosity};
 use crate::client::output::outputs::{Output, OutputStream};
 use crate::client::status::{job_status, Status};
 use crate::common::serverdir::AccessRecord;
@@ -98,6 +98,7 @@ impl Output for Quiet {
         _jobs: Vec<(JobId, JobDetail)>,
         _worker_map: WorkerMap,
         _server_uid: &str,
+        _verbosity: Verbosity,
     ) {
     }
 
