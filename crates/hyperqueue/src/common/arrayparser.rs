@@ -1,44 +1,42 @@
-use anyhow::anyhow;
-use nom::character::complete::char;
-use nom::combinator::{map_res, opt};
-use nom::multi::separated_list1;
-use nom::sequence::{preceded, tuple};
-use nom::Parser;
-use nom_supreme::ParserExt;
-
 use crate::common::arraydef::{IntArray, IntRange};
-use crate::common::parser::{consume_all, p_u32, NomResult};
+use crate::common::parser2::{all_consuming, parse_u32, CharParser};
 use crate::Set;
+use chumsky::error::Simple;
+use chumsky::primitive::just;
+use chumsky::text::TextParser;
+use chumsky::Parser;
 
-fn p_range(input: &str) -> NomResult<IntRange> {
-    map_res(
-        tuple((
-            p_u32,
-            opt(preceded(char('-'), p_u32)),
-            opt(preceded(char(':'), p_u32)),
-        )),
-        |r| match r {
+/// Parse integer range in the format n[-end][:step].
+fn parse_range() -> impl CharParser<IntRange> {
+    let start = parse_u32().labelled("start");
+    let end = just('-').ignore_then(parse_u32()).labelled("end").or_not();
+    let step = just(':').ignore_then(parse_u32()).labelled("step").or_not();
+
+    let parser = start.then(end).then(step);
+    parser
+        .try_map(|((start, end), step), span| match (start, end, step) {
             (v, None, None) => Ok(IntRange::new(v, 1, 1)),
             (v, Some(w), None) if w >= v => Ok(IntRange::new(v, w - v + 1, 1)),
             (v, Some(w), Some(x)) if w >= v && x <= w - v && x > 0 => {
                 Ok(IntRange::new(v, w - v + 1, x))
             }
-            _ => Err(anyhow!("Invalid range")),
-        },
-    )
-    .context("Integer range")
-    .parse(input)
+            _ => Err(Simple::custom(span, format!("Invalid range"))),
+        })
+        .labelled("Integer range")
 }
 
-fn p_ranges(input: &str) -> NomResult<Vec<IntRange>> {
-    separated_list1(char(','), p_range)(input)
+/// Parses integer ranges separated by commas.
+fn parse_ranges() -> impl CharParser<Vec<IntRange>> {
+    parse_range().padded().separated_by(just(',')).at_least(1)
 }
 
-fn p_array(input: &str) -> NomResult<IntArray> {
-    map_res(p_ranges, |r| match r {
-        res if !is_overlapping(res.clone()) => Ok(IntArray::new(res)),
-        _ => Err(anyhow!("Ranges overlap")),
-    })(input)
+/// Parses a list of integer ranges separated by commas.
+/// Checks that the ranges do not overlap.
+fn parse_ranges_without_overlap() -> impl CharParser<IntArray> {
+    parse_ranges().try_map(|ranges, span| match ranges {
+        ranges if !is_overlapping(ranges.clone()) => Ok(IntArray::new(ranges)),
+        _ => Err(Simple::custom(span, "Ranges overlap")),
+    })
 }
 
 fn is_overlapping(mut ranges: Vec<IntRange>) -> bool {
@@ -52,8 +50,12 @@ fn is_overlapping(mut ranges: Vec<IntRange>) -> bool {
     false
 }
 
+/// Parses integer ranges separated by commas.
+/// Makes sure that the ranges do not overlap.
 pub fn parse_array(input: &str) -> anyhow::Result<IntArray> {
-    consume_all(p_array, input)
+    all_consuming(parse_ranges_without_overlap())
+        .parse_text(input)
+        .into_cli_result()
 }
 
 #[cfg(test)]

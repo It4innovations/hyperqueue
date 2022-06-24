@@ -7,6 +7,7 @@ pub mod format;
 pub mod idcounter;
 pub mod manager;
 pub mod parser;
+pub mod parser2;
 pub mod placeholders;
 pub mod rpc;
 pub mod serverdir;
