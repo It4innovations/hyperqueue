@@ -3,6 +3,10 @@
 ## Changes
 
 ### CLI
+* [#444](https://github.com/It4innovations/hyperqueue/pull/444) The `hq task list` command will now
+hide some details by default, to conserve space in terminal output. To show all details, use the
+`-v` flag to enable verbose output.
+
 * [#455](https://github.com/It4innovations/hyperqueue/pull/445) Improve the quality of error messages
 produced when parsing various CLI parameters, like resources.
 

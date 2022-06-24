@@ -1,5 +1,6 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
+use crate::client::output::{Verbosity, VerbosityFlag};
 use crate::common::cli::{JobSelectorArg, TaskSelectorArg};
 use crate::rpc_call;
 use crate::transfer::connection::ClientSession;
@@ -26,6 +27,9 @@ pub struct TaskListOpts {
 
     #[clap(flatten)]
     pub task_selector: TaskSelectorArg,
+
+    #[clap(flatten)]
+    pub verbosity: VerbosityFlag,
 }
 
 pub async fn output_job_tasks(
@@ -33,6 +37,7 @@ pub async fn output_job_tasks(
     session: &mut ClientSession,
     job_id_selector: IdSelector,
     task_selector: Option<TaskSelector>,
+    verbosity: Verbosity,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::JobDetail(JobDetailRequest {
         job_id_selector,
@@ -53,8 +58,11 @@ pub async fn output_job_tasks(
         })
         .collect();
 
-    gsettings
-        .printer()
-        .print_tasks(jobs, get_worker_map(session).await?, session.server_uid());
+    gsettings.printer().print_tasks(
+        jobs,
+        get_worker_map(session).await?,
+        session.server_uid(),
+        verbosity,
+    );
     Ok(())
 }

@@ -17,6 +17,7 @@ use tako::worker::WorkerConfiguration;
 use crate::client::job::WorkerMap;
 use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
 use crate::client::output::outputs::{Output, OutputStream};
+use crate::client::output::Verbosity;
 use crate::common::manager::info::ManagerType;
 use crate::common::serverdir::AccessRecord;
 use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
@@ -185,7 +186,13 @@ impl Output for JsonOutput {
         anyhow::bail!("JSON output mode doesn't support job output");
     }
 
-    fn print_tasks(&self, jobs: Vec<(JobId, JobDetail)>, _worker_map: WorkerMap, server_uid: &str) {
+    fn print_tasks(
+        &self,
+        jobs: Vec<(JobId, JobDetail)>,
+        _worker_map: WorkerMap,
+        server_uid: &str,
+        _verbosity: Verbosity,
+    ) {
         let mut json_obj = json!({});
         for (id, job) in jobs {
             let map = resolve_task_paths(&job, server_uid);

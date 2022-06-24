@@ -317,6 +317,7 @@ async fn command_task_list(gsettings: &GlobalSettings, opts: TaskListOpts) -> an
         &mut session,
         get_id_selector(opts.job_selector),
         get_task_selector(Some(opts.task_selector)),
+        opts.verbosity.into(),
     )
     .await
 }

@@ -68,3 +68,26 @@ pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
         })
         .collect()
 }
+
+#[derive(Clone, Copy, Debug)]
+pub enum Verbosity {
+    Normal,
+    Verbose,
+}
+
+#[derive(clap::Args)]
+pub struct VerbosityFlag {
+    /// Use this flag to enable verbose output.
+    #[clap(short = 'v', parse(from_occurrences))]
+    verbose: i8,
+}
+
+impl From<VerbosityFlag> for Verbosity {
+    fn from(flag: VerbosityFlag) -> Self {
+        if flag.verbose >= 1 {
+            Verbosity::Verbose
+        } else {
+            Verbosity::Normal
+        }
+    }
+}

@@ -320,7 +320,7 @@ def test_job_fail(hq_env: HqEnv):
     table.check_row_value("ID", "1")
     table.check_row_value("State", "FAILED")
 
-    table = hq_env.command(["task", "list", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     table.check_column_value("Task ID", 0, "0")
     assert "No such file or directory" in table.get_column_value("Error")[0]
 
@@ -828,7 +828,7 @@ def test_job_timeout(hq_env: HqEnv):
     assert table.get_row_value("Makespan").startswith("5")
     assert table.get_row_value("Makespan").endswith("ms")
 
-    table = hq_env.command(["task", "list", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     assert table.get_column_value("Error")[0] == "Time limit reached"
 
     wait_for_job_state(hq_env, 2, "FINISHED")
@@ -847,7 +847,7 @@ def test_job_submit_program_not_found(hq_env: HqEnv):
     hq_env.command(["submit", "foo", "--bar", "--baz=5"])
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    table = hq_env.command(["task", "list", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     assert (
         'Error: Cannot execute "foo --bar --baz=5": No such file or directory (os error 2)\n'
         "The program that you have tried to execute (`foo`) was not found."
@@ -865,7 +865,7 @@ def test_job_submit_program_not_found_file_exists(hq_env: HqEnv):
     hq_env.command(["submit", "foo"])
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    table = hq_env.command(["task", "list", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     assert (
         f"""Error: Cannot execute "foo": No such file or directory (os error 2)
 The program that you have tried to execute (`foo`) was not found.
@@ -914,7 +914,7 @@ def test_job_shell_script_fail_not_executable(hq_env: HqEnv):
     hq_env.command(["submit", "./test.sh"])
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    table = hq_env.command(["task", "list", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     assert (
         """Error: Cannot execute "./test.sh": Permission denied (os error 13)
 The script that you have tried to execute (`./test.sh`) is not executable.
@@ -1211,7 +1211,7 @@ def test_custom_error_message(hq_env: HqEnv):
     )
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    table = hq_env.command(["task", "list", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     assert table.get_column_value("Error")[0] == "Error: Testing message"
     # print(table)
 
@@ -1233,7 +1233,7 @@ def test_long_custom_error_message(hq_env: HqEnv):
     )
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    table = hq_env.command(["task", "list", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     assert table.get_column_value("Error")[0].endswith(
         "aaaaaa\n[The message was truncated]"
     )
@@ -1255,7 +1255,7 @@ def test_zero_custom_error_message(hq_env: HqEnv):
     )
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    table = hq_env.command(["task", "list", "1"], as_table=True)
+    table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     assert (
         table.get_column_value("Error")[0]
         == "Error: Task created an error file, but it is empty"
