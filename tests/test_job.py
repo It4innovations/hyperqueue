@@ -1,14 +1,18 @@
 import os
+import signal
 import time
 from datetime import datetime
 from os.path import isdir, isfile, join
 from pathlib import Path
+from typing import List
 
+import psutil
 import pytest
 
+from utils.wait import wait_until
 from .conftest import HqEnv
 from .utils import wait_for_job_state
-from .utils.io import check_file_contents
+from .utils.io import check_file_contents, read_file
 from .utils.job import default_task_output, list_jobs
 from .utils.table import parse_multiline_cell
 
@@ -1295,3 +1299,42 @@ def test_crashing_job_by_files(hq_env: HqEnv):
         check_file_contents("xyz.txt", "done\n")
     except Exception as e:
         assert "No such file or directory: 'xyz.txt'" in str(e)
+
+
+def python(command: str) -> List[str]:
+    """
+    Returns commands that will run the specified command as a Python script.
+    """
+    return ["python3", "-c", command]
+
+
+def test_terminate_task_when_worker_dies(hq_env: HqEnv):
+    hq_env.start_server()
+    worker = hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--",
+            *python(
+                """
+import os
+import sys
+import time
+print(os.getpid(), flush=True)
+time.sleep(3600)
+"""
+            ),
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    wait_until(lambda: read_file(default_task_output()) != "")
+
+    worker.send_signal(signal.SIGKILL)
+    worker.wait()
+    hq_env.check_process_exited(worker, expected_code="error")
+
+    time.sleep(0.5)
+    pid = int(read_file(default_task_output()))
+
+    assert not psutil.pid_exists(pid)
