@@ -414,20 +414,37 @@ async fn run_task(
     job_id: JobId,
     job_task_id: JobTaskId,
     instance_id: InstanceId,
-    end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
+    end_receiver: Receiver<StopReason>,
     task_dir: Option<TempDir>,
 ) -> tako::Result<TaskResult> {
     let mut command = command_from_definitions(&program)?;
+
+    // SAFETY: prctl is used in the child process to set PDEATHSIG, which should make sure
+    // that the child process will be killed if the parent dies.
+    // If it fails, the process will be killed immediately.
+    //
+    // Note: this has an unfortunate performance effect for really short processes.
+    // However, for processes that last ~1ms or more, it should be negligible (< 10 %).
+    // TODO: try to remove this bottleneck.
+    unsafe {
+        command.pre_exec(|| {
+            let ret = libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+            match ret {
+                0 => Ok(()),
+                error => Err(std::io::Error::from_raw_os_error(error)),
+            }
+        });
+    }
 
     let status_to_result = |status: ExitStatus| {
         if !status.success() {
             let code = status.code().unwrap_or(-1);
             if let Some(dir) = task_dir {
                 if let Some(e) = check_error_filename(dir) {
-                    return tako::Result::Err(e);
+                    return Err(e);
                 }
             }
-            return tako::Result::Err(tako::Error::GenericError(format!(
+            return Err(tako::Error::GenericError(format!(
                 "Program terminated with exit code {}",
                 code
             )));

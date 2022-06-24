@@ -802,6 +802,7 @@ dependencies = [
  "humantime",
  "indicatif",
  "jemallocator",
+ "libc",
  "log",
  "nom",
  "nom-supreme",

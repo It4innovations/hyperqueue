@@ -1,15 +1,18 @@
 import os
+import signal
 import time
 from datetime import datetime
 from os.path import isdir, isfile, join
 from pathlib import Path
 
+import psutil
 import pytest
 
+from utils.wait import wait_until
 from .conftest import HqEnv
 from .utils import wait_for_job_state
-from .utils.io import check_file_contents
-from .utils.job import default_task_output, list_jobs
+from .utils.io import check_file_contents, read_file
+from .utils.job import default_task_output, list_jobs, python
 from .utils.table import parse_multiline_cell
 
 
@@ -1248,4 +1251,36 @@ def test_zero_custom_error_message(hq_env: HqEnv):
         table.get_column_value("Error")[0]
         == "Error: Task created an error file, but it is empty"
     )
-    # print(table)
+
+
+def test_terminate_task_when_worker_dies(hq_env: HqEnv):
+    hq_env.start_server()
+    worker = hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--",
+            *python(
+                """
+import os
+import sys
+import time
+
+print(os.getpid(), flush=True)
+time.sleep(3600)
+"""
+            ),
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    wait_until(lambda: read_file(default_task_output()) != "")
+
+    worker.send_signal(signal.SIGTERM)
+    worker.wait()
+    hq_env.check_process_exited(worker, expected_code="error")
+
+    time.sleep(0.5)
+    pid = int(read_file(default_task_output()))
+
+    assert not psutil.pid_exists(pid)

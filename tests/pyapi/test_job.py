@@ -2,6 +2,8 @@ import time
 from pathlib import Path
 
 import pytest
+from utils.job import bash
+
 from hyperqueue.client import FailedJobsException
 from hyperqueue.ffi.protocol import ResourceRequest
 from hyperqueue.job import Job
@@ -10,7 +12,7 @@ from ..conftest import HqEnv
 from ..utils import wait_for_job_state
 from ..utils.io import check_file_contents
 from ..utils.table import parse_multiline_cell
-from . import bash, prepare_job_client
+from . import prepare_job_client
 
 
 def test_submit_empty_job(hq_env: HqEnv):

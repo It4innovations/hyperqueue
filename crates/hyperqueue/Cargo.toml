@@ -50,7 +50,7 @@ async-compression = { version = "0.3.8", features = ["tokio", "gzip"] }
 flate2 = { version = "1.0.23", features = ["default"] }
 psutil = "3.2.1"
 rand = { version = "0.8", features = ["small_rng"] }
-
+libc = "0.2.126"
 
 # Tako
 tako = { path = "../tako" }
