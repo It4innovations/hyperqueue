@@ -76,7 +76,7 @@ def test_slurm_command_multinode_allocation(hq_env: HqEnv):
             commands = extract_script_commands(f.read())
             assert (
                 commands
-                == f"srun {get_hq_binary()} worker start --idle-timeout 5m \
+                == f"srun --overlap {get_hq_binary()} worker start --idle-timeout 5m \
 --manager slurm --server-dir {hq_env.server_dir}/001 --on-server-lost=finish-running"
             )
 
