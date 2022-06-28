@@ -18,6 +18,10 @@ inside HyperQueue tasks, please let us know.
 
 ## Fixes
 
+### Crashing tasks
+* [#449](https://github.com/It4innovations/hyperqueue/pull/449) Tasks that were present during multiple
+crashes of the workers will be canceled.
+
 ### Job submission
 * [#450](https://github.com/It4innovations/hyperqueue/pull/450) Attempts to resubmit a job with zero
 tasks will now result in an explicit error, rather than a crash of the client.

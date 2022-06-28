@@ -18,6 +18,10 @@ use tako::Set;
 use tako::TaskId;
 use tokio::sync::oneshot;
 
+/// Threshold that is used to determine if task
+/// is causing crash of the worker(s).
+const CRASHING_TASK_THRESHOLD: u32 = 5;
+
 /// State of a task that has been started at least once.
 /// It contains the last known state of the task.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -116,6 +120,7 @@ pub struct Job {
     pub counters: JobTaskCounters,
 
     pub tasks: Map<TakoTaskId, JobTaskInfo>,
+    pub tasks_crash_counter: Map<TakoTaskId, u32>,
 
     pub log: Option<PathBuf>,
 
@@ -188,6 +193,7 @@ impl Job {
             completion_date: None,
             submit_dir,
             completion_callbacks: Default::default(),
+            tasks_crash_counter: Default::default(),
         }
     }
 
@@ -306,6 +312,20 @@ impl Job {
             for handler in self.completion_callbacks.drain(..) {
                 handler.send(self.job_id).ok();
             }
+        }
+    }
+
+    pub fn increment_task_crash_count(&mut self, tako_task_id: TakoTaskId) {
+        self.tasks_crash_counter
+            .entry(tako_task_id)
+            .and_modify(|count| *count += 1)
+            .or_insert(1);
+    }
+
+    pub fn is_often_crashing_task(&self, tako_task_id: TakoTaskId) -> bool {
+        match self.tasks_crash_counter.get(&tako_task_id) {
+            Some(&crashes) => crashes >= CRASHING_TASK_THRESHOLD,
+            None => false,
         }
     }
 
