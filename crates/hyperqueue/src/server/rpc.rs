@@ -104,9 +104,9 @@ impl Backend {
                         ToGatewayMessage::NewWorker(msg) => {
                             state_ref.get_mut().process_worker_new(msg)
                         }
-                        ToGatewayMessage::LostWorker(msg) => {
-                            state_ref.get_mut().process_worker_lost(msg)
-                        }
+                        ToGatewayMessage::LostWorker(msg) => state_ref
+                            .get_mut()
+                            .process_worker_lost(&state_ref, &server2, msg),
                         ToGatewayMessage::WorkerOverview(overview) => {
                             state_ref
                                 .get_mut()
