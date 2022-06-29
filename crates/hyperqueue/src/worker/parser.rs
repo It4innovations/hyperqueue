@@ -1,44 +1,50 @@
 use crate::arg_wrapper;
 use crate::common::parser::{consume_all, p_u32, p_u64, NomResult};
+use crate::common::parser2::{all_consuming, parse_u32, CharParser};
+use chumsky::primitive::just;
+use chumsky::text::whitespace;
+use chumsky::Parser as Parser2;
 use nom::branch::alt;
-use nom::character::complete::{alphanumeric1, char, multispace0, space0};
-use nom::combinator::{map, map_res, opt};
+use nom::character::complete::{alphanumeric1, char, multispace0};
+use nom::combinator::{map, map_res};
 use nom::multi::separated_list1;
-use nom::sequence::{delimited, preceded, separated_pair, tuple};
+use nom::sequence::{delimited, separated_pair, tuple};
 use nom::Parser;
 use nom_supreme::tag::complete::tag;
 use nom_supreme::ParserExt;
 use tako::resources::{cpu_descriptor_from_socket_size, GenericResourceDescriptorKind};
 use tako::resources::{CpuId, CpusDescriptor, GenericResourceDescriptor};
 
-fn p_cpu_list(input: &str) -> NomResult<Vec<CpuId>> {
-    delimited(
-        tuple((char('['), space0)),
-        separated_list1(tuple((char(','), space0)), map(p_u32, |x| x.into())),
-        tuple((space0, char(']'))),
-    )(input)
+/// Parsers a simple CPU descriptor like `1` or `2x4`.
+/// When there's a single number, it states the number of CPUs.
+/// When there are two numbers, the first is the number of sockets and the second the number of CPUs
+/// per socket.
+fn parse_simple_cpu_descriptor() -> impl CharParser<CpusDescriptor> {
+    let first = parse_u32();
+    let second = just('x').ignore_then(parse_u32()).or_not();
+    first.then(second).map(|parsed| match parsed {
+        (cpus, None) => cpu_descriptor_from_socket_size(1, cpus),
+        (sockets, Some(cpus)) => cpu_descriptor_from_socket_size(sockets, cpus),
+    })
 }
 
-fn p_cpu_socket_list(input: &str) -> NomResult<CpusDescriptor> {
-    delimited(
-        tuple((char('['), space0)),
-        separated_list1(tuple((char(','), space0)), p_cpu_list),
-        tuple((space0, char(']'))),
-    )(input)
+/// Parses a socket list where each item contains a list of CPUs.
+/// For example: `[[0]]`, `[[1, 2], [2, 0]]`.
+fn parse_socket_list_descriptor() -> impl CharParser<CpusDescriptor> {
+    let start = just('[').then(whitespace());
+    let end = whitespace().then(just(']'));
+    let cpu_list = parse_u32()
+        .map(CpuId::new)
+        .separated_by(just(',').then(whitespace()))
+        .delimited_by(start, end);
+
+    cpu_list
+        .separated_by(just(',').then(whitespace()))
+        .delimited_by(start, end)
 }
 
-fn p_cpu_simple(input: &str) -> NomResult<CpusDescriptor> {
-    map(
-        tuple((p_u32, opt(preceded(char('x'), p_u32)))),
-        |r| match r {
-            (c1, None) => cpu_descriptor_from_socket_size(1, c1),
-            (c1, Some(c2)) => cpu_descriptor_from_socket_size(c1, c2),
-        },
-    )(input)
-}
-
-fn p_cpu_definition(input: &str) -> NomResult<CpusDescriptor> {
-    alt((p_cpu_simple, p_cpu_socket_list))(input)
+fn parse_cpu_definition_inner() -> impl CharParser<CpusDescriptor> {
+    parse_simple_cpu_descriptor().or(parse_socket_list_descriptor())
 }
 
 #[derive(Debug)]
@@ -53,7 +59,9 @@ fn parse_cpu_definition(input: &str) -> anyhow::Result<CpuDefinition> {
     match input {
         "auto" => Ok(CpuDefinition::Detect),
         "no-ht" => Ok(CpuDefinition::DetectNoHyperThreading),
-        other => consume_all(p_cpu_definition, other).map(CpuDefinition::Custom),
+        _ => all_consuming(parse_cpu_definition_inner())
+            .parse_text(input)
+            .map(CpuDefinition::Custom),
     }
 }
 
@@ -130,23 +138,35 @@ fn parse_resource_definition(input: &str) -> anyhow::Result<GenericResourceDescr
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::tests::utils::check_parse_error;
+    use crate::tests::utils::{check_parse_error, expect_parser_error};
     use tako::AsIdVec;
 
     #[test]
-    fn test_parse_cpu_def() {
+    fn test_parse_simple_cpu_def_single_cpu() {
         assert_eq!(
             parse_cpu_definition("4").unwrap(),
             CpuDefinition::Custom(vec![vec![0, 1, 2, 3].to_ids()]),
         );
+    }
+
+    #[test]
+    fn test_parse_simple_cpu_def_multiple_sockets() {
         assert_eq!(
             parse_cpu_definition("2x3").unwrap(),
             CpuDefinition::Custom(vec![vec![0, 1, 2].to_ids(), vec![3, 4, 5].to_ids()]),
         );
+    }
+
+    #[test]
+    fn test_parse_socket_list_single_socket() {
         assert_eq!(
             parse_cpu_definition("[[5, 7, 123]]").unwrap(),
             CpuDefinition::Custom(vec![vec![5, 7, 123].to_ids()]),
         );
+    }
+
+    #[test]
+    fn test_parse_socket_multiple_sockets() {
         assert_eq!(
             parse_cpu_definition("[[0], [7], [123, 200]]").unwrap(),
             CpuDefinition::Custom(vec![
@@ -155,20 +175,39 @@ mod test {
                 vec![123, 200].to_ids()
             ]),
         );
+    }
+
+    #[test]
+    fn test_parse_cpu_def_no_hyperthreading() {
         assert_eq!(
             parse_cpu_definition("no-ht").unwrap(),
             CpuDefinition::DetectNoHyperThreading,
         );
+    }
+
+    #[test]
+    fn test_parse_cpu_def_auto() {
         assert_eq!(parse_cpu_definition("auto").unwrap(), CpuDefinition::Detect);
     }
 
     #[test]
-    fn test_parse_cpu_def_error() {
-        check_parse_error(
-            p_cpu_definition,
-            "x",
-            "Parse error\nexpected one of the following 2 variants:\n  expected integer at character 0: \"x\"\n  or\n  expected \"[\" at character 0: \"x\"",
-        );
+    fn test_parse_cpu_def_invalid() {
+        insta::assert_snapshot!(expect_parser_error(parse_cpu_definition_inner(), "x"), @r###"
+        Unexpected token found while attempting to parse number, expected [:
+          x
+          |
+          --- Unexpected token `x`
+        "###);
+    }
+
+    #[test]
+    fn test_parse_cpu_def_unclosed_bracket() {
+        insta::assert_snapshot!(expect_parser_error(parse_cpu_definition_inner(), "[[1]"), @r###"
+        Unexpected end of input found, expected ] or ,:
+          [[1]
+              |
+              --- Unexpected end of input
+        "###);
     }
 
     #[test]

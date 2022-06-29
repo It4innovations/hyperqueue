@@ -43,6 +43,25 @@ pub fn format_errors_cli(input: &str, mut errors: Vec<Simple<char>>) -> String {
     let message = if let chumsky::error::SimpleReason::Custom(msg) = error.reason() {
         msg.clone()
     } else {
+        let expected = if error.expected().len() == 0 {
+            "something else".to_string()
+        } else {
+            error
+                .expected()
+                .map(|expected| {
+                    color_string(
+                        match expected {
+                            Some(expected) => expected.to_string(),
+                            None => "<end of input>".to_string(),
+                        },
+                        Color::Blue,
+                    )
+                    .to_string()
+                })
+                .collect::<Vec<_>>()
+                .join(" or ")
+        };
+
         format!(
             "{} found{}, expected {}:",
             if error.found().is_some() {
@@ -58,18 +77,7 @@ pub fn format_errors_cli(input: &str, mut errors: Vec<Simple<char>>) -> String {
             } else {
                 String::new()
             },
-            if error.expected().len() == 0 {
-                "something else".to_string()
-            } else {
-                error
-                    .expected()
-                    .map(|expected| match expected {
-                        Some(expected) => expected.to_string(),
-                        None => "end of input".to_string(),
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            },
+            expected,
         )
     };
 
@@ -168,6 +176,7 @@ pub fn all_consuming<T>(parser: impl CharParser<T>) -> impl CharParser<T> {
 mod tests {
     use super::*;
     use crate::tests::utils::expect_parser_error;
+    use chumsky::primitive::just;
 
     #[test]
     fn test_parse_u32() {
@@ -220,6 +229,20 @@ mod tests {
           _1
           |
           --- Unexpected token `_`
+        "###);
+    }
+
+    #[test]
+    fn test_parse_error_delimited_values() {
+        let parser = just('x')
+            .separated_by(just(','))
+            .delimited_by(just('('), just(')'));
+
+        insta::assert_snapshot!(expect_parser_error(parser, "(x,x"), @r###"
+        Unexpected end of input found, expected , or ):
+          (x,x
+              |
+              --- Unexpected end of input
         "###);
     }
 }
