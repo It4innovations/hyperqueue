@@ -1,126 +1,135 @@
-use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
+use anyhow::anyhow;
 use chumsky::error::Simple;
 use chumsky::primitive::end;
 use chumsky::Parser;
+use colored::Color;
 
 // Parsing infrastructure
-pub struct ParseResult<'a, T> {
-    input: &'a str,
-    pub result: Result<T, Vec<Simple<char>>>,
-}
-
-impl<'a, T> ParseResult<'a, T> {
-    fn new(input: &'a str, result: Result<T, Vec<Simple<char>>>) -> Self {
-        Self { input, result }
-    }
-
-    pub fn into_cli_result(self) -> anyhow::Result<T> {
-        self.result
-            .map_err(|errors| anyhow::anyhow!("{}", format_errors_cli(self.input, errors)))
-    }
-
-    pub fn into_debug_result(self) -> anyhow::Result<T> {
-        self.result
-            .map_err(|errors| anyhow::anyhow!("{:?}", errors))
-    }
-
-    #[track_caller]
-    pub fn unwrap(self) -> T {
-        self.result.unwrap()
-    }
-}
-
 pub trait CharParser<T>: Parser<char, T, Error = Simple<char>> + Sized {
-    fn parse_text<'a>(&self, input: &'a str) -> ParseResult<'a, T> {
-        ParseResult::new(input, self.parse(input))
+    fn parse_text(&self, input: &str) -> anyhow::Result<T> {
+        self.parse(input)
+            .map_err(|errors| anyhow!("{}", format_errors_cli(input, errors)))
     }
 }
 impl<T, P> CharParser<T> for P where P: Parser<char, T, Error = Simple<char>> {}
 
-pub fn format_errors_cli(input: &str, errors: Vec<Simple<char>>) -> String {
-    use std::io::Write;
+#[cfg(not(test))]
+fn color_string<S: AsRef<str>>(string: S, color: Color) -> colored::ColoredString {
+    use colored::Colorize;
+    string.as_ref().color(color)
+}
 
-    let mut error: Vec<u8> = vec![];
+#[cfg(test)]
+fn color_string<S: AsRef<str>>(string: S, _color: Color) -> String {
+    string.as_ref().to_string()
+}
 
-    for e in errors {
-        let msg = if let chumsky::error::SimpleReason::Custom(msg) = e.reason() {
-            msg.clone()
-        } else {
-            format!(
-                "{}{}, expected {}",
-                if e.found().is_some() {
-                    "Unexpected token"
-                } else {
-                    "Unexpected end of input"
-                },
-                if let Some(label) = e.label() {
-                    format!(" while parsing {}", label)
-                } else {
-                    String::new()
-                },
-                if e.expected().len() == 0 {
-                    "something else".to_string()
-                } else {
-                    e.expected()
-                        .map(|expected| match expected {
-                            Some(expected) => expected.to_string(),
-                            None => "end of input".to_string(),
-                        })
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                },
-            )
-        };
+/// Formats `chumsky` error into a user-visible (optionally colored) string.
+/// Currently it handles just the first error.
+pub fn format_errors_cli(input: &str, mut errors: Vec<Simple<char>>) -> String {
+    use chumsky::Span;
+    use std::fmt::Write;
 
-        let report = Report::build(ReportKind::Error, (), e.span().start)
-            .with_message(msg)
-            .with_label(
-                Label::new(e.span())
-                    .with_message(match e.reason() {
-                        chumsky::error::SimpleReason::Custom(msg) => msg.clone(),
-                        _ => format!(
-                            "Unexpected {}",
-                            e.found()
-                                .map(|c| format!("token {}", c.fg(Color::Red)))
-                                .unwrap_or_else(|| "end of input".to_string())
-                        ),
+    const ERROR_COLOR: Color = Color::Red;
+
+    assert!(!errors.is_empty());
+
+    errors.truncate(1);
+    let error = errors.pop().unwrap();
+
+    let mut output = String::new();
+
+    let span = error.span();
+    let message = if let chumsky::error::SimpleReason::Custom(msg) = error.reason() {
+        msg.clone()
+    } else {
+        format!(
+            "{} found{}, expected {}:",
+            if error.found().is_some() {
+                "Unexpected token"
+            } else {
+                "Unexpected end of input"
+            },
+            if let Some(label) = error.label() {
+                format!(
+                    " while attempting to parse {}",
+                    color_string(label, colored::Color::Yellow)
+                )
+            } else {
+                String::new()
+            },
+            if error.expected().len() == 0 {
+                "something else".to_string()
+            } else {
+                error
+                    .expected()
+                    .map(|expected| match expected {
+                        Some(expected) => expected.to_string(),
+                        None => "end of input".to_string(),
                     })
-                    .with_color(Color::Red),
-            );
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            },
+        )
+    };
 
-        let report = match e.reason() {
-            chumsky::error::SimpleReason::Unclosed { span, delimiter } => report.with_label(
-                Label::new(span.clone())
-                    .with_message(format!(
-                        "Unclosed delimiter {}",
-                        delimiter.fg(Color::Yellow)
-                    ))
-                    .with_color(Color::Yellow),
+    output.push_str(&message);
+    output.push('\n');
+
+    if input.is_empty() {
+        output.push_str("(the input was empty)");
+    } else {
+        // Colored input
+        writeln!(
+            output,
+            "  {}{}{}",
+            input.chars().take(span.start()).collect::<String>(),
+            color_string(
+                input
+                    .chars()
+                    .skip(span.start())
+                    .take(span.end() - span.start())
+                    .collect::<String>(),
+                ERROR_COLOR
             ),
-            chumsky::error::SimpleReason::Unexpected => report,
-            chumsky::error::SimpleReason::Custom(_) => report,
-        };
+            input.chars().skip(span.end()).collect::<String>()
+        )
+        .unwrap();
 
-        if !input.is_empty() {
-            report
-                .finish()
-                .write(Source::from(input), &mut error)
-                .unwrap();
-        } else {
-            writeln!(&mut error, "Input is empty").unwrap();
-        }
+        let start_index = 2 + span.start();
+        let spaces = " ".repeat(start_index);
+
+        // Pipe
+        writeln!(output, "{spaces}{}", color_string("|", ERROR_COLOR)).unwrap();
+
+        // Note with a shortened error message
+        let note = match error.reason() {
+            chumsky::error::SimpleReason::Custom(msg) => msg.clone(),
+            _ => format!(
+                "Unexpected {}",
+                error
+                    .found()
+                    .map(|c| format!("token `{}`", c))
+                    .unwrap_or_else(|| "end of input".to_string())
+            ),
+        };
+        writeln!(
+            output,
+            "{spaces}{}{}",
+            color_string("--- ", ERROR_COLOR),
+            color_string(note, ERROR_COLOR)
+        )
+        .unwrap();
     }
-    String::from_utf8(error).expect(
-        "A parsing error has occurred and \
-HyperQueue was unable to format it. This is a bug in HyperQueue, please report it if you see it.",
-    )
+
+    output
 }
 
 // Common parsers
 fn parse_integer_string() -> impl CharParser<String> {
     let digit = chumsky::primitive::filter(|c: &char| c.is_digit(10));
     let underscore = chumsky::primitive::just('_');
-    let digit_or_underscore = underscore.or(digit.clone()).repeated();
+    let digit_or_underscore = underscore.or(digit).repeated();
 
     digit
         .chain(digit_or_underscore)
@@ -158,6 +167,7 @@ pub fn all_consuming<T>(parser: impl CharParser<T>) -> impl CharParser<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::utils::expect_parser_error;
 
     #[test]
     fn test_parse_u32() {
@@ -166,19 +176,22 @@ mod tests {
         assert_eq!(parse_u32().parse_text("1019").unwrap(), 1019);
     }
 
-    fn expect_parser_error<T: std::fmt::Debug>(parser: impl CharParser<T>, input: &str) -> String {
-        let error = parser.parse_text(input).into_debug_result().unwrap_err();
-        format!("{:?}", error)
-    }
-
     #[test]
     fn test_parse_u32_empty() {
-        insta::assert_debug_snapshot!(expect_parser_error(parse_u32(), ""), @r###""[Simple { span: 0..0, reason: Unexpected, expected: {}, found: None, label: Some(\"number\") }]""###);
+        insta::assert_snapshot!(expect_parser_error(parse_u32(), ""), @r###"
+        Unexpected end of input found while attempting to parse number, expected something else:
+        (the input was empty)
+        "###);
     }
 
     #[test]
     fn test_parse_u32_invalid() {
-        insta::assert_debug_snapshot!(expect_parser_error(parse_u32(), "x"), @r###""[Simple { span: 0..1, reason: Unexpected, expected: {}, found: Some('x'), label: Some(\"number\") }]""###);
+        insta::assert_snapshot!(expect_parser_error(parse_u32(), "x"), @r###"
+        Unexpected token found while attempting to parse number, expected something else:
+          x
+          |
+          --- Unexpected token `x`
+        "###);
     }
 
     #[test]
@@ -196,7 +209,17 @@ mod tests {
 
     #[test]
     fn test_parse_u32_starts_with_underscore() {
-        insta::assert_debug_snapshot!(expect_parser_error(parse_u32(), "_"), @r###""[Simple { span: 0..1, reason: Unexpected, expected: {}, found: Some('_'), label: Some(\"number\") }]""###);
-        insta::assert_debug_snapshot!(expect_parser_error(parse_u32(), "_1"), @r###""[Simple { span: 0..1, reason: Unexpected, expected: {}, found: Some('_'), label: Some(\"number\") }]""###);
+        insta::assert_snapshot!(expect_parser_error(parse_u32(), "_"), @r###"
+        Unexpected token found while attempting to parse number, expected something else:
+          _
+          |
+          --- Unexpected token `_`
+        "###);
+        insta::assert_snapshot!(expect_parser_error(parse_u32(), "_1"), @r###"
+        Unexpected token found while attempting to parse number, expected something else:
+          _1
+          |
+          --- Unexpected token `_`
+        "###);
     }
 }
