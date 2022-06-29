@@ -20,7 +20,7 @@ fn parse_range() -> impl CharParser<IntRange> {
             (v, Some(w), Some(x)) if w >= v && x <= w - v && x > 0 => {
                 Ok(IntRange::new(v, w - v + 1, x))
             }
-            _ => Err(Simple::custom(span, format!("Invalid range"))),
+            _ => Err(Simple::custom(span, "Invalid range")),
         })
         .labelled("Integer range")
 }
@@ -50,17 +50,20 @@ fn is_overlapping(mut ranges: Vec<IntRange>) -> bool {
     false
 }
 
+fn parse_array_inner() -> impl CharParser<IntArray> {
+    all_consuming(parse_ranges_without_overlap())
+}
+
 /// Parses integer ranges separated by commas.
 /// Makes sure that the ranges do not overlap.
 pub fn parse_array(input: &str) -> anyhow::Result<IntArray> {
-    all_consuming(parse_ranges_without_overlap())
-        .parse_text(input)
-        .into_cli_result()
+    parse_array_inner().parse_text(input)
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::tests::utils::expect_parser_error;
 
     #[test]
     fn test_parse_array_def() {
@@ -94,5 +97,15 @@ mod test {
             vec![0, 2, 4, 6, 8, 10]
         );
         assert!(parse_array("0-10, 5").is_err());
+    }
+
+    #[test]
+    fn test_parse_array_error() {
+        insta::assert_snapshot!(expect_parser_error(parse_array_inner(), "12-x"), @r###"
+        Unexpected token found while attempting to parse number, expected something else:
+          12-x
+             |
+             --- Unexpected token `x`
+        "###);
     }
 }

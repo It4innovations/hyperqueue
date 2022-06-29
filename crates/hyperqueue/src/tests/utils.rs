@@ -3,6 +3,7 @@ use std::future::Future;
 use tokio::task::{JoinHandle, LocalSet};
 
 use crate::common::parser::{consume_all, NomResult};
+use crate::common::parser2::CharParser;
 use crate::server::state::StateRef;
 
 pub fn check_parse_error<F: FnMut(&str) -> NomResult<O>, O>(
@@ -17,6 +18,11 @@ pub fn check_parse_error<F: FnMut(&str) -> NomResult<O>, O>(
         }
         _ => panic!("The parser should have failed"),
     }
+}
+
+pub fn expect_parser_error<T: std::fmt::Debug>(parser: impl CharParser<T>, input: &str) -> String {
+    let error = parser.parse_text(input).unwrap_err();
+    format!("{:?}", error)
 }
 
 pub async fn run_concurrent<
