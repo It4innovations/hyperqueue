@@ -40,7 +40,7 @@ pub mod resources {
     pub use crate::internal::common::resources::map::ResourceMap;
 
     pub use crate::internal::common::resources::descriptor::{
-        cpu_descriptor_from_socket_size, CpusDescriptor,
+        cpu_descriptor_from_socket_size, CpusDescriptor, DescriptorError,
     };
 }
 

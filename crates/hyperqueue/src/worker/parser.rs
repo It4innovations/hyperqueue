@@ -1,18 +1,12 @@
 use crate::arg_wrapper;
-use crate::common::parser::{consume_all, p_u32, p_u64, NomResult};
-use crate::common::parser2::{all_consuming, parse_u32, CharParser};
+use crate::common::parser2::{all_consuming, parse_u32, parse_u64, CharParser};
+use chumsky::error::Simple;
 use chumsky::primitive::just;
-use chumsky::text::whitespace;
-use chumsky::Parser as Parser2;
-use nom::branch::alt;
-use nom::character::complete::{alphanumeric1, char, multispace0};
-use nom::combinator::{map, map_res};
-use nom::multi::separated_list1;
-use nom::sequence::{delimited, separated_pair, tuple};
-use nom::Parser;
-use nom_supreme::tag::complete::tag;
-use nom_supreme::ParserExt;
-use tako::resources::{cpu_descriptor_from_socket_size, GenericResourceDescriptorKind};
+use chumsky::text::{whitespace, TextParser};
+use chumsky::Parser;
+use tako::resources::{
+    cpu_descriptor_from_socket_size, DescriptorError, GenericResourceDescriptorKind,
+};
 use tako::resources::{CpuId, CpusDescriptor, GenericResourceDescriptor};
 
 /// Parsers a simple CPU descriptor like `1` or `2x4`.
@@ -72,73 +66,105 @@ arg_wrapper!(
     parse_resource_definition
 );
 
-fn p_kind_list(input: &str) -> NomResult<GenericResourceDescriptorKind> {
-    map_res(
-        delimited(
-            tuple((tag("list"), multispace0, char('('), multispace0)),
-            separated_list1(tag(","), p_u32).context("At least a single index has to be provided"),
-            tuple((multispace0, char(')'), multispace0)),
-        ),
-        |values| {
-            GenericResourceDescriptorKind::list(values.into_iter().map(|idx| idx.into()).collect())
-        },
-    )(input)
+/// Parses a list resource.
+/// The list must be non-empty and it has to contain uniaue values.
+/// Example: `list(1, 2)`.
+fn parse_resource_list() -> impl CharParser<GenericResourceDescriptorKind> {
+    let start = just("list").then(just('(').padded());
+    let end = just(')').padded();
+
+    let indices = parse_u32()
+        .separated_by(just(',').padded())
+        .delimited_by(start, end)
+        .labelled("list indices");
+    indices
+        .try_map(|indices, span| {
+            if indices.is_empty() {
+                Err(Simple::custom(
+                    span,
+                    "List has to contain at least a single element",
+                ))
+            } else {
+                GenericResourceDescriptorKind::list(indices).map_err(|error| match error {
+                    DescriptorError::GenericResourceListItemsNotUnique => {
+                        Simple::custom(span, "List items have to be unique")
+                    }
+                })
+            }
+        })
+        .labelled("list resource")
 }
 
-fn p_kind_range(input: &str) -> NomResult<GenericResourceDescriptorKind> {
-    map(
-        delimited(
-            tuple((tag("range"), multispace0, char('('), multispace0)),
-            separated_pair(p_u32, tuple((multispace0, char('-'), multispace0)), p_u32),
-            tuple((multispace0, char(')'), multispace0)),
-        ),
-        |(start, end)| GenericResourceDescriptorKind::Range {
-            start: start.into(),
-            end: end.into(),
-        },
-    )(input)
+/// Parses a range resource.
+/// The start of the range must be smaller or equal to the end.
+/// Example: `range(1-5)`.
+fn parse_resource_range() -> impl CharParser<GenericResourceDescriptorKind> {
+    let start = just("range").then(just('(').padded());
+    let end = just(')').padded();
+
+    let range = parse_u32()
+        .labelled("start")
+        .then_ignore(just('-').padded())
+        .then(parse_u32().labelled("end"))
+        .labelled("range");
+
+    range
+        .delimited_by(start, end)
+        .try_map(|(start, end), span| {
+            if start > end {
+                Err(Simple::custom(
+                    span,
+                    "Start must be greater or equal to end",
+                ))
+            } else {
+                Ok(GenericResourceDescriptorKind::Range {
+                    start: start.into(),
+                    end: end.into(),
+                })
+            }
+        })
+        .labelled("range resource")
 }
 
-fn p_kind_sum(input: &str) -> NomResult<GenericResourceDescriptorKind> {
-    map(
-        delimited(
-            tuple((tag("sum"), multispace0, char('('), multispace0)),
-            p_u64,
-            tuple((multispace0, char(')'), multispace0)),
-        ),
-        |size| GenericResourceDescriptorKind::Sum { size },
-    )
-    .parse(input)
+/// Parse a sum resource.
+/// Example: `sum(100)`.
+fn parse_resource_sum() -> impl CharParser<GenericResourceDescriptorKind> {
+    let start = just("sum").then(just('(').padded());
+    let end = just(')').padded();
+
+    let value = parse_u64()
+        .labelled("sum")
+        .map(|size| GenericResourceDescriptorKind::Sum { size });
+
+    value.delimited_by(start, end).labelled("sum resource")
 }
 
-fn p_resource_kind(input: &str) -> NomResult<GenericResourceDescriptorKind> {
-    alt((
-        p_kind_list.context("List resource"),
-        p_kind_range.context("Range resource"),
-        p_kind_sum.context("Sum resource"),
-    ))(input)
-}
+/// Parses a resource definition, which consists of a name and a resource kind.
+/// Example: `mem=list(1,2)`, `disk=sum(10)`, `foo=range(1-2)`.
+fn parse_resource_definition_inner() -> impl CharParser<GenericResourceDescriptor> {
+    let name = chumsky::text::ident()
+        .repeated()
+        .padded()
+        .collect::<String>();
+    let equal = just('=').padded_by(whitespace());
+    let kind = (parse_resource_list()
+        .or(parse_resource_range())
+        .or(parse_resource_sum()))
+    .labelled("Resource kind");
 
-pub fn p_resource_definition(input: &str) -> NomResult<GenericResourceDescriptor> {
-    let parser = separated_pair(
-        alphanumeric1.context("Resource identifier"),
-        tuple((multispace0, char('='), multispace0)),
-        p_resource_kind.context("Resource kind (sum, range or list)"),
-    );
-    map(parser, |(name, kind)| GenericResourceDescriptor {
-        name: name.to_string(),
-        kind,
-    })(input)
+    name.then_ignore(equal)
+        .then(kind)
+        .map(|(name, kind)| GenericResourceDescriptor { name, kind })
 }
 
 fn parse_resource_definition(input: &str) -> anyhow::Result<GenericResourceDescriptor> {
-    consume_all(p_resource_definition, input)
+    all_consuming(parse_resource_definition_inner()).parse_text(input)
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::tests::utils::{check_parse_error, expect_parser_error};
+    use crate::tests::utils::expect_parser_error;
     use tako::AsIdVec;
 
     #[test]
@@ -203,7 +229,7 @@ mod test {
     #[test]
     fn test_parse_cpu_def_unclosed_bracket() {
         insta::assert_snapshot!(expect_parser_error(parse_cpu_definition_inner(), "[[1]"), @r###"
-        Unexpected end of input found, expected ] or ,:
+        Unexpected end of input found, expected , or ]:
           [[1]
               |
               --- Unexpected end of input
@@ -211,33 +237,20 @@ mod test {
     }
 
     #[test]
-    fn test_parse_resource_def_range() {
-        let rd = parse_resource_definition("gpu=range(10-123)").unwrap();
-        assert_eq!(rd.name, "gpu");
+    fn test_parse_resource_def_list_single() {
+        let rd = parse_resource_definition("mem=list(1)").unwrap();
+        assert_eq!(rd.name, "mem");
         match rd.kind {
-            GenericResourceDescriptorKind::Range { start, end } => {
-                assert_eq!(start.as_num(), 10);
-                assert_eq!(end.as_num(), 123);
+            GenericResourceDescriptorKind::List { values } => {
+                assert_eq!(values, vec![1.into()]);
             }
-            _ => panic!("Wrong result"),
+            _ => panic!(),
         }
     }
 
     #[test]
-    fn test_parse_resource_def_sum() {
-        let rd = parse_resource_definition("mem=sum(1000_3000_2000)").unwrap();
-        assert_eq!(rd.name, "mem");
-        assert!(matches!(
-            rd.kind,
-            GenericResourceDescriptorKind::Sum {
-                size: 1000_3000_2000
-            }
-        ));
-    }
-
-    #[test]
-    fn test_parse_resource_def_list_single() {
-        let rd = parse_resource_definition("mem=list(1)").unwrap();
+    fn test_parse_resource_def_list_whitespace() {
+        let rd = parse_resource_definition("   mem    =    list    (   1  ) ").unwrap();
         assert_eq!(rd.name, "mem");
         match rd.kind {
             GenericResourceDescriptorKind::List { values } => {
@@ -261,156 +274,146 @@ mod test {
 
     #[test]
     fn test_parse_resource_def_list_non_unique() {
-        check_parse_error(
-            p_resource_definition,
-            "mem=list(1,2,1)",
-            r#"Parse error
-expected Resource kind (sum, range or list) at character 4: "list(1,2,1)"
-  expected one of the following 3 variants:
-    expected List resource at character 4: "list(1,2,1)"
-      "Items in a list-based generic resource have to be unique" at character 4: "list(1,2,1)"
-    or
-    expected Range resource at character 4: "list(1,2,1)"
-      expected "range" at character 4: "list(1,2,1)"
-    or
-    expected Sum resource at character 4: "list(1,2,1)"
-      expected "sum" at character 4: "list(1,2,1)""#,
-        );
+        insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "mem=list(1,2,1)"), @r###"
+        Unexpected end of input found while attempting to parse list resource, expected something else:
+          mem=list(1,2,1)
+              |
+              --- List items have to be unique
+        "###);
     }
 
     #[test]
     fn test_parse_resource_def_list_empty() {
-        check_parse_error(
-            p_resource_definition,
-            "mem=list()",
-            r#"Parse error
-expected Resource kind (sum, range or list) at character 4: "list()"
-  expected one of the following 3 variants:
-    expected List resource at character 4: "list()"
-    expected At least a single index has to be provided at character 9: ")"
-    expected integer at character 9: ")"
-    or
-    expected Range resource at character 4: "list()"
-      expected "range" at character 4: "list()"
-    or
-    expected Sum resource at character 4: "list()"
-      expected "sum" at character 4: "list()""#,
-        );
+        insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "mem=list()"), @r###"
+        Unexpected end of input found while attempting to parse list resource, expected something else:
+          mem=list()
+              |
+              --- List has to contain at least a single element
+        "###);
+    }
+
+    #[test]
+    fn test_parse_resource_def_range() {
+        let rd = parse_resource_definition("gpu=range(10-123)").unwrap();
+        assert_eq!(rd.name, "gpu");
+        match rd.kind {
+            GenericResourceDescriptorKind::Range { start, end } => {
+                assert_eq!(start.as_num(), 10);
+                assert_eq!(end.as_num(), 123);
+            }
+            _ => panic!("Wrong result"),
+        }
+    }
+
+    #[test]
+    fn test_parse_resource_def_range_empty() {
+        insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "gpu=range()"), @r###"
+        Unexpected token found while attempting to parse number, expected something else:
+          gpu=range()
+                    |
+                    --- Unexpected token `)`
+        "###);
+    }
+
+    #[test]
+    fn test_parse_resource_def_missing_end() {
+        insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "gpu=range(10)"), @r###"
+        Unexpected token found while attempting to parse range, expected - or _:
+          gpu=range(10)
+                      |
+                      --- Unexpected token `)`
+        "###);
+    }
+
+    #[test]
+    fn test_parse_resource_def_start_larger_than_end() {
+        insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "gpu=range(5-3)"), @r###"
+        Unexpected end of input found while attempting to parse range resource, expected something else:
+          gpu=range(5-3)
+              |
+              --- Start must be greater or equal to end
+        "###);
+    }
+
+    #[test]
+    fn test_parse_resource_def_sum() {
+        let rd = parse_resource_definition("mem=sum(1000_3000_2000)").unwrap();
+        assert_eq!(rd.name, "mem");
+        assert!(matches!(
+            rd.kind,
+            GenericResourceDescriptorKind::Sum {
+                size: 1000_3000_2000
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_resource_def_sum_missing_value() {
+        insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "x=sum()"), @r###"
+        Unexpected token found while attempting to parse number, expected something else:
+          x=sum()
+                |
+                --- Unexpected token `)`
+        "###);
+    }
+
+    #[test]
+    fn test_parse_resource_def_sum_invalid_value() {
+        insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "x=sum(x)"), @r###"
+        Unexpected token found while attempting to parse number, expected something else:
+          x=sum(x)
+                |
+                --- Unexpected token `x`
+        "###);
     }
 
     #[test]
     fn test_parse_resource_def_empty() {
-        check_parse_error(
-            p_resource_definition,
-            "",
-            r#"Parse error
-expected Resource identifier at the end of input
-  expected alphanumeric character at the end of input"#,
-        );
+        insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), ""), @r###"
+        Unexpected end of input found while attempting to parse Resource kind, expected something else:
+          gpu=range(5-3)
+              |
+              --- Start must be greater or equal to end
+        "###);
     }
 
     #[test]
     fn test_parse_resource_def_number() {
-        check_parse_error(
-            p_resource_definition,
-            "1",
-            r#"Parse error
-expected "=" at the end of input"#,
-        );
+        insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "1"), @r###"
+        Unexpected end of input found while attempting to parse Resource kind, expected something else:
+          gpu=range(5-3)
+              |
+              --- Start must be greater or equal to end
+        "###);
     }
 
     #[test]
     fn test_parse_resource_def_missing_value() {
-        check_parse_error(
-            p_resource_definition,
-            "x=",
-            r#"Parse error
-expected Resource kind (sum, range or list) at the end of input
-  expected one of the following 3 variants:
-    expected List resource at the end of input
-      expected "list" at the end of input
-    or
-    expected Range resource at the end of input
-      expected "range" at the end of input
-    or
-    expected Sum resource at the end of input
-      expected "sum" at the end of input"#,
-        );
+        insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "x="), @r###"
+        Unexpected end of input found while attempting to parse Resource kind, expected something else:
+          gpu=range(5-3)
+              |
+              --- Start must be greater or equal to end
+        "###);
     }
 
     #[test]
     fn test_parse_resource_def_numeric_value() {
-        check_parse_error(
-            p_resource_definition,
-            "x=1",
-            r#"Parse error
-expected Resource kind (sum, range or list) at character 2: "1"
-  expected one of the following 3 variants:
-    expected List resource at character 2: "1"
-      expected "list" at character 2: "1"
-    or
-    expected Range resource at character 2: "1"
-      expected "range" at character 2: "1"
-    or
-    expected Sum resource at character 2: "1"
-      expected "sum" at character 2: "1""#,
-        );
+        insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "x=1"), @r###"
+        Unexpected end of input found while attempting to parse Resource kind, expected something else:
+          gpu=range(5-3)
+              |
+              --- Start must be greater or equal to end
+        "###);
     }
 
     #[test]
     fn test_parse_resource_def_only_sum() {
-        check_parse_error(
-            p_resource_definition,
-            "x=sum",
-            r#"Parse error
-expected Resource kind (sum, range or list) at character 2: "sum"
-  expected one of the following 3 variants:
-    expected List resource at character 2: "sum"
-      expected "list" at character 2: "sum"
-    or
-    expected Range resource at character 2: "sum"
-      expected "range" at character 2: "sum"
-    or
-    expected Sum resource at character 2: "sum"
-      expected "(" at the end of input"#,
-        );
-    }
-
-    #[test]
-    fn test_parse_resource_def_missing_value_in_parentheses() {
-        check_parse_error(
-            p_resource_definition,
-            "x=sum()",
-            r#"Parse error
-expected Resource kind (sum, range or list) at character 2: "sum()"
-  expected one of the following 3 variants:
-    expected List resource at character 2: "sum()"
-      expected "list" at character 2: "sum()"
-    or
-    expected Range resource at character 2: "sum()"
-      expected "range" at character 2: "sum()"
-    or
-    expected Sum resource at character 2: "sum()"
-    expected integer at character 6: ")""#,
-        );
-    }
-
-    #[test]
-    fn test_parse_resource_def_invalid_value_in_parentheses() {
-        check_parse_error(
-            p_resource_definition,
-            "x=sum(x)",
-            r#"Parse error
-expected Resource kind (sum, range or list) at character 2: "sum(x)"
-  expected one of the following 3 variants:
-    expected List resource at character 2: "sum(x)"
-      expected "list" at character 2: "sum(x)"
-    or
-    expected Range resource at character 2: "sum(x)"
-      expected "range" at character 2: "sum(x)"
-    or
-    expected Sum resource at character 2: "sum(x)"
-    expected integer at character 6: "x)""#,
-        );
+        insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "x=sum"), @r###"
+        Unexpected end of input found while attempting to parse sum resource, expected (:
+          x=sum
+               |
+               --- Unexpected end of input
+        "###);
     }
 }

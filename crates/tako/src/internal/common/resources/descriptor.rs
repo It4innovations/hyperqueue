@@ -21,6 +21,7 @@ pub enum GenericResourceDescriptorKind {
     },
     Range {
         start: GenericResourceIndex,
+        // end is inclusive
         end: GenericResourceIndex,
     },
     // TODO: Named(Vec<String>),
@@ -30,7 +31,7 @@ pub enum GenericResourceDescriptorKind {
 }
 
 impl GenericResourceDescriptorKind {
-    pub fn list(mut values: Vec<GenericResourceIndex>) -> Result<Self, DescriptorError> {
+    pub fn list(mut values: Vec<u32>) -> Result<Self, DescriptorError> {
         let count = values.len();
         values.sort_unstable();
         values.dedup();
@@ -38,7 +39,9 @@ impl GenericResourceDescriptorKind {
         if values.len() < count {
             Err(DescriptorError::GenericResourceListItemsNotUnique)
         } else {
-            Ok(GenericResourceDescriptorKind::List { values })
+            Ok(GenericResourceDescriptorKind::List {
+                values: values.into_iter().map(|idx| idx.into()).collect(),
+            })
         }
     }
 
@@ -75,15 +78,10 @@ pub struct GenericResourceDescriptor {
 }
 
 impl GenericResourceDescriptor {
-    pub fn list<Index: Into<GenericResourceIndex>>(
-        name: &str,
-        values: Vec<Index>,
-    ) -> Result<Self, DescriptorError> {
+    pub fn list(name: &str, values: Vec<u32>) -> Result<Self, DescriptorError> {
         Ok(GenericResourceDescriptor {
             name: name.to_string(),
-            kind: GenericResourceDescriptorKind::list(
-                values.into_iter().map(|idx| idx.into()).collect(),
-            )?,
+            kind: GenericResourceDescriptorKind::list(values)?,
         })
     }
     pub fn range<Index: Into<GenericResourceIndex>>(name: &str, start: Index, end: Index) -> Self {
