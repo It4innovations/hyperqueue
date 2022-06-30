@@ -1,3 +1,11 @@
+# Dev
+
+## Fixes
+
+## Job submission
+* [#450](https://github.com/It4innovations/hyperqueue/pull/450) Attempts to resubmit a job with zero
+tasks will now result in an explicit error, rather than a crash of the client.
+
 # v0.11.0
 
 ## New features
