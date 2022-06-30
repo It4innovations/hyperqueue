@@ -623,6 +623,18 @@ def test_job_resubmit_all(hq_env: HqEnv):
     table.check_row_value("Tasks", "3; Ids: 2, 7, 9")
 
 
+def test_job_resubmit_empty(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--array=2,7,9", "--", "/bin/hostname"])
+    hq_env.start_workers(2, cpus=1)
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    try:
+        hq_env.command(["job", "resubmit", "--filter=canceled", "1"], as_table=True)
+    except Exception as e:
+        assert "Filtered task(s) are empty, can't submit empty job" in str(e)
+
+
 def test_job_priority(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.command(
