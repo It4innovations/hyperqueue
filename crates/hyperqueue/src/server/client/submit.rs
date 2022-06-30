@@ -168,6 +168,13 @@ pub async fn handle_resubmit(
                                 }
                             })
                             .collect();
+
+                        if ids.is_empty() {
+                            return ToClientMessage::Error(
+                                "Filtered task(s) are empty, can't submit empty job".to_string(),
+                            );
+                        }
+
                         ids.sort_unstable();
                         JobDescription::Array {
                             ids: IntArray::from_ids(ids),
