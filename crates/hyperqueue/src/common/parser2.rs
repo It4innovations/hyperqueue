@@ -1,17 +1,95 @@
 use anyhow::anyhow;
-use chumsky::error::Simple;
+use chumsky::error::{Simple, SimpleReason};
 use chumsky::primitive::end;
-use chumsky::Parser;
+use chumsky::text::ident;
+use chumsky::{Error, Parser, Span};
 use colored::Color;
+use std::ops::Range;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParseError {
+    error: Simple<String>,
+}
+
+impl ParseError {
+    /// Create an error with a custom error message.
+    pub fn custom<M: ToString>(span: <Self as Error<char>>::Span, msg: M) -> Self {
+        Self {
+            error: Simple::custom(span, msg),
+        }
+    }
+
+    pub(crate) fn expected_input_found_string<Iter: IntoIterator<Item = Option<String>>>(
+        span: <Self as Error<char>>::Span,
+        expected: Iter,
+        found: Option<String>,
+    ) -> Self {
+        Self {
+            error: Simple::expected_input_found(span, expected, found),
+        }
+    }
+
+    /// Returns the span that the error occured at.
+    pub fn span(&self) -> <Self as Error<char>>::Span {
+        self.error.span()
+    }
+
+    /// Returns an iterator over possible expected patterns.
+    pub fn expected(&self) -> impl ExactSizeIterator<Item = &Option<String>> + '_ {
+        self.error.expected()
+    }
+
+    /// Returns the input, if any, that was found instead of an expected pattern.
+    pub fn found(&self) -> Option<&String> {
+        self.error.found()
+    }
+
+    /// Returns the reason for the error.
+    pub fn reason(&self) -> &SimpleReason<String, <Self as Error<char>>::Span> {
+        self.error.reason()
+    }
+
+    /// Returns the error's label, if any.
+    pub fn label(&self) -> Option<&'static str> {
+        self.error.label()
+    }
+}
+
+impl Error<char> for ParseError {
+    type Span = Range<usize>;
+    type Label = &'static str;
+
+    fn expected_input_found<Iter: IntoIterator<Item = Option<char>>>(
+        span: Self::Span,
+        expected: Iter,
+        found: Option<char>,
+    ) -> Self {
+        let expected = expected.into_iter().map(|c| c.map(|c| c.to_string()));
+        Self {
+            error: Simple::expected_input_found(span, expected, found.map(|c| c.to_string())),
+        }
+    }
+
+    fn with_label(self, label: Self::Label) -> Self {
+        Self {
+            error: self.error.with_label(label),
+        }
+    }
+
+    fn merge(self, other: Self) -> Self {
+        let merged = self.error.merge(other.error);
+        Self { error: merged }
+    }
+}
 
 // Parsing infrastructure
-pub trait CharParser<T>: Parser<char, T, Error = Simple<char>> + Sized {
+pub trait CharParser<T>: Parser<char, T, Error = ParseError> + Sized + Clone {
     fn parse_text(&self, input: &str) -> anyhow::Result<T> {
         self.parse(input)
             .map_err(|errors| anyhow!("{}", format_errors_cli(input, errors)))
     }
 }
-impl<T, P> CharParser<T> for P where P: Parser<char, T, Error = Simple<char>> {}
+impl<T, P> CharParser<T> for P where P: Parser<char, T, Error = ParseError> + Clone {}
 
 #[cfg(not(test))]
 fn color_string<S: AsRef<str>>(string: S, color: Color) -> colored::ColoredString {
@@ -26,8 +104,7 @@ fn color_string<S: AsRef<str>>(string: S, _color: Color) -> String {
 
 /// Formats `chumsky` error into a user-visible (optionally colored) string.
 /// Currently it handles just the first error.
-pub fn format_errors_cli(input: &str, mut errors: Vec<Simple<char>>) -> String {
-    use chumsky::Span;
+pub fn format_errors_cli(input: &str, mut errors: Vec<ParseError>) -> String {
     use std::fmt::Write;
 
     const ERROR_COLOR: Color = Color::Red;
@@ -68,7 +145,7 @@ pub fn format_errors_cli(input: &str, mut errors: Vec<Simple<char>>) -> String {
         if let Some(label) = error.label() {
             format!(
                 " while attempting to parse {}",
-                color_string(label, colored::Color::Yellow)
+                color_string(label, Color::Yellow)
             )
         } else {
             String::new()
@@ -107,7 +184,7 @@ pub fn format_errors_cli(input: &str, mut errors: Vec<Simple<char>>) -> String {
 
         // Note with a shortened error message
         let note = match error.reason() {
-            chumsky::error::SimpleReason::Custom(msg) => msg.clone(),
+            SimpleReason::Custom(msg) => msg.clone(),
             _ => format!(
                 "Unexpected {}",
                 error
@@ -149,7 +226,7 @@ fn parse_integer_string() -> impl CharParser<String> {
 pub fn parse_u32() -> impl CharParser<u32> {
     parse_integer_string().try_map(|p, span| {
         p.parse::<u32>()
-            .map_err(|_| Simple::custom(span, "Cannot parse as 4-byte unsigned integer"))
+            .map_err(|_| ParseError::custom(span, "Cannot parse as 4-byte unsigned integer"))
     })
 }
 
@@ -157,7 +234,43 @@ pub fn parse_u32() -> impl CharParser<u32> {
 pub fn parse_u64() -> impl CharParser<u64> {
     parse_integer_string().try_map(|p, span| {
         p.parse::<u64>()
-            .map_err(|_| Simple::custom(span, "Cannot parse as 8-byte unsigned integer"))
+            .map_err(|_| ParseError::custom(span, "Cannot parse as 8-byte unsigned integer"))
+    })
+}
+
+/// Parses an exact string.
+/// Use this instead of `chomsky::text::keyword` or `chomsky::primitive::just` for better error
+/// messages if the expected string has more than a single character.
+pub fn parse_exact_string(keyword: &'static str) -> impl CharParser<()> {
+    ident()
+        // This produces nice error even when the input is missing completely
+        .map_err_with_span(|error: ParseError, span| {
+            error.merge(ParseError::expected_input_found_string(
+                span,
+                Some(Some(keyword.to_string())),
+                None,
+            ))
+        })
+        .try_map(move |s: String, span| {
+            if s.as_str() == keyword {
+                Ok(())
+            } else {
+                Err(ParseError::expected_input_found_string(
+                    span,
+                    Some(Some(keyword.to_string())),
+                    Some(s),
+                ))
+            }
+        })
+}
+
+pub fn parse_named_string(name: &'static str) -> impl CharParser<String> {
+    ident().map_err_with_span(|error: ParseError, span| {
+        error.merge(ParseError::expected_input_found_string(
+            span,
+            Some(Some(name.to_string())),
+            None,
+        ))
     })
 }
 
@@ -212,13 +325,17 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_u32_starts_with_underscore() {
+    fn test_parse_u32_only_underscore() {
         insta::assert_snapshot!(expect_parser_error(parse_u32(), "_"), @r###"
         Unexpected token found while attempting to parse number, expected something else:
           _
           |
           --- Unexpected token `_`
         "###);
+    }
+
+    #[test]
+    fn test_parse_u32_starts_with_underscore() {
         insta::assert_snapshot!(expect_parser_error(parse_u32(), "_1"), @r###"
         Unexpected token found while attempting to parse number, expected something else:
           _1
@@ -234,7 +351,7 @@ mod tests {
             .delimited_by(just('('), just(')'));
 
         insta::assert_snapshot!(expect_parser_error(parser, "(x,x"), @r###"
-        Unexpected end of input found, expected , or ):
+        Unexpected end of input found, expected ) or ,:
           (x,x
               |
               --- Unexpected end of input
