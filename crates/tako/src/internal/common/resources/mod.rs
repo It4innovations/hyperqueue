@@ -10,7 +10,8 @@ pub use allocation::{
     ResourceAllocation,
 };
 pub use descriptor::{
-    CpusDescriptor, GenericResourceDescriptor, GenericResourceDescriptorKind, ResourceDescriptor,
+    CpusDescriptor, DescriptorError, GenericResourceDescriptor, GenericResourceDescriptorKind,
+    ResourceDescriptor,
 };
 pub use request::{CpuRequest, GenericResourceRequest, ResourceRequest, TimeRequest};
 

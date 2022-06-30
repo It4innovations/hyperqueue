@@ -40,46 +40,41 @@ pub fn format_errors_cli(input: &str, mut errors: Vec<Simple<char>>) -> String {
     let mut output = String::new();
 
     let span = error.span();
-    let message = if let chumsky::error::SimpleReason::Custom(msg) = error.reason() {
-        msg.clone()
+    let expected = if error.expected().len() == 0 {
+        "something else".to_string()
     } else {
-        let expected = if error.expected().len() == 0 {
-            "something else".to_string()
-        } else {
-            error
-                .expected()
-                .map(|expected| {
-                    color_string(
-                        match expected {
-                            Some(expected) => expected.to_string(),
-                            None => "<end of input>".to_string(),
-                        },
-                        Color::Blue,
-                    )
-                    .to_string()
-                })
-                .collect::<Vec<_>>()
-                .join(" or ")
-        };
-
-        format!(
-            "{} found{}, expected {}:",
-            if error.found().is_some() {
-                "Unexpected token"
-            } else {
-                "Unexpected end of input"
-            },
-            if let Some(label) = error.label() {
-                format!(
-                    " while attempting to parse {}",
-                    color_string(label, colored::Color::Yellow)
-                )
-            } else {
-                String::new()
-            },
-            expected,
-        )
+        let mut expected = error
+            .expected()
+            .map(|expected| match expected {
+                Some(expected) => expected.to_string(),
+                None => "<end of input>".to_string(),
+            })
+            .collect::<Vec<_>>();
+        expected.sort_unstable();
+        expected
+            .into_iter()
+            .map(|expected| color_string(expected, Color::Blue).to_string())
+            .collect::<Vec<_>>()
+            .join(" or ")
     };
+
+    let message = format!(
+        "{} found{}, expected {}:",
+        if error.found().is_some() {
+            "Unexpected token"
+        } else {
+            "Unexpected end of input"
+        },
+        if let Some(label) = error.label() {
+            format!(
+                " while attempting to parse {}",
+                color_string(label, colored::Color::Yellow)
+            )
+        } else {
+            String::new()
+        },
+        expected,
+    );
 
     output.push_str(&message);
     output.push('\n');
