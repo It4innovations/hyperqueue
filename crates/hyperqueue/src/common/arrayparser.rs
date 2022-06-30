@@ -1,7 +1,6 @@
 use crate::common::arraydef::{IntArray, IntRange};
-use crate::common::parser2::{all_consuming, parse_u32, CharParser};
+use crate::common::parser2::{all_consuming, parse_u32, CharParser, ParseError};
 use crate::Set;
-use chumsky::error::Simple;
 use chumsky::primitive::just;
 use chumsky::text::TextParser;
 use chumsky::Parser;
@@ -9,8 +8,8 @@ use chumsky::Parser;
 /// Parse integer range in the format n[-end][:step].
 fn parse_range() -> impl CharParser<IntRange> {
     let start = parse_u32().labelled("start");
-    let end = just('-').ignore_then(parse_u32()).labelled("end").or_not();
-    let step = just(':').ignore_then(parse_u32()).labelled("step").or_not();
+    let end = just("-").ignore_then(parse_u32()).labelled("end").or_not();
+    let step = just(":").ignore_then(parse_u32()).labelled("step").or_not();
 
     let parser = start.then(end).then(step);
     parser
@@ -20,7 +19,7 @@ fn parse_range() -> impl CharParser<IntRange> {
             (v, Some(w), Some(x)) if w >= v && x <= w - v && x > 0 => {
                 Ok(IntRange::new(v, w - v + 1, x))
             }
-            _ => Err(Simple::custom(span, "Invalid range")),
+            _ => Err(ParseError::custom(span, "Invalid range")),
         })
         .labelled("Integer range")
 }
@@ -35,7 +34,7 @@ fn parse_ranges() -> impl CharParser<Vec<IntRange>> {
 fn parse_ranges_without_overlap() -> impl CharParser<IntArray> {
     parse_ranges().try_map(|ranges, span| match ranges {
         ranges if !is_overlapping(ranges.clone()) => Ok(IntArray::new(ranges)),
-        _ => Err(Simple::custom(span, "Ranges overlap")),
+        _ => Err(ParseError::custom(span, "Ranges overlap")),
     })
 }
 

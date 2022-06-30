@@ -2,7 +2,6 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::anyhow;
 use chrono::TimeZone;
-use chumsky::error::Simple;
 use chumsky::prelude::just;
 use chumsky::Parser;
 
@@ -40,7 +39,7 @@ fn parse_hms_time_inner() -> impl CharParser<Duration> {
         ((hours, Some(minutes)), Some(seconds)) => Ok(Duration::from_secs(
             hours as u64 * 3600 + minutes as u64 * 60 + seconds as u64,
         )),
-        _ => Err(Simple::custom(span, "Invalid time specification")),
+        _ => Err(ParseError::custom(span, "Invalid time specification")),
     })
     .labelled("time in [[HH:]MM:]SS format")
 }
@@ -56,7 +55,7 @@ pub fn now_monotonic() -> std::time::Instant {
     std::time::Instant::now()
 }
 
-use crate::common::parser2::{all_consuming, parse_u32, CharParser};
+use crate::common::parser2::{all_consuming, parse_u32, CharParser, ParseError};
 #[cfg(test)]
 pub use mock_time::now_monotonic;
 
