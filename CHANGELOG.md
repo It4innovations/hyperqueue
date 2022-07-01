@@ -1,8 +1,14 @@
 # Dev
 
+## Changes
+
+### CLI
+* [#455](https://github.com/It4innovations/hyperqueue/pull/445) Improve the quality of error messages
+produced when parsing various CLI parameters, like resources.
+
 ## Fixes
 
-## Job submission
+### Job submission
 * [#450](https://github.com/It4innovations/hyperqueue/pull/450) Attempts to resubmit a job with zero
 tasks will now result in an explicit error, rather than a crash of the client.
 
