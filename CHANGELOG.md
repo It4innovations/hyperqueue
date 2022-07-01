@@ -10,6 +10,12 @@ hide some details by default, to conserve space in terminal output. To show all 
 * [#455](https://github.com/It4innovations/hyperqueue/pull/445) Improve the quality of error messages
 produced when parsing various CLI parameters, like resources.
 
+### Automatic allocation
+* [#448](https://github.com/It4innovations/hyperqueue/pull/448) The automatic allocator will now start
+workers in multi-node Slurm allocations using `srun --overlap`. This should avoid taking up Slurm
+task resources by the started workers (if possible). If you run into any issues with using `srun`
+inside HyperQueue tasks, please let us know.
+
 ## Fixes
 
 ### Job submission
