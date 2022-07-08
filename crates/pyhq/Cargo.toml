@@ -21,7 +21,7 @@ pyo3-asyncio = { version = "0.15", features = ["tokio-runtime", "attributes"] }
 dict_derive = "0.4.0"
 pythonize = "0.15"
 serde = "1.0"
-tokio = "1.17"
+tokio = "1.20"
 anyhow = "1.0"
 termcolor = "1.1"
 log = "0.4"

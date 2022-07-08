@@ -223,7 +223,7 @@ pub struct JobProgressOpts {
 #[derive(Parser)]
 struct GenerateCompletionOpts {
     /// Shell flavour for which the completion script should be generated
-    #[clap(possible_values = Shell::possible_values().collect::<Vec<_>>())]
+    #[clap(arg_enum)]
     shell: Shell,
 }
 
