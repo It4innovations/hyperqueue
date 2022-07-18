@@ -74,13 +74,13 @@ creating a new allocation queue:
     === "PBS"
     
         ```bash
-        $ hq alloc add pbs --time-limit 1h --cpus 4x4 --resource "gpu=range(1-2)" -- -qqprod -AAccount1
+        $ hq alloc add pbs --time-limit 1h --cpus 4x4 --resource "gpus=range(1-2)" -- -qqprod -AAccount1
         ```
     
     === "Slurm"
     
         ``` bash
-        $ hq alloc add slurm --time-limit 1h --cpus 4x4 --resource "gpu=range(1-2)" -- --partition=p1
+        $ hq alloc add slurm --time-limit 1h --cpus 4x4 --resource "gpus=range(1-2)" -- --partition=p1
         ```
     
     If you do not pass any resources, they will be detected automatically (same as it works with
