@@ -15,6 +15,7 @@ use pyo3::{IntoPy, PyAny, PyResult, Python};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tako::gateway::GenericResourceRequest;
 use tako::program::{ProgramDefinition, StdioDef};
 use tako::resources::NumOfNodes;
 
@@ -25,6 +26,7 @@ use crate::{borrow_mut, run_future, ClientContextPtr, FromPyObject, PyJobId, PyT
 pub struct ResourceRequestDescription {
     n_nodes: NumOfNodes,
     cpus: String,
+    generic: Option<HashMap<String, u64>>,
 }
 
 #[derive(Debug, FromPyObject)]
@@ -105,7 +107,15 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
         tako::gateway::ResourceRequest {
             n_nodes: rs.n_nodes,
             cpus: parse_cpu_request(&rs.cpus)?,
-            ..Default::default()
+            generic: rs
+                .generic
+                .map(|g| {
+                    g.into_iter()
+                        .map(|(resource, amount)| GenericResourceRequest { resource, amount })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            min_time: Default::default(),
         }
     } else {
         Default::default()

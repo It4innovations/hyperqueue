@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Sequence
 class ResourceRequest:
     n_nodes: int = 0
     cpus: str = "1"
+    generic: Optional[Dict[str, int]] = None
 
 
 @dataclasses.dataclass()

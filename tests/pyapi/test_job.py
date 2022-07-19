@@ -111,7 +111,7 @@ def test_get_failed_tasks(hq_env: HqEnv):
     assert errors[1].error == "Error: Program terminated with exit code 1"
 
 
-def test_job_resources(hq_env: HqEnv):
+def test_job_cpus_resources(hq_env: HqEnv):
     (job, client) = prepare_job_client(hq_env)
 
     job.program(args=bash("echo Hello"), resources=ResourceRequest(cpus="1"))
@@ -122,3 +122,38 @@ def test_job_resources(hq_env: HqEnv):
 
     table = hq_env.command(["task", "list", str(submitted_job.id)], as_table=True)
     assert table.get_column_value("State") == ["FINISHED", "WAITING", "FINISHED"]
+
+
+def test_job_generic_resources(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+    hq_env.start_worker(
+        args=[
+            "--resource",
+            "gpus=range(1-2)",
+            "--resource",
+            "fairy=sum(1000)",
+        ]
+    )
+    t1 = job.program(
+        args=bash("echo Hello"), resources=ResourceRequest(generic={"gpus": 1})
+    )
+    job.program(args=bash("echo Hello"), resources=ResourceRequest(generic={"gpus": 4}))
+    job.program(
+        args=bash("echo Hello"),
+        resources=ResourceRequest(generic={"gpus": 2}),
+        deps=[t1],
+    )
+    job.program(
+        args=bash("echo Hello"),
+        resources=ResourceRequest(generic={"gpus": 2, "fairy": 2000}),
+    )
+
+    submitted_job = client.submit(job)
+    time.sleep(1.0)
+    table = hq_env.command(["task", "list", str(submitted_job.id)], as_table=True)
+    assert table.get_column_value("State") == [
+        "FINISHED",
+        "WAITING",
+        "FINISHED",
+        "WAITING",
+    ]
