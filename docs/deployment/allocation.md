@@ -86,6 +86,10 @@ creating a new allocation queue:
     If you do not pass any resources, they will be detected automatically (same as it works with
     `hq worker start`).
 
+- `--idle-timeout <duration>` [Idle timeout](worker.md#idle-timeout) for workers started by the
+automatic allocator. We suggest that you do not use a long duration for this parameter, as it can
+result in wasting precious allocation time.
+
 - `--name <name>` Name of the allocation queue. Will be used to name allocations. Serves for debug purposes only.
 
 [^1]: You can use various [shortcuts](../cli/shortcuts.md#duration) for the duration value.

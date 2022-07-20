@@ -22,6 +22,7 @@ pub struct QueueInfo {
     worker_cpu_arg: Option<String>,
     worker_resource_args: Vec<String>,
     max_worker_count: Option<u32>,
+    idle_timeout: Option<Duration>,
 }
 
 impl QueueInfo {
@@ -35,6 +36,7 @@ impl QueueInfo {
         worker_cpu_arg: Option<String>,
         worker_resource_args: Vec<String>,
         max_worker_count: Option<u32>,
+        idle_timeout: Option<Duration>,
     ) -> Self {
         Self {
             backlog,
@@ -45,6 +47,7 @@ impl QueueInfo {
             worker_resource_args,
             max_worker_count,
             on_server_lost,
+            idle_timeout,
         }
     }
 

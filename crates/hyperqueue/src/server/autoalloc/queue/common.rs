@@ -139,7 +139,10 @@ pub fn build_worker_args(
         ManagerType::Slurm => "slurm",
     };
 
-    let duration = humantime::format_duration(get_default_worker_idle_time()).to_string();
+    let idle_timeout = queue_info
+        .idle_timeout
+        .unwrap_or_else(get_default_worker_idle_time);
+    let duration = humantime::format_duration(idle_timeout).to_string();
     let mut args = format!(
         "{} worker start --idle-timeout {} --manager {} --server-dir {}",
         hq_path.display(),
