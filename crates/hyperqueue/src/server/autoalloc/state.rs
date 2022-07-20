@@ -427,6 +427,7 @@ mod tests {
                 None,
                 vec![],
                 None,
+                None,
             ),
             None,
             Box::new(NullHandler),

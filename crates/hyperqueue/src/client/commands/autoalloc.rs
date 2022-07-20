@@ -1,10 +1,11 @@
 use clap::Parser;
+use std::time::Duration;
 
 use crate::client::commands::worker::ArgServerLostPolicy;
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::utils::PassThroughArgument;
 use crate::common::manager::info::ManagerType;
-use crate::common::utils::time::ExtendedArgDuration;
+use crate::common::utils::time::{ArgDuration, ExtendedArgDuration};
 use crate::rpc_call;
 use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
 use crate::server::bootstrap::get_client_session;
@@ -94,6 +95,10 @@ struct SharedQueueOpts {
     #[clap(long, default_value = "finish-running", arg_enum)]
     on_server_lost: ArgServerLostPolicy,
 
+    /// Duration after which will an idle worker automatically stop
+    #[clap(long)]
+    idle_timeout: Option<ArgDuration>,
+
     /// Disables dry-run, which submits an allocation with the specified parameters to verify
     /// whether the parameters are correct.
     // This flag currently cannot be in [`AddQueueOpts`] because of a bug in clap:
@@ -179,10 +184,20 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
         name,
         cpus,
         resource,
+        idle_timeout,
         additional_args,
         on_server_lost,
         no_dry_run: _,
     } = args;
+
+    if let Some(ref idle_timeout) = idle_timeout {
+        if *idle_timeout.get() > Duration::from_secs(60 * 10) {
+            log::warn!(
+                "You have set an idle timeout longer than 10 minutes. This can result in \
+wasted allocation duration."
+            );
+        }
+    }
 
     AllocationQueueParams {
         workers_per_alloc,
@@ -194,6 +209,7 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
         worker_resources_args: resource.into_iter().map(|v| v.into()).collect(),
         max_worker_count,
         on_server_lost: on_server_lost.into(),
+        idle_timeout: idle_timeout.map(|d| d.unpack()),
     }
 }
 

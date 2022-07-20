@@ -189,6 +189,7 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
         worker_resources_args,
         max_worker_count,
         on_server_lost,
+        idle_timeout,
     } = params;
     QueueInfo::new(
         backlog,
@@ -199,6 +200,7 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
         worker_cpu_arg,
         worker_resources_args,
         max_worker_count,
+        idle_timeout,
     )
 }
 
@@ -1537,6 +1539,7 @@ mod tests {
                     None,
                     vec![],
                     max_worker_count,
+                    None,
                 ),
                 RateLimiter::new(
                     limiter_delays,

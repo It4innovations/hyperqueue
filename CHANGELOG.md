@@ -1,5 +1,11 @@
 # Dev
 
+## New features
+
+### Automatic allocation
+* [#457](https://github.com/It4innovations/hyperqueue/pull/457) You can now specify the idle timeout
+for workers started by the automatic allocator using the `--idle-timeout` flag of the `hq alloc add` command.
+
 ## Changes
 
 ### CLI

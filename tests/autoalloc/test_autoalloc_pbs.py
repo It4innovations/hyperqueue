@@ -399,6 +399,22 @@ def test_pbs_too_high_time_request(hq_env: HqEnv):
         assert len(table) == 0
 
 
+def get_worker_args(path: str):
+    """
+    `path` should be a path to qsub submit script.
+    """
+    with open(path) as f:
+        args = json.loads(f.read())
+        qsub_script_path = args[1]
+    with open(qsub_script_path) as f:
+        data = f.read()
+    return [
+        line
+        for line in data.splitlines(keepends=False)
+        if line and not line.startswith("#")
+    ][0].split(" ")[1:]
+
+
 def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
     path = join(hq_env.work_path, "qsub.out")
     qsub_code = program_code_store_args_json(path)
@@ -423,17 +439,7 @@ def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
         )
         wait_until(lambda: os.path.exists(path))
 
-        with open(path) as f:
-            args = json.loads(f.read())
-            qsub_script_path = args[1]
-        with open(qsub_script_path) as f:
-            data = f.read()
-        worker_args = [
-            line
-            for line in data.splitlines(keepends=False)
-            if line and not line.startswith("#")
-        ][0].split(" ")[1:]
-        assert worker_args == [
+        assert get_worker_args(path) == [
             "worker",
             "start",
             "--idle-timeout",
@@ -450,6 +456,37 @@ def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
             '"y=range(1-4)"',
             "--resource",
             '"z=list(1,2,4)"',
+            "--on-server-lost=finish-running",
+        ]
+
+
+def test_pbs_pass_idle_timeout_to_worker(hq_env: HqEnv):
+    path = join(hq_env.work_path, "qsub.out")
+    qsub_code = program_code_store_args_json(path)
+
+    with hq_env.mock.mock_program("qsub", qsub_code):
+        hq_env.start_server()
+        prepare_tasks(hq_env)
+
+        add_queue(
+            hq_env,
+            manager="pbs",
+            additional_worker_args=[
+                "--idle-timeout",
+                "30m",
+            ],
+        )
+        wait_until(lambda: os.path.exists(path))
+
+        assert get_worker_args(path) == [
+            "worker",
+            "start",
+            "--idle-timeout",
+            "30m",
+            "--manager",
+            "pbs",
+            "--server-dir",
+            f"{hq_env.server_dir}/001",
             "--on-server-lost=finish-running",
         ]
 
