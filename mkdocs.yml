@@ -30,6 +30,9 @@ nav:
   - CLI:
     - Shortcuts: cli/shortcuts.md
     - Output mode: cli/output-mode.md
+  - Python API:
+      - python/index.md
+      - API reference: python/apidoc/
   - Events: events.md
   - FAQ: faq.md
   - Comparison With Other Tools: other-tools.md
@@ -71,6 +74,8 @@ plugins:
       enable_creation_date: true
   - mike:
       canonical_version: stable
+  - nedoc:
+      path: python/apidoc
 
 extra:
   analytics:

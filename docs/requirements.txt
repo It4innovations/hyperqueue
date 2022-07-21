@@ -5,3 +5,5 @@ mkdocs-git-revision-date-localized-plugin==0.10.0
 mike==1.1.2
 requests==2.26.0
 jinja2==3.0.3
+nedoc @ git+https://github.com/spirali/nedoc
+mkdocs-nedoc-plugin @ git+https://github.com/kobzol/mkdocs-nedoc-plugin

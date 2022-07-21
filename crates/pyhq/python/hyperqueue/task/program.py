@@ -11,6 +11,10 @@ ProgramArgs = Union[List[str], str]
 
 
 class ExternalProgram(Task):
+    """
+    Task that represents the execution of an executable binary.
+    """
+
     def __init__(
         self,
         task_id: TaskId,

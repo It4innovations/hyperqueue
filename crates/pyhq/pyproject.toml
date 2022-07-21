@@ -12,7 +12,7 @@ requires-python = ">=3.6"
 description = "HyperQueue Python API"
 dependencies = [
     "cloudpickle==2.0",
-    "tqdm==4.64.0"
+    "tqdm>=4.60,<5"
 ]
 
 [project.optional-dependencies]

@@ -73,6 +73,10 @@ class PythonEnv:
 
 
 class PythonFunction(Task):
+    """
+    Task that represents the execution of a Python function.
+    """
+
     def __init__(
         self,
         task_id: TaskId,

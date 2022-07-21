@@ -23,6 +23,10 @@ JobMap = Dict[JobId, Job]
 
 
 class FailedJobsException(Exception):
+    """
+    This exception is triggered if a task fails.
+    """
+
     def __init__(self, failed_tasks: TaskFailureMap, job_map: JobMap):
         self.failed_tasks = failed_tasks
         self.job_map = job_map
@@ -50,15 +54,28 @@ class FailedJobsException(Exception):
 
 class Client:
     def __init__(
-        self, path: Optional[Path] = None, python_env: Optional[PythonEnv] = None
+        self, server_dir: Optional[Path] = None, python_env: Optional[PythonEnv] = None
     ):
-        path = str(path) if path else None
-        self.connection = ClientConnection(path)
+        """
+        A client serves as a gateway for submitting jobs and querying information about a running
+        HyperQueue server.
+
+        :param server_dir: Path to a server directory of a running HyperQueue server.
+        :param python_env: Python environment which configures Python tasks created by
+        [`function`](`hyperqueue.job.Job.function`).
+        """
+        server_dir = str(server_dir) if server_dir else None
+        self.connection = ClientConnection(server_dir)
         if python_env is None:
             python_env = PythonEnv()
         self.python_env = python_env
 
     def submit(self, job: Job) -> SubmittedJob:
+        """
+        Submit a job into HyperQueue.
+
+        :param job: Job that will be submitted.
+        """
         job_desc = job._build(self)
         task_count = len(job_desc.tasks)
         if task_count < 1:
