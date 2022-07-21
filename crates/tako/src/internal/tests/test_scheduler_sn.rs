@@ -757,6 +757,46 @@ fn test_generic_resource_balance2() {
     );
 }
 
+#[test]
+fn test_generic_resource_balancing3() {
+    let mut rt = TestEnv::new();
+    rt.new_generic_resource(1);
+    rt.new_workers_ext(&[
+        // Worker 100
+        (2, None, vec![]),
+        // Worker 101
+        (
+            2,
+            None,
+            vec![GenericResourceDescriptor::range("Res0", 1, 1)],
+        ),
+    ]);
+
+    for i in 1..=80 {
+        rt.new_task(TaskBuilder::new(i).cpus_compact(1));
+    }
+    for i in 81..=100 {
+        rt.new_task(TaskBuilder::new(i).cpus_compact(1).generic_res(0, 1));
+    }
+
+    rt.schedule();
+
+    assert!(
+        rt.core()
+            .get_worker_by_id_or_panic(100.into())
+            .sn_tasks()
+            .len()
+            >= 40
+    );
+    assert!(
+        rt.core()
+            .get_worker_by_id_or_panic(101.into())
+            .sn_tasks()
+            .len()
+            >= 40
+    );
+}
+
 fn check_task_has_worker<T: Into<TaskId>, W: Into<WorkerId>>(
     core: &Core,
     task_id: T,
