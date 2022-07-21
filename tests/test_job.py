@@ -9,12 +9,12 @@ from typing import List
 import psutil
 import pytest
 
-from utils.wait import wait_until
 from .conftest import HqEnv
 from .utils import wait_for_job_state
 from .utils.io import check_file_contents, read_file
 from .utils.job import default_task_output, list_jobs
 from .utils.table import parse_multiline_cell
+from .utils.wait import wait_until
 
 
 def test_job_submit(hq_env: HqEnv):
@@ -1264,7 +1264,6 @@ def test_zero_custom_error_message(hq_env: HqEnv):
         table.get_column_value("Error")[0]
         == "Error: Task created an error file, but it is empty"
     )
-    # print(table)
 
 
 def test_crashing_job_by_status(hq_env: HqEnv):
@@ -1308,7 +1307,7 @@ def python(command: str) -> List[str]:
     return ["python3", "-c", command]
 
 
-def test_terminate_task_when_worker_dies(hq_env: HqEnv):
+def test_terminate_process_when_worker_dies(hq_env: HqEnv):
     hq_env.start_server()
     worker = hq_env.start_worker()
 
@@ -1321,6 +1320,7 @@ def test_terminate_task_when_worker_dies(hq_env: HqEnv):
 import os
 import sys
 import time
+
 print(os.getpid(), flush=True)
 time.sleep(3600)
 """
@@ -1330,7 +1330,7 @@ time.sleep(3600)
     wait_for_job_state(hq_env, 1, "RUNNING")
     wait_until(lambda: read_file(default_task_output()) != "")
 
-    worker.send_signal(signal.SIGKILL)
+    worker.send_signal(signal.SIGTERM)
     worker.wait()
     hq_env.check_process_exited(worker, expected_code="error")
 
@@ -1338,3 +1338,42 @@ time.sleep(3600)
     pid = int(read_file(default_task_output()))
 
     assert not psutil.pid_exists(pid)
+
+
+def test_terminate_process_children_when_worker_dies(hq_env: HqEnv):
+    hq_env.start_server()
+    worker = hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--",
+            *python(
+                """
+import os
+import sys
+import time
+
+print(os.getpid(), flush=True)
+
+pid = os.fork()
+if pid > 0:
+    print(pid, flush=True)
+time.sleep(3600)
+"""
+            ),
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    wait_until(lambda: len(read_file(default_task_output()).splitlines()) == 2)
+
+    worker.send_signal(signal.SIGTERM)
+    worker.wait()
+    hq_env.check_process_exited(worker, expected_code="error")
+
+    time.sleep(0.5)
+    pids = [int(pid) for pid in read_file(default_task_output()).splitlines()]
+
+    parent, child = pids
+    assert not psutil.pid_exists(parent)
+    assert not psutil.pid_exists(child)

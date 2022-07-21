@@ -3,7 +3,7 @@ use std::thread;
 use std::time::Duration;
 
 use clap::Parser;
-use signal_hook::consts::{SIGHUP, SIGINT, SIGKILL, SIGTERM};
+use signal_hook::consts::{SIGHUP, SIGINT, SIGTERM};
 use signal_hook::iterator::Signals;
 use tako::resources::ResourceDescriptor;
 use tako::Map;
