@@ -12,12 +12,22 @@ from .task.task import EnvType, Task
 
 
 class Job:
+    """
+    Represents a HQ job.
+    """
+
     def __init__(
         self,
         default_workdir: Optional[GenericPath] = None,
         max_fails: Optional[int] = 1,
         default_env: Optional[EnvType] = None,
     ):
+        """
+        :param default_workdir: Default working directory for tasks.
+        :param max_fails: How many tasks can fail before the whole job will be cancelled.
+        :param default_env: Environment variables that will be automatically set for each task in
+        this job.
+        """
         self.tasks: List[Task] = []
         self.task_map: Dict[TaskId, Task] = {}
         self.max_fails = max_fails
@@ -29,6 +39,9 @@ class Job:
         self.default_env = default_env or {}
 
     def task_by_id(self, id: TaskId) -> Optional[Task]:
+        """
+        Finds a task with the given ID.
+        """
         return self.task_map.get(id)
 
     def program(
@@ -46,6 +59,24 @@ class Job:
         priority: int = 0,
         resources: Optional[ResourceRequest] = None,
     ) -> ExternalProgram:
+        """
+        Creates a new task that will execute the provided command.
+
+        :param args: List of arguments will be executed. The arguments have to be strings.
+        :param env: Environment variables passed to the executed command.
+        :param cwd: Working directory of the executed command.
+        :param stdout: Path to a file that will store the standard output of the executed command.
+        :param stderr: Path to a file that will store the standard error output of the executed
+        command.
+        :param stdin: If provided, these bytes will be passed as the standard input of the executed
+        command.
+        :param deps: A sequence of dependencies that have to be completed first before this task
+        can start executing.
+        :param name: Name of the task.
+        :param task_dir: If True, an isolated directory will be created for the task.
+        :param priority: Priority of the created task.
+        :param resources: List of resource requests required by this task.
+        """
         task = ExternalProgram(
             len(self.tasks),
             args=args,
@@ -78,6 +109,22 @@ class Job:
         priority: int = 0,
         resources: Optional[ResourceRequest] = None,
     ) -> PythonFunction:
+        """
+        Creates a new task that will execute the provided Python function.
+
+        :param args: Positional arguments that will be passed to the Python function.
+        :param kwargs: Keyword arguments that will be passed to the Python function.
+        :param env: Environment variables passed to the executed command.
+        :param cwd: Working directory of the executed command.
+        :param stdout: Path to a file that will store the standard output of the executed command.
+        :param stderr: Path to a file that will store the standard error output of the executed
+        command.
+        :param deps: A sequence of dependencies that have to be completed first before this task
+        can start executing.
+        :param name: Name of the task.
+        :param priority: Priority of the created task.
+        :param resources: List of resource requests required by this task.
+        """
         task = PythonFunction(
             len(self.tasks),
             fn,
@@ -108,6 +155,10 @@ class Job:
 
 @dataclasses.dataclass
 class SubmittedJob:
+    """
+    Successfully submitted job.
+    """
+
     job: Job
     id: JobId
 
