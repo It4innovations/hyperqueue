@@ -13,8 +13,8 @@ _CLOUDWRAPPER_CACHE = {}
 
 
 def purge_cache():
-    global _PICKLE_CACHE
-    _PICKLE_CACHE = {}
+    global _CLOUDWRAPPER_CACHE
+    _CLOUDWRAPPER_CACHE = {}
 
 
 def cloud_wrap(fn, cache=True) -> CloudWrapper:
@@ -86,12 +86,14 @@ class PythonFunction(Task):
         stderr: Optional[GenericPath] = None,
         name: Optional[str] = None,
         dependencies=(),
+        priority: int = 0,
         resources: Optional[ResourceRequest] = None,
     ):
         name = generate_task_name(task_id, name, fn)
         super().__init__(
             task_id,
             dependencies,
+            priority,
             resources,
             env=env,
             cwd=cwd,
@@ -122,6 +124,7 @@ class PythonFunction(Task):
             cwd=self.cwd,
             dependencies=depends_on,
             task_dir=True,
+            priority=self.priority,
             resource_request=self.resources,
         )
 

@@ -12,6 +12,7 @@ class Task:
         self,
         task_id: TaskId,
         dependencies: Sequence["Task"] = (),
+        priority: int = 0,
         resources: Optional[ResourceRequest] = None,
         env: Optional[EnvType] = None,
         cwd: Optional[GenericPath] = None,
@@ -22,6 +23,7 @@ class Task:
         assert dependencies is not None
         self.task_id = task_id
         self.dependencies = dependencies
+        self.priority = priority
         self.resources = resources
         self.env = env or {}
         self.cwd = str(cwd) if cwd else None

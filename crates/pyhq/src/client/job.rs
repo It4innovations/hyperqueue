@@ -26,7 +26,7 @@ use crate::{borrow_mut, run_future, ClientContextPtr, FromPyObject, PyJobId, PyT
 pub struct ResourceRequestDescription {
     n_nodes: NumOfNodes,
     cpus: String,
-    generic: Option<HashMap<String, u64>>,
+    generic: HashMap<String, u64>,
 }
 
 #[derive(Debug, FromPyObject)]
@@ -40,6 +40,7 @@ pub struct TaskDescription {
     stdin: Option<Vec<u8>>,
     dependencies: Vec<u32>,
     task_dir: bool,
+    priority: tako::Priority,
     resource_request: Option<ResourceRequestDescription>,
 }
 
@@ -109,12 +110,9 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
             cpus: parse_cpu_request(&rs.cpus)?,
             generic: rs
                 .generic
-                .map(|g| {
-                    g.into_iter()
-                        .map(|(resource, amount)| GenericResourceRequest { resource, amount })
-                        .collect()
-                })
-                .unwrap_or_default(),
+                .into_iter()
+                .map(|(resource, amount)| GenericResourceRequest { resource, amount })
+                .collect(),
             min_time: Default::default(),
         }
     } else {
@@ -133,8 +131,8 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
         resources,
         pin_mode: PinMode::None,
         task_dir: desc.task_dir,
+        priority: desc.priority,
         time_limit: None,
-        priority: 0,
     })
 }
 
