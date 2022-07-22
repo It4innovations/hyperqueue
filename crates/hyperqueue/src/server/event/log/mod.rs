@@ -6,6 +6,7 @@ pub use read::EventLogReader;
 pub use stream::{start_event_streaming, EventStreamSender};
 pub use write::EventLogWriter;
 
+use crate::server::event::MonitoringEventId;
 use bstr::BString;
 use serde::{Deserialize, Serialize};
 
@@ -23,4 +24,12 @@ fn canonical_header() -> LogFileHeader {
 struct LogFileHeader {
     header: BString,
     version: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct EventChunkHeader {
+    /// The first event id in the compressed event chunk.
+    pub first_event_id: MonitoringEventId,
+    /// The compressed size in bytes of the event chunk.
+    pub chunk_length: usize,
 }

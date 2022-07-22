@@ -1,5 +1,4 @@
-use crate::server::event::log::write::EventChunkHeader;
-use crate::server::event::log::{canonical_header, LogFileHeader};
+use crate::server::event::log::{canonical_header, EventChunkHeader, LogFileHeader};
 use crate::server::event::MonitoringEvent;
 use anyhow::anyhow;
 use flate2::read::GzDecoder;
