@@ -43,6 +43,7 @@ class Job:
         deps: Sequence[Task] = (),
         name: Optional[str] = None,
         task_dir: bool = False,
+        priority: int = 0,
         resources: Optional[ResourceRequest] = None,
     ) -> ExternalProgram:
         task = ExternalProgram(
@@ -56,6 +57,7 @@ class Job:
             stdin=stdin,
             name=name,
             task_dir=task_dir,
+            priority=priority,
             resources=resources,
         )
         self._add_task(task)
@@ -73,6 +75,7 @@ class Job:
         stderr: Optional[GenericPath] = default_stderr(),
         deps: Sequence[Task] = (),
         name: Optional[str] = None,
+        priority: int = 0,
         resources: Optional[ResourceRequest] = None,
     ) -> PythonFunction:
         task = PythonFunction(
@@ -86,6 +89,7 @@ class Job:
             stderr=stderr,
             name=name,
             dependencies=deps,
+            priority=priority,
             resources=resources,
         )
         self._add_task(task)

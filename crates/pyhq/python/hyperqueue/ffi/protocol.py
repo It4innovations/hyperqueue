@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Sequence
 class ResourceRequest:
     n_nodes: int = 0
     cpus: str = "1"
-    generic: Optional[Dict[str, int]] = None
+    generic: Dict[str, int] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass()
@@ -20,6 +20,7 @@ class TaskDescription:
     env: Optional[Dict[str, str]]
     dependencies: Sequence[int]
     task_dir: bool
+    priority: int
     resource_request: Optional[ResourceRequest]
 
 

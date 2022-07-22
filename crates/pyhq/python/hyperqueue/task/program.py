@@ -24,11 +24,13 @@ class ExternalProgram(Task):
         name: Optional[str] = None,
         dependencies: Sequence[Task] = (),
         task_dir: bool = False,
+        priority: int = 0,
         resources: Optional[ResourceRequest],
     ):
         super().__init__(
             task_id,
             dependencies,
+            priority,
             resources,
             env=env,
             cwd=cwd,
@@ -62,6 +64,7 @@ class ExternalProgram(Task):
             cwd=self.cwd,
             dependencies=depends_on,
             task_dir=self.task_dir,
+            priority=self.priority,
             resource_request=self.resources,
         )
 

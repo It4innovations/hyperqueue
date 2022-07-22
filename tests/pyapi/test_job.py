@@ -1,6 +1,8 @@
+import random
 import time
 from pathlib import Path
 
+import iso8601
 import pytest
 from hyperqueue.client import FailedJobsException
 from hyperqueue.ffi.protocol import ResourceRequest
@@ -157,3 +159,31 @@ def test_job_generic_resources(hq_env: HqEnv):
         "FINISHED",
         "WAITING",
     ]
+
+
+def test_task_priorities(hq_env: HqEnv):
+    """Submits tasks with different randomly shuffled priorities and
+    checks that tasks are executed in this order
+    """
+    (job, client) = prepare_job_client(hq_env)
+
+    priorities = list(range(-20, 20))
+    random.seed(123123)
+    random.shuffle(priorities)
+    for p in priorities:
+        if random.randint(0, 1) == 0:
+            job.program(bash("echo Hello"), priority=p)
+        else:
+            job.function(lambda: 0, priority=p)
+    job_id = client.submit(job)
+    client.wait_for_jobs([job_id])
+    data = hq_env.command(["--output-mode=json", "task", "list", "1"], as_json=True)[
+        "1"
+    ]
+
+    starts1 = [(props["id"], iso8601.parse_date(props["started_at"])) for props in data]
+    starts2 = starts1[:]
+
+    starts1.sort(key=lambda x: -priorities[x[0]])
+    starts2.sort(key=lambda x: x[1])
+    assert starts1 == starts2
