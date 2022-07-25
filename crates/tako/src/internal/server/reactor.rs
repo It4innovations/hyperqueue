@@ -128,6 +128,7 @@ pub(crate) fn on_remove_worker(
     }
 
     let _ = core.remove_worker(worker_id);
+    comm.broadcast_worker_message(&ToWorkerMessage::LostWorker(worker_id));
     comm.send_client_worker_lost(worker_id, running_tasks, reason);
     comm.ask_for_scheduling();
 }
