@@ -148,11 +148,7 @@ async fn worker_rpc_loop(
         for descriptor in &configuration.resources.generic {
             core.get_or_create_generic_resource_id(&descriptor.name);
         }
-        let worker = Worker::new(
-            worker_id,
-            configuration.clone(),
-            &core.create_resource_map(),
-        );
+        let worker = Worker::new(worker_id, configuration.clone(), core.create_resource_map());
 
         on_new_worker(&mut core, &mut *comm_ref.get_mut(), worker);
     }
@@ -165,10 +161,16 @@ async fn worker_rpc_loop(
         other_workers: core_ref
             .get()
             .get_workers()
-            .map(|w| NewWorkerMsg {
-                worker_id: w.id(),
-                address: w.configuration().listen_address.clone(),
-                resources: w.resources.to_transport(),
+            .filter_map(|w| {
+                if w.id != worker_id {
+                    Some(NewWorkerMsg {
+                        worker_id: w.id(),
+                        address: w.configuration().listen_address.clone(),
+                        resources: w.resources.to_transport(),
+                    })
+                } else {
+                    None
+                }
             })
             .collect(),
         server_idle_timeout: *core_ref.get().idle_timeout(),

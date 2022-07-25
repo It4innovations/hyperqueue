@@ -62,8 +62,8 @@ fn test_worker_add() {
 
     assert!(
         matches!(comm.take_broadcasts(1)[0], ToWorkerMessage::NewWorker(NewWorkerMsg {
-            worker_id: WorkerId(402), address: ref a
-        }) if a == "test1:123")
+            worker_id: WorkerId(402), address: ref a, resources: ref r,
+        }) if a == "test1:123" && r.n_cpus == 4)
     );
 
     comm.check_need_scheduling();
@@ -100,8 +100,8 @@ fn test_worker_add() {
 
     assert!(
         matches!(comm.take_broadcasts(1)[0], ToWorkerMessage::NewWorker(NewWorkerMsg {
-            worker_id: WorkerId(502), address: ref a
-        }) if a == "test2:123")
+            worker_id: WorkerId(502), address: ref a, resources: ref r,
+        }) if a == "test2:123" && r.n_cpus == 5 && r.n_generic_resources.is_empty())
     );
     comm.check_need_scheduling();
     comm.emptiness_check();

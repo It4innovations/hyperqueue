@@ -2,6 +2,7 @@ pub mod env;
 pub mod resources;
 pub mod schedule;
 pub mod task;
+pub mod worker;
 pub mod workflows;
 
 pub fn sorted_vec<T: Ord>(mut vec: Vec<T>) -> Vec<T> {
