@@ -212,9 +212,9 @@ impl Worker {
     pub fn new(
         id: WorkerId,
         configuration: WorkerConfiguration,
-        resource_map: ResourceMap,
+        resource_map: &ResourceMap,
     ) -> Self {
-        let resources = WorkerResources::from_description(&configuration.resources, resource_map);
+        let resources = WorkerResources::from_description(&configuration.resources, &resource_map);
         let load = WorkerLoad::new(&resources);
         let now = std::time::Instant::now();
         Self {

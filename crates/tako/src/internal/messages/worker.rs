@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use crate::hwstats::WorkerHwStateMessage;
 use crate::internal::common::resources::{CpuId, GenericResourceAmount, GenericResourceIndex};
-use crate::internal::common::Map;
 use crate::internal::messages::common::TaskFailInfo;
+use crate::resources::NumOfCpus;
 use crate::task::SerializedTaskContext;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, WorkerId};
@@ -12,8 +12,8 @@ use crate::{TaskId, WorkerId};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorkerRegistrationResponse {
     pub worker_id: WorkerId,
-    pub worker_addresses: Map<WorkerId, String>,
     pub resource_names: Vec<String>,
+    pub other_workers: Vec<NewWorkerMsg>,
     pub server_idle_timeout: Option<Duration>,
 }
 
@@ -42,9 +42,16 @@ pub struct TaskIdsMsg {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct WorkerResourceCounts {
+    pub n_cpus: NumOfCpus,
+    pub n_generic_resources: Vec<GenericResourceAmount>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct NewWorkerMsg {
     pub worker_id: WorkerId,
     pub address: String,
+    pub resources: WorkerResourceCounts,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

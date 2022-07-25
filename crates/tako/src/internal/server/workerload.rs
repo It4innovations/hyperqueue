@@ -3,6 +3,8 @@ use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::common::resources::{
     CpuRequest, GenericResourceAmount, NumOfCpus, ResourceDescriptor, ResourceRequest, ResourceVec,
 };
+use crate::internal::messages::worker::WorkerResourceCounts;
+use std::ops::Deref;
 
 // WorkerResources are transformed information from ResourceDescriptor
 // but transformed for scheduler needs
@@ -18,9 +20,16 @@ impl WorkerResources {
     //     WorkerResources::from_description(&ResourceDescriptor::simple(n_cpus), Default::default())
     // }
 
+    pub(crate) fn from_transport(msg: WorkerResourceCounts) -> Self {
+        WorkerResources {
+            n_cpus: msg.n_cpus,
+            n_generic_resources: msg.n_generic_resources.into(),
+        }
+    }
+
     pub(crate) fn from_description(
         resource_desc: &ResourceDescriptor,
-        resource_map: ResourceMap,
+        resource_map: &ResourceMap,
     ) -> Self {
         // We only take maximum needed resource id
         // We are doing it for normalization purposes. It is useful later
@@ -73,6 +82,13 @@ impl WorkerResources {
             | CpuRequest::ForceCompact(n_cpus)
             | CpuRequest::Scatter(n_cpus) => *n_cpus,
             CpuRequest::All => self.n_cpus,
+        }
+    }
+
+    pub(crate) fn to_transport(&self) -> WorkerResourceCounts {
+        WorkerResourceCounts {
+            n_cpus: self.n_cpus,
+            n_generic_resources: self.n_generic_resources.deref().clone(),
         }
     }
 }

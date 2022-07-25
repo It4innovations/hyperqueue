@@ -14,7 +14,7 @@ use crate::gateway::LostWorkerReason;
 use crate::internal::common::error::DsError;
 use crate::internal::common::taskgroup::TaskGroup;
 use crate::internal::messages::worker::{
-    FromWorkerMessage, WorkerRegistrationResponse, WorkerStopReason,
+    FromWorkerMessage, NewWorkerMsg, WorkerRegistrationResponse, WorkerStopReason,
 };
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::CoreRef;
@@ -148,7 +148,11 @@ async fn worker_rpc_loop(
         for descriptor in &configuration.resources.generic {
             core.get_or_create_generic_resource_id(&descriptor.name);
         }
-        let worker = Worker::new(worker_id, configuration.clone(), core.create_resource_map());
+        let worker = Worker::new(
+            worker_id,
+            configuration.clone(),
+            &core.create_resource_map(),
+        );
 
         on_new_worker(&mut core, &mut *comm_ref.get_mut(), worker);
     }
@@ -157,8 +161,16 @@ async fn worker_rpc_loop(
     because of registration of resources */
     let message = WorkerRegistrationResponse {
         worker_id,
-        worker_addresses: core_ref.get().get_worker_addresses(),
         resource_names: core_ref.get().create_resource_map().into_vec(),
+        other_workers: core_ref
+            .get()
+            .get_workers()
+            .map(|w| NewWorkerMsg {
+                worker_id: w.id(),
+                address: w.configuration().listen_address.clone(),
+                resources: w.resources.to_transport(),
+            })
+            .collect(),
         server_idle_timeout: *core_ref.get().idle_timeout(),
     };
     queue_sender

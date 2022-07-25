@@ -17,6 +17,7 @@ pub(crate) fn on_new_worker(core: &mut Core, comm: &mut impl Comm, worker: Worke
     comm.broadcast_worker_message(&ToWorkerMessage::NewWorker(NewWorkerMsg {
         worker_id: worker.id,
         address: worker.configuration.listen_address.clone(),
+        resources: worker.resources.to_transport(),
     }));
 
     comm.send_client_worker_new(worker.id, &worker.configuration);

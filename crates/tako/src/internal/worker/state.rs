@@ -16,8 +16,9 @@ use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
-    FromWorkerMessage, StealResponse, TaskFailedMsg, TaskFinishedMsg,
+    FromWorkerMessage, NewWorkerMsg, StealResponse, TaskFailedMsg, TaskFinishedMsg,
 };
+use crate::internal::server::workerload::WorkerResources;
 use crate::internal::transfer::auth::serialize;
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::internal::worker::rqueue::ResourceWaitQueue;
@@ -41,6 +42,7 @@ pub struct WorkerState {
 
     pub(crate) worker_id: WorkerId,
     pub(crate) worker_addresses: Map<WorkerId, String>,
+    pub(crate) worker_resources: Map<WorkerResources, Set<WorkerId>>,
     pub(crate) random: SmallRng,
 
     pub(crate) worker_is_empty_notify: Option<Rc<Notify>>,
@@ -48,10 +50,10 @@ pub struct WorkerState {
     pub(crate) configuration: WorkerConfiguration,
     pub(crate) task_launcher: Box<dyn TaskLauncher>,
     //pub(crate) secret_key: Option<Arc<SecretKey>>,
-    pub(crate) start_time: std::time::Instant,
+    pub(crate) start_time: Instant,
 
     pub(crate) reservation: bool, // If true, idle timeout is blocked
-    pub(crate) last_task_finish_time: std::time::Instant,
+    pub(crate) last_task_finish_time: Instant,
 
     resource_map: ResourceMap,
 }
@@ -263,6 +265,35 @@ impl WorkerState {
             .get(&worker_id)
             .and_then(|address| address.split(':').next())
     }
+
+    pub fn new_worker(&mut self, other_worker: NewWorkerMsg) {
+        log::debug!(
+            "New worker={} announced at {}",
+            other_worker.worker_id,
+            &other_worker.address
+        );
+        assert_ne!(other_worker.worker_id, other_worker.worker_id); // We should not receive message about ourselves
+        assert!(self
+            .worker_addresses
+            .insert(other_worker.worker_id, other_worker.address)
+            .is_none());
+
+        let resources = WorkerResources::from_transport(other_worker.resources);
+        assert!(self
+            .worker_resources
+            .entry(resources)
+            .or_default()
+            .insert(other_worker.worker_id));
+    }
+
+    pub fn remove_worker(&mut self, worker_id: WorkerId) {
+        log::debug!("Lost worker={} announced", worker_id);
+        assert!(self.worker_addresses.remove(&worker_id).is_some());
+        self.worker_resources.retain(|_, value| {
+            let is_empty = value.remove(&worker_id) && value.is_empty();
+            !is_empty
+        });
+    }
 }
 
 impl WorkerStateRef {
@@ -272,16 +303,14 @@ impl WorkerStateRef {
         configuration: WorkerConfiguration,
         _secret_key: Option<Arc<SecretKey>>,
         sender: UnboundedSender<Bytes>,
-        worker_addresses: Map<WorkerId, String>,
         resource_map: ResourceMap,
         task_launcher: Box<dyn TaskLauncher>,
     ) -> Self {
         let ready_task_queue = ResourceWaitQueue::new(&configuration.resources, &resource_map);
-        let now = std::time::Instant::now();
+        let now = Instant::now();
 
         Self::wrap(WorkerState {
             worker_id,
-            worker_addresses,
             sender: Some(sender),
             configuration,
             task_launcher,
@@ -297,6 +326,8 @@ impl WorkerStateRef {
             worker_is_empty_notify: None,
             last_task_finish_time: now,
             reservation: false,
+            worker_addresses: Default::default(),
+            worker_resources: Default::default(),
         })
     }
 }

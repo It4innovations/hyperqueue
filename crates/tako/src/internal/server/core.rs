@@ -6,7 +6,7 @@ use orion::aead::SecretKey;
 use crate::gateway::ServerInfo;
 use crate::internal::common::resources::map::{ResourceIdAllocator, ResourceMap};
 use crate::internal::common::resources::{GenericResourceId, ResourceRequest};
-use crate::internal::common::{Map, Set, WrappedRcRefCell};
+use crate::internal::common::{Set, WrappedRcRefCell};
 use crate::internal::scheduler::multinode::MultiNodeQueue;
 use crate::internal::server::rpc::ConnectionDescriptor;
 use crate::internal::server::task::{Task, TaskRuntimeState};
@@ -166,13 +166,6 @@ impl Core {
 
     pub fn remove_worker(&mut self, worker_id: WorkerId) -> Worker {
         self.workers.remove(&worker_id).unwrap()
-    }
-
-    pub fn get_worker_addresses(&self) -> Map<WorkerId, String> {
-        self.workers
-            .values()
-            .map(|w| (w.id, w.configuration.listen_address.clone()))
-            .collect()
     }
 
     #[inline]
