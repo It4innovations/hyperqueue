@@ -590,6 +590,10 @@ fn test_worker_lost_with_mn_task_non_root() {
     assert!(
         matches!(&msgs[0], &ToWorkerMessage::CancelTasks(TaskIdsMsg { ref ids }) if ids == &vec![1].to_ids())
     );
+    assert!(matches!(
+        comm.take_broadcasts(1)[0],
+        ToWorkerMessage::LostWorker(WorkerId(101))
+    ));
     comm.check_need_scheduling();
     comm.emptiness_check();
     assert!(core.get_task(TaskId::new(1)).is_waiting());
@@ -615,6 +619,10 @@ fn test_worker_lost_with_mn_task_root() {
     );
     core.sanity_check();
     assert_eq!(comm.take_lost_workers().len(), 1);
+    assert!(matches!(
+        comm.take_broadcasts(1)[0],
+        ToWorkerMessage::LostWorker(WorkerId(103))
+    ));
     comm.check_need_scheduling();
     comm.emptiness_check();
     assert!(core.get_task(TaskId::new(1)).is_waiting());
@@ -749,6 +757,10 @@ fn test_running_task() {
         vec![1, 2].to_ids()
     );
     comm.check_need_scheduling();
+    assert!(matches!(
+        comm.take_broadcasts(1)[0],
+        ToWorkerMessage::LostWorker(WorkerId(101))
+    ));
     comm.emptiness_check();
 }
 
@@ -946,6 +958,11 @@ fn lost_worker_with_running_and_assign_tasks() {
     assert!(matches!(
         core.get_task(41.into()).state,
         TaskRuntimeState::Stealing(WorkerId(100), None)
+    ));
+
+    assert!(matches!(
+        comm.take_broadcasts(1)[0],
+        ToWorkerMessage::LostWorker(WorkerId(101))
     ));
 
     comm.check_need_scheduling();

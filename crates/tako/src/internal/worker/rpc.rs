@@ -352,10 +352,15 @@ async fn worker_message_loop(
             }
             ToWorkerMessage::NewWorker(msg) => {
                 log::debug!("New worker={} announced at {}", msg.worker_id, &msg.address);
+                assert_ne!(msg.worker_id, state.worker_id); // We should not receive message about ourselves
                 assert!(state
                     .worker_addresses
                     .insert(msg.worker_id, msg.address)
                     .is_none())
+            }
+            ToWorkerMessage::LostWorker(worker_id) => {
+                log::debug!("Lost worker={} announced", worker_id);
+                assert!(state.worker_addresses.remove(&worker_id).is_some());
             }
             ToWorkerMessage::SetReservation(on_off) => {
                 state.reservation = on_off;
