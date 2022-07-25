@@ -1,0 +1,274 @@
+<!DOCTYPE html><html><head><meta charset=utf-8><title>hyperqueue.client</title><meta name=viewport content="width=device-width, initial-scale=1.0"><link rel=stylesheet href=./assets/purecss/pure-min.css><link rel=stylesheet href=./assets/purecss/grids-responsive-min.css><link rel=stylesheet href=./assets/style.css><link rel=stylesheet href=./assets/pygments/default.css><link rel=stylesheet href=./assets/jquery/jquery-ui.min.css><script src=./assets/jquery/jquery-3.0.0.min.js></script><script src=./assets/jquery/jquery-ui.min.js></script><script src=nedoc.js></script></head><body><div id=layout class=pure-g><div class="sidebar pure-u-1 pure-u-md-1-4"><div class=header><h1 class=brand-title>hyperqueue</h1> 0.11.0 </div><div id=sbox><input id=search style="color: black;" placeholder="search ..."></div><div class=tree><ul><li><a href=hyperqueue.html>&#9662; hyperqueue</a> </li><li><ul><li><div class=select><a href=hyperqueue.client.html>&#9662; client</a> </div></li><li><ul><li><a href=hyperqueue.client.Client.html> <i>class</i> Client</a> </li><li><a href=hyperqueue.client.FailedJobsException.html> <i>class</i> FailedJobsException</a> </li></ul></li><li><a href=hyperqueue.cluster.html>&#9656; cluster</a> </li><li><a href=hyperqueue.common.html>&#9656; common</a> </li><li><a href=hyperqueue.ffi.html>&#9656; ffi</a> </li><li><a href=hyperqueue.job.html>&#9656; job</a> </li><li><a href=hyperqueue.output.html>&#9656; output</a> </li><li><a href=hyperqueue.task.html>&#9656; task</a> </li><li><a href=hyperqueue.utils.html>&#9656; utils</a> </li><li><a href=hyperqueue.validation.html>&#9656; validation</a> </li><li><a href=hyperqueue.visualization.html>&#9656; visualization</a> </li></ul></ul></div></div><div class="content pure-u-1 pure-u-md-3-4"><h1>Source code hyperqueue/client.py</h1><div id=path><a class=symbol href=hyperqueue.html>hyperqueue</a>.<a class=symbol href=hyperqueue.client.html>client</a></div><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span class=normal>  1</span>
+<span class=normal>  2</span>
+<span class=normal>  3</span>
+<span class=normal>  4</span>
+<span class=normal>  5</span>
+<span class=normal>  6</span>
+<span class=normal>  7</span>
+<span class=normal>  8</span>
+<span class=normal>  9</span>
+<span class=normal> 10</span>
+<span class=normal> 11</span>
+<span class=normal> 12</span>
+<span class=normal> 13</span>
+<span class=normal> 14</span>
+<span class=normal> 15</span>
+<span class=normal> 16</span>
+<span class=normal> 17</span>
+<span class=normal> 18</span>
+<span class=normal> 19</span>
+<span class=normal> 20</span>
+<span class=normal> 21</span>
+<span class=normal> 22</span>
+<span class=normal> 23</span>
+<span class=normal> 24</span>
+<span class=normal> 25</span>
+<span class=normal> 26</span>
+<span class=normal> 27</span>
+<span class=normal> 28</span>
+<span class=normal> 29</span>
+<span class=normal> 30</span>
+<span class=normal> 31</span>
+<span class=normal> 32</span>
+<span class=normal> 33</span>
+<span class=normal> 34</span>
+<span class=normal> 35</span>
+<span class=normal> 36</span>
+<span class=normal> 37</span>
+<span class=normal> 38</span>
+<span class=normal> 39</span>
+<span class=normal> 40</span>
+<span class=normal> 41</span>
+<span class=normal> 42</span>
+<span class=normal> 43</span>
+<span class=normal> 44</span>
+<span class=normal> 45</span>
+<span class=normal> 46</span>
+<span class=normal> 47</span>
+<span class=normal> 48</span>
+<span class=normal> 49</span>
+<span class=normal> 50</span>
+<span class=normal> 51</span>
+<span class=normal> 52</span>
+<span class=normal> 53</span>
+<span class=normal> 54</span>
+<span class=normal> 55</span>
+<span class=normal> 56</span>
+<span class=normal> 57</span>
+<span class=normal> 58</span>
+<span class=normal> 59</span>
+<span class=normal> 60</span>
+<span class=normal> 61</span>
+<span class=normal> 62</span>
+<span class=normal> 63</span>
+<span class=normal> 64</span>
+<span class=normal> 65</span>
+<span class=normal> 66</span>
+<span class=normal> 67</span>
+<span class=normal> 68</span>
+<span class=normal> 69</span>
+<span class=normal> 70</span>
+<span class=normal> 71</span>
+<span class=normal> 72</span>
+<span class=normal> 73</span>
+<span class=normal> 74</span>
+<span class=normal> 75</span>
+<span class=normal> 76</span>
+<span class=normal> 77</span>
+<span class=normal> 78</span>
+<span class=normal> 79</span>
+<span class=normal> 80</span>
+<span class=normal> 81</span>
+<span class=normal> 82</span>
+<span class=normal> 83</span>
+<span class=normal> 84</span>
+<span class=normal> 85</span>
+<span class=normal> 86</span>
+<span class=normal> 87</span>
+<span class=normal> 88</span>
+<span class=normal> 89</span>
+<span class=normal> 90</span>
+<span class=normal> 91</span>
+<span class=normal> 92</span>
+<span class=normal> 93</span>
+<span class=normal> 94</span>
+<span class=normal> 95</span>
+<span class=normal> 96</span>
+<span class=normal> 97</span>
+<span class=normal> 98</span>
+<span class=normal> 99</span>
+<span class=normal>100</span>
+<span class=normal>101</span>
+<span class=normal>102</span>
+<span class=normal>103</span>
+<span class=normal>104</span>
+<span class=normal>105</span>
+<span class=normal>106</span>
+<span class=normal>107</span>
+<span class=normal>108</span>
+<span class=normal>109</span>
+<span class=normal>110</span>
+<span class=normal>111</span>
+<span class=normal>112</span>
+<span class=normal>113</span>
+<span class=normal>114</span>
+<span class=normal>115</span>
+<span class=normal>116</span>
+<span class=normal>117</span>
+<span class=normal>118</span>
+<span class=normal>119</span>
+<span class=normal>120</span>
+<span class=normal>121</span>
+<span class=normal>122</span>
+<span class=normal>123</span>
+<span class=normal>124</span>
+<span class=normal>125</span>
+<span class=normal>126</span>
+<span class=normal>127</span>
+<span class=normal>128</span>
+<span class=normal>129</span>
+<span class=normal>130</span>
+<span class=normal>131</span>
+<span class=normal>132</span>
+<span class=normal>133</span>
+<span class=normal>134</span>
+<span class=normal>135</span>
+<span class=normal>136</span>
+<span class=normal>137</span></pre></div></td><td class=code><div class=highlight><pre><span></span><a id=line-1 name=line-1></a><span class=kn>import</span> <span class=nn>itertools</span>
+<a id=line-2 name=line-2></a><span class=kn>import</span> <span class=nn>logging</span>
+<a id=line-3 name=line-3></a><span class=kn>from</span> <span class=nn>pathlib</span> <span class=kn>import</span> <span class=n>Path</span>
+<a id=line-4 name=line-4></a><span class=kn>from</span> <span class=nn>typing</span> <span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span>
+<a id=line-5 name=line-5></a>
+<a id=line-6 name=line-6></a><span class=kn>from</span> <span class=nn>tqdm</span> <span class=kn>import</span> <span class=n>tqdm</span>
+<a id=line-7 name=line-7></a>
+<a id=line-8 name=line-8></a><span class=kn>from</span> <span class=nn>.ffi.client</span> <span class=kn>import</span> <span class=p>(</span>
+<a id=line-9 name=line-9></a>    <span class=n>ClientConnection</span><span class=p>,</span>
+<a id=line-10 name=line-10></a>    <span class=n>FailedTaskContext</span><span class=p>,</span>
+<a id=line-11 name=line-11></a>    <span class=n>JobId</span><span class=p>,</span>
+<a id=line-12 name=line-12></a>    <span class=n>TaskFailureMap</span><span class=p>,</span>
+<a id=line-13 name=line-13></a>    <span class=n>TaskId</span><span class=p>,</span>
+<a id=line-14 name=line-14></a><span class=p>)</span>
+<a id=line-15 name=line-15></a><span class=kn>from</span> <span class=nn>.job</span> <span class=kn>import</span> <span class=n>Job</span><span class=p>,</span> <span class=n>SubmittedJob</span>
+<a id=line-16 name=line-16></a><span class=kn>from</span> <span class=nn>.task.function</span> <span class=kn>import</span> <span class=n>PythonEnv</span>
+<a id=line-17 name=line-17></a><span class=kn>from</span> <span class=nn>.utils</span> <span class=kn>import</span> <span class=n>pluralize</span>
+<a id=line-18 name=line-18></a>
+<a id=line-19 name=line-19></a><span class=n>MAX_PRINTED_TASKS</span> <span class=o>=</span> <span class=mi>5</span>
+<a id=line-20 name=line-20></a>
+<a id=line-21 name=line-21></a>
+<a id=line-22 name=line-22></a><span class=n>JobMap</span> <span class=o>=</span> <span class=n>Dict</span><span class=p>[</span><span class=n>JobId</span><span class=p>,</span> <span class=n>Job</span><span class=p>]</span>
+<a id=line-23 name=line-23></a>
+<a id=line-24 name=line-24></a>
+<a id=line-25 name=line-25></a><span class=k>class</span> <span class=nc>FailedJobsException</span><span class=p>(</span><span class=ne>Exception</span><span class=p>):</span>
+<a id=line-26 name=line-26></a>    <span class=sd>&quot;&quot;&quot;</span>
+<a id=line-27 name=line-27></a><span class=sd>    This exception is triggered if a task fails.</span>
+<a id=line-28 name=line-28></a><span class=sd>    &quot;&quot;&quot;</span>
+<a id=line-29 name=line-29></a>
+<a id=line-30 name=line-30></a>    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>failed_tasks</span><span class=p>:</span> <span class=n>TaskFailureMap</span><span class=p>,</span> <span class=n>job_map</span><span class=p>:</span> <span class=n>JobMap</span><span class=p>):</span>
+<a id=line-31 name=line-31></a>        <span class=bp>self</span><span class=o>.</span><span class=n>failed_tasks</span> <span class=o>=</span> <span class=n>failed_tasks</span>
+<a id=line-32 name=line-32></a>        <span class=bp>self</span><span class=o>.</span><span class=n>job_map</span> <span class=o>=</span> <span class=n>job_map</span>
+<a id=line-33 name=line-33></a>
+<a id=line-34 name=line-34></a>    <span class=k>def</span> <span class=nf>task_label</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job_id</span><span class=p>:</span> <span class=n>JobId</span><span class=p>,</span> <span class=n>task_id</span><span class=p>:</span> <span class=n>TaskId</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>str</span><span class=p>:</span>
+<a id=line-35 name=line-35></a>        <span class=k>return</span> <span class=bp>self</span><span class=o>.</span><span class=n>job_map</span><span class=p>[</span><span class=n>job_id</span><span class=p>]</span><span class=o>.</span><span class=n>task_by_id</span><span class=p>(</span><span class=n>task_id</span><span class=p>)</span><span class=o>.</span><span class=n>label</span>
+<a id=line-36 name=line-36></a>
+<a id=line-37 name=line-37></a>    <span class=k>def</span> <span class=fm>__str__</span><span class=p>(</span><span class=bp>self</span><span class=p>):</span>
+<a id=line-38 name=line-38></a>        <span class=n>error</span> <span class=o>=</span> <span class=s2>&quot;&quot;</span>
+<a id=line-39 name=line-39></a>        <span class=k>for</span> <span class=p>(</span><span class=n>job_id</span><span class=p>,</span> <span class=n>tasks</span><span class=p>)</span> <span class=ow>in</span> <span class=bp>self</span><span class=o>.</span><span class=n>failed_tasks</span><span class=o>.</span><span class=n>items</span><span class=p>():</span>
+<a id=line-40 name=line-40></a>            <span class=n>error</span> <span class=o>+=</span> <span class=sa>f</span><span class=s2>&quot;The following tasks of job `</span><span class=si>{</span><span class=n>job_id</span><span class=si>}</span><span class=s2>` have failed:</span><span class=se>\n</span><span class=s2>&quot;</span>
+<a id=line-41 name=line-41></a>            <span class=k>for</span> <span class=p>(</span><span class=n>task_id</span><span class=p>,</span> <span class=n>ctx</span><span class=p>)</span> <span class=ow>in</span> <span class=n>itertools</span><span class=o>.</span><span class=n>islice</span><span class=p>(</span><span class=n>tasks</span><span class=o>.</span><span class=n>items</span><span class=p>(),</span> <span class=n>MAX_PRINTED_TASKS</span><span class=p>):</span>
+<a id=line-42 name=line-42></a>                <span class=n>task_label</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>task_label</span><span class=p>(</span><span class=n>job_id</span><span class=p>,</span> <span class=n>task_id</span><span class=p>)</span>
+<a id=line-43 name=line-43></a>                <span class=n>error</span> <span class=o>+=</span> <span class=sa>f</span><span class=s2>&quot;Task </span><span class=si>{</span><span class=n>task_label</span><span class=si>}</span><span class=s2> (id=</span><span class=si>{</span><span class=n>task_id</span><span class=si>}</span><span class=s2>):</span><span class=se>\n</span><span class=si>{</span><span class=n>ctx</span><span class=o>.</span><span class=n>error</span><span class=si>}</span><span class=se>\n</span><span class=s2>&quot;</span>
+<a id=line-44 name=line-44></a>                <span class=k>if</span> <span class=n>ctx</span><span class=o>.</span><span class=n>cwd</span> <span class=ow>or</span> <span class=n>ctx</span><span class=o>.</span><span class=n>stdout</span> <span class=ow>or</span> <span class=n>ctx</span><span class=o>.</span><span class=n>stderr</span><span class=p>:</span>
+<a id=line-45 name=line-45></a>                    <span class=n>error</span> <span class=o>+=</span> <span class=s2>&quot;You can find more information here:</span><span class=se>\n</span><span class=s2>&quot;</span>
+<a id=line-46 name=line-46></a>                    <span class=k>if</span> <span class=n>ctx</span><span class=o>.</span><span class=n>cwd</span><span class=p>:</span>
+<a id=line-47 name=line-47></a>                        <span class=n>error</span> <span class=o>+=</span> <span class=sa>f</span><span class=s2>&quot;Working directory: </span><span class=si>{</span><span class=n>ctx</span><span class=o>.</span><span class=n>cwd</span><span class=si>}</span><span class=se>\n</span><span class=s2>&quot;</span>
+<a id=line-48 name=line-48></a>                    <span class=k>if</span> <span class=n>ctx</span><span class=o>.</span><span class=n>stdout</span><span class=p>:</span>
+<a id=line-49 name=line-49></a>                        <span class=n>error</span> <span class=o>+=</span> <span class=sa>f</span><span class=s2>&quot;Stdout: </span><span class=si>{</span><span class=n>ctx</span><span class=o>.</span><span class=n>stdout</span><span class=si>}</span><span class=se>\n</span><span class=s2>&quot;</span>
+<a id=line-50 name=line-50></a>                    <span class=k>if</span> <span class=n>ctx</span><span class=o>.</span><span class=n>stderr</span><span class=p>:</span>
+<a id=line-51 name=line-51></a>                        <span class=n>error</span> <span class=o>+=</span> <span class=sa>f</span><span class=s2>&quot;Stderr: </span><span class=si>{</span><span class=n>ctx</span><span class=o>.</span><span class=n>stderr</span><span class=si>}</span><span class=se>\n</span><span class=s2>&quot;</span>
+<a id=line-52 name=line-52></a>        <span class=k>return</span> <span class=sa>f</span><span class=s2>&quot;</span><span class=si>{</span><span class=n>error</span><span class=si>}</span><span class=se>\n</span><span class=s2>&quot;</span>
+<a id=line-53 name=line-53></a>
+<a id=line-54 name=line-54></a>
+<a id=line-55 name=line-55></a><span class=k>class</span> <span class=nc>Client</span><span class=p>:</span>
+<a id=line-56 name=line-56></a>    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span>
+<a id=line-57 name=line-57></a>        <span class=bp>self</span><span class=p>,</span> <span class=n>server_dir</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>Path</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span> <span class=n>python_env</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>PythonEnv</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span>
+<a id=line-58 name=line-58></a>    <span class=p>):</span>
+<a id=line-59 name=line-59></a>        <span class=sd>&quot;&quot;&quot;</span>
+<a id=line-60 name=line-60></a><span class=sd>        A client serves as a gateway for submitting jobs and querying information about a running</span>
+<a id=line-61 name=line-61></a><span class=sd>        HyperQueue server.</span>
+<a id=line-62 name=line-62></a>
+<a id=line-63 name=line-63></a><span class=sd>        :param server_dir: Path to a server directory of a running HyperQueue server.</span>
+<a id=line-64 name=line-64></a><span class=sd>        :param python_env: Python environment which configures Python tasks created by</span>
+<a id=line-65 name=line-65></a><span class=sd>        [`function`](`hyperqueue.job.Job.function`).</span>
+<a id=line-66 name=line-66></a><span class=sd>        &quot;&quot;&quot;</span>
+<a id=line-67 name=line-67></a>        <span class=n>server_dir</span> <span class=o>=</span> <span class=nb>str</span><span class=p>(</span><span class=n>server_dir</span><span class=p>)</span> <span class=k>if</span> <span class=n>server_dir</span> <span class=k>else</span> <span class=kc>None</span>
+<a id=line-68 name=line-68></a>        <span class=bp>self</span><span class=o>.</span><span class=n>connection</span> <span class=o>=</span> <span class=n>ClientConnection</span><span class=p>(</span><span class=n>server_dir</span><span class=p>)</span>
+<a id=line-69 name=line-69></a>        <span class=k>if</span> <span class=n>python_env</span> <span class=ow>is</span> <span class=kc>None</span><span class=p>:</span>
+<a id=line-70 name=line-70></a>            <span class=n>python_env</span> <span class=o>=</span> <span class=n>PythonEnv</span><span class=p>()</span>
+<a id=line-71 name=line-71></a>        <span class=bp>self</span><span class=o>.</span><span class=n>python_env</span> <span class=o>=</span> <span class=n>python_env</span>
+<a id=line-72 name=line-72></a>
+<a id=line-73 name=line-73></a>    <span class=k>def</span> <span class=nf>submit</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job</span><span class=p>:</span> <span class=n>Job</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>SubmittedJob</span><span class=p>:</span>
+<a id=line-74 name=line-74></a>        <span class=sd>&quot;&quot;&quot;</span>
+<a id=line-75 name=line-75></a><span class=sd>        Submit a job into HyperQueue.</span>
+<a id=line-76 name=line-76></a>
+<a id=line-77 name=line-77></a><span class=sd>        :param job: Job that will be submitted.</span>
+<a id=line-78 name=line-78></a><span class=sd>        &quot;&quot;&quot;</span>
+<a id=line-79 name=line-79></a>        <span class=n>job_desc</span> <span class=o>=</span> <span class=n>job</span><span class=o>.</span><span class=n>_build</span><span class=p>(</span><span class=bp>self</span><span class=p>)</span>
+<a id=line-80 name=line-80></a>        <span class=n>task_count</span> <span class=o>=</span> <span class=nb>len</span><span class=p>(</span><span class=n>job_desc</span><span class=o>.</span><span class=n>tasks</span><span class=p>)</span>
+<a id=line-81 name=line-81></a>        <span class=k>if</span> <span class=n>task_count</span> <span class=o>&lt;</span> <span class=mi>1</span><span class=p>:</span>
+<a id=line-82 name=line-82></a>            <span class=k>raise</span> <span class=ne>Exception</span><span class=p>(</span><span class=s2>&quot;Submitted job must have at least a single task&quot;</span><span class=p>)</span>
+<a id=line-83 name=line-83></a>
+<a id=line-84 name=line-84></a>        <span class=n>job_id</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>connection</span><span class=o>.</span><span class=n>submit_job</span><span class=p>(</span><span class=n>job_desc</span><span class=p>)</span>
+<a id=line-85 name=line-85></a>        <span class=n>logging</span><span class=o>.</span><span class=n>info</span><span class=p>(</span>
+<a id=line-86 name=line-86></a>            <span class=sa>f</span><span class=s2>&quot;Submitted job </span><span class=si>{</span><span class=n>job_id</span><span class=si>}</span><span class=s2> with </span><span class=si>{</span><span class=n>task_count</span><span class=si>}</span><span class=s2> </span><span class=si>{</span><span class=n>pluralize</span><span class=p>(</span><span class=s1>&#39;task&#39;</span><span class=p>,</span> <span class=n>task_count</span><span class=p>)</span><span class=si>}</span><span class=s2>&quot;</span>
+<a id=line-87 name=line-87></a>        <span class=p>)</span>
+<a id=line-88 name=line-88></a>        <span class=k>return</span> <span class=n>SubmittedJob</span><span class=p>(</span><span class=n>job</span><span class=o>=</span><span class=n>job</span><span class=p>,</span> <span class=nb>id</span><span class=o>=</span><span class=n>job_id</span><span class=p>)</span>
+<a id=line-89 name=line-89></a>
+<a id=line-90 name=line-90></a>    <span class=k>def</span> <span class=nf>wait_for_jobs</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>jobs</span><span class=p>:</span> <span class=n>Sequence</span><span class=p>[</span><span class=n>SubmittedJob</span><span class=p>],</span> <span class=n>raise_on_error</span><span class=o>=</span><span class=kc>True</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>bool</span><span class=p>:</span>
+<a id=line-91 name=line-91></a>        <span class=sd>&quot;&quot;&quot;Returns True if all tasks were successfully finished&quot;&quot;&quot;</span>
+<a id=line-92 name=line-92></a>
+<a id=line-93 name=line-93></a>        <span class=n>job_ids</span> <span class=o>=</span> <span class=nb>tuple</span><span class=p>(</span><span class=n>job</span><span class=o>.</span><span class=n>id</span> <span class=k>for</span> <span class=n>job</span> <span class=ow>in</span> <span class=n>jobs</span><span class=p>)</span>
+<a id=line-94 name=line-94></a>        <span class=n>job_ids_str</span> <span class=o>=</span> <span class=s2>&quot;,&quot;</span><span class=o>.</span><span class=n>join</span><span class=p>(</span><span class=nb>str</span><span class=p>(</span><span class=nb>id</span><span class=p>)</span> <span class=k>for</span> <span class=nb>id</span> <span class=ow>in</span> <span class=n>job_ids</span><span class=p>)</span>
+<a id=line-95 name=line-95></a>        <span class=k>if</span> <span class=nb>len</span><span class=p>(</span><span class=n>jobs</span><span class=p>)</span> <span class=o>&gt;</span> <span class=mi>1</span><span class=p>:</span>
+<a id=line-96 name=line-96></a>            <span class=n>job_ids_str</span> <span class=o>=</span> <span class=s2>&quot;{&quot;</span> <span class=o>+</span> <span class=n>job_ids_str</span> <span class=o>+</span> <span class=s2>&quot;}&quot;</span>
+<a id=line-97 name=line-97></a>        <span class=n>logging</span><span class=o>.</span><span class=n>info</span><span class=p>(</span>
+<a id=line-98 name=line-98></a>            <span class=sa>f</span><span class=s2>&quot;Waiting for </span><span class=si>{</span><span class=n>pluralize</span><span class=p>(</span><span class=s1>&#39;job&#39;</span><span class=p>,</span> <span class=nb>len</span><span class=p>(</span><span class=n>jobs</span><span class=p>))</span><span class=si>}</span><span class=s2> </span><span class=si>{</span><span class=n>job_ids_str</span><span class=si>}</span><span class=s2> to finish&quot;</span>
+<a id=line-99 name=line-99></a>        <span class=p>)</span>
+<a id=line-100 name=line-100></a>
+<a id=line-101 name=line-101></a>        <span class=n>callback</span> <span class=o>=</span> <span class=n>create_progress_callback</span><span class=p>()</span>
+<a id=line-102 name=line-102></a>
+<a id=line-103 name=line-103></a>        <span class=n>failed_jobs</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>connection</span><span class=o>.</span><span class=n>wait_for_jobs</span><span class=p>(</span><span class=n>job_ids</span><span class=p>,</span> <span class=n>callback</span><span class=p>)</span>
+<a id=line-104 name=line-104></a>        <span class=k>if</span> <span class=n>failed_jobs</span> <span class=ow>and</span> <span class=n>raise_on_error</span><span class=p>:</span>
+<a id=line-105 name=line-105></a>            <span class=n>failed_tasks</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>connection</span><span class=o>.</span><span class=n>get_failed_tasks</span><span class=p>(</span><span class=n>failed_jobs</span><span class=p>)</span>
+<a id=line-106 name=line-106></a>            <span class=n>job_map</span> <span class=o>=</span> <span class=p>{</span><span class=n>job</span><span class=o>.</span><span class=n>id</span><span class=p>:</span> <span class=n>job</span><span class=o>.</span><span class=n>job</span> <span class=k>for</span> <span class=n>job</span> <span class=ow>in</span> <span class=n>jobs</span><span class=p>}</span>
+<a id=line-107 name=line-107></a>            <span class=k>raise</span> <span class=n>FailedJobsException</span><span class=p>(</span><span class=n>failed_tasks</span><span class=p>,</span> <span class=n>job_map</span><span class=p>)</span>
+<a id=line-108 name=line-108></a>        <span class=k>return</span> <span class=nb>len</span><span class=p>(</span><span class=n>failed_jobs</span><span class=p>)</span> <span class=o>==</span> <span class=mi>0</span>
+<a id=line-109 name=line-109></a>
+<a id=line-110 name=line-110></a>    <span class=k>def</span> <span class=nf>get_failed_tasks</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job</span><span class=p>:</span> <span class=n>SubmittedJob</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>Dict</span><span class=p>[</span><span class=n>TaskId</span><span class=p>,</span> <span class=n>FailedTaskContext</span><span class=p>]:</span>
+<a id=line-111 name=line-111></a>        <span class=n>result</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>connection</span><span class=o>.</span><span class=n>get_failed_tasks</span><span class=p>([</span><span class=n>job</span><span class=o>.</span><span class=n>id</span><span class=p>])</span>
+<a id=line-112 name=line-112></a>        <span class=k>return</span> <span class=n>result</span><span class=p>[</span><span class=n>job</span><span class=o>.</span><span class=n>id</span><span class=p>]</span>
+<a id=line-113 name=line-113></a>
+<a id=line-114 name=line-114></a>
+<a id=line-115 name=line-115></a><span class=k>def</span> <span class=nf>create_progress_callback</span><span class=p>():</span>
+<a id=line-116 name=line-116></a>    <span class=n>bar</span> <span class=o>=</span> <span class=kc>None</span>
+<a id=line-117 name=line-117></a>
+<a id=line-118 name=line-118></a>    <span class=k>def</span> <span class=nf>cb</span><span class=p>(</span><span class=n>jobs</span><span class=p>):</span>
+<a id=line-119 name=line-119></a>        <span class=k>nonlocal</span> <span class=n>bar</span>
+<a id=line-120 name=line-120></a>
+<a id=line-121 name=line-121></a>        <span class=k>if</span> <span class=n>bar</span> <span class=ow>is</span> <span class=kc>None</span><span class=p>:</span>
+<a id=line-122 name=line-122></a>            <span class=n>total_tasks</span> <span class=o>=</span> <span class=nb>sum</span><span class=p>(</span><span class=n>s</span><span class=p>[</span><span class=s2>&quot;total&quot;</span><span class=p>]</span> <span class=k>for</span> <span class=n>s</span> <span class=ow>in</span> <span class=n>jobs</span><span class=o>.</span><span class=n>values</span><span class=p>())</span>
+<a id=line-123 name=line-123></a>            <span class=n>bar</span> <span class=o>=</span> <span class=n>tqdm</span><span class=p>(</span><span class=n>total</span><span class=o>=</span><span class=n>total_tasks</span><span class=p>,</span> <span class=n>unit</span><span class=o>=</span><span class=s2>&quot;task&quot;</span><span class=p>)</span>
+<a id=line-124 name=line-124></a>
+<a id=line-125 name=line-125></a>        <span class=n>job_count</span> <span class=o>=</span> <span class=nb>len</span><span class=p>(</span><span class=n>jobs</span><span class=p>)</span>
+<a id=line-126 name=line-126></a>        <span class=n>completed</span> <span class=o>=</span> <span class=nb>sum</span><span class=p>(</span><span class=mi>1</span> <span class=k>if</span> <span class=n>s</span><span class=p>[</span><span class=s2>&quot;completed&quot;</span><span class=p>]</span> <span class=k>else</span> <span class=mi>0</span> <span class=k>for</span> <span class=n>s</span> <span class=ow>in</span> <span class=n>jobs</span><span class=o>.</span><span class=n>values</span><span class=p>())</span>
+<a id=line-127 name=line-127></a>
+<a id=line-128 name=line-128></a>        <span class=n>job_text</span> <span class=o>=</span> <span class=n>pluralize</span><span class=p>(</span><span class=s2>&quot;job&quot;</span><span class=p>,</span> <span class=n>job_count</span><span class=p>)</span>
+<a id=line-129 name=line-129></a>        <span class=n>bar</span><span class=o>.</span><span class=n>set_postfix_str</span><span class=p>(</span><span class=sa>f</span><span class=s2>&quot;</span><span class=si>{</span><span class=n>completed</span><span class=si>}</span><span class=s2>/</span><span class=si>{</span><span class=n>job_count</span><span class=si>}</span><span class=s2> </span><span class=si>{</span><span class=n>job_text</span><span class=si>}</span><span class=s2> completed&quot;</span><span class=p>)</span>
+<a id=line-130 name=line-130></a>
+<a id=line-131 name=line-131></a>        <span class=n>finished_tasks</span> <span class=o>=</span> <span class=nb>sum</span><span class=p>(</span><span class=n>s</span><span class=p>[</span><span class=s2>&quot;finished&quot;</span><span class=p>]</span> <span class=k>for</span> <span class=n>s</span> <span class=ow>in</span> <span class=n>jobs</span><span class=o>.</span><span class=n>values</span><span class=p>())</span>
+<a id=line-132 name=line-132></a>
+<a id=line-133 name=line-133></a>        <span class=n>delta</span> <span class=o>=</span> <span class=n>finished_tasks</span> <span class=o>-</span> <span class=n>bar</span><span class=o>.</span><span class=n>n</span>
+<a id=line-134 name=line-134></a>        <span class=k>if</span> <span class=n>delta</span><span class=p>:</span>
+<a id=line-135 name=line-135></a>            <span class=n>bar</span><span class=o>.</span><span class=n>update</span><span class=p>(</span><span class=n>delta</span><span class=p>)</span>
+<a id=line-136 name=line-136></a>
+<a id=line-137 name=line-137></a>    <span class=k>return</span> <span class=n>cb</span>
+</pre></div></td></tr></table><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2022-07-25 11:45 </p></div></div></body></html>
