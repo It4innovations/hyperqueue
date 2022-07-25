@@ -1,6 +1,7 @@
 use crate::common::utils::fs::get_current_dir;
 use anyhow::Context;
 use bstr::ByteSlice;
+use std::fmt::Write;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -204,10 +205,10 @@ fn build_slurm_submit_script(
     );
 
     if !sbatch_args.is_empty() {
-        script.push_str(&format!("#SBATCH {}\n", sbatch_args));
+        writeln!(script, "#SBATCH {}", sbatch_args).unwrap();
     }
 
     let prefix = if nodes > 1 { "srun --overlap " } else { "" };
-    script.push_str(&format!("\n{prefix}{worker_cmd}"));
+    write!(script, "\n{prefix}{worker_cmd}").unwrap();
     script
 }

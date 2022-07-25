@@ -462,7 +462,7 @@ impl Output for CliOutput {
         let mut n_tasks = info.n_tasks.to_string();
         match &job_desc {
             JobDescription::Array { ids, .. } => {
-                n_tasks.push_str(&format!("; Ids: {}", ids));
+                write!(n_tasks, "; Ids: {}", ids).unwrap();
             }
             JobDescription::Graph { .. } => {
                 // TODO
@@ -983,7 +983,7 @@ fn format_resource_request(rq: &ResourceRequest) -> String {
     }
     let mut result = format_cpu_request(&rq.cpus);
     for grq in &rq.generic {
-        result.push_str(&format!("\n{}: {}", grq.resource, grq.amount))
+        write!(result, "\n{}: {}", grq.resource, grq.amount).unwrap();
     }
     result
 }
@@ -1159,19 +1159,23 @@ fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String 
 
     if multiline {
         for descriptor in &resources.generic {
-            result.push_str(&format!(
+            write!(
+                result,
                 "\n{}: {}",
                 &descriptor.name,
                 special_format(descriptor).unwrap_or_else(|| descriptor.kind.to_string())
-            ));
+            )
+            .unwrap();
         }
     } else {
         for descriptor in &resources.generic {
-            result.push_str(&format!(
+            write!(
+                result,
                 "; {} {}",
                 &descriptor.name,
                 special_format(descriptor).unwrap_or_else(|| descriptor.kind.to_string())
-            ));
+            )
+            .unwrap();
         }
     }
     result

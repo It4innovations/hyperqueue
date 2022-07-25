@@ -207,7 +207,7 @@ pub fn format_errors_cli(input: &str, mut errors: Vec<ParseError>) -> String {
 
 // Common parsers
 fn parse_integer_string() -> impl CharParser<String> {
-    let digit = chumsky::primitive::filter(|c: &char| c.is_digit(10));
+    let digit = chumsky::primitive::filter(|c: &char| c.is_ascii_digit());
     let underscore = chumsky::primitive::just('_');
     let digit_or_underscore = underscore.or(digit).repeated();
 
@@ -216,7 +216,7 @@ fn parse_integer_string() -> impl CharParser<String> {
         .map(|chars| {
             chars
                 .into_iter()
-                .filter(|c| c.is_digit(10))
+                .filter(|c| c.is_ascii_digit())
                 .collect::<String>()
         })
         .labelled("number")

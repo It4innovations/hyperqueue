@@ -207,7 +207,7 @@ fn build_pbs_submit_script(
     );
 
     if !qsub_args.is_empty() {
-        script.push_str(&format!("#PBS {}\n", qsub_args));
+        writeln!(script, "#PBS {}", qsub_args).unwrap();
     }
     match mode {
         SubmitMode::DryRun => script.push_str("#PBS -h\n"),
