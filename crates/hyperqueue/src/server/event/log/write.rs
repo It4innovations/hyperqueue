@@ -1,5 +1,5 @@
-use crate::server::event::log::canonical_header;
-use crate::server::event::MonitoringEvent;
+use crate::server::event::log::{canonical_header, EventChunkHeader};
+use crate::server::event::{MonitoringEvent, MonitoringEventId};
 use async_compression::tokio::write::GzipEncoder;
 use async_compression::Level;
 use std::path::Path;
@@ -8,11 +8,21 @@ use tokio::io::AsyncWriteExt;
 
 /// Streams monitoring events into a file on disk.
 pub struct EventLogWriter {
-    file: GzipEncoder<File>,
-    buffer: Vec<u8>,
+    log_file: File,
+    state: WriterState,
+    uncompressed_buffer: Vec<u8>,
+    gzip_buffer: Vec<u8>,
 }
 
-const BUF_MAX_SIZE: usize = 16 * 1024;
+/// The states the log writer can be in.
+pub enum WriterState {
+    /// The writer currently has no events in buffer.
+    EmptyChunk,
+    /// The writer has a chunk waiting to be written.
+    ChunkInProgress(MonitoringEventId),
+}
+
+pub const CHUNK_MAX_SIZE: usize = 16 * 2048;
 
 impl EventLogWriter {
     pub async fn create(path: &Path) -> anyhow::Result<Self> {
@@ -21,45 +31,82 @@ impl EventLogWriter {
         file.write_all(&header).await?;
         file.flush().await?;
 
-        let file = GzipEncoder::with_quality(file, Level::Fastest);
-
-        // Keep buffer capacity larger than max size to avoid reallocation if we overflow
-        // the buffer.
-        let buffer = Vec::with_capacity(BUF_MAX_SIZE * 2);
-        Ok(Self { file, buffer })
+        let uncompressed_buffer = Vec::with_capacity(CHUNK_MAX_SIZE * 2);
+        let gzip_buffer = Vec::with_capacity(CHUNK_MAX_SIZE * 2);
+        Ok(Self {
+            log_file: file,
+            state: WriterState::EmptyChunk,
+            uncompressed_buffer,
+            gzip_buffer,
+        })
     }
 
     #[inline]
     pub async fn store(&mut self, event: MonitoringEvent) -> anyhow::Result<()> {
-        rmp_serde::encode::write(&mut self.buffer, &event)?;
-        if self.is_buffer_full() {
-            self.write_buffer().await?;
+        match self.state {
+            WriterState::EmptyChunk => {
+                self.write_event(&event)?;
+                self.set_state(WriterState::ChunkInProgress(event.id));
+            }
+            WriterState::ChunkInProgress(first_event_id) => {
+                if self.is_buffer_full() {
+                    self.write_event(&event)?;
+
+                    self.compress_and_write_buffer(first_event_id).await?;
+                    self.uncompressed_buffer.clear();
+                    self.set_state(WriterState::EmptyChunk);
+                } else {
+                    self.write_event(&event)?;
+                }
+            }
         }
         Ok(())
     }
 
     pub async fn flush(&mut self) -> anyhow::Result<()> {
-        if !self.buffer.is_empty() {
-            self.write_buffer().await?;
+        if let WriterState::ChunkInProgress(first_event_id) = self.state {
+            self.compress_and_write_buffer(first_event_id).await?;
         }
-        self.file.flush().await?;
+        self.log_file.flush().await?;
         Ok(())
     }
 
     pub async fn finish(mut self) -> anyhow::Result<()> {
         self.flush().await?;
-        self.file.shutdown().await?;
+        self.log_file.shutdown().await?;
         Ok(())
     }
 
-    async fn write_buffer(&mut self) -> tokio::io::Result<()> {
-        self.file.write_all(&self.buffer).await?;
-        self.buffer.clear();
+    /// Writes event to the uncompressed_buffer
+    fn write_event(&mut self, event: &MonitoringEvent) -> anyhow::Result<()> {
+        rmp_serde::encode::write(&mut self.uncompressed_buffer, event)?;
         Ok(())
     }
 
-    #[inline]
     fn is_buffer_full(&self) -> bool {
-        self.buffer.len() >= BUF_MAX_SIZE
+        self.uncompressed_buffer.len() > CHUNK_MAX_SIZE
+    }
+
+    /// Change the state of the writer
+    fn set_state(&mut self, writer_state: WriterState) {
+        self.state = writer_state;
+    }
+
+    /// Compresses the uncompressed_buffer and writes it to the event log file.
+    async fn compress_and_write_buffer(
+        &mut self,
+        first_event_id: MonitoringEventId,
+    ) -> anyhow::Result<()> {
+        let mut buffer_gzipped = GzipEncoder::with_quality(&mut self.gzip_buffer, Level::Fastest);
+        buffer_gzipped.write_all(&self.uncompressed_buffer).await?;
+        buffer_gzipped.shutdown().await?;
+
+        let mut chunk_header = rmp_serde::encode::to_vec(&EventChunkHeader {
+            first_event_id,
+            chunk_length: buffer_gzipped.get_ref().len(),
+        })?;
+        chunk_header.append(buffer_gzipped.get_mut());
+        self.log_file.write_all(&chunk_header).await?;
+        Ok(())
     }
 }

@@ -1,21 +1,23 @@
-use crate::server::event::log::{canonical_header, LogFileHeader};
+use crate::server::event::log::{canonical_header, EventChunkHeader, LogFileHeader};
 use crate::server::event::MonitoringEvent;
 use anyhow::anyhow;
 use flate2::read::GzDecoder;
 use rmp_serde::decode::Error;
 use std::fs::File;
-use std::io::ErrorKind;
+use std::io::{Cursor, ErrorKind, Seek, SeekFrom};
+use std::os::unix::fs::FileExt;
 use std::path::Path;
 
 /// Reads events from a file in a streaming fashion.
 pub struct EventLogReader {
-    source: GzDecoder<File>,
+    source: File,
+    current_chunk: GzDecoder<Cursor<Vec<u8>>>,
 }
 
 impl EventLogReader {
     pub fn open(path: &Path) -> anyhow::Result<Self> {
-        let mut file = File::open(path)?;
-        let header: LogFileHeader = rmp_serde::from_read(&mut file)
+        let mut source = File::open(path)?;
+        let header: LogFileHeader = rmp_serde::from_read(&mut source)
             .map_err(|error| anyhow!("Cannot load HQ event log file header: {error:?}"))?;
 
         let expected_header = canonical_header();
@@ -24,9 +26,10 @@ impl EventLogReader {
                 "Invalid HQ event log file header.\nFound: {header:?}\nExpected: {expected_header:?}"
             ));
         }
-
-        let source = GzDecoder::new(file);
-        Ok(Self { source })
+        Ok(Self {
+            source,
+            current_chunk: GzDecoder::new(Default::default()),
+        })
     }
 }
 
@@ -35,12 +38,33 @@ impl Iterator for EventLogReader {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        match rmp_serde::from_read(&mut self.source) {
+        let event: Result<MonitoringEvent, Error> = rmp_serde::from_read(&mut self.current_chunk);
+        match event {
             Ok(event) => Some(Ok(event)),
             Err(Error::InvalidMarkerRead(error))
                 if matches!(error.kind(), ErrorKind::UnexpectedEof) =>
             {
-                None
+                let next_header: Result<EventChunkHeader, Error> =
+                    rmp_serde::from_read(&mut self.source);
+                match next_header {
+                    Ok(chunk_header) => {
+                        let begin_index = self.source.seek(SeekFrom::Current(0_i64)).ok()?;
+                        let mut buffer = vec![0; chunk_header.chunk_length];
+                        self.source.read_at(&mut buffer, begin_index as u64).ok()?;
+                        self.current_chunk = GzDecoder::new(Cursor::new(buffer));
+                        let _ = self
+                            .source
+                            .seek(SeekFrom::Current(chunk_header.chunk_length as i64))
+                            .ok()?;
+                        self.next()
+                    }
+                    Err(Error::InvalidMarkerRead(error))
+                        if matches!(error.kind(), ErrorKind::UnexpectedEof) =>
+                    {
+                        None
+                    }
+                    Err(error) => Some(Err(error)),
+                }
             }
             Err(error) => Some(Err(error)),
         }
