@@ -130,25 +130,30 @@ pub async fn run_worker(
             Ok(Some(data)) => {
                 let WorkerRegistrationResponse {
                     worker_id,
-                    worker_addresses,
+                    other_workers,
                     resource_names,
                     server_idle_timeout,
                 } = open_message(&mut opener, &data?)?;
 
                 sync_worker_configuration(&mut configuration, server_idle_timeout);
 
-                (
+                let state_ref = WorkerStateRef::new(
                     worker_id,
-                    WorkerStateRef::new(
-                        worker_id,
-                        configuration.clone(),
-                        secret_key,
-                        queue_sender,
-                        worker_addresses,
-                        ResourceMap::from_vec(resource_names),
-                        launcher_setup,
-                    ),
-                )
+                    configuration.clone(),
+                    secret_key,
+                    queue_sender,
+                    ResourceMap::from_vec(resource_names),
+                    launcher_setup,
+                );
+
+                {
+                    let mut state = state_ref.get_mut();
+                    for worker_info in other_workers {
+                        state.new_worker(worker_info);
+                    }
+                }
+
+                (worker_id, state_ref)
             }
             Ok(None) => panic!("Connection closed without receiving registration response"),
             Err(_) => panic!("Did not receive worker registration response"),
@@ -351,16 +356,10 @@ async fn worker_message_loop(
                 }
             }
             ToWorkerMessage::NewWorker(msg) => {
-                log::debug!("New worker={} announced at {}", msg.worker_id, &msg.address);
-                assert_ne!(msg.worker_id, state.worker_id); // We should not receive message about ourselves
-                assert!(state
-                    .worker_addresses
-                    .insert(msg.worker_id, msg.address)
-                    .is_none())
+                state.new_worker(msg);
             }
             ToWorkerMessage::LostWorker(worker_id) => {
-                log::debug!("Lost worker={} announced", worker_id);
-                assert!(state.worker_addresses.remove(&worker_id).is_some());
+                state.remove_worker(worker_id);
             }
             ToWorkerMessage::SetReservation(on_off) => {
                 state.reservation = on_off;

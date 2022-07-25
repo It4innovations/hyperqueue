@@ -188,3 +188,32 @@ def test_task_priorities(hq_env: HqEnv):
     starts1.sort(key=lambda x: -priorities[x[0]])
     starts2.sort(key=lambda x: x[1])
     assert starts1 == starts2
+
+
+def test_resource_uniqueness_priorities(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env, with_worker=False)
+    hq_env.start_worker()
+    hq_env.start_worker(
+        cpus=1,
+        args=[
+            "--resource",
+            "res0=range(1-1)",
+        ],
+    )
+
+    ts0 = [job.program(bash("sleep 1")) for _ in range(5)]
+    res = ResourceRequest(cpus="1", generic={"res0": 1})
+    for t in ts0:
+        job.program(bash("sleep 1"), deps=[t], resources=res)
+
+    job_id = client.submit(job)
+    client.wait_for_jobs([job_id])
+
+    data = hq_env.command(["--output-mode=json", "task", "list", "1"], as_json=True)[
+        "1"
+    ]
+    print(data)
+    tasks_on_worker_2 = [t["id"] for t in data if t["worker"] == 1]
+    print(tasks_on_worker_2)
+    tasks_on_worker_2 = [t["id"] for t in data if t["worker"] == 2]
+    print(tasks_on_worker_2)
