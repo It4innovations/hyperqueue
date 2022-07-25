@@ -26,7 +26,7 @@ jobs:
           python -m pip install --upgrade pip wheel setuptools
           python -m pip install -r docs/requirements.txt
       - name: Build docs
-        run: mkdocs build --strict
+        run: mkdocs build
       - name: Set Git CI config
         run: |
           git config user.name gh-ci-deploy-docs
