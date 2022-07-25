@@ -1266,38 +1266,18 @@ def test_zero_custom_error_message(hq_env: HqEnv):
     )
 
 
-def test_crashing_job_by_status(hq_env: HqEnv):
+def test_cancel_tasks_that_crash_worker(hq_env: HqEnv):
     hq_env.start_server()
-    # Crashing tasks threshold is 5
-    hq_env.command(["submit", "sleep", "10"])
-    for i in range(5):
-        hq_env.start_worker()
-        wait_for_job_state(hq_env, 1, "RUNNING")
-        hq_env.kill_worker(i + 1)
-    table = list_jobs(hq_env)
-    table.check_column_value("State", 0, "CANCELED")
+    hq_env.command(["submit", "--", "bash", "-c", "sleep 10; echo done > foo.txt"])
 
-
-def test_crashing_job_by_files(hq_env: HqEnv):
-    hq_env.start_server()
-    hq_env.command(["submit", "--", "bash", "-c", "sleep 1; echo done > xyz.txt"])
-
-    # Crashing tasks threshold is 5
+    # A task is canceled once its executing worker crashes at least five times.
     for i in range(5):
         hq_env.start_worker()
         wait_for_job_state(hq_env, 1, "RUNNING")
         hq_env.kill_worker(i + 1)
 
-    hq_env.start_worker()
     wait_for_job_state(hq_env, 1, "CANCELED")
-    time.sleep(2)
-
-    table = list_jobs(hq_env)
-    table.check_column_value("State", 0, "CANCELED")
-    try:
-        check_file_contents("xyz.txt", "done\n")
-    except Exception as e:
-        assert "No such file or directory: 'xyz.txt'" in str(e)
+    assert not os.path.isfile("foo.txt")
 
 
 def python(command: str) -> List[str]:
