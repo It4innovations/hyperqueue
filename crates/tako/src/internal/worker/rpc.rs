@@ -26,6 +26,7 @@ use crate::internal::transfer::auth::{
     do_authentication, forward_queue_to_sealed_sink, open_message, seal_message, serialize,
 };
 use crate::internal::transfer::transport::make_protocol_builder;
+use crate::internal::worker::comm::{RealWorkerComm, WorkerComm};
 use crate::internal::worker::configuration::{
     sync_worker_configuration, ServerLostPolicy, WorkerConfiguration,
 };
@@ -125,7 +126,7 @@ pub async fn run_worker(
     let send_overview_interval = configuration.send_overview_interval;
     let time_limit = configuration.time_limit;
 
-    let (worker_id, state) = {
+    let (worker_id, state, mut comm, start_task_notify) = {
         match timeout(Duration::from_secs(15), receiver.next()).await {
             Ok(Some(data)) => {
                 let WorkerRegistrationResponse {
@@ -141,7 +142,6 @@ pub async fn run_worker(
                     worker_id,
                     configuration.clone(),
                     secret_key,
-                    queue_sender,
                     ResourceMap::from_vec(resource_names),
                     launcher_setup,
                 );
@@ -153,7 +153,10 @@ pub async fn run_worker(
                     }
                 }
 
-                (worker_id, state_ref)
+                let start_task_notify = Rc::new(Notify::new());
+                let comm = RealWorkerComm::new(queue_sender, start_task_notify.clone());
+
+                (worker_id, state_ref, comm, start_task_notify)
             }
             Ok(None) => panic!("Connection closed without receiving registration response"),
             Err(_) => panic!("Did not receive worker registration response"),
@@ -177,7 +180,7 @@ pub async fn run_worker(
     };
 
     let future = async move {
-        let try_start_tasks = task_starter_process(state.clone());
+        let try_start_tasks = task_starter_process(state.clone(), start_task_notify);
         let send_loop = forward_queue_to_sealed_sink(queue_receiver, sender, sealer);
         tokio::pin! {
             let send_loop = send_loop;
@@ -210,9 +213,8 @@ pub async fn run_worker(
             Ok(Some(msg)) => {
                 // Worker wants to end gracefully, send message to the server
                 {
-                    let mut state = state.get_mut();
-                    state.send_message_to_server(msg);
-                    state.drop_sender();
+                    comm.send_message_to_server(msg);
+                    comm.drop_sender();
                 }
                 send_loop.await?;
                 Ok(())
@@ -243,7 +245,9 @@ async fn finish_tasks_on_server_lost(state: WorkerStateRef) {
             let is_empty = {
                 let mut state = state.get_mut();
                 state.drop_non_running_tasks();
-                state.worker_is_empty_notify = Some(notify.clone());
+
+                todo!();
+                // state.worker_is_empty_notify = Some(notify.clone());
                 state.is_empty()
             };
             if is_empty {
@@ -258,8 +262,7 @@ async fn finish_tasks_on_server_lost(state: WorkerStateRef) {
 }
 
 /// Tries to start tasks after a new task appears or some task finishes.
-async fn task_starter_process(state_ref: WrappedRcRefCell<WorkerState>) {
-    let notify = state_ref.get().start_task_notify.clone();
+async fn task_starter_process(state_ref: WrappedRcRefCell<WorkerState>, notify: Rc<Notify>) {
     loop {
         notify.notified().await;
 
@@ -320,9 +323,60 @@ async fn idle_timeout_process(idle_timeout: Duration, state_ref: WrappedRcRefCel
     }
 }
 
+fn process_message(
+    state: &mut WorkerState,
+    comm: impl WorkerComm,
+    message: ToWorkerMessage,
+) -> bool {
+    match message {
+        ToWorkerMessage::ComputeTask(msg) => {
+            log::debug!("Task assigned: {}", msg.id);
+            let task = Task::new(msg);
+            state.add_task(task);
+        }
+        ToWorkerMessage::StealTasks(msg) => {
+            log::debug!("Steal {} attempts", msg.ids.len());
+            let responses: Vec<_> = msg
+                .ids
+                .iter()
+                .map(|task_id| {
+                    let response = state.steal_task(*task_id);
+                    log::debug!("Steal attempt: {}, response {:?}", task_id, response);
+                    (*task_id, response)
+                })
+                .collect();
+            let message = FromWorkerMessage::StealResponse(StealResponseMsg { responses });
+            state.send_message_to_server(message);
+        }
+        ToWorkerMessage::CancelTasks(msg) => {
+            for task_id in msg.ids {
+                state.cancel_task(task_id);
+            }
+        }
+        ToWorkerMessage::NewWorker(msg) => {
+            state.new_worker(msg);
+        }
+        ToWorkerMessage::LostWorker(worker_id) => {
+            state.remove_worker(worker_id);
+        }
+        ToWorkerMessage::SetReservation(on_off) => {
+            state.reservation = on_off;
+            if !on_off {
+                state.reset_idle_timer();
+            }
+        }
+        ToWorkerMessage::Stop => {
+            log::info!("Received stop command");
+            true
+        }
+    }
+    false
+}
+
 /// Runs until there are messages coming from the server.
 async fn worker_message_loop(
     state_ref: WorkerStateRef,
+    comm: RealWorkerComm,
     mut stream: impl Stream<Item = Result<BytesMut, std::io::Error>> + Unpin,
     mut opener: Option<StreamOpener>,
 ) -> crate::Result<()> {
@@ -330,48 +384,7 @@ async fn worker_message_loop(
         let data = data?;
         let message: ToWorkerMessage = open_message(&mut opener, &data)?;
         let mut state = state_ref.get_mut();
-        match message {
-            ToWorkerMessage::ComputeTask(msg) => {
-                log::debug!("Task assigned: {}", msg.id);
-                let task = Task::new(msg);
-                state.add_task(task);
-            }
-            ToWorkerMessage::StealTasks(msg) => {
-                log::debug!("Steal {} attempts", msg.ids.len());
-                let responses: Vec<_> = msg
-                    .ids
-                    .iter()
-                    .map(|task_id| {
-                        let response = state.steal_task(*task_id);
-                        log::debug!("Steal attempt: {}, response {:?}", task_id, response);
-                        (*task_id, response)
-                    })
-                    .collect();
-                let message = FromWorkerMessage::StealResponse(StealResponseMsg { responses });
-                state.send_message_to_server(message);
-            }
-            ToWorkerMessage::CancelTasks(msg) => {
-                for task_id in msg.ids {
-                    state.cancel_task(task_id);
-                }
-            }
-            ToWorkerMessage::NewWorker(msg) => {
-                state.new_worker(msg);
-            }
-            ToWorkerMessage::LostWorker(worker_id) => {
-                state.remove_worker(worker_id);
-            }
-            ToWorkerMessage::SetReservation(on_off) => {
-                state.reservation = on_off;
-                if !on_off {
-                    state.reset_idle_timer();
-                }
-            }
-            ToWorkerMessage::Stop => {
-                log::info!("Received stop command");
-                return Ok(());
-            }
-        }
+        process_message(&mut state);
     }
     log::debug!("Connection to server is closed");
     Err("Server connection closed".into())
