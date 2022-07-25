@@ -7,6 +7,7 @@ pub mod state;
 pub mod task;
 pub mod taskenv;
 
+pub mod comm;
 pub mod configuration;
 #[cfg(test)]
 mod test_util;

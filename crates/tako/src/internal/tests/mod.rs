@@ -6,5 +6,7 @@ mod test_reactor;
 pub mod test_scheduler_mn;
 #[cfg(test)]
 mod test_scheduler_sn;
+#[cfg(test)]
+mod test_worker;
 
 pub mod utils;

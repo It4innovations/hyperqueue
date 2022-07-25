@@ -115,6 +115,18 @@ mod tests {
     use std::time::Duration;
 
     use crate::internal::worker::test_util::ResourceQueueBuilder as RB;
+    use crate::{Map, PriorityTuple, TaskId};
+
+    impl ResourceWaitQueue {
+        pub fn queues(
+            &self,
+        ) -> &Map<ResourceRequest, priority_queue::PriorityQueue<TaskId, PriorityTuple>> {
+            &self.queues
+        }
+        pub fn requests(&self) -> &[ResourceRequest] {
+            &self.requests
+        }
+    }
 
     #[test]
     fn test_rqueue_resource_priority() {

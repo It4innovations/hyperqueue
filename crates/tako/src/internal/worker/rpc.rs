@@ -26,6 +26,7 @@ use crate::internal::transfer::auth::{
     do_authentication, forward_queue_to_sealed_sink, open_message, seal_message, serialize,
 };
 use crate::internal::transfer::transport::make_protocol_builder;
+use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::{
     sync_worker_configuration, ServerLostPolicy, WorkerConfiguration,
 };
@@ -125,7 +126,7 @@ pub async fn run_worker(
     let send_overview_interval = configuration.send_overview_interval;
     let time_limit = configuration.time_limit;
 
-    let (worker_id, state) = {
+    let (worker_id, state, start_task_notify) = {
         match timeout(Duration::from_secs(15), receiver.next()).await {
             Ok(Some(data)) => {
                 let WorkerRegistrationResponse {
@@ -137,11 +138,14 @@ pub async fn run_worker(
 
                 sync_worker_configuration(&mut configuration, server_idle_timeout);
 
+                let start_task_notify = Rc::new(Notify::new());
+                let comm = WorkerComm::new(queue_sender, start_task_notify.clone());
+
                 let state_ref = WorkerStateRef::new(
+                    comm,
                     worker_id,
                     configuration.clone(),
                     secret_key,
-                    queue_sender,
                     ResourceMap::from_vec(resource_names),
                     launcher_setup,
                 );
@@ -153,7 +157,7 @@ pub async fn run_worker(
                     }
                 }
 
-                (worker_id, state_ref)
+                (worker_id, state_ref, start_task_notify)
             }
             Ok(None) => panic!("Connection closed without receiving registration response"),
             Err(_) => panic!("Did not receive worker registration response"),
@@ -177,7 +181,7 @@ pub async fn run_worker(
     };
 
     let future = async move {
-        let try_start_tasks = task_starter_process(state.clone());
+        let try_start_tasks = task_starter_process(state.clone(), start_task_notify);
         let send_loop = forward_queue_to_sealed_sink(queue_receiver, sender, sealer);
         tokio::pin! {
             let send_loop = send_loop;
@@ -210,9 +214,8 @@ pub async fn run_worker(
             Ok(Some(msg)) => {
                 // Worker wants to end gracefully, send message to the server
                 {
-                    let mut state = state.get_mut();
-                    state.send_message_to_server(msg);
-                    state.drop_sender();
+                    state.get_mut().comm().send_message_to_server(msg);
+                    state.get_mut().comm().drop_sender();
                 }
                 send_loop.await?;
                 Ok(())
@@ -239,27 +242,31 @@ async fn finish_tasks_on_server_lost(state: WorkerStateRef) {
     match on_server_lost {
         ServerLostPolicy::Stop => {}
         ServerLostPolicy::FinishRunning => {
-            let notify = Rc::new(Notify::new());
-            let is_empty = {
+            let notify = {
                 let mut state = state.get_mut();
                 state.drop_non_running_tasks();
-                state.worker_is_empty_notify = Some(notify.clone());
-                state.is_empty()
+
+                if !state.is_empty() {
+                    let notify = Rc::new(Notify::new());
+                    state.comm().set_idle_worker_notify(notify.clone());
+                    Some(notify)
+                } else {
+                    None
+                }
             };
-            if is_empty {
-                log::info!("No running tasks remain")
-            } else {
+            if let Some(notify) = notify {
                 log::info!("Waiting for finishing running tasks");
                 notify.notified().await;
                 log::info!("All running tasks were finished");
+            } else {
+                log::info!("No running tasks remain")
             }
         }
     }
 }
 
 /// Tries to start tasks after a new task appears or some task finishes.
-async fn task_starter_process(state_ref: WrappedRcRefCell<WorkerState>) {
-    let notify = state_ref.get().start_task_notify.clone();
+async fn task_starter_process(state_ref: WrappedRcRefCell<WorkerState>, notify: Rc<Notify>) {
     loop {
         notify.notified().await;
 
@@ -296,7 +303,8 @@ async fn heartbeat_process(heartbeat_interval: Duration, state_ref: WrappedRcRef
     loop {
         interval.tick().await;
         state_ref
-            .get()
+            .get_mut()
+            .comm()
             .send_message_to_server(FromWorkerMessage::Heartbeat);
         log::debug!("Heartbeat sent");
     }
@@ -320,6 +328,52 @@ async fn idle_timeout_process(idle_timeout: Duration, state_ref: WrappedRcRefCel
     }
 }
 
+pub(crate) fn process_worker_message(state: &mut WorkerState, message: ToWorkerMessage) -> bool {
+    match message {
+        ToWorkerMessage::ComputeTask(msg) => {
+            log::debug!("Task assigned: {}", msg.id);
+            let task = Task::new(msg);
+            state.add_task(task);
+        }
+        ToWorkerMessage::StealTasks(msg) => {
+            log::debug!("Steal {} attempts", msg.ids.len());
+            let responses: Vec<_> = msg
+                .ids
+                .iter()
+                .map(|task_id| {
+                    let response = state.steal_task(*task_id);
+                    log::debug!("Steal attempt: {}, response {:?}", task_id, response);
+                    (*task_id, response)
+                })
+                .collect();
+            let message = FromWorkerMessage::StealResponse(StealResponseMsg { responses });
+            state.comm().send_message_to_server(message);
+        }
+        ToWorkerMessage::CancelTasks(msg) => {
+            for task_id in msg.ids {
+                state.cancel_task(task_id);
+            }
+        }
+        ToWorkerMessage::NewWorker(msg) => {
+            state.new_worker(msg);
+        }
+        ToWorkerMessage::LostWorker(worker_id) => {
+            state.remove_worker(worker_id);
+        }
+        ToWorkerMessage::SetReservation(on_off) => {
+            state.reservation = on_off;
+            if !on_off {
+                state.reset_idle_timer();
+            }
+        }
+        ToWorkerMessage::Stop => {
+            log::info!("Received stop command");
+            return true;
+        }
+    }
+    false
+}
+
 /// Runs until there are messages coming from the server.
 async fn worker_message_loop(
     state_ref: WorkerStateRef,
@@ -330,47 +384,8 @@ async fn worker_message_loop(
         let data = data?;
         let message: ToWorkerMessage = open_message(&mut opener, &data)?;
         let mut state = state_ref.get_mut();
-        match message {
-            ToWorkerMessage::ComputeTask(msg) => {
-                log::debug!("Task assigned: {}", msg.id);
-                let task = Task::new(msg);
-                state.add_task(task);
-            }
-            ToWorkerMessage::StealTasks(msg) => {
-                log::debug!("Steal {} attempts", msg.ids.len());
-                let responses: Vec<_> = msg
-                    .ids
-                    .iter()
-                    .map(|task_id| {
-                        let response = state.steal_task(*task_id);
-                        log::debug!("Steal attempt: {}, response {:?}", task_id, response);
-                        (*task_id, response)
-                    })
-                    .collect();
-                let message = FromWorkerMessage::StealResponse(StealResponseMsg { responses });
-                state.send_message_to_server(message);
-            }
-            ToWorkerMessage::CancelTasks(msg) => {
-                for task_id in msg.ids {
-                    state.cancel_task(task_id);
-                }
-            }
-            ToWorkerMessage::NewWorker(msg) => {
-                state.new_worker(msg);
-            }
-            ToWorkerMessage::LostWorker(worker_id) => {
-                state.remove_worker(worker_id);
-            }
-            ToWorkerMessage::SetReservation(on_off) => {
-                state.reservation = on_off;
-                if !on_off {
-                    state.reset_idle_timer();
-                }
-            }
-            ToWorkerMessage::Stop => {
-                log::info!("Received stop command");
-                return Ok(());
-            }
+        if process_worker_message(&mut state, message) {
+            return Ok(());
         }
     }
     log::debug!("Connection to server is closed");
@@ -382,7 +397,7 @@ async fn send_overview_loop(state_ref: WorkerStateRef, interval: Duration) -> cr
     let mut poll_interval = tokio::time::interval(interval);
     loop {
         poll_interval.tick().await;
-        let worker_state = state_ref.get();
+        let mut worker_state = state_ref.get_mut();
 
         let message = FromWorkerMessage::Overview(WorkerOverview {
             id: worker_state.worker_id,
@@ -403,7 +418,7 @@ async fn send_overview_loop(state_ref: WorkerStateRef, interval: Duration) -> cr
                 state: sampler.fetch_hw_state()?,
             }),
         });
-        worker_state.send_message_to_server(message);
+        worker_state.comm().send_message_to_server(message);
     }
 }
 

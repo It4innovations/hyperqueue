@@ -1,14 +1,10 @@
-use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
-use bytes::Bytes;
 use orion::aead::SecretKey;
 use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::Notify;
 
 use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::common::resources::ResourceAllocation;
@@ -19,7 +15,7 @@ use crate::internal::messages::worker::{
     FromWorkerMessage, NewWorkerMsg, StealResponse, TaskFailedMsg, TaskFinishedMsg,
 };
 use crate::internal::server::workerload::WorkerResources;
-use crate::internal::transfer::auth::serialize;
+use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::internal::worker::rqueue::ResourceWaitQueue;
 use crate::internal::worker::task::{Task, TaskState};
@@ -33,19 +29,16 @@ pub type TaskMap = StableMap<TaskId, Task>;
 pub type WorkerStateRef = WrappedRcRefCell<WorkerState>;
 
 pub struct WorkerState {
-    sender: Option<UnboundedSender<Bytes>>,
+    comm: WorkerComm,
     tasks: TaskMap,
     pub(crate) ready_task_queue: ResourceWaitQueue,
     pub(crate) running_tasks: Set<TaskId>,
     pub(crate) start_task_scheduled: bool,
-    pub(crate) start_task_notify: Rc<Notify>,
 
     pub(crate) worker_id: WorkerId,
     pub(crate) worker_addresses: Map<WorkerId, String>,
     pub(crate) worker_resources: Map<WorkerResources, Set<WorkerId>>,
     pub(crate) random: SmallRng,
-
-    pub(crate) worker_is_empty_notify: Option<Rc<Notify>>,
 
     pub(crate) configuration: WorkerConfiguration,
     pub(crate) task_launcher: Box<dyn TaskLauncher>,
@@ -59,6 +52,10 @@ pub struct WorkerState {
 }
 
 impl WorkerState {
+    pub(crate) fn comm(&mut self) -> &mut WorkerComm {
+        &mut self.comm
+    }
+
     #[inline]
     pub fn get_task(&self, task_id: TaskId) -> &Task {
         self.tasks.get(&task_id)
@@ -81,21 +78,6 @@ impl WorkerState {
 
     pub fn is_empty(&self) -> bool {
         self.tasks.is_empty()
-    }
-
-    pub fn send_message_to_server(&self, message: FromWorkerMessage) {
-        if let Some(sender) = self.sender.as_ref() {
-            if sender.send(serialize(&message).unwrap().into()).is_err() {
-                log::debug!("Message could not be sent to server");
-            }
-        } else {
-            log::debug!(
-                "Attempting to send a message to server, but server has already disconnected"
-            );
-        }
-    }
-    pub fn drop_sender(&mut self) {
-        self.sender = None;
     }
 
     pub fn add_ready_task(&mut self, task: &Task) {
@@ -160,10 +142,7 @@ impl WorkerState {
         }
 
         if self.tasks.is_empty() {
-            if let Some(notify) = &self.worker_is_empty_notify {
-                log::debug!("Notifying that worker is empty");
-                notify.notify_one()
-            }
+            self.comm.notify_worker_is_empty();
         }
         self.reset_idle_timer();
     }
@@ -226,7 +205,7 @@ impl WorkerState {
             return;
         }
         self.start_task_scheduled = true;
-        self.start_task_notify.notify_one();
+        self.comm.notify_start_task();
     }
 
     pub fn start_task(
@@ -243,13 +222,13 @@ impl WorkerState {
     pub fn finish_task(&mut self, task_id: TaskId, size: u64) {
         self.remove_task(task_id, true);
         let message = FromWorkerMessage::TaskFinished(TaskFinishedMsg { id: task_id, size });
-        self.send_message_to_server(message);
+        self.comm.send_message_to_server(message);
     }
 
     pub fn finish_task_failed(&mut self, task_id: TaskId, info: TaskFailInfo) {
         self.remove_task(task_id, true);
         let message = FromWorkerMessage::TaskFailed(TaskFailedMsg { id: task_id, info });
-        self.send_message_to_server(message);
+        self.comm.send_message_to_server(message);
     }
 
     pub fn finish_task_cancel(&mut self, task_id: TaskId) {
@@ -261,6 +240,9 @@ impl WorkerState {
     }
 
     pub fn worker_hostname(&self, worker_id: WorkerId) -> Option<&str> {
+        if worker_id == self.worker_id {
+            return Some(&self.configuration.hostname);
+        }
         self.worker_addresses
             .get(&worker_id)
             .and_then(|address| address.split(':').next())
@@ -272,7 +254,7 @@ impl WorkerState {
             other_worker.worker_id,
             &other_worker.address
         );
-        assert_ne!(other_worker.worker_id, other_worker.worker_id); // We should not receive message about ourselves
+        assert_ne!(self.worker_id, other_worker.worker_id); // We should not receive message about ourselves
         assert!(self
             .worker_addresses
             .insert(other_worker.worker_id, other_worker.address)
@@ -298,11 +280,11 @@ impl WorkerState {
 
 impl WorkerStateRef {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
+        comm: WorkerComm,
         worker_id: WorkerId,
         configuration: WorkerConfiguration,
         _secret_key: Option<Arc<SecretKey>>,
-        sender: UnboundedSender<Bytes>,
         resource_map: ResourceMap,
         task_launcher: Box<dyn TaskLauncher>,
     ) -> Self {
@@ -310,8 +292,8 @@ impl WorkerStateRef {
         let now = Instant::now();
 
         Self::wrap(WorkerState {
+            comm,
             worker_id,
-            sender: Some(sender),
             configuration,
             task_launcher,
             //secret_key,
@@ -319,11 +301,9 @@ impl WorkerStateRef {
             ready_task_queue,
             random: SmallRng::from_entropy(),
             start_task_scheduled: false,
-            start_task_notify: Rc::new(Notify::new()),
             running_tasks: Default::default(),
             start_time: now,
             resource_map,
-            worker_is_empty_notify: None,
             last_task_finish_time: now,
             reservation: false,
             worker_addresses: Default::default(),
