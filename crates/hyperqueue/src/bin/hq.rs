@@ -17,9 +17,9 @@ use hyperqueue::client::commands::submit::{
     resubmit_computation, submit_computation, JobResubmitOpts, JobSubmitOpts,
 };
 use hyperqueue::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
-use hyperqueue::client::commands::worker::WorkerFilter;
 use hyperqueue::client::commands::worker::{
-    get_worker_info, get_worker_list, start_hq_worker, stop_worker, WorkerStartOpts,
+    get_worker_info, get_worker_list, start_hq_worker, stop_worker, wait_for_workers, WorkerFilter,
+    WorkerStartOpts,
 };
 use hyperqueue::client::default_server_directory_path;
 use hyperqueue::client::globalsettings::GlobalSettings;
@@ -140,6 +140,8 @@ enum WorkerCommand {
     Info(WorkerInfoOpts),
     /// Display worker's hostname
     Address(WorkerAddressOpts),
+    /// Waits on the connection of worker(s)
+    Wait(WorkerWaitOpts),
 }
 
 #[derive(Parser)]
@@ -169,6 +171,12 @@ struct WorkerAddressOpts {
 struct WorkerInfoOpts {
     /// Worker ID
     worker_id: WorkerId,
+}
+
+#[derive(Parser)]
+struct WorkerWaitOpts {
+    /// Number of worker(s) to wait on
+    worker_count: u32,
 }
 
 #[derive(Parser)]
@@ -372,6 +380,14 @@ async fn command_worker_info(
     Ok(())
 }
 
+async fn command_worker_wait(
+    gsettings: &GlobalSettings,
+    opts: WorkerWaitOpts,
+) -> anyhow::Result<()> {
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    wait_for_workers(&mut session, opts.worker_count).await
+}
+
 fn command_worker_hwdetect(gsettings: &GlobalSettings, opts: HwDetectOpts) -> anyhow::Result<()> {
     let cpus = if opts.no_hyperthreading {
         detect_cpus_no_ht()?
@@ -491,6 +507,9 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Worker(WorkerOpts {
             subcmd: WorkerCommand::Address(opts),
         }) => command_worker_address(&gsettings, opts).await,
+        SubCommand::Worker(WorkerOpts {
+            subcmd: WorkerCommand::Wait(opts),
+        }) => command_worker_wait(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::List(opts),
         }) => command_job_list(&gsettings, opts).await,
