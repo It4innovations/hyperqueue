@@ -308,3 +308,11 @@ def test_server_lost_finish_running_explicit_stop(hq_env: HqEnv):
 
 def list_all_workers(hq_env: HqEnv) -> Table:
     return hq_env.command(["worker", "list", "--all"], as_table=True)
+
+
+def test_worker_wait(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(on_server_lost="finish-running")
+    hq_env.start_worker(on_server_lost="finish-running")
+    done = hq_env.command(["worker", "wait", "2"])
+    assert "" == done

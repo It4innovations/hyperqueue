@@ -1,12 +1,13 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use clap::Parser;
 use tako::resources::ResourceDescriptor;
-use tako::Map;
-use tempdir::TempDir;
-
 use tako::worker::{ServerLostPolicy, WorkerConfiguration};
+use tako::Map;
+
+use clap::Parser;
+use tempdir::TempDir;
+use tokio::time::sleep;
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::manager::info::{ManagerInfo, WORKER_EXTRA_MANAGER_KEY};
@@ -255,5 +256,38 @@ pub async fn stop_worker(session: &mut ClientSession, selector: IdSelector) -> c
         }
     }
 
+    Ok(())
+}
+
+pub async fn wait_for_workers(
+    session: &mut ClientSession,
+    worker_count: u32,
+) -> anyhow::Result<()> {
+    async fn get_workers_status(session: &mut ClientSession) -> anyhow::Result<(u32, u32)> {
+        let msg = rpc_call!(
+            session.connection(),
+            FromClientMessage::WorkerList,
+            ToClientMessage::WorkerListResponse(r) => r
+        )
+        .await?;
+
+        let mut online: u32 = 0;
+        let mut offline: u32 = 0;
+        for info in msg.workers {
+            match info.ended {
+                None => online += 1,
+                Some(_) => offline += 1,
+            }
+        }
+        Ok((online, offline))
+    }
+
+    loop {
+        let (online, _) = get_workers_status(session).await?;
+        if worker_count <= online {
+            break;
+        }
+        sleep(Duration::from_secs(1)).await;
+    }
     Ok(())
 }
