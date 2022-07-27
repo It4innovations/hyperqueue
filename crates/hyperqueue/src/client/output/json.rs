@@ -186,7 +186,7 @@ impl Output for JsonOutput {
         anyhow::bail!("JSON output mode doesn't support job output");
     }
 
-    fn print_tasks(
+    fn print_task_list(
         &self,
         jobs: Vec<(JobId, JobDetail)>,
         _worker_map: WorkerMap,
@@ -199,6 +199,15 @@ impl Output for JsonOutput {
             json_obj[id.to_string()] = format_tasks(job.tasks, map);
         }
         self.print(json_obj);
+    }
+
+    fn print_task_info(
+        &self,
+        job: (JobId, JobDetail),
+        task: &JobTaskInfo,
+        worker_map: WorkerMap,
+        server_uid: &str,
+    ) {
     }
 
     fn print_summary(&self, filename: &Path, summary: Summary) {

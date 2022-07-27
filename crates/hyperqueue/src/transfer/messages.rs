@@ -274,7 +274,7 @@ pub struct JobInfoResponse {
     pub jobs: Vec<JobInfo>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobDetail {
     pub info: JobInfo,
     pub job_desc: JobDescription,
