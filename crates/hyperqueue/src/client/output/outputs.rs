@@ -61,12 +61,19 @@ pub trait Output {
     ) -> anyhow::Result<()>;
 
     // Tasks
-    fn print_tasks(
+    fn print_task_list(
         &self,
         jobs: Vec<(JobId, JobDetail)>,
         worker_map: WorkerMap,
         server_uid: &str,
         verbosity: Verbosity,
+    );
+    fn print_task_info(
+        &self,
+        job: (JobId, JobDetail),
+        task: &JobTaskInfo,
+        worker_map: WorkerMap,
+        server_uid: &str,
     );
 
     // Log

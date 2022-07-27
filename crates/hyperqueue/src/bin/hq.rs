@@ -28,7 +28,9 @@ use hyperqueue::client::output::json::JsonOutput;
 use hyperqueue::client::output::outputs::{Output, Outputs};
 use hyperqueue::client::output::quiet::Quiet;
 use hyperqueue::client::status::Status;
-use hyperqueue::client::task::{output_job_tasks, TaskCommand, TaskListOpts, TaskOpts};
+use hyperqueue::client::task::{
+    output_job_task_info, output_job_task_list, TaskCommand, TaskInfoOpts, TaskListOpts, TaskOpts,
+};
 use hyperqueue::common::cli::{get_id_selector, get_task_selector, IdSelectorArg};
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
@@ -312,12 +314,23 @@ async fn command_job_progress(
 
 async fn command_task_list(gsettings: &GlobalSettings, opts: TaskListOpts) -> anyhow::Result<()> {
     let mut session = get_client_session(gsettings.server_directory()).await?;
-    output_job_tasks(
+    output_job_task_list(
         gsettings,
         &mut session,
         get_id_selector(opts.job_selector),
         get_task_selector(Some(opts.task_selector)),
         opts.verbosity.into(),
+    )
+    .await
+}
+
+async fn command_task_info(gsettings: &GlobalSettings, opts: TaskInfoOpts) -> anyhow::Result<()> {
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    output_job_task_info(
+        gsettings,
+        &mut session,
+        get_id_selector(opts.job_selector),
+        opts.task_id,
     )
     .await
 }
@@ -519,6 +532,9 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Task(TaskOpts {
             subcmd: TaskCommand::List(opts),
         }) => command_task_list(&gsettings, opts).await,
+        SubCommand::Task(TaskOpts {
+            subcmd: TaskCommand::Info(opts),
+        }) => command_task_info(&gsettings, opts).await,
         SubCommand::Dashboard(opts) => command_dashboard_start(&gsettings, opts).await,
         SubCommand::Log(opts) => command_log(&gsettings, opts),
         SubCommand::AutoAlloc(opts) => command_autoalloc(&gsettings, opts).await,
