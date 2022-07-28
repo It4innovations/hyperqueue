@@ -31,12 +31,15 @@ use hyperqueue::client::status::Status;
 use hyperqueue::client::task::{
     output_job_task_info, output_job_task_list, TaskCommand, TaskInfoOpts, TaskListOpts, TaskOpts,
 };
+use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::cli::{get_id_selector, get_task_selector, IdSelectorArg};
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
 use hyperqueue::dashboard::ui_loop::start_ui_loop;
 use hyperqueue::server::bootstrap::get_client_session;
-use hyperqueue::transfer::messages::{FromClientMessage, JobInfoRequest, ToClientMessage};
+use hyperqueue::transfer::messages::{
+    FromClientMessage, IdSelector, JobInfoRequest, ToClientMessage,
+};
 use hyperqueue::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resources};
 use hyperqueue::WorkerId;
 use tako::resources::ResourceDescriptor;
@@ -337,8 +340,9 @@ async fn command_task_info(gsettings: &GlobalSettings, opts: TaskInfoOpts) -> an
     output_job_task_info(
         gsettings,
         &mut session,
-        get_id_selector(opts.job_selector),
+        IdSelector::Specific(IntArray::from_id(opts.job_id.as_num())),
         opts.task_id,
+        opts.verbosity.into(),
     )
     .await
 }

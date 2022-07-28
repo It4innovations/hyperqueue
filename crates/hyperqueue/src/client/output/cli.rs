@@ -554,7 +554,7 @@ impl Output for CliOutput {
         &self,
         mut jobs: Vec<(JobId, JobDetail)>,
         worker_map: WorkerMap,
-        server_uid: &str,
+        _server_uid: &str,
         verbosity: Verbosity,
     ) {
         let mut is_truncated = false;
@@ -563,8 +563,6 @@ impl Output for CliOutput {
         let jobs_len = jobs.len();
 
         for (id, job) in jobs {
-            let task_to_paths = resolve_task_paths(&job, server_uid);
-
             let mut tasks = job.tasks;
             tasks.sort_unstable_by_key(|t| t.task_id);
 
@@ -573,8 +571,6 @@ impl Output for CliOutput {
                     .iter()
                     .map(|task| {
                         let (start, end) = get_task_time(&task.state);
-                        let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, task);
-
                         let mut job_rows = match jobs_len {
                             1 => vec![],
                             _ => vec![id.cell().justify(Justify::Right)],
@@ -588,25 +584,7 @@ impl Output for CliOutput {
                                 _ => "".into(),
                             }
                             .cell(),
-                            multiline_cell(vec![
-                                (
-                                    "Start",
-                                    start
-                                        .map(|x| format_time(x).to_string())
-                                        .unwrap_or_else(|| "".to_string()),
-                                ),
-                                (
-                                    "End",
-                                    end.map(|x| format_time(x).to_string())
-                                        .unwrap_or_else(|| "".to_string()),
-                                ),
-                                ("Makespan", format_task_duration(start, end)),
-                            ]),
-                            multiline_cell(vec![
-                                ("Workdir", cwd),
-                                ("Stdout", stdout),
-                                ("Stderr", stderr),
-                            ]),
+                            format_task_duration(start, end).cell(),
                             match (verbosity, &task.state) {
                                 (Verbosity::Normal, JobTaskState::Failed { error, .. }) => {
                                     let mut error_mut = error.clone();
@@ -639,8 +617,7 @@ impl Output for CliOutput {
             "Task ID".cell().bold(true),
             "State".cell().bold(true),
             "Worker".cell().bold(true),
-            "Times".cell().bold(true),
-            "Paths".cell().bold(true),
+            "Makespan".cell().bold(true),
             "Error".cell().bold(true),
         ]);
 
@@ -656,9 +633,11 @@ impl Output for CliOutput {
         task: &JobTaskInfo,
         worker_map: WorkerMap,
         server_uid: &str,
+        verbosity: Verbosity,
     ) {
+        let mut is_truncated = false;
         let mut rows: Vec<Vec<CellStruct>> = vec![];
-        let (job_id, job) = job;
+        let (_job_id, job) = job;
         let task_to_paths = resolve_task_paths(&job, server_uid);
 
         rows.append(
@@ -696,8 +675,17 @@ impl Output for CliOutput {
                             ("Stdout", stdout),
                             ("Stderr", stderr),
                         ]),
-                        match &task.state {
-                            JobTaskState::Failed { error, .. } => {
+                        match (verbosity, &task.state) {
+                            (Verbosity::Normal, JobTaskState::Failed { error, .. }) => {
+                                let mut error_mut = error.clone();
+                                if error_mut.len() >= ERROR_TRUNCATE_LENGTH {
+                                    error_mut.truncate(ERROR_TRUNCATE_LENGTH);
+                                    error_mut.push_str("...");
+                                    is_truncated = true;
+                                }
+                                error_mut.cell().foreground_color(Some(Color::Red))
+                            }
+                            (Verbosity::Verbose, JobTaskState::Failed { error, .. }) => {
                                 error.to_owned().cell().foreground_color(Some(Color::Red))
                             }
                             _ => "".cell(),

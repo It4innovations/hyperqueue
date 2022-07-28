@@ -203,10 +203,11 @@ impl Output for JsonOutput {
 
     fn print_task_info(
         &self,
-        job: (JobId, JobDetail),
-        task: &JobTaskInfo,
-        worker_map: WorkerMap,
-        server_uid: &str,
+        _job: (JobId, JobDetail),
+        _task: &JobTaskInfo,
+        _worker_map: WorkerMap,
+        _server_uid: &str,
+        _verbosity: Verbosity,
     ) {
     }
 

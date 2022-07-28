@@ -42,14 +42,14 @@ def test_task_resolve_submit_placeholders(hq_env: HqEnv):
     hq_env.start_server()
 
     hq_env.command(["submit", "echo", "test"])
-    table = hq_env.command(["task", "list", "1"], as_table=True)
+    table = hq_env.command(["task", "info", "1", "0"], as_table=True)
     wait_for_job_state(hq_env, 1, "WAITING")
     assert table.get_column_value("Paths")[0] == ""
 
     hq_env.start_worker()
 
     wait_for_job_state(hq_env, 1, "FINISHED")
-    table = hq_env.command(["task", "list", "1"], as_table=True)
+    table = hq_env.command(["task", "info", "1", "0"], as_table=True)
     assert get_paths(table) == (
         os.getcwd(),
         default_task_output(),
@@ -73,14 +73,14 @@ def test_task_resolve_worker_placeholders(hq_env: HqEnv):
             "test",
         ]
     )
-    table = hq_env.command(["task", "list", "1"], as_table=True)
+    table = hq_env.command(["task", "info", "1", "0"], as_table=True)
     wait_for_job_state(hq_env, 1, "WAITING")
     assert table.get_column_value("Paths")[0] == ""
 
     hq_env.start_worker()
 
     wait_for_job_state(hq_env, 1, "FINISHED")
-    table = hq_env.command(["task", "list", "1"], as_table=True)
+    table = hq_env.command(["task", "info", "1", "0"], as_table=True)
     assert get_paths(table) == (abspath("0-dir"), abspath("0.out"), abspath("0.err"))
 
 

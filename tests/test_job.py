@@ -726,15 +726,12 @@ def test_job_tasks_makespan(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "CANCELED")
 
     times_1 = hq_env.command(["task", "list", "1"], as_table=True).get_column_value(
-        "Times"
+        "Makespan"
     )
     times_2 = hq_env.command(["task", "list", "1"], as_table=True).get_column_value(
-        "Times"
+        "Makespan"
     )
     assert times_1 == times_2
-
-    makespan = times_1[0].split("\n")[2]
-    assert makespan != "Makespan: "
 
 
 def test_job_wait(hq_env: HqEnv):
@@ -799,7 +796,7 @@ def test_job_completion_time(hq_env: HqEnv):
     table = hq_env.command(["job", "info", "1"], as_table=True)
     assert table.get_row_value("Makespan").startswith("1s")
 
-    table = hq_env.command(["task", "list", "1"], as_table=True)
+    table = hq_env.command(["task", "info", "1", "0"], as_table=True)
     parse_multiline_cell(table.get_column_value("Times")[0])["Makespan"].startswith(
         "1s"
     )
