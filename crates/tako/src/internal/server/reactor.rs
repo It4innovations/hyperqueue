@@ -128,6 +128,12 @@ pub(crate) fn on_remove_worker(
         core.add_ready_to_assign(task_id);
     }
 
+    log::debug!(
+        "Running tasks on lost worker {}: {:?}",
+        worker_id,
+        running_tasks
+    );
+
     let _ = core.remove_worker(worker_id);
     comm.broadcast_worker_message(&ToWorkerMessage::LostWorker(worker_id));
     comm.send_client_worker_lost(worker_id, running_tasks, reason);
