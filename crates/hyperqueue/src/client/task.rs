@@ -8,7 +8,7 @@ use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDetailRequest, TaskIdSelector, TaskSelector,
     TaskStatusSelector, ToClientMessage,
 };
-use crate::{rpc_call, JobTaskId};
+use crate::{rpc_call, JobId, JobTaskId};
 
 #[derive(clap::Parser)]
 pub struct TaskOpts {
@@ -39,10 +39,13 @@ pub struct TaskListOpts {
 #[derive(clap::Parser)]
 pub struct TaskInfoOpts {
     /// Select specific job(s).
-    pub job_selector: JobSelectorArg,
+    pub job_id: JobId,
 
     /// Select specific task by id
     pub task_id: JobTaskId,
+
+    #[clap(flatten)]
+    pub verbosity: VerbosityFlag,
 }
 
 pub async fn output_job_task_list(
@@ -85,6 +88,7 @@ pub async fn output_job_task_info(
     session: &mut ClientSession,
     job_id_selector: IdSelector,
     task_id: JobTaskId,
+    verbosity: Verbosity,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::JobDetail(JobDetailRequest {
         job_id_selector,
@@ -105,10 +109,11 @@ pub async fn output_job_task_info(
             match opt_task {
                 None => log::error!("Cannot find task {task_id} in job {job_id}"),
                 Some(task) => gsettings.printer().print_task_info(
-                    (job_id.clone(), job.clone()),
+                    (*job_id, job.clone()),
                     task,
                     get_worker_map(session).await?,
                     session.server_uid(),
+                    verbosity,
                 ),
             }
         }

@@ -74,6 +74,7 @@ pub trait Output {
         task: &JobTaskInfo,
         worker_map: WorkerMap,
         server_uid: &str,
+        verbosity: Verbosity,
     );
 
     // Log
