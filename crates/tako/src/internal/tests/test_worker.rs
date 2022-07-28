@@ -1,12 +1,15 @@
 use crate::internal::common::resources::request::GenericResourceRequests;
-use crate::internal::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
+use crate::internal::messages::worker::{
+    ComputeTaskMsg, NewWorkerMsg, ToWorkerMessage, WorkerResourceCounts,
+};
+use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::rpc::process_worker_message;
 use crate::internal::worker::state::WorkerStateRef;
 use crate::launcher::{LaunchContext, StopReason, TaskLaunchData, TaskLauncher};
 use crate::resources::{CpuRequest, ResourceDescriptor, ResourceMap, ResourceRequest, TimeRequest};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
-use crate::{TaskId, WorkerId};
+use crate::{Set, TaskId, WorkerId};
 use std::time::Duration;
 use tokio::sync::oneshot::Receiver;
 
@@ -106,4 +109,89 @@ fn test_worker_reservation() {
     comm.check_emptiness();
     assert!(!state.reservation);
     assert_ne!(state.last_task_finish_time, finish_time);
+}
+
+#[test]
+fn test_worker_other_workers() {
+    let state_ref = create_test_worker_state(create_test_worker_config());
+    let mut state = state_ref.get_mut();
+    assert!(state.worker_addresses.is_empty());
+    assert!(state.worker_resources.is_empty());
+
+    let r1 = WorkerResourceCounts {
+        n_cpus: 2,
+        n_generic_resources: vec![0, 1],
+    };
+    let wr1 = WorkerResources::from_transport(r1.clone());
+
+    let r2 = WorkerResourceCounts {
+        n_cpus: 2,
+        n_generic_resources: vec![1],
+    };
+    let wr2 = WorkerResources::from_transport(r2.clone());
+
+    process_worker_message(
+        &mut state,
+        ToWorkerMessage::NewWorker(NewWorkerMsg {
+            worker_id: 30.into(),
+            address: "abc".to_string(),
+            resources: r1.clone(),
+        }),
+    );
+    let comm = state.comm().test();
+    comm.check_emptiness();
+    assert_eq!(state.worker_addresses.len(), 1);
+    assert_eq!(state.worker_addresses[&WorkerId::from(30)], "abc");
+    assert_eq!(state.worker_resources.len(), 1);
+    let mut s = Set::new();
+    s.insert(WorkerId::from(30));
+    assert_eq!(state.worker_resources[&wr1], s);
+
+    process_worker_message(
+        &mut state,
+        ToWorkerMessage::NewWorker(NewWorkerMsg {
+            worker_id: 40.into(),
+            address: "efg".to_string(),
+            resources: r1.clone(),
+        }),
+    );
+
+    let comm = state.comm().test();
+    comm.check_emptiness();
+    assert_eq!(state.worker_addresses.len(), 2);
+    assert_eq!(state.worker_addresses[&WorkerId::from(30)], "abc");
+    assert_eq!(state.worker_addresses[&WorkerId::from(40)], "efg");
+    assert_eq!(state.worker_resources.len(), 1);
+    s.insert(WorkerId::from(40));
+    assert_eq!(state.worker_resources[&wr1], s);
+
+    process_worker_message(
+        &mut state,
+        ToWorkerMessage::NewWorker(NewWorkerMsg {
+            worker_id: 50.into(),
+            address: "xyz".to_string(),
+            resources: r2.clone(),
+        }),
+    );
+
+    let comm = state.comm().test();
+    comm.check_emptiness();
+    assert_eq!(state.worker_addresses.len(), 3);
+    assert_eq!(state.worker_resources.len(), 2);
+    let mut t = Set::new();
+    t.insert(WorkerId::from(50));
+    assert_eq!(state.worker_resources[&wr1], s);
+    assert_eq!(state.worker_resources[&wr2], t);
+
+    process_worker_message(&mut state, ToWorkerMessage::LostWorker(40.into()));
+    assert_eq!(state.worker_addresses.len(), 2);
+    assert!(state.worker_addresses.get(&WorkerId::new(40)).is_none());
+    assert_eq!(state.worker_resources.len(), 2);
+    s.remove(&WorkerId::new(40));
+    assert_eq!(state.worker_resources[&wr1], s);
+    assert_eq!(state.worker_resources[&wr2], t);
+
+    process_worker_message(&mut state, ToWorkerMessage::LostWorker(30.into()));
+    assert!(state.worker_resources.get(&wr1).is_none());
+    assert_eq!(state.worker_resources[&wr2], t);
 }

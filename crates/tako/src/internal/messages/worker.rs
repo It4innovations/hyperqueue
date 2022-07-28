@@ -41,7 +41,7 @@ pub struct TaskIdsMsg {
     pub ids: Vec<TaskId>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerResourceCounts {
     pub n_cpus: NumOfCpus,
     pub n_generic_resources: Vec<GenericResourceAmount>,
