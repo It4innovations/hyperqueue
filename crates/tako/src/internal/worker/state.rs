@@ -280,7 +280,7 @@ impl WorkerState {
 
 impl WorkerStateRef {
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new(
+    pub fn new(
         comm: WorkerComm,
         worker_id: WorkerId,
         configuration: WorkerConfiguration,

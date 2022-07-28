@@ -1,8 +1,10 @@
+use std::rc::Rc;
 use std::time::Duration;
 
 use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 use tako::internal::messages::worker::ComputeTaskMsg;
+use tako::internal::worker::comm::WorkerComm;
 use tako::internal::worker::rqueue::ResourceWaitQueue;
 use tako::launcher::{LaunchContext, StopReason, TaskLaunchData, TaskLauncher, TaskResult};
 use tako::resources::ResourceMap;
@@ -12,6 +14,7 @@ use tako::resources::{
 };
 use tako::{AsIdVec, ItemId};
 use tokio::sync::mpsc::unbounded_channel;
+use tokio::sync::Notify;
 
 use tako::internal::worker::state::{TaskMap, WorkerStateRef};
 use tako::internal::worker::task::Task;
@@ -36,12 +39,15 @@ impl TaskLauncher for BenchmarkTaskLauncher {
 fn create_worker_state() -> WorkerStateRef {
     let worker = create_worker(1);
     let (tx, _) = unbounded_channel();
+
+    let start_task_notify = Rc::new(Notify::new());
+    let comm = WorkerComm::new(tx, start_task_notify);
+
     WorkerStateRef::new(
+        comm,
         worker.id(),
         worker.configuration().clone(),
         None,
-        tx,
-        Default::default(),
         Default::default(),
         Box::new(BenchmarkTaskLauncher),
     )
