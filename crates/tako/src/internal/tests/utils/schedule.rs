@@ -9,11 +9,12 @@ use crate::internal::server::task::Task;
 use crate::internal::server::worker::Worker;
 use crate::internal::tests::utils::env::TestComm;
 use crate::internal::tests::utils::task::task_running_msg;
+use crate::resources::ResourceMap;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{TaskId, WorkerId};
 use std::time::{Duration, Instant};
 
-pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u32) {
+pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u64) {
     let wcfg = WorkerConfiguration {
         resources: ResourceDescriptor::simple(cpus),
         listen_address: format!("1.1.1.{}:123", worker_id),
@@ -28,11 +29,15 @@ pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u32) {
         extra: Default::default(),
     };
 
-    let worker = Worker::new(worker_id, wcfg, Default::default());
+    let worker = Worker::new(
+        worker_id,
+        wcfg,
+        ResourceMap::from_vec(vec!["cpus".to_string()]),
+    );
     on_new_worker(core, &mut TestComm::default(), worker);
 }
 
-pub fn create_test_workers(core: &mut Core, cpus: &[u32]) {
+pub fn create_test_workers(core: &mut Core, cpus: &[u64]) {
     for (i, c) in cpus.iter().enumerate() {
         let worker_id = WorkerId::new((100 + i) as u32);
         create_test_worker(core, worker_id, *c);

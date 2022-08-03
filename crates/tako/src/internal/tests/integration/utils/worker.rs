@@ -6,10 +6,7 @@ use std::time::Duration;
 use tempdir::TempDir;
 
 use crate::internal::common::error::DsError;
-use crate::internal::common::resources::descriptor::cpu_descriptor_from_socket_size;
-use crate::internal::common::resources::{
-    CpusDescriptor, GenericResourceDescriptor, ResourceDescriptor,
-};
+use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::server::core::CoreRef;
 use crate::launcher::{LaunchContext, StopReason, TaskResult};
 use crate::program::ProgramDefinition;
@@ -21,6 +18,7 @@ use tokio::task::LocalSet;
 
 use crate::internal::worker::rpc::run_worker;
 use crate::launcher::{command_from_definitions, TaskLaunchData, TaskLauncher};
+use crate::resources::ResourceDescriptorItem;
 use crate::worker::ServerLostPolicy;
 use crate::WorkerId;
 
@@ -35,16 +33,7 @@ impl Default for WorkerSecretKey {
     }
 }
 
-#[derive(Builder, Default)]
-#[builder(pattern = "owned")]
-pub struct ResourceConfig {
-    #[builder(default = "vec![vec![1.into()]]")]
-    cpus: CpusDescriptor,
-    #[builder(default)]
-    generic: Vec<GenericResourceDescriptor>,
-}
-
-#[derive(Builder, Default)]
+#[derive(Builder)]
 #[builder(pattern = "owned")]
 pub struct WorkerConfig {
     #[builder(default)]
@@ -55,8 +44,10 @@ pub struct WorkerConfig {
     secret_key: WorkerSecretKey,
     #[builder(default = "Duration::from_millis(250)")]
     heartbeat_interval: Duration,
-    #[builder(default)]
-    resources: ResourceConfigBuilder,
+    #[builder(
+        default = "ResourceDescriptor::new(vec![ResourceDescriptorItem::range(\"cpus\", 0, 0)])"
+    )]
+    resources: ResourceDescriptor,
 }
 
 pub(super) fn create_worker_configuration(
@@ -69,13 +60,10 @@ pub(super) fn create_worker_configuration(
         heartbeat_interval,
         resources,
     } = builder.build().unwrap();
-    let resources = resources.build().unwrap();
-
     (
         WorkerConfiguration {
             resources: ResourceDescriptor {
-                cpus: resources.cpus,
-                generic: resources.generic,
+                resources: resources.resources,
             },
             listen_address: "".to_string(),
             hostname: "".to_string(),
@@ -292,13 +280,4 @@ impl TaskLauncher for TestTaskLauncher {
             }
         })))
     }
-}
-
-// Resource helpers
-pub fn cpus(count: u32) -> ResourceConfigBuilder {
-    ResourceConfigBuilder::default().cpus(vec![(0..count).map(|id| id.into()).collect()])
-}
-pub fn numa_cpus(cpu_per_socket: u32, sockets: u32) -> ResourceConfigBuilder {
-    let descriptor = cpu_descriptor_from_socket_size(sockets, cpu_per_socket);
-    ResourceConfigBuilder::default().cpus(descriptor)
 }

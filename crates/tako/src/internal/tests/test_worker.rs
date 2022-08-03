@@ -1,4 +1,4 @@
-use crate::internal::common::resources::request::GenericResourceRequests;
+use crate::internal::common::resources::request::{ResourceRequestEntries, ResourceRequestEntry};
 use crate::internal::messages::worker::{
     ComputeTaskMsg, NewWorkerMsg, ToWorkerMessage, WorkerResourceCounts,
 };
@@ -7,7 +7,9 @@ use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::rpc::process_worker_message;
 use crate::internal::worker::state::WorkerStateRef;
 use crate::launcher::{LaunchContext, StopReason, TaskLaunchData, TaskLauncher};
-use crate::resources::{CpuRequest, ResourceDescriptor, ResourceMap, ResourceRequest, TimeRequest};
+use crate::resources::{
+    AllocationRequest, ResourceDescriptor, ResourceMap, ResourceRequest, TimeRequest,
+};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{Set, TaskId, WorkerId};
 use std::time::Duration;
@@ -44,12 +46,20 @@ fn create_test_worker_config() -> WorkerConfiguration {
 }
 
 fn create_test_worker_state(config: WorkerConfiguration) -> WorkerStateRef {
+    let resource_map = ResourceMap::from_vec(
+        config
+            .resources
+            .resources
+            .iter()
+            .map(|x| x.name.clone())
+            .collect(),
+    );
     WorkerStateRef::new(
         WorkerComm::new_test_comm(),
         WorkerId::from(100),
         config,
         None,
-        ResourceMap::default(),
+        resource_map,
         Box::new(TestLauncher::default()),
     )
 }
@@ -73,12 +83,12 @@ fn test_worker_start_task() {
     let config = create_test_worker_config();
     let state_ref = create_test_worker_state(config);
     let mut msg = create_dummy_compute_msg(7.into());
-    let rq = ResourceRequest::new(
-        0,
-        CpuRequest::Compact(3),
-        TimeRequest::default(),
-        GenericResourceRequests::default(),
-    );
+    let mut entries = ResourceRequestEntries::new();
+    entries.push(ResourceRequestEntry {
+        resource_id: 0.into(),
+        request: AllocationRequest::Compact(3),
+    });
+    let rq = ResourceRequest::new(0, TimeRequest::default(), entries);
     msg.resources = rq.clone();
     let mut state = state_ref.get_mut();
     process_worker_message(&mut state, ToWorkerMessage::ComputeTask(msg));
@@ -119,14 +129,12 @@ fn test_worker_other_workers() {
     assert!(state.worker_resources.is_empty());
 
     let r1 = WorkerResourceCounts {
-        n_cpus: 2,
-        n_generic_resources: vec![0, 1],
+        n_resources: vec![2, 0, 1],
     };
     let wr1 = WorkerResources::from_transport(r1.clone());
 
     let r2 = WorkerResourceCounts {
-        n_cpus: 2,
-        n_generic_resources: vec![1],
+        n_resources: vec![2, 1],
     };
     let wr2 = WorkerResources::from_transport(r2.clone());
 

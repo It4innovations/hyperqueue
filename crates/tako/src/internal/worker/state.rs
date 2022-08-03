@@ -7,7 +7,7 @@ use rand::seq::SliceRandom;
 use rand::SeedableRng;
 
 use crate::internal::common::resources::map::ResourceMap;
-use crate::internal::common::resources::ResourceAllocation;
+use crate::internal::common::resources::Allocation;
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
 use crate::internal::messages::common::TaskFailInfo;
@@ -208,12 +208,7 @@ impl WorkerState {
         self.comm.notify_start_task();
     }
 
-    pub fn start_task(
-        &mut self,
-        task_id: TaskId,
-        task_env: TaskEnv,
-        allocation: ResourceAllocation,
-    ) {
+    pub fn start_task(&mut self, task_id: TaskId, task_env: TaskEnv, allocation: Allocation) {
         let mut task = self.get_task_mut(task_id);
         task.state = TaskState::Running(task_env, allocation);
         self.running_tasks.insert(task_id);

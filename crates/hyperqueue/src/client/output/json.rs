@@ -9,9 +9,7 @@ use tako::Map;
 
 use tako::gateway::ResourceRequest;
 use tako::program::{ProgramDefinition, StdioDef};
-use tako::resources::{
-    CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, ResourceDescriptor,
-};
+use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 use tako::worker::WorkerConfiguration;
 
 use crate::client::job::WorkerMap;
@@ -119,8 +117,7 @@ impl Output for JsonOutput {
                     resources:
                         ResourceRequest {
                             n_nodes,
-                            cpus,
-                            generic,
+                            resources: _,
                             min_time,
                         },
                     pin_mode,
@@ -140,8 +137,7 @@ impl Output for JsonOutput {
             });
             json["resources"] = json!({
                 "n_nodes": n_nodes,
-                "cpus": format_cpu_request(cpus),
-                "generic": generic,
+                "resources": [],
                 "min_time": format_duration(min_time)
             });
             json["pin_mode"] = json!(pin_mode);
@@ -291,24 +287,6 @@ fn format_job_info(info: JobInfo) -> serde_json::Value {
         })
     })
 }
-fn format_cpu_request(request: CpuRequest) -> serde_json::Value {
-    let cpus = &match request {
-        CpuRequest::Compact(count)
-        | CpuRequest::ForceCompact(count)
-        | CpuRequest::Scatter(count) => Some(count),
-        CpuRequest::All => None,
-    };
-    let name = match request {
-        CpuRequest::Compact(_) => "compact",
-        CpuRequest::ForceCompact(_) => "force-compact",
-        CpuRequest::Scatter(_) => "scatter",
-        CpuRequest::All => "all",
-    };
-    json!({
-        "type": name,
-        "cpus": cpus
-    })
-}
 
 fn format_tasks(tasks: Vec<JobTaskInfo>, map: TaskToPathsMap) -> serde_json::Value {
     tasks
@@ -453,34 +431,42 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
         }))
     })
 }
-fn format_resource_descriptor(descriptor: &ResourceDescriptor) -> serde_json::Value {
-    let ResourceDescriptor { cpus, generic } = descriptor;
+fn format_resource_descriptor(descriptor: &ResourceDescriptor) -> Value {
+    let ResourceDescriptor { resources } = descriptor;
     json!({
-        "cpus": cpus,
-        "generic": generic.iter().map(format_generic_resource).collect::<Vec<_>>()
+        "resources": resources.iter().map(format_resource).collect::<Vec<_>>()
     })
 }
-fn format_generic_resource(resource: &GenericResourceDescriptor) -> serde_json::Value {
-    json!({
-        "name": resource.name,
-        "kind": match &resource.kind {
-            GenericResourceDescriptorKind::List { .. } => "list",
-            GenericResourceDescriptorKind::Range { .. } => "range",
-            GenericResourceDescriptorKind::Sum { .. } => "sum",
-        },
-        "params": match &resource.kind {
-            GenericResourceDescriptorKind::List { values } => json!({
-                "values": values,
-            }),
-            GenericResourceDescriptorKind::Range { start, end } => json!({
-                "start": start,
-                "end": end
-            }),
-            GenericResourceDescriptorKind::Sum { size } => json!({
-                "size": size
-            }),
-        }
-    })
+
+fn format_resource(resource: &ResourceDescriptorItem) -> Value {
+    // "kind": match &resource.kind {
+    //     ResourceDescriptorKind::List { .. } => "list",
+    //     ResourceDescriptorKind::Range { .. } => "range",
+    //     ResourceDescriptorKind::Sum { .. } => "sum",
+    // },
+    match &resource.kind {
+        ResourceDescriptorKind::List { values } => json!({
+            "name": resource.name,
+            "kind": "list",
+            "values": values,
+        }),
+        ResourceDescriptorKind::Range { start, end } => json!({
+            "name": resource.name,
+            "kind": "range",
+            "start": start,
+            "end": end
+        }),
+        ResourceDescriptorKind::Sum { size } => json!({
+            "name": resource.name,
+            "kind": "sum",
+            "size": size
+        }),
+        ResourceDescriptorKind::Groups { groups } => json!({
+            "name": resource.name,
+            "kind": "groups",
+            "groups": groups,
+        }),
+    }
 }
 
 fn format_duration(duration: Duration) -> serde_json::Value {

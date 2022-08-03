@@ -1,5 +1,4 @@
 use hyperqueue::client::output::resolve_task_paths;
-use hyperqueue::client::resources::parse_cpu_request;
 use hyperqueue::client::status::{is_terminated, Status};
 use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::utils::fs::get_current_dir;
@@ -15,7 +14,7 @@ use pyo3::{IntoPy, PyAny, PyResult, Python};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tako::gateway::GenericResourceRequest;
+use tako::gateway::ResourceRequestEntry;
 use tako::program::{ProgramDefinition, StdioDef};
 use tako::resources::NumOfNodes;
 
@@ -93,6 +92,8 @@ fn build_tasks(
 }
 
 fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<HqTaskDescription> {
+    todo!()
+    /*
     let args = desc.args.into_iter().map(|arg| arg.into()).collect();
     let env = desc
         .env
@@ -104,6 +105,8 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
     let stdin = desc.stdin.unwrap_or_default();
     let cwd = desc.cwd.unwrap_or_else(|| submit_dir.to_path_buf());
 
+
+
     let resources = if let Some(rs) = desc.resource_request {
         tako::gateway::ResourceRequest {
             n_nodes: rs.n_nodes,
@@ -111,7 +114,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
             generic: rs
                 .generic
                 .into_iter()
-                .map(|(resource, amount)| GenericResourceRequest { resource, amount })
+                .map(|(resource, amount)| ResourceRequestEntry { resource, amount })
                 .collect(),
             min_time: Default::default(),
         }
@@ -133,7 +136,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
         task_dir: desc.task_dir,
         priority: desc.priority,
         time_limit: None,
-    })
+    })*/
 }
 
 #[derive(dict_derive::IntoPyObject)]

@@ -82,7 +82,7 @@ fn extract_metadata(data: &BStr) -> crate::Result<FileMetadata> {
             ));
         }
 
-        match line.get(0) {
+        match line.first() {
             Some(b'#') | None => continue,
             _ => break,
         }

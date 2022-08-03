@@ -27,6 +27,7 @@ use crate::internal::tests::utils::sorted_vec;
 use crate::internal::tests::utils::task::{task, task_running_msg, task_with_deps, TaskBuilder};
 use crate::internal::tests::utils::workflows::{submit_example_1, submit_example_3};
 use crate::internal::tests::utils::{env, schedule};
+use crate::resources::{ResourceDescriptorItem, ResourceDescriptorKind, ResourceMap};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{TaskId, WorkerId};
 
@@ -52,18 +53,23 @@ fn test_worker_add() {
         extra: Default::default(),
     };
 
-    let worker = Worker::new(402.into(), wcfg, Default::default());
+    let worker = Worker::new(
+        402.into(),
+        wcfg,
+        ResourceMap::from_vec(vec!["cpus".to_string()]),
+    );
     on_new_worker(&mut core, &mut comm, worker);
 
     let new_w = comm.take_new_workers();
     assert_eq!(new_w.len(), 1);
     assert_eq!(new_w[0].0.as_num(), 402);
-    assert_eq!(new_w[0].1.resources.cpus, vec![vec![0, 1, 2, 3].to_ids()]);
+
+    assert_eq!(new_w[0].1.resources.resources[0].kind.size(), 4);
 
     assert!(
         matches!(comm.take_broadcasts(1)[0], ToWorkerMessage::NewWorker(NewWorkerMsg {
-            worker_id: WorkerId(402), address: ref a, resources: ref r,
-        }) if a == "test1:123" && r.n_cpus == 4)
+            worker_id: WorkerId(402), address: ref _a, resources: ref r,
+        }) if r.n_resources == vec![4])
     );
 
     comm.check_need_scheduling();
@@ -71,10 +77,20 @@ fn test_worker_add() {
     assert_eq!(core.get_workers().count(), 1);
 
     let wcfg2 = WorkerConfiguration {
-        resources: ResourceDescriptor::new(
-            vec![vec![2, 3, 4].to_ids(), vec![100, 150].to_ids()],
-            Vec::new(),
-        ),
+        resources: ResourceDescriptor::new(vec![
+            ResourceDescriptorItem {
+                name: "cpus".to_string(),
+                kind: ResourceDescriptorKind::groups(vec![
+                    vec![2, 3, 4].to_ids(),
+                    vec![100, 150].to_ids(),
+                ])
+                .unwrap(),
+            },
+            ResourceDescriptorItem {
+                name: "mem".to_string(),
+                kind: ResourceDescriptorKind::Sum { size: 100_000_000 },
+            },
+        ]),
         listen_address: "test2:123".into(),
         hostname: "test2".to_string(),
         work_dir: Default::default(),
@@ -87,21 +103,26 @@ fn test_worker_add() {
         extra: Default::default(),
     };
 
-    let worker = Worker::new(502.into(), wcfg2, Default::default());
+    let worker = Worker::new(
+        502.into(),
+        wcfg2,
+        ResourceMap::from_vec(vec![
+            "cpus".to_string(),
+            "gpus".to_string(),
+            "mem".to_string(),
+        ]),
+    );
     on_new_worker(&mut core, &mut comm, worker);
 
     let new_w = comm.take_new_workers();
     assert_eq!(new_w.len(), 1);
     assert_eq!(new_w[0].0.as_num(), 502);
-    assert_eq!(
-        new_w[0].1.resources.cpus,
-        vec![vec![2, 3, 4].to_ids(), vec![100, 150].to_ids()]
-    );
+    assert_eq!(new_w[0].1.resources.resources.len(), 2);
 
     assert!(
         matches!(comm.take_broadcasts(1)[0], ToWorkerMessage::NewWorker(NewWorkerMsg {
             worker_id: WorkerId(502), address: ref a, resources: ref r,
-        }) if a == "test2:123" && r.n_cpus == 5 && r.n_generic_resources.is_empty())
+        }) if a == "test2:123" && r.n_resources == vec![5, 0, 100_000_000])
     );
     comm.check_need_scheduling();
     comm.emptiness_check();

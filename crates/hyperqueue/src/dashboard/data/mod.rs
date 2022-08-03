@@ -152,7 +152,7 @@ async fn fetch_events_after(
     connection: &mut ClientConnection,
     after_id: Option<u32>,
 ) -> crate::Result<Vec<MonitoringEvent>> {
-    let response = rpc_call!(
+    rpc_call!(
         connection,
         FromClientMessage::MonitoringEvents (
             MonitoringEventRequest {
@@ -160,6 +160,5 @@ async fn fetch_events_after(
             }),
         ToClientMessage::MonitoringEventsResponse(response) => response
     )
-    .await;
-    response
+    .await
 }

@@ -22,7 +22,16 @@ def test_job_num_of_cpus(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["submit", "--", "bash", "-c", "echo $HQ_CPUS"])
     hq_env.command(
-        ["submit", "--cpus", "2 scatter", "--", "bash", "-c", "echo $HQ_CPUS"]
+        [
+            "submit",
+            "--cpus",
+            "2 scatter",
+            "--priority=1",
+            "--",
+            "bash",
+            "-c",
+            "echo $HQ_CPUS",
+        ]
     )
     hq_env.command(
         ["submit", "--cpus", "5 scatter", "--", "bash", "-c", "echo $HQ_CPUS"]
@@ -48,6 +57,7 @@ def test_job_num_of_cpus(hq_env: HqEnv):
 
     table = hq_env.command(["job", "info", "2"], as_table=True)
     table.check_row_value("Resources", "cpus: 2 scatter")
+    print(read_list(default_task_output(job_id=2)))
     assert len(set(x // 4 for x in read_list(default_task_output(job_id=2)))) == 2
 
     table = hq_env.command(["job", "info", "4"], as_table=True)

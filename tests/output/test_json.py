@@ -4,11 +4,19 @@ import socket
 from typing import List
 
 import iso8601
-from schema import Schema
+from schema import Schema, Or
 
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
 from ..utils.job import default_task_output
+
+
+RESOURCE_DESCRIPTOR_SCHEMA = [
+    {"name": str, "kind": "range", "start": int, "end": int},
+    {"name": str, "kind": "sum", "size": int},
+    {"name": str, "kind": "list", "values": [int]},
+    {"name": str, "kind": "groups", "groups": [[int]]},
+]
 
 
 def parse_json_output(hq_env: HqEnv, command: List[str]):
@@ -38,7 +46,7 @@ def test_print_worker_info(hq_env: HqEnv):
                 "idle_timeout": None,
                 "listen_address": str,
                 "log_dir": str,
-                "resources": {"cpus": [[0]], "generic": []},
+                "resources": {"resources": RESOURCE_DESCRIPTOR_SCHEMA},
                 "time_limit": None,
                 "work_dir": str,
                 "on_server_lost": "stop",
@@ -47,6 +55,7 @@ def test_print_worker_info(hq_env: HqEnv):
             "id": 1,
         }
     )
+    print(output)
     schema.validate(output)
 
 
@@ -186,5 +195,6 @@ def test_print_hw(hq_env: HqEnv):
     hq_env.start_server()
     output = parse_json_output(hq_env, ["--output-mode=json", "worker", "hwdetect"])
 
-    schema = Schema({"cpus": [[int]], "generic": list})
+    print(output)
+    schema = Schema({"resources": RESOURCE_DESCRIPTOR_SCHEMA})
     schema.validate(output)

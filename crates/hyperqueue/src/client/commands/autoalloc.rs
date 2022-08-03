@@ -14,7 +14,7 @@ use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     AllocationQueueParams, AutoAllocRequest, AutoAllocResponse, FromClientMessage, ToClientMessage,
 };
-use crate::worker::parser::{ArgCpuDefinition, ArgGenericResourceDef};
+use crate::worker::parser::{ArgCpuDefinition, ArgResourceItemDef};
 
 #[derive(Parser)]
 pub struct AutoAllocOpts {
@@ -105,7 +105,7 @@ struct SharedQueueOpts {
 
     /// What resources should the workers spawned inside allocations contain
     #[clap(long, multiple_occurrences(true))]
-    resource: Vec<PassThroughArgument<ArgGenericResourceDef>>,
+    resource: Vec<PassThroughArgument<ArgResourceItemDef>>,
 
     /// Behavior when a connection to a server is lost
     #[clap(long, default_value = "finish-running", arg_enum)]

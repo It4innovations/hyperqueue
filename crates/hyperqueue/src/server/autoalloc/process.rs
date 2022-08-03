@@ -804,11 +804,12 @@ mod tests {
 
     use anyhow::anyhow;
     use derive_builder::Builder;
+    use smallvec::smallvec;
     use tempdir::TempDir;
 
-    use tako::gateway::{LostWorkerReason, ResourceRequest};
+    use tako::gateway::{LostWorkerReason, ResourceRequest, ResourceRequestEntry};
     use tako::program::ProgramDefinition;
-    use tako::resources::TimeRequest;
+    use tako::resources::{AllocationRequest, TimeRequest, CPU_RESOURCE_NAME};
     use tako::worker::ServerLostPolicy;
     use tako::WorkerId;
     use tako::{Map, Set, WrappedRcRefCell};
@@ -1593,9 +1594,11 @@ mod tests {
         };
         let resources = ResourceRequest {
             n_nodes: 0,
-            cpus: Default::default(),
-            generic: vec![],
             min_time,
+            resources: smallvec![ResourceRequestEntry {
+                resource: CPU_RESOURCE_NAME.to_string(),
+                policy: AllocationRequest::Compact(1),
+            }],
         };
 
         Job::new(

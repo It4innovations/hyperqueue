@@ -1,19 +1,21 @@
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::internal::common::resources::{CpuRequest, NumOfNodes};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::WorkerOverview;
 use crate::internal::worker::configuration::WorkerConfiguration;
+use crate::resources::{AllocationRequest, NumOfNodes};
 use crate::task::SerializedTaskContext;
 use crate::{Priority, TaskId, WorkerId};
 use smallvec::SmallVec;
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct GenericResourceRequest {
+pub struct ResourceRequestEntry {
     pub resource: String,
-    pub amount: u64,
+    pub policy: AllocationRequest,
 }
+
+pub type ResourceRequestEntries = SmallVec<[ResourceRequestEntry; 3]>;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct ResourceRequest {
@@ -21,10 +23,7 @@ pub struct ResourceRequest {
     pub n_nodes: NumOfNodes,
 
     #[serde(default)]
-    pub cpus: CpuRequest,
-
-    #[serde(default)]
-    pub generic: Vec<GenericResourceRequest>,
+    pub resources: ResourceRequestEntries,
 
     #[serde(default)]
     pub min_time: Duration,

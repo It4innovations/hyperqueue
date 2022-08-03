@@ -32,16 +32,15 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub mod resources {
     pub use crate::internal::common::resources::{
-        CpuId, CpuRequest, GenericResourceAmount, GenericResourceDescriptor,
-        GenericResourceDescriptorKind, GenericResourceRequest, NumOfCpus, NumOfNodes,
-        ResourceAllocation, ResourceDescriptor, ResourceRequest, TimeRequest,
+        Allocation, AllocationRequest, AllocationValue, NumOfNodes, ResourceAmount,
+        ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex,
+        ResourceRequest, TimeRequest, CPU_RESOURCE_ID, CPU_RESOURCE_NAME, GPU_RESOURCE_NAME,
+        MEM_RESOURCE_NAME,
     };
 
     pub use crate::internal::common::resources::map::ResourceMap;
 
-    pub use crate::internal::common::resources::descriptor::{
-        cpu_descriptor_from_socket_size, CpusDescriptor, DescriptorError,
-    };
+    pub use crate::internal::common::resources::descriptor::DescriptorError;
 }
 
 pub mod server {

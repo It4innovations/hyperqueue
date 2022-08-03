@@ -463,8 +463,8 @@ impl SchedulerState {
         log::debug!("Balancing started");
 
         let mut balanced_tasks: Vec<TaskId> = Vec::new();
-        let mut min_resource = ResourceRequestLowerBound::new(core.resource_count());
-        let now = std::time::Instant::now();
+        let mut min_resource = ResourceRequestLowerBound::new();
+        let now = Instant::now();
 
         {
             let (tasks, workers) = core.split_tasks_workers_mut();
@@ -531,7 +531,9 @@ impl SchedulerState {
                     );
                     (
                         u64::MAX - cost,
-                        worker.resources.n_cpus(&task.configuration.resources),
+                        worker
+                            .resources
+                            .difficulty_score(&task.configuration.resources),
                     )
                 });
                 let len = ts.len();
@@ -545,6 +547,9 @@ impl SchedulerState {
         }
 
         if underload_workers.is_empty() {
+            if core.get_workers().any(|w| w.is_overloaded()) {
+                core.park_workers();
+            }
             log::debug!("No balancing possible");
             return;
         }
@@ -613,13 +618,16 @@ impl SchedulerState {
                         if task.is_taken() {
                             continue;
                         }
-                        if !worker.is_capable_to_run(&task.configuration.resources, now) {
+                        let request = &task.configuration.resources;
+                        if !worker.is_capable_to_run(request, now) {
                             continue;
                         }
                         let worker2_id = task.get_assigned_worker().unwrap();
                         let worker2 = core.get_worker_by_id_or_panic(worker2_id);
 
-                        if !worker2.is_overloaded() || !worker2.is_more_loaded_then(worker) {
+                        if !worker2.is_overloaded()
+                            || worker.load_wrt_request(request) > worker2.load_wrt_request(request)
+                        {
                             continue;
                         }
                         worker2_id

@@ -5,11 +5,12 @@ use crate::internal::common::index::ItemId;
 use derive_builder::Builder;
 
 use crate::gateway::{
-    GenericResourceRequest, ResourceRequest, SharedTaskConfiguration, TaskConfiguration,
+    ResourceRequest, ResourceRequestEntry, SharedTaskConfiguration, TaskConfiguration,
 };
-use crate::internal::common::resources::{CpuRequest, NumOfNodes};
+use crate::internal::common::resources::NumOfNodes;
 use crate::internal::common::Map;
 use crate::program::{ProgramDefinition, StdioDef};
+use crate::resources::{AllocationRequest, ResourceAmount};
 use crate::TaskId;
 
 pub struct GraphBuilder {
@@ -84,8 +85,7 @@ pub fn build_task_def_from_config(
     }: TaskConfig = config;
     let ResourceRequestConfig {
         n_nodes,
-        cpus,
-        generic,
+        entries,
         min_time,
     }: ResourceRequestConfig = resources.build().unwrap();
 
@@ -102,9 +102,8 @@ pub fn build_task_def_from_config(
     let conf = SharedTaskConfiguration {
         resources: ResourceRequest {
             n_nodes,
-            cpus,
+            resources: entries.into(),
             min_time,
-            generic,
         },
         n_outputs: 0,
         time_limit,
@@ -137,7 +136,7 @@ pub struct TaskConfig {
     #[builder(default)]
     time_limit: Option<Duration>,
 
-    #[builder(default)]
+    #[builder(default = "ResourceRequestConfigBuilder::default().cpus(1)")]
     resources: ResourceRequestConfigBuilder,
 
     #[builder(default)]
@@ -158,11 +157,36 @@ pub struct ResourceRequestConfig {
     #[builder(default)]
     n_nodes: NumOfNodes,
     #[builder(default)]
-    cpus: CpuRequest,
-    #[builder(default)]
-    generic: Vec<GenericResourceRequest>,
+    entries: Vec<ResourceRequestEntry>,
     #[builder(default)]
     min_time: Duration,
+}
+
+impl ResourceRequestConfigBuilder {
+    pub fn cpus(self, n_cpus: ResourceAmount) -> Self {
+        self.add_compact("cpus", n_cpus)
+    }
+
+    pub fn _add(&mut self, name: &str, request: AllocationRequest) {
+        if self.entries.is_none() {
+            self.entries = Some(vec![]);
+        }
+
+        self.entries.as_mut().unwrap().push(ResourceRequestEntry {
+            resource: name.to_string(),
+            policy: request,
+        })
+    }
+
+    pub fn add_compact(mut self, name: &str, amount: ResourceAmount) -> Self {
+        self._add(name, AllocationRequest::Compact(amount));
+        self
+    }
+
+    pub fn add_force_compact(mut self, name: &str, amount: ResourceAmount) -> Self {
+        self._add(name, AllocationRequest::ForceCompact(amount));
+        self
+    }
 }
 
 pub fn simple_args(args: &[&'static str]) -> Vec<String> {

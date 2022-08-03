@@ -5,28 +5,22 @@ pub mod request;
 
 use crate::define_id_type;
 use crate::internal::common::index::IndexVec;
-pub use allocation::{
-    GenericResourceAllocation, GenericResourceAllocationValue, GenericResourceAllocations,
-    ResourceAllocation,
-};
+pub use allocation::{Allocation, AllocationValue, ResourceAllocation, ResourceAllocations};
 pub use descriptor::{
-    CpusDescriptor, DescriptorError, GenericResourceDescriptor, GenericResourceDescriptorKind,
-    ResourceDescriptor,
+    DescriptorError, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
 };
-pub use request::{CpuRequest, GenericResourceRequest, ResourceRequest, TimeRequest};
+pub use map::{CPU_RESOURCE_ID, CPU_RESOURCE_NAME, GPU_RESOURCE_NAME, MEM_RESOURCE_NAME};
+pub use request::{AllocationRequest, ResourceRequest, TimeRequest};
 
-pub type NumOfCpus = u32;
 pub type NumOfNodes = u32;
-define_id_type!(CpuId, u32);
-define_id_type!(SocketId, u32);
 
 // Identifies a globally unique Resource request stored in Core.
-define_id_type!(GenericResourceId, u32);
+define_id_type!(ResourceId, u32);
 
 /// Represents some amount within a single generic resource (e.g. 100 MiB of memory).
-pub type GenericResourceAmount = u64;
+pub type ResourceAmount = u64;
 
 // Represents an index within a single generic resource (e.g. GPU with ID 1).
-define_id_type!(GenericResourceIndex, u32);
+define_id_type!(ResourceIndex, u32);
 
-pub type ResourceVec<T> = IndexVec<GenericResourceId, T>;
+pub type ResourceVec<T> = IndexVec<ResourceId, T>;

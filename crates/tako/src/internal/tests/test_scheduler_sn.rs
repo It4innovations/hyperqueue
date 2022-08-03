@@ -1,7 +1,6 @@
 #![cfg(test)]
 
 use crate::internal::common::index::ItemId;
-use crate::internal::common::resources::{GenericResourceDescriptor, NumOfCpus};
 use crate::internal::common::Set;
 use crate::internal::messages::worker::{StealResponse, StealResponseMsg, ToWorkerMessage};
 use crate::internal::server::core::Core;
@@ -15,6 +14,7 @@ use crate::internal::tests::utils::schedule::{
 use crate::internal::tests::utils::task::task;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::tests::utils::workflows::submit_example_1;
+use crate::resources::{ResourceAmount, ResourceDescriptorItem};
 use crate::{TaskId, WorkerId};
 use std::time::Duration;
 
@@ -186,6 +186,9 @@ fn test_no_deps_distribute_with_balance() {
     let n1 = comm.take_worker_msgs(100, 0);
     let n3 = comm.take_worker_msgs(102, 0);
 
+    dbg!(n1.len());
+    dbg!(n3.len());
+
     assert!(n1.len() > 5);
     assert!(n3.len() > 5);
     assert_eq!(n1.len() + n3.len(), stealing.len());
@@ -330,9 +333,9 @@ fn test_resource_balancing2() {
         4, 4, 4, /* 12 */ 4, 4, 4, /* 12 */ 4, 4, 4, /* 12 */
     ]]);
     rt.balance();
-    assert_eq!(rt.worker_load(100).get_n_cpus(), 12);
-    assert_eq!(rt.worker_load(101).get_n_cpus(), 12);
-    assert_eq!(rt.worker_load(102).get_n_cpus(), 12);
+    assert_eq!(rt.worker_load(100).get(0.into()), 12);
+    assert_eq!(rt.worker_load(101).get(0.into()), 12);
+    assert_eq!(rt.worker_load(102).get(0.into()), 12);
 }
 
 #[test]
@@ -348,9 +351,9 @@ fn test_resource_balancing3() {
         &[6],          // 6
     ]);
     rt.balance();
-    assert!(rt.worker_load(100).get_n_cpus() >= 12);
-    assert!(rt.worker_load(101).get_n_cpus() >= 12);
-    assert!(rt.worker_load(102).get_n_cpus() >= 12);
+    assert!(rt.worker_load(100).get(0.into()) >= 12);
+    assert!(rt.worker_load(101).get(0.into()) >= 12);
+    assert!(rt.worker_load(102).get(0.into()) >= 12);
 }
 
 #[test]
@@ -362,9 +365,9 @@ fn test_resource_balancing4() {
         2, 4, 2, 4, /* 12 */ 4, 4, 4, /* 12 */ 2, 2, 2, 2, 4, /* 12 */
     ]]);
     rt.balance();
-    assert_eq!(rt.worker_load(100).get_n_cpus(), 12);
-    assert_eq!(rt.worker_load(101).get_n_cpus(), 12);
-    assert_eq!(rt.worker_load(102).get_n_cpus(), 12);
+    assert_eq!(rt.worker_load(100).get(0.into()), 12);
+    assert_eq!(rt.worker_load(101).get(0.into()), 12);
+    assert_eq!(rt.worker_load(102).get(0.into()), 12);
 }
 
 #[test]
@@ -424,9 +427,9 @@ fn test_resources_blocked_workers() {
 
     rt.new_assigned_tasks_cpus(&[&[4, 4, 4, 4, 4]]);
     rt.balance();
-    assert!(rt.worker_load(100).get_n_cpus() >= 4);
-    assert!(rt.worker_load(101).get_n_cpus() >= 8);
-    assert_eq!(rt.worker_load(102).get_n_cpus(), 0);
+    assert!(rt.worker_load(100).get(0.into()) >= 4);
+    assert!(rt.worker_load(101).get(0.into()) >= 8);
+    assert_eq!(rt.worker_load(102).get(0.into()), 0);
 
     assert!(!rt.worker(100).is_parked());
     assert!(!rt.worker(101).is_parked());
@@ -461,9 +464,9 @@ fn test_resources_no_workers1() {
 
     rt.new_ready_tasks_cpus(&[8, 8, 16, 24]);
     rt.schedule();
-    assert_eq!(rt.worker_load(100).get_n_cpus(), 0);
-    assert_eq!(rt.worker_load(101).get_n_cpus(), 16);
-    assert_eq!(rt.worker_load(102).get_n_cpus(), 0);
+    assert_eq!(rt.worker_load(100).get(0.into()), 0);
+    assert_eq!(rt.worker_load(101).get(0.into()), 16);
+    assert_eq!(rt.worker_load(102).get(0.into()), 0);
 
     let (sn, mn) = rt.core().take_sleeping_tasks();
     assert_eq!(sn.len(), 2);
@@ -472,7 +475,7 @@ fn test_resources_no_workers1() {
 
 #[test]
 fn test_resources_no_workers2() {
-    fn check(task_cpu_counts: &[NumOfCpus]) {
+    fn check(task_cpu_counts: &[ResourceAmount]) {
         println!("Checking order {:?}", task_cpu_counts);
 
         let mut rt = TestEnv::new();
@@ -487,15 +490,15 @@ fn test_resources_no_workers2() {
 
         rt.new_ready_tasks_cpus(task_cpu_counts);
         rt.schedule();
-        assert_eq!(rt.worker_load(100).get_n_cpus(), 0);
-        assert_eq!(rt.worker_load(101).get_n_cpus(), 0);
-        assert_eq!(rt.worker_load(102).get_n_cpus(), 0);
+        assert_eq!(rt.worker_load(100).get(0.into()), 0);
+        assert_eq!(rt.worker_load(101).get(0.into()), 0);
+        assert_eq!(rt.worker_load(102).get(0.into()), 0);
 
         rt.new_workers(&[9, 10]);
         rt.schedule();
-        assert_eq!(rt.worker_load(100).get_n_cpus(), 0);
-        assert_eq!(rt.worker_load(101).get_n_cpus(), 0);
-        assert_eq!(rt.worker_load(102).get_n_cpus(), 0);
+        assert_eq!(rt.worker_load(100).get(0.into()), 0);
+        assert_eq!(rt.worker_load(101).get(0.into()), 0);
+        assert_eq!(rt.worker_load(102).get(0.into()), 0);
         assert_eq!(rt.worker(103).sn_tasks().len(), 1);
         assert_eq!(rt.worker(104).sn_tasks().len(), 1);
 
@@ -561,11 +564,7 @@ fn test_generic_resource_assign2() {
     rt.new_generic_resource(2);
     rt.new_workers_ext(&[
         // Worker 100
-        (
-            10,
-            None,
-            vec![GenericResourceDescriptor::range("Res0", 1, 10)],
-        ),
+        (10, None, vec![ResourceDescriptorItem::range("Res0", 1, 10)]),
         // Worker 101
         (10, None, vec![]),
         // Worker 102
@@ -573,16 +572,16 @@ fn test_generic_resource_assign2() {
             10,
             None,
             vec![
-                GenericResourceDescriptor::range("Res0", 1, 10),
-                GenericResourceDescriptor::sum("Res1", 1000_000),
+                ResourceDescriptorItem::range("Res0", 1, 10),
+                ResourceDescriptorItem::sum("Res1", 1000_000),
             ],
         ),
     ]);
     for i in 0..50 {
-        rt.new_task(TaskBuilder::new(i).generic_res(0, 1));
+        rt.new_task(TaskBuilder::new(i).add_resource(1, 1));
     }
     for i in 50..100 {
-        rt.new_task(TaskBuilder::new(i).generic_res(1, 2));
+        rt.new_task(TaskBuilder::new(i).add_resource(2, 2));
     }
     rt.schedule();
     assert_eq!(
@@ -641,11 +640,7 @@ fn test_generic_resource_balance1() {
     rt.new_generic_resource(2);
     rt.new_workers_ext(&[
         // Worker 100
-        (
-            10,
-            None,
-            vec![GenericResourceDescriptor::range("Res0", 1, 10)],
-        ),
+        (10, None, vec![ResourceDescriptorItem::range("Res0", 1, 10)]),
         // Worker 101
         (10, None, vec![]),
         // Worker 102
@@ -653,16 +648,16 @@ fn test_generic_resource_balance1() {
             10,
             None,
             vec![
-                GenericResourceDescriptor::range("Res0", 1, 10),
-                GenericResourceDescriptor::sum("Res1", 1000_000),
+                ResourceDescriptorItem::range("Res0", 1, 10),
+                ResourceDescriptorItem::sum("Res1", 1000_000),
             ],
         ),
     ]);
 
-    rt.new_task(TaskBuilder::new(1).cpus_compact(1).generic_res(0, 5));
-    rt.new_task(TaskBuilder::new(2).cpus_compact(1).generic_res(0, 5));
-    rt.new_task(TaskBuilder::new(3).cpus_compact(1).generic_res(0, 5));
-    rt.new_task(TaskBuilder::new(4).cpus_compact(1).generic_res(0, 5));
+    rt.new_task(TaskBuilder::new(1).cpus_compact(1).add_resource(1, 5));
+    rt.new_task(TaskBuilder::new(2).cpus_compact(1).add_resource(1, 5));
+    rt.new_task(TaskBuilder::new(3).cpus_compact(1).add_resource(1, 5));
+    rt.new_task(TaskBuilder::new(4).cpus_compact(1).add_resource(1, 5));
     rt.schedule();
 
     assert_eq!(
@@ -694,11 +689,7 @@ fn test_generic_resource_balance2() {
     rt.new_generic_resource(2);
     rt.new_workers_ext(&[
         // Worker 100
-        (
-            10,
-            None,
-            vec![GenericResourceDescriptor::range("Res0", 1, 10)],
-        ),
+        (10, None, vec![ResourceDescriptorItem::range("Res0", 1, 10)]),
         // Worker 101
         (10, None, vec![]),
         // Worker 102
@@ -706,25 +697,25 @@ fn test_generic_resource_balance2() {
             10,
             None,
             vec![
-                GenericResourceDescriptor::range("Res0", 1, 10),
-                GenericResourceDescriptor::sum("Res1", 1000_000),
+                ResourceDescriptorItem::range("Res0", 1, 10),
+                ResourceDescriptorItem::sum("Res1", 1000_000),
             ],
         ),
     ]);
 
-    rt.new_task(TaskBuilder::new(1).cpus_compact(1).generic_res(0, 5));
+    rt.new_task(TaskBuilder::new(1).cpus_compact(1).add_resource(1, 5));
     rt.new_task(
         TaskBuilder::new(2)
             .cpus_compact(1)
-            .generic_res(0, 5)
-            .generic_res(1, 500_000),
+            .add_resource(1, 5)
+            .add_resource(2, 500_000),
     );
-    rt.new_task(TaskBuilder::new(3).cpus_compact(1).generic_res(0, 5));
+    rt.new_task(TaskBuilder::new(3).cpus_compact(1).add_resource(1, 5));
     rt.new_task(
         TaskBuilder::new(4)
             .cpus_compact(1)
-            .generic_res(0, 5)
-            .generic_res(1, 500_000),
+            .add_resource(1, 5)
+            .add_resource(2, 500_000),
     );
     rt.schedule();
 
@@ -765,18 +756,14 @@ fn test_generic_resource_balancing3() {
         // Worker 100
         (2, None, vec![]),
         // Worker 101
-        (
-            2,
-            None,
-            vec![GenericResourceDescriptor::range("Res0", 1, 1)],
-        ),
+        (2, None, vec![ResourceDescriptorItem::range("Res0", 1, 1)]),
     ]);
 
     for i in 1..=80 {
         rt.new_task(TaskBuilder::new(i).cpus_compact(1));
     }
     for i in 81..=100 {
-        rt.new_task(TaskBuilder::new(i).cpus_compact(1).generic_res(0, 1));
+        rt.new_task(TaskBuilder::new(i).cpus_compact(1).add_resource(1, 1));
     }
 
     rt.schedule();

@@ -1,6 +1,5 @@
 use std::time::{Duration, Instant};
 
-use crate::internal::common::resources::CpuRequest;
 use tokio::time::sleep;
 
 use crate::internal::tests::integration::utils::api::{
@@ -11,9 +10,8 @@ use crate::internal::tests::integration::utils::task::ResourceRequestConfigBuild
 use crate::internal::tests::integration::utils::task::{
     simple_args, simple_task, GraphBuilder as GB, GraphBuilder, TaskConfigBuilder as TC,
 };
-use crate::internal::tests::integration::utils::worker::{
-    cpus, numa_cpus, WorkerConfigBuilder as WC,
-};
+use crate::internal::tests::integration::utils::worker::WorkerConfigBuilder as WC;
+use crate::resources::ResourceDescriptor;
 use crate::WorkerId;
 
 #[tokio::test]
@@ -64,7 +62,7 @@ async fn test_submit_2_sleeps_on_2() {
             .start_worker(
                 WC::default()
                     .send_overview_interval(Some(Duration::from_millis(100)))
-                    .resources(cpus(2)),
+                    .resources(ResourceDescriptor::simple(2)),
             )
             .await
             .unwrap();
@@ -123,8 +121,8 @@ async fn test_submit_2_sleeps_on_separated_2() {
 #[tokio::test]
 async fn test_submit_sleeps_more_cpus1() {
     run_test(Default::default(), |mut handler| async move {
-        let rq1 = RR::default().cpus(CpuRequest::Compact(3));
-        let rq2 = RR::default().cpus(CpuRequest::Compact(2));
+        let rq1 = RR::default().cpus(3);
+        let rq2 = RR::default().cpus(2);
         handler
             .submit(
                 GB::default()
@@ -148,7 +146,7 @@ async fn test_submit_sleeps_more_cpus1() {
             .await;
 
         let wkr_handles = handler
-            .start_workers(|| WC::default().resources(cpus(4)), 2)
+            .start_workers(|| WC::default().resources(ResourceDescriptor::simple(4)), 2)
             .await
             .unwrap();
 
@@ -171,8 +169,8 @@ async fn test_submit_sleeps_more_cpus1() {
 #[tokio::test]
 async fn test_submit_sleeps_more_cpus2() {
     run_test(Default::default(), |mut handler| async move {
-        let rq1 = RR::default().cpus(CpuRequest::Compact(3));
-        let rq2 = RR::default().cpus(CpuRequest::Compact(2));
+        let rq1 = RR::default().cpus(3);
+        let rq2 = RR::default().cpus(2);
         let t = |rq: &RR| {
             TC::default()
                 .args(simple_args(&["sleep", "1"]))
@@ -180,7 +178,7 @@ async fn test_submit_sleeps_more_cpus2() {
         };
 
         handler
-            .start_workers(|| WC::default().resources(cpus(4)), 2)
+            .start_workers(|| WC::default().resources(ResourceDescriptor::simple(4)), 2)
             .await
             .unwrap();
 
@@ -207,8 +205,8 @@ async fn test_submit_sleeps_more_cpus2() {
 #[tokio::test]
 async fn test_submit_sleeps_more_cpus3() {
     run_test(Default::default(), |mut handler| async move {
-        let rq1 = RR::default().cpus(CpuRequest::Compact(3));
-        let rq2 = RR::default().cpus(CpuRequest::Compact(2));
+        let rq1 = RR::default().cpus(3);
+        let rq2 = RR::default().cpus(2);
         let t = |rq: &RR| {
             TC::default()
                 .args(simple_args(&["sleep", "1"]))
@@ -216,7 +214,7 @@ async fn test_submit_sleeps_more_cpus3() {
         };
 
         handler
-            .start_workers(|| WC::default().resources(cpus(5)), 2)
+            .start_workers(|| WC::default().resources(ResourceDescriptor::simple(5)), 2)
             .await
             .unwrap();
 
@@ -243,10 +241,13 @@ async fn test_submit_sleeps_more_cpus3() {
 #[tokio::test]
 async fn test_force_compact() {
     run_test(Default::default(), |mut handler| async move {
-        let rq = RR::default().cpus(CpuRequest::ForceCompact(4));
+        let rq = RR::default().add_force_compact("cpus", 4);
 
         handler
-            .start_workers(|| WC::default().resources(numa_cpus(2, 2)), 2)
+            .start_workers(
+                || WC::default().resources(ResourceDescriptor::sockets(2, 2)),
+                2,
+            )
             .await
             .unwrap();
 

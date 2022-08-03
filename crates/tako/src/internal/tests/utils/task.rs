@@ -1,12 +1,9 @@
 use super::resources::ResBuilder;
-use crate::internal::common::resources::{
-    CpuRequest, GenericResourceAmount, GenericResourceId, NumOfCpus, NumOfNodes,
-};
+use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId};
 use crate::internal::messages::worker::TaskRunningMsg;
 use crate::internal::server::task::{Task, TaskConfiguration, TaskInput};
 use crate::{Priority, TaskId};
 use std::rc::Rc;
-use std::time::Duration;
 
 pub struct TaskBuilder {
     id: TaskId,
@@ -60,22 +57,22 @@ impl TaskBuilder {
         self
     }
 
-    pub fn cpus_compact(mut self, count: NumOfCpus) -> TaskBuilder {
-        self.resources = self.resources.cpus(CpuRequest::Compact(count));
+    pub fn cpus_compact(mut self, count: ResourceAmount) -> TaskBuilder {
+        self.resources = self.resources.cpus(count);
         self
     }
 
     pub fn time_request(mut self, time_s: u64) -> TaskBuilder {
-        self.resources = self.resources.min_time(Duration::from_secs(time_s));
+        self.resources = self.resources.min_time_secs(time_s);
         self
     }
 
-    pub fn generic_res<Id: Into<GenericResourceId>>(
+    pub fn add_resource<Id: Into<ResourceId>>(
         mut self,
         id: Id,
-        amount: GenericResourceAmount,
+        amount: ResourceAmount,
     ) -> TaskBuilder {
-        self.resources = self.resources.add_generic(id, amount);
+        self.resources = self.resources.add(id, amount);
         self
     }
 

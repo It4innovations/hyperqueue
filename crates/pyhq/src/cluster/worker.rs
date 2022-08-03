@@ -6,7 +6,7 @@ use hyperqueue::common::utils::network::get_hostname;
 use tokio::task::LocalSet;
 
 use hyperqueue::worker::bootstrap::{finalize_configuration, initialize_worker};
-use tako::resources::{CpuId, ResourceDescriptor};
+use tako::resources::ResourceDescriptor;
 use tako::worker::ServerLostPolicy;
 use tako::worker::WorkerConfiguration;
 
@@ -30,10 +30,16 @@ impl RunningWorker {
             let work_dir = worker_dir.join("workdir");
             let log_dir = worker_dir.join("logs");
             let mut configuration = WorkerConfiguration {
+<<<<<<< HEAD
                 resources: ResourceDescriptor {
                     cpus: vec![(0..cores).map(|id| CpuId::from(id as u32)).collect()],
+=======
+                /*resources: ResourceDescriptor {
+                    cpus: vec![vec![CpuId::from(cores as u32)]],
+>>>>>>> 5a2a70b5 (Unified resource management)
                     generic: vec![],
-                },
+                },*/
+                resources: todo!(),
                 listen_address: Default::default(),
                 hostname: get_hostname(None),
                 work_dir,

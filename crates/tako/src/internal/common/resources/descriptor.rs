@@ -1,6 +1,4 @@
-use crate::internal::common::resources::{
-    CpuId, GenericResourceAmount, GenericResourceIndex, NumOfCpus,
-};
+use crate::internal::common::resources::{ResourceAmount, ResourceIndex};
 use crate::internal::common::utils::format_comma_delimited;
 use crate::internal::common::Set;
 use serde::{Deserialize, Serialize};
@@ -15,23 +13,77 @@ pub enum DescriptorError {
 
 // Do now construct these directly, use the appropriate constructors
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum GenericResourceDescriptorKind {
+pub enum ResourceDescriptorKind {
     List {
-        values: Vec<GenericResourceIndex>,
+        values: Vec<ResourceIndex>,
+    },
+    Groups {
+        groups: Vec<Vec<ResourceIndex>>,
     },
     Range {
-        start: GenericResourceIndex,
+        start: ResourceIndex,
         // end is inclusive
-        end: GenericResourceIndex,
+        end: ResourceIndex,
     },
-    // TODO: Named(Vec<String>),
     Sum {
-        size: GenericResourceAmount,
+        size: ResourceAmount,
     },
 }
 
-impl GenericResourceDescriptorKind {
-    pub fn list(mut values: Vec<u32>) -> Result<Self, DescriptorError> {
+impl ResourceDescriptorKind {
+    pub fn regular_sockets(n_sockets: ResourceAmount, socket_size: ResourceAmount) -> Self {
+        assert!(n_sockets > 0);
+        assert!(socket_size > 0);
+        if n_sockets == 1 {
+            Self::simple_indices(socket_size as u32)
+        } else {
+            let mut sockets = Vec::with_capacity(n_sockets as usize);
+            let mut i = 0;
+            for _ in 0..n_sockets {
+                let mut socket = Vec::with_capacity(socket_size as usize);
+                for _ in 0..socket_size {
+                    socket.push(ResourceIndex::new(i));
+                    i += 1;
+                }
+                sockets.push(socket)
+            }
+            Self::groups(sockets).unwrap()
+        }
+    }
+
+    pub fn details(&self) -> String {
+        match self {
+            ResourceDescriptorKind::List { values } => {
+                format!("[{}]", format_comma_delimited(values))
+            }
+            ResourceDescriptorKind::Groups { groups } => {
+                format!(
+                    "[{}]",
+                    format_comma_delimited(
+                        groups
+                            .iter()
+                            .map(|g| format!("[{}]", format_comma_delimited(g)))
+                    )
+                )
+            }
+            ResourceDescriptorKind::Range { start, end } if start == end => format!("[{}]", start),
+            ResourceDescriptorKind::Range { start, end } => format!("range({}-{})", start, end),
+            ResourceDescriptorKind::Sum { size } => format!("sum({})", size),
+        }
+    }
+
+    pub fn has_indices(&self) -> bool {
+        match self {
+            ResourceDescriptorKind::List { .. }
+            | ResourceDescriptorKind::Groups { .. }
+            | ResourceDescriptorKind::Range { .. } => true,
+            ResourceDescriptorKind::Sum { .. } => false,
+        }
+    }
+
+    fn normalize_indices(
+        mut values: Vec<ResourceIndex>,
+    ) -> Result<Vec<ResourceIndex>, DescriptorError> {
         let count = values.len();
         values.sort_unstable();
         values.dedup();
@@ -39,127 +91,150 @@ impl GenericResourceDescriptorKind {
         if values.len() < count {
             Err(DescriptorError::GenericResourceListItemsNotUnique)
         } else {
-            Ok(GenericResourceDescriptorKind::List {
-                values: values.into_iter().map(|idx| idx.into()).collect(),
+            Ok(values)
+        }
+    }
+
+    pub fn groups(mut groups: Vec<Vec<ResourceIndex>>) -> Result<Self, DescriptorError> {
+        if groups.len() == 1 {
+            Self::list(groups.pop().unwrap())
+        } else {
+            Ok(ResourceDescriptorKind::Groups {
+                groups: groups
+                    .into_iter()
+                    .map(Self::normalize_indices)
+                    .collect::<Result<_, _>>()?,
             })
         }
     }
 
-    pub fn size(&self) -> GenericResourceAmount {
-        match self {
-            GenericResourceDescriptorKind::List { values } => values.len() as GenericResourceAmount,
-            GenericResourceDescriptorKind::Range { start, end } if end >= start => {
-                (end.as_num() + 1 - start.as_num()) as u64
-            }
-            GenericResourceDescriptorKind::Range { .. } => 0,
-            GenericResourceDescriptorKind::Sum { size } => *size,
+    pub fn list(values: Vec<ResourceIndex>) -> Result<Self, DescriptorError> {
+        Ok(ResourceDescriptorKind::List {
+            values: Self::normalize_indices(values)?,
+        })
+    }
+
+    pub fn simple_indices(size: u32) -> Self {
+        assert!(size > 0);
+        ResourceDescriptorKind::Range {
+            start: ResourceIndex::from(0),
+            end: ResourceIndex::from(size - 1),
         }
+    }
+
+    pub fn n_groups(&self) -> usize {
+        match self {
+            ResourceDescriptorKind::List { .. }
+            | ResourceDescriptorKind::Range { .. }
+            | ResourceDescriptorKind::Sum { .. } => 1,
+            ResourceDescriptorKind::Groups { groups } => groups.len(),
+        }
+    }
+
+    pub fn size(&self) -> ResourceAmount {
+        match self {
+            ResourceDescriptorKind::List { values } => values.len() as ResourceAmount,
+            ResourceDescriptorKind::Range { start, end } if end >= start => {
+                (end.as_num() + 1 - start.as_num()) as ResourceAmount
+            }
+            ResourceDescriptorKind::Range { .. } => 0,
+            ResourceDescriptorKind::Sum { size } => *size,
+            ResourceDescriptorKind::Groups { groups } => {
+                groups.iter().map(|x| x.len() as ResourceAmount).sum()
+            }
+        }
+    }
+
+    pub fn as_groups(&self) -> Vec<Vec<ResourceIndex>> {
+        match self {
+            ResourceDescriptorKind::List { values } => vec![values.clone()],
+            ResourceDescriptorKind::Groups { groups } => groups.clone(),
+            ResourceDescriptorKind::Range { start, end } => {
+                vec![(start.as_num()..=end.as_num())
+                    .map(ResourceIndex::new)
+                    .collect::<Vec<_>>()]
+            }
+            ResourceDescriptorKind::Sum { .. } => Vec::new(),
+        }
+    }
+
+    pub fn validate(&self) -> crate::Result<()> {
+        match self {
+            ResourceDescriptorKind::List { values } => {
+                let set: Set<_> = values.iter().collect();
+                if set.len() != values.len() {
+                    return Err("Non unique indices".into());
+                }
+            }
+            ResourceDescriptorKind::Groups { groups } => {
+                let set: Set<_> = groups.iter().flatten().collect();
+                let size = groups.iter().map(|x| x.len()).sum::<usize>();
+                if set.len() != size {
+                    return Err("Non unique indices".into());
+                }
+            }
+            ResourceDescriptorKind::Range { .. } => {}
+            ResourceDescriptorKind::Sum { .. } => {}
+        }
+        Ok(())
     }
 }
 
-impl std::fmt::Display for GenericResourceDescriptorKind {
+impl std::fmt::Display for ResourceDescriptorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GenericResourceDescriptorKind::List { values } => {
-                write!(f, "List({})", format_comma_delimited(values))
+            Self::List { values } => {
+                write!(f, "[{}]", format_comma_delimited(values))
             }
-            GenericResourceDescriptorKind::Range { start, end } => {
+            Self::Range { start, end } => {
                 write!(f, "Range({start}-{end})")
             }
-            GenericResourceDescriptorKind::Sum { size } => write!(f, "Sum({size})"),
+            Self::Sum { size } => write!(f, "Sum({size})"),
+            Self::Groups { .. } => todo!(),
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GenericResourceDescriptor {
+pub struct ResourceDescriptorItem {
     pub name: String,
-    pub kind: GenericResourceDescriptorKind,
-}
-
-impl GenericResourceDescriptor {
-    pub fn list(name: &str, values: Vec<u32>) -> Result<Self, DescriptorError> {
-        Ok(GenericResourceDescriptor {
-            name: name.to_string(),
-            kind: GenericResourceDescriptorKind::list(values)?,
-        })
-    }
-    pub fn range<Index: Into<GenericResourceIndex>>(name: &str, start: Index, end: Index) -> Self {
-        GenericResourceDescriptor {
-            name: name.to_string(),
-            kind: GenericResourceDescriptorKind::Range {
-                start: start.into(),
-                end: end.into(),
-            },
-        }
-    }
-    pub fn sum(name: &str, size: GenericResourceAmount) -> Self {
-        GenericResourceDescriptor {
-            name: name.to_string(),
-            kind: GenericResourceDescriptorKind::Sum { size },
-        }
-    }
-}
-
-/// (Node0(Cpu0, Cpu1), Node1(Cpu2, Cpu3), ...)
-pub type CpusDescriptor = Vec<Vec<CpuId>>;
-
-pub fn cpu_descriptor_from_socket_size(
-    n_sockets: NumOfCpus,
-    n_cpus_per_socket: NumOfCpus,
-) -> CpusDescriptor {
-    let mut cpu_id_counter = 0;
-    (0..n_sockets)
-        .map(|_| {
-            (0..n_cpus_per_socket)
-                .map(|_| {
-                    let id = cpu_id_counter;
-                    cpu_id_counter += 1;
-                    id.into()
-                })
-                .collect::<Vec<CpuId>>()
-        })
-        .collect()
+    pub kind: ResourceDescriptorKind,
 }
 
 /// Most precise description of request provided by a worker (without time resource)
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ResourceDescriptor {
-    pub cpus: CpusDescriptor,
-    pub generic: Vec<GenericResourceDescriptor>,
+    pub resources: Vec<ResourceDescriptorItem>,
 }
 
 impl ResourceDescriptor {
-    pub fn new(cpus: CpusDescriptor, mut generic: Vec<GenericResourceDescriptor>) -> Self {
-        generic.sort_by(|x, y| x.name.cmp(&y.name));
+    pub fn new(mut resources: Vec<ResourceDescriptorItem>) -> Self {
+        resources.sort_by(|x, y| x.name.cmp(&y.name));
 
-        ResourceDescriptor { cpus, generic }
-    }
-
-    pub fn full_describe(&self) -> String {
-        format_comma_delimited(
-            self.cpus
-                .iter()
-                .map(|socket| format!("[{}]", format_comma_delimited(socket))),
-        )
+        ResourceDescriptor { resources }
     }
 
     pub fn validate(&self) -> crate::Result<()> {
-        if self.cpus.is_empty() || !self.cpus.iter().all(|g| !g.is_empty()) {
-            return Err(crate::Error::GenericError("Invalid number of cpus".into()));
-        }
-        let s: Set<CpuId> = self.cpus.iter().flatten().copied().collect();
-        if s.len() != self.cpus.iter().flatten().count() {
-            return Err(crate::Error::GenericError(
-                "Same CPU id in two sockets".into(),
-            ));
-        }
+        let mut has_cpus = false;
+        for (i, item) in self.resources.iter().enumerate() {
+            for item2 in &self.resources[i + 1..] {
+                if item2.name == item.name {
+                    return Err(format!("Resource {} defined twice", item.name).into());
+                }
+            }
+            item.kind
+                .validate()
+                .map_err(|e| format!("Invalid resource definition for {}: {:?}", item.name, e))?;
 
-        let s: Set<String> = self.generic.iter().map(|g| g.name.clone()).collect();
-        if s.len() != self.generic.len() {
-            return Err(crate::Error::GenericError(
-                "Same resource defined twice".into(),
-            ));
+            if item.kind.size() == 0 {
+                return Err(format!("Resource {} is empty", item.name).into());
+            }
+            if item.name == "cpus" {
+                has_cpus = true
+            }
+        }
+        if !has_cpus {
+            return Err("Resource 'cpus' is missing".into());
         }
         Ok(())
     }
@@ -168,26 +243,37 @@ impl ResourceDescriptor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::internal::common::index::AsIdVec;
+    use crate::resources::CPU_RESOURCE_NAME;
 
-    impl ResourceDescriptor {
-        pub fn simple(n_cpus: NumOfCpus) -> Self {
-            Self::new(
-                cpu_descriptor_from_socket_size(1, n_cpus),
-                Default::default(),
-            )
+    impl ResourceDescriptorItem {
+        pub fn range(name: &str, start: u32, end: u32) -> Self {
+            ResourceDescriptorItem {
+                name: name.to_string(),
+                kind: ResourceDescriptorKind::Range {
+                    start: start.into(),
+                    end: end.into(),
+                },
+            }
+        }
+
+        pub fn sum(name: &str, size: u64) -> Self {
+            ResourceDescriptorItem {
+                name: name.to_string(),
+                kind: ResourceDescriptorKind::Sum { size: size.into() },
+            }
         }
     }
 
-    #[test]
-    fn test_resources_to_describe() {
-        let d = ResourceDescriptor::new(vec![vec![0].to_ids()], Vec::new());
-        assert_eq!(&d.full_describe(), "[0]");
+    impl ResourceDescriptor {
+        pub fn simple(n_cpus: ResourceAmount) -> Self {
+            Self::sockets(1, n_cpus)
+        }
 
-        let d = ResourceDescriptor::new(
-            vec![vec![0, 1, 2, 4].to_ids(), vec![10, 11, 12, 14].to_ids()],
-            Vec::new(),
-        );
-        assert_eq!(&d.full_describe(), "[0,1,2,4],[10,11,12,14]");
+        pub fn sockets(n_sockets: ResourceAmount, n_cpus_per_socket: ResourceAmount) -> Self {
+            ResourceDescriptor::new(vec![ResourceDescriptorItem {
+                name: CPU_RESOURCE_NAME.to_string(),
+                kind: ResourceDescriptorKind::regular_sockets(n_sockets, n_cpus_per_socket),
+            }])
+        }
     }
 }

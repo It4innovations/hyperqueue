@@ -145,8 +145,8 @@ async fn worker_rpc_loop(
         let mut core = core_ref.get_mut();
 
         /* Make sure that all resources provided by Worker has an Id */
-        for descriptor in &configuration.resources.generic {
-            core.get_or_create_generic_resource_id(&descriptor.name);
+        for item in &configuration.resources.resources {
+            core.get_or_create_resource_id(&item.name);
         }
         let worker = Worker::new(worker_id, configuration.clone(), core.create_resource_map());
 

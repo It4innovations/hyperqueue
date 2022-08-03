@@ -434,7 +434,7 @@ def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
                 "--resource",
                 "y=range(1-4)",
                 "--resource",
-                "z=list(1,2,4)",
+                "z=[1,2,4]",
             ],
         )
         wait_until(lambda: os.path.exists(path))
@@ -455,7 +455,7 @@ def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
             "--resource",
             '"y=range(1-4)"',
             "--resource",
-            '"z=list(1,2,4)"',
+            '"z=[1,2,4]"',
             "--on-server-lost=finish-running",
         ]
 

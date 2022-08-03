@@ -1,64 +1,83 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 use crate::internal::common::error::DsError;
-use crate::internal::common::resources::{
-    GenericResourceAmount, GenericResourceId, NumOfCpus, NumOfNodes,
-};
-use crate::internal::worker::pool::ResourcePool;
+use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId};
+
+use crate::internal::worker::allocator::ResourceAllocator;
 use smallvec::SmallVec;
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
-pub enum CpuRequest {
-    Compact(NumOfCpus),
-    ForceCompact(NumOfCpus),
-    Scatter(NumOfCpus),
+pub enum AllocationRequest {
+    Compact(ResourceAmount),
+    ForceCompact(ResourceAmount),
+    Scatter(ResourceAmount),
     All,
 }
 
-impl Default for CpuRequest {
-    fn default() -> Self {
-        CpuRequest::Compact(1)
-    }
-}
-
-impl CpuRequest {
+impl AllocationRequest {
     pub fn validate(&self) -> crate::Result<()> {
         match &self {
-            CpuRequest::Scatter(n_cpus)
-            | CpuRequest::ForceCompact(n_cpus)
-            | CpuRequest::Compact(n_cpus) => {
+            AllocationRequest::Scatter(n_cpus)
+            | AllocationRequest::ForceCompact(n_cpus)
+            | AllocationRequest::Compact(n_cpus) => {
                 if *n_cpus == 0 {
                     Err(DsError::GenericError(
-                        "Zero cpus cannot be requested".to_string(),
+                        "Zero resources cannot be requested".to_string(),
                     ))
                 } else {
                     Ok(())
                 }
             }
-            CpuRequest::All => Ok(()),
+            AllocationRequest::All => Ok(()),
+        }
+    }
+
+    pub fn min_amount(&self) -> ResourceAmount {
+        match self {
+            AllocationRequest::Compact(amount)
+            | AllocationRequest::ForceCompact(amount)
+            | AllocationRequest::Scatter(amount) => *amount,
+            AllocationRequest::All => 1,
+        }
+    }
+
+    pub fn amount(&self, all: ResourceAmount) -> ResourceAmount {
+        match self {
+            AllocationRequest::Compact(amount)
+            | AllocationRequest::ForceCompact(amount)
+            | AllocationRequest::Scatter(amount) => *amount,
+            AllocationRequest::All => all,
+        }
+    }
+}
+
+impl fmt::Display for AllocationRequest {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AllocationRequest::Compact(amount) => write!(f, "{} compact", amount),
+            AllocationRequest::ForceCompact(amount) => write!(f, "{} compact!", amount),
+            AllocationRequest::Scatter(amount) => write!(f, "{} scatter", amount),
+            AllocationRequest::All => write!(f, "all"),
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
-pub struct GenericResourceRequest {
-    pub resource: GenericResourceId,
-    pub amount: GenericResourceAmount,
+pub struct ResourceRequestEntry {
+    pub resource_id: ResourceId,
+    pub request: AllocationRequest,
 }
 
-pub type GenericResourceRequests = SmallVec<[GenericResourceRequest; 2]>;
+pub type ResourceRequestEntries = SmallVec<[ResourceRequestEntry; 3]>;
 pub type TimeRequest = Duration;
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct ResourceRequest {
     n_nodes: NumOfNodes,
 
-    cpus: CpuRequest,
-
-    // After normalization, this array is sorted by resource id
-    #[serde(default)]
-    generic: GenericResourceRequests,
+    resources: ResourceRequestEntries,
 
     /// Minimal remaining time of the worker life time needed to START the task
     /// !!! Do not confuse with time_limit.
@@ -72,15 +91,13 @@ pub struct ResourceRequest {
 impl ResourceRequest {
     pub fn new(
         n_nodes: NumOfNodes,
-        cpu_request: CpuRequest,
         time: TimeRequest,
-        mut generic_resources: GenericResourceRequests,
+        mut resources: ResourceRequestEntries,
     ) -> ResourceRequest {
-        generic_resources.sort_unstable_by_key(|r| r.resource);
+        resources.sort_unstable_by_key(|r| r.resource_id);
         ResourceRequest {
             n_nodes,
-            cpus: cpu_request,
-            generic: generic_resources,
+            resources,
             min_time: time,
         }
     }
@@ -93,48 +110,29 @@ impl ResourceRequest {
         self.n_nodes
     }
 
-    pub fn generic_requests(&self) -> &GenericResourceRequests {
-        &self.generic
-    }
-
     pub fn min_time(&self) -> TimeRequest {
         self.min_time
     }
 
-    pub fn cpus(&self) -> &CpuRequest {
-        &self.cpus
+    pub fn entries(&self) -> &ResourceRequestEntries {
+        &self.resources
     }
 
-    pub fn sort_key(
-        &self,
-        resource_pool: &ResourcePool,
-    ) -> (NumOfCpus, NumOfCpus, TimeRequest, f32) {
-        let generic_resources_portion = self
-            .generic
-            .iter()
-            .map(|gr| resource_pool.fraction_of_resource(gr))
-            .sum();
-
-        match &self.cpus {
-            CpuRequest::Compact(n_cpus) => (*n_cpus, 1, self.min_time, generic_resources_portion),
-            CpuRequest::ForceCompact(n_cpus) => {
-                (*n_cpus, 2, self.min_time, generic_resources_portion)
-            }
-            CpuRequest::Scatter(n_cpus) => (*n_cpus, 0, self.min_time, generic_resources_portion),
-            CpuRequest::All => (
-                NumOfCpus::MAX,
-                NumOfCpus::MAX,
-                self.min_time,
-                generic_resources_portion,
-            ),
-        }
+    pub fn sort_key(&self, ac: &ResourceAllocator) -> (f32, TimeRequest) {
+        let score = self.entries().iter().map(|e| ac.difficulty_score(e)).sum();
+        (score, self.min_time)
     }
 
     pub fn validate(&self) -> crate::Result<()> {
-        self.cpus.validate()?;
-        for pair in self.generic.windows(2) {
-            if pair[0].resource >= pair[1].resource {
-                return Err("Generic request are not sorted or unique".into());
+        if self.resources.is_empty() {
+            return Err("Resource request is empty".into());
+        }
+        for entry in &self.resources {
+            entry.request.validate()?;
+        }
+        for pair in self.resources.windows(2) {
+            if pair[0].resource_id >= pair[1].resource_id {
+                return Err("Request are not sorted or unique".into());
             }
         }
         Ok(())
@@ -143,16 +141,15 @@ impl ResourceRequest {
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::common::resources::CpuRequest;
     use crate::internal::tests::utils::resources::ResBuilder;
 
     #[test]
     fn test_resource_request_validate() {
         let rq = ResBuilder::default()
-            .cpus(CpuRequest::All)
-            .add_generic(10, 4)
-            .add_generic(7, 6)
-            .add_generic(10, 6)
+            .add_all(0)
+            .add(10, 4)
+            .add(7, 6)
+            .add(10, 6)
             .finish();
         assert!(rq.validate().is_err())
     }

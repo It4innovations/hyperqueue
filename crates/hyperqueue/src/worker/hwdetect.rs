@@ -1,4 +1,5 @@
 use crate::common::parser::{consume_all, p_u32, NomResult};
+use anyhow::anyhow;
 
 use crate::common::format::human_size;
 use nom::character::complete::{newline, space0};
@@ -8,68 +9,84 @@ use nom::sequence::{preceded, terminated, tuple};
 use nom::Parser;
 use nom_supreme::tag::complete::tag;
 use tako::format_comma_delimited;
-use tako::resources::cpu_descriptor_from_socket_size;
-use tako::resources::{CpuId, CpusDescriptor, GenericResourceDescriptor, NumOfCpus};
+use tako::resources::{
+    ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex, GPU_RESOURCE_NAME,
+    MEM_RESOURCE_NAME,
+};
 
-pub const GPU_RESOURCE_NAME: &str = "gpus";
-pub const MEM_RESOURCE_NAME: &str = "mem";
-
-pub fn detect_cpus() -> anyhow::Result<CpusDescriptor> {
-    read_linux_numa().or_else(|e| {
-        log::debug!("Detecting linux failed: {}", e);
-        let n_cpus = num_cpus::get() as NumOfCpus;
-        if n_cpus < 1 {
-            anyhow::bail!("Cpu detection failed".to_string());
-        };
-        Ok(cpu_descriptor_from_socket_size(1, n_cpus))
-    })
+pub fn detect_cpus() -> anyhow::Result<ResourceDescriptorKind> {
+    read_linux_numa()
+        .and_then(|groups| {
+            ResourceDescriptorKind::groups(groups)
+                .map_err(|_| anyhow!("Inconsistent CPU naming got from detection"))
+        })
+        .or_else(|e| {
+            log::debug!("Detecting linux failed: {}", e);
+            let n_cpus = num_cpus::get() as u32;
+            if n_cpus < 1 {
+                anyhow::bail!("Cpu detection failed");
+            };
+            Ok(ResourceDescriptorKind::simple_indices(n_cpus))
+        })
 }
 
-pub fn detect_cpus_no_ht() -> anyhow::Result<CpusDescriptor> {
-    let descriptor = detect_cpus()?;
+pub fn prune_hyper_threading(
+    kind: &ResourceDescriptorKind,
+) -> anyhow::Result<ResourceDescriptorKind> {
+    let groups = kind.as_groups();
     let mut new_desc = Vec::new();
-    for socket in descriptor {
-        let mut new_socket = Vec::new();
-        for cpu_id in socket {
+    for group in groups {
+        let mut new_group = Vec::new();
+        for cpu_id in group {
             if read_linux_thread_siblings(cpu_id)?
                 .iter()
                 .min()
                 .ok_or_else(|| anyhow::anyhow!("Thread siblings are empty"))
                 .map(|v| *v == cpu_id)?
             {
-                new_socket.push(cpu_id);
+                new_group.push(cpu_id);
             }
         }
-        new_desc.push(new_socket);
+        new_desc.push(new_group);
     }
-    Ok(new_desc)
+    Ok(ResourceDescriptorKind::groups(new_desc).unwrap())
 }
 
-pub fn detect_generic_resources() -> anyhow::Result<Vec<GenericResourceDescriptor>> {
-    let mut generic = Vec::new();
+pub fn detect_additional_resources(items: &mut Vec<ResourceDescriptorItem>) -> anyhow::Result<()> {
+    let has_resource =
+        |items: &[ResourceDescriptorItem], name: &str| items.iter().any(|x| x.name == name);
 
-    if let Some(gpus) = detect_gpus_from_env() {
-        generic.push(gpus);
-    } else if let Ok(count) = read_linux_gpu_count() {
-        if count > 0 {
-            log::info!("Detected {} GPUs from procs", count);
-            generic.push(GenericResourceDescriptor::range(
-                GPU_RESOURCE_NAME,
-                0,
-                count as u32 - 1,
-            ));
+    if !has_resource(items, GPU_RESOURCE_NAME) {
+        if let Some(gpus) = detect_gpus_from_env() {
+            items.push(ResourceDescriptorItem {
+                name: GPU_RESOURCE_NAME.to_string(),
+                kind: gpus,
+            });
+        } else if let Ok(count) = read_linux_gpu_count() {
+            if count > 0 {
+                log::info!("Detected {} GPUs from procs", count);
+                items.push(ResourceDescriptorItem {
+                    name: GPU_RESOURCE_NAME.to_string(),
+                    kind: ResourceDescriptorKind::simple_indices(count as u32),
+                });
+            }
         }
     }
 
-    if let Ok(mem) = read_linux_memory() {
-        log::info!("Detected {mem}B of memory ({})", human_size(mem));
-        generic.push(GenericResourceDescriptor::sum(MEM_RESOURCE_NAME, mem));
+    if !has_resource(items, MEM_RESOURCE_NAME) {
+        if let Ok(mem) = read_linux_memory() {
+            log::info!("Detected {mem}B of memory ({})", human_size(mem));
+            items.push(ResourceDescriptorItem {
+                name: MEM_RESOURCE_NAME.to_string(),
+                kind: ResourceDescriptorKind::Sum { size: mem },
+            });
+        }
     }
-    Ok(generic)
+    Ok(())
 }
 
 /// Tries to detect available Nvidia GPUs from the `CUDA_VISIBLE_DEVICES` environment variable.
-fn detect_gpus_from_env() -> Option<GenericResourceDescriptor> {
+fn detect_gpus_from_env() -> Option<ResourceDescriptorKind> {
     if let Ok(devices_str) = std::env::var("CUDA_VISIBLE_DEVICES") {
         if let Ok(mut devices) = parse_comma_separated_numbers(&devices_str) {
             log::info!(
@@ -85,8 +102,9 @@ fn detect_gpus_from_env() -> Option<GenericResourceDescriptor> {
                 log::warn!("CUDA_VISIBLE_DEVICES contains duplicates ({})", devices_str);
             }
 
-            let list = GenericResourceDescriptor::list(GPU_RESOURCE_NAME, devices)
-                .expect("List values were not unique");
+            let list =
+                ResourceDescriptorKind::list(devices.into_iter().map(|x| x.into()).collect())
+                    .expect("List values were not unique");
             return Some(list);
         }
     }
@@ -106,11 +124,11 @@ fn read_linux_memory() -> anyhow::Result<u64> {
 /// Try to find the CPU NUMA configuration.
 ///
 /// Returns a list of NUMA nodes, each node contains a list of assigned CPUs.
-fn read_linux_numa() -> anyhow::Result<Vec<Vec<CpuId>>> {
+fn read_linux_numa() -> anyhow::Result<Vec<Vec<ResourceIndex>>> {
     let nodes = parse_range(&std::fs::read_to_string(
         "/sys/devices/system/node/possible",
     )?)?;
-    let mut numa_nodes: Vec<Vec<CpuId>> = Vec::new();
+    let mut numa_nodes: Vec<Vec<ResourceIndex>> = Vec::new();
     for numa_index in nodes {
         let filename = format!("/sys/devices/system/node/node{}/cpulist", numa_index);
         numa_nodes.push(parse_range(&std::fs::read_to_string(filename)?)?);
@@ -119,7 +137,7 @@ fn read_linux_numa() -> anyhow::Result<Vec<Vec<CpuId>>> {
     Ok(numa_nodes)
 }
 
-fn read_linux_thread_siblings(cpu_id: CpuId) -> anyhow::Result<Vec<CpuId>> {
+fn read_linux_thread_siblings(cpu_id: ResourceIndex) -> anyhow::Result<Vec<ResourceIndex>> {
     let filename = format!(
         "/sys/devices/system/cpu/cpu{}/topology/thread_siblings_list",
         cpu_id
@@ -128,7 +146,7 @@ fn read_linux_thread_siblings(cpu_id: CpuId) -> anyhow::Result<Vec<CpuId>> {
     parse_range(&std::fs::read_to_string(filename)?)
 }
 
-fn p_cpu_range(input: &str) -> NomResult<Vec<CpuId>> {
+fn p_cpu_range(input: &str) -> NomResult<Vec<ResourceIndex>> {
     map_res(
         tuple((
             terminated(p_u32, space0),
@@ -142,12 +160,12 @@ fn p_cpu_range(input: &str) -> NomResult<Vec<CpuId>> {
     .parse(input)
 }
 
-fn p_cpu_ranges(input: &str) -> NomResult<Vec<CpuId>> {
+fn p_cpu_ranges(input: &str) -> NomResult<Vec<ResourceIndex>> {
     separated_list1(terminated(tag(","), space0), p_cpu_range)(input)
         .map(|(a, b)| (a, b.into_iter().flatten().collect()))
 }
 
-fn parse_range(input: &str) -> anyhow::Result<Vec<CpuId>> {
+fn parse_range(input: &str) -> anyhow::Result<Vec<ResourceIndex>> {
     let parser = terminated(p_cpu_ranges, opt(newline));
     consume_all(parser, input)
 }
