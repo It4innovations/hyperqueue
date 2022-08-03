@@ -32,7 +32,7 @@ use crate::{JobId, JobTaskId};
 use serde::{Deserialize, Serialize};
 use tako::comm::serialize;
 use tako::program::{ProgramDefinition, StdioDef};
-use tako::resources::ResourceAllocation;
+use tako::resources::{Allocation, CPU_RESOURCE_ID};
 
 const MAX_CUSTOM_ERROR_LENGTH: usize = 2048; // 2KiB
 
@@ -87,7 +87,7 @@ impl TaskLauncher for HqTaskLauncher {
                 task_id,
             } = body;
 
-            pin_program(&mut program, launch_ctx.allocation(), pin_mode);
+            pin_program(&mut program, launch_ctx.allocation(), pin_mode)?;
 
             let task_dir = if task_dir {
                 let task_dir = TempDir::new_in(&launch_ctx.worker_configuration().work_dir, "t")?;
@@ -213,33 +213,34 @@ fn write_node_file(ctx: &LaunchContext, path: &Path) -> std::io::Result<()> {
 }
 
 fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinition) {
-    let allocation = ctx.allocation();
-    program
-        .env
-        .insert(HQ_CPUS.into(), allocation.comma_delimited_cpu_ids().into());
-
-    if !program.env.contains_key(b"OMP_NUM_THREADS".as_bstr()) {
-        program.env.insert(
-            "OMP_NUM_THREADS".into(),
-            allocation.cpus.len().to_string().into(),
-        );
-    }
-
     let resource_map = ctx.get_resource_map();
 
-    for rq in ctx.resources().generic_requests() {
-        let resource_name = resource_map.get_name(rq.resource).unwrap();
+    for entry in ctx.resources().entries() {
+        let resource_name = resource_map.get_name(entry.resource_id).unwrap();
         program.env.insert(
             format!("HQ_RESOURCE_REQUEST_{}", resource_name).into(),
-            rq.amount.to_string().into(),
+            entry.request.to_string().into(),
         );
     }
 
-    for alloc in &allocation.generic_allocations {
+    for alloc in &ctx.allocation().resources {
         let resource_name = resource_map.get_name(alloc.resource).unwrap();
         if let Some(indices) = alloc.value.to_comma_delimited_list() {
+            if resource_name == "cpus" {
+                /* Extra variables for CPUS */
+                program.env.insert(HQ_CPUS.into(), indices.clone().into());
+                if !program.env.contains_key(b"OMP_NUM_THREADS".as_bstr()) {
+                    program.env.insert(
+                        "OMP_NUM_THREADS".into(),
+                        alloc.value.amount().to_string().into(),
+                    );
+                }
+                program
+                    .env
+                    .insert("CUDA_DEVICE_ORDER".into(), "PCI_BUS_ID".into());
+            }
             if resource_name == "gpus" {
-                /* Extra hack for GPUS */
+                /* Extra variables for GPUS */
                 program
                     .env
                     .insert("CUDA_VISIBLE_DEVICES".into(), indices.clone().into());
@@ -247,6 +248,7 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
                     .env
                     .insert("CUDA_DEVICE_ORDER".into(), "PCI_BUS_ID".into());
             }
+
             program.env.insert(
                 format!("HQ_RESOURCE_VALUES_{}", resource_name).into(),
                 indices.into(),
@@ -257,37 +259,49 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
 
 fn pin_program(
     program: &mut ProgramDefinition,
-    allocation: &ResourceAllocation,
+    allocation: &Allocation,
     pin_mode: PinMode,
-) {
+) -> tako::Result<()> {
+    let comma_delimited_cpu_ids = || {
+        allocation
+            .resources
+            .iter()
+            .find(|r| r.resource == CPU_RESOURCE_ID)
+            .and_then(|r| r.value.to_comma_delimited_list())
+    };
     match pin_mode {
         PinMode::TaskSet => {
-            let mut args: Vec<BString> = vec![
-                "taskset".into(),
-                "-c".into(),
-                allocation.comma_delimited_cpu_ids().into(),
-            ];
-            args.append(&mut program.args);
+            if let Some(cpu_list) = comma_delimited_cpu_ids() {
+                let mut args: Vec<BString> = vec!["taskset".into(), "-c".into(), cpu_list.into()];
+                args.append(&mut program.args);
 
-            program.args = args;
-            program.env.insert(HQ_PIN.into(), "taskset".into());
+                program.args = args;
+                program.env.insert(HQ_PIN.into(), "taskset".into());
+                Ok(())
+            } else {
+                Err("Pinning failed, no CPU ids allocated for task".into())
+            }
         }
         PinMode::OpenMP => {
             // OMP_PLACES specifies on which cores should the OpenMP threads execute.
             // OMP_PROC_BIND makes sure that OpenMP will actually pin its threads
             // to the specified places.
-            if !program.env.contains_key(b"OMP_PROC_BIND".as_bstr()) {
-                program.env.insert("OMP_PROC_BIND".into(), "close".into());
+            if let Some(cpu_list) = comma_delimited_cpu_ids() {
+                if !program.env.contains_key(b"OMP_PROC_BIND".as_bstr()) {
+                    program.env.insert("OMP_PROC_BIND".into(), "close".into());
+                }
+                if !program.env.contains_key(b"OMP_PLACES".as_bstr()) {
+                    program
+                        .env
+                        .insert("OMP_PLACES".into(), format!("{{{cpu_list}}}").into());
+                }
+                program.env.insert(HQ_PIN.into(), "omp".into());
+                Ok(())
+            } else {
+                Err("Pinning failed, no CPU ids allocated for task".into())
             }
-            if !program.env.contains_key(b"OMP_PLACES".as_bstr()) {
-                let places = allocation.comma_delimited_cpu_ids();
-                program
-                    .env
-                    .insert("OMP_PLACES".into(), format!("{{{places}}}").into());
-            }
-            program.env.insert(HQ_PIN.into(), "omp".into());
         }
-        PinMode::None => {}
+        PinMode::None => Ok(()),
     }
 }
 
@@ -427,10 +441,10 @@ async fn run_task(
                     return tako::Result::Err(e);
                 }
             }
-            return tako::Result::Err(tako::Error::GenericError(format!(
+            Err(tako::Error::GenericError(format!(
                 "Program terminated with exit code {}",
                 code
-            )));
+            )))
         } else {
             Ok(TaskResult::Finished)
         }

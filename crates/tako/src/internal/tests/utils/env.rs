@@ -1,9 +1,6 @@
 use crate::gateway::LostWorkerReason;
 use crate::internal::common::index::ItemId;
-use crate::internal::common::resources::descriptor::cpu_descriptor_from_socket_size;
-use crate::internal::common::resources::{
-    GenericResourceDescriptor, NumOfCpus, ResourceDescriptor,
-};
+use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::common::utils::format_comma_delimited;
 use crate::internal::common::Map;
 use crate::internal::messages::common::TaskFailInfo;
@@ -20,6 +17,7 @@ use crate::internal::tests::utils::resources::cpus_compact;
 use crate::internal::tests::utils::schedule;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::transfer::auth::{deserialize, serialize};
+use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind};
 use crate::task::SerializedTaskContext;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{TaskId, WorkerId};
@@ -59,8 +57,7 @@ impl TestEnv {
 
     pub fn new_generic_resource(&mut self, count: usize) {
         for i in 0..count {
-            self.core
-                .get_or_create_generic_resource_id(&format!("Res{}", i));
+            self.core.get_or_create_resource_id(&format!("Res{}", i));
         }
     }
 
@@ -84,14 +81,21 @@ impl TestEnv {
 
     pub fn new_workers_ext(
         &mut self,
-        defs: &[(u32, Option<Duration>, Vec<GenericResourceDescriptor>)],
+        defs: &[(u32, Option<Duration>, Vec<ResourceDescriptorItem>)],
     ) {
-        for (i, (c, time_limit, grds)) in defs.iter().enumerate() {
+        for (i, (c, time_limit, rs)) in defs.iter().enumerate() {
             let worker_id = WorkerId::new(self.worker_id_counter);
             self.worker_id_counter += 1;
 
-            let cpus = cpu_descriptor_from_socket_size(1, *c);
-            let rd = ResourceDescriptor::new(cpus, grds.clone());
+            let mut rs = rs.clone();
+            rs.insert(
+                0,
+                ResourceDescriptorItem {
+                    name: "cpus".to_string(),
+                    kind: ResourceDescriptorKind::simple_indices(*c),
+                },
+            );
+            let rd = ResourceDescriptor::new(rs);
 
             let wcfg = WorkerConfiguration {
                 resources: rd,
@@ -117,7 +121,7 @@ impl TestEnv {
         self.new_workers_ext(&defs);
     }
 
-    pub fn new_ready_tasks_cpus(&mut self, tasks: &[NumOfCpus]) -> Vec<TaskId> {
+    pub fn new_ready_tasks_cpus(&mut self, tasks: &[ResourceAmount]) -> Vec<TaskId> {
         let tasks: Vec<_> = tasks
             .iter()
             .map(|n_cpus| {
@@ -142,7 +146,7 @@ impl TestEnv {
         self._test_assign(task_id.into(), worker_id.into());
     }
 
-    pub fn new_assigned_tasks_cpus(&mut self, tasks: &[&[NumOfCpus]]) {
+    pub fn new_assigned_tasks_cpus(&mut self, tasks: &[&[ResourceAmount]]) {
         for (i, tdefs) in tasks.iter().enumerate() {
             let w_id = WorkerId::new(100 + i as u32);
             let task_ids = self.new_ready_tasks_cpus(tdefs);
@@ -179,11 +183,11 @@ impl TestEnv {
             .sn_load
     }
 
-    pub fn check_worker_load_lower_bounds(&self, cpus: &[NumOfCpus]) {
-        let found_cpus: Vec<NumOfCpus> = utils::sorted_vec(
+    pub fn check_worker_load_lower_bounds(&self, cpus: &[ResourceAmount]) {
+        let found_cpus: Vec<ResourceAmount> = utils::sorted_vec(
             self.core
                 .get_workers()
-                .map(|w| w.sn_load.get_n_cpus())
+                .map(|w| w.sn_load.get(0.into()))
                 .collect(),
         );
         for (c, f) in cpus.iter().zip(found_cpus.iter()) {
@@ -198,9 +202,8 @@ impl TestEnv {
         println!("-------------");
         for worker in self.core.get_workers() {
             println!(
-                "Worker {} ({}) {}",
+                "Worker {} {}",
                 worker.id,
-                worker.sn_load.get_n_cpus(),
                 format_comma_delimited(worker.sn_tasks().iter().map(|&task_id| format!(
                     "{}:{:?}",
                     task_id,

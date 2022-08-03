@@ -5,7 +5,7 @@ use orion::aead::SecretKey;
 
 use crate::gateway::ServerInfo;
 use crate::internal::common::resources::map::{ResourceIdAllocator, ResourceMap};
-use crate::internal::common::resources::{GenericResourceId, ResourceRequest};
+use crate::internal::common::resources::{ResourceId, ResourceRequest};
 use crate::internal::common::{Set, WrappedRcRefCell};
 use crate::internal::scheduler::multinode::MultiNodeQueue;
 use crate::internal::server::rpc::ConnectionDescriptor;
@@ -414,7 +414,7 @@ impl Core {
     }
 
     #[inline]
-    pub fn get_or_create_generic_resource_id(&mut self, name: &str) -> GenericResourceId {
+    pub fn get_or_create_resource_id(&mut self, name: &str) -> ResourceId {
         self.resource_map.get_or_allocate_id(name)
     }
 

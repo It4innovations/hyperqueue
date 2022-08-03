@@ -29,14 +29,11 @@ use std::path::Path;
 use std::time::SystemTime;
 
 use tako::program::StdioDef;
-use tako::resources::{
-    CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, ResourceDescriptor,
-};
+use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 
 use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
 use crate::client::output::Verbosity;
 use crate::common::utils::str::{pluralize, select_plural, truncate_middle};
-use crate::worker::hwdetect::MEM_RESOURCE_NAME;
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
 use anyhow::Error;
 use colored::Color as Colorization;
@@ -839,8 +836,8 @@ impl Output for CliOutput {
     }
 
     fn print_hw(&self, descriptor: &ResourceDescriptor) {
-        println!("Summary: {}", resources_summary(descriptor, true));
-        println!("Cpu Ids: {}", descriptor.full_describe());
+        println!("Summary:\n{}\n", resources_summary(descriptor, true));
+        println!("Full Description:\n{}", resources_full_describe(descriptor));
     }
 
     fn print_error(&self, error: Error) {
@@ -1066,26 +1063,20 @@ fn format_resource_request(rq: &ResourceRequest) -> String {
     if rq.n_nodes > 0 {
         return format!("nodes: {}", rq.n_nodes);
     }
-    let mut result = format_cpu_request(&rq.cpus);
-    for grq in &rq.generic {
-        write!(result, "\n{}: {}", grq.resource, grq.amount).unwrap();
+    let mut result = String::new();
+    let mut first = true;
+    for grq in &rq.resources {
+        write!(
+            result,
+            "{}{}: {}",
+            if first { "" } else { "\n" },
+            grq.resource,
+            grq.policy
+        )
+        .unwrap();
+        first = false;
     }
     result
-}
-
-fn format_cpu_request(cr: &CpuRequest) -> String {
-    match cr {
-        CpuRequest::Compact(n_cpus) => {
-            format!("cpus: {} compact", *n_cpus)
-        }
-        CpuRequest::ForceCompact(n_cpus) => {
-            format!("cpus: {} compact!", *n_cpus)
-        }
-        CpuRequest::Scatter(n_cpus) => {
-            format!("cpus: {} scatter", *n_cpus)
-        }
-        CpuRequest::All => "cpus: all".to_string(),
-    }
 }
 
 /// Formatting
@@ -1213,121 +1204,185 @@ fn format_time(time: DateTime<Utc>) -> impl Display {
     datetime.format("%d.%m.%Y %H:%M:%S")
 }
 
-fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String {
-    let mut result = if resources.cpus.len() == 1 {
-        format!("1x{} cpus", resources.cpus[0].len())
-    } else {
-        let mut counts = Map::<usize, usize>::default();
-        for group in &resources.cpus {
-            *counts.entry(group.len()).or_default() += 1;
-        }
-        let mut counts: Vec<_> = counts.into_iter().collect();
-        counts.sort_unstable();
-        format!(
-            "{} cpus",
-            counts
-                .iter()
-                .map(|(cores, count)| format!("{}x{}", count, cores))
-                .collect::<Vec<_>>()
-                .join(" ")
+fn resources_full_describe(resources: &ResourceDescriptor) -> String {
+    let mut result = String::new();
+    let mut first = true;
+    for descriptor in &resources.resources {
+        write!(
+            result,
+            "{}{}: {}",
+            if first { "" } else { "\n" },
+            &descriptor.name,
+            descriptor.kind.details(),
         )
-    };
+        .unwrap();
+        first = false;
+    }
+    result
+}
 
-    let special_format = |descriptor: &GenericResourceDescriptor| -> Option<String> {
-        if descriptor.name == MEM_RESOURCE_NAME {
-            if let GenericResourceDescriptorKind::Sum { size } = descriptor.kind {
+fn resource_summary_kind(kind: &ResourceDescriptorKind) -> String {
+    match kind {
+        ResourceDescriptorKind::List { values } => values.len().to_string(),
+        ResourceDescriptorKind::Groups { groups } => {
+            if groups.len() == 1 {
+                format!("{}", groups[0].len())
+            } else {
+                let mut counts = Map::<usize, usize>::default();
+                for group in groups {
+                    *counts.entry(group.len()).or_default() += 1;
+                }
+                let mut counts: Vec<_> = counts.into_iter().collect();
+                counts.sort_unstable();
+                counts
+                    .iter()
+                    .map(|(cores, count)| format!("{}x{}", count, cores))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            }
+        }
+        ResourceDescriptorKind::Range { start, end } => {
+            (end.as_num() - start.as_num() + 1).to_string()
+        }
+        ResourceDescriptorKind::Sum { size } => size.to_string(),
+    }
+}
+
+fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String {
+    let special_format = |descriptor: &ResourceDescriptorItem| -> Option<String> {
+        if descriptor.name == tako::resources::MEM_RESOURCE_NAME {
+            if let ResourceDescriptorKind::Sum { size } = descriptor.kind {
                 return Some(human_size(size));
             }
         }
         None
     };
 
-    if multiline {
-        for descriptor in &resources.generic {
-            write!(
-                result,
-                "\n{}: {}",
-                &descriptor.name,
-                special_format(descriptor).unwrap_or_else(|| descriptor.kind.to_string())
-            )
-            .unwrap();
-        }
-    } else {
-        for descriptor in &resources.generic {
-            write!(
-                result,
-                "; {} {}",
-                &descriptor.name,
-                special_format(descriptor).unwrap_or_else(|| descriptor.kind.to_string())
-            )
-            .unwrap();
-        }
+    let mut result = String::new();
+    let mut first = true;
+    for descriptor in &resources.resources {
+        write!(
+            result,
+            "{}{}{} {}",
+            if first {
+                ""
+            } else if multiline {
+                "\n"
+            } else {
+                "; "
+            },
+            &descriptor.name,
+            if multiline { ":" } else { "" },
+            special_format(descriptor).unwrap_or_else(|| resource_summary_kind(&descriptor.kind))
+        )
+        .unwrap();
+        first = false;
     }
     result
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::client::output::cli::resources_summary;
-    use crate::worker::hwdetect::MEM_RESOURCE_NAME;
-    use tako::resources::{GenericResourceDescriptor, ResourceDescriptor};
+    use crate::client::output::cli::{resources_full_describe, resources_summary};
+    use tako::resources::{
+        ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, MEM_RESOURCE_NAME,
+    };
     use tako::AsIdVec;
 
     #[test]
     fn test_resources_summary() {
-        let d = ResourceDescriptor::new(vec![vec![0].to_ids()], Vec::new());
-        assert_eq!(resources_summary(&d, false), "1x1 cpus");
+        let d = ResourceDescriptor::new(vec![ResourceDescriptorItem {
+            name: "cpus".into(),
+            kind: ResourceDescriptorKind::simple_indices(1),
+        }]);
+        assert_eq!(resources_summary(&d, false), "cpus 1");
 
-        let d = ResourceDescriptor::new(vec![vec![0, 1, 2].to_ids()], Vec::new());
-        assert_eq!(resources_summary(&d, true), "1x3 cpus");
+        let d = ResourceDescriptor::new(vec![ResourceDescriptorItem {
+            name: "cpus".into(),
+            kind: ResourceDescriptorKind::simple_indices(5),
+        }]);
+        assert_eq!(resources_summary(&d, true), "cpus: 5");
 
-        let d = ResourceDescriptor::new(
-            vec![vec![0, 1, 2, 4].to_ids(), vec![10, 11, 12, 14].to_ids()],
-            Vec::new(),
-        );
-        assert_eq!(resources_summary(&d, true), "2x4 cpus");
-
-        let d = ResourceDescriptor::new(
-            vec![
-                vec![0, 1].to_ids(),
-                vec![10, 11].to_ids(),
-                vec![20, 21].to_ids(),
-                vec![30, 31].to_ids(),
-                vec![40, 41].to_ids(),
-                vec![50, 51, 52, 53, 54, 55].to_ids(),
-            ],
-            Vec::new(),
-        );
-        assert_eq!(resources_summary(&d, true), "5x2 1x6 cpus");
-
-        let generic = vec![
-            GenericResourceDescriptor::range("Aaa", 0, 9),
-            GenericResourceDescriptor::range("Ccc", 1, 132),
-            GenericResourceDescriptor::sum("Bbb", 100_000_000),
-        ];
-        let d = ResourceDescriptor::new(vec![vec![0, 1].to_ids()], generic);
+        let d = ResourceDescriptor::new(vec![
+            ResourceDescriptorItem {
+                name: "cpus".into(),
+                kind: ResourceDescriptorKind::groups(vec![
+                    vec![0, 1, 2, 4].to_ids(),
+                    vec![10, 11, 12, 14].to_ids(),
+                ])
+                .unwrap(),
+            },
+            ResourceDescriptorItem {
+                name: "gpus".into(),
+                kind: ResourceDescriptorKind::list(vec![4.into(), 7.into()]).unwrap(),
+            },
+            ResourceDescriptorItem {
+                name: "mmmem".into(),
+                kind: ResourceDescriptorKind::Sum { size: 1234 },
+            },
+            ResourceDescriptorItem {
+                name: "zzz".into(),
+                kind: ResourceDescriptorKind::groups(vec![
+                    vec![0, 1].to_ids(),
+                    vec![10, 11].to_ids(),
+                    vec![20, 21].to_ids(),
+                    vec![30, 31].to_ids(),
+                    vec![40, 41].to_ids(),
+                    vec![50, 51, 52, 53, 54, 55].to_ids(),
+                ])
+                .unwrap(),
+            },
+        ]);
         assert_eq!(
             resources_summary(&d, true),
-            "1x2 cpus\nAaa: Range(0-9)\nBbb: Sum(100000000)\nCcc: Range(1-132)"
+            "cpus: 2x4\ngpus: 2\nmmmem: 1234\nzzz: 5x2 1x6"
+        );
+        assert_eq!(
+            resources_summary(&d, false),
+            "cpus 2x4; gpus 2; mmmem 1234; zzz 5x2 1x6"
+        );
+    }
+
+    #[test]
+    fn test_resource_full_describe() {
+        let d = ResourceDescriptor::new(vec![ResourceDescriptorItem {
+            name: "cpus".into(),
+            kind: ResourceDescriptorKind::simple_indices(1),
+        }]);
+        assert_eq!(resources_full_describe(&d), "cpus: [0]");
+
+        let d = ResourceDescriptor::new(vec![
+            ResourceDescriptorItem {
+                name: "cpus".into(),
+                kind: ResourceDescriptorKind::groups(vec![
+                    vec![0, 1, 2, 4].to_ids(),
+                    vec![10, 11, 12, 14].to_ids(),
+                ])
+                .unwrap(),
+            },
+            ResourceDescriptorItem {
+                name: "gpus".into(),
+                kind: ResourceDescriptorKind::list(vec![4.into(), 7.into()]).unwrap(),
+            },
+            ResourceDescriptorItem {
+                name: "mem".into(),
+                kind: ResourceDescriptorKind::Sum { size: 1234 },
+            },
+        ]);
+        assert_eq!(
+            resources_full_describe(&d),
+            "cpus: [[0,1,2,4],[10,11,12,14]]\ngpus: [4,7]\nmem: sum(1234)"
         );
     }
 
     #[test]
     fn test_resources_summary_mem() {
-        let resources = ResourceDescriptor::new(
-            vec![vec![0].to_ids()],
-            vec![GenericResourceDescriptor::sum(
-                MEM_RESOURCE_NAME,
-                4 * 1024 * 1024 * 1024 + 123 * 1024 * 1024,
-            )],
-        );
-        assert_eq!(
-            resources_summary(&resources, false),
-            "1x1 cpus; mem 4.12 GiB"
-        );
-        assert_eq!(
-            resources_summary(&resources, true),
-            "1x1 cpus\nmem: 4.12 GiB"
-        );
+        let d = ResourceDescriptor::new(vec![ResourceDescriptorItem {
+            name: MEM_RESOURCE_NAME.into(),
+            kind: ResourceDescriptorKind::Sum {
+                size: 4 * 1024 * 1024 * 1024 + 123 * 1024 * 1024,
+            },
+        }]);
+        assert_eq!(resources_summary(&d, false), "mem 4.12 GiB");
     }
 }

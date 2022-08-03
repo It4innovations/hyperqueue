@@ -5,29 +5,30 @@ use nom::sequence::{preceded, separated_pair, tuple};
 use nom_supreme::tag::complete::tag;
 use nom_supreme::ParserExt;
 
-use tako::resources::{CpuRequest, GenericResourceAmount};
+use tako::resources::{AllocationRequest, ResourceAmount};
 
-use crate::common::parser::{consume_all, p_u32, p_u64, NomResult};
+use crate::common::parser::{consume_all, p_u64, NomResult};
 
-fn p_cpu_request(input: &str) -> NomResult<CpuRequest> {
+fn p_allocation_request(input: &str) -> NomResult<AllocationRequest> {
     alt((
-        map(tag("all"), |_| CpuRequest::All),
+        map(tag("all"), |_| AllocationRequest::All),
         map_res(
             tuple((
-                p_u32,
+                p_u64,
                 opt(preceded(
                     multispace1,
                     alt((tag("compact!"), tag("compact"), tag("scatter"))),
                 )),
             )),
             |(count, policy)| {
+                let count = count as ResourceAmount;
                 if count == 0 {
-                    return Err(anyhow::anyhow!("Requesting zero cpus is not allowed"));
+                    return Err(anyhow::anyhow!("Requesting zero resources is not allowed"));
                 }
                 Ok(match policy {
-                    None | Some("compact") => CpuRequest::Compact(count),
-                    Some("compact!") => CpuRequest::ForceCompact(count),
-                    Some("scatter") => CpuRequest::Scatter(count),
+                    None | Some("compact") => AllocationRequest::Compact(count),
+                    Some("compact!") => AllocationRequest::ForceCompact(count),
+                    Some("scatter") => AllocationRequest::Scatter(count),
                     _ => unreachable!(),
                 })
             },
@@ -35,23 +36,23 @@ fn p_cpu_request(input: &str) -> NomResult<CpuRequest> {
     ))(input)
 }
 
-pub fn parse_cpu_request(input: &str) -> anyhow::Result<CpuRequest> {
-    consume_all(p_cpu_request, input)
-}
-
-fn p_resource_request(input: &str) -> NomResult<(String, GenericResourceAmount)> {
+fn p_resource_request(input: &str) -> NomResult<(String, AllocationRequest)> {
     map(
         separated_pair(
             alphanumeric1.context("Resource identifier"),
             tuple((multispace0, char('='), multispace0)),
-            p_u64.context("Resource amount"),
+            p_allocation_request.context("Resource amount"),
         ),
         |(name, value)| (name.to_string(), value),
     )(input)
 }
 
-pub fn parse_resource_request(input: &str) -> anyhow::Result<(String, GenericResourceAmount)> {
+pub fn parse_resource_request(input: &str) -> anyhow::Result<(String, AllocationRequest)> {
     consume_all(p_resource_request, input)
+}
+
+pub fn parse_allocation_request(input: &str) -> anyhow::Result<AllocationRequest> {
+    consume_all(p_allocation_request, input)
 }
 
 #[cfg(test)]
@@ -60,42 +61,37 @@ mod test {
     use crate::tests::utils::check_parse_error;
 
     #[test]
-    fn test_parse_cpu_request() {
-        assert_eq!(parse_cpu_request("all").unwrap(), CpuRequest::All);
-        assert_eq!(parse_cpu_request("10").unwrap(), CpuRequest::Compact(10));
-        assert_eq!(
-            parse_cpu_request("5 compact").unwrap(),
-            CpuRequest::Compact(5)
-        );
-        assert_eq!(
-            parse_cpu_request("351 compact!").unwrap(),
-            CpuRequest::ForceCompact(351)
-        );
-        assert_eq!(
-            parse_cpu_request("10 scatter").unwrap(),
-            CpuRequest::Scatter(10)
-        );
-    }
-
-    #[test]
-    fn test_parse_zero_cpus() {
-        check_parse_error(
-            p_cpu_request,
-            "0",
-            r#"Parse error
-"Requesting zero cpus is not allowed" at character 0: "0""#,
-        );
-    }
-
-    #[test]
     fn test_parse_resource_request() {
         assert_eq!(
-            parse_resource_request("Abc=10_234").unwrap(),
-            ("Abc".to_string(), 10234)
+            parse_resource_request("xxx=all").unwrap(),
+            ("xxx".to_string(), AllocationRequest::All)
         );
         assert_eq!(
-            parse_resource_request("X = 1").unwrap(),
-            ("X".to_string(), 1)
+            parse_resource_request("ab1c=10").unwrap(),
+            ("ab1c".to_string(), AllocationRequest::Compact(10))
+        );
+        assert_eq!(
+            parse_resource_request("a=5_000 compact").unwrap(),
+            ("a".to_string(), AllocationRequest::Compact(5000))
+        );
+        assert_eq!(
+            parse_resource_request("cpus=351 scatter").unwrap(),
+            ("cpus".to_string(), AllocationRequest::Scatter(351))
+        );
+        assert_eq!(
+            parse_resource_request("cpus=11 compact!").unwrap(),
+            ("cpus".to_string(), AllocationRequest::ForceCompact(11))
+        );
+    }
+
+    #[test]
+    fn test_parse_zero_resources() {
+        check_parse_error(
+            p_resource_request,
+            "aa=0",
+            r#"Parse error
+expected Resource amount at character 3: "0"
+  "Requesting zero resources is not allowed" at character 3: "0""#,
         );
     }
 
@@ -117,9 +113,7 @@ expected "=" at the end of input"#,
         check_parse_error(
             p_resource_request,
             "a=x",
-            r#"Parse error
-expected Resource amount at character 2: "x"
-expected integer at character 2: "x""#,
+            "Parse error\nexpected Resource amount at character 2: \"x\"\n  expected one of the following 2 variants:\n    expected \"all\" at character 2: \"x\"\n    or\n    expected integer at character 2: \"x\"",
         );
     }
 }

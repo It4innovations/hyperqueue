@@ -89,7 +89,7 @@ impl DashboardChart {
             .collect();
 
         for (key, data) in data_points.iter() {
-            if !self.datasets.contains_key(&*key) {
+            if !self.datasets.contains_key(key) {
                 let style = styles.get(key).copied();
                 self.add_chart(key.to_string(), style);
             }

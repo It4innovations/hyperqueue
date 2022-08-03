@@ -40,9 +40,11 @@ use hyperqueue::server::bootstrap::get_client_session;
 use hyperqueue::transfer::messages::{
     FromClientMessage, IdSelector, JobInfoRequest, ToClientMessage,
 };
-use hyperqueue::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resources};
+use hyperqueue::worker::hwdetect::{
+    detect_additional_resources, detect_cpus, prune_hyper_threading,
+};
 use hyperqueue::WorkerId;
-use tako::resources::ResourceDescriptor;
+use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, CPU_RESOURCE_NAME};
 
 #[cfg(feature = "jemalloc")]
 #[global_allocator]
@@ -188,7 +190,7 @@ struct WorkerWaitOpts {
 struct HwDetectOpts {
     /// Detect only physical cores
     #[clap(long)]
-    no_hyperthreading: bool,
+    no_hyper_threading: bool,
 }
 
 // Job CLI options
@@ -406,15 +408,18 @@ async fn command_worker_wait(
 }
 
 fn command_worker_hwdetect(gsettings: &GlobalSettings, opts: HwDetectOpts) -> anyhow::Result<()> {
-    let cpus = if opts.no_hyperthreading {
-        detect_cpus_no_ht()?
-    } else {
-        detect_cpus()?
-    };
-    let generic = detect_generic_resources()?;
+    let mut cpus = detect_cpus()?;
+    if opts.no_hyper_threading {
+        cpus = prune_hyper_threading(&cpus)?;
+    }
+    let mut resources = vec![ResourceDescriptorItem {
+        name: CPU_RESOURCE_NAME.to_string(),
+        kind: cpus,
+    }];
+    detect_additional_resources(&mut resources)?;
     gsettings
         .printer()
-        .print_hw(&ResourceDescriptor::new(cpus, generic));
+        .print_hw(&ResourceDescriptor::new(resources));
     Ok(())
 }
 

@@ -378,11 +378,12 @@ fn build_tasks_graph(
 mod tests {
     use crate::server::client::submit::{build_tasks_graph, JobContext};
     use crate::transfer::messages::{PinMode, TaskDescription, TaskWithDependencies};
+    use smallvec::smallvec;
     use std::path::{Path, PathBuf};
     use std::time::Duration;
-    use tako::gateway::{GenericResourceRequest, NewTasksMessage, ResourceRequest};
+    use tako::gateway::{NewTasksMessage, ResourceRequest, ResourceRequestEntry};
     use tako::program::ProgramDefinition;
-    use tako::resources::CpuRequest;
+    use tako::resources::{AllocationRequest, ResourceAmount, CPU_RESOURCE_NAME};
     use tako::Priority;
 
     #[test]
@@ -491,12 +492,11 @@ mod tests {
             },
             resources: ResourceRequest {
                 n_nodes: 0,
-                cpus: CpuRequest::Compact(cpu_count),
-                generic: vec![GenericResourceRequest {
-                    resource: "a".to_string(),
-                    amount: 100,
-                }],
                 min_time: Duration::from_secs(2),
+                resources: smallvec![ResourceRequestEntry {
+                    resource: CPU_RESOURCE_NAME.to_string(),
+                    policy: AllocationRequest::Compact(cpu_count as ResourceAmount),
+                }],
             },
             pin_mode: PinMode::None,
             task_dir: false,

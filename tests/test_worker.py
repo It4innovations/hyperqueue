@@ -159,16 +159,16 @@ def test_worker_list_resources(hq_env: HqEnv):
     table = list_all_workers(hq_env)
     assert len(table) == 4
     table.check_columns_value(
-        ["ID", "State", "Resources"], 0, ["1", "RUNNING", "1x10 cpus"]
+        ["ID", "State", "Resources"], 0, ["1", "RUNNING", "cpus 10"]
     )
     table.check_columns_value(
-        ["ID", "State", "Resources"], 1, ["2", "RUNNING", "4x5 cpus"]
+        ["ID", "State", "Resources"], 1, ["2", "RUNNING", "cpus 4x5"]
     )
     table.check_columns_value(
-        ["ID", "State", "Resources"], 2, ["3", "RUNNING", "2x3 cpus"]
+        ["ID", "State", "Resources"], 2, ["3", "RUNNING", "cpus 2x3"]
     )
     table.check_columns_value(
-        ["ID", "State", "Resources"], 3, ["4", "RUNNING", "1x1 1x2 1x3 cpus"]
+        ["ID", "State", "Resources"], 3, ["4", "RUNNING", "cpus 1x1 1x2 1x3"]
     )
 
 
@@ -223,7 +223,7 @@ def test_worker_info(hq_env: HqEnv):
     table = hq_env.command(["worker", "info", "1"], as_table=True)
     table.check_row_value("Worker ID", "1")
     table.check_row_value("Heartbeat", "10s")
-    table.check_row_value("Resources", "1x10 cpus")
+    table.check_row_value("Resources", "cpus: 10")
     table.check_row_value("Manager", "None")
 
 

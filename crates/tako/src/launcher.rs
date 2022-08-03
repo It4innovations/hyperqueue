@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::process::Stdio;
 
 use crate::internal::common::error::DsError::GenericError;
-use crate::internal::common::resources::{ResourceAllocation, ResourceRequest};
+use crate::internal::common::resources::{Allocation, ResourceRequest};
 use bstr::ByteSlice;
 use tokio::process::Command;
 
@@ -79,7 +79,7 @@ impl<'a> LaunchContext<'a> {
         &self.task.resources
     }
 
-    pub fn allocation(&self) -> &'a ResourceAllocation {
+    pub fn allocation(&self) -> &'a Allocation {
         self.task.resource_allocation().unwrap()
     }
 

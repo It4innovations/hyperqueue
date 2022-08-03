@@ -1,4 +1,4 @@
-use crate::internal::common::resources::{ResourceAllocation, ResourceRequest};
+use crate::internal::common::resources::{Allocation, ResourceRequest};
 use crate::internal::common::Map;
 use crate::internal::messages::worker::ComputeTaskMsg;
 use crate::internal::worker::rqueue::ResourceWaitQueue;
@@ -43,7 +43,7 @@ impl ResourceQueueBuilder {
         self.task_map.insert(task);
     }
 
-    pub fn start_tasks(&mut self) -> Map<u64, ResourceAllocation> {
+    pub fn start_tasks(&mut self) -> Map<u64, Allocation> {
         self.queue
             .try_start_tasks(&self.task_map, None)
             .into_iter()
@@ -51,7 +51,7 @@ impl ResourceQueueBuilder {
             .collect()
     }
 
-    pub fn start_tasks_duration(&mut self, duration: Duration) -> Map<u64, ResourceAllocation> {
+    pub fn start_tasks_duration(&mut self, duration: Duration) -> Map<u64, Allocation> {
         self.queue
             .try_start_tasks(&self.task_map, Some(duration))
             .into_iter()

@@ -25,7 +25,7 @@ pub struct JobTimeline {
     job_timeline: Map<JobId, DashboardJobInfo>,
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum DashboardTaskState {
     Running,
     Finished,

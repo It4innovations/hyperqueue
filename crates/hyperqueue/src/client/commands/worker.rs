@@ -1,7 +1,8 @@
+use anyhow::bail;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use tako::resources::ResourceDescriptor;
+use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, CPU_RESOURCE_NAME};
 use tako::worker::{ServerLostPolicy, WorkerConfiguration};
 use tako::Map;
 
@@ -22,8 +23,8 @@ use crate::transfer::messages::{
 use crate::worker::bootstrap::{
     finalize_configuration, initialize_worker, try_get_pbs_info, try_get_slurm_info,
 };
-use crate::worker::hwdetect::{detect_cpus, detect_cpus_no_ht, detect_generic_resources};
-use crate::worker::parser::{ArgCpuDefinition, ArgGenericResourceDef, CpuDefinition};
+use crate::worker::hwdetect::{detect_additional_resources, detect_cpus, prune_hyper_threading};
+use crate::worker::parser::{ArgCpuDefinition, ArgResourceItemDef};
 use crate::WorkerId;
 
 #[derive(clap::ArgEnum, Clone)]
@@ -58,16 +59,20 @@ impl From<ArgServerLostPolicy> for ServerLostPolicy {
 #[derive(Parser)]
 pub struct WorkerStartOpts {
     /// How many cores should be allocated for the worker
-    #[clap(long, default_value = "auto")]
-    pub cpus: ArgCpuDefinition,
+    #[clap(long)]
+    pub cpus: Option<ArgCpuDefinition>,
 
     /// Resources
     #[clap(long, multiple_occurrences(true))]
-    pub resource: Vec<ArgGenericResourceDef>,
+    pub resource: Vec<ArgResourceItemDef>,
 
     #[clap(long = "no-detect-resources")]
     /// Disable auto-detection of resources
     pub no_detect_resources: bool,
+
+    #[clap(long = "no-hyper-threading")]
+    /// Ignore hyper-threading while detecting CPU cores
+    pub no_hyper_threading: bool,
 
     /// How often should the worker announce its existence to the server. (default: "8s")
     #[clap(long, default_value = "8s")]
@@ -121,24 +126,33 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
 
     let hostname = get_hostname(opts.hostname);
 
-    let cpus = match opts.cpus.unpack() {
-        CpuDefinition::Detect => detect_cpus()?,
-        CpuDefinition::DetectNoHyperThreading => detect_cpus_no_ht()?,
-        CpuDefinition::Custom(cpus) => cpus,
-    };
-
-    let mut generic = if opts.no_detect_resources {
-        Vec::new()
-    } else {
-        detect_generic_resources()?
-    };
-    for def in opts.resource {
-        let descriptor = def.unpack();
-        generic.retain(|desc| desc.name != descriptor.name);
-        generic.push(descriptor)
+    let mut resources: Vec<_> = opts.resource.into_iter().map(|x| x.unpack()).collect();
+    if !resources.iter().any(|x| x.name == CPU_RESOURCE_NAME) {
+        resources.push(ResourceDescriptorItem {
+            name: CPU_RESOURCE_NAME.to_string(),
+            kind: if let Some(cpus) = opts.cpus {
+                cpus.unpack()
+            } else {
+                detect_cpus()?
+            },
+        })
+    } else if opts.cpus.is_some() {
+        bail!("Parameters --cpus and --resource cpus=... cannot be combined");
     }
 
-    let resources = ResourceDescriptor::new(cpus, generic);
+    if opts.no_hyper_threading {
+        let cpus = resources
+            .iter_mut()
+            .find(|x| x.name == CPU_RESOURCE_NAME)
+            .unwrap();
+        cpus.kind = prune_hyper_threading(&cpus.kind)?;
+    }
+
+    if !opts.no_detect_resources {
+        detect_additional_resources(&mut resources)?;
+    }
+
+    let resources = ResourceDescriptor::new(resources);
     resources.validate()?;
 
     let (work_dir, log_dir) = {

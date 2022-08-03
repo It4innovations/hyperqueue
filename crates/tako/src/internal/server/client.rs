@@ -1,4 +1,4 @@
-use crate::internal::common::resources::{GenericResourceRequest, ResourceRequest};
+use crate::internal::common::resources::ResourceRequest;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::gateway::{
@@ -11,6 +11,7 @@ use crate::internal::server::core::{Core, CoreRef};
 use crate::internal::server::reactor::{on_cancel_tasks, on_new_tasks, on_set_observe_flag};
 use crate::internal::server::task::{Task, TaskConfiguration, TaskInput, TaskRuntimeState};
 //use crate::internal::transfer::transport::make_protocol_builder;
+use crate::internal::common::resources::request::ResourceRequestEntry;
 use std::rc::Rc;
 
 /*pub(crate) async fn client_connection_handler(
@@ -66,23 +67,21 @@ fn create_task_configuration(
     msg: SharedTaskConfiguration,
 ) -> TaskConfiguration {
     let resources_msg = msg.resources;
-    let generic_resources = resources_msg
-        .generic
-        .into_iter()
-        .map(|req| {
-            let resource = core_ref.get_or_create_generic_resource_id(&req.resource);
-            GenericResourceRequest {
-                resource,
-                amount: req.amount,
-            }
-        })
-        .collect();
 
     let resources = ResourceRequest::new(
         resources_msg.n_nodes,
-        resources_msg.cpus,
         resources_msg.min_time,
-        generic_resources,
+        resources_msg
+            .resources
+            .into_iter()
+            .map(|r| {
+                let resource_id = core_ref.get_or_create_resource_id(&r.resource);
+                ResourceRequestEntry {
+                    resource_id,
+                    request: r.policy,
+                }
+            })
+            .collect(),
     );
 
     TaskConfiguration {
@@ -218,6 +217,12 @@ fn handle_new_tasks(
             (Rc::new(create_task_configuration(core, c)), keep, observe)
         })
         .collect();
+
+    for cfg in &configurations {
+        if let Err(e) = cfg.0.resources.validate() {
+            return Some(format!("Invalid task request {:?}", e));
+        }
+    }
 
     let mut tasks: Vec<Task> = Vec::with_capacity(msg.tasks.len());
     for task in msg.tasks {

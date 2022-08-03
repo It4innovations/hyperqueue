@@ -2,9 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 use crate::hwstats::WorkerHwStateMessage;
-use crate::internal::common::resources::{CpuId, GenericResourceAmount, GenericResourceIndex};
+use crate::internal::common::resources::{ResourceAmount, ResourceIndex};
 use crate::internal::messages::common::TaskFailInfo;
-use crate::resources::NumOfCpus;
 use crate::task::SerializedTaskContext;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, WorkerId};
@@ -43,8 +42,7 @@ pub struct TaskIdsMsg {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerResourceCounts {
-    pub n_cpus: NumOfCpus,
-    pub n_generic_resources: Vec<GenericResourceAmount>,
+    pub n_resources: Vec<ResourceAmount>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -109,23 +107,22 @@ pub struct StealResponseMsg {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
-pub enum GenericResourceAllocationValue {
-    Indices(Vec<GenericResourceIndex>),
-    Sum(GenericResourceAmount),
+pub enum TaskResourceAllocationValue {
+    Indices(Vec<ResourceIndex>),
+    Sum(ResourceAmount),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
-pub struct GenericResourceAllocation {
+pub struct ResourceAllocation {
     pub resource: String,
-    pub value: GenericResourceAllocationValue,
+    pub value: TaskResourceAllocationValue,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct TaskResourceAllocation {
-    pub cpus: Vec<CpuId>,
-    pub generic_allocations: Vec<GenericResourceAllocation>,
+    pub resources: Vec<ResourceAllocation>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

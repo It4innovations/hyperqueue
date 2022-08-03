@@ -1,4 +1,4 @@
-use crate::internal::common::resources::ResourceAllocation;
+use crate::internal::common::resources::Allocation;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{FromWorkerMessage, TaskRunningMsg};
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
@@ -12,7 +12,7 @@ pub(crate) fn run_task(
     state: &mut WorkerState,
     state_ref: &WorkerStateRef,
     task_id: TaskId,
-    allocation: ResourceAllocation,
+    allocation: Allocation,
 ) {
     log::debug!("Task={} assigned", task_id);
 

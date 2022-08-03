@@ -6,16 +6,16 @@ use std::{fs, io};
 use anyhow::{anyhow, bail};
 use bstr::BString;
 use clap::Parser;
-use tako::gateway::{GenericResourceRequest, ResourceRequest};
+use tako::gateway::{ResourceRequest, ResourceRequestEntries, ResourceRequestEntry};
 use tako::program::{ProgramDefinition, StdioDef};
-use tako::resources::{CpuRequest, GenericResourceAmount, NumOfNodes};
+use tako::resources::{AllocationRequest, NumOfNodes, CPU_RESOURCE_NAME};
 
 use super::directives::parse_hq_directives;
 use crate::client::commands::submit::directives::parse_hq_directives_from_file;
 use crate::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
-use crate::client::resources::{parse_cpu_request, parse_resource_request};
+use crate::client::resources::{parse_allocation_request, parse_resource_request};
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::placeholders::{
@@ -66,10 +66,10 @@ const DEFAULT_STDERR_PATH: &str = const_format::concatcp!(
     ".stderr"
 );
 
-crate::arg_wrapper!(ArgCpuRequest, CpuRequest, parse_cpu_request);
+crate::arg_wrapper!(ArgCpuRequest, AllocationRequest, parse_allocation_request);
 crate::arg_wrapper!(
     ArgNamedResourceRequest,
-    (String, GenericResourceAmount),
+    (String, AllocationRequest),
     parse_resource_request
 );
 
@@ -275,7 +275,7 @@ impl SubmitJobConfOpts {
     }
 }
 
-#[derive(clap::ArgEnum, Clone, PartialEq)]
+#[derive(clap::ArgEnum, Clone, Eq, PartialEq)]
 pub enum DirectivesMode {
     Auto,
     File,
@@ -328,36 +328,53 @@ pub struct JobSubmitOpts {
 }
 
 impl JobSubmitOpts {
-    fn resource_request(&self) -> ResourceRequest {
-        let generic_resources = self
+    fn resource_request(&self) -> anyhow::Result<ResourceRequest> {
+        let mut resources: ResourceRequestEntries = self
             .conf
             .resource
             .iter()
-            .map(|gr| {
-                let rq = gr.get().clone();
-                GenericResourceRequest {
-                    resource: rq.0,
-                    amount: rq.1,
+            .map(|r| {
+                let r = r.get().clone();
+                ResourceRequestEntry {
+                    resource: r.0,
+                    policy: r.1,
                 }
             })
             .collect();
 
-        ResourceRequest {
+        let has_cpus = resources.iter().any(|r| r.resource == CPU_RESOURCE_NAME);
+
+        if let Some(cpus) = &self.conf.cpus {
+            if has_cpus {
+                anyhow::bail!("--cpus and --resource cpus=... cannot be combined");
+            }
+            resources.insert(
+                0,
+                ResourceRequestEntry {
+                    resource: CPU_RESOURCE_NAME.to_string(),
+                    policy: cpus.get().clone(),
+                },
+            )
+        } else if !has_cpus {
+            resources.insert(
+                0,
+                ResourceRequestEntry {
+                    resource: CPU_RESOURCE_NAME.to_string(),
+                    policy: AllocationRequest::Compact(1),
+                },
+            )
+        }
+
+        Ok(ResourceRequest {
             n_nodes: self.conf.nodes.unwrap_or(0),
-            cpus: self
-                .conf
-                .cpus
-                .as_ref()
-                .map(|c| c.get().clone())
-                .unwrap_or_default(),
             min_time: self
                 .conf
                 .time_request
                 .as_ref()
                 .map(|t| *t.get())
                 .unwrap_or_else(|| std::time::Duration::from_millis(0)),
-            generic: generic_resources,
-        }
+            resources,
+        })
     }
 }
 
@@ -422,7 +439,7 @@ pub async fn submit_computation(
 
     let opts = handle_directives(opts, stdin.as_deref())?;
 
-    let resources = opts.resource_request();
+    let resources = opts.resource_request()?;
     let (ids, entries) = get_ids_and_entries(&opts)?;
     let task_count = ids.id_count();
 

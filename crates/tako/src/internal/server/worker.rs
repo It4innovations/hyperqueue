@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::common::resources::ResourceRequest;
-use crate::internal::common::resources::{NumOfCpus, TimeRequest};
+use crate::internal::common::resources::TimeRequest;
 use crate::internal::common::Set;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::server::comm::Comm;
@@ -160,12 +160,8 @@ impl Worker {
             .have_immediate_resources_for_lb(rrb, &self.resources)
     }
 
-    pub fn is_more_loaded_then(&self, worker: &Worker) -> bool {
-        self.sn_load.is_more_loaded_then(&worker.sn_load)
-    }
-
-    pub fn get_free_cores(&self) -> NumOfCpus {
-        todo!()
+    pub fn load_wrt_request(&self, request: &ResourceRequest) -> u32 {
+        self.sn_load.load_wrt_request(&self.resources, request)
     }
 
     pub fn set_parked_flag(&mut self, value: bool) {
