@@ -6,6 +6,10 @@
 * [#457](https://github.com/It4innovations/hyperqueue/pull/457) You can now specify the idle timeout
 for workers started by the automatic allocator using the `--idle-timeout` flag of the `hq alloc add` command.
 
+## New features
+* [#463](https://github.com/It4innovations/hyperqueue/pull/463) You can now wait until `N` workers 
+are connected to the clusters with `hq worker wait N`.
+
 ## Changes
 
 ### CLI
