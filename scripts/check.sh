@@ -21,7 +21,7 @@ cargo test
 cargo build --all
 
 # Build Python binding
-maturin develop --manifest-path crates/pyhq/Cargo.toml
+maturin develop --manifest-path crates/pyhq/Cargo.toml --extras all
 
 # Test Python code
 python -m pytest tests -n32

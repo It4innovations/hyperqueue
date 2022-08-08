@@ -11,11 +11,11 @@ classifiers = [
 requires-python = ">=3.6"
 description = "HyperQueue Python API"
 dependencies = [
-    "cloudpickle==2.0",
+    "cloudpickle>=2.0,<3",
     "tqdm>=4.60,<5"
 ]
 
 [project.optional-dependencies]
 all = [
-    "pydot==1.4.2"
+    "pydot>=1.4,<2"
 ]
