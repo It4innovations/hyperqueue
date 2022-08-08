@@ -13,7 +13,8 @@ def get_version(output: str):
         tags = [
             t.strip() for t in output.splitlines(keepends=False) if t.startswith("v")
         ]
-        tags = [tag for tag in tags if "-rc" not in tag]
+        # Ignore pre-release versions
+        tags = [tag for tag in tags if "-" not in tag]
         if not tags:
             return latest_version()
         tags = sorted(tags)
