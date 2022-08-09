@@ -1,4 +1,4 @@
-## Generic resource management
+# Generic resource management
 
 Generic resource management serves for defining arbitrary resources provided by workers and
 also corresponding **resource requests** required by tasks. HyperQueue will take care of matching
@@ -22,7 +22,7 @@ then ask for a part of resources contained in that pool.
 
 There are two kind of resource pools:
 
-* **Indexed pool**: This pool represents an enumerated set of resources represented by integers.
+* **Indexed pool** This pool represents an enumerated set of resources represented by integers.
 Each resource has its own identity. Tasks do not ask for specific values from the set, they just specify
 how many resources do they require and HyperQueue will allocate the specified amount of resources
 from the pool for each task.
@@ -35,7 +35,7 @@ from the pool for each task.
     currently have enough individual resources to fulfill the [resource request](#resource-request)
     of the task.
 
-* **Sum pool**: This pool represents a resource that has a certain size which be split into individual
+* **Sum pool** This pool represents a resource that has a certain size which be split into individual
 tasks. A typical example is memory; if a worker has `2000` bytes of memory, it can serve e.g. four
 tasks, if each task asks for `500` bytes of memory.
 
@@ -46,17 +46,18 @@ tasks, if each task asks for `500` bytes of memory.
 
 You can specify the resource pools of a worker when you start it:
 
-```
+```bash
 $ hq worker start --resource "<NAME1>=<DEF1>" --resource "<NAME2>=<DEF2>" ...
 ```
+
 where `NAMEi` is a name (string ) of the `i`-th resource pool and `DEFi` is a definition of the
 `i-th` resource pool. You can define resource pools using one of the following formats:
 
-* ``list(<VALUE0>,<VALUE1>,...,<VALUEN>)`` where ``VALUEi`` is a non-negative integer. This will
+* `list(<VALUE0>,<VALUE1>,...,<VALUEN>)` where `VALUEi` is a non-negative integer. This will
 create an indexed pool containing the specified values.
-* ``range(<START>-<END>)`` where ``START`` and ``END`` are non-negative integers. This will create
+* `range(<START>-<END>)` where `START` and `END` are non-negative integers. This will create
 an indexed pool with numbers in the inclusive range `[START, END]`.
-* ``sum(<SIZE>)`` where ``SIZE`` is a positive integer. This will create a sum pool with the given
+* `sum(<SIZE>)` where `SIZE` is a positive integer. This will create a sum pool with the given
 size.
 
 !!! tip
@@ -71,7 +72,7 @@ size.
 
 ### Automatically detected resources
 
-* Nvidia GPUs that are available when a worker is started are automatically detected under the resource
+Nvidia GPUs that are available when a worker is started are automatically detected under the resource
 name `gpus`. You can use the environment variable `CUDA_VISIBLE_DEVICES` when starting a worker to
 override the list of available GPUs:
 
