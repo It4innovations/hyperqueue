@@ -31,7 +31,10 @@ nav:
     - Shortcuts: cli/shortcuts.md
     - Output mode: cli/output-mode.md
   - Python API:
-      - python/index.md
+      - Getting started: python/index.md
+      - Client: python/client.md
+      - Submitting jobs: python/submit.md
+      - Dependencies: python/dependencies.md
       - API reference: python/apidoc/
   - Events: events.md
   - FAQ: faq.md

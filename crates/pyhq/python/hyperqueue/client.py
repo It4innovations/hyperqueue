@@ -1,6 +1,6 @@
 import itertools
 import logging
-from typing import Dict, Optional, Sequence, Union
+from typing import Dict, Optional, Sequence
 
 from tqdm import tqdm
 
