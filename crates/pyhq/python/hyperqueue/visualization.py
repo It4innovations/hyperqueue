@@ -1,7 +1,7 @@
 from .common import GenericPath
 from .job import Job
 from .task.task import Task
-from .utils import MissingPackageException
+from .utils.package import MissingPackageException
 
 
 def visualize_job(job: Job, path: GenericPath):
