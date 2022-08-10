@@ -10,6 +10,7 @@ load-balance tasks across all allocated nodes and cores.
 ## Useful links
 - [Installation](installation.md)
 - [Quick start](quickstart.md)
+- [Python API](python)
 - [Repository](https://github.com/It4innovations/hyperqueue)
 - [Discussion forum](https://github.com/It4innovations/hyperqueue/discussions)
 - [Zulip (chat platform)](https://hyperqueue.zulipchat.com/)
