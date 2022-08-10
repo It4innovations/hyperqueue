@@ -1,10 +1,10 @@
 import itertools
 import logging
-from pathlib import Path
-from typing import Dict, Optional, Sequence
+from typing import Dict, Optional, Sequence, Union
 
 from tqdm import tqdm
 
+from .common import GenericPath
 from .ffi.client import (
     ClientConnection,
     FailedTaskContext,
@@ -14,10 +14,9 @@ from .ffi.client import (
 )
 from .job import Job, SubmittedJob
 from .task.function import PythonEnv
-from .utils import pluralize
+from .utils.string import pluralize
 
 MAX_PRINTED_TASKS = 5
-
 
 JobMap = Dict[JobId, Job]
 
@@ -54,7 +53,9 @@ class FailedJobsException(Exception):
 
 class Client:
     def __init__(
-        self, server_dir: Optional[Path] = None, python_env: Optional[PythonEnv] = None
+        self,
+        server_dir: Optional[GenericPath] = None,
+        python_env: Optional[PythonEnv] = None,
     ):
         """
         A client serves as a gateway for submitting jobs and querying information about a running
