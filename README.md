@@ -197,6 +197,9 @@ You can find more frequently asked questions [here](https://it4innovations.githu
 We are a group of researchers working at [IT4Innovations](https://www.it4i.cz/), the Czech National
 Supercomputing Center. We welcome any outside contributions.
 
+# References
+HyperQueue poster at [SC'21](https://sc21.supercomputing.org/proceedings/tech_poster/tech_poster_pages/rpost104.html).
+
 # Acknowledgement
 
 * This work was supported by the LIGATE project. This project has received funding from the European High-Performance Computing Joint Undertaking (JU) under grant agreement No 956137. The JU receives support from the European Union’s Horizon 2020 research and innovation programme and Italy, Sweden, Austria, the Czech Republic, Switzerland.
