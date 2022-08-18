@@ -53,7 +53,8 @@ pub const TASK_COLOR_RUNNING: Colorization = Colorization::Yellow;
 pub const TASK_COLOR_INVALID: Colorization = Colorization::BrightRed;
 
 const TERMINAL_WIDTH: usize = 80;
-const ERROR_TRUNCATE_LENGTH: usize = 16;
+const ERROR_TRUNCATE_LENGTH_LIST: usize = 16;
+const ERROR_TRUNCATE_LENGTH_INFO: usize = 237;
 
 pub struct CliOutput {
     color_policy: ColorChoice,
@@ -588,8 +589,8 @@ impl Output for CliOutput {
                             match (verbosity, &task.state) {
                                 (Verbosity::Normal, JobTaskState::Failed { error, .. }) => {
                                     let mut error_mut = error.clone();
-                                    if error_mut.len() >= ERROR_TRUNCATE_LENGTH {
-                                        error_mut.truncate(ERROR_TRUNCATE_LENGTH);
+                                    if error_mut.len() >= ERROR_TRUNCATE_LENGTH_LIST {
+                                        error_mut.truncate(ERROR_TRUNCATE_LENGTH_LIST);
                                         error_mut.push_str("...");
                                         is_truncated = true;
                                     }
@@ -636,78 +637,74 @@ impl Output for CliOutput {
         verbosity: Verbosity,
     ) {
         let mut is_truncated = false;
-        let mut rows: Vec<Vec<CellStruct>> = vec![];
         let (_job_id, job) = job;
         let task_to_paths = resolve_task_paths(&job, server_uid);
+        let (start, end) = get_task_time(&task.state);
+        let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, task);
 
-        rows.append(
-            &mut vec![task]
-                .iter()
-                .map(|task| {
-                    let (start, end) = get_task_time(&task.state);
-                    let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, task);
-
-                    let mut job_rows = vec![];
-                    job_rows.append(&mut vec![
-                        task.task_id.cell().justify(Justify::Right),
-                        task_status_to_cell(get_task_status(&task.state)),
-                        match task.state.get_workers() {
-                            Some(workers) => format_workers(workers, &worker_map),
-                            _ => "".into(),
+        let rows: Vec<Vec<CellStruct>> = vec![
+            vec!["Task ID".cell().bold(true), task.task_id.cell()],
+            vec![
+                "State".cell().bold(true),
+                task_status_to_cell(get_task_status(&task.state)),
+            ],
+            vec![
+                "Worker".cell().bold(true),
+                match task.state.get_workers() {
+                    Some(workers) => format_workers(workers, &worker_map),
+                    _ => "".into(),
+                }
+                .cell(),
+            ],
+            vec![
+                "Times".cell().bold(true),
+                multiline_cell(vec![
+                    (
+                        "Start",
+                        start
+                            .map(|x| format_time(x).to_string())
+                            .unwrap_or_else(|| "".to_string()),
+                    ),
+                    (
+                        "End",
+                        end.map(|x| format_time(x).to_string())
+                            .unwrap_or_else(|| "".to_string()),
+                    ),
+                    ("Makespan", format_task_duration(start, end)),
+                ]),
+            ],
+            vec![
+                "Paths".cell().bold(true),
+                multiline_cell(vec![
+                    ("Workdir", cwd),
+                    ("Stdout", stdout),
+                    ("Stderr", stderr),
+                ]),
+            ],
+            vec![
+                "Error".cell().bold(true),
+                match (verbosity, &task.state) {
+                    (Verbosity::Normal, JobTaskState::Failed { error, .. }) => {
+                        let mut error_mut = error.clone();
+                        if error_mut.len() >= ERROR_TRUNCATE_LENGTH_INFO {
+                            error_mut.truncate(ERROR_TRUNCATE_LENGTH_INFO);
+                            error_mut.push_str("...");
+                            is_truncated = true;
                         }
-                        .cell(),
-                        multiline_cell(vec![
-                            (
-                                "Start",
-                                start
-                                    .map(|x| format_time(x).to_string())
-                                    .unwrap_or_else(|| "".to_string()),
-                            ),
-                            (
-                                "End",
-                                end.map(|x| format_time(x).to_string())
-                                    .unwrap_or_else(|| "".to_string()),
-                            ),
-                            ("Makespan", format_task_duration(start, end)),
-                        ]),
-                        multiline_cell(vec![
-                            ("Workdir", cwd),
-                            ("Stdout", stdout),
-                            ("Stderr", stderr),
-                        ]),
-                        match (verbosity, &task.state) {
-                            (Verbosity::Normal, JobTaskState::Failed { error, .. }) => {
-                                let mut error_mut = error.clone();
-                                if error_mut.len() >= ERROR_TRUNCATE_LENGTH {
-                                    error_mut.truncate(ERROR_TRUNCATE_LENGTH);
-                                    error_mut.push_str("...");
-                                    is_truncated = true;
-                                }
-                                error_mut.cell().foreground_color(Some(Color::Red))
-                            }
-                            (Verbosity::Verbose, JobTaskState::Failed { error, .. }) => {
-                                error.to_owned().cell().foreground_color(Some(Color::Red))
-                            }
-                            _ => "".cell(),
-                        },
-                    ]);
+                        error_mut.cell().foreground_color(Some(Color::Red))
+                    }
+                    (Verbosity::Verbose, JobTaskState::Failed { error, .. }) => {
+                        error.to_owned().cell().foreground_color(Some(Color::Red))
+                    }
+                    _ => "".cell(),
+                },
+            ],
+        ];
+        self.print_vertical_table(rows);
 
-                    job_rows
-                })
-                .collect(),
-        );
-
-        let mut header = vec![];
-        header.append(&mut vec![
-            "Task ID".cell().bold(true),
-            "State".cell().bold(true),
-            "Worker".cell().bold(true),
-            "Times".cell().bold(true),
-            "Paths".cell().bold(true),
-            "Error".cell().bold(true),
-        ]);
-
-        self.print_horizontal_table(rows, header);
+        if is_truncated {
+            log::info!("An error message was truncated. Use -v to display the full error.");
+        }
     }
 
     fn print_summary(&self, filename: &Path, summary: Summary) {
