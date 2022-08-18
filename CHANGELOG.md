@@ -41,6 +41,12 @@ tasks will now result in an explicit error, rather than a crash of the client.
 ## New features
 
 ### CLI
+* [#464](https://github.com/It4innovations/hyperqueue/pull/464) New command was added that allows users 
+to see more detailed info about selected task `TASK_ID` from a concrete job `JOB_ID`.
+    ```bash
+    $ hq task info JOB_ID TASK_ID
+    ```
+
 * [#423](https://github.com/It4innovations/hyperqueue/pull/423) You can now specify the server
 directory using the `HQ_SERVER_DIR` environment variable.
 
@@ -66,6 +72,8 @@ detect available GPU resources from the `CUDA_VISIBLE_DEVICES` environment varia
 ## Changes
 
 ### CLI
+* [#464](https://github.com/It4innovations/hyperqueue/pull/464) More detailed task information (Time, Paths) 
+  were moved from `hq task list` into `hq task info`.
 * [#433](https://github.com/It4innovations/hyperqueue/pull/433) (**Backwards incompatible change**)
   The CLI command `hq job tasks` has been removed and its functionality has been incorporated into the
   `hq task list` command instead.

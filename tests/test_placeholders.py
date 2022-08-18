@@ -34,7 +34,7 @@ def test_job_paths_prefilled_placeholders(hq_env: HqEnv):
 
 # (cwd, stdout, stderr)
 def get_paths(task_table: Table) -> Tuple[str, str, str]:
-    cell = parse_multiline_cell(task_table.get_column_value("Paths")[0])
+    cell = parse_multiline_cell(task_table.get_row_value("Paths"))
     return (cell["Workdir"], cell["Stdout"], cell["Stderr"])
 
 
@@ -44,7 +44,7 @@ def test_task_resolve_submit_placeholders(hq_env: HqEnv):
     hq_env.command(["submit", "echo", "test"])
     table = hq_env.command(["task", "info", "1", "0"], as_table=True)
     wait_for_job_state(hq_env, 1, "WAITING")
-    assert table.get_column_value("Paths")[0] == ""
+    assert table.get_row_value("Paths") == ""
 
     hq_env.start_worker()
 
@@ -75,7 +75,7 @@ def test_task_resolve_worker_placeholders(hq_env: HqEnv):
     )
     table = hq_env.command(["task", "info", "1", "0"], as_table=True)
     wait_for_job_state(hq_env, 1, "WAITING")
-    assert table.get_column_value("Paths")[0] == ""
+    assert table.get_row_value("Paths") == ""
 
     hq_env.start_worker()
 

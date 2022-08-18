@@ -45,7 +45,7 @@ def test_submit_cwd(hq_env: HqEnv):
     wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
 
     table = hq_env.command(["task", "info", str(submitted_job.id), "0"], as_table=True)
-    cell = table.get_column_value("Paths")[0]
+    cell = table.get_row_value("Paths")
     assert parse_multiline_cell(cell)["Workdir"] == str(cwd)
 
 
