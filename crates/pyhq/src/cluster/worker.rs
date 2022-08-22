@@ -31,7 +31,7 @@ impl RunningWorker {
             let log_dir = worker_dir.join("logs");
             let mut configuration = WorkerConfiguration {
                 resources: ResourceDescriptor {
-                    cpus: vec![vec![CpuId::from(cores as u32)]],
+                    cpus: vec![(0..cores).map(|id| CpuId::from(id as u32)).collect()],
                     generic: vec![],
                 },
                 listen_address: Default::default(),

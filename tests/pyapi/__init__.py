@@ -1,9 +1,12 @@
+import os.path
 from typing import List, Tuple
 
+from hyperqueue import LocalCluster
 from hyperqueue.client import Client
 from hyperqueue.job import Job
 
 from ..conftest import HqEnv
+from ..utils.mock import ProgramMock
 
 
 def prepare_job_client(
@@ -18,3 +21,8 @@ def prepare_job_client(
 
 def bash(command: str) -> List[str]:
     return ["bash", "-c", command]
+
+
+def hq_env_from_cluster(cluster: LocalCluster) -> HqEnv:
+    server_dir = cluster.cluster.server_dir
+    return HqEnv(server_dir, ProgramMock(os.path.join(server_dir, "mock")))
