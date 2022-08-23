@@ -637,13 +637,14 @@ impl Output for CliOutput {
         verbosity: Verbosity,
     ) {
         let mut is_truncated = false;
-        let (_job_id, job) = job;
+        let (job_id, job) = job;
         let task_to_paths = resolve_task_paths(&job, server_uid);
         let (start, end) = get_task_time(&task.state);
         let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, task);
+        let task_id = task.task_id;
 
         let rows: Vec<Vec<CellStruct>> = vec![
-            vec!["Task ID".cell().bold(true), task.task_id.cell()],
+            vec!["Task ID".cell().bold(true), task_id.cell()],
             vec![
                 "State".cell().bold(true),
                 task_status_to_cell(get_task_status(&task.state)),
@@ -699,6 +700,28 @@ impl Output for CliOutput {
                     _ => "".cell(),
                 },
             ],
+            {
+                let resources = match &job.job_desc {
+                    JobDescription::Array {
+                        ids: _,
+                        entries: _,
+                        task_desc,
+                    } => format_resource_request(&task_desc.resources),
+                    JobDescription::Graph { tasks } => {
+                        let opt_task_dep = tasks.iter().find(|t| t.id == task_id);
+                        match opt_task_dep {
+                            None => {
+                                log::warn!("Task {task_id} not found in (graph) job {job_id}");
+                                String::new()
+                            }
+                            Some(task_dep) => {
+                                format_resource_request(&task_dep.task_desc.resources)
+                            }
+                        }
+                    }
+                };
+                vec!["Resources".cell().bold(true), resources.cell()]
+            },
         ];
         self.print_vertical_table(rows);
 

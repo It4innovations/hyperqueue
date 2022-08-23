@@ -13,6 +13,10 @@ are connected to the clusters with `hq worker wait N`.
 ## Changes
 
 ### CLI
+* [#477](https://github.com/It4innovations/hyperqueue/pull/477) Requested resources are now shown while
+submitting an `array` and while viewing information about task `TASK_ID` of specified 
+job `JOB_ID` using `hq task info JOB_ID TASK_ID`
+
 * [#444](https://github.com/It4innovations/hyperqueue/pull/444) The `hq task list` command will now
 hide some details by default, to conserve space in terminal output. To show all details, use the
 `-v` flag to enable verbose output.
