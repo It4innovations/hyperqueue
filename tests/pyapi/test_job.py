@@ -217,3 +217,17 @@ def test_resource_uniqueness_priorities(hq_env: HqEnv):
     print(tasks_on_worker_2)
     tasks_on_worker_2 = [t["id"] for t in data if t["worker"] == 2]
     print(tasks_on_worker_2)
+
+
+def test_resources_task(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+
+    job.program(
+        args=bash("echo Hello"),
+        resources=ResourceRequest(cpus="2", generic={"res0": 1}),
+    )
+    submitted_job = client.submit(job)
+    wait_for_job_state(hq_env, 1, "WAITING")
+
+    table = hq_env.command(["task", "info", str(submitted_job.id), "0"], as_table=True)
+    table.check_row_value("Resources", "cpus: 2 compact\nres0: 1")
