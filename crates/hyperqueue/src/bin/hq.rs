@@ -31,15 +31,14 @@ use hyperqueue::client::status::Status;
 use hyperqueue::client::task::{
     output_job_task_info, output_job_task_list, TaskCommand, TaskInfoOpts, TaskListOpts, TaskOpts,
 };
-use hyperqueue::common::arraydef::IntArray;
-use hyperqueue::common::cli::{get_id_selector, get_task_selector, IdSelectorArg};
+use hyperqueue::common::cli::{
+    get_id_selector, get_task_id_selector, get_task_selector, IdSelectorArg,
+};
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
 use hyperqueue::dashboard::ui_loop::start_ui_loop;
 use hyperqueue::server::bootstrap::get_client_session;
-use hyperqueue::transfer::messages::{
-    FromClientMessage, IdSelector, JobInfoRequest, ToClientMessage,
-};
+use hyperqueue::transfer::messages::{FromClientMessage, JobInfoRequest, ToClientMessage};
 use hyperqueue::worker::hwdetect::{
     detect_additional_resources, detect_cpus, prune_hyper_threading,
 };
@@ -342,8 +341,8 @@ async fn command_task_info(gsettings: &GlobalSettings, opts: TaskInfoOpts) -> an
     output_job_task_info(
         gsettings,
         &mut session,
-        IdSelector::Specific(IntArray::from_id(opts.job_id.as_num())),
-        opts.task_id,
+        get_id_selector(opts.job_selector),
+        get_task_id_selector(Some(opts.task_selector)),
         opts.verbosity.into(),
     )
     .await

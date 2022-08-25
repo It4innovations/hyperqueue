@@ -51,7 +51,7 @@ pub fn get_task_selector(opt_task_selector_arg: Option<TaskSelectorArg>) -> Opti
     })
 }
 
-fn get_task_id_selector(id_selector_arg: Option<IntArray>) -> TaskIdSelector {
+pub fn get_task_id_selector(id_selector_arg: Option<IntArray>) -> TaskIdSelector {
     id_selector_arg
         .map(TaskIdSelector::Specific)
         .unwrap_or(TaskIdSelector::All)

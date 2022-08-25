@@ -105,7 +105,7 @@ impl Output for Quiet {
     fn print_task_info(
         &self,
         _job: (JobId, JobDetail),
-        _task: &JobTaskInfo,
+        _tasks: Vec<JobTaskInfo>,
         _worker_map: WorkerMap,
         _server_uid: &str,
         _verbosity: Verbosity,

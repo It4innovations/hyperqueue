@@ -628,19 +628,21 @@ impl Output for CliOutput {
     fn print_task_info(
         &self,
         job: (JobId, JobDetail),
-        task: &JobTaskInfo,
+        tasks: Vec<JobTaskInfo>,
         worker_map: WorkerMap,
         server_uid: &str,
         verbosity: Verbosity,
     ) {
-        let mut is_truncated = false;
         let (job_id, job) = job;
         let task_to_paths = resolve_task_paths(&job, server_uid);
-        let (start, end) = get_task_time(&task.state);
-        let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, task);
-        let task_id = task.task_id;
+        let mut is_truncated = false;
 
-        let (resources, priority) = match &job.job_desc {
+        for task in tasks {
+            let (start, end) = get_task_time(&task.state);
+            let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, &task);
+            let task_id = task.task_id;
+
+            let (resources, priority) = match &job.job_desc {
             JobDescription::Array {
                 ids: _,
                 entries: _,
@@ -663,72 +665,72 @@ impl Output for CliOutput {
                     ),
                 }
             }
-        };
-
-        let rows: Vec<Vec<CellStruct>> = vec![
-            vec!["Task ID".cell().bold(true), task_id.cell()],
-            vec![
-                "State".cell().bold(true),
-                task_status_to_cell(get_task_status(&task.state)),
-            ],
-            vec![
-                "Worker".cell().bold(true),
-                match task.state.get_workers() {
-                    Some(workers) => format_workers(workers, &worker_map),
-                    _ => "".into(),
-                }
-                .cell(),
-            ],
-            vec![
-                "Times".cell().bold(true),
-                multiline_cell(vec![
-                    (
-                        "Start",
-                        start
-                            .map(|x| format_time(x).to_string())
-                            .unwrap_or_else(|| "".to_string()),
-                    ),
-                    (
-                        "End",
-                        end.map(|x| format_time(x).to_string())
-                            .unwrap_or_else(|| "".to_string()),
-                    ),
-                    ("Makespan", format_task_duration(start, end)),
-                ]),
-            ],
-            vec![
-                "Paths".cell().bold(true),
-                multiline_cell(vec![
-                    ("Workdir", cwd),
-                    ("Stdout", stdout),
-                    ("Stderr", stderr),
-                ]),
-            ],
-            vec![
-                "Error".cell().bold(true),
-                match (verbosity, &task.state) {
-                    (Verbosity::Normal, JobTaskState::Failed { error, .. }) => {
-                        let mut error_mut = error.clone();
-                        if error_mut.len() >= ERROR_TRUNCATE_LENGTH_INFO {
-                            error_mut.truncate(ERROR_TRUNCATE_LENGTH_INFO);
-                            error_mut.push_str("...");
-                            is_truncated = true;
+        };let rows: Vec<Vec<CellStruct>> = vec![
+                vec!["Task ID".cell().bold(true), task_id.cell()],
+                vec![
+                    "State".cell().bold(true),
+                    task_status_to_cell(get_task_status(&task.state)),
+                ],
+                vec![
+                    "Worker".cell().bold(true),
+                    match task.state.get_workers() {
+                        Some(workers) => format_workers(workers, &worker_map),
+                        _ => "".into(),
+                    }
+                    .cell(),
+                ],
+                vec![
+                    "Times".cell().bold(true),
+                    multiline_cell(vec![
+                        (
+                            "Start",
+                            start
+                                .map(|x| format_time(x).to_string())
+                                .unwrap_or_else(|| "".to_string()),
+                        ),
+                        (
+                            "End",
+                            end.map(|x| format_time(x).to_string())
+                                .unwrap_or_else(|| "".to_string()),
+                        ),
+                        ("Makespan", format_task_duration(start, end)),
+                    ]),
+                ],
+                vec![
+                    "Paths".cell().bold(true),
+                    multiline_cell(vec![
+                        ("Workdir", cwd),
+                        ("Stdout", stdout),
+                        ("Stderr", stderr),
+                    ]),
+                ],
+                vec![
+                    "Error".cell().bold(true),
+                    match (verbosity, &task.state) {
+                        (Verbosity::Normal, JobTaskState::Failed { error, .. }) => {
+                            let mut error_mut = error.clone();
+                            if error_mut.len() >= ERROR_TRUNCATE_LENGTH_INFO {
+                                error_mut.truncate(ERROR_TRUNCATE_LENGTH_INFO);
+                                error_mut.push_str("...");
+                                is_truncated = true;
+                            }
+                            error_mut.cell().foreground_color(Some(Color::Red))
                         }
-                        error_mut.cell().foreground_color(Some(Color::Red))
-                    }
-                    (Verbosity::Verbose, JobTaskState::Failed { error, .. }) => {
-                        error.to_owned().cell().foreground_color(Some(Color::Red))
-                    }
-                    _ => "".cell(),
-                },
-            ],
-            vec!["Resources".cell().bold(true), resources.cell()],
-            vec!["Priority".cell().bold(true), priority.cell()],
-        ];
-        self.print_vertical_table(rows);
+                        (Verbosity::Verbose, JobTaskState::Failed { error, .. }) => {
+                            error.to_owned().cell().foreground_color(Some(Color::Red))
+                        }
+                        _ => "".cell(),
+                    },
+                ],
+
+                    vec!["Resources".cell().bold(true), resources.cell()],
+                vec!["Priority".cell().bold(true), priority.cell()],
+            ];
+            self.print_vertical_table(rows);
+        }
 
         if is_truncated {
-            log::info!("An error message was truncated. Use -v to display the full error.");
+            log::info!("An error message(s) was truncated. Use -v to display the full error(s).");
         }
     }
 

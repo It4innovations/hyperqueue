@@ -71,7 +71,7 @@ pub trait Output {
     fn print_task_info(
         &self,
         job: (JobId, JobDetail),
-        task: &JobTaskInfo,
+        tasks: Vec<JobTaskInfo>,
         worker_map: WorkerMap,
         server_uid: &str,
         verbosity: Verbosity,

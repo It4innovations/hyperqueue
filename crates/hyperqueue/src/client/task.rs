@@ -8,7 +8,7 @@ use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDetailRequest, TaskIdSelector, TaskSelector,
     TaskStatusSelector, ToClientMessage,
 };
-use crate::{rpc_call, JobId, JobTaskId};
+use crate::{rpc_call};
 
 #[derive(clap::Parser)]
 pub struct TaskOpts {
@@ -38,11 +38,11 @@ pub struct TaskListOpts {
 
 #[derive(clap::Parser)]
 pub struct TaskInfoOpts {
-    /// Select specific job(s).
-    pub job_id: JobId,
+    /// Select specific job
+    pub job_selector: JobSelectorArg,
 
-    /// Select specific task by id
-    pub task_id: JobTaskId,
+    /// Select specific task(s)
+    pub task_selector: IntArray,
 
     #[clap(flatten)]
     pub verbosity: VerbosityFlag,
@@ -87,13 +87,32 @@ pub async fn output_job_task_info(
     gsettings: &GlobalSettings,
     session: &mut ClientSession,
     job_id_selector: IdSelector,
-    task_id: JobTaskId,
+    task_id_selector: TaskIdSelector,
     verbosity: Verbosity,
 ) -> anyhow::Result<()> {
+    match &job_id_selector {
+        IdSelector::All => {
+            log::warn!("Task info doesn't support multiple jobs.");
+            return Ok(());
+        }
+        IdSelector::Specific(ids) => {
+            if ids.id_count() > 1 {
+                log::warn!("Task info doesn't support multiple jobs.");
+                return Ok(());
+            }
+        }
+        IdSelector::LastN(s) => {
+            if *s > 1 {
+                log::warn!("Task info doesn't support multiple jobs.");
+                return Ok(());
+            }
+        }
+    }
+
     let message = FromClientMessage::JobDetail(JobDetailRequest {
         job_id_selector,
         task_selector: Some(TaskSelector {
-            id_selector: TaskIdSelector::Specific(IntArray::from_id(task_id.as_num())),
+            id_selector: task_id_selector,
             status_selector: TaskStatusSelector::All,
         }),
     });
@@ -105,16 +124,16 @@ pub async fn output_job_task_info(
     match opt_job {
         None => log::error!("Cannot find job {job_id}"),
         Some(job) => {
-            let opt_task = job.tasks.iter().find(|t| t.task_id == task_id);
-            match opt_task {
-                None => log::error!("Cannot find task {task_id} in job {job_id}"),
-                Some(task) => gsettings.printer().print_task_info(
-                    (*job_id, job.clone()),
-                    task,
-                    get_worker_map(session).await?,
-                    session.server_uid(),
-                    verbosity,
-                ),
+            gsettings.printer().print_task_info(
+                (*job_id, job.clone()),
+                job.tasks.clone(),
+                get_worker_map(session).await?,
+                session.server_uid(),
+                verbosity,
+            );
+
+            for task_id in &job.tasks_not_found {
+                log::warn!("Task {task_id} not found");
             }
         }
     }
