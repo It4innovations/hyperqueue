@@ -75,7 +75,7 @@ def test_job_submit_dir(hq_env: HqEnv):
     table.check_row_value("Submission directory", str(submit_dir))
 
 
-def test_custom_name(hq_env: HqEnv):
+def test_job_custom_name(hq_env: HqEnv):
     hq_env.start_server()
 
     hq_env.command(["submit", "--name=sleep_prog", "sleep", "1"])
@@ -91,21 +91,33 @@ def test_custom_name(hq_env: HqEnv):
         hq_env.command(["submit", "--name=second_sleep \n", "sleep", "1"])
     with pytest.raises(Exception):
         hq_env.command(["submit", "--name=second_sleep \t", "sleep", "1"])
-    with pytest.raises(Exception):
-        hq_env.command(
-            [
-                "submit",
-                "--name=sleep_sleep_sleep_sleep_sleep_sleep_sleep_sleep",
-                "sleep",
-                "1",
-            ]
-        )
 
     table = list_jobs(hq_env)
     assert len(table) == 1
 
 
-def test_custom_working_dir(hq_env: HqEnv, tmpdir):
+def test_job_truncate_long_name(hq_env: HqEnv):
+    hq_env.start_server()
+
+    hq_env.command(
+        [
+            "submit",
+            "--name=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "sleep",
+            "1",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "WAITING")
+
+    table = list_jobs(hq_env)
+    table.check_column_value(
+        "Name",
+        0,
+        "aaaaaaaaaaaaaaaaaaaaaaaa...bbbbbbbbbbbbbbbbbbbbbbb",
+    )
+
+
+def test_job_custom_working_dir(hq_env: HqEnv, tmpdir):
     hq_env.start_server()
 
     test_string = "cwd_test_string"
@@ -162,7 +174,7 @@ def test_job_output_default(hq_env: HqEnv, tmp_path):
     )
 
 
-def test_create_output_folders(hq_env: HqEnv):
+def test_job_create_output_folders(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
     hq_env.command(

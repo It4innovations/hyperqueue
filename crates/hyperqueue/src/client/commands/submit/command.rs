@@ -717,7 +717,6 @@ fn validate_name(name: String) -> anyhow::Result<String> {
         name if name.contains('\n') || name.contains('\t') => {
             Err(anyhow!("name cannot have a newline or a tab"))
         }
-        name if name.len() > 40 => Err(anyhow!("name cannot be more than 40 characters")),
         name => Ok(name),
     }
 }

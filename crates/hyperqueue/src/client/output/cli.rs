@@ -35,7 +35,7 @@ use tako::resources::{
 
 use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
 use crate::client::output::Verbosity;
-use crate::common::utils::str::{pluralize, select_plural};
+use crate::common::utils::str::{pluralize, select_plural, truncate_middle};
 use crate::worker::hwdetect::MEM_RESOURCE_NAME;
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
 use anyhow::Error;
@@ -410,7 +410,7 @@ impl Output for CliOutput {
                 let status = task_status_to_cell(job_status(&t));
                 vec![
                     t.id.cell().justify(Justify::Right),
-                    t.name.cell(),
+                    truncate_middle(&t.name, 50).cell(),
                     status,
                     t.n_tasks.cell(),
                 ]
