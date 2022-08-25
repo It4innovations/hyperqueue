@@ -42,3 +42,23 @@ def test_task_list_multi(hq_env: HqEnv):
     ]
     assert r.get_column_value("State") == ["FINISHED"] * 10
     assert r.get_column_value("Error") == [""] * 10
+
+
+def test_task_info(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["submit", "--array=5-7", "--", "bash", "-c", "hostname"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    r = hq_env.command(["task", "info", "1", "5"], as_table=True)
+    assert r.get_row_value("Task ID") == "5"
+
+    r = hq_env.command(["task", "info", "1", "4-6"])
+    assert "Task ID   | 5" in r
+    assert "Task ID   | 6" in r
+    assert "WARN Task 4 not found" in r
+
+    hq_env.command(["submit", "--", "bash", "-c", "hostname"])
+    r = hq_env.command(["task", "info", "last", "0"])
+    assert "Task ID   | 0" in r
