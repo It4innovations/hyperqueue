@@ -139,7 +139,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             ]
             pairs = []
             for pair in list(grouped):
-                pairs.append([pair[0], pair[1].describe().to_frame().T.to_html()])
+                pairs.append([pair[0], pair[1].describe().dropna().to_frame().T.to_html()])
             data["Grouped by benchmark:"] = pairs
             for i in range(len(data["Grouped by benchmark:"])):
                 formated_str = "-".join([str(z) for z in data["Grouped by benchmark:"][i][0]])
