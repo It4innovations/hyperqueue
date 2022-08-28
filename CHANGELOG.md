@@ -6,9 +6,16 @@
 * [#457](https://github.com/It4innovations/hyperqueue/pull/457) You can now specify the idle timeout
 for workers started by the automatic allocator using the `--idle-timeout` flag of the `hq alloc add` command.
 
-## New features
+### Resiliency
+* [#449](https://github.com/It4innovations/hyperqueue/pull/449) Tasks that were present during multiple
+crashes of the workers will be canceled.
+
+### CLI
 * [#463](https://github.com/It4innovations/hyperqueue/pull/463) You can now wait until `N` workers 
 are connected to the clusters with `hq worker wait N`.
+
+### Python API
+* Resource requests improvements in Python API.
 
 ## Changes
 
@@ -30,21 +37,16 @@ workers in multi-node Slurm allocations using `srun --overlap`. This should avoi
 task resources by the started workers (if possible). If you run into any issues with using `srun`
 inside HyperQueue tasks, please let us know.
 
-## Fixes
+### Jobs
+* [#483](https://github.com/It4innovations/hyperqueue/pull/483) There is no longer a length limit
+for job names.
 
-### Crashing tasks
-* [#449](https://github.com/It4innovations/hyperqueue/pull/449) Tasks that are repeatedly being
-executed by a worker that crashes will be canceled (since they can be the potential source of the
-worker crash).
+## Fixes
 
 ### Job submission
 * [#450](https://github.com/It4innovations/hyperqueue/pull/450) Attempts to resubmit a job with zero
 tasks will now result in an explicit error, rather than a crash of the client.
 
-## Changes
-
-* [#483](https://github.com/It4innovations/hyperqueue/pull/483) There is no longer a length limit
-for job names.
 
 # v0.11.0
 
