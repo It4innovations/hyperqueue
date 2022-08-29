@@ -1,4 +1,4 @@
-# Dev
+# v0.12.0
 
 ## New features
 
