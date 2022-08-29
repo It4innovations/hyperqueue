@@ -4,6 +4,7 @@ import os
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+
 def check_file(path, prefix, case_sensitive=False):
     with open(os.path.join(ROOT_DIR, path), "r") as f:
         for line in f:
@@ -11,7 +12,8 @@ def check_file(path, prefix, case_sensitive=False):
             if case_sensitive:
                 line = line.lower()
             if line.startswith(prefix):
-                print(path,":", line)
+                print(path, ":", line)
+
 
 check_file("crates/hyperqueue/Cargo.toml", "version")
 check_file("crates/pyhq/Cargo.toml", "version")
