@@ -49,7 +49,7 @@ def test_autoalloc_queue_list(hq_env: HqEnv):
 
 
 @pytest.mark.parametrize("manager", ("pbs", "slurm"))
-def test_timelimit_hms(hq_env: HqEnv, manager: str):
+def test_autoalloc_timelimit_hms(hq_env: HqEnv, manager: str):
     hq_env.start_server()
     add_queue(hq_env, manager=manager, time_limit="01:10:15")
 
@@ -58,7 +58,7 @@ def test_timelimit_hms(hq_env: HqEnv, manager: str):
 
 
 @pytest.mark.parametrize("manager", ("pbs", "slurm"))
-def test_timelimit_human_format(hq_env: HqEnv, manager: str):
+def test_autoalloc_timelimit_human_format(hq_env: HqEnv, manager: str):
     hq_env.start_server()
     add_queue(hq_env, manager=manager, time_limit="3h 15m 10s")
 
@@ -67,7 +67,7 @@ def test_timelimit_human_format(hq_env: HqEnv, manager: str):
 
 
 @pytest.mark.parametrize("manager", ("pbs", "slurm"))
-def test_require_timelimit(hq_env: HqEnv, manager: str):
+def test_autoalloc_require_timelimit(hq_env: HqEnv, manager: str):
     hq_env.start_server()
     add_queue(
         hq_env,
@@ -77,7 +77,7 @@ def test_require_timelimit(hq_env: HqEnv, manager: str):
     )
 
 
-def test_remove_queue(hq_env: HqEnv):
+def test_autoalloc_remove_queue(hq_env: HqEnv):
     hq_env.start_server()
     add_queue(hq_env)
     add_queue(hq_env)
@@ -89,3 +89,8 @@ def test_remove_queue(hq_env: HqEnv):
     table = hq_env.command(["alloc", "list"], as_table=True)
     table.check_columns_value(["ID"], 0, ["1"])
     table.check_columns_value(["ID"], 1, ["3"])
+
+
+def test_autoalloc_zero_backlog(hq_env: HqEnv):
+    hq_env.start_server()
+    add_queue(hq_env, name=None, backlog=0, expect_fail="Backlog has to be at least 1")
