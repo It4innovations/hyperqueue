@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::str::FromStr;
 use std::time::Duration;
 
 use crate::client::commands::worker::ArgServerLostPolicy;
@@ -60,12 +61,27 @@ enum AddQueueCommand {
     Slurm(SharedQueueOpts),
 }
 
+struct Backlog(u32);
+
+impl FromStr for Backlog {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let value: u32 = s.parse()?;
+        if value == 0 {
+            Err(anyhow::anyhow!("Backlog has to be at least 1"))
+        } else {
+            Ok(Backlog(value))
+        }
+    }
+}
+
 #[derive(Parser)]
 #[clap(trailing_var_arg(true))]
 struct SharedQueueOpts {
     /// How many jobs should be waiting in the queue to be started
     #[clap(long, short, default_value = "1")]
-    backlog: u32,
+    backlog: Backlog,
 
     /// Time limit (walltime) of PBS/Slurm allocations
     #[clap(long, short('t'))]
@@ -201,7 +217,7 @@ wasted allocation duration."
 
     AllocationQueueParams {
         workers_per_alloc,
-        backlog,
+        backlog: backlog.0,
         timelimit: time_limit.unpack(),
         name,
         additional_args,
