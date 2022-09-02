@@ -48,4 +48,4 @@ def test_cluster_worker_cores():
         wait_for_worker_state(hq_env, 1, "RUNNING")
 
         table = hq_env.command(["worker", "list"], as_table=True)
-        table.check_columns_value(["Resources"], 0, ["1x4 cpus"])
+        table.check_columns_value(["Resources"], 0, ["cpus 4"])

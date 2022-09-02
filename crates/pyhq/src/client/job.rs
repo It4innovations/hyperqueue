@@ -1,4 +1,5 @@
 use hyperqueue::client::output::resolve_task_paths;
+use hyperqueue::client::resources::parse_allocation_request;
 use hyperqueue::client::status::{is_terminated, Status};
 use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::utils::fs::get_current_dir;
@@ -14,18 +15,23 @@ use pyo3::{IntoPy, PyAny, PyResult, Python};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tako::gateway::ResourceRequestEntry;
+use tako::gateway::{ResourceRequestEntries, ResourceRequestEntry};
 use tako::program::{ProgramDefinition, StdioDef};
-use tako::resources::NumOfNodes;
+use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
 
 use crate::utils::error::ToPyResult;
 use crate::{borrow_mut, run_future, ClientContextPtr, FromPyObject, PyJobId, PyTaskId};
 
 #[derive(Debug, FromPyObject)]
+enum AllocationValue {
+    Int(u64),
+    String(String),
+}
+
+#[derive(Debug, FromPyObject)]
 pub struct ResourceRequestDescription {
     n_nodes: NumOfNodes,
-    cpus: String,
-    generic: HashMap<String, u64>,
+    resources: HashMap<String, AllocationValue>,
 }
 
 #[derive(Debug, FromPyObject)]
@@ -92,8 +98,6 @@ fn build_tasks(
 }
 
 fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<HqTaskDescription> {
-    todo!()
-    /*
     let args = desc.args.into_iter().map(|arg| arg.into()).collect();
     let env = desc
         .env
@@ -105,17 +109,24 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
     let stdin = desc.stdin.unwrap_or_default();
     let cwd = desc.cwd.unwrap_or_else(|| submit_dir.to_path_buf());
 
-
-
     let resources = if let Some(rs) = desc.resource_request {
         tako::gateway::ResourceRequest {
             n_nodes: rs.n_nodes,
-            cpus: parse_cpu_request(&rs.cpus)?,
-            generic: rs
-                .generic
+            resources: rs
+                .resources
                 .into_iter()
-                .map(|(resource, amount)| ResourceRequestEntry { resource, amount })
-                .collect(),
+                .map(|(resource, alloc)| {
+                    Ok(ResourceRequestEntry {
+                        resource,
+                        policy: match alloc {
+                            AllocationValue::Int(value) => {
+                                AllocationRequest::Compact(value as ResourceAmount)
+                            }
+                            AllocationValue::String(str) => parse_allocation_request(&str)?,
+                        },
+                    })
+                })
+                .collect::<anyhow::Result<ResourceRequestEntries>>()?,
             min_time: Default::default(),
         }
     } else {
@@ -136,7 +147,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
         task_dir: desc.task_dir,
         priority: desc.priority,
         time_limit: None,
-    })*/
+    })
 }
 
 #[derive(dict_derive::IntoPyObject)]

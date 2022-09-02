@@ -8,7 +8,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum DescriptorError {
     #[error("Items in a list-based generic resource have to be unique")]
-    GenericResourceListItemsNotUnique,
+    ResourceListItemsNotUnique,
 }
 
 // Do now construct these directly, use the appropriate constructors
@@ -89,7 +89,7 @@ impl ResourceDescriptorKind {
         values.dedup();
 
         if values.len() < count {
-            Err(DescriptorError::GenericResourceListItemsNotUnique)
+            Err(DescriptorError::ResourceListItemsNotUnique)
         } else {
             Ok(values)
         }

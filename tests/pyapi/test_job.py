@@ -138,17 +138,17 @@ def test_job_generic_resources(hq_env: HqEnv):
         ]
     )
     t1 = job.program(
-        args=bash("echo Hello"), resources=ResourceRequest(generic={"gpus": 1})
+        args=bash("echo Hello"), resources=ResourceRequest(resources={"gpus": 1})
     )
-    job.program(args=bash("echo Hello"), resources=ResourceRequest(generic={"gpus": 4}))
+    job.program(args=bash("echo Hello"), resources=ResourceRequest(resources={"gpus": 4}))
     job.program(
         args=bash("echo Hello"),
-        resources=ResourceRequest(generic={"gpus": 2}),
+        resources=ResourceRequest(resources={"gpus": 2}),
         deps=[t1],
     )
     job.program(
         args=bash("echo Hello"),
-        resources=ResourceRequest(generic={"gpus": 2, "fairy": 2000}),
+        resources=ResourceRequest(resources={"gpus": 2, "fairy": 2000}),
     )
 
     submitted_job = client.submit(job)
@@ -202,7 +202,7 @@ def test_resource_uniqueness_priorities(hq_env: HqEnv):
     )
 
     ts0 = [job.program(bash("sleep 1")) for _ in range(5)]
-    res = ResourceRequest(cpus="1", generic={"res0": 1})
+    res = ResourceRequest(cpus="1", resources={"res0": 1})
     for t in ts0:
         job.program(bash("sleep 1"), deps=[t], resources=res)
 
@@ -224,13 +224,13 @@ def test_resources_task(hq_env: HqEnv):
 
     job.program(
         args=bash("echo Hello"),
-        resources=ResourceRequest(cpus="2", generic={"res0": 1}),
+        resources=ResourceRequest(cpus="2", resources={"res0": 1}),
     )
     submitted_job = client.submit(job)
     wait_for_job_state(hq_env, 1, "WAITING")
 
     table = hq_env.command(["task", "info", str(submitted_job.id), "0"], as_table=True)
-    table.check_row_value("Resources", "cpus: 2 compact\nres0: 1")
+    table.check_row_value("Resources", "cpus: 2 compact\nres0: 1 compact")
 
 
 def test_priority_task(hq_env: HqEnv):
