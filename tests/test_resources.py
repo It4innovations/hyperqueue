@@ -146,8 +146,7 @@ def test_worker_detect_gpus_from_env(hq_env: HqEnv):
     resources = hq_env.command(
         ["worker", "hwdetect"], env={"CUDA_VISIBLE_DEVICES": "1,3"}
     )
-<<<<<<< HEAD
-    assert "gpus: List(1,3)" in resources
+    assert "gpus: [1,3]" in resources
 
 
 def test_task_info_resources(hq_env: HqEnv):
@@ -166,6 +165,3 @@ def test_task_info_resources(hq_env: HqEnv):
 
     table = hq_env.command(["task", "info", "1", "1"], as_table=True)
     table.check_row_value("Resources", "cpus: 1 compact\nfairy: 2")
-=======
-    assert "gpus: [1,3]" in resources
->>>>>>> 5a2a70b5 (Unified resource management)

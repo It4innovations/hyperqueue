@@ -21,8 +21,8 @@ nav:
   - Task computation:
     - Jobs and Tasks: jobs/jobs.md
     - Task Arrays: jobs/arrays.md
+    - Resources: jobs/resources.md
     - CPU Resources: jobs/cresources.md
-    - Generic Resources: jobs/gresources.md
     - Handling Failure: jobs/failure.md
     - Output Streaming: jobs/streaming.md
     - Directives: jobs/directives.md

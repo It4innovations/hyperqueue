@@ -1,3 +1,26 @@
+# Dev
+
+## New features
+
+### Resource management
+
+* Almost complete rewrite of resource management. 
+  CPU and other resources were unified: the most visible change is that you can define "cpus" and other resource;
+  and other resources can now be defined in groups (NUMA-like resources).
+
+* Many improvements in scheduler: Improved schedules for multi-resource requests;
+  better behavior on non-heterogeneous clusters;
+  better interaction between resources and priorities.
+
+## Changes
+
+### Resource management
+
+* ``--cpus=no-ht`` is now changed to a flag ``--no-hyper-threading``.
+* Explicit list definition of a resource was changed from ``--resource xxx=list(1,2,3)`` to ``--resource xxx=[1,2,3]``.
+  (this is the result of unification of CPUs with other resources). 
+
+
 # v0.12.0
 
 ## New features

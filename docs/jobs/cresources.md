@@ -1,5 +1,4 @@
 # CPU resource management
-HyperQueue allows you to select how many CPU cores will be allocated for each task.
 
 !!! note
 
@@ -7,8 +6,10 @@ HyperQueue allows you to select how many CPU cores will be allocated for each ta
     (e.g. what you get from `/proc/cpuinfo`). In this meaning, it is usually a core of a physical
     CPU. In the text related to NUMA we use the term **socket** to refer to physical CPUs.
 
-## Requesting more CPUs
 
+## Brief introduction
+
+HyperQueue allows you to select how many CPU cores will be allocated for each task.
 By default, each task requires a single CPU of the worker's node. This can be changed by the flag
 `--cpus`.
 
@@ -24,15 +25,35 @@ task would thus never be scheduled on a worker that has less than 8 CPUs.
 Note that this reservation exists on a logical level only. To ensure more direct mapping to physical
 cores, see [pinning](#pinning) below.
 
-### Requesting all CPUs
 
-You can also use the value `all` for the `--cpus` flag to ensure that the task will request all
-available CPUs of the worker where it is executed. This will make sure that there will not be any
-other tasks executing on the same worker at the same time.
+## CPUs are resource
 
-```bash
-$ hq submit --cpus=all <program_name> <args...>
-```
+From version 0.13.0, CPUs are managed as any other resource under name "cpus", with the following additions:
+
+* If a task does not explicitly specify the number of cpus, then it requests 1 CPU as default.
+
+* CPUs request can be specified by ``hq submit --cpus=X ...`` where ``--cpus=X`` is a shortcut for ``--resource cpus=X``, 
+  and X can be all valid requests for a resource, including values like ``all`` or ``8 compact!``.
+  (More in [Resource Management](resources.md)).
+
+* A task may be automatically pinned to a given CPUs (see [pinning](#pinning)).
+
+* There are some extra environmental variables for CPUs (see below).
+
+* CPUs are automatically detected. See below information about NUMA or Hyper Threading
+
+* CPUs provided by worker can be explicitly specified via ``--cpus``, see below.
+
+
+## CPU related environment variables
+
+The following variables are created when a task is executed:
+
+* ``HQ_CPUS`` - List of cores assigned to task. (this is alias for ``HQ_RESOURCE_VALUES_cpus``)
+* ``HQ_PIN`` - Is set to `taskset` or `omp` (depending on the used pin mode) if the task was pinned
+by HyperQueue (see below).
+* ``NUM_OMP_THREADS`` -- Set to number of cores assigned for task. (For compatibility with OpenMP).
+
 
 ## Pinning
 
@@ -108,13 +129,16 @@ Below you can find an example of a script file that pins the executed process ma
 If you submit this script with `hq submit --cpus=4 script.sh`, it will pin your program to 4 CPUs
 allocated by HQ.
 
-## NUMA allocation policy
+## NUMA allocation strategy
 
-HQ currently offers the following allocation strategies for CPUs allocation.
-It can be specified with the `--cpus` flag in the form `"<#cpus> <policy>"`.
+Worker automatically detect number of CPUs and on Linux system it also detects partitioning into sockets.
+When NUMA architecture is automatically detected, indexed resource with groups is used for resource "cpus".
 
-* Compact (`compact`) - Tries to allocate cores on as few sockets as possible, based on the
-  currently available cores of a worker.
+You can then use allocation strategies for groups to specify how sockets are
+allocated. They follow the same rules as normal allocation strategies;
+for clarity we are rephrasing the group allocation strategies in terms of cores and sockets: 
+
+* Compact (``compact``) - Tries to allocate cores on as few sockets as possible in the current worker state.
 
     ```bash
     $ hq submit --cpus="8 compact" ...
@@ -148,7 +172,6 @@ It can be specified with the `--cpus` flag in the form `"<#cpus> <policy>"`.
     $ hq submit --cpus="8 scatter" ...
     ```
 
-
 The default policy is the `compact` policy, i.e. `--cpus=<X>` is equivalent to `--cpus="<X> compact"`.
 
 !!! note
@@ -156,15 +179,6 @@ The default policy is the `compact` policy, i.e. `--cpus=<X>` is equivalent to `
     Specifying policy has effect only if you have more than one socket (physical CPUs).
     In case of a single socket, policies are indistinguishable.
 
-## CPU requests and task arrays
-
-Resource requests are applied to each task of job. For example, if you submit the following:
-
-```bash
-$ hq submit --cpus=2 --array=1-10
-```
-
-it will create 10 tasks where each task needs two CPUs.
 
 ## CPU configuration
 
@@ -173,11 +187,14 @@ detect the partitioning into sockets (NUMA configuration). In most cases, it sho
 If you want to see how will a HQ worker see your CPU configuration without actually starting the worker,
 you can use the `hq worker hwdetect` command, which will print the detected CPU configuration.
 
+
 ### Manual specification of CPU configuration
 
-If the automatic detection fails for some reason, or you want to manually configure the CPU
-configuration, you can use the `--cpus` flag when starting a worker. Below there are some examples
-of configuration that you can specify:
+If the automatic detection fails for some reason, or you want to manually configure the CPU 
+configuration, you can use the `--cpus` flag when starting a worker. 
+It is an alias for ``--resource cpus=...`` (More in [Resource Management](resources.md)), except it also allow to define ``--cpus=N`` where ``N`` is an integer; it is then interpreted as ``1xN`` in the resource definition.
+
+Below there are some examples  of configuration that you can specify:
 
 - Worker with 8 CPUs and a single socket.
   ```bash
@@ -189,23 +206,20 @@ of configuration that you can specify:
   $ hq worker start --cpus=2x12
   ```
 
-- Automatically detect CPUs, but ignore HyperThreading.
-  It will detect only the first virtual core of each physical core.
-  ```bash
-  $ hq worker start --cpus="no-ht"
-  ```
-
 - Manually specify that the worker should use the following core ids and how they are organized
   into sockets. In this example, two sockets are defined, one with 3 cores and one with 2 cores.
   ```bash
   $ hq worker start --cpus=[[2, 3, 4], [10, 14]]
   ```
 
-## CPU related environment variables
-Several environment variables related to CPU management will be passed to tasks executed by
-HyperQueue:
 
-* `HQ_CPUS` - Comma-separated list of numeric core IDs assigned to the task.
-* `HQ_PIN` - It is set to `taskset` or `omp` (depending on the used pinning mode) if the task was
-  [pinned](#pinning).
-* `NUM_OMP_THREADS` - Set to the number of cores assigned for task. (For compatibility with OpenMP).
+### Disable Hyper Threading
+
+If you want to detect CPUs but ignores HyperThreading then ``--no-hyper-threading`` flag can be used.
+It will detect only the first virtual core of each physical core.
+
+Example:
+
+  ```bash
+  $ hq worker start --no-hyper-threading
+  ```
