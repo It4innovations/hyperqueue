@@ -11,7 +11,7 @@ It also supports distributing code using `numpy` or `pandas` compatible API.
 While Dask by itself does not interact with PBS or Slurm, you can use
 [Dask-JobQueue](https://jobqueue.dask.org/en/latest/) to make it operate in a similar fashion as
 HyperQueue - with the centralized server running on a login node and the workers running on compute
-nodes. Dask does not support arbitrary [resource requirements](jobs/gresources.md) and since it is
+nodes. Dask does not support arbitrary [resource requirements](jobs/resources.md) and since it is
 written in Python, it can [have problems](https://arxiv.org/abs/2010.11105) with scaling to very large
 task graphs.
 

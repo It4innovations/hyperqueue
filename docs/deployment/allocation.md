@@ -67,7 +67,7 @@ creating a new allocation queue:
   allocation queue. The amount of workers will be limited by the manager (PBS/Slurm), but you can
   use this parameter to make the limit smaller, for example if you also want to create manager allocations
   outside HyperQueue.
-- **Worker resources** You can specify [CPU](../jobs/cresources.md) and [generic](../jobs/gresources.md)
+- **Worker resources** You can specify [CPU](../jobs/cresources.md) and [generic](../jobs/resources.md)
   resources of workers spawned in the created allocation queue. The name and syntax of these parameters
   is the same as when you create a worker manually:
 
