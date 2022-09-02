@@ -3,10 +3,10 @@ use serde::{Deserialize, Serialize, Serializer};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::WorkerOverview;
 use crate::internal::worker::configuration::WorkerConfiguration;
-use crate::resources::{AllocationRequest, NumOfNodes};
+use crate::resources::{AllocationRequest, NumOfNodes, CPU_RESOURCE_NAME};
 use crate::task::SerializedTaskContext;
 use crate::{Priority, TaskId, WorkerId};
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
@@ -17,7 +17,7 @@ pub struct ResourceRequestEntry {
 
 pub type ResourceRequestEntries = SmallVec<[ResourceRequestEntry; 3]>;
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ResourceRequest {
     #[serde(default)]
     pub n_nodes: NumOfNodes,
@@ -27,6 +27,19 @@ pub struct ResourceRequest {
 
     #[serde(default)]
     pub min_time: Duration,
+}
+
+impl Default for ResourceRequest {
+    fn default() -> Self {
+        ResourceRequest {
+            n_nodes: 0,
+            resources: smallvec![ResourceRequestEntry {
+                resource: CPU_RESOURCE_NAME.to_string(),
+                policy: AllocationRequest::Compact(1),
+            }],
+            min_time: Default::default(),
+        }
+    }
 }
 
 /// Task data that is often shared by multiple tasks.

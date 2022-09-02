@@ -73,7 +73,7 @@ fn parse_resource_group() -> impl CharParser<ResourceDescriptorKind> {
         .delimited_by(start, end)
         .try_map(|groups, span| {
             ResourceDescriptorKind::groups(groups).map_err(|error| match error {
-                DescriptorError::GenericResourceListItemsNotUnique => {
+                DescriptorError::ResourceListItemsNotUnique => {
                     ParseError::custom(span, "Group items have to be unique")
                 }
             })
@@ -92,7 +92,7 @@ fn parse_resource_list() -> impl CharParser<ResourceDescriptorKind> {
             ))
         } else {
             ResourceDescriptorKind::list(indices).map_err(|error| match error {
-                DescriptorError::GenericResourceListItemsNotUnique => {
+                DescriptorError::ResourceListItemsNotUnique => {
                     ParseError::custom(span, "List items have to be unique")
                 }
             })

@@ -19,7 +19,7 @@
 * ``--cpus=no-ht`` is now changed to a flag ``--no-hyper-threading``.
 * Explicit list definition of a resource was changed from ``--resource xxx=list(1,2,3)`` to ``--resource xxx=[1,2,3]``.
   (this is the result of unification of CPUs with other resources). 
-
+* Python API: Attribute `generic` in `ResourceRequest` is renamed to `resources`
 
 # v0.12.0
 

@@ -36,7 +36,7 @@ impl RunningWorker {
                 resources: ResourceDescriptor::new(vec![ResourceDescriptorItem {
                     name: CPU_RESOURCE_NAME.to_string(),
                     kind: ResourceDescriptorKind::Range {
-                        start: ResourceIndex(0),
+                        start: ResourceIndex::new(0),
                         end: ResourceIndex::new((cores - 1) as u32),
                     },
                 }]),
