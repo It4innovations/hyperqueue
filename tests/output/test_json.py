@@ -4,12 +4,11 @@ import socket
 from typing import List
 
 import iso8601
-from schema import Schema, Or
+from schema import Schema
 
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
 from ..utils.job import default_task_output
-
 
 RESOURCE_DESCRIPTOR_SCHEMA = [
     {"name": str, "kind": "range", "start": int, "end": int},

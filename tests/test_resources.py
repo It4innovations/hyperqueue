@@ -164,4 +164,4 @@ def test_task_info_resources(hq_env: HqEnv):
     )
 
     table = hq_env.command(["task", "info", "1", "1"], as_table=True)
-    table.check_row_value("Resources", "cpus: 1 compact\nfairy: 2")
+    table.check_row_value("Resources", "cpus: 1 compact\nfairy: 2 compact")

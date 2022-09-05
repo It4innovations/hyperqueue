@@ -2,7 +2,9 @@ use std::rc::Rc;
 use tako::internal::server::core::Core;
 use tako::internal::server::task::{Task, TaskConfiguration};
 use tako::internal::server::worker::Worker;
-use tako::resources::ResourceDescriptor;
+use tako::resources::{
+    ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, CPU_RESOURCE_NAME,
+};
 use tako::worker::ServerLostPolicy;
 use tako::worker::WorkerConfiguration;
 use tako::ItemId;
@@ -21,10 +23,10 @@ pub fn create_worker(id: u64) -> Worker {
     Worker::new(
         WorkerId::new(id as u32),
         WorkerConfiguration {
-            resources: ResourceDescriptor {
-                cpus: vec![vec![1.into()]],
-                generic: vec![],
-            },
+            resources: ResourceDescriptor::new(vec![ResourceDescriptorItem {
+                name: CPU_RESOURCE_NAME.to_string(),
+                kind: ResourceDescriptorKind::simple_indices(1),
+            }]),
             listen_address: "".to_string(),
             hostname: "".to_string(),
             work_dir: Default::default(),
