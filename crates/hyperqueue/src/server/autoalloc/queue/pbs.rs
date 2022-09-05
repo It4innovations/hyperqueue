@@ -103,6 +103,12 @@ impl QueueHandler for PbsHandler {
             let output = command.output().await.context("qstat start failed")?;
             let output = check_command_output(output).context("qstat execution failed")?;
 
+            log::debug!(
+                "PBS qstat output\nStdout\n{}Stderr\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+
             let data: serde_json::Value =
                 serde_json::from_slice(&output.stdout).context("Cannot parse qstat JSON output")?;
 
