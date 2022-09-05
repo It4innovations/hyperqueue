@@ -126,7 +126,7 @@ impl ResourceAllocator {
                     return false;
                 }
                 let mut free = free.clone();
-                free.sort();
+                free.sort_unstable();
                 let sum = free.iter().rev().take(socket_size).sum();
                 *amount <= sum
             }
