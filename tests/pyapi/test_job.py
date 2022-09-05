@@ -4,7 +4,6 @@ from pathlib import Path
 
 import iso8601
 import pytest
-
 from hyperqueue.client import FailedJobsException
 from hyperqueue.ffi.protocol import ResourceRequest
 from hyperqueue.job import Job
@@ -140,7 +139,9 @@ def test_job_generic_resources(hq_env: HqEnv):
     t1 = job.program(
         args=bash("echo Hello"), resources=ResourceRequest(resources={"gpus": 1})
     )
-    job.program(args=bash("echo Hello"), resources=ResourceRequest(resources={"gpus": 4}))
+    job.program(
+        args=bash("echo Hello"), resources=ResourceRequest(resources={"gpus": 4})
+    )
     job.program(
         args=bash("echo Hello"),
         resources=ResourceRequest(resources={"gpus": 2}),

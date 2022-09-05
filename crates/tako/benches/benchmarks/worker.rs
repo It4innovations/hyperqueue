@@ -3,16 +3,19 @@ use std::time::Duration;
 
 use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
+use smallvec::smallvec;
 use tako::internal::messages::worker::ComputeTaskMsg;
 use tako::internal::worker::comm::WorkerComm;
 use tako::internal::worker::rqueue::ResourceWaitQueue;
 use tako::launcher::{LaunchContext, StopReason, TaskLaunchData, TaskLauncher, TaskResult};
-use tako::resources::ResourceMap;
 use tako::resources::{
-    CpuRequest, GenericResourceDescriptor, GenericResourceDescriptorKind, GenericResourceRequest,
-    ResourceDescriptor, ResourceRequest, TimeRequest,
+    AllocationRequest, ResourceDescriptor, ResourceRequest, ResourceRequestEntry, TimeRequest,
 };
-use tako::{AsIdVec, ItemId};
+use tako::resources::{
+    ResourceDescriptorItem, ResourceDescriptorKind, ResourceMap, CPU_RESOURCE_NAME,
+    GPU_RESOURCE_NAME,
+};
+use tako::ItemId;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::Notify;
 
@@ -163,17 +166,20 @@ fn bench_cancel_waiting_task(c: &mut BenchmarkGroup<WallTime>) {
 
 fn create_resource_queue(num_cpus: u32) -> ResourceWaitQueue {
     ResourceWaitQueue::new(
-        &ResourceDescriptor {
-            cpus: vec![(0..num_cpus).collect::<Vec<_>>().to_ids()],
-            generic: vec![GenericResourceDescriptor {
-                name: "GPU".to_string(),
-                kind: GenericResourceDescriptorKind::Range {
-                    start: 0.into(),
-                    end: 8.into(),
-                },
-            }],
-        },
-        &ResourceMap::from_vec(vec!["GPU".to_string()]),
+        &ResourceDescriptor::new(vec![
+            ResourceDescriptorItem {
+                name: CPU_RESOURCE_NAME.to_string(),
+                kind: ResourceDescriptorKind::simple_indices(num_cpus),
+            },
+            ResourceDescriptorItem {
+                name: GPU_RESOURCE_NAME.to_string(),
+                kind: ResourceDescriptorKind::simple_indices(8),
+            },
+        ]),
+        &ResourceMap::from_vec(vec![
+            CPU_RESOURCE_NAME.to_string(),
+            GPU_RESOURCE_NAME.to_string(),
+        ]),
     )
 }
 
@@ -195,13 +201,17 @@ fn bench_resource_queue_release_allocation(c: &mut BenchmarkGroup<WallTime>) {
                 let mut task = create_worker_task(0);
                 task.resources = ResourceRequest::new(
                     0,
-                    CpuRequest::Compact(64),
                     TimeRequest::new(0, 0),
-                    vec![GenericResourceRequest {
-                        resource: 0.into(),
-                        amount: 2,
-                    }]
-                    .into(),
+                    smallvec![
+                        ResourceRequestEntry {
+                            resource_id: 0.into(),
+                            request: AllocationRequest::Compact(64),
+                        },
+                        ResourceRequestEntry {
+                            resource_id: 1.into(),
+                            request: AllocationRequest::Compact(2),
+                        },
+                    ],
                 );
                 queue.add_task(&task);
 
@@ -232,13 +242,17 @@ fn bench_resource_queue_start_tasks(c: &mut BenchmarkGroup<WallTime>) {
                             let mut task = create_worker_task(id);
                             task.resources = ResourceRequest::new(
                                 0,
-                                CpuRequest::Compact(64),
                                 TimeRequest::new(0, 0),
-                                vec![GenericResourceRequest {
-                                    resource: 0.into(),
-                                    amount: 2,
-                                }]
-                                .into(),
+                                smallvec![
+                                    ResourceRequestEntry {
+                                        resource_id: 0.into(),
+                                        request: AllocationRequest::Compact(64),
+                                    },
+                                    ResourceRequestEntry {
+                                        resource_id: 1.into(),
+                                        request: AllocationRequest::Compact(2),
+                                    },
+                                ],
                             );
                             queue.add_task(&task);
                             map.insert(task);
