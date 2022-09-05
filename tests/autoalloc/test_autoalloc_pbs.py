@@ -122,7 +122,7 @@ def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
         wait_for_alloc(hq_env, "QUEUED", job_id)
 
         # Started
-        worker = add_worker(hq_env, job_id)
+        worker = add_worker(hq_env, 0, mock)
         wait_for_alloc(hq_env, "RUNNING", job_id)
 
         # Finished
@@ -155,13 +155,16 @@ print("1")
 def test_pbs_cancel_active_jobs_on_server_stop(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 
+    mock.update_job_state(mock.job_id(0), JobState.queued())
+    mock.update_job_state(mock.job_id(1), JobState.queued())
+
     with mock.activate():
         process = hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
-        w1 = add_worker(hq_env, mock.job_id(0))
-        w2 = add_worker(hq_env, mock.job_id(1))
+        w1 = add_worker(hq_env, 0, mock)
+        w2 = add_worker(hq_env, 1, mock)
 
         def wait_until_fixpoint():
             jobs = hq_env.command(["alloc", "info", "1"], as_table=True)
@@ -221,7 +224,7 @@ def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv):
         add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
         job_id = mock.job_id(0)
 
-        add_worker(hq_env, job_id)
+        add_worker(hq_env, 0, mock)
         wait_for_alloc(hq_env, "RUNNING", job_id)
 
         remove_queue(
@@ -236,17 +239,17 @@ def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv):
 def test_pbs_cancel_active_jobs_on_forced_remove_queue(hq_env: HqEnv):
     mock = PbsMock(hq_env)
 
+    mock.update_job_state(mock.job_id(0), JobState.queued())
+    mock.update_job_state(mock.job_id(1), JobState.queued())
+
     with mock.activate():
         hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
 
-        job_a = mock.job_id(0)
-        job_b = mock.job_id(1)
-
-        add_worker(hq_env, job_a)
-        add_worker(hq_env, job_b)
+        add_worker(hq_env, 0, mock)
+        add_worker(hq_env, 1, mock)
 
         def wait_until_fixpoint():
             jobs = hq_env.command(["alloc", "info", "1"], as_table=True)
@@ -569,7 +572,10 @@ def test_external_pbs_submit_multiple_workers(
     wait_for_job_state(cluster_hq_env, 1, "FINISHED")
 
 
-def add_worker(hq_env: HqEnv, allocation_id: str) -> Popen:
+def add_worker(hq_env: HqEnv, allocation_index: int, mock: PbsMock) -> Popen:
+    allocation_id = mock.job_id(allocation_index)
+    mock.update_job_state(allocation_id, JobState.running())
+
     return hq_env.start_worker(
         env={"PBS_JOBID": allocation_id, "PBS_ENVIRONMENT": "1"},
         args=["--manager", "pbs", "--time-limit", "30m"],
