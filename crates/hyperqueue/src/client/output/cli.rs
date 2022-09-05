@@ -40,7 +40,7 @@ use colored::Color as Colorization;
 use colored::Colorize;
 use std::collections::BTreeSet;
 use std::fs::File;
-use tako::gateway::{LostWorkerReason, ResourceRequest};
+use tako::gateway::{LostWorkerReason, ResourceRequest, ResourceRequestEntry};
 use tako::{format_comma_delimited, Map};
 
 pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
@@ -1065,7 +1065,11 @@ fn format_resource_request(rq: &ResourceRequest) -> String {
     }
     let mut result = String::new();
     let mut first = true;
-    for grq in &rq.resources {
+
+    let mut entries: Vec<&ResourceRequestEntry> = rq.resources.iter().collect();
+    entries.sort_unstable_by_key(|x| &x.resource);
+
+    for grq in entries {
         write!(
             result,
             "{}{}: {}",
