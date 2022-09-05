@@ -115,7 +115,7 @@ def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
-        mock.update_job_state(job_id, JobState(status="Q"))
+        mock.update_job_state(job_id, JobState.queued())
         add_queue(hq_env)
 
         # Queued
@@ -189,12 +189,7 @@ def test_pbs_cancel_queued_jobs_on_remove_queue(hq_env: HqEnv):
     for index in range(2):
         mock.update_job_state(
             mock.job_id(index),
-            JobState(
-                status="Q",
-                qtime="Thu Aug 19 13:05:38 2021",
-                stime="Thu Aug 19 13:05:39 2021",
-                mtime="Thu Aug 19 13:05:39 2021",
-            ),
+            JobState.queued(),
         )
 
     with mock.activate():
@@ -278,10 +273,7 @@ def test_pbs_refresh_allocation_remove_queued_job(hq_env: HqEnv):
 
         mock.update_job_state(
             mock.job_id(0),
-            JobState(
-                status="Q",
-                qtime="Thu Aug 19 13:05:38 2021",
-            ),
+            JobState.queued(),
         )
         wait_for_alloc(hq_env, "QUEUED", mock.job_id(0))
 
@@ -300,13 +292,7 @@ def test_pbs_refresh_allocation_finish_queued_job(hq_env: HqEnv):
         wait_for_alloc(hq_env, "QUEUED", mock.job_id(0))
         mock.update_job_state(
             mock.job_id(0),
-            JobState(
-                status="F",
-                qtime="Thu Aug 19 13:05:38 2021",
-                stime="Thu Aug 19 13:05:38 2021",
-                mtime="Thu Aug 19 13:05:38 2021",
-                exit_code=0,
-            ),
+            JobState.finished(),
         )
         wait_for_alloc(hq_env, "FINISHED", mock.job_id(0))
 
@@ -322,13 +308,7 @@ def test_pbs_refresh_allocation_fail_queued_job(hq_env: HqEnv):
         wait_for_alloc(hq_env, "QUEUED", mock.job_id(0))
         mock.update_job_state(
             mock.job_id(0),
-            JobState(
-                status="F",
-                qtime="Thu Aug 19 13:05:38 2021",
-                stime="Thu Aug 19 13:05:38 2021",
-                mtime="Thu Aug 19 13:05:38 2021",
-                exit_code=1,
-            ),
+            JobState.failed(),
         )
         wait_for_alloc(hq_env, "FAILED", mock.job_id(0))
 

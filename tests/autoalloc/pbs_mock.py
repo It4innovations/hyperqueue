@@ -1,5 +1,6 @@
 import contextlib
 import dataclasses
+import datetime
 import json
 import os
 from os.path import join
@@ -10,11 +11,55 @@ from ..conftest import HqEnv
 
 @dataclasses.dataclass(frozen=True)
 class JobState:
+    @staticmethod
+    def running() -> "JobState":
+        return JobState(
+            status="R",
+            stime=to_pbs_time(now()),
+            qtime=to_pbs_time(now() - datetime.timedelta(seconds=1)),
+            mtime=to_pbs_time(now()),
+        )
+
+    @staticmethod
+    def queued() -> "JobState":
+        return JobState(
+            status="Q",
+            qtime=to_pbs_time(now() - datetime.timedelta(seconds=1)),
+        )
+
+    @staticmethod
+    def finished() -> "JobState":
+        return JobState(
+            status="F",
+            stime=to_pbs_time(now()),
+            qtime=to_pbs_time(now() - datetime.timedelta(seconds=1)),
+            mtime=to_pbs_time(now() + datetime.timedelta(seconds=1)),
+            exit_code=0,
+        )
+
+    @staticmethod
+    def failed() -> "JobState":
+        return JobState(
+            status="F",
+            stime=to_pbs_time(now()),
+            qtime=to_pbs_time(now() - datetime.timedelta(seconds=1)),
+            mtime=to_pbs_time(now() + datetime.timedelta(seconds=1)),
+            exit_code=1,
+        )
+
     status: str
     qtime: Optional[str] = None
     stime: Optional[str] = None
     mtime: Optional[str] = None
     exit_code: Optional[int] = None
+
+
+def now() -> datetime.datetime:
+    return datetime.datetime.now()
+
+
+def to_pbs_time(time: datetime.datetime) -> str:
+    return time.strftime("%a %b %d %H:%M:%S %Y")
 
 
 @dataclasses.dataclass(frozen=True)
