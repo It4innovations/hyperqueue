@@ -277,9 +277,9 @@ pub struct RateLimiter {
     /// Index into `delays`.
     current_delay: usize,
     /// Time when a submission (e.g. qsub) was last attempted.
-    last_submission: Instant,
+    last_submission: Option<Instant>,
     /// Time when a status check (e.g. qstat) was last attempted.
-    last_status: Instant,
+    last_status: Option<Instant>,
     /// How often can status be checked.
     status_delay: Duration,
     /// How many times has an allocation failed in a row.
@@ -301,8 +301,8 @@ impl RateLimiter {
         Self {
             submission_delays: delays,
             current_delay: 0,
-            last_submission: now_monotonic(),
-            last_status: now_monotonic(),
+            last_submission: None,
+            last_status: None,
             status_delay,
             allocation_fails: 0,
             max_allocation_fails,
@@ -335,16 +335,19 @@ impl RateLimiter {
     }
 
     pub fn on_status_attempt(&mut self) {
-        self.last_status = now_monotonic();
+        self.last_status = Some(now_monotonic());
     }
 
     pub fn can_perform_status_check(&self) -> bool {
-        now_monotonic().duration_since(self.last_status) >= self.status_delay
+        match self.last_status {
+            Some(last_status) => now_monotonic().duration_since(last_status) >= self.status_delay,
+            None => true,
+        }
     }
 
     /// Submission will be attempted, reset the limiter timer.
     pub fn on_submission_attempt(&mut self) {
-        self.last_submission = now_monotonic();
+        self.last_submission = Some(now_monotonic());
     }
 
     pub fn submission_status(&self) -> RateLimiterStatus {
@@ -354,14 +357,20 @@ impl RateLimiter {
         if self.submission_fails >= self.max_submission_fails {
             return RateLimiterStatus::TooManyFailedSubmissions;
         }
-        let time = now_monotonic();
-        let duration = time.duration_since(self.last_submission);
-        let delay = self.submission_delays[self.current_delay];
 
-        if duration < delay {
-            RateLimiterStatus::Wait
-        } else {
-            RateLimiterStatus::Ok
+        match self.last_submission {
+            Some(last_submission) => {
+                let time = now_monotonic();
+                let duration = time.duration_since(last_submission);
+                let delay = self.submission_delays[self.current_delay];
+
+                if duration < delay {
+                    RateLimiterStatus::Wait
+                } else {
+                    RateLimiterStatus::Ok
+                }
+            }
+            None => RateLimiterStatus::Ok,
         }
     }
 
