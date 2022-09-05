@@ -128,15 +128,21 @@ class HqEnv(Env):
 
     @staticmethod
     def server_args(server_dir="hq-server", debug=True):
-        return [
+        args = [
             get_hq_binary(debug=debug),
             "--colors",
             "never",
             "--server-dir",
-            server_dir,
-            "server",
-            "start",
+            server_dir
         ]
+        if debug:
+            args.append("--debug")
+
+        args += [
+            "server",
+            "start"
+        ]
+        return args
 
     def start_server(
         self, server_dir="hq-server", args=None, env=None
