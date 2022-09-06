@@ -2,7 +2,6 @@ import dataclasses
 from typing import Dict, List, Optional, Sequence, Union
 
 
-@dataclasses.dataclass()
 class ResourceRequest:
     n_nodes: int = 0
     resources: Dict[str, Union[int, str]] = dataclasses.field(default_factory=dict)
@@ -12,13 +11,16 @@ class ResourceRequest:
         *,
         n_nodes=0,
         cpus: Union[int, str] = 1,
-        resources: Optional[Dict[str, Union[int, str]]] = None
+        resources: Optional[Dict[str, Union[int, str]]] = None,
     ):
         self.n_nodes = n_nodes
         if resources is None:
             resources = {}
         resources["cpus"] = cpus
         self.resources = resources
+
+    def __repr__(self):
+        return f"<ResourceRequest n_nodes={self.n_nodes} resources={self.resources}>"
 
 
 @dataclasses.dataclass()

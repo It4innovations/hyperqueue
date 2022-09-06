@@ -32,7 +32,7 @@ use crate::{JobId, JobTaskId};
 use serde::{Deserialize, Serialize};
 use tako::comm::serialize;
 use tako::program::{ProgramDefinition, StdioDef};
-use tako::resources::{Allocation, CPU_RESOURCE_ID};
+use tako::resources::{Allocation, CPU_RESOURCE_ID, CPU_RESOURCE_NAME, GPU_RESOURCE_NAME};
 
 const MAX_CUSTOM_ERROR_LENGTH: usize = 2048; // 2KiB
 
@@ -226,7 +226,7 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
     for alloc in &ctx.allocation().resources {
         let resource_name = resource_map.get_name(alloc.resource).unwrap();
         if let Some(indices) = alloc.value.to_comma_delimited_list() {
-            if resource_name == "cpus" {
+            if resource_name == CPU_RESOURCE_NAME {
                 /* Extra variables for CPUS */
                 program.env.insert(HQ_CPUS.into(), indices.clone().into());
                 if !program.env.contains_key(b"OMP_NUM_THREADS".as_bstr()) {
@@ -235,11 +235,8 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
                         alloc.value.amount().to_string().into(),
                     );
                 }
-                program
-                    .env
-                    .insert("CUDA_DEVICE_ORDER".into(), "PCI_BUS_ID".into());
             }
-            if resource_name == "gpus" {
+            if resource_name == GPU_RESOURCE_NAME {
                 /* Extra variables for GPUS */
                 program
                     .env

@@ -61,15 +61,15 @@ $ hq worker start --resource "<NAME1>=<DEF1>" --resource "<NAME2>=<DEF2>" ...
 where `NAMEi` is a name (string ) of the `i`-th resource pool and `DEFi` is a definition of the
 `i-th` resource pool. You can define resource pools using one of the following formats:
 
-* `[<VALUE>, <VALUE>, ..., <VALUE>]` where `VALUE` is a non-negative integer. This will
-* `range(<START>-<END>)` where `START` and `END` are non-negative integers. This will create
-an indexed pool with numbers in the inclusive range `[START, END]`.
-* `sum(<SIZE>)` where `SIZE` is a positive integer. This will create a sum pool with the given
-* `[[<VALUE>, ..., <VALUE>], [<VALUE>, ..., <VALUE>], ...]` where `VALUE` is a non-negative integer. This will
-create an indexed pool where indices are grouped.
+* `[<VALUE>, <VALUE>, ..., <VALUE>]` where `VALUE` is a non-negative integer. This defines a
+   an indexed pool with given values.
+* `range(<START>-<END>)` where `START` and `END` are non-negative integers. This defines
+   an indexed pool with numbers in the inclusive range `[START, END]`.
+* `[[<VALUE>, ..., <VALUE>], [<VALUE>, ..., <VALUE>], ...]` where `VALUE` is a non-negative integer. This
+   defines an indexed pool where indices are grouped.
 * `<N>x<M>` Creates indexed pool with N groups of size M, indices are indexed from 0,
   (e.g. "2x3" is equivalent to `[[0, 1, 2], [3, 4, 5]`)
-* `sum(<SIZE>)` where `SIZE` is a positive integer. This will create a sum pool with the given
+* `sum(<SIZE>)` where `SIZE` is a positive integer. This defines a sum pool with the given
   size.
 
 !!! tip
