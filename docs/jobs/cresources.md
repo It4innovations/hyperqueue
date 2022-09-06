@@ -26,7 +26,7 @@ Note that this reservation exists on a logical level only. To ensure more direct
 cores, see [pinning](#pinning) below.
 
 
-## CPUs are resource
+## CPUs are a resource
 
 From version 0.13.0, CPUs are managed as any other resource under name "cpus", with the following additions:
 
@@ -215,7 +215,7 @@ Below there are some examples  of configuration that you can specify:
 
 ### Disable Hyper Threading
 
-If you want to detect CPUs but ignores HyperThreading then ``--no-hyper-threading`` flag can be used.
+If you want to detect CPUs but ignore HyperThreading then ``--no-hyper-threading`` flag can be used.
 It will detect only the first virtual core of each physical core.
 
 Example:
