@@ -103,7 +103,7 @@ impl QueueHandler for PbsHandler {
             let output = command.output().await.context("qstat start failed")?;
             let output = check_command_output(output).context("qstat execution failed")?;
 
-            log::debug!(
+            log::trace!(
                 "PBS qstat output\nStdout\n{}Stderr\n{}",
                 String::from_utf8_lossy(&output.stdout),
                 String::from_utf8_lossy(&output.stderr)
