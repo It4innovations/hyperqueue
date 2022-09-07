@@ -829,7 +829,7 @@ mod tests {
     use crate::common::manager::info::{ManagerInfo, ManagerType};
     use crate::common::utils::time::mock_time::MockTime;
     use crate::server::autoalloc::process::{
-        on_worker_connected, on_worker_lost, queue_try_submit, refresh_state,
+        on_worker_connected, on_worker_lost, queue_try_submit, refresh_state, RefreshReason,
     };
     use crate::server::autoalloc::queue::{
         AllocationExternalStatus, AllocationStatusMap, AllocationSubmissionResult, QueueHandler,
@@ -856,7 +856,7 @@ mod tests {
             QueueBuilder::default().backlog(4).workers_per_alloc(2),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
 
         let allocations = get_allocations(&state, queue_id);
         assert_eq!(allocations.len(), 4);
@@ -874,7 +874,7 @@ mod tests {
         let queue_id = add_queue(&mut state, handler, QueueBuilder::default().backlog(4));
 
         for _ in 0..5 {
-            queue_try_submit(queue_id, &mut state, &hq_state).await;
+            queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         }
 
         assert_eq!(get_allocations(&state, queue_id).len(), 4);
@@ -892,7 +892,7 @@ mod tests {
             QueueBuilder::default().backlog(1).workers_per_alloc(1),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         on_worker_connected(&hq_state, &mut state, 0.into(), &create_worker("foo"));
         assert!(get_allocations(&state, queue_id)
             .iter()
@@ -911,7 +911,7 @@ mod tests {
             QueueBuilder::default().backlog(1).workers_per_alloc(1),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         let allocs = get_allocations(&state, queue_id);
 
         on_worker_connected(
@@ -935,7 +935,7 @@ mod tests {
             QueueBuilder::default().backlog(1).workers_per_alloc(2),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         let allocs = get_allocations(&state, queue_id);
 
         for id in [0, 1] {
@@ -964,7 +964,7 @@ mod tests {
             QueueBuilder::default().backlog(1).workers_per_alloc(1),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         let allocs = get_allocations(&state, queue_id);
 
         let worker_id: WorkerId = 0.into();
@@ -999,7 +999,7 @@ mod tests {
             QueueBuilder::default().backlog(1).workers_per_alloc(2),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         let allocs = get_allocations(&state, queue_id);
 
         for id in [0, 1] {
@@ -1048,7 +1048,7 @@ mod tests {
         let handler = always_queued_handler();
         let queue_id = add_queue(&mut state, handler, QueueBuilder::default().backlog(3));
 
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         assert_eq!(get_allocations(&state, queue_id).len(), 0);
     }
 
@@ -1065,7 +1065,7 @@ mod tests {
         );
 
         // 5 tasks, 3 * 2 workers -> last two allocations should be ignored
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         assert_eq!(get_allocations(&state, queue_id).len(), 3);
     }
 
@@ -1081,13 +1081,13 @@ mod tests {
         handler_state.get_mut().allocation_will_fail = true;
 
         // Only try the first allocation in the backlog
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         assert_eq!(handler_state.get().allocation_attempts, 1);
 
         handler_state.get_mut().allocation_will_fail = false;
 
         // Finish the rest
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         assert_eq!(handler_state.get().allocation_attempts, 6);
     }
 
@@ -1096,7 +1096,7 @@ mod tests {
         let hq_state = new_hq_state(0);
         hq_state
             .get_mut()
-            .add_job(create_job(1, Duration::from_secs(60 * 60)));
+            .add_job(create_job(0, 1, Duration::from_secs(60 * 60)));
         let mut state = AutoAllocState::new();
 
         let handler = always_queued_handler();
@@ -1108,7 +1108,7 @@ mod tests {
 
         // Allocations last for 30 minutes, but job requires 60 minutes
         // Nothing should be scheduled
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         assert_eq!(get_allocations(&state, queue_id).len(), 0);
     }
 
@@ -1127,7 +1127,7 @@ mod tests {
         );
 
         // Put 4 allocations into the queue.
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         let allocations = get_allocations(&state, queue_id);
         assert_eq!(allocations.len(), 4);
 
@@ -1146,7 +1146,7 @@ mod tests {
         );
 
         // Create only one additional allocation
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         assert_eq!(get_allocations(&state, queue_id).len(), 5);
 
         // Finish one allocation
@@ -1159,7 +1159,7 @@ mod tests {
         );
 
         // One worker was freed, create an additional allocation
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         assert_eq!(get_allocations(&state, queue_id).len(), 6);
     }
 
@@ -1179,7 +1179,7 @@ mod tests {
                 .max_worker_count(Some(6)),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
         let allocations = get_allocations(&state, queue_id);
         assert_eq!(allocations.len(), 2);
         assert_eq!(allocations[0].target_worker_count, 4);
@@ -1206,12 +1206,12 @@ mod tests {
         state.set_inactive_allocation_directories(dirs.iter().cloned().collect());
 
         // Delete oldest directory
-        refresh_state(&hq_state, &mut state, None).await;
+        refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
         assert!(!dirs[0].exists());
         assert!(dirs[1].exists());
 
         // Delete second oldest directory
-        refresh_state(&hq_state, &mut state, None).await;
+        refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
         assert!(!dirs[1].exists());
     }
 
@@ -1233,9 +1233,9 @@ mod tests {
 
         shared.get_mut().allocation_will_fail = true;
 
-        refresh_state(&hq_state, &mut state, None).await;
+        refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
         check_queue_exists(&state, queue_id);
-        refresh_state(&hq_state, &mut state, None).await;
+        refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
         check_queue_doesnt_exist(&state, queue_id);
     }
 
@@ -1255,15 +1255,15 @@ mod tests {
                 .limiter_max_alloc_fails(2),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
 
         let allocations = get_allocations(&state, queue_id);
         fail_allocation(&hq_state, &mut state, &allocations[0].id);
-        refresh_state(&hq_state, &mut state, Some(queue_id)).await;
+        refresh_state(&hq_state, &mut state, RefreshReason::UpdateQueue(queue_id)).await;
         check_queue_exists(&state, queue_id);
 
         fail_allocation(&hq_state, &mut state, &allocations[1].id);
-        refresh_state(&hq_state, &mut state, Some(queue_id)).await;
+        refresh_state(&hq_state, &mut state, RefreshReason::UpdateQueue(queue_id)).await;
         check_queue_doesnt_exist(&state, queue_id);
     }
 
@@ -1297,7 +1297,7 @@ mod tests {
         let mut now = Instant::now();
         {
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &mut state, None).await;
+            refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(1);
         }
 
@@ -1305,13 +1305,13 @@ mod tests {
         {
             now += Duration::from_millis(500);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &mut state, None).await;
+            refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(1);
         }
         {
             now += Duration::from_millis(1500);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &mut state, None).await;
+            refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(2);
         }
 
@@ -1319,20 +1319,20 @@ mod tests {
         {
             now += Duration::from_millis(5000);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &mut state, None).await;
+            refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(2);
         }
         {
             now += Duration::from_millis(6000);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &mut state, None).await;
+            refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(3);
         }
         // The delay shouldn't increase any more when we have reached the maximum delay
         {
             now += Duration::from_millis(11000);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &mut state, None).await;
+            refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(4);
         }
     }
@@ -1579,7 +1579,7 @@ mod tests {
         if waiting_tasks > 0 {
             state
                 .get_mut()
-                .add_job(create_job(waiting_tasks, Duration::from_secs(0)));
+                .add_job(create_job(0, waiting_tasks, Duration::from_secs(0)));
         }
         state
     }
@@ -1595,7 +1595,7 @@ mod tests {
         allocations
     }
 
-    fn create_job(tasks: u32, min_time: TimeRequest) -> Job {
+    fn create_job(job_id: u32, tasks: u32, min_time: TimeRequest) -> Job {
         let def = ProgramDefinition {
             args: vec![],
             env: Default::default(),
@@ -1624,8 +1624,8 @@ mod tests {
                     priority: 0,
                 },
             },
-            0.into(),
-            0.into(),
+            job_id.into(),
+            (1000 * job_id).into(),
             "job".to_string(),
             None,
             None,
