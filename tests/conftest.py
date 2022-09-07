@@ -133,15 +133,12 @@ class HqEnv(Env):
             "--colors",
             "never",
             "--server-dir",
-            server_dir
+            server_dir,
         ]
         if debug:
             args.append("--debug")
 
-        args += [
-            "server",
-            "start"
-        ]
+        args += ["server", "start"]
         return args
 
     def start_server(
