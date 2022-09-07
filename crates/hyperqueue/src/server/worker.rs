@@ -41,6 +41,10 @@ impl Worker {
         });
     }
 
+    pub fn is_running(&self) -> bool {
+        matches!(self.state, WorkerState::Online)
+    }
+
     pub fn make_info(&self) -> WorkerInfo {
         WorkerInfo {
             id: self.worker_id,

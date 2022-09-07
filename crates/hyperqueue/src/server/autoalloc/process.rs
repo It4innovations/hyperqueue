@@ -1,22 +1,22 @@
 use std::future::Future;
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 use futures::future::join_all;
 use tempdir::TempDir;
 
-use tako::{Map, Set};
-
 use tako::gateway::LostWorkerReason;
 use tako::WorkerId;
+use tako::{Map, Set};
 
 use crate::common::manager::info::{ManagerInfo, ManagerType};
 use crate::common::rpc::RpcReceiver;
-
-use crate::get_or_return;
 use crate::server::autoalloc::config::{
     get_refresh_timeout, get_status_check_interval, MAX_ALLOCATION_FAILS, MAX_SUBMISSION_FAILS,
     SUBMISSION_DELAYS,
+};
+use crate::server::autoalloc::estimator::{
+    can_worker_execute_job, count_active_workers, get_server_task_state,
 };
 use crate::server::autoalloc::queue::pbs::PbsHandler;
 use crate::server::autoalloc::queue::slurm::SlurmHandler;
@@ -26,11 +26,16 @@ use crate::server::autoalloc::state::{
     AllocationState, AutoAllocState, QueueState, RateLimiter, RateLimiterStatus,
 };
 use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
-use crate::server::job::Job;
-use crate::server::state::{State, StateRef};
-use crate::transfer::messages::{
-    AllocationQueueParams, JobDescription, QueueData, TaskDescription,
-};
+use crate::server::state::StateRef;
+use crate::transfer::messages::{AllocationQueueParams, QueueData};
+use crate::{get_or_return, JobId};
+
+#[derive(Copy, Clone)]
+enum RefreshReason {
+    UpdateAllQueues,
+    UpdateQueue(QueueId),
+    NewJob(JobId),
+}
 
 pub async fn autoalloc_process(
     state_ref: StateRef,
@@ -39,19 +44,19 @@ pub async fn autoalloc_process(
 ) {
     let timeout = get_refresh_timeout();
     loop {
-        match tokio::time::timeout(timeout, receiver.recv()).await {
-            Ok(Some(message)) => {
-                let queue_id = handle_message(&mut autoalloc, &state_ref, message).await;
-                refresh_state(&state_ref, &mut autoalloc, queue_id).await;
-            }
+        let refresh_reason = match tokio::time::timeout(timeout, receiver.recv()).await {
+            Ok(Some(message)) => handle_message(&mut autoalloc, &state_ref, message).await,
             Ok(None) => break,
             Err(_) => {
                 log::debug!(
                     "No message received in {} ms, refreshing state",
                     timeout.as_millis()
                 );
-                refresh_state(&state_ref, &mut autoalloc, None).await;
+                Some(RefreshReason::UpdateAllQueues)
             }
+        };
+        if let Some(reason) = refresh_reason {
+            refresh_state(&state_ref, &mut autoalloc, reason).await;
         }
     }
     stop_all_allocations(&autoalloc).await;
@@ -63,7 +68,7 @@ async fn handle_message(
     autoalloc: &mut AutoAllocState,
     state_ref: &StateRef,
     message: AutoAllocMessage,
-) -> Option<QueueId> {
+) -> Option<RefreshReason> {
     log::debug!("Handling message {message:?}");
     match message {
         AutoAllocMessage::WorkerConnected(id, manager_info) => {
@@ -72,7 +77,9 @@ async fn handle_message(
                 manager_info.allocation_id
             );
             on_worker_connected(state_ref, autoalloc, id, &manager_info);
-            autoalloc.get_queue_id_by_allocation(&manager_info.allocation_id)
+            autoalloc
+                .get_queue_id_by_allocation(&manager_info.allocation_id)
+                .map(RefreshReason::UpdateQueue)
         }
         AutoAllocMessage::WorkerLost(id, manager_info, reason) => {
             log::debug!(
@@ -80,9 +87,11 @@ async fn handle_message(
                 manager_info.allocation_id
             );
             on_worker_lost(state_ref, autoalloc, id, &manager_info, reason);
-            autoalloc.get_queue_id_by_allocation(&manager_info.allocation_id)
+            autoalloc
+                .get_queue_id_by_allocation(&manager_info.allocation_id)
+                .map(RefreshReason::UpdateQueue)
         }
-        AutoAllocMessage::JobCreated(_) => None,
+        AutoAllocMessage::JobCreated(id) => Some(RefreshReason::NewJob(id)),
         AutoAllocMessage::GetQueues(response) => {
             let queues: Map<QueueId, QueueData> = autoalloc
                 .queues()
@@ -109,7 +118,7 @@ async fn handle_message(
             let result = create_queue(autoalloc, state_ref, server_directory, manager, params);
             let queue_id = result.as_ref().ok().copied();
             response.respond(result);
-            queue_id
+            queue_id.map(RefreshReason::UpdateQueue)
         }
         AutoAllocMessage::RemoveQueue {
             id,
@@ -307,24 +316,34 @@ async fn stop_all_allocations(autoalloc: &AutoAllocState) {
 
 /// Processes updates either for a single queue or for all queues and removes stale directories
 /// from disk.
-async fn refresh_state(
-    state: &StateRef,
-    autoalloc: &mut AutoAllocState,
-    queue_id: Option<QueueId>,
-) {
-    let queue_ids = queue_id
-        .map(|id| vec![id])
-        .unwrap_or_else(|| autoalloc.queue_ids().collect());
+async fn refresh_state(state: &StateRef, autoalloc: &mut AutoAllocState, reason: RefreshReason) {
+    let queue_ids: Vec<QueueId> = match reason {
+        RefreshReason::UpdateAllQueues | RefreshReason::NewJob(_) => {
+            autoalloc.queue_ids().collect()
+        }
+        RefreshReason::UpdateQueue(id) => {
+            vec![id]
+        }
+    };
+    let new_job_id = match reason {
+        RefreshReason::NewJob(id) => Some(id),
+        _ => None,
+    };
 
     for id in queue_ids {
         refresh_queue_allocations(state, autoalloc, id).await;
-        process_queue(state, autoalloc, id).await;
+        process_queue(state, autoalloc, id, new_job_id).await;
     }
 
     remove_inactive_directories(autoalloc).await;
 }
 
-async fn process_queue(state: &StateRef, autoalloc: &mut AutoAllocState, id: QueueId) {
+async fn process_queue(
+    state: &StateRef,
+    autoalloc: &mut AutoAllocState,
+    id: QueueId,
+    new_job_id: Option<JobId>,
+) {
     let submission_allowed = {
         let queue = get_or_return!(autoalloc.get_queue_mut(id));
         let limiter = queue.limiter_mut();
@@ -337,7 +356,7 @@ async fn process_queue(state: &StateRef, autoalloc: &mut AutoAllocState, id: Que
     };
 
     if submission_allowed {
-        queue_try_submit(id, autoalloc, state).await;
+        queue_try_submit(id, autoalloc, state, new_job_id).await;
     }
     try_remove_queue(autoalloc, id).await;
 }
@@ -618,16 +637,21 @@ fn sync_allocation_status(
     }
 }
 
-async fn queue_try_submit(queue_id: QueueId, autoalloc: &mut AutoAllocState, state_ref: &StateRef) {
-    let (allocations_to_create, workers_per_alloc, mut waiting_tasks, mut available_workers) = {
+async fn queue_try_submit(
+    queue_id: QueueId,
+    autoalloc: &mut AutoAllocState,
+    state_ref: &StateRef,
+    new_job_id: Option<JobId>,
+) {
+    let (max_allocs_to_spawn, workers_per_alloc, mut task_state, mut max_workers_to_spawn) = {
         let queue = get_or_return!(autoalloc.get_queue(queue_id));
 
         let allocs_in_queue = queue.queued_allocations().count();
 
         let info = queue.info();
-        let waiting_tasks = count_available_tasks(&state_ref.get(), info);
+        let task_state = get_server_task_state(&state_ref.get(), info);
         let active_workers = count_active_workers(queue);
-        let available_workers = match info.max_worker_count() {
+        let max_workers_to_spawn = match info.max_worker_count() {
             Some(max) => (max as u64).saturating_sub(active_workers),
             None => u64::MAX,
         };
@@ -635,25 +659,45 @@ async fn queue_try_submit(queue_id: QueueId, autoalloc: &mut AutoAllocState, sta
         (
             info.backlog().saturating_sub(allocs_in_queue as u32),
             info.workers_per_alloc() as u64,
-            waiting_tasks,
-            available_workers,
+            task_state,
+            max_workers_to_spawn,
         )
     };
 
-    for _ in 0..allocations_to_create {
+    // A new job has arrived, which will necessarily have tasks in the waiting state.
+    // To avoid creating needless allocations for it, don't do anything if we already have worker(s)
+    // that can handle this job.
+    if let Some(job_id) = new_job_id {
+        if task_state.jobs.contains_key(&job_id) {
+            let state = state_ref.get();
+            if let Some(job) = state.get_job(job_id) {
+                let has_worker = state
+                    .get_workers()
+                    .values()
+                    .any(|worker| can_worker_execute_job(job, worker));
+                if has_worker {
+                    task_state.jobs.remove(&job_id);
+                }
+            }
+        }
+    }
+
+    log::debug!("Task state: {task_state:?}, max. workers to spawn: {max_workers_to_spawn}");
+
+    for _ in 0..max_allocs_to_spawn {
         // If there are no more waiting tasks, stop creating allocations
         // Assume that each worker will handle at least a single task
-        if waiting_tasks == 0 {
+        if task_state.waiting_tasks() == 0 {
             log::debug!("No more waiting tasks found, no new allocations will be created");
             break;
         }
         // If the worker limit was reached, stop creating new allocations
-        if available_workers == 0 {
+        if max_workers_to_spawn == 0 {
             log::debug!("Worker limit reached, no new allocations will be created");
             break;
         }
 
-        let workers_to_spawn = std::cmp::min(workers_per_alloc, available_workers);
+        let workers_to_spawn = std::cmp::min(workers_per_alloc, max_workers_to_spawn);
         let schedule_fut = {
             let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
             let info = queue.info().clone();
@@ -674,7 +718,7 @@ async fn queue_try_submit(queue_id: QueueId, autoalloc: &mut AutoAllocState, sta
                 let working_dir = submission_result.working_dir().to_path_buf();
                 match submission_result.into_id() {
                     Ok(allocation_id) => {
-                        log::info!("Queued {workers_to_spawn} worker(s) into queue {queue_id}: {allocation_id}");
+                        log::info!("Queued {workers_to_spawn} worker(s) into queue {queue_id}: allocation ID {allocation_id}");
                         event_manager.on_allocation_queued(
                             queue_id,
                             allocation_id.clone(),
@@ -686,8 +730,9 @@ async fn queue_try_submit(queue_id: QueueId, autoalloc: &mut AutoAllocState, sta
                         let queue = get_or_return!(autoalloc.get_queue_mut(queue_id));
                         queue.limiter_mut().on_submission_success();
 
-                        waiting_tasks = waiting_tasks.saturating_sub(workers_to_spawn);
-                        available_workers = available_workers.saturating_sub(workers_to_spawn);
+                        task_state.remove_waiting_tasks(workers_to_spawn);
+                        max_workers_to_spawn =
+                            max_workers_to_spawn.saturating_sub(workers_to_spawn);
                     }
                     Err(err) => {
                         log::error!("Failed to submit allocation into queue {queue_id}: {err:?}");
@@ -761,39 +806,6 @@ pub fn prepare_queue_cleanup(
             async move { (future.await, allocation_id) }
         })
         .collect()
-}
-
-fn can_provide_worker(job: &Job, queue_info: &QueueInfo) -> bool {
-    match &job.job_desc {
-        JobDescription::Array {
-            task_desc: TaskDescription { resources, .. },
-            ..
-        } => resources.min_time < queue_info.timelimit(),
-        JobDescription::Graph { tasks } => {
-            tasks
-                .iter()
-                .map(|t| t.task_desc.resources.min_time)
-                .min()
-                .unwrap_or(Duration::ZERO)
-                < queue_info.timelimit()
-        }
-    }
-}
-
-fn count_available_tasks(state: &State, queue_info: &QueueInfo) -> u64 {
-    let waiting_tasks: u64 = state
-        .jobs()
-        .filter(|job| !job.is_terminated() && can_provide_worker(job, queue_info))
-        .map(|job| job.counters.n_waiting_tasks(job.n_tasks()) as u64)
-        .sum();
-    waiting_tasks
-}
-
-fn count_active_workers(queue: &QueueState) -> u64 {
-    queue
-        .active_allocations()
-        .map(|allocation| allocation.target_worker_count)
-        .sum()
 }
 
 #[cfg(test)]
@@ -1441,6 +1453,7 @@ mod tests {
             |_, _| async move { Ok(()) },
         )
     }
+
     fn fails_submit_handler() -> Box<dyn QueueHandler> {
         Handler::new(
             WrappedRcRefCell::wrap(()),
@@ -1619,6 +1632,7 @@ mod tests {
             Default::default(),
         )
     }
+
     fn create_worker(allocation_id: &str) -> ManagerInfo {
         ManagerInfo {
             manager: ManagerType::Pbs,
@@ -1640,6 +1654,7 @@ mod tests {
             _ => panic!("Allocation should be in running status"),
         }
     }
+
     fn check_disconnected_running_workers(
         allocation: &Allocation,
         workers: Vec<(u32, LostWorkerReason)>,
@@ -1660,6 +1675,7 @@ mod tests {
             _ => panic!("Allocation should be in running status"),
         }
     }
+
     fn check_finished_workers(allocation: &Allocation, workers: Vec<(u32, LostWorkerReason)>) {
         let workers: Vec<(WorkerId, LostWorkerReason)> = workers
             .into_iter()
@@ -1681,6 +1697,7 @@ mod tests {
     fn check_queue_exists(autoalloc: &AutoAllocState, id: QueueId) {
         assert!(autoalloc.get_queue(id).is_some());
     }
+
     fn check_queue_doesnt_exist(autoalloc: &AutoAllocState, id: QueueId) {
         assert!(autoalloc.get_queue(id).is_none());
     }
