@@ -47,6 +47,9 @@ for job names.
 * [#450](https://github.com/It4innovations/hyperqueue/pull/450) Attempts to resubmit a job with zero
 tasks will now result in an explicit error, rather than a crash of the client.
 
+### Automatic allocation
+* [#494](https://github.com/It4innovations/hyperqueue/pull/494) Fixed a specific issue where the
+auto allocator could submit more allocations than intended. 
 
 # v0.11.0
 
