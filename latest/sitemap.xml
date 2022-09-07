@@ -86,17 +86,17 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/gresources/</loc>
-         <lastmod>2022-09-07</lastmod>
-         <changefreq>daily</changefreq>
-    </url>
-    <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/jobs/</loc>
          <lastmod>2022-09-07</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/multinode/</loc>
+         <lastmod>2022-09-07</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://it4innovations.github.io/hyperqueue/stable/jobs/resources/</loc>
          <lastmod>2022-09-07</lastmod>
          <changefreq>daily</changefreq>
     </url>
