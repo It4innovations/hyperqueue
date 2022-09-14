@@ -126,7 +126,7 @@ fn test_worker_other_workers() {
     let state_ref = create_test_worker_state(create_test_worker_config());
     let mut state = state_ref.get_mut();
     assert!(state.worker_addresses.is_empty());
-    assert!(state.worker_resources.is_empty());
+    assert!(state.ready_task_queue.worker_resources().is_empty());
 
     let r1 = WorkerResourceCounts {
         n_resources: vec![2, 0, 1],
@@ -150,10 +150,10 @@ fn test_worker_other_workers() {
     comm.check_emptiness();
     assert_eq!(state.worker_addresses.len(), 1);
     assert_eq!(state.worker_addresses[&WorkerId::from(30)], "abc");
-    assert_eq!(state.worker_resources.len(), 1);
+    assert_eq!(state.ready_task_queue.worker_resources().len(), 1);
     let mut s = Set::new();
     s.insert(WorkerId::from(30));
-    assert_eq!(state.worker_resources[&wr1], s);
+    assert_eq!(state.ready_task_queue.worker_resources()[&wr1], s);
 
     process_worker_message(
         &mut state,
@@ -169,9 +169,9 @@ fn test_worker_other_workers() {
     assert_eq!(state.worker_addresses.len(), 2);
     assert_eq!(state.worker_addresses[&WorkerId::from(30)], "abc");
     assert_eq!(state.worker_addresses[&WorkerId::from(40)], "efg");
-    assert_eq!(state.worker_resources.len(), 1);
+    assert_eq!(state.ready_task_queue.worker_resources().len(), 1);
     s.insert(WorkerId::from(40));
-    assert_eq!(state.worker_resources[&wr1], s);
+    assert_eq!(state.ready_task_queue.worker_resources()[&wr1], s);
 
     process_worker_message(
         &mut state,
@@ -185,21 +185,25 @@ fn test_worker_other_workers() {
     let comm = state.comm().test();
     comm.check_emptiness();
     assert_eq!(state.worker_addresses.len(), 3);
-    assert_eq!(state.worker_resources.len(), 2);
+    assert_eq!(state.ready_task_queue.worker_resources().len(), 2);
     let mut t = Set::new();
     t.insert(WorkerId::from(50));
-    assert_eq!(state.worker_resources[&wr1], s);
-    assert_eq!(state.worker_resources[&wr2], t);
+    assert_eq!(state.ready_task_queue.worker_resources()[&wr1], s);
+    assert_eq!(state.ready_task_queue.worker_resources()[&wr2], t);
 
     process_worker_message(&mut state, ToWorkerMessage::LostWorker(40.into()));
     assert_eq!(state.worker_addresses.len(), 2);
     assert!(state.worker_addresses.get(&WorkerId::new(40)).is_none());
-    assert_eq!(state.worker_resources.len(), 2);
+    assert_eq!(state.ready_task_queue.worker_resources().len(), 2);
     s.remove(&WorkerId::new(40));
-    assert_eq!(state.worker_resources[&wr1], s);
-    assert_eq!(state.worker_resources[&wr2], t);
+    assert_eq!(state.ready_task_queue.worker_resources()[&wr1], s);
+    assert_eq!(state.ready_task_queue.worker_resources()[&wr2], t);
 
     process_worker_message(&mut state, ToWorkerMessage::LostWorker(30.into()));
-    assert!(state.worker_resources.get(&wr1).is_none());
-    assert_eq!(state.worker_resources[&wr2], t);
+    assert!(state
+        .ready_task_queue
+        .worker_resources()
+        .get(&wr1)
+        .is_none());
+    assert_eq!(state.ready_task_queue.worker_resources()[&wr2], t);
 }

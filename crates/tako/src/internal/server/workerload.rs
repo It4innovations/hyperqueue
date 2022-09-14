@@ -12,7 +12,7 @@ use std::ops::Deref;
 // WorkerResources are transformed information from ResourceDescriptor
 // but transformed for scheduler needs
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub(crate) struct WorkerResources {
+pub struct WorkerResources {
     n_resources: ResourceVec<ResourceAmount>,
 }
 
@@ -23,7 +23,7 @@ impl WorkerResources {
         }
     }
 
-    fn get(&self, resource_id: ResourceId) -> ResourceAmount {
+    pub(crate) fn get(&self, resource_id: ResourceId) -> ResourceAmount {
         self.n_resources
             .get(resource_id.as_num() as usize)
             .copied()
