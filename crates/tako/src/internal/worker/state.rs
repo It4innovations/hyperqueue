@@ -37,7 +37,6 @@ pub struct WorkerState {
 
     pub(crate) worker_id: WorkerId,
     pub(crate) worker_addresses: Map<WorkerId, String>,
-    pub(crate) worker_resources: Map<WorkerResources, Set<WorkerId>>,
     pub(crate) random: SmallRng,
 
     pub(crate) configuration: WorkerConfiguration,
@@ -256,20 +255,14 @@ impl WorkerState {
             .is_none());
 
         let resources = WorkerResources::from_transport(other_worker.resources);
-        assert!(self
-            .worker_resources
-            .entry(resources)
-            .or_default()
-            .insert(other_worker.worker_id));
+        self.ready_task_queue
+            .new_worker(other_worker.worker_id, resources);
     }
 
     pub fn remove_worker(&mut self, worker_id: WorkerId) {
         log::debug!("Lost worker={} announced", worker_id);
         assert!(self.worker_addresses.remove(&worker_id).is_some());
-        self.worker_resources.retain(|_, value| {
-            let is_empty = value.remove(&worker_id) && value.is_empty();
-            !is_empty
-        });
+        self.ready_task_queue.remove_worker(worker_id);
     }
 }
 
@@ -302,7 +295,6 @@ impl WorkerStateRef {
             last_task_finish_time: now,
             reservation: false,
             worker_addresses: Default::default(),
-            worker_resources: Default::default(),
         })
     }
 }
