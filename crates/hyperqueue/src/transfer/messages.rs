@@ -108,6 +108,12 @@ pub enum IdSelector {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum SingleIdSelector {
+    Specific(u32),
+    Last,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TaskIdSelector {
     All,
     Specific(IntArray),

@@ -77,16 +77,19 @@ class Table:
         return "\n".join(" | ".join(val) for val in rows)
 
 
-def parse_table(table_string: str) -> Table:
-    lines = table_string.strip().split("\n")
+def parse_table(table_info):
+    if type(table_info) == str:
+        lines = table_info.strip().split("\n")
+    elif type(table_info) == list:
+        lines = table_info
+
     rows = []
     current_rows = []
     divider_count = 0
     header = None
 
-    for line in lines:
+    for i, line in enumerate(lines):
         line = line.strip()
-
         # Log output
         if line.startswith("["):
             continue
@@ -98,8 +101,12 @@ def parse_table(table_string: str) -> Table:
                 # Commit rows to table
                 rows.extend(current_rows)
                 current_rows = []
-
             divider_count += 1
+            # End early
+            if ((divider_count == 3) or (divider_count == 2 and header is None)) and (
+                i + 1
+            ) < len(lines):
+                return Table(rows, header=header), lines[(i + 1) :]
             continue
         items = [x.strip() for x in line.split("|")[1:-1]]
 
@@ -114,7 +121,28 @@ def parse_table(table_string: str) -> Table:
                 # New row was found
                 current_rows.append(items)
 
+    # Check empty table
+    if len(rows) == 0 and header is None:
+        return None
     return Table(rows, header=header)
+
+
+def parse_tables(table_string: str):
+    lines = table_string.strip().split("\n")
+    tables = list()
+    while True:
+        p = parse_table(lines)
+        if type(p) is tuple:
+            table, lines = p
+            tables.append(table)
+        else:
+            if p is not None:
+                tables.append(p)
+            break
+    if len(tables) == 1:
+        return tables[0]
+    else:
+        return tables
 
 
 def parse_multiline_cell(cell: str) -> Dict[str, str]:

@@ -1,6 +1,8 @@
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
-use crate::transfer::messages::{IdSelector, TaskIdSelector, TaskSelector, TaskStatusSelector};
+use crate::transfer::messages::{
+    IdSelector, SingleIdSelector, TaskIdSelector, TaskSelector, TaskStatusSelector,
+};
 use clap::Parser;
 use std::str::FromStr;
 
@@ -85,5 +87,30 @@ pub fn get_id_selector(job_selector_arg: JobSelectorArg) -> IdSelector {
     match job_selector_arg {
         JobSelectorArg::Last => IdSelector::LastN(1),
         JobSelectorArg::Id(ids) => IdSelector::Specific(ids),
+    }
+}
+
+pub enum SingleIdSelectorArg {
+    Last,
+    Id(u32),
+}
+
+impl FromStr for SingleIdSelectorArg {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "last" => Ok(SingleIdSelectorArg::Last),
+            _ => Ok(SingleIdSelectorArg::Id(u32::from_str(s)?)),
+        }
+    }
+}
+
+impl From<SingleIdSelectorArg> for SingleIdSelector {
+    fn from(id_selector_arg: SingleIdSelectorArg) -> Self {
+        match id_selector_arg {
+            SingleIdSelectorArg::Last => SingleIdSelector::Last,
+            SingleIdSelectorArg::Id(id) => SingleIdSelector::Specific(id),
+        }
     }
 }

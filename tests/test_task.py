@@ -54,9 +54,11 @@ def test_task_info(hq_env: HqEnv):
     r = hq_env.command(["task", "info", "1", "5"], as_table=True)
     assert r.get_row_value("Task ID") == "5"
 
-    r = hq_env.command(["task", "info", "1", "4-6"])
-    assert "Task ID   | 5" in r
-    assert "Task ID   | 6" in r
+    r = hq_env.command(["task", "info", "1", "5-6"], as_table=True)
+    assert r[0].get_row_value("Task ID") == "5"
+    assert r[1].get_row_value("Task ID") == "6"
+
+    r = hq_env.command(["task", "info", "1", "4"])
     assert "WARN Task 4 not found" in r
 
     hq_env.command(["submit", "--", "bash", "-c", "hostname"])

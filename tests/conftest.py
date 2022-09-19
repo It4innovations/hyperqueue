@@ -8,7 +8,7 @@ from typing import Iterable, List, Optional, Tuple
 
 import pytest
 
-from .utils import parse_table
+from .utils import parse_tables
 from .utils.mock import ProgramMock
 from .utils.wait import wait_until
 
@@ -291,7 +291,7 @@ class HqEnv(Env):
             if expect_fail is not None:
                 raise Exception("Command should failed")
             if as_table:
-                return parse_table(stdout)
+                return parse_tables(stdout)
             if as_lines:
                 return stdout.rstrip().split("\n")
             if as_json:

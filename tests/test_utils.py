@@ -1,4 +1,4 @@
-from .utils import parse_table
+from .utils import parse_table, parse_tables
 
 
 def test_parse_table_horizontal():
@@ -72,12 +72,11 @@ def test_parse_table_empty():
 +---------+--------------+
     """
     )
-    assert table.header is None
-    assert table.rows == []
+    assert table is None
 
 
 def test_parse_table_ignore_suffix():
-    table = parse_table(
+    table, remainder = parse_table(
         """
 +---------+--------------+
 |a|b|
@@ -89,3 +88,60 @@ hello world
     )
     assert table.header == ["a", "b"]
     assert table.rows == [["c", "d"]]
+
+
+def test_parse_tables_horizontal():
+    tables = parse_tables(
+        """+---------+--------------+
+| Id      | Name            |
++---------+--------------+
+| a | b |
+| c   | d |
++---------+--------------+
++---------+--------------+
+| Id      | Name            |
++---------+--------------+
+| e | f |
+| g   | h |
++---------+--------------+
+"""
+    )
+    print("Found tables:", len(tables))
+    assert tables[0].header == ["Id", "Name"]
+    assert tables[0].rows == [
+        ["a", "b"],
+        ["c", "d"],
+    ]
+    assert tables[1].header == ["Id", "Name"]
+    assert tables[1].rows == [
+        ["e", "f"],
+        ["g", "h"],
+    ]
+
+
+def test_parse_tables_vertical():
+    tables = parse_tables(
+        """+---------+--------------+
+| Id      | 1            |
+| Name | 2 |
+| Value   | a |
++---------+--------------+
++---------+--------------+
+| Id      | 3            |
+| Name | 4 |
+| Value   | b |
++---------+--------------+
+"""
+    )
+    assert tables[0].header is None
+    assert tables[0].rows == [
+        ["Id", "1"],
+        ["Name", "2"],
+        ["Value", "a"],
+    ]
+    assert tables[1].header is None
+    assert tables[1].rows == [
+        ["Id", "3"],
+        ["Name", "4"],
+        ["Value", "b"],
+    ]

@@ -43,7 +43,7 @@ def test_hq_directives_from_file(hq_env: HqEnv):
 
     hq_env.command(["submit", "test"])
     table = hq_env.command(["job", "info", "4"], as_table=True)
-    assert table.get_row_value("Name") == "test"
+    assert table[0].get_row_value("Name") == "test"
 
     hq_env.command(["submit", "--directives", "file", "test"])
     table = hq_env.command(["job", "info", "5"], as_table=True)

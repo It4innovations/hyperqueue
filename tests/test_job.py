@@ -331,8 +331,8 @@ def test_job_fail(hq_env: HqEnv):
     table.check_column_value("State", 0, "FAILED")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
-    table.check_row_value("ID", "1")
-    table.check_row_value("State", "FAILED")
+    table[0].check_row_value("ID", "1")
+    table[0].check_row_value("State", "FAILED")
 
     table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     table.check_column_value("Task ID", 0, "0")
@@ -634,7 +634,7 @@ def test_max_fails_0(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
-    states = table.get_row_value("State").split("\n")
+    states = table[0].get_row_value("State").split("\n")
     assert "FAILED (1)" in states
     assert any(s.startswith("CANCELED") for s in states)
 
@@ -663,7 +663,7 @@ def test_max_fails_1(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
-    states = table.get_row_value("State").split("\n")
+    states = table[0].get_row_value("State").split("\n")
     assert "FAILED (1)" in states
     assert "FINISHED (199)" in states
 
@@ -693,7 +693,7 @@ def test_max_fails_many(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
-    states = table.get_row_value("State").split("\n")
+    states = table[0].get_row_value("State").split("\n")
     assert "FAILED (4)" in states
     assert "CANCELED (6)" in states
 
@@ -945,9 +945,9 @@ def test_job_timeout(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "FAILED")
     table = hq_env.command(["job", "info", "1"], as_table=True)
-    table.check_row_value("Task time limit", "500ms")
-    assert table.get_row_value("Makespan").startswith("5")
-    assert table.get_row_value("Makespan").endswith("ms")
+    table[0].check_row_value("Task time limit", "500ms")
+    assert table[0].get_row_value("Makespan").startswith("5")
+    assert table[0].get_row_value("Makespan").endswith("ms")
 
     table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     assert table.get_column_value("Error")[0] == "Time limit reached"
