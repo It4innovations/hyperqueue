@@ -11,6 +11,7 @@ use crate::gateway::{
 use crate::internal::common::{Map, WrappedRcRefCell};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{ToWorkerMessage, WorkerOverview};
+use crate::internal::server::core::Core;
 use crate::internal::transfer::auth::serialize;
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::task::SerializedTaskContext;
@@ -45,11 +46,14 @@ pub trait Comm {
     fn send_client_worker_overview(&mut self, overview: WorkerOverview);
 }
 
+type SchedulingCallback = Box<dyn FnOnce(&mut Core)>;
+
 pub struct CommSender {
     workers: Map<WorkerId, UnboundedSender<Bytes>>,
     need_scheduling: bool,
     scheduler_wakeup: Rc<Notify>,
     client_sender: UnboundedSender<ToGatewayMessage>,
+    after_scheduling_callbacks: Vec<SchedulingCallback>,
     panic_on_worker_lost: bool,
 }
 
@@ -65,6 +69,7 @@ impl CommSenderRef {
             workers: Default::default(),
             scheduler_wakeup,
             client_sender,
+            after_scheduling_callbacks: Vec::new(),
             need_scheduling: false,
             panic_on_worker_lost,
         })
@@ -83,9 +88,25 @@ impl CommSender {
         assert!(self.workers.remove(&worker_id).is_some());
     }
 
-    #[inline]
     pub fn reset_scheduling_flag(&mut self) {
         self.need_scheduling = false
+    }
+
+    pub fn get_scheduling_flag(&self) -> bool {
+        self.need_scheduling
+    }
+
+    pub fn add_after_scheduling_callback(&mut self, callback: SchedulingCallback) {
+        self.after_scheduling_callbacks.push(callback)
+    }
+
+    pub fn call_after_scheduling_callbacks(&mut self, core: &mut Core) {
+        if !self.after_scheduling_callbacks.is_empty() {
+            log::debug!("Running after scheduling callbacks");
+            self.after_scheduling_callbacks
+                .drain(..)
+                .for_each(|x| x(core))
+        }
     }
 }
 

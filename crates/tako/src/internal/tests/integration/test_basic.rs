@@ -1,11 +1,18 @@
+use crate::gateway::{
+    FromGatewayMessage, NewWorkerAllocationResponse, NewWorkerQuery, ToGatewayMessage,
+    WorkerTypeQuery,
+};
 use crate::internal::common::index::AsIdVec;
 use crate::internal::tests::integration::utils::api::cancel;
 use crate::internal::tests::integration::utils::check_file_contents;
-use crate::internal::tests::integration::utils::server::run_test;
+use crate::internal::tests::integration::utils::server::{run_test, ServerHandle};
+use crate::internal::tests::integration::utils::task::ResourceRequestConfigBuilder;
 use crate::internal::tests::integration::utils::task::{
     simple_args, simple_task, GraphBuilder, TaskConfigBuilder,
 };
 use crate::program::StdioDef;
+use crate::resources::ResourceDescriptor;
+use crate::wait_for_msg;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -161,6 +168,116 @@ async fn test_task_time_limit_pass() {
             ))
             .await;
         handle.wait(&[1]).await.assert_all_finished();
+    })
+    .await;
+}
+
+async fn query_helper(
+    handler: &mut ServerHandle,
+    worker_queries: Vec<WorkerTypeQuery>,
+) -> NewWorkerAllocationResponse {
+    handler
+        .send(FromGatewayMessage::NewWorkerQuery(NewWorkerQuery {
+            worker_queries,
+        }))
+        .await;
+    wait_for_msg!(handler, ToGatewayMessage::NewWorkerAllocationQueryResponse(msg) => msg)
+}
+
+#[tokio::test]
+async fn test_query_no_output_immediate_call() {
+    run_test(Default::default(), |mut handler| async move {
+        handler.start_worker(Default::default()).await.unwrap();
+        let ids = handler
+            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1)))
+            .await;
+        let msg = query_helper(
+            &mut handler,
+            vec![WorkerTypeQuery {
+                descriptor: ResourceDescriptor::simple(12),
+                max_sn_workers: 2,
+                max_worker_per_allocation: 2,
+            }],
+        )
+        .await;
+        assert_eq!(msg.single_node_allocations, vec![0]);
+        assert!(msg.multi_node_allocations.is_empty());
+        handler.wait(&ids).await;
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn test_query_no_output_delayed_call() {
+    run_test(Default::default(), |mut handler| async move {
+        handler.start_worker(Default::default()).await.unwrap();
+        let ids = handler
+            .submit(GraphBuilder::singleton(simple_task(&["sleep", "1"], 1)))
+            .await;
+        sleep(Duration::from_secs(1)).await;
+        let msg = query_helper(
+            &mut handler,
+            vec![WorkerTypeQuery {
+                descriptor: ResourceDescriptor::simple(12),
+                max_sn_workers: 2,
+                max_worker_per_allocation: 2,
+            }],
+        )
+        .await;
+        assert_eq!(msg.single_node_allocations, vec![0]);
+        assert!(msg.multi_node_allocations.is_empty());
+        handler.wait(&ids).await;
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn test_query_new_workers_delayed_call() {
+    run_test(Default::default(), |mut handler| async move {
+        handler.start_worker(Default::default()).await.unwrap();
+        let _ = handler
+            .submit(GraphBuilder::singleton(
+                simple_task(&["sleep", "1"], 1)
+                    .resources(ResourceRequestConfigBuilder::default().cpus(5)),
+            ))
+            .await;
+        sleep(Duration::from_secs(1)).await;
+        let msg = query_helper(
+            &mut handler,
+            vec![WorkerTypeQuery {
+                descriptor: ResourceDescriptor::simple(12),
+                max_sn_workers: 2,
+                max_worker_per_allocation: 2,
+            }],
+        )
+        .await;
+        assert_eq!(msg.single_node_allocations, vec![1]);
+        assert!(msg.multi_node_allocations.is_empty());
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn test_query_new_workers_immediate() {
+    run_test(Default::default(), |mut handler| async move {
+        handler.start_worker(Default::default()).await.unwrap();
+        let _ = handler
+            .submit(GraphBuilder::singleton(
+                simple_task(&["sleep", "1"], 1)
+                    .resources(ResourceRequestConfigBuilder::default().cpus(5)),
+            ))
+            .await;
+        let msg = query_helper(
+            &mut handler,
+            vec![WorkerTypeQuery {
+                descriptor: ResourceDescriptor::simple(12),
+                max_sn_workers: 2,
+                max_worker_per_allocation: 2,
+            }],
+        )
+        .await;
+        assert_eq!(msg.single_node_allocations, vec![1]);
+        assert!(msg.multi_node_allocations.is_empty());
     })
     .await;
 }

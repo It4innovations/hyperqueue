@@ -12,6 +12,7 @@ use crate::internal::server::reactor::{on_cancel_tasks, on_new_tasks, on_set_obs
 use crate::internal::server::task::{Task, TaskConfiguration, TaskInput, TaskRuntimeState};
 //use crate::internal::transfer::transport::make_protocol_builder;
 use crate::internal::common::resources::request::ResourceRequestEntry;
+use crate::internal::scheduler::query::compute_new_worker_query;
 use std::rc::Rc;
 
 /*pub(crate) async fn client_connection_handler(
@@ -192,6 +193,34 @@ pub(crate) async fn process_client_message(
             } else {
                 Some(format!("Worker with id {} not found", msg.worker_id))
             }
+        }
+        FromGatewayMessage::NewWorkerQuery(msg) => {
+            dbg!("!!!!!!!!!!!!!!!!!!!!!!");
+            for query in &msg.worker_queries {
+                if let Err(e) = query.descriptor.validate() {
+                    return Some(format!("Invalid descriptor: {:?}", e));
+                }
+            }
+            let response = if comm_ref.get().get_scheduling_flag() {
+                dbg!("DELAYED");
+                let (sx, rx) = tokio::sync::oneshot::channel();
+                comm_ref
+                    .get_mut()
+                    .add_after_scheduling_callback(Box::new(move |core| {
+                        let _ = sx.send(compute_new_worker_query(core, &msg.worker_queries));
+                    }));
+                rx.await.unwrap()
+            } else {
+                dbg!("NOW");
+                let core = core_ref.get();
+                compute_new_worker_query(&core, &msg.worker_queries)
+            };
+            dbg!("SENDING");
+            dbg!(&response);
+            assert!(client_sender
+                .send(ToGatewayMessage::NewWorkerAllocationQueryResponse(response))
+                .is_ok());
+            None
         }
     }
 }

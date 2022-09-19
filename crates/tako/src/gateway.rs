@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::WorkerOverview;
 use crate::internal::worker::configuration::WorkerConfiguration;
-use crate::resources::{AllocationRequest, NumOfNodes, CPU_RESOURCE_NAME};
+use crate::resources::{AllocationRequest, NumOfNodes, ResourceDescriptor, CPU_RESOURCE_NAME};
 use crate::task::SerializedTaskContext;
 use crate::{Priority, TaskId, WorkerId};
 use smallvec::{smallvec, SmallVec};
@@ -105,6 +105,36 @@ pub struct StopWorkerRequest {
     pub worker_id: WorkerId,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct WorkerTypeQuery {
+    pub descriptor: ResourceDescriptor,
+    pub max_sn_workers: u32,            // For single-node tasks
+    pub max_worker_per_allocation: u32, // For multi-node tasks
+}
+
+/* Ask scheduler for the information about how
+  many workers of the given type is useful to spawn.
+
+  In a situation that two worker types can be spawned to
+  speed up a computation, but not both of them, then the priority
+  is given by an order of by worker_queries, lesser index, higher priority
+
+  Query:
+
+  max_sn_workers defines how many of that worker type can outer system provides,
+  if a big number is filled, it may be slow to compute the result.
+  This is ment for single node tasks, i.e. they may or may not be in a same allocation.
+
+  max_worker_per_allocation defines how many of that worker type
+  we can get in one allocation at most.
+  This is used for planning multi-node tasks.
+
+*/
+#[derive(Serialize, Deserialize, Debug)]
+pub struct NewWorkerQuery {
+    pub worker_queries: Vec<WorkerTypeQuery>,
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "op")]
 pub enum FromGatewayMessage {
@@ -114,6 +144,7 @@ pub enum FromGatewayMessage {
     GetTaskInfo(TaskInfoRequest),
     ServerInfo,
     StopWorker(StopWorkerRequest),
+    NewWorkerQuery(NewWorkerQuery),
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -235,6 +266,19 @@ pub struct LostWorkerMessage {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct MultiNodeAllocationResponse {
+    //TODO: pub worker_type: usize
+    pub worker_per_allocation: u32,
+    pub max_allocations: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct NewWorkerAllocationResponse {
+    pub single_node_allocations: Vec<usize>, // Corresponds to NewWorkerQuery::worker_queries
+    pub multi_node_allocations: Vec<MultiNodeAllocationResponse>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "op")]
 pub enum ToGatewayMessage {
     NewTasksResponse(NewTasksResponse),
@@ -248,4 +292,5 @@ pub enum ToGatewayMessage {
     LostWorker(LostWorkerMessage),
     WorkerOverview(WorkerOverview),
     WorkerStopped,
+    NewWorkerAllocationQueryResponse(NewWorkerAllocationResponse),
 }
