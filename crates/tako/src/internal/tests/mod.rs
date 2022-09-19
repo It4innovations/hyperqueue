@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod integration;
 #[cfg(test)]
+mod test_query;
+#[cfg(test)]
 mod test_reactor;
 #[cfg(test)]
 pub mod test_scheduler_mn;

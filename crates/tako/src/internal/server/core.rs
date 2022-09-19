@@ -122,6 +122,10 @@ impl Core {
         self.sleeping_mn_tasks.push(task_id);
     }
 
+    pub fn sleeping_sn_tasks(&self) -> &[TaskId] {
+        &self.sleeping_sn_tasks
+    }
+
     pub fn take_sleeping_tasks(&mut self) -> (Vec<TaskId>, Vec<TaskId>) {
         let sn = std::mem::take(&mut self.sleeping_sn_tasks);
         let mn = std::mem::take(&mut self.sleeping_mn_tasks);
@@ -132,6 +136,10 @@ impl Core {
         ServerInfo {
             worker_listen_port: self.worker_listen_port,
         }
+    }
+
+    pub fn sn_ready_to_assign(&self) -> &[TaskId] {
+        &self.single_node_ready_to_assign
     }
 
     pub fn take_single_node_ready_to_assign(&mut self) -> Vec<TaskId> {

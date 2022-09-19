@@ -118,7 +118,8 @@ impl Backend {
                         | ToGatewayMessage::TaskInfo(_)
                         | ToGatewayMessage::Error(_)
                         | ToGatewayMessage::ServerInfo(_)
-                        | ToGatewayMessage::WorkerStopped => {
+                        | ToGatewayMessage::WorkerStopped
+                        | ToGatewayMessage::NewWorkerAllocationQueryResponse(_) => {
                             let response =
                                 server2.inner.get_mut().tako_responses.pop_front().unwrap();
                             response.send(message).unwrap();

@@ -54,9 +54,11 @@ pub(crate) async fn scheduler_loop(
         }
         let mut comm = comm_ref.get_mut();
         let mut state = SchedulerState::new(now);
-        state.run_scheduling(&mut core_ref.get_mut(), &mut *comm);
+        let mut core = core_ref.get_mut();
+        state.run_scheduling(&mut core, &mut *comm);
         comm.reset_scheduling_flag();
         last_schedule = Instant::now();
+        comm.call_after_scheduling_callbacks(&mut core);
     }
 }
 
