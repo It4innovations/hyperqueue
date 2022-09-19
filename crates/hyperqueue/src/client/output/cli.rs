@@ -643,29 +643,30 @@ impl Output for CliOutput {
             let task_id = task.task_id;
 
             let (resources, priority) = match &job.job_desc {
-            JobDescription::Array {
-                ids: _,
-                entries: _,
-                task_desc,
-            } => (
-                format_resource_request(&task_desc.resources),
-                task_desc.priority.to_string(),
-            ),
+                JobDescription::Array {
+                    ids: _,
+                    entries: _,
+                    task_desc,
+                } => (
+                    format_resource_request(&task_desc.resources),
+                    task_desc.priority.to_string(),
+                ),
 
-            JobDescription::Graph { tasks } => {
-                let opt_task_dep = tasks.iter().find(|t| t.id == task_id);
-                match opt_task_dep {
-                    None => {
-                        log::warn!("Task {task_id} not found in (graph) job {job_id}");
-                        (String::new(), String::new())
+                JobDescription::Graph { tasks } => {
+                    let opt_task_dep = tasks.iter().find(|t| t.id == task_id);
+                    match opt_task_dep {
+                        None => {
+                            log::warn!("Task {task_id} not found in (graph) job {job_id}");
+                            (String::new(), String::new())
+                        }
+                        Some(task_dep) => (
+                            format_resource_request(&task_dep.task_desc.resources),
+                            task_dep.task_desc.priority.to_string(),
+                        ),
                     }
-                    Some(task_dep) => (
-                        format_resource_request(&task_dep.task_desc.resources),
-                        task_dep.task_desc.priority.to_string(),
-                    ),
                 }
-            }
-        };let rows: Vec<Vec<CellStruct>> = vec![
+            };
+            let rows: Vec<Vec<CellStruct>> = vec![
                 vec!["Task ID".cell().bold(true), task_id.cell()],
                 vec![
                     "State".cell().bold(true),
@@ -722,8 +723,7 @@ impl Output for CliOutput {
                         _ => "".cell(),
                     },
                 ],
-
-                    vec!["Resources".cell().bold(true), resources.cell()],
+                vec!["Resources".cell().bold(true), resources.cell()],
                 vec!["Priority".cell().bold(true), priority.cell()],
             ];
             self.print_vertical_table(rows);

@@ -4,7 +4,7 @@ import os
 import time
 
 from .conftest import HqEnv
-from .utils import JOB_TABLE_ROWS, wait_for_job_state
+from .utils import wait_for_job_state
 from .utils.io import check_file_contents
 from .utils.job import default_task_output, list_jobs
 from .utils.table import parse_multiline_cell
@@ -85,11 +85,12 @@ def test_job_array_error_some(hq_env: HqEnv):
     table.check_column_value("State", 0, "FAILED")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
-    states = table.get_row_value("State").split("\n")
+
+    states = table[0].get_row_value("State").split("\n")
     assert "FAILED (3)" in states
     assert "FINISHED (7)" in states
 
-    table = table[JOB_TABLE_ROWS:].as_horizontal()
+    table = table[1]
     assert table.header == ["Task ID", "Worker", "Error"]
 
     assert table.get_column_value("Task ID")[0] == "2"
@@ -138,15 +139,15 @@ def test_job_array_error_all(hq_env: HqEnv):
     table.check_column_value("State", 0, "FAILED")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
-    states = table.get_row_value("State").split("\n")
+    states = table[0].get_row_value("State").split("\n")
     assert "FAILED (10)" in states
 
-    errors = table[JOB_TABLE_ROWS:].as_horizontal().get_column_value("Error")
+    errors = table[1].as_horizontal().get_column_value("Error")
     for error in errors:
         assert "No such file or directory" in error
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
-    states = table.get_row_value("State").split("\n")
+    states = table[0].get_row_value("State").split("\n")
     assert "FAILED (10)" in states
 
     task_table = hq_env.command(["task", "list", "1", "-v"], as_table=True)

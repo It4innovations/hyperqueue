@@ -341,7 +341,7 @@ async fn command_task_info(gsettings: &GlobalSettings, opts: TaskInfoOpts) -> an
     output_job_task_info(
         gsettings,
         &mut session,
-        get_id_selector(opts.job_selector),
+        opts.job_selector.into(),
         get_task_id_selector(Some(opts.task_selector)),
         opts.verbosity.into(),
     )

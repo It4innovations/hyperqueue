@@ -2,13 +2,13 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
 use crate::client::output::{Verbosity, VerbosityFlag};
 use crate::common::arraydef::IntArray;
-use crate::common::cli::{JobSelectorArg, TaskSelectorArg};
+use crate::common::cli::{JobSelectorArg, SingleIdSelectorArg, TaskSelectorArg};
+use crate::rpc_call;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    FromClientMessage, IdSelector, JobDetailRequest, TaskIdSelector, TaskSelector,
-    TaskStatusSelector, ToClientMessage,
+    FromClientMessage, IdSelector, JobDetailRequest, SingleIdSelector, TaskIdSelector,
+    TaskSelector, TaskStatusSelector, ToClientMessage,
 };
-use crate::{rpc_call};
 
 #[derive(clap::Parser)]
 pub struct TaskOpts {
@@ -39,7 +39,7 @@ pub struct TaskListOpts {
 #[derive(clap::Parser)]
 pub struct TaskInfoOpts {
     /// Select specific job
-    pub job_selector: JobSelectorArg,
+    pub job_selector: SingleIdSelectorArg,
 
     /// Select specific task(s)
     pub task_selector: IntArray,
@@ -86,31 +86,15 @@ pub async fn output_job_task_list(
 pub async fn output_job_task_info(
     gsettings: &GlobalSettings,
     session: &mut ClientSession,
-    job_id_selector: IdSelector,
+    job_id_selector: SingleIdSelector,
     task_id_selector: TaskIdSelector,
     verbosity: Verbosity,
 ) -> anyhow::Result<()> {
-    match &job_id_selector {
-        IdSelector::All => {
-            log::warn!("Task info doesn't support multiple jobs.");
-            return Ok(());
-        }
-        IdSelector::Specific(ids) => {
-            if ids.id_count() > 1 {
-                log::warn!("Task info doesn't support multiple jobs.");
-                return Ok(());
-            }
-        }
-        IdSelector::LastN(s) => {
-            if *s > 1 {
-                log::warn!("Task info doesn't support multiple jobs.");
-                return Ok(());
-            }
-        }
-    }
-
     let message = FromClientMessage::JobDetail(JobDetailRequest {
-        job_id_selector,
+        job_id_selector: match job_id_selector {
+            SingleIdSelector::Specific(id) => IdSelector::Specific(IntArray::from_id(id)),
+            SingleIdSelector::Last => IdSelector::LastN(1),
+        },
         task_selector: Some(TaskSelector {
             id_selector: task_id_selector,
             status_selector: TaskStatusSelector::All,
