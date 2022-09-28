@@ -35,7 +35,7 @@ pub fn get_allocation_status(info: &AllocationInfo, query_time: SystemTime) -> A
         Some(finish_time) => finish_time < query_time,
     };
     match has_started && !has_finished {
-        true => (AllocationStatus::Running),
+        true => AllocationStatus::Running,
         false => match has_finished {
             true => AllocationStatus::Finished,
             false => AllocationStatus::Queued,
