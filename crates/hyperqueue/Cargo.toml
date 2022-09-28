@@ -46,11 +46,11 @@ byteorder = "1.4"
 const_format = "0.2"
 tui = { version = "0.17.0", default-features = false, features = ["termion"] }
 termion = "1.5"
-indicatif = "0.16.2"
+indicatif = "0.17"
 textwrap = "0.15"
-async-compression = { version = "0.3.8", features = ["tokio", "gzip"] }
-flate2 = { version = "1.0.23", features = ["default"] }
-psutil = "3.2.1"
+async-compression = { version = "0.3", features = ["tokio", "gzip"] }
+flate2 = { version = "1", features = ["default"] }
+psutil = "3.2"
 chumsky = "0.8.0"
 
 # Tako
