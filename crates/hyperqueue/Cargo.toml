@@ -8,39 +8,41 @@ description = "Job execution system"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-log = "0.4"
-env_logger = "0.9"
-futures = "0.3"
-tokio = { version = "1.20", features = ["full"] }
-tokio-util = { version = "0.7", features = ["codec"] }
-clap = { version = "3.2", features = ["derive", "env"] }
-clap_complete = "3.1.4"
-rmp-serde = "1.0.0"
-rmpv = { version = "1.0", features = ["with-serde"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.64"
-serde_bytes = "0.11"
-serde-tuple-vec-map = "1"
-bytes = "1.0.1"
-atty = "0.2"
-cli-table = { version = "0.4.6", default-features = false }
-thiserror = "1"
-anyhow = "1"
-dirs = "4.0"
-gethostname = "0.2.1"
-chrono = { version = "0.4.19", features = ["serde"] }
-orion = "0.17.0"
-hex = "0.4.3"
-tempdir = "0.3.7"
+log = { workspace = true }
+env_logger = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tokio-util = { workspace = true, features = ["codec"] }
+clap = { workspace = true, features = ["derive", "env"] }
+clap_complete = { workspace = true }
+rmp-serde = { workspace = true}
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_bytes = { workspace = true }
+bytes = {workspace = true }
+thiserror = { workspace = true }
+gethostname = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+orion = { workspace = true }
+hex = { workspace = true }
+bincode = { workspace = true }
+smallvec = { workspace = true }
+rand = { workspace = true }
+anyhow = { workspace =  true }
+tempdir = { workspace = true }
+
 humantime = "2.1.0"
 num_cpus = "1.13.0"
-bincode = "1.3.3"
+cli-table = { version = "0.4.6", default-features = false }
+atty = "0.2"
+serde-tuple-vec-map = "1"
+dirs = "4.0"
+rmpv = { version = "1.0", features = ["with-serde"] }
 nom = "7.1"
 nom-supreme = { version = "0.8.0"}
 bstr = { version = "0.2", features = ["serde1"] }
 colored = "2"
 byteorder = "1.4"
-smallvec = "1.6.1"
 const_format = "0.2"
 tui = { version = "0.17.0", default-features = false, features = ["termion"] }
 termion = "1.5"
@@ -49,7 +51,6 @@ textwrap = "0.15"
 async-compression = { version = "0.3.8", features = ["tokio", "gzip"] }
 flate2 = { version = "1.0.23", features = ["default"] }
 psutil = "3.2.1"
-rand = { version = "0.8", features = ["small_rng"] }
 chumsky = "0.8.0"
 
 # Tako
