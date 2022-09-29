@@ -1,7 +1,10 @@
-use crate::gateway::{NewWorkerAllocationResponse, WorkerTypeQuery};
+use crate::gateway::{MultiNodeAllocationResponse, NewWorkerAllocationResponse, WorkerTypeQuery};
 use crate::internal::server::core::Core;
 use crate::internal::server::workerload::{WorkerLoad, WorkerResources};
+use crate::resources::NumOfNodes;
+use crate::Map;
 
+/* Read the documentation of NewWorkerQuery in gateway.rs */
 pub(crate) fn compute_new_worker_query(
     core: &Core,
     queries: &[WorkerTypeQuery],
@@ -61,8 +64,42 @@ pub(crate) fn compute_new_worker_query(
             }
         }
     }
+
+    let mut mn_task_profiles: Map<NumOfNodes, u32> = Map::new();
+    for task_id in core.sleeping_mn_tasks() {
+        let task = core.get_task(*task_id);
+        let n_nodes = task.configuration.resources.n_nodes();
+        assert!(n_nodes > 0);
+        *mn_task_profiles.entry(n_nodes).or_default() += 1;
+    }
+    let (queue, map, _ws) = core.multi_node_queue_split();
+    for task_id in queue.all_tasks() {
+        let task = map.get_task(*task_id);
+        let n_nodes = task.configuration.resources.n_nodes();
+        assert!(n_nodes > 0);
+        *mn_task_profiles.entry(n_nodes).or_default() += 1;
+    }
+
+    let mut multi_node_allocations: Vec<_> = mn_task_profiles
+        .iter()
+        .filter_map(|(nodes, count)| {
+            queries.iter().enumerate().find_map(|(i, worker_type)| {
+                if worker_type.max_worker_per_allocation >= *nodes {
+                    Some(MultiNodeAllocationResponse {
+                        worker_type: i,
+                        worker_per_allocation: *nodes,
+                        max_allocations: *count,
+                    })
+                } else {
+                    None
+                }
+            })
+        })
+        .collect();
+    multi_node_allocations.sort_unstable_by_key(|x| (x.worker_type, x.worker_per_allocation));
+
     NewWorkerAllocationResponse {
         single_node_allocations: new_loads.iter().map(|x| x.0.len()).collect(),
-        multi_node_allocations: Vec::new(),
+        multi_node_allocations,
     }
 }

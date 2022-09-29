@@ -89,7 +89,7 @@ impl Core {
         &self.idle_timeout
     }
 
-    pub(crate) fn multi_node_queue_split(
+    pub(crate) fn multi_node_queue_split_mut(
         &mut self,
     ) -> (&mut MultiNodeQueue, &mut TaskMap, &mut WorkerMap) {
         (
@@ -97,6 +97,10 @@ impl Core {
             &mut self.tasks,
             &mut self.workers,
         )
+    }
+
+    pub(crate) fn multi_node_queue_split(&self) -> (&MultiNodeQueue, &TaskMap, &WorkerMap) {
+        (&self.multi_node_queue, &self.tasks, &self.workers)
     }
 
     pub fn park_workers(&mut self) {
@@ -124,6 +128,10 @@ impl Core {
 
     pub fn sleeping_sn_tasks(&self) -> &[TaskId] {
         &self.sleeping_sn_tasks
+    }
+
+    pub fn sleeping_mn_tasks(&self) -> &[TaskId] {
+        &self.sleeping_mn_tasks
     }
 
     pub fn take_sleeping_tasks(&mut self) -> (Vec<TaskId>, Vec<TaskId>) {
@@ -451,9 +459,6 @@ mod tests {
     use crate::{TaskId, WorkerId};
 
     impl Core {
-        pub fn sleeping_mn_tasks(&self) -> &[TaskId] {
-            &self.sleeping_mn_tasks
-        }
         pub fn get_read_to_assign(&self) -> &[TaskId] {
             &self.single_node_ready_to_assign
         }

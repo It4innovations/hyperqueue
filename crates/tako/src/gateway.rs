@@ -267,7 +267,7 @@ pub struct LostWorkerMessage {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MultiNodeAllocationResponse {
-    //TODO: pub worker_type: usize
+    pub worker_type: usize,
     pub worker_per_allocation: u32,
     pub max_allocations: u32,
 }
