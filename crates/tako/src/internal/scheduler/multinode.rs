@@ -35,4 +35,8 @@ impl MultiNodeQueue {
     pub fn remove_task(&mut self, task_id: TaskId) {
         self.queue.remove(&task_id);
     }
+
+    pub fn all_tasks(&self) -> impl Iterator<Item = &TaskId> {
+        self.queue.iter().map(|x| x.0)
+    }
 }
