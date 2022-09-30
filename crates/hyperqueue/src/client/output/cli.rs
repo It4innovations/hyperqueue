@@ -32,6 +32,7 @@ use tako::program::StdioDef;
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 
 use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
+use crate::client::output::json::format_datetime;
 use crate::client::output::Verbosity;
 use crate::common::utils::str::{pluralize, select_plural, truncate_middle};
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
@@ -269,6 +270,7 @@ impl Output for CliOutput {
         let WorkerInfo {
             id,
             configuration,
+            started,
             ended: _ended,
         } = worker_info;
 
@@ -276,6 +278,7 @@ impl Output for CliOutput {
         let rows = vec![
             vec!["Worker ID".cell().bold(true), id.cell()],
             vec!["Hostname".cell().bold(true), configuration.hostname.cell()],
+            vec!["Started".cell().bold(true), format_datetime(started).cell()],
             vec![
                 "Data provider".cell().bold(true),
                 configuration.listen_address.cell(),

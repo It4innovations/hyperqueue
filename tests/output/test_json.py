@@ -50,11 +50,11 @@ def test_print_worker_info(hq_env: HqEnv):
                 "work_dir": str,
                 "on_server_lost": "stop",
             },
+            "started": str,
             "ended": None,
             "id": 1,
         }
     )
-    print(output)
     schema.validate(output)
 
 

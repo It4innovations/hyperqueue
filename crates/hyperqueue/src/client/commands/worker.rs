@@ -1,4 +1,5 @@
 use anyhow::bail;
+use chrono::Utc;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -116,6 +117,7 @@ pub async fn start_hq_worker(
     gsettings.printer().print_worker_info(WorkerInfo {
         id: worker.id,
         configuration: worker.configuration,
+        started: Utc::now(),
         ended: None,
     });
     future.await.map_err(|e| e.into())
