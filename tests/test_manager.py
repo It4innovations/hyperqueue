@@ -114,6 +114,8 @@ def test_manager_pbs(hq_env: HqEnv):
 
         table = hq_env.command(["worker", "list"], as_table=True)
         table.check_columns_value(["Manager", "Manager Job ID"], 0, ["PBS", "x1234"])
+        table = hq_env.command(["worker", "info", "1"], as_table=True)
+        table.check_row_value("Group", "x1234")
 
 
 def test_manager_pbs_no_qstat(hq_env: HqEnv):

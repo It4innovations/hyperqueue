@@ -225,6 +225,15 @@ def test_worker_info(hq_env: HqEnv):
     table.check_row_value("Heartbeat", "10s")
     table.check_row_value("Resources", "cpus: 10")
     table.check_row_value("Manager", "None")
+    table.check_row_value("Group", "default")
+
+
+def test_worker_group(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus="10", args=["--group", "test_1"])
+
+    table = hq_env.command(["worker", "info", "1"], as_table=True)
+    table.check_row_value("Group", "test_1")
 
 
 def test_worker_address(hq_env: HqEnv):

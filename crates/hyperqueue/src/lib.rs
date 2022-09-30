@@ -29,6 +29,8 @@ define_id_type!(JobTaskId, u32);
 pub type JobTaskCount = u32;
 pub type JobTaskStep = u32;
 
+pub const DEFAULT_WORKER_GROUP_NAME: &str = "default";
+
 // Reexports
 pub use tako;
 pub use tako::WrappedRcRefCell;

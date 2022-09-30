@@ -19,6 +19,7 @@ pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u64) {
         resources: ResourceDescriptor::simple(cpus),
         listen_address: format!("1.1.1.{}:123", worker_id),
         hostname: format!("test{}", worker_id),
+        group: "default".to_string(),
         work_dir: Default::default(),
         log_dir: Default::default(),
         heartbeat_interval: Duration::from_millis(1000),

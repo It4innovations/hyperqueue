@@ -67,6 +67,7 @@ pub(super) fn create_worker_configuration(
             },
             listen_address: "".to_string(),
             hostname: "".to_string(),
+            group: "".to_string(),
             work_dir: Default::default(),
             log_dir: Default::default(),
             heartbeat_interval,

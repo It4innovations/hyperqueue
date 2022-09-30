@@ -37,6 +37,7 @@ pub fn create_worker(id: u64) -> Worker {
             }]),
             listen_address: "".to_string(),
             hostname: "".to_string(),
+            group: "default".to_string(),
             work_dir: Default::default(),
             log_dir: Default::default(),
             heartbeat_interval: Default::default(),

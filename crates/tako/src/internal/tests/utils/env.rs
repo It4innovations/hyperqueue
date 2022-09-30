@@ -101,6 +101,7 @@ impl TestEnv {
                 resources: rd,
                 listen_address: format!("1.1.1.{}:123", i),
                 hostname: format!("test{}", i),
+                group: "default".to_string(),
                 work_dir: Default::default(),
                 log_dir: Default::default(),
                 heartbeat_interval: Duration::from_millis(1000),
