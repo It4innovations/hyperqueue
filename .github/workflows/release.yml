@@ -50,12 +50,10 @@ jobs:
           echo "Pre-release: ${{ env.PRERELEASE }}"
   build-artifacts:
     needs: [set-env]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: ./.github/workflows/build.yml
-        with:
-          version: ${{ needs.set-env.outputs.tag }}
-          sha: ${{ needs.set-env.outputs.sha }}
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.set-env.outputs.tag }}
+      sha: ${{ needs.set-env.outputs.sha }}
   create-release:
     runs-on: ubuntu-latest
     needs: [set-env, build-artifacts]

@@ -5,7 +5,7 @@ on:
   schedule:
     - cron: "0 23 * * *"
 jobs:
-  build-artifacts:
+  set-env:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ env.HQ_VERSION }}
@@ -18,13 +18,14 @@ jobs:
       - name: Print HQ nightly version
         run: |
           echo "HQ version: ${{ env.HQ_VERSION }}"
-      - name: Build artifacts
-        uses: ./.github/workflows/build.yml
-        with:
-          version: ${{ env.HQ_VERSION }}
+  build-artifacts:
+    needs: [set-env]
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.set-env.outputs.version }}
   create-tag:
     runs-on: ubuntu-latest
-    needs: [ build-artifacts ]
+    needs: [set-env, build-artifacts]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
@@ -33,10 +34,10 @@ jobs:
         with:
           tag: nightly
           force_push_tag: true
-          message: Nightly build ${{ needs.build-artifacts.outputs.version }}
+          message: Nightly build ${{ needs.set-env.outputs.version }}
   create-release:
     runs-on: ubuntu-latest
-    needs: [ create-tag ]
+    needs: [create-tag]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
