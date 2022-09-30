@@ -6,9 +6,7 @@ impl AllocationState {
             AllocationState::Finished {
                 disconnected_workers,
                 ..
-            } => disconnected_workers
-                .values()
-                .any(|reason| reason.is_failure()),
+            } => disconnected_workers.all_crashed(),
             AllocationState::Invalid { failed, .. } => *failed,
             AllocationState::Queued | AllocationState::Running { .. } => false,
         }

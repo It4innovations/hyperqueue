@@ -13,7 +13,7 @@ use crate::common::manager::info::ManagerType;
 use crate::common::utils::time::now_monotonic;
 use crate::server::autoalloc::config::MAX_KEPT_DIRECTORIES;
 use crate::server::autoalloc::queue::QueueHandler;
-use crate::server::autoalloc::QueueInfo;
+use crate::server::autoalloc::{LostWorkerDetails, QueueInfo};
 use crate::Map;
 
 // Main state holder
@@ -253,24 +253,59 @@ impl Allocation {
     }
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DisconnectedWorkers {
+    workers: Map<WorkerId, LostWorkerDetails>,
+}
+
+impl DisconnectedWorkers {
+    pub fn on_worker_lost(&mut self, worker_id: WorkerId, details: LostWorkerDetails) {
+        self.workers.insert(worker_id, details);
+    }
+    pub fn count(&self) -> u64 {
+        self.workers.len() as u64
+    }
+
+    /// Returns true if all workers that have disconnected have crashed.
+    /// A worker is considered to be failed if it has lost connection to the server very soon
+    /// after it has connected.
+    pub fn all_crashed(&self) -> bool {
+        self.workers.values().all(|details| {
+            matches!(
+                details.reason,
+                LostWorkerReason::ConnectionLost | LostWorkerReason::HeartbeatLost
+            ) && details.lifetime <= Duration::from_secs(60)
+        })
+    }
+}
+
+impl IntoIterator for DisconnectedWorkers {
+    type Item = (WorkerId, LostWorkerDetails);
+    type IntoIter = <Map<WorkerId, LostWorkerDetails> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.workers.into_iter()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AllocationState {
     Queued,
     Running {
         started_at: SystemTime,
         connected_workers: Set<WorkerId>,
-        disconnected_workers: Map<WorkerId, LostWorkerReason>,
+        disconnected_workers: DisconnectedWorkers,
     },
     // The allocation has finished by connecting and disconnecting the expected amount of workers.
     Finished {
         started_at: SystemTime,
         finished_at: SystemTime,
-        disconnected_workers: Map<WorkerId, LostWorkerReason>,
+        disconnected_workers: DisconnectedWorkers,
     },
     // Zero (or not enough) workers have connected, but the allocation has been finished.
     Invalid {
         connected_workers: Set<WorkerId>,
-        disconnected_workers: Map<WorkerId, LostWorkerReason>,
+        disconnected_workers: DisconnectedWorkers,
         started_at: Option<SystemTime>,
         finished_at: SystemTime,
         failed: bool,
@@ -403,6 +438,11 @@ impl RateLimiter {
         if self.current_delay < self.submission_delays.len() - 1 {
             self.current_delay += 1;
         }
+    }
+
+    #[cfg(test)]
+    pub fn allocation_fail_count(&self) -> u64 {
+        self.allocation_fails as u64
     }
 }
 

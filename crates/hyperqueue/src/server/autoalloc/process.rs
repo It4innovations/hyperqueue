@@ -5,7 +5,6 @@ use std::time::SystemTime;
 use futures::future::join_all;
 use tempdir::TempDir;
 
-use tako::gateway::LostWorkerReason;
 use tako::WorkerId;
 use tako::{Map, Set};
 
@@ -21,7 +20,7 @@ use crate::server::autoalloc::estimator::{
 use crate::server::autoalloc::queue::pbs::PbsHandler;
 use crate::server::autoalloc::queue::slurm::SlurmHandler;
 use crate::server::autoalloc::queue::{AllocationExternalStatus, QueueHandler, SubmitMode};
-use crate::server::autoalloc::service::AutoAllocMessage;
+use crate::server::autoalloc::service::{AutoAllocMessage, LostWorkerDetails};
 use crate::server::autoalloc::state::{
     AllocationQueue, AllocationQueueState, AllocationState, AutoAllocState, RateLimiter,
     RateLimiterStatus,
@@ -82,12 +81,12 @@ async fn handle_message(
                 .get_queue_id_by_allocation(&manager_info.allocation_id)
                 .map(RefreshReason::UpdateQueue)
         }
-        AutoAllocMessage::WorkerLost(id, manager_info, reason) => {
+        AutoAllocMessage::WorkerLost(id, manager_info, details) => {
             log::debug!(
                 "Removing worker {id} from allocation {}",
                 manager_info.allocation_id
             );
-            on_worker_lost(state_ref, autoalloc, id, &manager_info, reason);
+            on_worker_lost(state_ref, autoalloc, id, &manager_info, details);
             autoalloc
                 .get_queue_id_by_allocation(&manager_info.allocation_id)
                 .map(RefreshReason::UpdateQueue)
@@ -468,7 +467,7 @@ async fn refresh_queue_allocations(
                             id,
                             queue,
                             &allocation_id,
-                            Some(status),
+                            AllocationSyncReason::AllocationExternalChange(status),
                         ),
                         _ => {}
                     },
@@ -533,7 +532,7 @@ fn on_worker_lost(
     state: &mut AutoAllocState,
     worker_id: WorkerId,
     manager_info: &ManagerInfo,
-    reason: LostWorkerReason,
+    worker_details: LostWorkerDetails,
 ) {
     let (queue, queue_id, allocation_id) =
         get_or_return!(get_data_from_worker(state, worker_id, manager_info));
@@ -553,8 +552,14 @@ fn on_worker_lost(
             if !connected_workers.remove(&worker_id) {
                 log::warn!("Worker {worker_id} has disconnected multiple times!");
             }
-            disconnected_workers.insert(worker_id, reason);
-            sync_allocation_status(state_ref, queue_id, queue, &allocation_id, None);
+            disconnected_workers.on_worker_lost(worker_id, worker_details);
+            sync_allocation_status(
+                state_ref,
+                queue_id,
+                queue,
+                &allocation_id,
+                AllocationSyncReason::WorkerLost,
+            );
         }
         AllocationState::Finished { .. } => {
             log::warn!(
@@ -571,12 +576,17 @@ fn on_worker_lost(
     }
 }
 
+enum AllocationSyncReason {
+    WorkerLost,
+    AllocationExternalChange(AllocationExternalStatus),
+}
+
 fn sync_allocation_status(
     state_ref: &StateRef,
     queue_id: QueueId,
     queue: &mut AllocationQueue,
     allocation_id: &str,
-    external_status: Option<AllocationExternalStatus>,
+    sync_reason: AllocationSyncReason,
 ) {
     let allocation = get_or_return!(queue.get_allocation_mut(allocation_id));
 
@@ -587,79 +597,80 @@ fn sync_allocation_status(
 
     let action: Option<Action> = {
         // Unexpected end of allocation
-        if let Some(status) = external_status {
-            let (connected, disconnected) = match &mut allocation.status {
-                AllocationState::Queued => (Default::default(), Default::default()),
-                AllocationState::Running {
-                    connected_workers,
-                    disconnected_workers,
-                    ..
-                } => (
-                    std::mem::take(connected_workers),
-                    std::mem::take(disconnected_workers),
-                ),
-                AllocationState::Finished { .. } | AllocationState::Invalid { .. } => {
-                    // The allocation was already finished before
-                    return;
+        match sync_reason {
+            AllocationSyncReason::WorkerLost => {
+                match &mut allocation.status {
+                    AllocationState::Running {
+                        disconnected_workers,
+                        started_at,
+                        ..
+                    } => {
+                        // All expected workers have disconnected, the allocation ends in a normal way
+                        if disconnected_workers.count() == allocation.target_worker_count {
+                            let is_failed = disconnected_workers.all_crashed();
+
+                            allocation.status = AllocationState::Finished {
+                                started_at: *started_at,
+                                finished_at: SystemTime::now(),
+                                disconnected_workers: std::mem::take(disconnected_workers),
+                            };
+
+                            Some(if is_failed {
+                                Action::Failure
+                            } else {
+                                Action::Success
+                            })
+                        } else {
+                            None
+                        }
+                    }
+                    AllocationState::Invalid { .. }
+                    | AllocationState::Finished { .. }
+                    | AllocationState::Queued => None,
                 }
-            };
-            let failed = matches!(status, AllocationExternalStatus::Failed { .. });
-            match status {
-                AllocationExternalStatus::Finished {
-                    started_at,
-                    finished_at,
-                }
-                | AllocationExternalStatus::Failed {
-                    started_at,
-                    finished_at,
-                } => {
-                    log::debug!("Setting allocation {allocation_id} status to invalid because of external status {status:?}.");
-                    allocation.status = AllocationState::Invalid {
-                        connected_workers: connected,
+            }
+            AllocationSyncReason::AllocationExternalChange(status) => {
+                let (connected, disconnected) = match &mut allocation.status {
+                    AllocationState::Queued => (Default::default(), Default::default()),
+                    AllocationState::Running {
+                        connected_workers,
+                        disconnected_workers,
+                        ..
+                    } => (
+                        std::mem::take(connected_workers),
+                        std::mem::take(disconnected_workers),
+                    ),
+                    AllocationState::Finished { .. } | AllocationState::Invalid { .. } => {
+                        // The allocation was already finished before
+                        return;
+                    }
+                };
+                let failed = matches!(status, AllocationExternalStatus::Failed { .. });
+                match status {
+                    AllocationExternalStatus::Finished {
                         started_at,
                         finished_at,
-                        disconnected_workers: disconnected,
-                        failed,
-                    };
-                    Some(if failed {
-                        Action::Failure
-                    } else {
-                        Action::Success
-                    })
-                }
-                _ => None,
-            }
-        } else {
-            match &mut allocation.status {
-                AllocationState::Running {
-                    disconnected_workers,
-                    started_at,
-                    ..
-                } => {
-                    // All expected workers have disconnected, the allocation ends in a normal way
-                    if disconnected_workers.len() as u64 == allocation.target_worker_count {
-                        let is_failed = disconnected_workers
-                            .values()
-                            .any(|reason| reason.is_failure());
-
-                        allocation.status = AllocationState::Finished {
-                            started_at: *started_at,
-                            finished_at: SystemTime::now(),
-                            disconnected_workers: std::mem::take(disconnected_workers),
+                    }
+                    | AllocationExternalStatus::Failed {
+                        started_at,
+                        finished_at,
+                    } => {
+                        log::debug!("Setting allocation {allocation_id} status to invalid because of external status {status:?}.");
+                        allocation.status = AllocationState::Invalid {
+                            connected_workers: connected,
+                            started_at,
+                            finished_at,
+                            disconnected_workers: disconnected,
+                            failed,
                         };
-
-                        Some(if is_failed {
+                        Some(if failed {
                             Action::Failure
                         } else {
                             Action::Success
                         })
-                    } else {
-                        None
                     }
+                    _ => None,
                 }
-                AllocationState::Invalid { .. }
-                | AllocationState::Finished { .. }
-                | AllocationState::Queued => None,
             }
         }
     };
@@ -875,7 +886,9 @@ mod tests {
     use crate::server::autoalloc::state::{
         AllocationQueue, AllocationQueueState, AllocationState, AutoAllocState, RateLimiter,
     };
-    use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
+    use crate::server::autoalloc::{
+        Allocation, AllocationId, AutoAllocResult, LostWorkerDetails, QueueId, QueueInfo,
+    };
     use crate::server::job::Job;
     use crate::server::state::StateRef;
     use crate::tests::utils::create_hq_state;
@@ -1016,7 +1029,7 @@ mod tests {
             &mut state,
             worker_id,
             &create_worker(&allocs[0].id),
-            LostWorkerReason::ConnectionLost,
+            lost_worker_normal(LostWorkerReason::ConnectionLost),
         );
         check_finished_workers(
             get_allocations(&state, queue_id).get(0).unwrap(),
@@ -1052,7 +1065,7 @@ mod tests {
             &mut state,
             0.into(),
             &create_worker(&allocs[0].id),
-            LostWorkerReason::ConnectionLost,
+            lost_worker_normal(LostWorkerReason::ConnectionLost),
         );
         let allocation = get_allocations(&state, queue_id)[0].clone();
         check_running_workers(&allocation, vec![1]);
@@ -1065,7 +1078,7 @@ mod tests {
             &mut state,
             1.into(),
             &create_worker(&allocs[0].id),
-            LostWorkerReason::HeartbeatLost,
+            lost_worker_normal(LostWorkerReason::HeartbeatLost),
         );
         let allocation = get_allocations(&state, queue_id)[0].clone();
         check_finished_workers(
@@ -1192,7 +1205,7 @@ mod tests {
             &mut state,
             1.into(),
             &create_worker(&allocations[1].id),
-            LostWorkerReason::ConnectionLost,
+            lost_worker_normal(LostWorkerReason::ConnectionLost),
         );
 
         // One worker was freed, create an additional allocation
@@ -1372,6 +1385,84 @@ mod tests {
             refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(4);
         }
+    }
+
+    #[tokio::test]
+    async fn bump_fail_counter_if_worker_fails_quick() {
+        let hq_state = new_hq_state(1000);
+        let mut state = AutoAllocState::new();
+
+        let handler = always_queued_handler();
+        let queue_id = add_queue(
+            &mut state,
+            handler,
+            QueueBuilder::default().backlog(1).workers_per_alloc(1),
+        );
+
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        let allocs = get_allocations(&state, queue_id);
+
+        let worker_id: WorkerId = 0.into();
+        on_worker_connected(
+            &hq_state,
+            &mut state,
+            worker_id,
+            &create_worker(&allocs[0].id),
+        );
+        on_worker_lost(
+            &hq_state,
+            &mut state,
+            worker_id,
+            &create_worker(&allocs[0].id),
+            lost_worker_quick(LostWorkerReason::ConnectionLost),
+        );
+        assert_eq!(
+            state
+                .get_queue(queue_id)
+                .unwrap()
+                .limiter()
+                .allocation_fail_count(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn do_not_bump_fail_counter_if_worker_fails_normally() {
+        let hq_state = new_hq_state(1000);
+        let mut state = AutoAllocState::new();
+
+        let handler = always_queued_handler();
+        let queue_id = add_queue(
+            &mut state,
+            handler,
+            QueueBuilder::default().backlog(1).workers_per_alloc(1),
+        );
+
+        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        let allocs = get_allocations(&state, queue_id);
+
+        let worker_id: WorkerId = 0.into();
+        on_worker_connected(
+            &hq_state,
+            &mut state,
+            worker_id,
+            &create_worker(&allocs[0].id),
+        );
+        on_worker_lost(
+            &hq_state,
+            &mut state,
+            worker_id,
+            &create_worker(&allocs[0].id),
+            lost_worker_normal(LostWorkerReason::ConnectionLost),
+        );
+        assert_eq!(
+            state
+                .get_queue(queue_id)
+                .unwrap()
+                .limiter()
+                .allocation_fail_count(),
+            0
+        );
     }
 
     // Utilities
@@ -1706,7 +1797,11 @@ mod tests {
                 disconnected_workers,
                 ..
             } => {
-                let mut disconnected: Vec<_> = disconnected_workers.clone().into_iter().collect();
+                let mut disconnected: Vec<_> = disconnected_workers
+                    .clone()
+                    .into_iter()
+                    .map(|(id, details)| (id, details.reason))
+                    .collect();
                 disconnected.sort_unstable_by_key(|(id, _)| *id);
                 assert_eq!(disconnected, workers);
             }
@@ -1724,7 +1819,11 @@ mod tests {
                 disconnected_workers,
                 ..
             } => {
-                let mut disconnected: Vec<_> = disconnected_workers.clone().into_iter().collect();
+                let mut disconnected: Vec<_> = disconnected_workers
+                    .clone()
+                    .into_iter()
+                    .map(|(id, details)| (id, details.reason))
+                    .collect();
                 disconnected.sort_unstable_by_key(|(id, _)| *id);
                 assert_eq!(disconnected, workers);
             }
@@ -1751,7 +1850,20 @@ mod tests {
             autoalloc,
             worker_id,
             &minfo,
-            LostWorkerReason::ConnectionLost,
+            lost_worker_quick(LostWorkerReason::ConnectionLost),
         );
+    }
+
+    fn lost_worker_normal(reason: LostWorkerReason) -> LostWorkerDetails {
+        LostWorkerDetails {
+            reason,
+            lifetime: Duration::from_secs(3600),
+        }
+    }
+    fn lost_worker_quick(reason: LostWorkerReason) -> LostWorkerDetails {
+        LostWorkerDetails {
+            reason,
+            lifetime: Duration::from_millis(1),
+        }
     }
 }
