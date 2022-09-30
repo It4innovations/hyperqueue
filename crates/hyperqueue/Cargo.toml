@@ -31,6 +31,7 @@ smallvec = { workspace = true }
 rand = { workspace = true }
 anyhow = { workspace =  true }
 tempdir = { workspace = true }
+nix = { workspace = true }
 
 humantime = "2.1.0"
 num_cpus = "1.13.0"
