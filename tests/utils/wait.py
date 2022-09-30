@@ -1,6 +1,8 @@
 import time
 from typing import List, Union
 
+import psutil
+
 DEFAULT_TIMEOUT = 5
 
 
@@ -67,3 +69,10 @@ def wait_for_worker_state(
     env, ids: Union[int, List[int]], target_states: Union[str, List[str]], **kwargs
 ):
     wait_for_state(env, ids, target_states, ["worker", "list", "--all"], 1, **kwargs)
+
+
+def wait_for_pid_exit(pid: int):
+    """
+    Waits until the given `pid` does not represent any process anymore.
+    """
+    wait_until(lambda: not psutil.pid_exists(pid))

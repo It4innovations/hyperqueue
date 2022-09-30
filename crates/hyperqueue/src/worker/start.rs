@@ -1,12 +1,17 @@
 use std::fs::File;
+use std::future::Future;
 use std::io;
 use std::io::{BufWriter, ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::rc::Rc;
+use std::time::Duration;
 
 use bstr::{BStr, BString, ByteSlice};
+use futures::future::Either;
 use futures::TryFutureExt;
+use nix::sys::signal;
+use nix::sys::signal::Signal;
 use tempdir::TempDir;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::oneshot;
@@ -425,7 +430,7 @@ async fn run_task(
     job_id: JobId,
     job_task_id: JobTaskId,
     instance_id: InstanceId,
-    end_receiver: tokio::sync::oneshot::Receiver<StopReason>,
+    end_receiver: Receiver<StopReason>,
     task_dir: Option<TempDir>,
 ) -> tako::Result<TaskResult> {
     let mut command = command_from_definitions(&program)?;
@@ -435,7 +440,7 @@ async fn run_task(
             let code = status.code().unwrap_or(-1);
             if let Some(dir) = task_dir {
                 if let Some(e) = check_error_filename(dir) {
-                    return tako::Result::Err(e);
+                    return Err(e);
                 }
             }
             Err(tako::Error::GenericError(format!(
@@ -452,6 +457,10 @@ async fn run_task(
     let mut child = command
         .spawn()
         .map_err(|error| map_spawn_error(error, &program))?;
+    let pid = match child.id() {
+        Some(pid) => pid,
+        None => return Ok(TaskResult::Finished),
+    };
 
     if matches!(program.stdout, StdioDef::Pipe) || matches!(program.stderr, StdioDef::Pipe) {
         let streamer_error =
@@ -481,21 +490,11 @@ async fn run_task(
             status_to_result(response?.0)
         };
 
-        let guard_fut = async move {
-            let result = tokio::select! {
-                biased;
-                    r = end_receiver => {
-                        Ok(r.unwrap().into())
-                    }
-                    r = main_fut => r
-            };
-            result
-        };
-
+        let guard_fut = task_process(main_fut, pid, job_id, job_task_id, end_receiver);
         futures::pin_mut!(guard_fut);
 
         match futures::future::select(guard_fut, close_responder).await {
-            futures::future::Either::Left((result, close_responder)) => {
+            Either::Left((result, close_responder)) => {
                 log::debug!("Waiting for stream termination");
                 stream.close().await.map_err(streamer_error)?;
                 close_responder
@@ -508,7 +507,7 @@ async fn run_task(
                     .map_err(streamer_error)?;
                 result
             }
-            futures::future::Either::Right((result, _)) => Err(match result {
+            Either::Right((result, _)) => Err(match result {
                 Ok(_) => streamer_error(tako::Error::GenericError(
                     "Internal error: Stream closed without calling close()".into(),
                 )),
@@ -518,12 +517,71 @@ async fn run_task(
             }),
         }
     } else {
-        tokio::select! {
-            biased;
-                r = end_receiver => {
-                    Ok(r.unwrap().into())
+        let task_fut = async move { status_to_result(child_wait(child, &program.stdin).await?) };
+        task_process(task_fut, pid, job_id, job_task_id, end_receiver).await
+    }
+}
+
+/// Handles waiting for the task process future to finish, while reacting to `end_receiver` events.
+async fn task_process<F: Future<Output = tako::Result<TaskResult>>>(
+    task_future: F,
+    pid: u32,
+    job_id: JobId,
+    job_task_id: JobTaskId,
+    end_receiver: Receiver<StopReason>,
+) -> tako::Result<TaskResult> {
+    let send_signal = |signal: Signal| -> tako::Result<()> {
+        let pgid = nix::unistd::getpgid(Some(nix::unistd::Pid::from_raw(pid as i32)))
+            .map_err(|error| format!("Cannot get PGID for PID {pid}: {error:?}"))?;
+        signal::killpg(pgid, Some(signal))
+            .map_err(|error| format!("Cannot send signal {signal} to PGID {pgid}: {error:?}"))?;
+        Ok(())
+    };
+
+    let event_fut = async move {
+        let stop_reason = end_receiver.await;
+        let stop_reason = stop_reason.expect("Stop reason could not be received");
+        log::debug!(
+            "Received stop command, attempting to end task {job_id}/{job_task_id} with SIGINT"
+        );
+
+        // We have received a stop command for this task.
+        // We should attempt ti kill it and wait until the child process from `task_future` resolves.
+        send_signal(signal::SIGINT)?;
+
+        Ok(stop_reason.into())
+    };
+
+    futures::pin_mut!(event_fut);
+    futures::pin_mut!(task_future);
+
+    match futures::future::select(event_fut, task_future).await {
+        // We have received an early exit command
+        Either::Left((result, fut)) => {
+            // Give the task some time to finish until we kill it forcefully
+            match tokio::time::timeout(Duration::from_secs(1), fut).await {
+                Ok(_) => {
+                    // The task has finished gracefully
+                    log::debug!("Task {job_id}/{job_task_id} has ended gracefully after a signal");
+                    result
                 }
-                r = child_wait(child, &program.stdin) => status_to_result(r?)
+                Err(_) => {
+                    // The task did not exit, kill it
+                    if let Err(error) = send_signal(Signal::SIGKILL) {
+                        log::error!(
+                            "Unable to kill process Task {job_id}/{job_task_id}: {error:?}"
+                        );
+                    } else {
+                        log::debug!("Task {job_id}/{job_task_id} has been killed");
+                    }
+                    result
+                }
+            }
+        }
+        // The task has finished
+        Either::Right((result, _)) => {
+            log::debug!("Task {job_id}/{job_task_id} has finished normally");
+            result
         }
     }
 }

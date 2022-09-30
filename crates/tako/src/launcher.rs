@@ -148,6 +148,17 @@ pub fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result
 
     let mut command = Command::new(definition.args[0].to_os_str_lossy());
 
+    // We need to create a new process group for the task, so that we can
+    // send signals to it without also sending a signal to "us" (the current worker).
+    unsafe {
+        command.pre_exec(|| {
+            if let Err(error) = nix::unistd::setsid() {
+                log::error!("Cannot set SID for task process: {error:?}");
+            }
+            Ok(())
+        });
+    }
+
     command.kill_on_drop(true);
     command.args(definition.args[1..].iter().map(|x| x.to_os_str_lossy()));
 

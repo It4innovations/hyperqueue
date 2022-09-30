@@ -8,9 +8,11 @@ import pytest
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
-from .utils.io import check_file_contents
+from .utils.cmd import python
+from .utils.io import check_file_contents, read_file
 from .utils.job import default_task_output, list_jobs
 from .utils.table import parse_multiline_cell
+from .utils.wait import wait_for_pid_exit, wait_until
 
 
 def test_job_submit(hq_env: HqEnv):
@@ -431,6 +433,118 @@ def test_cancel_all(hq_env: HqEnv):
     r = hq_env.command(["job", "cancel", "all"]).splitlines()
     assert len(r) == 1
     assert "Job 3 canceled" in r[0]
+
+
+def test_cancel_terminate_process_children(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--",
+            *python(
+                """
+import os
+import sys
+import time
+print(os.getpid(), flush=True)
+pid = os.fork()
+if pid > 0:
+    print(pid, flush=True)
+time.sleep(3600)
+"""
+            ),
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    wait_until(lambda: len(read_file(default_task_output()).splitlines()) == 2)
+
+    hq_env.command(["job", "cancel", "1"])
+    wait_for_job_state(hq_env, 1, "CANCELED")
+
+    pids = [int(pid) for pid in read_file(default_task_output()).splitlines()]
+
+    parent, child = pids
+    wait_for_pid_exit(parent)
+    wait_for_pid_exit(child)
+
+
+def test_cancel_send_sigint(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--",
+            *python(
+                """
+import sys
+import time
+import signal
+
+def signal_handler(sig, frame):
+    print("sigint", flush=True)
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+
+print("ready", flush=True)
+time.sleep(3600)
+"""
+            ),
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    wait_until(lambda: read_file(default_task_output()).strip() == "ready")
+
+    hq_env.command(["job", "cancel", "1"])
+    wait_for_job_state(hq_env, 1, "CANCELED")
+
+    wait_until(
+        lambda: read_file(default_task_output()).splitlines(keepends=False)[1]
+        == "sigint"
+    )
+
+
+def test_cancel_kill_if_sigint_fails(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--",
+            *python(
+                """
+import os
+import sys
+import time
+import signal
+
+def signal_handler(sig, frame):
+    print(os.getpid(), flush=True)
+    time.sleep(3600)
+
+signal.signal(signal.SIGINT, signal_handler)
+
+print("ready", flush=True)
+time.sleep(3600)
+"""
+            ),
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    wait_until(lambda: read_file(default_task_output()).strip() == "ready")
+
+    hq_env.command(["job", "cancel", "1"])
+    wait_for_job_state(hq_env, 1, "CANCELED")
+
+    wait_until(lambda: len(read_file(default_task_output()).splitlines()) == 2)
+
+    pid = int(read_file(default_task_output()).splitlines()[1])
+    wait_for_pid_exit(pid)
 
 
 def test_reporting_state_after_worker_lost(hq_env: HqEnv):

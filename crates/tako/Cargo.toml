@@ -26,6 +26,7 @@ log = { workspace = true }
 rand = { workspace = true, features = ["small_rng"] }
 gethostname = { workspace = true }
 tracing = { workspace = true }
+nix = { workspace = true }
 
 hashbrown = { version = "0.12", features = ["serde", "inline-more"], default-features = false }
 tracing-subscriber = { version = "0.3", features = ["json"] }
