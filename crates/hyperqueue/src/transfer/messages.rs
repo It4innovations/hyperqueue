@@ -279,6 +279,7 @@ pub struct WorkerExitInfo {
 pub struct WorkerInfo {
     pub id: WorkerId,
     pub configuration: WorkerConfiguration,
+    pub started: DateTime<Utc>,
     pub ended: Option<WorkerExitInfo>,
 }
 

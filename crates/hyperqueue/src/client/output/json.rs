@@ -418,6 +418,7 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
                 group,
                 extra: _,
             },
+        started,
         ended,
     } = worker_info;
 
@@ -435,6 +436,7 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
             "resources": format_resource_descriptor(&resources),
             "on_server_lost": crate::common::format::server_lost_policy_to_str(&on_server_lost),
         }),
+        "started": format_datetime(started),
         "ended": ended.map(|info| json!({
             "at": format_datetime(info.ended_at)
         }))
