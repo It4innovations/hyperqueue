@@ -1,5 +1,6 @@
 use std::future::Future;
 use std::path::PathBuf;
+use std::time::Duration;
 use tako::Map;
 
 use tako::gateway::LostWorkerReason;
@@ -20,7 +21,7 @@ use crate::JobId;
 pub enum AutoAllocMessage {
     // Events
     WorkerConnected(WorkerId, ManagerInfo),
-    WorkerLost(WorkerId, ManagerInfo, LostWorkerReason),
+    WorkerLost(WorkerId, ManagerInfo, LostWorkerDetails),
     JobCreated(JobId),
     // Requests
     GetQueues(ResponseToken<Map<QueueId, QueueData>>),
@@ -38,6 +39,12 @@ pub enum AutoAllocMessage {
     GetAllocations(QueueId, ResponseToken<anyhow::Result<Vec<Allocation>>>),
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LostWorkerDetails {
+    pub reason: LostWorkerReason,
+    pub lifetime: Duration,
+}
+
 pub struct AutoAllocService {
     sender: RpcSender<AutoAllocMessage>,
 }
@@ -52,10 +59,10 @@ impl AutoAllocService {
         &self,
         id: WorkerId,
         configuration: &WorkerConfiguration,
-        reason: LostWorkerReason,
+        details: LostWorkerDetails,
     ) {
         if let Some(manager_info) = configuration.get_manager_info() {
-            self.send(AutoAllocMessage::WorkerLost(id, manager_info, reason));
+            self.send(AutoAllocMessage::WorkerLost(id, manager_info, details));
         }
     }
 

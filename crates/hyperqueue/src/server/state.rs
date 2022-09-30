@@ -5,7 +5,7 @@ use tako::gateway::{
     TaskState, TaskUpdate, ToGatewayMessage,
 };
 
-use crate::server::autoalloc::AutoAllocService;
+use crate::server::autoalloc::{AutoAllocService, LostWorkerDetails};
 use crate::server::event::events::JobInfo;
 use crate::server::event::storage::EventStorage;
 use crate::server::job::Job;
@@ -13,6 +13,7 @@ use crate::server::rpc::Backend;
 use crate::server::worker::Worker;
 use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
+use chrono::Utc;
 use std::cmp::min;
 use tako::ItemId;
 use tako::{define_wrapped_type, TaskId};
@@ -263,7 +264,14 @@ impl State {
         worker.set_offline_state(msg.reason.clone());
 
         if let Some(autoalloc) = &self.autoalloc_service {
-            autoalloc.on_worker_lost(msg.worker_id, &worker.configuration, msg.reason.clone());
+            autoalloc.on_worker_lost(
+                msg.worker_id,
+                &worker.configuration,
+                LostWorkerDetails {
+                    reason: msg.reason.clone(),
+                    lifetime: (Utc::now() - worker.started_at()).to_std().unwrap(),
+                },
+            );
         }
 
         let mut tasks_to_cancel: Map<JobId, Vec<TakoTaskId>> = Map::new();

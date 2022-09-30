@@ -44,6 +44,12 @@ impl Worker {
         &self.configuration
     }
 
+    pub fn started_at(&self) -> DateTime<Utc> {
+        match &self.state {
+            WorkerState::Online(connected) | Offline { connected, .. } => connected.started_at,
+        }
+    }
+
     pub fn set_offline_state(&mut self, reason: LostWorkerReason) {
         match self.state {
             WorkerState::Online(ref mut connected) => {
@@ -72,9 +78,7 @@ impl Worker {
         WorkerInfo {
             id: self.worker_id,
             configuration: self.configuration.clone(),
-            started: match &self.state {
-                WorkerState::Online(connected) | Offline { connected, .. } => connected.started_at,
-            },
+            started: self.started_at(),
             ended: match &self.state {
                 WorkerState::Online(_) => None,
                 Offline { exit_info, .. } => Some(exit_info.clone()),
