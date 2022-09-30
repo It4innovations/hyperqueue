@@ -7,5 +7,6 @@ pub(crate) mod start;
 pub mod task;
 pub mod taskmap;
 pub mod worker;
+pub mod workergroup;
 pub mod workerload;
 pub mod workermap;

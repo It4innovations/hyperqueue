@@ -12,9 +12,10 @@ use crate::internal::server::rpc::ConnectionDescriptor;
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::worker::Worker;
+use crate::internal::server::workergroup::WorkerGroup;
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::server::workermap::WorkerMap;
-use crate::{TaskId, WorkerId};
+use crate::{Map, TaskId, WorkerId};
 
 pub(crate) type CustomConnectionHandler = Box<dyn Fn(ConnectionDescriptor)>;
 
@@ -22,6 +23,7 @@ pub(crate) type CustomConnectionHandler = Box<dyn Fn(ConnectionDescriptor)>;
 pub struct Core {
     tasks: TaskMap,
     workers: WorkerMap,
+    worker_groups: Map<String, WorkerGroup>,
 
     /* Scheduler items */
     parked_resources: Set<WorkerResources>, // Resources of workers that has flag NOTHING_TO_LOAD
@@ -177,10 +179,29 @@ impl Core {
             .append(&mut sleeping_mn_tasks);
 
         let worker_id = worker.id;
+        if let Some(g) = self.worker_groups.get_mut(&worker.configuration.group) {
+            g.worker_ids.insert(worker_id);
+        } else {
+            let mut worker_ids = Set::new();
+            worker_ids.insert(worker_id);
+            self.worker_groups.insert(
+                worker.configuration.group.clone(),
+                WorkerGroup { worker_ids },
+            );
+        }
         self.workers.insert(worker_id, worker);
     }
 
     pub fn remove_worker(&mut self, worker_id: WorkerId) -> Worker {
+        let worker = self.workers.get_worker(worker_id);
+        let group = self
+            .worker_groups
+            .get_mut(&worker.configuration.group)
+            .unwrap();
+        assert!(group.worker_ids.remove(&worker_id));
+        if group.worker_ids.is_empty() {
+            self.worker_groups.remove(&worker.configuration.group);
+        }
         self.workers.remove(&worker_id).unwrap()
     }
 
@@ -455,10 +476,15 @@ mod tests {
     use crate::internal::server::task::Task;
     use crate::internal::server::task::TaskRuntimeState;
     use crate::internal::server::worker::Worker;
+    use crate::internal::server::workergroup::WorkerGroup;
     use crate::internal::tests::utils::task;
     use crate::{TaskId, WorkerId};
 
     impl Core {
+        pub fn worker_group(&self, group_name: &str) -> Option<&WorkerGroup> {
+            self.worker_groups.get(group_name)
+        }
+
         pub fn get_read_to_assign(&self) -> &[TaskId] {
             &self.single_node_ready_to_assign
         }

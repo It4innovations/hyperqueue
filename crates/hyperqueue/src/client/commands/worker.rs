@@ -14,7 +14,6 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::common::manager::info::{ManagerInfo, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::utils::network::get_hostname;
 use crate::common::utils::time::ArgDuration;
-use crate::rpc_call;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     FromClientMessage, IdSelector, StopWorkerMessage, StopWorkerResponse, ToClientMessage,
@@ -26,6 +25,7 @@ use crate::worker::bootstrap::{
 use crate::worker::hwdetect::{detect_additional_resources, detect_cpus, prune_hyper_threading};
 use crate::worker::parser::{ArgCpuDefinition, ArgResourceItemDef};
 use crate::WorkerId;
+use crate::{rpc_call, DEFAULT_WORKER_GROUP_NAME};
 
 #[derive(clap::ArgEnum, Clone)]
 pub enum WorkerFilter {
@@ -65,6 +65,11 @@ pub struct WorkerStartOpts {
     /// Resources
     #[clap(long, multiple_occurrences(true))]
     pub resource: Vec<ArgResourceItemDef>,
+
+    /// Manual configuration of worker's group
+    /// Workers from the same group are used for multi-node tasks
+    #[clap(long)]
+    pub group: Option<String>,
 
     #[clap(long = "no-detect-resources")]
     /// Disable auto-detection of resources
@@ -173,6 +178,13 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         );
     }
 
+    let group = opts.group.unwrap_or_else(|| {
+        manager_info
+            .as_ref()
+            .map(|info| info.allocation_id.clone())
+            .unwrap_or_else(|| DEFAULT_WORKER_GROUP_NAME.to_string())
+    });
+
     Ok(WorkerConfiguration {
         resources,
         listen_address: Default::default(), // Will be filled during init
@@ -181,6 +193,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
             .map(|x| x.unpack())
             .or_else(|| manager_info.and_then(|m| m.time_limit)),
         hostname,
+        group,
         work_dir,
         log_dir,
         on_server_lost: opts.on_server_lost.into(),

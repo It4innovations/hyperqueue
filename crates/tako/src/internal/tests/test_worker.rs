@@ -34,6 +34,7 @@ fn create_test_worker_config() -> WorkerConfiguration {
         resources: ResourceDescriptor::simple(4),
         listen_address: "test1:123".into(),
         hostname: "test1".to_string(),
+        group: "default".to_string(),
         work_dir: Default::default(),
         log_dir: Default::default(),
         heartbeat_interval: Duration::from_millis(1000),

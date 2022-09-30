@@ -326,6 +326,7 @@ impl Output for CliOutput {
                     .unwrap_or_else(|| "N/A".to_string())
                     .cell(),
             ],
+            vec!["Group".cell().bold(true), configuration.group.cell()],
             vec![
                 "Manager".cell().bold(true),
                 manager_info

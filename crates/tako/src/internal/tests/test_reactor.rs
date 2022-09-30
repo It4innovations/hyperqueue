@@ -52,6 +52,7 @@ fn test_worker_add() {
         time_limit: None,
         on_server_lost: ServerLostPolicy::Stop,
         extra: Default::default(),
+        group: "default".to_string(),
     };
 
     let worker = Worker::new(
@@ -94,6 +95,7 @@ fn test_worker_add() {
         ]),
         listen_address: "test2:123".into(),
         hostname: "test2".to_string(),
+        group: "default".to_string(),
         work_dir: Default::default(),
         log_dir: Default::default(),
         heartbeat_interval: Duration::from_millis(1000),
@@ -1135,4 +1137,35 @@ fn test_task_deps() {
     start_and_finish_on_worker(&mut core, 1, 100, 0);
     core.assert_waiting(&[6]);
     core.assert_ready(&[3, 4, 5]);
+}
+
+#[test]
+fn test_worker_groups() {
+    let mut core = Core::default();
+    create_test_workers(&mut core, &[1, 1]);
+    let g = core.worker_group("default").unwrap();
+    assert_eq!(
+        sorted_vec(g.worker_ids.iter().copied().collect()),
+        vec![WorkerId::new(100), WorkerId::new(101)]
+    );
+    let mut comm = create_test_comm();
+    on_remove_worker(
+        &mut core,
+        &mut comm,
+        101.into(),
+        LostWorkerReason::HeartbeatLost,
+    );
+    let g = core.worker_group("default").unwrap();
+    assert_eq!(
+        sorted_vec(g.worker_ids.iter().copied().collect()),
+        vec![WorkerId::new(100)]
+    );
+    let mut comm = create_test_comm();
+    on_remove_worker(
+        &mut core,
+        &mut comm,
+        100.into(),
+        LostWorkerReason::HeartbeatLost,
+    );
+    assert!(core.worker_group("default").is_none());
 }

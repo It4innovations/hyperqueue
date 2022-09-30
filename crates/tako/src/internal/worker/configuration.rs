@@ -16,6 +16,7 @@ pub struct WorkerConfiguration {
 
     pub listen_address: String,
     pub hostname: String,
+    pub group: String,
     pub work_dir: PathBuf,
     pub log_dir: PathBuf,
     pub heartbeat_interval: Duration,
