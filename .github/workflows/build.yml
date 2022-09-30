@@ -1,0 +1,114 @@
+name: Build artifacts
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      sha:
+        required: false
+        default: ${{ github.sha }}
+        type: string
+
+jobs:
+  build-binaries-x64:
+    runs-on: ubuntu-latest
+    # Use a container with GLIBC 2.17
+    container: quay.io/pypa/manylinux2014_x86_64
+    steps:
+      - name: Show GLIBC
+        run: ldd --version
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.sha }}
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.64.0
+          override: true
+
+      - uses: Swatinem/rust-cache@v1
+        with:
+          key: x64
+
+      - name: Compile
+        uses: actions-rs/cargo@v1
+        env:
+          HQ_BUILD_VERSION: ${{ inputs.version }}
+        with:
+          command: build
+          args: --release
+
+      - name: Prepare archive
+        id: archive
+        run: |
+          export ARCHIVE_NAME=hq-${{ inputs.version }}-linux-x64.tar.gz
+          tar -czvf $ARCHIVE_NAME -C target/release hq
+          echo "::set-output name=archive-name::$ARCHIVE_NAME"
+
+      - name: Store archive
+        uses: actions/upload-artifact@v2
+        with:
+          name: archive-x64
+          path: ${{ steps.archive.outputs.archive-name }}
+  build-binaries-powerpc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.sha }}
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.64.0
+          override: true
+
+      - uses: Swatinem/rust-cache@v1
+        with:
+          key: powerpc64le-unknown-linux-gnu
+
+      - name: Compile
+        uses: actions-rs/cargo@v1
+        env:
+          HQ_BUILD_VERSION: ${{ inputs.version }}
+        with:
+          command: build
+          args: --target powerpc64le-unknown-linux-gnu --no-default-features --release
+          use-cross: true
+
+      - name: Prepare archive
+        id: archive
+        run: |
+          export ARCHIVE_NAME=hq-${{ inputs.version }}-linux-powerpc64.tar.gz
+          tar -czvf $ARCHIVE_NAME -C target/powerpc64le-unknown-linux-gnu/release hq
+          echo "::set-output name=archive-name::$ARCHIVE_NAME"
+
+      - name: Store archive
+        uses: actions/upload-artifact@v2
+        with:
+          name: archive-powerpc64
+          path: ${{ steps.archive.outputs.archive-name }}
+  build-python-binding:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+      - uses: messense/maturin-action@v1
+        env:
+          CARGO_PROFILE_RELEASE_PANIC: unwind
+          CARGO_PROFILE_RELEASE_STRIP: none
+        with:
+          maturin-version: latest
+          manylinux: 2014
+          command: build
+          args: --manifest-path crates/pyhq/Cargo.toml --release --out wheels
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: archive-pyhq
+          path: wheels/hyperqueue-*.whl
