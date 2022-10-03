@@ -15,8 +15,8 @@ use crate::server::autoalloc::{Allocation, AllocationState};
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, PinMode, StatsResponse,
-    TaskDescription, WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
+    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, PinMode, QueueData, QueueState,
+    StatsResponse, TaskDescription, WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
 };
 use crate::{JobId, JobTaskCount, WorkerId};
 
@@ -783,20 +783,33 @@ impl Output for CliOutput {
         let rows: Vec<_> = queues
             .into_iter()
             .map(|(id, data)| {
+                let QueueData {
+                    info,
+                    name,
+                    manager_type,
+                    state,
+                } = data;
+
                 vec![
                     id.cell(),
-                    data.info.backlog().cell(),
-                    data.info.workers_per_alloc().cell(),
-                    format_duration(data.info.timelimit()).to_string().cell(),
-                    data.manager_type.cell(),
-                    data.name.unwrap_or_else(|| "".to_string()).cell(),
-                    data.info.additional_args().join(",").cell(),
+                    match state {
+                        QueueState::Running => "RUNNING",
+                        QueueState::Paused => "PAUSED",
+                    }
+                    .cell(),
+                    info.backlog().cell(),
+                    info.workers_per_alloc().cell(),
+                    format_duration(info.timelimit()).to_string().cell(),
+                    manager_type.cell(),
+                    name.unwrap_or_else(|| "".to_string()).cell(),
+                    info.additional_args().join(",").cell(),
                 ]
             })
             .collect();
 
         let header = vec![
             "ID".cell().bold(true),
+            "State".cell().bold(true),
             "Backlog size".cell().bold(true),
             "Workers per alloc".cell().bold(true),
             "Timelimit".cell().bold(true),

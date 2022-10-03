@@ -6,19 +6,6 @@ from .mock.handler import MockInput
 from .mock.manager import Manager, WrappedManager
 
 
-def program_code_store_args_json(path: str) -> str:
-    """
-    Creates program code that stores its cmd arguments as JSON into the specified `path`.
-    """
-    return f"""
-import sys
-import json
-
-with open("{path}", "w") as f:
-    f.write(json.dumps(sys.argv))
-"""
-
-
 def extract_script_args(script: str, prefix: str) -> List[str]:
     return [
         line[len(prefix) :].strip()
@@ -108,3 +95,13 @@ class ExtractSubmitScriptPath(WrappedManager):
         script_path = input.arguments[0]
         self.queue.put(script_path)
         return await super().handle_submit(input)
+
+
+def pause_queue(hq_env: HqEnv, queue_id: int, **kwargs):
+    args = ["alloc", "pause", str(queue_id)]
+    return hq_env.command(args, **kwargs)
+
+
+def resume_queue(hq_env: HqEnv, queue_id: int, **kwargs):
+    args = ["alloc", "resume", str(queue_id)]
+    return hq_env.command(args, **kwargs)

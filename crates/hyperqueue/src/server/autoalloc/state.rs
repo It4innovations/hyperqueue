@@ -19,7 +19,7 @@ use crate::Map;
 // Main state holder
 pub struct AutoAllocState {
     allocation_to_queue: Map<AllocationId, QueueId>,
-    queues: Map<QueueId, QueueState>,
+    queues: Map<QueueId, AllocationQueue>,
     inactive_allocation_directories: VecDeque<PathBuf>,
     max_kept_directories: usize,
     queue_id_counter: IdCounter,
@@ -40,7 +40,7 @@ impl AutoAllocState {
         self.queue_id_counter.increment()
     }
 
-    pub fn add_queue(&mut self, queue: QueueState) -> QueueId {
+    pub fn add_queue(&mut self, queue: AllocationQueue) -> QueueId {
         let id = self.create_id();
         assert!(self.queues.insert(id, queue).is_none());
         id
@@ -68,11 +68,11 @@ impl AutoAllocState {
         self.allocation_to_queue.get(allocation_id).copied()
     }
 
-    pub fn get_queue(&self, id: QueueId) -> Option<&QueueState> {
+    pub fn get_queue(&self, id: QueueId) -> Option<&AllocationQueue> {
         self.queues.get(&id)
     }
 
-    pub fn get_queue_mut(&mut self, key: QueueId) -> Option<&mut QueueState> {
+    pub fn get_queue_mut(&mut self, key: QueueId) -> Option<&mut AllocationQueue> {
         self.queues.get_mut(&key)
     }
 
@@ -80,7 +80,7 @@ impl AutoAllocState {
         self.queues.keys().copied()
     }
 
-    pub fn queues(&self) -> impl Iterator<Item = (QueueId, &QueueState)> {
+    pub fn queues(&self) -> impl Iterator<Item = (QueueId, &AllocationQueue)> {
         self.queues.iter().map(|(k, v)| (*k, v))
     }
 
@@ -111,8 +111,20 @@ impl AutoAllocState {
 // Queue
 pub type QueueId = u32;
 
+pub enum AllocationQueueState {
+    Running,
+    Paused,
+}
+
+impl AllocationQueueState {
+    pub fn is_running(&self) -> bool {
+        matches!(self, AllocationQueueState::Running)
+    }
+}
+
 /// Represents the state of a single allocation queue.
-pub struct QueueState {
+pub struct AllocationQueue {
+    state: AllocationQueueState,
     allocations: Map<AllocationId, Allocation>,
     manager: ManagerType,
     info: QueueInfo,
@@ -121,7 +133,7 @@ pub struct QueueState {
     rate_limiter: RateLimiter,
 }
 
-impl QueueState {
+impl AllocationQueue {
     pub fn new(
         manager: ManagerType,
         info: QueueInfo,
@@ -131,12 +143,25 @@ impl QueueState {
     ) -> Self {
         Self {
             manager,
+            state: AllocationQueueState::Running,
             info,
             name,
             handler,
             allocations: Default::default(),
             rate_limiter,
         }
+    }
+
+    pub fn state(&self) -> &AllocationQueueState {
+        &self.state
+    }
+
+    pub fn pause(&mut self) {
+        self.state = AllocationQueueState::Paused;
+    }
+
+    pub fn resume(&mut self) {
+        self.state = AllocationQueueState::Running;
     }
 
     pub fn manager(&self) -> &ManagerType {
@@ -387,7 +412,7 @@ mod tests {
     use crate::server::autoalloc::queue::{
         AllocationStatusMap, AllocationSubmissionResult, QueueHandler, SubmitMode,
     };
-    use crate::server::autoalloc::state::{AutoAllocState, QueueState, RateLimiter};
+    use crate::server::autoalloc::state::{AllocationQueue, AutoAllocState, RateLimiter};
     use crate::server::autoalloc::{Allocation, AutoAllocResult, QueueId, QueueInfo};
     use std::future::Future;
     use std::pin::Pin;
@@ -425,7 +450,7 @@ mod tests {
     fn remove_allocations_from_map_when_removing_queue() {
         let mut state = AutoAllocState::new();
         let _id = state.create_id();
-        let id = state.add_queue(QueueState::new(
+        let id = state.add_queue(AllocationQueue::new(
             ManagerType::Pbs,
             QueueInfo::new(
                 1,

@@ -23,11 +23,12 @@ use crate::server::autoalloc::queue::slurm::SlurmHandler;
 use crate::server::autoalloc::queue::{AllocationExternalStatus, QueueHandler, SubmitMode};
 use crate::server::autoalloc::service::AutoAllocMessage;
 use crate::server::autoalloc::state::{
-    AllocationState, AutoAllocState, QueueState, RateLimiter, RateLimiterStatus,
+    AllocationQueue, AllocationQueueState, AllocationState, AutoAllocState, RateLimiter,
+    RateLimiterStatus,
 };
 use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
 use crate::server::state::StateRef;
-use crate::transfer::messages::{AllocationQueueParams, QueueData};
+use crate::transfer::messages::{AllocationQueueParams, QueueData, QueueState};
 use crate::{get_or_return, JobId};
 
 #[derive(Copy, Clone)]
@@ -102,6 +103,10 @@ async fn handle_message(
                             info: queue.info().clone(),
                             name: queue.name().map(|name| name.to_string()),
                             manager_type: queue.manager().clone(),
+                            state: match queue.state() {
+                                AllocationQueueState::Running => QueueState::Running,
+                                AllocationQueueState::Paused => QueueState::Paused,
+                            },
                         },
                     )
                 })
@@ -128,6 +133,28 @@ async fn handle_message(
             let result = remove_queue(autoalloc, state_ref, id, force).await;
             response.respond(result);
             None
+        }
+        AutoAllocMessage::PauseQueue { id, response } => {
+            let result = match autoalloc.get_queue_mut(id) {
+                Some(queue) => {
+                    queue.pause();
+                    Ok(())
+                }
+                None => Err(anyhow::anyhow!("Queue {id} not found")),
+            };
+            response.respond(result);
+            None
+        }
+        AutoAllocMessage::ResumeQueue { id, response } => {
+            let result = match autoalloc.get_queue_mut(id) {
+                Some(queue) => {
+                    queue.resume();
+                    Ok(())
+                }
+                None => Err(anyhow::anyhow!("Queue {id} not found")),
+            };
+            response.respond(result);
+            Some(RefreshReason::UpdateQueue(id))
         }
         AutoAllocMessage::GetAllocations(queue_id, response) => {
             let result = match autoalloc.get_queue(queue_id) {
@@ -235,7 +262,8 @@ fn create_queue(
 
     match handler {
         Ok(handler) => {
-            let queue = QueueState::new(manager, queue_info, name, handler, create_rate_limiter());
+            let queue =
+                AllocationQueue::new(manager, queue_info, name, handler, create_rate_limiter());
             let id = {
                 let id = autoalloc.add_queue(queue);
                 state_ref
@@ -344,18 +372,24 @@ async fn process_queue(
     id: QueueId,
     new_job_id: Option<JobId>,
 ) {
-    let submission_allowed = {
+    let try_to_submit = {
         let queue = get_or_return!(autoalloc.get_queue_mut(id));
-        let limiter = queue.limiter_mut();
+        if !queue.state().is_running() {
+            false
+        } else {
+            let limiter = queue.limiter_mut();
 
-        let allowed = matches!(limiter.submission_status(), RateLimiterStatus::Ok);
-        if allowed {
-            limiter.on_submission_attempt();
+            let allowed = matches!(limiter.submission_status(), RateLimiterStatus::Ok);
+            if allowed {
+                // Log a submission attempt, because we will try it below.
+                // It is done here to avoid fetching the queue again.
+                limiter.on_submission_attempt();
+            }
+            allowed
         }
-        allowed
     };
 
-    if submission_allowed {
+    if try_to_submit {
         queue_try_submit(id, autoalloc, state, new_job_id).await;
     }
     try_remove_queue(autoalloc, id).await;
@@ -365,7 +399,7 @@ fn get_data_from_worker<'a>(
     state: &'a mut AutoAllocState,
     id: WorkerId,
     manager_info: &ManagerInfo,
-) -> Option<(&'a mut QueueState, QueueId, AllocationId)> {
+) -> Option<(&'a mut AllocationQueue, QueueId, AllocationId)> {
     let allocation_id = &manager_info.allocation_id;
     match state.get_queue_id_by_allocation(allocation_id) {
         Some(queue_id) => state
@@ -534,7 +568,7 @@ fn on_worker_lost(
 fn sync_allocation_status(
     state_ref: &StateRef,
     queue_id: QueueId,
-    queue: &mut QueueState,
+    queue: &mut AllocationQueue,
     allocation_id: &str,
     external_status: Option<AllocationExternalStatus>,
 ) {
@@ -766,6 +800,7 @@ async fn remove_inactive_directories(autoalloc: &mut AutoAllocState) {
     }
 }
 
+// TODO: pause instead of removing
 async fn try_remove_queue(autoalloc: &mut AutoAllocState, id: QueueId) {
     let futures = {
         let queue = get_or_return!(autoalloc.get_queue_mut(id));
@@ -795,7 +830,7 @@ async fn try_remove_queue(autoalloc: &mut AutoAllocState, id: QueueId) {
 }
 
 pub fn prepare_queue_cleanup(
-    state: &QueueState,
+    state: &AllocationQueue,
 ) -> Vec<impl Future<Output = (AutoAllocResult<()>, AllocationId)>> {
     let handler = state.handler();
     state
@@ -837,7 +872,7 @@ mod tests {
         SubmitMode,
     };
     use crate::server::autoalloc::state::{
-        AllocationState, AutoAllocState, QueueState, RateLimiter,
+        AllocationQueue, AllocationState, AutoAllocState, RateLimiter,
     };
     use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
     use crate::server::job::Job;
@@ -1571,7 +1606,7 @@ mod tests {
         queue_builder: QueueBuilder,
     ) -> QueueId {
         let (queue_info, limiter) = queue_builder.build();
-        let queue = QueueState::new(ManagerType::Pbs, queue_info, None, handler, limiter);
+        let queue = AllocationQueue::new(ManagerType::Pbs, queue_info, None, handler, limiter);
         autoalloc.add_queue(queue)
     }
 
