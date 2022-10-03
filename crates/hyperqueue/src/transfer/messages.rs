@@ -183,6 +183,12 @@ pub enum AutoAllocRequest {
         queue_id: QueueId,
         force: bool,
     },
+    PauseQueue {
+        queue_id: QueueId,
+    },
+    ResumeQueue {
+        queue_id: QueueId,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -311,6 +317,8 @@ pub struct WorkerInfoResponse {
 pub enum AutoAllocResponse {
     QueueCreated(QueueId),
     QueueRemoved(QueueId),
+    QueuePaused(QueueId),
+    QueueResumed(QueueId),
     DryRunSuccessful,
     Info(Vec<Allocation>),
     List(AutoAllocListResponse),
@@ -322,10 +330,17 @@ pub struct AutoAllocListResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub enum QueueState {
+    Running,
+    Paused,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct QueueData {
     pub info: QueueInfo,
     pub name: Option<String>,
     pub manager_type: ManagerType,
+    pub state: QueueState,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]

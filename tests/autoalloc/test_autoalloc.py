@@ -26,8 +26,10 @@ from .utils import (
     add_queue,
     extract_script_args,
     extract_script_commands,
+    pause_queue,
     prepare_tasks,
     remove_queue,
+    resume_queue,
 )
 
 
@@ -681,6 +683,38 @@ def test_pass_on_server_lost(hq_env: HqEnv, spec: ManagerSpec):
             f"{hq_env.server_dir}/001",
             "--on-server-lost=stop",
         ]
+
+
+def test_autoalloc_pause_resume_queue_status(hq_env: HqEnv):
+    hq_env.start_server()
+    add_queue(hq_env, manager="pbs")
+
+    table = hq_env.command(["alloc", "list"], as_table=True)
+    table.check_column_value("State", 0, "RUNNING")
+
+    pause_queue(hq_env, 1)
+    table = hq_env.command(["alloc", "list"], as_table=True)
+    table.check_column_value("State", 0, "PAUSED")
+
+    resume_queue(hq_env, 1)
+    table = hq_env.command(["alloc", "list"], as_table=True)
+    table.check_column_value("State", 0, "RUNNING")
+
+
+@all_managers
+def test_do_not_submit_from_paused_queue(hq_env: HqEnv, spec: ManagerSpec):
+    with MockJobManager(hq_env, spec.handler()):
+        hq_env.start_server()
+
+        add_queue(hq_env, manager=spec.manager_type())
+        pause_queue(hq_env, 1)
+
+        prepare_tasks(hq_env)
+
+        time.sleep(1)
+
+        allocations = hq_env.command(["alloc", "info", "1"], as_table=True)
+        assert len(allocations) == 0
 
 
 @pbs_test

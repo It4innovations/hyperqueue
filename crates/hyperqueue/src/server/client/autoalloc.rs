@@ -67,5 +67,23 @@ pub async fn handle_autoalloc_message(
                 Err(error) => ToClientMessage::Error(error.to_string()),
             }
         }
+        AutoAllocRequest::PauseQueue { queue_id } => {
+            let result = state_ref.get().autoalloc().pause_queue(queue_id);
+            match result.await {
+                Ok(_) => {
+                    ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueuePaused(queue_id))
+                }
+                Err(error) => ToClientMessage::Error(error.to_string()),
+            }
+        }
+        AutoAllocRequest::ResumeQueue { queue_id } => {
+            let result = state_ref.get().autoalloc().resume_queue(queue_id);
+            match result.await {
+                Ok(_) => {
+                    ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueResumed(queue_id))
+                }
+                Err(error) => ToClientMessage::Error(error.to_string()),
+            }
+        }
     }
 }

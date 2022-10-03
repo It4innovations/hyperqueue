@@ -223,8 +223,8 @@ impl Output for JsonOutput {
 
         self.print(
             queues
-                .iter()
-                .map(|(key, queue)| format_autoalloc_queue(*key, queue))
+                .into_iter()
+                .map(|(key, queue)| format_autoalloc_queue(key, queue))
                 .collect(),
         );
     }
@@ -334,16 +334,23 @@ fn format_tasks(tasks: Vec<JobTaskInfo>, map: TaskToPathsMap) -> serde_json::Val
         .collect()
 }
 
-fn format_autoalloc_queue(id: QueueId, descriptor: &QueueData) -> serde_json::Value {
-    let manager = match descriptor.manager_type {
+fn format_autoalloc_queue(id: QueueId, descriptor: QueueData) -> serde_json::Value {
+    let QueueData {
+        info,
+        name,
+        manager_type,
+        state,
+    } = descriptor;
+
+    let manager = match manager_type {
         ManagerType::Pbs => "PBS",
         ManagerType::Slurm => "Slurm",
     };
-    let info = &descriptor.info;
 
     json!({
         "id": id,
-        "name": descriptor.name,
+        "name": name,
+        "state": state,
         "manager": manager,
         "additional_args": info.additional_args(),
         "backlog": info.backlog(),

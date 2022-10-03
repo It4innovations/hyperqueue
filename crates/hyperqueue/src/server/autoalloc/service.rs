@@ -35,6 +35,14 @@ pub enum AutoAllocMessage {
         force: bool,
         response: ResponseToken<anyhow::Result<()>>,
     },
+    PauseQueue {
+        id: QueueId,
+        response: ResponseToken<anyhow::Result<()>>,
+    },
+    ResumeQueue {
+        id: QueueId,
+        response: ResponseToken<anyhow::Result<()>>,
+    },
     GetAllocations(QueueId, ResponseToken<anyhow::Result<Vec<Allocation>>>),
 }
 
@@ -93,6 +101,24 @@ impl AutoAllocService {
             self.sender.send(AutoAllocMessage::RemoveQueue {
                 id,
                 force,
+                response: token,
+            })
+        });
+        async move { fut.await.unwrap() }
+    }
+    pub fn pause_queue(&self, id: QueueId) -> impl Future<Output = anyhow::Result<()>> {
+        let fut = initiate_request(|token| {
+            self.sender.send(AutoAllocMessage::PauseQueue {
+                id,
+                response: token,
+            })
+        });
+        async move { fut.await.unwrap() }
+    }
+    pub fn resume_queue(&self, id: QueueId) -> impl Future<Output = anyhow::Result<()>> {
+        let fut = initiate_request(|token| {
+            self.sender.send(AutoAllocMessage::ResumeQueue {
+                id,
                 response: token,
             })
         });

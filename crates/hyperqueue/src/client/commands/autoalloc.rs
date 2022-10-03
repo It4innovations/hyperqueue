@@ -30,6 +30,11 @@ enum AutoAllocCommand {
     Info(AllocationsOpts),
     /// Add new allocation queue
     Add(AddQueueOpts),
+    /// Pause an existing allocation queue.
+    /// Paused queues do not submit new allocations.
+    Pause(PauseQueueOpts),
+    /// Resume a previously paused allocation queue.
+    Resume(ResumeQueueOpts),
     /// Try to submit an allocation to test allocation parameters
     DryRun(DryRunOpts),
     /// Removes an allocation queue with the given ID
@@ -165,6 +170,18 @@ enum AllocationStateFilter {
     Failed,
 }
 
+#[derive(Parser)]
+struct PauseQueueOpts {
+    /// ID of the allocation queue that should be paused
+    queue_id: QueueId,
+}
+
+#[derive(Parser)]
+struct ResumeQueueOpts {
+    /// ID of the allocation queue that should be resumed
+    queue_id: QueueId,
+}
+
 pub async fn command_autoalloc(
     gsettings: &GlobalSettings,
     opts: AutoAllocOpts,
@@ -186,6 +203,12 @@ pub async fn command_autoalloc(
         }
         AutoAllocCommand::DryRun(opts) => {
             dry_run_command(session, opts).await?;
+        }
+        AutoAllocCommand::Pause(opts) => {
+            pause_queue(session, opts).await?;
+        }
+        AutoAllocCommand::Resume(opts) => {
+            resume_queue(session, opts).await?;
         }
     }
     Ok(())
@@ -329,6 +352,34 @@ async fn print_allocations(
     .await?;
     filter_allocations(&mut allocations, opts.filter);
     gsettings.printer().print_allocations(allocations);
+    Ok(())
+}
+
+async fn pause_queue(mut session: ClientSession, opts: PauseQueueOpts) -> anyhow::Result<()> {
+    let PauseQueueOpts { queue_id } = opts;
+    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::PauseQueue { queue_id });
+
+    rpc_call!(session.connection(), message,
+        ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueuePaused(_)) => ()
+    )
+    .await?;
+
+    log::info!("Allocation queue {queue_id} successfully paused");
+
+    Ok(())
+}
+
+async fn resume_queue(mut session: ClientSession, opts: ResumeQueueOpts) -> anyhow::Result<()> {
+    let ResumeQueueOpts { queue_id } = opts;
+    let message = FromClientMessage::AutoAlloc(AutoAllocRequest::ResumeQueue { queue_id });
+
+    rpc_call!(session.connection(), message,
+        ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueResumed(_)) => ()
+    )
+    .await?;
+
+    log::info!("Allocation queue {queue_id} successfully paused");
+
     Ok(())
 }
 

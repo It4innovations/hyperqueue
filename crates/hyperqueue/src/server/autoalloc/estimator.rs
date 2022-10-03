@@ -1,4 +1,4 @@
-use crate::server::autoalloc::state::QueueState;
+use crate::server::autoalloc::state::AllocationQueue;
 use crate::server::autoalloc::QueueInfo;
 use crate::server::job::Job;
 use crate::server::state::State;
@@ -78,7 +78,7 @@ pub fn can_worker_execute_job(_job: &Job, worker: &Worker) -> bool {
     worker.is_running()
 }
 
-pub fn count_active_workers(queue: &QueueState) -> u64 {
+pub fn count_active_workers(queue: &AllocationQueue) -> u64 {
     queue
         .active_allocations()
         .map(|allocation| allocation.target_worker_count)
