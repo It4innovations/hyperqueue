@@ -1388,21 +1388,28 @@ def test_zero_custom_error_message(hq_env: HqEnv):
     # print(table)
 
 
-def test_crashing_job_by_status(hq_env: HqEnv):
+@pytest.mark.parametrize("count", [None, 1, 7])
+def test_crashing_job_status_default(count, hq_env: HqEnv):
     hq_env.start_server()
-    # Crashing tasks threshold is 5
-    hq_env.command(["submit", "sleep", "10"])
-    for i in range(5):
+
+    if count:
+        hq_env.command(["submit", f"--crash-limit={count}", "sleep", "10"])
+    else:
+        # Crashing tasks threshold is 5 by default
+        hq_env.command(["submit", "sleep", "10"])
+        count = 5
+
+    for i in range(count):
         hq_env.start_worker()
         wait_for_job_state(hq_env, 1, "RUNNING")
         hq_env.kill_worker(i + 1)
     table = list_jobs(hq_env)
-    table.check_column_value("State", 0, "CANCELED")
+    table.check_column_value("State", 0, "FAILED")
 
 
 def test_crashing_job_by_files(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(["submit", "--", "bash", "-c", "sleep 1; echo done > xyz.txt"])
+    hq_env.command(["submit", "--", "bash", "-c", "sleep 1; echo done > output.txt"])
 
     # Crashing tasks threshold is 5
     for i in range(5):
@@ -1411,15 +1418,12 @@ def test_crashing_job_by_files(hq_env: HqEnv):
         hq_env.kill_worker(i + 1)
 
     hq_env.start_worker()
-    wait_for_job_state(hq_env, 1, "CANCELED")
+    wait_for_job_state(hq_env, 1, "FAILED")
     time.sleep(2)
 
     table = list_jobs(hq_env)
-    table.check_column_value("State", 0, "CANCELED")
-    try:
-        check_file_contents("xyz.txt", "done\n")
-    except Exception as e:
-        assert "No such file or directory: 'xyz.txt'" in str(e)
+    table.check_column_value("State", 0, "FAILED")
+    assert not os.path.exists("output.txt")
 
 
 def test_kill_task_when_worker_dies(hq_env: HqEnv):

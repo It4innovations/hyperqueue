@@ -110,6 +110,7 @@ pub fn build_task_def_from_config(
         priority: 0,
         keep,
         observe: observe.unwrap_or(true),
+        crash_limit: 5,
     };
     (
         TaskConfiguration {

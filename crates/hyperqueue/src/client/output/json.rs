@@ -124,6 +124,7 @@ impl Output for JsonOutput {
                     time_limit,
                     priority,
                     task_dir,
+                    crash_limit,
                 },
             ..
         } = job_desc
@@ -144,6 +145,7 @@ impl Output for JsonOutput {
             json["priority"] = json!(priority);
             json["time_limit"] = json!(time_limit.map(format_duration));
             json["task_dir"] = json!(task_dir);
+            json["crash_limit"] = json!(crash_limit);
         }
 
         json["tasks"] = format_tasks(tasks, task_paths);

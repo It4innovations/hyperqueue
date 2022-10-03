@@ -298,6 +298,7 @@ fn build_tasks_array(
             keep: false,
             observe: true,
             priority: task_desc.priority,
+            crash_limit: task_desc.crash_limit,
         }],
     }
 }
@@ -332,6 +333,7 @@ fn build_tasks_graph(
                 priority: task.priority,
                 keep: false,
                 observe: true,
+                crash_limit: task.crash_limit,
             });
             index
         });
@@ -502,6 +504,7 @@ mod tests {
             task_dir: false,
             time_limit,
             priority,
+            crash_limit: 5,
         }
     }
 

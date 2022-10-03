@@ -12,6 +12,13 @@
   better behavior on non-heterogeneous clusters;
   better interaction between resources and priorities.
 
+### Tasks
+
+* HQ allows to limit how many times a task may be in a running state while worker is lost
+  (such a task may be a potential source of worker's crash).
+  If the limit is reached, the task is marked as failed.
+  The limit can be configured by `--crash-limit` in submit.
+
 ## Changes
 
 ### Resource management

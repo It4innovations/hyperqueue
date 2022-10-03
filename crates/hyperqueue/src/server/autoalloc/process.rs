@@ -1625,6 +1625,7 @@ mod tests {
                     task_dir: false,
                     time_limit: None,
                     priority: 0,
+                    crash_limit: 5,
                 },
             },
             job_id.into(),
