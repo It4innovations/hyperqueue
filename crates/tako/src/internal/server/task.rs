@@ -104,6 +104,7 @@ pub struct TaskConfiguration {
     pub user_priority: Priority,
     pub time_limit: Option<Duration>,
     pub n_outputs: u32,
+    pub crash_limit: u32,
 }
 
 #[cfg_attr(test, derive(Eq, PartialEq))]

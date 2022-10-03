@@ -350,18 +350,31 @@ Here is a list of useful job commands:
 
 ### Display information about a specific job
 
-```bash
+```commandline
 $ hq job info <job-selector>
 ```
 
 ### Display information about individual tasks (potentially across multiple jobs)
 
-```bash
+```commandline
 $ hq task list <job-selector> [--task-status <status>] [--tasks <task-selector>]
 ```
 
 ### Display job `stdout`/`stderr`
 
-```bash
+```commandline
 $ hq job cat <job-id> [--tasks <task-selector>] <stdout/stderr>
 ```
+
+## Crashing limit
+
+When a worker is lost then all running tasks on the worker are suspicious that they may cause the crash of the
+worker. HyperQueue server remembers how many times were a task running while a worker is lost. If the count 
+reaches the limit, then the task is set to the failed state.
+By default, this limit is `5` but it can be changed as follows:
+
+```commandline
+$ hq submit --crash-limit=<NEWLIMIT> ...
+```
+
+If the limit is set to 0, then the limit is disabled.

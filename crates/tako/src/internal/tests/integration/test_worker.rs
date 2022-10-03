@@ -174,7 +174,8 @@ async fn test_lost_worker_with_tasks_restarts() {
         }
 
         let _worker_handle = handle.start_worker(Default::default()).await.unwrap();
-        handle.wait(&[1]).await.assert_all_finished();
+        let r = handle.wait(&[1]).await;
+        assert!(r.is_failed(1));
     })
     .await;
 }

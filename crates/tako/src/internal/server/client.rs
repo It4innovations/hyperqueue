@@ -90,6 +90,7 @@ fn create_task_configuration(
         n_outputs: msg.n_outputs,
         time_limit: msg.time_limit,
         user_priority: msg.priority,
+        crash_limit: msg.crash_limit,
     }
 }
 

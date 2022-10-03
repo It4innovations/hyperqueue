@@ -14,7 +14,7 @@ use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::server::workermap::WorkerMap;
-use crate::{TaskId, WorkerId};
+use crate::{Map, TaskId, WorkerId};
 
 pub(crate) type CustomConnectionHandler = Box<dyn Fn(ConnectionDescriptor)>;
 
@@ -33,6 +33,8 @@ pub struct Core {
 
     sleeping_sn_tasks: Vec<TaskId>, // Tasks that cannot be scheduled to any available worker
     sleeping_mn_tasks: Vec<TaskId>,
+
+    crash_counter: Map<TaskId, u32>,
 
     maximal_task_id: TaskId,
     worker_id_counter: u32,
@@ -280,6 +282,7 @@ impl Core {
     /// it up.
     #[must_use]
     pub fn remove_task(&mut self, task_id: TaskId) -> TaskRuntimeState {
+        self.crash_counter.remove(&task_id);
         let task = self
             .tasks
             .remove(task_id)
@@ -447,6 +450,20 @@ impl Core {
     pub fn secret_key(&self) -> &Option<Arc<SecretKey>> {
         &self.secret_key
     }
+
+    pub fn increment_crash_counter(&mut self, task_id: TaskId) -> Option<u32> {
+        let limit = self.get_task(task_id).configuration.crash_limit;
+        if limit == 0 {
+            return None;
+        }
+        let entry = self.crash_counter.entry(task_id).or_default();
+        *entry += 1;
+        if *entry >= limit {
+            Some(*entry)
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(test)]
@@ -459,6 +476,10 @@ mod tests {
     use crate::{TaskId, WorkerId};
 
     impl Core {
+        pub fn crash_counter(&self, task_id: TaskId) -> Option<u32> {
+            self.crash_counter.get(&task_id).copied()
+        }
+
         pub fn get_read_to_assign(&self) -> &[TaskId] {
             &self.single_node_ready_to_assign
         }

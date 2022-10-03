@@ -20,8 +20,9 @@ use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::tests::utils::env::create_test_comm;
 use crate::internal::tests::utils::schedule::{
-    create_test_scheduler, create_test_workers, finish_on_worker, force_assign,
-    start_and_finish_on_worker, start_mn_task_on_worker, start_on_worker, submit_test_tasks,
+    create_test_scheduler, create_test_worker, create_test_workers, finish_on_worker, force_assign,
+    start_and_finish_on_worker, start_mn_task_on_worker, start_on_worker, start_on_worker_running,
+    submit_test_tasks,
 };
 use crate::internal::tests::utils::sorted_vec;
 use crate::internal::tests::utils::task::{task, task_running_msg, task_with_deps, TaskBuilder};
@@ -647,6 +648,47 @@ fn test_worker_lost_with_mn_task_root() {
     comm.check_need_scheduling();
     comm.emptiness_check();
     assert!(core.get_task(TaskId::new(1)).is_waiting());
+}
+
+#[test]
+fn test_worker_crashing_task() {
+    let mut core = Core::default();
+
+    let t1 = task(1);
+    submit_test_tasks(&mut core, vec![t1]);
+    assert_eq!(core.crash_counter(TaskId::new(1)), None);
+
+    for x in 1..=5 {
+        let mut comm = create_test_comm();
+        let worker_id = 100 + x;
+        create_test_worker(&mut core, worker_id.into(), 1);
+        start_on_worker_running(&mut core, 1, worker_id);
+        on_remove_worker(
+            &mut core,
+            &mut comm,
+            worker_id.into(),
+            LostWorkerReason::HeartbeatLost,
+        );
+        let mut lw = comm.take_lost_workers();
+        assert_eq!(lw[0].0, WorkerId::new(worker_id));
+        comm.check_need_scheduling();
+        assert!(matches!(
+            comm.take_broadcasts(1)[0],
+            ToWorkerMessage::LostWorker(WorkerId(wid))
+            if worker_id == wid
+        ));
+        if x == 5 {
+            let errs = comm.take_client_task_errors(1);
+            assert_eq!(errs[0].0, TaskId::new(1));
+            assert_eq!(errs[0].2.message, "Task was running on a worker that was lost; the task has occurred 5 times in this situation and limit was reached.");
+            assert_eq!(core.crash_counter(TaskId::new(1)), None);
+            assert_eq!(std::mem::take(&mut lw[0].1), vec![].to_ids());
+        } else {
+            assert_eq!(std::mem::take(&mut lw[0].1), vec![1].to_ids());
+            assert_eq!(core.crash_counter(TaskId::new(1)), Some(x));
+        }
+        comm.emptiness_check();
+    }
 }
 
 #[test]

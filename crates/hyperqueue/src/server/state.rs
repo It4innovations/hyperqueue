@@ -254,8 +254,8 @@ impl State {
 
     pub fn process_worker_lost(
         &mut self,
-        state_ref: &StateRef,
-        tako_ref: &Backend,
+        _state_ref: &StateRef,
+        _tako_ref: &Backend,
         msg: LostWorkerMessage,
     ) {
         log::debug!("Worker lost id={}", msg.worker_id);
@@ -266,19 +266,9 @@ impl State {
             autoalloc.on_worker_lost(msg.worker_id, &worker.configuration, msg.reason.clone());
         }
 
-        let mut tasks_to_cancel: Map<JobId, Vec<TakoTaskId>> = Map::new();
         for task_id in msg.running_tasks {
             let job = self.get_job_mut_by_tako_task_id(task_id).unwrap();
-            job.increment_task_crash_count(task_id);
-            if job.is_often_crashing_task(task_id) {
-                tasks_to_cancel.entry(job.job_id).or_default().push(task_id);
-            } else {
-                job.set_waiting_state(task_id);
-            }
-        }
-
-        for (job_id, task_ids) in tasks_to_cancel {
-            cancel_tasks_from_callback(state_ref, tako_ref, job_id, task_ids);
+            job.set_waiting_state(task_id);
         }
 
         self.event_storage.on_worker_lost(msg.worker_id, msg.reason);
@@ -357,6 +347,7 @@ mod tests {
                 task_dir: false,
                 time_limit: None,
                 priority: 0,
+                crash_limit: 5,
             },
         };
         Job::new(

@@ -11,6 +11,7 @@ pub struct TaskBuilder {
     n_outputs: u32,
     resources: ResBuilder,
     user_priority: Priority,
+    crash_limit: u32,
 }
 
 impl TaskBuilder {
@@ -21,6 +22,7 @@ impl TaskBuilder {
             n_outputs: 0,
             resources: Default::default(),
             user_priority: 0,
+            crash_limit: 5,
         }
     }
 
@@ -87,6 +89,7 @@ impl TaskBuilder {
                 n_outputs: self.n_outputs,
                 time_limit: None,
                 user_priority: self.user_priority,
+                crash_limit: self.crash_limit,
             }),
             Default::default(),
             false,

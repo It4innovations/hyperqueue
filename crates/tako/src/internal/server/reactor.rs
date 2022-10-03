@@ -42,7 +42,6 @@ pub(crate) fn on_remove_worker(
     let task_ids: Vec<_> = task_map.task_ids().collect();
     for task_id in task_ids {
         let mut task = task_map.get_task_mut(task_id);
-
         let new_state = match &mut task.state {
             TaskRuntimeState::Waiting(_) => continue,
             TaskRuntimeState::Assigned(w_id)
@@ -133,10 +132,34 @@ pub(crate) fn on_remove_worker(
         worker_id,
         running_tasks
     );
-
     let _ = core.remove_worker(worker_id);
+
     comm.broadcast_worker_message(&ToWorkerMessage::LostWorker(worker_id));
+
+    // IMPORTANT: We have to announce error BEFORE we announce lost worker (+ running tasks)
+    // because HQ does not recognize switch from waiting to failed stated.
+    let running_tasks = running_tasks.into_iter().filter(|task_id|
+        if let Some(count) = core.increment_crash_counter(*task_id) {
+            log::debug!("Task {} reached crash limit {}", *task_id, count);
+            fail_task_helper(
+                core,
+                comm,
+                None,
+                *task_id,
+                TaskFailInfo {
+                    message: format!("Task was running on a worker that was lost; the task has occurred {} times in this situation and limit was reached.", count),
+                    data_type: "".to_string(),
+                    error_data: vec![],
+                },
+            );
+            false
+        } else {
+            true
+        }
+    ).collect();
+
     comm.send_client_worker_lost(worker_id, running_tasks, reason);
+
     comm.ask_for_scheduling();
 }
 
@@ -424,10 +447,10 @@ pub(crate) fn on_set_observe_flag(
     }
 }
 
-pub(crate) fn on_task_error(
+fn fail_task_helper(
     core: &mut Core,
     comm: &mut impl Comm,
-    worker_id: WorkerId,
+    worker_id: Option<WorkerId>,
     task_id: TaskId,
     error_info: TaskFailInfo,
 ) {
@@ -435,13 +458,17 @@ pub(crate) fn on_task_error(
         let (tasks, workers) = core.split_tasks_workers_mut();
         if let Some(task) = tasks.find_task(task_id) {
             log::debug!("Task task {} failed", task_id);
-            if task.configuration.resources.is_multi_node() {
-                let ws = task.mn_placement().unwrap();
-                assert_eq!(ws[0], worker_id);
-                reset_mn_task_workers(workers, ws, task_id);
+            if let Some(worker_id) = worker_id {
+                if task.configuration.resources.is_multi_node() {
+                    let ws = task.mn_placement().unwrap();
+                    assert_eq!(ws[0], worker_id);
+                    reset_mn_task_workers(workers, ws, task_id);
+                } else {
+                    assert!(task.is_assigned_or_stolen_from(worker_id));
+                    workers.get_worker_mut(worker_id).remove_sn_task(task);
+                }
             } else {
-                assert!(task.is_assigned_or_stolen_from(worker_id));
-                workers.get_worker_mut(worker_id).remove_sn_task(task);
+                assert!(task.is_waiting())
             }
             task.collect_consumers(tasks).into_iter().collect()
         } else {
@@ -449,6 +476,7 @@ pub(crate) fn on_task_error(
             return;
         }
     };
+
     // TODO: take taskmap in `unregister_as_consumer`
     unregister_as_consumer(core, comm, task_id);
 
@@ -461,13 +489,19 @@ pub(crate) fn on_task_error(
         unregister_as_consumer(core, comm, consumer);
     }
 
-    assert!(matches!(
-        core.remove_task(task_id),
-        TaskRuntimeState::Assigned(_)
-            | TaskRuntimeState::Running { .. }
-            | TaskRuntimeState::Stealing(_, _)
-            | TaskRuntimeState::RunningMultiNode(_)
-    ));
+    let state = core.remove_task(task_id);
+    if worker_id.is_some() {
+        assert!(matches!(
+            state,
+            TaskRuntimeState::Assigned(_)
+                | TaskRuntimeState::Running { .. }
+                | TaskRuntimeState::Stealing(_, _)
+                | TaskRuntimeState::RunningMultiNode(_)
+        ));
+    } else {
+        assert!(matches!(state, TaskRuntimeState::Waiting(_)));
+    }
+    drop(state);
 
     for &consumer in &consumers {
         // We can drop the resulting state as checks was done earlier
@@ -477,6 +511,16 @@ pub(crate) fn on_task_error(
         ));
     }
     comm.send_client_task_error(task_id, consumers, error_info);
+}
+
+pub(crate) fn on_task_error(
+    core: &mut Core,
+    comm: &mut impl Comm,
+    worker_id: WorkerId,
+    task_id: TaskId,
+    error_info: TaskFailInfo,
+) {
+    fail_task_helper(core, comm, Some(worker_id), task_id, error_info)
 }
 
 pub(crate) fn on_cancel_tasks(

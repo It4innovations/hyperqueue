@@ -60,6 +60,7 @@ pub struct TaskDescription {
     pub task_dir: bool,
     pub time_limit: Option<Duration>,
     pub priority: tako::Priority,
+    pub crash_limit: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

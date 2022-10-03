@@ -63,6 +63,8 @@ pub struct SharedTaskConfiguration {
 
     #[serde(default)]
     pub observe: bool,
+
+    pub crash_limit: u32,
 }
 
 /// Task data that is unique for each task.

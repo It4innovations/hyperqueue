@@ -103,6 +103,7 @@ impl CliOutput {
             time_limit,
             priority,
             task_dir: _,
+            crash_limit,
         } = task_desc;
 
         let resources = format_resource_request(resources);
@@ -160,6 +161,8 @@ impl CliOutput {
                 .unwrap_or_else(|| "None".to_string())
                 .cell(),
         ]);
+
+        rows.push(vec!["Crash limit".cell().bold(true), crash_limit.cell()]);
     }
 
     fn print_task_summary(&self, tasks: &[JobTaskInfo], info: &JobInfo, worker_map: &WorkerMap) {

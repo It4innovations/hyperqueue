@@ -33,6 +33,7 @@ use crate::transfer::messages::{
 use crate::{arg_wrapper, rpc_call, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
+const DEFAULT_CRASH_LIMIT: u32 = 5;
 
 // Keep in sync with `tests/util/job.py::default_task_output` and `pyhq/python/hyperqueue/output.py`
 const DEFAULT_STDOUT_PATH: &str = const_format::concatcp!(
@@ -234,6 +235,13 @@ pub struct SubmitJobConfOpts {
     /// The directory is automatically deleted when task is finished
     #[clap(long)]
     task_dir: bool,
+
+    /// Limits how many times may task be in a running state while worker is lost.
+    /// If the limit is reached, the task is marked as failed. If the limit is zero,
+    /// the limit is disabled.
+    /// [default: 5]
+    #[clap(long)]
+    crash_limit: Option<u32>,
 }
 
 impl SubmitJobConfOpts {
@@ -271,6 +279,7 @@ impl SubmitJobConfOpts {
             priority: self.priority.or(other.priority),
             time_limit: self.time_limit.or(other.time_limit),
             log: self.log.or(other.log),
+            crash_limit: self.crash_limit.or(other.crash_limit),
         }
     }
 }
@@ -471,6 +480,7 @@ pub async fn submit_computation(
                 priority,
                 time_limit,
                 log,
+                crash_limit,
             },
     } = opts;
 
@@ -523,6 +533,7 @@ pub async fn submit_computation(
         priority,
         time_limit,
         task_dir,
+        crash_limit: crash_limit.unwrap_or(DEFAULT_CRASH_LIMIT),
     };
 
     let job_desc = JobDescription::Array {
