@@ -10,10 +10,11 @@ from tornado import ioloop, web
 from tornado.ioloop import IOLoop
 import seaborn as sns
 from .monitor import create_page
-from .overview import pregenerate_entries, create_summary_page, create_comparer_page, render
+from .overview import pregenerate_entries, create_summary_page, create_comparer_page, render, summary_by_benchmark, \
+    two_level_summary
 from ..benchmark.database import Database
 from .report import ClusterReport
-from .common import create_database_df, groupby_workload
+from .common import create_database_df, groupby_workload, groupby_environment
 import os
 import matplotlib.pyplot as plt
 from PIL import Image
@@ -43,6 +44,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
     entries = pregenerate_entries(database, directory)
     io_loop = IOLoop.current()
     img = io.BytesIO()
+
     class SummaryHandler(web.RequestHandler):
         def get(self):
             page = create_summary_page(database, directory)
@@ -88,7 +90,6 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             plt.savefig(img, format="png")
             plt.clf()
 
-
             with open(os.path.join(os.path.dirname(__file__), "templates/compare_table.html")) as fp:
                 file = fp.read()
 
@@ -103,11 +104,23 @@ def serve_summary_html(database: Database, directory: Path, port: int):
     class OverViewHandler(web.RequestHandler):
         KEY_GROUPS = ["Grouped by workload:", "Grouped by environment:", "Grouped by benchmark:"]
 
+        def summary_reader_buffer(self):
+            df = create_database_df(database)
+            print("Grouped by workload:", file=self.summary_txt)
+            two_level_summary(df, groupby_workload, groupby_environment, self.summary_txt)
+            print("Grouped by environment:", file=self.summary_txt)
+            two_level_summary(
+                df, groupby_environment, groupby_workload, self.summary_txt, print_total=True
+            )
+            print("Grouped by benchmark:", file=self.summary_txt)
+            summary_by_benchmark(df, self.summary_txt)
+            self.summary_txt.seek(0)
+
         def summary_reader(self):
             output = {}
             i = 0
 
-            with open("benchmark/zw/summary.txt") as fp:
+            with self.summary_txt as fp:
                 key = ""
                 entries = []
                 while True:
@@ -132,6 +145,8 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             return output
 
         def get(self):
+            self.summary_txt = io.StringIO()
+            self.summary_reader_buffer()
             data = self.summary_reader()
             df = create_database_df(database)
             grouped = df.groupby(["workload", "workload-params", "env", "env-params", "index"])[
