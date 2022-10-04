@@ -42,7 +42,7 @@ def serve_cluster_report(report: ClusterReport, port: int):
 def serve_summary_html(database: Database, directory: Path, port: int):
     entries = pregenerate_entries(database, directory)
     io_loop = IOLoop.current()
-
+    img = io.BytesIO()
     class SummaryHandler(web.RequestHandler):
         def get(self):
             page = create_summary_page(database, directory)
@@ -84,8 +84,11 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             plt.scatter(df['index'], df["duration"], s=10)
             plt.xticks(list(range(max_index + 1)))
             plt.ylabel("Duration [ms]")
-            plt.savefig("img.png")
+
+            plt.savefig(img, format="png")
             plt.clf()
+
+
             with open(os.path.join(os.path.dirname(__file__), "templates/compare_table.html")) as fp:
                 file = fp.read()
 
@@ -93,10 +96,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
 
     class ImgHandler(web.RequestHandler):
         def get(self):
-            img = Image.open('img.png')
-            s = io.BytesIO()
-            img.save(s, format="PNG")
-            o = s.getvalue()
+            o = img.getvalue()
             self.write(o)
             self.set_header("Content-type", "image/png")
 
@@ -134,7 +134,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
         def get(self):
             data = self.summary_reader()
             df = create_database_df(database)
-            grouped = df.groupby(["workload", "workload-params", "env", "env-params","index"])[
+            grouped = df.groupby(["workload", "workload-params", "env", "env-params", "index"])[
                 "duration"
             ]
             pairs = []
@@ -143,14 +143,12 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             data["Grouped by benchmark:"] = pairs
             for i in range(len(data["Grouped by benchmark:"])):
                 formated_str = "-".join([str(z) for z in data["Grouped by benchmark:"][i][0]])
-                formated_str = formated_str.replace(",","_")
+                formated_str = formated_str.replace(",", "_")
                 data["Grouped by benchmark:"][i][0] = formated_str
             with open(os.path.join(os.path.dirname(__file__), "templates/summary.html")) as fp:
                 file = fp.read()
                 self.write(render(file, data=data, keys=list(data.keys())[:2]))
             # self.write(data)
-
-
 
     app = web.Application(
         [
