@@ -645,30 +645,25 @@ impl Output for CliOutput {
             let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, &task);
             let task_id = task.task_id;
 
-            let (resources, priority) = match &job.job_desc {
+            let task_desc = match &job.job_desc {
                 JobDescription::Array {
                     ids: _,
                     entries: _,
                     task_desc,
-                } => (
-                    format_resource_request(&task_desc.resources),
-                    task_desc.priority.to_string(),
-                ),
+                } => task_desc,
 
                 JobDescription::Graph { tasks } => {
                     let opt_task_dep = tasks.iter().find(|t| t.id == task_id);
                     match opt_task_dep {
                         None => {
-                            log::warn!("Task {task_id} not found in (graph) job {job_id}");
-                            (String::new(), String::new())
+                            log::error!("Task {task_id} not found in (graph) job {job_id}");
+                            return;
                         }
-                        Some(task_dep) => (
-                            format_resource_request(&task_dep.task_desc.resources),
-                            task_dep.task_desc.priority.to_string(),
-                        ),
+                        Some(task_dep) => &task_dep.task_desc,
                     }
                 }
             };
+
             let rows: Vec<Vec<CellStruct>> = vec![
                 vec!["Task ID".cell().bold(true), task_id.cell()],
                 vec![
@@ -726,8 +721,15 @@ impl Output for CliOutput {
                         _ => "".cell(),
                     },
                 ],
-                vec!["Resources".cell().bold(true), resources.cell()],
-                vec!["Priority".cell().bold(true), priority.cell()],
+                vec![
+                    "Resources".cell().bold(true),
+                    format_resource_request(&task_desc.resources).cell(),
+                ],
+                vec!["Priority".cell().bold(true), task_desc.priority.cell()],
+                vec![
+                    "Crash limit".cell().bold(true),
+                    task_desc.crash_limit.cell(),
+                ],
             ];
             self.print_vertical_table(rows);
         }

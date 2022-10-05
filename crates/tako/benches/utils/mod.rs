@@ -16,6 +16,7 @@ pub fn create_task(id: TaskId) -> Task {
         user_priority: 0,
         time_limit: None,
         n_outputs: 0,
+        crash_limit: 5,
     };
     Task::new(id, vec![], Rc::new(conf), Default::default(), false, false)
 }
