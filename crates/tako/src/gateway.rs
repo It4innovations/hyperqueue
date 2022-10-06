@@ -78,7 +78,7 @@ pub struct TaskConfiguration {
 
     /// Opaque data that is passed by the gateway user to task launchers.
     #[serde(with = "serde_bytes")]
-    pub body: Vec<u8>,
+    pub body: Box<[u8]>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
