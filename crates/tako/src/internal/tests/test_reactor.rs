@@ -656,7 +656,7 @@ fn test_worker_crashing_task() {
 
     let t1 = task(1);
     submit_test_tasks(&mut core, vec![t1]);
-    assert_eq!(core.crash_counter(TaskId::new(1)), None);
+    assert_eq!(core.get_task(TaskId::new(1)).crash_counter, 0);
 
     for x in 1..=5 {
         let mut comm = create_test_comm();
@@ -681,11 +681,10 @@ fn test_worker_crashing_task() {
             let errs = comm.take_client_task_errors(1);
             assert_eq!(errs[0].0, TaskId::new(1));
             assert_eq!(errs[0].2.message, "Task was running on a worker that was lost; the task has occurred 5 times in this situation and limit was reached.");
-            assert_eq!(core.crash_counter(TaskId::new(1)), None);
             assert_eq!(std::mem::take(&mut lw[0].1), vec![].to_ids());
         } else {
             assert_eq!(std::mem::take(&mut lw[0].1), vec![1].to_ids());
-            assert_eq!(core.crash_counter(TaskId::new(1)), Some(x));
+            assert_eq!(core.get_task(TaskId::new(1)).crash_counter, x);
         }
         comm.emptiness_check();
     }

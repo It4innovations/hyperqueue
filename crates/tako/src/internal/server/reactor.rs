@@ -37,6 +37,7 @@ pub(crate) fn on_remove_worker(
     let mut ready_to_assign = Vec::new();
     let mut removes = Vec::new();
     let mut running_tasks = Vec::new();
+    let mut crashed_tasks = Vec::new();
 
     let (task_map, worker_map) = core.split_tasks_workers_mut();
     let task_ids: Vec<_> = task_map.task_ids().collect();
@@ -54,7 +55,11 @@ pub(crate) fn on_remove_worker(
                     task.set_fresh_flag(true);
                     ready_to_assign.push(task_id);
                     if task.is_sn_running() {
-                        running_tasks.push(task_id);
+                        if task.increment_crash_counter() {
+                            crashed_tasks.push(task_id);
+                        } else {
+                            running_tasks.push(task_id);
+                        }
                     }
                     TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 })
                 } else {
@@ -138,25 +143,21 @@ pub(crate) fn on_remove_worker(
 
     // IMPORTANT: We have to announce error BEFORE we announce lost worker (+ running tasks)
     // because HQ does not recognize switch from waiting to failed stated.
-    let running_tasks = running_tasks.into_iter().filter(|task_id|
-        if let Some(count) = core.increment_crash_counter(*task_id) {
-            log::debug!("Task {} reached crash limit {}", *task_id, count);
-            fail_task_helper(
+    for task_id in crashed_tasks {
+        let count = core.get_task(task_id).crash_counter;
+        log::debug!("Task {} reached crash limit {}", task_id, count);
+        fail_task_helper(
                 core,
                 comm,
                 None,
-                *task_id,
+                task_id,
                 TaskFailInfo {
                     message: format!("Task was running on a worker that was lost; the task has occurred {} times in this situation and limit was reached.", count),
                     data_type: "".to_string(),
                     error_data: vec![],
                 },
             );
-            false
-        } else {
-            true
-        }
-    ).collect();
+    }
 
     comm.send_client_worker_lost(worker_id, running_tasks, reason);
 

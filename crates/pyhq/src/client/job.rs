@@ -1,3 +1,4 @@
+use hyperqueue::client::commands::submit::command::DEFAULT_CRASH_LIMIT;
 use hyperqueue::client::output::resolve_task_paths;
 use hyperqueue::client::resources::parse_allocation_request;
 use hyperqueue::client::status::{is_terminated, Status};
@@ -147,6 +148,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
         task_dir: desc.task_dir,
         priority: desc.priority,
         time_limit: None,
+        crash_limit: DEFAULT_CRASH_LIMIT,
     })
 }
 

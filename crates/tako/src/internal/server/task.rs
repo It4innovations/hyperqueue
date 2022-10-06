@@ -117,6 +117,7 @@ pub struct Task {
     pub configuration: Rc<TaskConfiguration>,
     pub scheduler_priority: Priority,
     pub instance_id: InstanceId,
+    pub crash_counter: u32,
     pub body: Vec<u8>,
 }
 
@@ -153,6 +154,7 @@ impl Task {
             state: TaskRuntimeState::Waiting(WaitingInfo { unfinished_deps: 0 }),
             consumers: Default::default(),
             instance_id: InstanceId::new(0),
+            crash_counter: 0,
         }
     }
 
@@ -276,6 +278,11 @@ impl Task {
 
     pub(crate) fn increment_instance_id(&mut self) {
         self.instance_id = InstanceId(self.instance_id.as_num() + 1);
+    }
+
+    pub(crate) fn increment_crash_counter(&mut self) -> bool {
+        self.crash_counter += 1;
+        self.crash_counter >= self.configuration.crash_limit && self.configuration.crash_limit > 0
     }
 
     pub(crate) fn make_compute_message(&self, node_list: Vec<WorkerId>) -> ToWorkerMessage {
