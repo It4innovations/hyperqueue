@@ -1293,7 +1293,6 @@ def test_submit_task_dir(hq_env: HqEnv, mode):
     hq_env.command(
         [
             "submit",
-            "--stdout=out",
             "--task-dir",
             "--",
             "bash",
@@ -1303,16 +1302,21 @@ def test_submit_task_dir(hq_env: HqEnv, mode):
             ),
         ]
     )
-    wait_for_job_state(hq_env, 1, "RUNNING", sleep_s=0.2)
-    with open("out", "r") as f:
-        path = f.read().rstrip()
-    assert os.path.isfile(os.path.join(path, "xyz"))
+    wait_for_job_state(hq_env, 1, "RUNNING")
+
+    def read_task_dir():
+        path = read_file(default_task_output()).rstrip()
+        if path is not None:
+            return path
+
+    task_dir = wait_until(read_task_dir)
+    assert os.path.isfile(os.path.join(task_dir, "xyz"))
 
     if mode == "CANCELED":
         hq_env.command(["job", "cancel", "all"])
 
     wait_for_job_state(hq_env, 1, mode)
-    assert not os.path.exists(path)
+    assert not os.path.exists(task_dir)
 
 
 def test_custom_error_message(hq_env: HqEnv):
