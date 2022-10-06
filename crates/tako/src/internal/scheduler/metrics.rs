@@ -29,7 +29,7 @@ fn crawl<F1: Fn(&Task) -> &Set<TaskId>>(tasks: &mut TaskMap, predecessor_fn: F1)
         let task = tasks.get_task_mut(task_id);
         task.set_scheduler_priority(level + 1);
 
-        for ti in &task.inputs {
+        for ti in task.inputs.iter() {
             let input_id = ti.task();
             let v: &mut u32 = neighbours
                 .get_mut(&input_id)

@@ -1959,6 +1959,7 @@ dependencies = [
  "serde_json",
  "smallvec",
  "tempdir",
+ "thin-vec",
  "thiserror",
  "tokio",
  "tokio-util",
@@ -2026,6 +2027,12 @@ dependencies = [
  "unicode-linebreak",
  "unicode-width",
 ]
+
+[[package]]
+name = "thin-vec"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "104c2cb3180b6fb6d5b2278768e9b88b578d32ba751ea6e8d026688a40d7ed87"
 
 [[package]]
 name = "thiserror"

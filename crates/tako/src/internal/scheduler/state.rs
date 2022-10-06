@@ -273,7 +273,7 @@ impl SchedulerState {
             (task.inputs.clone(), assigned_worker)
         };
 
-        for ti in inputs {
+        for ti in inputs.into_iter() {
             let input = core.get_task_mut(ti.task());
             if let Some(wr) = assigned_worker {
                 input.remove_future_placement(wr);

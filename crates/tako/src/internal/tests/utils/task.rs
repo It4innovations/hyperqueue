@@ -83,7 +83,7 @@ impl TaskBuilder {
         resources.validate().unwrap();
         Task::new(
             self.id,
-            self.inputs,
+            self.inputs.into_iter().collect(),
             Rc::new(TaskConfiguration {
                 resources,
                 n_outputs: self.n_outputs,

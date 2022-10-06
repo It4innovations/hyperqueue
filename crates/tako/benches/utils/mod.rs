@@ -18,7 +18,14 @@ pub fn create_task(id: TaskId) -> Task {
         n_outputs: 0,
         crash_limit: 5,
     };
-    Task::new(id, vec![], Rc::new(conf), Default::default(), false, false)
+    Task::new(
+        id,
+        Default::default(),
+        Rc::new(conf),
+        Default::default(),
+        false,
+        false,
+    )
 }
 pub fn create_worker(id: u64) -> Worker {
     Worker::new(

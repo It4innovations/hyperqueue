@@ -35,6 +35,7 @@ bitflags = "1.2"
 bstr = { version = "0.2", features = ["serde1"] }
 psutil = "3.2.1"
 fxhash = "0.2.1"
+thin-vec = "0.2.8"
 
 [dev-dependencies]
 anyhow = { workspace = true }
