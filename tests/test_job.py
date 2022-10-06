@@ -1420,3 +1420,77 @@ def test_crashing_job_by_files(hq_env: HqEnv):
         check_file_contents("xyz.txt", "done\n")
     except Exception as e:
         assert "No such file or directory: 'xyz.txt'" in str(e)
+
+
+def test_kill_task_when_worker_dies(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--",
+            *python(
+                """
+import os
+import time
+
+print(os.getpid(), flush=True)
+time.sleep(3600)
+"""
+            ),
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "RUNNING")
+
+    def get_pid():
+        pid = read_file(default_task_output()).strip()
+        if not pid:
+            return None
+        return int(pid)
+
+    pid = wait_until(get_pid)
+
+    hq_env.kill_worker(1)
+
+    wait_for_pid_exit(pid)
+
+
+# TODO: fix this somehow
+@pytest.mark.xfail
+def test_kill_task_subprocess_when_worker_dies(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--",
+            *python(
+                """
+import os
+import time
+
+child_pid = os.fork()
+if child_pid == 0:
+    time.sleep(3600)
+else:
+    print(child_pid, flush=True)
+time.sleep(3600)
+"""
+            ),
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "RUNNING")
+
+    def get_pid():
+        pid = read_file(default_task_output()).strip()
+        if not pid:
+            return None
+        return int(pid)
+
+    pid = wait_until(get_pid)
+
+    hq_env.kill_worker(1)
+
+    wait_for_pid_exit(pid)
