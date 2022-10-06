@@ -65,7 +65,7 @@ jobs:
         id: archive
         run: |
           export ARCHIVE_NAME=hq-${{ needs.set-env.outputs.version }}-linux-x64.tar.gz
-          tar -czvf $ARCHIVE_NAME -C target/release hq
+          tar -czvf $ARCHIVE_NAME -C target/dist hq
           echo "::set-output name=archive-name::$ARCHIVE_NAME"
 
       - name: Store archive
@@ -105,7 +105,7 @@ jobs:
         id: archive
         run: |
           export ARCHIVE_NAME=hq-${{ needs.set-env.outputs.version }}-linux-powerpc64.tar.gz
-          tar -czvf $ARCHIVE_NAME -C target/powerpc64le-unknown-linux-gnu/release hq
+          tar -czvf $ARCHIVE_NAME -C target/powerpc64le-unknown-linux-gnu/dist hq
           echo "::set-output name=archive-name::$ARCHIVE_NAME"
 
       - name: Store archive
@@ -120,8 +120,8 @@ jobs:
         uses: actions/checkout@v3
       - uses: messense/maturin-action@v1
         env:
-          CARGO_PROFILE_RELEASE_PANIC: unwind
-          CARGO_PROFILE_RELEASE_STRIP: none
+          CARGO_PROFILE_DIST_PANIC: unwind
+          CARGO_PROFILE_DIST_STRIP: none
         with:
           maturin-version: latest
           manylinux: 2014
