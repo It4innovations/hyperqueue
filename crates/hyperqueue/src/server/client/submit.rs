@@ -234,7 +234,7 @@ fn serialize_task_body(
     task_id: JobTaskId,
     entry: Option<BString>,
     task_desc: &TaskDescription,
-) -> Vec<u8> {
+) -> Box<[u8]> {
     let mut program = make_program_def_for_task(&task_desc.program, task_id, ctx);
     if let Some(e) = entry {
         program.env.insert(HQ_ENTRY.into(), e);
@@ -246,7 +246,10 @@ fn serialize_task_body(
         job_id: ctx.job_id,
         task_id,
     };
-    tako::comm::serialize(&body_msg).expect("Could not serialize task body")
+    let body = tako::comm::serialize(&body_msg).expect("Could not serialize task body");
+    // Make sure that `into_boxed_slice` is a no-op.
+    debug_assert_eq!(body.capacity(), body.len());
+    body.into_boxed_slice()
 }
 
 fn build_tasks_array(
@@ -258,7 +261,7 @@ fn build_tasks_array(
     let tako_base_id = ctx.tako_base_id.as_num();
 
     let build_task_conf =
-        |body: Vec<u8>, tako_id: <TakoTaskId as ItemId>::IdType| TaskConfiguration {
+        |body: Box<[u8]>, tako_id: <TakoTaskId as ItemId>::IdType| TaskConfiguration {
             id: tako_id.into(),
             shared_data_index: 0,
             task_deps: vec![],

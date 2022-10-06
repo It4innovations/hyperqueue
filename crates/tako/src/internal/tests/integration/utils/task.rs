@@ -117,7 +117,7 @@ pub fn build_task_def_from_config(
             id: TaskId::new(id.unwrap_or(1) as <TaskId as ItemId>::IdType),
             shared_data_index: 0,
             task_deps: Vec::new(),
-            body,
+            body: body.into_boxed_slice(),
         },
         conf,
     )

@@ -66,7 +66,7 @@ fn create_worker_task(id: u64) -> Task {
         time_limit: None,
         n_outputs: 0,
         node_list: vec![],
-        body: vec![],
+        body: Default::default(),
     })
 }
 

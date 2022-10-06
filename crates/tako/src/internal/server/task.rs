@@ -6,8 +6,8 @@ use crate::internal::common::stablemap::ExtractKey;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::internal::server::taskmap::TaskMap;
-use crate::TaskId;
 use crate::WorkerId;
+use crate::{static_assert_size, TaskId};
 use crate::{InstanceId, Priority};
 
 #[derive(Debug)]
@@ -118,8 +118,11 @@ pub struct Task {
     pub scheduler_priority: Priority,
     pub instance_id: InstanceId,
     pub crash_counter: u32,
-    pub body: Vec<u8>,
+    pub body: Box<[u8]>,
 }
+
+// Task is a critical data structure, so we should keep its size in check
+static_assert_size!(Task, 184);
 
 impl fmt::Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -133,7 +136,7 @@ impl Task {
         id: TaskId,
         inputs: Vec<TaskInput>,
         configuration: Rc<TaskConfiguration>,
-        body: Vec<u8>,
+        body: Box<[u8]>,
         keep: bool,
         observe: bool,
     ) -> Self {

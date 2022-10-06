@@ -53,7 +53,7 @@ impl WorkerTaskBuilder {
             time_limit: None,
             n_outputs: 0,
             node_list: vec![],
-            body: vec![],
+            body: Default::default(),
         })
     }
 }

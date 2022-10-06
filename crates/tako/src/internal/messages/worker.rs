@@ -32,7 +32,7 @@ pub struct ComputeTaskMsg {
     pub node_list: Vec<WorkerId>,
 
     #[serde(with = "serde_bytes")]
-    pub body: Vec<u8>,
+    pub body: Box<[u8]>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
