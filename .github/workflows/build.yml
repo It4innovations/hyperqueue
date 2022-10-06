@@ -8,8 +8,7 @@ on:
   workflow_call:
     inputs:
       version:
-        required: false
-        default: dev
+        required: true
         type: string
       sha:
         required: false
@@ -17,7 +16,22 @@ on:
         type: string
 
 jobs:
+  set-env:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ env.HQ_VERSION }}
+      sha: ${{ env.HQ_SHA }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+      - name: Set version
+        run: |
+          echo "HQ_VERSION=${{ inputs.version || 'dev' }}" | tee -a $GITHUB_ENV
+      - name: Set sha
+        run: |
+          echo "HQ_SHA=${{ inputs.sha || github.sha }}" | tee -a $GITHUB_ENV
   build-binaries-x64:
+    needs: [set-env]
     runs-on: ubuntu-latest
     # Use a container with GLIBC 2.17
     container: quay.io/pypa/manylinux2014_x86_64
@@ -27,7 +41,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
         with:
-          ref: ${{ inputs.sha }}
+          ref: ${{ needs.set-env.outputs.sha }}
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -42,7 +56,7 @@ jobs:
       - name: Compile
         uses: actions-rs/cargo@v1
         env:
-          HQ_BUILD_VERSION: ${{ inputs.version }}
+          HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
         with:
           command: build
           args: --release
@@ -50,7 +64,7 @@ jobs:
       - name: Prepare archive
         id: archive
         run: |
-          export ARCHIVE_NAME=hq-${{ inputs.version }}-linux-x64.tar.gz
+          export ARCHIVE_NAME=hq-${{ needs.set-env.outputs.version }}-linux-x64.tar.gz
           tar -czvf $ARCHIVE_NAME -C target/release hq
           echo "::set-output name=archive-name::$ARCHIVE_NAME"
 
@@ -60,12 +74,13 @@ jobs:
           name: archive-x64
           path: ${{ steps.archive.outputs.archive-name }}
   build-binaries-powerpc:
+    needs: [set-env]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
         with:
-          ref: ${{ inputs.sha }}
+          ref: ${{ needs.set-env.outputs.sha }}
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -80,7 +95,7 @@ jobs:
       - name: Compile
         uses: actions-rs/cargo@v1
         env:
-          HQ_BUILD_VERSION: ${{ inputs.version }}
+          HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
         with:
           command: build
           args: --target powerpc64le-unknown-linux-gnu --no-default-features --release
@@ -89,7 +104,7 @@ jobs:
       - name: Prepare archive
         id: archive
         run: |
-          export ARCHIVE_NAME=hq-${{ inputs.version }}-linux-powerpc64.tar.gz
+          export ARCHIVE_NAME=hq-${{ needs.set-env.outputs.version }}-linux-powerpc64.tar.gz
           tar -czvf $ARCHIVE_NAME -C target/powerpc64le-unknown-linux-gnu/release hq
           echo "::set-output name=archive-name::$ARCHIVE_NAME"
 
