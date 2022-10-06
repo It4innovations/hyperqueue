@@ -59,7 +59,7 @@ jobs:
           HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
         with:
           command: build
-          args: --release
+          args: --profile dist
 
       - name: Prepare archive
         id: archive
@@ -98,7 +98,7 @@ jobs:
           HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
         with:
           command: build
-          args: --target powerpc64le-unknown-linux-gnu --no-default-features --release
+          args: --target powerpc64le-unknown-linux-gnu --no-default-features --profile dist
           use-cross: true
 
       - name: Prepare archive
@@ -126,7 +126,7 @@ jobs:
           maturin-version: latest
           manylinux: 2014
           command: build
-          args: --manifest-path crates/pyhq/Cargo.toml --release --out wheels
+          args: --manifest-path crates/pyhq/Cargo.toml --profile dist --out wheels
       - name: Upload test artifacts
         uses: actions/upload-artifact@v2
         with:

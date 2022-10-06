@@ -9,13 +9,6 @@ default-members = [
     "crates/tako"
 ]
 
-[profile.release]
-lto = true
-codegen-units = 1
-opt-level = 3
-panic = "abort"
-strip = "debuginfo"
-
 [workspace.package]
 rust-version = "1.64.0"
 edition = "2021"
@@ -47,3 +40,14 @@ tempdir = "0.3"
 tracing = "0.1"
 anyhow = "1"
 nix = "0.25"
+
+[profile.release]
+panic = "abort"
+
+# Profile designed for the most optimized release build that is distributed
+# to users.
+[profile.dist]
+inherits = "release"
+lto = true
+codegen-units = 1
+strip = "debuginfo"
