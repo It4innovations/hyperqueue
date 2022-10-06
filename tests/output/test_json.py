@@ -142,6 +142,7 @@ def test_print_job_detail(hq_env: HqEnv):
             "submit_dir": str,
             "tasks": list,
             "task_dir": bool,
+            "crash_limit": int,
         }
     )
     schema.validate(output)

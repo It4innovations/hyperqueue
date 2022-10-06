@@ -62,5 +62,5 @@ def test_task_info(hq_env: HqEnv):
     assert "WARN Task 4 not found" in r
 
     hq_env.command(["submit", "--", "bash", "-c", "hostname"])
-    r = hq_env.command(["task", "info", "last", "0"])
-    assert "Task ID   | 0" in r
+    r = hq_env.command(["task", "info", "last", "0"], as_table=True)
+    assert r.get_row_value("Task ID") == "0"
