@@ -173,7 +173,7 @@ pub(crate) fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec
         let mut task = task_map.remove(&task_id).unwrap();
 
         let mut count = 0;
-        for ti in &task.inputs {
+        for ti in task.inputs.iter() {
             let input_id = ti.task();
             let task_dep = task_map
                 .get_mut(&input_id)

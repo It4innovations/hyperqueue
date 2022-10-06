@@ -1304,13 +1304,14 @@ def test_submit_task_dir(hq_env: HqEnv, mode):
     )
     wait_for_job_state(hq_env, 1, "RUNNING")
 
-    def read_task_dir():
-        path = read_file(default_task_output()).rstrip()
-        if path is not None:
-            return path
+    def file_created():
+        task_dir = read_file(default_task_output()).rstrip()
+        if task_dir is None:
+            return
+        return os.path.isfile(os.path.join(task_dir, "xyz"))
 
-    task_dir = wait_until(read_task_dir)
-    assert os.path.isfile(os.path.join(task_dir, "xyz"))
+    wait_until(file_created)
+    task_dir = read_file(default_task_output()).rstrip()
 
     if mode == "CANCELED":
         hq_env.command(["job", "cancel", "all"])

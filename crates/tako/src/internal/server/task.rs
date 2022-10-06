@@ -1,6 +1,7 @@
 use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
+use thin_vec::ThinVec;
 
 use crate::internal::common::stablemap::ExtractKey;
 use crate::internal::common::{Map, Set};
@@ -112,7 +113,7 @@ pub struct Task {
     pub id: TaskId,
     pub state: TaskRuntimeState,
     consumers: Set<TaskId>,
-    pub inputs: Vec<TaskInput>,
+    pub inputs: ThinVec<TaskInput>,
     pub flags: TaskFlags,
     pub configuration: Rc<TaskConfiguration>,
     pub scheduler_priority: Priority,
@@ -122,7 +123,7 @@ pub struct Task {
 }
 
 // Task is a critical data structure, so we should keep its size in check
-static_assert_size!(Task, 184);
+static_assert_size!(Task, 168);
 
 impl fmt::Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -134,7 +135,7 @@ impl fmt::Debug for Task {
 impl Task {
     pub fn new(
         id: TaskId,
-        inputs: Vec<TaskInput>,
+        inputs: ThinVec<TaskInput>,
         configuration: Rc<TaskConfiguration>,
         body: Box<[u8]>,
         keep: bool,

@@ -14,6 +14,7 @@ use crate::internal::server::task::{Task, TaskConfiguration, TaskInput, TaskRunt
 use crate::internal::common::resources::request::ResourceRequestEntry;
 use crate::internal::scheduler::query::compute_new_worker_query;
 use std::rc::Rc;
+use thin_vec::ThinVec;
 
 /*pub(crate) async fn client_connection_handler(
     core_ref: CoreRef,
@@ -264,7 +265,7 @@ fn handle_new_tasks(
             return Some(format!("Invalid configuration index {}", idx));
         }
         let (conf, keep, observe) = &configurations[idx];
-        let inputs: Vec<_> = task
+        let inputs: ThinVec<_> = task
             .task_deps
             .iter()
             .map(|&task_id| TaskInput::new_task_dependency(task_id))
