@@ -1,11 +1,9 @@
+import abc
 import dataclasses
+from abc import ABC
 from typing import List, Optional
 
 from aiohttp.web_request import Request
-
-
-class CommandException(BaseException):
-    pass
 
 
 @dataclasses.dataclass
@@ -23,14 +21,12 @@ def response_error(stdout="", stderr="", code=1):
     return response(stdout=stdout, stderr=stderr, code=code)
 
 
-class CommandHandler:
+class CommandHandler(ABC):
+    @abc.abstractmethod
     async def handle_command(
         self, request: Request, cmd: str
     ) -> Optional[CommandResponse]:
-        try:
-            return response_error()
-        except CommandException as e:
-            return response_error(code=1, stderr=str(e))
+        return response_error()
 
 
 @dataclasses.dataclass
@@ -48,3 +44,28 @@ async def extract_mock_input(request) -> MockInput:
     cwd = data["cwd"]
     assert isinstance(cwd, str)
     return MockInput(arguments=arguments, cwd=cwd)
+
+
+class ManagerCommandHandler(ABC):
+    async def handle_submit(self, input: MockInput) -> CommandResponse:
+        return response_error()
+
+    async def handle_status(self, input: MockInput) -> CommandResponse:
+        return response_error()
+
+    async def handle_delete(self, input: MockInput) -> Optional[CommandResponse]:
+        return response_error()
+
+
+class WrappedManagerCommandHandler(ManagerCommandHandler):
+    def __init__(self, inner: ManagerCommandHandler):
+        self.inner = inner
+
+    async def handle_submit(self, input: MockInput) -> CommandResponse:
+        return await self.inner.handle_submit(input)
+
+    async def handle_status(self, input: MockInput) -> CommandResponse:
+        return await self.inner.handle_status(input)
+
+    async def handle_delete(self, input: MockInput) -> Optional[CommandResponse]:
+        return await self.inner.handle_delete(input)
