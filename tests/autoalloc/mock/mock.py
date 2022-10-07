@@ -32,7 +32,12 @@ class MockJobManager:
     them to the given `handler`.
     """
 
-    def __init__(self, hq_env: HqEnv, handler: CommandHandler):
+    def __init__(
+        self,
+        hq_env: HqEnv,
+        handler: CommandHandler,
+        mocked_commands=("qsub", "qstat", "qdel", "sbatch", "scontrol", "scancel"),
+    ):
         self.handler = handler
 
         self.port = find_free_port()
@@ -42,8 +47,8 @@ class MockJobManager:
         logging.debug(f"Wrote redirector to {redirector_path} with port {self.port}")
         prepare_redirector(redirector_path, self.port)
 
-        # Link PBS commands to redirector
-        for cmd in ("qsub", "qstat", "qdel"):
+        # Link selected commands to redirector
+        for cmd in mocked_commands:
             hq_env.mock.mock(cmd, redirector_path)
 
         self.bg_server: Optional[BackgroundServer] = None
