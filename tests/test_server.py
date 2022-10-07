@@ -3,13 +3,13 @@ import os
 import signal
 import socket
 import subprocess
-from contextlib import closing
 from typing import List
 
 import pytest
 
 from .conftest import HqEnv
 from .utils import parse_table
+from .utils.io import find_free_port
 from .utils.table import Table
 
 
@@ -24,13 +24,6 @@ def start_server_get_output(hq_env: HqEnv, args: List[str]) -> Table:
         stdout, stderr = p.communicate()
     stdout = stdout.decode()
     return parse_table(stdout)
-
-
-def find_free_port():
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.bind(("", 0))
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        return s.getsockname()[1]
 
 
 def test_server_host(hq_env: HqEnv):
