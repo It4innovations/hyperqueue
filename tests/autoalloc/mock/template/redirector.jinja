@@ -1,0 +1,32 @@
+#!{{ python }}
+
+"""
+This is a Jinja template with a Python program that intercepts command-line arguments and sends
+them as a POST request to a localhost server at the specified `port`. It then reacts accordingly
+based on the response, either print something to stdout or exit with the specified exit code.
+
+The template has to be rendered first, and provided with the path to Python and a port where should
+the arguments be sent.
+"""
+
+import os.path
+import sys
+
+import requests
+
+PORT = {{ port }}
+
+arguments = sys.argv
+
+program = os.path.basename(arguments[0])
+response = requests.post(f"http://localhost:{PORT}/{program}", json={
+    "arguments": arguments[1:]
+}).json()
+
+action = response["action"]
+if action == "ok":
+    print(response["stdout"])
+elif action == "error":
+    exit(response["code"])
+else:
+    raise Exception(f"Unknown response {response}")

@@ -7,3 +7,6 @@ iso8601==1.0.2
 schema==0.7.5
 maturin==0.13.5
 psutil==5.8.0
+jinja2==3.0.3
+requests==2.26.0
+aiohttp==3.8.3
