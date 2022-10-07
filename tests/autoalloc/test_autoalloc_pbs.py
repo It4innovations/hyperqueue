@@ -15,34 +15,17 @@ from ..utils.wait import (
     wait_until,
 )
 from .conftest import PBS_AVAILABLE, PBS_TIMEOUT, pbs_test
-from .mock.handler import (
-    CommandResponse,
-    ManagerCommandHandler,
-    MockInput,
-    WrappedManagerCommandHandler,
-    response_error,
-)
+from .mock.handler import CommandResponse, MockInput, response_error
 from .mock.mock import MockJobManager
-from .pbs_handler import PbsCommandHandler, adapt_pbs
-from .pbs_mock import JobState
+from .mock.pbs import JobState, PbsManager, adapt_pbs
 from .utils import (
+    ExtractSubmitScriptPath,
     add_queue,
     extract_script_args,
     extract_script_commands,
     prepare_tasks,
     remove_queue,
 )
-
-
-class ExtractQsubScriptPath(WrappedManagerCommandHandler):
-    def __init__(self, queue: Queue, inner: ManagerCommandHandler):
-        super().__init__(inner=inner)
-        self.queue = queue
-
-    async def handle_submit(self, input: MockInput):
-        script_path = input.arguments[0]
-        self.queue.put(script_path)
-        return super().handle_submit(input)
 
 
 def test_add_pbs_queue(hq_env: HqEnv):
@@ -64,7 +47,7 @@ def test_pbs_queue_qsub_args(hq_env: HqEnv):
     queue = Queue()
 
     with MockJobManager(
-        hq_env, adapt_pbs(ExtractQsubScriptPath(queue, PbsCommandHandler()))
+        hq_env, adapt_pbs(ExtractSubmitScriptPath(queue, PbsManager()))
     ):
         hq_env.start_server()
         prepare_tasks(hq_env)
@@ -86,7 +69,7 @@ def test_pbs_queue_qsub_args(hq_env: HqEnv):
 
 
 def test_pbs_queue_qsub_success(hq_env: HqEnv):
-    with MockJobManager(hq_env, adapt_pbs(PbsCommandHandler())):
+    with MockJobManager(hq_env, adapt_pbs(PbsManager())):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -98,7 +81,7 @@ def test_pbs_qsub_command_multinode_allocation(hq_env: HqEnv):
     queue = Queue()
 
     with MockJobManager(
-        hq_env, adapt_pbs(ExtractQsubScriptPath(queue, PbsCommandHandler()))
+        hq_env, adapt_pbs(ExtractSubmitScriptPath(queue, PbsManager()))
     ):
         hq_env.start_server()
         prepare_tasks(hq_env)
@@ -116,7 +99,7 @@ def test_pbs_qsub_command_multinode_allocation(hq_env: HqEnv):
 
 
 def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
-    handler = PbsCommandHandler()
+    handler = PbsManager()
     with MockJobManager(hq_env, adapt_pbs(handler)):
         hq_env.start_server()
         prepare_tasks(hq_env)
@@ -143,10 +126,10 @@ def test_pbs_check_working_directory(hq_env: HqEnv):
 
     queue = Queue()
 
-    class Handler(PbsCommandHandler):
+    class Handler(PbsManager):
         async def handle_submit(self, input: MockInput):
             queue.put(input.cwd)
-            return super().handle_submit(input)
+            return await super().handle_submit(input)
 
     with MockJobManager(hq_env, adapt_pbs(Handler())):
         hq_env.start_server()
@@ -159,7 +142,7 @@ def test_pbs_check_working_directory(hq_env: HqEnv):
 
 
 def test_pbs_cancel_jobs_on_server_stop(hq_env: HqEnv):
-    handler = PbsCommandHandler()
+    handler = PbsManager()
     with MockJobManager(hq_env, adapt_pbs(handler)):
         process = hq_env.start_server()
         prepare_tasks(hq_env)
@@ -189,7 +172,7 @@ def test_pbs_cancel_jobs_on_server_stop(hq_env: HqEnv):
 
 
 def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv):
-    handler = PbsCommandHandler()
+    handler = PbsManager()
     with MockJobManager(hq_env, adapt_pbs(handler)):
         hq_env.start_server()
         prepare_tasks(hq_env)
@@ -210,7 +193,7 @@ def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv):
 
 
 def test_pbs_cancel_active_jobs_on_forced_remove_queue(hq_env: HqEnv):
-    handler = PbsCommandHandler()
+    handler = PbsManager()
     with MockJobManager(hq_env, adapt_pbs(handler)):
         hq_env.start_server()
         prepare_tasks(hq_env)
@@ -235,7 +218,7 @@ def test_pbs_cancel_active_jobs_on_forced_remove_queue(hq_env: HqEnv):
 
 
 def test_pbs_refresh_allocation_remove_queued_job(hq_env: HqEnv):
-    handler = PbsCommandHandler()
+    handler = PbsManager()
     with MockJobManager(hq_env, adapt_pbs(handler)):
         start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
@@ -250,7 +233,7 @@ def test_pbs_refresh_allocation_remove_queued_job(hq_env: HqEnv):
 
 
 def test_pbs_refresh_allocation_finish_queued_job(hq_env: HqEnv):
-    handler = PbsCommandHandler()
+    handler = PbsManager()
     with MockJobManager(hq_env, adapt_pbs(handler)):
         start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
@@ -266,7 +249,7 @@ def test_pbs_refresh_allocation_finish_queued_job(hq_env: HqEnv):
 
 
 def test_pbs_refresh_allocation_fail_queued_job(hq_env: HqEnv):
-    handler = PbsCommandHandler()
+    handler = PbsManager()
     with MockJobManager(hq_env, adapt_pbs(handler)):
         start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
@@ -297,7 +280,7 @@ def test_pbs_dry_run_missing_qsub(hq_env: HqEnv):
 
 
 def test_pbs_dry_run_submit_error(hq_env: HqEnv):
-    class Handler(PbsCommandHandler):
+    class Handler(PbsManager):
         async def handle_submit(self, _input: MockInput) -> CommandResponse:
             return response_error(stderr="FOOBAR")
 
@@ -307,7 +290,7 @@ def test_pbs_dry_run_submit_error(hq_env: HqEnv):
 
 
 def test_pbs_dry_run_cancel_error(hq_env: HqEnv):
-    class Handler(PbsCommandHandler):
+    class Handler(PbsManager):
         async def handle_delete(self, _input: MockInput) -> CommandResponse:
             return response_error()
 
@@ -321,13 +304,13 @@ def test_pbs_dry_run_cancel_error(hq_env: HqEnv):
 
 
 def test_pbs_dry_run_success(hq_env: HqEnv):
-    with MockJobManager(hq_env, adapt_pbs(PbsCommandHandler())):
+    with MockJobManager(hq_env, adapt_pbs(PbsManager())):
         hq_env.start_server()
         hq_env.command(dry_run_cmd())
 
 
 def test_pbs_add_queue_dry_run_fail(hq_env: HqEnv):
-    class Handler(PbsCommandHandler):
+    class Handler(PbsManager):
         async def handle_submit(self, _input: MockInput) -> CommandResponse:
             return response_error(stderr="FOOBAR")
 
@@ -341,7 +324,7 @@ def test_pbs_add_queue_dry_run_fail(hq_env: HqEnv):
 
 
 def test_pbs_too_high_time_request(hq_env: HqEnv):
-    with MockJobManager(hq_env, adapt_pbs(PbsCommandHandler())):
+    with MockJobManager(hq_env, adapt_pbs(PbsManager())):
         start_server_with_quick_refresh(hq_env)
         hq_env.command(["submit", "--time-request", "1h", "sleep", "1"])
 
@@ -367,7 +350,7 @@ def get_worker_args(qsub_script_path: str):
 
 def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
     queue = Queue()
-    handler = ExtractQsubScriptPath(queue, PbsCommandHandler())
+    handler = ExtractSubmitScriptPath(queue, PbsManager())
 
     with MockJobManager(hq_env, adapt_pbs(handler)):
         hq_env.start_server()
@@ -412,7 +395,7 @@ def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
 
 def test_pbs_pass_idle_timeout_to_worker(hq_env: HqEnv):
     queue = Queue()
-    handler = ExtractQsubScriptPath(queue, PbsCommandHandler())
+    handler = ExtractSubmitScriptPath(queue, PbsManager())
 
     with MockJobManager(hq_env, adapt_pbs(handler)):
         hq_env.start_server()
@@ -443,7 +426,7 @@ def test_pbs_pass_idle_timeout_to_worker(hq_env: HqEnv):
 
 def test_pbs_pass_on_server_lost(hq_env: HqEnv):
     queue = Queue()
-    handler = ExtractQsubScriptPath(queue, PbsCommandHandler())
+    handler = ExtractSubmitScriptPath(queue, PbsManager())
 
     with MockJobManager(hq_env, adapt_pbs(handler)):
         hq_env.start_server()
