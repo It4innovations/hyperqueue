@@ -11,7 +11,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from ...conftest import HqEnv
 from ...utils.io import find_free_port
-from .handler import CommandHandler
+from .handler import CommandHandler, CommandResponse, response
 
 TEMPLATE_DIR = Path(__file__).absolute().parent / "template"
 REDIRECTOR_TEMPLATE = "redirector.jinja"
@@ -71,8 +71,17 @@ class BackgroundServer:
         async def handle_request(request):
             command = request.match_info["cmd"]
             logging.info(f"Received request: {request}, command: {command}")
-            response = await self.handler.handle_command(request, command)
-            return web.json_response(response)
+            resp = await self.handler.handle_command(request, command)
+            if resp is None:
+                resp = response()
+            assert isinstance(resp, CommandResponse)
+
+            resp = {
+                "stdout": resp.stdout,
+                "stderr": resp.stderr,
+                "code": resp.code,
+            }
+            return web.json_response(resp)
 
         self.app = web.Application()
         self.app.add_routes(

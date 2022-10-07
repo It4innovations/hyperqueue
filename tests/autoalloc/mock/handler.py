@@ -1,45 +1,50 @@
-from typing import List
+import dataclasses
+from typing import List, Optional
 
-from aiohttp import web
 from aiohttp.web_request import Request
 
 
+class CommandException(BaseException):
+    pass
+
+
+@dataclasses.dataclass
+class CommandResponse:
+    stdout: str = ""
+    stderr: str = ""
+    code: int = 0
+
+
+def response(stdout="", stderr="", code=0) -> CommandResponse:
+    return CommandResponse(stdout=stdout, stderr=stderr, code=code)
+
+
+def response_error(stdout="", stderr="", code=1):
+    return response(stdout=stdout, stderr=stderr, code=code)
+
+
 class CommandHandler:
-    async def handle_command(self, request: Request, cmd: str):
-        return response_exit()
+    async def handle_command(
+        self, request: Request, cmd: str
+    ) -> Optional[CommandResponse]:
+        try:
+            return response_error()
+        except CommandException as e:
+            return response_error(code=1, stderr=str(e))
 
 
-def response_ok(stdout=""):
-    return {"action": "ok", "stdout": stdout}
+@dataclasses.dataclass
+class MockInput:
+    arguments: List[str]
+    cwd: str
 
 
-def response_exit(code=1):
-    return {"action": "error", "code": code}
-
-
-async def extract_arguments(request) -> List[str]:
+async def extract_mock_input(request) -> MockInput:
     data = await request.json()
     arguments = data["arguments"]
     assert isinstance(arguments, list)
     if len(arguments) > 0:
         assert isinstance(arguments[0], str)
-    return arguments
-
-
-class PbsCommandHandler(CommandHandler):
-    async def handle_command(self, request: Request, cmd: str):
-        arguments = await extract_arguments(request)
-
-        if cmd == "qsub":
-            await self.inspect_qsub(arguments)
-            response = await self.handle_qsub(arguments)
-        else:
-            raise Exception(f"Unknown PBS command {cmd}")
-
-        return web.json_response(response)
-
-    async def handle_qsub(self, arguments: List[str]):
-        return response_ok()
-
-    async def inspect_qsub(self, arguments: List[str]):
-        pass
+    cwd = data["cwd"]
+    assert isinstance(cwd, str)
+    return MockInput(arguments=arguments, cwd=cwd)
