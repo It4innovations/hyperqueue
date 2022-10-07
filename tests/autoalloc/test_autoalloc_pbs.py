@@ -1,15 +1,12 @@
-import json
-import os
 import time
 from os.path import dirname, join
 from pathlib import Path
-from subprocess import Popen
+from queue import Queue
 from typing import List
 
 import pytest
 
 from ..conftest import HqEnv, get_hq_binary
-from ..utils.io import check_file_contents
 from ..utils.wait import (
     DEFAULT_TIMEOUT,
     TimeoutException,
@@ -18,16 +15,27 @@ from ..utils.wait import (
     wait_until,
 )
 from .conftest import PBS_AVAILABLE, PBS_TIMEOUT, pbs_test
-from .pbs_mock import JobState, NewJobFailed, NewJobId, PbsMock
+from .mock.handler import CommandResponse, MockInput, response_error
+from .mock.mock import MockJobManager
+from .pbs_handler import PbsCommandHandler
+from .pbs_mock import JobState
 from .utils import (
     add_queue,
     extract_script_args,
     extract_script_commands,
     prepare_tasks,
-    program_code_store_args_json,
-    program_code_store_cwd_json,
     remove_queue,
 )
+
+
+class ExtractQsubScriptPath(PbsCommandHandler):
+    def __init__(self, queue: Queue):
+        super().__init__()
+        self.queue = queue
+
+    async def inspect_qsub(self, input: MockInput):
+        script_path = input.arguments[0]
+        self.queue.put(script_path)
 
 
 def test_add_pbs_queue(hq_env: HqEnv):
@@ -46,19 +54,15 @@ def test_add_pbs_queue(hq_env: HqEnv):
 
 
 def test_pbs_queue_qsub_args(hq_env: HqEnv):
-    path = join(hq_env.work_path, "qsub.out")
-    qsub_code = program_code_store_args_json(path)
+    queue = Queue()
 
-    with hq_env.mock.mock_program("qsub", qsub_code):
+    with MockJobManager(hq_env, ExtractQsubScriptPath(queue)):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env, time_limit="3m", additional_args="--foo=bar a b --baz 42")
-        wait_until(lambda: os.path.exists(path))
+        qsub_script_path = queue.get()
 
-        with open(path) as f:
-            args = json.loads(f.read())
-            qsub_script_path = args[1]
         with open(qsub_script_path) as f:
             data = f.read()
             pbs_args = extract_script_args(data, "#PBS")
@@ -73,30 +77,24 @@ def test_pbs_queue_qsub_args(hq_env: HqEnv):
 
 
 def test_pbs_queue_qsub_success(hq_env: HqEnv):
-    mock = PbsMock(hq_env, new_job_responses=[NewJobId(id="123.job")])
-
-    with mock.activate():
+    with MockJobManager(hq_env, PbsCommandHandler()):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env)
-        wait_for_alloc(hq_env, "QUEUED", "123.job")
+        wait_for_alloc(hq_env, "QUEUED", "1.job")
 
 
 def test_pbs_qsub_command_multinode_allocation(hq_env: HqEnv):
-    path = join(hq_env.work_path, "qsub.out")
-    qsub_code = program_code_store_args_json(path)
+    queue = Queue()
 
-    with hq_env.mock.mock_program("qsub", qsub_code):
+    with MockJobManager(hq_env, ExtractQsubScriptPath(queue)):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env, workers_per_alloc=2)
-        wait_until(lambda: os.path.exists(path))
+        qsub_script_path = queue.get()
 
-        with open(path) as f:
-            args = json.loads(f.read())
-            qsub_script_path = args[1]
         with open(qsub_script_path) as f:
             commands = extract_script_commands(f.read())
             assert (
@@ -107,22 +105,19 @@ def test_pbs_qsub_command_multinode_allocation(hq_env: HqEnv):
 
 
 def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
-    mock = PbsMock(hq_env)
-
-    job_id = mock.job_id(0)
-
-    with mock.activate():
+    handler = PbsCommandHandler()
+    with MockJobManager(hq_env, handler):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
-        mock.update_job_state(job_id, JobState.queued())
+        job_id = handler.job_id(0)
         add_queue(hq_env)
 
         # Queued
         wait_for_alloc(hq_env, "QUEUED", job_id)
 
         # Started
-        worker = add_worker(hq_env, 0, mock)
+        worker = handler.add_worker(hq_env, job_id)
         wait_for_alloc(hq_env, "RUNNING", job_id)
 
         # Finished
@@ -133,45 +128,40 @@ def test_pbs_allocations_job_lifecycle(hq_env: HqEnv):
 
 
 def test_pbs_check_working_directory(hq_env: HqEnv):
-    """Check that qsub and qstat are invoked from an autoalloc working directory"""
-    qsub_path = join(hq_env.work_path, "qsub.out")
-    qsub_code = f"""
-{program_code_store_cwd_json(qsub_path)}
-print("1")
-"""
+    """Check that qsub is invoked from an autoalloc working directory"""
 
-    with hq_env.mock.mock_program("qsub", qsub_code):
+    queue = Queue()
+
+    class Handler(PbsCommandHandler):
+        async def inspect_qsub(self, input: MockInput):
+            queue.put(input.cwd)
+
+    with MockJobManager(hq_env, Handler()):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo")
-        wait_until(lambda: os.path.isfile(qsub_path))
 
-        check_file_contents(
-            qsub_path, Path(hq_env.server_dir) / "001/autoalloc/1-foo/001"
-        )
+        expected_cwd = Path(hq_env.server_dir) / "001/autoalloc/1-foo/001"
+        assert queue.get() == str(expected_cwd)
 
 
-def test_pbs_cancel_active_jobs_on_server_stop(hq_env: HqEnv):
-    mock = PbsMock(hq_env)
-
-    mock.update_job_state(mock.job_id(0), JobState.queued())
-    mock.update_job_state(mock.job_id(1), JobState.queued())
-
-    with mock.activate():
+def test_pbs_cancel_jobs_on_server_stop(hq_env: HqEnv):
+    handler = PbsCommandHandler()
+    with MockJobManager(hq_env, handler):
         process = hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
-        w1 = add_worker(hq_env, 0, mock)
-        w2 = add_worker(hq_env, 1, mock)
+        w1 = handler.add_worker(hq_env, handler.job_id(0))
+        w2 = handler.add_worker(hq_env, handler.job_id(1))
 
         def wait_until_fixpoint():
             jobs = hq_env.command(["alloc", "info", "1"], as_table=True)
             # 2 running + 2 queued
             return len(jobs) == 4
 
-        wait_until(lambda: wait_until_fixpoint())
+        wait_until(wait_until_fixpoint)
 
         hq_env.command(["server", "stop"])
         process.wait()
@@ -182,49 +172,20 @@ def test_pbs_cancel_active_jobs_on_server_stop(hq_env: HqEnv):
         w2.wait()
         hq_env.check_process_exited(w2, expected_code="error")
 
-        expected_job_ids = set(mock.job_id(index) for index in range(4))
-        wait_until(lambda: expected_job_ids == set(mock.deleted_jobs()))
-
-
-def test_pbs_cancel_queued_jobs_on_remove_queue(hq_env: HqEnv):
-    mock = PbsMock(hq_env)
-
-    for index in range(2):
-        mock.update_job_state(
-            mock.job_id(index),
-            JobState.queued(),
-        )
-
-    with mock.activate():
-        hq_env.start_server()
-        prepare_tasks(hq_env)
-
-        add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
-
-        def wait_until_fixpoint():
-            jobs = hq_env.command(["alloc", "info", "1"], as_table=True)
-            return len(jobs) == 2
-
-        wait_until(lambda: wait_until_fixpoint())
-
-        remove_queue(hq_env, 1)
-        wait_until(lambda: len(hq_env.command(["alloc", "list"], as_table=True)) == 0)
-
-        expected_job_ids = set(mock.job_id(index) for index in range(2))
-        wait_until(lambda: expected_job_ids == set(mock.deleted_jobs()))
+        expected_job_ids = set(handler.job_id(index) for index in range(4))
+        wait_until(lambda: expected_job_ids == handler.deleted_jobs)
 
 
 def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv):
-    mock = PbsMock(hq_env)
-
-    with mock.activate():
+    handler = PbsCommandHandler()
+    with MockJobManager(hq_env, handler):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
-        job_id = mock.job_id(0)
+        job_id = handler.job_id(0)
 
-        add_worker(hq_env, 0, mock)
+        handler.add_worker(hq_env, job_id)
         wait_for_alloc(hq_env, "RUNNING", job_id)
 
         remove_queue(
@@ -237,83 +198,75 @@ def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv):
 
 
 def test_pbs_cancel_active_jobs_on_forced_remove_queue(hq_env: HqEnv):
-    mock = PbsMock(hq_env)
-
-    mock.update_job_state(mock.job_id(0), JobState.queued())
-    mock.update_job_state(mock.job_id(1), JobState.queued())
-
-    with mock.activate():
+    handler = PbsCommandHandler()
+    with MockJobManager(hq_env, handler):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo", backlog=2, workers_per_alloc=1)
 
-        add_worker(hq_env, 0, mock)
-        add_worker(hq_env, 1, mock)
+        handler.add_worker(hq_env, handler.job_id(0))
+        handler.add_worker(hq_env, handler.job_id(1))
 
         def wait_until_fixpoint():
             jobs = hq_env.command(["alloc", "info", "1"], as_table=True)
             # 2 running + 2 queued
             return len(jobs) == 4
 
-        wait_until(lambda: wait_until_fixpoint())
+        wait_until(wait_until_fixpoint)
 
         remove_queue(hq_env, 1, force=True)
         wait_until(lambda: len(hq_env.command(["alloc", "list"], as_table=True)) == 0)
 
-        expected_job_ids = set(mock.job_id(index) for index in range(4))
-        wait_until(lambda: expected_job_ids == set(mock.deleted_jobs()))
+        expected_job_ids = set(handler.job_id(index) for index in range(4))
+        wait_until(lambda: expected_job_ids == handler.deleted_jobs)
 
 
 def test_pbs_refresh_allocation_remove_queued_job(hq_env: HqEnv):
-    mock = PbsMock(hq_env)
-
-    with mock.activate():
+    handler = PbsCommandHandler()
+    with MockJobManager(hq_env, handler):
         start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
         add_queue(hq_env, name="foo")
 
-        mock.update_job_state(
-            mock.job_id(0),
-            JobState.queued(),
-        )
-        wait_for_alloc(hq_env, "QUEUED", mock.job_id(0))
+        job_id = handler.job_id(0)
+        wait_for_alloc(hq_env, "QUEUED", job_id)
 
-        mock.update_job_state(mock.job_id(0), None)
-        wait_for_alloc(hq_env, "FAILED", mock.job_id(0))
+        handler.set_job_status(job_id, None)
+        wait_for_alloc(hq_env, "FAILED", job_id)
 
 
 def test_pbs_refresh_allocation_finish_queued_job(hq_env: HqEnv):
-    mock = PbsMock(hq_env)
-
-    with mock.activate():
+    handler = PbsCommandHandler()
+    with MockJobManager(hq_env, handler):
         start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
+        job_id = handler.job_id(0)
         add_queue(hq_env, name="foo")
-        wait_for_alloc(hq_env, "QUEUED", mock.job_id(0))
-        mock.update_job_state(
-            mock.job_id(0),
+        wait_for_alloc(hq_env, "QUEUED", job_id)
+        handler.set_job_status(
+            job_id,
             JobState.finished(),
         )
-        wait_for_alloc(hq_env, "FINISHED", mock.job_id(0))
+        wait_for_alloc(hq_env, "FINISHED", job_id)
 
 
 def test_pbs_refresh_allocation_fail_queued_job(hq_env: HqEnv):
-    mock = PbsMock(hq_env)
-
-    with mock.activate():
+    handler = PbsCommandHandler()
+    with MockJobManager(hq_env, handler):
         start_server_with_quick_refresh(hq_env)
         prepare_tasks(hq_env)
 
+        job_id = handler.job_id(0)
         add_queue(hq_env, name="foo")
-        wait_for_alloc(hq_env, "QUEUED", mock.job_id(0))
-        mock.update_job_state(
-            mock.job_id(0),
+        wait_for_alloc(hq_env, "QUEUED", job_id)
+        handler.set_job_status(
+            job_id,
             JobState.failed(),
         )
-        wait_for_alloc(hq_env, "FAILED", mock.job_id(0))
+        wait_for_alloc(hq_env, "FAILED", job_id)
 
 
 def dry_run_cmd() -> List[str]:
@@ -332,35 +285,42 @@ def test_pbs_dry_run_missing_qsub(hq_env: HqEnv):
 
 
 def test_pbs_dry_run_submit_error(hq_env: HqEnv):
-    mock = PbsMock(hq_env, new_job_responses=[NewJobFailed(message="FOOBAR")])
+    class Handler(PbsCommandHandler):
+        async def handle_qsub(self, _input: MockInput) -> CommandResponse:
+            return response_error(stderr="FOOBAR")
 
-    with mock.activate():
+    with MockJobManager(hq_env, Handler()):
         hq_env.start_server()
         hq_env.command(dry_run_cmd(), expect_fail="Stderr: FOOBAR")
 
 
 def test_pbs_dry_run_cancel_error(hq_env: HqEnv):
-    mock = PbsMock(hq_env, new_job_responses=[NewJobId(id="job1")], qdel_code="exit(1)")
+    class Handler(PbsCommandHandler):
+        async def handle_qdel(self, _input: MockInput) -> CommandResponse:
+            return response_error()
 
-    with mock.activate():
+    handler = Handler()
+    with MockJobManager(hq_env, handler):
         hq_env.start_server()
-        hq_env.command(dry_run_cmd(), expect_fail="Could not cancel allocation job1")
+        hq_env.command(
+            dry_run_cmd(),
+            expect_fail=f"Could not cancel allocation {handler.job_id(0)}",
+        )
 
 
 def test_pbs_dry_run_success(hq_env: HqEnv):
-    mock = PbsMock(hq_env, new_job_responses=[NewJobId(id="job1")])
-
-    with mock.activate():
+    with MockJobManager(hq_env, PbsCommandHandler()):
         hq_env.start_server()
         hq_env.command(dry_run_cmd())
 
 
 def test_pbs_add_queue_dry_run_fail(hq_env: HqEnv):
-    hq_env.start_server()
+    class Handler(PbsCommandHandler):
+        async def handle_qsub(self, _input: MockInput) -> CommandResponse:
+            return response_error(stderr="FOOBAR")
 
-    mock = PbsMock(hq_env, [NewJobFailed("failed to allocate")])
-
-    with mock.activate():
+    with MockJobManager(hq_env, Handler()):
+        hq_env.start_server()
         add_queue(
             hq_env,
             dry_run=True,
@@ -369,10 +329,8 @@ def test_pbs_add_queue_dry_run_fail(hq_env: HqEnv):
 
 
 def test_pbs_too_high_time_request(hq_env: HqEnv):
-    mock = PbsMock(hq_env)
-
-    with mock.activate():
-        hq_env.start_server()
+    with MockJobManager(hq_env, PbsCommandHandler()):
+        start_server_with_quick_refresh(hq_env)
         hq_env.command(["submit", "--time-request", "1h", "sleep", "1"])
 
         add_queue(hq_env, name="foo", time_limit="30m")
@@ -382,13 +340,10 @@ def test_pbs_too_high_time_request(hq_env: HqEnv):
         assert len(table) == 0
 
 
-def get_worker_args(path: str):
+def get_worker_args(qsub_script_path: str):
     """
-    `path` should be a path to qsub submit script.
+    `qsub_script_path` should be a path to qsub submit script.
     """
-    with open(path) as f:
-        args = json.loads(f.read())
-        qsub_script_path = args[1]
     with open(qsub_script_path) as f:
         data = f.read()
     return [
@@ -399,10 +354,10 @@ def get_worker_args(path: str):
 
 
 def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
-    path = join(hq_env.work_path, "qsub.out")
-    qsub_code = program_code_store_args_json(path)
+    queue = Queue()
+    handler = ExtractQsubScriptPath(queue)
 
-    with hq_env.mock.mock_program("qsub", qsub_code):
+    with MockJobManager(hq_env, handler):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -420,9 +375,9 @@ def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
                 "z=[1,2,4]",
             ],
         )
-        wait_until(lambda: os.path.exists(path))
 
-        assert get_worker_args(path) == [
+        qsub_script_path = queue.get()
+        assert get_worker_args(qsub_script_path) == [
             "worker",
             "start",
             "--idle-timeout",
@@ -444,10 +399,10 @@ def test_pbs_pass_cpu_and_resources_to_worker(hq_env: HqEnv):
 
 
 def test_pbs_pass_idle_timeout_to_worker(hq_env: HqEnv):
-    path = join(hq_env.work_path, "qsub.out")
-    qsub_code = program_code_store_args_json(path)
+    queue = Queue()
+    handler = ExtractQsubScriptPath(queue)
 
-    with hq_env.mock.mock_program("qsub", qsub_code):
+    with MockJobManager(hq_env, handler):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -459,9 +414,9 @@ def test_pbs_pass_idle_timeout_to_worker(hq_env: HqEnv):
                 "30m",
             ],
         )
-        wait_until(lambda: os.path.exists(path))
 
-        assert get_worker_args(path) == [
+        qsub_script_path = queue.get()
+        assert get_worker_args(qsub_script_path) == [
             "worker",
             "start",
             "--idle-timeout",
@@ -472,6 +427,62 @@ def test_pbs_pass_idle_timeout_to_worker(hq_env: HqEnv):
             f"{hq_env.server_dir}/001",
             "--on-server-lost=finish-running",
         ]
+
+
+def test_pbs_pass_on_server_lost(hq_env: HqEnv):
+    queue = Queue()
+    handler = ExtractQsubScriptPath(queue)
+
+    with MockJobManager(hq_env, handler):
+        hq_env.start_server()
+        prepare_tasks(hq_env)
+
+        add_queue(
+            hq_env,
+            manager="pbs",
+            additional_worker_args=["--on-server-lost=stop"],
+        )
+        qsub_script_path = queue.get()
+        assert get_worker_args(qsub_script_path) == [
+            "worker",
+            "start",
+            "--idle-timeout",
+            "5m",
+            "--manager",
+            "pbs",
+            "--server-dir",
+            f"{hq_env.server_dir}/001",
+            "--on-server-lost=stop",
+        ]
+
+
+@pbs_test
+def test_external_pbs_submit_single_worker(cluster_hq_env: HqEnv, pbs_credentials: str):
+    cluster_hq_env.start_server()
+    prepare_tasks(cluster_hq_env, count=10)
+    add_queue(
+        cluster_hq_env, additional_args=pbs_credentials, time_limit="5m", dry_run=True
+    )
+    wait_for_worker_state(cluster_hq_env, 1, "RUNNING", timeout_s=PBS_TIMEOUT)
+    wait_for_job_state(cluster_hq_env, 1, "FINISHED")
+
+
+@pbs_test
+def test_external_pbs_submit_multiple_workers(
+    cluster_hq_env: HqEnv, pbs_credentials: str
+):
+    cluster_hq_env.start_server()
+    prepare_tasks(cluster_hq_env, count=100)
+
+    add_queue(
+        cluster_hq_env,
+        additional_args=pbs_credentials,
+        time_limit="5m",
+        dry_run=True,
+        workers_per_alloc=2,
+    )
+    wait_for_worker_state(cluster_hq_env, [1, 2], "RUNNING", timeout_s=PBS_TIMEOUT)
+    wait_for_job_state(cluster_hq_env, 1, "FINISHED")
 
 
 def wait_for_alloc(
@@ -502,84 +513,6 @@ def wait_for_alloc(
         if last_table is not None:
             raise Exception(f"{e}, most recent table:\n{last_table}")
         raise e
-
-
-def test_pbs_pass_on_server_lost(hq_env: HqEnv):
-    path = join(hq_env.work_path, "qsub.out")
-    qsub_code = program_code_store_args_json(path)
-
-    with hq_env.mock.mock_program("qsub", qsub_code):
-        hq_env.start_server()
-        prepare_tasks(hq_env)
-
-        add_queue(
-            hq_env,
-            manager="pbs",
-            additional_worker_args=["--on-server-lost=stop"],
-        )
-        wait_until(lambda: os.path.exists(path))
-
-        with open(path) as f:
-            args = json.loads(f.read())
-            qsub_script_path = args[1]
-        with open(qsub_script_path) as f:
-            data = f.read()
-        worker_args = [
-            line
-            for line in data.splitlines(keepends=False)
-            if line and not line.startswith("#")
-        ][0].split(" ")[1:]
-        assert worker_args == [
-            "worker",
-            "start",
-            "--idle-timeout",
-            "5m",
-            "--manager",
-            "pbs",
-            "--server-dir",
-            f"{hq_env.server_dir}/001",
-            "--on-server-lost=stop",
-        ]
-
-
-@pbs_test
-def test_external_pbs_submit_single_worker(cluster_hq_env: HqEnv, pbs_credentials: str):
-    cluster_hq_env.start_server()
-    prepare_tasks(cluster_hq_env, count=10)
-
-    add_queue(
-        cluster_hq_env, additional_args=pbs_credentials, time_limit="5m", dry_run=True
-    )
-    wait_for_worker_state(cluster_hq_env, 1, "RUNNING", timeout_s=PBS_TIMEOUT)
-    wait_for_job_state(cluster_hq_env, 1, "FINISHED")
-
-
-@pbs_test
-def test_external_pbs_submit_multiple_workers(
-    cluster_hq_env: HqEnv, pbs_credentials: str
-):
-    cluster_hq_env.start_server()
-    prepare_tasks(cluster_hq_env, count=100)
-
-    add_queue(
-        cluster_hq_env,
-        additional_args=pbs_credentials,
-        time_limit="5m",
-        dry_run=True,
-        workers_per_alloc=2,
-    )
-    wait_for_worker_state(cluster_hq_env, [1, 2], "RUNNING", timeout_s=PBS_TIMEOUT)
-    wait_for_job_state(cluster_hq_env, 1, "FINISHED")
-
-
-def add_worker(hq_env: HqEnv, allocation_index: int, mock: PbsMock) -> Popen:
-    allocation_id = mock.job_id(allocation_index)
-    mock.update_job_state(allocation_id, JobState.running())
-
-    return hq_env.start_worker(
-        env={"PBS_JOBID": allocation_id, "PBS_ENVIRONMENT": "1"},
-        args=["--manager", "pbs", "--time-limit", "30m"],
-    )
 
 
 def start_server_with_quick_refresh(

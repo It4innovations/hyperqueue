@@ -32,6 +32,7 @@ class Env:
     def start_process(self, name, args, env=None, catch_io=True, cwd=None):
         cwd = str(cwd or self.work_path)
         logfile = (self.work_path / name).with_suffix(".out")
+        print(f"Starting process {name} with logfile {logfile}")
         if catch_io:
             with open(logfile, "w") as out:
                 p = subprocess.Popen(
@@ -318,7 +319,7 @@ def hq_env(tmp_path):
 @contextlib.contextmanager
 def run_hq_env(tmp_path, debug=True):
     """Fixture that allows to start HQ test environment"""
-    print("Working dir", tmp_path)
+    print("\nWorking dir", tmp_path)
     os.chdir(tmp_path)
 
     mock = ProgramMock(tmp_path.joinpath("mock"))
