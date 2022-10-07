@@ -2,7 +2,7 @@ import abc
 import dataclasses
 from abc import ABC
 from subprocess import Popen
-from typing import Dict, List, Optional, TypeVar
+from typing import Dict, Generic, List, Optional, TypeVar
 
 from aiohttp.web_request import Request
 
@@ -74,10 +74,10 @@ class WrappedManager(Manager):
         return await self.inner.handle_delete(input)
 
 
-JobType = TypeVar("T")
+JobType = TypeVar("JobType")
 
 
-class DefaultManager(Manager):
+class DefaultManager(Manager, Generic[JobType]):
     def __init__(self):
         self.job_counter = 0
         # None = job is purposely missing
