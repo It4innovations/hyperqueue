@@ -95,7 +95,7 @@ def adapt_pbs(handler: Manager) -> CommandHandler:
     return PbsCommandAdapter(handler)
 
 
-class PbsManager(DefaultManager):
+class PbsManager(DefaultManager[JobState]):
     async def handle_status(self, input: MockInput) -> CommandResponse:
         job_ids = []
         args = input.arguments

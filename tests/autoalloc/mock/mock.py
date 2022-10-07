@@ -49,7 +49,7 @@ class MockJobManager:
 
         # Link selected commands to redirector
         for cmd in mocked_commands:
-            hq_env.mock.mock(cmd, redirector_path)
+            hq_env.mock.redirect_program_to_binary(cmd, redirector_path)
 
         self.bg_server: Optional[BackgroundServer] = None
 

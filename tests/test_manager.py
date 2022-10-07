@@ -54,8 +54,8 @@ print(json.dumps(data))
 def test_manager_autodetect(hq_env: HqEnv):
     hq_env.start_server()
 
-    with hq_env.mock.mock_program("qstat", qstat_return_walltime("x1234")):
-        with hq_env.mock.mock_program("scontrol", scontrol_return("y5678")):
+    with hq_env.mock.mock_program_with_code("qstat", qstat_return_walltime("x1234")):
+        with hq_env.mock.mock_program_with_code("scontrol", scontrol_return("y5678")):
             hq_env.start_worker(cpus=1)
             hq_env.start_worker(
                 cpus=1, env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"}
@@ -105,7 +105,7 @@ def test_manager_pbs_no_env(hq_env: HqEnv):
 def test_manager_pbs(hq_env: HqEnv):
     hq_env.start_server()
 
-    with hq_env.mock.mock_program("qstat", qstat_return_walltime("x1234")):
+    with hq_env.mock.mock_program_with_code("qstat", qstat_return_walltime("x1234")):
         hq_env.start_worker(
             cpus=1,
             args=["--manager", "pbs"],
@@ -136,7 +136,7 @@ def test_manager_slurm_no_env(hq_env: HqEnv):
 def test_manager_slurm(hq_env: HqEnv):
     hq_env.start_server()
 
-    with hq_env.mock.mock_program("scontrol", scontrol_return("abcd")):
+    with hq_env.mock.mock_program_with_code("scontrol", scontrol_return("abcd")):
         hq_env.start_worker(
             cpus=1, args=["--manager", "slurm"], env={"SLURM_JOB_ID": "abcd"}
         )
