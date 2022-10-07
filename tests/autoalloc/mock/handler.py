@@ -1,9 +1,12 @@
 import abc
 import dataclasses
 from abc import ABC
-from typing import List, Optional
+from subprocess import Popen
+from typing import Dict, List, Optional, TypeVar
 
 from aiohttp.web_request import Request
+
+from ...conftest import HqEnv
 
 
 @dataclasses.dataclass
@@ -46,7 +49,7 @@ async def extract_mock_input(request) -> MockInput:
     return MockInput(arguments=arguments, cwd=cwd)
 
 
-class ManagerCommandHandler(ABC):
+class Manager(ABC):
     async def handle_submit(self, input: MockInput) -> CommandResponse:
         return response_error()
 
@@ -57,8 +60,8 @@ class ManagerCommandHandler(ABC):
         return response_error()
 
 
-class WrappedManagerCommandHandler(ManagerCommandHandler):
-    def __init__(self, inner: ManagerCommandHandler):
+class WrappedManager(Manager):
+    def __init__(self, inner: Manager):
         self.inner = inner
 
     async def handle_submit(self, input: MockInput) -> CommandResponse:
@@ -69,3 +72,45 @@ class WrappedManagerCommandHandler(ManagerCommandHandler):
 
     async def handle_delete(self, input: MockInput) -> Optional[CommandResponse]:
         return await self.inner.handle_delete(input)
+
+
+JobType = TypeVar("T")
+
+
+class DefaultManager(Manager):
+    def __init__(self):
+        self.job_counter = 0
+        # None = job is purposely missing
+        self.jobs: Dict[str, Optional[JobType]] = {}
+        self.deleted_jobs = set()
+
+    async def handle_submit(self, _input: MockInput) -> CommandResponse:
+        # By default, create a new job
+        job_id = self.job_id(self.job_counter)
+        self.job_counter += 1
+
+        # The state of this job could already have been set before manually
+        if job_id not in self.jobs:
+            self.jobs[job_id] = self.queue_job_state()
+        return response(stdout=job_id)
+
+    async def handle_status(self, input: MockInput) -> CommandResponse:
+        raise NotImplementedError
+
+    async def handle_delete(self, input: MockInput) -> Optional[CommandResponse]:
+        job_id = input.arguments[0]
+        assert job_id in self.jobs
+        self.deleted_jobs.add(job_id)
+        return None
+
+    def job_id(self, index: int) -> str:
+        return f"{index + 1}.job"
+
+    def set_job_status(self, job_id: str, status: Optional[JobType]):
+        self.jobs[job_id] = status
+
+    def queue_job_state(self) -> JobType:
+        raise NotImplementedError
+
+    def add_worker(self, hq_env: HqEnv, allocation_id: str) -> Popen:
+        raise NotImplementedError
