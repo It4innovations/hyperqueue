@@ -1,4 +1,3 @@
-import dataclasses
 import datetime
 import json
 from subprocess import Popen
@@ -10,62 +9,11 @@ from ...conftest import HqEnv
 from .handler import (
     CommandHandler,
     CommandResponse,
-    DefaultManager,
-    JobType,
-    Manager,
     MockInput,
     extract_mock_input,
     response,
 )
-
-
-@dataclasses.dataclass(frozen=True)
-class JobState:
-    @staticmethod
-    def running() -> "JobState":
-        return JobState(
-            status="R",
-            stime=to_pbs_time(now()),
-            qtime=to_pbs_time(now() - datetime.timedelta(seconds=1)),
-            mtime=to_pbs_time(now()),
-        )
-
-    @staticmethod
-    def queued() -> "JobState":
-        return JobState(
-            status="Q",
-            qtime=to_pbs_time(now() - datetime.timedelta(seconds=1)),
-        )
-
-    @staticmethod
-    def finished() -> "JobState":
-        return JobState(
-            status="F",
-            stime=to_pbs_time(now()),
-            qtime=to_pbs_time(now() - datetime.timedelta(seconds=1)),
-            mtime=to_pbs_time(now() + datetime.timedelta(seconds=1)),
-            exit_code=0,
-        )
-
-    @staticmethod
-    def failed() -> "JobState":
-        return JobState(
-            status="F",
-            stime=to_pbs_time(now()),
-            qtime=to_pbs_time(now() - datetime.timedelta(seconds=1)),
-            mtime=to_pbs_time(now() + datetime.timedelta(seconds=1)),
-            exit_code=1,
-        )
-
-    status: str
-    qtime: Optional[str] = None
-    stime: Optional[str] = None
-    mtime: Optional[str] = None
-    exit_code: Optional[int] = None
-
-
-def now() -> datetime.datetime:
-    return datetime.datetime.now()
+from .manager import DefaultManager, JobData, JobStatus, Manager
 
 
 def to_pbs_time(time: datetime.datetime) -> str:
@@ -95,7 +43,7 @@ def adapt_pbs(handler: Manager) -> CommandHandler:
     return PbsCommandAdapter(handler)
 
 
-class PbsManager(DefaultManager[JobState]):
+class PbsManager(DefaultManager):
     async def handle_status(self, input: MockInput) -> CommandResponse:
         job_ids = []
         args = input.arguments
@@ -105,34 +53,45 @@ class PbsManager(DefaultManager[JobState]):
 
         if not job_ids:
             raise Exception(f"Did not find -f in arguments: {args}")
+        for job_id in job_ids:
+            assert job_id[0].isdigit()
 
         return response(stdout=json.dumps({"Jobs": self.create_job_data(job_ids)}))
 
     def add_worker(self, hq_env: HqEnv, allocation_id: str) -> Popen:
-        self.set_job_status(allocation_id, JobState.running())
+        self.set_job_data(allocation_id, JobData.running())
 
         return hq_env.start_worker(
             env={"PBS_JOBID": allocation_id, "PBS_ENVIRONMENT": "1"},
             args=["--manager", "pbs", "--time-limit", "30m"],
         )
 
-    def queue_job_state(self) -> JobType:
-        return JobState.queued()
-
     def create_job_data(self, job_ids: List[str]):
         job_id_to_state = {}
         for job_id in job_ids:
-            state = self.jobs[job_id]
-            if state is not None:
-                job_data = {"job_state": state.status}
-                if state.qtime is not None:
-                    job_data["qtime"] = state.qtime
-                if state.stime is not None:
-                    job_data["stime"] = state.stime
-                if state.mtime is not None:
-                    job_data["mtime"] = state.mtime
-                if state.exit_code is not None:
-                    job_data["Exit_status"] = state.exit_code
+            job = self.jobs[job_id]
+            if job is not None:
+                if job.status == JobStatus.Queued:
+                    status = "Q"
+                elif job.status == JobStatus.Running:
+                    status = "R"
+                elif job.status in (JobStatus.Failed, JobStatus.Finished):
+                    status = "F"
+                else:
+                    assert False
+
+                job_data = {"job_state": status}
+                if job.qtime is not None:
+                    job_data["qtime"] = to_pbs_time(job.qtime)
+                if job.stime is not None:
+                    job_data["stime"] = to_pbs_time(job.stime)
+                if job.mtime is not None:
+                    job_data["mtime"] = to_pbs_time(job.mtime)
+                if job.exit_code is not None:
+                    job_data["Exit_status"] = job.exit_code
 
                 job_id_to_state[job_id] = job_data
         return job_id_to_state
+
+    def submit_response(self, job_id: str) -> str:
+        return job_id
