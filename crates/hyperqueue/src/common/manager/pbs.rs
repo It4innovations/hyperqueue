@@ -31,7 +31,7 @@ fn parse_pbs_job_remaining_time(job_id: &str, data: &str) -> anyhow::Result<Dura
 /// Calculates how much time is left for the given job using `qstat`.
 pub fn get_remaining_timelimit(job_id: &str) -> anyhow::Result<Duration> {
     let result = Command::new("qstat")
-        .args(&["-f", "-F", "json", job_id])
+        .args(&["-f", job_id, "-F", "json"])
         .output()?;
     if !result.status.success() {
         anyhow::bail!(

@@ -1,8 +1,9 @@
 from queue import Queue
-from typing import List, Optional
+from typing import List, Literal, Optional, Union
 
 from ..conftest import HqEnv
-from .mock.handler import Manager, MockInput, WrappedManager
+from .mock.handler import MockInput
+from .mock.manager import Manager, WrappedManager
 
 
 def program_code_store_args_json(path: str) -> str:
@@ -37,9 +38,12 @@ def extract_script_commands(script: str) -> str:
     )
 
 
+ManagerType = Union[Literal["pbs"], Literal["slurm"]]
+
+
 def add_queue(
     hq_env: HqEnv,
-    manager="pbs",
+    manager: ManagerType,
     name: Optional[str] = "foo",
     backlog=1,
     workers_per_alloc=1,
@@ -84,8 +88,19 @@ def remove_queue(hq_env: HqEnv, queue_id: int, force=False, **kwargs):
     return hq_env.command(args, **kwargs)
 
 
+class ManagerQueue:
+    def __init__(self):
+        self.queue = Queue()
+
+    def put(self, value):
+        self.queue.put(value)
+
+    def get(self):
+        return self.queue.get(timeout=5)
+
+
 class ExtractSubmitScriptPath(WrappedManager):
-    def __init__(self, queue: Queue, inner: Manager):
+    def __init__(self, queue: ManagerQueue, inner: Manager):
         super().__init__(inner=inner)
         self.queue = queue
 

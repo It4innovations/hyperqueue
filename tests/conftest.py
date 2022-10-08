@@ -103,8 +103,6 @@ class Env:
 
 
 class HqEnv(Env):
-    default_listen_port = 17002
-
     def __init__(self, work_dir, mock: ProgramMock, debug=True):
         Env.__init__(self, work_dir)
         self.mock = mock

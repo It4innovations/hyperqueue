@@ -8,21 +8,21 @@ based on the response, either print something to stdout or exit with the specifi
 The template has to be rendered first, and provided with the path to Python and a port where should
 the arguments be sent.
 """
-
 import os.path
 import sys
 
 import requests
 
 PORT = {{ port }}
+KEY = "{{ key }}"
 
 arguments = sys.argv
 
 program = os.path.basename(arguments[0])
 response = requests.post(f"http://localhost:{PORT}/{program}", json={
     "arguments": arguments[1:],
-    "cwd": os.getcwd()
-}).json()
+    "cwd": os.getcwd(),
+}, headers={"HQ_TEST_KEY": KEY}).json()
 
 print(response["stdout"], flush=True)
 print(response["stderr"], file=sys.stderr, flush=True)
