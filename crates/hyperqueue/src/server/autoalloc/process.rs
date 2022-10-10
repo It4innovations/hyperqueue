@@ -92,7 +92,10 @@ async fn handle_message(
                 .get_queue_id_by_allocation(&manager_info.allocation_id)
                 .map(RefreshReason::UpdateQueue)
         }
-        AutoAllocMessage::JobCreated(id) => Some(RefreshReason::NewJob(id)),
+        AutoAllocMessage::JobCreated(id) => {
+            log::debug!("Registering job {id}");
+            Some(RefreshReason::NewJob(id))
+        }
         AutoAllocMessage::GetQueues(response) => {
             let queues: Map<QueueId, QueueData> = autoalloc
                 .queues()
@@ -120,6 +123,7 @@ async fn handle_message(
             params,
             response,
         } => {
+            log::debug!("Creating queue, manager={manager:?}, params={params:?}");
             let result = create_queue(autoalloc, state_ref, server_directory, manager, params);
             let queue_id = result.as_ref().ok().copied();
             response.respond(result);
@@ -130,6 +134,7 @@ async fn handle_message(
             force,
             response,
         } => {
+            log::debug!("Removing queue {id}");
             let result = remove_queue(autoalloc, state_ref, id, force).await;
             response.respond(result);
             None
@@ -137,6 +142,7 @@ async fn handle_message(
         AutoAllocMessage::PauseQueue { id, response } => {
             let result = match autoalloc.get_queue_mut(id) {
                 Some(queue) => {
+                    log::debug!("Pausing queue {id}");
                     queue.pause();
                     Ok(())
                 }
@@ -148,6 +154,7 @@ async fn handle_message(
         AutoAllocMessage::ResumeQueue { id, response } => {
             let result = match autoalloc.get_queue_mut(id) {
                 Some(queue) => {
+                    log::debug!("Resuming queue {id}");
                     queue.resume();
                     Ok(())
                 }
@@ -392,7 +399,7 @@ async fn process_queue(
     if try_to_submit {
         queue_try_submit(id, autoalloc, state, new_job_id).await;
     }
-    try_remove_queue(autoalloc, id).await;
+    try_pause_queue(autoalloc, id);
 }
 
 fn get_data_from_worker<'a>(
@@ -659,8 +666,14 @@ fn sync_allocation_status(
     };
 
     match action {
-        Some(Action::Success) => queue.limiter_mut().on_allocation_success(),
-        Some(Action::Failure) => queue.limiter_mut().on_allocation_fail(),
+        Some(Action::Success) => {
+            log::debug!("Marking allocation success");
+            queue.limiter_mut().on_allocation_success()
+        }
+        Some(Action::Failure) => {
+            log::debug!("Marking allocation failure");
+            queue.limiter_mut().on_allocation_fail()
+        }
         None => {}
     }
     if action.is_some() {
@@ -800,33 +813,23 @@ async fn remove_inactive_directories(autoalloc: &mut AutoAllocState) {
     }
 }
 
-// TODO: pause instead of removing
-async fn try_remove_queue(autoalloc: &mut AutoAllocState, id: QueueId) {
-    let futures = {
-        let queue = get_or_return!(autoalloc.get_queue_mut(id));
-        let limiter = queue.limiter();
+fn try_pause_queue(autoalloc: &mut AutoAllocState, id: QueueId) {
+    let queue = get_or_return!(autoalloc.get_queue_mut(id));
+    let limiter = queue.limiter();
 
-        let status = limiter.submission_status();
-        match status {
-            RateLimiterStatus::TooManyFailedSubmissions
-            | RateLimiterStatus::TooManyFailedAllocations => {
-                if let RateLimiterStatus::TooManyFailedSubmissions = status {
-                    log::error!(
-                        "The queue {id} had too many failed submissions, it will be removed."
-                    );
-                } else {
-                    log::error!(
-                        "The queue {id} had too many failed allocations, it will be removed."
-                    );
-                }
-                let futures = prepare_queue_cleanup(queue);
-                autoalloc.remove_queue(id);
-                futures
+    let status = limiter.submission_status();
+    match status {
+        RateLimiterStatus::TooManyFailedSubmissions
+        | RateLimiterStatus::TooManyFailedAllocations => {
+            if let RateLimiterStatus::TooManyFailedSubmissions = status {
+                log::error!("The queue {id} had too many failed submissions, it will be paused.");
+            } else {
+                log::error!("The queue {id} had too many failed allocations, it will be paused.");
             }
-            RateLimiterStatus::Ok | RateLimiterStatus::Wait => return,
+            queue.pause();
         }
-    };
-    futures::future::join_all(futures).await;
+        RateLimiterStatus::Ok | RateLimiterStatus::Wait => (),
+    }
 }
 
 pub fn prepare_queue_cleanup(
@@ -872,7 +875,7 @@ mod tests {
         SubmitMode,
     };
     use crate::server::autoalloc::state::{
-        AllocationQueue, AllocationState, AutoAllocState, RateLimiter,
+        AllocationQueue, AllocationQueueState, AllocationState, AutoAllocState, RateLimiter,
     };
     use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
     use crate::server::job::Job;
@@ -1252,7 +1255,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn remove_queue_when_submission_fails_too_many_times() {
+    async fn pause_queue_when_submission_fails_too_many_times() {
         let hq_state = new_hq_state(100);
         let mut state = AutoAllocState::new();
 
@@ -1272,11 +1275,11 @@ mod tests {
         refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
         check_queue_exists(&state, queue_id);
         refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
-        check_queue_doesnt_exist(&state, queue_id);
+        check_queue_paused(&state, queue_id);
     }
 
     #[tokio::test]
-    async fn remove_queue_when_allocation_fails_too_many_times() {
+    async fn pause_queue_when_allocation_fails_too_many_times() {
         let hq_state = new_hq_state(100);
         let mut state = AutoAllocState::new();
 
@@ -1300,7 +1303,7 @@ mod tests {
 
         fail_allocation(&hq_state, &mut state, &allocations[1].id);
         refresh_state(&hq_state, &mut state, RefreshReason::UpdateQueue(queue_id)).await;
-        check_queue_doesnt_exist(&state, queue_id);
+        check_queue_paused(&state, queue_id);
     }
 
     #[tokio::test]
@@ -1736,9 +1739,11 @@ mod tests {
     fn check_queue_exists(autoalloc: &AutoAllocState, id: QueueId) {
         assert!(autoalloc.get_queue(id).is_some());
     }
-
-    fn check_queue_doesnt_exist(autoalloc: &AutoAllocState, id: QueueId) {
-        assert!(autoalloc.get_queue(id).is_none());
+    fn check_queue_paused(autoalloc: &AutoAllocState, id: QueueId) {
+        assert!(matches!(
+            autoalloc.get_queue(id).unwrap().state(),
+            AllocationQueueState::Paused
+        ));
     }
 
     fn fail_allocation(hq_state: &StateRef, autoalloc: &mut AutoAllocState, allocation_id: &str) {
