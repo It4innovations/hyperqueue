@@ -333,16 +333,40 @@ impl SchedulerState {
     // }
 
     fn try_start_multinode_tasks(&mut self, core: &mut Core) {
+        let mut selected_workers = Vec::new();
         loop {
             // "while let" not used because of lifetime problems
-            let (mn_queue, task_map, worker_map) = core.multi_node_queue_split_mut();
+            let (mn_queue, task_map, worker_map, worker_groups) = core.multi_node_queue_split_mut();
             if let Some((task_id, _)) = mn_queue.queue.peek() {
                 let task_id = *task_id;
                 let task = task_map.get_task_mut(task_id);
                 let n_nodes = task.configuration.resources.n_nodes() as usize;
                 assert!(n_nodes > 0);
 
-                if worker_map.len() < n_nodes {
+                let mut found = false;
+                let mut big_enough = false;
+                'outer: for group in worker_groups.values() {
+                    if group.size() < n_nodes {
+                        continue;
+                    }
+                    big_enough = true;
+                    selected_workers.clear();
+                    for worker_id in group.worker_ids() {
+                        let worker = worker_map.get_worker(worker_id);
+                        if worker.is_free() {
+                            selected_workers.push(worker_id);
+                        }
+                        if selected_workers.len() == n_nodes {
+                            found = true;
+                            break 'outer;
+                        }
+                    }
+                }
+                if found {
+                    mn_queue.queue.pop();
+                    self.assign_multinode(worker_map, task, std::mem::take(&mut selected_workers));
+                    continue;
+                } else if !big_enough {
                     log::debug!(
                         "Multi-node task {} put into sleep. (n_nodes={}, workers={})",
                         task_id,
@@ -351,23 +375,6 @@ impl SchedulerState {
                     );
                     mn_queue.queue.pop();
                     core.add_sleeping_mn_task(task_id);
-                    continue;
-                }
-
-                let mut selected_workers = Vec::new();
-                let mut found = false;
-                for worker in worker_map.values() {
-                    if worker.is_free() {
-                        selected_workers.push(worker.id);
-                    }
-                    if selected_workers.len() == n_nodes {
-                        found = true;
-                        break;
-                    }
-                }
-                if found {
-                    mn_queue.queue.pop();
-                    self.assign_multinode(worker_map, task, selected_workers);
                     continue;
                 } else {
                     return;
@@ -391,13 +398,13 @@ impl SchedulerState {
                 compute_b_level_metric(core.task_map_mut())
             });
 
-            let (multi_node_queue, task_map, _) = core.multi_node_queue_split_mut();
+            let (multi_node_queue, task_map, _, _) = core.multi_node_queue_split_mut();
             multi_node_queue.recompute_priorities(task_map);
         }
 
         let multi_node_ready_tasks = core.take_multi_node_ready_to_assign();
         if !multi_node_ready_tasks.is_empty() {
-            let (multi_node_queue, task_map, _) = core.multi_node_queue_split_mut();
+            let (multi_node_queue, task_map, _, _) = core.multi_node_queue_split_mut();
             for task_id in multi_node_ready_tasks {
                 if let Some(task) = task_map.find_task(task_id) {
                     multi_node_queue.add_task(task)

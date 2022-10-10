@@ -82,6 +82,10 @@ impl Core {
         WorkerId::new(self.worker_id_counter)
     }
 
+    pub fn worker_groups(&self) -> &Map<String, WorkerGroup> {
+        &self.worker_groups
+    }
+
     #[inline]
     pub fn is_used_task_id(&self, task_id: TaskId) -> bool {
         task_id <= self.maximal_task_id
@@ -93,11 +97,17 @@ impl Core {
 
     pub(crate) fn multi_node_queue_split_mut(
         &mut self,
-    ) -> (&mut MultiNodeQueue, &mut TaskMap, &mut WorkerMap) {
+    ) -> (
+        &mut MultiNodeQueue,
+        &mut TaskMap,
+        &mut WorkerMap,
+        &Map<String, WorkerGroup>,
+    ) {
         (
             &mut self.multi_node_queue,
             &mut self.tasks,
             &mut self.workers,
+            &self.worker_groups,
         )
     }
 
@@ -180,13 +190,13 @@ impl Core {
 
         let worker_id = worker.id;
         if let Some(g) = self.worker_groups.get_mut(&worker.configuration.group) {
-            g.worker_ids.insert(worker_id);
+            g.new_worker(worker_id);
         } else {
             let mut worker_ids = Set::new();
             worker_ids.insert(worker_id);
             self.worker_groups.insert(
                 worker.configuration.group.clone(),
-                WorkerGroup { worker_ids },
+                WorkerGroup::new(worker_ids),
             );
         }
         self.workers.insert(worker_id, worker);
@@ -198,8 +208,8 @@ impl Core {
             .worker_groups
             .get_mut(&worker.configuration.group)
             .unwrap();
-        assert!(group.worker_ids.remove(&worker_id));
-        if group.worker_ids.is_empty() {
+        group.remove_worker(worker_id);
+        if group.is_empty() {
             self.worker_groups.remove(&worker.configuration.group);
         }
         self.workers.remove(&worker_id).unwrap()

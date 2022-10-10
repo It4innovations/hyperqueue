@@ -42,6 +42,7 @@ impl RunningWorker {
                 }]),
                 listen_address: Default::default(),
                 hostname: get_hostname(None),
+                group: "default".to_string(),
                 work_dir,
                 log_dir,
                 heartbeat_interval: Duration::from_secs(10),

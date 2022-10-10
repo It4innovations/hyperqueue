@@ -14,9 +14,12 @@ use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{TaskId, WorkerId};
 use std::time::{Duration, Instant};
 
-pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u64) {
-    let wcfg = WorkerConfiguration {
-        resources: ResourceDescriptor::simple(cpus),
+pub fn create_test_worker_config(
+    worker_id: WorkerId,
+    resources: ResourceDescriptor,
+) -> WorkerConfiguration {
+    WorkerConfiguration {
+        resources,
         listen_address: format!("1.1.1.{}:123", worker_id),
         hostname: format!("test{}", worker_id),
         group: "default".to_string(),
@@ -28,14 +31,27 @@ pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u64) {
         time_limit: None,
         on_server_lost: ServerLostPolicy::Stop,
         extra: Default::default(),
-    };
+    }
+}
 
-    let worker = Worker::new(
+pub fn new_test_worker(
+    core: &mut Core,
+    worker_id: WorkerId,
+    configuration: WorkerConfiguration,
+    resource_map: ResourceMap,
+) {
+    let worker = Worker::new(worker_id, configuration, resource_map);
+    on_new_worker(core, &mut TestComm::default(), worker);
+}
+
+pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u64) {
+    let wcfg = create_test_worker_config(worker_id, ResourceDescriptor::simple(cpus));
+    new_test_worker(
+        core,
         worker_id,
         wcfg,
         ResourceMap::from_vec(vec!["cpus".to_string()]),
     );
-    on_new_worker(core, &mut TestComm::default(), worker);
 }
 
 pub fn create_test_workers(core: &mut Core, cpus: &[u64]) {
