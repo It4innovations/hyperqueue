@@ -1145,7 +1145,7 @@ fn test_worker_groups() {
     create_test_workers(&mut core, &[1, 1]);
     let g = core.worker_group("default").unwrap();
     assert_eq!(
-        sorted_vec(g.worker_ids.iter().copied().collect()),
+        sorted_vec(g.worker_ids().collect()),
         vec![WorkerId::new(100), WorkerId::new(101)]
     );
     let mut comm = create_test_comm();
@@ -1157,7 +1157,7 @@ fn test_worker_groups() {
     );
     let g = core.worker_group("default").unwrap();
     assert_eq!(
-        sorted_vec(g.worker_ids.iter().copied().collect()),
+        sorted_vec(g.worker_ids().collect()),
         vec![WorkerId::new(100)]
     );
     let mut comm = create_test_comm();

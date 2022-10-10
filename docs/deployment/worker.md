@@ -159,3 +159,7 @@ If you also want to include workers that are offline (i.e. that have crashed or 
 ```bash
 $ hq worker info <worker-id>
 ```
+
+### Worker groups
+
+Each worker is a member exactly of one group. Groups are used when multi-node tasks are used. See more [here](../jobs/multinode.md#groups)

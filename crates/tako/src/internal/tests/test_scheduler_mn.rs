@@ -5,11 +5,12 @@ use crate::internal::server::core::Core;
 use crate::internal::server::task::Task;
 use crate::internal::tests::utils::env::{create_test_comm, TestComm};
 use crate::internal::tests::utils::schedule::{
-    create_test_scheduler, create_test_worker, create_test_workers, finish_on_worker,
-    submit_test_tasks,
+    create_test_scheduler, create_test_worker, create_test_worker_config, create_test_workers,
+    finish_on_worker, new_test_worker, submit_test_tasks,
 };
 use crate::internal::tests::utils::sorted_vec;
 use crate::internal::tests::utils::task::TaskBuilder;
+use crate::resources::{ResourceDescriptor, ResourceMap};
 use crate::{Priority, TaskId, WorkerId};
 
 /*fn get_mn_placement(task: &Task) -> Vec<WorkerId> {
@@ -299,4 +300,38 @@ fn test_mn_sleep_wakeup_at_once() {
     core.sanity_check();
     assert!(core.task_map().get_task(1.into()).is_waiting());
     assert!(core.task_map().get_task(2.into()).is_mn_running());
+}
+
+#[test]
+fn test_mn_schedule_on_groups() {
+    let mut core = Core::default();
+
+    let worker_id = WorkerId::new(100);
+    let mut wcfg1 = create_test_worker_config(worker_id, ResourceDescriptor::simple(1));
+    wcfg1.group = "group1".to_string();
+    new_test_worker(
+        &mut core,
+        worker_id,
+        wcfg1,
+        ResourceMap::from_vec(vec!["cpus".to_string()]),
+    );
+
+    let worker_id = WorkerId::new(101);
+    let mut wcfg2 = create_test_worker_config(worker_id, ResourceDescriptor::simple(1));
+    wcfg2.group = "group2".to_string();
+    new_test_worker(
+        &mut core,
+        worker_id,
+        wcfg2,
+        ResourceMap::from_vec(vec!["cpus".to_string()]),
+    );
+
+    let mut comm = create_test_comm();
+    let task1 = TaskBuilder::new(1).n_nodes(2).build();
+    submit_test_tasks(&mut core, vec![task1]);
+
+    let mut scheduler = create_test_scheduler();
+    scheduler.run_scheduling(&mut core, &mut comm);
+    core.sanity_check();
+    assert!(core.task_map().get_task(1.into()).is_waiting());
 }

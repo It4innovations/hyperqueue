@@ -48,6 +48,7 @@ def test_print_worker_info(hq_env: HqEnv):
                 "resources": {"resources": RESOURCE_DESCRIPTOR_SCHEMA},
                 "time_limit": None,
                 "work_dir": str,
+                "group": str,
                 "on_server_lost": "stop",
             },
             "ended": None,

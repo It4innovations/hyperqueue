@@ -19,6 +19,9 @@
   If the limit is reached, the task is marked as failed.
   The limit can be configured by `--crash-limit` in submit.
 
+* Groups of workers are introduced. A multi-node task is now started only on workers from the same group.
+  By default, workers are grouped by PBS/Slurm allocations, but it can be configured manually. 
+
 ## Changes
 
 ### Resource management

@@ -28,8 +28,19 @@ Hostnames of all assigned nodes can be found in file which path is in
 environmental variable ``HQ_NODE_FILE``. Each line is now host name.
 The first line is always the root node.
 
-
 Note: Multi-node tasks always enables task directory (``--task-dir``).
+
+## Groups
+
+A multi-node task is started only on workers that belong to the same group.
+By default, workers are grouped by PBS/Slurm allocations and workers outside any allocation 
+are put in "default" group.
+
+A group of a worker can be specified at the start of the worker and it may be any string. Example:
+
+```commandline
+$ hq worker start --group my_group
+```
 
 ## Running MPI tasks
 

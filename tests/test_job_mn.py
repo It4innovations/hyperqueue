@@ -92,3 +92,16 @@ def test_worker_lost_mn_task(hq_env: HqEnv, root: bool):
     wait_for_job_state(hq_env, 1, "WAITING")
     hq_env.start_workers(1, cpus=1)
     wait_for_job_state(hq_env, 1, "FINISHED")
+
+
+def test_submit_mn_different_groups(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_workers(2, args=["--group=g1"])
+    hq_env.start_workers(2, args=["--group=g2"])
+
+    hq_env.command(["submit", "--nodes=3", "--", "/bin/hostname"])
+    time.sleep(0.5)
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("State", "WAITING")
+    hq_env.start_workers(1, args=["--group=g2"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
