@@ -12,6 +12,13 @@
   better behavior on non-heterogeneous clusters;
   better interaction between resources and priorities.
 
+### Automatic allocation
+* [#467](https://github.com/It4innovations/hyperqueue/issues/467) You can now pause (and resume)
+autoalloc queues using `hq alloc pause` and `hq alloc resume`.
+Paused queues will not submit new allocations into the selected job manager. They can be later resumed.
+When an autoalloc queue hits too many submission or worker execution errors, it will now be paused
+instead of removed.
+
 ### Tasks
 
 * HQ allows to limit how many times a task may be in a running state while worker is lost
@@ -27,6 +34,12 @@
 * Explicit list definition of a resource was changed from ``--resource xxx=list(1,2,3)`` to ``--resource xxx=[1,2,3]``.
   (this is the result of unification of CPUs with other resources). 
 * Python API: Attribute `generic` in `ResourceRequest` is renamed to `resources`
+
+### Tasks
+* [#461](https://github.com/It4innovations/hyperqueue/issues/461) When a task is cancelled, times out
+or its worker is killed, HyperQueue now tries to make sure that both the tasks and any processes that
+it has spawned will be also terminated.
+* [#480](https://github.com/It4innovations/hyperqueue/issues/480) You can now select multiple tasks in `hq task info`.
 
 # v0.12.0
 
