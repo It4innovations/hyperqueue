@@ -12,7 +12,7 @@ use tako::{Map, Set};
 use crate::common::manager::info::{ManagerInfo, ManagerType};
 use crate::common::rpc::RpcReceiver;
 use crate::server::autoalloc::config::{
-    get_refresh_timeout, get_status_check_interval, MAX_ALLOCATION_FAILS, MAX_SUBMISSION_FAILS,
+    get_refresh_timeout, get_status_check_interval, max_allocation_fails, MAX_SUBMISSION_FAILS,
     SUBMISSION_DELAYS,
 };
 use crate::server::autoalloc::estimator::{
@@ -251,7 +251,7 @@ fn create_rate_limiter() -> RateLimiter {
     RateLimiter::new(
         SUBMISSION_DELAYS.to_vec(),
         MAX_SUBMISSION_FAILS,
-        MAX_ALLOCATION_FAILS,
+        max_allocation_fails(),
         get_status_check_interval(),
     )
 }
@@ -386,11 +386,14 @@ async fn process_queue(
         } else {
             let limiter = queue.limiter_mut();
 
-            let allowed = matches!(limiter.submission_status(), RateLimiterStatus::Ok);
+            let status = limiter.submission_status();
+            let allowed = matches!(status, RateLimiterStatus::Ok);
             if allowed {
                 // Log a submission attempt, because we will try it below.
                 // It is done here to avoid fetching the queue again.
                 limiter.on_submission_attempt();
+            } else {
+                log::debug!("Submit attempt was rate limited: {status:?}");
             }
             allowed
         }
@@ -1563,9 +1566,9 @@ mod tests {
         #[builder(default)]
         max_worker_count: Option<u32>,
         #[builder(default = "100")]
-        limiter_max_alloc_fails: usize,
+        limiter_max_alloc_fails: u64,
         #[builder(default = "100")]
-        limiter_max_submit_fails: usize,
+        limiter_max_submit_fails: u64,
         #[builder(default = "vec![Duration::ZERO]")]
         limiter_delays: Vec<Duration>,
     }
