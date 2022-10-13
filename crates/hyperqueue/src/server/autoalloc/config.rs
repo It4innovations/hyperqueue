@@ -24,11 +24,16 @@ fn get_duration_from_env(key: &str) -> Option<Duration> {
 }
 
 /// Maximum number of successive allocation submission failures permitted
-/// before the allocation queue will be removed.
-pub const MAX_SUBMISSION_FAILS: usize = 10;
+/// before the allocation queue will be paused.
+pub const MAX_SUBMISSION_FAILS: u64 = 10;
 /// Maximum number of successive allocation execution failures permitted
-/// before the allocation queue will be removed.
-pub const MAX_ALLOCATION_FAILS: usize = 3;
+/// before the allocation queue will be paused.
+pub fn max_allocation_fails() -> u64 {
+    std::env::var("HQ_AUTOALLOC_MAX_ALLOCATION_FAILS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(3)
+}
 /// Delay levels between submisisons. See [`super::state::RateLimiter`].
 pub const SUBMISSION_DELAYS: [Duration; 5] = [
     Duration::ZERO,

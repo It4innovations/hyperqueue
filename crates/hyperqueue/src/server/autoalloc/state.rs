@@ -308,18 +308,18 @@ pub struct RateLimiter {
     /// How often can status be checked.
     status_delay: Duration,
     /// How many times has an allocation failed in a row.
-    allocation_fails: usize,
-    max_allocation_fails: usize,
+    allocation_fails: u64,
+    max_allocation_fails: u64,
     /// How many times has the submission failed in a row.
-    submission_fails: usize,
-    max_submission_fails: usize,
+    submission_fails: u64,
+    max_submission_fails: u64,
 }
 
 impl RateLimiter {
     pub fn new(
         delays: Vec<Duration>,
-        max_submission_fails: usize,
-        max_allocation_fails: usize,
+        max_submission_fails: u64,
+        max_allocation_fails: u64,
         status_delay: Duration,
     ) -> Self {
         assert!(!delays.is_empty());
