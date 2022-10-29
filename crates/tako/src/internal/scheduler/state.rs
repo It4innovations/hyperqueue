@@ -108,8 +108,8 @@ impl SchedulerState {
             // We want to avoid creation of overloaded
             if let Some(worker_id) = self.get_last() {
                 let worker = &worker_map[&worker_id];
-                if worker.has_time_to_run(task.configuration.resources.min_time(), self.now)
-                    && worker.have_immediate_resources_for_rq(&task.configuration.resources)
+                if worker.has_time_to_run_for_rqv(&task.configuration.resources, self.now)
+                    && worker.have_immediate_resources_for_rqv(&task.configuration.resources)
                 {
                     return Some(worker_id);
                 }
@@ -120,7 +120,7 @@ impl SchedulerState {
 
         let mut costs = u64::MAX;
         for worker in worker_map.values() {
-            if !worker.is_capable_to_run(&task.configuration.resources, self.now) {
+            if !worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
                 continue;
             }
 
@@ -340,7 +340,7 @@ impl SchedulerState {
             if let Some((task_id, _)) = mn_queue.queue.peek() {
                 let task_id = *task_id;
                 let task = task_map.get_task_mut(task_id);
-                let n_nodes = task.configuration.resources.n_nodes() as usize;
+                let n_nodes = task.configuration.resources.unwrap_first().n_nodes() as usize;
                 assert!(n_nodes > 0);
 
                 let mut found = false;
@@ -447,7 +447,7 @@ impl SchedulerState {
                     debug_assert!(core
                         .get_worker_map()
                         .get_worker(worker_id)
-                        .is_capable_to_run(
+                        .is_capable_to_run_rqv(
                             &core.get_task(task_id).configuration.resources,
                             self.now
                         ));
@@ -485,12 +485,12 @@ impl SchedulerState {
                     if task.is_sn_running()
                         || (not_overloaded
                             && (task.is_fresh() || !task.inputs.is_empty())
-                            && worker.has_time_to_run(task.configuration.resources.min_time(), now))
+                            && worker.has_time_to_run_for_rqv(&task.configuration.resources, now))
                     {
                         continue;
                     }
                     task.set_take_flag(false);
-                    min_resource.include(&task.configuration.resources);
+                    min_resource.include_rqv(&task.configuration.resources);
                     balanced_tasks.push(task_id);
                     offered += 1;
                 }
@@ -542,7 +542,7 @@ impl SchedulerState {
                         u64::MAX - cost,
                         worker
                             .resources
-                            .difficulty_score(&task.configuration.resources),
+                            .difficulty_score_of_rqv(&task.configuration.resources),
                     )
                 });
                 let len = ts.len();
@@ -587,10 +587,10 @@ impl SchedulerState {
                         if task.is_taken() {
                             continue;
                         }
-                        if !worker.has_time_to_run(task.configuration.resources.min_time(), now) {
+                        if !worker.has_time_to_run_for_rqv(&task.configuration.resources, now) {
                             continue;
                         }
-                        if !worker.have_immediate_resources_for_rq(&task.configuration.resources) {
+                        if !worker.have_immediate_resources_for_rqv(&task.configuration.resources) {
                             continue;
                         }
                         let worker2_id = task.get_assigned_worker().unwrap();
@@ -628,14 +628,14 @@ impl SchedulerState {
                             continue;
                         }
                         let request = &task.configuration.resources;
-                        if !worker.is_capable_to_run(request, now) {
+                        if !worker.is_capable_to_run_rqv(request, now) {
                             continue;
                         }
                         let worker2_id = task.get_assigned_worker().unwrap();
                         let worker2 = core.get_worker_by_id_or_panic(worker2_id);
 
                         if !worker2.is_overloaded()
-                            || worker.load_wrt_request(request) > worker2.load_wrt_request(request)
+                            || worker.load_wrt_rqv(request) > worker2.load_wrt_rqv(request)
                         {
                             continue;
                         }

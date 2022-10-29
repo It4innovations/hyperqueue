@@ -101,7 +101,7 @@ impl TaskInput {
 #[derive(Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct TaskConfiguration {
-    pub resources: crate::internal::common::resources::ResourceRequest,
+    pub resources: crate::internal::common::resources::ResourceRequestVariants,
     pub user_priority: Priority,
     pub time_limit: Option<Duration>,
     pub n_outputs: u32,

@@ -5,7 +5,7 @@ use crate::internal::common::error::DsError;
 use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId};
 
 use crate::internal::worker::resources::allocator::ResourceAllocator;
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
@@ -136,6 +136,66 @@ impl ResourceRequest {
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Default, Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
+pub struct ResourceRequestVariants {
+    variants: SmallVec<[ResourceRequest; 1]>,
+}
+
+impl ResourceRequestVariants {
+    pub fn new(variants: SmallVec<[ResourceRequest; 1]>) -> Self {
+        ResourceRequestVariants { variants }
+    }
+
+    pub fn find_index(&self, rq: &ResourceRequest) -> Option<usize> {
+        if self.variants.len() == 1 {
+            Some(0)
+        } else {
+            self.variants.iter().position(|r| r == rq)
+        }
+    }
+
+    pub fn is_trivial(&self) -> bool {
+        self.variants.len() == 1
+    }
+
+    pub fn trivial_request(&self) -> Option<&ResourceRequest> {
+        if self.variants.len() == 1 {
+            Some(&self.variants[0])
+        } else {
+            None
+        }
+    }
+
+    // Temporary code for migration, eventually this should be removed from the code base
+    pub fn unwrap_first(&self) -> &ResourceRequest {
+        assert_eq!(self.variants.len(), 1);
+        &self.variants[0]
+    }
+
+    pub fn requests(&self) -> &[ResourceRequest] {
+        &self.variants
+    }
+
+    pub fn validate(&self) -> crate::Result<()> {
+        if self.variants.is_empty() {
+            return Err("Resource are empty".into());
+        }
+        let is_multi_node = self.variants[0].is_multi_node();
+        for rq in &self.variants {
+            rq.validate()?;
+            if is_multi_node != rq.is_multi_node() {
+                return Err("Resources mixes multi-node and non-multi-node requests".into());
+            }
+        }
+        Ok(())
+    }
+
+    pub fn is_multi_node(&self) -> bool {
+        self.variants[0].is_multi_node()
     }
 }
 

@@ -14,7 +14,8 @@ pub use map::{
     NVIDIA_GPU_RESOURCE_NAME,
 };
 pub use request::{
-    AllocationRequest, ResourceRequest, ResourceRequestEntries, ResourceRequestEntry, TimeRequest,
+    AllocationRequest, ResourceRequest, ResourceRequestEntries, ResourceRequestEntry,
+    ResourceRequestVariants, TimeRequest,
 };
 
 pub type NumOfNodes = u32;

@@ -1,15 +1,20 @@
 use super::resources::ResBuilder;
-use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId};
+use crate::internal::common::resources::{
+    NumOfNodes, ResourceAmount, ResourceId, ResourceRequestVariants,
+};
 use crate::internal::messages::worker::TaskRunningMsg;
 use crate::internal::server::task::{Task, TaskConfiguration, TaskInput};
+use crate::resources::ResourceRequest;
 use crate::{Priority, TaskId};
+use smallvec::SmallVec;
 use std::rc::Rc;
 
 pub struct TaskBuilder {
     id: TaskId,
     inputs: Vec<TaskInput>,
     n_outputs: u32,
-    resources: ResBuilder,
+    finished_resources: Vec<ResourceRequest>,
+    resources_builder: ResBuilder,
     user_priority: Priority,
     crash_limit: u32,
 }
@@ -20,7 +25,8 @@ impl TaskBuilder {
             id: id.into(),
             inputs: Default::default(),
             n_outputs: 0,
-            resources: Default::default(),
+            finished_resources: vec![],
+            resources_builder: Default::default(),
             user_priority: 0,
             crash_limit: 5,
         }
@@ -49,23 +55,30 @@ impl TaskBuilder {
         self
     }
 
+    pub fn next_resources(mut self) -> TaskBuilder {
+        self.finished_resources
+            .push(self.resources_builder.finish());
+        self.resources_builder = ResBuilder::default();
+        self
+    }
+
     pub fn resources(mut self, resources: ResBuilder) -> TaskBuilder {
-        self.resources = resources;
+        self.resources_builder = resources;
         self
     }
 
     pub fn n_nodes(mut self, count: NumOfNodes) -> TaskBuilder {
-        self.resources = self.resources.n_nodes(count);
+        self.resources_builder = self.resources_builder.n_nodes(count);
         self
     }
 
     pub fn cpus_compact(mut self, count: ResourceAmount) -> TaskBuilder {
-        self.resources = self.resources.cpus(count);
+        self.resources_builder = self.resources_builder.cpus(count);
         self
     }
 
     pub fn time_request(mut self, time_s: u64) -> TaskBuilder {
-        self.resources = self.resources.min_time_secs(time_s);
+        self.resources_builder = self.resources_builder.min_time_secs(time_s);
         self
     }
 
@@ -74,13 +87,18 @@ impl TaskBuilder {
         id: Id,
         amount: ResourceAmount,
     ) -> TaskBuilder {
-        self.resources = self.resources.add(id, amount);
+        self.resources_builder = self.resources_builder.add(id, amount);
         self
     }
 
     pub fn build(self) -> Task {
-        let resources = self.resources.finish();
-        resources.validate().unwrap();
+        let last_resource = self.resources_builder.finish();
+        let mut resources: SmallVec<[ResourceRequest; 1]> = self.finished_resources.into();
+        resources.push(last_resource);
+        for rq in &resources {
+            rq.validate().unwrap();
+        }
+        let resources = ResourceRequestVariants::new(resources);
         Task::new(
             self.id,
             self.inputs.into_iter().collect(),

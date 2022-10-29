@@ -16,7 +16,7 @@ pub struct Task {
     pub priority: (Priority, Priority),
     pub instance_id: InstanceId,
 
-    pub resources: crate::internal::common::resources::ResourceRequest,
+    pub resources: crate::internal::common::resources::ResourceRequestVariants,
     pub time_limit: Option<Duration>,
     pub n_outputs: u32,
     pub body: Box<[u8]>,

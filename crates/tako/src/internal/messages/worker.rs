@@ -25,7 +25,7 @@ pub struct ComputeTaskMsg {
     pub user_priority: Priority,
     pub scheduler_priority: Priority,
 
-    pub resources: crate::internal::common::resources::ResourceRequest,
+    pub resources: crate::internal::common::resources::ResourceRequestVariants,
     pub time_limit: Option<Duration>,
     pub n_outputs: u32,
 

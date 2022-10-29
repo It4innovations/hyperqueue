@@ -1,4 +1,4 @@
-use crate::internal::common::resources::ResourceRequest;
+use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::gateway::{
@@ -13,6 +13,7 @@ use crate::internal::server::task::{Task, TaskConfiguration, TaskInput, TaskRunt
 //use crate::internal::transfer::transport::make_protocol_builder;
 use crate::internal::common::resources::request::ResourceRequestEntry;
 use crate::internal::scheduler::query::compute_new_worker_query;
+use smallvec::smallvec;
 use std::rc::Rc;
 use thin_vec::ThinVec;
 
@@ -87,7 +88,7 @@ fn create_task_configuration(
     );
 
     TaskConfiguration {
-        resources,
+        resources: ResourceRequestVariants::new(smallvec![resources]),
         n_outputs: msg.n_outputs,
         time_limit: msg.time_limit,
         user_priority: msg.priority,

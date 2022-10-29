@@ -1,4 +1,4 @@
-use crate::internal::common::resources::{Allocation, ResourceRequest};
+use crate::internal::common::resources::{Allocation, ResourceRequest, ResourceRequestVariants};
 use crate::internal::common::Map;
 use crate::internal::messages::worker::ComputeTaskMsg;
 use crate::internal::server::workerload::WorkerResources;
@@ -7,12 +7,13 @@ use crate::internal::worker::rqueue::ResourceWaitQueue;
 use crate::internal::worker::state::TaskMap;
 use crate::internal::worker::task::Task;
 use crate::{InstanceId, Priority, TaskId, WorkerId};
+use smallvec::smallvec;
 use std::time::Duration;
 
 pub struct WorkerTaskBuilder {
     task_id: TaskId,
     instance_id: InstanceId,
-    resources: ResourceRequest,
+    resources: Vec<ResourceRequest>,
     user_priority: Priority,
     server_priority: Priority,
 }
@@ -22,14 +23,13 @@ impl WorkerTaskBuilder {
         WorkerTaskBuilder {
             task_id: task_id.into(),
             instance_id: 0.into(),
-            resources: cpus_compact(1).finish(),
+            resources: Vec::new(),
             user_priority: 0,
             server_priority: 0,
         }
     }
-
     pub fn resources(mut self, resources: ResourceRequest) -> Self {
-        self.resources = resources;
+        self.resources.push(resources);
         self
     }
 
@@ -44,12 +44,18 @@ impl WorkerTaskBuilder {
     }
 
     pub fn build(self) -> Task {
+        let resources = ResourceRequestVariants::new(if self.resources.is_empty() {
+            smallvec![cpus_compact(1).finish()]
+        } else {
+            self.resources.into()
+        });
+
         Task::new(ComputeTaskMsg {
             id: self.task_id,
             instance_id: self.instance_id,
             user_priority: self.user_priority,
             scheduler_priority: self.server_priority,
-            resources: self.resources,
+            resources,
             time_limit: None,
             n_outputs: 0,
             node_list: vec![],
