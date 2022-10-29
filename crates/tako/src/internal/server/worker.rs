@@ -1,8 +1,8 @@
 use std::fmt;
 
 use crate::internal::common::resources::map::ResourceMap;
-use crate::internal::common::resources::ResourceRequest;
 use crate::internal::common::resources::TimeRequest;
+use crate::internal::common::resources::{ResourceRequest, ResourceRequestVariants};
 use crate::internal::common::Set;
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::server::comm::Comm;
@@ -11,6 +11,7 @@ use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::workerload::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::{TaskId, WorkerId};
+use futures::StreamExt;
 use std::time::Duration;
 
 bitflags::bitflags! {
@@ -119,23 +120,27 @@ impl Worker {
     pub fn insert_sn_task(&mut self, task: &Task) {
         assert!(self.sn_tasks.insert(task.id));
         self.sn_load
-            .add_request(&task.configuration.resources, &self.resources);
+            .add_request(task.id, &task.configuration.resources, &self.resources);
     }
 
     pub fn remove_sn_task(&mut self, task: &Task) {
         assert!(self.sn_tasks.remove(&task.id));
         self.sn_load
-            .remove_request(&task.configuration.resources, &self.resources);
+            .remove_request(task.id, &task.configuration.resources, &self.resources);
     }
 
     pub fn sanity_check(&self, task_map: &TaskMap) {
         assert!(self.sn_tasks.is_empty() || self.mn_task.is_none());
         let mut check_load = WorkerLoad::new(&self.resources);
+        let mut trivial = true;
         for &task_id in &self.sn_tasks {
             let task = task_map.get_task(task_id);
-            check_load.add_request(&task.configuration.resources, &self.resources);
+            trivial &= task.configuration.resources.is_trivial();
+            check_load.add_request(task_id, &task.configuration.resources, &self.resources);
         }
-        assert_eq!(self.sn_load, check_load);
+        if trivial {
+            assert_eq!(self.sn_load, check_load);
+        }
     }
 
     pub fn load(&self) -> &WorkerLoad {
@@ -155,13 +160,18 @@ impl Worker {
             .have_immediate_resources_for_rq(request, &self.resources)
     }
 
+    pub fn have_immediate_resources_for_rqv(&self, rqv: &ResourceRequestVariants) -> bool {
+        self.sn_load
+            .have_immediate_resources_for_rqv(rqv, &self.resources)
+    }
+
     pub fn have_immediate_resources_for_lb(&self, rrb: &ResourceRequestLowerBound) -> bool {
         self.sn_load
             .have_immediate_resources_for_lb(rrb, &self.resources)
     }
 
-    pub fn load_wrt_request(&self, request: &ResourceRequest) -> u32 {
-        self.sn_load.load_wrt_request(&self.resources, request)
+    pub fn load_wrt_rqv(&self, rqv: &ResourceRequestVariants) -> u32 {
+        self.sn_load.load_wrt_rqv(&self.resources, rqv)
     }
 
     pub fn set_parked_flag(&mut self, value: bool) {
@@ -173,7 +183,18 @@ impl Worker {
     }
 
     pub fn is_capable_to_run(&self, request: &ResourceRequest, now: std::time::Instant) -> bool {
-        self.has_time_to_run(request.min_time(), now) && self.resources.is_capable_to_run(request)
+        self.has_time_to_run(request.min_time(), now)
+            && self.resources.is_capable_to_run_request(request)
+    }
+
+    pub fn is_capable_to_run_rqv(
+        &self,
+        rqv: &ResourceRequestVariants,
+        now: std::time::Instant,
+    ) -> bool {
+        rqv.requests()
+            .iter()
+            .any(|r| self.is_capable_to_run(&r, now))
     }
 
     // Returns None if there is no time limit for a worker or time limit was passed
@@ -193,6 +214,19 @@ impl Worker {
         } else {
             true
         }
+    }
+
+    pub fn has_time_to_run_for_rqv(
+        &self,
+        rqv: &ResourceRequestVariants,
+        now: std::time::Instant,
+    ) -> bool {
+        if self.termination_time.is_none() {
+            return true;
+        }
+        rqv.requests()
+            .iter()
+            .any(|r| self.has_time_to_run(r.min_time(), now))
     }
 
     pub fn set_stopping_flag(&mut self, value: bool) {

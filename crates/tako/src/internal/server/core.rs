@@ -5,7 +5,7 @@ use orion::aead::SecretKey;
 
 use crate::gateway::ServerInfo;
 use crate::internal::common::resources::map::{ResourceIdAllocator, ResourceMap};
-use crate::internal::common::resources::{ResourceId, ResourceRequest};
+use crate::internal::common::resources::{ResourceId, ResourceRequest, ResourceRequestVariants};
 use crate::internal::common::{Set, WrappedRcRefCell};
 use crate::internal::scheduler::multinode::MultiNodeQueue;
 use crate::internal::server::rpc::ConnectionDescriptor;
@@ -283,7 +283,7 @@ impl Core {
     }
 
     #[inline]
-    pub fn check_parked_resources(&self, request: &ResourceRequest) -> bool {
+    pub fn check_parked_resources(&self, request: &ResourceRequestVariants) -> bool {
         for res in &self.parked_resources {
             if res.is_capable_to_run(request) {
                 return true;

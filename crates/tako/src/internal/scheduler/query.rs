@@ -19,9 +19,9 @@ pub(crate) fn compute_new_worker_query(
             let task = core.get_task(*task_id);
             let request = &task.configuration.resources;
             if task.is_sn_running()
-                || load.have_immediate_resources_for_rq(request, &worker.resources)
+                || load.have_immediate_resources_for_rqv(request, &worker.resources)
             {
-                load.add_request(request, &worker.resources);
+                load.add_request(task.id, request, &worker.resources);
                 continue;
             }
             free_tasks.push(*task_id);
@@ -51,14 +51,14 @@ pub(crate) fn compute_new_worker_query(
                 continue;
             }
             for load in loads.iter_mut() {
-                if load.have_immediate_resources_for_rq(request, wr) {
-                    load.add_request(request, wr);
+                if load.have_immediate_resources_for_rqv(request, wr) {
+                    load.add_request(task_id, request, wr);
                     continue 'outer;
                 }
             }
             if loads.len() < (*max_workers) as usize {
                 let mut load = WorkerLoad::new(wr);
-                load.add_request(request, wr);
+                load.add_request(task_id, request, wr);
                 loads.push(load);
                 continue 'outer;
             }
@@ -68,14 +68,14 @@ pub(crate) fn compute_new_worker_query(
     let mut mn_task_profiles: Map<NumOfNodes, u32> = Map::new();
     for task_id in core.sleeping_mn_tasks() {
         let task = core.get_task(*task_id);
-        let n_nodes = task.configuration.resources.n_nodes();
+        let n_nodes = task.configuration.resources.unwrap_first().n_nodes();
         assert!(n_nodes > 0);
         *mn_task_profiles.entry(n_nodes).or_default() += 1;
     }
     let (queue, map, _ws) = core.multi_node_queue_split();
     for task_id in queue.all_tasks() {
         let task = map.get_task(*task_id);
-        let n_nodes = task.configuration.resources.n_nodes();
+        let n_nodes = task.configuration.resources.unwrap_first().n_nodes();
         assert!(n_nodes > 0);
         *mn_task_profiles.entry(n_nodes).or_default() += 1;
     }

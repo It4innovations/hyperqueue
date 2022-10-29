@@ -65,7 +65,7 @@ impl ResourceWaitQueue {
     pub fn resource_priority(&self, request: &ResourceRequest) -> Priority {
         let mut p = 0;
         for (r, s) in &self.worker_resources {
-            if !r.is_capable_to_run(request) {
+            if !r.is_capable_to_run_request(request) {
                 p += s.len() as Priority;
             }
         }
@@ -77,37 +77,39 @@ impl ResourceWaitQueue {
     }
 
     pub fn add_task(&mut self, task: &Task) {
-        let (queue, priority, task_id) = {
-            let priority = task.priority;
-            (
-                if let Some(qfr) = self.queues.get_mut(&task.resources) {
-                    &mut qfr.queue
-                } else {
-                    self.requests.push(task.resources.clone());
+        let priority = task.priority;
+        for rq in task.resources.requests() {
+            let (queue, priority, task_id) = {
+                (
+                    if let Some(qfr) = self.queues.get_mut(rq) {
+                        &mut qfr.queue
+                    } else {
+                        self.requests.push(rq.clone());
 
-                    let mut requests = std::mem::take(&mut self.requests);
-                    // Sort bigger values first
-                    requests.sort_unstable_by(|x, y| {
-                        y.sort_key(&self.allocator)
-                            .partial_cmp(&x.sort_key(&self.allocator))
-                            .unwrap()
-                    });
-                    self.requests = requests;
-                    let resource_priority = self.resource_priority(&task.resources);
-                    &mut self
-                        .queues
-                        .entry(task.resources.clone())
-                        .or_insert(QueueForRequest {
-                            resource_priority,
-                            queue: PriorityQueue::new(),
-                        })
-                        .queue
-                },
-                priority,
-                task.id,
-            )
-        };
-        queue.push(task_id, priority);
+                        let mut requests = std::mem::take(&mut self.requests);
+                        // Sort bigger values first
+                        requests.sort_unstable_by(|x, y| {
+                            y.sort_key(&self.allocator)
+                                .partial_cmp(&x.sort_key(&self.allocator))
+                                .unwrap()
+                        });
+                        self.requests = requests;
+                        let resource_priority = self.resource_priority(&rq);
+                        &mut self
+                            .queues
+                            .entry(rq.clone())
+                            .or_insert(QueueForRequest {
+                                resource_priority,
+                                queue: PriorityQueue::new(),
+                            })
+                            .queue
+                    },
+                    priority,
+                    task.id,
+                )
+            };
+            queue.push(task_id, priority);
+        }
     }
 
     pub fn remove_task(&mut self, task_id: TaskId) {
@@ -132,7 +134,7 @@ impl ResourceWaitQueue {
         &mut self,
         task_map: &TaskMap,
         remaining_time: Option<Duration>,
-    ) -> Vec<(TaskId, Allocation)> {
+    ) -> Vec<(TaskId, Allocation, usize)> {
         self.allocator.init_allocator(remaining_time);
         let mut out = Vec::new();
         while !self.try_start_tasks_helper(task_map, &mut out) {
@@ -144,7 +146,7 @@ impl ResourceWaitQueue {
     fn try_start_tasks_helper(
         &mut self,
         task_map: &TaskMap,
-        out: &mut Vec<(TaskId, Allocation)>,
+        out: &mut Vec<(TaskId, Allocation, usize)>,
     ) -> bool {
         let current_priority: QueuePriorityTuple = if let Some(Some(priority)) =
             self.queues.values().map(|qfr| qfr.current_priority()).max()
@@ -156,22 +158,24 @@ impl ResourceWaitQueue {
         let mut is_finished = true;
         for request in &self.requests {
             let qfr = self.queues.get_mut(request).unwrap();
-            while let Some((task_id, priority)) = qfr.peek() {
+            while let Some((_task_id, priority)) = qfr.peek() {
                 if current_priority != priority {
                     break;
                 }
                 let allocation = {
-                    if let Some(allocation) = self
-                        .allocator
-                        .try_allocate(&task_map.get(&task_id).resources)
-                    {
+                    if let Some(allocation) = self.allocator.try_allocate(&request) {
                         allocation
                     } else {
                         break;
                     }
                 };
                 let task_id = qfr.queue.pop().unwrap().0;
-                out.push((task_id, allocation));
+                let resource_index = task_map
+                    .get(&task_id)
+                    .resources
+                    .find_index(&request)
+                    .unwrap();
+                out.push((task_id, allocation, resource_index));
                 is_finished = false;
             }
         }

@@ -13,6 +13,7 @@ pub(crate) fn run_task(
     state_ref: &WorkerStateRef,
     task_id: TaskId,
     allocation: Allocation,
+    resource_index: usize,
 ) {
     log::debug!("Task={} assigned", task_id);
 
@@ -24,10 +25,14 @@ pub(crate) fn run_task(
     let task = state.get_task(task_id);
     assert_eq!(task.n_outputs, 0);
 
-    match state
-        .task_launcher
-        .build_task(LaunchContext { task, state }, end_receiver)
-    {
+    match state.task_launcher.build_task(
+        LaunchContext {
+            task,
+            state,
+            resource_index,
+        },
+        end_receiver,
+    ) {
         Ok(task_launch_data) => {
             let TaskLaunchData {
                 task_future,

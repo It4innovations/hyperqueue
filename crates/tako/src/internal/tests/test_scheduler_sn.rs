@@ -784,6 +784,80 @@ fn test_generic_resource_balancing3() {
     );
 }
 
+#[test]
+fn test_generic_resource_variants1() {
+    let mut rt = TestEnv::new();
+    rt.new_generic_resource(1);
+    rt.new_workers_ext(&[
+        // Worker 100
+        (4, None, vec![]),
+        // Worker 101
+        (4, None, vec![ResourceDescriptorItem::range("Res0", 1, 2)]),
+    ]);
+
+    for i in 1..=4 {
+        let task = TaskBuilder::new(i)
+            .cpus_compact(2)
+            .next_resources()
+            .cpus_compact(1)
+            .add_resource(1, 1);
+        rt.new_task(task);
+    }
+    rt.schedule();
+
+    assert_eq!(
+        rt.core()
+            .get_worker_by_id_or_panic(100.into())
+            .sn_tasks()
+            .len(),
+        2
+    );
+    assert_eq!(
+        rt.core()
+            .get_worker_by_id_or_panic(101.into())
+            .sn_tasks()
+            .len(),
+        2
+    );
+}
+
+#[test]
+fn test_generic_resource_variants2() {
+    let mut rt = TestEnv::new();
+    rt.new_generic_resource(1);
+    rt.new_workers_ext(&[
+        // Worker 100
+        (4, None, vec![]),
+        // Worker 101
+        (4, None, vec![ResourceDescriptorItem::range("Res0", 1, 2)]),
+    ]);
+
+    for i in 1..=4 {
+        let task = TaskBuilder::new(i)
+            .cpus_compact(8)
+            .next_resources()
+            .cpus_compact(2)
+            .add_resource(1, 1);
+        rt.new_task(task);
+    }
+    rt.schedule();
+
+    assert_eq!(
+        rt.core()
+            .get_worker_by_id_or_panic(100.into())
+            .sn_tasks()
+            .len(),
+        0
+    );
+    assert_eq!(
+        rt.core()
+            .get_worker_by_id_or_panic(101.into())
+            .sn_tasks()
+            .len(),
+        4
+    );
+}
+
 fn check_task_has_worker<T: Into<TaskId>, W: Into<WorkerId>>(
     core: &Core,
     task_id: T,

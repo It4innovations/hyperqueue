@@ -70,6 +70,7 @@ impl TaskLaunchData {
 pub struct LaunchContext<'a> {
     pub(crate) task: &'a Task,
     pub(crate) state: &'a WorkerState,
+    pub(crate) resource_index: usize,
 }
 
 impl<'a> LaunchContext<'a> {
@@ -78,7 +79,7 @@ impl<'a> LaunchContext<'a> {
     }
 
     pub fn resources(&self) -> &'a ResourceRequest {
-        &self.task.resources
+        &self.task.resources.requests()[self.resource_index]
     }
 
     pub fn allocation(&self) -> &'a Allocation {
