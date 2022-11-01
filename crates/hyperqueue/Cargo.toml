@@ -1,6 +1,6 @@
 [package]
 name = "hyperqueue"
-version = "0.12.0"
+version = "0.13.0"
 description = "Job execution system"
 authors.workspace = true
 edition.workspace = true
