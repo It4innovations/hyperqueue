@@ -1,4 +1,4 @@
-# Dev
+# v0.13.0
 
 ## New features
 
@@ -43,6 +43,7 @@ instead of removed.
 or its worker is killed, HyperQueue now tries to make sure that both the tasks and any processes that
 it has spawned will be also terminated.
 * [#480](https://github.com/It4innovations/hyperqueue/issues/480) You can now select multiple tasks in `hq task info`.
+
 
 # v0.12.0
 
