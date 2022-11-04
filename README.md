@@ -2,6 +2,10 @@
 <img src="docs/imgs/hq.png">
 </p>
 
+[![DOI](https://zenodo.org/badge/349152473.svg)](https://zenodo.org/badge/latestdoi/349152473)
+
+![Tests](https://github.com/it4innovations/hyperqueue/actions/workflows/test.yml/badge.svg)
+
 **HyperQueue** (HQ) lets you build a computation plan consisting of a large amount of tasks and then
 execute it transparently over a system like SLURM/PBS. It dynamically groups jobs into SLURM/PBS jobs and distributes
 them to fully utilize allocated nodes. You thus do not have to manually aggregate your tasks into SLURM/PBS jobs.
