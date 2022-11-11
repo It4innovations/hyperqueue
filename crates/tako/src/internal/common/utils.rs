@@ -6,6 +6,7 @@ use std::fmt::Display;
 #[macro_export]
 macro_rules! static_assert_size {
     ($ty:ty, $size:expr) => {
+        #[cfg(target_arch = "x86_x64")]
         const _: [(); $size] = [(); ::std::mem::size_of::<$ty>()];
     };
 }
