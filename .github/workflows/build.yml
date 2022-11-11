@@ -73,9 +73,16 @@ jobs:
         with:
           name: archive-x64
           path: ${{ steps.archive.outputs.archive-name }}
-  build-binaries-powerpc:
+  build-binaries-ext:
     needs: [set-env]
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: powerpc64le-unknown-linux-gnu
+            name: powerpc64
+          - arch: armv7-unknown-linux-gnueabihf
+            name: raspberry-pi
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
@@ -90,7 +97,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v1
         with:
-          key: powerpc64le-unknown-linux-gnu
+          key: ${{ matrix.arch }}
 
       - name: Compile
         uses: actions-rs/cargo@v1
@@ -98,20 +105,20 @@ jobs:
           HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
         with:
           command: build
-          args: --target powerpc64le-unknown-linux-gnu --no-default-features --profile dist
+          args: --target ${{ matrix.arch }} --no-default-features --profile dist
           use-cross: true
 
       - name: Prepare archive
         id: archive
         run: |
-          export ARCHIVE_NAME=hq-${{ needs.set-env.outputs.version }}-linux-powerpc64.tar.gz
-          tar -czvf $ARCHIVE_NAME -C target/powerpc64le-unknown-linux-gnu/dist hq
+          export ARCHIVE_NAME=hq-${{ needs.set-env.outputs.version }}-linux-${{ matrix.name }}.tar.gz
+          tar -czvf $ARCHIVE_NAME -C target/${{ matrix.arch }}/dist hq
           echo "::set-output name=archive-name::$ARCHIVE_NAME"
 
       - name: Store archive
         uses: actions/upload-artifact@v2
         with:
-          name: archive-powerpc64
+          name: archive-${{ matrix.name }}
           path: ${{ steps.archive.outputs.archive-name }}
   build-python-binding:
     runs-on: ubuntu-latest
