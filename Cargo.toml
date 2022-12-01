@@ -12,7 +12,7 @@ default-members = [
 [workspace.package]
 rust-version = "1.64.0"
 edition = "2021"
-authors = ["Stanislav Bohm <spirali@kreatrix.org>", "Jakub Beranek <berykubik@gmail.com>"]
+authors = ["Ada Böhm <ada@kreatrix.org>", "Jakub Beránek <berykubik@gmail.com>"]
 
 [workspace.dependencies]
 tokio = "1.20"
