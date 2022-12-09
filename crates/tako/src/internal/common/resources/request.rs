@@ -4,8 +4,8 @@ use std::fmt;
 use crate::internal::common::error::DsError;
 use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId};
 
-use crate::internal::worker::resources::allocator::ResourceAllocator;
-use smallvec::{smallvec, SmallVec};
+use crate::internal::worker::allocator::ResourceAllocator;
+use smallvec::SmallVec;
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]

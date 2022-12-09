@@ -13,7 +13,8 @@ use hyperqueue::client::commands::job::{
 use hyperqueue::client::commands::log::command_log;
 use hyperqueue::client::commands::server::command_server;
 use hyperqueue::client::commands::submit::{
-    resubmit_computation, submit_computation, JobResubmitOpts, JobSubmitOpts,
+    resubmit_computation, submit_computation, submit_computation_from_job_file, JobResubmitOpts,
+    JobSubmitFileOpts, JobSubmitOpts,
 };
 use hyperqueue::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use hyperqueue::client::commands::worker::{
@@ -52,14 +53,20 @@ use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, CPU_RESOURCE_N
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
-// Commands
-
 async fn command_job_submit(
     gsettings: &GlobalSettings,
     opts: OptsWithMatches<JobSubmitOpts>,
 ) -> anyhow::Result<()> {
     let mut session = get_client_session(gsettings.server_directory()).await?;
     submit_computation(gsettings, &mut session, opts).await
+}
+
+async fn command_submit_job_file(
+    gsettings: &GlobalSettings,
+    opts: JobSubmitFileOpts,
+) -> anyhow::Result<()> {
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    submit_computation_from_job_file(gsettings, &mut session, opts).await
 }
 
 async fn command_job_list(gsettings: &GlobalSettings, opts: JobListOpts) -> anyhow::Result<()> {
@@ -364,6 +371,9 @@ async fn main() -> hyperqueue::Result<()> {
         | SubCommand::Job(JobOpts {
             subcmd: JobCommand::Submit(opts),
         }) => command_job_submit(&gsettings, OptsWithMatches::new(opts, matches)).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::SubmitFile(opts),
+        }) => command_submit_job_file(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Cancel(opts),
         }) => command_job_cancel(&gsettings, opts).await,
