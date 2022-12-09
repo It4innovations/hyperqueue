@@ -8,6 +8,8 @@ pub enum HqError {
     IoError(#[from] std::io::Error),
     #[error("Serialization error: {0}")]
     SerializationError(String),
+    #[error("Deserialization error: {0}")]
+    DeserializationError(String),
     #[error("Tako error: {0}")]
     TakoError(#[from] tako::Error),
     #[error("Error: {0}")]
@@ -34,6 +36,12 @@ impl From<rmp_serde::decode::Error> for HqError {
 impl From<anyhow::Error> for HqError {
     fn from(error: anyhow::Error) -> Self {
         Self::GenericError(error.to_string())
+    }
+}
+
+impl From<toml::de::Error> for HqError {
+    fn from(error: toml::de::Error) -> Self {
+        Self::DeserializationError(error.to_string())
     }
 }
 

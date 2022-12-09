@@ -578,13 +578,25 @@ pub async fn submit_computation(
         task_desc,
     };
 
-    let message = FromClientMessage::Submit(SubmitRequest {
+    let request = SubmitRequest {
         job_desc,
         name,
         max_fails,
         submit_dir: get_current_dir(),
         log,
-    });
+    };
+
+    send_submit_request(gsettings, session, request, wait, progress).await
+}
+
+pub(crate) async fn send_submit_request(
+    gsettings: &GlobalSettings,
+    session: &mut ClientSession,
+    request: SubmitRequest,
+    wait: bool,
+    progress: bool,
+) -> anyhow::Result<()> {
+    let message = FromClientMessage::Submit(request);
 
     let response =
         rpc_call!(session.connection(), message, ToClientMessage::SubmitResponse(r) => r).await?;

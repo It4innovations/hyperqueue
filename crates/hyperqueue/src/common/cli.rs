@@ -11,7 +11,7 @@ use crate::client::commands::event::EventLogOpts;
 use crate::client::commands::job::{JobCancelOpts, JobCatOpts, JobInfoOpts, JobListOpts};
 use crate::client::commands::log::LogOpts;
 use crate::client::commands::server::ServerOpts;
-use crate::client::commands::submit::{JobResubmitOpts, JobSubmitOpts};
+use crate::client::commands::submit::{JobResubmitOpts, JobSubmitFileOpts, JobSubmitOpts};
 use crate::client::commands::worker::{WorkerFilter, WorkerStartOpts};
 use crate::client::output::outputs::Outputs;
 use crate::client::status::Status;
@@ -301,6 +301,8 @@ pub enum JobCommand {
     Cat(JobCatOpts),
     /// Submit a job to HyperQueue
     Submit(JobSubmitOpts),
+    /// Submit a job through a job definition file
+    SubmitFile(JobSubmitFileOpts),
     /// Resubmits tasks of a job
     Resubmit(JobResubmitOpts),
     /// Waits until a job is finished
