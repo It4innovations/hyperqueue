@@ -25,4 +25,6 @@ def bash(command: str) -> List[str]:
 
 def hq_env_from_cluster(cluster: LocalCluster) -> HqEnv:
     server_dir = cluster.cluster.server_dir
-    return HqEnv(server_dir, ProgramMock(os.path.join(server_dir, "mock")))
+    hq_env = HqEnv(server_dir, ProgramMock(os.path.join(server_dir, "mock")))
+    hq_env.server_dir = server_dir
+    return hq_env
