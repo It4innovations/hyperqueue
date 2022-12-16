@@ -157,7 +157,7 @@ impl LogFile {
         let n_opened = self
             .index
             .values()
-            .map(|infos| if infos.last_instance().finished { 0 } else { 1 })
+            .map(|infos| u64::from(!infos.last_instance().finished))
             .sum::<u64>();
 
         let n_streams = self

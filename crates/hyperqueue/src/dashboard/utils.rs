@@ -22,5 +22,5 @@ pub fn get_average_cpu_usage_for_worker(hw_state: &WorkerHwStateMessage) -> f32 
         .copied()
         .reduce(|cpu_a, cpu_b| (cpu_a + cpu_b))
         .unwrap_or(0.0);
-    (cpu_usage_sum_per_core / num_cpus as f32) as f32
+    cpu_usage_sum_per_core / num_cpus as f32
 }

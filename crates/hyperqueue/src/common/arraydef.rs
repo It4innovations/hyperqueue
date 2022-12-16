@@ -92,11 +92,11 @@ impl fmt::Display for IntArray {
         let mut str = String::new();
         for x in &self.ranges {
             if x.count == 1 {
-                str.push_str(&*format!("{}, ", x.start));
+                str.push_str(&format!("{}, ", x.start));
             } else if x.step == 1 {
-                str.push_str(&*format!("{}-{}, ", x.start, x.start + x.count - 1));
+                str.push_str(&format!("{}-{}, ", x.start, x.start + x.count - 1));
             } else {
-                str.push_str(&*format!(
+                str.push_str(&format!(
                     "{}-{}:{}, ",
                     x.start,
                     x.start + x.count - 1,

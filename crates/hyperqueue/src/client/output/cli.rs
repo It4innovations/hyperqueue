@@ -802,7 +802,7 @@ impl Output for CliOutput {
                     info.workers_per_alloc().cell(),
                     format_duration(info.timelimit()).to_string().cell(),
                     manager_type.cell(),
-                    name.unwrap_or_else(|| "".to_string()).cell(),
+                    name.unwrap_or_default().cell(),
                     info.additional_args().join(",").cell(),
                 ]
             })

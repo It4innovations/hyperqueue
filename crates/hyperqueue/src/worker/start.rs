@@ -407,7 +407,7 @@ async fn child_wait(
 
 #[inline(never)]
 fn check_error_filename(task_dir: TempDir) -> Option<tako::Error> {
-    let mut f = File::open(&get_custom_error_filename(&task_dir)).ok()?;
+    let mut f = File::open(get_custom_error_filename(&task_dir)).ok()?;
     let mut buffer = [0; MAX_CUSTOM_ERROR_LENGTH];
     let size = f
         .read(&mut buffer)

@@ -186,6 +186,8 @@ async fn worker_rpc_loop(
     let periodic_check = async move {
         let mut interval = {
             tokio::time::interval(
+                // Idle timeout might be smaller than 500ms in tests.
+                #[allow(clippy::manual_clamp)]
                 heartbeat_interval
                     .min(idle_timeout.unwrap_or(heartbeat_interval))
                     // Sanity check that interval is not too short
