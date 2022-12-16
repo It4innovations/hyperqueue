@@ -15,7 +15,7 @@ use std::time::Duration;
 use crate::server::event::MonitoringEvent;
 use tako::gateway::{LostWorkerReason, MonitoringEventRequest, ResourceRequest};
 use tako::program::ProgramDefinition;
-use tako::worker::{ServerLostPolicy, WorkerConfiguration};
+use tako::worker::WorkerConfiguration;
 
 // Messages client -> server
 #[allow(clippy::large_enum_variant)]
@@ -196,12 +196,12 @@ pub struct AllocationQueueParams {
     pub workers_per_alloc: u32,
     pub backlog: u32,
     pub timelimit: Duration,
-    pub on_server_lost: ServerLostPolicy,
     pub name: Option<String>,
-    pub additional_args: Vec<String>,
-    pub worker_cpu_arg: Option<String>,
-    pub worker_resources_args: Vec<String>,
     pub max_worker_count: Option<u32>,
+    pub additional_args: Vec<String>,
+
+    // Black-box worker args that will be passed to `worker start`
+    pub worker_args: Vec<String>,
     pub idle_timeout: Option<Duration>,
 }
 

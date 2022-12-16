@@ -417,7 +417,6 @@ mod tests {
     use std::future::Future;
     use std::pin::Pin;
     use std::time::Duration;
-    use tako::worker::ServerLostPolicy;
 
     struct NullHandler;
     impl QueueHandler for NullHandler {
@@ -452,17 +451,7 @@ mod tests {
         let _id = state.create_id();
         let id = state.add_queue(AllocationQueue::new(
             ManagerType::Pbs,
-            QueueInfo::new(
-                1,
-                1,
-                Duration::from_secs(1),
-                ServerLostPolicy::FinishRunning,
-                vec![],
-                None,
-                vec![],
-                None,
-                None,
-            ),
+            QueueInfo::new(1, 1, Duration::from_secs(1), vec![], None, vec![], None),
             None,
             Box::new(NullHandler),
             RateLimiter::new(vec![Duration::from_secs(1)], 1, 1, Duration::from_secs(1)),

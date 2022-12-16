@@ -3,7 +3,6 @@ use crate::dashboard::ui::styles::table_style_deselected;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::transfer::messages::AllocationQueueParams;
-use tako::worker::ServerLostPolicy;
 use tui::layout::{Constraint, Rect};
 use tui::widgets::{Cell, Row};
 
@@ -55,11 +54,8 @@ fn create_rows(params: &AllocationQueueParams) -> Vec<QueueParamsDataRow> {
             data: human_duration(chrono::Duration::from_std(params.timelimit).unwrap()),
         },
         QueueParamsDataRow {
-            label: "Worker On Server Lost: ",
-            data: match params.on_server_lost {
-                ServerLostPolicy::Stop => "STOP".to_string(),
-                ServerLostPolicy::FinishRunning => "FINISH_RUNNING".to_string(),
-            },
+            label: "Worker Args: ",
+            data: params.worker_args.join(" "),
         },
         QueueParamsDataRow {
             label: "Queue Name: ",
@@ -68,14 +64,6 @@ fn create_rows(params: &AllocationQueueParams) -> Vec<QueueParamsDataRow> {
         QueueParamsDataRow {
             label: "Additional Args: ",
             data: params.additional_args.join(" "),
-        },
-        QueueParamsDataRow {
-            label: "Worker CPU Arg: ",
-            data: params.worker_cpu_arg.clone().unwrap_or_default(),
-        },
-        QueueParamsDataRow {
-            label: "Worker Resource Args: ",
-            data: params.worker_resources_args.join(" "),
         },
         QueueParamsDataRow {
             label: "Max Worker Count: ",

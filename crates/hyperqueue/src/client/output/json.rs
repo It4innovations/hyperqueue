@@ -357,9 +357,7 @@ fn format_autoalloc_queue(id: QueueId, descriptor: QueueData) -> serde_json::Val
         "workers_per_alloc": info.workers_per_alloc(),
         "timelimit": format_duration(info.timelimit()),
         "max_worker_count": info.max_worker_count(),
-        "worker_cpu_args": info.worker_cpu_args(),
-        "worker_resource_args": info.worker_resource_args(),
-        "on_server_lost": crate::common::format::server_lost_policy_to_str(info.on_server_lost()),
+        "worker_args": info.worker_args(),
     })
 }
 fn format_allocation(allocation: Allocation) -> serde_json::Value {

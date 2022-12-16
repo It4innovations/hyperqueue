@@ -1,7 +1,6 @@
 use crate::common::manager::info::ManagerType;
 use anyhow::Context;
 use bstr::ByteSlice;
-use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
@@ -151,17 +150,9 @@ pub fn build_worker_args(
         server_dir.display()
     );
 
-    if let Some(cpu_arg) = queue_info.worker_cpu_args() {
-        args.write_fmt(format_args!(" --cpus {}", cpu_arg)).unwrap();
+    if !queue_info.worker_args.is_empty() {
+        args.push_str(&format!(" {}", queue_info.worker_args.join(" ")));
     }
-    for resource_arg in queue_info.worker_resource_args() {
-        args.write_fmt(format_args!(" --resource \"{}\"", resource_arg))
-            .unwrap();
-    }
-    args.write_fmt(format_args!(
-        " --on-server-lost={}",
-        crate::common::format::server_lost_policy_to_str(&queue_info.on_server_lost)
-    ))
-    .unwrap();
+
     args
 }
