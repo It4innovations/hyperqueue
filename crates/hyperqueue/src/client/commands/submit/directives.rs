@@ -98,7 +98,7 @@ pub fn parse_hq_directives_from_file(
 ) -> anyhow::Result<(SubmitJobConfOpts, Option<Shebang>)> {
     log::debug!("Extracting directives from file: {}", path.display());
 
-    let file = File::open(&path)?;
+    let file = File::open(path)?;
     let buffer = read_at_most(file, MAX_PREFIX_OF_SUBMIT_SCRIPT)?;
     parse_hq_directives(&buffer)
 }

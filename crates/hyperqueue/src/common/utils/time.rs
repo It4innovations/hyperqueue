@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn parse_hms_minutes() {
         let duration = parse_hms_time_inner().parse_text("1:1").unwrap();
-        assert_eq!(duration.as_secs(), 1 * 60 + 1);
+        assert_eq!(duration.as_secs(), 60 + 1);
 
         let duration = parse_hms_time_inner().parse_text("80:02").unwrap();
         assert_eq!(duration.as_secs(), 80 * 60 + 2);
@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn parse_hms_hours() {
         let duration = parse_hms_time_inner().parse_text("1:1:1").unwrap();
-        assert_eq!(duration.as_secs(), 1 * 3600 + 1 * 60 + 1);
+        assert_eq!(duration.as_secs(), 3600 + 60 + 1);
 
         let duration = parse_hms_time_inner().parse_text("02:03:04").unwrap();
         assert_eq!(duration.as_secs(), 2 * 3600 + 3 * 60 + 4);

@@ -118,8 +118,7 @@ fn bench_add_tasks(c: &mut BenchmarkGroup<WallTime>) {
                 b.iter_batched(
                     || {
                         let state = create_worker_state();
-                        let tasks: Vec<_> =
-                            (0..task_count).map(|id| create_worker_task(id)).collect();
+                        let tasks: Vec<_> = (0..task_count).map(create_worker_task).collect();
                         (state, tasks)
                     },
                     |(state, tasks)| {
@@ -260,7 +259,7 @@ fn bench_resource_queue_start_tasks(c: &mut BenchmarkGroup<WallTime>) {
 
                         (queue, map)
                     },
-                    |(queue, map)| queue.try_start_tasks(&map, None),
+                    |(queue, map)| queue.try_start_tasks(map, None),
                     BatchSize::SmallInput,
                 );
             },

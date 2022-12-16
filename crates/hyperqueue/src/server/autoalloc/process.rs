@@ -1517,7 +1517,7 @@ mod tests {
     /// returns allocation statuses from [`HandlerState`].
     fn stateful_handler(state: WrappedRcRefCell<HandlerState>) -> Box<dyn QueueHandler> {
         Handler::new(
-            state.clone(),
+            state,
             move |state, _worker_count| async move {
                 let mut state = state.get_mut();
                 let tempdir = TempDir::new("hq").unwrap();
@@ -1661,7 +1661,7 @@ mod tests {
                 entries: None,
                 task_desc: TaskDescription {
                     program: def,
-                    resources: resources.clone(),
+                    resources,
                     pin_mode: PinMode::None,
                     task_dir: false,
                     time_limit: None,
@@ -1687,7 +1687,7 @@ mod tests {
     }
 
     fn check_running_workers(allocation: &Allocation, workers: Vec<u32>) {
-        let workers: Vec<WorkerId> = workers.into_iter().map(|id| WorkerId::from(id)).collect();
+        let workers: Vec<WorkerId> = workers.into_iter().map(WorkerId::from).collect();
         match &allocation.status {
             AllocationState::Running {
                 connected_workers, ..
@@ -1754,7 +1754,7 @@ mod tests {
         let worker_id: WorkerId = 0.into();
         on_worker_connected(hq_state, autoalloc, worker_id, &minfo);
         on_worker_lost(
-            &hq_state,
+            hq_state,
             autoalloc,
             worker_id,
             &minfo,

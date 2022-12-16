@@ -76,7 +76,7 @@ where
     let script_path = directory.join(SUBMIT_SCRIPT_NAME);
     let script_path = script_path.to_str().unwrap();
 
-    std::fs::write(&script_path, script)
+    std::fs::write(script_path, script)
         .with_context(|| anyhow::anyhow!("Cannot write script into {}", script_path))?;
 
     let arguments = vec![program, script_path];

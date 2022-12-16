@@ -285,8 +285,7 @@ mod tests {
         assert!(entry
             .unwrap()
             .into_iter()
-            .find(|p| p.file_name().to_str() == Some("005"))
-            .is_some());
+            .any(|p| p.file_name().to_str() == Some("005")));
     }
 
     #[test]

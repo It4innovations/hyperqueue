@@ -485,8 +485,8 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
 
             Box::new(CliOutput::new(color_policy))
         }
-        Outputs::JSON => Box::new(JsonOutput::default()),
-        Outputs::Quiet => Box::new(Quiet::default()),
+        Outputs::JSON => Box::<JsonOutput>::default(),
+        Outputs::Quiet => Box::<Quiet>::default(),
     };
 
     GlobalSettings::new(server_dir, printer)
