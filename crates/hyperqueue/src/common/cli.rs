@@ -42,7 +42,7 @@ pub struct TaskSelectorArg {
 
     /// Filter task(s) by status.
     /// You can use multiple states separated by a comma.
-    #[clap(long, multiple_occurrences(false), use_value_delimiter(true), arg_enum)]
+    #[clap(long, use_value_delimiter(true), arg_enum)]
     pub task_status: Vec<Status>,
 }
 

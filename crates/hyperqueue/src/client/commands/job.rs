@@ -21,7 +21,7 @@ pub struct JobListOpts {
 
     /// Display only jobs with the given states.
     /// You can use multiple states separated by a comma.
-    #[clap(long, multiple_occurrences(false), use_value_delimiter(true), arg_enum)]
+    #[clap(long, use_value_delimiter(true), arg_enum)]
     pub filter: Vec<Status>,
 }
 
