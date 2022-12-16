@@ -21,35 +21,6 @@ use crate::transfer::messages::{
     IdSelector, SingleIdSelector, TaskIdSelector, TaskSelector, TaskStatusSelector,
 };
 
-#[derive(Clone)]
-pub enum IdSelectorArg {
-    All,
-    Last,
-    Id(IntArray),
-}
-
-impl FromStr for IdSelectorArg {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "last" => Ok(IdSelectorArg::Last),
-            "all" => Ok(IdSelectorArg::All),
-            _ => Ok(IdSelectorArg::Id(IntArray::from_str(s)?)),
-        }
-    }
-}
-
-impl From<IdSelectorArg> for IdSelector {
-    fn from(id_selector_arg: IdSelectorArg) -> Self {
-        match id_selector_arg {
-            IdSelectorArg::Id(array) => IdSelector::Specific(array),
-            IdSelectorArg::Last => IdSelector::LastN(1),
-            IdSelectorArg::All => IdSelector::All,
-        }
-    }
-}
-
 #[derive(Parser)]
 pub struct TaskSelectorArg {
     /// Filter task(s) by ID.
@@ -83,53 +54,35 @@ fn get_task_status_selector(status_selector_arg: Vec<Status>) -> TaskStatusSelec
     }
 }
 
-#[derive(Clone)]
-pub enum JobSelectorArg {
-    Last,
-    Id(IntArray),
-}
-
-impl FromStr for JobSelectorArg {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "last" => Ok(JobSelectorArg::Last),
-            _ => Ok(JobSelectorArg::Id(IntArray::from_str(s)?)),
-        }
+/// Selects items with the following options:
+/// - "last" => only the last item
+/// - "all" => all items
+/// - "<integer-range>" => see [`crate::common::arraydef::parse_array`]
+pub fn parse_last_all_range(value: &str) -> anyhow::Result<IdSelector> {
+    match value {
+        "last" => Ok(IdSelector::LastN(1)),
+        "all" => Ok(IdSelector::All),
+        _ => Ok(IdSelector::Specific(IntArray::from_str(value)?)),
     }
 }
 
-pub fn get_id_selector(job_selector_arg: JobSelectorArg) -> IdSelector {
-    match job_selector_arg {
-        JobSelectorArg::Last => IdSelector::LastN(1),
-        JobSelectorArg::Id(ids) => IdSelector::Specific(ids),
+/// Selects items with the following options:
+/// - "last" => only the last item
+/// - "<integer-range>" => see [`crate::common::arraydef::parse_array`]
+pub fn parse_last_range(value: &str) -> anyhow::Result<IdSelector> {
+    match value {
+        "last" => Ok(IdSelector::LastN(1)),
+        _ => Ok(IdSelector::Specific(IntArray::from_str(value)?)),
     }
 }
 
-#[derive(Clone)]
-pub enum SingleIdSelectorArg {
-    Last,
-    Id(u32),
-}
-
-impl FromStr for SingleIdSelectorArg {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "last" => Ok(SingleIdSelectorArg::Last),
-            _ => Ok(SingleIdSelectorArg::Id(u32::from_str(s)?)),
-        }
-    }
-}
-
-impl From<SingleIdSelectorArg> for SingleIdSelector {
-    fn from(id_selector_arg: SingleIdSelectorArg) -> Self {
-        match id_selector_arg {
-            SingleIdSelectorArg::Last => SingleIdSelector::Last,
-            SingleIdSelectorArg::Id(id) => SingleIdSelector::Specific(id),
-        }
+/// Selects an item with the following options:
+/// - "last" => only the last item
+/// - "<id>" => item with the specified ID
+pub fn parse_last_single_id(value: &str) -> anyhow::Result<SingleIdSelector> {
+    match value {
+        "last" => Ok(SingleIdSelector::Last),
+        _ => Ok(SingleIdSelector::Specific(u32::from_str(value)?)),
     }
 }
 
@@ -267,7 +220,8 @@ pub enum WorkerCommand {
 #[derive(Parser)]
 pub struct WorkerStopOpts {
     /// Select worker(s) to stop
-    pub selector_arg: IdSelectorArg,
+    #[arg(value_parser = parse_last_all_range)]
+    pub selector_arg: IdSelector,
 }
 
 #[derive(Parser)]
@@ -339,13 +293,15 @@ pub enum JobCommand {
 #[derive(Parser)]
 pub struct JobWaitOpts {
     /// Select job(s) to wait for
-    pub selector_arg: IdSelectorArg,
+    #[arg(value_parser = parse_last_all_range)]
+    pub selector_arg: IdSelector,
 }
 
 #[derive(Parser)]
 pub struct JobProgressOpts {
     /// Select job(s) to observe
-    pub selector_arg: IdSelectorArg,
+    #[arg(value_parser = parse_last_all_range)]
+    pub selector_arg: IdSelector,
 }
 
 #[derive(Parser)]

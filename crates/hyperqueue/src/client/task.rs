@@ -2,7 +2,7 @@ use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
 use crate::client::output::{Verbosity, VerbosityFlag};
 use crate::common::arraydef::IntArray;
-use crate::common::cli::{JobSelectorArg, SingleIdSelectorArg, TaskSelectorArg};
+use crate::common::cli::{parse_last_range, parse_last_single_id, TaskSelectorArg};
 use crate::rpc_call;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
@@ -27,7 +27,8 @@ pub enum TaskCommand {
 #[derive(clap::Parser)]
 pub struct TaskListOpts {
     /// Select specific job(s).
-    pub job_selector: JobSelectorArg,
+    #[arg(value_parser = parse_last_range)]
+    pub job_selector: IdSelector,
 
     #[clap(flatten)]
     pub task_selector: TaskSelectorArg,
@@ -39,7 +40,8 @@ pub struct TaskListOpts {
 #[derive(clap::Parser)]
 pub struct TaskInfoOpts {
     /// Select specific job
-    pub job_selector: SingleIdSelectorArg,
+    #[arg(value_parser = parse_last_single_id)]
+    pub job_selector: SingleIdSelector,
 
     /// Select specific task(s)
     pub task_selector: IntArray,

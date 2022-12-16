@@ -1,6 +1,7 @@
 use std::io::{BufRead, Read};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::time::Duration;
 use std::{fs, io};
 
 use anyhow::{anyhow, bail};
@@ -24,13 +25,13 @@ use crate::common::placeholders::{
 };
 use crate::common::utils::fs::get_current_dir;
 use crate::common::utils::str::pluralize;
-use crate::common::utils::time::ArgDuration;
+use crate::common::utils::time::parse_human_time;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDescription, PinMode, ResubmitRequest, SubmitRequest,
     TaskDescription, ToClientMessage,
 };
-use crate::{arg_wrapper, rpc_call, JobTaskCount, Map};
+use crate::{rpc_call, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 pub const DEFAULT_CRASH_LIMIT: u32 = 5;
@@ -67,13 +68,6 @@ const DEFAULT_STDERR_PATH: &str = const_format::concatcp!(
     ".stderr"
 );
 
-arg_wrapper!(ArgCpuRequest, AllocationRequest, parse_allocation_request);
-arg_wrapper!(
-    ArgNamedResourceRequest,
-    (String, AllocationRequest),
-    parse_resource_request
-);
-
 #[derive(Debug, Clone)]
 pub struct ArgEnvironmentVar {
     key: BString,
@@ -102,12 +96,10 @@ impl FromStr for ArgEnvironmentVar {
 }
 
 // Represents a filepath. If "none" is passed to it, it will behave as if no path is needed.
-arg_wrapper!(StdioArg, StdioDef, parse_stdio_arg);
-
-fn parse_stdio_arg(input: &str) -> anyhow::Result<StdioDef> {
-    Ok(match input {
+fn parse_stdio_def(value: &str) -> anyhow::Result<StdioDef> {
+    Ok(match value {
         "none" => StdioDef::Null,
-        _ => StdioDef::File(input.into()),
+        _ => StdioDef::File(value.into()),
     })
 }
 
@@ -149,17 +141,17 @@ pub struct SubmitJobConfOpts {
     */
     /// Number and placement of CPUs for each job
     /// [default: 1]
-    #[arg(long)]
-    cpus: Option<ArgCpuRequest>,
+    #[arg(long, value_parser = parse_allocation_request)]
+    cpus: Option<AllocationRequest>,
 
     /// Generic resource request in form <NAME>=<AMOUNT>
-    #[arg(long, action = clap::ArgAction::Append)]
-    resource: Vec<ArgNamedResourceRequest>,
+    #[arg(long, action = clap::ArgAction::Append, value_parser = parse_resource_request)]
+    resource: Vec<(String, AllocationRequest)>,
 
     /// Minimal lifetime of the worker needed to start the job
     /// [default: 0ms]
-    #[arg(long)]
-    time_request: Option<ArgDuration>,
+    #[arg(long, value_parser = parse_human_time)]
+    time_request: Option<Duration>,
 
     /// Name of the job
     #[arg(long)]
@@ -177,13 +169,13 @@ pub struct SubmitJobConfOpts {
 
     /// Path where the standard output of the job will be stored.
     /// The path must be accessible from worker nodes
-    #[arg(long)]
-    stdout: Option<StdioArg>,
+    #[arg(long, value_parser = parse_stdio_def)]
+    stdout: Option<StdioDef>,
 
     /// Path where the standard error of the job will be stored.
     /// The path must be accessible from worker nodes
-    #[arg(long)]
-    stderr: Option<StdioArg>,
+    #[arg(long, value_parser = parse_stdio_def)]
+    stderr: Option<StdioDef>,
 
     /// Specify additional environment variable for the job.
     /// You can pass this flag multiple times to pass multiple variables
@@ -223,9 +215,9 @@ pub struct SubmitJobConfOpts {
     #[arg(long)]
     priority: Option<tako::Priority>,
 
-    #[arg(long)]
+    #[arg(long, value_parser = parse_human_time)]
     /// Time limit per task. E.g. --time-limit=10min
-    time_limit: Option<ArgDuration>,
+    time_limit: Option<Duration>,
 
     /// Stream the output of tasks into this log file.
     #[arg(long)]
@@ -342,7 +334,7 @@ impl JobSubmitOpts {
             .resource
             .iter()
             .map(|r| {
-                let r = r.get().clone();
+                let r = r.clone();
                 ResourceRequestEntry {
                     resource: r.0,
                     policy: r.1,
@@ -360,7 +352,7 @@ impl JobSubmitOpts {
                 0,
                 ResourceRequestEntry {
                     resource: CPU_RESOURCE_NAME.to_string(),
-                    policy: cpus.get().clone(),
+                    policy: cpus.clone(),
                 },
             )
         } else if !has_cpus {
@@ -379,15 +371,15 @@ impl JobSubmitOpts {
                 .conf
                 .time_request
                 .as_ref()
-                .map(|t| *t.get())
-                .unwrap_or_else(|| std::time::Duration::from_millis(0)),
+                .copied()
+                .unwrap_or_else(|| Duration::from_millis(0)),
             resources,
         })
     }
 }
 
-fn create_stdio(arg: Option<StdioArg>, log: &Option<PathBuf>, default: &str) -> StdioDef {
-    arg.map(|x| x.0).unwrap_or_else(|| {
+fn create_stdio(arg: Option<StdioDef>, log: &Option<PathBuf>, default: &str) -> StdioDef {
+    arg.unwrap_or_else(|| {
         if log.is_none() {
             StdioDef::File(default.into())
         } else {
@@ -498,7 +490,6 @@ pub async fn submit_computation(
     let stderr = create_stdio(stderr, &log, DEFAULT_STDERR_PATH);
     let cwd = cwd.unwrap_or_else(|| PathBuf::from("%{SUBMIT_DIR}"));
     let priority = priority.unwrap_or(0);
-    let time_limit = time_limit.map(|x| x.unpack());
 
     let env_count = env.len();
     let env: Map<_, _> = env.into_iter().map(|env| (env.key, env.value)).collect();
@@ -594,7 +585,7 @@ fn warn_array_task_count(opts: &JobSubmitOpts, task_count: u32) {
     }
 
     let is_path_some =
-        |path: Option<&StdioArg>| -> bool { path.map_or(true, |x| !matches!(x.0, StdioDef::Null)) };
+        |path: Option<&StdioDef>| -> bool { path.map_or(true, |x| !matches!(x, StdioDef::Null)) };
 
     let mut task_files = 0;
     let mut active_dirs = Vec::new();
@@ -626,8 +617,8 @@ fn warn_missing_task_id(opts: &JobSubmitOpts, task_count: u32) {
         .map(|p| parse_resolvable_string(p).contains(&StringPart::Placeholder(CWD_PLACEHOLDER)))
         .unwrap_or(false);
 
-    let check_path = |path: Option<&StdioArg>, stream: &str| {
-        let path = path.and_then(|stdio| match &stdio.0 {
+    let check_path = |path: Option<&StdioDef>, stream: &str| {
+        let path = path.and_then(|stdio| match &stdio {
             StdioDef::File(path) => Some(opts.conf.cwd.clone().unwrap_or_default().join(path)),
             _ => None,
         });
@@ -669,14 +660,14 @@ fn warn_unknown_placeholders(opts: &JobSubmitOpts) {
     };
 
     check(
-        opts.conf.stdout.as_ref().and_then(|arg| match &arg.0 {
+        opts.conf.stdout.as_ref().and_then(|arg| match &arg {
             StdioDef::File(path) => Some(path.as_path()),
             _ => None,
         }),
         "stdout path",
     );
     check(
-        opts.conf.stderr.as_ref().and_then(|arg| match &arg.0 {
+        opts.conf.stderr.as_ref().and_then(|arg| match &arg {
             StdioDef::File(path) => Some(path.as_path()),
             _ => None,
         }),

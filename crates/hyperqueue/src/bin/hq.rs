@@ -31,16 +31,18 @@ use hyperqueue::client::task::{
     output_job_task_info, output_job_task_list, TaskCommand, TaskInfoOpts, TaskListOpts, TaskOpts,
 };
 use hyperqueue::common::cli::{
-    get_id_selector, get_task_id_selector, get_task_selector, ColorPolicy, CommonOpts,
-    DashboardOpts, GenerateCompletionOpts, HwDetectOpts, IdSelectorArg, JobCommand, JobOpts,
-    JobProgressOpts, JobWaitOpts, RootOptions, SubCommand, WorkerAddressOpts, WorkerCommand,
-    WorkerInfoOpts, WorkerListOpts, WorkerOpts, WorkerStopOpts, WorkerWaitOpts,
+    get_task_id_selector, get_task_selector, ColorPolicy, CommonOpts, DashboardOpts,
+    GenerateCompletionOpts, HwDetectOpts, JobCommand, JobOpts, JobProgressOpts, JobWaitOpts,
+    RootOptions, SubCommand, WorkerAddressOpts, WorkerCommand, WorkerInfoOpts, WorkerListOpts,
+    WorkerOpts, WorkerStopOpts, WorkerWaitOpts,
 };
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
 use hyperqueue::dashboard::ui_loop::start_ui_loop;
 use hyperqueue::server::bootstrap::get_client_session;
-use hyperqueue::transfer::messages::{FromClientMessage, JobInfoRequest, ToClientMessage};
+use hyperqueue::transfer::messages::{
+    FromClientMessage, IdSelector, JobInfoRequest, ToClientMessage,
+};
 use hyperqueue::worker::hwdetect::{
     detect_additional_resources, detect_cpus, prune_hyper_threading,
 };
@@ -74,7 +76,7 @@ async fn command_job_list(gsettings: &GlobalSettings, opts: JobListOpts) -> anyh
 }
 
 async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> anyhow::Result<()> {
-    if matches!(opts.selector_arg, IdSelectorArg::All) {
+    if matches!(opts.selector, IdSelector::All) {
         log::warn!(
             "Job detail doesn't support the `all` selector, did you mean to use `hq job list --all`?"
         );
@@ -82,7 +84,7 @@ async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> an
     }
 
     let mut session = get_client_session(gsettings.server_directory()).await?;
-    output_job_detail(gsettings, &mut session, opts.selector_arg.into()).await
+    output_job_detail(gsettings, &mut session, opts.selector.into()).await
 }
 
 async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow::Result<()> {
@@ -100,7 +102,7 @@ async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow
 
 async fn command_job_cancel(gsettings: &GlobalSettings, opts: JobCancelOpts) -> anyhow::Result<()> {
     let mut connection = get_client_session(gsettings.server_directory()).await?;
-    cancel_job(gsettings, &mut connection, opts.selector_arg.into()).await
+    cancel_job(gsettings, &mut connection, opts.selector.into()).await
 }
 
 async fn command_job_resubmit(
@@ -138,7 +140,7 @@ async fn command_task_list(gsettings: &GlobalSettings, opts: TaskListOpts) -> an
     output_job_task_list(
         gsettings,
         &mut session,
-        get_id_selector(opts.job_selector),
+        opts.job_selector,
         get_task_selector(Some(opts.task_selector)),
         opts.verbosity.into(),
     )
