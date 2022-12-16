@@ -54,7 +54,7 @@ struct RemoveQueueOpts {
 
     /// Remove the queue even if there are currently running jobs.
     /// The running jobs will be canceled.
-    #[clap(long, takes_value = false)]
+    #[clap(long, num_args(0))]
     force: bool,
 }
 
@@ -66,6 +66,7 @@ enum AddQueueCommand {
     Slurm(SharedQueueOpts),
 }
 
+#[derive(Clone)]
 struct Backlog(u32);
 
 impl FromStr for Backlog {
@@ -113,7 +114,7 @@ struct SharedQueueOpts {
     resource: Vec<PassThroughArgument<ArgResourceItemDef>>,
 
     /// Behavior when a connection to a server is lost
-    #[clap(long, default_value = "finish-running", arg_enum)]
+    #[clap(long, default_value = "finish-running", value_enum)]
     on_server_lost: ArgServerLostPolicy,
 
     /// Duration after which will an idle worker automatically stop
@@ -158,11 +159,11 @@ struct AllocationsOpts {
     queue: u32,
 
     /// Display only allocations with the given state
-    #[clap(long, arg_enum)]
+    #[clap(long, value_enum)]
     filter: Option<AllocationStateFilter>,
 }
 
-#[derive(clap::ArgEnum, Clone, Eq, PartialEq)]
+#[derive(clap::ValueEnum, Clone, Eq, PartialEq)]
 enum AllocationStateFilter {
     Queued,
     Running,

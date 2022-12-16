@@ -6,6 +6,7 @@ use crate::transfer::messages::{
 use clap::Parser;
 use std::str::FromStr;
 
+#[derive(Clone)]
 pub enum IdSelectorArg {
     All,
     Last,
@@ -42,7 +43,7 @@ pub struct TaskSelectorArg {
 
     /// Filter task(s) by status.
     /// You can use multiple states separated by a comma.
-    #[clap(long, use_value_delimiter(true), arg_enum)]
+    #[clap(long, use_value_delimiter(true), value_enum)]
     pub task_status: Vec<Status>,
 }
 
@@ -67,6 +68,7 @@ fn get_task_status_selector(status_selector_arg: Vec<Status>) -> TaskStatusSelec
     }
 }
 
+#[derive(Clone)]
 pub enum JobSelectorArg {
     Last,
     Id(IntArray),
@@ -90,6 +92,7 @@ pub fn get_id_selector(job_selector_arg: JobSelectorArg) -> IdSelector {
     }
 }
 
+#[derive(Clone)]
 pub enum SingleIdSelectorArg {
     Last,
     Id(u32),

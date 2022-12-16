@@ -20,7 +20,7 @@ pub struct SummaryOpts {}
 #[derive(Parser)]
 pub struct ShowOpts {
     /// Filter only specific channel
-    #[clap(long, arg_enum)]
+    #[clap(long, value_enum)]
     pub channel: Option<Channel>,
 
     /// Show close message even for tasks with empty stream
@@ -31,7 +31,7 @@ pub struct ShowOpts {
 #[derive(Parser)]
 pub struct CatOpts {
     /// Channel name: "stdout" or "stderr"
-    #[clap(arg_enum)]
+    #[clap(value_enum)]
     pub channel: Channel,
 
     /// Print only the specified task(s) output. You can use the array syntax to specify multiple tasks.
@@ -65,7 +65,7 @@ pub enum LogCommand {
     Export(ExportOpts),
 }
 
-#[derive(clap::ArgEnum, Clone)]
+#[derive(clap::ValueEnum, Clone)]
 pub enum Channel {
     Stdout,
     Stderr,

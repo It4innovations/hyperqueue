@@ -21,7 +21,7 @@ pub struct JobListOpts {
 
     /// Display only jobs with the given states.
     /// You can use multiple states separated by a comma.
-    #[clap(long, use_value_delimiter(true), arg_enum)]
+    #[clap(long, use_value_delimiter(true), value_enum)]
     pub filter: Vec<Status>,
 }
 
@@ -51,7 +51,7 @@ pub struct JobCatOpts {
     pub print_task_header: bool,
 
     /// Type of output stream to display
-    #[clap(arg_enum)]
+    #[clap(value_enum)]
     pub stream: OutputStream,
 }
 
