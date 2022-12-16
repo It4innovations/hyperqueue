@@ -1,6 +1,6 @@
 use std::io;
 
-use clap::{CommandFactory, Parser};
+use clap::{CommandFactory, FromArgMatches};
 use clap_complete::generate;
 use cli_table::ColorChoice;
 
@@ -33,8 +33,8 @@ use hyperqueue::client::task::{
 use hyperqueue::common::cli::{
     get_task_id_selector, get_task_selector, ColorPolicy, CommonOpts, DashboardOpts,
     GenerateCompletionOpts, HwDetectOpts, JobCommand, JobOpts, JobProgressOpts, JobWaitOpts,
-    RootOptions, SubCommand, WorkerAddressOpts, WorkerCommand, WorkerInfoOpts, WorkerListOpts,
-    WorkerOpts, WorkerStopOpts, WorkerWaitOpts,
+    OptsWithMatches, RootOptions, SubCommand, WorkerAddressOpts, WorkerCommand, WorkerInfoOpts,
+    WorkerListOpts, WorkerOpts, WorkerStopOpts, WorkerWaitOpts,
 };
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
@@ -54,7 +54,10 @@ static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 // Commands
 
-async fn command_submit(gsettings: &GlobalSettings, opts: JobSubmitOpts) -> anyhow::Result<()> {
+async fn command_job_submit(
+    gsettings: &GlobalSettings,
+    opts: OptsWithMatches<JobSubmitOpts>,
+) -> anyhow::Result<()> {
     let mut session = get_client_session(gsettings.server_directory()).await?;
     submit_computation(gsettings, &mut session, opts).await
 }
@@ -84,7 +87,7 @@ async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> an
     }
 
     let mut session = get_client_session(gsettings.server_directory()).await?;
-    output_job_detail(gsettings, &mut session, opts.selector.into()).await
+    output_job_detail(gsettings, &mut session, opts.selector).await
 }
 
 async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow::Result<()> {
@@ -102,7 +105,7 @@ async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow
 
 async fn command_job_cancel(gsettings: &GlobalSettings, opts: JobCancelOpts) -> anyhow::Result<()> {
     let mut connection = get_client_session(gsettings.server_directory()).await?;
-    cancel_job(gsettings, &mut connection, opts.selector.into()).await
+    cancel_job(gsettings, &mut connection, opts.selector).await
 }
 
 async fn command_job_resubmit(
@@ -115,7 +118,7 @@ async fn command_job_resubmit(
 
 async fn command_job_wait(gsettings: &GlobalSettings, opts: JobWaitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_session(gsettings.server_directory()).await?;
-    wait_for_jobs(gsettings, &mut connection, opts.selector_arg.into()).await
+    wait_for_jobs(gsettings, &mut connection, opts.selector).await
 }
 
 async fn command_job_progress(
@@ -123,11 +126,10 @@ async fn command_job_progress(
     opts: JobProgressOpts,
 ) -> anyhow::Result<()> {
     let mut session = get_client_session(gsettings.server_directory()).await?;
-    let selector = opts.selector_arg.into();
     let response = hyperqueue::rpc_call!(
         session.connection(),
         FromClientMessage::JobInfo(JobInfoRequest {
-            selector,
+            selector: opts.selector,
         }),
         ToClientMessage::JobInfoResponse(r) => r
     )
@@ -152,7 +154,7 @@ async fn command_task_info(gsettings: &GlobalSettings, opts: TaskInfoOpts) -> an
     output_job_task_info(
         gsettings,
         &mut session,
-        opts.job_selector.into(),
+        opts.job_selector,
         get_task_id_selector(Some(opts.task_selector)),
         opts.verbosity.into(),
     )
@@ -171,7 +173,7 @@ async fn command_worker_stop(
     opts: WorkerStopOpts,
 ) -> anyhow::Result<()> {
     let mut session = get_client_session(gsettings.server_directory()).await?;
-    stop_worker(&mut session, opts.selector_arg.into()).await?;
+    stop_worker(&mut session, opts.selector_arg).await?;
     Ok(())
 }
 
@@ -307,7 +309,12 @@ fn generate_completion(opts: GenerateCompletionOpts) -> anyhow::Result<()> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> hyperqueue::Result<()> {
-    let top_opts = RootOptions::parse();
+    let matches = RootOptions::command().get_matches();
+    let top_opts = match RootOptions::from_arg_matches(&matches) {
+        Ok(opts) => opts,
+        Err(error) => error.exit(),
+    };
+
     setup_logging(top_opts.common.debug);
 
     let gsettings = make_global_settings(top_opts.common);
@@ -347,7 +354,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Submit(opts)
         | SubCommand::Job(JobOpts {
             subcmd: JobCommand::Submit(opts),
-        }) => command_submit(&gsettings, opts).await,
+        }) => command_job_submit(&gsettings, OptsWithMatches::new(opts, matches)).await,
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Cancel(opts),
         }) => command_job_cancel(&gsettings, opts).await,

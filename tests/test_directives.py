@@ -2,6 +2,7 @@ from pathlib import Path
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
+from .utils.io import write_file
 from .utils.job import default_task_output
 
 
@@ -136,3 +137,24 @@ def test_hq_directives_mode_off(hq_env: HqEnv):
     Path("test.sh").write_text(content)
 
     hq_env.command(["submit", "--directives", "off", "test.sh"])
+
+
+def test_hq_directives_overwrite_from_cli(hq_env: HqEnv):
+    hq_env.start_server()
+
+    write_file(
+        "test.sh",
+        """#! /bin/bash
+#HQ --priority 100
+
+./do-something
+""",
+    )
+
+    hq_env.command(["submit", "--directives", "file", "test.sh"])
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    assert table.get_row_value("Priority") == "100"
+
+    hq_env.command(["submit", "--priority", "8", "--directives", "file", "test.sh"])
+    table = hq_env.command(["job", "info", "2"], as_table=True)
+    assert table.get_row_value("Priority") == "8"

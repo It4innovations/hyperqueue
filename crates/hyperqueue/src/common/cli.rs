@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use clap::Parser;
+use clap::{ArgMatches, Parser};
 use clap_complete::Shell;
 
 use tako::WorkerId;
@@ -83,6 +83,21 @@ pub fn parse_last_single_id(value: &str) -> anyhow::Result<SingleIdSelector> {
     match value {
         "last" => Ok(SingleIdSelector::Last),
         _ => Ok(SingleIdSelector::Specific(u32::from_str(value)?)),
+    }
+}
+
+pub struct OptsWithMatches<Opts> {
+    pub opts: Opts,
+    pub matches: ArgMatches,
+}
+
+impl<Opts> OptsWithMatches<Opts> {
+    pub fn new(opts: Opts, matches: ArgMatches) -> Self {
+        Self { opts, matches }
+    }
+
+    pub fn into_inner(self) -> (Opts, ArgMatches) {
+        (self.opts, self.matches)
     }
 }
 
@@ -294,14 +309,14 @@ pub enum JobCommand {
 pub struct JobWaitOpts {
     /// Select job(s) to wait for
     #[arg(value_parser = parse_last_all_range)]
-    pub selector_arg: IdSelector,
+    pub selector: IdSelector,
 }
 
 #[derive(Parser)]
 pub struct JobProgressOpts {
     /// Select job(s) to observe
     #[arg(value_parser = parse_last_all_range)]
-    pub selector_arg: IdSelector,
+    pub selector: IdSelector,
 }
 
 #[derive(Parser)]

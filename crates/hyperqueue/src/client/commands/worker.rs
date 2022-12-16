@@ -73,15 +73,15 @@ pub struct WorkerStartOpts {
     #[arg(long)]
     pub group: Option<String>,
 
-    #[arg(long = "no-detect-resources")]
     /// Disable auto-detection of resources
+    #[arg(long = "no-detect-resources")]
     pub no_detect_resources: bool,
 
-    #[arg(long = "no-hyper-threading")]
     /// Ignore hyper-threading while detecting CPU cores
+    #[arg(long = "no-hyper-threading")]
     pub no_hyper_threading: bool,
 
-    /// How often should the worker announce its existence to the server. (default: "8s")
+    /// How often should the worker announce its existence to the server.
     #[arg(long, default_value = "8s", value_parser = parse_human_time)]
     pub heartbeat: Duration,
 

@@ -6,7 +6,7 @@ use std::{fs, io};
 
 use anyhow::{anyhow, bail};
 use bstr::BString;
-use clap::Parser;
+use clap::{ArgMatches, Parser};
 use tako::gateway::{ResourceRequest, ResourceRequestEntries, ResourceRequestEntry};
 use tako::program::{ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, NumOfNodes, CPU_RESOURCE_NAME};
@@ -19,6 +19,7 @@ use crate::client::job::get_worker_map;
 use crate::client::resources::{parse_allocation_request, parse_resource_request};
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
+use crate::common::cli::OptsWithMatches;
 use crate::common::placeholders::{
     get_unknown_placeholders, parse_resolvable_string, StringPart, CWD_PLACEHOLDER,
     JOB_ID_PLACEHOLDER, SUBMIT_DIR_PLACEHOLDER, TASK_ID_PLACEHOLDER,
@@ -121,26 +122,26 @@ impl From<PinModeArg> for PinMode {
 }
 
 /* This is a special kind of parser because some arguments may be configured
- * through #HQ directives. This implies two things:
- * Do not use "default_value", instead write the default in documentation and set default in code.
- * You may use conflicts_with(...) but do not forget to modify the merge method.
+ * through #HQ directives.
+ *
+ * When this is updated, also update the `overwrite` method!!!
 */
 #[derive(Parser)]
 pub struct SubmitJobConfOpts {
+    /* Other resource configurations is not yet supported in combination of nodes,
+      remove conflict_with as support is done
+    */
     /// Number of nodes; 0
-    /// [default: 0]
     #[arg(
         long,
         conflicts_with("pin"),
         conflicts_with("cpus"),
-        conflicts_with("time_request")
+        conflicts_with("time_request"),
+        default_value_t = 0
     )]
-    nodes: Option<NumOfNodes>,
-    /* Other resource configurations is not yet supported in combination of nodes,
-      remove conflict_with as support is done
-    */
+    nodes: NumOfNodes,
+
     /// Number and placement of CPUs for each job
-    /// [default: 1]
     #[arg(long, value_parser = parse_allocation_request)]
     cpus: Option<AllocationRequest>,
 
@@ -149,9 +150,8 @@ pub struct SubmitJobConfOpts {
     resource: Vec<(String, AllocationRequest)>,
 
     /// Minimal lifetime of the worker needed to start the job
-    /// [default: 0ms]
-    #[arg(long, value_parser = parse_human_time)]
-    time_request: Option<Duration>,
+    #[arg(long, value_parser = parse_human_time, default_value = "0ms")]
+    time_request: Duration,
 
     /// Name of the job
     #[arg(long)]
@@ -211,9 +211,9 @@ pub struct SubmitJobConfOpts {
     #[arg(long)]
     max_fails: Option<JobTaskCount>,
 
-    /// Priority of each task [default: 0]
-    #[arg(long)]
-    priority: Option<tako::Priority>,
+    /// Priority of each task
+    #[arg(long, default_value_t = 0)]
+    priority: tako::Priority,
 
     #[arg(long, value_parser = parse_human_time)]
     /// Time limit per task. E.g. --time-limit=10min
@@ -231,48 +231,92 @@ pub struct SubmitJobConfOpts {
     /// Limits how many times may task be in a running state while worker is lost.
     /// If the limit is reached, the task is marked as failed. If the limit is zero,
     /// the limit is disabled.
-    /// [default: 5]
-    #[arg(long)]
-    crash_limit: Option<u32>,
+    #[arg(long, default_value_t = 5)]
+    crash_limit: u32,
 }
 
-impl SubmitJobConfOpts {
+impl OptsWithMatches<SubmitJobConfOpts> {
     /// Overwrite options in `other` with values from `self`.
-    pub fn overwrite(self, mut other: SubmitJobConfOpts) -> SubmitJobConfOpts {
-        let mut env = self.env;
-        env.append(&mut other.env);
+    pub fn overwrite(self, other: OptsWithMatches<SubmitJobConfOpts>) -> SubmitJobConfOpts {
+        let (opts, self_matches) = self.into_inner();
+        let (mut other_opts, other_matches) = other.into_inner();
 
-        let mut resource = self.resource;
-        resource.append(&mut other.resource);
+        let mut env = opts.env;
+        env.append(&mut other_opts.env);
+
+        let mut resource = opts.resource;
+        resource.append(&mut other_opts.resource);
 
         let (each_line, from_json, array) =
-            if self.each_line.is_some() || self.from_json.is_some() || self.array.is_some() {
-                (self.each_line, self.from_json, self.array)
+            if opts.each_line.is_some() || opts.from_json.is_some() || opts.array.is_some() {
+                (opts.each_line, opts.from_json, opts.array)
             } else {
-                (other.each_line, other.from_json, other.array)
+                (other_opts.each_line, other_opts.from_json, other_opts.array)
             };
 
         SubmitJobConfOpts {
-            nodes: self.nodes.or(other.nodes),
-            cpus: self.cpus.or(other.cpus),
+            nodes: get_or_default(&self_matches, &other_matches, "nodes"),
+            cpus: opts.cpus.or(other_opts.cpus),
             resource,
-            time_request: self.time_request.or(other.time_request),
-            name: self.name.or(other.name),
-            pin: self.pin.or(other.pin),
-            task_dir: self.task_dir || other.task_dir,
-            cwd: self.cwd.or(other.cwd),
-            stdout: self.stdout.or(other.stdout),
-            stderr: self.stderr.or(other.stderr),
+            time_request: get_or_default(&self_matches, &other_matches, "time_request"),
+            name: opts.name.or(other_opts.name),
+            pin: opts.pin.or(other_opts.pin),
+            task_dir: opts.task_dir || other_opts.task_dir,
+            cwd: opts.cwd.or(other_opts.cwd),
+            stdout: opts.stdout.or(other_opts.stdout),
+            stderr: opts.stderr.or(other_opts.stderr),
             env,
             each_line,
             from_json,
             array,
-            max_fails: self.max_fails.or(other.max_fails),
-            priority: self.priority.or(other.priority),
-            time_limit: self.time_limit.or(other.time_limit),
-            log: self.log.or(other.log),
-            crash_limit: self.crash_limit.or(other.crash_limit),
+            max_fails: opts.max_fails.or(other_opts.max_fails),
+            priority: get_or_default(&self_matches, &other_matches, "priority"),
+            time_limit: opts.time_limit.or(other_opts.time_limit),
+            log: opts.log.or(other_opts.log),
+            crash_limit: get_or_default(&self_matches, &other_matches, "crash_limit"),
         }
+    }
+}
+
+/// Returns true if the given parameter has been specified explicitly.
+fn has_parameter(matches: &ArgMatches, id: &str) -> bool {
+    if let Ok(true) = matches.try_contains_id(id) {
+        matches!(
+            matches.value_source(id),
+            Some(clap::parser::ValueSource::CommandLine)
+        )
+    } else if let Some((_, subcmd)) = matches.subcommand() {
+        has_parameter(subcmd, id)
+    } else {
+        false
+    }
+}
+
+/// Get the value of the given parameter from the arg matches.
+/// Searches recursively for values from subcommands.
+fn get_arg_value<T: Clone + Send + Sync + 'static>(matches: &ArgMatches, id: &str) -> T {
+    if let Ok(true) = matches.try_contains_id(id) {
+        matches.get_one::<T>(id).expect("Missing argument").clone()
+    } else if let Some((_, subcmd)) = matches.subcommand() {
+        get_arg_value(subcmd, id)
+    } else {
+        panic!("Argument {id} was not found");
+    }
+}
+
+/// Returns `self_value` if the given `id` has been specified explicitly or if it hasn't been
+/// specified in `other`.
+///
+/// This method has to be used for arguments with a default value!
+fn get_or_default<T: Clone + Send + Sync + 'static>(
+    matches: &ArgMatches,
+    other: &ArgMatches,
+    id: &str,
+) -> T {
+    if has_parameter(matches, id) || !has_parameter(other, id) {
+        get_arg_value(matches, id)
+    } else {
+        get_arg_value(other, id)
     }
 }
 
@@ -366,13 +410,8 @@ impl JobSubmitOpts {
         }
 
         Ok(ResourceRequest {
-            n_nodes: self.conf.nodes.unwrap_or(0),
-            min_time: self
-                .conf
-                .time_request
-                .as_ref()
-                .copied()
-                .unwrap_or_else(|| Duration::from_millis(0)),
+            n_nodes: self.conf.nodes,
+            min_time: self.conf.time_request,
             resources,
         })
     }
@@ -389,7 +428,7 @@ fn create_stdio(arg: Option<StdioDef>, log: &Option<PathBuf>, default: &str) -> 
 }
 
 fn handle_directives(
-    mut opts: JobSubmitOpts,
+    opts: OptsWithMatches<JobSubmitOpts>,
     stdin: Option<&[u8]>,
 ) -> anyhow::Result<JobSubmitOpts> {
     let parse_file = |command: &String| {
@@ -399,31 +438,38 @@ fn handle_directives(
     };
 
     let stdin_present = stdin.is_some();
-    let command = &opts.commands[0];
-    if let Some((update, shebang)) = match opts.directives {
-        DirectivesMode::Auto if command.ends_with(".sh") => Some(parse_file(command)?),
-        DirectivesMode::File => Some(parse_file(command)?),
+    let command = opts.opts.commands[0].clone();
+
+    let (mut opts, matches) = opts.into_inner();
+    let conf = OptsWithMatches::new(opts.conf, matches);
+
+    opts.conf = if let Some((parsed_opts, shebang)) = match opts.directives {
+        DirectivesMode::Auto if command.ends_with(".sh") => Some(parse_file(&command)?),
+        DirectivesMode::File => Some(parse_file(&command)?),
         DirectivesMode::Stdin => Some(parse_hq_directives(
             stdin.expect("Stdin directives is not present"),
         )?),
         DirectivesMode::Auto | DirectivesMode::Off => None,
     } {
-        opts.conf = opts.conf.overwrite(update);
         if let Some(shebang) = shebang {
             if !stdin_present {
                 opts.commands.insert(0, shebang.into());
             }
         }
-    }
+        conf.overwrite(parsed_opts)
+    } else {
+        conf.into_inner().0
+    };
+
     Ok(opts)
 }
 
 pub async fn submit_computation(
     gsettings: &GlobalSettings,
     session: &mut ClientSession,
-    opts: JobSubmitOpts,
+    opts: OptsWithMatches<JobSubmitOpts>,
 ) -> anyhow::Result<()> {
-    let stdin = if opts.stdin {
+    let stdin = if opts.opts.stdin {
         let mut buf = Vec::new();
         println!("Reading data from stdin. In the interactive mode press Ctrl-D to submit.");
         std::io::stdin().lock().read_to_end(&mut buf)?;
@@ -433,7 +479,7 @@ pub async fn submit_computation(
         None
     };
 
-    if opts.directives == DirectivesMode::Stdin && stdin.is_none() {
+    if opts.opts.directives == DirectivesMode::Stdin && stdin.is_none() {
         bail!("You have to use `--stdin` when you specify `--directives=stdin`.");
     }
 
@@ -472,6 +518,7 @@ pub async fn submit_computation(
                 time_limit,
                 log,
                 crash_limit,
+                ..
             },
     } = opts;
 
@@ -489,7 +536,6 @@ pub async fn submit_computation(
     let stdout = create_stdio(stdout, &log, DEFAULT_STDOUT_PATH);
     let stderr = create_stdio(stderr, &log, DEFAULT_STDERR_PATH);
     let cwd = cwd.unwrap_or_else(|| PathBuf::from("%{SUBMIT_DIR}"));
-    let priority = priority.unwrap_or(0);
 
     let env_count = env.len();
     let env: Map<_, _> = env.into_iter().map(|env| (env.key, env.value)).collect();
@@ -523,7 +569,7 @@ pub async fn submit_computation(
         priority,
         time_limit,
         task_dir,
-        crash_limit: crash_limit.unwrap_or(DEFAULT_CRASH_LIMIT),
+        crash_limit,
     };
 
     let job_desc = JobDescription::Array {
