@@ -12,6 +12,7 @@ use nom::multi::separated_list0;
 use nom::sequence::{preceded, terminated, tuple};
 
 use crate::client::commands::submit::SubmitJobConfOpts;
+use crate::common::cli::OptsWithMatches;
 use crate::common::parser::{consume_all, NomResult};
 use crate::common::utils::fs::read_at_most;
 
@@ -95,7 +96,7 @@ fn extract_metadata(data: &BStr) -> crate::Result<FileMetadata> {
 
 pub fn parse_hq_directives_from_file(
     path: &Path,
-) -> anyhow::Result<(SubmitJobConfOpts, Option<Shebang>)> {
+) -> anyhow::Result<(OptsWithMatches<SubmitJobConfOpts>, Option<Shebang>)> {
     log::debug!("Extracting directives from file: {}", path.display());
 
     let file = File::open(&path)?;
@@ -103,7 +104,9 @@ pub fn parse_hq_directives_from_file(
     parse_hq_directives(&buffer)
 }
 
-pub fn parse_hq_directives(data: &[u8]) -> anyhow::Result<(SubmitJobConfOpts, Option<Shebang>)> {
+pub fn parse_hq_directives(
+    data: &[u8],
+) -> anyhow::Result<(OptsWithMatches<SubmitJobConfOpts>, Option<Shebang>)> {
     let prefix = BString::from(data);
 
     let metadata = extract_metadata(prefix.as_bstr())?;
@@ -128,8 +131,9 @@ pub fn parse_hq_directives(data: &[u8]) -> anyhow::Result<(SubmitJobConfOpts, Op
     })?;
 
     let opts = SubmitJobConfOpts::from_arg_matches(&matches)?;
+    let parsed = OptsWithMatches::new(opts, matches);
 
-    Ok((opts, metadata.shebang))
+    Ok((parsed, metadata.shebang))
 }
 
 #[cfg(test)]

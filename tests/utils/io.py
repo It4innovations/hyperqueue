@@ -11,6 +11,11 @@ def read_file(path: str) -> str:
         return f.read()
 
 
+def write_file(path: str, content: str):
+    with open(path, "w") as f:
+        f.write(content)
+
+
 def find_free_port():
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
         s.bind(("", 0))
