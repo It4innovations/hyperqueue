@@ -59,53 +59,53 @@ impl From<ArgServerLostPolicy> for ServerLostPolicy {
 #[derive(Parser)]
 pub struct WorkerStartOpts {
     /// How many cores should be allocated for the worker
-    #[clap(long)]
+    #[arg(long)]
     pub cpus: Option<ArgCpuDefinition>,
 
     /// Resources
-    #[clap(long, action = clap::ArgAction::Append)]
+    #[arg(long, action = clap::ArgAction::Append)]
     pub resource: Vec<ArgResourceItemDef>,
 
     /// Manual configuration of worker's group
     /// Workers from the same group are used for multi-node tasks
-    #[clap(long)]
+    #[arg(long)]
     pub group: Option<String>,
 
-    #[clap(long = "no-detect-resources")]
+    #[arg(long = "no-detect-resources")]
     /// Disable auto-detection of resources
     pub no_detect_resources: bool,
 
-    #[clap(long = "no-hyper-threading")]
+    #[arg(long = "no-hyper-threading")]
     /// Ignore hyper-threading while detecting CPU cores
     pub no_hyper_threading: bool,
 
     /// How often should the worker announce its existence to the server. (default: "8s")
-    #[clap(long, default_value = "8s")]
+    #[arg(long, default_value = "8s")]
     pub heartbeat: ArgDuration,
 
     /// Duration after which will an idle worker automatically stop
-    #[clap(long)]
+    #[arg(long)]
     pub idle_timeout: Option<ArgDuration>,
 
     /// Worker time limit. Worker exits after given time.
-    #[clap(long)]
+    #[arg(long)]
     pub time_limit: Option<ArgDuration>,
 
     /// What HPC job manager should be used by the worker.
-    #[clap(long, default_value = "detect", value_enum)]
+    #[arg(long, default_value = "detect", value_enum)]
     pub manager: ManagerOpts,
 
     /// Overwrite worker hostname
-    #[clap(long)]
+    #[arg(long)]
     pub hostname: Option<String>,
 
     /// Behavior when a connection to a server is lost
-    #[clap(long, default_value = "stop", value_enum)]
+    #[arg(long, default_value = "stop", value_enum)]
     pub on_server_lost: ArgServerLostPolicy,
 
     /// Working directory of a worker. Temp directory by default.
     /// It should *NOT* be placed on a network filesystem.
-    #[clap(long)]
+    #[arg(long)]
     pub work_dir: Option<PathBuf>,
 }
 

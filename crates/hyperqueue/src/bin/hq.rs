@@ -53,8 +53,9 @@ static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 #[derive(Parser)]
 struct CommonOpts {
     /// Path to a directory that stores HyperQueue access files
-    #[clap(long, value_hint = ValueHint::DirPath)]
-    #[clap(
+    #[arg(
+        long,
+        value_hint = ValueHint::DirPath,
         global = true,
         env = "HQ_SERVER_DIR",
         help_heading("GLOBAL OPTIONS"),
@@ -63,26 +64,48 @@ struct CommonOpts {
     server_dir: Option<PathBuf>,
 
     /// Console color policy.
-    #[clap(long, default_value = "auto", value_enum)]
-    #[clap(global = true, help_heading("GLOBAL OPTIONS"), hide_short_help(true))]
+    #[arg(
+        long,
+        default_value = "auto",
+        value_enum,
+        global = true,
+        help_heading("GLOBAL OPTIONS"),
+        hide_short_help(true)
+    )]
     colors: ColorPolicy,
 
     /// How should the output of the command be formatted.
-    #[clap(long, env = "HQ_OUTPUT_MODE", default_value = "cli", value_enum)]
-    #[clap(global = true, help_heading("GLOBAL OPTIONS"), hide_short_help(true))]
+    #[arg(
+        long,
+        env = "HQ_OUTPUT_MODE",
+        default_value = "cli",
+        value_enum,
+        global = true,
+        help_heading("GLOBAL OPTIONS"),
+        hide_short_help(true)
+    )]
     output_mode: Outputs,
 
     /// Turn on a more detailed log output
-    #[clap(long, env = "HQ_DEBUG")]
-    #[clap(global = true, help_heading("GLOBAL OPTIONS"), hide_short_help(true))]
+    #[arg(
+        long,
+        env = "HQ_DEBUG",
+        global = true,
+        help_heading("GLOBAL OPTIONS"),
+        hide_short_help(true)
+    )]
     debug: bool,
 }
 
 // Root CLI options
 #[derive(Parser)]
-#[clap(author, about, version(option_env!("HQ_BUILD_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))))]
-#[clap(disable_help_subcommand(true))]
-#[clap(help_expected(true))]
+#[command(
+    author,
+    about,
+    version(option_env!("HQ_BUILD_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))),
+    disable_help_subcommand(true),
+    help_expected(true)
+)]
 struct Opts {
     #[clap(flatten)]
     common: CommonOpts,
@@ -112,7 +135,7 @@ enum SubCommand {
     /// Operations with log
     Log(LogOpts),
     /// Automatic allocation management
-    #[clap(name = "alloc")]
+    #[command(name = "alloc")]
     AutoAlloc(AutoAllocOpts),
     /// Event log management
     EventLog(EventLogOpts),
@@ -140,7 +163,7 @@ enum WorkerCommand {
     /// By default, only running workers will be displayed.
     List(WorkerListOpts),
     /// Hwdetect
-    #[clap(name = "hwdetect")]
+    #[command(name = "hwdetect")]
     HwDetect(HwDetectOpts),
     /// Display information about a specific worker
     Info(WorkerInfoOpts),
@@ -159,11 +182,11 @@ struct WorkerStopOpts {
 #[derive(Parser)]
 struct WorkerListOpts {
     /// Display all workers.
-    #[clap(long, conflicts_with("filter"))]
+    #[arg(long, conflicts_with("filter"))]
     all: bool,
 
     /// Select only workers with the given state.
-    #[clap(long, value_enum)]
+    #[arg(long, value_enum)]
     filter: Option<WorkerFilter>,
 }
 
@@ -188,7 +211,7 @@ struct WorkerWaitOpts {
 #[derive(Parser)]
 struct HwDetectOpts {
     /// Detect only physical cores
-    #[clap(long)]
+    #[arg(long)]
     no_hyper_threading: bool,
 }
 
@@ -237,7 +260,7 @@ pub struct JobProgressOpts {
 #[derive(Parser)]
 struct GenerateCompletionOpts {
     /// Shell flavour for which the completion script should be generated
-    #[clap(value_enum)]
+    #[arg(value_enum)]
     shell: Shell,
 }
 

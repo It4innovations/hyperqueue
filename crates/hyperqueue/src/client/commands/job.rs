@@ -16,12 +16,12 @@ use clap::Parser;
 #[derive(Parser)]
 pub struct JobListOpts {
     /// Display all jobs.
-    #[clap(long, conflicts_with("filter"))]
+    #[arg(long, conflicts_with("filter"))]
     pub all: bool,
 
     /// Display only jobs with the given states.
     /// You can use multiple states separated by a comma.
-    #[clap(long, use_value_delimiter(true), value_enum)]
+    #[arg(long, value_delimiter(','), value_enum)]
     pub filter: Vec<Status>,
 }
 
@@ -47,11 +47,11 @@ pub struct JobCatOpts {
 
     /// Prepend the output of each task with a header line that identifies the task
     /// which produced that output.
-    #[clap(long)]
+    #[arg(long)]
     pub print_task_header: bool,
 
     /// Type of output stream to display
-    #[clap(value_enum)]
+    #[arg(value_enum)]
     pub stream: OutputStream,
 }
 

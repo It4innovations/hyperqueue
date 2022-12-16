@@ -54,7 +54,7 @@ struct RemoveQueueOpts {
 
     /// Remove the queue even if there are currently running jobs.
     /// The running jobs will be canceled.
-    #[clap(long, num_args(0))]
+    #[arg(long, num_args(0))]
     force: bool,
 }
 
@@ -83,53 +83,52 @@ impl FromStr for Backlog {
 }
 
 #[derive(Parser)]
-#[clap(trailing_var_arg(true))]
 struct SharedQueueOpts {
     /// How many jobs should be waiting in the queue to be started
-    #[clap(long, short, default_value = "1")]
+    #[arg(long, short, default_value = "1")]
     backlog: Backlog,
 
     /// Time limit (walltime) of PBS/Slurm allocations
-    #[clap(long, short('t'))]
+    #[arg(long, short('t'))]
     time_limit: ExtendedArgDuration,
 
     /// How many workers (nodes) should be spawned in each allocation
-    #[clap(long, short, default_value = "1")]
+    #[arg(long, short, default_value = "1")]
     workers_per_alloc: u32,
 
     /// Maximum number of workers that can be queued or running at any given time in this queue
-    #[clap(long)]
+    #[arg(long)]
     max_worker_count: Option<u32>,
 
     /// Name of the allocation queue (for debug purposes only)
-    #[clap(long, short)]
+    #[arg(long, short)]
     name: Option<String>,
 
     /// How many cores should be allocated for workers spawned inside allocations
-    #[clap(long)]
+    #[arg(long)]
     cpus: Option<PassThroughArgument<ArgCpuDefinition>>,
 
     /// What resources should the workers spawned inside allocations contain
-    #[clap(long, action = clap::ArgAction::Append)]
+    #[arg(long, action = clap::ArgAction::Append)]
     resource: Vec<PassThroughArgument<ArgResourceItemDef>>,
 
     /// Behavior when a connection to a server is lost
-    #[clap(long, default_value = "finish-running", value_enum)]
+    #[arg(long, default_value = "finish-running", value_enum)]
     on_server_lost: ArgServerLostPolicy,
 
     /// Duration after which will an idle worker automatically stop
-    #[clap(long)]
+    #[arg(long)]
     idle_timeout: Option<ArgDuration>,
 
     /// Disables dry-run, which submits an allocation with the specified parameters to verify
     /// whether the parameters are correct.
     // This flag currently cannot be in [`AddQueueOpts`] because of a bug in clap:
     // https://github.com/clap-rs/clap/issues/1570.
-    #[clap(long, global = true)]
+    #[arg(long, global = true)]
     no_dry_run: bool,
 
     /// Additional arguments passed to the submit command
-    #[clap()]
+    #[arg(trailing_var_arg(true))]
     additional_args: Vec<String>,
 }
 
@@ -159,7 +158,7 @@ struct AllocationsOpts {
     queue: u32,
 
     /// Display only allocations with the given state
-    #[clap(long, value_enum)]
+    #[arg(long, value_enum)]
     filter: Option<AllocationStateFilter>,
 }
 

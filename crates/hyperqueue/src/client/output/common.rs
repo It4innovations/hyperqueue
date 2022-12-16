@@ -78,7 +78,7 @@ pub enum Verbosity {
 #[derive(clap::Args)]
 pub struct VerbosityFlag {
     /// Use this flag to enable verbose output.
-    #[clap(short = 'v', action = clap::ArgAction::Count)]
+    #[arg(short = 'v', action = clap::ArgAction::Count)]
     verbose: u8,
 }
 

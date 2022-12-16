@@ -26,7 +26,7 @@ enum EventCommand {
 struct ExportOpts {
     /// Path to a file containing the event log.
     /// The file had to be created with `hq server start --event-log-path=<PATH>`.
-    #[clap(value_hint = ValueHint::FilePath)]
+    #[arg(value_hint = ValueHint::FilePath)]
     logfile: PathBuf,
 }
 

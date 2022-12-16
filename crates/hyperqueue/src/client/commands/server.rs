@@ -30,27 +30,27 @@ enum ServerCommand {
 #[derive(Parser)]
 struct ServerStartOpts {
     /// Hostname/IP of the machine under which is visible to others, default: hostname
-    #[clap(long)]
+    #[arg(long)]
     host: Option<String>,
 
     /// Duration after which will an idle worker automatically stop
-    #[clap(long)]
+    #[arg(long)]
     idle_timeout: Option<ArgDuration>,
 
     /// Port for client connections (used e.g. for `hq submit`)
-    #[clap(long)]
+    #[arg(long)]
     client_port: Option<u16>,
 
     /// Port for worker connections
-    #[clap(long)]
+    #[arg(long)]
     worker_port: Option<u16>,
 
     /// The maximum number of events tako server will store in memory
-    #[clap(long, default_value = "1000000")]
+    #[arg(long, default_value = "1000000")]
     event_store_size: usize,
 
     /// Path to a log file where events will be stored.
-    #[clap(long, hide(true))]
+    #[arg(long, hide(true))]
     event_log_path: Option<PathBuf>,
 }
 
@@ -60,7 +60,7 @@ struct ServerStopOpts {}
 #[derive(Parser)]
 struct ServerInfoOpts {
     /// Show internal internal state of server
-    #[clap(long)]
+    #[arg(long)]
     stats: bool,
 }
 

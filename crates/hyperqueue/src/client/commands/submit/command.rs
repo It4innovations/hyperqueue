@@ -113,9 +113,9 @@ fn parse_stdio_arg(input: &str) -> anyhow::Result<StdioDef> {
 
 #[derive(clap::ValueEnum, Clone)]
 enum PinModeArg {
-    #[clap(name = "taskset")]
+    #[value(name = "taskset")]
     TaskSet,
-    #[clap(name = "omp")]
+    #[value(name = "omp")]
     OpenMP,
 }
 
@@ -137,7 +137,7 @@ impl From<PinModeArg> for PinMode {
 pub struct SubmitJobConfOpts {
     /// Number of nodes; 0
     /// [default: 0]
-    #[clap(
+    #[arg(
         long,
         conflicts_with("pin"),
         conflicts_with("cpus"),
@@ -149,60 +149,60 @@ pub struct SubmitJobConfOpts {
     */
     /// Number and placement of CPUs for each job
     /// [default: 1]
-    #[clap(long)]
+    #[arg(long)]
     cpus: Option<ArgCpuRequest>,
 
     /// Generic resource request in form <NAME>=<AMOUNT>
-    #[clap(long, action = clap::ArgAction::Append)]
+    #[arg(long, action = clap::ArgAction::Append)]
     resource: Vec<ArgNamedResourceRequest>,
 
     /// Minimal lifetime of the worker needed to start the job
     /// [default: 0ms]
-    #[clap(long)]
+    #[arg(long)]
     time_request: Option<ArgDuration>,
 
     /// Name of the job
-    #[clap(long)]
+    #[arg(long)]
     name: Option<String>,
 
     /// Pin the job to the cores specified in `--cpus`.
-    #[clap(long, value_enum)]
+    #[arg(long, value_enum)]
     pin: Option<PinModeArg>,
 
     /// Working directory for the submitted job.
     /// The path must be accessible from worker nodes
     /// [default: %{SUBMIT_DIR}]
-    #[clap(long)]
+    #[arg(long)]
     cwd: Option<PathBuf>,
 
     /// Path where the standard output of the job will be stored.
     /// The path must be accessible from worker nodes
-    #[clap(long)]
+    #[arg(long)]
     stdout: Option<StdioArg>,
 
     /// Path where the standard error of the job will be stored.
     /// The path must be accessible from worker nodes
-    #[clap(long)]
+    #[arg(long)]
     stderr: Option<StdioArg>,
 
     /// Specify additional environment variable for the job.
     /// You can pass this flag multiple times to pass multiple variables
     ///
     /// `--env=KEY=VAL` - set an environment variable named `KEY` with the value `VAL`
-    #[clap(long, action = clap::ArgAction::Append)]
+    #[arg(long, action = clap::ArgAction::Append)]
     env: Vec<ArgEnvironmentVar>,
 
     // Parameters for creating array jobs
     /// Create a task array where a task will be created for each line of the given file.
     /// The corresponding line will be passed to the task in environment variable `HQ_ENTRY`.
-    #[clap(long, conflicts_with("array"), value_hint = clap::ValueHint::FilePath)]
+    #[arg(long, conflicts_with("array"), value_hint = clap::ValueHint::FilePath)]
     each_line: Option<PathBuf>,
 
     /// Create a task array where a task will be created for each item of a JSON array stored in
     /// the given file.
     /// The corresponding item from the array will be passed as a JSON string to the task in
     /// environment variable `HQ_ENTRY`.
-    #[clap(long, conflicts_with("array"), conflicts_with("each_line"), value_hint = clap::ValueHint::FilePath)]
+    #[arg(long, conflicts_with("array"), conflicts_with("each_line"), value_hint = clap::ValueHint::FilePath)]
     from_json: Option<PathBuf>,
 
     /// Create a task array where a task will be created for each number in the specified number range.
@@ -211,36 +211,36 @@ pub struct SubmitJobConfOpts {
     /// `--array=5` - create task array with one job with task ID 5
     ///
     /// `--array=3-5` - create task array with three jobs with task IDs 3, 4, 5
-    #[clap(long)]
+    #[arg(long)]
     array: Option<IntArray>,
 
     /// Maximum number of permitted task failures.
     /// If this limit is reached, the job will fail immediately.
-    #[clap(long)]
+    #[arg(long)]
     max_fails: Option<JobTaskCount>,
 
     /// Priority of each task [default: 0]
-    #[clap(long)]
+    #[arg(long)]
     priority: Option<tako::Priority>,
 
-    #[clap(long)]
+    #[arg(long)]
     /// Time limit per task. E.g. --time-limit=10min
     time_limit: Option<ArgDuration>,
 
     /// Stream the output of tasks into this log file.
-    #[clap(long)]
+    #[arg(long)]
     log: Option<PathBuf>,
 
     /// Create a temporary directory for task, path is provided in HQ_TASK_DIR
     /// The directory is automatically deleted when task is finished
-    #[clap(long)]
+    #[arg(long)]
     task_dir: bool,
 
     /// Limits how many times may task be in a running state while worker is lost.
     /// If the limit is reached, the task is marked as failed. If the limit is zero,
     /// the limit is disabled.
     /// [default: 5]
-    #[clap(long)]
+    #[arg(long)]
     crash_limit: Option<u32>,
 }
 
@@ -293,26 +293,25 @@ pub enum DirectivesMode {
 }
 
 #[derive(Parser)]
-#[clap(trailing_var_arg(true))]
 pub struct JobSubmitOpts {
     /// Command that should be executed by each task
-    #[clap(required = true)]
+    #[arg(required = true, trailing_var_arg(true))]
     commands: Vec<String>,
 
     #[clap(flatten)]
     conf: SubmitJobConfOpts,
 
     /// Wait for the job to finish.
-    #[clap(long, conflicts_with("progress"))]
+    #[arg(long, conflicts_with("progress"))]
     wait: bool,
 
     /// Interactively observe the progress of the submitted job.
-    #[clap(long, conflicts_with("wait"))]
+    #[arg(long, conflicts_with("wait"))]
     progress: bool,
 
     /// Capture stdin and start the task with the given stdin;
     /// the job will be submitted when the stdin is closed.
-    #[clap(long)]
+    #[arg(long)]
     stdin: bool,
 
     /// Select directives parsing mode.
@@ -332,7 +331,7 @@ pub struct JobSubmitOpts {
     /// #HQ --cpus=2{n}
     /// {n}
     /// program --foo=bar{n}
-    #[clap(long, default_value = "auto", value_enum)]
+    #[arg(long, default_value = "auto", value_enum)]
     directives: DirectivesMode,
 }
 
@@ -717,7 +716,7 @@ pub struct JobResubmitOpts {
 
     /// Resubmit only tasks with the given states.
     /// You can use multiple states separated by a comma.
-    #[clap(long, use_value_delimiter(true), value_enum)]
+    #[arg(long, value_delimiter(','), value_enum)]
     filter: Vec<Status>,
 }
 
