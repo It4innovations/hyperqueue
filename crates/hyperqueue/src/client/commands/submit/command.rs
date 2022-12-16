@@ -331,7 +331,7 @@ pub struct JobSubmitOpts {
     /// #HQ --cpus=2{n}
     /// {n}
     /// program --foo=bar{n}
-    #[arg(long, default_value = "auto", value_enum)]
+    #[arg(long, default_value_t = DirectivesMode::Auto, value_enum)]
     directives: DirectivesMode,
 }
 

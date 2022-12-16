@@ -1,5 +1,4 @@
 use clap::Parser;
-use std::str::FromStr;
 use std::time::Duration;
 
 use crate::client::commands::worker::ArgServerLostPolicy;
@@ -66,34 +65,27 @@ enum AddQueueCommand {
     Slurm(SharedQueueOpts),
 }
 
-#[derive(Clone)]
-struct Backlog(u32);
-
-impl FromStr for Backlog {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let value: u32 = s.parse()?;
-        if value == 0 {
-            Err(anyhow::anyhow!("Backlog has to be at least 1"))
-        } else {
-            Ok(Backlog(value))
-        }
+fn parse_backlog(value: &str) -> Result<u32, anyhow::Error> {
+    let value: u32 = value.parse()?;
+    if value == 0 {
+        Err(anyhow::anyhow!("Backlog has to be at least 1"))
+    } else {
+        Ok(value)
     }
 }
 
 #[derive(Parser)]
 struct SharedQueueOpts {
     /// How many jobs should be waiting in the queue to be started
-    #[arg(long, short, default_value = "1")]
-    backlog: Backlog,
+    #[arg(long, short, default_value_t = 1, value_parser = parse_backlog)]
+    backlog: u32,
 
     /// Time limit (walltime) of PBS/Slurm allocations
     #[arg(long, short('t'))]
     time_limit: ExtendedArgDuration,
 
     /// How many workers (nodes) should be spawned in each allocation
-    #[arg(long, short, default_value = "1")]
+    #[arg(long, short, default_value_t = 1)]
     workers_per_alloc: u32,
 
     /// Maximum number of workers that can be queued or running at any given time in this queue
@@ -113,7 +105,7 @@ struct SharedQueueOpts {
     resource: Vec<PassThroughArgument<ArgResourceItemDef>>,
 
     /// Behavior when a connection to a server is lost
-    #[arg(long, default_value = "finish-running", value_enum)]
+    #[arg(long, default_value_t = ArgServerLostPolicy::FinishRunning, value_enum)]
     on_server_lost: ArgServerLostPolicy,
 
     /// Duration after which will an idle worker automatically stop
@@ -240,7 +232,7 @@ wasted allocation duration."
 
     AllocationQueueParams {
         workers_per_alloc,
-        backlog: backlog.0,
+        backlog,
         timelimit: time_limit.unpack(),
         name,
         additional_args,

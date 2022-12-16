@@ -92,7 +92,7 @@ pub struct WorkerStartOpts {
     pub time_limit: Option<ArgDuration>,
 
     /// What HPC job manager should be used by the worker.
-    #[arg(long, default_value = "detect", value_enum)]
+    #[arg(long, default_value_t = ManagerOpts::Detect, value_enum)]
     pub manager: ManagerOpts,
 
     /// Overwrite worker hostname
@@ -100,7 +100,7 @@ pub struct WorkerStartOpts {
     pub hostname: Option<String>,
 
     /// Behavior when a connection to a server is lost
-    #[arg(long, default_value = "stop", value_enum)]
+    #[arg(long, default_value_t = ArgServerLostPolicy::Stop, value_enum)]
     pub on_server_lost: ArgServerLostPolicy,
 
     /// Working directory of a worker. Temp directory by default.
