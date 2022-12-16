@@ -115,7 +115,7 @@ def test_task_resources_range_multiple_allocated_values(hq_env: HqEnv):
             "sleep 1; echo $HQ_RESOURCE_REQUEST_fairy:$HQ_RESOURCE_VALUES_fairy",
         ]
     )
-    hq_env.start_worker(cpus=4, args=["--resource", "--resource", "fairy=range(31-36)"])
+    hq_env.start_worker(cpus=4, args=["--resource", "fairy=range(31-36)"])
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     all_values = []
