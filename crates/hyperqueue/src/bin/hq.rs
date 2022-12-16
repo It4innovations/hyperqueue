@@ -1,18 +1,17 @@
 use std::io;
-use std::path::PathBuf;
 
-use clap::{CommandFactory, Parser, ValueHint};
-use clap_complete::{generate, Shell};
+use clap::{CommandFactory, Parser};
+use clap_complete::generate;
 use cli_table::ColorChoice;
 
-use hyperqueue::client::commands::autoalloc::{command_autoalloc, AutoAllocOpts};
-use hyperqueue::client::commands::event::{command_event_log, EventLogOpts};
+use hyperqueue::client::commands::autoalloc::command_autoalloc;
+use hyperqueue::client::commands::event::command_event_log;
 use hyperqueue::client::commands::job::{
     cancel_job, output_job_cat, output_job_detail, output_job_list, JobCancelOpts, JobCatOpts,
     JobInfoOpts, JobListOpts,
 };
-use hyperqueue::client::commands::log::{command_log, LogOpts};
-use hyperqueue::client::commands::server::{command_server, ServerOpts};
+use hyperqueue::client::commands::log::command_log;
+use hyperqueue::client::commands::server::command_server;
 use hyperqueue::client::commands::submit::{
     resubmit_computation, submit_computation, JobResubmitOpts, JobSubmitOpts,
 };
@@ -32,7 +31,10 @@ use hyperqueue::client::task::{
     output_job_task_info, output_job_task_list, TaskCommand, TaskInfoOpts, TaskListOpts, TaskOpts,
 };
 use hyperqueue::common::cli::{
-    get_id_selector, get_task_id_selector, get_task_selector, IdSelectorArg,
+    get_id_selector, get_task_id_selector, get_task_selector, ColorPolicy, CommonOpts,
+    DashboardOpts, GenerateCompletionOpts, HwDetectOpts, IdSelectorArg, JobCommand, JobOpts,
+    JobProgressOpts, JobWaitOpts, RootOptions, SubCommand, WorkerAddressOpts, WorkerCommand,
+    WorkerInfoOpts, WorkerListOpts, WorkerOpts, WorkerStopOpts, WorkerWaitOpts,
 };
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
@@ -42,227 +44,11 @@ use hyperqueue::transfer::messages::{FromClientMessage, JobInfoRequest, ToClient
 use hyperqueue::worker::hwdetect::{
     detect_additional_resources, detect_cpus, prune_hyper_threading,
 };
-use hyperqueue::WorkerId;
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, CPU_RESOURCE_NAME};
 
 #[cfg(feature = "jemalloc")]
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
-
-// Common CLI options
-#[derive(Parser)]
-struct CommonOpts {
-    /// Path to a directory that stores HyperQueue access files
-    #[arg(
-        long,
-        value_hint = ValueHint::DirPath,
-        global = true,
-        env = "HQ_SERVER_DIR",
-        help_heading("GLOBAL OPTIONS"),
-        hide_short_help(true)
-    )]
-    server_dir: Option<PathBuf>,
-
-    /// Console color policy.
-    #[arg(
-        long,
-        default_value = "auto",
-        value_enum,
-        global = true,
-        help_heading("GLOBAL OPTIONS"),
-        hide_short_help(true)
-    )]
-    colors: ColorPolicy,
-
-    /// How should the output of the command be formatted.
-    #[arg(
-        long,
-        env = "HQ_OUTPUT_MODE",
-        default_value = "cli",
-        value_enum,
-        global = true,
-        help_heading("GLOBAL OPTIONS"),
-        hide_short_help(true)
-    )]
-    output_mode: Outputs,
-
-    /// Turn on a more detailed log output
-    #[arg(
-        long,
-        env = "HQ_DEBUG",
-        global = true,
-        help_heading("GLOBAL OPTIONS"),
-        hide_short_help(true)
-    )]
-    debug: bool,
-}
-
-// Root CLI options
-#[derive(Parser)]
-#[command(
-    author,
-    about,
-    version(option_env!("HQ_BUILD_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))),
-    disable_help_subcommand(true),
-    help_expected(true)
-)]
-struct Opts {
-    #[clap(flatten)]
-    common: CommonOpts,
-
-    #[clap(subcommand)]
-    subcmd: SubCommand,
-}
-
-/// HyperQueue Dashboard
-#[allow(clippy::large_enum_variant)]
-#[derive(Parser)]
-struct DashboardOpts {}
-
-#[allow(clippy::large_enum_variant)]
-#[derive(Parser)]
-enum SubCommand {
-    /// Commands for controlling the HyperQueue server
-    Server(ServerOpts),
-    /// Commands for controlling HyperQueue jobs
-    Job(JobOpts),
-    /// Commands for displaying task(s)
-    Task(TaskOpts),
-    /// Submit a job to HyperQueue
-    Submit(JobSubmitOpts),
-    /// Commands for controlling HyperQueue workers
-    Worker(WorkerOpts),
-    /// Operations with log
-    Log(LogOpts),
-    /// Automatic allocation management
-    #[command(name = "alloc")]
-    AutoAlloc(AutoAllocOpts),
-    /// Event log management
-    EventLog(EventLogOpts),
-    /// Commands for the dashboard
-    Dashboard(DashboardOpts),
-    /// Generate shell completion script
-    GenerateCompletion(GenerateCompletionOpts),
-}
-
-// Worker CLI options
-
-#[derive(Parser)]
-struct WorkerOpts {
-    #[clap(subcommand)]
-    subcmd: WorkerCommand,
-}
-
-#[derive(Parser)]
-enum WorkerCommand {
-    /// Start worker
-    Start(WorkerStartOpts),
-    /// Stop worker
-    Stop(WorkerStopOpts),
-    /// Display information about workers.
-    /// By default, only running workers will be displayed.
-    List(WorkerListOpts),
-    /// Hwdetect
-    #[command(name = "hwdetect")]
-    HwDetect(HwDetectOpts),
-    /// Display information about a specific worker
-    Info(WorkerInfoOpts),
-    /// Display worker's hostname
-    Address(WorkerAddressOpts),
-    /// Waits on the connection of worker(s)
-    Wait(WorkerWaitOpts),
-}
-
-#[derive(Parser)]
-struct WorkerStopOpts {
-    /// Select worker(s) to stop
-    selector_arg: IdSelectorArg,
-}
-
-#[derive(Parser)]
-struct WorkerListOpts {
-    /// Display all workers.
-    #[arg(long, conflicts_with("filter"))]
-    all: bool,
-
-    /// Select only workers with the given state.
-    #[arg(long, value_enum)]
-    filter: Option<WorkerFilter>,
-}
-
-#[derive(Parser)]
-struct WorkerAddressOpts {
-    /// Worker ID
-    worker_id: WorkerId,
-}
-
-#[derive(Parser)]
-struct WorkerInfoOpts {
-    /// Worker ID
-    worker_id: WorkerId,
-}
-
-#[derive(Parser)]
-struct WorkerWaitOpts {
-    /// Number of worker(s) to wait on
-    worker_count: u32,
-}
-
-#[derive(Parser)]
-struct HwDetectOpts {
-    /// Detect only physical cores
-    #[arg(long)]
-    no_hyper_threading: bool,
-}
-
-// Job CLI options
-
-#[derive(Parser)]
-struct JobOpts {
-    #[clap(subcommand)]
-    subcmd: JobCommand,
-}
-
-#[allow(clippy::large_enum_variant)]
-#[derive(Parser)]
-enum JobCommand {
-    /// Display information about jobs.
-    /// By default, only queued or running jobs will be displayed.
-    List(JobListOpts),
-    /// Display detailed information of the selected job
-    Info(JobInfoOpts),
-    /// Cancel a specific job
-    Cancel(JobCancelOpts),
-    /// Shows task(s) streams(stdout, stderr) of a specific job
-    Cat(JobCatOpts),
-    /// Submit a job to HyperQueue
-    Submit(JobSubmitOpts),
-    /// Resubmits tasks of a job
-    Resubmit(JobResubmitOpts),
-    /// Waits until a job is finished
-    Wait(JobWaitOpts),
-    /// Interactively observe the execution of a job
-    Progress(JobProgressOpts),
-}
-
-#[derive(Parser)]
-pub struct JobWaitOpts {
-    /// Select job(s) to wait for
-    selector_arg: IdSelectorArg,
-}
-
-#[derive(Parser)]
-pub struct JobProgressOpts {
-    /// Select job(s) to observe
-    selector_arg: IdSelectorArg,
-}
-
-#[derive(Parser)]
-struct GenerateCompletionOpts {
-    /// Shell flavour for which the completion script should be generated
-    #[arg(value_enum)]
-    shell: Shell,
-}
 
 // Commands
 
@@ -469,13 +255,6 @@ async fn command_dashboard_start(
     Ok(())
 }
 
-#[derive(clap::ValueEnum, Clone)]
-pub enum ColorPolicy {
-    Auto,
-    Always,
-    Never,
-}
-
 fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
     let server_dir = absolute_path(
         opts.server_dir
@@ -518,7 +297,7 @@ fn make_global_settings(opts: CommonOpts) -> GlobalSettings {
 fn generate_completion(opts: GenerateCompletionOpts) -> anyhow::Result<()> {
     let generator = opts.shell;
 
-    let mut app = Opts::command();
+    let mut app = RootOptions::command();
     eprintln!("Generating completion file for {}...", generator);
     generate(generator, &mut app, "hq".to_string(), &mut io::stdout());
     Ok(())
@@ -526,7 +305,7 @@ fn generate_completion(opts: GenerateCompletionOpts) -> anyhow::Result<()> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> hyperqueue::Result<()> {
-    let top_opts: Opts = Opts::parse();
+    let top_opts = RootOptions::parse();
     setup_logging(top_opts.common.debug);
 
     let gsettings = make_global_settings(top_opts.common);
