@@ -1,3 +1,11 @@
+use std::path::PathBuf;
+use std::str::FromStr;
+
+use clap::Parser;
+use clap_complete::Shell;
+
+use tako::WorkerId;
+
 use crate::client::commands::autoalloc::AutoAllocOpts;
 use crate::client::commands::event::EventLogOpts;
 use crate::client::commands::job::{JobCancelOpts, JobCatOpts, JobInfoOpts, JobListOpts};
@@ -12,11 +20,6 @@ use crate::common::arraydef::IntArray;
 use crate::transfer::messages::{
     IdSelector, SingleIdSelector, TaskIdSelector, TaskSelector, TaskStatusSelector,
 };
-use clap::Parser;
-use clap_complete::Shell;
-use std::path::PathBuf;
-use std::str::FromStr;
-use tako::WorkerId;
 
 #[derive(Clone)]
 pub enum IdSelectorArg {
@@ -154,7 +157,7 @@ pub struct CommonOpts {
     /// Console color policy.
     #[arg(
         long,
-        default_value = "auto",
+        default_value_t = ColorPolicy::Auto,
         value_enum,
         global = true,
         help_heading("GLOBAL OPTIONS"),
@@ -166,7 +169,7 @@ pub struct CommonOpts {
     #[arg(
         long,
         env = "HQ_OUTPUT_MODE",
-        default_value = "cli",
+        default_value_t = Outputs::CLI,
         value_enum,
         global = true,
         help_heading("GLOBAL OPTIONS"),

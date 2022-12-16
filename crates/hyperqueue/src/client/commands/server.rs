@@ -46,7 +46,7 @@ struct ServerStartOpts {
     worker_port: Option<u16>,
 
     /// The maximum number of events tako server will store in memory
-    #[arg(long, default_value = "1000000")]
+    #[arg(long, default_value_t = 1000000)]
     event_store_size: usize,
 
     /// Path to a log file where events will be stored.
