@@ -1,7 +1,7 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::server::client_stop_server;
 use crate::common::utils::network::get_hostname;
-use crate::common::utils::time::ArgDuration;
+use crate::common::utils::time::parse_human_time;
 use crate::rpc_call;
 use crate::server::bootstrap::{
     get_client_session, init_hq_server, print_server_info, ServerConfig,
@@ -10,6 +10,7 @@ use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{FromClientMessage, StatsResponse, ToClientMessage};
 use clap::Parser;
 use std::path::PathBuf;
+use std::time::Duration;
 
 #[derive(Parser)]
 pub struct ServerOpts {
@@ -34,8 +35,8 @@ struct ServerStartOpts {
     host: Option<String>,
 
     /// Duration after which will an idle worker automatically stop
-    #[arg(long)]
-    idle_timeout: Option<ArgDuration>,
+    #[arg(long, value_parser = parse_human_time)]
+    idle_timeout: Option<Duration>,
 
     /// Port for client connections (used e.g. for `hq submit`)
     #[arg(long)]
@@ -75,7 +76,7 @@ pub async fn command_server(gsettings: &GlobalSettings, opts: ServerOpts) -> any
 async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyhow::Result<()> {
     let server_cfg = ServerConfig {
         host: get_hostname(opts.host),
-        idle_timeout: opts.idle_timeout.map(|x| x.unpack()),
+        idle_timeout: opts.idle_timeout,
         client_port: opts.client_port,
         worker_port: opts.worker_port,
         event_buffer_size: opts.event_store_size,

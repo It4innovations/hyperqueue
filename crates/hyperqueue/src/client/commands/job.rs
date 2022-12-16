@@ -3,7 +3,7 @@ use crate::client::job::get_worker_map;
 use crate::client::output::outputs::OutputStream;
 use crate::client::output::resolve_task_paths;
 use crate::client::status::{job_status, Status};
-use crate::common::cli::{get_id_selector, IdSelectorArg, JobSelectorArg, TaskSelectorArg};
+use crate::common::cli::{parse_last_all_range, parse_last_range, TaskSelectorArg};
 use crate::rpc_call;
 use crate::transfer::connection::{ClientConnection, ClientSession};
 use crate::transfer::messages::{
@@ -28,19 +28,22 @@ pub struct JobListOpts {
 #[derive(Parser)]
 pub struct JobInfoOpts {
     /// Single ID, ID range or `last` to display the most recently submitted job
-    pub selector_arg: IdSelectorArg,
+    #[arg(value_parser = parse_last_all_range)]
+    pub selector: IdSelector,
 }
 
 #[derive(Parser)]
 pub struct JobCancelOpts {
     /// Select job(s) to cancel
-    pub selector_arg: IdSelectorArg,
+    #[arg(value_parser = parse_last_all_range)]
+    pub selector: IdSelector,
 }
 
 #[derive(Parser)]
 pub struct JobCatOpts {
     /// Select specific job
-    pub job_selector: JobSelectorArg,
+    #[arg(value_parser = parse_last_range)]
+    pub job_selector: IdSelector,
 
     #[clap(flatten)]
     pub task_selector: TaskSelectorArg,
@@ -134,13 +137,13 @@ pub async fn output_job_detail(
 pub async fn output_job_cat(
     gsettings: &GlobalSettings,
     session: &mut ClientSession,
-    job_selector: JobSelectorArg,
+    job_selector: IdSelector,
     task_selector: Option<TaskSelector>,
     output_stream: OutputStream,
     task_header: bool,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::JobDetail(JobDetailRequest {
-        job_id_selector: get_id_selector(job_selector),
+        job_id_selector: job_selector,
         task_selector,
     });
     let mut responses =

@@ -2,7 +2,9 @@ use anyhow::bail;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, CPU_RESOURCE_NAME};
+use tako::resources::{
+    ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, CPU_RESOURCE_NAME,
+};
 use tako::worker::{ServerLostPolicy, WorkerConfiguration};
 use tako::Map;
 
@@ -13,7 +15,7 @@ use tokio::time::sleep;
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::manager::info::{ManagerInfo, WORKER_EXTRA_MANAGER_KEY};
 use crate::common::utils::network::get_hostname;
-use crate::common::utils::time::ArgDuration;
+use crate::common::utils::time::parse_human_time;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     FromClientMessage, IdSelector, StopWorkerMessage, StopWorkerResponse, ToClientMessage,
@@ -23,7 +25,7 @@ use crate::worker::bootstrap::{
     finalize_configuration, initialize_worker, try_get_pbs_info, try_get_slurm_info,
 };
 use crate::worker::hwdetect::{detect_additional_resources, detect_cpus, prune_hyper_threading};
-use crate::worker::parser::{ArgCpuDefinition, ArgResourceItemDef};
+use crate::worker::parser::{parse_cpu_definition, parse_resource_definition};
 use crate::WorkerId;
 use crate::{rpc_call, DEFAULT_WORKER_GROUP_NAME};
 
@@ -59,12 +61,12 @@ impl From<ArgServerLostPolicy> for ServerLostPolicy {
 #[derive(Parser)]
 pub struct WorkerStartOpts {
     /// How many cores should be allocated for the worker
-    #[arg(long)]
-    pub cpus: Option<ArgCpuDefinition>,
+    #[arg(long, value_parser = parse_cpu_definition)]
+    pub cpus: Option<ResourceDescriptorKind>,
 
     /// Resources
-    #[arg(long, action = clap::ArgAction::Append)]
-    pub resource: Vec<ArgResourceItemDef>,
+    #[arg(long, action = clap::ArgAction::Append, value_parser = parse_resource_definition)]
+    pub resource: Vec<ResourceDescriptorItem>,
 
     /// Manual configuration of worker's group
     /// Workers from the same group are used for multi-node tasks
@@ -80,16 +82,16 @@ pub struct WorkerStartOpts {
     pub no_hyper_threading: bool,
 
     /// How often should the worker announce its existence to the server. (default: "8s")
-    #[arg(long, default_value = "8s")]
-    pub heartbeat: ArgDuration,
+    #[arg(long, default_value = "8s", value_parser = parse_human_time)]
+    pub heartbeat: Duration,
 
     /// Duration after which will an idle worker automatically stop
-    #[arg(long)]
-    pub idle_timeout: Option<ArgDuration>,
+    #[arg(long, value_parser = parse_human_time)]
+    pub idle_timeout: Option<Duration>,
 
     /// Worker time limit. Worker exits after given time.
-    #[arg(long)]
-    pub time_limit: Option<ArgDuration>,
+    #[arg(long, value_parser = parse_human_time)]
+    pub time_limit: Option<Duration>,
 
     /// What HPC job manager should be used by the worker.
     #[arg(long, default_value_t = ManagerOpts::Detect, value_enum)]
@@ -131,12 +133,12 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
 
     let hostname = get_hostname(opts.hostname);
 
-    let mut resources: Vec<_> = opts.resource.into_iter().map(|x| x.unpack()).collect();
+    let mut resources: Vec<_> = opts.resource;
     if !resources.iter().any(|x| x.name == CPU_RESOURCE_NAME) {
         resources.push(ResourceDescriptorItem {
             name: CPU_RESOURCE_NAME.to_string(),
             kind: if let Some(cpus) = opts.cpus {
-                cpus.unpack()
+                cpus
             } else {
                 detect_cpus()?
             },
@@ -190,15 +192,14 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         listen_address: Default::default(), // Will be filled during init
         time_limit: opts
             .time_limit
-            .map(|x| x.unpack())
             .or_else(|| manager_info.and_then(|m| m.time_limit)),
         hostname,
         group,
         work_dir,
         log_dir,
         on_server_lost: opts.on_server_lost.into(),
-        heartbeat_interval: opts.heartbeat.unpack(),
-        idle_timeout: opts.idle_timeout.map(|x| x.unpack()),
+        heartbeat_interval: opts.heartbeat,
+        idle_timeout: opts.idle_timeout,
         send_overview_interval: Some(Duration::from_millis(1000)),
         extra,
     })

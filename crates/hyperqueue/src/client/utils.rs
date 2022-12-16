@@ -1,5 +1,7 @@
+use clap::builder::TypedValueParser;
+use clap::{Command, Error};
+use std::ffi::OsStr;
 use std::marker::PhantomData;
-use std::str::FromStr;
 
 #[macro_export]
 macro_rules! rpc_call {
@@ -18,47 +20,37 @@ macro_rules! rpc_call {
     };
 }
 
-#[macro_export]
-macro_rules! arg_wrapper {
-    ($name:ident, $wrapped_type:ty, $parser:expr) => {
-        #[derive(Debug, Clone)]
-        pub struct $name($wrapped_type);
-
-        impl ::std::str::FromStr for $name {
-            type Err = ::anyhow::Error;
-
-            fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-                ::std::result::Result::Ok(Self($parser(s)?))
-            }
-        }
-
-        impl $name {
-            pub fn get(&self) -> &$wrapped_type {
-                &self.0
-            }
-            pub fn unpack(self) -> $wrapped_type {
-                self.0
-            }
-        }
-    };
-}
-
 /// This argument checks that the input can be parsed as `Arg`.
 /// If it is, it will return the original input from the command line as a [`String`].
 #[derive(Debug, Clone)]
 pub struct PassThroughArgument<Arg>(String, PhantomData<Arg>);
 
-impl<Arg: FromStr> FromStr for PassThroughArgument<Arg> {
-    type Err = <Arg as FromStr>::Err;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Arg::from_str(s)?;
-        Ok(Self(s.to_string(), Default::default()))
-    }
-}
-
 impl<Arg> From<PassThroughArgument<Arg>> for String {
     fn from(arg: PassThroughArgument<Arg>) -> Self {
         arg.0
+    }
+}
+
+#[derive(Clone)]
+pub struct PassthroughParser<Arg>(fn(&str) -> anyhow::Result<Arg>);
+
+/// Creates a new parser that passed the original value through, while checking that `Arg`
+/// can be parsed successfully.
+pub fn passthrough_parser<Arg>(parser: fn(&str) -> anyhow::Result<Arg>) -> PassthroughParser<Arg> {
+    PassthroughParser(parser)
+}
+
+impl<Arg: Clone + Sync + Send + 'static> TypedValueParser for PassthroughParser<Arg> {
+    type Value = PassThroughArgument<Arg>;
+
+    fn parse_ref(
+        &self,
+        cmd: &Command,
+        arg: Option<&clap::Arg>,
+        value: &OsStr,
+    ) -> Result<Self::Value, Error> {
+        self.0
+            .parse_ref(cmd, arg, value)
+            .map(|_| PassThroughArgument(value.to_string_lossy().to_string(), Default::default()))
     }
 }

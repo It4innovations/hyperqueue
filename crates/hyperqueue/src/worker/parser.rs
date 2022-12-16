@@ -1,4 +1,3 @@
-use crate::arg_wrapper;
 use crate::common::parser2::{
     all_consuming, parse_exact_string, parse_named_string, parse_u32, parse_u64, CharParser,
     ParseError,
@@ -10,23 +9,12 @@ use tako::resources::{
     DescriptorError, ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex,
 };
 
-fn parse_cpu_definition(input: &str) -> anyhow::Result<ResourceDescriptorKind> {
+pub fn parse_cpu_definition(input: &str) -> anyhow::Result<ResourceDescriptorKind> {
     if let Ok(num) = input.parse::<u32>() {
         return Ok(ResourceDescriptorKind::simple_indices(num));
     }
     all_consuming(parse_resource_kind()).parse_text(input)
 }
-
-arg_wrapper!(
-    ArgCpuDefinition,
-    ResourceDescriptorKind,
-    parse_cpu_definition
-);
-arg_wrapper!(
-    ArgResourceItemDef,
-    ResourceDescriptorItem,
-    parse_resource_definition
-);
 
 fn parse_resource_indices() -> impl CharParser<Vec<ResourceIndex>> {
     let start = just('[').padded();
@@ -169,7 +157,7 @@ fn parse_resource_definition_inner() -> impl CharParser<ResourceDescriptorItem> 
         .labelled("resource definition")
 }
 
-fn parse_resource_definition(input: &str) -> anyhow::Result<ResourceDescriptorItem> {
+pub fn parse_resource_definition(input: &str) -> anyhow::Result<ResourceDescriptorItem> {
     all_consuming(parse_resource_definition_inner()).parse_text(input)
 }
 

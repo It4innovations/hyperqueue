@@ -6,12 +6,12 @@ use chumsky::prelude::just;
 use chumsky::Parser;
 
 // Allows specifying humantime format (2h, 3m, etc.)
-crate::arg_wrapper!(ArgDuration, Duration, humantime::parse_duration);
+pub fn parse_human_time(text: &str) -> anyhow::Result<Duration> {
+    Ok(humantime::parse_duration(text)?)
+}
 
 // Allows specifying humantime format or HH:MM:SS
-crate::arg_wrapper!(ExtendedArgDuration, Duration, parse_hms_or_human_time);
-
-fn parse_hms_or_human_time(text: &str) -> anyhow::Result<Duration> {
+pub fn parse_hms_or_human_time(text: &str) -> anyhow::Result<Duration> {
     parse_hms_time(text)
         .or_else(|_| humantime::parse_duration(text))
         .map_err(|e| {
