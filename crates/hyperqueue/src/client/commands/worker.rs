@@ -63,7 +63,7 @@ pub struct WorkerStartOpts {
     pub cpus: Option<ArgCpuDefinition>,
 
     /// Resources
-    #[clap(long, multiple_occurrences(true))]
+    #[clap(long, action = clap::ArgAction::Append)]
     pub resource: Vec<ArgResourceItemDef>,
 
     /// Manual configuration of worker's group

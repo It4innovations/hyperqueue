@@ -67,14 +67,14 @@ const DEFAULT_STDERR_PATH: &str = const_format::concatcp!(
     ".stderr"
 );
 
-crate::arg_wrapper!(ArgCpuRequest, AllocationRequest, parse_allocation_request);
-crate::arg_wrapper!(
+arg_wrapper!(ArgCpuRequest, AllocationRequest, parse_allocation_request);
+arg_wrapper!(
     ArgNamedResourceRequest,
     (String, AllocationRequest),
     parse_resource_request
 );
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ArgEnvironmentVar {
     key: BString,
     value: BString,
@@ -153,7 +153,7 @@ pub struct SubmitJobConfOpts {
     cpus: Option<ArgCpuRequest>,
 
     /// Generic resource request in form <NAME>=<AMOUNT>
-    #[clap(long, multiple_occurrences(true))]
+    #[clap(long, action = clap::ArgAction::Append)]
     resource: Vec<ArgNamedResourceRequest>,
 
     /// Minimal lifetime of the worker needed to start the job
@@ -189,7 +189,7 @@ pub struct SubmitJobConfOpts {
     /// You can pass this flag multiple times to pass multiple variables
     ///
     /// `--env=KEY=VAL` - set an environment variable named `KEY` with the value `VAL`
-    #[clap(long, multiple_occurrences(true))]
+    #[clap(long, action = clap::ArgAction::Append)]
     env: Vec<ArgEnvironmentVar>,
 
     // Parameters for creating array jobs
@@ -717,7 +717,7 @@ pub struct JobResubmitOpts {
 
     /// Resubmit only tasks with the given states.
     /// You can use multiple states separated by a comma.
-    #[clap(long, multiple_occurrences(false), use_value_delimiter(true), arg_enum)]
+    #[clap(long, use_value_delimiter(true), arg_enum)]
     filter: Vec<Status>,
 }
 

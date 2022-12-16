@@ -109,7 +109,7 @@ struct SharedQueueOpts {
     cpus: Option<PassThroughArgument<ArgCpuDefinition>>,
 
     /// What resources should the workers spawned inside allocations contain
-    #[clap(long, multiple_occurrences(true))]
+    #[clap(long, action = clap::ArgAction::Append)]
     resource: Vec<PassThroughArgument<ArgResourceItemDef>>,
 
     /// Behavior when a connection to a server is lost

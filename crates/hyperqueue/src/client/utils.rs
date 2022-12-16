@@ -21,6 +21,7 @@ macro_rules! rpc_call {
 #[macro_export]
 macro_rules! arg_wrapper {
     ($name:ident, $wrapped_type:ty, $parser:expr) => {
+        #[derive(Debug, Clone)]
         pub struct $name($wrapped_type);
 
         impl ::std::str::FromStr for $name {
@@ -44,6 +45,7 @@ macro_rules! arg_wrapper {
 
 /// This argument checks that the input can be parsed as `Arg`.
 /// If it is, it will return the original input from the command line as a [`String`].
+#[derive(Debug, Clone)]
 pub struct PassThroughArgument<Arg>(String, PhantomData<Arg>);
 
 impl<Arg: FromStr> FromStr for PassThroughArgument<Arg> {
