@@ -2,7 +2,7 @@ use std::fs::File;
 use std::path::Path;
 
 use bstr::{BStr, BString, ByteSlice};
-use clap::{FromArgMatches, IntoApp};
+use clap::{CommandFactory, FromArgMatches};
 use nom::branch::alt;
 use nom::bytes::complete::escaped;
 use nom::character::complete::{char, space1};

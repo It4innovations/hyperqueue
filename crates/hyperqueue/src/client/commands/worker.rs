@@ -27,13 +27,13 @@ use crate::worker::parser::{ArgCpuDefinition, ArgResourceItemDef};
 use crate::WorkerId;
 use crate::{rpc_call, DEFAULT_WORKER_GROUP_NAME};
 
-#[derive(clap::ArgEnum, Clone)]
+#[derive(clap::ValueEnum, Clone)]
 pub enum WorkerFilter {
     Running,
     Offline,
 }
 
-#[derive(clap::ArgEnum, Clone)]
+#[derive(clap::ValueEnum, Clone)]
 pub enum ManagerOpts {
     Detect,
     None,
@@ -41,7 +41,7 @@ pub enum ManagerOpts {
     Slurm,
 }
 
-#[derive(clap::ArgEnum, Clone)]
+#[derive(clap::ValueEnum, Clone)]
 pub enum ArgServerLostPolicy {
     Stop,
     FinishRunning,
@@ -92,7 +92,7 @@ pub struct WorkerStartOpts {
     pub time_limit: Option<ArgDuration>,
 
     /// What HPC job manager should be used by the worker.
-    #[clap(long, default_value = "detect", arg_enum)]
+    #[clap(long, default_value = "detect", value_enum)]
     pub manager: ManagerOpts,
 
     /// Overwrite worker hostname
@@ -100,7 +100,7 @@ pub struct WorkerStartOpts {
     pub hostname: Option<String>,
 
     /// Behavior when a connection to a server is lost
-    #[clap(long, default_value = "stop", arg_enum)]
+    #[clap(long, default_value = "stop", value_enum)]
     pub on_server_lost: ArgServerLostPolicy,
 
     /// Working directory of a worker. Temp directory by default.

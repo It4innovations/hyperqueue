@@ -1,7 +1,7 @@
 use std::io;
 use std::path::PathBuf;
 
-use clap::{IntoApp, Parser, ValueHint};
+use clap::{CommandFactory, Parser, ValueHint};
 use clap_complete::{generate, Shell};
 use cli_table::ColorChoice;
 
@@ -63,12 +63,12 @@ struct CommonOpts {
     server_dir: Option<PathBuf>,
 
     /// Console color policy.
-    #[clap(long, default_value = "auto", arg_enum)]
+    #[clap(long, default_value = "auto", value_enum)]
     #[clap(global = true, help_heading("GLOBAL OPTIONS"), hide_short_help(true))]
     colors: ColorPolicy,
 
     /// How should the output of the command be formatted.
-    #[clap(long, env = "HQ_OUTPUT_MODE", default_value = "cli", arg_enum)]
+    #[clap(long, env = "HQ_OUTPUT_MODE", default_value = "cli", value_enum)]
     #[clap(global = true, help_heading("GLOBAL OPTIONS"), hide_short_help(true))]
     output_mode: Outputs,
 
@@ -163,7 +163,7 @@ struct WorkerListOpts {
     all: bool,
 
     /// Select only workers with the given state.
-    #[clap(long, arg_enum)]
+    #[clap(long, value_enum)]
     filter: Option<WorkerFilter>,
 }
 
@@ -237,7 +237,7 @@ pub struct JobProgressOpts {
 #[derive(Parser)]
 struct GenerateCompletionOpts {
     /// Shell flavour for which the completion script should be generated
-    #[clap(arg_enum)]
+    #[clap(value_enum)]
     shell: Shell,
 }
 
@@ -446,7 +446,7 @@ async fn command_dashboard_start(
     Ok(())
 }
 
-#[derive(clap::ArgEnum, Clone)]
+#[derive(clap::ValueEnum, Clone)]
 pub enum ColorPolicy {
     Auto,
     Always,

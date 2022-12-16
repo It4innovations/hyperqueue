@@ -111,7 +111,7 @@ fn parse_stdio_arg(input: &str) -> anyhow::Result<StdioDef> {
     })
 }
 
-#[derive(clap::ArgEnum, Clone)]
+#[derive(clap::ValueEnum, Clone)]
 enum PinModeArg {
     #[clap(name = "taskset")]
     TaskSet,
@@ -141,7 +141,7 @@ pub struct SubmitJobConfOpts {
         long,
         conflicts_with("pin"),
         conflicts_with("cpus"),
-        conflicts_with("time-request")
+        conflicts_with("time_request")
     )]
     nodes: Option<NumOfNodes>,
     /* Other resource configurations is not yet supported in combination of nodes,
@@ -166,7 +166,7 @@ pub struct SubmitJobConfOpts {
     name: Option<String>,
 
     /// Pin the job to the cores specified in `--cpus`.
-    #[clap(long, arg_enum)]
+    #[clap(long, value_enum)]
     pin: Option<PinModeArg>,
 
     /// Working directory for the submitted job.
@@ -202,7 +202,7 @@ pub struct SubmitJobConfOpts {
     /// the given file.
     /// The corresponding item from the array will be passed as a JSON string to the task in
     /// environment variable `HQ_ENTRY`.
-    #[clap(long, conflicts_with("array"), conflicts_with("each-line"), value_hint = clap::ValueHint::FilePath)]
+    #[clap(long, conflicts_with("array"), conflicts_with("each_line"), value_hint = clap::ValueHint::FilePath)]
     from_json: Option<PathBuf>,
 
     /// Create a task array where a task will be created for each number in the specified number range.
@@ -284,7 +284,7 @@ impl SubmitJobConfOpts {
     }
 }
 
-#[derive(clap::ArgEnum, Clone, Eq, PartialEq)]
+#[derive(clap::ValueEnum, Clone, Eq, PartialEq)]
 pub enum DirectivesMode {
     Auto,
     File,
@@ -332,7 +332,7 @@ pub struct JobSubmitOpts {
     /// #HQ --cpus=2{n}
     /// {n}
     /// program --foo=bar{n}
-    #[clap(long, default_value = "auto", arg_enum)]
+    #[clap(long, default_value = "auto", value_enum)]
     directives: DirectivesMode,
 }
 
@@ -717,7 +717,7 @@ pub struct JobResubmitOpts {
 
     /// Resubmit only tasks with the given states.
     /// You can use multiple states separated by a comma.
-    #[clap(long, use_value_delimiter(true), arg_enum)]
+    #[clap(long, use_value_delimiter(true), value_enum)]
     filter: Vec<Status>,
 }
 

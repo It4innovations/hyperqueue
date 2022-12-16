@@ -17,14 +17,14 @@ use tako::resources::ResourceDescriptor;
 
 pub const MAX_DISPLAYED_WORKERS: usize = 2;
 
-#[derive(clap::ArgEnum, Clone)]
+#[derive(clap::ValueEnum, Clone)]
 pub enum Outputs {
     CLI,
     JSON,
     Quiet,
 }
 
-#[derive(clap::ArgEnum, Clone)]
+#[derive(clap::ValueEnum, Clone)]
 pub enum OutputStream {
     /// Displays stdout output stream for given job and task(s)
     Stdout,
