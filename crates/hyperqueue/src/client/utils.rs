@@ -1,7 +1,6 @@
 use clap::builder::TypedValueParser;
 use clap::{Command, Error};
 use std::ffi::OsStr;
-use std::marker::PhantomData;
 
 #[macro_export]
 macro_rules! rpc_call {
@@ -21,13 +20,18 @@ macro_rules! rpc_call {
 }
 
 /// This argument checks that the input can be parsed as `Arg`.
-/// If it is, it will return the original input from the command line as a [`String`].
+/// If it is, it will return the original input from the command line as a [`String`] along with the
+/// parsed value.
 #[derive(Debug, Clone)]
-pub struct PassThroughArgument<Arg>(String, PhantomData<Arg>);
+pub struct PassThroughArgument<Arg>(String, Arg);
 
-impl<Arg> From<PassThroughArgument<Arg>> for String {
-    fn from(arg: PassThroughArgument<Arg>) -> Self {
-        arg.0
+impl<Arg> PassThroughArgument<Arg> {
+    pub fn into_original_input(self) -> String {
+        self.0
+    }
+
+    pub fn into_parsed_arg(self) -> Arg {
+        self.1
     }
 }
 
@@ -51,6 +55,6 @@ impl<Arg: Clone + Sync + Send + 'static> TypedValueParser for PassthroughParser<
     ) -> Result<Self::Value, Error> {
         self.0
             .parse_ref(cmd, arg, value)
-            .map(|_| PassThroughArgument(value.to_string_lossy().to_string(), Default::default()))
+            .map(|parsed| PassThroughArgument(value.to_string_lossy().to_string(), parsed))
     }
 }

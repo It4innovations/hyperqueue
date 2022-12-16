@@ -9,7 +9,6 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::{Duration, SystemTime};
-use tako::worker::ServerLostPolicy;
 use tako::Map;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,11 +16,9 @@ pub struct QueueInfo {
     backlog: u32,
     workers_per_alloc: u32,
     timelimit: Duration,
-    on_server_lost: ServerLostPolicy,
     additional_args: Vec<String>,
-    worker_cpu_arg: Option<String>,
-    worker_resource_args: Vec<String>,
     max_worker_count: Option<u32>,
+    worker_args: Vec<String>,
     idle_timeout: Option<Duration>,
 }
 
@@ -31,11 +28,9 @@ impl QueueInfo {
         backlog: u32,
         workers_per_alloc: u32,
         timelimit: Duration,
-        on_server_lost: ServerLostPolicy,
         additional_args: Vec<String>,
-        worker_cpu_arg: Option<String>,
-        worker_resource_args: Vec<String>,
         max_worker_count: Option<u32>,
+        worker_args: Vec<String>,
         idle_timeout: Option<Duration>,
     ) -> Self {
         Self {
@@ -43,10 +38,8 @@ impl QueueInfo {
             workers_per_alloc,
             timelimit,
             additional_args,
-            worker_cpu_arg,
-            worker_resource_args,
             max_worker_count,
-            on_server_lost,
+            worker_args,
             idle_timeout,
         }
     }
@@ -67,20 +60,12 @@ impl QueueInfo {
         &self.additional_args
     }
 
-    pub fn worker_cpu_args(&self) -> Option<&String> {
-        self.worker_cpu_arg.as_ref()
-    }
-
-    pub fn worker_resource_args(&self) -> &[String] {
-        &self.worker_resource_args
-    }
-
-    pub fn on_server_lost(&self) -> &ServerLostPolicy {
-        &self.on_server_lost
-    }
-
     pub fn max_worker_count(&self) -> Option<u32> {
         self.max_worker_count
+    }
+
+    pub fn worker_args(&self) -> &[String] {
+        &self.worker_args
     }
 }
 

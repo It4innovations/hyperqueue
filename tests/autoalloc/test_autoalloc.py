@@ -272,7 +272,7 @@ def test_pbs_multinode_allocation(hq_env: HqEnv):
             assert (
                 commands
                 == f"pbsdsh -- bash -l -c '{get_hq_binary()} worker start --idle-timeout 5m \
---manager pbs --server-dir {hq_env.server_dir}/001 --on-server-lost=finish-running'"
+--manager pbs --server-dir {hq_env.server_dir}/001 --on-server-lost finish-running'"
             )
 
 
@@ -291,7 +291,7 @@ def test_slurm_multinode_allocation(hq_env: HqEnv):
             assert (
                 commands
                 == f"srun --overlap {get_hq_binary()} worker start --idle-timeout 5m \
---manager slurm --server-dir {hq_env.server_dir}/001 --on-server-lost=finish-running"
+--manager slurm --server-dir {hq_env.server_dir}/001 --on-server-lost finish-running"
             )
 
 
@@ -600,6 +600,8 @@ def test_pass_cpu_and_resources_to_worker(hq_env: HqEnv, spec: ManagerSpec):
                 "y=range(1-4)",
                 "--resource",
                 "z=[1,2,4]",
+                "--no-hyper-threading",
+                "--no-detect-resources",
             ],
         )
 
@@ -621,7 +623,10 @@ def test_pass_cpu_and_resources_to_worker(hq_env: HqEnv, spec: ManagerSpec):
             '"y=range(1-4)"',
             "--resource",
             '"z=[1,2,4]"',
-            "--on-server-lost=finish-running",
+            "--no-hyper-threading",
+            "--no-detect-resources",
+            "--on-server-lost",
+            "finish-running",
         ]
 
 
@@ -653,7 +658,8 @@ def test_pass_idle_timeout_to_worker(hq_env: HqEnv, spec: ManagerSpec):
             spec.manager_type(),
             "--server-dir",
             f"{hq_env.server_dir}/001",
-            "--on-server-lost=finish-running",
+            "--on-server-lost",
+            "finish-running",
         ]
 
 
@@ -681,7 +687,8 @@ def test_pass_on_server_lost(hq_env: HqEnv, spec: ManagerSpec):
             spec.manager_type(),
             "--server-dir",
             f"{hq_env.server_dir}/001",
-            "--on-server-lost=stop",
+            "--on-server-lost",
+            "stop",
         ]
 
 

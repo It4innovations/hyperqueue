@@ -228,21 +228,17 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
         backlog,
         timelimit,
         additional_args,
-        worker_cpu_arg,
-        worker_resources_args,
         max_worker_count,
-        on_server_lost,
+        worker_args,
         idle_timeout,
     } = params;
     QueueInfo::new(
         backlog,
         workers_per_alloc,
         timelimit,
-        on_server_lost,
         additional_args,
-        worker_cpu_arg,
-        worker_resources_args,
         max_worker_count,
+        worker_args,
         idle_timeout,
     )
 }
@@ -863,7 +859,6 @@ mod tests {
     use tako::gateway::{LostWorkerReason, ResourceRequest, ResourceRequestEntry};
     use tako::program::ProgramDefinition;
     use tako::resources::{AllocationRequest, TimeRequest, CPU_RESOURCE_NAME};
-    use tako::worker::ServerLostPolicy;
     use tako::WorkerId;
     use tako::{Map, Set, WrappedRcRefCell};
 
@@ -1589,11 +1584,9 @@ mod tests {
                     backlog,
                     workers_per_alloc,
                     timelimit,
-                    ServerLostPolicy::Stop,
-                    vec![],
-                    None,
                     vec![],
                     max_worker_count,
+                    vec![],
                     None,
                 ),
                 RateLimiter::new(

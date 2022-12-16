@@ -1,12 +1,12 @@
-use clap::Parser;
 use std::time::Duration;
-use tako::resources::{ResourceDescriptorItem, ResourceDescriptorKind};
 
-use crate::client::commands::worker::ArgServerLostPolicy;
+use clap::Parser;
+
+use crate::client::commands::worker::{ArgServerLostPolicy, SharedWorkerStartOpts};
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::utils::{passthrough_parser, PassThroughArgument};
+use crate::common::format::server_lost_policy_to_str;
 use crate::common::manager::info::ManagerType;
-use crate::common::utils::time::{parse_hms_or_human_time, parse_human_time};
+use crate::common::utils::time::parse_hms_or_human_time;
 use crate::rpc_call;
 use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
 use crate::server::bootstrap::get_client_session;
@@ -14,7 +14,6 @@ use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     AllocationQueueParams, AutoAllocRequest, AutoAllocResponse, FromClientMessage, ToClientMessage,
 };
-use crate::worker::parser::{parse_cpu_definition, parse_resource_definition};
 
 #[derive(Parser)]
 pub struct AutoAllocOpts {
@@ -97,21 +96,12 @@ struct SharedQueueOpts {
     #[arg(long, short)]
     name: Option<String>,
 
-    /// How many cores should be allocated for workers spawned inside allocations
-    #[arg(long, value_parser = passthrough_parser(parse_cpu_definition))]
-    cpus: Option<PassThroughArgument<ResourceDescriptorKind>>,
-
-    /// What resources should the workers spawned inside allocations contain
-    #[arg(long, action = clap::ArgAction::Append, value_parser = passthrough_parser(parse_resource_definition))]
-    resource: Vec<PassThroughArgument<ResourceDescriptorItem>>,
+    #[clap(flatten)]
+    worker_args: SharedWorkerStartOpts,
 
     /// Behavior when a connection to a server is lost
     #[arg(long, default_value_t = ArgServerLostPolicy::FinishRunning, value_enum)]
     on_server_lost: ArgServerLostPolicy,
-
-    /// Duration after which will an idle worker automatically stop
-    #[arg(long, value_parser = parse_human_time)]
-    idle_timeout: Option<Duration>,
 
     /// Disables dry-run, which submits an allocation with the specified parameters to verify
     /// whether the parameters are correct.
@@ -214,15 +204,13 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
         workers_per_alloc,
         max_worker_count,
         name,
-        cpus,
-        resource,
-        idle_timeout,
+        worker_args,
         additional_args,
         on_server_lost,
         no_dry_run: _,
     } = args;
 
-    if let Some(ref idle_timeout) = idle_timeout {
+    if let Some(ref idle_timeout) = worker_args.idle_timeout {
         if *idle_timeout > Duration::from_secs(60 * 10) {
             log::warn!(
                 "You have set an idle timeout longer than 10 minutes. This can result in \
@@ -231,16 +219,47 @@ wasted allocation duration."
         }
     }
 
+    let SharedWorkerStartOpts {
+        cpus,
+        resource,
+        group,
+        no_detect_resources,
+        no_hyper_threading,
+        idle_timeout,
+    } = worker_args;
+
+    let mut worker_args = vec![];
+    if let Some(cpus) = cpus {
+        worker_args.extend(["--cpus".to_string(), cpus.into_original_input()]);
+    }
+    for arg in resource {
+        worker_args.extend([
+            "--resource".to_string(),
+            format!("\"{}\"", arg.into_original_input()),
+        ]);
+    }
+    if let Some(group) = group {
+        worker_args.extend(["--group".to_string(), group]);
+    }
+    if no_hyper_threading {
+        worker_args.push("--no-hyper-threading".to_string());
+    }
+    if no_detect_resources {
+        worker_args.push("--no-detect-resources".to_string());
+    }
+    worker_args.extend([
+        "--on-server-lost".to_string(),
+        server_lost_policy_to_str(&on_server_lost.into()).to_string(),
+    ]);
+
     AllocationQueueParams {
         workers_per_alloc,
         backlog,
         timelimit: time_limit,
         name,
         additional_args,
-        worker_cpu_arg: cpus.map(|v| v.into()),
-        worker_resources_args: resource.into_iter().map(|v| v.into()).collect(),
         max_worker_count,
-        on_server_lost: on_server_lost.into(),
+        worker_args,
         idle_timeout,
     }
 }
