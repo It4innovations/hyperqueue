@@ -38,12 +38,12 @@ impl From<IdSelectorArg> for IdSelector {
 #[derive(Parser)]
 pub struct TaskSelectorArg {
     /// Filter task(s) by ID.
-    #[clap(long)]
+    #[arg(long)]
     pub tasks: Option<IntArray>,
 
     /// Filter task(s) by status.
     /// You can use multiple states separated by a comma.
-    #[clap(long, use_value_delimiter(true), value_enum)]
+    #[arg(long, value_delimiter(','), value_enum)]
     pub task_status: Vec<Status>,
 }
 

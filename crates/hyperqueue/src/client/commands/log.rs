@@ -20,33 +20,33 @@ pub struct SummaryOpts {}
 #[derive(Parser)]
 pub struct ShowOpts {
     /// Filter only specific channel
-    #[clap(long, value_enum)]
+    #[arg(long, value_enum)]
     pub channel: Option<Channel>,
 
     /// Show close message even for tasks with empty stream
-    #[clap(long)]
+    #[arg(long)]
     pub show_empty: bool,
 }
 
 #[derive(Parser)]
 pub struct CatOpts {
     /// Channel name: "stdout" or "stderr"
-    #[clap(value_enum)]
+    #[arg(value_enum)]
     pub channel: Channel,
 
     /// Print only the specified task(s) output. You can use the array syntax to specify multiple tasks.
-    #[clap(long)]
+    #[arg(long)]
     pub task: Option<IntArray>,
 
     /// Allow unfinished channel
-    #[clap(long)]
+    #[arg(long)]
     pub allow_unfinished: bool,
 }
 
 #[derive(Parser)]
 pub struct ExportOpts {
     /// Export only the specified task(s) output. You can use the array syntax to specify multiple tasks.
-    #[clap(long)]
+    #[arg(long)]
     pub task: Option<IntArray>,
 }
 
