@@ -46,7 +46,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.64.0
+          toolchain: 1.66.0
           override: true
 
       - uses: Swatinem/rust-cache@v1
@@ -92,7 +92,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.64.0
+          toolchain: 1.66.0
           override: true
 
       - uses: Swatinem/rust-cache@v1
