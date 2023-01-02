@@ -181,7 +181,7 @@
 <a id=line-12 name=line-12></a>
 <a id=line-13 name=line-13></a>
 <a id=line-14 name=line-14></a><span class=k>class</span> <span class=nc>Job</span><span class=p>:</span>
-<a id=line-15 name=line-15></a>    <span class=sd>&quot;&quot;&quot;</span>
+<a id=line-15 name=line-15></a><span class=w>    </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-16 name=line-16></a><span class=sd>    Represents a HQ job.</span>
 <a id=line-17 name=line-17></a><span class=sd>    &quot;&quot;&quot;</span>
 <a id=line-18 name=line-18></a>
@@ -191,7 +191,7 @@
 <a id=line-22 name=line-22></a>        <span class=n>max_fails</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>int</span><span class=p>]</span> <span class=o>=</span> <span class=mi>1</span><span class=p>,</span>
 <a id=line-23 name=line-23></a>        <span class=n>default_env</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>EnvType</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
 <a id=line-24 name=line-24></a>    <span class=p>):</span>
-<a id=line-25 name=line-25></a>        <span class=sd>&quot;&quot;&quot;</span>
+<a id=line-25 name=line-25></a><span class=w>        </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-26 name=line-26></a><span class=sd>        :param default_workdir: Default working directory for tasks.</span>
 <a id=line-27 name=line-27></a><span class=sd>        :param max_fails: How many tasks can fail before the whole job will be cancelled.</span>
 <a id=line-28 name=line-28></a><span class=sd>        :param default_env: Environment variables that will be automatically set for each task in</span>
@@ -208,7 +208,7 @@
 <a id=line-39 name=line-39></a>        <span class=bp>self</span><span class=o>.</span><span class=n>default_env</span> <span class=o>=</span> <span class=n>default_env</span> <span class=ow>or</span> <span class=p>{}</span>
 <a id=line-40 name=line-40></a>
 <a id=line-41 name=line-41></a>    <span class=k>def</span> <span class=nf>task_by_id</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=nb>id</span><span class=p>:</span> <span class=n>TaskId</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=n>Optional</span><span class=p>[</span><span class=n>Task</span><span class=p>]:</span>
-<a id=line-42 name=line-42></a>        <span class=sd>&quot;&quot;&quot;</span>
+<a id=line-42 name=line-42></a><span class=w>        </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-43 name=line-43></a><span class=sd>        Finds a task with the given ID.</span>
 <a id=line-44 name=line-44></a><span class=sd>        &quot;&quot;&quot;</span>
 <a id=line-45 name=line-45></a>        <span class=k>return</span> <span class=bp>self</span><span class=o>.</span><span class=n>task_map</span><span class=o>.</span><span class=n>get</span><span class=p>(</span><span class=nb>id</span><span class=p>)</span>
@@ -228,7 +228,7 @@
 <a id=line-59 name=line-59></a>        <span class=n>priority</span><span class=p>:</span> <span class=nb>int</span> <span class=o>=</span> <span class=mi>0</span><span class=p>,</span>
 <a id=line-60 name=line-60></a>        <span class=n>resources</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>ResourceRequest</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
 <a id=line-61 name=line-61></a>    <span class=p>)</span> <span class=o>-&gt;</span> <span class=n>ExternalProgram</span><span class=p>:</span>
-<a id=line-62 name=line-62></a>        <span class=sd>&quot;&quot;&quot;</span>
+<a id=line-62 name=line-62></a><span class=w>        </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-63 name=line-63></a><span class=sd>        Creates a new task that will execute the provided command.</span>
 <a id=line-64 name=line-64></a>
 <a id=line-65 name=line-65></a><span class=sd>        :param args: List of arguments will be executed. The arguments have to be strings.</span>
@@ -278,7 +278,7 @@
 <a id=line-109 name=line-109></a>        <span class=n>priority</span><span class=p>:</span> <span class=nb>int</span> <span class=o>=</span> <span class=mi>0</span><span class=p>,</span>
 <a id=line-110 name=line-110></a>        <span class=n>resources</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>ResourceRequest</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
 <a id=line-111 name=line-111></a>    <span class=p>)</span> <span class=o>-&gt;</span> <span class=n>PythonFunction</span><span class=p>:</span>
-<a id=line-112 name=line-112></a>        <span class=sd>&quot;&quot;&quot;</span>
+<a id=line-112 name=line-112></a><span class=w>        </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-113 name=line-113></a><span class=sd>        Creates a new task that will execute the provided Python function.</span>
 <a id=line-114 name=line-114></a>
 <a id=line-115 name=line-115></a><span class=sd>        :param args: Positional arguments that will be passed to the Python function.</span>
@@ -324,7 +324,7 @@
 <a id=line-155 name=line-155></a>
 <a id=line-156 name=line-156></a><span class=nd>@dataclasses</span><span class=o>.</span><span class=n>dataclass</span>
 <a id=line-157 name=line-157></a><span class=k>class</span> <span class=nc>SubmittedJob</span><span class=p>:</span>
-<a id=line-158 name=line-158></a>    <span class=sd>&quot;&quot;&quot;</span>
+<a id=line-158 name=line-158></a><span class=w>    </span><span class=sd>&quot;&quot;&quot;</span>
 <a id=line-159 name=line-159></a><span class=sd>    Successfully submitted job.</span>
 <a id=line-160 name=line-160></a><span class=sd>    &quot;&quot;&quot;</span>
 <a id=line-161 name=line-161></a>
@@ -337,4 +337,4 @@
 <a id=line-168 name=line-168></a>    <span class=k>if</span> <span class=n>env</span><span class=p>:</span>
 <a id=line-169 name=line-169></a>        <span class=n>environment</span><span class=o>.</span><span class=n>update</span><span class=p>(</span><span class=n>env</span><span class=p>)</span>
 <a id=line-170 name=line-170></a>    <span class=k>return</span> <span class=n>environment</span>
-</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2022-12-17 11:26 </p></div></div></body></html>
+</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2023-01-02 10:39 </p></div></div></body></html>
