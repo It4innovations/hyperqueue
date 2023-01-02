@@ -1,26 +1,29 @@
+import io
 import logging
-
+import os
 from pathlib import Path
-from bokeh.embed import file_html
+
+import matplotlib.pyplot as plt
 from bokeh.application import Application
 from bokeh.application.handlers import FunctionHandler
-from bokeh.server.server import Server
+from bokeh.embed import file_html
 from bokeh.resources import CDN
+from bokeh.server.server import Server
 from tornado import ioloop, web
 from tornado.ioloop import IOLoop
-import seaborn as sns
-from .monitor import create_page
-from .overview import pregenerate_entries, create_summary_page, create_comparer_page, render, summary_by_benchmark, \
-    two_level_summary
+
 from ..benchmark.database import Database
+from .common import create_database_df, groupby_environment, groupby_workload
+from .monitor import create_page
+from .overview import (
+    create_comparer_page,
+    create_summary_page,
+    pregenerate_entries,
+    render,
+    summary_by_benchmark,
+    two_level_summary,
+)
 from .report import ClusterReport
-from .common import create_database_df, groupby_workload, groupby_environment
-import os
-import matplotlib.pyplot as plt
-from PIL import Image
-import numpy as np
-import io
-import json
 
 
 def serve_cluster_report(report: ClusterReport, port: int):
@@ -68,14 +71,25 @@ def serve_summary_html(database: Database, directory: Path, port: int):
         def get(self, key: str):
             df = create_database_df(database)
             key = key.split("(")[1].split(")")[0]
-            df = df[df['workload-params'] == key]
-            max_index = df['index'].max()
-            samples = [df[df['index'] == i] for i in range(max_index + 1)]
-            tables = [i['duration'].describe().to_frame() for i in samples]
+            df = df[df["workload-params"] == key]
+            max_index = df["index"].max()
+            samples = [df[df["index"] == i] for i in range(max_index + 1)]
+            tables = [i["duration"].describe().to_frame() for i in samples]
             compare1 = tables[0] > tables[1]
             compare0 = tables[1] > tables[0]
-            color_0 = lambda x: ["background-color:red" if i[1][0] else "" for i in compare0.iterrows()]
-            color_1 = lambda x: ["background-color:red" if i[1][0] else "" for i in compare1.iterrows()]
+
+            def color_0(x):
+                return [
+                    "background-color:red" if i[1][0] else ""
+                    for i in compare0.iterrows()
+                ]
+
+            def color_1(x):
+                return [
+                    "background-color:red" if i[1][0] else ""
+                    for i in compare1.iterrows()
+                ]
+
             # tables[1].style.apply_index(color_b)
             output = ""
             tables[0].style.set_uuid("table0")
@@ -83,14 +97,16 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             output += tables[0].style.apply(color_0).set_uuid("table0").to_html()
             output += tables[1].style.apply(color_1).set_uuid("table1").to_html()
 
-            plt.scatter(df['index'], df["duration"], s=10)
+            plt.scatter(df["index"], df["duration"], s=10)
             plt.xticks(list(range(max_index + 1)))
             plt.ylabel("Duration [ms]")
 
             plt.savefig(img, format="png")
             plt.clf()
 
-            with open(os.path.join(os.path.dirname(__file__), "templates/compare_table.html")) as fp:
+            with open(
+                os.path.join(os.path.dirname(__file__), "templates/compare_table.html")
+            ) as fp:
                 file = fp.read()
 
                 self.write(render(file, tables=output))
@@ -102,15 +118,25 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             self.set_header("Content-type", "image/png")
 
     class OverViewHandler(web.RequestHandler):
-        KEY_GROUPS = ["Grouped by workload:", "Grouped by environment:", "Grouped by benchmark:"]
+        KEY_GROUPS = [
+            "Grouped by workload:",
+            "Grouped by environment:",
+            "Grouped by benchmark:",
+        ]
 
         def summary_reader_buffer(self):
             df = create_database_df(database)
             print("Grouped by workload:", file=self.summary_txt)
-            two_level_summary(df, groupby_workload, groupby_environment, self.summary_txt)
+            two_level_summary(
+                df, groupby_workload, groupby_environment, self.summary_txt
+            )
             print("Grouped by environment:", file=self.summary_txt)
             two_level_summary(
-                df, groupby_environment, groupby_workload, self.summary_txt, print_total=True
+                df,
+                groupby_environment,
+                groupby_workload,
+                self.summary_txt,
+                print_total=True,
             )
             print("Grouped by benchmark:", file=self.summary_txt)
             summary_by_benchmark(df, self.summary_txt)
@@ -137,7 +163,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
 
                     entries.append(line_parsed[0]) if line_parsed[0] != "" else None
                     i += 1
-                    if line == '':
+                    if line == "":
                         if len(entries) > 0 and key != "":
                             output[key] = entries
                         break
@@ -149,18 +175,24 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             self.summary_reader_buffer()
             data = self.summary_reader()
             df = create_database_df(database)
-            grouped = df.groupby(["workload", "workload-params", "env", "env-params", "index"])[
-                "duration"
-            ]
+            grouped = df.groupby(
+                ["workload", "workload-params", "env", "env-params", "index"]
+            )["duration"]
             pairs = []
             for pair in list(grouped):
-                pairs.append([pair[0], pair[1].describe().dropna().to_frame().T.to_html()])
+                pairs.append(
+                    [pair[0], pair[1].describe().dropna().to_frame().T.to_html()]
+                )
             data["Grouped by benchmark:"] = pairs
             for i in range(len(data["Grouped by benchmark:"])):
-                formated_str = "-".join([str(z) for z in data["Grouped by benchmark:"][i][0]])
+                formated_str = "-".join(
+                    [str(z) for z in data["Grouped by benchmark:"][i][0]]
+                )
                 formated_str = formated_str.replace(",", "_")
                 data["Grouped by benchmark:"][i][0] = formated_str
-            with open(os.path.join(os.path.dirname(__file__), "templates/summary.html")) as fp:
+            with open(
+                os.path.join(os.path.dirname(__file__), "templates/summary.html")
+            ) as fp:
                 file = fp.read()
                 self.write(render(file, data=data, keys=list(data.keys())[:2]))
             # self.write(data)
@@ -172,7 +204,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             (r"/compare/(.*)", CompareOverview),
             (r"/img", ImgHandler),
             (r"/", SummaryHandler),
-            (r"/overview", OverViewHandler)
+            (r"/overview", OverViewHandler),
         ]
     )
 
