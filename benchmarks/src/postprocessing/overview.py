@@ -1,30 +1,20 @@
 import logging
-
-from dataclasses import dataclass
 import os
 from dataclasses import dataclass
 from glob import glob
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
-from glob import glob
 
-import os
 import humanize
 import numpy as np
 import pandas as pd
 import tqdm
 from bokeh.io import save
-from bokeh.models import (
-    Div,
-    Panel,
-    Tabs,
-    Button,
-    MultiChoice,
-)
+from bokeh.layouts import column, row
+from bokeh.models import Button, Div, MultiChoice, Panel, Tabs
 from bokeh.plotting import figure
 from bokeh.resources import CDN
-from bokeh.layouts import column, row
 from jinja2 import Template
 
 from ..benchmark.database import Database, DatabaseRecord
@@ -39,13 +29,13 @@ from .common import (
     pd_print_all,
 )
 from .monitor import (
-    generate_cluster_report,
-    render_profiling_data,
     create_global_resources_df,
+    create_per_process_resources_df,
+    generate_cluster_report,
     render_global_resource_usage,
     render_nodes_resource_usage,
-    create_per_process_resources_df,
     render_process_resource_usage,
+    render_profiling_data,
 )
 from .report import ClusterReport
 
@@ -87,35 +77,7 @@ def render_benchmark(entry: BenchmarkEntry):
     return render(template, benchmark=entry, node_utilization=node_utilization)
 
 
-def render_hq_comparison(
-    entries: [BenchmarkEntry],
-):
-    def create_subtabs(child, name):
-        return Tabs(tabs=[Panel(child=child, title=name)])
-
-    reports = [entry.report for entry in entries]
-    widgets = {
-        "Profiling data": [],
-        "Global usage": [],
-        "Node usage": [],
-        "Process usage": [],
-    }
-
-    # Render profiling data
-    for report in reports:
-        name = report.directory.name
-        if report.profiling_data:
-            widgets["Profiling data"].append(
-                create_subtabs(render_profiling_data(report), name)
-            )
-
-    return render(template, benchmark=entry, node_utilization=node_utilization)
-
-
-def render_hq_comparison(
-    entries: [BenchmarkEntry],
-    data: pd.DataFrame,
-):
+def render_hq_comparison(entries: List[BenchmarkEntry]):
     def render_bench_subtab(child, name):
         return Tabs(tabs=[Panel(child=child, title=name)])
 
@@ -329,9 +291,6 @@ def generate_comparison_html(
     entry_map = pregenerate_entries(database, directory)
     ensure_directory(directory.joinpath("comparisons"))
 
-    df = create_database_df(database)
-    data = df.loc[df["key"].isin(benchmarks)]
-
     hq_benchmark_entries = []
     for benchmark in benchmarks:
         entry = entry_map.get(benchmark)
@@ -342,7 +301,7 @@ def generate_comparison_html(
                 print("Only hq comparison is currently supported")
                 return
 
-    comparison = render_hq_comparison(hq_benchmark_entries, data)
+    comparison = render_hq_comparison(hq_benchmark_entries)
     save(
         comparison,
         directory.joinpath("comparisons", "_".join(benchmarks) + ".html"),
@@ -378,9 +337,7 @@ def generate_summary_text(database: Database, file):
 
 
 def create_summary_page(database: Database, directory: Path):
-    with open(
-        os.path.join(os.path.dirname(__file__), "templates/main.html")
-    ) as file:
+    with open(os.path.join(os.path.dirname(__file__), "templates/main.html")) as file:
         template = file.read()
 
     entry_map = pregenerate_entries(database, directory)
@@ -413,14 +370,12 @@ def create_comparer_page(database: Database, directory: Path, addr: str):
     def callback():
         name = "_".join(bench_choice.value) + ".html"
         if comparisons.get(name) is None:
-            data = df.loc[df["key"].isin(bench_choice.value)]
-
             entries = []
             for bench in bench_choice.value:
                 if entry_map.get(bench) is not None:
                     entries.append(entry_map[bench])
 
-            page = render_hq_comparison(entries, data)
+            page = render_hq_comparison(entries)
             location = Path("comparisons").joinpath(name)
             save(page, directory.joinpath(location), CDN, "Comparison")
 
