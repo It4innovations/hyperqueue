@@ -1,3 +1,4 @@
+use anyhow::Context;
 use std::fs::File;
 use std::path::Path;
 
@@ -52,11 +53,13 @@ fn parse_args(input: &str) -> anyhow::Result<Vec<String>> {
     consume_all(separated_list0(space1, p_arg), input)
 }
 
-pub struct Shebang(String);
+pub struct Shebang(Vec<String>);
 
-impl From<Shebang> for String {
-    fn from(arg: Shebang) -> Self {
-        arg.0
+impl Shebang {
+    pub fn modify_commands(self, commands: Vec<String>) -> Vec<String> {
+        let mut args = self.0;
+        args.extend(commands);
+        args
     }
 }
 
@@ -78,9 +81,9 @@ fn extract_metadata(data: &BStr) -> crate::Result<FileMetadata> {
             }
             continue;
         } else if index == 0 && line.starts_with(b"#!") {
-            shebang = Some(Shebang(
-                String::from_utf8_lossy(line[2..].trim()).to_string(),
-            ));
+            let shebang_line = String::from_utf8_lossy(line[2..].trim());
+            let args = parse_args(&shebang_line).context("Cannot parse shebang line")?;
+            shebang = Some(Shebang(args));
         }
 
         match line.first() {
@@ -186,7 +189,23 @@ sleep 1
             metadata.directives,
             vec![BString::from("--abc --xyz"), BString::from("next arg")]
         );
-        assert_eq!(metadata.shebang.unwrap().0, "/bin/bash".to_string());
+        assert_eq!(metadata.shebang.unwrap().0, vec!["/bin/bash".to_string()]);
+    }
+
+    #[test]
+    fn test_parse_directives_shebang_with_args() {
+        let data = BString::from(
+            b"#!/bin/bash -l \"a b\"
+# Comment
+#HQ --abc --xyz
+"
+            .as_ref(),
+        );
+        let metadata = extract_metadata(data.as_bstr()).unwrap();
+        assert_eq!(
+            metadata.shebang.unwrap().0,
+            vec!["/bin/bash".to_string(), "-l".to_string(), "a b".to_string()]
+        );
     }
 
     #[test]

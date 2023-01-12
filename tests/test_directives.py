@@ -158,3 +158,18 @@ def test_hq_directives_overwrite_from_cli(hq_env: HqEnv):
     hq_env.command(["submit", "--priority", "8", "--directives", "file", "test.sh"])
     table = hq_env.command(["job", "info", "2"], as_table=True)
     assert table.get_row_value("Priority") == "8"
+
+
+def test_hq_directives_shebang_with_args(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    write_file(
+        "test.sh",
+        """#!/bin/bash -l
+echo "hello"
+""",
+    )
+
+    hq_env.command(["submit", "--directives", "file", "test.sh"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
