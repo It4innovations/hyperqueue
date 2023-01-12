@@ -44,21 +44,22 @@ pub async fn initialize_worker(
     std::fs::create_dir_all(&configuration.work_dir)?;
     std::fs::create_dir_all(&configuration.log_dir)?;
 
-    let server_addr = lookup_host(&server_address)
-        .await?
-        .next()
-        .expect("Invalid server address");
+    let server_addresses = lookup_host(&server_address)
+        .await
+        .context(format!("Cannot resolve server address `{server_address}`"))?
+        .collect::<Vec<_>>();
+    log::debug!("Resolved server to addresses {server_addresses:?}");
 
     log::debug!("Starting streamer ...");
     let (streamer_ref, streamer_future) = StreamerRef::start(
         Duration::from_secs(10),
-        server_addr,
+        &server_addresses,
         record.tako_secret_key().clone(),
     );
 
     log::debug!("Starting Tako worker ...");
     let ((worker_id, configuration), worker_future) = run_worker(
-        server_addr,
+        &server_addresses,
         configuration,
         Some(record.tako_secret_key().clone()),
         Box::new(HqTaskLauncher::new(record.server_uid(), streamer_ref)),
