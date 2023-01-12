@@ -1,3 +1,10 @@
+# Dev
+## Fixes
+
+### Worker
+* [#539](https://github.com/It4innovations/hyperqueue/issues/539) Fix connection of worker to server
+in the presence of both IPv4 and IPv6 addresses.
+
 # v0.13.0
 
 ## New features

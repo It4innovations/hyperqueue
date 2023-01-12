@@ -38,7 +38,7 @@ struct StreamInfo {
 
 pub struct Streamer {
     streams: Map<JobId, StreamInfo>,
-    server_address: SocketAddr,
+    server_addresses: Vec<SocketAddr>,
     secret_key: Arc<SecretKey>,
 }
 
@@ -126,9 +126,12 @@ impl Streamer {
             );
             let streamer_ref = streamer_ref.clone();
             spawn_local(async move {
-                let (server_address, secret_key) = {
+                let (server_addresses, secret_key) = {
                     let streamer = streamer_ref.get();
-                    (streamer.server_address, streamer.secret_key.clone())
+                    (
+                        streamer.server_addresses.clone(),
+                        streamer.secret_key.clone(),
+                    )
                 };
                 let ConnectionDescriptor {
                     mut sender,
@@ -136,7 +139,7 @@ impl Streamer {
                     opener,
                     mut sealer,
                     ..
-                } = match connect_to_server_and_authenticate(server_address, &Some(secret_key))
+                } = match connect_to_server_and_authenticate(&server_addresses, &Some(secret_key))
                     .await
                 {
                     Ok(connection) => connection,
@@ -208,13 +211,13 @@ define_wrapped_type!(StreamerRef, Streamer, pub);
 impl StreamerRef {
     pub fn start(
         stream_clean_interval: Duration,
-        server_address: SocketAddr,
+        server_addresses: &[SocketAddr],
         secret_key: Arc<SecretKey>,
     ) -> (StreamerRef, impl Future<Output = ()>) {
         let streamer_ref = WrappedRcRefCell::wrap(Streamer {
             streams: Default::default(),
             secret_key,
-            server_address,
+            server_addresses: server_addresses.to_vec(),
         });
 
         let streamer_ref2 = streamer_ref.clone();

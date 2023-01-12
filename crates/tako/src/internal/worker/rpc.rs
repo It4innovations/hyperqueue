@@ -50,18 +50,22 @@ async fn start_listener() -> crate::Result<(TcpListener, u16)> {
     Ok((listener, port))
 }
 
-async fn connect_to_server(address: SocketAddr) -> crate::Result<(TcpStream, SocketAddr)> {
-    log::info!("Connecting to server {}", address);
+async fn connect_to_server(addresses: &[SocketAddr]) -> crate::Result<(TcpStream, SocketAddr)> {
+    log::info!(
+        "Connecting to server (candidate addresses = {:?})",
+        addresses
+    );
 
     let max_attempts = 20;
     for _ in 0..max_attempts {
-        match TcpStream::connect(address).await {
+        match TcpStream::connect(addresses).await {
             Ok(stream) => {
-                log::debug!("Connected to server");
+                let address = stream.peer_addr()?;
+                log::debug!("Connected to server at {address:?}");
                 return Ok((stream, address));
             }
             Err(e) => {
-                log::error!("Could not connect to {}, error: {}", address, e);
+                log::error!("Could not connect to server, error: {}", e);
                 sleep(Duration::from_secs(2)).await;
             }
         }
@@ -72,10 +76,10 @@ async fn connect_to_server(address: SocketAddr) -> crate::Result<(TcpStream, Soc
 }
 
 pub async fn connect_to_server_and_authenticate(
-    server_address: SocketAddr,
+    server_addresses: &[SocketAddr],
     secret_key: &Option<Arc<SecretKey>>,
 ) -> crate::Result<ConnectionDescriptor> {
-    let (stream, address) = connect_to_server(server_address).await?;
+    let (stream, address) = connect_to_server(server_addresses).await?;
     let (mut writer, mut reader) = make_protocol_builder().new_framed(stream).split();
     let (sealer, opener) = do_authentication(
         0,
@@ -96,7 +100,7 @@ pub async fn connect_to_server_and_authenticate(
 }
 
 pub async fn run_worker(
-    scheduler_address: SocketAddr,
+    scheduler_addresses: &[SocketAddr],
     mut configuration: WorkerConfiguration,
     secret_key: Option<Arc<SecretKey>>,
     launcher_setup: Box<dyn TaskLauncher>,
@@ -112,7 +116,7 @@ pub async fn run_worker(
         mut opener,
         mut sealer,
         ..
-    } = connect_to_server_and_authenticate(scheduler_address, &secret_key).await?;
+    } = connect_to_server_and_authenticate(scheduler_addresses, &secret_key).await?;
     {
         let message = ConnectionRegistration::Worker(RegisterWorker {
             configuration: configuration.clone(),
