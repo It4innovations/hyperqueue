@@ -453,7 +453,7 @@ fn handle_directives(
     } {
         if let Some(shebang) = shebang {
             if !stdin_present {
-                opts.commands.insert(0, shebang.into());
+                opts.commands = shebang.modify_commands(opts.commands);
             }
         }
         conf.overwrite(parsed_opts)

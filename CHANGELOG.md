@@ -5,6 +5,10 @@
 * [#539](https://github.com/It4innovations/hyperqueue/issues/539) Fix connection of worker to server
 in the presence of both IPv4 and IPv6 addresses.
 
+### Job submission
+* [#540](https://github.com/It4innovations/hyperqueue/issues/540) Parse all arguments from shebang
+in a directives file (e.g. `#!/bin/bash -l`).
+
 # v0.13.0
 
 ## New features
