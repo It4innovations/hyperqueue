@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
@@ -79,7 +80,9 @@ pub async fn client_rpc_loop<
     state_ref: StateRef,
     tako_ref: Backend,
     end_flag: Arc<Notify>,
-) {
+) where
+    Tx::Error: Debug,
+{
     while let Some(message_result) = rx.next().await {
         match message_result {
             Ok(message) => {
@@ -125,7 +128,10 @@ pub async fn client_rpc_loop<
                         ToClientMessage::MonitoringEventsResponse(events)
                     }
                 };
-                assert!(tx.send(response).await.is_ok());
+                if let Err(error) = tx.send(response).await {
+                    log::error!("Cannot reply to client: {error:?}");
+                    break;
+                }
             }
             Err(e) => {
                 log::error!("Cannot parse client message: {}", e);
