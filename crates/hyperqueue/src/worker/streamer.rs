@@ -8,10 +8,8 @@ use futures::stream::SplitStream;
 use futures::{SinkExt, StreamExt};
 use orion::aead::streaming::StreamOpener;
 use orion::aead::SecretKey;
-use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
 use tako::comm::connect_to_server_and_authenticate;
 use tako::comm::ConnectionRegistration;
 use tako::comm::{open_message, seal_message, serialize};
@@ -31,20 +29,45 @@ const STREAMER_BUFFER_SIZE: usize = 128;
     Tasks in the same job uses the same connection.
 */
 
-struct StreamInfo {
-    sender: Sender<FromStreamerMessage>,
+pub struct StreamInfo {
+    job_id: JobId,
+    sender: Option<Sender<FromStreamerMessage>>,
     responses: Map<JobTaskId, oneshot::Sender<tako::Result<()>>>,
 }
 
+type StreamInfoRef = WrappedRcRefCell<StreamInfo>;
+
 pub struct Streamer {
-    streams: Map<JobId, StreamInfo>,
+    streams: Map<JobId, StreamInfoRef>,
     server_addresses: Vec<SocketAddr>,
     secret_key: Arc<SecretKey>,
 }
 
+impl StreamInfo {
+    /*
+        Sends an error message to each task stream that uses the same connection
+    */
+    pub fn send_error(&mut self, error: String) {
+        log::debug!("Broadcasting stream error: {}", error);
+        for (_, response_sender) in std::mem::take(&mut self.responses) {
+            let _ = response_sender.send(Err(error.as_str().into()));
+        }
+    }
+
+    /*
+        Closes a task stream, if it is the last stream that uses a connection
+        If streamer has no usafe, return true
+    */
+    pub fn close_task_stream(&mut self, task_id: JobTaskId) -> bool {
+        log::debug!("Closing task stream task_id={}", task_id);
+        let _ = self.responses.remove(&task_id).unwrap().send(Ok(()));
+        self.responses.is_empty()
+    }
+}
+
 async fn stream_receiver(
     streamer_ref: StreamerRef,
-    job_id: JobId,
+    streaminfo_ref: StreamInfoRef,
     mut receiver: SplitStream<Framed<tokio::net::TcpStream, LengthDelimitedCodec>>,
     mut opener: Option<StreamOpener>,
 ) -> crate::Result<()> {
@@ -53,38 +76,23 @@ async fn stream_receiver(
         let msg: ToStreamerMessage = open_message(&mut opener, &message)?;
         match msg {
             ToStreamerMessage::EndResponse(r) => {
-                let mut streamer = streamer_ref.get_mut();
-                streamer.close_task_stream(job_id, r.task);
+                let is_finished = streaminfo_ref.get_mut().close_task_stream(r.task);
+                if is_finished {
+                    let mut streamer = streamer_ref.get_mut();
+                    streamer.remove(&streaminfo_ref);
+                }
             }
             ToStreamerMessage::Error(e) => return Err(e.into()),
         }
     }
+    log::debug!(
+        "Server closed streaming connection for job_id={}",
+        streaminfo_ref.get().job_id
+    );
     Ok(())
 }
 
 impl Streamer {
-    /*
-        Sends an error message to each task stream that uses the same connection
-    */
-    pub fn send_error(&mut self, job_id: JobId, error: String) {
-        let info = self.streams.remove(&job_id).unwrap();
-        for (_, response_sender) in info.responses {
-            let _ = response_sender.send(Err(error.as_str().into()));
-        }
-    }
-
-    /*
-        Closes a task stream, if it is the last stream that uses a connection,
-        then the connection is closed
-    */
-    pub fn close_task_stream(&mut self, job_id: JobId, task_id: JobTaskId) {
-        let info = self.streams.get_mut(&job_id).unwrap();
-        let _ = info.responses.remove(&task_id).unwrap().send(Ok(()));
-        if info.responses.is_empty() {
-            self.streams.remove(&job_id);
-        }
-    }
-
     /* Get tasm stream input end, if a connection to a stream server is not established,
       the new one is created
 
@@ -103,6 +111,7 @@ impl Streamer {
     ) -> StreamSender {
         log::debug!("New stream for {}/{}", job_id, job_task_id);
         if let Some(ref mut info) = self.streams.get_mut(&job_id) {
+            let mut info = info.get_mut();
             assert!(info
                 .responses
                 .insert(job_task_id, response_sender)
@@ -110,20 +119,19 @@ impl Streamer {
             StreamSender {
                 task_id: job_task_id,
                 instance_id,
-                sender: info.sender.clone(),
+                sender: info.sender.as_ref().unwrap().clone(),
             }
         } else {
             log::debug!("Starting a new stream connection for job_id = {}", job_id);
             let (queue_sender, mut queue_receiver) = channel(STREAMER_BUFFER_SIZE);
             let mut responses = Map::new();
             responses.insert(job_task_id, response_sender);
-            self.streams.insert(
+            let streaminfo_ref = WrappedRcRefCell::wrap(StreamInfo {
                 job_id,
-                StreamInfo {
-                    sender: queue_sender.clone(),
-                    responses,
-                },
-            );
+                sender: Some(queue_sender.clone()),
+                responses,
+            });
+            self.streams.insert(job_id, streaminfo_ref.clone());
             let streamer_ref = streamer_ref.clone();
             spawn_local(async move {
                 let (server_addresses, secret_key) = {
@@ -144,7 +152,9 @@ impl Streamer {
                 {
                     Ok(connection) => connection,
                     Err(e) => {
-                        streamer_ref.get_mut().send_error(job_id, e.to_string());
+                        streamer_ref
+                            .get_mut()
+                            .send_error(&streaminfo_ref, e.to_string());
                         return;
                     }
                 };
@@ -156,7 +166,9 @@ impl Streamer {
                     ))
                     .await
                 {
-                    streamer_ref.get_mut().send_error(job_id, e.to_string());
+                    streamer_ref
+                        .get_mut()
+                        .send_error(&streaminfo_ref, e.to_string());
                     return;
                 }
 
@@ -169,7 +181,9 @@ impl Streamer {
                     ))
                     .await
                 {
-                    streamer_ref.get_mut().send_error(job_id, e.to_string());
+                    streamer_ref
+                        .get_mut()
+                        .send_error(&streaminfo_ref, e.to_string());
                     return;
                 }
 
@@ -183,18 +197,21 @@ impl Streamer {
                             return Err(e.into());
                         }
                     }
+                    log::debug!("Stream send loop terminated for job {}", job_id);
                     Ok(())
                 };
 
                 let r = tokio::select! {
                     r = send_loop => r,
-                    r = stream_receiver(streamer_ref.clone(), job_id, receiver, opener) => r,
+                    r = stream_receiver(streamer_ref.clone(), streaminfo_ref.clone(), receiver, opener) => r,
                 };
                 log::debug!("Stream for job {} terminated {:?}", job_id, r);
                 if let Err(e) = r {
-                    streamer_ref.get_mut().send_error(job_id, e.to_string())
+                    streamer_ref
+                        .get_mut()
+                        .send_error(&streaminfo_ref, e.to_string())
                 } else {
-                    streamer_ref.get_mut().streams.remove(&job_id);
+                    streamer_ref.get_mut().remove(&streaminfo_ref);
                 }
             });
             StreamSender {
@@ -204,34 +221,40 @@ impl Streamer {
             }
         }
     }
+
+    pub fn send_error(&mut self, streaminfo_ref: &StreamInfoRef, message: String) {
+        streaminfo_ref.get_mut().send_error(message);
+        self.remove(streaminfo_ref);
+    }
+
+    pub fn remove(&mut self, streaminfo_ref: &StreamInfoRef) {
+        let job_id = streaminfo_ref.get().job_id;
+        streaminfo_ref.get_mut().sender = None;
+        log::debug!("Removing stream {}", job_id);
+        if self
+            .streams
+            .get(&job_id)
+            .map(|x| x == streaminfo_ref)
+            .unwrap_or(false)
+        {
+            self.streams.remove(&job_id);
+        } else {
+            log::debug!("Stream already replaced");
+        }
+    }
 }
 
 define_wrapped_type!(StreamerRef, Streamer, pub);
 
 impl StreamerRef {
-    pub fn start(
-        stream_clean_interval: Duration,
-        server_addresses: &[SocketAddr],
-        secret_key: Arc<SecretKey>,
-    ) -> (StreamerRef, impl Future<Output = ()>) {
+    pub fn start(server_addresses: &[SocketAddr], secret_key: Arc<SecretKey>) -> StreamerRef {
         let streamer_ref = WrappedRcRefCell::wrap(Streamer {
             streams: Default::default(),
             secret_key,
             server_addresses: server_addresses.to_vec(),
         });
 
-        let streamer_ref2 = streamer_ref.clone();
-        let streamer_future = async move {
-            let mut it = tokio::time::interval(stream_clean_interval);
-            loop {
-                it.tick().await;
-                let mut streamer = streamer_ref2.get_mut();
-                streamer
-                    .streams
-                    .retain(|_, info| !info.responses.is_empty());
-            }
-        };
-        (Self(streamer_ref), streamer_future)
+        Self(streamer_ref)
     }
 }
 
