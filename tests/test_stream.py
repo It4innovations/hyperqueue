@@ -72,6 +72,7 @@ def test_stream_submit(hq_env: HqEnv):
 
     print(result)
 
+    time.sleep(1)
     check_no_stream_connections(hq_env)
 
 

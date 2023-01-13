@@ -1,7 +1,6 @@
 use std::future::Future;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::{anyhow, Context};
 use tako::Error as DsError;
@@ -51,11 +50,7 @@ pub async fn initialize_worker(
     log::debug!("Resolved server to addresses {server_addresses:?}");
 
     log::debug!("Starting streamer ...");
-    let (streamer_ref, streamer_future) = StreamerRef::start(
-        Duration::from_secs(10),
-        &server_addresses,
-        record.tako_secret_key().clone(),
-    );
+    let streamer_ref = StreamerRef::start(&server_addresses, record.tako_secret_key().clone());
 
     log::debug!("Starting Tako worker ...");
     let ((worker_id, configuration), worker_future) = run_worker(
@@ -79,7 +74,6 @@ pub async fn initialize_worker(
             .run_until(async move {
                 tokio::select! {
                     res = worker_future => res,
-                    () = streamer_future => { Ok(()) },
                     () = stop_flag.notified() => { Ok(()) }
                 }
             })
