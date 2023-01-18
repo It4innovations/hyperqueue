@@ -289,6 +289,8 @@ pub enum JobCommand {
     /// Display information about jobs.
     /// By default, only queued or running jobs will be displayed.
     List(JobListOpts),
+    /// Display a summary with the amount of jobs per each job state.
+    Summary,
     /// Display detailed information of the selected job
     Info(JobInfoOpts),
     /// Cancel a specific job

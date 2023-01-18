@@ -4,7 +4,7 @@ use serde::Serialize;
 use crate::server::job::JobTaskState;
 use crate::transfer::messages::JobInfo;
 
-#[derive(clap::ValueEnum, Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(clap::ValueEnum, Clone, Copy, Serialize, Deserialize, Debug, Eq, PartialEq, Hash)]
 pub enum Status {
     Waiting,
     Running,

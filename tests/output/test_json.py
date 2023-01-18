@@ -196,6 +196,20 @@ def test_print_hw(hq_env: HqEnv):
     hq_env.start_server()
     output = parse_json_output(hq_env, ["--output-mode=json", "worker", "hwdetect"])
 
-    print(output)
     schema = Schema({"resources": RESOURCE_DESCRIPTOR_SCHEMA})
+    schema.validate(output)
+
+
+def test_print_job_summary(hq_env: HqEnv):
+    hq_env.start_server()
+    output = parse_json_output(hq_env, ["--output-mode=json", "job", "summary"])
+    schema = Schema(
+        {
+            "Canceled": 0,
+            "Failed": 0,
+            "Finished": 0,
+            "Running": 0,
+            "Waiting": 0,
+        }
+    )
     schema.validate(output)

@@ -31,7 +31,9 @@ use std::time::SystemTime;
 use tako::program::StdioDef;
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 
-use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
+use crate::client::output::common::{
+    group_jobs_by_status, resolve_task_paths, TaskToPathsMap, JOB_SUMMARY_STATUS_ORDER,
+};
 use crate::client::output::json::format_datetime;
 use crate::client::output::Verbosity;
 use crate::common::utils::str::{pluralize, select_plural, truncate_middle};
@@ -411,7 +413,7 @@ impl Output for CliOutput {
         let rows: Vec<_> = jobs
             .into_iter()
             .map(|t| {
-                let status = task_status_to_cell(job_status(&t));
+                let status = status_to_cell(&job_status(&t));
                 vec![
                     t.id.cell().justify(Justify::Right),
                     truncate_middle(&t.name, 50).cell(),
@@ -438,6 +440,22 @@ impl Output for CliOutput {
         }
     }
 
+    fn print_job_summary(&self, jobs: Vec<JobInfo>) {
+        let statuses = group_jobs_by_status(&jobs);
+
+        let rows: Vec<_> = JOB_SUMMARY_STATUS_ORDER
+            .iter()
+            .map(|status| {
+                let count = statuses.get(status).copied().unwrap_or_default();
+                vec![status_to_cell(status), count.cell().justify(Justify::Right)]
+            })
+            .collect();
+
+        let header = vec!["Status".cell().bold(true), "Count".cell().bold(true)];
+
+        self.print_horizontal_table(rows, header);
+    }
+
     fn print_job_detail(&self, job: JobDetail, worker_map: WorkerMap, _server_uid: &str) {
         let JobDetail {
             info,
@@ -456,7 +474,7 @@ impl Output for CliOutput {
         ];
 
         let status = if info.n_tasks == 1 {
-            task_status_to_cell(job_status(&info))
+            status_to_cell(&job_status(&info))
         } else {
             job_status_to_cell(&info).cell()
         };
@@ -583,7 +601,7 @@ impl Output for CliOutput {
 
                         job_rows.append(&mut vec![
                             task.task_id.cell().justify(Justify::Right),
-                            task_status_to_cell(get_task_status(&task.state)),
+                            status_to_cell(&get_task_status(&task.state)),
                             match task.state.get_workers() {
                                 Some(workers) => format_workers(workers, &worker_map),
                                 _ => "".into(),
@@ -672,7 +690,7 @@ impl Output for CliOutput {
                 vec!["Task ID".cell().bold(true), task_id.cell()],
                 vec![
                     "State".cell().bold(true),
-                    task_status_to_cell(get_task_status(&task.state)),
+                    status_to_cell(&get_task_status(&task.state)),
                 ],
                 vec![
                     "Worker".cell().bold(true),
@@ -1073,7 +1091,7 @@ pub fn print_job_output(
     Ok(())
 }
 
-fn task_status_to_cell(status: Status) -> CellStruct {
+fn status_to_cell(status: &Status) -> CellStruct {
     match status {
         Status::Waiting => "WAITING".cell().foreground_color(Some(Color::Cyan)),
         Status::Finished => "FINISHED".cell().foreground_color(Some(Color::Green)),

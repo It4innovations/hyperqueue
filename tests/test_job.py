@@ -318,6 +318,39 @@ def test_job_list_hidden_jobs(hq_env: HqEnv):
     assert "There are 2 jobs in total." in output
 
 
+def test_job_summary(hq_env: HqEnv):
+    hq_env.start_server()
+
+    def check(running=0, waiting=0, finished=0, failed=0, canceled=0):
+        table = hq_env.command(["job", "summary"], as_table=True)
+
+        items = (
+            ("RUNNING", running),
+            ("WAITING", waiting),
+            ("FINISHED", finished),
+            ("FAILED", failed),
+            ("CANCELED", canceled),
+        )
+        for (index, (status, count)) in enumerate(items):
+            table.check_column_value("Status", index, status)
+            table.check_column_value("Count", index, str(count))
+
+    check()
+
+    hq_env.command(["submit", "ls"])
+    wait_for_job_state(hq_env, 1, "WAITING")
+    check(waiting=1)
+
+    hq_env.start_worker()
+
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    check(finished=1)
+
+    hq_env.command(["submit", "non-existent"])
+    wait_for_job_state(hq_env, 2, "FAILED")
+    check(finished=1, failed=1)
+
+
 def test_job_fail(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus=1)
