@@ -8,7 +8,9 @@ use tako::resources::ResourceDescriptor;
 
 use crate::client::job::WorkerMap;
 use crate::client::output::cli::print_job_output;
-use crate::client::output::common::{TaskToPathsMap, Verbosity};
+use crate::client::output::common::{
+    group_jobs_by_status, TaskToPathsMap, Verbosity, JOB_SUMMARY_STATUS_ORDER,
+};
 use crate::client::output::outputs::{Output, OutputStream};
 use crate::client::status::{job_status, Status};
 use crate::common::serverdir::AccessRecord;
@@ -70,6 +72,21 @@ impl Output for Quiet {
         for task in jobs {
             let status = job_status(&task);
             println!("{} {}", task.id, format_status(&status))
+        }
+    }
+    fn print_job_summary(&self, jobs: Vec<JobInfo>) {
+        let statuses = group_jobs_by_status(&jobs);
+        for status in &JOB_SUMMARY_STATUS_ORDER {
+            let count = statuses.get(status).copied().unwrap_or_default();
+            let status = match status {
+                Status::Waiting => "WAITING",
+                Status::Running => "RUNNING",
+                Status::Finished => "FINISHED",
+                Status::Failed => "FAILED",
+                Status::Canceled => "CANCELED",
+            };
+
+            println!("{status} {count}");
         }
     }
     fn print_job_detail(&self, _job: JobDetail, _worker_map: WorkerMap, _server_uid: &str) {}

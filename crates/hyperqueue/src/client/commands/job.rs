@@ -104,6 +104,20 @@ pub async fn output_job_list(
     Ok(())
 }
 
+pub async fn output_job_summary(
+    gsettings: &GlobalSettings,
+    session: &mut ClientSession,
+) -> anyhow::Result<()> {
+    let message = FromClientMessage::JobInfo(JobInfoRequest {
+        selector: IdSelector::All,
+    });
+    let response =
+        rpc_call!(session.connection(), message, ToClientMessage::JobInfoResponse(r) => r).await?;
+
+    gsettings.printer().print_job_summary(response.jobs);
+    Ok(())
+}
+
 pub async fn output_job_detail(
     gsettings: &GlobalSettings,
     session: &mut ClientSession,

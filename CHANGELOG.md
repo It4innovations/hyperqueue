@@ -1,4 +1,10 @@
 # Dev
+## New features
+
+### CLI
+* [#545](https://github.com/It4innovations/hyperqueue/issues/545) Add a new command `hq job summary`,
+which displays the amount of jobs per each job state.
+
 ## Fixes
 
 ### Worker

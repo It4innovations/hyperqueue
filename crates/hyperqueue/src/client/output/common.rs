@@ -1,8 +1,9 @@
+use crate::client::status::{job_status, Status};
 use crate::common::placeholders::{
     fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
 };
 use crate::server::job::JobTaskState;
-use crate::transfer::messages::{JobDescription, JobDetail, TaskDescription};
+use crate::transfer::messages::{JobDescription, JobDetail, JobInfo, TaskDescription};
 use crate::JobTaskId;
 use std::path::PathBuf;
 use tako::program::StdioDef;
@@ -90,4 +91,23 @@ impl From<VerbosityFlag> for Verbosity {
             Verbosity::Normal
         }
     }
+}
+
+pub const JOB_SUMMARY_STATUS_ORDER: [Status; 5] = [
+    Status::Running,
+    Status::Waiting,
+    Status::Finished,
+    Status::Failed,
+    Status::Canceled,
+];
+
+pub fn group_jobs_by_status(jobs: &[JobInfo]) -> Map<Status, u64> {
+    let mut map = Map::new();
+    for status in &JOB_SUMMARY_STATUS_ORDER {
+        map.insert(*status, 0);
+    }
+    for job in jobs {
+        *map.entry(job_status(job)).or_default() += 1;
+    }
+    map
 }

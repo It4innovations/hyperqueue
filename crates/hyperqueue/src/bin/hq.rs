@@ -7,8 +7,8 @@ use cli_table::ColorChoice;
 use hyperqueue::client::commands::autoalloc::command_autoalloc;
 use hyperqueue::client::commands::event::command_event_log;
 use hyperqueue::client::commands::job::{
-    cancel_job, output_job_cat, output_job_detail, output_job_list, JobCancelOpts, JobCatOpts,
-    JobInfoOpts, JobListOpts,
+    cancel_job, output_job_cat, output_job_detail, output_job_list, output_job_summary,
+    JobCancelOpts, JobCatOpts, JobInfoOpts, JobListOpts,
 };
 use hyperqueue::client::commands::log::command_log;
 use hyperqueue::client::commands::server::command_server;
@@ -76,6 +76,12 @@ async fn command_job_list(gsettings: &GlobalSettings, opts: JobListOpts) -> anyh
     };
 
     output_job_list(gsettings, &mut connection, filter).await
+}
+
+async fn command_job_summary(gsettings: &GlobalSettings) -> anyhow::Result<()> {
+    let mut connection = get_client_session(gsettings.server_directory()).await?;
+
+    output_job_summary(gsettings, &mut connection).await
 }
 
 async fn command_job_detail(gsettings: &GlobalSettings, opts: JobInfoOpts) -> anyhow::Result<()> {
@@ -345,6 +351,9 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::List(opts),
         }) => command_job_list(&gsettings, opts).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::Summary,
+        }) => command_job_summary(&gsettings).await,
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Info(opts),
         }) => command_job_detail(&gsettings, opts).await,

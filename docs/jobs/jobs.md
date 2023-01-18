@@ -348,6 +348,11 @@ Here is a list of useful job commands:
     - `failed`
     - `canceled`
 
+### Display a summary table of all jobs
+```commandline
+$ hq job summary
+```
+
 ### Display information about a specific job
 
 ```commandline

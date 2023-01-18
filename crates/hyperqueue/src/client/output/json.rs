@@ -5,15 +5,15 @@ use anyhow::Error;
 use chrono::{DateTime, Utc};
 use serde_json;
 use serde_json::{json, Value};
-use tako::Map;
 
 use tako::gateway::ResourceRequest;
 use tako::program::{ProgramDefinition, StdioDef};
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind};
 use tako::worker::WorkerConfiguration;
+use tako::Map;
 
 use crate::client::job::WorkerMap;
-use crate::client::output::common::{resolve_task_paths, TaskToPathsMap};
+use crate::client::output::common::{group_jobs_by_status, resolve_task_paths, TaskToPathsMap};
 use crate::client::output::outputs::{Output, OutputStream};
 use crate::client::output::Verbosity;
 use crate::common::manager::info::ManagerType;
@@ -73,6 +73,10 @@ impl Output for JsonOutput {
 
     fn print_job_list(&self, jobs: Vec<JobInfo>, _total_jobs: usize) {
         self.print(jobs.into_iter().map(format_job_info).collect());
+    }
+    fn print_job_summary(&self, jobs: Vec<JobInfo>) {
+        let statuses = group_jobs_by_status(&jobs);
+        self.print(json!(statuses))
     }
     fn print_job_detail(&self, job: JobDetail, _worker_map: WorkerMap, server_uid: &str) {
         let task_paths = resolve_task_paths(&job, server_uid);
@@ -450,11 +454,6 @@ fn format_resource_descriptor(descriptor: &ResourceDescriptor) -> Value {
 }
 
 fn format_resource(resource: &ResourceDescriptorItem) -> Value {
-    // "kind": match &resource.kind {
-    //     ResourceDescriptorKind::List { .. } => "list",
-    //     ResourceDescriptorKind::Range { .. } => "range",
-    //     ResourceDescriptorKind::Sum { .. } => "sum",
-    // },
     match &resource.kind {
         ResourceDescriptorKind::List { values } => json!({
             "name": resource.name,
