@@ -2,18 +2,29 @@
 ## New features
 
 ### CLI
+
 * [#545](https://github.com/It4innovations/hyperqueue/issues/545) Add a new command `hq job summary`,
 which displays the amount of jobs per each job state.
+
+## Platforms
+
+* HQ can be now compiled for Raspbery Pi
 
 ## Fixes
 
 ### Worker
+
 * [#539](https://github.com/It4innovations/hyperqueue/issues/539) Fix connection of worker to server
 in the presence of both IPv4 and IPv6 addresses.
 
 ### Job submission
+
 * [#540](https://github.com/It4innovations/hyperqueue/issues/540) Parse all arguments from shebang
 in a directives file (e.g. `#!/bin/bash -l`).
+
+### Streaming
+
+* Fixed a bug in closing streaming when tasks are very short and sychronized.
 
 # v0.13.0
 
