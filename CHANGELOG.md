@@ -1,4 +1,6 @@
-# Dev
+
+# v0.14.0
+
 ## New features
 
 ### CLI
