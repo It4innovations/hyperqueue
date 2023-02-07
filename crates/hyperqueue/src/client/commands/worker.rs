@@ -67,7 +67,11 @@ pub struct SharedWorkerStartOpts {
     #[arg(long, value_parser = passthrough_parser(parse_cpu_definition))]
     pub cpus: Option<PassThroughArgument<ResourceDescriptorKind>>,
 
-    /// Resources
+    /// Resources provided by the worker.
+    ///
+    /// Examples:{n}
+    /// - `--resource gpus=[0,1,2,3]`{n}
+    /// - `--resource "memory=sum(1024)"`
     #[arg(long, action = clap::ArgAction::Append, value_parser = passthrough_parser(parse_resource_definition))]
     pub resource: Vec<PassThroughArgument<ResourceDescriptorItem>>,
 

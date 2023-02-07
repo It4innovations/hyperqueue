@@ -145,7 +145,7 @@ pub struct SubmitJobConfOpts {
     #[arg(long, value_parser = parse_allocation_request)]
     cpus: Option<AllocationRequest>,
 
-    /// Generic resource request in form <NAME>=<AMOUNT>
+    /// Generic resource request in the form <NAME>=<AMOUNT>
     #[arg(long, action = clap::ArgAction::Append, value_parser = parse_resource_request)]
     resource: Vec<(String, AllocationRequest)>,
 
