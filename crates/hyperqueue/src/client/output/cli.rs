@@ -1330,10 +1330,10 @@ fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String 
 #[cfg(test)]
 mod tests {
     use crate::client::output::cli::{resources_full_describe, resources_summary};
+    use crate::tests::resources::{res_kind_groups, res_kind_list, res_kind_sum};
     use tako::resources::{
         ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, MEM_RESOURCE_NAME,
     };
-    use tako::AsIdVec;
 
     #[test]
     fn test_resources_summary() {
@@ -1352,31 +1352,26 @@ mod tests {
         let d = ResourceDescriptor::new(vec![
             ResourceDescriptorItem {
                 name: "cpus".into(),
-                kind: ResourceDescriptorKind::groups(vec![
-                    vec![0, 1, 2, 4].to_ids(),
-                    vec![10, 11, 12, 14].to_ids(),
-                ])
-                .unwrap(),
+                kind: res_kind_groups(&[vec!["0", "1", "2", "4"], vec!["10", "11", "12", "14"]]),
             },
             ResourceDescriptorItem {
                 name: "gpus".into(),
-                kind: ResourceDescriptorKind::list(vec![4.into(), 7.into()]).unwrap(),
+                kind: res_kind_list(&["4", "7"]),
             },
             ResourceDescriptorItem {
                 name: "mmmem".into(),
-                kind: ResourceDescriptorKind::Sum { size: 1234 },
+                kind: res_kind_sum(1234),
             },
             ResourceDescriptorItem {
                 name: "zzz".into(),
-                kind: ResourceDescriptorKind::groups(vec![
-                    vec![0, 1].to_ids(),
-                    vec![10, 11].to_ids(),
-                    vec![20, 21].to_ids(),
-                    vec![30, 31].to_ids(),
-                    vec![40, 41].to_ids(),
-                    vec![50, 51, 52, 53, 54, 55].to_ids(),
-                ])
-                .unwrap(),
+                kind: res_kind_groups(&[
+                    vec!["0", "1"],
+                    vec!["10", "11"],
+                    vec!["20", "21"],
+                    vec!["30", "31"],
+                    vec!["40", "41"],
+                    vec!["50", "51", "52", "53", "54", "55"],
+                ]),
             },
         ]);
         assert_eq!(
@@ -1400,19 +1395,15 @@ mod tests {
         let d = ResourceDescriptor::new(vec![
             ResourceDescriptorItem {
                 name: "cpus".into(),
-                kind: ResourceDescriptorKind::groups(vec![
-                    vec![0, 1, 2, 4].to_ids(),
-                    vec![10, 11, 12, 14].to_ids(),
-                ])
-                .unwrap(),
+                kind: res_kind_groups(&[vec!["0", "1", "2", "4"], vec!["10", "11", "12", "14"]]),
             },
             ResourceDescriptorItem {
                 name: "gpus".into(),
-                kind: ResourceDescriptorKind::list(vec![4.into(), 7.into()]).unwrap(),
+                kind: res_kind_list(&["4", "7"]),
             },
             ResourceDescriptorItem {
                 name: "mem".into(),
-                kind: ResourceDescriptorKind::Sum { size: 1234 },
+                kind: res_kind_sum(1234),
             },
         ]);
         assert_eq!(
@@ -1425,9 +1416,7 @@ mod tests {
     fn test_resources_summary_mem() {
         let d = ResourceDescriptor::new(vec![ResourceDescriptorItem {
             name: MEM_RESOURCE_NAME.into(),
-            kind: ResourceDescriptorKind::Sum {
-                size: 4 * 1024 * 1024 * 1024 + 123 * 1024 * 1024,
-            },
+            kind: res_kind_sum(4 * 1024 * 1024 * 1024 + 123 * 1024 * 1024),
         }]);
         assert_eq!(resources_summary(&d, false), "mem 4.12 GiB");
     }

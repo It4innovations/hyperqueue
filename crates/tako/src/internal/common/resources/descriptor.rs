@@ -1,4 +1,4 @@
-use crate::internal::common::resources::{ResourceAmount, ResourceIndex};
+use crate::internal::common::resources::{ResourceAmount, ResourceIndex, ResourceLabel};
 use crate::internal::common::utils::format_comma_delimited;
 use crate::internal::common::Set;
 use serde::{Deserialize, Serialize};
@@ -9,16 +9,18 @@ use thiserror::Error;
 pub enum DescriptorError {
     #[error("Items in a list-based generic resource have to be unique")]
     ResourceListItemsNotUnique,
+    #[error("There has to be at least a single grouop")]
+    EmptyGroups,
 }
 
 // Do now construct these directly, use the appropriate constructors
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ResourceDescriptorKind {
     List {
-        values: Vec<ResourceIndex>,
+        values: Vec<ResourceLabel>,
     },
     Groups {
-        groups: Vec<Vec<ResourceIndex>>,
+        groups: Vec<Vec<ResourceLabel>>,
     },
     Range {
         start: ResourceIndex,
@@ -47,7 +49,7 @@ impl ResourceDescriptorKind {
                 }
                 sockets.push(socket)
             }
-            Self::groups(sockets).unwrap()
+            Self::groups_numeric(sockets).unwrap()
         }
     }
 
@@ -81,36 +83,47 @@ impl ResourceDescriptorKind {
         }
     }
 
-    fn normalize_indices(
-        mut values: Vec<ResourceIndex>,
-    ) -> Result<Vec<ResourceIndex>, DescriptorError> {
-        let count = values.len();
-        values.sort_unstable();
-        values.dedup();
-
-        if values.len() < count {
+    fn normalize_resource_list(
+        values: Vec<ResourceLabel>,
+    ) -> Result<Vec<ResourceLabel>, DescriptorError> {
+        if values.iter().collect::<Set<_>>().len() < values.len() {
             Err(DescriptorError::ResourceListItemsNotUnique)
         } else {
             Ok(values)
         }
     }
 
-    pub fn groups(mut groups: Vec<Vec<ResourceIndex>>) -> Result<Self, DescriptorError> {
-        if groups.len() == 1 {
-            Self::list(groups.pop().unwrap())
-        } else {
-            Ok(ResourceDescriptorKind::Groups {
-                groups: groups
-                    .into_iter()
-                    .map(Self::normalize_indices)
-                    .collect::<Result<_, _>>()?,
-            })
+    pub fn groups_numeric(groups: Vec<Vec<ResourceIndex>>) -> Result<Self, DescriptorError> {
+        Self::groups(
+            groups
+                .into_iter()
+                .map(|indices| indices.into_iter().map(|i| i.to_string()).collect())
+                .collect(),
+        )
+    }
+
+    pub fn groups(mut groups: Vec<Vec<ResourceLabel>>) -> Result<Self, DescriptorError> {
+        match groups.pop() {
+            Some(group) => {
+                if groups.len() == 0 {
+                    Self::list(group)
+                } else {
+                    groups.push(group);
+                    Ok(ResourceDescriptorKind::Groups {
+                        groups: groups
+                            .into_iter()
+                            .map(Self::normalize_resource_list)
+                            .collect::<Result<_, _>>()?,
+                    })
+                }
+            }
+            None => Err(DescriptorError::EmptyGroups),
         }
     }
 
-    pub fn list(values: Vec<ResourceIndex>) -> Result<Self, DescriptorError> {
+    pub fn list(values: Vec<ResourceLabel>) -> Result<Self, DescriptorError> {
         Ok(ResourceDescriptorKind::List {
-            values: Self::normalize_indices(values)?,
+            values: Self::normalize_resource_list(values)?,
         })
     }
 
@@ -145,13 +158,13 @@ impl ResourceDescriptorKind {
         }
     }
 
-    pub fn as_groups(&self) -> Vec<Vec<ResourceIndex>> {
+    pub fn as_groups(&self) -> Vec<Vec<ResourceLabel>> {
         match self {
             ResourceDescriptorKind::List { values } => vec![values.clone()],
             ResourceDescriptorKind::Groups { groups } => groups.clone(),
             ResourceDescriptorKind::Range { start, end } => {
                 vec![(start.as_num()..=end.as_num())
-                    .map(ResourceIndex::new)
+                    .map(|v| v.to_string())
                     .collect::<Vec<_>>()]
             }
             ResourceDescriptorKind::Sum { .. } => Vec::new(),

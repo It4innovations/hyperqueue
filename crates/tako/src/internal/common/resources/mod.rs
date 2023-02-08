@@ -25,4 +25,7 @@ pub type ResourceAmount = u64;
 // Represents an index within a single generic resource (e.g. GPU with ID 1).
 define_id_type!(ResourceIndex, u32);
 
+// Represents a label of an individual resource provided by a worker
+pub type ResourceLabel = String;
+
 pub type ResourceVec<T> = IndexVec<ResourceId, T>;
