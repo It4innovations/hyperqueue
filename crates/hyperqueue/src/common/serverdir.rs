@@ -30,7 +30,7 @@ impl ServerDir {
     pub fn open(directory: &Path) -> crate::Result<Self> {
         let path = resolve_active_directory(directory);
         if !path.is_dir() {
-            return error(format!("{:?} is not a directory", path));
+            return error(format!("{path:?} is not a directory"));
         }
         Ok(Self {
             path: absolute_path(path),
@@ -99,7 +99,7 @@ fn serde_deserialize_key<'de, D: Deserializer<'de>>(
     let key: String = Deserialize::deserialize(deserializer)?;
     deserialize_key(&key)
         .map(Arc::new)
-        .map_err(|e| D::Error::custom(format!("Could not load secret key {}", e)))
+        .map_err(|e| D::Error::custom(format!("Could not load secret key {e}")))
 }
 
 /// Finds all child directories in the given directory.
@@ -129,7 +129,7 @@ fn create_new_server_dir(directory: &Path) -> crate::Result<PathBuf> {
     let max_id = find_max_id_in_dir(directory).unwrap_or(0);
     let new_id = max_id + 1;
 
-    let dir_path = directory.join(format!("{:03}", new_id));
+    let dir_path = directory.join(format!("{new_id:03}"));
     std::fs::create_dir_all(&dir_path)?;
     Ok(dir_path)
 }

@@ -189,7 +189,7 @@ pub fn format_errors_cli(input: &str, mut errors: Vec<ParseError>) -> String {
                 "Unexpected {}",
                 error
                     .found()
-                    .map(|c| format!("token `{}`", c))
+                    .map(|c| format!("token `{c}`"))
                     .unwrap_or_else(|| "end of input".to_string())
             ),
         };

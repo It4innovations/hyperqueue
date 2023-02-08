@@ -225,7 +225,7 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
     for entry in ctx.resources().entries() {
         let resource_name = resource_map.get_name(entry.resource_id).unwrap();
         program.env.insert(
-            format!("HQ_RESOURCE_REQUEST_{}", resource_name).into(),
+            format!("HQ_RESOURCE_REQUEST_{resource_name}").into(),
             entry.request.to_string().into(),
         );
     }
@@ -254,7 +254,7 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
             }
 
             program.env.insert(
-                format!("HQ_RESOURCE_VALUES_{}", resource_name).into(),
+                format!("HQ_RESOURCE_VALUES_{resource_name}").into(),
                 labels.into(),
             );
         }
@@ -346,10 +346,8 @@ fn map_spawn_error(error: std::io::Error, program: &ProgramDefinition) -> tako::
     let context = match &error.kind() {
         ErrorKind::NotFound => {
             let file = &program.args[0];
-            let mut msg = format!(
-                "\nThe program that you have tried to execute (`{}`) was not found.",
-                file
-            );
+            let mut msg =
+                format!("\nThe program that you have tried to execute (`{file}`) was not found.");
 
             let path = bytes_to_path(file.as_ref());
             if is_implicit_path(path) {
@@ -431,7 +429,7 @@ fn check_error_filename(task_dir: TempDir) -> Option<tako::Error> {
     Some(if size == 0 {
         tako::Error::GenericError("Task created an error file, but it is empty".to_string())
     } else if size == MAX_CUSTOM_ERROR_LENGTH {
-        tako::Error::GenericError(format!("{}\n[The message was truncated]", msg))
+        tako::Error::GenericError(format!("{msg}\n[The message was truncated]"))
     } else {
         tako::Error::GenericError(msg.to_string())
     })
@@ -458,8 +456,7 @@ async fn run_task(
                 }
             }
             Err(tako::Error::GenericError(format!(
-                "Program terminated with exit code {}",
-                code
+                "Program terminated with exit code {code}"
             )))
         } else {
             Ok(TaskResult::Finished)

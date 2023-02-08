@@ -200,7 +200,7 @@ pub(crate) async fn process_client_message(
             dbg!("!!!!!!!!!!!!!!!!!!!!!!");
             for query in &msg.worker_queries {
                 if let Err(e) = query.descriptor.validate() {
-                    return Some(format!("Invalid descriptor: {:?}", e));
+                    return Some(format!("Invalid descriptor: {e:?}"));
                 }
             }
             let response = if comm_ref.get().get_scheduling_flag() {
@@ -251,7 +251,7 @@ fn handle_new_tasks(
 
     for cfg in &configurations {
         if let Err(e) = cfg.0.resources.validate() {
-            return Some(format!("Invalid task request {:?}", e));
+            return Some(format!("Invalid task request {e:?}"));
         }
     }
 
@@ -262,7 +262,7 @@ fn handle_new_tasks(
         }
         let idx = task.shared_data_index as usize;
         if idx >= configurations.len() {
-            return Some(format!("Invalid configuration index {}", idx));
+            return Some(format!("Invalid configuration index {idx}"));
         }
         let (conf, keep, observe) = &configurations[idx];
         let inputs: ThinVec<_> = task

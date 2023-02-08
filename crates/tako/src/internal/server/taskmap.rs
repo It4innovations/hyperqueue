@@ -26,14 +26,14 @@ impl TaskMap {
     #[inline(always)]
     pub fn get_task(&self, task_id: TaskId) -> &Task {
         self.tasks.find(&task_id).unwrap_or_else(|| {
-            panic!("Asking for invalid task id={}", task_id);
+            panic!("Asking for invalid task id={task_id}");
         })
     }
 
     #[inline(always)]
     pub fn get_task_mut(&mut self, task_id: TaskId) -> &mut Task {
         self.tasks.find_mut(&task_id).unwrap_or_else(|| {
-            panic!("Asking for invalid task id={}", task_id);
+            panic!("Asking for invalid task id={task_id}");
         })
     }
 

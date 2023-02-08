@@ -27,7 +27,7 @@ pub fn render_cpu_util_table(
                 .map(|(&cpu_util, position)| {
                     let progress = cpu_util / 100.00;
                     Cell::from(render_progress_bar_at(
-                        Some(format!("{:>3} ", position)),
+                        Some(format!("{position:>3} ")),
                         progress,
                         CPU_METER_LEN,
                         ProgressPrintStyle::default(),

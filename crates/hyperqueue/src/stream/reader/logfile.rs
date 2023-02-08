@@ -398,8 +398,7 @@ impl LogFile {
                             buffer.push(b'\n');
                         }
                         let color = colors[task_id.as_num() as usize % colors.len()];
-                        let header =
-                            format!("{:0width$}:{}>", task_id, channel_id, width = id_width,);
+                        let header = format!("{task_id:0id_width$}:{channel_id}>",);
                         write!(
                             stdout_buf,
                             "{} {}",
@@ -423,8 +422,7 @@ impl LogFile {
                         writeln!(
                             stdout_buf,
                             "{}",
-                            format!("{:0width$}: > stream closed", task_id, width = id_width)
-                                .on_color(color)
+                            format!("{task_id:0id_width$}: > stream closed").on_color(color)
                         )?;
                     }
                 }

@@ -5,7 +5,7 @@ pub fn pluralize(value: &str, count: usize) -> Cow<str> {
     if count == 1 {
         Cow::Borrowed(value)
     } else {
-        Cow::Owned(format!("{}s", value))
+        Cow::Owned(format!("{value}s"))
     }
 }
 

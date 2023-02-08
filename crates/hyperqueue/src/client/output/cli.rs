@@ -113,7 +113,7 @@ impl CliOutput {
         rows.push(vec![
             "Resources".cell().bold(true),
             if !matches!(pin_mode, PinMode::None) {
-                format!("{} [pin]", resources)
+                format!("{resources} [pin]")
             } else {
                 resources
             }
@@ -146,7 +146,7 @@ impl CliOutput {
             "Environment".cell().bold(true),
             env_vars
                 .into_iter()
-                .map(|(k, v)| format!("{}={}", k, v))
+                .map(|(k, v)| format!("{k}={v}"))
                 .collect::<Vec<_>>()
                 .join("\n")
                 .cell(),
@@ -485,7 +485,7 @@ impl Output for CliOutput {
         let mut n_tasks = info.n_tasks.to_string();
         match &job_desc {
             JobDescription::Array { ids, .. } => {
-                write!(n_tasks, "; Ids: {}", ids).unwrap();
+                write!(n_tasks, "; Ids: {ids}").unwrap();
             }
             JobDescription::Graph { .. } => {
                 // TODO
@@ -534,11 +534,7 @@ impl Output for CliOutput {
         let mut format = |count: u32, action: &str, color| {
             if count > 0 {
                 let job = pluralize("job", count as usize);
-                msgs.push(
-                    format!("{} {} {}", count, job, action)
-                        .color(color)
-                        .to_string(),
-                );
+                msgs.push(format!("{count} {job} {action}").color(color).to_string());
             }
         };
 
@@ -883,7 +879,7 @@ impl Output for CliOutput {
     }
 
     fn print_error(&self, error: Error) {
-        eprintln!("{:?}", error);
+        eprintln!("{error:?}");
     }
 }
 
@@ -976,8 +972,8 @@ fn allocation_times_from_alloc(allocation: &Allocation) -> AllocationTimes {
 fn job_status_to_cell(info: &JobInfo) -> String {
     let row = |result: &mut String, string, value, color| {
         if value > 0 {
-            let text = format!("{} ({})", string, value).color(color);
-            writeln!(result, "{}", text).unwrap();
+            let text = format!("{string} ({value})").color(color);
+            writeln!(result, "{text}").unwrap();
         }
     };
     let mut result = format!("{}\n", job_progress_bar(info.counters, info.n_tasks, 40));
@@ -1143,7 +1139,7 @@ pub fn format_job_workers(tasks: &[JobTaskInfo], worker_map: &WorkerMap) -> Stri
     );
 
     if worker_count > MAX_DISPLAYED_WORKERS {
-        write!(result, ", … ({} total)", worker_count).unwrap();
+        write!(result, ", … ({worker_count} total)").unwrap();
     }
 
     result
@@ -1303,7 +1299,7 @@ fn resource_summary_kind(kind: &ResourceDescriptorKind) -> String {
                 counts.sort_unstable();
                 counts
                     .iter()
-                    .map(|(cores, count)| format!("{}x{}", count, cores))
+                    .map(|(cores, count)| format!("{count}x{cores}"))
                     .collect::<Vec<_>>()
                     .join(" ")
             }

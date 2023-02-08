@@ -99,7 +99,7 @@ pub async fn handle_submit(
         .unwrap()
     {
         ToGatewayMessage::NewTasksResponse(_) => { /* Ok */ }
-        r => panic!("Invalid response: {:?}", r),
+        r => panic!("Invalid response: {r:?}"),
     };
 
     ToClientMessage::SubmitResponse(SubmitResponse { job: job_detail })

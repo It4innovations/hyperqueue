@@ -7,7 +7,7 @@ pub(super) fn format_duration(duration: &Duration) -> String {
     seconds %= 3600;
     let minutes = seconds / 60;
     seconds %= 60;
-    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+    format!("{hours:02}:{minutes:02}:{seconds:02}")
 }
 
 #[cfg(test)]

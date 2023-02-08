@@ -13,7 +13,7 @@ pub fn check_parse_error<F: FnMut(&str) -> NomResult<O>, O>(
 ) {
     match consume_all(parser, input) {
         Err(e) => {
-            let output = format!("{:?}", e);
+            let output = format!("{e:?}");
             assert_eq!(output, expected_error);
         }
         _ => panic!("The parser should have failed"),
@@ -22,7 +22,7 @@ pub fn check_parse_error<F: FnMut(&str) -> NomResult<O>, O>(
 
 pub fn expect_parser_error<T: std::fmt::Debug>(parser: impl CharParser<T>, input: &str) -> String {
     let error = parser.parse_text(input).unwrap_err();
-    format!("{:?}", error)
+    format!("{error:?}")
 }
 
 pub async fn run_concurrent<

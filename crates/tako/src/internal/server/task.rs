@@ -45,10 +45,10 @@ impl fmt::Debug for TaskRuntimeState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Waiting(info) => write!(f, "W({})", info.unfinished_deps),
-            Self::Assigned(w_id) => write!(f, "A({})", w_id),
-            Self::Stealing(from_w, to_w) => write!(f, "S({}, {:?})", from_w, to_w),
-            Self::Running { worker_id, .. } => write!(f, "R({})", worker_id),
-            Self::RunningMultiNode(ws) => write!(f, "M({:?})", ws),
+            Self::Assigned(w_id) => write!(f, "A({w_id})"),
+            Self::Stealing(from_w, to_w) => write!(f, "S({from_w}, {to_w:?})"),
+            Self::Running { worker_id, .. } => write!(f, "R({worker_id})"),
+            Self::RunningMultiNode(ws) => write!(f, "M({ws:?})"),
             Self::Finished(_) => write!(f, "F"),
         }
     }

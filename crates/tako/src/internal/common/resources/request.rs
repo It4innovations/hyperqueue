@@ -56,9 +56,9 @@ impl AllocationRequest {
 impl fmt::Display for AllocationRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AllocationRequest::Compact(amount) => write!(f, "{} compact", amount),
-            AllocationRequest::ForceCompact(amount) => write!(f, "{} compact!", amount),
-            AllocationRequest::Scatter(amount) => write!(f, "{} scatter", amount),
+            AllocationRequest::Compact(amount) => write!(f, "{amount} compact"),
+            AllocationRequest::ForceCompact(amount) => write!(f, "{amount} compact!"),
+            AllocationRequest::Scatter(amount) => write!(f, "{amount} scatter"),
             AllocationRequest::All => write!(f, "all"),
         }
     }

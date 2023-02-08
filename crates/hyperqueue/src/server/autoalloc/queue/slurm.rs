@@ -61,7 +61,7 @@ impl QueueHandler for SlurmHandler {
             let script = build_slurm_submit_script(
                 worker_count,
                 timelimit,
-                &format!("hq-alloc-{}", queue_id),
+                &format!("hq-alloc-{queue_id}"),
                 &working_dir.join("stdout").display().to_string(),
                 &working_dir.join("stderr").display().to_string(),
                 &queue_info.additional_args.join(" "),
@@ -205,7 +205,7 @@ fn build_slurm_submit_script(
     );
 
     if !sbatch_args.is_empty() {
-        writeln!(script, "#SBATCH {}", sbatch_args).unwrap();
+        writeln!(script, "#SBATCH {sbatch_args}").unwrap();
     }
 
     let prefix = if nodes > 1 { "srun --overlap " } else { "" };

@@ -42,7 +42,7 @@ fn bench_schedule(c: &mut BenchmarkGroup<WallTime>) {
             c.bench_with_input(
                 BenchmarkId::new(
                     "schedule",
-                    format!("tasks={}, workers={}", task_count, worker_count),
+                    format!("tasks={task_count}, workers={worker_count}"),
                 ),
                 &(task_count, worker_count),
                 |b, &(task_count, worker_count)| {

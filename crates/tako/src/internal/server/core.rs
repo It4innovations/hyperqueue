@@ -223,14 +223,14 @@ impl Core {
     #[inline]
     pub fn get_worker_by_id_or_panic(&self, id: WorkerId) -> &Worker {
         self.workers.get(&id).unwrap_or_else(|| {
-            panic!("Asking for invalid worker id={}", id);
+            panic!("Asking for invalid worker id={id}");
         })
     }
 
     #[inline]
     pub fn get_worker_mut_by_id_or_panic(&mut self, id: WorkerId) -> &mut Worker {
         self.workers.get_mut(&id).unwrap_or_else(|| {
-            panic!("Asking for invalid worker id={}", id);
+            panic!("Asking for invalid worker id={id}");
         })
     }
 

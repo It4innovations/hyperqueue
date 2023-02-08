@@ -136,10 +136,7 @@ pub async fn client_rpc_loop<
             Err(e) => {
                 log::error!("Cannot parse client message: {}", e);
                 if tx
-                    .send(ToClientMessage::Error(format!(
-                        "Cannot parse message: {}",
-                        e
-                    )))
+                    .send(ToClientMessage::Error(format!("Cannot parse message: {e}")))
                     .await
                     .is_err()
                 {
@@ -259,10 +256,7 @@ async fn handle_worker_stop(
                 ToGatewayMessage::Error(error) => {
                     responses.push((worker_id, StopWorkerResponse::Failed(error.message)))
                 }
-                msg => panic!(
-                    "Received invalid response to worker: {} stop: {:?}",
-                    worker_id, msg
-                ),
+                msg => panic!("Received invalid response to worker: {worker_id} stop: {msg:?}"),
             },
             Err(err) => {
                 responses.push((worker_id, StopWorkerResponse::Failed(err.to_string())));
