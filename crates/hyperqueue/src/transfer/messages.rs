@@ -38,9 +38,22 @@ pub enum FromClientMessage {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum PinMode {
+    #[serde(rename = "name")]
     None,
+    #[serde(rename = "taskset")]
     TaskSet,
+    #[serde(rename = "omp")]
     OpenMP,
+}
+
+impl PinMode {
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            PinMode::None => "none",
+            PinMode::TaskSet => "taskset",
+            PinMode::OpenMP => "openmp",
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

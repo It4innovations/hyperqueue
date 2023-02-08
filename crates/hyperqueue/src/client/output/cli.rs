@@ -746,6 +746,7 @@ impl Output for CliOutput {
                     format_resource_request(&task_desc.resources).cell(),
                 ],
                 vec!["Priority".cell().bold(true), task_desc.priority.cell()],
+                vec!["Pin".cell().bold(true), task_desc.pin_mode.to_str().cell()],
                 vec![
                     "Crash limit".cell().bold(true),
                     task_desc.crash_limit.cell(),
