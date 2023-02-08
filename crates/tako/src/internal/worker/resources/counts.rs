@@ -117,7 +117,7 @@ impl ResourceCountVec {
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::worker::counts::ResourceCountVec;
+    use crate::internal::worker::resources::counts::ResourceCountVec;
     use crate::resources::ResourceAmount;
     use smallvec::smallvec;
 

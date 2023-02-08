@@ -2,7 +2,7 @@ use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::common::resources::{Allocation, ResourceDescriptor, ResourceRequest};
 use crate::internal::common::Map;
 use crate::internal::server::workerload::WorkerResources;
-use crate::internal::worker::allocator::ResourceAllocator;
+use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::state::TaskMap;
 use crate::internal::worker::task::Task;
 use crate::{Priority, PriorityTuple, Set, TaskId, WorkerId};

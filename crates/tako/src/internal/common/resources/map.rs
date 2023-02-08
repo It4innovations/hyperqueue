@@ -16,7 +16,7 @@ impl Default for ResourceIdAllocator {
     fn default() -> Self {
         let mut resource_names = Map::new();
         /* Fix id for cpus */
-        resource_names.insert(CPU_RESOURCE_NAME.to_string(), 0.into());
+        resource_names.insert(CPU_RESOURCE_NAME.to_string(), CPU_RESOURCE_ID);
         ResourceIdAllocator { resource_names }
     }
 }
