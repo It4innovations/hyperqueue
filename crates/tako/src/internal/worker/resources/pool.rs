@@ -1,7 +1,7 @@
 use crate::internal::common::resources::descriptor::ResourceDescriptorKind;
 use crate::internal::common::resources::{AllocationValue, ResourceAmount, ResourceIndex};
 use crate::internal::common::Map;
-use crate::internal::worker::counts::ResourceCount;
+use crate::internal::worker::resources::counts::ResourceCount;
 use crate::Set;
 use smallvec::smallvec;
 
@@ -195,7 +195,7 @@ fn dense_indices(count: usize) -> Vec<ResourceIndex> {
 #[cfg(test)]
 mod tests {
     use crate::internal::common::resources::ResourceAllocation;
-    use crate::internal::worker::pool::ResourcePool;
+    use crate::internal::worker::resources::pool::ResourcePool;
     use crate::resources::ResourceAmount;
 
     impl ResourcePool {

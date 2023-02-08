@@ -1,6 +1,6 @@
+use crate::format_comma_delimited;
 use crate::internal::common::resources::{ResourceAmount, ResourceId, ResourceIndex};
-use crate::internal::common::utils::format_comma_delimited;
-use crate::internal::worker::counts::ResourceCountVec;
+use crate::internal::worker::resources::counts::ResourceCountVec;
 use smallvec::SmallVec;
 
 #[derive(Debug)]

@@ -4,8 +4,10 @@ use crate::internal::common::resources::request::{
 use crate::internal::common::resources::{
     ResourceAllocation, ResourceAllocations, ResourceId, ResourceVec,
 };
-use crate::internal::worker::counts::{resource_count_add_at, ResourceCount, ResourceCountVec};
-use crate::internal::worker::pool::ResourcePool;
+use crate::internal::worker::resources::counts::{
+    resource_count_add_at, ResourceCount, ResourceCountVec,
+};
+use crate::internal::worker::resources::pool::ResourcePool;
 use crate::resources::{Allocation, ResourceAmount, ResourceDescriptor, ResourceMap};
 use smallvec::smallvec;
 use std::time::Duration;
@@ -380,8 +382,8 @@ mod tests {
     use crate::internal::tests::utils::resources::{cpus_compact, ResBuilder};
     use crate::internal::tests::utils::sorted_vec;
     use crate::internal::worker::allocator::ResourceAllocator;
-    use crate::internal::worker::counts::ResourceCountVec;
-    use crate::internal::worker::pool::ResourcePool;
+    use crate::internal::worker::resources::counts::ResourceCountVec;
+    use crate::internal::worker::resources::pool::ResourcePool;
     use crate::resources::{ResourceAmount, ResourceDescriptorItem};
     use smallvec::smallvec;
     use std::time::Duration;
