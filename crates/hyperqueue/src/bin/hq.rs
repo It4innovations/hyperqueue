@@ -308,7 +308,7 @@ fn generate_completion(opts: GenerateCompletionOpts) -> anyhow::Result<()> {
     let generator = opts.shell;
 
     let mut app = RootOptions::command();
-    eprintln!("Generating completion file for {}...", generator);
+    eprintln!("Generating completion file for {generator}...");
     generate(generator, &mut app, "hq".to_string(), &mut io::stdout());
     Ok(())
 }

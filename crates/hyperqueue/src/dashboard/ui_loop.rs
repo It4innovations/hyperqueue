@@ -72,7 +72,7 @@ fn start_key_event_listener(tx: UnboundedSender<DashboardEvent>) -> thread::Join
         let stdin = io::stdin();
         for key in stdin.keys().flatten() {
             if let Err(err) = tx.send(DashboardEvent::KeyPressEvent(key)) {
-                eprintln!("Error in sending dashboard key: {}", err);
+                eprintln!("Error in sending dashboard key: {err}");
                 return;
             }
         }

@@ -43,7 +43,7 @@ pub(crate) async fn scheduler_loop(
     scheduler_wakeup: Rc<Notify>,
     minimum_delay: Duration,
 ) {
-    let mut last_schedule = Instant::now() - minimum_delay * 2;
+    let mut last_schedule = Instant::now().checked_sub(minimum_delay * 2).unwrap();
     loop {
         scheduler_wakeup.notified().await;
         let mut now = Instant::now();
@@ -191,7 +191,7 @@ impl SchedulerState {
                     debug_assert_eq!(*from_w1, from_w2);
                 }
                 (new, old) => {
-                    panic!("Invalid task state, new = {:?}, old = {:?}", new, old);
+                    panic!("Invalid task state, new = {new:?}, old = {old:?}");
                 }
             }
         }

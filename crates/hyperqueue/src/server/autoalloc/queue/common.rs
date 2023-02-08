@@ -55,7 +55,7 @@ pub fn create_allocation_dir(
     }
 
     dir.push(dir_name);
-    dir.push(format!("{:03}", allocation_num));
+    dir.push(format!("{allocation_num:03}"));
 
     std::fs::create_dir_all(&dir)?;
 
@@ -86,9 +86,9 @@ where
     let output = command
         .output()
         .await
-        .with_context(|| format!("{} start failed", program))?;
+        .with_context(|| format!("{program} start failed"))?;
     let output =
-        check_command_output(output).with_context(|| format!("{} execution failed", program))?;
+        check_command_output(output).with_context(|| format!("{program} execution failed"))?;
     let output = output
         .stdout
         .to_str()

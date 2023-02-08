@@ -140,7 +140,7 @@ impl Output for Quiet {
     fn print_hw(&self, _descriptor: &ResourceDescriptor) {}
 
     fn print_error(&self, error: Error) {
-        eprintln!("{:?}", error);
+        eprintln!("{error:?}");
     }
 }
 

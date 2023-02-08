@@ -161,7 +161,7 @@ fn resolve<'b>(map: &PlaceholderMap, input: &'b str) -> Cow<'b, str> {
             StringPart::Placeholder(placeholder) => match map.get(placeholder) {
                 Some(value) => buffer.push_str(value.deref()),
                 None => buffer
-                    .write_fmt(format_args!("%{{{}}}", placeholder))
+                    .write_fmt(format_args!("%{{{placeholder}}}"))
                     .unwrap(),
             },
         }

@@ -152,7 +152,7 @@ pub(crate) fn on_remove_worker(
                 None,
                 task_id,
                 TaskFailInfo {
-                    message: format!("Task was running on a worker that was lost; the task has occurred {} times in this situation and limit was reached.", count),
+                    message: format!("Task was running on a worker that was lost; the task has occurred {count} times in this situation and limit was reached."),
                     data_type: "".to_string(),
                     error_data: vec![],
                 },
@@ -376,10 +376,7 @@ pub(crate) fn on_steal_response(
                     assert_eq!(*from_w, worker_id);
                     (*from_w, *to_w)
                 } else {
-                    panic!(
-                        "Invalid state of task={} when steal response occurred",
-                        task_id
-                    );
+                    panic!("Invalid state of task={task_id} when steal response occurred");
                 }
             };
 

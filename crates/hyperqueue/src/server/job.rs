@@ -321,7 +321,7 @@ impl Job {
                 self.counters.n_running_tasks -= 1;
                 self.counters.n_finished_tasks += 1;
             }
-            _ => panic!("Invalid worker state, expected Running, got {:?}", state),
+            _ => panic!("Invalid worker state, expected Running, got {state:?}"),
         }
         self.check_termination(backend, now);
     }
@@ -346,7 +346,7 @@ impl Job {
                 self.counters.n_running_tasks -= 1;
                 self.counters.n_failed_tasks += 1;
             }
-            _ => panic!("Invalid worker state, expected Running, got {:?}", state),
+            _ => panic!("Invalid worker state, expected Running, got {state:?}"),
         }
         self.check_termination(backend, now);
     }
@@ -369,10 +369,7 @@ impl Job {
                     cancelled_date: now,
                 };
             }
-            state => panic!(
-                "Invalid job state that is being canceled: {:?} {:?}",
-                task_id, state
-            ),
+            state => panic!("Invalid job state that is being canceled: {task_id:?} {state:?}"),
         }
 
         self.counters.n_canceled_tasks += 1;

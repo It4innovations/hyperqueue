@@ -77,8 +77,8 @@ fn format_kind(
 ) -> String {
     match kind {
         BaseErrorKind::Expected(expectation) => match expectation {
-            Expectation::Tag(tag) => format!(r#"expected "{}""#, tag),
-            Expectation::Char(c) => format!(r#"expected "{}""#, c),
+            Expectation::Tag(tag) => format!(r#"expected "{tag}""#),
+            Expectation::Char(c) => format!(r#"expected "{c}""#),
             Expectation::Alpha => "expected alphabet character".to_string(),
             Expectation::Digit | Expectation::HexDigit | Expectation::OctDigit => {
                 "expected digit".to_string()
@@ -90,8 +90,8 @@ fn format_kind(
             Expectation::Eof => "expected end of input".to_string(),
             _ => "expected something".to_string(),
         },
-        BaseErrorKind::Kind(kind) => format!("expected: {:?}", kind),
-        BaseErrorKind::External(error) => format!(r#""{:?}""#, error),
+        BaseErrorKind::Kind(kind) => format!("expected: {kind:?}"),
+        BaseErrorKind::External(error) => format!(r#""{error:?}""#),
     }
 }
 
@@ -100,7 +100,7 @@ fn format_location(input: &str, location: &str) -> String {
         "the end of input".to_string()
     } else {
         let offset = ByteOffset::recreate_context(input, location).0;
-        format!("character {}: {:?}", offset, location)
+        format!("character {offset}: {location:?}")
     }
 }
 
@@ -124,7 +124,7 @@ fn format_error(error: ErrorTree<&str>, mut depth: u32, input: &str, buffer: &mu
             let mut show_nested = true;
             for (location, ctx) in contexts.into_iter().rev() {
                 let ctx_str = match ctx {
-                    StackContext::Kind(kind) => format!("{:?}", kind),
+                    StackContext::Kind(kind) => format!("{kind:?}"),
                     StackContext::Context(ctx) => {
                         if TERMINAL_CONTEXTS.contains(&ctx) {
                             show_nested = false;

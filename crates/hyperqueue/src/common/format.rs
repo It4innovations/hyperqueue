@@ -16,7 +16,7 @@ pub fn human_duration(duration: chrono::Duration) -> String {
 
 pub fn human_size(size: u64) -> String {
     if size < 2048 {
-        format!("{} B", size)
+        format!("{size} B")
     } else if size < 2 * 1024 * 1024 {
         format!("{:.2} KiB", size as f64 / 1024.0)
     } else if size < 2 * 1024 * 1024 * 1024 {

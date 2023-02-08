@@ -442,7 +442,7 @@ impl RateLimiter {
 
     #[cfg(test)]
     pub fn allocation_fail_count(&self) -> u64 {
-        self.allocation_fails as u64
+        self.allocation_fails
     }
 }
 

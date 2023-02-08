@@ -59,7 +59,7 @@ impl QueueHandler for PbsHandler {
             let script = build_pbs_submit_script(
                 worker_count,
                 timelimit,
-                &format!("hq-alloc-{}", queue_id),
+                &format!("hq-alloc-{queue_id}"),
                 &directory.join("stdout").display().to_string(),
                 &directory.join("stderr").display().to_string(),
                 &queue_info.additional_args.join(" "),
@@ -213,7 +213,7 @@ fn build_pbs_submit_script(
     );
 
     if !qsub_args.is_empty() {
-        writeln!(script, "#PBS {}", qsub_args).unwrap();
+        writeln!(script, "#PBS {qsub_args}").unwrap();
     }
     match mode {
         SubmitMode::DryRun => script.push_str("#PBS -h\n"),

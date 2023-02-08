@@ -125,7 +125,7 @@ fn read_linux_numa() -> anyhow::Result<Vec<Vec<ResourceIndex>>> {
     )?)?;
     let mut numa_nodes: Vec<Vec<ResourceIndex>> = Vec::new();
     for numa_index in nodes {
-        let filename = format!("/sys/devices/system/node/node{}/cpulist", numa_index);
+        let filename = format!("/sys/devices/system/node/node{numa_index}/cpulist");
         numa_nodes.push(parse_range(&std::fs::read_to_string(filename)?)?);
     }
     log::debug!("Linux numa detection is successful");

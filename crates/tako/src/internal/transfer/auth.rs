@@ -135,7 +135,7 @@ impl Authenticator {
         message: AuthenticationResponse,
     ) -> crate::Result<(Option<StreamSealer>, Option<StreamOpener>)> {
         if let Some(error) = std::mem::take(&mut self.error) {
-            return Err(format!("Authentication failed: {}", error).into());
+            return Err(format!("Authentication failed: {error}").into());
         }
 
         let opener = match (message, &self.secret_key) {
@@ -246,7 +246,7 @@ where
     DefaultOptions::new()
         .with_fixint_encoding()
         .serialize(value)
-        .map_err(|e| format!("Serialization failed: {:?}", e).into())
+        .map_err(|e| format!("Serialization failed: {e:?}").into())
 }
 
 #[inline]
@@ -257,7 +257,7 @@ where
     DefaultOptions::new()
         .with_fixint_encoding()
         .deserialize(bytes)
-        .map_err(|e| format!("Deserialization failed: {:?}, data {:?}", e, bytes).into())
+        .map_err(|e| format!("Deserialization failed: {e:?}, data {bytes:?}").into())
 }
 
 #[inline]
