@@ -3,7 +3,7 @@ use chumsky::text::TextParser;
 use chumsky::Parser;
 
 use tako::resources::{
-    DescriptorError, ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex,
+    DescriptorError, ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind,
 };
 
 use crate::common::parser2::{
@@ -18,17 +18,34 @@ pub fn parse_cpu_definition(input: &str) -> anyhow::Result<ResourceDescriptorKin
     all_consuming(parse_resource_kind()).parse_text(input)
 }
 
-fn parse_resource_indices() -> impl CharParser<Vec<ResourceIndex>> {
+/// Parses an individual resource label.
+/// The label has to be wrapped in quotes if it needs to contain `[`, `]`, `,` or whitespace.
+/// The label cannot contain quotes.
+fn parse_individual_resource() -> impl CharParser<String> {
+    let any_but_quote = chumsky::primitive::filter(|&c| c != '"')
+        .repeated()
+        .at_least(1);
+    let bare_string = chumsky::primitive::filter(|&c: &char| match c {
+        ',' | '[' | ']' | '"' => false,
+        _ => !c.is_whitespace(),
+    })
+    .repeated()
+    .at_least(1);
+
+    let quoted = any_but_quote.delimited_by(just('"'), just('"'));
+    quoted.or(bare_string).padded().collect()
+}
+
+fn parse_individual_resources() -> impl CharParser<Vec<String>> {
     let start = just('[').padded();
     let end = just(']').padded();
 
-    parse_u32()
-        .map(ResourceIndex::new)
+    parse_individual_resource()
         .separated_by(just(',').padded())
         .delimited_by(start, end)
 }
 
-/// Parsers a simple CPU descriptor like `1` or `2x4`.
+/// Parses a simple CPU descriptor like `1` or `2x4`.
 /// When there's a single number, it states the number of CPUs.
 /// When there are two numbers, the first is the number of sockets and the second the number of CPUs
 /// per socket.
@@ -47,12 +64,12 @@ fn parse_resource_group() -> impl CharParser<ResourceDescriptorKind> {
     let start = just('[').padded();
     let end = just(']').padded();
 
-    parse_resource_indices()
+    parse_individual_resources()
         .try_map(|group, span| {
             if group.is_empty() {
                 Err(ParseError::custom(
                     span,
-                    "Group has to contain at least a single element",
+                    "Each group has to contain at least a single element",
                 ))
             } else {
                 Ok(group)
@@ -66,15 +83,20 @@ fn parse_resource_group() -> impl CharParser<ResourceDescriptorKind> {
                 DescriptorError::ResourceListItemsNotUnique => {
                     ParseError::custom(span, "Group items have to be unique")
                 }
+                DescriptorError::EmptyGroups => {
+                    ParseError::custom(span, "There has to be at least a single group")
+                }
             })
         })
 }
 
 /// Parses a list resource.
 /// The list must be non-empty and it has to contain uniaue values.
-/// Example: `[1, 2]`.
+/// The values inside the list can be either numbers or strings.
+/// Strings can be put into quotes if you need to include a comma inside of them.
+/// Example: `[1, 2]`, `[abc, def]`, `["abc","a,b",c]`.
 fn parse_resource_list() -> impl CharParser<ResourceDescriptorKind> {
-    parse_resource_indices().try_map(|indices, span| {
+    parse_individual_resources().try_map(|indices, span| {
         if indices.is_empty() {
             Err(ParseError::custom(
                 span,
@@ -85,6 +107,7 @@ fn parse_resource_list() -> impl CharParser<ResourceDescriptorKind> {
                 DescriptorError::ResourceListItemsNotUnique => {
                     ParseError::custom(span, "List items have to be unique")
                 }
+                error => ParseError::custom(span, error.to_string()),
             })
         }
     })
@@ -165,20 +188,92 @@ pub fn parse_resource_definition(input: &str) -> anyhow::Result<ResourceDescript
 
 #[cfg(test)]
 mod test {
-    use tako::AsIdVec;
-
+    use crate::tests::resources::{res_kind_groups, res_kind_list, res_kind_range, res_kind_sum};
     use crate::tests::utils::expect_parser_error;
 
     use super::*;
 
     #[test]
+    fn test_individual_resource_bare() {
+        assert_eq!(
+            parse_individual_resource().parse_text("asd").unwrap(),
+            "asd"
+        );
+    }
+
+    #[test]
+    fn test_individual_resource_bare_comma() {
+        assert_eq!(
+            parse_individual_resource().parse_text("as,d").unwrap(),
+            "as"
+        );
+    }
+
+    #[test]
+    fn test_individual_resource_bare_bracket() {
+        assert_eq!(
+            parse_individual_resource().parse_text("as]d").unwrap(),
+            "as"
+        );
+    }
+
+    #[test]
+    fn test_individual_resource_bare_whitespace() {
+        assert_eq!(
+            parse_individual_resource().parse_text("  asd ").unwrap(),
+            "asd"
+        );
+    }
+
+    #[test]
+    fn test_individual_resource_quoted() {
+        assert_eq!(
+            parse_individual_resource().parse_text(r#""asd""#).unwrap(),
+            "asd"
+        );
+    }
+
+    #[test]
+    fn test_individual_resource_quoted_comma_bracket() {
+        assert_eq!(
+            parse_individual_resource()
+                .parse_text(r#""asd,dsa,[x]""#)
+                .unwrap(),
+            "asd,dsa,[x]"
+        );
+    }
+
+    #[test]
+    fn test_individual_resource_quoted_whitespace_inside() {
+        assert_eq!(
+            parse_individual_resource()
+                .parse_text(r#"" foo    bar""#)
+                .unwrap(),
+            " foo    bar"
+        );
+    }
+
+    #[test]
+    fn test_individual_resource_quoted_whitespace_outside() {
+        assert_eq!(
+            parse_individual_resource()
+                .parse_text(r#"   " foo    bar"  "#)
+                .unwrap(),
+            " foo    bar"
+        );
+    }
+
+    #[test]
     fn test_parse_cpu_single_number() {
-        check_kind(parse_cpu_definition("4"), range(0, 3));
+        check_kind(parse_cpu_definition("4"), res_kind_range(0, 3));
     }
 
     #[test]
     fn test_parse_cpu_list_kind() {
-        check_kind(parse_cpu_definition("[0, 5, 7]"), list(&[0, 5, 7]));
+        check_kind(
+            parse_cpu_definition("[0, 5, 7]"),
+            res_kind_list(&["0", "5", "7"]),
+        );
     }
 
     #[test]
@@ -186,7 +281,7 @@ mod test {
         check_item(
             parse_resource_definition("cpus=2x3"),
             "cpus",
-            groups(vec![vec![0, 1, 2], vec![3, 4, 5]]),
+            res_kind_groups(&[vec!["0", "1", "2"], vec!["3", "4", "5"]]),
         );
     }
 
@@ -195,16 +290,25 @@ mod test {
         check_item(
             parse_resource_definition("cpus=[[5, 7, 123]]"),
             "cpus",
-            list(&[5, 7, 123]),
+            res_kind_list(&["5", "7", "123"]),
         );
     }
 
     #[test]
     fn test_parse_resource_group_multiple() {
         check_item(
-            parse_resource_definition("cpus=[[0], [7], [123, 200]]"),
+            parse_resource_definition("cpus=[[0],[7],[123, 200]]"),
             "cpus",
-            groups(vec![vec![0], vec![7], vec![123, 200]]),
+            res_kind_groups(&[vec!["0"], vec!["7"], vec!["123", "200"]]),
+        );
+    }
+
+    #[test]
+    fn test_parse_resource_group_multiple_whitespace() {
+        check_item(
+            parse_resource_definition("cpus=[   [ 0 ] ,  [ 7  ] , [ 123  ,  200 ]  ]"),
+            "cpus",
+            res_kind_groups(&[vec!["0"], vec!["7"], vec!["123", "200"]]),
         );
     }
 
@@ -224,13 +328,17 @@ mod test {
         Unexpected end of input found while attempting to parse resource kind, expected something else:
           cpus=[[0, 1], []]
                         |
-                        --- Group has to contain at least a single element
+                        --- Each group has to contain at least a single element
         "###);
     }
 
     #[test]
     fn test_parse_resource_def_list_single() {
-        check_item(parse_resource_definition("mem=[1]"), "mem", list(&[1]));
+        check_item(
+            parse_resource_definition("mem=[1]"),
+            "mem",
+            res_kind_list(&["1"]),
+        );
     }
 
     #[test]
@@ -238,7 +346,7 @@ mod test {
         check_item(
             parse_resource_definition("   mem    =   [   1  ] "),
             "mem",
-            list(&[1]),
+            res_kind_list(&["1"]),
         );
     }
 
@@ -247,7 +355,7 @@ mod test {
         check_item(
             parse_resource_definition("mem=[12,34,58]"),
             "mem",
-            list(&[12, 34, 58]),
+            res_kind_list(&["12", "34", "58"]),
         );
     }
 
@@ -276,7 +384,7 @@ mod test {
         check_item(
             parse_resource_definition("gpu=range(10-123)"),
             "gpu",
-            range(10, 123),
+            res_kind_range(10, 123),
         );
     }
 
@@ -285,7 +393,7 @@ mod test {
         check_item(
             parse_resource_definition("  gpu  =  range  ( 10 -  123 ) "),
             "gpu",
-            range(10, 123),
+            res_kind_range(10, 123),
         );
     }
 
@@ -324,7 +432,7 @@ mod test {
         check_item(
             parse_resource_definition("mem=sum(1000_3000_2000)"),
             "mem",
-            sum(1000_3000_2000),
+            res_kind_sum(1000_3000_2000),
         );
     }
 
@@ -333,7 +441,7 @@ mod test {
         check_item(
             parse_resource_definition("   mem  = sum ( 1000_3000_2000 ) "),
             "mem",
-            sum(1000_3000_2000),
+            res_kind_sum(1000_3000_2000),
         );
     }
 
@@ -430,28 +538,5 @@ mod test {
         expected: ResourceDescriptorKind,
     ) {
         assert_eq!(result.unwrap(), expected);
-    }
-
-    fn range(start: u32, end: u32) -> ResourceDescriptorKind {
-        ResourceDescriptorKind::Range {
-            start: start.into(),
-            end: end.into(),
-        }
-    }
-
-    fn list(items: &[u32]) -> ResourceDescriptorKind {
-        ResourceDescriptorKind::List {
-            values: items.into_iter().map(|&v| v.into()).collect(),
-        }
-    }
-
-    fn groups(groups: Vec<Vec<u32>>) -> ResourceDescriptorKind {
-        ResourceDescriptorKind::Groups {
-            groups: groups.into_iter().map(|v| v.to_ids()).collect(),
-        }
-    }
-
-    fn sum(size: u64) -> ResourceDescriptorKind {
-        ResourceDescriptorKind::Sum { size }
     }
 }

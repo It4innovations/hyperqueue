@@ -2,22 +2,22 @@ use crate::common::parser::{consume_all, p_u32, NomResult};
 use anyhow::anyhow;
 
 use crate::common::format::human_size;
-use nom::character::complete::{newline, space0};
-use nom::combinator::{map_res, opt};
-use nom::multi::separated_list1;
+use nom::character::complete::{newline, satisfy, space0};
+use nom::combinator::{map, map_res, opt};
+use nom::multi::{many1, separated_list1};
 use nom::sequence::{preceded, terminated, tuple};
 use nom::Parser;
 use nom_supreme::tag::complete::tag;
 use tako::format_comma_delimited;
 use tako::resources::{
-    ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex, GPU_RESOURCE_NAME,
-    MEM_RESOURCE_NAME,
+    ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex, ResourceLabel,
+    GPU_RESOURCE_NAME, MEM_RESOURCE_NAME,
 };
 
 pub fn detect_cpus() -> anyhow::Result<ResourceDescriptorKind> {
     read_linux_numa()
         .and_then(|groups| {
-            ResourceDescriptorKind::groups(groups)
+            ResourceDescriptorKind::groups_numeric(groups)
                 .map_err(|_| anyhow!("Inconsistent CPU naming got from detection"))
         })
         .or_else(|e| {
@@ -38,7 +38,7 @@ pub fn prune_hyper_threading(
     for group in groups {
         let mut new_group = Vec::new();
         for cpu_id in group {
-            if read_linux_thread_siblings(cpu_id)?
+            if read_linux_thread_siblings(&cpu_id)?
                 .iter()
                 .min()
                 .ok_or_else(|| anyhow::anyhow!("Thread siblings are empty"))
@@ -88,7 +88,7 @@ pub fn detect_additional_resources(items: &mut Vec<ResourceDescriptorItem>) -> a
 /// Tries to detect available Nvidia GPUs from the `CUDA_VISIBLE_DEVICES` environment variable.
 fn detect_gpus_from_env() -> Option<ResourceDescriptorKind> {
     if let Ok(devices_str) = std::env::var("CUDA_VISIBLE_DEVICES") {
-        if let Ok(mut devices) = parse_comma_separated_numbers(&devices_str) {
+        if let Ok(mut devices) = parse_comma_separated_values(&devices_str) {
             log::info!(
                 "Detected GPUs {} from `CUDA_VISIBLE_DEVICES`",
                 format_comma_delimited(&devices)
@@ -102,9 +102,7 @@ fn detect_gpus_from_env() -> Option<ResourceDescriptorKind> {
                 log::warn!("CUDA_VISIBLE_DEVICES contains duplicates ({})", devices_str);
             }
 
-            let list =
-                ResourceDescriptorKind::list(devices.into_iter().map(|x| x.into()).collect())
-                    .expect("List values were not unique");
+            let list = ResourceDescriptorKind::list(devices).expect("List values were not unique");
             return Some(list);
         }
     }
@@ -137,13 +135,14 @@ fn read_linux_numa() -> anyhow::Result<Vec<Vec<ResourceIndex>>> {
     Ok(numa_nodes)
 }
 
-fn read_linux_thread_siblings(cpu_id: ResourceIndex) -> anyhow::Result<Vec<ResourceIndex>> {
+fn read_linux_thread_siblings(cpu_id: &ResourceLabel) -> anyhow::Result<Vec<ResourceLabel>> {
     let filename = format!(
         "/sys/devices/system/cpu/cpu{}/topology/thread_siblings_list",
         cpu_id
     );
     log::debug!("Reading {}", filename);
     parse_range(&std::fs::read_to_string(filename)?)
+        .map(|indices| indices.into_iter().map(|i| i.to_string()).collect())
 }
 
 fn p_cpu_range(input: &str) -> NomResult<Vec<ResourceIndex>> {
@@ -170,8 +169,12 @@ fn parse_range(input: &str) -> anyhow::Result<Vec<ResourceIndex>> {
     consume_all(parser, input)
 }
 
-fn parse_comma_separated_numbers(input: &str) -> anyhow::Result<Vec<u32>> {
-    consume_all(separated_list1(tag(","), p_u32), input)
+fn parse_comma_separated_values(input: &str) -> anyhow::Result<Vec<String>> {
+    let any_except_comma = map(many1(satisfy(|c| c != ',')), |items| {
+        items.into_iter().collect::<String>()
+    });
+
+    consume_all(separated_list1(tag(","), any_except_comma), input)
 }
 
 #[cfg(test)]

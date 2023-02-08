@@ -34,7 +34,7 @@ pub mod resources {
     pub use crate::internal::common::resources::{
         Allocation, AllocationRequest, AllocationValue, NumOfNodes, ResourceAmount,
         ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex,
-        ResourceRequest, ResourceRequestEntries, ResourceRequestEntry, TimeRequest,
+        ResourceLabel, ResourceRequest, ResourceRequestEntries, ResourceRequestEntry, TimeRequest,
         CPU_RESOURCE_ID, CPU_RESOURCE_NAME, GPU_RESOURCE_NAME, MEM_RESOURCE_NAME,
     };
 

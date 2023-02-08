@@ -37,23 +37,26 @@ impl ResourcePool {
     pub fn new(kind: &ResourceDescriptorKind) -> Self {
         match kind {
             ResourceDescriptorKind::List { values } => ResourcePool::Indices(IndicesResourcePool {
-                indices: values.clone(),
+                indices: dense_indices(values.len()),
                 full_size: values.len() as ResourceAmount,
             }),
-            ResourceDescriptorKind::Groups { groups } => ResourcePool::Groups(GroupsResourcePool {
-                indices: groups.clone(),
-                full_size: groups.iter().map(|g| g.len() as ResourceAmount).sum(),
-                reverse_map: groups
-                    .iter()
-                    .enumerate()
-                    .flat_map(|(i, group)| group.iter().map(move |idx| (*idx, i)))
-                    .collect(),
-                min_group_size: groups
-                    .iter()
-                    .map(|g| g.len() as ResourceAmount)
-                    .min()
-                    .unwrap_or(1),
-            }),
+            ResourceDescriptorKind::Groups { groups } => {
+                todo!();
+                /*ResourcePool::Groups(GroupsResourcePool {
+                    indices: groups.clone(),
+                    full_size: groups.iter().map(|g| g.len() as ResourceAmount).sum(),
+                    reverse_map: groups
+                        .iter()
+                        .enumerate()
+                        .flat_map(|(i, group)| group.iter().map(move |idx| (*idx, i)))
+                        .collect(),
+                    min_group_size: groups
+                        .iter()
+                        .map(|g| g.len() as ResourceAmount)
+                        .min()
+                        .unwrap_or(1),
+                })*/
+            }
             ResourceDescriptorKind::Range { start, end } => {
                 let indices: Vec<ResourceIndex> = (start.as_num()..=end.as_num())
                     .map(|id| id.into())
@@ -183,6 +186,10 @@ impl ResourcePool {
             }
         }
     }
+}
+
+fn dense_indices(count: usize) -> Vec<ResourceIndex> {
+    (0..count).map(|i| ResourceIndex::new(i as u32)).collect()
 }
 
 #[cfg(test)]
