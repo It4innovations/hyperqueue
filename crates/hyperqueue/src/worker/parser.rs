@@ -1,12 +1,14 @@
-use crate::common::parser2::{
-    all_consuming, parse_exact_string, parse_named_string, parse_u32, parse_u64, CharParser,
-    ParseError,
-};
 use chumsky::primitive::just;
 use chumsky::text::TextParser;
 use chumsky::Parser;
+
 use tako::resources::{
     DescriptorError, ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex,
+};
+
+use crate::common::parser2::{
+    all_consuming, parse_exact_string, parse_named_string, parse_u32, parse_u64, CharParser,
+    ParseError,
 };
 
 pub fn parse_cpu_definition(input: &str) -> anyhow::Result<ResourceDescriptorKind> {
@@ -163,70 +165,47 @@ pub fn parse_resource_definition(input: &str) -> anyhow::Result<ResourceDescript
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::tests::utils::expect_parser_error;
     use tako::AsIdVec;
+
+    use crate::tests::utils::expect_parser_error;
+
+    use super::*;
 
     #[test]
     fn test_parse_cpu_single_number() {
-        let kind = parse_cpu_definition("4").unwrap();
-        match kind {
-            ResourceDescriptorKind::Range { start, end } => {
-                assert_eq!(start.as_num(), 0);
-                assert_eq!(end.as_num(), 3);
-            }
-            _ => panic!(),
-        }
+        check_kind(parse_cpu_definition("4"), range(0, 3));
     }
 
     #[test]
     fn test_parse_cpu_list_kind() {
-        let kind = parse_cpu_definition("[0, 5, 7]").unwrap();
-        match kind {
-            ResourceDescriptorKind::List { values } => {
-                assert_eq!(values, vec![0, 5, 7].to_ids());
-            }
-            _ => panic!(),
-        }
+        check_kind(parse_cpu_definition("[0, 5, 7]"), list(&[0, 5, 7]));
     }
 
     #[test]
     fn test_parse_resource_group_x_notation() {
-        let rd = parse_resource_definition("cpus=2x3").unwrap();
-        assert_eq!(rd.name, "cpus");
-        match rd.kind {
-            ResourceDescriptorKind::Groups { groups } => {
-                assert_eq!(groups, vec![vec![0, 1, 2].to_ids(), vec![3, 4, 5].to_ids()]);
-            }
-            _ => panic!(),
-        }
+        check_item(
+            parse_resource_definition("cpus=2x3"),
+            "cpus",
+            groups(vec![vec![0, 1, 2], vec![3, 4, 5]]),
+        );
     }
 
     #[test]
     fn test_parse_resource_group_single() {
-        let rd = parse_resource_definition("cpus=[[5, 7, 123]]").unwrap();
-        assert_eq!(rd.name, "cpus");
-        match rd.kind {
-            ResourceDescriptorKind::List { values } => {
-                assert_eq!(values, vec![5, 7, 123].to_ids());
-            }
-            _ => panic!(),
-        }
+        check_item(
+            parse_resource_definition("cpus=[[5, 7, 123]]"),
+            "cpus",
+            list(&[5, 7, 123]),
+        );
     }
 
     #[test]
     fn test_parse_resource_group_multiple() {
-        let rd = parse_resource_definition("cpus=[[0], [7], [123, 200]]").unwrap();
-        assert_eq!(rd.name, "cpus");
-        match rd.kind {
-            ResourceDescriptorKind::Groups { groups } => {
-                assert_eq!(
-                    groups,
-                    vec![vec![0].to_ids(), vec![7].to_ids(), vec![123, 200].to_ids()]
-                );
-            }
-            _ => panic!(),
-        }
+        check_item(
+            parse_resource_definition("cpus=[[0], [7], [123, 200]]"),
+            "cpus",
+            groups(vec![vec![0], vec![7], vec![123, 200]]),
+        );
     }
 
     #[test]
@@ -251,38 +230,25 @@ mod test {
 
     #[test]
     fn test_parse_resource_def_list_single() {
-        let rd = parse_resource_definition("mem=[1]").unwrap();
-        assert_eq!(rd.name, "mem");
-        match rd.kind {
-            ResourceDescriptorKind::List { values } => {
-                assert_eq!(values, vec![1.into()]);
-            }
-            _ => panic!(),
-        }
+        check_item(parse_resource_definition("mem=[1]"), "mem", list(&[1]));
     }
 
     #[test]
     fn test_parse_resource_def_list_whitespace() {
-        let rd = parse_resource_definition("   mem    =   [   1  ] ").unwrap();
-        assert_eq!(rd.name, "mem");
-        match rd.kind {
-            ResourceDescriptorKind::List { values } => {
-                assert_eq!(values, vec![1.into()]);
-            }
-            _ => panic!(),
-        }
+        check_item(
+            parse_resource_definition("   mem    =   [   1  ] "),
+            "mem",
+            list(&[1]),
+        );
     }
 
     #[test]
     fn test_parse_resource_def_list_multiple() {
-        let rd = parse_resource_definition("mem=[12,34,58]").unwrap();
-        assert_eq!(rd.name, "mem");
-        match rd.kind {
-            ResourceDescriptorKind::List { values } => {
-                assert_eq!(values, vec![12.into(), 34.into(), 58.into()]);
-            }
-            _ => panic!(),
-        }
+        check_item(
+            parse_resource_definition("mem=[12,34,58]"),
+            "mem",
+            list(&[12, 34, 58]),
+        );
     }
 
     #[test]
@@ -307,28 +273,20 @@ mod test {
 
     #[test]
     fn test_parse_resource_def_range() {
-        let rd = parse_resource_definition("gpu=range(10-123)").unwrap();
-        assert_eq!(rd.name, "gpu");
-        match rd.kind {
-            ResourceDescriptorKind::Range { start, end } => {
-                assert_eq!(start.as_num(), 10);
-                assert_eq!(end.as_num(), 123);
-            }
-            _ => panic!(),
-        }
+        check_item(
+            parse_resource_definition("gpu=range(10-123)"),
+            "gpu",
+            range(10, 123),
+        );
     }
 
     #[test]
     fn test_parse_resource_def_range_whitespace() {
-        let rd = parse_resource_definition("  gpu  =  range  ( 10 -  123 ) ").unwrap();
-        assert_eq!(rd.name, "gpu");
-        match rd.kind {
-            ResourceDescriptorKind::Range { start, end } => {
-                assert_eq!(start.as_num(), 10);
-                assert_eq!(end.as_num(), 123);
-            }
-            _ => panic!(),
-        }
+        check_item(
+            parse_resource_definition("  gpu  =  range  ( 10 -  123 ) "),
+            "gpu",
+            range(10, 123),
+        );
     }
 
     #[test]
@@ -363,26 +321,20 @@ mod test {
 
     #[test]
     fn test_parse_resource_def_sum() {
-        let rd = parse_resource_definition("mem=sum(1000_3000_2000)").unwrap();
-        assert_eq!(rd.name, "mem");
-        assert!(matches!(
-            rd.kind,
-            ResourceDescriptorKind::Sum {
-                size: 1000_3000_2000
-            }
-        ));
+        check_item(
+            parse_resource_definition("mem=sum(1000_3000_2000)"),
+            "mem",
+            sum(1000_3000_2000),
+        );
     }
 
     #[test]
     fn test_parse_resource_def_sum_whitespace() {
-        let rd = parse_resource_definition("   mem  = sum ( 1000_3000_2000 ) ").unwrap();
-        assert_eq!(rd.name, "mem");
-        assert!(matches!(
-            rd.kind,
-            ResourceDescriptorKind::Sum {
-                size: 1000_3000_2000
-            }
-        ));
+        check_item(
+            parse_resource_definition("   mem  = sum ( 1000_3000_2000 ) "),
+            "mem",
+            sum(1000_3000_2000),
+        );
     }
 
     #[test]
@@ -461,5 +413,45 @@ mod test {
                |
                --- Unexpected end of input
         "###);
+    }
+
+    fn check_item(
+        result: anyhow::Result<ResourceDescriptorItem>,
+        name: &str,
+        kind: ResourceDescriptorKind,
+    ) {
+        let result = result.unwrap();
+        assert_eq!(result.name, name);
+        assert_eq!(result.kind, kind);
+    }
+
+    fn check_kind(
+        result: anyhow::Result<ResourceDescriptorKind>,
+        expected: ResourceDescriptorKind,
+    ) {
+        assert_eq!(result.unwrap(), expected);
+    }
+
+    fn range(start: u32, end: u32) -> ResourceDescriptorKind {
+        ResourceDescriptorKind::Range {
+            start: start.into(),
+            end: end.into(),
+        }
+    }
+
+    fn list(items: &[u32]) -> ResourceDescriptorKind {
+        ResourceDescriptorKind::List {
+            values: items.into_iter().map(|&v| v.into()).collect(),
+        }
+    }
+
+    fn groups(groups: Vec<Vec<u32>>) -> ResourceDescriptorKind {
+        ResourceDescriptorKind::Groups {
+            groups: groups.into_iter().map(|v| v.to_ids()).collect(),
+        }
+    }
+
+    fn sum(size: u64) -> ResourceDescriptorKind {
+        ResourceDescriptorKind::Sum { size }
     }
 }
