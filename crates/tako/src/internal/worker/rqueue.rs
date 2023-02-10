@@ -1,5 +1,4 @@
-use crate::internal::common::resources::map::ResourceMap;
-use crate::internal::common::resources::{Allocation, ResourceDescriptor, ResourceRequest};
+use crate::internal::common::resources::{Allocation, ResourceRequest};
 use crate::internal::common::Map;
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
@@ -37,11 +36,11 @@ pub struct ResourceWaitQueue {
 }
 
 impl ResourceWaitQueue {
-    pub fn new(desc: &ResourceDescriptor, resource_map: &ResourceMap) -> Self {
+    pub fn new(allocator: ResourceAllocator) -> Self {
         ResourceWaitQueue {
             queues: Default::default(),
             requests: Default::default(),
-            allocator: ResourceAllocator::new(desc, resource_map),
+            allocator,
             worker_resources: Default::default(),
         }
     }
@@ -182,17 +181,18 @@ impl ResourceWaitQueue {
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::common::resources::map::ResourceMap;
     use crate::internal::common::resources::{ResourceDescriptor, ResourceRequest};
-    use crate::internal::tests::utils::resources::ResBuilder;
     use crate::internal::tests::utils::resources::{cpus_compact, ResourceRequestBuilder};
+    use crate::internal::tests::utils::resources::{res_allocator_from_descriptor, ResBuilder};
     use crate::internal::worker::rqueue::ResourceWaitQueue;
     use crate::internal::worker::test_util::{worker_task, WorkerTaskBuilder};
     use std::time::Duration;
 
     use crate::internal::messages::worker::WorkerResourceCounts;
     use crate::internal::server::workerload::WorkerResources;
-    use crate::internal::tests::utils::shared::{res_kind_groups, res_kind_list, res_kind_range};
+    use crate::internal::tests::utils::shared::{
+        res_item, res_kind_groups, res_kind_list, res_kind_range,
+    };
     use crate::internal::worker::test_util::ResourceQueueBuilder as RB;
     use crate::resources::ResourceDescriptorItem;
     use crate::{Map, Set, WorkerId};
@@ -209,13 +209,10 @@ mod tests {
 
     #[test]
     fn test_rqueue_resource_priority() {
-        let mut rq = RB::new(ResourceWaitQueue::new(
-            &ResourceDescriptor::new(vec![ResourceDescriptorItem {
-                name: "cpus".to_string(),
-                kind: res_kind_groups(&[vec!["0", "1", "2", "3"], vec!["7", "8"]]),
-            }]),
-            &ResourceMap::from_ref(&["cpus"]),
-        ));
+        let mut rq = RB::new(wait_queue(vec![res_item(
+            "cpus",
+            res_kind_groups(&[vec!["0", "1", "2", "3"], vec!["7", "8"]]),
+        )]));
 
         rq.add_task(worker_task(
             10,
@@ -253,10 +250,7 @@ mod tests {
 
     #[test]
     fn test_rqueue1() {
-        let mut rq = RB::new(ResourceWaitQueue::new(
-            &ResourceDescriptor::sockets(3, 5),
-            &ResourceMap::from_ref(&["cpus"]),
-        ));
+        let mut rq = RB::new(wait_queue(ResourceDescriptor::sockets(3, 5)));
         rq.add_task(worker_task(10, cpus_compact(2).finish(), 1));
         rq.add_task(worker_task(11, cpus_compact(5).finish(), 1));
         rq.add_task(worker_task(12, cpus_compact(2).finish(), 1));
@@ -269,10 +263,7 @@ mod tests {
 
     #[test]
     fn test_rqueue2() {
-        let mut rq = RB::new(ResourceWaitQueue::new(
-            &ResourceDescriptor::simple(4),
-            &ResourceMap::from_ref(&["cpus"]),
-        ));
+        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple(4)));
 
         rq.add_task(worker_task(10, cpus_compact(2).finish(), 1));
         rq.add_task(worker_task(11, cpus_compact(1).finish(), 2));
@@ -287,10 +278,7 @@ mod tests {
 
     #[test]
     fn test_rqueue3() {
-        let mut rq = RB::new(ResourceWaitQueue::new(
-            &ResourceDescriptor::simple(4),
-            &ResourceMap::from_ref(&["cpus"]),
-        ));
+        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple(4)));
 
         rq.add_task(worker_task(10, cpus_compact(2).finish(), 1));
         rq.add_task(worker_task(11, cpus_compact(1).finish(), 1));
@@ -304,10 +292,7 @@ mod tests {
 
     #[test]
     fn test_rqueue_time_request() {
-        let mut rq = RB::new(ResourceWaitQueue::new(
-            &ResourceDescriptor::simple(4),
-            &ResourceMap::from_ref(&["cpus"]),
-        ));
+        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple(4)));
         rq.add_task(worker_task(
             10,
             ResBuilder::default().add(0, 1).min_time_secs(10).finish(),
@@ -320,10 +305,7 @@ mod tests {
 
     #[test]
     fn test_rqueue_time_request_priority1() {
-        let mut rq = RB::new(ResourceWaitQueue::new(
-            &ResourceDescriptor::simple(4),
-            &ResourceMap::from_ref(&["cpus"]),
-        ));
+        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple(4)));
         rq.add_task(worker_task(
             10,
             cpus_compact(2).min_time_secs(10).finish(),
@@ -353,10 +335,7 @@ mod tests {
 
     #[test]
     fn test_rqueue_time_request_priority2() {
-        let mut rq = RB::new(ResourceWaitQueue::new(
-            &ResourceDescriptor::simple(4),
-            &ResourceMap::from_ref(&["cpus"]),
-        ));
+        let mut rq = RB::new(wait_queue(ResourceDescriptor::simple(4)));
         rq.add_task(worker_task(
             10,
             cpus_compact(2).min_time_secs(10).finish(),
@@ -392,11 +371,7 @@ mod tests {
             ResourceDescriptorItem::sum("Res1", 100_000_000),
             ResourceDescriptorItem::range("Res2", 1, 50),
         ];
-        let descriptor = ResourceDescriptor::new(resources);
-        let mut rq = RB::new(ResourceWaitQueue::new(
-            &descriptor,
-            &ResourceMap::from_ref(&["cpus", "Res0", "Res1", "Res2"]),
-        ));
+        let mut rq = RB::new(wait_queue(resources));
 
         let request: ResourceRequest = cpus_compact(2).add(1, 2).finish();
 
@@ -416,12 +391,8 @@ mod tests {
             ResourceDescriptorItem::sum("Res1", 100_000_000),
             ResourceDescriptorItem::range("Res2", 1, 50),
         ];
-        let descriptor = ResourceDescriptor::new(resources);
 
-        let mut rq = RB::new(ResourceWaitQueue::new(
-            &descriptor,
-            &ResourceMap::from_ref(&["cpus", "Res0", "Res1", "Res2"]),
-        ));
+        let mut rq = RB::new(wait_queue(resources));
 
         let request: ResourceRequest = cpus_compact(2).add(1, 8).finish();
         rq.add_task(worker_task(10, request, 1));
@@ -446,12 +417,8 @@ mod tests {
             ResourceDescriptorItem::sum("Res1", 100_000_000),
             ResourceDescriptorItem::range("Res2", 1, 50),
         ];
-        let descriptor = ResourceDescriptor::new(resources);
 
-        let mut rq = RB::new(ResourceWaitQueue::new(
-            &descriptor,
-            &ResourceMap::from_ref(&["cpus", "Res0", "Res1", "Res2"]),
-        ));
+        let mut rq = RB::new(wait_queue(resources));
 
         let request: ResourceRequest = cpus_compact(2).add(1, 18).finish();
         rq.add_task(worker_task(10, request, 1));
@@ -478,8 +445,7 @@ mod tests {
             name: "res1".to_string(),
             kind: res_kind_list(&["2", "3", "4"]),
         };
-        let descriptor = ResourceDescriptor::new(vec![r1, r2]);
-        let mut rq = ResourceWaitQueue::new(&descriptor, &ResourceMap::from_ref(&["cpus", "res1"]));
+        let mut rq = wait_queue(vec![r1, r2]);
 
         let rq1 = ResourceRequestBuilder::default().cpus(1).finish();
         let rq2 = ResourceRequestBuilder::default().cpus(3).finish();
@@ -535,12 +501,8 @@ mod tests {
             ResourceDescriptorItem::range("res0", 1, 10),
             ResourceDescriptorItem::range("res1", 1, 2),
         ];
-        let descriptor = ResourceDescriptor::new(resources);
 
-        let mut rq = RB::new(ResourceWaitQueue::new(
-            &descriptor,
-            &ResourceMap::from_ref(&["cpus", "res0", "res1"]),
-        ));
+        let mut rq = RB::new(wait_queue(resources));
 
         let request: ResourceRequest = cpus_compact(16).finish();
         rq.add_task(
@@ -565,12 +527,8 @@ mod tests {
             ResourceDescriptorItem::range("res0", 1, 10),
             ResourceDescriptorItem::range("res1", 1, 2),
         ];
-        let descriptor = ResourceDescriptor::new(resources);
 
-        let mut rq = RB::new(ResourceWaitQueue::new(
-            &descriptor,
-            &ResourceMap::from_ref(&["cpus", "res0", "res1"]),
-        ));
+        let mut rq = RB::new(wait_queue(resources));
 
         rq.new_worker(
             400.into(),
@@ -602,12 +560,8 @@ mod tests {
             ResourceDescriptorItem::range("res0", 1, 10),
             ResourceDescriptorItem::range("res1", 1, 2),
         ];
-        let descriptor = ResourceDescriptor::new(resources);
 
-        let mut rq = RB::new(ResourceWaitQueue::new(
-            &descriptor,
-            &ResourceMap::from_ref(&["cpus", "res0", "res1"]),
-        ));
+        let mut rq = RB::new(wait_queue(resources));
 
         rq.new_worker(
             400.into(),
@@ -639,12 +593,8 @@ mod tests {
             ResourceDescriptorItem::range("res0", 1, 10),
             ResourceDescriptorItem::range("res1", 1, 2),
         ];
-        let descriptor = ResourceDescriptor::new(resources);
 
-        let mut rq = RB::new(ResourceWaitQueue::new(
-            &descriptor,
-            &ResourceMap::from_ref(&["cpus", "res0", "res1"]),
-        ));
+        let mut rq = RB::new(wait_queue(resources));
 
         rq.new_worker(
             400.into(),
@@ -669,5 +619,17 @@ mod tests {
         let map = rq.start_tasks();
         assert_eq!(map.len(), 1);
         assert!(map.contains_key(&10));
+    }
+
+    fn wait_queue<Resources: Into<ResourceDescriptor>>(descriptor: Resources) -> ResourceWaitQueue {
+        let descriptor: ResourceDescriptor = descriptor.into();
+        let allocator = res_allocator_from_descriptor(descriptor);
+        ResourceWaitQueue::new(allocator)
+    }
+
+    impl From<Vec<ResourceDescriptorItem>> for ResourceDescriptor {
+        fn from(value: Vec<ResourceDescriptorItem>) -> Self {
+            Self { resources: value }
+        }
     }
 }
