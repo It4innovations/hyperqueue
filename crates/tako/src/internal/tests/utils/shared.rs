@@ -1,4 +1,4 @@
-use crate::resources::ResourceDescriptorKind;
+use crate::resources::{ResourceDescriptorItem, ResourceDescriptorKind};
 
 pub fn res_kind_range(start: u32, end: u32) -> ResourceDescriptorKind {
     ResourceDescriptorKind::Range {
@@ -24,4 +24,11 @@ pub fn res_kind_groups(groups: &[Vec<&str>]) -> ResourceDescriptorKind {
 
 pub fn res_kind_sum(size: u64) -> ResourceDescriptorKind {
     ResourceDescriptorKind::Sum { size }
+}
+
+pub fn res_item(name: &str, kind: ResourceDescriptorKind) -> ResourceDescriptorItem {
+    ResourceDescriptorItem {
+        name: name.to_string(),
+        kind,
+    }
 }

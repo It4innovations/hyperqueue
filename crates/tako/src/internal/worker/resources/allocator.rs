@@ -7,6 +7,7 @@ use crate::internal::common::resources::{
 use crate::internal::worker::resources::counts::{
     resource_count_add_at, ResourceCount, ResourceCountVec,
 };
+use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::resources::pool::ResourcePool;
 use crate::resources::{Allocation, ResourceAmount, ResourceDescriptor, ResourceMap};
 use smallvec::smallvec;
@@ -32,7 +33,11 @@ struct BlockedRequest {
 }
 
 impl ResourceAllocator {
-    pub fn new(desc: &ResourceDescriptor, resource_map: &ResourceMap) -> Self {
+    pub fn new(
+        desc: &ResourceDescriptor,
+        resource_map: &ResourceMap,
+        label_map: &ResourceLabelMap,
+    ) -> Self {
         let max_id = desc
             .resources
             .iter()
@@ -44,19 +49,19 @@ impl ResourceAllocator {
             .max()
             .expect("Allocator needs at least one resource");
         let r_counts = max_id.as_num() as usize + 1;
-        let mut pools = Vec::new();
+        let mut pools = ResourceVec::default();
         pools.resize_with(r_counts, || ResourcePool::Empty);
 
         for item in &desc.resources {
-            let idx = resource_map.get_index(&item.name).unwrap().as_num() as usize;
-            pools[idx] = ResourcePool::new(&item.kind);
+            let idx = resource_map.get_index(&item.name).unwrap();
+            pools[idx] = ResourcePool::new(&item.kind, idx, &label_map);
         }
 
         let free_resources =
             ResourceCountVec::new(pools.iter().map(|p| p.count()).collect::<Vec<_>>().into());
 
         ResourceAllocator {
-            pools: pools.into(),
+            pools,
             free_resources,
             remaining_time: None,
             blocked_requests: Vec::new(),
@@ -375,11 +380,12 @@ mod tests {
     use crate::internal::common::resources::descriptor::{
         ResourceDescriptor, ResourceDescriptorKind,
     };
-    use crate::internal::common::resources::map::ResourceMap;
     use crate::internal::common::resources::{
         Allocation, AllocationValue, ResourceId, ResourceRequest,
     };
-    use crate::internal::tests::utils::resources::{cpus_compact, ResBuilder};
+    use crate::internal::tests::utils::resources::{
+        cpus_compact, res_allocator_from_descriptor, ResBuilder,
+    };
     use crate::internal::tests::utils::sorted_vec;
     use crate::internal::worker::resources::allocator::ResourceAllocator;
     use crate::internal::worker::resources::counts::ResourceCountVec;
@@ -411,14 +417,7 @@ mod tests {
     }
 
     pub fn test_allocator(descriptor: &ResourceDescriptor) -> ResourceAllocator {
-        let names = descriptor
-            .resources
-            .iter()
-            .map(|r| r.name.clone())
-            .collect();
-        let allocator = ResourceAllocator::new(descriptor, &ResourceMap::from_vec(names));
-        allocator.validate();
-        allocator
+        res_allocator_from_descriptor(descriptor.clone())
     }
 
     fn simple_allocator(
@@ -444,9 +443,9 @@ mod tests {
                 }
             })
             .collect();
-        let descritor = ResourceDescriptor::new(ds);
+        let descriptor = ResourceDescriptor::new(ds);
 
-        let mut ac = ResourceAllocator::new(&descritor, &ResourceMap::from_vec(names));
+        let mut ac = res_allocator_from_descriptor(descriptor);
         for r in running {
             let c = ResourceCountVec::new_simple(r);
             assert!(ac.free_resources.remove(&c));
@@ -481,8 +480,16 @@ mod tests {
     #[test]
     fn test_compute_blocking_level() {
         let pools = [
-            ResourcePool::new(&ResourceDescriptorKind::simple_indices(3)),
-            ResourcePool::new(&ResourceDescriptorKind::simple_indices(3)),
+            ResourcePool::new(
+                &ResourceDescriptorKind::simple_indices(3),
+                0.into(),
+                &Default::default(),
+            ),
+            ResourcePool::new(
+                &ResourceDescriptorKind::simple_indices(3),
+                0.into(),
+                &Default::default(),
+            ),
         ];
         let free = ResourceCountVec::new_simple(&[1, 2]);
         let rq = ResBuilder::default().add(0, 3).add(1, 1).finish();
