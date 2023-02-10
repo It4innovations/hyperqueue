@@ -22,7 +22,7 @@ use crate::common::arraydef::IntArray;
 use crate::common::cli::OptsWithMatches;
 use crate::common::placeholders::{
     get_unknown_placeholders, parse_resolvable_string, StringPart, CWD_PLACEHOLDER,
-    JOB_ID_PLACEHOLDER, SUBMIT_DIR_PLACEHOLDER, TASK_ID_PLACEHOLDER,
+    JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER,
 };
 use crate::common::utils::fs::get_current_dir;
 use crate::common::utils::str::pluralize;
@@ -40,7 +40,7 @@ pub const DEFAULT_CRASH_LIMIT: u32 = 5;
 // Keep in sync with `tests/util/job.py::default_task_output` and `pyhq/python/hyperqueue/output.py`
 const DEFAULT_STDOUT_PATH: &str = const_format::concatcp!(
     "%{",
-    SUBMIT_DIR_PLACEHOLDER,
+    CWD_PLACEHOLDER,
     "}",
     "/",
     "job-",
@@ -55,7 +55,7 @@ const DEFAULT_STDOUT_PATH: &str = const_format::concatcp!(
 );
 const DEFAULT_STDERR_PATH: &str = const_format::concatcp!(
     "%{",
-    SUBMIT_DIR_PLACEHOLDER,
+    CWD_PLACEHOLDER,
     "}",
     "/",
     "job-",

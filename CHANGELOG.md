@@ -12,6 +12,15 @@
   $ hq worker start --resource="res1=[foo, bar]"
   ```
 
+## Changes
+
+### Job submission
+* The default path for `stdout` and `stderr` files has been changed from `%{SUBMIT_DIR}/job-%{JOB_ID}/%{TASK_ID}.[stdout/stderr]`
+  to `%{CWD}/job-%{JOB_ID}/%{TASK_ID}.[stdout/stderr]`. Note that the default value for the working
+  directory (`%{CWD}`) is set to the submission directory, so if you have used the defaults before,
+  nothing will change for you. Stdout and stderr paths are now also resolved relative to the working
+  directory of the given task, not to the submit directory.
+
 # v0.14.0
 
 ## New features

@@ -67,7 +67,7 @@ pub fn fill_placeholders_in_paths(paths: ResolvablePaths, ctx: CompletePlacehold
     );
     placeholders.insert(SERVER_UID_PLACEHOLDER, ctx.server_uid.to_string().into());
 
-    resolve_program_paths(placeholders, paths, ctx.submit_dir, true);
+    resolve_program_paths(placeholders, paths, ctx.submit_dir);
 }
 
 /// Fills placeholder values that are known immediately after a job is submitted.
@@ -83,7 +83,6 @@ pub fn fill_placeholders_after_submit(
         placeholders,
         ResolvablePaths::from_program_def(program),
         submit_dir,
-        false,
     );
 }
 
@@ -128,18 +127,14 @@ fn resolve_program_paths<'a>(
     mut placeholders: PlaceholderMap<'a>,
     paths: ResolvablePaths<'a>,
     submit_dir: &Path,
-    normalize_paths: bool,
 ) {
-    *paths.cwd = resolve_path(&placeholders, paths.cwd, submit_dir, normalize_paths);
-
-    if normalize_paths {
-        placeholders.insert(CWD_PLACEHOLDER, paths.cwd.to_str().unwrap().into());
-    }
+    *paths.cwd = resolve_path(&placeholders, paths.cwd, submit_dir);
+    placeholders.insert(CWD_PLACEHOLDER, paths.cwd.to_str().unwrap().into());
 
     *paths.stdout = std::mem::take(paths.stdout)
-        .map_filename(|path| resolve_path(&placeholders, &path, submit_dir, normalize_paths));
+        .map_filename(|path| resolve_path(&placeholders, &path, paths.cwd));
     *paths.stderr = std::mem::take(paths.stderr)
-        .map_filename(|path| resolve_path(&placeholders, &path, submit_dir, normalize_paths));
+        .map_filename(|path| resolve_path(&placeholders, &path, paths.cwd));
 }
 
 fn resolve<'b>(map: &PlaceholderMap, input: &'b str) -> Cow<'b, str> {
@@ -169,9 +164,9 @@ fn resolve<'b>(map: &PlaceholderMap, input: &'b str) -> Cow<'b, str> {
     buffer.into()
 }
 
-fn resolve_path(map: &PlaceholderMap, path: &Path, base_dir: &Path, normalize: bool) -> PathBuf {
+fn resolve_path(map: &PlaceholderMap, path: &Path, base_dir: &Path) -> PathBuf {
     let path: PathBuf = resolve(map, path.to_str().unwrap()).into_owned().into();
-    if normalize {
+    if !has_placeholders(&path.to_str().unwrap()) {
         normalize_path(&path, base_dir)
     } else {
         path
@@ -195,6 +190,13 @@ pub enum StringPart<'a> {
 
 fn parse_placeholder(data: &str) -> NomResult<&str> {
     delimited(tag("%{"), take_until("}"), tag("}"))(data)
+}
+
+// TODO: optimize
+fn has_placeholders(data: &str) -> bool {
+    parse_resolvable_string(data)
+        .iter()
+        .any(|part| matches!(part, StringPart::Placeholder(_)))
 }
 
 /// Parses strings containing placeholders.
@@ -321,16 +323,22 @@ mod tests {
     fn test_replace_after_submit() {
         let mut program = program_def(
             "%{SUBMIT_DIR}/%{SERVER_UID}/%{JOB_ID}-%{TASK_ID}",
-            Some("%{CWD}.out"),
-            Some("%{CWD}.err"),
+            Some("%{CWD}/out"),
+            Some("%{CWD}/err"),
             "/foo",
             99,
             99,
         );
-        fill_placeholders_after_submit(&mut program, 5.into(), &PathBuf::from("/foo/"), "testHQ");
+        fill_placeholders_after_submit(&mut program, 5.into(), &PathBuf::from("/foo"), "testHQ");
         assert_eq!(program.cwd, PathBuf::from("/foo/testHQ/5-%{TASK_ID}"));
-        assert_eq!(program.stdout, StdioDef::File("%{CWD}.out".into()));
-        assert_eq!(program.stderr, StdioDef::File("%{CWD}.err".into()));
+        assert_eq!(
+            program.stdout,
+            StdioDef::File("/foo/testHQ/5-%{TASK_ID}/out".into())
+        );
+        assert_eq!(
+            program.stderr,
+            StdioDef::File("/foo/testHQ/5-%{TASK_ID}/err".into())
+        );
     }
 
     #[test]
@@ -345,8 +353,14 @@ mod tests {
 
         fill_placeholders_in_paths(ResolvablePaths::from_paths(&mut paths), ctx);
         assert_eq!(paths.cwd, PathBuf::from("/foo/testHQ-10-6"));
-        assert_eq!(paths.stdout, StdioDef::File("/foo/5/stdout".into()));
-        assert_eq!(paths.stderr, StdioDef::File("/foo/5/stderr".into()));
+        assert_eq!(
+            paths.stdout,
+            StdioDef::File("/foo/testHQ-10-6/5/stdout".into())
+        );
+        assert_eq!(
+            paths.stderr,
+            StdioDef::File("/foo/testHQ-10-6/5/stderr".into())
+        );
     }
 
     #[test]
