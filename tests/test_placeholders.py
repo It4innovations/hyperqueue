@@ -32,6 +32,50 @@ def test_job_paths_prefilled_placeholders(hq_env: HqEnv):
     assert table.get_row_value("Stdout") == default_task_output(task_id="%{TASK_ID}")
 
 
+def test_job_paths_prefilled_placeholders_resolvable_cwd(hq_env: HqEnv):
+    """
+    Checks that job paths are partially resolved after submit.
+    """
+    hq_env.start_server()
+    hq_env.command(["submit", "--cwd", "/tmp/foo", "hostname"])
+    wait_for_job_state(hq_env, 1, "WAITING")
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    assert table.get_row_value("Stdout") == "/tmp/foo/job-1/%{TASK_ID}.stdout"
+
+    hq_env.start_worker()
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    table = hq_env.command(["task", "info", "1", "0"], as_table=True)
+    assert get_paths(table) == (
+        "/tmp/foo",
+        "/tmp/foo/job-1/0.stdout",
+        "/tmp/foo/job-1/0.stderr",
+    )
+
+
+def test_job_paths_prefilled_placeholders_unresolvable_cwd(hq_env: HqEnv):
+    """
+    Checks that job paths are partially resolved after submit.
+    """
+    hq_env.start_server()
+    hq_env.command(["submit", "--cwd", "/tmp/%{TASK_ID}", "hostname"])
+    wait_for_job_state(hq_env, 1, "WAITING")
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    assert table.get_row_value("Stdout") == "/tmp/%{TASK_ID}/job-1/%{TASK_ID}.stdout"
+
+    hq_env.start_worker()
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    table = hq_env.command(["task", "info", "1", "0"], as_table=True)
+    assert get_paths(table) == (
+        "/tmp/0",
+        "/tmp/0/job-1/0.stdout",
+        "/tmp/0/job-1/0.stderr",
+    )
+
+
 # (cwd, stdout, stderr)
 def get_paths(task_table: Table) -> Tuple[str, str, str]:
     cell = parse_multiline_cell(task_table.get_row_value("Paths"))
@@ -81,7 +125,11 @@ def test_task_resolve_worker_placeholders(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "FINISHED")
     table = hq_env.command(["task", "info", "1", "0"], as_table=True)
-    assert get_paths(table) == (abspath("0-dir"), abspath("0.out"), abspath("0.err"))
+    assert get_paths(table) == (
+        abspath("0-dir"),
+        abspath("0-dir/0.out"),
+        abspath("0-dir/0.err"),
+    )
 
 
 def test_stream_submit_placeholder(hq_env: HqEnv):
@@ -132,7 +180,7 @@ def test_server_uid_placeholder(hq_env: HqEnv, tmp_path):
     assert os.path.isfile(os.path.join(tmp_path, f"log-{server_uid}-2"))
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
-    table.check_row_value("Stdout", f"out-{server_uid}-1")
+    table.check_row_value("Stdout", f"{os.getcwd()}/out-{server_uid}-1")
 
 
 @pytest.mark.parametrize("channel", ("stdout", "stderr"))

@@ -128,7 +128,6 @@ def test_job_custom_working_dir(hq_env: HqEnv, tmpdir):
     test_file.write(test_string)
 
     submit_dir = tmpdir.mkdir("submit_dir")
-
     hq_env.command(
         ["submit", f"--cwd={work_dir}", "--", "bash", "-c", "cat testfile"],
         cwd=submit_dir,
@@ -139,7 +138,7 @@ def test_job_custom_working_dir(hq_env: HqEnv, tmpdir):
     hq_env.start_worker(cpus=1)
     wait_for_job_state(hq_env, 1, ["FINISHED"])
 
-    check_file_contents(default_task_output(submit_dir=submit_dir), test_string)
+    check_file_contents(default_task_output(working_dir=work_dir), test_string)
 
 
 def test_job_output_default(hq_env: HqEnv, tmp_path):

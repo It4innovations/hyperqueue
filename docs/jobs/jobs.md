@@ -76,8 +76,8 @@ $ hq submit --cwd=<path> ...
 By default, each job will produce two files containing the standard output and standard error output, respectively. The
 default paths of these files are
 
-- `%{SUBMIT_DIR}/job-%{JOB_ID}/%{TASK_ID}.stdout` for `stdout`
-- `%{SUBMIT_DIR}/job-%{JOB_ID}/%{TASK_ID}.stderr` for `stderr`
+- `%{CWD}/job-%{JOB_ID}/%{TASK_ID}.stdout` for `stdout`
+- `%{CWD}/job-%{JOB_ID}/%{TASK_ID}.stderr` for `stderr`
 
 `%{JOB_ID}` and `%{TASK_ID}` are so-called placeholders, you can read about them [below](#placeholders).
 
@@ -298,7 +298,6 @@ $ hq submit --stdin bash
 
 If you want to parse #HQ directives from standard input, you can use ``--directives=stdin``.
 
-
 ## Task directory
 
 When a job is submitted with ``--task-dir`` then a temporary directory is created for each task and
@@ -318,7 +317,6 @@ placed inside the task directory.
 If the message is longer than 2KiB, then it is truncated to 2KiB.
 
 If task terminates with zero return code, then the error file is ignored.
-
 
 ## Useful job commands
 Here is a list of useful job commands:
