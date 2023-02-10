@@ -6,5 +6,4 @@ pub mod server;
 pub(crate) mod transfer;
 pub mod worker;
 
-#[cfg(test)]
 pub mod tests;

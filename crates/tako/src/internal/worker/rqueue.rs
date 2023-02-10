@@ -192,8 +192,9 @@ mod tests {
 
     use crate::internal::messages::worker::WorkerResourceCounts;
     use crate::internal::server::workerload::WorkerResources;
+    use crate::internal::tests::utils::shared::{res_kind_groups, res_kind_list, res_kind_range};
     use crate::internal::worker::test_util::ResourceQueueBuilder as RB;
-    use crate::resources::{ResourceDescriptorItem, ResourceDescriptorKind};
+    use crate::resources::ResourceDescriptorItem;
     use crate::{Map, Set, WorkerId};
 
     impl ResourceWaitQueue {
@@ -211,11 +212,7 @@ mod tests {
         let mut rq = RB::new(ResourceWaitQueue::new(
             &ResourceDescriptor::new(vec![ResourceDescriptorItem {
                 name: "cpus".to_string(),
-                kind: ResourceDescriptorKind::groups(vec![
-                    vec![0.into(), 1.into(), 2.into(), 3.into()],
-                    vec![7.into(), 8.into()],
-                ])
-                .unwrap(),
+                kind: res_kind_groups(&[vec!["0", "1", "2", "3"], vec!["7", "8"]]),
             }]),
             &ResourceMap::from_ref(&["cpus"]),
         ));
@@ -475,16 +472,11 @@ mod tests {
     fn test_worker_resource_priorities() {
         let r1 = ResourceDescriptorItem {
             name: "cpus".to_string(),
-            kind: ResourceDescriptorKind::Range {
-                start: 0.into(),
-                end: 4.into(),
-            },
+            kind: res_kind_range(0, 4),
         };
         let r2 = ResourceDescriptorItem {
             name: "res1".to_string(),
-            kind: ResourceDescriptorKind::List {
-                values: vec![2.into(), 3.into(), 4.into()],
-            },
+            kind: res_kind_list(&["2", "3", "4"]),
         };
         let descriptor = ResourceDescriptor::new(vec![r1, r2]);
         let mut rq = ResourceWaitQueue::new(&descriptor, &ResourceMap::from_ref(&["cpus", "res1"]));

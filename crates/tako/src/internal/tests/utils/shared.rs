@@ -1,4 +1,4 @@
-use tako::resources::ResourceDescriptorKind;
+use crate::resources::ResourceDescriptorKind;
 
 pub fn res_kind_range(start: u32, end: u32) -> ResourceDescriptorKind {
     ResourceDescriptorKind::Range {
