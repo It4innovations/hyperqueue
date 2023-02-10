@@ -8,7 +8,7 @@ Some generic resources are [automatically detected](#automatically-detected-reso
 users may also define their own resources.
 
 From version 0.13.0, CPUs are also managed as other resources, but they have still some extra functionality;
-therefore, there is special chapter about [CPU resources](cresources.md). 
+therefore, there is a special section about [CPU resources](cresources.md). 
 
 !!! important
 
@@ -26,9 +26,9 @@ then ask for a part of resources contained in that pool.
 
 There are two kind of resource pools:
 
-* **Indexed pool**: This pool represents an enumerated set of resources represented by integers.
+* **Indexed pool**: This pool represents an enumerated set of resources represented by strings.
 Each resource has its own identity. Tasks do not ask for specific values from the set, they just specify
-how many resources do they require and HyperQueue will allocate the specified amount of resources
+how many resources they require and HyperQueue will allocate the specified amount of resources
 from the pool for each task.
 
     This pool is useful for resources that have their own identity, for example individual GPU or
@@ -39,11 +39,11 @@ from the pool for each task.
     currently have enough individual resources to fulfill the [resource request](#resource-request)
     of the task.
 
-    Indexed pool can ale defined with **groups** where indices live in separated groups. Task may
+    Indexed pool can be defined with **groups** where indices live in separated groups. Task may
     then ask for different allocation policies (e.g. use resources from the same or different groups).
     The main purpose of this is to capture NUMA architectures, each group then represents a socket with cores.
 
-* **Sum pool**: This pool represents a resource that has a certain size which be split into individual
+* **Sum pool**: This pool represents a resource that has a certain size which is split into individual
     tasks. A typical example is memory; if a worker has `2000` bytes of memory, it can serve e.g. four
     tasks, if each task asks for `500` bytes of memory.
 
@@ -61,11 +61,13 @@ $ hq worker start --resource "<NAME1>=<DEF1>" --resource "<NAME2>=<DEF2>" ...
 where `NAMEi` is a name (string ) of the `i`-th resource pool and `DEFi` is a definition of the
 `i-th` resource pool. You can define resource pools using one of the following formats:
 
-* `[<VALUE>, <VALUE>, ..., <VALUE>]` where `VALUE` is a non-negative integer. This defines a
-   an indexed pool with given values.
+* `[<VALUE>, <VALUE>, ..., <VALUE>]` where `VALUE` is a string. This defines a
+   an indexed pool with the given values. If you need to enter a string resource that contains special
+  characters (`[`, `]`, `,`, whitespace), you can wrap the value in quotes:
+  `["foo [,]", bar, "my resource"]`.
 * `range(<START>-<END>)` where `START` and `END` are non-negative integers. This defines
    an indexed pool with numbers in the inclusive range `[START, END]`.
-* `[[<VALUE>, ..., <VALUE>], [<VALUE>, ..., <VALUE>], ...]` where `VALUE` is a non-negative integer. This
+* `[[<VALUE>, ..., <VALUE>], [<VALUE>, ..., <VALUE>], ...]` where `VALUE` is a string. This
    defines an indexed pool where indices are grouped.
 * `<N>x<M>` Creates indexed pool with N groups of size M, indices are indexed from 0,
   (e.g. "2x3" is equivalent to `[[0, 1, 2], [3, 4, 5]`)
@@ -205,3 +207,5 @@ Resource requests are applied to each task of job. For example, if you submit th
 ```bash
 $ hq submit --cpus=2 --array=1-10
 ```
+
+then each task will require two cores.

@@ -1,3 +1,16 @@
+# Dev
+
+## New features
+
+### Resource management
+
+* You can now specify (indexed) resource values provided by workers as strings (previously only
+  integers were allowed). Notably, automatic detection of Nvidia GPUs specified with string UUIDs
+  now works.
+
+  ```console
+  $ hq worker start --resource="res1=[foo, bar]"
+  ```
 
 # v0.14.0
 
