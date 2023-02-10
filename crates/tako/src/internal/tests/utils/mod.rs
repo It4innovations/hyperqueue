@@ -1,9 +1,17 @@
+#[cfg(test)]
 pub mod env;
+#[cfg(test)]
 pub mod resources;
+#[cfg(test)]
 pub mod schedule;
+#[cfg(test)]
 pub mod task;
+#[cfg(test)]
 pub mod worker;
+#[cfg(test)]
 pub mod workflows;
+
+pub mod shared;
 
 pub fn sorted_vec<T: Ord>(mut vec: Vec<T>) -> Vec<T> {
     vec.sort();

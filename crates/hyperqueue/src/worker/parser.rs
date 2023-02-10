@@ -188,8 +188,10 @@ pub fn parse_resource_definition(input: &str) -> anyhow::Result<ResourceDescript
 
 #[cfg(test)]
 mod test {
-    use crate::tests::resources::{res_kind_groups, res_kind_list, res_kind_range, res_kind_sum};
     use crate::tests::utils::expect_parser_error;
+    use tako::internal::tests::utils::shared::{
+        res_kind_groups, res_kind_list, res_kind_range, res_kind_sum,
+    };
 
     use super::*;
 

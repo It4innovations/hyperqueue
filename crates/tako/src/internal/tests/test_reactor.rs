@@ -24,11 +24,12 @@ use crate::internal::tests::utils::schedule::{
     start_and_finish_on_worker, start_mn_task_on_worker, start_on_worker, start_on_worker_running,
     submit_test_tasks,
 };
+use crate::internal::tests::utils::shared::{res_kind_groups, res_kind_sum};
 use crate::internal::tests::utils::sorted_vec;
 use crate::internal::tests::utils::task::{task, task_running_msg, task_with_deps, TaskBuilder};
 use crate::internal::tests::utils::workflows::{submit_example_1, submit_example_3};
 use crate::internal::tests::utils::{env, schedule};
-use crate::resources::{ResourceDescriptorItem, ResourceDescriptorKind, ResourceMap};
+use crate::resources::{ResourceDescriptorItem, ResourceMap};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{TaskId, WorkerId};
 
@@ -82,15 +83,11 @@ fn test_worker_add() {
         resources: ResourceDescriptor::new(vec![
             ResourceDescriptorItem {
                 name: "cpus".to_string(),
-                kind: ResourceDescriptorKind::groups(vec![
-                    vec![2, 3, 4].to_ids(),
-                    vec![100, 150].to_ids(),
-                ])
-                .unwrap(),
+                kind: res_kind_groups(&[vec!["2", "3", "4"], vec!["100", "150"]]),
             },
             ResourceDescriptorItem {
                 name: "mem".to_string(),
-                kind: ResourceDescriptorKind::Sum { size: 100_000_000 },
+                kind: res_kind_sum(100_000_000),
             },
         ]),
         listen_address: "test2:123".into(),
