@@ -9,6 +9,7 @@ use nom::sequence::{preceded, terminated, tuple};
 use nom::Parser;
 use nom_supreme::tag::complete::tag;
 use tako::format_comma_delimited;
+use tako::internal::has_unique_elements;
 use tako::resources::{
     ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex, ResourceLabel,
     GPU_RESOURCE_NAME, MEM_RESOURCE_NAME,
@@ -88,17 +89,13 @@ pub fn detect_additional_resources(items: &mut Vec<ResourceDescriptorItem>) -> a
 /// Tries to detect available Nvidia GPUs from the `CUDA_VISIBLE_DEVICES` environment variable.
 fn detect_gpus_from_env() -> Option<ResourceDescriptorKind> {
     if let Ok(devices_str) = std::env::var("CUDA_VISIBLE_DEVICES") {
-        if let Ok(mut devices) = parse_comma_separated_values(&devices_str) {
+        if let Ok(devices) = parse_comma_separated_values(&devices_str) {
             log::info!(
                 "Detected GPUs {} from `CUDA_VISIBLE_DEVICES`",
                 format_comma_delimited(&devices)
             );
 
-            let count = devices.len();
-            devices.sort_unstable();
-            devices.dedup();
-
-            if count != devices.len() {
+            if !has_unique_elements(&devices) {
                 log::warn!("CUDA_VISIBLE_DEVICES contains duplicates ({})", devices_str);
             }
 

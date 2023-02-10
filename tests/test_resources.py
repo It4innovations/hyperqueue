@@ -130,6 +130,31 @@ def test_task_resources_range_multiple_allocated_values(hq_env: HqEnv):
     assert len(set(all_values)) == 6
 
 
+def test_task_resources_allocate_string(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(args=["--resource", "foo=[a,b,c]"])
+
+    hq_env.command(
+        [
+            "submit",
+            "--array=1-4",
+            "--resource",
+            "foo=2",
+            "--",
+            "bash",
+            "-c",
+            "echo $HQ_RESOURCE_VALUES_foo",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    for task_id in range(1, 5):
+        with open(default_task_output(task_id=task_id)) as f:
+            indices = set(f.read().rstrip().split(","))
+            assert len(indices) == 2
+            assert indices.issubset(("a", "b", "c"))
+
+
 def test_worker_resource_hwdetect_mem(hq_env: HqEnv):
     hq_env.start_server()
     resources = hq_env.command(["worker", "hwdetect"])
@@ -149,9 +174,34 @@ def test_worker_detect_gpus_from_env(hq_env: HqEnv):
     assert "gpus: [1,3]" in resources
 
 
+def test_worker_detect_uuid_gpus_from_env(hq_env: HqEnv):
+    hq_env.start_server()
+    resources = hq_env.command(
+        ["worker", "hwdetect"], env={"CUDA_VISIBLE_DEVICES": "foo,bar"}
+    )
+    assert "gpus: [foo,bar]" in resources
+
+
 def test_task_info_resources(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
+
+    hq_env.command(
+        [
+            "submit",
+            "--array=1-3",
+            "--resource",
+            "fairy=2",
+            "sleep 0",
+        ]
+    )
+
+    table = hq_env.command(["task", "info", "1", "1"], as_table=True)
+    table.check_row_value("Resources", "cpus: 1 compact\nfairy: 2 compact")
+
+
+def test_string_resource_list(hq_env: HqEnv):
+    hq_env.start_server()
 
     hq_env.command(
         [

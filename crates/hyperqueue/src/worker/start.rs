@@ -20,7 +20,7 @@ use tokio::sync::oneshot::Receiver;
 use tako::launcher::{
     command_from_definitions, LaunchContext, StopReason, TaskLaunchData, TaskLauncher, TaskResult,
 };
-use tako::InstanceId;
+use tako::{format_comma_delimited, InstanceId};
 
 use crate::common::env::{
     HQ_CPUS, HQ_ERROR_FILENAME, HQ_INSTANCE_ID, HQ_NODE_FILE, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR,
@@ -37,7 +37,9 @@ use crate::{JobId, JobTaskId};
 use serde::{Deserialize, Serialize};
 use tako::comm::serialize;
 use tako::program::{ProgramDefinition, StdioDef};
-use tako::resources::{Allocation, CPU_RESOURCE_ID, CPU_RESOURCE_NAME, GPU_RESOURCE_NAME};
+use tako::resources::{
+    Allocation, ResourceAllocation, CPU_RESOURCE_ID, CPU_RESOURCE_NAME, GPU_RESOURCE_NAME,
+};
 
 const MAX_CUSTOM_ERROR_LENGTH: usize = 2048; // 2KiB
 
@@ -92,7 +94,7 @@ impl TaskLauncher for HqTaskLauncher {
                 task_id,
             } = body;
 
-            pin_program(&mut program, launch_ctx.allocation(), pin_mode)?;
+            pin_program(&mut program, launch_ctx.allocation(), pin_mode, &launch_ctx)?;
 
             let task_dir = if task_dir {
                 let task_dir = TempDir::new_in(&launch_ctx.worker_configuration().work_dir, "t")?;
@@ -230,10 +232,10 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
 
     for alloc in &ctx.allocation().resources {
         let resource_name = resource_map.get_name(alloc.resource).unwrap();
-        if let Some(indices) = alloc.value.to_comma_delimited_list() {
+        if let Some(labels) = allocation_to_labels(&alloc, &ctx) {
             if resource_name == CPU_RESOURCE_NAME {
                 /* Extra variables for CPUS */
-                program.env.insert(HQ_CPUS.into(), indices.clone().into());
+                program.env.insert(HQ_CPUS.into(), labels.clone().into());
                 if !program.env.contains_key(b"OMP_NUM_THREADS".as_bstr()) {
                     program.env.insert(
                         "OMP_NUM_THREADS".into(),
@@ -245,7 +247,7 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
                 /* Extra variables for GPUS */
                 program
                     .env
-                    .insert("CUDA_VISIBLE_DEVICES".into(), indices.clone().into());
+                    .insert("CUDA_VISIBLE_DEVICES".into(), labels.clone().into());
                 program
                     .env
                     .insert("CUDA_DEVICE_ORDER".into(), "PCI_BUS_ID".into());
@@ -253,23 +255,35 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
 
             program.env.insert(
                 format!("HQ_RESOURCE_VALUES_{}", resource_name).into(),
-                indices.into(),
+                labels.into(),
             );
         }
     }
+}
+
+fn allocation_to_labels(allocation: &ResourceAllocation, ctx: &LaunchContext) -> Option<String> {
+    let label_map = ctx.get_resource_label_map();
+    allocation.value.indices().map(|indices| {
+        format_comma_delimited(
+            indices
+                .into_iter()
+                .map(|index| label_map.get_label(allocation.resource, *index)),
+        )
+    })
 }
 
 fn pin_program(
     program: &mut ProgramDefinition,
     allocation: &Allocation,
     pin_mode: PinMode,
+    ctx: &LaunchContext,
 ) -> tako::Result<()> {
     let comma_delimited_cpu_ids = || {
         allocation
             .resources
             .iter()
             .find(|r| r.resource == CPU_RESOURCE_ID)
-            .and_then(|r| r.value.to_comma_delimited_list())
+            .and_then(|r| allocation_to_labels(&r, ctx))
     };
     match pin_mode {
         PinMode::TaskSet => {

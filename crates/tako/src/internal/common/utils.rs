@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::hash::Hash;
 
 /// Checks at compile-time that the given type $ty has the corresponding $size.
 ///
@@ -11,6 +12,7 @@ macro_rules! static_assert_size {
     };
 }
 
+use crate::Set;
 pub use static_assert_size;
 
 pub fn format_comma_delimited<I: IntoIterator<Item = T>, T: Display>(iter: I) -> String {
@@ -18,4 +20,8 @@ pub fn format_comma_delimited<I: IntoIterator<Item = T>, T: Display>(iter: I) ->
         .map(|item| item.to_string())
         .collect::<Vec<_>>()
         .join(",")
+}
+
+pub fn has_unique_elements<T: Eq + Hash>(items: &[T]) -> bool {
+    items.iter().collect::<Set<&T>>().len() == items.len()
 }

@@ -13,8 +13,8 @@ from ..utils.job import default_task_output
 RESOURCE_DESCRIPTOR_SCHEMA = [
     {"name": str, "kind": "range", "start": int, "end": int},
     {"name": str, "kind": "sum", "size": int},
-    {"name": str, "kind": "list", "values": [int]},
-    {"name": str, "kind": "groups", "groups": [[int]]},
+    {"name": str, "kind": "list", "values": [str]},
+    {"name": str, "kind": "groups", "groups": [[str]]},
 ]
 
 

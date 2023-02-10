@@ -1,9 +1,5 @@
 #![deny(clippy::await_holding_refcell_ref)]
 
-/*#[cfg(not(bench))]
-#[macro_use]
-pub(crate) mod internal;*/
-
 #[macro_use]
 pub mod internal;
 
@@ -32,10 +28,11 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub mod resources {
     pub use crate::internal::common::resources::{
-        Allocation, AllocationRequest, AllocationValue, NumOfNodes, ResourceAmount,
-        ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex,
-        ResourceLabel, ResourceRequest, ResourceRequestEntries, ResourceRequestEntry, TimeRequest,
-        CPU_RESOURCE_ID, CPU_RESOURCE_NAME, GPU_RESOURCE_NAME, MEM_RESOURCE_NAME,
+        Allocation, AllocationRequest, AllocationValue, NumOfNodes, ResourceAllocation,
+        ResourceAmount, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
+        ResourceIndex, ResourceLabel, ResourceRequest, ResourceRequestEntries,
+        ResourceRequestEntry, TimeRequest, CPU_RESOURCE_ID, CPU_RESOURCE_NAME, GPU_RESOURCE_NAME,
+        MEM_RESOURCE_NAME,
     };
 
     pub use crate::internal::common::resources::map::ResourceMap;
