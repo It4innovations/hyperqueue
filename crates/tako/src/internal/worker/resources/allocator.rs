@@ -54,7 +54,7 @@ impl ResourceAllocator {
 
         for item in &desc.resources {
             let idx = resource_map.get_index(&item.name).unwrap();
-            pools[idx] = ResourcePool::new(&item.kind, idx, &label_map);
+            pools[idx] = ResourcePool::new(&item.kind, idx, label_map);
         }
 
         let free_resources =
@@ -366,8 +366,8 @@ impl ResourceAllocator {
         }
     }
 
-    #[cfg(debug_assertions)]
     pub fn validate(&self) {
+        #[cfg(debug_assertions)]
         for (pool, count) in self.pools.iter().zip(self.free_resources.all_counts()) {
             pool.validate();
             assert_eq!(&pool.count(), count);
@@ -383,9 +383,8 @@ mod tests {
     use crate::internal::common::resources::{
         Allocation, AllocationValue, ResourceId, ResourceRequest,
     };
-    use crate::internal::tests::utils::resources::{
-        cpus_compact, res_allocator_from_descriptor, ResBuilder,
-    };
+    use crate::internal::tests::utils::resources::{cpus_compact, ResBuilder};
+    use crate::internal::tests::utils::shared::res_allocator_from_descriptor;
     use crate::internal::tests::utils::sorted_vec;
     use crate::internal::worker::resources::allocator::ResourceAllocator;
     use crate::internal::worker::resources::counts::ResourceCountVec;

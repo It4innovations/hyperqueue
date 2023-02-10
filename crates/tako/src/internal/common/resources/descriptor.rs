@@ -84,7 +84,7 @@ impl ResourceDescriptorKind {
     pub fn groups(mut groups: Vec<Vec<ResourceLabel>>) -> Result<Self, DescriptorError> {
         match groups.pop() {
             Some(group) => {
-                if groups.len() == 0 {
+                if groups.is_empty() {
                     Self::list(group)
                 } else {
                     groups.push(group);

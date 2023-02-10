@@ -5,6 +5,7 @@ use criterion::measurement::WallTime;
 use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 use smallvec::smallvec;
 use tako::internal::messages::worker::ComputeTaskMsg;
+use tako::internal::tests::utils::shared::res_allocator_from_descriptor;
 use tako::internal::worker::comm::WorkerComm;
 use tako::internal::worker::rqueue::ResourceWaitQueue;
 use tako::launcher::{LaunchContext, StopReason, TaskLaunchData, TaskLauncher, TaskResult};
@@ -12,8 +13,7 @@ use tako::resources::{
     AllocationRequest, ResourceDescriptor, ResourceRequest, ResourceRequestEntry, TimeRequest,
 };
 use tako::resources::{
-    ResourceDescriptorItem, ResourceDescriptorKind, ResourceMap, CPU_RESOURCE_NAME,
-    GPU_RESOURCE_NAME,
+    ResourceDescriptorItem, ResourceDescriptorKind, CPU_RESOURCE_NAME, GPU_RESOURCE_NAME,
 };
 use tako::ItemId;
 use tokio::sync::mpsc::unbounded_channel;
@@ -164,22 +164,17 @@ fn bench_cancel_waiting_task(c: &mut BenchmarkGroup<WallTime>) {
 }
 
 fn create_resource_queue(num_cpus: u32) -> ResourceWaitQueue {
-    ResourceWaitQueue::new(
-        &ResourceDescriptor::new(vec![
-            ResourceDescriptorItem {
-                name: CPU_RESOURCE_NAME.to_string(),
-                kind: ResourceDescriptorKind::simple_indices(num_cpus),
-            },
-            ResourceDescriptorItem {
-                name: GPU_RESOURCE_NAME.to_string(),
-                kind: ResourceDescriptorKind::simple_indices(8),
-            },
-        ]),
-        &ResourceMap::from_vec(vec![
-            CPU_RESOURCE_NAME.to_string(),
-            GPU_RESOURCE_NAME.to_string(),
-        ]),
-    )
+    let descriptor = ResourceDescriptor::new(vec![
+        ResourceDescriptorItem {
+            name: CPU_RESOURCE_NAME.to_string(),
+            kind: ResourceDescriptorKind::simple_indices(num_cpus),
+        },
+        ResourceDescriptorItem {
+            name: GPU_RESOURCE_NAME.to_string(),
+            kind: ResourceDescriptorKind::simple_indices(8),
+        },
+    ]);
+    ResourceWaitQueue::new(res_allocator_from_descriptor(descriptor))
 }
 
 fn bench_resource_queue_add_task(c: &mut BenchmarkGroup<WallTime>) {

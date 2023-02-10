@@ -142,7 +142,7 @@ fn resolve_program_paths<'a>(
         .map_filename(|path| resolve_path(&placeholders, &path, submit_dir, normalize_paths));
 }
 
-fn resolve<'a, 'b>(map: &'a PlaceholderMap, input: &'b str) -> Cow<'b, str> {
+fn resolve<'b>(map: &PlaceholderMap, input: &'b str) -> Cow<'b, str> {
     let parts = parse_resolvable_string(input);
 
     let is_known_placeholder = |part: &StringPart| match part {

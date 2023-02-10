@@ -232,7 +232,7 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
 
     for alloc in &ctx.allocation().resources {
         let resource_name = resource_map.get_name(alloc.resource).unwrap();
-        if let Some(labels) = allocation_to_labels(&alloc, &ctx) {
+        if let Some(labels) = allocation_to_labels(alloc, ctx) {
             if resource_name == CPU_RESOURCE_NAME {
                 /* Extra variables for CPUS */
                 program.env.insert(HQ_CPUS.into(), labels.clone().into());
@@ -266,7 +266,7 @@ fn allocation_to_labels(allocation: &ResourceAllocation, ctx: &LaunchContext) ->
     allocation.value.indices().map(|indices| {
         format_comma_delimited(
             indices
-                .into_iter()
+                .iter()
                 .map(|index| label_map.get_label(allocation.resource, *index)),
         )
     })
@@ -283,7 +283,7 @@ fn pin_program(
             .resources
             .iter()
             .find(|r| r.resource == CPU_RESOURCE_ID)
-            .and_then(|r| allocation_to_labels(&r, ctx))
+            .and_then(|r| allocation_to_labels(r, ctx))
     };
     match pin_mode {
         PinMode::TaskSet => {
