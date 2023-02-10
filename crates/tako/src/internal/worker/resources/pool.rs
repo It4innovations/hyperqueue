@@ -59,7 +59,7 @@ impl ResourcePool {
                     .iter()
                     .map(|labels| {
                         labels
-                            .into_iter()
+                            .iter()
                             .map(|label| {
                                 label_map
                                     .get_index(resource_id, label)

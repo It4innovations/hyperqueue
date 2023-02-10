@@ -182,8 +182,8 @@ impl ResourceWaitQueue {
 #[cfg(test)]
 mod tests {
     use crate::internal::common::resources::{ResourceDescriptor, ResourceRequest};
+    use crate::internal::tests::utils::resources::ResBuilder;
     use crate::internal::tests::utils::resources::{cpus_compact, ResourceRequestBuilder};
-    use crate::internal::tests::utils::resources::{res_allocator_from_descriptor, ResBuilder};
     use crate::internal::worker::rqueue::ResourceWaitQueue;
     use crate::internal::worker::test_util::{worker_task, WorkerTaskBuilder};
     use std::time::Duration;
@@ -191,7 +191,7 @@ mod tests {
     use crate::internal::messages::worker::WorkerResourceCounts;
     use crate::internal::server::workerload::WorkerResources;
     use crate::internal::tests::utils::shared::{
-        res_item, res_kind_groups, res_kind_list, res_kind_range,
+        res_allocator_from_descriptor, res_item, res_kind_groups, res_kind_list, res_kind_range,
     };
     use crate::internal::worker::test_util::ResourceQueueBuilder as RB;
     use crate::resources::ResourceDescriptorItem;

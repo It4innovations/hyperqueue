@@ -2,11 +2,7 @@ use std::time::Duration;
 
 use crate::internal::common::resources::request::{ResourceRequest, ResourceRequestEntry};
 use crate::internal::common::resources::ResourceId;
-use crate::internal::worker::resources::allocator::ResourceAllocator;
-use crate::internal::worker::resources::map::ResourceLabelMap;
-use crate::resources::{
-    AllocationRequest, NumOfNodes, ResourceAmount, ResourceDescriptor, ResourceMap,
-};
+use crate::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
 pub use ResourceRequestBuilder as ResBuilder;
 
 #[derive(Default, Clone)]
@@ -95,16 +91,3 @@ pub fn cpus_all() -> ResBuilder {
     ResBuilder::default().cpus(CpuRequest::All)
 }
 */
-
-pub fn res_allocator_from_descriptor(descriptor: ResourceDescriptor) -> ResourceAllocator {
-    let mut names = vec![];
-    for item in &descriptor.resources {
-        names.push(item.name.clone());
-    }
-
-    let resource_map = ResourceMap::from_vec(names);
-    let label_resource_map = ResourceLabelMap::new(&descriptor, &resource_map);
-    let allocator = ResourceAllocator::new(&descriptor, &resource_map, &label_resource_map);
-    allocator.validate();
-    allocator
-}

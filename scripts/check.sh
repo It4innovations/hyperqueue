@@ -29,3 +29,4 @@ python -m pytest tests -n32
 # Lint Rust code
 cargo clippy --all -- -D warnings
 cargo check --all --all-targets
+cargo check --benches
