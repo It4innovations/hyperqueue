@@ -2,8 +2,20 @@ use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 /// Vec that can only be indexed by the specified `Idx` type.
 /// Useful in combination with index types created by `define_id_type`.
-#[derive(Debug, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct IndexVec<Idx, Value>(Vec<Value>, std::marker::PhantomData<Idx>);
+
+impl<Idx, Value> Default for IndexVec<Idx, Value> {
+    fn default() -> Self {
+        Self(Default::default(), Default::default())
+    }
+}
+
+impl<Idx: Into<usize>, Value> IndexVec<Idx, Value> {
+    pub fn get(&self, index: Idx) -> Option<&Value> {
+        self.0.get(index.into())
+    }
+}
 
 impl<Idx: Into<usize>, Value: Copy> IndexVec<Idx, Value> {
     #[inline]

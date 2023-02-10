@@ -1,7 +1,10 @@
 use crate::internal::common::resources::descriptor::ResourceDescriptorKind;
-use crate::internal::common::resources::{AllocationValue, ResourceAmount, ResourceIndex};
+use crate::internal::common::resources::{
+    AllocationValue, ResourceAmount, ResourceId, ResourceIndex,
+};
 use crate::internal::common::Map;
 use crate::internal::worker::resources::counts::ResourceCount;
+use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::Set;
 use smallvec::smallvec;
 
@@ -34,15 +37,39 @@ pub enum ResourcePool {
 }
 
 impl ResourcePool {
-    pub fn new(kind: &ResourceDescriptorKind) -> Self {
+    pub fn new(
+        kind: &ResourceDescriptorKind,
+        resource_id: ResourceId,
+        label_map: &ResourceLabelMap,
+    ) -> Self {
         match kind {
             ResourceDescriptorKind::List { values } => ResourcePool::Indices(IndicesResourcePool {
-                indices: dense_indices(values.len()),
+                indices: values
+                    .iter()
+                    .map(|label| {
+                        label_map
+                            .get_index(resource_id, label)
+                            .expect("Resource label not found")
+                    })
+                    .collect(),
                 full_size: values.len() as ResourceAmount,
             }),
             ResourceDescriptorKind::Groups { groups } => {
-                todo!();
-                /*ResourcePool::Groups(GroupsResourcePool {
+                let groups: Vec<Vec<ResourceIndex>> = groups
+                    .iter()
+                    .map(|labels| {
+                        labels
+                            .into_iter()
+                            .map(|label| {
+                                label_map
+                                    .get_index(resource_id, label)
+                                    .expect("Resource label not found")
+                            })
+                            .collect()
+                    })
+                    .collect();
+
+                ResourcePool::Groups(GroupsResourcePool {
                     indices: groups.clone(),
                     full_size: groups.iter().map(|g| g.len() as ResourceAmount).sum(),
                     reverse_map: groups
@@ -55,7 +82,7 @@ impl ResourcePool {
                         .map(|g| g.len() as ResourceAmount)
                         .min()
                         .unwrap_or(1),
-                })*/
+                })
             }
             ResourceDescriptorKind::Range { start, end } => {
                 let indices: Vec<ResourceIndex> = (start.as_num()..=end.as_num())
@@ -186,10 +213,6 @@ impl ResourcePool {
             }
         }
     }
-}
-
-fn dense_indices(count: usize) -> Vec<ResourceIndex> {
-    (0..count).map(|i| ResourceIndex::new(i as u32)).collect()
 }
 
 #[cfg(test)]

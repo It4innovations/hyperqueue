@@ -1259,12 +1259,33 @@ fn resources_full_describe(resources: &ResourceDescriptor) -> String {
             "{}{}: {}",
             if first { "" } else { "\n" },
             &descriptor.name,
-            descriptor.kind.details(),
+            format_descriptor_kind(&descriptor.kind),
         )
         .unwrap();
         first = false;
     }
     result
+}
+
+fn format_descriptor_kind(kind: &ResourceDescriptorKind) -> String {
+    match kind {
+        ResourceDescriptorKind::List { values } => {
+            format!("[{}]", format_comma_delimited(values))
+        }
+        ResourceDescriptorKind::Groups { groups } => {
+            format!(
+                "[{}]",
+                format_comma_delimited(
+                    groups
+                        .iter()
+                        .map(|g| format!("[{}]", format_comma_delimited(g)))
+                )
+            )
+        }
+        ResourceDescriptorKind::Range { start, end } if start == end => format!("[{}]", start),
+        ResourceDescriptorKind::Range { start, end } => format!("range({}-{})", start, end),
+        ResourceDescriptorKind::Sum { size } => format!("sum({})", size),
+    }
 }
 
 fn resource_summary_kind(kind: &ResourceDescriptorKind) -> String {

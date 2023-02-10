@@ -24,10 +24,7 @@ impl WorkerResources {
     }
 
     pub(crate) fn get(&self, resource_id: ResourceId) -> ResourceAmount {
-        self.n_resources
-            .get(resource_id.as_num() as usize)
-            .copied()
-            .unwrap_or(0)
+        self.n_resources.get(resource_id).copied().unwrap_or(0)
     }
 
     pub(crate) fn from_description(
@@ -82,7 +79,7 @@ impl WorkerResources {
         for entry in request.entries() {
             let count = self
                 .n_resources
-                .get(entry.resource_id.as_num() as usize)
+                .get(entry.resource_id)
                 .copied()
                 .unwrap_or(0);
             if count == 0 {
@@ -140,10 +137,7 @@ impl WorkerLoad {
     }
 
     pub(crate) fn get(&self, resource_id: ResourceId) -> ResourceAmount {
-        self.n_resources
-            .get(resource_id.as_num() as usize)
-            .copied()
-            .unwrap_or(0)
+        self.n_resources.get(resource_id).copied().unwrap_or(0)
     }
 
     pub(crate) fn have_immediate_resources_for_rq(
@@ -171,17 +165,13 @@ impl WorkerLoad {
     pub(crate) fn load_wrt_request(&self, wr: &WorkerResources, request: &ResourceRequest) -> u32 {
         let mut result = 0;
         for entry in request.entries() {
-            let count = wr
-                .n_resources
-                .get(entry.resource_id.as_num() as usize)
-                .copied()
-                .unwrap_or(0);
+            let count = wr.n_resources.get(entry.resource_id).copied().unwrap_or(0);
             if count == 0 {
                 return 0;
             }
             let load = self
                 .n_resources
-                .get(entry.resource_id.as_num() as usize)
+                .get(entry.resource_id)
                 .copied()
                 .unwrap_or(0);
             result += ((load * 512) / (count * 512)) as u32;

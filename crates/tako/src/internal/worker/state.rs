@@ -17,6 +17,8 @@ use crate::internal::messages::worker::{
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::WorkerConfiguration;
+use crate::internal::worker::resources::allocator::ResourceAllocator;
+use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::rqueue::ResourceWaitQueue;
 use crate::internal::worker::task::{Task, TaskState};
 use crate::internal::worker::taskenv::TaskEnv;
@@ -48,6 +50,7 @@ pub struct WorkerState {
     pub(crate) last_task_finish_time: Instant,
 
     resource_map: ResourceMap,
+    resource_label_map: ResourceLabelMap,
 }
 
 impl WorkerState {
@@ -233,6 +236,10 @@ impl WorkerState {
         &self.resource_map
     }
 
+    pub fn get_resource_label_map(&self) -> &ResourceLabelMap {
+        &self.resource_label_map
+    }
+
     pub fn worker_hostname(&self, worker_id: WorkerId) -> Option<&str> {
         if worker_id == self.worker_id {
             return Some(&self.configuration.hostname);
@@ -276,7 +283,10 @@ impl WorkerStateRef {
         resource_map: ResourceMap,
         task_launcher: Box<dyn TaskLauncher>,
     ) -> Self {
-        let ready_task_queue = ResourceWaitQueue::new(&configuration.resources, &resource_map);
+        let resource_label_map = ResourceLabelMap::new(&configuration.resources, &resource_map);
+        let allocator =
+            ResourceAllocator::new(&configuration.resources, &resource_map, &resource_label_map);
+        let ready_task_queue = ResourceWaitQueue::new(allocator);
         let now = Instant::now();
 
         Self::wrap(WorkerState {
@@ -292,6 +302,7 @@ impl WorkerStateRef {
             running_tasks: Default::default(),
             start_time: now,
             resource_map,
+            resource_label_map,
             last_task_finish_time: now,
             reservation: false,
             worker_addresses: Default::default(),

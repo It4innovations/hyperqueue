@@ -1,5 +1,5 @@
 use crate::internal::common::resources::{ResourceAmount, ResourceIndex, ResourceLabel};
-use crate::internal::common::utils::format_comma_delimited;
+use crate::internal::common::utils::{format_comma_delimited, has_unique_elements};
 use crate::internal::common::Set;
 use serde::{Deserialize, Serialize};
 
@@ -53,27 +53,6 @@ impl ResourceDescriptorKind {
         }
     }
 
-    pub fn details(&self) -> String {
-        match self {
-            ResourceDescriptorKind::List { values } => {
-                format!("[{}]", format_comma_delimited(values))
-            }
-            ResourceDescriptorKind::Groups { groups } => {
-                format!(
-                    "[{}]",
-                    format_comma_delimited(
-                        groups
-                            .iter()
-                            .map(|g| format!("[{}]", format_comma_delimited(g)))
-                    )
-                )
-            }
-            ResourceDescriptorKind::Range { start, end } if start == end => format!("[{}]", start),
-            ResourceDescriptorKind::Range { start, end } => format!("range({}-{})", start, end),
-            ResourceDescriptorKind::Sum { size } => format!("sum({})", size),
-        }
-    }
-
     pub fn has_indices(&self) -> bool {
         match self {
             ResourceDescriptorKind::List { .. }
@@ -86,7 +65,7 @@ impl ResourceDescriptorKind {
     fn normalize_resource_list(
         values: Vec<ResourceLabel>,
     ) -> Result<Vec<ResourceLabel>, DescriptorError> {
-        if values.iter().collect::<Set<_>>().len() < values.len() {
+        if !has_unique_elements(&values) {
             Err(DescriptorError::ResourceListItemsNotUnique)
         } else {
             Ok(values)

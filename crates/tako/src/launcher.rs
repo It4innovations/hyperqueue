@@ -12,6 +12,7 @@ use tokio::process::Command;
 
 use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::worker::configuration::WorkerConfiguration;
+use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::state::WorkerState;
 use crate::internal::worker::task::Task;
 use crate::program::{ProgramDefinition, StdioDef};
@@ -106,6 +107,10 @@ impl<'a> LaunchContext<'a> {
 
     pub fn get_resource_map(&self) -> &ResourceMap {
         self.state.get_resource_map()
+    }
+
+    pub fn get_resource_label_map(&self) -> &ResourceLabelMap {
+        self.state.get_resource_label_map()
     }
 }
 
