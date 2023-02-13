@@ -931,6 +931,7 @@ dependencies = [
  "cli-table",
  "colored",
  "const_format",
+ "criterion",
  "derive_builder",
  "dirs",
  "env_logger",

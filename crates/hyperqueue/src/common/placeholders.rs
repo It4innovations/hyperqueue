@@ -166,7 +166,7 @@ fn resolve<'b>(map: &PlaceholderMap, input: &'b str) -> Cow<'b, str> {
 
 fn resolve_path(map: &PlaceholderMap, path: &Path, base_dir: &Path) -> PathBuf {
     let path: PathBuf = resolve(map, path.to_str().unwrap()).into_owned().into();
-    if !has_placeholders(&path.to_str().unwrap()) {
+    if !has_placeholders(path.to_str().unwrap()) {
         normalize_path(&path, base_dir)
     } else {
         path
@@ -192,11 +192,14 @@ fn parse_placeholder(data: &str) -> NomResult<&str> {
     delimited(tag("%{"), take_until("}"), tag("}"))(data)
 }
 
-// TODO: optimize
-fn has_placeholders(data: &str) -> bool {
-    parse_resolvable_string(data)
-        .iter()
-        .any(|part| matches!(part, StringPart::Placeholder(_)))
+pub fn has_placeholders(data: &str) -> bool {
+    if !data.contains('%') {
+        false
+    } else {
+        parse_resolvable_string(data)
+            .iter()
+            .any(|part| matches!(part, StringPart::Placeholder(_)))
+    }
 }
 
 /// Parses strings containing placeholders.
@@ -213,24 +216,29 @@ fn has_placeholders(data: &str) -> bool {
 /// ```
 pub fn parse_resolvable_string(data: &str) -> Vec<StringPart> {
     let mut parts = vec![];
-    let mut start = 0;
     let mut input = data;
+    let mut start = 0;
 
     while start < input.len() {
-        if let Ok((rest, placeholder)) = parse_placeholder(&input[start..]) {
-            if start > 0 {
-                parts.push(StringPart::Verbatim(&input[..start]));
+        match input[start..].find('%') {
+            Some(pos) => {
+                if let Ok((rest, placeholder)) = parse_placeholder(&input[pos..]) {
+                    if pos > 0 {
+                        parts.push(StringPart::Verbatim(&input[..pos]));
+                    }
+                    input = rest;
+                    start = 0;
+                    parts.push(StringPart::Placeholder(placeholder));
+                } else {
+                    start += 1;
+                }
             }
-            input = rest;
-            parts.push(StringPart::Placeholder(placeholder));
-            start = 0;
-        } else {
-            start += 1;
-        }
+            None => break,
+        };
     }
 
-    if start > 0 {
-        parts.push(StringPart::Verbatim(&input[..start]));
+    if !input.is_empty() {
+        parts.push(StringPart::Verbatim(input));
     }
 
     parts
