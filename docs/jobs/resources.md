@@ -90,9 +90,9 @@ The following resources are detected automatically if a resource of a given name
 
 * CPUs are automatically detected as resource named "cpus" (more in [CPU resources](cresources.md)).
 
-* Nvidia GPUs that are available when a worker is started are automatically detected under the resource
-  name `gpus`. You can use the environment variable `CUDA_VISIBLE_DEVICES` when starting a worker to
-  override the list of available GPUs:
+* GPUs that are available when a worker is started are automatically detected under the resource
+  name `gpus`. You can use the environment variables `CUDA_VISIBLE_DEVICES`, `HIP_VISIBLE_DEVICES` or
+  `ROCR_VISIBLE_DEVICES` when starting a worker to override the list of available GPUs:
   
 ```bash
 $ CUDA_VISIBLE_DEVICES=2,3 hq worker start
@@ -198,6 +198,8 @@ comma-separated list. This variable is only filled for indexed resource pool.
 
     * `CUDA_DEVICE_ORDER` set to the value `PCI_BUS_ID`
     * `CUDA_VISIBLE_DEVICES` set to the same value as `HQ_RESOURCE_VALUES_gpus`
+    * `HIP_VISIBLE_DEVICES` set to the same value as `HQ_RESOURCE_VALUES_gpus`
+    * `ROCR_VISIBLE_DEVICES` set to the same value as `HQ_RESOURCE_VALUES_gpus`
 
 
 ## Resource requests and job arrays
