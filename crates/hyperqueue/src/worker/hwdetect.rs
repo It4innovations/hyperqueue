@@ -86,24 +86,33 @@ pub fn detect_additional_resources(items: &mut Vec<ResourceDescriptorItem>) -> a
     Ok(())
 }
 
-/// Tries to detect available Nvidia GPUs from the `CUDA_VISIBLE_DEVICES` environment variable.
+pub const GPU_ENV_KEYS: &[&str; 3] = &[
+    "CUDA_VISIBLE_DEVICES",
+    "HIP_VISIBLE_DEVICES",
+    "ROCR_VISIBLE_DEVICES",
+];
+
+/// Tries to detect available GPUs from one of the `GPU_ENV_KEYS` environment variables.
 fn detect_gpus_from_env() -> Option<ResourceDescriptorKind> {
-    if let Ok(devices_str) = std::env::var("CUDA_VISIBLE_DEVICES") {
-        if let Ok(devices) = parse_comma_separated_values(&devices_str) {
-            log::info!(
-                "Detected GPUs {} from `CUDA_VISIBLE_DEVICES`",
-                format_comma_delimited(&devices)
-            );
+    GPU_ENV_KEYS.iter().find_map(|env_key| {
+        if let Ok(devices_str) = std::env::var(env_key) {
+            if let Ok(devices) = parse_comma_separated_values(&devices_str) {
+                log::info!(
+                    "Detected GPUs {} from `{env_key}`",
+                    format_comma_delimited(&devices)
+                );
 
-            if !has_unique_elements(&devices) {
-                log::warn!("CUDA_VISIBLE_DEVICES contains duplicates ({})", devices_str);
+                if !has_unique_elements(&devices) {
+                    log::warn!("{env_key} contains duplicates ({devices_str})");
+                }
+
+                let list =
+                    ResourceDescriptorKind::list(devices).expect("List values were not unique");
+                return Some(list);
             }
-
-            let list = ResourceDescriptorKind::list(devices).expect("List values were not unique");
-            return Some(list);
         }
-    }
-    None
+        None
+    })
 }
 
 /// Try to find out how many Nvidia GPUs are available on the current node.

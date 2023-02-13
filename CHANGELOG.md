@@ -12,6 +12,9 @@
   $ hq worker start --resource="res1=[foo, bar]"
   ```
 
+* AMD GPUs are now automatically detected in workers from the environment variable `ROCR_VISIBLE_DEVICES`
+  or `HIP_VISIBLE_DEVICES`.
+
 ## Changes
 
 ### Job submission

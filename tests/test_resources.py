@@ -1,7 +1,10 @@
 import time
 
+import pytest
+
 from .conftest import HqEnv
 from .utils import wait_for_job_state
+from .utils.io import read_file
 from .utils.job import default_task_output
 
 
@@ -166,11 +169,37 @@ def test_worker_resource_hwdetect_mem(hq_env: HqEnv):
             assert value != ""
 
 
-def test_worker_detect_gpus_from_env(hq_env: HqEnv):
+def test_worker_set_gpu_env_for_task(hq_env: HqEnv):
     hq_env.start_server()
-    resources = hq_env.command(
-        ["worker", "hwdetect"], env={"CUDA_VISIBLE_DEVICES": "1,3"}
+    hq_env.start_worker(args=["--resource", "gpus=[0,1]"])
+    hq_env.command(
+        [
+            "submit",
+            "--resource",
+            "gpus=2",
+            "--",
+            "bash",
+            "-c",
+            """
+echo $CUDA_VISIBLE_DEVICES
+echo $HIP_VISIBLE_DEVICES
+echo $ROCR_VISIBLE_DEVICES
+""",
+        ]
     )
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    assert list(
+        set(int(v) for v in line.split(","))
+        for line in read_file(default_task_output()).splitlines()
+    ) == [{0, 1}, {0, 1}, {0, 1}]
+
+
+@pytest.mark.parametrize(
+    "env_key", ("CUDA_VISIBLE_DEVICES", "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES")
+)
+def test_worker_detect_gpus_from_env(hq_env: HqEnv, env_key: str):
+    hq_env.start_server()
+    resources = hq_env.command(["worker", "hwdetect"], env={env_key: "1,3"})
     assert "gpus: [1,3]" in resources
 
 

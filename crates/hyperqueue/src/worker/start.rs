@@ -31,6 +31,7 @@ use crate::common::placeholders::{
 use crate::common::utils::fs::{bytes_to_path, is_implicit_path, path_has_extension};
 use crate::transfer::messages::{PinMode, TaskBody};
 use crate::transfer::stream::ChannelId;
+use crate::worker::hwdetect::GPU_ENV_KEYS;
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use crate::{JobId, JobTaskId};
@@ -245,9 +246,9 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
             }
             if resource_name == GPU_RESOURCE_NAME {
                 /* Extra variables for GPUS */
-                program
-                    .env
-                    .insert("CUDA_VISIBLE_DEVICES".into(), labels.clone().into());
+                for &key in GPU_ENV_KEYS {
+                    program.env.insert(key.into(), labels.clone().into());
+                }
                 program
                     .env
                     .insert("CUDA_DEVICE_ORDER".into(), "PCI_BUS_ID".into());
