@@ -64,6 +64,7 @@ jemallocator = { version = "0.5", optional = true }
 [dev-dependencies]
 derive_builder = "0.11"
 insta = "1.15.0"
+criterion = { version = "0.3", features = ["html_reports"] }
 
 [features]
 default = ["jemalloc"]
@@ -71,3 +72,11 @@ default = ["jemalloc"]
 zero-worker = []
 # Use the jemalloc allocator
 jemalloc = ["jemallocator"]
+
+[[bench]]
+name = "benchmark"
+harness = false
+
+# Workaround for Criterion (https://bheisler.github.io/criterion.rs/book/faq.html#cargo-bench-gives-unrecognized-option-errors-for-valid-command-line-options)
+[lib]
+bench = false
