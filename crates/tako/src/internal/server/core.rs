@@ -5,7 +5,7 @@ use orion::aead::SecretKey;
 
 use crate::gateway::ServerInfo;
 use crate::internal::common::resources::map::{ResourceIdAllocator, ResourceMap};
-use crate::internal::common::resources::{ResourceId, ResourceRequest, ResourceRequestVariants};
+use crate::internal::common::resources::{ResourceId, ResourceRequestVariants};
 use crate::internal::common::{Set, WrappedRcRefCell};
 use crate::internal::scheduler::multinode::MultiNodeQueue;
 use crate::internal::server::rpc::ConnectionDescriptor;

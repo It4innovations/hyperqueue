@@ -349,7 +349,7 @@ impl ResourceAllocator {
     pub fn difficulty_score(&self, entry: &ResourceRequestEntry) -> f32 {
         let size = self
             .pools
-            .get(entry.resource_id.as_num() as usize)
+            .get(entry.resource_id)
             .map(|x| x.full_size())
             .unwrap_or(0);
         if size == 0 {
