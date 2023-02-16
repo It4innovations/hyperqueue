@@ -27,6 +27,15 @@ max_fails = 11
 id = 12
 pin = "omp"
 command = ["sleep", "0"]
+
+[[task]]
+id = 200
+pin = "taskset"
+command = ["sleep", "0"]
+
+[[task]]
+id = 13
+command = ["sleep", "0"]
 """)
     hq_env.command(["job", "submit-file", "job.toml"])
     wait_for_job_state(hq_env, 1, "FINISHED")
@@ -36,3 +45,9 @@ command = ["sleep", "0"]
 
     table = hq_env.command(["task", "info", "1", "12"], as_table=True)
     table.check_row_value("Pin", "omp")
+
+    table = hq_env.command(["task", "info", "1", "200"], as_table=True)
+    table.check_row_value("Pin", "taskset")
+
+    table = hq_env.command(["task", "info", "1", "13"], as_table=True)
+    table.check_row_value("Pin", "none")

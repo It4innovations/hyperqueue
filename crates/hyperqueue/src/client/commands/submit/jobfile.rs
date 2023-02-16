@@ -1,4 +1,5 @@
 use crate::client::commands::submit::command::send_submit_request;
+use crate::client::commands::submit::defs::PinMode as PinModeDef;
 use crate::client::commands::submit::defs::{JobDef, TaskDef};
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::utils::fs::get_current_dir;
@@ -27,7 +28,11 @@ fn build_task_description(tdef: TaskDef) -> TaskDescription {
             cwd: Default::default(),
         },
         resources: Default::default(),
-        pin_mode: PinMode::None,
+        pin_mode: match tdef.pin {
+            PinModeDef::None => PinMode::None,
+            PinModeDef::TaskSet => PinMode::TaskSet,
+            PinModeDef::OpenMP => PinMode::OpenMP,
+        },
         task_dir: false,
         time_limit: None,
         priority: 0,

@@ -51,7 +51,7 @@ impl PinMode {
         match self {
             PinMode::None => "none",
             PinMode::TaskSet => "taskset",
-            PinMode::OpenMP => "openmp",
+            PinMode::OpenMP => "omp",
         }
     }
 }
