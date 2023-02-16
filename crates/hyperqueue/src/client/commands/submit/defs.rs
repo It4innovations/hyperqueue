@@ -1,7 +1,7 @@
 use crate::common::error::HqError;
 use crate::{JobTaskCount, JobTaskId};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Deserialize, Debug)]
 pub struct JobDef {
