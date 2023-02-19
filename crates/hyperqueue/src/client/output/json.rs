@@ -78,27 +78,28 @@ impl Output for JsonOutput {
         let statuses = group_jobs_by_status(&jobs);
         self.print(json!(statuses))
     }
-    fn print_job_detail(&self, job: JobDetail, _worker_map: WorkerMap, server_uid: &str) {
-        let task_paths = resolve_task_paths(&job, server_uid);
+    fn print_job_detail(&self, jobs: Vec<JobDetail>, _worker_map: WorkerMap, server_uid: &str) {
+        let job_details: Vec<_> = jobs.into_iter().map(|job| {
+            let task_paths = resolve_task_paths(&job, server_uid);
 
-        let JobDetail {
-            info,
-            job_desc,
-            tasks,
-            tasks_not_found: _,
-            max_fails,
-            submission_date,
-            completion_date_or_now,
-            submit_dir,
-        } = job;
+            let JobDetail {
+                info,
+                job_desc,
+                tasks,
+                tasks_not_found: _,
+                max_fails,
+                submission_date,
+                completion_date_or_now,
+                submit_dir,
+            } = job;
 
-        let finished_at = if info.counters.is_terminated(info.n_tasks) {
-            Some(completion_date_or_now)
-        } else {
-            None
-        };
+            let finished_at = if info.counters.is_terminated(info.n_tasks) {
+                Some(completion_date_or_now)
+            } else {
+                None
+            };
 
-        let mut json = json!({
+            let mut json = json!({
             "info": format_job_info(info),
             "max_fails": max_fails,
             "started_at": format_datetime(submission_date),
@@ -106,54 +107,56 @@ impl Output for JsonOutput {
             "submit_dir": submit_dir
         });
 
-        if let JobDescription::Array {
-            task_desc:
+            if let JobDescription::Array {
+                task_desc:
                 TaskDescription {
                     program:
-                        ProgramDefinition {
-                            args,
-                            env,
-                            stdout,
-                            stderr,
-                            cwd,
-                            stdin: _,
-                        },
+                    ProgramDefinition {
+                        args,
+                        env,
+                        stdout,
+                        stderr,
+                        cwd,
+                        stdin: _,
+                    },
                     resources:
-                        ResourceRequest {
-                            n_nodes,
-                            resources: _,
-                            min_time,
-                        },
+                    ResourceRequest {
+                        n_nodes,
+                        resources: _,
+                        min_time,
+                    },
                     pin_mode,
                     time_limit,
                     priority,
                     task_dir,
                     crash_limit,
                 },
-            ..
-        } = job_desc
-        {
-            json["program"] = json!({
+                ..
+            } = job_desc
+            {
+                json["program"] = json!({
                 "args": args.into_iter().map(|args| args.to_string()).collect::<Vec<_>>(),
                 "env": env.into_iter().map(|(key, value)| (key.to_string(), value.to_string())).collect::<Map<String, String>>(),
                 "cwd": cwd,
                 "stderr": format_stdio_def(&stderr),
                 "stdout": format_stdio_def(&stdout),
             });
-            json["resources"] = json!({
+                json["resources"] = json!({
                 "n_nodes": n_nodes,
                 "resources": [],
                 "min_time": format_duration(min_time)
             });
-            json["pin_mode"] = json!(pin_mode);
-            json["priority"] = json!(priority);
-            json["time_limit"] = json!(time_limit.map(format_duration));
-            json["task_dir"] = json!(task_dir);
-            json["crash_limit"] = json!(crash_limit);
-        }
+                json["pin_mode"] = json!(pin_mode);
+                json["priority"] = json!(priority);
+                json["time_limit"] = json!(time_limit.map(format_duration));
+                json["task_dir"] = json!(task_dir);
+                json["crash_limit"] = json!(crash_limit);
+            }
 
-        json["tasks"] = format_tasks(tasks, task_paths);
-        self.print(json);
+            json["tasks"] = format_tasks(tasks, task_paths);
+            json
+        }).collect();
+        self.print(Value::Array(job_details));
     }
 
     fn print_job_wait(

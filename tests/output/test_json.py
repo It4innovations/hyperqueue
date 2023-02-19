@@ -113,39 +113,50 @@ def test_print_job_list(hq_env: HqEnv):
     schema.validate(output)
 
 
+JOB_DETAIL_SCHEMA = {
+    "info": {
+        "id": int,
+        "name": "echo",
+        "task_count": 1,
+        "task_stats": dict,
+    },
+    "resources": dict,
+    "finished_at": None,
+    "max_fails": None,
+    "pin_mode": "None",
+    "priority": 0,
+    "program": {
+        "args": ["echo", "tt"],
+        "env": {},
+        "cwd": str,
+        "stdout": dict,
+        "stderr": dict,
+    },
+    "started_at": str,
+    "time_limit": None,
+    "submit_dir": str,
+    "tasks": list,
+    "task_dir": bool,
+    "crash_limit": int,
+}
+
+
 def test_print_job_detail(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["submit", "echo", "tt"])
     output = parse_json_output(hq_env, ["--output-mode=json", "job", "info", "1"])
 
-    schema = Schema(
-        {
-            "info": {
-                "id": 1,
-                "name": "echo",
-                "task_count": 1,
-                "task_stats": dict,
-            },
-            "resources": dict,
-            "finished_at": None,
-            "max_fails": None,
-            "pin_mode": "None",
-            "priority": 0,
-            "program": {
-                "args": ["echo", "tt"],
-                "env": {},
-                "cwd": str,
-                "stdout": dict,
-                "stderr": dict,
-            },
-            "started_at": str,
-            "time_limit": None,
-            "submit_dir": str,
-            "tasks": list,
-            "task_dir": bool,
-            "crash_limit": int,
-        }
-    )
+    schema = Schema([JOB_DETAIL_SCHEMA])
+    schema.validate(output)
+
+
+def test_print_job_detail_multiple_jobs(hq_env: HqEnv):
+    hq_env.start_server()
+    for _ in range(2):
+        hq_env.command(["submit", "echo", "tt"])
+    output = parse_json_output(hq_env, ["--output-mode=json", "job", "info", "1,2"])
+
+    schema = Schema([JOB_DETAIL_SCHEMA])
     schema.validate(output)
 
 
@@ -155,7 +166,7 @@ def test_print_job_tasks_in_job_detail(hq_env: HqEnv):
     output = parse_json_output(hq_env, ["--output-mode=json", "job", "info", "1"])
 
     schema = Schema([{"id": id, "state": "waiting"} for id in range(1, 5)])
-    schema.validate(output["tasks"])
+    schema.validate(output[0]["tasks"])
 
 
 def test_print_job_tasks(hq_env: HqEnv):
@@ -178,9 +189,9 @@ def test_print_task_placeholders(hq_env: HqEnv):
     schema = Schema(
         [{"id": id, "state": "finished"} for id in range(1, 5)], ignore_extra_keys=True
     )
-    schema.validate(output["tasks"])
+    schema.validate(output[0]["tasks"])
 
-    tasks = sorted(output["tasks"], key=lambda t: t["id"])
+    tasks = sorted(output[0]["tasks"], key=lambda t: t["id"])
     for i in range(4):
         task_id = tasks[i]["id"]
         assert tasks[i]["cwd"] == os.getcwd()
