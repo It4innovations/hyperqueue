@@ -456,70 +456,72 @@ impl Output for CliOutput {
         self.print_horizontal_table(rows, header);
     }
 
-    fn print_job_detail(&self, job: JobDetail, worker_map: WorkerMap, _server_uid: &str) {
-        let JobDetail {
-            info,
-            job_desc,
-            mut tasks,
-            tasks_not_found: _,
-            max_fails: _,
-            submission_date,
-            completion_date_or_now,
-            submit_dir,
-        } = job;
+    fn print_job_detail(&self, jobs: Vec<JobDetail>, worker_map: WorkerMap, _server_uid: &str) {
+        for job in jobs {
+            let JobDetail {
+                info,
+                job_desc,
+                mut tasks,
+                tasks_not_found: _,
+                max_fails: _,
+                submission_date,
+                completion_date_or_now,
+                submit_dir,
+            } = job;
 
-        let mut rows = vec![
-            vec!["ID".cell().bold(true), info.id.cell()],
-            vec!["Name".cell().bold(true), info.name.as_str().cell()],
-        ];
+            let mut rows = vec![
+                vec!["ID".cell().bold(true), info.id.cell()],
+                vec!["Name".cell().bold(true), info.name.as_str().cell()],
+            ];
 
-        let status = if info.n_tasks == 1 {
-            status_to_cell(&job_status(&info))
-        } else {
-            job_status_to_cell(&info).cell()
-        };
+            let status = if info.n_tasks == 1 {
+                status_to_cell(&job_status(&info))
+            } else {
+                job_status_to_cell(&info).cell()
+            };
 
-        let state_label = "State".cell().bold(true);
-        rows.push(vec![state_label, status]);
+            let state_label = "State".cell().bold(true);
+            rows.push(vec![state_label, status]);
 
-        let mut n_tasks = info.n_tasks.to_string();
-        match &job_desc {
-            JobDescription::Array { ids, .. } => {
-                write!(n_tasks, "; Ids: {ids}").unwrap();
+            let mut n_tasks = info.n_tasks.to_string();
+            match &job_desc {
+                JobDescription::Array { ids, .. } => {
+                    write!(n_tasks, "; Ids: {ids}").unwrap();
+                }
+                JobDescription::Graph { .. } => {
+                    // TODO
+                }
             }
-            JobDescription::Graph { .. } => {
-                // TODO
+
+            rows.push(vec!["Tasks".cell().bold(true), n_tasks.cell()]);
+            rows.push(vec![
+                "Workers".cell().bold(true),
+                format_job_workers(&tasks, &worker_map).cell(),
+            ]);
+
+            if let JobDescription::Array { task_desc, .. } = &job_desc {
+                self.print_job_shared_task_description(&mut rows, task_desc);
             }
+
+            rows.push(vec![
+                "Submission date".cell().bold(true),
+                submission_date.round_subsecs(0).cell(),
+            ]);
+
+            rows.push(vec![
+                "Submission directory".cell().bold(true),
+                submit_dir.to_str().unwrap().cell(),
+            ]);
+
+            rows.push(vec![
+                "Makespan".cell().bold(true),
+                human_duration(completion_date_or_now - submission_date).cell(),
+            ]);
+            self.print_vertical_table(rows);
+
+            tasks.sort_unstable_by_key(|t| t.task_id);
+            self.print_task_summary(&tasks, &info, &worker_map);
         }
-
-        rows.push(vec!["Tasks".cell().bold(true), n_tasks.cell()]);
-        rows.push(vec![
-            "Workers".cell().bold(true),
-            format_job_workers(&tasks, &worker_map).cell(),
-        ]);
-
-        if let JobDescription::Array { task_desc, .. } = &job_desc {
-            self.print_job_shared_task_description(&mut rows, task_desc);
-        }
-
-        rows.push(vec![
-            "Submission date".cell().bold(true),
-            submission_date.round_subsecs(0).cell(),
-        ]);
-
-        rows.push(vec![
-            "Submission directory".cell().bold(true),
-            submit_dir.to_str().unwrap().cell(),
-        ]);
-
-        rows.push(vec![
-            "Makespan".cell().bold(true),
-            human_duration(completion_date_or_now - submission_date).cell(),
-        ]);
-        self.print_vertical_table(rows);
-
-        tasks.sort_unstable_by_key(|t| t.task_id);
-        self.print_task_summary(&tasks, &info, &worker_map);
     }
 
     fn print_job_wait(

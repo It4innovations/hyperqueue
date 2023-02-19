@@ -7,7 +7,7 @@ use crate::common::cli::{parse_last_all_range, parse_last_range, TaskSelectorArg
 use crate::rpc_call;
 use crate::transfer::connection::{ClientConnection, ClientSession};
 use crate::transfer::messages::{
-    CancelJobResponse, CancelRequest, FromClientMessage, IdSelector, JobDetailRequest,
+    CancelJobResponse, CancelRequest, FromClientMessage, IdSelector, JobDetail, JobDetailRequest,
     JobInfoRequest, TaskIdSelector, TaskSelector, TaskStatusSelector, ToClientMessage,
 };
 use crate::JobId;
@@ -134,17 +134,22 @@ pub async fn output_job_detail(
         rpc_call!(session.connection(), message, ToClientMessage::JobDetailResponse(r) => r)
             .await?;
 
-    for response in responses {
-        if let Some(job) = response.1 {
-            gsettings.printer().print_job_detail(
-                job,
-                get_worker_map(session).await?,
-                session.server_uid(),
-            );
-        } else {
-            log::error!("Job {} not found", response.0);
-        }
-    }
+    let worker_map = get_worker_map(session).await?;
+    let server_uid = session.server_uid();
+
+    let jobs: Vec<JobDetail> = responses
+        .into_iter()
+        .filter_map(|(id, job)| match job {
+            Some(job) => Some(job),
+            None => {
+                log::error!("Job {id} not found");
+                None
+            }
+        })
+        .collect();
+    gsettings
+        .printer()
+        .print_job_detail(jobs, worker_map, server_uid);
     Ok(())
 }
 

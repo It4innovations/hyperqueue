@@ -769,7 +769,7 @@ pub async fn resubmit_computation(
     let response =
         rpc_call!(session.connection(), message, ToClientMessage::SubmitResponse(r) => r).await?;
     gsettings.printer().print_job_detail(
-        response.job,
+        vec![response.job],
         get_worker_map(session).await?,
         session.server_uid(),
     );
