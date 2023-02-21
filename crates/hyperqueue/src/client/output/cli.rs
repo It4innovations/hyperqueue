@@ -742,11 +742,23 @@ impl Output for CliOutput {
                     },
                 ],
                 vec![
+                    "Time limit".cell().bold(true),
+                    task_desc
+                        .time_limit
+                        .map(|duration| format_duration(duration).to_string())
+                        .unwrap_or_else(|| "None".to_string())
+                        .cell(),
+                ],
+                vec![
                     "Resources".cell().bold(true),
                     format_resource_request(&task_desc.resources).cell(),
                 ],
                 vec!["Priority".cell().bold(true), task_desc.priority.cell()],
                 vec!["Pin".cell().bold(true), task_desc.pin_mode.to_str().cell()],
+                vec![
+                    "Task dir".cell().bold(true),
+                    if task_desc.task_dir { "yes" } else { "no" }.cell(),
+                ],
                 vec![
                     "Crash limit".cell().bold(true),
                     task_desc.crash_limit.cell(),
