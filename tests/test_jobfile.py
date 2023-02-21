@@ -28,6 +28,10 @@ id = 12
 pin = "omp"
 stdout = "testout-%{TASK_ID}"
 stderr = "testerr-%{TASK_ID}"
+task_dir = true
+time_limit = "1m 10s"
+priority = -1
+crash_limit = 12
 command = ["bash", "-c", "echo $ABC $XYZ; >&2 echo error"]
     [[env]]
     ABC = 123
@@ -51,12 +55,20 @@ command = ["sleep", "0"]
 
     table = hq_env.command(["task", "info", "1", "12"], as_table=True)
     table.check_row_value("Pin", "omp")
+    table.check_row_value("Time limit", "1m 10s")
+    table.check_row_value("Priority", "-1")
+    table.check_row_value("Crash limit", "12")
+    table.check_row_value("Task dir", "yes")
     paths = table.get_row_value("Paths").split("\n")
     assert paths[1].endswith("testout-12")
     assert paths[2].endswith("testerr-12")
 
     table = hq_env.command(["task", "info", "1", "200"], as_table=True)
     table.check_row_value("Pin", "taskset")
+    table.check_row_value("Time limit", "None")
+    table.check_row_value("Priority", "0")
+    table.check_row_value("Crash limit", "0")
+    table.check_row_value("Task dir", "no")
 
     paths = table.get_row_value("Paths").split("\n")
     assert paths[0].endswith("test-200")

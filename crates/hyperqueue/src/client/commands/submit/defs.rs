@@ -1,8 +1,13 @@
 use crate::common::error::HqError;
+use crate::common::utils::time::parse_human_time;
 use crate::{JobTaskCount, JobTaskId};
 use bstr::BString;
-use serde::{Deserialize, Serialize};
+use serde::de::{EnumAccess, Error, MapAccess, SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer, Serialize};
+use std::fmt::{Formatter, Write};
 use std::path::PathBuf;
+use std::time::Duration;
+use tako::Priority;
 
 #[derive(Deserialize, Debug)]
 pub struct JobDef {
@@ -38,12 +43,24 @@ impl PinMode {
     }
 }
 
+fn deserialize_human_duration<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let buf = Option::<String>::deserialize(deserializer)?;
+
+    if let Some(b) = buf {
+        parse_human_time(&b)
+            .map(Some)
+            .map_err(serde::de::Error::custom)
+    } else {
+        Ok(None)
+    }
+}
+
 #[derive(Deserialize, Debug)]
 pub struct TaskDef {
     pub id: Option<JobTaskId>,
-
-    #[serde(default)]
-    pub pin: PinMode,
 
     pub command: Vec<String>,
 
@@ -58,6 +75,22 @@ pub struct TaskDef {
 
     #[serde(default)]
     pub cwd: String,
+
+    #[serde(default)]
+    pub pin: PinMode,
+
+    #[serde(default)]
+    pub task_dir: bool,
+
+    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_human_duration")]
+    pub time_limit: Option<Duration>,
+
+    #[serde(default)]
+    pub priority: Priority,
+
+    #[serde(default)]
+    pub crash_limit: u32,
 }
 
 impl JobDef {
