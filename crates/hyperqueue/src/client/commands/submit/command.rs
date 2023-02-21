@@ -38,7 +38,7 @@ const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 pub const DEFAULT_CRASH_LIMIT: u32 = 5;
 
 // Keep in sync with `tests/util/job.py::default_task_output` and `pyhq/python/hyperqueue/output.py`
-const DEFAULT_STDOUT_PATH: &str = const_format::concatcp!(
+pub const DEFAULT_STDOUT_PATH: &str = const_format::concatcp!(
     "%{",
     CWD_PLACEHOLDER,
     "}",
@@ -53,7 +53,7 @@ const DEFAULT_STDOUT_PATH: &str = const_format::concatcp!(
     "}",
     ".stdout"
 );
-const DEFAULT_STDERR_PATH: &str = const_format::concatcp!(
+pub const DEFAULT_STDERR_PATH: &str = const_format::concatcp!(
     "%{",
     CWD_PLACEHOLDER,
     "}",

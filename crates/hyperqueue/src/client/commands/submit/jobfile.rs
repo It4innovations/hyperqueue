@@ -1,4 +1,6 @@
-use crate::client::commands::submit::command::send_submit_request;
+use crate::client::commands::submit::command::{
+    send_submit_request, DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH,
+};
 use crate::client::commands::submit::defs::PinMode as PinModeDef;
 use crate::client::commands::submit::defs::{JobDef, TaskDef};
 use crate::client::globalsettings::GlobalSettings;
@@ -9,7 +11,7 @@ use crate::transfer::messages::{
 };
 use clap::Parser;
 use std::path::PathBuf;
-use tako::program::ProgramDefinition;
+use tako::program::{ProgramDefinition, StdioDef};
 
 #[derive(Parser)]
 pub struct JobSubmitFileOpts {
@@ -17,15 +19,29 @@ pub struct JobSubmitFileOpts {
     path: PathBuf,
 }
 
+fn create_stdio(def: &str, default: &str, is_log: bool) -> StdioDef {
+    match def {
+        "" => {
+            if is_log {
+                StdioDef::Pipe
+            } else {
+                StdioDef::File(PathBuf::from(default))
+            }
+        }
+        "none" => StdioDef::Null,
+        x => StdioDef::File(PathBuf::from(x)),
+    }
+}
+
 fn build_task_description(tdef: TaskDef) -> TaskDescription {
     TaskDescription {
         program: ProgramDefinition {
             args: tdef.command.into_iter().map(|x| x.into()).collect(),
-            env: Default::default(),
-            stdout: Default::default(),
-            stderr: Default::default(),
+            env: tdef.env,
+            stdout: create_stdio(&tdef.stdout, DEFAULT_STDOUT_PATH, false),
+            stderr: create_stdio(&tdef.stderr, DEFAULT_STDERR_PATH, false),
             stdin: vec![],
-            cwd: Default::default(),
+            cwd: PathBuf::from(tdef.cwd),
         },
         resources: Default::default(),
         pin_mode: match tdef.pin {

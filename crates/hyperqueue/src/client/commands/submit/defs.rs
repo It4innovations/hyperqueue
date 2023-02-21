@@ -1,5 +1,6 @@
 use crate::common::error::HqError;
 use crate::{JobTaskCount, JobTaskId};
+use bstr::BString;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -45,6 +46,18 @@ pub struct TaskDef {
     pub pin: PinMode,
 
     pub command: Vec<String>,
+
+    #[serde(default)]
+    pub env: crate::Map<BString, BString>,
+
+    #[serde(default)]
+    pub stdout: String,
+
+    #[serde(default)]
+    pub stderr: String,
+
+    #[serde(default)]
+    pub cwd: String,
 }
 
 impl JobDef {
