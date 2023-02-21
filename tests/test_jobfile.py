@@ -26,12 +26,18 @@ max_fails = 11
 [[task]]
 id = 12
 pin = "omp"
-command = ["sleep", "0"]
+stdout = "testout-%{TASK_ID}"
+stderr = "testerr-%{TASK_ID}"
+command = ["bash", "-c", "echo $ABC $XYZ; >&2 echo error"]
+    [[env]]
+    ABC = 123
+    XYZ = "aaaa"
 
 [[task]]
 id = 200
 pin = "taskset"
-command = ["sleep", "0"]
+cwd = "test-200"
+command = ["bash", "-c", "echo test1"]
 
 [[task]]
 id = 13
@@ -45,9 +51,18 @@ command = ["sleep", "0"]
 
     table = hq_env.command(["task", "info", "1", "12"], as_table=True)
     table.check_row_value("Pin", "omp")
+    paths = table.get_row_value("Paths").split("\n")
+    assert paths[1].endswith("testout-12")
+    assert paths[2].endswith("testerr-12")
 
     table = hq_env.command(["task", "info", "1", "200"], as_table=True)
     table.check_row_value("Pin", "taskset")
 
+    paths = table.get_row_value("Paths").split("\n")
+    assert paths[0].endswith("test-200")
+    assert paths[1].endswith("/test-200/job-1/200.stdout")
+    assert paths[2].endswith("/test-200/job-1/200.stderr")
+
     table = hq_env.command(["task", "info", "1", "13"], as_table=True)
     table.check_row_value("Pin", "none")
+
