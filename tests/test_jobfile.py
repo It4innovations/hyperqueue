@@ -33,9 +33,7 @@ time_limit = "1m 10s"
 priority = -1
 crash_limit = 12
 command = ["bash", "-c", "echo $ABC $XYZ; >&2 echo error"]
-    [[env]]
-    ABC = 123
-    XYZ = "aaaa"
+env = {"ABC" = "123", "XYZ" = "aaaa"}
 
 [[task]]
 id = 200
@@ -54,6 +52,7 @@ command = ["sleep", "0"]
     table.check_row_value("Name", "test-job")
 
     table = hq_env.command(["task", "info", "1", "12"], as_table=True)
+    table.check_row_value("Environment", "ABC=123\nXYZ=aaaa")
     table.check_row_value("Pin", "omp")
     table.check_row_value("Time limit", "1m 10s")
     table.check_row_value("Priority", "-1")

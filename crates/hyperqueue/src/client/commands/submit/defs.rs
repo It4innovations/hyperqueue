@@ -10,6 +10,7 @@ use std::time::Duration;
 use tako::Priority;
 
 #[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 pub struct JobDef {
     #[serde(default)]
     pub name: String,
@@ -59,6 +60,7 @@ where
 }
 
 #[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 pub struct TaskDef {
     pub id: Option<JobTaskId>,
 
@@ -109,6 +111,7 @@ impl JobDef {
 mod test {
     use crate::client::commands::submit::defs::{JobDef, TaskDef};
     use crate::common::error::HqError;
+    use bstr::{BStr, BString, ByteSlice};
 
     #[test]
     fn test_read_minimal_def() {
@@ -137,5 +140,62 @@ mod test {
         );
         assert!(matches!(r, Err(HqError::DeserializationError(_))))
         //assert!(r.is_err());
+    }
+
+    #[test]
+    fn test_unknown_fields() {
+        let r = JobDef::parse(
+            r#"
+        [[task]]
+        command = ["sleep", "1"]
+        some_unknown_field_xxx = "123"
+        "#,
+        );
+        assert!(matches!(r, Err(HqError::DeserializationError(_))))
+        //assert!(r.is_err());
+    }
+
+    #[test]
+    fn test_parse_env1() {
+        let r = JobDef::parse(
+            r#"
+        [[task]]
+        command = ["sleep", "1"]
+        env = {"ABC" = "abc", "XYZ" = "55"}
+        "#,
+        )
+        .unwrap();
+        assert_eq!(r.tasks[0].env.len(), 2);
+        assert_eq!(
+            r.tasks[0].env.get(BString::from("ABC").as_bstr()).unwrap(),
+            "abc"
+        );
+        assert_eq!(
+            r.tasks[0].env.get(BString::from("XYZ").as_bstr()).unwrap(),
+            "55"
+        );
+    }
+
+    #[test]
+    fn test_parse_env2() {
+        let r = JobDef::parse(
+            r#"
+        [[task]]
+        command = ["sleep", "1"]
+            [task.env]
+            "ABC" = "abc"
+            "XYZ" = "55"
+        "#,
+        )
+        .unwrap();
+        assert_eq!(r.tasks[0].env.len(), 2);
+        assert_eq!(
+            r.tasks[0].env.get(BString::from("ABC").as_bstr()).unwrap(),
+            "abc"
+        );
+        assert_eq!(
+            r.tasks[0].env.get(BString::from("XYZ").as_bstr()).unwrap(),
+            "55"
+        );
     }
 }
