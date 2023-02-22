@@ -684,11 +684,39 @@ impl Output for CliOutput {
                 }
             };
 
+            let mut env_vars: Vec<(_, _)> = task_desc
+                .program
+                .env
+                .iter()
+                .filter(|(k, _)| !is_hq_env(k))
+                .collect();
+            env_vars.sort_by_key(|item| item.0);
+
             let rows: Vec<Vec<CellStruct>> = vec![
                 vec!["Task ID".cell().bold(true), task_id.cell()],
                 vec![
                     "State".cell().bold(true),
                     status_to_cell(&get_task_status(&task.state)),
+                ],
+                vec![
+                    "Command".cell().bold(true),
+                    task_desc
+                        .program
+                        .args
+                        .iter()
+                        .map(|x| textwrap::fill(&x.to_string(), TERMINAL_WIDTH))
+                        .collect::<Vec<String>>()
+                        .join("\n")
+                        .cell(),
+                ],
+                vec![
+                    "Environment".cell().bold(true),
+                    env_vars
+                        .into_iter()
+                        .map(|(k, v)| format!("{k}={v}"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                        .cell(),
                 ],
                 vec![
                     "Worker".cell().bold(true),
