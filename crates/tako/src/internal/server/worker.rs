@@ -11,7 +11,6 @@ use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::workerload::{ResourceRequestLowerBound, WorkerLoad, WorkerResources};
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::{TaskId, WorkerId};
-use futures::StreamExt;
 use std::time::Duration;
 
 bitflags::bitflags! {

@@ -119,12 +119,7 @@ impl Output for JsonOutput {
                         cwd,
                         stdin: _,
                     },
-                    resources:
-                    ResourceRequest {
-                        n_nodes,
-                        resources: _,
-                        min_time,
-                    },
+                    resources,
                     pin_mode,
                     time_limit,
                     priority,
@@ -141,11 +136,14 @@ impl Output for JsonOutput {
                 "stderr": format_stdio_def(&stderr),
                 "stdout": format_stdio_def(&stdout),
             });
-                json["resources"] = json!({
-                "n_nodes": n_nodes,
-                "resources": [],
-                "min_time": format_duration(min_time)
-            });
+                for v in resources.variants {
+                    let ResourceRequest { n_nodes, resources, min_time } = v;
+                    json["resources"] = json!({
+                    "n_nodes": n_nodes,
+                    "resources": [],
+                    "min_time": format_duration(min_time)
+                    });
+                }
                 json["pin_mode"] = json!(pin_mode);
                 json["priority"] = json!(priority);
                 json["time_limit"] = json!(time_limit.map(format_duration));

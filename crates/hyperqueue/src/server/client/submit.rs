@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use bstr::BString;
 use tako::ItemId;
@@ -6,8 +7,8 @@ use tako::Map;
 use tokio::sync::oneshot;
 
 use tako::gateway::{
-    FromGatewayMessage, NewTasksMessage, SharedTaskConfiguration, TaskConfiguration,
-    ToGatewayMessage,
+    FromGatewayMessage, NewTasksMessage, ResourceRequestVariants, SharedTaskConfiguration,
+    TaskConfiguration, ToGatewayMessage,
 };
 use tako::program::ProgramDefinition;
 use tako::TaskId;
@@ -26,7 +27,7 @@ use crate::transfer::messages::{
     JobDescription, ResubmitRequest, SubmitRequest, SubmitResponse, TaskBody, TaskDescription,
     TaskIdSelector, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
-use crate::{JobId, JobTaskId, TakoTaskId};
+use crate::{JobId, JobTaskId, Priority, TakoTaskId};
 
 struct JobContext<'a> {
     job_id: JobId,
@@ -324,23 +325,25 @@ fn build_tasks_graph(
     }
 
     let mut shared_data = vec![];
-    let mut shared_data_map = Map::new();
+    let mut shared_data_map =
+        Map::<(&ResourceRequestVariants, Option<Duration>, Priority), usize>::new();
     let mut allocate_shared_data = |task: TaskDescription| -> u32 {
-        let key = (task.resources.clone(), task.time_limit, task.priority);
-        let index = shared_data_map.entry(key).or_insert_with(|| {
-            let index = shared_data.len();
-            shared_data.push(SharedTaskConfiguration {
-                resources: task.resources,
-                n_outputs: 0,
-                time_limit: task.time_limit,
-                priority: task.priority,
-                keep: false,
-                observe: true,
-                crash_limit: task.crash_limit,
-            });
-            index
-        });
-        *index as u32
+        shared_data_map
+            .get(&(&task.resources, task.time_limit, task.priority))
+            .copied()
+            .unwrap_or_else(|| {
+                let index = shared_data.len();
+                shared_data.push(SharedTaskConfiguration {
+                    resources: task.resources,
+                    n_outputs: 0,
+                    time_limit: task.time_limit,
+                    priority: task.priority,
+                    keep: false,
+                    observe: true,
+                    crash_limit: task.crash_limit,
+                });
+                index
+            }) as u32
     };
 
     let mut task_configs = Vec::with_capacity(tasks.len());

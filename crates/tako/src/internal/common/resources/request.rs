@@ -124,7 +124,7 @@ impl ResourceRequest {
     }
 
     pub fn validate(&self) -> crate::Result<()> {
-        if self.resources.is_empty() {
+        if self.resources.is_empty() && self.n_nodes == 0 {
             return Err("Resource request is empty".into());
         }
         for entry in &self.resources {

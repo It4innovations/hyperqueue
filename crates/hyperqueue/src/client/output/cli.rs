@@ -43,7 +43,9 @@ use colored::Color as Colorization;
 use colored::Colorize;
 use std::collections::BTreeSet;
 use std::fs::File;
-use tako::gateway::{LostWorkerReason, ResourceRequest, ResourceRequestEntry};
+use tako::gateway::{
+    LostWorkerReason, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
+};
 use tako::{format_comma_delimited, Map};
 
 pub const TASK_COLOR_CANCELED: Colorization = Colorization::Magenta;
@@ -109,7 +111,7 @@ impl CliOutput {
             crash_limit,
         } = task_desc;
 
-        let resources = format_resource_request(resources);
+        let resources = format_resource_variants(resources);
         rows.push(vec![
             "Resources".cell().bold(true),
             if !matches!(pin_mode, PinMode::None) {
@@ -779,7 +781,7 @@ impl Output for CliOutput {
                 ],
                 vec![
                     "Resources".cell().bold(true),
-                    format_resource_request(&task_desc.resources).cell(),
+                    format_resource_variants(&task_desc.resources).cell(),
                 ],
                 vec!["Priority".cell().bold(true), task_desc.priority.cell()],
                 vec!["Pin".cell().bold(true), task_desc.pin_mode.to_str().cell()],
@@ -1160,6 +1162,26 @@ fn format_resource_request(rq: &ResourceRequest) -> String {
         )
         .unwrap();
         first = false;
+    }
+    result
+}
+
+fn format_resource_variants(rqv: &ResourceRequestVariants) -> String {
+    if rqv.variants.len() == 1 {
+        return format_resource_request(&rqv.variants[0]);
+    }
+
+    let mut result = String::new();
+    for (i, v) in rqv.variants.iter().enumerate() {
+        let is_last = rqv.variants.len() == i + 1;
+        write!(
+            result,
+            "# Variant {}\n{}{}",
+            (i + 1),
+            format_resource_request(v),
+            if is_last { "" } else { "\n\n" }
+        )
+        .unwrap();
     }
     result
 }

@@ -13,7 +13,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::server::event::MonitoringEvent;
-use tako::gateway::{LostWorkerReason, MonitoringEventRequest, ResourceRequest};
+use tako::gateway::{
+    LostWorkerReason, MonitoringEventRequest, ResourceRequest, ResourceRequestVariants,
+};
 use tako::program::ProgramDefinition;
 use tako::worker::WorkerConfiguration;
 
@@ -68,7 +70,7 @@ pub struct TaskBody {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskDescription {
     pub program: ProgramDefinition,
-    pub resources: ResourceRequest,
+    pub resources: ResourceRequestVariants,
     pub pin_mode: PinMode,
     pub task_dir: bool,
     pub time_limit: Option<Duration>,

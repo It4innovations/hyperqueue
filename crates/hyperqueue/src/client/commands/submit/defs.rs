@@ -1,13 +1,25 @@
+use crate::client::resources::parse_allocation_request;
 use crate::common::error::HqError;
 use crate::common::utils::time::parse_human_time;
 use crate::{JobTaskCount, JobTaskId};
 use bstr::BString;
 use serde::de::{EnumAccess, Error, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
+use smallvec::SmallVec;
 use std::fmt::{Formatter, Write};
 use std::path::PathBuf;
 use std::time::Duration;
-use tako::Priority;
+use tako::comm::deserialize;
+use tako::gateway::{ResourceRequest, ResourceRequestEntries, ResourceRequestEntry};
+use tako::resources::{AllocationRequest, NumOfNodes, ResourceAllocation};
+use tako::{Map, Priority};
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum IntOrString {
+    Int(u64),
+    String(String),
+}
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
@@ -44,7 +56,37 @@ impl PinMode {
     }
 }
 
-fn deserialize_human_duration<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+fn deserialize_human_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let buf = String::deserialize(deserializer)?;
+    parse_human_time(&buf).map_err(serde::de::Error::custom)
+}
+
+fn deserialize_resource_entries<'de, D>(deserializer: D) -> Result<ResourceRequestEntries, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let tmp = Map::<String, IntOrString>::deserialize(deserializer)?;
+
+    let mut result = ResourceRequestEntries::new();
+    for (k, v) in tmp {
+        let policy = match v {
+            IntOrString::Int(n) => AllocationRequest::Compact(n),
+            IntOrString::String(s) => {
+                parse_allocation_request(&s).map_err(serde::de::Error::custom)?
+            }
+        };
+        result.push(ResourceRequestEntry {
+            resource: k,
+            policy,
+        })
+    }
+    Ok(result)
+}
+
+fn deserialize_human_duration_opt<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -61,13 +103,41 @@ where
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
+pub struct ResourceRequestDef {
+    #[serde(default)]
+    pub n_nodes: NumOfNodes,
+
+    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_human_duration")]
+    pub time_request: Duration,
+
+    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_resource_entries")]
+    pub resources: ResourceRequestEntries,
+}
+
+impl ResourceRequestDef {
+    pub fn into_request(self) -> ResourceRequest {
+        ResourceRequest {
+            n_nodes: self.n_nodes,
+            resources: self.resources,
+            min_time: self.time_request,
+        }
+    }
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 pub struct TaskDef {
     pub id: Option<JobTaskId>,
 
     pub command: Vec<String>,
 
     #[serde(default)]
-    pub env: crate::Map<BString, BString>,
+    pub env: Map<BString, BString>,
+
+    #[serde(default)]
+    pub request: SmallVec<[ResourceRequestDef; 1]>,
 
     #[serde(default)]
     pub stdout: String,
@@ -85,7 +155,7 @@ pub struct TaskDef {
     pub task_dir: bool,
 
     #[serde(default)]
-    #[serde(deserialize_with = "deserialize_human_duration")]
+    #[serde(deserialize_with = "deserialize_human_duration_opt")]
     pub time_limit: Option<Duration>,
 
     #[serde(default)]
