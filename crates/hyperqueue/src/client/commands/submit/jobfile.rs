@@ -11,7 +11,9 @@ use crate::transfer::messages::{
     JobDescription, PinMode, SubmitRequest, TaskDescription, TaskWithDependencies,
 };
 use clap::Parser;
+use smallvec::smallvec;
 use std::path::PathBuf;
+use tako::gateway::{ResourceRequest, ResourceRequestVariants};
 use tako::program::{ProgramDefinition, StdioDef};
 
 #[derive(Parser)]
@@ -44,7 +46,13 @@ fn build_task_description(tdef: TaskDef) -> TaskDescription {
             stdin: vec![],
             cwd: PathBuf::from(tdef.cwd),
         },
-        resources: Default::default(),
+        resources: ResourceRequestVariants {
+            variants: if tdef.request.is_empty() {
+                smallvec![ResourceRequest::default()]
+            } else {
+                tdef.request.into_iter().map(|r| r.into_request()).collect()
+            },
+        },
         pin_mode: match tdef.pin {
             PinModeDef::None => PinMode::None,
             PinModeDef::TaskSet => PinMode::TaskSet,

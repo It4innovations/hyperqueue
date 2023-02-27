@@ -42,12 +42,32 @@ impl Default for ResourceRequest {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
+pub struct ResourceRequestVariants {
+    pub variants: SmallVec<[ResourceRequest; 1]>,
+}
+
+impl ResourceRequestVariants {
+    pub fn min_time(&self) -> Duration {
+        self.variants
+            .iter()
+            .map(|rq| rq.min_time)
+            .min()
+            .unwrap_or_default()
+    }
+}
+
+impl ResourceRequestVariants {
+    pub fn new(variants: SmallVec<[ResourceRequest; 1]>) -> Self {
+        ResourceRequestVariants { variants }
+    }
+}
+
 /// Task data that is often shared by multiple tasks.
 /// It is send out-of-band in NewTasksMessage to save bandwidth and allocations.
 #[derive(Deserialize, Serialize, Debug)]
 pub struct SharedTaskConfiguration {
-    #[serde(default)]
-    pub resources: ResourceRequest,
+    pub resources: ResourceRequestVariants,
 
     #[serde(default)]
     pub n_outputs: u32,

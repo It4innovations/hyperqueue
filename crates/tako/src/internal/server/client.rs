@@ -69,26 +69,31 @@ fn create_task_configuration(
     core_ref: &mut Core,
     msg: SharedTaskConfiguration,
 ) -> TaskConfiguration {
-    let resources_msg = msg.resources;
-
-    let resources = ResourceRequest::new(
-        resources_msg.n_nodes,
-        resources_msg.min_time,
-        resources_msg
-            .resources
+    let resources = ResourceRequestVariants::new(
+        msg.resources
+            .variants
             .into_iter()
-            .map(|r| {
-                let resource_id = core_ref.get_or_create_resource_id(&r.resource);
-                ResourceRequestEntry {
-                    resource_id,
-                    request: r.policy,
-                }
+            .map(|rq| {
+                ResourceRequest::new(
+                    rq.n_nodes,
+                    rq.min_time,
+                    rq.resources
+                        .into_iter()
+                        .map(|r| {
+                            let resource_id = core_ref.get_or_create_resource_id(&r.resource);
+                            ResourceRequestEntry {
+                                resource_id,
+                                request: r.policy,
+                            }
+                        })
+                        .collect(),
+                )
             })
             .collect(),
     );
 
     TaskConfiguration {
-        resources: ResourceRequestVariants::new(smallvec![resources]),
+        resources,
         n_outputs: msg.n_outputs,
         time_limit: msg.time_limit,
         user_priority: msg.priority,

@@ -7,7 +7,10 @@ use std::{fs, io};
 use anyhow::{anyhow, bail};
 use bstr::BString;
 use clap::{ArgMatches, Parser};
-use tako::gateway::{ResourceRequest, ResourceRequestEntries, ResourceRequestEntry};
+use smallvec::smallvec;
+use tako::gateway::{
+    ResourceRequest, ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants,
+};
 use tako::program::{ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, NumOfNodes, CPU_RESOURCE_NAME};
 
@@ -564,7 +567,7 @@ pub async fn submit_computation(
 
     let task_desc = TaskDescription {
         program: program_def,
-        resources,
+        resources: ResourceRequestVariants::new(smallvec![resources]),
         pin_mode: pin.map(|arg| arg.into()).unwrap_or(PinMode::None),
         priority,
         time_limit,
