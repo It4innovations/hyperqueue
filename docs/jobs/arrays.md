@@ -72,3 +72,16 @@ You can create a task array in this way using the `--from-json` option:
 ```bash
 $ hq submit --from-json items.json ...
 ```
+
+If `items.json` contained this content:
+```json
+[{
+  "batch_size": 4,
+  "learning_rate": 0.01
+}, {
+  "batch_size": 8,
+  "learning_rate": 0.001
+}]
+```
+then HyperQueue would create two tasks, one with `HQ_ENTRY` set to `{"batch_size": 4, "learning_rate": 0.01}`
+and the other with `HQ_ENTRY` set to `{"batch_size": 8, "learning_rate": 0.001}`.
