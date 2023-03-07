@@ -19,14 +19,19 @@ with the HyperQueue developers, you can use our [Zulip](https://hyperqueue.zulip
 
 ## Features
 
+- **Resource management**
+    - Load balancing of tasks across all available HPC resources (jobs)
+    - Automatic submission of HPC jobs on behalf of the user
+    - Tasks can specify complex arbitrary resource requirements (# of cores, GPUs, memory, ...)
+
 - **Performance**
-    - The inner scheduler can scale to hundreds of nodes
+    - The inner scheduler can scale to hundreds of nodes and workers
     - The overhead per one task is below 0.1ms.
-    - HQ allows streaming outputs from tasks to avoid creating many small files on a distributed filesystem
+    - Allows streaming of outputs from tasks to avoid creating many small files on distributed filesystems
 
 - **Easy deployment**
-    - HQ is provided as a single, statically linked binary without any dependencies
-    - No admin access to a cluster is needed
+    - HQ is provided as a single, statically linked binary without any dependencies apart from `libc`
+    - No admin access to a cluster is needed for its usage
 
 # Getting started
 
