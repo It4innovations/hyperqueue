@@ -3,8 +3,9 @@ use bstr::BString;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Default)]
 pub enum StdioDef {
+    #[default]
     Null,
     File(PathBuf),
     Pipe,
@@ -20,12 +21,6 @@ impl StdioDef {
             StdioDef::File(filename) => StdioDef::File(f(filename)),
             StdioDef::Pipe => StdioDef::Pipe,
         }
-    }
-}
-
-impl Default for StdioDef {
-    fn default() -> Self {
-        StdioDef::Null
     }
 }
 

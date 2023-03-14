@@ -31,7 +31,9 @@ pub struct JobFragment {
     component_in_focus: FocusedComponent,
 }
 
+#[derive(Default)]
 enum FocusedComponent {
+    #[default]
     JobsTable,
     JobTasksTable,
 }
@@ -154,11 +156,5 @@ impl JobFragmentLayout {
             job_tasks_chunk: table_area[1],
             footer_chunk: job_screen_chunks[3],
         }
-    }
-}
-
-impl Default for FocusedComponent {
-    fn default() -> Self {
-        FocusedComponent::JobsTable
     }
 }
