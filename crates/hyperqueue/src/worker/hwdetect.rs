@@ -57,18 +57,23 @@ pub fn detect_additional_resources(items: &mut Vec<ResourceDescriptorItem>) -> a
     let has_resource =
         |items: &[ResourceDescriptorItem], name: &str| items.iter().any(|x| x.name == name);
 
-    if !has_resource(items, NVIDIA_GPU_RESOURCE_NAME) {
-        if let Some(detected) = detect_gpus_from_env() {
-            items.push(ResourceDescriptorItem {
-                name: detected.resource_name.to_string(),
-                kind: detected.resource,
-            });
-        } else if let Ok(count) = read_nvidia_linux_gpu_count() {
+    let detected_gpus = detect_gpus_from_env();
+    if detected_gpus.is_empty() && !has_resource(items, NVIDIA_GPU_RESOURCE_NAME) {
+        if let Ok(count) = read_nvidia_linux_gpu_count() {
             if count > 0 {
                 log::info!("Detected {} GPUs from procs", count);
                 items.push(ResourceDescriptorItem {
                     name: NVIDIA_GPU_RESOURCE_NAME.to_string(),
                     kind: ResourceDescriptorKind::simple_indices(count as u32),
+                });
+            }
+        }
+    } else {
+        for gpu in detected_gpus {
+            if !has_resource(items, gpu.resource_name) {
+                items.push(ResourceDescriptorItem {
+                    name: gpu.resource_name.to_string(),
+                    kind: gpu.resource,
                 });
             }
         }
@@ -97,7 +102,8 @@ struct DetectedGpu {
 }
 
 /// Tries to detect available GPUs from one of the `GPU_ENV_KEYS` environment variables.
-fn detect_gpus_from_env() -> Option<DetectedGpu> {
+fn detect_gpus_from_env() -> Vec<DetectedGpu> {
+    let mut gpus = Vec::new();
     for (env_key, resource_name) in GPU_ENV_KEYS {
         if let Ok(devices_str) = std::env::var(env_key) {
             if let Ok(devices) = parse_comma_separated_values(&devices_str) {
@@ -108,18 +114,19 @@ fn detect_gpus_from_env() -> Option<DetectedGpu> {
 
                 if !has_unique_elements(&devices) {
                     log::warn!("{env_key} contains duplicates ({devices_str})");
+                    continue;
                 }
 
                 let list =
                     ResourceDescriptorKind::list(devices).expect("List values were not unique");
-                return Some(DetectedGpu {
+                gpus.push(DetectedGpu {
                     resource_name,
                     resource: list,
                 });
             }
         }
     }
-    None
+    gpus
 }
 
 /// Try to find out how many Nvidia GPUs are available on the current node.

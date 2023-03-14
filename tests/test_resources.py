@@ -214,6 +214,19 @@ def test_worker_detect_uuid_gpus_from_env(hq_env: HqEnv):
     assert "gpus/nvidia: [foo,bar]" in resources
 
 
+def test_worker_detect_multiple_gpus_from_env(hq_env: HqEnv):
+    hq_env.start_server()
+    resources = hq_env.command(
+        ["worker", "hwdetect"],
+        env={
+            "CUDA_VISIBLE_DEVICES": "0,1",
+            "ROCR_VISIBLE_DEVICES": "1",
+        },
+    )
+    assert "gpus/nvidia: [0,1]" in resources
+    assert "gpus/amd: [1]" in resources
+
+
 def test_task_info_resources(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
