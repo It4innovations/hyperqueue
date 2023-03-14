@@ -1,5 +1,11 @@
 # Dev
 
+## Breaking changes
+
+- **NVIDIA GPUs are now automatically detected under the resource name `gpus/nvidia`, instead of
+just `gpus`!** If you have been using the `gpus` resource name, you should update your scripts.
+See more details below.
+
 ## New features
 
 ### Resource management
