@@ -12,7 +12,7 @@ use tako::format_comma_delimited;
 use tako::internal::has_unique_elements;
 use tako::resources::{
     ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex, ResourceLabel,
-    GPU_RESOURCE_NAME, MEM_RESOURCE_NAME,
+    AMD_GPU_RESOURCE_NAME, MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME,
 };
 
 pub fn detect_cpus() -> anyhow::Result<ResourceDescriptorKind> {
@@ -57,17 +57,17 @@ pub fn detect_additional_resources(items: &mut Vec<ResourceDescriptorItem>) -> a
     let has_resource =
         |items: &[ResourceDescriptorItem], name: &str| items.iter().any(|x| x.name == name);
 
-    if !has_resource(items, GPU_RESOURCE_NAME) {
-        if let Some(gpus) = detect_gpus_from_env() {
+    if !has_resource(items, NVIDIA_GPU_RESOURCE_NAME) {
+        if let Some(detected) = detect_gpus_from_env() {
             items.push(ResourceDescriptorItem {
-                name: GPU_RESOURCE_NAME.to_string(),
-                kind: gpus,
+                name: detected.resource_name.to_string(),
+                kind: detected.resource,
             });
-        } else if let Ok(count) = read_linux_gpu_count() {
+        } else if let Ok(count) = read_nvidia_linux_gpu_count() {
             if count > 0 {
                 log::info!("Detected {} GPUs from procs", count);
                 items.push(ResourceDescriptorItem {
-                    name: GPU_RESOURCE_NAME.to_string(),
+                    name: NVIDIA_GPU_RESOURCE_NAME.to_string(),
                     kind: ResourceDescriptorKind::simple_indices(count as u32),
                 });
             }
@@ -86,15 +86,20 @@ pub fn detect_additional_resources(items: &mut Vec<ResourceDescriptorItem>) -> a
     Ok(())
 }
 
-pub const GPU_ENV_KEYS: &[&str; 3] = &[
-    "CUDA_VISIBLE_DEVICES",
-    "HIP_VISIBLE_DEVICES",
-    "ROCR_VISIBLE_DEVICES",
+pub const GPU_ENV_KEYS: &[(&str, &str); 3] = &[
+    ("CUDA_VISIBLE_DEVICES", NVIDIA_GPU_RESOURCE_NAME),
+    ("HIP_VISIBLE_DEVICES", AMD_GPU_RESOURCE_NAME),
+    ("ROCR_VISIBLE_DEVICES", AMD_GPU_RESOURCE_NAME),
 ];
 
+struct DetectedGpu {
+    resource_name: &'static str,
+    resource: ResourceDescriptorKind,
+}
+
 /// Tries to detect available GPUs from one of the `GPU_ENV_KEYS` environment variables.
-fn detect_gpus_from_env() -> Option<ResourceDescriptorKind> {
-    GPU_ENV_KEYS.iter().find_map(|env_key| {
+fn detect_gpus_from_env() -> Option<DetectedGpu> {
+    for (env_key, resource_name) in GPU_ENV_KEYS {
         if let Ok(devices_str) = std::env::var(env_key) {
             if let Ok(devices) = parse_comma_separated_values(&devices_str) {
                 log::info!(
@@ -108,15 +113,18 @@ fn detect_gpus_from_env() -> Option<ResourceDescriptorKind> {
 
                 let list =
                     ResourceDescriptorKind::list(devices).expect("List values were not unique");
-                return Some(list);
+                return Some(DetectedGpu {
+                    resource_name,
+                    resource: list,
+                });
             }
         }
-        None
-    })
+    }
+    None
 }
 
 /// Try to find out how many Nvidia GPUs are available on the current node.
-fn read_linux_gpu_count() -> anyhow::Result<usize> {
+fn read_nvidia_linux_gpu_count() -> anyhow::Result<usize> {
     Ok(std::fs::read_dir("/proc/driver/nvidia/gpus")?.count())
 }
 

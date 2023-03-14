@@ -171,19 +171,17 @@ def test_worker_resource_hwdetect_mem(hq_env: HqEnv):
 
 def test_worker_set_gpu_env_for_task(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.start_worker(args=["--resource", "gpus=[0,1]"])
+    hq_env.start_worker(args=["--resource", "gpus/nvidia=[0,1]"])
     hq_env.command(
         [
             "submit",
             "--resource",
-            "gpus=2",
+            "gpus/nvidia=2",
             "--",
             "bash",
             "-c",
             """
 echo $CUDA_VISIBLE_DEVICES
-echo $HIP_VISIBLE_DEVICES
-echo $ROCR_VISIBLE_DEVICES
 """,
         ]
     )
@@ -191,16 +189,22 @@ echo $ROCR_VISIBLE_DEVICES
     assert list(
         set(int(v) for v in line.split(","))
         for line in read_file(default_task_output()).splitlines()
-    ) == [{0, 1}, {0, 1}, {0, 1}]
+    ) == [{0, 1}]
 
 
 @pytest.mark.parametrize(
-    "env_key", ("CUDA_VISIBLE_DEVICES", "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES")
+    "env_and_res",
+    (
+        ("CUDA_VISIBLE_DEVICES", "gpus/nvidia"),
+        ("HIP_VISIBLE_DEVICES", "gpus/amd"),
+        ("ROCR_VISIBLE_DEVICES", "gpus/amd"),
+    ),
 )
-def test_worker_detect_gpus_from_env(hq_env: HqEnv, env_key: str):
+def test_worker_detect_gpus_from_env(hq_env: HqEnv, env_and_res: str):
+    env, resource = env_and_res
     hq_env.start_server()
-    resources = hq_env.command(["worker", "hwdetect"], env={env_key: "1,3"})
-    assert "gpus: [1,3]" in resources
+    resources = hq_env.command(["worker", "hwdetect"], env={env: "1,3"})
+    assert f"{resource}: [1,3]" in resources
 
 
 def test_worker_detect_uuid_gpus_from_env(hq_env: HqEnv):
@@ -208,7 +212,7 @@ def test_worker_detect_uuid_gpus_from_env(hq_env: HqEnv):
     resources = hq_env.command(
         ["worker", "hwdetect"], env={"CUDA_VISIBLE_DEVICES": "foo,bar"}
     )
-    assert "gpus: [foo,bar]" in resources
+    assert "gpus/nvidia: [foo,bar]" in resources
 
 
 def test_task_info_resources(hq_env: HqEnv):

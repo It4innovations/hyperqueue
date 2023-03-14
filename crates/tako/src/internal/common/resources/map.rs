@@ -4,7 +4,8 @@ use crate::internal::common::Map;
 pub const CPU_RESOURCE_ID: ResourceId = ResourceId(0);
 
 pub const CPU_RESOURCE_NAME: &str = "cpus";
-pub const GPU_RESOURCE_NAME: &str = "gpus";
+pub const NVIDIA_GPU_RESOURCE_NAME: &str = "gpus/nvidia";
+pub const AMD_GPU_RESOURCE_NAME: &str = "gpus/amd";
 pub const MEM_RESOURCE_NAME: &str = "mem";
 
 #[derive(Debug)]

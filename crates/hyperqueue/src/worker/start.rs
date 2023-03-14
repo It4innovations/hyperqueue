@@ -31,7 +31,6 @@ use crate::common::placeholders::{
 use crate::common::utils::fs::{bytes_to_path, is_implicit_path, path_has_extension};
 use crate::transfer::messages::{PinMode, TaskBody};
 use crate::transfer::stream::ChannelId;
-use crate::worker::hwdetect::GPU_ENV_KEYS;
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use crate::{JobId, JobTaskId};
@@ -39,7 +38,8 @@ use serde::{Deserialize, Serialize};
 use tako::comm::serialize;
 use tako::program::{ProgramDefinition, StdioDef};
 use tako::resources::{
-    Allocation, ResourceAllocation, CPU_RESOURCE_ID, CPU_RESOURCE_NAME, GPU_RESOURCE_NAME,
+    Allocation, ResourceAllocation, AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
+    NVIDIA_GPU_RESOURCE_NAME,
 };
 
 const MAX_CUSTOM_ERROR_LENGTH: usize = 2048; // 2KiB
@@ -244,16 +244,21 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
                     );
                 }
             }
-            if resource_name == GPU_RESOURCE_NAME {
-                /* Extra variables for GPUS */
-                for &key in GPU_ENV_KEYS {
-                    program.env.insert(key.into(), labels.clone().into());
-                }
+            if resource_name == NVIDIA_GPU_RESOURCE_NAME {
+                /* Extra variables for Nvidia GPUS */
+                program
+                    .env
+                    .insert("CUDA_VISIBLE_DEVICES".into(), labels.clone().into());
                 program
                     .env
                     .insert("CUDA_DEVICE_ORDER".into(), "PCI_BUS_ID".into());
             }
-
+            if resource_name == AMD_GPU_RESOURCE_NAME {
+                /* Extra variable for AMD GPUS */
+                program
+                    .env
+                    .insert("ROCR_VISIBLE_DEVICES".into(), labels.clone().into());
+            }
             program.env.insert(
                 format!("HQ_RESOURCE_VALUES_{resource_name}").into(),
                 labels.into(),

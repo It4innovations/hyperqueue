@@ -12,6 +12,11 @@
   $ hq worker start --resource="res1=[foo, bar]"
   ```
 
+* HyperQueue now provides built-in support for AMD GPUs. For this reason, the default name of GPU
+resources that are automatically detected on a worker has been changed from `gpus` to `gpus/nvidia`
+for NVIDIA GPUs. AMD GPUs are now autodetected as `gpus/amd`. In the future, we intend to create a way
+to ask for any GPU resource (e.g. `--resource=gpus=2`), regardless of its type.
+
 * AMD GPUs are now automatically detected in workers from the environment variable `ROCR_VISIBLE_DEVICES`
   or `HIP_VISIBLE_DEVICES`.
 

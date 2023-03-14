@@ -13,7 +13,7 @@ use tako::resources::{
     AllocationRequest, ResourceDescriptor, ResourceRequest, ResourceRequestEntry, TimeRequest,
 };
 use tako::resources::{
-    ResourceDescriptorItem, ResourceDescriptorKind, CPU_RESOURCE_NAME, GPU_RESOURCE_NAME,
+    ResourceDescriptorItem, ResourceDescriptorKind, CPU_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME,
 };
 use tako::ItemId;
 use tokio::sync::mpsc::unbounded_channel;
@@ -170,7 +170,7 @@ fn create_resource_queue(num_cpus: u32) -> ResourceWaitQueue {
             kind: ResourceDescriptorKind::simple_indices(num_cpus),
         },
         ResourceDescriptorItem {
-            name: GPU_RESOURCE_NAME.to_string(),
+            name: NVIDIA_GPU_RESOURCE_NAME.to_string(),
             kind: ResourceDescriptorKind::simple_indices(8),
         },
     ]);
