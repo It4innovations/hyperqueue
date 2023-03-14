@@ -264,16 +264,6 @@ pub fn parse_exact_string(keyword: &'static str) -> impl CharParser<()> {
         })
 }
 
-pub fn parse_named_string(name: &'static str) -> impl CharParser<String> {
-    ident().map_err_with_span(|error: ParseError, span| {
-        error.merge(ParseError::expected_input_found_string(
-            span,
-            Some(Some(name.to_string())),
-            None,
-        ))
-    })
-}
-
 /// Return a parser that will fail if there is any input following the text parsed by the
 /// provided parser.
 pub fn all_consuming<T>(parser: impl CharParser<T>) -> impl CharParser<T> {

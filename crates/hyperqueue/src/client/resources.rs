@@ -1,13 +1,16 @@
 use nom::branch::alt;
-use nom::character::complete::{alphanumeric1, char, multispace0, multispace1};
+use nom::character::complete::{char, multispace0, multispace1};
 use nom::combinator::{map, map_res, opt};
+use nom::error::ErrorKind;
 use nom::sequence::{preceded, separated_pair, tuple};
+use nom::InputTakeAtPosition;
 use nom_supreme::tag::complete::tag;
 use nom_supreme::ParserExt;
 
 use tako::resources::{AllocationRequest, ResourceAmount};
 
 use crate::common::parser::{consume_all, p_u64, NomResult};
+use crate::worker::parser::is_valid_resource_char;
 
 fn p_allocation_request(input: &str) -> NomResult<AllocationRequest> {
     alt((
@@ -36,10 +39,16 @@ fn p_allocation_request(input: &str) -> NomResult<AllocationRequest> {
     ))(input)
 }
 
+/// Parses a resource identifier.
+/// It has to be an alphanumeric string. It can also contain dashes, colons and slashes.
+fn p_resource_identifier(input: &str) -> NomResult<&str> {
+    input.split_at_position1_complete(|c| !is_valid_resource_char(c), ErrorKind::AlphaNumeric)
+}
+
 fn p_resource_request(input: &str) -> NomResult<(String, AllocationRequest)> {
     map(
         separated_pair(
-            alphanumeric1.context("Resource identifier"),
+            p_resource_identifier.context("Resource identifier"),
             tuple((multispace0, char('='), multispace0)),
             p_allocation_request.context("Resource amount"),
         ),
@@ -81,6 +90,25 @@ mod test {
         assert_eq!(
             parse_resource_request("cpus=11 compact!").unwrap(),
             ("cpus".to_string(), AllocationRequest::ForceCompact(11))
+        );
+    }
+
+    #[test]
+    fn test_parse_no_name() {
+        check_parse_error(
+            p_resource_request,
+            "=1",
+            r#"Parse error
+expected Resource identifier at character 0: "=1"
+  expected alphanumeric character at character 0: "=1""#,
+        );
+    }
+
+    #[test]
+    fn test_parse_identifier_special_symbols() {
+        assert_eq!(
+            parse_resource_request("a/b:c-d=11").unwrap(),
+            ("a/b:c-d".to_string(), AllocationRequest::Compact(11))
         );
     }
 

@@ -1,14 +1,13 @@
-use chumsky::primitive::just;
+use chumsky::primitive::{filter, just};
 use chumsky::text::TextParser;
-use chumsky::Parser;
+use chumsky::{Error, Parser};
 
 use tako::resources::{
     DescriptorError, ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind,
 };
 
 use crate::common::parser2::{
-    all_consuming, parse_exact_string, parse_named_string, parse_u32, parse_u64, CharParser,
-    ParseError,
+    all_consuming, parse_exact_string, parse_u32, parse_u64, CharParser, ParseError,
 };
 
 pub fn parse_cpu_definition(input: &str) -> anyhow::Result<ResourceDescriptorKind> {
@@ -167,12 +166,29 @@ fn parse_resource_kind() -> impl CharParser<ResourceDescriptorKind> {
     .labelled("resource kind")
 }
 
+pub fn is_valid_resource_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '-' || c == ':' || c == '/'
+}
+
+fn parse_resource_name() -> impl CharParser<String> {
+    let identifier = filter(|&c| is_valid_resource_char(c))
+        .map(Some)
+        .chain::<char, Vec<char>, _>(filter(|&c| is_valid_resource_char(c)).repeated())
+        .collect::<String>();
+
+    identifier.map_err_with_span(|error: ParseError, span| {
+        error.merge(ParseError::expected_input_found_string(
+            span,
+            Some(Some("identifier".to_string())),
+            None,
+        ))
+    })
+}
+
 /// Parses a resource definition, which consists of a name and a resource kind.
 /// Example: `mem=list(1,2)`, `disk=sum(10)`, `foo=range(1-2)`.
 fn parse_resource_definition_inner() -> impl CharParser<ResourceDescriptorItem> {
-    let name = parse_named_string("identifier")
-        .padded()
-        .labelled("resource name");
+    let name = parse_resource_name().padded().labelled("resource name");
     let equal = just('=').padded();
     let kind = parse_resource_kind();
 
@@ -194,6 +210,30 @@ mod test {
     };
 
     use super::*;
+
+    #[test]
+    fn test_resource_name_empty() {
+        insta::assert_snapshot!(expect_parser_error(parse_resource_name(), ""), @r###"
+        Unexpected end of input found, expected identifier:
+        (the input was empty)
+        "###);
+    }
+
+    #[test]
+    fn test_resource_name_normal() {
+        assert_eq!(
+            parse_individual_resource().parse_text("asd").unwrap(),
+            "asd"
+        );
+    }
+
+    #[test]
+    fn test_resource_name_special_symbols() {
+        assert_eq!(
+            parse_resource_name().parse_text("asd/foo:bar-2").unwrap(),
+            "asd/foo:bar-2"
+        );
+    }
 
     #[test]
     fn test_individual_resource_bare() {
@@ -478,10 +518,10 @@ mod test {
     #[test]
     fn test_parse_resource_def_number() {
         insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "1"), @r###"
-        Unexpected token found while attempting to parse resource name, expected identifier:
+        Unexpected end of input found while attempting to parse resource definition, expected =:
           1
-          |
-          --- Unexpected token `1`
+           |
+           --- Unexpected end of input
         "###);
     }
 
