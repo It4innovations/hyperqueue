@@ -21,15 +21,34 @@ pub struct NetworkStats {
     pub tx_errors: u64,
 }
 
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct GpuStats {
+    pub id: String,
+    pub cpu_usage: f32,
+    pub mem_usage: f32,
+}
+
+#[derive(Deserialize, Serialize, Debug, Default, Clone)]
+pub struct GpuCollectionStats {
+    pub gpus: Vec<GpuStats>,
+}
+
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct WorkerHwState {
     pub cpu_usage: CpuStats,
     pub memory_usage: MemoryStats,
     pub network_usage: NetworkStats,
+    pub nvidia_gpus: Option<GpuCollectionStats>,
     pub timestamp: u64,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct WorkerHwStateMessage {
     pub state: WorkerHwState,
+}
+
+#[derive(Deserialize, Serialize, Hash, Debug, PartialEq, Eq, Copy, Clone)]
+pub enum GpuFamily {
+    Nvidia,
+    Amd,
 }

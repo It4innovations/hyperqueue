@@ -46,7 +46,7 @@ impl RunningWorker {
                 work_dir,
                 log_dir,
                 heartbeat_interval: Duration::from_secs(10),
-                send_overview_interval: None,
+                overview_configuration: None,
                 idle_timeout: None,
                 time_limit: None,
                 on_server_lost: ServerLostPolicy::Stop,

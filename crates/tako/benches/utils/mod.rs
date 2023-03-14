@@ -41,7 +41,7 @@ pub fn create_worker(id: u64) -> Worker {
             work_dir: Default::default(),
             log_dir: Default::default(),
             heartbeat_interval: Default::default(),
-            send_overview_interval: None,
+            overview_configuration: None,
             idle_timeout: None,
             time_limit: None,
             on_server_lost: ServerLostPolicy::Stop,

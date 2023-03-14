@@ -7,9 +7,10 @@ use tako::resources::{
     ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, CPU_RESOURCE_NAME,
 };
 use tako::worker::{ServerLostPolicy, WorkerConfiguration};
-use tako::Map;
+use tako::{Map, Set};
 
 use clap::Parser;
+use tako::internal::worker::configuration::OverviewConfiguration;
 use tempdir::TempDir;
 use tokio::time::sleep;
 
@@ -198,8 +199,9 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         cpus.kind = prune_hyper_threading(&cpus.kind)?;
     }
 
+    let mut gpu_families = Set::new();
     if !no_detect_resources {
-        detect_additional_resources(&mut resources)?;
+        gpu_families = detect_additional_resources(&mut resources)?;
     }
 
     let resources = ResourceDescriptor::new(resources);
@@ -241,6 +243,10 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         }
         None => Some(DEFAULT_OVERVIEW_INTERVAL),
     };
+    let overview_configuration = send_overview_interval.map(|interval| OverviewConfiguration {
+        send_interval: interval,
+        gpu_families,
+    });
 
     Ok(WorkerConfiguration {
         resources,
@@ -253,7 +259,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         on_server_lost: on_server_lost.into(),
         heartbeat_interval: heartbeat,
         idle_timeout,
-        send_overview_interval,
+        overview_configuration,
         extra,
     })
 }

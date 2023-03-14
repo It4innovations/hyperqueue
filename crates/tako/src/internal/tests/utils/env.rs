@@ -17,6 +17,7 @@ use crate::internal::tests::utils::resources::cpus_compact;
 use crate::internal::tests::utils::schedule;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::transfer::auth::{deserialize, serialize};
+use crate::internal::worker::configuration::OverviewConfiguration;
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind};
 use crate::task::SerializedTaskContext;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
@@ -105,7 +106,10 @@ impl TestEnv {
                 work_dir: Default::default(),
                 log_dir: Default::default(),
                 heartbeat_interval: Duration::from_millis(1000),
-                send_overview_interval: Some(Duration::from_millis(1000)),
+                overview_configuration: Some(OverviewConfiguration {
+                    send_interval: Duration::from_millis(1000),
+                    gpu_families: Default::default(),
+                }),
                 idle_timeout: None,
                 time_limit: time_limit.clone(),
                 on_server_lost: ServerLostPolicy::Stop,

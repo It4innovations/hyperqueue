@@ -4,6 +4,7 @@ use crate::internal::messages::worker::{
 };
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::comm::WorkerComm;
+use crate::internal::worker::configuration::OverviewConfiguration;
 use crate::internal::worker::rpc::process_worker_message;
 use crate::internal::worker::state::WorkerStateRef;
 use crate::launcher::{LaunchContext, StopReason, TaskLaunchData, TaskLauncher};
@@ -38,7 +39,10 @@ fn create_test_worker_config() -> WorkerConfiguration {
         work_dir: Default::default(),
         log_dir: Default::default(),
         heartbeat_interval: Duration::from_millis(1000),
-        send_overview_interval: Some(Duration::from_millis(1000)),
+        overview_configuration: Some(OverviewConfiguration {
+            send_interval: Duration::from_millis(1000),
+            gpu_families: Default::default(),
+        }),
         idle_timeout: None,
         time_limit: None,
         on_server_lost: ServerLostPolicy::Stop,

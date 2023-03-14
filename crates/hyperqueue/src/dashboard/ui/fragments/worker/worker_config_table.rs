@@ -72,8 +72,11 @@ fn create_rows(worker_info: &WorkerConfiguration) -> Vec<WorkerConfigDataRow> {
         WorkerConfigDataRow {
             label: "Send Overview Interval: ",
             data: worker_info
-                .send_overview_interval
-                .map(|interval| humantime::format_duration(interval).to_string())
+                .overview_configuration
+                .as_ref()
+                .map(|configuration| {
+                    humantime::format_duration(configuration.send_interval).to_string()
+                })
                 .unwrap_or_else(|| missing_data_str.clone()),
         },
         WorkerConfigDataRow {

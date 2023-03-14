@@ -8,6 +8,7 @@ use tempdir::TempDir;
 use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::server::core::CoreRef;
+use crate::internal::worker::configuration::OverviewConfiguration;
 use crate::launcher::{LaunchContext, StopReason, TaskResult};
 use crate::program::ProgramDefinition;
 use crate::worker::WorkerConfiguration;
@@ -71,7 +72,12 @@ pub(super) fn create_worker_configuration(
             work_dir: Default::default(),
             log_dir: Default::default(),
             heartbeat_interval,
-            send_overview_interval,
+            overview_configuration: send_overview_interval.map(|send_interval| {
+                OverviewConfiguration {
+                    send_interval,
+                    gpu_families: Default::default(),
+                }
+            }),
             idle_timeout,
             on_server_lost: ServerLostPolicy::Stop,
             time_limit: None,
