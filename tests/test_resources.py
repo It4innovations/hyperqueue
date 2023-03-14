@@ -196,7 +196,6 @@ echo $CUDA_VISIBLE_DEVICES
     "env_and_res",
     (
         ("CUDA_VISIBLE_DEVICES", "gpus/nvidia"),
-        ("HIP_VISIBLE_DEVICES", "gpus/amd"),
         ("ROCR_VISIBLE_DEVICES", "gpus/amd"),
     ),
 )
