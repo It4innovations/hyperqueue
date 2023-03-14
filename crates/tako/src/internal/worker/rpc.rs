@@ -397,32 +397,47 @@ async fn worker_message_loop(
 }
 
 async fn send_overview_loop(state_ref: WorkerStateRef, interval: Duration) -> crate::Result<()> {
-    let mut sampler = HwSampler::init()?;
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+
+    // Fetching the HW state performs blocking I/O, therefore we should do it in a separate thread.
+    // tokio::task::spawn_blocking is not used because it would need mutable access to a sampler,
+    // which shouldn't be created again and again.
+    std::thread::spawn(move || -> crate::Result<()> {
+        let mut sampler = HwSampler::init()?;
+        loop {
+            std::thread::sleep(interval);
+            let hw_state = sampler.fetch_hw_state()?;
+            tx.blocking_send(hw_state)
+                .expect("Cannot send HW state to overview loop");
+        }
+    });
+
     let mut poll_interval = tokio::time::interval(interval);
     loop {
         poll_interval.tick().await;
-        let mut worker_state = state_ref.get_mut();
 
-        let message = FromWorkerMessage::Overview(WorkerOverview {
-            id: worker_state.worker_id,
-            running_tasks: worker_state
-                .running_tasks
-                .iter()
-                .map(|&task_id| {
-                    let task = worker_state.get_task(task_id);
-                    let allocation: &Allocation = task.resource_allocation().unwrap();
-                    (
-                        task_id,
-                        resource_allocation_to_msg(allocation, worker_state.get_resource_map()),
-                    )
-                    // TODO: Modify this when more cpus are allowed
-                })
-                .collect(),
-            hw_state: Some(WorkerHwStateMessage {
-                state: sampler.fetch_hw_state()?,
-            }),
-        });
-        worker_state.comm().send_message_to_server(message);
+        if let Some(hw_state) = rx.recv().await {
+            let mut worker_state = state_ref.get_mut();
+
+            let message = FromWorkerMessage::Overview(WorkerOverview {
+                id: worker_state.worker_id,
+                running_tasks: worker_state
+                    .running_tasks
+                    .iter()
+                    .map(|&task_id| {
+                        let task = worker_state.get_task(task_id);
+                        let allocation: &Allocation = task.resource_allocation().unwrap();
+                        (
+                            task_id,
+                            resource_allocation_to_msg(allocation, worker_state.get_resource_map()),
+                        )
+                        // TODO: Modify this when more cpus are allowed
+                    })
+                    .collect(),
+                hw_state: Some(WorkerHwStateMessage { state: hw_state }),
+            });
+            worker_state.comm().send_message_to_server(message);
+        }
     }
 }
 
