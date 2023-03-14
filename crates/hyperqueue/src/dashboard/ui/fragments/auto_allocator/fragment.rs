@@ -27,7 +27,9 @@ pub struct AutoAllocatorFragment {
     component_in_focus: FocusedComponent,
 }
 
+#[derive(Default)]
 enum FocusedComponent {
+    #[default]
     QueueParamsTable,
     AllocationInfoTable,
 }
@@ -164,11 +166,5 @@ impl AutoAllocFragmentLayout {
             allocation_info_chunk: component_area[1],
             footer_chunk: auto_alloc_screen_chunks[3],
         }
-    }
-}
-
-impl Default for FocusedComponent {
-    fn default() -> Self {
-        FocusedComponent::QueueParamsTable
     }
 }
