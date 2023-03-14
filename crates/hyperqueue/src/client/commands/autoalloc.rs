@@ -226,6 +226,7 @@ wasted allocation duration."
         no_detect_resources,
         no_hyper_threading,
         idle_timeout,
+        overview_interval,
     } = worker_args;
 
     let mut worker_args = vec![];
@@ -246,6 +247,12 @@ wasted allocation duration."
     }
     if no_detect_resources {
         worker_args.push("--no-detect-resources".to_string());
+    }
+    if let Some(overview_interval) = overview_interval {
+        worker_args.extend([
+            "--overview-interval".to_string(),
+            overview_interval.into_original_input(),
+        ]);
     }
     worker_args.extend([
         "--on-server-lost".to_string(),

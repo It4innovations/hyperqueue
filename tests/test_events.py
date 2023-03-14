@@ -1,5 +1,9 @@
 import json
+import time
 from typing import List
+
+from schema import Schema
+from utils import wait_for_worker_state
 
 from .conftest import HqEnv
 
@@ -21,6 +25,46 @@ def test_worker_lost_event(hq_env: HqEnv):
     event = find_events(events, "worker-lost")[0]
     assert event["id"] == 1
     assert event["reason"] == "Stopped"
+
+
+def test_worker_send_overview(hq_env: HqEnv):
+    def body():
+        hq_env.start_worker(args=["--overview-interval", "10ms"])
+        wait_for_worker_state(hq_env, 1, "RUNNING")
+        time.sleep(0.2)
+        hq_env.command(["worker", "stop", "1"])
+
+    events = get_events(hq_env, body)
+    event = find_events(events, "worker-overview")[0]
+    hw_state = event["hw-state"]["state"]
+    schema = Schema(
+        {
+            "timestamp": int,
+            "worker_cpu_usage": {"cpu_per_core_percent_usage": [float]},
+            "worker_memory_usage": {"free": int, "total": int},
+            "worker_network_usage": {
+                "rx_bytes": int,
+                "rx_errors": int,
+                "rx_packets": int,
+                "tx_bytes": int,
+                "tx_errors": int,
+                "tx_packets": int,
+            },
+        }
+    )
+    schema.validate(hw_state)
+
+
+def test_worker_disable_overview(hq_env: HqEnv):
+    def body():
+        hq_env.start_worker(args=["--overview-interval", "0s"])
+        wait_for_worker_state(hq_env, 1, "RUNNING")
+        time.sleep(0.2)
+        hq_env.command(["worker", "stop", "1"])
+
+    events = get_events(hq_env, body)
+    events = find_events(events, "worker-overview")
+    assert len(events) == 0
 
 
 def find_events(events, type: str) -> List:

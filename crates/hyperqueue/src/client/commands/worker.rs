@@ -31,6 +31,9 @@ use crate::worker::parser::{parse_cpu_definition, parse_resource_definition};
 use crate::WorkerId;
 use crate::{rpc_call, DEFAULT_WORKER_GROUP_NAME};
 
+// How often to send overview status to the server
+const DEFAULT_OVERVIEW_INTERVAL: Duration = Duration::from_secs(1);
+
 #[derive(clap::ValueEnum, Clone)]
 pub enum WorkerFilter {
     Running,
@@ -93,6 +96,11 @@ pub struct SharedWorkerStartOpts {
     /// Duration after which will an idle worker automatically stop
     #[arg(long, value_parser = parse_human_time)]
     pub idle_timeout: Option<Duration>,
+
+    /// How often should the worker send its overview status (e.g. HW usage, task status)
+    /// to the server for monitoring. Set to "0s" to disable overview updates.
+    #[arg(long, value_parser = passthrough_parser(parse_human_time))]
+    pub overview_interval: Option<PassThroughArgument<Duration>>,
 }
 
 #[derive(Parser)]
@@ -147,28 +155,42 @@ pub async fn start_hq_worker(
 fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfiguration> {
     log::debug!("Gathering worker configuration information");
 
-    let hostname = get_hostname(opts.hostname);
+    let WorkerStartOpts {
+        shared:
+            SharedWorkerStartOpts {
+                cpus,
+                resource,
+                group,
+                no_detect_resources,
+                no_hyper_threading,
+                idle_timeout,
+                overview_interval,
+            },
+        heartbeat,
+        time_limit,
+        manager,
+        hostname,
+        on_server_lost,
+        work_dir,
+    } = opts;
 
-    let mut resources: Vec<_> = opts
-        .shared
-        .resource
-        .into_iter()
-        .map(|x| x.into_parsed_arg())
-        .collect();
+    let hostname = get_hostname(hostname);
+
+    let mut resources: Vec<_> = resource.into_iter().map(|x| x.into_parsed_arg()).collect();
     if !resources.iter().any(|x| x.name == CPU_RESOURCE_NAME) {
         resources.push(ResourceDescriptorItem {
             name: CPU_RESOURCE_NAME.to_string(),
-            kind: if let Some(cpus) = opts.shared.cpus {
+            kind: if let Some(cpus) = cpus {
                 cpus.into_parsed_arg()
             } else {
                 detect_cpus()?
             },
         })
-    } else if opts.shared.cpus.is_some() {
+    } else if cpus.is_some() {
         bail!("Parameters --cpus and --resource cpus=... cannot be combined");
     }
 
-    if opts.shared.no_hyper_threading {
+    if no_hyper_threading {
         let cpus = resources
             .iter_mut()
             .find(|x| x.name == CPU_RESOURCE_NAME)
@@ -176,7 +198,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         cpus.kind = prune_hyper_threading(&cpus.kind)?;
     }
 
-    if !opts.shared.no_detect_resources {
+    if !no_detect_resources {
         detect_additional_resources(&mut resources)?;
     }
 
@@ -186,12 +208,12 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
     let (work_dir, log_dir) = {
         let tmpdir = TempDir::new("hq-worker").unwrap().into_path();
         (
-            opts.work_dir.unwrap_or_else(|| tmpdir.join("work")),
+            work_dir.unwrap_or_else(|| tmpdir.join("work")),
             tmpdir.join("logs"),
         )
     };
 
-    let manager_info = gather_manager_info(opts.manager)?;
+    let manager_info = gather_manager_info(manager)?;
     let mut extra = Map::new();
 
     if let Some(manager_info) = &manager_info {
@@ -201,27 +223,37 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         );
     }
 
-    let group = opts.shared.group.unwrap_or_else(|| {
+    let group = group.unwrap_or_else(|| {
         manager_info
             .as_ref()
             .map(|info| info.allocation_id.clone())
             .unwrap_or_else(|| DEFAULT_WORKER_GROUP_NAME.to_string())
     });
 
+    let send_overview_interval = match overview_interval {
+        Some(v) => {
+            let duration = v.into_parsed_arg();
+            if duration.is_zero() {
+                None
+            } else {
+                Some(duration)
+            }
+        }
+        None => Some(DEFAULT_OVERVIEW_INTERVAL),
+    };
+
     Ok(WorkerConfiguration {
         resources,
         listen_address: Default::default(), // Will be filled during init
-        time_limit: opts
-            .time_limit
-            .or_else(|| manager_info.and_then(|m| m.time_limit)),
+        time_limit: time_limit.or_else(|| manager_info.and_then(|m| m.time_limit)),
         hostname,
         group,
         work_dir,
         log_dir,
-        on_server_lost: opts.on_server_lost.into(),
-        heartbeat_interval: opts.heartbeat,
-        idle_timeout: opts.shared.idle_timeout,
-        send_overview_interval: Some(Duration::from_millis(1000)),
+        on_server_lost: on_server_lost.into(),
+        heartbeat_interval: heartbeat,
+        idle_timeout,
+        send_overview_interval,
         extra,
     })
 }
