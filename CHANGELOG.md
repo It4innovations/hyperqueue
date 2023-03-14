@@ -15,6 +15,8 @@
 * AMD GPUs are now automatically detected in workers from the environment variable `ROCR_VISIBLE_DEVICES`
   or `HIP_VISIBLE_DEVICES`.
 
+* You can now use the `-`, `:` or `/` symbols in resource names.
+
 ## Changes
 
 ### Job submission
