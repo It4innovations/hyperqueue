@@ -418,7 +418,7 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
                 work_dir,
                 log_dir,
                 heartbeat_interval,
-                send_overview_interval: _,
+                overview_configuration: _,
                 idle_timeout,
                 time_limit,
                 on_server_lost,

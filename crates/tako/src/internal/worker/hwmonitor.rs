@@ -43,6 +43,7 @@ impl HwSampler {
                 rx_errors: net_io_counters.err_in(),
                 tx_errors: net_io_counters.err_out(),
             },
+            nvidia_gpus: None,
             timestamp,
         })
     }

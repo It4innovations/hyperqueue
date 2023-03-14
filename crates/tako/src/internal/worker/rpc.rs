@@ -28,7 +28,7 @@ use crate::internal::transfer::auth::{
 use crate::internal::transfer::transport::make_protocol_builder;
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::{
-    sync_worker_configuration, ServerLostPolicy, WorkerConfiguration,
+    sync_worker_configuration, OverviewConfiguration, ServerLostPolicy, WorkerConfiguration,
 };
 use crate::internal::worker::hwmonitor::HwSampler;
 use crate::internal::worker::reactor::run_task;
@@ -127,7 +127,7 @@ pub async fn run_worker(
 
     let (queue_sender, queue_receiver) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
     let heartbeat_interval = configuration.heartbeat_interval;
-    let send_overview_interval = configuration.send_overview_interval;
+    let overview_configuration = configuration.overview_configuration.clone();
     let time_limit = configuration.time_limit;
 
     let (worker_id, state, start_task_notify) = {
@@ -174,9 +174,9 @@ pub async fn run_worker(
         None => Either::Right(futures::future::pending()),
     };
 
-    let overview_fut = match send_overview_interval {
+    let overview_fut = match overview_configuration {
         None => Either::Left(futures::future::pending()),
-        Some(interval) => Either::Right(send_overview_loop(state.clone(), interval)),
+        Some(configuration) => Either::Right(send_overview_loop(state.clone(), configuration)),
     };
 
     let time_limit_fut = match time_limit {
@@ -396,8 +396,16 @@ async fn worker_message_loop(
     Err("Server connection closed".into())
 }
 
-async fn send_overview_loop(state_ref: WorkerStateRef, interval: Duration) -> crate::Result<()> {
+async fn send_overview_loop(
+    state_ref: WorkerStateRef,
+    configuration: OverviewConfiguration,
+) -> crate::Result<()> {
     let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+
+    let OverviewConfiguration {
+        send_interval,
+        gpu_families: _,
+    } = configuration;
 
     // Fetching the HW state performs blocking I/O, therefore we should do it in a separate thread.
     // tokio::task::spawn_blocking is not used because it would need mutable access to a sampler,
@@ -405,14 +413,14 @@ async fn send_overview_loop(state_ref: WorkerStateRef, interval: Duration) -> cr
     std::thread::spawn(move || -> crate::Result<()> {
         let mut sampler = HwSampler::init()?;
         loop {
-            std::thread::sleep(interval);
+            std::thread::sleep(send_interval);
             let hw_state = sampler.fetch_hw_state()?;
             tx.blocking_send(hw_state)
                 .expect("Cannot send HW state to overview loop");
         }
     });
 
-    let mut poll_interval = tokio::time::interval(interval);
+    let mut poll_interval = tokio::time::interval(send_interval);
     loop {
         poll_interval.tick().await;
 

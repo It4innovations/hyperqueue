@@ -1,5 +1,7 @@
+use crate::hwstats::GpuFamily;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::common::Map;
+use crate::Set;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -8,6 +10,14 @@ use std::time::Duration;
 pub enum ServerLostPolicy {
     Stop,
     FinishRunning,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OverviewConfiguration {
+    /// How often should overview be gathered
+    pub send_interval: Duration,
+    /// GPU families to monitor
+    pub gpu_families: Set<GpuFamily>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -20,7 +30,7 @@ pub struct WorkerConfiguration {
     pub work_dir: PathBuf,
     pub log_dir: PathBuf,
     pub heartbeat_interval: Duration,
-    pub send_overview_interval: Option<Duration>,
+    pub overview_configuration: Option<OverviewConfiguration>,
     pub idle_timeout: Option<Duration>,
     pub time_limit: Option<Duration>,
     pub on_server_lost: ServerLostPolicy,

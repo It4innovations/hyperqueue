@@ -29,6 +29,7 @@ use crate::internal::tests::utils::sorted_vec;
 use crate::internal::tests::utils::task::{task, task_running_msg, task_with_deps, TaskBuilder};
 use crate::internal::tests::utils::workflows::{submit_example_1, submit_example_3};
 use crate::internal::tests::utils::{env, schedule};
+use crate::internal::worker::configuration::OverviewConfiguration;
 use crate::resources::{ResourceDescriptorItem, ResourceMap};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{TaskId, WorkerId};
@@ -48,7 +49,10 @@ fn test_worker_add() {
         work_dir: Default::default(),
         log_dir: Default::default(),
         heartbeat_interval: Duration::from_millis(1000),
-        send_overview_interval: Some(Duration::from_millis(1000)),
+        overview_configuration: Some(OverviewConfiguration {
+            send_interval: Duration::from_millis(1000),
+            gpu_families: Default::default(),
+        }),
         idle_timeout: None,
         time_limit: None,
         on_server_lost: ServerLostPolicy::Stop,
@@ -96,7 +100,10 @@ fn test_worker_add() {
         work_dir: Default::default(),
         log_dir: Default::default(),
         heartbeat_interval: Duration::from_millis(1000),
-        send_overview_interval: Some(Duration::from_millis(1000)),
+        overview_configuration: Some(OverviewConfiguration {
+            send_interval: Duration::from_millis(1000),
+            gpu_families: Default::default(),
+        }),
         idle_timeout: None,
         time_limit: None,
         on_server_lost: ServerLostPolicy::Stop,

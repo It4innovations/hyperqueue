@@ -8,12 +8,13 @@ use nom::multi::{many1, separated_list1};
 use nom::sequence::{preceded, terminated, tuple};
 use nom::Parser;
 use nom_supreme::tag::complete::tag;
-use tako::format_comma_delimited;
+use tako::hwstats::GpuFamily;
 use tako::internal::has_unique_elements;
 use tako::resources::{
     ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex, ResourceLabel,
     AMD_GPU_RESOURCE_NAME, MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME,
 };
+use tako::{format_comma_delimited, Set};
 
 pub fn detect_cpus() -> anyhow::Result<ResourceDescriptorKind> {
     read_linux_numa()
@@ -53,7 +54,12 @@ pub fn prune_hyper_threading(
     Ok(ResourceDescriptorKind::groups(new_desc).unwrap())
 }
 
-pub fn detect_additional_resources(items: &mut Vec<ResourceDescriptorItem>) -> anyhow::Result<()> {
+/// Detects additional resources (apart from CPU) on this worker.
+/// Also returns the detected GPU families.
+pub fn detect_additional_resources(
+    items: &mut Vec<ResourceDescriptorItem>,
+) -> anyhow::Result<Set<GpuFamily>> {
+    let mut gpu_families = Set::new();
     let has_resource =
         |items: &[ResourceDescriptorItem], name: &str| items.iter().any(|x| x.name == name);
 
@@ -61,6 +67,7 @@ pub fn detect_additional_resources(items: &mut Vec<ResourceDescriptorItem>) -> a
     if detected_gpus.is_empty() && !has_resource(items, NVIDIA_GPU_RESOURCE_NAME) {
         if let Ok(count) = read_nvidia_linux_gpu_count() {
             if count > 0 {
+                gpu_families.insert(GpuFamily::Nvidia);
                 log::info!("Detected {} GPUs from procs", count);
                 items.push(ResourceDescriptorItem {
                     name: NVIDIA_GPU_RESOURCE_NAME.to_string(),
@@ -71,6 +78,7 @@ pub fn detect_additional_resources(items: &mut Vec<ResourceDescriptorItem>) -> a
     } else {
         for gpu in detected_gpus {
             if !has_resource(items, gpu.resource_name) {
+                gpu_families.insert(gpu.family);
                 items.push(ResourceDescriptorItem {
                     name: gpu.resource_name.to_string(),
                     kind: gpu.resource,
@@ -88,40 +96,68 @@ pub fn detect_additional_resources(items: &mut Vec<ResourceDescriptorItem>) -> a
             });
         }
     }
-    Ok(())
+    Ok(gpu_families)
 }
 
-pub const GPU_ENV_KEYS: &[(&str, &str); 2] = &[
-    ("CUDA_VISIBLE_DEVICES", NVIDIA_GPU_RESOURCE_NAME),
-    ("ROCR_VISIBLE_DEVICES", AMD_GPU_RESOURCE_NAME),
+/// GPU resource that can be detected from an environment variable.
+pub struct GpuEnvironmentRecord {
+    env_var: &'static str,
+    resource_name: &'static str,
+    family: GpuFamily,
+}
+
+impl GpuEnvironmentRecord {
+    const fn new(env_var: &'static str, resource_name: &'static str, family: GpuFamily) -> Self {
+        Self {
+            env_var,
+            resource_name,
+            family,
+        }
+    }
+}
+
+pub const GPU_ENV_KEYS: &[GpuEnvironmentRecord; 2] = &[
+    GpuEnvironmentRecord::new(
+        "CUDA_VISIBLE_DEVICES",
+        NVIDIA_GPU_RESOURCE_NAME,
+        GpuFamily::Nvidia,
+    ),
+    GpuEnvironmentRecord::new(
+        "ROCR_VISIBLE_DEVICES",
+        AMD_GPU_RESOURCE_NAME,
+        GpuFamily::Amd,
+    ),
 ];
 
 struct DetectedGpu {
     resource_name: &'static str,
     resource: ResourceDescriptorKind,
+    family: GpuFamily,
 }
 
 /// Tries to detect available GPUs from one of the `GPU_ENV_KEYS` environment variables.
 fn detect_gpus_from_env() -> Vec<DetectedGpu> {
     let mut gpus = Vec::new();
-    for (env_key, resource_name) in GPU_ENV_KEYS {
-        if let Ok(devices_str) = std::env::var(env_key) {
+    for gpu_env in GPU_ENV_KEYS {
+        if let Ok(devices_str) = std::env::var(gpu_env.env_var) {
             if let Ok(devices) = parse_comma_separated_values(&devices_str) {
                 log::info!(
-                    "Detected GPUs {} from `{env_key}`",
-                    format_comma_delimited(&devices)
+                    "Detected GPUs {} from `{}`",
+                    format_comma_delimited(&devices),
+                    gpu_env.env_var,
                 );
 
                 if !has_unique_elements(&devices) {
-                    log::warn!("{env_key} contains duplicates ({devices_str})");
+                    log::warn!("{} contains duplicates ({devices_str})", gpu_env.env_var);
                     continue;
                 }
 
                 let list =
                     ResourceDescriptorKind::list(devices).expect("List values were not unique");
                 gpus.push(DetectedGpu {
-                    resource_name,
+                    resource_name: gpu_env.resource_name,
                     resource: list,
+                    family: gpu_env.family,
                 });
             }
         }
