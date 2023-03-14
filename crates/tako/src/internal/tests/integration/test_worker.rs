@@ -26,7 +26,7 @@ async fn test_hw_monitoring() {
             .as_ref()
             .unwrap()
             .state
-            .worker_cpu_usage
+            .cpu_usage
             .cpu_per_core_percent_usage
             .clone();
 

@@ -89,7 +89,7 @@ impl WorkerOverviewFragment {
             if let Some(cpu_util) = data
                 .query_worker_overview_at(worker_id, SystemTime::now())
                 .and_then(|overview| overview.hw_state.as_ref())
-                .map(|hw_state| &hw_state.state.worker_cpu_usage.cpu_per_core_percent_usage)
+                .map(|hw_state| &hw_state.state.cpu_usage.cpu_per_core_percent_usage)
             {
                 self.worker_per_core_cpu_util = cpu_util.clone()
             }
