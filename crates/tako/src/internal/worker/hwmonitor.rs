@@ -28,14 +28,14 @@ impl HwSampler {
             }
         }
         Ok(WorkerHwState {
-            worker_cpu_usage: CpuStats {
+            cpu_usage: CpuStats {
                 cpu_per_core_percent_usage: cpu_usage,
             },
-            worker_memory_usage: MemoryStats {
+            memory_usage: MemoryStats {
                 total: memory_usage.total(),
                 free: memory_usage.available(),
             },
-            worker_network_usage: NetworkStats {
+            network_usage: NetworkStats {
                 rx_bytes: net_io_counters.bytes_recv(),
                 tx_bytes: net_io_counters.bytes_sent(),
                 rx_packets: net_io_counters.packets_recv(),

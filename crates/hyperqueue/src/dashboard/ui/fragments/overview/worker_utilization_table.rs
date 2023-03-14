@@ -92,7 +92,7 @@ fn create_rows(overview: Vec<&WorkerOverview>) -> Vec<WorkerUtilRow> {
             let hw_state = worker.hw_state.as_ref();
             let average_cpu_usage = hw_state.map(get_average_cpu_usage_for_worker);
             let memory_usage =
-                hw_state.map(|s| calculate_memory_usage_percent(&s.state.worker_memory_usage));
+                hw_state.map(|s| calculate_memory_usage_percent(&s.state.memory_usage));
 
             WorkerUtilRow {
                 id: worker.id,

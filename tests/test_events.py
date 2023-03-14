@@ -40,9 +40,9 @@ def test_worker_send_overview(hq_env: HqEnv):
     schema = Schema(
         {
             "timestamp": int,
-            "worker_cpu_usage": {"cpu_per_core_percent_usage": [float]},
-            "worker_memory_usage": {"free": int, "total": int},
-            "worker_network_usage": {
+            "cpu_usage": {"cpu_per_core_percent_usage": [float]},
+            "memory_usage": {"free": int, "total": int},
+            "network_usage": {
                 "rx_bytes": int,
                 "rx_errors": int,
                 "rx_packets": int,

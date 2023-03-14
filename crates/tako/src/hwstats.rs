@@ -23,9 +23,9 @@ pub struct NetworkStats {
 
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct WorkerHwState {
-    pub worker_cpu_usage: CpuStats,
-    pub worker_memory_usage: MemoryStats,
-    pub worker_network_usage: NetworkStats,
+    pub cpu_usage: CpuStats,
+    pub memory_usage: MemoryStats,
+    pub network_usage: NetworkStats,
     pub timestamp: u64,
 }
 
