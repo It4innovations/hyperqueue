@@ -9,7 +9,10 @@ pub use allocation::{Allocation, AllocationValue, ResourceAllocation, ResourceAl
 pub use descriptor::{
     DescriptorError, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
 };
-pub use map::{CPU_RESOURCE_ID, CPU_RESOURCE_NAME, GPU_RESOURCE_NAME, MEM_RESOURCE_NAME};
+pub use map::{
+    AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME, MEM_RESOURCE_NAME,
+    NVIDIA_GPU_RESOURCE_NAME,
+};
 pub use request::{
     AllocationRequest, ResourceRequest, ResourceRequestEntries, ResourceRequestEntry, TimeRequest,
 };

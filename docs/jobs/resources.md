@@ -90,13 +90,19 @@ The following resources are detected automatically if a resource of a given name
 
 * CPUs are automatically detected as resource named "cpus" (more in [CPU resources](cresources.md)).
 
-* GPUs that are available when a worker is started are automatically detected under the resource
-  name `gpus`. You can use the environment variables `CUDA_VISIBLE_DEVICES`, `HIP_VISIBLE_DEVICES` or
-  `ROCR_VISIBLE_DEVICES` when starting a worker to override the list of available GPUs:
+* GPUs that are available when a worker is started are automatically detected under the following
+  resource names:
+    - NVIDIA GPUs are stored the under resource name `gpus/nvidia`. These GPUs are detected from the
+      environment variable `CUDA_VISIBLE_DEVICES` or from the `procfs` filesystem.
+    - AMD GPUs are stored under the resource name `gpus/amd`. These GPUs are detected from the environment
+      variables `ROCR_VISIBLE_DEVICES` or `HIP_VISIBLE_DEVICES`.
+
+    You can set these environment variables when starting a worker to override the list of available GPUs:
   
-```bash
-$ CUDA_VISIBLE_DEVICES=2,3 hq worker start
-```
+    ```bash
+    $ CUDA_VISIBLE_DEVICES=2,3 hq worker start
+    # The worker will have resource gpus/nvidia=[2,3]
+    ```
 
 * RAM of the node is detected as resource "mem" in bytes. 
 
@@ -110,7 +116,6 @@ $ hq worker hwdetect
 The automatic detection of resources can be disabled by argument ``--no-detect-resources`` in ``hq worker start ...``.
 It disables detection of resources other than "cpus";
 if resource "cpus" are not explicitly defined, it will always be detected.
-
 
 ## Resource request
 
@@ -133,14 +138,14 @@ task requests.
 
     For example, let's say that a worker has an indexed pool of GPUs:
     ```bash
-    $ hq worker start --resource "gpus=range(1-3)"
+    $ hq worker start --resource "gpus/nvidia=range(1-3)"
     ```
     And we create two jobs, each with a single task. The first job wants 1 GPU, the second one wants
     two GPUs.
 
     ```bash
-    $ hq submit --resource gpus=1 ...
-    $ hq submit --resource gpus=2 ...
+    $ hq submit --resource gpus/nvidia=1 ...
+    $ hq submit --resource gpus/nvidia=2 ...
     ```
 
     Then the first job can be allocated e.g. the GPU `2` and the second job can be allocated the GPUs
@@ -191,16 +196,13 @@ each resource request named `<NAME>`:
 * `HQ_RESOURCE_VALUES_<NAME>` contains the specific resource values allocated for the task as a
 comma-separated list. This variable is only filled for indexed resource pool.
 
-!!! tip
+HQ also sets additional environment variables for various resources with special names:
 
-    HQ has a special case for a resource named `gpus`. For that resource, it will also pass the following
-    environment variables to the spawned task:
-
-    * `CUDA_DEVICE_ORDER` set to the value `PCI_BUS_ID`
-    * `CUDA_VISIBLE_DEVICES` set to the same value as `HQ_RESOURCE_VALUES_gpus`
-    * `HIP_VISIBLE_DEVICES` set to the same value as `HQ_RESOURCE_VALUES_gpus`
-    * `ROCR_VISIBLE_DEVICES` set to the same value as `HQ_RESOURCE_VALUES_gpus`
-
+- For the resource `gpus/nvidia`, HQ will set:
+    - `CUDA_VISIBLE_DEVICES` to the same value as `HQ_RESOURCE_VALUES_gpus/nvidia`
+    - `CUDA_DEVICE_ORDER` to `PCI_BUS_ID`
+- For the resource `gpus/amd`, HQ will set:
+    - `ROCR_VISIBLE_DEVICES` and `HIP_VISIBLE_DEVICES` to the same value as `HQ_RESOURCE_VALUES_gpus/amd`
 
 ## Resource requests and job arrays
 
