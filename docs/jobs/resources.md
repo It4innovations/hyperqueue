@@ -95,7 +95,7 @@ The following resources are detected automatically if a resource of a given name
     - NVIDIA GPUs are stored the under resource name `gpus/nvidia`. These GPUs are detected from the
       environment variable `CUDA_VISIBLE_DEVICES` or from the `procfs` filesystem.
     - AMD GPUs are stored under the resource name `gpus/amd`. These GPUs are detected from the environment
-      variables `ROCR_VISIBLE_DEVICES` or `HIP_VISIBLE_DEVICES`.
+      variable `ROCR_VISIBLE_DEVICES`.
 
     You can set these environment variables when starting a worker to override the list of available GPUs:
   
@@ -202,7 +202,7 @@ HQ also sets additional environment variables for various resources with special
     - `CUDA_VISIBLE_DEVICES` to the same value as `HQ_RESOURCE_VALUES_gpus/nvidia`
     - `CUDA_DEVICE_ORDER` to `PCI_BUS_ID`
 - For the resource `gpus/amd`, HQ will set:
-    - `ROCR_VISIBLE_DEVICES` and `HIP_VISIBLE_DEVICES` to the same value as `HQ_RESOURCE_VALUES_gpus/amd`
+    - `ROCR_VISIBLE_DEVICES` to the same value as `HQ_RESOURCE_VALUES_gpus/amd`
 
 ## Resource requests and job arrays
 

@@ -86,9 +86,8 @@ pub fn detect_additional_resources(items: &mut Vec<ResourceDescriptorItem>) -> a
     Ok(())
 }
 
-pub const GPU_ENV_KEYS: &[(&str, &str); 3] = &[
+pub const GPU_ENV_KEYS: &[(&str, &str); 2] = &[
     ("CUDA_VISIBLE_DEVICES", NVIDIA_GPU_RESOURCE_NAME),
-    ("HIP_VISIBLE_DEVICES", AMD_GPU_RESOURCE_NAME),
     ("ROCR_VISIBLE_DEVICES", AMD_GPU_RESOURCE_NAME),
 ];
 
