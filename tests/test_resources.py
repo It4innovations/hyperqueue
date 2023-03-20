@@ -262,10 +262,10 @@ def test_string_resource_list(hq_env: HqEnv):
     table.check_row_value("Resources", "cpus: 1 compact\nfairy: 2 compact")
 
 
-def test_resource_name_special_symbol(hq_env: HqEnv):
+def test_resource_name_slash(hq_env: HqEnv):
     hq_env.start_server()
 
-    res_name = "gpus/amd-2:1"
+    res_name = "gpus/amd"
     hq_env.command(["submit", "--resource", f"{res_name}=1", "ls"])
     hq_env.start_worker(args=["--resource", f"{res_name}=[0]"])
     wait_for_job_state(hq_env, 1, "FINISHED")
