@@ -13,7 +13,6 @@ use crate::internal::server::task::{Task, TaskConfiguration, TaskInput, TaskRunt
 //use crate::internal::transfer::transport::make_protocol_builder;
 use crate::internal::common::resources::request::ResourceRequestEntry;
 use crate::internal::scheduler::query::compute_new_worker_query;
-use smallvec::smallvec;
 use std::rc::Rc;
 use thin_vec::ThinVec;
 

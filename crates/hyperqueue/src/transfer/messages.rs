@@ -13,9 +13,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::server::event::MonitoringEvent;
-use tako::gateway::{
-    LostWorkerReason, MonitoringEventRequest, ResourceRequest, ResourceRequestVariants,
-};
+use tako::gateway::{LostWorkerReason, MonitoringEventRequest, ResourceRequestVariants};
 use tako::program::ProgramDefinition;
 use tako::worker::WorkerConfiguration;
 

@@ -137,7 +137,7 @@ impl Output for JsonOutput {
                 "stdout": format_stdio_def(&stdout),
             });
                 for v in resources.variants {
-                    let ResourceRequest { n_nodes, resources, min_time } = v;
+                    let ResourceRequest { n_nodes, resources: _, min_time } = v;
                     json["resources"] = json!({
                     "n_nodes": n_nodes,
                     "resources": [],

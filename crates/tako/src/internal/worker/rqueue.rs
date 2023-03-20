@@ -1,4 +1,4 @@
-use crate::internal::common::resources::{Allocation, ResourceRequest};
+use crate::internal::common::resources::{Allocation, ResourceRequestVariants};
 use crate::internal::common::Map;
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
@@ -29,8 +29,8 @@ impl QueueForRequest {
 }
 
 pub struct ResourceWaitQueue {
-    queues: Map<ResourceRequest, QueueForRequest>,
-    requests: Vec<ResourceRequest>,
+    queues: Map<ResourceRequestVariants, QueueForRequest>,
+    requests: Vec<ResourceRequestVariants>,
     allocator: ResourceAllocator,
     worker_resources: Map<WorkerResources, Set<WorkerId>>,
 }
@@ -62,10 +62,10 @@ impl ResourceWaitQueue {
         self.recompute_resource_priorities();
     }
 
-    pub fn resource_priority(&self, request: &ResourceRequest) -> Priority {
+    pub fn resource_priority(&self, rqv: &ResourceRequestVariants) -> Priority {
         let mut p = 0;
         for (r, s) in &self.worker_resources {
-            if !r.is_capable_to_run_request(request) {
+            if !r.is_capable_to_run(rqv) {
                 p += s.len() as Priority;
             }
         }
@@ -78,38 +78,41 @@ impl ResourceWaitQueue {
 
     pub fn add_task(&mut self, task: &Task) {
         let priority = task.priority;
-        for rq in task.resources.requests() {
-            let (queue, priority, task_id) = {
-                (
-                    if let Some(qfr) = self.queues.get_mut(rq) {
-                        &mut qfr.queue
-                    } else {
-                        self.requests.push(rq.clone());
+        let (queue, priority, task_id) = {
+            (
+                if let Some(qfr) = self.queues.get_mut(&task.resources) {
+                    &mut qfr.queue
+                } else {
+                    log::debug!(
+                        "Creating new request queue for {:?} (task {})",
+                        task.resources,
+                        task.id
+                    );
+                    self.requests.push(task.resources.clone());
 
-                        let mut requests = std::mem::take(&mut self.requests);
-                        // Sort bigger values first
-                        requests.sort_unstable_by(|x, y| {
-                            y.sort_key(&self.allocator)
-                                .partial_cmp(&x.sort_key(&self.allocator))
-                                .unwrap()
-                        });
-                        self.requests = requests;
-                        let resource_priority = self.resource_priority(&rq);
-                        &mut self
-                            .queues
-                            .entry(rq.clone())
-                            .or_insert(QueueForRequest {
-                                resource_priority,
-                                queue: PriorityQueue::new(),
-                            })
-                            .queue
-                    },
-                    priority,
-                    task.id,
-                )
-            };
-            queue.push(task_id, priority);
-        }
+                    let mut requests = std::mem::take(&mut self.requests);
+                    // Sort bigger values first
+                    requests.sort_unstable_by(|x, y| {
+                        y.sort_key(&self.allocator)
+                            .partial_cmp(&x.sort_key(&self.allocator))
+                            .unwrap()
+                    });
+                    self.requests = requests;
+                    let resource_priority = self.resource_priority(&task.resources);
+                    &mut self
+                        .queues
+                        .entry(task.resources.clone())
+                        .or_insert(QueueForRequest {
+                            resource_priority,
+                            queue: PriorityQueue::new(),
+                        })
+                        .queue
+                },
+                priority,
+                task.id,
+            )
+        };
+        queue.push(task_id, priority);
     }
 
     pub fn remove_task(&mut self, task_id: TaskId) {
@@ -145,7 +148,7 @@ impl ResourceWaitQueue {
 
     fn try_start_tasks_helper(
         &mut self,
-        task_map: &TaskMap,
+        _task_map: &TaskMap,
         out: &mut Vec<(TaskId, Allocation, usize)>,
     ) -> bool {
         let current_priority: QueuePriorityTuple = if let Some(Some(priority)) =
@@ -156,25 +159,20 @@ impl ResourceWaitQueue {
             return true;
         };
         let mut is_finished = true;
-        for request in &self.requests {
-            let qfr = self.queues.get_mut(request).unwrap();
+        for rqv in &self.requests {
+            let qfr = self.queues.get_mut(rqv).unwrap();
             while let Some((_task_id, priority)) = qfr.peek() {
                 if current_priority != priority {
                     break;
                 }
-                let allocation = {
-                    if let Some(allocation) = self.allocator.try_allocate(&request) {
-                        allocation
+                let (allocation, resource_index) = {
+                    if let Some(x) = self.allocator.try_allocate(rqv) {
+                        x
                     } else {
                         break;
                     }
                 };
                 let task_id = qfr.queue.pop().unwrap().0;
-                let resource_index = task_map
-                    .get(&task_id)
-                    .resources
-                    .find_index(&request)
-                    .unwrap();
                 out.push((task_id, allocation, resource_index));
                 is_finished = false;
             }
@@ -185,7 +183,9 @@ impl ResourceWaitQueue {
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::common::resources::{ResourceDescriptor, ResourceRequest};
+    use crate::internal::common::resources::{
+        ResourceDescriptor, ResourceRequest, ResourceRequestVariants,
+    };
     use crate::internal::tests::utils::resources::ResBuilder;
     use crate::internal::tests::utils::resources::{cpus_compact, ResourceRequestBuilder};
     use crate::internal::worker::rqueue::ResourceWaitQueue;
@@ -202,7 +202,7 @@ mod tests {
     use crate::{Map, Set, WorkerId};
 
     impl ResourceWaitQueue {
-        pub fn requests(&self) -> &[ResourceRequest] {
+        pub fn requests(&self) -> &[ResourceRequestVariants] {
             &self.requests
         }
 
@@ -451,9 +451,12 @@ mod tests {
         };
         let mut rq = wait_queue(vec![r1, r2]);
 
-        let rq1 = ResourceRequestBuilder::default().cpus(1).finish();
-        let rq2 = ResourceRequestBuilder::default().cpus(3).finish();
-        let rq3 = ResourceRequestBuilder::default().cpus(1).add(1, 1).finish();
+        let rq1 = ResourceRequestBuilder::default().cpus(1).finish_v();
+        let rq2 = ResourceRequestBuilder::default().cpus(3).finish_v();
+        let rq3 = ResourceRequestBuilder::default()
+            .cpus(1)
+            .add(1, 1)
+            .finish_v();
 
         assert_eq!(rq.resource_priority(&rq1), 0);
         assert_eq!(rq.resource_priority(&rq2), 0);

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -326,13 +327,27 @@ fn build_tasks_graph(
 
     let mut shared_data = vec![];
     let mut shared_data_map =
-        Map::<(&ResourceRequestVariants, Option<Duration>, Priority), usize>::new();
+        Map::<(Cow<ResourceRequestVariants>, Option<Duration>, Priority), usize>::new();
     let mut allocate_shared_data = |task: TaskDescription| -> u32 {
+        dbg!(&shared_data_map);
+        dbg!(&task.resources);
         shared_data_map
-            .get(&(&task.resources, task.time_limit, task.priority))
+            .get(&(
+                Cow::Borrowed(&task.resources),
+                task.time_limit,
+                task.priority,
+            ))
             .copied()
             .unwrap_or_else(|| {
                 let index = shared_data.len();
+                shared_data_map.insert(
+                    (
+                        Cow::Owned(task.resources.clone()),
+                        task.time_limit,
+                        task.priority,
+                    ),
+                    index,
+                );
                 shared_data.push(SharedTaskConfiguration {
                     resources: task.resources,
                     n_outputs: 0,
@@ -389,7 +404,9 @@ mod tests {
     use smallvec::smallvec;
     use std::path::{Path, PathBuf};
     use std::time::Duration;
-    use tako::gateway::{NewTasksMessage, ResourceRequest, ResourceRequestEntry};
+    use tako::gateway::{
+        NewTasksMessage, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
+    };
     use tako::program::ProgramDefinition;
     use tako::resources::{AllocationRequest, ResourceAmount, CPU_RESOURCE_NAME};
     use tako::Priority;
@@ -498,14 +515,14 @@ mod tests {
                 stdin: vec![],
                 cwd: Default::default(),
             },
-            resources: ResourceRequest {
+            resources: ResourceRequestVariants::new_simple(ResourceRequest {
                 n_nodes: 0,
                 min_time: Duration::from_secs(2),
                 resources: smallvec![ResourceRequestEntry {
                     resource: CPU_RESOURCE_NAME.to_string(),
                     policy: AllocationRequest::Compact(cpu_count as ResourceAmount),
                 }],
-            },
+            }),
             pin_mode: PinMode::None,
             task_dir: false,
             time_limit,

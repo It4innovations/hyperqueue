@@ -47,19 +47,27 @@ pub struct ResourceRequestVariants {
     pub variants: SmallVec<[ResourceRequest; 1]>,
 }
 
-impl ResourceRequestVariants {
-    pub fn min_time(&self) -> Duration {
-        self.variants
-            .iter()
-            .map(|rq| rq.min_time)
-            .min()
-            .unwrap_or_default()
+impl Default for ResourceRequestVariants {
+    fn default() -> Self {
+        ResourceRequestVariants {
+            variants: smallvec![ResourceRequest::default()],
+        }
     }
 }
 
 impl ResourceRequestVariants {
     pub fn new(variants: SmallVec<[ResourceRequest; 1]>) -> Self {
         ResourceRequestVariants { variants }
+    }
+    pub fn new_simple(rq: ResourceRequest) -> ResourceRequestVariants {
+        ResourceRequestVariants::new(smallvec![rq])
+    }
+    pub fn min_time(&self) -> Duration {
+        self.variants
+            .iter()
+            .map(|rq| rq.min_time)
+            .min()
+            .unwrap_or_default()
     }
 }
 

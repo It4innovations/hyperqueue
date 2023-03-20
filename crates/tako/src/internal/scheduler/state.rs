@@ -176,7 +176,10 @@ impl SchedulerState {
                 (TaskRuntimeState::RunningMultiNode(worker_ids), TaskRuntimeState::Waiting(_)) => {
                     comm.send_worker_message(
                         worker_ids[0],
-                        &task.make_compute_message(worker_ids.clone()),
+                        &task.make_compute_message(
+                            worker_ids.clone(),
+                            worker_map.get_worker(worker_ids[0]),
+                        ),
                     );
                     for worker_id in &worker_ids[1..] {
                         let worker = worker_map.get_worker_mut(*worker_id);
@@ -211,8 +214,9 @@ impl SchedulerState {
             });
             for task_id in task_ids {
                 let task = task_map.get_task_mut(task_id);
+                let worker = worker_map.get_worker(worker_id);
                 task.set_fresh_flag(false);
-                comm.send_worker_message(worker_id, &task.make_compute_message(Vec::new()));
+                comm.send_worker_message(worker_id, &task.make_compute_message(Vec::new(), worker));
             }
         }
 

@@ -4,6 +4,7 @@ use std::fmt;
 use crate::internal::common::error::DsError;
 use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId};
 
+use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use smallvec::SmallVec;
 use std::time::Duration;
@@ -139,8 +140,7 @@ impl ResourceRequest {
     }
 }
 
-#[derive(Default, Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(test, derive(Eq, PartialEq))]
+#[derive(Default, Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ResourceRequestVariants {
     variants: SmallVec<[ResourceRequest; 1]>,
 }
@@ -148,6 +148,15 @@ pub struct ResourceRequestVariants {
 impl ResourceRequestVariants {
     pub fn new(variants: SmallVec<[ResourceRequest; 1]>) -> Self {
         ResourceRequestVariants { variants }
+    }
+
+    pub fn sort_key(&self, allocator: &ResourceAllocator) -> (f32, TimeRequest) {
+        self.variants[1..]
+            .iter()
+            .fold(self.variants[0].sort_key(allocator), |(score, time), rq| {
+                let (score2, time2) = rq.sort_key(allocator);
+                (score.min(score2), time.min(time2))
+            })
     }
 
     pub fn find_index(&self, rq: &ResourceRequest) -> Option<usize> {
@@ -197,11 +206,30 @@ impl ResourceRequestVariants {
     pub fn is_multi_node(&self) -> bool {
         self.variants[0].is_multi_node()
     }
+
+    pub fn filter_runnable(&self, resources: &WorkerResources) -> Self {
+        let variants: SmallVec<[ResourceRequest; 1]> = self
+            .variants
+            .iter()
+            .filter(|rq| resources.is_capable_to_run_request(rq))
+            .cloned()
+            .collect();
+        assert!(!variants.is_empty()); // Valid variants are non empty
+        ResourceRequestVariants { variants }
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::internal::common::resources::ResourceRequestVariants;
     use crate::internal::tests::utils::resources::ResBuilder;
+    use crate::resources::ResourceRequest;
+    use smallvec::smallvec;
+    impl ResourceRequestVariants {
+        pub fn new_simple(rq: ResourceRequest) -> ResourceRequestVariants {
+            ResourceRequestVariants::new(smallvec![rq])
+        }
+    }
 
     #[test]
     fn test_resource_request_validate() {

@@ -1,4 +1,5 @@
 import time
+import collections
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
@@ -92,9 +93,9 @@ command = ["sleep", "0"]
 
 def test_job_file_resource_variants1(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
-    hq_env.start_workers(3, cpus=4)
+    hq_env.start_workers(2, cpus=4)
     hq_env.start_worker(cpus=2, args=["--resource", "gpus=[0,1]"])
-    hq_env.start_workers(3, cpus=4)
+    hq_env.start_workers(2, cpus=4)
 
     tmp_path.joinpath("job.toml").write_text("""
 [[task]]
@@ -109,14 +110,57 @@ resources = { "cpus" = "1", "gpus" = "1" }
 """)
     hq_env.command(["job", "submit-file", "job.toml"])
 
-    table = hq_env.command(["task", "info", "1", "0"])
-
     table = hq_env.command(["task", "info", "1", "0"], as_table=True)
-
     table.check_row_value("Resources", "# Variant 1\ncpus: 8 compact\n# Variant 2\ncpus: 1 compact\ngpus: 1 compact")
-    table.check_row_value("Worker", "worker4")
+    table.check_row_value("Worker", "worker3")
     wait_for_job_state(hq_env, 1, "FINISHED")
 
 
 def test_job_file_resource_variants2(hq_env: HqEnv, tmp_path):
-    raise Exception("TODO: Check that env variables are correctly set")
+    hq_env.start_server()
+    hq_env.start_workers(2, cpus=2)
+    hq_env.start_workers(1, cpus=4, args=["--resource", "x=[0,1]"])
+    hq_env.start_workers(2, cpus=2, args=["--resource", "x=[0]", "--resource", "y=[0]"])
+
+    tmp_path.joinpath("job.toml").write_text("""
+    [[task]]
+    id = 0
+    command = ["/bin/bash", "-c", "echo $HQ_RESOURCE_REQUEST_cpus,$HQ_RESOURCE_REQUEST_x,$HQ_RESOURCE_REQUEST_y"]
+    [[task.request]]
+    resources = { "cpus" = "8" }
+
+    [[task.request]]
+    resources = { "cpus" = "1", "gpus" = "1" }
+    
+    [[task.request]]
+    resources = { "cpus" = "4", "x" = "1" }
+    """)
+    hq_env.command(["job", "submit-file", "job.toml"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    table = hq_env.command(["task", "info", "1", "0"], as_table=True)
+    table.check_row_value("Worker", "worker3")
+    r = hq_env.command(["job", "cat", "1", "stdout"]).strip()
+    assert r == "4 compact,1 compact,"
+
+
+def test_job_file_resource_variants3(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_worker(cpus=16, args=["--resource", "x=[0,1]"])
+
+    tmp_path.joinpath("job.toml").write_text("\n".join([f"""
+    [[task]]
+    id = {x}
+    command = ["/bin/bash", "-c", "sleep 1; echo ${{HQ_RESOURCE_REQUEST_cpus}},${{HQ_RESOURCE_REQUEST_x}}"]
+    [[task.request]]
+    resources = {{ "cpus" = "1", "x"=1 }}
+    [[task.request]]
+    resources = {{ "cpus" = "4" }}
+    """ for x in range(5)]))
+    hq_env.command(["job", "submit-file", "job.toml"])
+    time.sleep(5)
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    r = hq_env.command(["job", "cat", "1", "stdout"])
+    c = collections.Counter(r.strip().split("\n"))
+    assert c["1 compact,1 compact"] == 2
+    assert c["4 compact,"] == 3

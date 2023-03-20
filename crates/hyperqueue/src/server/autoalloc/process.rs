@@ -867,7 +867,9 @@ mod tests {
     use smallvec::smallvec;
     use tempdir::TempDir;
 
-    use tako::gateway::{LostWorkerReason, ResourceRequest, ResourceRequestEntry};
+    use tako::gateway::{
+        LostWorkerReason, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
+    };
     use tako::program::ProgramDefinition;
     use tako::resources::{AllocationRequest, TimeRequest, CPU_RESOURCE_NAME};
     use tako::WorkerId;
@@ -1730,14 +1732,14 @@ mod tests {
             stdin: vec![],
             cwd: Default::default(),
         };
-        let resources = ResourceRequest {
+        let resources = ResourceRequestVariants::new_simple(ResourceRequest {
             n_nodes: 0,
             min_time,
             resources: smallvec![ResourceRequestEntry {
                 resource: CPU_RESOURCE_NAME.to_string(),
                 policy: AllocationRequest::Compact(1),
             }],
-        };
+        });
 
         Job::new(
             JobDescription::Array {

@@ -3,9 +3,11 @@ use std::time::Duration;
 
 use crate::internal::common::index::ItemId;
 use derive_builder::Builder;
+use smallvec::smallvec;
 
 use crate::gateway::{
-    ResourceRequest, ResourceRequestEntry, SharedTaskConfiguration, TaskConfiguration,
+    ResourceRequest, ResourceRequestEntry, ResourceRequestVariants, SharedTaskConfiguration,
+    TaskConfiguration,
 };
 use crate::internal::common::resources::NumOfNodes;
 use crate::internal::common::Map;
@@ -100,10 +102,12 @@ pub fn build_task_def_from_config(
     let body = rmp_serde::to_vec(&program_def).unwrap();
 
     let conf = SharedTaskConfiguration {
-        resources: ResourceRequest {
-            n_nodes,
-            resources: entries.into(),
-            min_time,
+        resources: ResourceRequestVariants {
+            variants: smallvec![ResourceRequest {
+                n_nodes,
+                resources: entries.into(),
+                min_time,
+            }],
         },
         n_outputs: 0,
         time_limit,

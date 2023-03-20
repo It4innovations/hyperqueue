@@ -1,5 +1,5 @@
 use crate::internal::common::resources::request::{
-    AllocationRequest, ResourceRequest, ResourceRequestEntry,
+    AllocationRequest, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
 };
 use crate::internal::common::resources::{
     ResourceAllocation, ResourceAllocations, ResourceId, ResourceVec,
@@ -229,11 +229,12 @@ impl ResourceAllocator {
         request: &ResourceRequest,
     ) -> bool {
         request.entries().iter().all(|entry| {
-            Self::has_resources_for_entry(
-                &pools[entry.resource_id.as_num() as usize],
-                free.get(entry.resource_id),
-                &entry.request,
-            )
+            pools
+                .get(entry.resource_id.as_num() as usize)
+                .map(|pool| {
+                    Self::has_resources_for_entry(pool, free.get(entry.resource_id), &entry.request)
+                })
+                .unwrap_or(false)
         })
     }
 
@@ -305,9 +306,14 @@ impl ResourceAllocator {
         true
     }
 
-    pub fn try_allocate(&mut self, request: &ResourceRequest) -> Option<Allocation> {
-        self.try_allocate_counts(request)
-            .map(|c| self.claim_resources(c))
+    pub fn try_allocate(
+        &mut self,
+        request: &ResourceRequestVariants,
+    ) -> Option<(Allocation, usize)> {
+        request.requests().iter().enumerate().find_map(|(i, r)| {
+            self.try_allocate_counts(r)
+                .map(|c| (self.claim_resources(c), i))
+        })
     }
 
     fn try_allocate_counts(&mut self, request: &ResourceRequest) -> Option<ResourceCountVec> {
@@ -385,7 +391,7 @@ mod tests {
         ResourceDescriptor, ResourceDescriptorKind,
     };
     use crate::internal::common::resources::{
-        Allocation, AllocationValue, ResourceId, ResourceRequest,
+        Allocation, AllocationValue, ResourceId, ResourceRequest, ResourceRequestVariants,
     };
     use crate::internal::tests::utils::resources::{cpus_compact, ResBuilder};
     use crate::internal::tests::utils::shared::res_allocator_from_descriptor;
@@ -714,8 +720,9 @@ mod tests {
         let descriptor = simple_descriptor(1, 4);
         let mut allocator = test_allocator(&descriptor);
 
-        let rq = cpus_compact(3).finish();
-        let al = allocator.try_allocate(&rq).unwrap();
+        let rq = cpus_compact(3).finish_v();
+        let (al, idx) = allocator.try_allocate(&rq).unwrap();
+        assert_eq!(idx, 0);
         assert_eq!(al.resources.len(), 1);
         assert_eq!(al.resources[0].resource, ResourceId::new(0));
         assert_eq!(al.resources[0].value.get_checked_indices().len(), 3);
@@ -725,7 +732,7 @@ mod tests {
             .iter()
             .all(|x| *x < 4));
 
-        let rq = cpus_compact(2).finish();
+        let rq = cpus_compact(2).finish_v();
         assert!(allocator.try_allocate(&rq).is_none());
 
         assert_eq!(allocator.running_tasks.len(), 1);
@@ -734,8 +741,8 @@ mod tests {
 
         allocator.init_allocator(None);
 
-        let rq = cpus_compact(4).finish();
-        let al = allocator.try_allocate(&rq).unwrap();
+        let rq = cpus_compact(4).finish_v();
+        let (al, _idx) = allocator.try_allocate(&rq).unwrap();
         assert_eq!(
             al.resources[0].value.get_checked_indices(),
             vec![0, 1, 2, 3]
@@ -749,12 +756,12 @@ mod tests {
 
         allocator.init_allocator(None);
 
-        let rq = cpus_compact(1).finish();
-        let rq2 = cpus_compact(2).finish();
-        let al1 = allocator.try_allocate(&rq).unwrap();
-        let al2 = allocator.try_allocate(&rq).unwrap();
-        let al3 = allocator.try_allocate(&rq).unwrap();
-        let al4 = allocator.try_allocate(&rq).unwrap();
+        let rq = cpus_compact(1).finish_v();
+        let rq2 = cpus_compact(2).finish_v();
+        let (al1, _) = allocator.try_allocate(&rq).unwrap();
+        let (al2, _) = allocator.try_allocate(&rq).unwrap();
+        let (al3, _) = allocator.try_allocate(&rq).unwrap();
+        let (al4, _) = allocator.try_allocate(&rq).unwrap();
         assert!(allocator.try_allocate(&rq).is_none());
         assert!(allocator.try_allocate(&rq2).is_none());
 
@@ -763,7 +770,7 @@ mod tests {
 
         allocator.init_allocator(None);
 
-        let al5 = allocator.try_allocate(&rq2).unwrap();
+        let (al5, _) = allocator.try_allocate(&rq2).unwrap();
 
         assert!(allocator.try_allocate(&rq).is_none());
         assert!(allocator.try_allocate(&rq2).is_none());
@@ -783,20 +790,20 @@ mod tests {
         let descriptor = simple_descriptor(4, 6);
         let mut allocator = test_allocator(&descriptor);
 
-        let rq1 = cpus_compact(4).finish();
-        let al1 = allocator.try_allocate(&rq1).unwrap();
+        let rq1 = cpus_compact(4).finish_v();
+        let (al1, _) = allocator.try_allocate(&rq1).unwrap();
         let s1 = allocator.get_sockets(&al1, 0);
         assert_eq!(s1.len(), 1);
-        let al2 = allocator.try_allocate(&rq1).unwrap();
+        let (al2, _) = allocator.try_allocate(&rq1).unwrap();
         let s2 = allocator.get_sockets(&al2, 0);
         assert_eq!(s2.len(), 1);
         assert_ne!(s1, s2);
 
-        let rq2 = cpus_compact(3).finish();
-        let al3 = allocator.try_allocate(&rq2).unwrap();
+        let rq2 = cpus_compact(3).finish_v();
+        let (al3, _) = allocator.try_allocate(&rq2).unwrap();
         let s3 = allocator.get_sockets(&al3, 0);
         assert_eq!(s3.len(), 1);
-        let al4 = allocator.try_allocate(&rq2).unwrap();
+        let (al4, _) = allocator.try_allocate(&rq2).unwrap();
         let s4 = allocator.get_sockets(&al4, 0);
         assert_eq!(s4.len(), 1);
         assert_ne!(s3, s1);
@@ -807,27 +814,27 @@ mod tests {
 
         allocator.close_priority_level();
 
-        let rq3 = cpus_compact(6).finish();
-        let al = allocator.try_allocate(&rq3).unwrap();
+        let rq3 = cpus_compact(6).finish_v();
+        let (al, _) = allocator.try_allocate(&rq3).unwrap();
         assert_eq!(allocator.get_sockets(&al, 0).len(), 1);
         allocator.release_allocation(al);
         allocator.init_allocator(None);
 
-        let rq3 = cpus_compact(7).finish();
-        let al = allocator.try_allocate(&rq3).unwrap();
+        let rq3 = cpus_compact(7).finish_v();
+        let (al, _) = allocator.try_allocate(&rq3).unwrap();
         assert_eq!(allocator.get_sockets(&al, 0).len(), 2);
 
         allocator.release_allocation(al);
         allocator.init_allocator(None);
 
-        let rq3 = cpus_compact(8).finish();
-        let al = allocator.try_allocate(&rq3).unwrap();
+        let rq3 = cpus_compact(8).finish_v();
+        let (al, _) = allocator.try_allocate(&rq3).unwrap();
         assert_eq!(allocator.get_sockets(&al, 0).len(), 2);
         allocator.release_allocation(al);
         allocator.init_allocator(None);
 
-        let rq3 = cpus_compact(9).finish();
-        let al = allocator.try_allocate(&rq3).unwrap();
+        let rq3 = cpus_compact(9).finish_v();
+        let (al, _) = allocator.try_allocate(&rq3).unwrap();
         assert_eq!(allocator.get_sockets(&al, 0).len(), 3);
         allocator.release_allocation(al);
         allocator.validate();
@@ -838,8 +845,8 @@ mod tests {
         let descriptor = simple_descriptor(4, 6);
         let mut allocator = test_allocator(&descriptor);
 
-        let rq = cpus_compact(24).finish();
-        let al = allocator.try_allocate(&rq).unwrap();
+        let rq = cpus_compact(24).finish_v();
+        let (al, _) = allocator.try_allocate(&rq).unwrap();
         assert_eq!(
             al.resource_allocation(0.into())
                 .unwrap()
@@ -858,8 +865,8 @@ mod tests {
         let descriptor = simple_descriptor(4, 6);
         let mut allocator = test_allocator(&descriptor);
 
-        let rq = ResBuilder::default().add_all(0).finish();
-        let al = allocator.try_allocate(&rq).unwrap();
+        let rq = ResBuilder::default().add_all(0).finish_v();
+        let (al, _) = allocator.try_allocate(&rq).unwrap();
         assert_eq!(
             al.resource_allocation(0.into())
                 .unwrap()
@@ -873,7 +880,7 @@ mod tests {
 
         allocator.init_allocator(None);
 
-        let rq2 = cpus_compact(1).finish();
+        let rq2 = cpus_compact(1).finish_v();
         assert!(allocator.try_allocate(&rq2).is_some());
         assert!(allocator.try_allocate(&rq).is_none());
         allocator.validate();
@@ -884,12 +891,12 @@ mod tests {
         let descriptor = simple_descriptor(2, 4);
         let mut allocator = test_allocator(&descriptor);
 
-        let rq1 = ResBuilder::default().add_force_compact(0, 9).finish();
+        let rq1 = ResBuilder::default().add_force_compact(0, 9).finish_v();
         assert!(allocator.try_allocate(&rq1).is_none());
 
-        let rq2 = ResBuilder::default().add_force_compact(0, 2).finish();
+        let rq2 = ResBuilder::default().add_force_compact(0, 2).finish_v();
         for _ in 0..4 {
-            let al1 = allocator.try_allocate(&rq2).unwrap();
+            let (al1, _) = allocator.try_allocate(&rq2).unwrap();
             assert_eq!(al1.get_indices(0).len(), 2);
             assert_eq!(allocator.get_sockets(&al1, 0).len(), 1);
         }
@@ -903,17 +910,17 @@ mod tests {
         let descriptor = simple_descriptor(2, 4);
         let mut allocator = test_allocator(&descriptor);
 
-        let rq1 = ResBuilder::default().add_force_compact(0, 3).finish();
+        let rq1 = ResBuilder::default().add_force_compact(0, 3).finish_v();
         for _ in 0..2 {
-            let al1 = allocator.try_allocate(&rq1).unwrap();
+            let (al1, _) = allocator.try_allocate(&rq1).unwrap();
             assert_eq!(al1.get_indices(0).len(), 3);
             assert_eq!(allocator.get_sockets(&al1, 0).len(), 1);
         }
 
-        let rq1 = ResBuilder::default().add_force_compact(0, 2).finish();
+        let rq1 = ResBuilder::default().add_force_compact(0, 2).finish_v();
         assert!(allocator.try_allocate(&rq1).is_none());
 
-        let rq1 = cpus_compact(2).finish();
+        let rq1 = cpus_compact(2).finish_v();
         assert!(allocator.try_allocate(&rq1).is_some());
         allocator.validate();
     }
@@ -923,8 +930,8 @@ mod tests {
         let descriptor = simple_descriptor(3, 4);
         let mut allocator = test_allocator(&descriptor);
 
-        let rq1 = ResBuilder::default().add_force_compact(0, 8).finish();
-        let al1 = allocator.try_allocate(&rq1).unwrap();
+        let rq1 = ResBuilder::default().add_force_compact(0, 8).finish_v();
+        let (al1, _) = allocator.try_allocate(&rq1).unwrap();
         assert_eq!(al1.get_indices(0).len(), 8);
         assert_eq!(allocator.get_sockets(&al1, 0).len(), 2);
         allocator.release_allocation(al1);
@@ -932,8 +939,8 @@ mod tests {
 
         allocator.init_allocator(None);
 
-        let rq1 = ResBuilder::default().add_force_compact(0, 5).finish();
-        let al1 = allocator.try_allocate(&rq1).unwrap();
+        let rq1 = ResBuilder::default().add_force_compact(0, 5).finish_v();
+        let (al1, _) = allocator.try_allocate(&rq1).unwrap();
         assert_eq!(al1.get_indices(0).len(), 5);
         assert_eq!(allocator.get_sockets(&al1, 0).len(), 2);
         allocator.release_allocation(al1);
@@ -941,8 +948,8 @@ mod tests {
 
         allocator.init_allocator(None);
 
-        let rq1 = ResBuilder::default().add_force_compact(0, 10).finish();
-        let al1 = allocator.try_allocate(&rq1).unwrap();
+        let rq1 = ResBuilder::default().add_force_compact(0, 10).finish_v();
+        let (al1, idx) = allocator.try_allocate(&rq1).unwrap();
         assert_eq!(al1.get_indices(0).len(), 10);
         assert_eq!(allocator.get_sockets(&al1, 0).len(), 3);
         allocator.release_allocation(al1);
@@ -954,18 +961,18 @@ mod tests {
         let descriptor = simple_descriptor(3, 4);
         let mut allocator = test_allocator(&descriptor);
 
-        let rq1 = ResBuilder::default().add_scatter(0, 3).finish();
-        let al1 = allocator.try_allocate(&rq1).unwrap();
+        let rq1 = ResBuilder::default().add_scatter(0, 3).finish_v();
+        let (al1, _) = allocator.try_allocate(&rq1).unwrap();
         assert_eq!(al1.get_indices(0).len(), 3);
         assert_eq!(allocator.get_sockets(&al1, 0).len(), 3);
 
-        let rq1 = ResBuilder::default().add_scatter(0, 4).finish();
-        let al1 = allocator.try_allocate(&rq1).unwrap();
+        let rq1 = ResBuilder::default().add_scatter(0, 4).finish_v();
+        let (al1, _) = allocator.try_allocate(&rq1).unwrap();
         assert_eq!(al1.get_indices(0).len(), 4);
         assert_eq!(allocator.get_sockets(&al1, 0).len(), 3);
 
-        let rq1 = ResBuilder::default().add_scatter(0, 2).finish();
-        let al1 = allocator.try_allocate(&rq1).unwrap();
+        let rq1 = ResBuilder::default().add_scatter(0, 2).finish_v();
+        let (al1, _) = allocator.try_allocate(&rq1).unwrap();
         assert_eq!(al1.get_indices(0).len(), 2);
         assert_eq!(allocator.get_sockets(&al1, 0).len(), 2);
 
@@ -977,11 +984,11 @@ mod tests {
         let descriptor = simple_descriptor(3, 4);
         let mut allocator = test_allocator(&descriptor);
 
-        let rq1 = ResBuilder::default().add_force_compact(0, 4).finish();
+        let rq1 = ResBuilder::default().add_force_compact(0, 4).finish_v();
         let _al1 = allocator.try_allocate(&rq1).unwrap();
 
-        let rq2 = ResBuilder::default().add_scatter(0, 5).finish();
-        let al2 = allocator.try_allocate(&rq2).unwrap();
+        let rq2 = ResBuilder::default().add_scatter(0, 5).finish_v();
+        let (al2, _) = allocator.try_allocate(&rq2).unwrap();
         assert_eq!(al2.get_indices(0).len(), 5);
         assert_eq!(allocator.get_sockets(&al2, 0).len(), 2);
 
@@ -1031,13 +1038,13 @@ mod tests {
             )
         );
 
-        let rq: ResourceRequest = cpus_compact(1)
+        let rq: ResourceRequestVariants = cpus_compact(1)
             .add(4, 1)
             .add(1, 12)
             .add(2, 1000_000)
-            .finish();
+            .finish_v();
         rq.validate().unwrap();
-        let al = allocator.try_allocate(&rq).unwrap();
+        let (al, _) = allocator.try_allocate(&rq).unwrap();
         assert_eq!(al.resources.len(), 4);
         assert_eq!(al.resources[0].resource.as_num(), 0);
 
@@ -1064,7 +1071,7 @@ mod tests {
         assert_eq!(allocator.get_current_free(3), 2);
         assert_eq!(allocator.get_current_free(4), 1);
 
-        let rq: ResourceRequest = cpus_compact(1).add(4, 2).finish();
+        let rq = cpus_compact(1).add(4, 2).finish_v();
         assert!(allocator.try_allocate(&rq).is_none());
 
         allocator.release_allocation(al);
@@ -1086,12 +1093,15 @@ mod tests {
         let mut allocator = test_allocator(&descriptor);
 
         allocator.init_allocator(None);
-        let rq = ResBuilder::default().add(0, 1).min_time_secs(100).finish();
-        let al = allocator.try_allocate(&rq).unwrap();
+        let rq = ResBuilder::default()
+            .add(0, 1)
+            .min_time_secs(100)
+            .finish_v();
+        let (al, _) = allocator.try_allocate(&rq).unwrap();
         allocator.release_allocation(al);
 
         allocator.init_allocator(Some(Duration::from_secs(101)));
-        let al = allocator.try_allocate(&rq).unwrap();
+        let (al, _) = allocator.try_allocate(&rq).unwrap();
         allocator.release_allocation(al);
 
         allocator.init_allocator(Some(Duration::from_secs(99)));
