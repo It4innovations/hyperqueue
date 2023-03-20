@@ -166,12 +166,16 @@ fn parse_resource_kind() -> impl CharParser<ResourceDescriptorKind> {
     .labelled("resource kind")
 }
 
+pub fn is_valid_starting_resource_char(c: char) -> bool {
+    c.is_ascii_alphabetic()
+}
+
 pub fn is_valid_resource_char(c: char) -> bool {
-    c.is_alphanumeric() || c == '-' || c == ':' || c == '/'
+    c.is_ascii_alphanumeric() || c == '/'
 }
 
 fn parse_resource_name() -> impl CharParser<String> {
-    let identifier = filter(|&c| is_valid_resource_char(c))
+    let identifier = filter(|&c| is_valid_starting_resource_char(c))
         .map(Some)
         .chain::<char, Vec<char>, _>(filter(|&c| is_valid_resource_char(c)).repeated())
         .collect::<String>();
@@ -221,18 +225,30 @@ mod test {
 
     #[test]
     fn test_resource_name_normal() {
+        assert_eq!(parse_resource_name().parse_text("asd").unwrap(), "asd");
+    }
+
+    #[test]
+    fn test_resource_name_underscore() {
+        assert_eq!(parse_resource_name().parse_text("a_b").unwrap(), "a");
+    }
+
+    #[test]
+    fn test_resource_name_slash() {
         assert_eq!(
-            parse_individual_resource().parse_text("asd").unwrap(),
-            "asd"
+            parse_resource_name().parse_text("foo/bar").unwrap(),
+            "foo/bar"
         );
     }
 
     #[test]
-    fn test_resource_name_special_symbols() {
-        assert_eq!(
-            parse_resource_name().parse_text("asd/foo:bar-2").unwrap(),
-            "asd/foo:bar-2"
-        );
+    fn test_resource_start_with_digit() {
+        insta::assert_snapshot!(expect_parser_error(parse_resource_name(), "1a"), @r###"
+        Unexpected token found, expected identifier:
+          1a
+          |
+          --- Unexpected token `1`
+        "###);
     }
 
     #[test]
@@ -518,10 +534,10 @@ mod test {
     #[test]
     fn test_parse_resource_def_number() {
         insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "1"), @r###"
-        Unexpected end of input found while attempting to parse resource definition, expected =:
+        Unexpected token found while attempting to parse resource name, expected identifier:
           1
-           |
-           --- Unexpected end of input
+          |
+          --- Unexpected token `1`
         "###);
     }
 

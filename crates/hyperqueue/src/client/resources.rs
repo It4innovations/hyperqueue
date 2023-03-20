@@ -1,16 +1,15 @@
 use nom::branch::alt;
-use nom::character::complete::{char, multispace0, multispace1};
-use nom::combinator::{map, map_res, opt};
-use nom::error::ErrorKind;
-use nom::sequence::{preceded, separated_pair, tuple};
-use nom::InputTakeAtPosition;
+use nom::bytes::complete::take_while;
+use nom::character::complete::{anychar, char, multispace0, multispace1};
+use nom::combinator::{map, map_res, opt, recognize, verify};
+use nom::sequence::{pair, preceded, separated_pair, tuple};
 use nom_supreme::tag::complete::tag;
 use nom_supreme::ParserExt;
 
 use tako::resources::{AllocationRequest, ResourceAmount};
 
 use crate::common::parser::{consume_all, p_u64, NomResult};
-use crate::worker::parser::is_valid_resource_char;
+use crate::worker::parser::{is_valid_resource_char, is_valid_starting_resource_char};
 
 fn p_allocation_request(input: &str) -> NomResult<AllocationRequest> {
     alt((
@@ -40,9 +39,12 @@ fn p_allocation_request(input: &str) -> NomResult<AllocationRequest> {
 }
 
 /// Parses a resource identifier.
-/// It has to be an alphanumeric string. It can also contain dashes, colons and slashes.
+/// It has to be an alphanumeric string beginning with a letter. It can also a slash.
 fn p_resource_identifier(input: &str) -> NomResult<&str> {
-    input.split_at_position1_complete(|c| !is_valid_resource_char(c), ErrorKind::AlphaNumeric)
+    recognize(pair(
+        verify(anychar, |&c| is_valid_starting_resource_char(c)).context("Letter"),
+        take_while(is_valid_resource_char).context("Letter, digit or slash"),
+    ))(input)
 }
 
 fn p_resource_request(input: &str) -> NomResult<(String, AllocationRequest)> {
@@ -100,15 +102,28 @@ mod test {
             "=1",
             r#"Parse error
 expected Resource identifier at character 0: "=1"
-  expected alphanumeric character at character 0: "=1""#,
+expected Letter at character 0: "=1"
+  expected: Verify at character 0: "=1""#,
         );
     }
 
     #[test]
-    fn test_parse_identifier_special_symbols() {
+    fn test_parse_identifier_slash() {
         assert_eq!(
-            parse_resource_request("a/b:c-d=11").unwrap(),
-            ("a/b:c-d".to_string(), AllocationRequest::Compact(11))
+            parse_resource_request("a/b=1").unwrap(),
+            ("a/b".to_string(), AllocationRequest::Compact(1))
+        );
+    }
+
+    #[test]
+    fn test_parse_identifier_start_with_digit() {
+        check_parse_error(
+            p_resource_request,
+            "1a=1",
+            r#"Parse error
+expected Resource identifier at character 0: "1a=1"
+expected Letter at character 0: "1a=1"
+  expected: Verify at character 0: "1a=1""#,
         );
     }
 
@@ -130,7 +145,8 @@ expected Resource amount at character 3: "0"
             "",
             r#"Parse error
 expected Resource identifier at the end of input
-  expected alphanumeric character at the end of input"#,
+expected Letter at the end of input
+  expected something at the end of input"#,
         );
         check_parse_error(
             p_resource_request,
