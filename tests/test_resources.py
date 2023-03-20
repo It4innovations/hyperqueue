@@ -4,6 +4,7 @@ import pytest
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
+from .utils.cmd import python
 from .utils.io import read_file
 from .utils.job import default_task_output
 
@@ -269,3 +270,30 @@ def test_resource_name_slash(hq_env: HqEnv):
     hq_env.command(["submit", "--resource", f"{res_name}=1", "ls"])
     hq_env.start_worker(args=["--resource", f"{res_name}=[0]"])
     wait_for_job_state(hq_env, 1, "FINISHED")
+
+
+def test_resource_name_ensure_normalization(hq_env: HqEnv):
+    hq_env.start_server()
+
+    res_name = "gpus/amd"
+    hq_env.command(
+        [
+            "submit",
+            "--resource",
+            f"{res_name}=1",
+            "--",
+            *python(
+                """
+import os
+import sys
+print(os.environ["HQ_RESOURCE_REQUEST_gpus_amd"], flush=True)
+print(os.environ["HQ_RESOURCE_VALUES_gpus_amd"], flush=True)
+"""
+            ),
+        ]
+    )
+    hq_env.start_worker(args=["--resource", f"{res_name}=[0]"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    with open(default_task_output()) as f:
+        assert f.read() == "1 compact\n0\n"
