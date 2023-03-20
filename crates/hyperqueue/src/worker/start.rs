@@ -226,7 +226,7 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
     for entry in ctx.resources().entries() {
         let resource_name = resource_map.get_name(entry.resource_id).unwrap();
         program.env.insert(
-            format!("HQ_RESOURCE_REQUEST_{resource_name}").into(),
+            resource_env_var_name("HQ_RESOURCE_REQUEST_", resource_name),
             entry.request.to_string().into(),
         );
     }
@@ -260,11 +260,25 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
                     .insert("ROCR_VISIBLE_DEVICES".into(), labels.clone().into());
             }
             program.env.insert(
-                format!("HQ_RESOURCE_VALUES_{resource_name}").into(),
+                resource_env_var_name("HQ_RESOURCE_VALUES_", resource_name),
                 labels.into(),
             );
         }
     }
+}
+
+/// All special characters are normalized to `_` to improve support for shells.
+/// This is optimized manually to avoid unnecessary many allocations when starting tasks.
+fn resource_env_var_name(prefix: &str, resource_name: &str) -> BString {
+    let mut bytes = Vec::with_capacity(prefix.len() + resource_name.len());
+    bytes.extend_from_slice(prefix.as_bytes());
+
+    let normalized = resource_name.as_bytes().iter().map(|c| match c {
+        b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' => *c,
+        _ => b'_',
+    });
+    bytes.extend(normalized);
+    bytes.into()
 }
 
 fn allocation_to_labels(allocation: &ResourceAllocation, ctx: &LaunchContext) -> Option<String> {
