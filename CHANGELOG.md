@@ -25,7 +25,12 @@ to ask for any GPU resource (e.g. `--resource=gpus=2`), regardless of its type.
 
 * AMD GPUs are now automatically detected in workers from the environment variable `ROCR_VISIBLE_DEVICES`.
 
-* You can now use the `-`, `:` or `/` symbols in resource names.
+* Allowed characters for resource names has been changed. The name now has to begin with an ASCII letter,
+and it can only contain ASCII letters, ASCII digits and the slash (`/`) symbol. This restriction is
+introduced for better alignment with shells, which typically do not support complicated variable names.
+HQ passes the resource names to executed tasks through environment variables, so it has to take this
+into account. Note that the `/` symbol in resource name will be normalized to `_` when being passed
+to a task.
 
 ## Changes
 

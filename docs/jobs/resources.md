@@ -84,6 +84,22 @@ where `NAMEi` is a name (string ) of the `i`-th resource pool and `DEFi` is a de
     $ hq worker start --resources "foo=sum(5)"
     ```
 
+### Resource names
+Resource names are restricted by the following rules:
+
+- They can only contain ASCII letters and digits (`a-z`, `A-Z`, `0-9`) and the slash (`/`) symbol.
+- They need to begin with an ASCII letter.
+
+These restrictions exist because the resource names are passed as environment variable names to tasks,
+which often execute shell scripts. However, shells typically do not support environment variables
+containing anything else than ASCII letters, digits and the underscore symbol. Therefore, HQ limits
+resource naming to align with the behaviour of the shell.
+
+!!! important
+
+    HQ will normalize the resource name when passing environment variables
+    to a task (see [below](#resource-environment-variables)).
+
 ### Automatically detected resources
 
 The following resources are detected automatically if a resource of a given name is not explicitly defined.
@@ -196,13 +212,16 @@ each resource request named `<NAME>`:
 * `HQ_RESOURCE_VALUES_<NAME>` contains the specific resource values allocated for the task as a
 comma-separated list. This variable is only filled for indexed resource pool.
 
+The slash symbol (`/`) in resource name is normalized to underscore (`_`) when being used in the
+environment variable name.
+
 HQ also sets additional environment variables for various resources with special names:
 
 - For the resource `gpus/nvidia`, HQ will set:
-    - `CUDA_VISIBLE_DEVICES` to the same value as `HQ_RESOURCE_VALUES_gpus/nvidia`
+    - `CUDA_VISIBLE_DEVICES` to the same value as `HQ_RESOURCE_VALUES_gpus_nvidia`
     - `CUDA_DEVICE_ORDER` to `PCI_BUS_ID`
 - For the resource `gpus/amd`, HQ will set:
-    - `ROCR_VISIBLE_DEVICES` to the same value as `HQ_RESOURCE_VALUES_gpus/amd`
+    - `ROCR_VISIBLE_DEVICES` to the same value as `HQ_RESOURCE_VALUES_gpus_amd`
 
 ## Resource requests and job arrays
 
