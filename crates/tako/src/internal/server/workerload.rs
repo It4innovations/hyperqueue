@@ -6,7 +6,6 @@ use crate::internal::common::resources::{
     ResourceVec,
 };
 use crate::internal::messages::worker::WorkerResourceCounts;
-use crate::internal::server::worker::Worker;
 use crate::resources::AllocationRequest;
 use crate::{Map, Set, TaskId};
 use std::ops::Deref;

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::internal::common::resources::request::{ResourceRequest, ResourceRequestEntry};
-use crate::internal::common::resources::ResourceId;
+use crate::internal::common::resources::{ResourceId, ResourceRequestVariants};
 use crate::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
 pub use ResourceRequestBuilder as ResBuilder;
 
@@ -74,6 +74,10 @@ impl ResourceRequestBuilder {
             )
         }
         ResourceRequest::new(self.n_nodes, self.min_time, self.resources.into())
+    }
+
+    pub fn finish_v(mut self) -> ResourceRequestVariants {
+        ResourceRequestVariants::new_simple(self.finish())
     }
 }
 

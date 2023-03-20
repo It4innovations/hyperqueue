@@ -5,7 +5,6 @@ use crate::client::commands::submit::defs::PinMode as PinModeDef;
 use crate::client::commands::submit::defs::{JobDef, TaskDef};
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::utils::fs::get_current_dir;
-use crate::common::utils::time::parse_human_time;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     JobDescription, PinMode, SubmitRequest, TaskDescription, TaskWithDependencies,

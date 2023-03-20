@@ -4,6 +4,7 @@ use crate::internal::messages::worker::{
     ComputeTaskMsg, NewWorkerMsg, ToWorkerMessage, WorkerResourceCounts,
 };
 use crate::internal::server::workerload::WorkerResources;
+use crate::internal::tests::utils::resources::ResourceRequestBuilder;
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::OverviewConfiguration;
 use crate::internal::worker::rpc::process_worker_message;
@@ -90,13 +91,14 @@ fn test_worker_start_task() {
     let config = create_test_worker_config();
     let state_ref = create_test_worker_state(config);
     let mut msg = create_dummy_compute_msg(7.into());
-    let mut entries = ResourceRequestEntries::new();
+    /*let mut entries = ResourceRequestEntries::new();
     entries.push(ResourceRequestEntry {
         resource_id: 0.into(),
         request: AllocationRequest::Compact(3),
     });
-    let rq = ResourceRequest::new(0, TimeRequest::default(), entries);
-    msg.resources = ResourceRequestVariants::new(smallvec![rq.clone()]);
+    let rq = ResourceRequest::new(0, TimeRequest::default(), entries);*/
+    let rq = ResourceRequestBuilder::default().cpus(3).finish_v();
+    msg.resources = rq.clone();
     let mut state = state_ref.get_mut();
     process_worker_message(&mut state, ToWorkerMessage::ComputeTask(msg));
     let comm = state.comm().test();
@@ -115,24 +117,10 @@ fn test_worker_start_task_resource_variants() {
     let config = create_test_worker_config();
     let state_ref = create_test_worker_state(config);
     let mut msg = create_dummy_compute_msg(7.into());
-    let mut entries = ResourceRequestEntries::new();
-    entries.push(ResourceRequestEntry {
-        resource_id: 0.into(),
-        request: AllocationRequest::Compact(2),
-    });
-    entries.push(ResourceRequestEntry {
-        resource_id: 1.into(),
-        request: AllocationRequest::Compact(1),
-    });
-    let rq1 = ResourceRequest::new(0, TimeRequest::default(), entries);
-    let mut entries = ResourceRequestEntries::new();
-    entries.push(ResourceRequestEntry {
-        resource_id: 0.into(),
-        request: AllocationRequest::Compact(4),
-    });
-    let rq2 = ResourceRequest::new(0, TimeRequest::default(), entries);
-
-    msg.resources = ResourceRequestVariants::new(smallvec![rq1.clone(), rq2.clone()]);
+    let rq1 = ResourceRequestBuilder::default().cpus(2).add(1, 1).finish();
+    let rq2 = ResourceRequestBuilder::default().cpus(4).finish();
+    let rq = ResourceRequestVariants::new(smallvec![rq1.clone(), rq2.clone()]);
+    msg.resources = rq.clone();
     let mut state = state_ref.get_mut();
     process_worker_message(&mut state, ToWorkerMessage::ComputeTask(msg));
     let comm = state.comm().test();
@@ -142,8 +130,8 @@ fn test_worker_start_task_resource_variants() {
     assert_eq!(state.find_task(7.into()).unwrap().id, TaskId::new(7));
     assert!(state.running_tasks.is_empty());
     let requests = state.ready_task_queue.requests();
-    assert_eq!(requests.len(), 2);
-    assert_eq!(requests[0], rq2);
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0], rq);
 }
 
 #[test]

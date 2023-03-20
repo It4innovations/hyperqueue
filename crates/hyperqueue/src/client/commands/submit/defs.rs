@@ -3,15 +3,12 @@ use crate::common::error::HqError;
 use crate::common::utils::time::parse_human_time;
 use crate::{JobTaskCount, JobTaskId};
 use bstr::BString;
-use serde::de::{EnumAccess, Error, MapAccess, SeqAccess, Visitor};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer};
 use smallvec::SmallVec;
-use std::fmt::{Formatter, Write};
 use std::path::PathBuf;
 use std::time::Duration;
-use tako::comm::deserialize;
 use tako::gateway::{ResourceRequest, ResourceRequestEntries, ResourceRequestEntry};
-use tako::resources::{AllocationRequest, NumOfNodes, ResourceAllocation};
+use tako::resources::{AllocationRequest, NumOfNodes};
 use tako::{Map, Priority};
 
 #[derive(Deserialize)]
