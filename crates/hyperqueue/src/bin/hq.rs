@@ -31,14 +31,13 @@ use hyperqueue::client::task::{
     output_job_task_info, output_job_task_list, TaskCommand, TaskInfoOpts, TaskListOpts, TaskOpts,
 };
 use hyperqueue::common::cli::{
-    get_task_id_selector, get_task_selector, ColorPolicy, CommonOpts, DashboardOpts,
-    GenerateCompletionOpts, HwDetectOpts, JobCommand, JobOpts, JobProgressOpts, JobWaitOpts,
-    OptsWithMatches, RootOptions, SubCommand, WorkerAddressOpts, WorkerCommand, WorkerInfoOpts,
-    WorkerListOpts, WorkerOpts, WorkerStopOpts, WorkerWaitOpts,
+    get_task_id_selector, get_task_selector, ColorPolicy, CommonOpts, GenerateCompletionOpts,
+    HwDetectOpts, JobCommand, JobOpts, JobProgressOpts, JobWaitOpts, OptsWithMatches, RootOptions,
+    SubCommand, WorkerAddressOpts, WorkerCommand, WorkerInfoOpts, WorkerListOpts, WorkerOpts,
+    WorkerStopOpts, WorkerWaitOpts,
 };
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
-use hyperqueue::dashboard::ui_loop::start_ui_loop;
 use hyperqueue::server::bootstrap::get_client_session;
 use hyperqueue::transfer::messages::{
     FromClientMessage, IdSelector, JobInfoRequest, ToClientMessage,
@@ -256,11 +255,13 @@ async fn command_worker_address(
     Ok(())
 }
 
+#[cfg(feature = "dashboard")]
 ///Starts the hq Dashboard
 async fn command_dashboard_start(
     gsettings: &GlobalSettings,
-    _opts: DashboardOpts,
+    _opts: hyperqueue::common::cli::DashboardOpts,
 ) -> anyhow::Result<()> {
+    use hyperqueue::dashboard::start_ui_loop;
     start_ui_loop(gsettings).await?;
     Ok(())
 }
@@ -382,6 +383,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Task(TaskOpts {
             subcmd: TaskCommand::Info(opts),
         }) => command_task_info(&gsettings, opts).await,
+        #[cfg(feature = "dashboard")]
         SubCommand::Dashboard(opts) => command_dashboard_start(&gsettings, opts).await,
         SubCommand::Log(opts) => command_log(&gsettings, opts),
         SubCommand::AutoAlloc(opts) => command_autoalloc(&gsettings, opts).await,

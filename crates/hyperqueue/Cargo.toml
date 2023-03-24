@@ -53,8 +53,8 @@ psutil = "3.2"
 chumsky = "0.8.0"
 
 # Dashboard
-tui = { version = "0.19.0", default-features = false, features = ["termion"] }
-termion = "1.5"
+tui = { version = "0.19.0", default-features = false, features = ["termion"], optional = true }
+termion = { version = "1.5", optional = true }
 
 # Tako
 tako = { path = "../tako" }
@@ -73,6 +73,8 @@ default = ["jemalloc"]
 zero-worker = []
 # Use the jemalloc allocator
 jemalloc = ["jemallocator"]
+# Enable the dashboard
+dashboard = ["dep:tui", "dep:termion"]
 
 [[bench]]
 name = "benchmark"

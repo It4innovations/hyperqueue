@@ -2,6 +2,7 @@
 
 pub mod client;
 pub mod common;
+#[cfg(feature = "dashboard")]
 pub mod dashboard;
 pub mod server;
 pub mod stream;
