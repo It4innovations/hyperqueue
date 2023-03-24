@@ -391,7 +391,7 @@ mod tests {
         ResourceDescriptor, ResourceDescriptorKind,
     };
     use crate::internal::common::resources::{
-        Allocation, AllocationValue, ResourceId, ResourceRequest, ResourceRequestVariants,
+        Allocation, AllocationValue, ResourceId, ResourceRequestVariants,
     };
     use crate::internal::tests::utils::resources::{cpus_compact, ResBuilder};
     use crate::internal::tests::utils::shared::res_allocator_from_descriptor;
@@ -949,7 +949,7 @@ mod tests {
         allocator.init_allocator(None);
 
         let rq1 = ResBuilder::default().add_force_compact(0, 10).finish_v();
-        let (al1, idx) = allocator.try_allocate(&rq1).unwrap();
+        let (al1, _idx) = allocator.try_allocate(&rq1).unwrap();
         assert_eq!(al1.get_indices(0).len(), 10);
         assert_eq!(allocator.get_sockets(&al1, 0).len(), 3);
         allocator.release_allocation(al1);

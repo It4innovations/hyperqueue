@@ -176,9 +176,9 @@ impl JobDef {
 
 #[cfg(test)]
 mod test {
-    use crate::client::commands::submit::defs::{JobDef, TaskDef};
+    use crate::client::commands::submit::defs::JobDef;
     use crate::common::error::HqError;
-    use bstr::{BStr, BString, ByteSlice};
+    use bstr::{BString, ByteSlice};
 
     #[test]
     fn test_read_minimal_def() {

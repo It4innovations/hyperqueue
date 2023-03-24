@@ -1,4 +1,3 @@
-use crate::internal::common::resources::request::{ResourceRequestEntries, ResourceRequestEntry};
 use crate::internal::common::resources::ResourceRequestVariants;
 use crate::internal::messages::worker::{
     ComputeTaskMsg, NewWorkerMsg, ToWorkerMessage, WorkerResourceCounts,
@@ -10,9 +9,7 @@ use crate::internal::worker::configuration::OverviewConfiguration;
 use crate::internal::worker::rpc::process_worker_message;
 use crate::internal::worker::state::WorkerStateRef;
 use crate::launcher::{LaunchContext, StopReason, TaskLaunchData, TaskLauncher};
-use crate::resources::{
-    AllocationRequest, ResourceDescriptor, ResourceMap, ResourceRequest, TimeRequest,
-};
+use crate::resources::{ResourceDescriptor, ResourceMap};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{Set, TaskId, WorkerId};
 use smallvec::smallvec;

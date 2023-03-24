@@ -10,10 +10,9 @@ use tako::internal::worker::comm::WorkerComm;
 use tako::internal::worker::rqueue::ResourceWaitQueue;
 use tako::launcher::{LaunchContext, StopReason, TaskLaunchData, TaskLauncher, TaskResult};
 use tako::resources::{
-    AllocationRequest, ResourceDescriptor, ResourceRequest, ResourceRequestEntry, TimeRequest,
-};
-use tako::resources::{
-    ResourceDescriptorItem, ResourceDescriptorKind, CPU_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME,
+    AllocationRequest, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
+    ResourceRequest, ResourceRequestEntry, ResourceRequestVariants, TimeRequest, CPU_RESOURCE_NAME,
+    NVIDIA_GPU_RESOURCE_NAME,
 };
 use tako::ItemId;
 use tokio::sync::mpsc::unbounded_channel;
@@ -193,7 +192,7 @@ fn bench_resource_queue_release_allocation(c: &mut BenchmarkGroup<WallTime>) {
             || {
                 let mut queue = create_resource_queue(64);
                 let mut task = create_worker_task(0);
-                task.resources = ResourceRequest::new(
+                task.resources = ResourceRequestVariants::new(smallvec![ResourceRequest::new(
                     0,
                     TimeRequest::new(0, 0),
                     smallvec![
@@ -206,7 +205,7 @@ fn bench_resource_queue_release_allocation(c: &mut BenchmarkGroup<WallTime>) {
                             request: AllocationRequest::Compact(2),
                         },
                     ],
-                );
+                )]);
                 queue.add_task(&task);
 
                 let mut map = TaskMap::default();
@@ -234,20 +233,21 @@ fn bench_resource_queue_start_tasks(c: &mut BenchmarkGroup<WallTime>) {
 
                         for id in 0..task_count {
                             let mut task = create_worker_task(id);
-                            task.resources = ResourceRequest::new(
-                                0,
-                                TimeRequest::new(0, 0),
-                                smallvec![
-                                    ResourceRequestEntry {
-                                        resource_id: 0.into(),
-                                        request: AllocationRequest::Compact(64),
-                                    },
-                                    ResourceRequestEntry {
-                                        resource_id: 1.into(),
-                                        request: AllocationRequest::Compact(2),
-                                    },
-                                ],
-                            );
+                            task.resources =
+                                ResourceRequestVariants::new(smallvec![ResourceRequest::new(
+                                    0,
+                                    TimeRequest::new(0, 0),
+                                    smallvec![
+                                        ResourceRequestEntry {
+                                            resource_id: 0.into(),
+                                            request: AllocationRequest::Compact(64),
+                                        },
+                                        ResourceRequestEntry {
+                                            resource_id: 1.into(),
+                                            request: AllocationRequest::Compact(2),
+                                        },
+                                    ],
+                                )]);
                             queue.add_task(&task);
                             map.insert(task);
                         }
