@@ -102,8 +102,8 @@ pub fn detect_additional_resources(
 /// GPU resource that can be detected from an environment variable.
 pub struct GpuEnvironmentRecord {
     env_var: &'static str,
-    resource_name: &'static str,
-    family: GpuFamily,
+    pub resource_name: &'static str,
+    pub family: GpuFamily,
 }
 
 impl GpuEnvironmentRecord {
@@ -116,7 +116,7 @@ impl GpuEnvironmentRecord {
     }
 }
 
-pub const GPU_ENV_KEYS: &[GpuEnvironmentRecord; 2] = &[
+pub const GPU_ENVIRONMENTS: &[GpuEnvironmentRecord; 2] = &[
     GpuEnvironmentRecord::new(
         "CUDA_VISIBLE_DEVICES",
         NVIDIA_GPU_RESOURCE_NAME,
@@ -138,7 +138,7 @@ struct DetectedGpu {
 /// Tries to detect available GPUs from one of the `GPU_ENV_KEYS` environment variables.
 fn detect_gpus_from_env() -> Vec<DetectedGpu> {
     let mut gpus = Vec::new();
-    for gpu_env in GPU_ENV_KEYS {
+    for gpu_env in GPU_ENVIRONMENTS {
         if let Ok(devices_str) = std::env::var(gpu_env.env_var) {
             if let Ok(devices) = parse_comma_separated_values(&devices_str) {
                 log::info!(

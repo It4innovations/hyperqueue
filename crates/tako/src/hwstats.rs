@@ -24,7 +24,7 @@ pub struct NetworkStats {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct GpuStats {
     pub id: String,
-    pub cpu_usage: f32,
+    pub processor_usage: f32,
     pub mem_usage: f32,
 }
 
