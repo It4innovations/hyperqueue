@@ -1,7 +1,10 @@
+use std::io::Write;
 use std::ops::ControlFlow;
 use std::{io, thread};
 
 use termion::input::TermRead;
+use termion::raw::IntoRawMode;
+use termion::screen::ToMainScreen;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Duration;
 
@@ -15,6 +18,8 @@ use crate::server::bootstrap::get_client_session;
 
 /// Starts the dashboard UI with a keyboard listener and tick provider
 pub async fn start_ui_loop(gsettings: &GlobalSettings) -> anyhow::Result<()> {
+    setup_panics();
+
     let connection = get_client_session(gsettings.server_directory()).await?;
 
     // TODO: When we start the dashboard and connect to the server, the server may have already forgotten
@@ -97,4 +102,19 @@ async fn send_event_repeatedly(
         }
         tick_duration.tick().await;
     }
+}
+
+/// Makes sure that panics are actually logged to stdout and not swallowed.
+fn setup_panics() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        write!(io::stdout(), "{}", ToMainScreen).unwrap();
+        io::stdout()
+            .into_raw_mode()
+            .unwrap()
+            .suspend_raw_mode()
+            .unwrap_or_else(|e| log::error!("Could not suspend raw mode: {}", e));
+        io::stdout().flush().unwrap();
+        default_hook(info);
+    }));
 }
