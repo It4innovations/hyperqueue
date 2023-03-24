@@ -9,10 +9,10 @@ use crate::dashboard::ui::widgets::text::draw_text;
 
 use crate::dashboard::data::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::fragments::worker::cpu_util_table::{
+use crate::dashboard::ui::screens::overview_screen::worker::cpu_util_table::{
     get_column_constraints, render_cpu_util_table,
 };
-use crate::dashboard::ui::fragments::worker::worker_config_table::WorkerConfigTable;
+use crate::dashboard::ui::screens::overview_screen::worker::worker_config_table::WorkerConfigTable;
 use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 use crate::JobTaskId;
 use tako::WorkerId;
@@ -81,10 +81,7 @@ impl WorkerOverviewFragment {
     }
 
     pub fn update(&mut self, data: &DashboardData) {
-        if let Some(worker_id) = self.worker_id.and_then(|worker_id| {
-            data.query_connected_worker_ids(SystemTime::now())
-                .find(|connected_id| *connected_id == worker_id)
-        }) {
+        if let Some(worker_id) = self.worker_id {
             // Update CPU Util table.
             if let Some(cpu_util) = data
                 .query_worker_overview_at(worker_id, SystemTime::now())

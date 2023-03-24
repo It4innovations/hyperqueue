@@ -1,12 +1,12 @@
 use termion::event::Key;
 
-use crate::dashboard::ui::fragments::overview::cluster_overview_chart::ClusterOverviewChart;
-use crate::dashboard::ui::fragments::overview::worker_utilization_table::WorkerUtilTable;
 use crate::dashboard::ui::styles::{style_footer, style_header_text};
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
 
 use crate::dashboard::data::DashboardData;
+use crate::dashboard::ui::screens::overview_screen::overview::cluster_overview_chart::ClusterOverviewChart;
+use crate::dashboard::ui::screens::overview_screen::overview::worker_utilization_table::WorkerUtilTable;
 use tako::WorkerId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 

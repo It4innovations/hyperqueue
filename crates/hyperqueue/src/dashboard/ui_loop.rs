@@ -1,7 +1,6 @@
 use std::ops::ControlFlow;
 use std::{io, thread};
 
-use tako::WrappedRcRefCell;
 use termion::input::TermRead;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Duration;
@@ -20,34 +19,39 @@ pub async fn start_ui_loop(gsettings: &GlobalSettings) -> anyhow::Result<()> {
 
     // TODO: When we start the dashboard and connect to the server, the server may have already forgotten
     // some of its events. Therefore we should bootstrap the state with the most recent overview snapshot.
-    let dashboard_data = WrappedRcRefCell::wrap(DashboardData::default());
+    let mut dashboard_data = DashboardData::default();
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     start_key_event_listener(tx.clone());
     let mut root_screen = RootScreen::default();
 
-    let ui_ticker = send_event_every(100, tx.clone(), DashboardEvent::UiTick);
+    let ui_ticker = send_event_repeatedly(
+        Duration::from_millis(100),
+        tx.clone(),
+        DashboardEvent::UiTick,
+    );
     let data_fetch_process =
-        data::create_data_fetch_process(Duration::from_secs(1), dashboard_data.clone(), connection);
+        data::create_data_fetch_process(Duration::from_secs(1), connection, tx);
 
     let mut terminal = initialize_terminal()?;
 
     let event_loop = async {
-        loop {
-            if let Some(dashboard_event) = rx.recv().await {
-                match dashboard_event {
-                    DashboardEvent::KeyPressEvent(input) => {
-                        if let ControlFlow::Break(res) = root_screen.handle_key(input) {
-                            break res;
-                        }
+        while let Some(dashboard_event) = rx.recv().await {
+            match dashboard_event {
+                DashboardEvent::KeyPressEvent(input) => {
+                    if let ControlFlow::Break(res) = root_screen.handle_key(input) {
+                        return res;
                     }
-                    DashboardEvent::UiTick => {
-                        let data = dashboard_data.get();
-                        root_screen.draw(&mut terminal, &data);
-                    }
+                }
+                DashboardEvent::UiTick => {
+                    root_screen.draw(&mut terminal, &dashboard_data);
+                }
+                DashboardEvent::FetchedEvents(events) => {
+                    dashboard_data.push_new_events(events);
                 }
             }
         }
+        Ok(())
     };
 
     tokio::select! {
@@ -79,15 +83,15 @@ fn start_key_event_listener(tx: UnboundedSender<DashboardEvent>) -> thread::Join
     })
 }
 
-/// Sends a dashboard event every n milliseconds
-async fn send_event_every(
-    n_milliseconds: u64,
+/// Sends a dashboard event repeatedly, with the specified interval.
+async fn send_event_repeatedly(
+    interval: Duration,
     sender: UnboundedSender<DashboardEvent>,
     event_type: DashboardEvent,
 ) {
-    let mut tick_duration = tokio::time::interval(Duration::from_millis(n_milliseconds));
+    let mut tick_duration = tokio::time::interval(interval);
     loop {
-        if let Err(e) = sender.send(event_type) {
+        if let Err(e) = sender.send(event_type.clone()) {
             log::error!("Error in producing dashboard events: {}", e);
             return;
         }

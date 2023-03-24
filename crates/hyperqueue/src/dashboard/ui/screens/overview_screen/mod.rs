@@ -1,24 +1,30 @@
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::fragments::overview::fragment::ClusterOverviewFragment;
-use crate::dashboard::ui::fragments::worker::fragment::WorkerOverviewFragment;
 use crate::dashboard::ui::screen::Screen;
+use crate::dashboard::ui::screens::overview_screen::overview::fragment::ClusterOverviewFragment;
+use crate::dashboard::ui::screens::overview_screen::worker::fragment::WorkerOverviewFragment;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use termion::event::Key;
 use tui::layout::Rect;
 
-pub struct OverviewScreen {
+pub mod overview;
+pub mod worker;
+
+#[derive(Default)]
+pub struct WorkerOverviewScreen {
     cluster_overview: ClusterOverviewFragment,
     worker_overview: WorkerOverviewFragment,
 
     active_fragment: ScreenState,
 }
 
+#[derive(Default)]
 enum ScreenState {
+    #[default]
     ClusterOverview,
     WorkerInfo,
 }
 
-impl Screen for OverviewScreen {
+impl Screen for WorkerOverviewScreen {
     fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
         match self.active_fragment {
             ScreenState::ClusterOverview => self.cluster_overview.draw(in_area, frame),
@@ -51,16 +57,6 @@ impl Screen for OverviewScreen {
                 self.active_fragment = ScreenState::ClusterOverview
             }
             _ => {}
-        }
-    }
-}
-
-impl Default for OverviewScreen {
-    fn default() -> Self {
-        OverviewScreen {
-            cluster_overview: Default::default(),
-            worker_overview: Default::default(),
-            active_fragment: ScreenState::ClusterOverview,
         }
     }
 }
