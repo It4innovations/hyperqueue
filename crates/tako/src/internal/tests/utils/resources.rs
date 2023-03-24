@@ -76,7 +76,7 @@ impl ResourceRequestBuilder {
         ResourceRequest::new(self.n_nodes, self.min_time, self.resources.into())
     }
 
-    pub fn finish_v(mut self) -> ResourceRequestVariants {
+    pub fn finish_v(self) -> ResourceRequestVariants {
         ResourceRequestVariants::new_simple(self.finish())
     }
 }
