@@ -3,14 +3,15 @@ use std::time::{Duration, SystemTime};
 use tako::gateway::MonitoringEventRequest;
 use tako::worker::WorkerConfiguration;
 use tako::worker::WorkerOverview;
-use tako::WrappedRcRefCell;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::dashboard::data::alloc_timeline::{
     AllocationInfo, AllocationQueueInfo, AllocationTimeline,
 };
 use crate::dashboard::data::job_timeline::{DashboardJobInfo, JobTimeline, TaskInfo};
+use crate::dashboard::events::DashboardEvent;
 use crate::server::autoalloc::{AllocationId, QueueId};
-use crate::server::event::MonitoringEvent;
+use crate::server::event::{MonitoringEvent, MonitoringEventId};
 use crate::transfer::connection::{ClientConnection, ClientSession};
 use crate::transfer::messages::{AllocationQueueParams, FromClientMessage, ToClientMessage};
 use crate::{rpc_call, JobId, JobTaskId, WorkerId};
@@ -21,8 +22,6 @@ pub mod worker_timeline;
 
 #[derive(Default)]
 pub struct DashboardData {
-    /// The event_id until which the data has already been fetched for
-    fetched_until: Option<u32>,
     /// Tracks worker connection and loss events
     worker_timeline: WorkerTimeline,
     /// Tracks job related events
@@ -32,19 +31,8 @@ pub struct DashboardData {
 }
 
 impl DashboardData {
-    pub fn last_fetched_id(&self) -> Option<u32> {
-        self.fetched_until
-    }
-
-    pub fn update_data(&mut self, mut events: Vec<MonitoringEvent>) {
+    pub fn push_new_events(&mut self, mut events: Vec<MonitoringEvent>) {
         events.sort_unstable_by_key(|e| e.time());
-
-        // Update maximum event ID
-        self.fetched_until = events
-            .iter()
-            .map(|event| event.id())
-            .max()
-            .or(self.fetched_until);
 
         // Update data views
         self.worker_timeline.handle_new_events(&events);
@@ -135,14 +123,22 @@ impl DashboardData {
 
 pub async fn create_data_fetch_process(
     refresh_interval: Duration,
-    data: WrappedRcRefCell<DashboardData>,
     mut session: ClientSession,
+    sender: UnboundedSender<DashboardEvent>,
 ) -> anyhow::Result<()> {
     let mut tick_duration = tokio::time::interval(refresh_interval);
+
+    let mut fetched_until: Option<MonitoringEventId> = None;
+
     loop {
-        let fetched_until = data.get().last_fetched_id();
         let events = fetch_events_after(session.connection(), fetched_until).await?;
-        data.get_mut().update_data(events);
+        fetched_until = events
+            .iter()
+            .map(|event| event.id())
+            .max()
+            .or(fetched_until);
+
+        sender.send(DashboardEvent::FetchedEvents(events))?;
         tick_duration.tick().await;
     }
 }
@@ -150,7 +146,7 @@ pub async fn create_data_fetch_process(
 /// Gets the events from the server after the event_id specified
 async fn fetch_events_after(
     connection: &mut ClientConnection,
-    after_id: Option<u32>,
+    after_id: Option<MonitoringEventId>,
 ) -> crate::Result<Vec<MonitoringEvent>> {
     rpc_call!(
         connection,

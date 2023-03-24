@@ -1,7 +1,7 @@
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::fragments::job::fragment::JobFragment;
-use crate::dashboard::ui::fragments::worker::fragment::WorkerOverviewFragment;
 use crate::dashboard::ui::screen::Screen;
+use crate::dashboard::ui::screens::overview_screen::worker::fragment::WorkerOverviewFragment;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use termion::event::Key;
 use tui::layout::Rect;

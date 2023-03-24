@@ -2,7 +2,7 @@ use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::screens::autoalloc_screen::AutoAllocScreen;
 use crate::dashboard::ui::screens::job_screen::JobScreen;
-use crate::dashboard::ui::screens::overview_screen::OverviewScreen;
+use crate::dashboard::ui::screens::overview_screen::WorkerOverviewScreen;
 use crate::dashboard::ui::terminal::{DashboardFrame, DashboardTerminal};
 use std::ops::ControlFlow;
 use termion::event::Key;
@@ -11,12 +11,13 @@ use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
 use tui::widgets::{Block, Borders, Tabs};
 
+#[derive(Default)]
 pub struct RootScreen {
-    cluster_overview_screen: OverviewScreen,
-    auto_allocator_screen: AutoAllocScreen,
     job_overview_screen: JobScreen,
+    worker_overview_screen: WorkerOverviewScreen,
+    auto_allocator_screen: AutoAllocScreen,
 
-    current_screen: DashboardScreenState,
+    current_screen: SelectedScreen,
 }
 
 pub struct RootChunks {
@@ -24,11 +25,12 @@ pub struct RootChunks {
     pub screen: Rect,
 }
 
-#[derive(Clone, Copy)]
-pub enum DashboardScreenState {
+#[derive(Clone, Copy, Default)]
+pub enum SelectedScreen {
+    #[default]
+    JobOverview,
     WorkerOverview,
     AutoAllocator,
-    JobOverview,
 }
 
 impl RootScreen {
@@ -39,12 +41,9 @@ impl RootScreen {
                 let screen = self.get_current_screen_mut();
                 screen.update(data);
 
-                render_screen_tabs(
-                    screen_state,
-                    get_root_screen_chunks(frame).screen_tabs,
-                    frame,
-                );
-                screen.draw(get_root_screen_chunks(frame).screen, frame);
+                let chunks = get_root_screen_chunks(frame);
+                render_screen_tabs(screen_state, chunks.screen_tabs, frame);
+                screen.draw(chunks.screen, frame);
             })
             .expect("An error occurred while drawing the dashboard");
     }
@@ -55,13 +54,13 @@ impl RootScreen {
         }
         match input {
             Key::Char('j') => {
-                self.current_screen = DashboardScreenState::JobOverview;
+                self.current_screen = SelectedScreen::JobOverview;
             }
             Key::Char('a') => {
-                self.current_screen = DashboardScreenState::AutoAllocator;
+                self.current_screen = SelectedScreen::AutoAllocator;
             }
             Key::Char('w') => {
-                self.current_screen = DashboardScreenState::WorkerOverview;
+                self.current_screen = SelectedScreen::WorkerOverview;
             }
 
             _ => {
@@ -73,9 +72,9 @@ impl RootScreen {
 
     fn get_current_screen_mut(&mut self) -> &mut dyn Screen {
         match self.current_screen {
-            DashboardScreenState::WorkerOverview => &mut self.cluster_overview_screen,
-            DashboardScreenState::AutoAllocator => &mut self.auto_allocator_screen,
-            DashboardScreenState::JobOverview => &mut self.job_overview_screen,
+            SelectedScreen::WorkerOverview => &mut self.worker_overview_screen,
+            SelectedScreen::AutoAllocator => &mut self.auto_allocator_screen,
+            SelectedScreen::JobOverview => &mut self.job_overview_screen,
         }
     }
 }
@@ -93,11 +92,7 @@ pub fn get_root_screen_chunks(frame: &DashboardFrame) -> RootChunks {
 }
 
 /// Renders the top `tab bar` of the dashboard.
-pub fn render_screen_tabs(
-    current_screen: DashboardScreenState,
-    rect: Rect,
-    frame: &mut DashboardFrame,
-) {
+pub fn render_screen_tabs(current_screen: SelectedScreen, rect: Rect, frame: &mut DashboardFrame) {
     let screen_names = vec!["Jobs", "AutoAllocator", "Workers"];
     let screen_titles = screen_names
         .iter()
@@ -111,9 +106,9 @@ pub fn render_screen_tabs(
         .collect();
 
     let selected_screen = match current_screen {
-        DashboardScreenState::JobOverview => 0,
-        DashboardScreenState::AutoAllocator => 1,
-        DashboardScreenState::WorkerOverview => 2,
+        SelectedScreen::JobOverview => 0,
+        SelectedScreen::AutoAllocator => 1,
+        SelectedScreen::WorkerOverview => 2,
     };
 
     let screen_tabs = Tabs::new(screen_titles)
@@ -128,15 +123,4 @@ pub fn render_screen_tabs(
         );
 
     frame.render_widget(screen_tabs, rect);
-}
-
-impl Default for RootScreen {
-    fn default() -> Self {
-        RootScreen {
-            cluster_overview_screen: Default::default(),
-            auto_allocator_screen: Default::default(),
-            job_overview_screen: Default::default(),
-            current_screen: DashboardScreenState::JobOverview,
-        }
-    }
 }

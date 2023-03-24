@@ -9,7 +9,12 @@ pub fn calculate_memory_usage_percent(memory_stats: &MemoryStats) -> u64 {
 }
 
 pub fn get_average_cpu_usage_for_worker(hw_state: &WorkerHwStateMessage) -> f32 {
-    let num_cpus = hw_state.state.cpu_usage.cpu_per_core_percent_usage.len();
+    let num_cpus = hw_state
+        .state
+        .cpu_usage
+        .cpu_per_core_percent_usage
+        .len()
+        .max(1);
     let cpu_usage_sum_per_core = hw_state
         .state
         .cpu_usage
