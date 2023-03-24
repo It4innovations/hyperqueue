@@ -4,6 +4,7 @@ use psutil::cpu::CpuPercentCollector;
 use psutil::network::NetIoCountersCollector;
 use std::time::SystemTime;
 
+mod amd;
 mod nvidia;
 
 #[derive(Debug)]
@@ -44,6 +45,17 @@ impl HwSampler {
         } else {
             None
         };
+        let amd_gpus = if self.gpu_families.contains(&GpuFamily::Amd) {
+            match amd::get_amd_gpu_state() {
+                Ok(state) => Some(state),
+                Err(error) => {
+                    log::error!("Failed to fetch AMD GPU state: {error:?}");
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
         Ok(WorkerHwState {
             cpu_usage: CpuStats {
@@ -62,6 +74,7 @@ impl HwSampler {
                 tx_errors: net_io_counters.err_out(),
             },
             nvidia_gpus,
+            amd_gpus,
             timestamp,
         })
     }

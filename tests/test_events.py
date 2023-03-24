@@ -90,10 +90,61 @@ print("BUS1, 10.0 %, 100 MiB, 200 MiB")
         {
             "gpus": [
                 {
-                    "id": str,
+                    "id": "BUS1",
                     "processor_usage": 10.0,
                     "mem_usage": 50.0,
                 }
+            ]
+        }
+    )
+    schema.validate(event)
+
+
+def test_worker_capture_amd_gpu_state(hq_env: HqEnv):
+    def body():
+        with hq_env.mock.mock_program_with_code(
+            "rocm-smi",
+            """
+import json
+
+data = {
+    "card0": {
+        "GPU use (%)": "1.5",
+        "GPU memory use (%)": "12.5",
+        "PCI Bus": "FOOBAR1"
+    },
+    "card1": {
+        "GPU use (%)": "12.5",
+        "GPU memory use (%)": "64.0",
+        "PCI Bus": "FOOBAR2"
+    }
+}
+print(json.dumps(data))
+""",
+        ):
+            hq_env.start_worker(
+                args=["--overview-interval", "10ms", "--resource", "gpus/amd=[0]"]
+            )
+            wait_for_worker_state(hq_env, 1, "RUNNING")
+            time.sleep(0.2)
+            hq_env.command(["worker", "stop", "1"])
+
+    events = get_events(hq_env, body)
+    event = find_events(events, "worker-overview")[0]
+    event = event["hw-state"]["state"]["amd_gpus"]
+    schema = Schema(
+        {
+            "gpus": [
+                {
+                    "id": "FOOBAR1",
+                    "processor_usage": 1.5,
+                    "mem_usage": 12.5,
+                },
+                {
+                    "id": "FOOBAR2",
+                    "processor_usage": 12.5,
+                    "mem_usage": 64.0,
+                },
             ]
         }
     )

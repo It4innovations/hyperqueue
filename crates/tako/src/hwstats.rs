@@ -39,6 +39,7 @@ pub struct WorkerHwState {
     pub memory_usage: MemoryStats,
     pub network_usage: NetworkStats,
     pub nvidia_gpus: Option<GpuCollectionStats>,
+    pub amd_gpus: Option<GpuCollectionStats>,
     pub timestamp: u64,
 }
 
