@@ -199,6 +199,7 @@ pub enum SubCommand {
     /// Event log management
     EventLog(EventLogOpts),
     /// Commands for the dashboard
+    #[cfg(feature = "dashboard")]
     Dashboard(DashboardOpts),
     /// Generate shell completion script
     GenerateCompletion(GenerateCompletionOpts),
