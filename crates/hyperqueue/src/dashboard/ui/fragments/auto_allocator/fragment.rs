@@ -8,7 +8,7 @@ use crate::dashboard::ui::styles::{
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
 
-use crate::dashboard::data::alloc_timeline::AllocationQueueInfo;
+use crate::dashboard::data::timelines::alloc_timeline::AllocationQueueInfo;
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::fragments::auto_allocator::alloc_timeline_chart::AllocationsChart;
 use crate::dashboard::ui::fragments::auto_allocator::allocations_info_table::AllocationInfoTable;

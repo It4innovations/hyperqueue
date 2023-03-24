@@ -1,4 +1,4 @@
-use crate::dashboard::data::job_timeline::DashboardTaskState;
+use crate::dashboard::data::timelines::job_timeline::DashboardTaskState;
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::chart::{ChartPlotter, DashboardChart, PlotStyle};

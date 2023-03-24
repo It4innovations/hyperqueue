@@ -1,4 +1,4 @@
-use crate::dashboard::data::job_timeline::DashboardJobInfo;
+use crate::dashboard::data::timelines::job_timeline::DashboardJobInfo;
 use crate::dashboard::ui::styles::table_style_deselected;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};

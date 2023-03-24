@@ -33,13 +33,13 @@ impl ClusterOverviewChart {
             start += Duration::from_secs(1);
         }
 
-        self.worker_records = times
-            .into_iter()
-            .map(|time| WorkerCountRecord {
-                time,
-                count: data.query_connected_worker_ids(time).count(),
-            })
-            .collect();
+        /*self.worker_records = times
+        .into_iter()
+        .map(|time| WorkerCountRecord {
+            time,
+            count: data.query_connected_worker_ids(time).count(),
+        })
+        .collect();*/
     }
 
     pub fn draw(&mut self, rect: Rect, frame: &mut DashboardFrame) {

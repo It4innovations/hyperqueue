@@ -1,4 +1,4 @@
-use crate::dashboard::data::alloc_timeline::AllocationQueueInfo;
+use crate::dashboard::data::timelines::alloc_timeline::AllocationQueueInfo;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::server::autoalloc::QueueId;

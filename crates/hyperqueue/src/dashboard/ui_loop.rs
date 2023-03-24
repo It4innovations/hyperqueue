@@ -9,7 +9,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Duration;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::dashboard::data;
+use crate::dashboard::data::create_data_fetch_process;
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::events::DashboardEvent;
 use crate::dashboard::ui::screens::root_screen::RootScreen;
@@ -35,8 +35,7 @@ pub async fn start_ui_loop(gsettings: &GlobalSettings) -> anyhow::Result<()> {
         tx.clone(),
         DashboardEvent::UiTick,
     );
-    let data_fetch_process =
-        data::create_data_fetch_process(Duration::from_secs(1), connection, tx);
+    let data_fetch_process = create_data_fetch_process(Duration::from_secs(1), connection, tx);
 
     let mut terminal = initialize_terminal()?;
 

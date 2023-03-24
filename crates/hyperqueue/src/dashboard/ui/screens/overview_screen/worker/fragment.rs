@@ -1,4 +1,3 @@
-use std::time::SystemTime;
 use termion::event::Key;
 
 use crate::dashboard::ui::styles::{
@@ -7,11 +6,12 @@ use crate::dashboard::ui::styles::{
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
 
-use crate::dashboard::data::job_timeline::TaskInfo;
+use crate::dashboard::data::timelines::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::screens::overview_screen::worker::cpu_util_table::{
     get_column_constraints, render_cpu_util_table,
 };
+use crate::dashboard::ui::screens::overview_screen::worker::utilization_chart::WorkerUtilizationChart;
 use crate::dashboard::ui::screens::overview_screen::worker::worker_config_table::WorkerConfigTable;
 use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 use crate::JobTaskId;
@@ -22,10 +22,11 @@ use tui::layout::{Constraint, Direction, Layout, Rect};
 pub struct WorkerOverviewFragment {
     /// The worker info screen shows data for this worker
     worker_id: Option<WorkerId>,
-    worker_info_table: WorkerConfigTable,
+    utilization_history: WorkerUtilizationChart,
+    worker_config_table: WorkerConfigTable,
     worker_tasks_table: TasksTable,
 
-    worker_per_core_cpu_util: Vec<f32>,
+    worker_per_core_cpu_util: Vec<f64>,
 }
 
 impl WorkerOverviewFragment {
@@ -47,56 +48,55 @@ impl WorkerOverviewFragment {
                 self.worker_id.unwrap_or_default().as_num()
             )
             .as_str(),
-            layout.header_chunk,
+            layout.header,
             frame,
             style_header_text(),
         );
-        draw_text(
-            "<backspace>: Back",
-            layout.footer_chunk,
-            frame,
-            style_footer(),
-        );
+        draw_text("<backspace>: Back", layout.footer, frame, style_footer());
 
         let cpu_usage_columns = get_column_constraints(
-            layout.worker_util_chunk,
+            layout.current_utilization,
             self.worker_per_core_cpu_util.len(),
         );
         render_cpu_util_table(
             &self.worker_per_core_cpu_util,
-            layout.worker_util_chunk,
+            layout.current_utilization,
             frame,
             &cpu_usage_columns,
             table_style_deselected(),
         );
 
+        self.utilization_history
+            .draw(layout.utilization_history, frame);
+
         self.worker_tasks_table.draw(
             "Tasks On Worker",
-            layout.tasks_table_chunk,
+            layout.tasks,
             frame,
             table_style_selected(),
         );
-        self.worker_info_table
-            .draw(layout.worker_info_table_chunk, frame);
+        self.worker_config_table.draw(layout.configuration, frame);
     }
 
     pub fn update(&mut self, data: &DashboardData) {
         if let Some(worker_id) = self.worker_id {
-            // Update CPU Util table.
+            self.utilization_history.update(data, worker_id);
+
             if let Some(cpu_util) = data
-                .query_worker_overview_at(worker_id, SystemTime::now())
-                .and_then(|overview| overview.hw_state.as_ref())
+                .workers()
+                .get_worker_overview_at(worker_id, data.current_time())
+                .and_then(|overview| overview.item.hw_state.as_ref())
                 .map(|hw_state| &hw_state.state.cpu_usage.cpu_per_core_percent_usage)
             {
-                self.worker_per_core_cpu_util = cpu_util.clone()
+                self.worker_per_core_cpu_util = cpu_util.into_iter().map(|&v| v as f64).collect();
             }
-            // Update Tasks Table
+
             let tasks_info: Vec<(JobTaskId, &TaskInfo)> =
                 data.query_task_history_for_worker(worker_id).collect();
             self.worker_tasks_table.update(tasks_info);
-            // Update Worker Configuration Information
-            if let Some(configuration) = data.query_worker_info_for(&worker_id) {
-                self.worker_info_table.update(configuration);
+
+            if let Some(configuration) = data.workers().get_worker_config_for(&worker_id) {
+                self.worker_config_table.update(configuration);
             }
         }
     }
@@ -124,16 +124,17 @@ impl WorkerOverviewFragment {
    |-----------------------|
  **/
 struct WorkerFragmentLayout {
-    header_chunk: Rect,
-    tasks_table_chunk: Rect,
-    worker_util_chunk: Rect,
-    worker_info_table_chunk: Rect,
-    footer_chunk: Rect,
+    header: Rect,
+    utilization_history: Rect,
+    current_utilization: Rect,
+    tasks: Rect,
+    configuration: Rect,
+    footer: Rect,
 }
 
 impl WorkerFragmentLayout {
     fn new(rect: &Rect) -> Self {
-        let base_chunks = tui::layout::Layout::default()
+        let base_chunks = Layout::default()
             .constraints(vec![
                 Constraint::Percentage(5),
                 Constraint::Percentage(50),
@@ -143,18 +144,23 @@ impl WorkerFragmentLayout {
             .direction(Direction::Vertical)
             .split(*rect);
 
-        let info_chunks = Layout::default()
-            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
+        let utilization_chunks = Layout::default()
+            .constraints(vec![Constraint::Percentage(40), Constraint::Percentage(60)])
             .direction(Direction::Horizontal)
-            .margin(0)
             .split(base_chunks[1]);
 
+        let bottom_chunks = Layout::default()
+            .constraints(vec![Constraint::Percentage(70), Constraint::Percentage(30)])
+            .direction(Direction::Horizontal)
+            .split(base_chunks[2]);
+
         Self {
-            header_chunk: base_chunks[0],
-            worker_util_chunk: info_chunks[0],
-            worker_info_table_chunk: info_chunks[1],
-            tasks_table_chunk: base_chunks[2],
-            footer_chunk: base_chunks[3],
+            header: base_chunks[0],
+            utilization_history: utilization_chunks[0],
+            current_utilization: utilization_chunks[1],
+            tasks: bottom_chunks[0],
+            configuration: bottom_chunks[1],
+            footer: base_chunks[3],
         }
     }
 }

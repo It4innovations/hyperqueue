@@ -12,13 +12,13 @@ use crate::dashboard::ui::widgets::progressbar::{
 const CPU_METER_LEN: u8 = 18;
 
 pub fn render_cpu_util_table(
-    cpu_util_list: &[f32],
+    cpu_util_list: &[f64],
     rect: Rect,
     frame: &mut DashboardFrame,
     constraints: &[Constraint],
     table_style: Style,
 ) {
-    let indexed_util: Vec<(&f32, i32)> = cpu_util_list.iter().zip(1..).collect();
+    let indexed_util: Vec<(&f64, i32)> = cpu_util_list.iter().zip(1..).collect();
     let rows: Vec<Row> = indexed_util
         .chunks(constraints.len())
         .map(|cpu_util_row| {
@@ -44,7 +44,7 @@ pub fn render_cpu_util_table(
         .copied()
         .reduce(|cpu_a, cpu_b| (cpu_a + cpu_b))
         .unwrap_or(0.0)
-        / cpu_util_list.len() as f32;
+        / cpu_util_list.len() as f64;
     let avg_progressbar = render_progress_bar_at(
         None,
         avg_prog / 100.00,

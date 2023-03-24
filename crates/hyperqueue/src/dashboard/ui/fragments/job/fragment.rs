@@ -8,7 +8,7 @@ use crate::dashboard::ui::styles::{
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
 
-use crate::dashboard::data::job_timeline::TaskInfo;
+use crate::dashboard::data::timelines::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
 
 use crate::dashboard::ui::fragments::job::jobs_table::JobsTable;

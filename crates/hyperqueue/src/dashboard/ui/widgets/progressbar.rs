@@ -1,7 +1,7 @@
 use tui::style::{Color, Modifier, Style};
 
-const GREEN_THRESHOLD: f32 = 0.5;
-const YELLOW_THRESHOLD: f32 = 0.7;
+const GREEN_THRESHOLD: f64 = 0.5;
+const YELLOW_THRESHOLD: f64 = 0.7;
 
 /**
  *   Progress bar's structure: [StartBlock]<>[indicator][][]<>[][][][unused_area]<>[end_block]
@@ -17,7 +17,7 @@ pub struct ProgressPrintStyle {
     end_block: char,
 }
 
-pub fn get_progress_bar_color(progress: f32) -> Style {
+pub fn get_progress_bar_color(progress: f64) -> Style {
     let color = if progress <= GREEN_THRESHOLD {
         Color::Green
     } else if progress <= YELLOW_THRESHOLD {
@@ -39,7 +39,7 @@ pub fn get_progress_bar_color(progress: f32) -> Style {
  */
 pub fn render_progress_bar_at(
     label: Option<String>,
-    progress: f32,
+    progress: f64,
     num_characters: u8,
     style: ProgressPrintStyle,
 ) -> String {
@@ -47,7 +47,7 @@ pub fn render_progress_bar_at(
     let label = label.unwrap_or_default();
     //to keep the length of the progressbar correct after the padding and %usage label
     let num_characters = num_characters - 8 - label.len() as u8;
-    let indicator_count = (progress * (num_characters as f32)).ceil();
+    let indicator_count = (progress * (num_characters as f64)).ceil();
     let start_block = style.start_block;
     let indicator = std::iter::repeat(style.indicator)
         .take(indicator_count as usize)

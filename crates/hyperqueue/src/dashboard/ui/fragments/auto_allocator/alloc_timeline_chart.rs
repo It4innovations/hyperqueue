@@ -4,7 +4,7 @@ use tako::Map;
 use tui::layout::Rect;
 use tui::widgets::canvas::{Canvas, Context, Painter, Shape};
 
-use crate::dashboard::data::alloc_timeline::{get_allocation_status, AllocationStatus};
+use crate::dashboard::data::timelines::alloc_timeline::{get_allocation_status, AllocationStatus};
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::server::autoalloc::{AllocationId, QueueId};
