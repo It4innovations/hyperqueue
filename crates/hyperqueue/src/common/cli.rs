@@ -212,6 +212,7 @@ pub struct WorkerOpts {
     pub subcmd: WorkerCommand,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Parser)]
 pub enum WorkerCommand {
     /// Start worker

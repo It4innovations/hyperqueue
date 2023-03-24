@@ -404,14 +404,14 @@ async fn send_overview_loop(
 
     let OverviewConfiguration {
         send_interval,
-        gpu_families: _,
+        gpu_families,
     } = configuration;
 
     // Fetching the HW state performs blocking I/O, therefore we should do it in a separate thread.
     // tokio::task::spawn_blocking is not used because it would need mutable access to a sampler,
     // which shouldn't be created again and again.
     std::thread::spawn(move || -> crate::Result<()> {
-        let mut sampler = HwSampler::init()?;
+        let mut sampler = HwSampler::init(gpu_families)?;
         loop {
             std::thread::sleep(send_interval);
             let hw_state = sampler.fetch_hw_state()?;

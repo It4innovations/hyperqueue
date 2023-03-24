@@ -10,6 +10,7 @@ use tako::worker::{ServerLostPolicy, WorkerConfiguration};
 use tako::{Map, Set};
 
 use clap::Parser;
+use tako::hwstats::GpuFamily;
 use tako::internal::worker::configuration::OverviewConfiguration;
 use tempdir::TempDir;
 use tokio::time::sleep;
@@ -27,7 +28,9 @@ use crate::transfer::messages::{
 use crate::worker::bootstrap::{
     finalize_configuration, initialize_worker, try_get_pbs_info, try_get_slurm_info,
 };
-use crate::worker::hwdetect::{detect_additional_resources, detect_cpus, prune_hyper_threading};
+use crate::worker::hwdetect::{
+    detect_additional_resources, detect_cpus, prune_hyper_threading, GPU_ENVIRONMENTS,
+};
 use crate::worker::parser::{parse_cpu_definition, parse_resource_definition};
 use crate::WorkerId;
 use crate::{rpc_call, DEFAULT_WORKER_GROUP_NAME};
@@ -202,6 +205,22 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
     let mut gpu_families = Set::new();
     if !no_detect_resources {
         gpu_families = detect_additional_resources(&mut resources)?;
+    }
+    for gpu_environment in GPU_ENVIRONMENTS {
+        if resources
+            .iter()
+            .any(|r| r.name == gpu_environment.resource_name)
+            && gpu_families.insert(gpu_environment.family)
+        {
+            log::info!(
+                "Observing {} GPU usage because of manually passed resource `{}`",
+                match gpu_environment.family {
+                    GpuFamily::Nvidia => "nvidia",
+                    GpuFamily::Amd => "amd",
+                },
+                gpu_environment.resource_name
+            );
+        }
     }
 
     let resources = ResourceDescriptor::new(resources);

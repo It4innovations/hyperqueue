@@ -1,19 +1,24 @@
-use crate::hwstats::{CpuStats, MemoryStats, NetworkStats, WorkerHwState};
+use crate::hwstats::{CpuStats, GpuFamily, MemoryStats, NetworkStats, WorkerHwState};
+use crate::Set;
 use psutil::cpu::CpuPercentCollector;
 use psutil::network::NetIoCountersCollector;
 use std::time::SystemTime;
 
-#[derive(Debug, Clone)]
+mod nvidia;
+
+#[derive(Debug)]
 pub(crate) struct HwSampler {
     cpu_percent_collector: CpuPercentCollector,
     net_io_counters_collector: NetIoCountersCollector,
+    gpu_families: Set<GpuFamily>,
 }
 
 impl HwSampler {
-    pub fn init() -> Result<Self, psutil::Error> {
+    pub fn init(gpu_families: Set<GpuFamily>) -> Result<Self, psutil::Error> {
         Ok(Self {
             cpu_percent_collector: CpuPercentCollector::new()?,
             net_io_counters_collector: Default::default(),
+            gpu_families,
         })
     }
     pub fn fetch_hw_state(&mut self) -> Result<WorkerHwState, psutil::Error> {
@@ -27,6 +32,19 @@ impl HwSampler {
                 log::warn!("unable to read time on worker: {:?}", err)
             }
         }
+
+        let nvidia_gpus = if self.gpu_families.contains(&GpuFamily::Nvidia) {
+            match nvidia::get_nvidia_gpu_state() {
+                Ok(state) => Some(state),
+                Err(error) => {
+                    log::error!("Failed to fetch NVIDIA GPU state: {error:?}");
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         Ok(WorkerHwState {
             cpu_usage: CpuStats {
                 cpu_per_core_percent_usage: cpu_usage,
@@ -43,7 +61,7 @@ impl HwSampler {
                 rx_errors: net_io_counters.err_in(),
                 tx_errors: net_io_counters.err_out(),
             },
-            nvidia_gpus: None,
+            nvidia_gpus,
             timestamp,
         })
     }

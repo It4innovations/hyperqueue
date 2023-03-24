@@ -3,9 +3,9 @@ import time
 from typing import List
 
 from schema import Schema
-from utils import wait_for_worker_state
 
 from .conftest import HqEnv
+from .utils import wait_for_worker_state
 
 
 def test_worker_connected_event(hq_env: HqEnv):
@@ -50,7 +50,8 @@ def test_worker_send_overview(hq_env: HqEnv):
                 "tx_errors": int,
                 "tx_packets": int,
             },
-        }
+        },
+        ignore_extra_keys=True,
     )
     schema.validate(hw_state)
 
@@ -65,6 +66,38 @@ def test_worker_disable_overview(hq_env: HqEnv):
     events = get_events(hq_env, body)
     events = find_events(events, "worker-overview")
     assert len(events) == 0
+
+
+def test_worker_capture_nvidia_gpu_state(hq_env: HqEnv):
+    def body():
+        with hq_env.mock.mock_program_with_code(
+            "nvidia-smi",
+            """
+print("BUS1, 10.0 %, 100 MiB, 200 MiB")
+""",
+        ):
+            hq_env.start_worker(
+                args=["--overview-interval", "10ms", "--resource", "gpus/nvidia=[0]"]
+            )
+            wait_for_worker_state(hq_env, 1, "RUNNING")
+            time.sleep(0.2)
+            hq_env.command(["worker", "stop", "1"])
+
+    events = get_events(hq_env, body)
+    event = find_events(events, "worker-overview")[0]
+    event = event["hw-state"]["state"]["nvidia_gpus"]
+    schema = Schema(
+        {
+            "gpus": [
+                {
+                    "id": str,
+                    "processor_usage": 10.0,
+                    "mem_usage": 50.0,
+                }
+            ]
+        }
+    )
+    schema.validate(event)
 
 
 def find_events(events, type: str) -> List:
