@@ -3,13 +3,16 @@ use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::screens::autoalloc_screen::AutoAllocScreen;
 use crate::dashboard::ui::screens::job_screen::JobScreen;
 use crate::dashboard::ui::screens::overview_screen::WorkerOverviewScreen;
-use crate::dashboard::ui::terminal::{DashboardFrame, DashboardTerminal};
+use crate::dashboard::ui::terminal::{Backend, DashboardFrame, DashboardTerminal};
+use crate::dashboard::ui::widgets::text::draw_text;
+use chrono::{Local, SecondsFormat};
 use std::ops::ControlFlow;
 use termion::event::Key;
-use tui::layout::{Constraint, Direction, Layout, Rect};
+use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
-use tui::widgets::{Block, Borders, Tabs};
+use tui::widgets::{Block, Borders, Paragraph, Tabs, Wrap};
+use tui::Frame;
 
 #[derive(Default)]
 pub struct RootScreen {
@@ -22,6 +25,7 @@ pub struct RootScreen {
 
 pub struct RootChunks {
     pub screen_tabs: Rect,
+    pub timeline: Rect,
     pub screen: Rect,
 }
 
@@ -43,6 +47,7 @@ impl RootScreen {
 
                 let chunks = get_root_screen_chunks(frame);
                 render_screen_tabs(screen_state, chunks.screen_tabs, frame);
+                render_timeline(data, chunks.timeline, frame);
                 screen.draw(chunks.screen, frame);
             })
             .expect("An error occurred while drawing the dashboard");
@@ -85,9 +90,18 @@ pub fn get_root_screen_chunks(frame: &DashboardFrame) -> RootChunks {
         .direction(Direction::Vertical)
         .split(frame.size());
 
+    let top = root_screen_chunks[0];
+    let screen = root_screen_chunks[1];
+
+    let top_chunks = Layout::default()
+        .constraints(vec![Constraint::Percentage(80), Constraint::Percentage(20)])
+        .direction(Direction::Horizontal)
+        .split(top);
+
     RootChunks {
-        screen_tabs: root_screen_chunks[0],
-        screen: root_screen_chunks[1],
+        screen_tabs: top_chunks[0],
+        timeline: top_chunks[1],
+        screen,
     }
 }
 
@@ -123,4 +137,20 @@ pub fn render_screen_tabs(current_screen: SelectedScreen, rect: Rect, frame: &mu
         );
 
     frame.render_widget(screen_tabs, rect);
+}
+
+fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame<Backend>) {
+    let range = data.current_time_range();
+    let start: chrono::DateTime<Local> = range.start.into();
+    let end: chrono::DateTime<Local> = range.end.into();
+
+    const FORMAT: &str = "%d.%m. %H:%M:%S";
+
+    let formatted = format!("{} - {}", start.format(FORMAT), end.format(FORMAT));
+    let paragraph = Paragraph::new(vec![Spans::from(formatted)])
+        .style(Style::default())
+        .block(Block::default())
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
+    frame.render_widget(paragraph, rect);
 }

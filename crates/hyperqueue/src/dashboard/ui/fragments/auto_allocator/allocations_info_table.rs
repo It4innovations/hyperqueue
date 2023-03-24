@@ -1,4 +1,4 @@
-use crate::dashboard::data::alloc_timeline::{
+use crate::dashboard::data::timelines::alloc_timeline::{
     get_allocation_status, AllocationInfo, AllocationStatus,
 };
 use crate::dashboard::ui::terminal::DashboardFrame;

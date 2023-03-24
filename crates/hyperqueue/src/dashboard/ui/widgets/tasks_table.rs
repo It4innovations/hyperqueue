@@ -1,5 +1,5 @@
 use crate::common::format::human_duration;
-use crate::dashboard::data::job_timeline::{DashboardTaskState, TaskInfo};
+use crate::dashboard::data::timelines::job_timeline::{DashboardTaskState, TaskInfo};
 
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};

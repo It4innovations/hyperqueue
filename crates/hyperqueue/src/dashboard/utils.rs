@@ -1,6 +1,6 @@
 use tako::hwstats::{MemoryStats, WorkerHwStateMessage};
 
-pub fn calculate_memory_usage_percent(memory_stats: &MemoryStats) -> u64 {
+pub fn get_memory_usage_pct(memory_stats: &MemoryStats) -> u64 {
     if memory_stats.total == 0 {
         return 0;
     }
@@ -8,7 +8,7 @@ pub fn calculate_memory_usage_percent(memory_stats: &MemoryStats) -> u64 {
         as u64
 }
 
-pub fn get_average_cpu_usage_for_worker(hw_state: &WorkerHwStateMessage) -> f32 {
+pub fn get_average_cpu_usage_for_worker(hw_state: &WorkerHwStateMessage) -> f64 {
     let num_cpus = hw_state
         .state
         .cpu_usage
@@ -22,6 +22,10 @@ pub fn get_average_cpu_usage_for_worker(hw_state: &WorkerHwStateMessage) -> f32 
         .iter()
         .copied()
         .reduce(|cpu_a, cpu_b| (cpu_a + cpu_b))
-        .unwrap_or(0.0);
-    cpu_usage_sum_per_core / num_cpus as f32
+        .unwrap_or(0.0) as f64;
+    cpu_usage_sum_per_core / num_cpus as f64
+}
+
+pub fn calculate_average(items: &[f64]) -> f64 {
+    items.iter().sum::<f64>() / (items.len().max(1)) as f64
 }
