@@ -38,7 +38,7 @@ pub enum FromClientMessage {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum PinMode {
-    #[serde(rename = "name")]
+    #[serde(rename = "none")]
     None,
     #[serde(rename = "taskset")]
     TaskSet,

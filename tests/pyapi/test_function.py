@@ -133,3 +133,19 @@ def test_function_name_in_exception(hq_env: HqEnv):
 
     with pytest.raises(FailedJobsException, match="foo_bar_baz"):
         client.wait_for_jobs([job_id])
+
+
+def test_function_resource_variants(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+
+    def foo():
+        pass
+
+    job.function(
+        foo,
+        resources=[ResourceRequest(cpus=2), ResourceRequest(cpus=1, resources={"gpus": 2})]
+    )
+    submitted_job = client.submit(job)
+
+    table = hq_env.command(["task", "info", str(submitted_job.id), "0"], as_table=True)
+    table.check_row_value("Resources", "# Variant 1\ncpus: 2 compact\n# Variant 2\ncpus: 1 compact\ngpus: 2 compact")

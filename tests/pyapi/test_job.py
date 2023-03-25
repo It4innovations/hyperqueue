@@ -247,3 +247,16 @@ def test_priority_task(hq_env: HqEnv):
 
     table = hq_env.command(["task", "info", str(submitted_job.id), "0"], as_table=True)
     table.check_row_value("Priority", "2")
+
+
+def test_resource_variants(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+
+    job.program(
+        args=bash("echo Hello"),
+        resources=[ResourceRequest(cpus=2), ResourceRequest(cpus=1, resources={"gpus": 2})]
+    )
+    submitted_job = client.submit(job)
+
+    table = hq_env.command(["task", "info", str(submitted_job.id), "0"], as_table=True)
+    table.check_row_value("Resources", "# Variant 1\ncpus: 2 compact\n# Variant 2\ncpus: 1 compact\ngpus: 2 compact")

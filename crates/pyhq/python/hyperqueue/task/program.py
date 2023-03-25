@@ -5,7 +5,7 @@ from ..ffi import TaskId
 from ..ffi.protocol import ResourceRequest, TaskDescription
 from ..output import Output, gather_outputs
 from ..validation import ValidationException, validate_args
-from .task import EnvType, Task
+from .task import EnvType, Task, _make_ffi_requests
 
 ProgramArgs = Union[List[str], str]
 
@@ -69,7 +69,7 @@ class ExternalProgram(Task):
             dependencies=depends_on,
             task_dir=self.task_dir,
             priority=self.priority,
-            resource_request=self.resources,
+            resource_request=_make_ffi_requests(self.resources),
         )
 
     def __getitem__(self, key: str):

@@ -35,7 +35,7 @@ class TaskDescription:
     dependencies: Sequence[int]
     task_dir: bool
     priority: int
-    resource_request: Optional[ResourceRequest]
+    resource_request: Sequence[ResourceRequest]
 
 
 @dataclasses.dataclass

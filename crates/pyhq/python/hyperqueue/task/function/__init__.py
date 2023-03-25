@@ -1,12 +1,12 @@
 import logging
 import os
 import pickle
-from typing import Callable, Optional
+from typing import Callable, Optional, Sequence
 
 from ...common import GenericPath
 from ...ffi import TaskId
 from ...ffi.protocol import ResourceRequest, TaskDescription
-from ..task import EnvType, Task
+from ..task import EnvType, Task, _make_ffi_requests
 from .wrapper import CloudWrapper
 
 _CLOUDWRAPPER_CACHE = {}
@@ -91,7 +91,7 @@ class PythonFunction(Task):
         name: Optional[str] = None,
         dependencies=(),
         priority: int = 0,
-        resources: Optional[ResourceRequest] = None,
+        resources: Optional[ResourceRequest] | Sequence[ResourceRequest] = None,
     ):
         name = generate_task_name(task_id, name, fn)
         super().__init__(
@@ -129,7 +129,7 @@ class PythonFunction(Task):
             dependencies=depends_on,
             task_dir=True,
             priority=self.priority,
-            resource_request=self.resources,
+            resource_request=_make_ffi_requests(self.resources),
         )
 
     def __repr__(self):
