@@ -120,10 +120,10 @@ JOB_DETAIL_SCHEMA = {
         "task_count": 1,
         "task_stats": dict,
     },
-    "resources": dict,
+    "resources": list[dict],
     "finished_at": None,
     "max_fails": None,
-    "pin_mode": "None",
+    "pin_mode": "none",
     "priority": 0,
     "program": {
         "args": ["echo", "tt"],

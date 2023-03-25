@@ -16,7 +16,7 @@ use pyo3::{IntoPy, PyAny, PyResult, Python};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tako::gateway::{ResourceRequestEntries, ResourceRequestEntry};
+use tako::gateway::{ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants};
 use tako::program::{ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
 
@@ -47,7 +47,7 @@ pub struct TaskDescription {
     dependencies: Vec<u32>,
     task_dir: bool,
     priority: tako::Priority,
-    resource_request: Option<ResourceRequestDescription>,
+    resource_request: Vec<ResourceRequestDescription>,
 }
 
 #[derive(Debug, FromPyObject)]
@@ -110,26 +110,35 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
     let stdin = desc.stdin.unwrap_or_default();
     let cwd = desc.cwd.unwrap_or_else(|| submit_dir.to_path_buf());
 
-    let resources = if let Some(rs) = desc.resource_request {
-        tako::gateway::ResourceRequest {
-            n_nodes: rs.n_nodes,
-            resources: rs
-                .resources
+    let resources = if !desc.resource_request.is_empty() {
+        ResourceRequestVariants::new(
+            desc.resource_request
                 .into_iter()
-                .map(|(resource, alloc)| {
-                    Ok(ResourceRequestEntry {
-                        resource,
-                        policy: match alloc {
-                            AllocationValue::Int(value) => {
-                                AllocationRequest::Compact(value as ResourceAmount)
-                            }
-                            AllocationValue::String(str) => parse_allocation_request(&str)?,
-                        },
+                .map(|rq| {
+                    anyhow::Ok(tako::gateway::ResourceRequest {
+                        n_nodes: rq.n_nodes,
+                        resources: rq
+                            .resources
+                            .into_iter()
+                            .map(|(resource, alloc)| {
+                                Ok(ResourceRequestEntry {
+                                    resource,
+                                    policy: match alloc {
+                                        AllocationValue::Int(value) => {
+                                            AllocationRequest::Compact(value as ResourceAmount)
+                                        }
+                                        AllocationValue::String(str) => {
+                                            parse_allocation_request(&str)?
+                                        }
+                                    },
+                                })
+                            })
+                            .collect::<anyhow::Result<ResourceRequestEntries>>()?,
+                        min_time: Default::default(),
                     })
                 })
-                .collect::<anyhow::Result<ResourceRequestEntries>>()?,
-            min_time: Default::default(),
-        }
+                .collect::<anyhow::Result<_>>()?,
+        )
     } else {
         Default::default()
     };
