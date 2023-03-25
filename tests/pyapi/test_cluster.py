@@ -1,5 +1,4 @@
 import pytest
-
 from hyperqueue.cluster import LocalCluster, WorkerConfig
 from hyperqueue.job import Job
 

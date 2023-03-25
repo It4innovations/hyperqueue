@@ -329,8 +329,6 @@ fn build_tasks_graph(
     let mut shared_data_map =
         Map::<(Cow<ResourceRequestVariants>, Option<Duration>, Priority), usize>::new();
     let mut allocate_shared_data = |task: TaskDescription| -> u32 {
-        dbg!(&shared_data_map);
-        dbg!(&task.resources);
         shared_data_map
             .get(&(
                 Cow::Borrowed(&task.resources),
