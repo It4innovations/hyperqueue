@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Sequence
+from typing import Dict, Optional, Sequence, Union
 
 from ..common import GenericPath
 from ..ffi import TaskId
@@ -8,7 +8,7 @@ EnvType = Dict[str, str]
 
 
 def _make_ffi_requests(
-    resources: Optional[ResourceRequest] | Sequence[ResourceRequest],
+    resources: Optional[Union[ResourceRequest, Sequence[ResourceRequest]]],
 ):
     if resources is None:
         return ()

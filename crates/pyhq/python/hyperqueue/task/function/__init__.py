@@ -1,7 +1,7 @@
 import logging
 import os
 import pickle
-from typing import Callable, Optional, Sequence
+from typing import Callable, Optional, Sequence, Union
 
 from ...common import GenericPath
 from ...ffi import TaskId
@@ -91,7 +91,7 @@ class PythonFunction(Task):
         name: Optional[str] = None,
         dependencies=(),
         priority: int = 0,
-        resources: Optional[ResourceRequest] | Sequence[ResourceRequest] = None,
+        resources: Optional[Union[ResourceRequest, Sequence[ResourceRequest]]] = None,
     ):
         name = generate_task_name(task_id, name, fn)
         super().__init__(
