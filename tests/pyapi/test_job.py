@@ -4,7 +4,6 @@ from pathlib import Path
 
 import iso8601
 import pytest
-
 from hyperqueue.client import FailedJobsException
 from hyperqueue.ffi.protocol import ResourceRequest
 from hyperqueue.job import Job
@@ -254,9 +253,15 @@ def test_resource_variants(hq_env: HqEnv):
 
     job.program(
         args=bash("echo Hello"),
-        resources=[ResourceRequest(cpus=2), ResourceRequest(cpus=1, resources={"gpus": 2})]
+        resources=[
+            ResourceRequest(cpus=2),
+            ResourceRequest(cpus=1, resources={"gpus": 2}),
+        ],
     )
     submitted_job = client.submit(job)
 
     table = hq_env.command(["task", "info", str(submitted_job.id), "0"], as_table=True)
-    table.check_row_value("Resources", "# Variant 1\ncpus: 2 compact\n# Variant 2\ncpus: 1 compact\ngpus: 2 compact")
+    table.check_row_value(
+        "Resources",
+        "# Variant 1\ncpus: 2 compact\n# Variant 2\ncpus: 1 compact\ngpus: 2 compact",
+    )

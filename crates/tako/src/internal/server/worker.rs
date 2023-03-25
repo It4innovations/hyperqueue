@@ -193,7 +193,7 @@ impl Worker {
     ) -> bool {
         rqv.requests()
             .iter()
-            .any(|r| self.is_capable_to_run(&r, now))
+            .any(|r| self.is_capable_to_run(r, now))
     }
 
     // Returns None if there is no time limit for a worker or time limit was passed

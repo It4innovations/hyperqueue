@@ -202,14 +202,12 @@ pub(crate) async fn process_client_message(
             }
         }
         FromGatewayMessage::NewWorkerQuery(msg) => {
-            dbg!("!!!!!!!!!!!!!!!!!!!!!!");
             for query in &msg.worker_queries {
                 if let Err(e) = query.descriptor.validate() {
                     return Some(format!("Invalid descriptor: {e:?}"));
                 }
             }
             let response = if comm_ref.get().get_scheduling_flag() {
-                dbg!("DELAYED");
                 let (sx, rx) = tokio::sync::oneshot::channel();
                 comm_ref
                     .get_mut()
@@ -218,12 +216,9 @@ pub(crate) async fn process_client_message(
                     }));
                 rx.await.unwrap()
             } else {
-                dbg!("NOW");
                 let core = core_ref.get();
                 compute_new_worker_query(&core, &msg.worker_queries)
             };
-            dbg!("SENDING");
-            dbg!(&response);
             assert!(client_sender
                 .send(ToGatewayMessage::NewWorkerAllocationQueryResponse(response))
                 .is_ok());

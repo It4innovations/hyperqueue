@@ -95,15 +95,12 @@ pub async fn submit_computation_from_job_file(
     session: &mut ClientSession,
     opts: JobSubmitFileOpts,
 ) -> anyhow::Result<()> {
-    let jdef = {
-        JobDef::parse(&std::fs::read_to_string(&opts.path).map_err(|e| {
-            anyhow::anyhow!(format!(
-                "Cannot read {}: {}",
-                opts.path.display(),
-                e.to_string()
-            ))
-        })?)?
-    };
+    let jdef =
+        {
+            JobDef::parse(&std::fs::read_to_string(&opts.path).map_err(|e| {
+                anyhow::anyhow!(format!("Cannot read {}: {}", opts.path.display(), e))
+            })?)?
+        };
     let request = build_job_submit(jdef);
     send_submit_request(gsettings, session, request, false, false).await
 }

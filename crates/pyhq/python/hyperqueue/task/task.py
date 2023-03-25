@@ -7,11 +7,13 @@ from ..ffi.protocol import ResourceRequest
 EnvType = Dict[str, str]
 
 
-def _make_ffi_requests(resources: Optional[ResourceRequest] | Sequence[ResourceRequest]):
+def _make_ffi_requests(
+    resources: Optional[ResourceRequest] | Sequence[ResourceRequest],
+):
     if resources is None:
         return ()
     elif isinstance(resources, ResourceRequest):
-        return resources,
+        return (resources,)
     else:
         return resources
 

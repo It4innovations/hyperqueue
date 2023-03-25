@@ -186,9 +186,6 @@ fn test_no_deps_distribute_with_balance() {
     let n1 = comm.take_worker_msgs(100, 0);
     let n3 = comm.take_worker_msgs(102, 0);
 
-    dbg!(n1.len());
-    dbg!(n3.len());
-
     assert!(n1.len() > 5);
     assert!(n3.len() > 5);
     assert_eq!(n1.len() + n3.len(), stealing.len());

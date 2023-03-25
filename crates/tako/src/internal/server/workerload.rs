@@ -283,7 +283,7 @@ impl ResourceRequestLowerBound {
 
     pub(crate) fn include_rqv(&mut self, rqv: &ResourceRequestVariants) {
         for rq in rqv.requests() {
-            self.include(&rq)
+            self.include(rq)
         }
     }
 }
