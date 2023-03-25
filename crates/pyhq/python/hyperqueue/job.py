@@ -57,7 +57,7 @@ class Job:
         name: Optional[str] = None,
         task_dir: bool = False,
         priority: int = 0,
-        resources: Optional[ResourceRequest] | Sequence[ResourceRequest] = None,
+        resources: Optional[Union[ResourceRequest, Sequence[ResourceRequest]]] = None,
     ) -> ExternalProgram:
         """
         Creates a new task that will execute the provided command.
@@ -107,7 +107,7 @@ class Job:
         deps: Sequence[Task] = (),
         name: Optional[str] = None,
         priority: int = 0,
-        resources: Optional[ResourceRequest] | Sequence[ResourceRequest] = None,
+        resources: Optional[Union[ResourceRequest, Sequence[ResourceRequest]]] = None,
     ) -> PythonFunction:
         """
         Creates a new task that will execute the provided Python function.
