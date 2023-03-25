@@ -136,14 +136,13 @@ impl Output for JsonOutput {
                 "stderr": format_stdio_def(&stderr),
                 "stdout": format_stdio_def(&stdout),
             });
-                for v in resources.variants {
+                json["resources"] = resources.variants.into_iter().map(|v| {
                     let ResourceRequest { n_nodes, resources: _, min_time } = v;
-                    json["resources"] = json!({
+                    json!({
                     "n_nodes": n_nodes,
                     "resources": [],
                     "min_time": format_duration(min_time)
-                    });
-                }
+                    })}).collect();
                 json["pin_mode"] = json!(pin_mode);
                 json["priority"] = json!(priority);
                 json["time_limit"] = json!(time_limit.map(format_duration));
