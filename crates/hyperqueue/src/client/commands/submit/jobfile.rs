@@ -9,6 +9,7 @@ use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     JobDescription, PinMode, SubmitRequest, TaskDescription, TaskWithDependencies,
 };
+use crate::JobTaskId;
 use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
@@ -64,8 +65,11 @@ fn build_task_description(tdef: TaskDef) -> TaskDescription {
     }
 }
 
-fn build_task(tdef: TaskDef) -> TaskWithDependencies {
-    let id = tdef.id.unwrap();
+fn build_task(tdef: TaskDef, max_id: &mut JobTaskId) -> TaskWithDependencies {
+    let id = tdef.id.unwrap_or_else(|| {
+        *max_id = JobTaskId::new(max_id.as_num() + 1);
+        *max_id
+    });
     let task_desc = build_task_description(tdef);
     TaskWithDependencies {
         id,
@@ -75,9 +79,21 @@ fn build_task(tdef: TaskDef) -> TaskWithDependencies {
 }
 
 fn build_job_submit(jdef: JobDef) -> SubmitRequest {
+    let mut max_id: JobTaskId = jdef
+        .tasks
+        .iter()
+        .map(|t| t.id)
+        .max()
+        .flatten()
+        .unwrap_or(JobTaskId(0));
+
     let job_desc = {
         JobDescription::Graph {
-            tasks: jdef.tasks.into_iter().map(build_task).collect(),
+            tasks: jdef
+                .tasks
+                .into_iter()
+                .map(|t| build_task(t, &mut max_id))
+                .collect(),
         }
     };
 
