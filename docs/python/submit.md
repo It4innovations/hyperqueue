@@ -67,7 +67,7 @@ that can used to define [dependencies](dependencies.md).
 ### Parametrizing tasks
 You can parametrize both external or Python tasks by setting their working directory, standard
 output paths, environment variables or HyperQueue specific parameters like
-[resources](../jobs/gresources.md) or [time limits](../jobs/jobs.md#time-management). In contrast to
+[resources](../jobs/resources.md) or [time limits](../jobs/jobs.md#time-management). In contrast to
 the CLI, where you can only use a single set of parameters for all tasks of a job, with the Python
 API you can specify these parameters individually for each task.
 

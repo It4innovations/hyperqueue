@@ -7,7 +7,7 @@ interface:
 
 - [**Task dependencies**](dependencies.md) You can specify dependencies between individual
 tasks of a job, which enables executing complex workflows.
-- [**Task configuration**](submit.md#parametrizing-tasks) You can specify [resources](../jobs/gresources.md),
+- [**Task configuration**](submit.md#parametrizing-tasks) You can specify [resources](../jobs/resources.md),
 [output paths](../jobs/jobs.md#output) or other configuration individually for each task of a job.
 - [**Python tasks**](submit.md#python-functions) You can easily execute Python functions as tasks and
 pass parameters to them directly, without needing to go through the filesystem.
