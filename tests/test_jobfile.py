@@ -11,7 +11,6 @@ def test_job_file_submit_minimal(hq_env: HqEnv, tmp_path):
     tmp_path.joinpath("job.toml").write_text(
         """
 [[task]]
-id = 0
 command = ["sleep", "0"]
     """
     )
@@ -186,3 +185,31 @@ def test_job_file_resource_variants3(hq_env: HqEnv, tmp_path):
     c = collections.Counter(r.strip().split("\n"))
     assert c["1 compact,1 compact"] == 2
     assert c["4 compact,"] == 3
+
+
+def test_job_file_auto_id(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_worker()
+    tmp_path.joinpath("job.toml").write_text("""
+[[task]]
+command = ["sleep", "0"]
+
+[[task]]
+id = 12
+command = ["sleep", "0"]
+
+[[task]]
+id = 3
+command = ["sleep", "0"]
+
+[[task]]
+command = ["sleep", "0"]
+
+[[task]]
+command = ["sleep", "0"]
+    """)
+    hq_env.command(["job", "submit-file", "job.toml"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    r = hq_env.command(["--output-mode=json", "job", "info", "1"], as_json=True)
+    ids = set(x["id"] for x in r[0]["tasks"])
+    assert ids == {3, 12, 13, 14, 15}
