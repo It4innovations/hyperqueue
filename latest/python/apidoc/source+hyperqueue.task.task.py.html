@@ -41,7 +41,18 @@
 <span class=normal>41</span>
 <span class=normal>42</span>
 <span class=normal>43</span>
-<span class=normal>44</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>from</span> <span class=nn>typing</span> <span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span>
+<span class=normal>44</span>
+<span class=normal>45</span>
+<span class=normal>46</span>
+<span class=normal>47</span>
+<span class=normal>48</span>
+<span class=normal>49</span>
+<span class=normal>50</span>
+<span class=normal>51</span>
+<span class=normal>52</span>
+<span class=normal>53</span>
+<span class=normal>54</span>
+<span class=normal>55</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>from</span> <span class=nn>typing</span> <span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span><span class=p>,</span> <span class=n>Union</span>
 <a id=line-2 name=line-2></a>
 <a id=line-3 name=line-3></a><span class=kn>from</span> <span class=nn>..common</span> <span class=kn>import</span> <span class=n>GenericPath</span>
 <a id=line-4 name=line-4></a><span class=kn>from</span> <span class=nn>..ffi</span> <span class=kn>import</span> <span class=n>TaskId</span>
@@ -50,39 +61,50 @@
 <a id=line-7 name=line-7></a><span class=n>EnvType</span> <span class=o>=</span> <span class=n>Dict</span><span class=p>[</span><span class=nb>str</span><span class=p>,</span> <span class=nb>str</span><span class=p>]</span>
 <a id=line-8 name=line-8></a>
 <a id=line-9 name=line-9></a>
-<a id=line-10 name=line-10></a><span class=k>class</span> <span class=nc>Task</span><span class=p>:</span>
-<a id=line-11 name=line-11></a>    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span>
-<a id=line-12 name=line-12></a>        <span class=bp>self</span><span class=p>,</span>
-<a id=line-13 name=line-13></a>        <span class=n>task_id</span><span class=p>:</span> <span class=n>TaskId</span><span class=p>,</span>
-<a id=line-14 name=line-14></a>        <span class=n>dependencies</span><span class=p>:</span> <span class=n>Sequence</span><span class=p>[</span><span class=s2>&quot;Task&quot;</span><span class=p>]</span> <span class=o>=</span> <span class=p>(),</span>
-<a id=line-15 name=line-15></a>        <span class=n>priority</span><span class=p>:</span> <span class=nb>int</span> <span class=o>=</span> <span class=mi>0</span><span class=p>,</span>
-<a id=line-16 name=line-16></a>        <span class=n>resources</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>ResourceRequest</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
-<a id=line-17 name=line-17></a>        <span class=n>env</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>EnvType</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
-<a id=line-18 name=line-18></a>        <span class=n>cwd</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>GenericPath</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
-<a id=line-19 name=line-19></a>        <span class=n>stdout</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>GenericPath</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
-<a id=line-20 name=line-20></a>        <span class=n>stderr</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>GenericPath</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
-<a id=line-21 name=line-21></a>        <span class=n>name</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>str</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
-<a id=line-22 name=line-22></a>    <span class=p>):</span>
-<a id=line-23 name=line-23></a>        <span class=k>assert</span> <span class=n>dependencies</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span>
-<a id=line-24 name=line-24></a>        <span class=bp>self</span><span class=o>.</span><span class=n>task_id</span> <span class=o>=</span> <span class=n>task_id</span>
-<a id=line-25 name=line-25></a>        <span class=bp>self</span><span class=o>.</span><span class=n>dependencies</span> <span class=o>=</span> <span class=n>dependencies</span>
-<a id=line-26 name=line-26></a>        <span class=bp>self</span><span class=o>.</span><span class=n>priority</span> <span class=o>=</span> <span class=n>priority</span>
-<a id=line-27 name=line-27></a>        <span class=bp>self</span><span class=o>.</span><span class=n>resources</span> <span class=o>=</span> <span class=n>resources</span>
-<a id=line-28 name=line-28></a>        <span class=bp>self</span><span class=o>.</span><span class=n>env</span> <span class=o>=</span> <span class=n>env</span> <span class=ow>or</span> <span class=p>{}</span>
-<a id=line-29 name=line-29></a>        <span class=bp>self</span><span class=o>.</span><span class=n>cwd</span> <span class=o>=</span> <span class=nb>str</span><span class=p>(</span><span class=n>cwd</span><span class=p>)</span> <span class=k>if</span> <span class=n>cwd</span> <span class=k>else</span> <span class=kc>None</span>
-<a id=line-30 name=line-30></a>        <span class=bp>self</span><span class=o>.</span><span class=n>stdout</span> <span class=o>=</span> <span class=nb>str</span><span class=p>(</span><span class=n>stdout</span><span class=p>)</span> <span class=k>if</span> <span class=n>stdout</span> <span class=k>else</span> <span class=kc>None</span>
-<a id=line-31 name=line-31></a>        <span class=bp>self</span><span class=o>.</span><span class=n>stderr</span> <span class=o>=</span> <span class=nb>str</span><span class=p>(</span><span class=n>stderr</span><span class=p>)</span> <span class=k>if</span> <span class=n>stdout</span> <span class=k>else</span> <span class=kc>None</span>
-<a id=line-32 name=line-32></a>        <span class=bp>self</span><span class=o>.</span><span class=n>name</span> <span class=o>=</span> <span class=n>name</span>
-<a id=line-33 name=line-33></a>
-<a id=line-34 name=line-34></a>    <span class=nd>@property</span>
-<a id=line-35 name=line-35></a>    <span class=k>def</span> <span class=nf>label</span><span class=p>(</span><span class=bp>self</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>str</span><span class=p>:</span>
-<a id=line-36 name=line-36></a><span class=w>        </span><span class=sd>&quot;&quot;&quot;</span>
-<a id=line-37 name=line-37></a><span class=sd>        Returns the label of the task.</span>
-<a id=line-38 name=line-38></a><span class=sd>        If the task has an assigned name, the label is equal to the name.</span>
-<a id=line-39 name=line-39></a><span class=sd>        Otherwise, the label is the ID of the task converted to a string.</span>
-<a id=line-40 name=line-40></a><span class=sd>        &quot;&quot;&quot;</span>
-<a id=line-41 name=line-41></a>        <span class=k>return</span> <span class=bp>self</span><span class=o>.</span><span class=n>name</span> <span class=k>if</span> <span class=bp>self</span><span class=o>.</span><span class=n>name</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span> <span class=k>else</span> <span class=nb>str</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>task_id</span><span class=p>)</span>
-<a id=line-42 name=line-42></a>
-<a id=line-43 name=line-43></a>    <span class=k>def</span> <span class=nf>_build</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>client</span><span class=p>):</span>
-<a id=line-44 name=line-44></a>        <span class=k>raise</span> <span class=ne>NotImplementedError</span>
-</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2023-03-27 07:17 </p></div></div></body></html>
+<a id=line-10 name=line-10></a><span class=k>def</span> <span class=nf>_make_ffi_requests</span><span class=p>(</span>
+<a id=line-11 name=line-11></a>    <span class=n>resources</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>Union</span><span class=p>[</span><span class=n>ResourceRequest</span><span class=p>,</span> <span class=n>Sequence</span><span class=p>[</span><span class=n>ResourceRequest</span><span class=p>]]],</span>
+<a id=line-12 name=line-12></a><span class=p>):</span>
+<a id=line-13 name=line-13></a>    <span class=k>if</span> <span class=n>resources</span> <span class=ow>is</span> <span class=kc>None</span><span class=p>:</span>
+<a id=line-14 name=line-14></a>        <span class=k>return</span> <span class=p>()</span>
+<a id=line-15 name=line-15></a>    <span class=k>elif</span> <span class=nb>isinstance</span><span class=p>(</span><span class=n>resources</span><span class=p>,</span> <span class=n>ResourceRequest</span><span class=p>):</span>
+<a id=line-16 name=line-16></a>        <span class=k>return</span> <span class=p>(</span><span class=n>resources</span><span class=p>,)</span>
+<a id=line-17 name=line-17></a>    <span class=k>else</span><span class=p>:</span>
+<a id=line-18 name=line-18></a>        <span class=k>return</span> <span class=n>resources</span>
+<a id=line-19 name=line-19></a>
+<a id=line-20 name=line-20></a>
+<a id=line-21 name=line-21></a><span class=k>class</span> <span class=nc>Task</span><span class=p>:</span>
+<a id=line-22 name=line-22></a>    <span class=k>def</span> <span class=fm>__init__</span><span class=p>(</span>
+<a id=line-23 name=line-23></a>        <span class=bp>self</span><span class=p>,</span>
+<a id=line-24 name=line-24></a>        <span class=n>task_id</span><span class=p>:</span> <span class=n>TaskId</span><span class=p>,</span>
+<a id=line-25 name=line-25></a>        <span class=n>dependencies</span><span class=p>:</span> <span class=n>Sequence</span><span class=p>[</span><span class=s2>&quot;Task&quot;</span><span class=p>]</span> <span class=o>=</span> <span class=p>(),</span>
+<a id=line-26 name=line-26></a>        <span class=n>priority</span><span class=p>:</span> <span class=nb>int</span> <span class=o>=</span> <span class=mi>0</span><span class=p>,</span>
+<a id=line-27 name=line-27></a>        <span class=n>resources</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>ResourceRequest</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
+<a id=line-28 name=line-28></a>        <span class=n>env</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>EnvType</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
+<a id=line-29 name=line-29></a>        <span class=n>cwd</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>GenericPath</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
+<a id=line-30 name=line-30></a>        <span class=n>stdout</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>GenericPath</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
+<a id=line-31 name=line-31></a>        <span class=n>stderr</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=n>GenericPath</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
+<a id=line-32 name=line-32></a>        <span class=n>name</span><span class=p>:</span> <span class=n>Optional</span><span class=p>[</span><span class=nb>str</span><span class=p>]</span> <span class=o>=</span> <span class=kc>None</span><span class=p>,</span>
+<a id=line-33 name=line-33></a>    <span class=p>):</span>
+<a id=line-34 name=line-34></a>        <span class=k>assert</span> <span class=n>dependencies</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span>
+<a id=line-35 name=line-35></a>        <span class=bp>self</span><span class=o>.</span><span class=n>task_id</span> <span class=o>=</span> <span class=n>task_id</span>
+<a id=line-36 name=line-36></a>        <span class=bp>self</span><span class=o>.</span><span class=n>dependencies</span> <span class=o>=</span> <span class=n>dependencies</span>
+<a id=line-37 name=line-37></a>        <span class=bp>self</span><span class=o>.</span><span class=n>priority</span> <span class=o>=</span> <span class=n>priority</span>
+<a id=line-38 name=line-38></a>        <span class=bp>self</span><span class=o>.</span><span class=n>resources</span> <span class=o>=</span> <span class=n>resources</span>
+<a id=line-39 name=line-39></a>        <span class=bp>self</span><span class=o>.</span><span class=n>env</span> <span class=o>=</span> <span class=n>env</span> <span class=ow>or</span> <span class=p>{}</span>
+<a id=line-40 name=line-40></a>        <span class=bp>self</span><span class=o>.</span><span class=n>cwd</span> <span class=o>=</span> <span class=nb>str</span><span class=p>(</span><span class=n>cwd</span><span class=p>)</span> <span class=k>if</span> <span class=n>cwd</span> <span class=k>else</span> <span class=kc>None</span>
+<a id=line-41 name=line-41></a>        <span class=bp>self</span><span class=o>.</span><span class=n>stdout</span> <span class=o>=</span> <span class=nb>str</span><span class=p>(</span><span class=n>stdout</span><span class=p>)</span> <span class=k>if</span> <span class=n>stdout</span> <span class=k>else</span> <span class=kc>None</span>
+<a id=line-42 name=line-42></a>        <span class=bp>self</span><span class=o>.</span><span class=n>stderr</span> <span class=o>=</span> <span class=nb>str</span><span class=p>(</span><span class=n>stderr</span><span class=p>)</span> <span class=k>if</span> <span class=n>stdout</span> <span class=k>else</span> <span class=kc>None</span>
+<a id=line-43 name=line-43></a>        <span class=bp>self</span><span class=o>.</span><span class=n>name</span> <span class=o>=</span> <span class=n>name</span>
+<a id=line-44 name=line-44></a>
+<a id=line-45 name=line-45></a>    <span class=nd>@property</span>
+<a id=line-46 name=line-46></a>    <span class=k>def</span> <span class=nf>label</span><span class=p>(</span><span class=bp>self</span><span class=p>)</span> <span class=o>-&gt;</span> <span class=nb>str</span><span class=p>:</span>
+<a id=line-47 name=line-47></a><span class=w>        </span><span class=sd>&quot;&quot;&quot;</span>
+<a id=line-48 name=line-48></a><span class=sd>        Returns the label of the task.</span>
+<a id=line-49 name=line-49></a><span class=sd>        If the task has an assigned name, the label is equal to the name.</span>
+<a id=line-50 name=line-50></a><span class=sd>        Otherwise, the label is the ID of the task converted to a string.</span>
+<a id=line-51 name=line-51></a><span class=sd>        &quot;&quot;&quot;</span>
+<a id=line-52 name=line-52></a>        <span class=k>return</span> <span class=bp>self</span><span class=o>.</span><span class=n>name</span> <span class=k>if</span> <span class=bp>self</span><span class=o>.</span><span class=n>name</span> <span class=ow>is</span> <span class=ow>not</span> <span class=kc>None</span> <span class=k>else</span> <span class=nb>str</span><span class=p>(</span><span class=bp>self</span><span class=o>.</span><span class=n>task_id</span><span class=p>)</span>
+<a id=line-53 name=line-53></a>
+<a id=line-54 name=line-54></a>    <span class=k>def</span> <span class=nf>_build</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>client</span><span class=p>):</span>
+<a id=line-55 name=line-55></a>        <span class=k>raise</span> <span class=ne>NotImplementedError</span>
+</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2023-03-28 10:40 </p></div></div></body></html>
