@@ -23,17 +23,17 @@ pub struct JobSubmitFileOpts {
     path: PathBuf,
 }
 
-fn create_stdio(def: &str, default: &str, is_log: bool) -> StdioDef {
+fn create_stdio(def: Option<&str>, default: &str, is_log: bool) -> StdioDef {
     match def {
-        "" => {
+        None => {
             if is_log {
                 StdioDef::Pipe
             } else {
                 StdioDef::File(PathBuf::from(default))
             }
         }
-        "none" => StdioDef::Null,
-        x => StdioDef::File(PathBuf::from(x)),
+        Some("none") => StdioDef::Null,
+        Some(x) => StdioDef::File(PathBuf::from(x)),
     }
 }
 
@@ -42,10 +42,10 @@ fn build_task_description(cfg: TaskConfigDef) -> TaskDescription {
         program: ProgramDefinition {
             args: cfg.command.into_iter().map(|x| x.into()).collect(),
             env: cfg.env,
-            stdout: create_stdio(&cfg.stdout, DEFAULT_STDOUT_PATH, false),
-            stderr: create_stdio(&cfg.stderr, DEFAULT_STDERR_PATH, false),
+            stdout: create_stdio(cfg.stdout.as_deref(), DEFAULT_STDOUT_PATH, false),
+            stderr: create_stdio(cfg.stderr.as_deref(), DEFAULT_STDERR_PATH, false),
             stdin: vec![],
-            cwd: PathBuf::from(cfg.cwd),
+            cwd: PathBuf::from(cfg.cwd.unwrap_or("".into())),
         },
         resources: ResourceRequestVariants {
             variants: if cfg.request.is_empty() {
