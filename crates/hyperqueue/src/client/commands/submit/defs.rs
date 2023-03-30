@@ -157,19 +157,24 @@ pub struct TaskDef {
     pub config: TaskConfigDef,
 }
 
-fn deserialize_array<'de, D>(deserializer: D) -> Result<IntArray, D::Error>
+fn deserialize_array_opt<'de, D>(deserializer: D) -> Result<Option<IntArray>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let buf = String::deserialize(deserializer)?;
-    parse_array(&buf).map_err(serde::de::Error::custom)
+    let buf = Option::<String>::deserialize(deserializer)?;
+    buf.map(|b| parse_array(&b).map_err(serde::de::Error::custom))
+        .transpose()
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct ArrayDef {
-    #[serde(deserialize_with = "deserialize_array")]
-    pub ids: IntArray,
+    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_array_opt")]
+    pub ids: Option<IntArray>,
+
+    #[serde(default)]
+    pub entries: Vec<String>,
 
     #[serde(flatten)]
     pub config: TaskConfigDef,
@@ -193,19 +198,36 @@ pub struct JobDef {
 }
 
 impl JobDef {
-    pub fn parse(str: &str) -> crate::Result<JobDef> {
-        let jdef: JobDef = toml::from_str(str)?;
-
-        if jdef.tasks.is_empty() && jdef.array.is_none() {
+    pub fn validate(&self) -> crate::Result<()> {
+        if self.tasks.is_empty() && self.array.is_none() {
             return Err(HqError::DeserializationError("No tasks defined".into()));
         }
 
-        if !jdef.tasks.is_empty() && jdef.array.is_some() {
-            return Err(HqError::DeserializationError(
-                "Definition of array job and individual task cannot be mixed".into(),
-            ));
+        if let Some(array) = &self.array {
+            if !self.tasks.is_empty() {
+                return Err(HqError::DeserializationError(
+                    "Definition of array job and individual task cannot be mixed".into(),
+                ));
+            }
+            if array.ids.is_none() && array.entries.is_empty() {
+                return Err(HqError::DeserializationError(
+                    "One of attributes of array must be defined: 'ids', 'entries'".into(),
+                ));
+            }
+            if let Some(ids) = &array.ids {
+                if !array.entries.is_empty() && ids.id_count() as usize != array.entries.len() {
+                    return Err(HqError::DeserializationError(
+                        "Items 'ids' and 'entries' does not match".into(),
+                    ));
+                }
+            }
         }
+        Ok(())
+    }
 
+    pub fn parse(str: &str) -> crate::Result<JobDef> {
+        let jdef: JobDef = toml::from_str(str)?;
+        jdef.validate()?;
         Ok(jdef)
     }
 }

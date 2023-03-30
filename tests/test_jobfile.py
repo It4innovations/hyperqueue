@@ -1,6 +1,8 @@
 import collections
 import time
 
+from .utils.io import check_file_contents
+from .utils.job import default_task_output
 from .conftest import HqEnv
 from .utils import wait_for_job_state
 
@@ -244,3 +246,55 @@ command = ["sleep", "0"]
     """
     )
     hq_env.command(["job", "submit-file", "job.toml"], expect_fail="Definition of array job and individual task cannot be mixed")
+
+
+def test_job_file_array_entries_without_ids(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_worker()
+    tmp_path.joinpath("job.toml").write_text(
+        f"""
+[array]
+entries = ["a", "bb", "ccc"]
+command = ["/bin/bash", "-c", "echo $HQ_ENTRY"]
+    """
+    )
+
+    expected = {
+        0: "a",
+        1: "bb",
+        2: "ccc"
+    }
+
+    hq_env.command(["job", "submit-file", "job.toml"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    for i in range(3):
+        stdout = default_task_output(job_id=1, task_id=i, type="stdout")
+        check_file_contents(stdout, expected[i] + "\n")
+
+
+def test_job_file_array_entries_with_ids(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_worker()
+    tmp_path.joinpath("job.toml").write_text(
+        f"""
+[array]
+ids = "2,10-12"
+entries = ["a", "bb", "ccc", "x"]
+command = ["/bin/bash", "-c", "echo $HQ_ENTRY"]
+    """
+    )
+
+    expected = {
+        2: "a",
+        10: "bb",
+        11: "ccc",
+        12: "x"
+    }
+
+    hq_env.command(["job", "submit-file", "job.toml"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    for i in expected.keys():
+        stdout = default_task_output(job_id=1, task_id=i, type="stdout")
+        check_file_contents(stdout, expected[i] + "\n")
