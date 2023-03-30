@@ -11,10 +11,10 @@ app = typer.Typer()
 
 def unpack_dict(dictionary: Dict[str, Any]) -> Dict[str, str]:
     result = {}
-    for (key, value) in dictionary.items():
+    for key, value in dictionary.items():
         if isinstance(value, dict):
             value = unpack_dict(value)
-            for (k, v) in value.items():
+            for k, v in value.items():
                 result[f"{key}/{k}"] = v
         else:
             result[key] = value

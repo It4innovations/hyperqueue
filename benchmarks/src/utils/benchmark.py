@@ -17,7 +17,7 @@ def run_benchmarks(workdir: Path, descriptors: List[BenchmarkDescriptor]) -> Dat
     runner = BenchmarkRunner(database, workdir=workdir)
 
     materialized = runner.materialize_and_skip(descriptors)
-    for (_info, _result) in tqdm.tqdm(
+    for _info, _result in tqdm.tqdm(
         runner.compute_materialized(materialized), total=len(materialized)
     ):
         pass

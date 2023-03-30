@@ -55,9 +55,9 @@ def get_process_aggregated_stats(report: ClusterReport) -> Dict[Any, ProcessStat
     pid_to_key = {int(p[2]): p for p in process_stats.keys()}
     used_keys = set()
 
-    for (node, records) in report.monitoring.items():
+    for node, records in report.monitoring.items():
         for record in records:
-            for (pid, process_record) in record.processes.items():
+            for pid, process_record in record.processes.items():
                 pid = int(pid)
                 if pid in pid_to_key:
                     key = pid_to_key[pid]

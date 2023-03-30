@@ -35,9 +35,9 @@ class FailedJobsException(Exception):
 
     def __str__(self):
         error = ""
-        for (job_id, tasks) in self.failed_tasks.items():
+        for job_id, tasks in self.failed_tasks.items():
             error += f"The following tasks of job `{job_id}` have failed:\n"
-            for (task_id, ctx) in itertools.islice(tasks.items(), MAX_PRINTED_TASKS):
+            for task_id, ctx in itertools.islice(tasks.items(), MAX_PRINTED_TASKS):
                 task_label = self.task_label(job_id, task_id)
                 error += f"Task {task_label} (id={task_id}):\n{ctx.error}\n"
                 if ctx.cwd or ctx.stdout or ctx.stderr:

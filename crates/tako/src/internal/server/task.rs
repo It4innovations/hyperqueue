@@ -7,7 +7,6 @@ use crate::internal::common::stablemap::ExtractKey;
 use crate::internal::common::{Map, Set};
 use crate::internal::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::internal::server::taskmap::TaskMap;
-use crate::internal::server::worker::Worker;
 use crate::WorkerId;
 use crate::{static_assert_size, TaskId};
 use crate::{InstanceId, Priority};
@@ -290,20 +289,13 @@ impl Task {
         self.crash_counter >= self.configuration.crash_limit && self.configuration.crash_limit > 0
     }
 
-    pub(crate) fn make_compute_message(
-        &self,
-        node_list: Vec<WorkerId>,
-        worker: &Worker,
-    ) -> ToWorkerMessage {
+    pub(crate) fn make_compute_message(&self, node_list: Vec<WorkerId>) -> ToWorkerMessage {
         ToWorkerMessage::ComputeTask(ComputeTaskMsg {
             id: self.id,
             instance_id: self.instance_id,
             user_priority: self.configuration.user_priority,
             scheduler_priority: self.scheduler_priority,
-            resources: self
-                .configuration
-                .resources
-                .filter_runnable(&worker.resources),
+            resources: self.configuration.resources.clone(),
             time_limit: self.configuration.time_limit,
             n_outputs: self.configuration.n_outputs,
             node_list,

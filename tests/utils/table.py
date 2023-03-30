@@ -59,7 +59,7 @@ class Table:
 
     def check_columns_value(self, keys: List[str], index: int, values: List[str]):
         assert len(keys) == len(values)
-        for (key, val) in zip(keys, values):
+        for key, val in zip(keys, values):
             self.check_column_value(key, index, val)
 
     def print(self):

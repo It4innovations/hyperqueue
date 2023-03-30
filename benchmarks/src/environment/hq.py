@@ -87,7 +87,7 @@ def assign_workers(
     used_round_robin = set()
 
     node_assignments = defaultdict(list)
-    for (index, worker) in enumerate(workers):
+    for index, worker in enumerate(workers):
         node = worker.node
         if node is not None:
             if not (0 <= node < len(nodes)):
@@ -186,8 +186,8 @@ class HqEnvironment(Environment, EnvStateManager):
         worker_processes = []
 
         items = sorted(worker_assignment.items(), key=lambda item: item[0])
-        for (node, workers) in items:
-            for (worker_index, worker) in enumerate(workers):
+        for node, workers in items:
+            for worker_index, worker in enumerate(workers):
                 worker: HqWorkerConfig = worker
 
                 worker_index = f"worker-{node}-{worker_index}"
@@ -195,7 +195,7 @@ class HqEnvironment(Environment, EnvStateManager):
                 args = self._shared_args() + ["worker", "start"]
                 if worker.cpus is not None:
                     args += ["--cpus", str(worker.cpus)]
-                for (name, resource) in worker.resources.items():
+                for name, resource in worker.resources.items():
                     args += ["--resource", f"{name}={resource.format()}"]
                 args = StartProcessArgs(
                     args=args,

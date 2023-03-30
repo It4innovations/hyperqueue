@@ -4,6 +4,7 @@ use crate::internal::common::resources::request::{
 use crate::internal::common::resources::{
     ResourceAllocation, ResourceAllocations, ResourceId, ResourceVec,
 };
+use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::counts::{
     resource_count_add_at, ResourceCount, ResourceCountVec,
 };
@@ -21,6 +22,7 @@ pub struct ResourceAllocator {
     blocked_requests: Vec<BlockedRequest>,
     higher_priority_blocked_requests: usize,
     running_tasks: Vec<ResourceCountVec>, // TODO: Rework on multiset?
+    own_resources: WorkerResources,
 }
 
 /// Resource request that cannot be scheduled in the current free resources
@@ -67,7 +69,12 @@ impl ResourceAllocator {
             blocked_requests: Vec::new(),
             higher_priority_blocked_requests: 0,
             running_tasks: Vec::new(),
+            own_resources: WorkerResources::from_description(desc, resource_map),
         }
+    }
+
+    pub fn is_capable_to_run(&self, request: &ResourceRequest) -> bool {
+        self.own_resources.is_capable_to_run_request(request)
     }
 
     pub fn init_allocator(&mut self, remaining_time: Option<Duration>) {

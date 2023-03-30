@@ -1,10 +1,10 @@
 import collections
 import time
 
-from .utils.io import check_file_contents
-from .utils.job import default_task_output
 from .conftest import HqEnv
 from .utils import wait_for_job_state
+from .utils.io import check_file_contents
+from .utils.job import default_task_output
 
 
 def test_job_file_submit_minimal(hq_env: HqEnv, tmp_path):
@@ -138,7 +138,7 @@ def test_job_file_resource_variants2(hq_env: HqEnv, tmp_path):
     id = 0
     command = ["/bin/bash",
                "-c",
-               "echo $HQ_RESOURCE_REQUEST_cpus,$HQ_RESOURCE_REQUEST_x,$HQ_RESOURCE_REQUEST_y"]
+               "echo $HQ_RESOURCE_REQUEST_cpus,$HQ_RESOURCE_REQUEST_x,$HQ_RESOURCE_REQUEST_y,$HQ_RESOURCE_VARIANT"]
     [[task.request]]
     resources = { "cpus" = "8" }
 
@@ -154,7 +154,7 @@ def test_job_file_resource_variants2(hq_env: HqEnv, tmp_path):
     table = hq_env.command(["task", "info", "1", "0"], as_table=True)
     table.check_row_value("Worker", "worker3")
     r = hq_env.command(["job", "cat", "1", "stdout"]).strip()
-    assert r == "4 compact,1 compact,"
+    assert r == "4 compact,1 compact,,2"
 
 
 def test_job_file_resource_variants3(hq_env: HqEnv, tmp_path):
@@ -169,7 +169,7 @@ def test_job_file_resource_variants3(hq_env: HqEnv, tmp_path):
     id = {x}
     command = ["/bin/bash",
                "-c",
-               "sleep 1; echo ${{HQ_RESOURCE_REQUEST_cpus}},${{HQ_RESOURCE_REQUEST_x}}"]
+               "sleep 1; echo ${{HQ_RESOURCE_REQUEST_cpus}},${{HQ_RESOURCE_REQUEST_x}},${{HQ_RESOURCE_VARIANT}}"]
     [[task.request]]
     resources = {{ "cpus" = "1", "x"=1 }}
     [[task.request]]
@@ -184,8 +184,8 @@ def test_job_file_resource_variants3(hq_env: HqEnv, tmp_path):
 
     r = hq_env.command(["job", "cat", "1", "stdout"])
     c = collections.Counter(r.strip().split("\n"))
-    assert c["1 compact,1 compact"] == 2
-    assert c["4 compact,"] == 3
+    assert c["1 compact,1 compact,0"] == 2
+    assert c["4 compact,,1"] == 3
 
 
 def test_job_file_auto_id(hq_env: HqEnv, tmp_path):
@@ -221,7 +221,7 @@ command = ["sleep", "0"]
 def test_job_file_array(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     tmp_path.joinpath("job.toml").write_text(
-        f"""
+        """
 [array]
 ids = "2, 10-14, 120"
 command = ["sleep", "0"]
@@ -235,7 +235,7 @@ command = ["sleep", "0"]
 def test_job_file_fail_mixing_array_and_tasks(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     tmp_path.joinpath("job.toml").write_text(
-        f"""
+        """
 [array]
 ids = "2"
 command = ["sleep", "0"]
@@ -245,25 +245,24 @@ id = 1
 command = ["sleep", "0"]
     """
     )
-    hq_env.command(["job", "submit-file", "job.toml"], expect_fail="Definition of array job and individual task cannot be mixed")
+    hq_env.command(
+        ["job", "submit-file", "job.toml"],
+        expect_fail="Definition of array job and individual task cannot be mixed",
+    )
 
 
 def test_job_file_array_entries_without_ids(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker()
     tmp_path.joinpath("job.toml").write_text(
-        f"""
+        """
 [array]
 entries = ["a", "bb", "ccc"]
 command = ["/bin/bash", "-c", "echo $HQ_ENTRY"]
     """
     )
 
-    expected = {
-        0: "a",
-        1: "bb",
-        2: "ccc"
-    }
+    expected = {0: "a", 1: "bb", 2: "ccc"}
 
     hq_env.command(["job", "submit-file", "job.toml"])
     wait_for_job_state(hq_env, 1, "FINISHED")
@@ -277,7 +276,7 @@ def test_job_file_array_entries_with_ids(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker()
     tmp_path.joinpath("job.toml").write_text(
-        f"""
+        """
 [array]
 ids = "2,10-12"
 entries = ["a", "bb", "ccc", "x"]
@@ -285,12 +284,7 @@ command = ["/bin/bash", "-c", "echo $HQ_ENTRY"]
     """
     )
 
-    expected = {
-        2: "a",
-        10: "bb",
-        11: "ccc",
-        12: "x"
-    }
+    expected = {2: "a", 10: "bb", 11: "ccc", 12: "x"}
 
     hq_env.command(["job", "submit-file", "job.toml"])
     wait_for_job_state(hq_env, 1, "FINISHED")

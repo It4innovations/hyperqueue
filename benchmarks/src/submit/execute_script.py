@@ -50,7 +50,7 @@ def execute(
     benchmark_count = len(identifiers)
 
     def run():
-        for (identifier, benchmark, result) in tqdm(
+        for identifier, benchmark, result in tqdm(
             runner.compute(identifiers), total=benchmark_count
         ):
             logging.info(f"Finished benchmark {identifier}: {result}")

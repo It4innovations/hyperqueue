@@ -330,7 +330,7 @@ def test_job_summary(hq_env: HqEnv):
             ("FAILED", failed),
             ("CANCELED", canceled),
         )
-        for (index, (status, count)) in enumerate(items):
+        for index, (status, count) in enumerate(items):
             table.check_column_value("Status", index, status)
             table.check_column_value("Count", index, str(count))
 
@@ -1084,7 +1084,7 @@ def test_job_shell_script_read_interpreter(hq_env: HqEnv):
 echo 'Hello' > out.txt
 """
     )
-    for (job_id, path) in enumerate(
+    for job_id, path in enumerate(
         ("test.sh", "./test.sh", os.path.realpath("test.sh"))
     ):
         hq_env.command(["submit", path])

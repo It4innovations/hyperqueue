@@ -190,7 +190,7 @@ def render_workload(
         template = file.read()
 
     environments = {}
-    for (group, group_data) in groupby_environment(data):
+    for group, group_data in groupby_environment(data):
         key = group[0] + "(" + group[1] + ") [" + workload + ":" + workload_params + "]"
         environments[key] = render_environment(
             level + 1, entry_map, group[0], group[1], group_data
@@ -229,7 +229,7 @@ def pregenerate_entries(database: Database, directory: Path) -> EntryMap:
     entry_map = {}
     with Pool() as pool:
         args = [(record, directory) for record in database.records]
-        for ((record, _), entry) in tqdm.tqdm(
+        for (record, _), entry in tqdm.tqdm(
             zip(args, pool.imap(generate_entry, args)), total=len(args)
         ):
             if entry is not None:
@@ -252,7 +252,7 @@ def summary_by_benchmark(df: pd.DataFrame, file):
         "duration"
     ]
     with pd_print_all():
-        for (group, data) in sorted(grouped, key=lambda item: item[0]):
+        for group, data in sorted(grouped, key=lambda item: item[0]):
             result = data.describe().to_frame().transpose()
             print(" ".join(group), file=file)
             print(f"{result}\n", file=file)
@@ -268,11 +268,11 @@ def two_level_summary(
     primary_group = primary_grouping(df)
 
     with pd_print_all():
-        for (group, data) in sorted(primary_group, key=lambda item: item[0]):
+        for group, data in sorted(primary_group, key=lambda item: item[0]):
             print(" ".join(group), file=file)
 
             secondary_group = secondary_grouping(data)
-            for (group, results) in sorted(secondary_group, key=lambda item: item[0]):
+            for group, results in sorted(secondary_group, key=lambda item: item[0]):
                 stats = results["duration"].describe()
                 duration_str = f"{stats['mean']:.4f} s"
                 if stats["count"] > 1:
@@ -344,7 +344,7 @@ def create_summary_page(database: Database, directory: Path):
     df = create_database_df(database)
 
     workloads = {}
-    for (group, group_data) in groupby_workload(df):
+    for group, group_data in groupby_workload(df):
         name = group[0] + f"({group[1]})"
         workloads[name] = render_workload(0, entry_map, group[0], group[1], group_data)
     return render(template, workloads=workloads)

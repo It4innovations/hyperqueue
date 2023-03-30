@@ -74,7 +74,7 @@ def sleep():
     def add_product(
         workloads: List[Workload], environments: List[EnvironmentDescriptor]
     ):
-        for (env, workload) in itertools.product(environments, workloads):
+        for env, workload in itertools.product(environments, workloads):
             descriptions.append(
                 BenchmarkDescriptor(env_descriptor=env, workload=workload)
             )
