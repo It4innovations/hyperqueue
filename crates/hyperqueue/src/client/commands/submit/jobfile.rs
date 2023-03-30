@@ -1,8 +1,8 @@
 use crate::client::commands::submit::command::{
     send_submit_request, DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH,
 };
-use crate::client::commands::submit::defs::PinMode as PinModeDef;
-use crate::client::commands::submit::defs::{JobDef, TaskDef};
+use crate::client::commands::submit::defs::{ArrayDef, JobDef, TaskDef};
+use crate::client::commands::submit::defs::{PinMode as PinModeDef, TaskConfigDef};
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::utils::fs::get_current_dir;
 use crate::transfer::connection::ClientSession;
@@ -36,32 +36,32 @@ fn create_stdio(def: &str, default: &str, is_log: bool) -> StdioDef {
     }
 }
 
-fn build_task_description(tdef: TaskDef) -> TaskDescription {
+fn build_task_description(cfg: TaskConfigDef) -> TaskDescription {
     TaskDescription {
         program: ProgramDefinition {
-            args: tdef.command.into_iter().map(|x| x.into()).collect(),
-            env: tdef.env,
-            stdout: create_stdio(&tdef.stdout, DEFAULT_STDOUT_PATH, false),
-            stderr: create_stdio(&tdef.stderr, DEFAULT_STDERR_PATH, false),
+            args: cfg.command.into_iter().map(|x| x.into()).collect(),
+            env: cfg.env,
+            stdout: create_stdio(&cfg.stdout, DEFAULT_STDOUT_PATH, false),
+            stderr: create_stdio(&cfg.stderr, DEFAULT_STDERR_PATH, false),
             stdin: vec![],
-            cwd: PathBuf::from(tdef.cwd),
+            cwd: PathBuf::from(cfg.cwd),
         },
         resources: ResourceRequestVariants {
-            variants: if tdef.request.is_empty() {
+            variants: if cfg.request.is_empty() {
                 smallvec![ResourceRequest::default()]
             } else {
-                tdef.request.into_iter().map(|r| r.into_request()).collect()
+                cfg.request.into_iter().map(|r| r.into_request()).collect()
             },
         },
-        pin_mode: match tdef.pin {
+        pin_mode: match cfg.pin {
             PinModeDef::None => PinMode::None,
             PinModeDef::TaskSet => PinMode::TaskSet,
             PinModeDef::OpenMP => PinMode::OpenMP,
         },
-        task_dir: tdef.task_dir,
-        time_limit: tdef.time_limit,
-        priority: tdef.priority,
-        crash_limit: tdef.crash_limit,
+        task_dir: cfg.task_dir,
+        time_limit: cfg.time_limit,
+        priority: cfg.priority,
+        crash_limit: cfg.crash_limit,
     }
 }
 
@@ -70,7 +70,7 @@ fn build_task(tdef: TaskDef, max_id: &mut JobTaskId) -> TaskWithDependencies {
         *max_id = JobTaskId::new(max_id.as_num() + 1);
         *max_id
     });
-    let task_desc = build_task_description(tdef);
+    let task_desc = build_task_description(tdef.config);
     TaskWithDependencies {
         id,
         task_desc,
@@ -78,25 +78,36 @@ fn build_task(tdef: TaskDef, max_id: &mut JobTaskId) -> TaskWithDependencies {
     }
 }
 
-fn build_job_submit(jdef: JobDef) -> SubmitRequest {
-    let mut max_id: JobTaskId = jdef
-        .tasks
+fn build_job_desc_array(array: ArrayDef) -> JobDescription {
+    JobDescription::Array {
+        ids: array.ids,
+        entries: None,
+        task_desc: build_task_description(array.config),
+    }
+}
+
+fn build_job_desc_individual_tasks(tasks: Vec<TaskDef>) -> JobDescription {
+    let mut max_id: JobTaskId = tasks
         .iter()
         .map(|t| t.id)
         .max()
         .flatten()
         .unwrap_or(JobTaskId(0));
 
-    let job_desc = {
-        JobDescription::Graph {
-            tasks: jdef
-                .tasks
-                .into_iter()
-                .map(|t| build_task(t, &mut max_id))
-                .collect(),
-        }
-    };
+    JobDescription::Graph {
+        tasks: tasks
+            .into_iter()
+            .map(|t| build_task(t, &mut max_id))
+            .collect(),
+    }
+}
 
+fn build_job_submit(jdef: JobDef) -> SubmitRequest {
+    let job_desc = if let Some(array) = jdef.array {
+        build_job_desc_array(array)
+    } else {
+        build_job_desc_individual_tasks(jdef.tasks)
+    };
     SubmitRequest {
         job_desc,
         name: jdef.name,
