@@ -1,4 +1,6 @@
 use crate::client::resources::parse_allocation_request;
+use crate::common::arraydef::IntArray;
+use crate::common::arrayparser::parse_array;
 use crate::common::error::HqError;
 use crate::common::utils::time::parse_human_time;
 use crate::{JobTaskCount, JobTaskId};
@@ -16,20 +18,6 @@ use tako::{Map, Priority};
 pub enum IntOrString {
     Int(u64),
     String(String),
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct JobDef {
-    #[serde(default)]
-    pub name: String,
-
-    pub max_fails: Option<JobTaskCount>,
-
-    #[serde(rename = "task")]
-    pub tasks: Vec<TaskDef>,
-
-    pub stream_log: Option<PathBuf>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -125,9 +113,7 @@ impl ResourceRequestDef {
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
-pub struct TaskDef {
-    pub id: Option<JobTaskId>,
-
+pub struct TaskConfigDef {
     pub command: Vec<String>,
 
     #[serde(default)]
@@ -162,12 +148,62 @@ pub struct TaskDef {
     pub crash_limit: u32,
 }
 
+#[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct TaskDef {
+    pub id: Option<JobTaskId>,
+
+    #[serde(flatten)]
+    pub config: TaskConfigDef,
+}
+
+fn deserialize_array<'de, D>(deserializer: D) -> Result<IntArray, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let buf = String::deserialize(deserializer)?;
+    parse_array(&buf).map_err(serde::de::Error::custom)
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ArrayDef {
+    #[serde(deserialize_with = "deserialize_array")]
+    pub ids: IntArray,
+
+    #[serde(flatten)]
+    pub config: TaskConfigDef,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct JobDef {
+    #[serde(default)]
+    pub name: String,
+
+    pub max_fails: Option<JobTaskCount>,
+
+    #[serde(default)]
+    #[serde(rename = "task")]
+    pub tasks: Vec<TaskDef>,
+
+    pub array: Option<ArrayDef>,
+
+    pub stream_log: Option<PathBuf>,
+}
+
 impl JobDef {
     pub fn parse(str: &str) -> crate::Result<JobDef> {
         let jdef: JobDef = toml::from_str(str)?;
 
-        if jdef.tasks.is_empty() {
+        if jdef.tasks.is_empty() && jdef.array.is_none() {
             return Err(HqError::DeserializationError("No tasks defined".into()));
+        }
+
+        if !jdef.tasks.is_empty() && jdef.array.is_some() {
+            return Err(HqError::DeserializationError(
+                "Definition of array job and individual task cannot be mixed".into(),
+            ));
         }
 
         Ok(jdef)
@@ -193,7 +229,7 @@ mod test {
         assert_eq!(jdef.tasks.len(), 1);
         assert!(jdef.tasks[0].id.is_none());
         assert_eq!(
-            jdef.tasks[0].command,
+            jdef.tasks[0].config.command,
             vec!["sleep".to_string(), "1".to_string()]
         );
     }
@@ -232,13 +268,21 @@ mod test {
         "#,
         )
         .unwrap();
-        assert_eq!(r.tasks[0].env.len(), 2);
+        assert_eq!(r.tasks[0].config.env.len(), 2);
         assert_eq!(
-            r.tasks[0].env.get(BString::from("ABC").as_bstr()).unwrap(),
+            r.tasks[0]
+                .config
+                .env
+                .get(BString::from("ABC").as_bstr())
+                .unwrap(),
             "abc"
         );
         assert_eq!(
-            r.tasks[0].env.get(BString::from("XYZ").as_bstr()).unwrap(),
+            r.tasks[0]
+                .config
+                .env
+                .get(BString::from("XYZ").as_bstr())
+                .unwrap(),
             "55"
         );
     }
@@ -255,13 +299,21 @@ mod test {
         "#,
         )
         .unwrap();
-        assert_eq!(r.tasks[0].env.len(), 2);
+        assert_eq!(r.tasks[0].config.env.len(), 2);
         assert_eq!(
-            r.tasks[0].env.get(BString::from("ABC").as_bstr()).unwrap(),
+            r.tasks[0]
+                .config
+                .env
+                .get(BString::from("ABC").as_bstr())
+                .unwrap(),
             "abc"
         );
         assert_eq!(
-            r.tasks[0].env.get(BString::from("XYZ").as_bstr()).unwrap(),
+            r.tasks[0]
+                .config
+                .env
+                .get(BString::from("XYZ").as_bstr())
+                .unwrap(),
             "55"
         );
     }

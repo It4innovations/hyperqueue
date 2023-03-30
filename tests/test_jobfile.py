@@ -178,7 +178,6 @@ def test_job_file_resource_variants3(hq_env: HqEnv, tmp_path):
         )
     )
     hq_env.command(["job", "submit-file", "job.toml"])
-    time.sleep(5)
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     r = hq_env.command(["job", "cat", "1", "stdout"])
@@ -190,7 +189,8 @@ def test_job_file_resource_variants3(hq_env: HqEnv, tmp_path):
 def test_job_file_auto_id(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker()
-    tmp_path.joinpath("job.toml").write_text("""
+    tmp_path.joinpath("job.toml").write_text(
+        """
 [[task]]
 command = ["sleep", "0"]
 
@@ -207,9 +207,40 @@ command = ["sleep", "0"]
 
 [[task]]
 command = ["sleep", "0"]
-    """)
+    """
+    )
     hq_env.command(["job", "submit-file", "job.toml"])
     wait_for_job_state(hq_env, 1, "FINISHED")
     r = hq_env.command(["--output-mode=json", "job", "info", "1"], as_json=True)
     ids = set(x["id"] for x in r[0]["tasks"])
     assert ids == {3, 12, 13, 14, 15}
+
+
+def test_job_file_array(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    tmp_path.joinpath("job.toml").write_text(
+        f"""
+[array]
+ids = "2, 10-14, 120"
+command = ["sleep", "0"]
+    """
+    )
+    hq_env.command(["job", "submit-file", "job.toml"])
+    r = hq_env.command(["job", "info", "1"], as_table=True)
+    r.check_row_value("Tasks", "7; Ids: 2, 10-14, 120")
+
+
+def test_job_file_fail_mixing_array_and_tasks(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    tmp_path.joinpath("job.toml").write_text(
+        f"""
+[array]
+ids = "2"
+command = ["sleep", "0"]
+
+[[task]]
+id = 1
+command = ["sleep", "0"]
+    """
+    )
+    hq_env.command(["job", "submit-file", "job.toml"], expect_fail="Definition of array job and individual task cannot be mixed")
