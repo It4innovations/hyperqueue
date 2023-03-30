@@ -86,7 +86,7 @@ impl RootScreen {
 
 pub fn get_root_screen_chunks(frame: &DashboardFrame) -> RootChunks {
     let root_screen_chunks = Layout::default()
-        .constraints(vec![Constraint::Min(3), Constraint::Min(40)])
+        .constraints(vec![Constraint::Length(3), Constraint::Percentage(100)])
         .direction(Direction::Vertical)
         .split(frame.size());
 
