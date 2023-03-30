@@ -7,14 +7,9 @@ const YELLOW_THRESHOLD: f64 = 0.7;
  *   Progress bar's structure: [StartBlock]<>[indicator][][]<>[][][][unused_area]<>[end_block]
  **/
 pub struct ProgressPrintStyle {
-    /// The first character of the progress bar
-    start_block: char,
-    /// The progress indicator
     indicator: char,
     /// It fills the empty space between current progress and max progress
     unused_area: char,
-    /// The ending character of the progressbar
-    end_block: char,
 }
 
 pub fn get_progress_bar_color(progress: f64) -> Style {
@@ -40,15 +35,15 @@ pub fn get_progress_bar_color(progress: f64) -> Style {
 pub fn render_progress_bar_at(
     label: Option<String>,
     progress: f64,
-    num_characters: u8,
+    width: u8,
     style: ProgressPrintStyle,
 ) -> String {
     assert!((0.00..=1.00).contains(&progress));
     let label = label.unwrap_or_default();
-    //to keep the length of the progressbar correct after the padding and %usage label
-    let num_characters = num_characters - 8 - label.len() as u8;
+
+    // Keep the length of the progressbar correct after the padding and %usage label
+    let num_characters = width - 6 - label.len() as u8;
     let indicator_count = (progress * (num_characters as f64)).ceil();
-    let start_block = style.start_block;
     let indicator = std::iter::repeat(style.indicator)
         .take(indicator_count as usize)
         .collect::<String>();
@@ -56,22 +51,13 @@ pub fn render_progress_bar_at(
         .take(num_characters as usize - indicator_count as usize)
         .collect::<String>();
 
-    format!(
-        "{}{}{}{}{}: {}%",
-        label,
-        start_block,
-        indicator,
-        filler,
-        style.end_block,
-        (progress * 100.00) as u32
-    )
+    let percent = format!("({}%)", (progress * 100.00) as u32);
+    format!("{label}{indicator}{filler} {percent:>5}")
 }
 
 impl Default for ProgressPrintStyle {
     fn default() -> Self {
         Self {
-            start_block: '╢',
-            end_block: '╟',
             indicator: '▌',
             unused_area: '░',
         }
