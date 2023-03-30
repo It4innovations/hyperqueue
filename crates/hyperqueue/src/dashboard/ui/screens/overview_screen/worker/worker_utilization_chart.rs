@@ -73,7 +73,7 @@ impl WorkerUtilizationChart {
                 .map(|stats| !stats.gpus.is_empty())
                 .unwrap_or(false)
         });
-        let mut gpu_usage = create_data(&self.overviews, |state| {
+        let gpu_usage = create_data(&self.overviews, |state| {
             let gpu_state = state
                 .state
                 .nvidia_gpus

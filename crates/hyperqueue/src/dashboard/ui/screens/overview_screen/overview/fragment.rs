@@ -1,18 +1,18 @@
 use termion::event::Key;
+use tui::layout::{Constraint, Direction, Layout, Rect};
 
-use crate::dashboard::ui::styles::{style_footer, style_header_text};
-use crate::dashboard::ui::terminal::DashboardFrame;
-use crate::dashboard::ui::widgets::text::draw_text;
+use tako::WorkerId;
 
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::screens::overview_screen::overview::worker_count_chart::WorkerCountChart;
-use crate::dashboard::ui::screens::overview_screen::overview::worker_utilization_table::WorkerUtilTable;
-use tako::WorkerId;
-use tui::layout::{Constraint, Direction, Layout, Rect};
+use crate::dashboard::ui::screens::overview_screen::overview::worker_table::WorkerTable;
+use crate::dashboard::ui::styles::style_footer;
+use crate::dashboard::ui::terminal::DashboardFrame;
+use crate::dashboard::ui::widgets::text::draw_text;
 
 #[derive(Default)]
 pub struct ClusterOverviewFragment {
-    worker_util_table: WorkerUtilTable,
+    worker_util_table: WorkerTable,
     cluster_overview: WorkerCountChart,
 }
 
