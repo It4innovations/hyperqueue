@@ -49,14 +49,9 @@ impl WorkerUtilTable {
             rect,
             frame,
             TableColumnHeaders {
-                title: "worker hardware utilization",
+                title: "Worker hardware utilization",
                 inline_help: "",
-                table_headers: Some(vec![
-                    "worker_id",
-                    "#running tasks",
-                    "cpu_util (%)",
-                    "mem_util (%)",
-                ]),
+                table_headers: Some(vec!["ID", "Running tasks", "CPU util", "Mem util"]),
                 column_widths: vec![
                     Constraint::Percentage(25),
                     Constraint::Percentage(25),
