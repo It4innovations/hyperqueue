@@ -110,11 +110,12 @@ $ hq submit --env KEY1=VAL1 --env KEY2=VAL2 ...
 
 Each executed task will also automatically receive the following environment variables:
 
-| Variable name    | Explanation                            |
-|------------------|----------------------------------------|
-| `HQ_JOB_ID`      | Job id                                 |
-| `HQ_TASK_ID`     | Task id                                |
-| `HQ_INSTANCE_ID` | [Instance id](failure.md#task-restart) |
+| Variable name    | Explanation                                                       |
+|------------------|-------------------------------------------------------------------|
+| `HQ_JOB_ID`      | Job id                                                            |
+| `HQ_TASK_ID`     | Task id                                                           |
+| `HQ_INSTANCE_ID` | [Instance id](failure.md#task-restart)                            |
+| `HQ_RESOURCE_...`| A set of variables related to allocated [resources](resources.md) |
 
 ### Time management
 You can specify two time-related parameters when submitting a job. They will be applied to each task of the submitted job.

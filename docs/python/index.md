@@ -2,16 +2,6 @@
 To provide greater flexibility and support use-cases that are difficult to express using the CLI
 (such as dependencies between tasks), HyperQueue also offers a Python API for submitting complex jobs.
 
-There are several benefits to using the Python API, which are not easily available in the command-line
-interface:
-
-- [**Task dependencies**](dependencies.md) You can specify dependencies between individual
-tasks of a job, which enables executing complex workflows.
-- [**Task configuration**](submit.md#parametrizing-tasks) You can specify [resources](../jobs/resources.md),
-[output paths](../jobs/jobs.md#output) or other configuration individually for each task of a job.
-- [**Python tasks**](submit.md#python-functions) You can easily execute Python functions as tasks and
-pass parameters to them directly, without needing to go through the filesystem.
-
 You can find the HyperQueue Python API reference [here](apidoc).
 
 ## Requirements
