@@ -95,7 +95,7 @@ impl WorkerOverviewFragment {
                 data.query_task_history_for_worker(worker_id).collect();
             self.worker_tasks_table.update(tasks_info);
 
-            if let Some(configuration) = data.workers().get_worker_config_for(&worker_id) {
+            if let Some(configuration) = data.workers().get_worker_config_for(worker_id) {
                 self.worker_config_table.update(configuration);
             }
         }
@@ -150,7 +150,7 @@ impl WorkerFragmentLayout {
             .split(base_chunks[1]);
 
         let bottom_chunks = Layout::default()
-            .constraints(vec![Constraint::Percentage(70), Constraint::Percentage(30)])
+            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
             .direction(Direction::Horizontal)
             .split(base_chunks[2]);
 
