@@ -26,6 +26,7 @@ nav:
     - Handling Failure: jobs/failure.md
     - Output Streaming: jobs/streaming.md
     - Directives: jobs/directives.md
+    - Job Definition File: jobs/jobfile.md
     - Multinode Tasks: jobs/multinode.md
   - CLI:
     - Shortcuts: cli/shortcuts.md
