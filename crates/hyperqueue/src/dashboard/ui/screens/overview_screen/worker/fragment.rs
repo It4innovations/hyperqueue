@@ -11,8 +11,8 @@ use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::screens::overview_screen::worker::cpu_util_table::{
     get_column_constraints, render_cpu_util_table,
 };
-use crate::dashboard::ui::screens::overview_screen::worker::utilization_chart::WorkerUtilizationChart;
 use crate::dashboard::ui::screens::overview_screen::worker::worker_config_table::WorkerConfigTable;
+use crate::dashboard::ui::screens::overview_screen::worker::worker_utilization_chart::WorkerUtilizationChart;
 use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 use crate::JobTaskId;
 use tako::WorkerId;
@@ -145,7 +145,7 @@ impl WorkerFragmentLayout {
             .split(*rect);
 
         let utilization_chunks = Layout::default()
-            .constraints(vec![Constraint::Percentage(40), Constraint::Percentage(60)])
+            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
             .direction(Direction::Horizontal)
             .split(base_chunks[1]);
 

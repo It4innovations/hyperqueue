@@ -2,13 +2,13 @@ use chrono::{DateTime, Local};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tako::Map;
-use tui::layout::Rect;
+use tui::layout::{Alignment, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::symbols::Marker;
 use tui::text::Span;
 use tui::widgets::{Axis, Block, Borders, Chart, Dataset};
 
-use crate::dashboard::data::DashboardData;
+use crate::dashboard::data::{DashboardData, TimeRange};
 use crate::dashboard::ui::styles::chart_style_deselected;
 use crate::dashboard::ui::terminal::DashboardFrame;
 
@@ -188,6 +188,42 @@ impl Default for PlotStyle {
     }
 }
 
-fn get_time_as_secs(time: SystemTime) -> u64 {
-    time.duration_since(UNIX_EPOCH).unwrap().as_secs()
+pub fn get_time_as_secs(time: SystemTime) -> f64 {
+    time.duration_since(UNIX_EPOCH).unwrap().as_secs() as f64
+}
+
+fn format_tims_hms(time: SystemTime) -> String {
+    let datetime: chrono::DateTime<Local> = time.into();
+    datetime.format("%H:%M:%S").to_string()
+}
+
+/// Creates a X axis for a time chart, from a range of time.
+pub fn x_axis_time_chart(range: TimeRange) -> Axis<'static> {
+    Axis::default()
+        .style(Style::default().fg(Color::Gray))
+        .bounds([get_time_as_secs(range.start), get_time_as_secs(range.end)])
+        .labels(vec![
+            format_tims_hms(range.start).into(),
+            format_tims_hms(range.end).into(),
+        ])
+}
+
+/// Crates a Y axis from a minimum and maximum bound, with `step_count` steps.
+pub fn y_axis_steps(min: f64, max: f64, step_count: u32) -> Axis<'static> {
+    let length = max - min;
+    let interval = length / step_count as f64;
+
+    Axis::default()
+        .style(Style::default().fg(Color::Gray))
+        .bounds([min, max])
+        .labels(
+            (0..=step_count)
+                .map(|step| {
+                    let value = step as f64 * interval;
+                    let value = value.round() as u64;
+                    value.to_string().into()
+                })
+                .collect(),
+        )
+        .labels_alignment(Alignment::Right)
 }

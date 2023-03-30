@@ -1,11 +1,8 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
-use chrono::Local;
-use tui::layout::{Alignment, Rect};
+use tui::layout::{Constraint, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::symbols;
 use tui::text::Span;
-use tui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType};
+use tui::widgets::{Block, Borders, Chart, Dataset, GraphType};
 
 use tako::hwstats::WorkerHwStateMessage;
 use tako::worker::WorkerOverview;
@@ -15,8 +12,10 @@ use crate::dashboard::data::DashboardData;
 use crate::dashboard::data::{ItemWithTime, TimeRange};
 use crate::dashboard::ui::styles::chart_style_deselected;
 use crate::dashboard::ui::terminal::DashboardFrame;
+use crate::dashboard::ui::widgets::chart::{get_time_as_secs, x_axis_time_chart, y_axis_steps};
 use crate::dashboard::utils::{get_average_cpu_usage_for_worker, get_memory_usage_pct};
 
+#[derive(Default)]
 pub struct WorkerUtilizationChart {
     range: TimeRange,
     overviews: Vec<ItemWithTime<WorkerOverview>>,
@@ -86,15 +85,16 @@ impl WorkerUtilizationChart {
         });
 
         let mut datasets = vec![
-            create_dataset(&cpu_usage, "avg cpu (%)", Color::Green),
-            create_dataset(&mem_usage, "mem (%)", Color::Blue),
+            create_dataset(&cpu_usage, "CPU (avg) (%)", Color::Green),
+            create_dataset(&mem_usage, "Mem (%)", Color::Blue),
         ];
         if has_gpus {
-            datasets.push(create_dataset(&gpu_usage, "gpu 0 (%)", Color::Red));
+            datasets.push(create_dataset(&gpu_usage, "GPU 0 (%)", Color::Red));
         }
 
         let chart = Chart::new(datasets)
             .style(chart_style_deselected())
+            .hidden_legend_constraints((Constraint::Ratio(1, 1), Constraint::Ratio(1, 1)))
             .block(
                 Block::default()
                     .title(Span::styled(
@@ -105,25 +105,8 @@ impl WorkerUtilizationChart {
                     ))
                     .borders(Borders::ALL),
             )
-            .x_axis(
-                Axis::default()
-                    .style(Style::default().fg(Color::Gray))
-                    .bounds([
-                        get_time_as_secs(self.range.start) as f64,
-                        get_time_as_secs(self.range.end) as f64,
-                    ])
-                    .labels(vec![
-                        format_time(self.range.start).into(),
-                        format_time(self.range.end).into(),
-                    ]),
-            )
-            .y_axis(
-                Axis::default()
-                    .style(Style::default().fg(Color::Gray))
-                    .bounds([0.0, 100.0])
-                    .labels((0..=10).map(|v| (v * 10).to_string().into()).collect())
-                    .labels_alignment(Alignment::Right),
-            );
+            .x_axis(x_axis_time_chart(self.range))
+            .y_axis(y_axis_steps(0.0, 100.0, 5));
         frame.render_widget(chart, rect);
     }
 
@@ -136,22 +119,4 @@ impl WorkerUtilizationChart {
         self.overviews = overviews.into_iter().cloned().collect();
         self.range = time_range;
     }
-}
-
-impl Default for WorkerUtilizationChart {
-    fn default() -> Self {
-        Self {
-            range: TimeRange::new(SystemTime::now(), SystemTime::now()),
-            overviews: Default::default(),
-        }
-    }
-}
-
-fn get_time_as_secs(time: SystemTime) -> u64 {
-    time.duration_since(UNIX_EPOCH).unwrap().as_secs()
-}
-
-fn format_time(time: SystemTime) -> String {
-    let datetime: chrono::DateTime<Local> = time.into();
-    datetime.format("%H:%M:%S").to_string()
 }

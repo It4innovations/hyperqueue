@@ -1,9 +1,11 @@
 use crate::dashboard::data::timelines::job_timeline::DashboardTaskState;
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::terminal::DashboardFrame;
-use crate::dashboard::ui::widgets::chart::{ChartPlotter, DashboardChart, PlotStyle};
+use crate::dashboard::ui::widgets::chart::{
+    get_time_as_secs, ChartPlotter, DashboardChart, PlotStyle,
+};
 use crate::JobId;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 use tako::Map;
 use tui::layout::Rect;
 use tui::style::Color;
@@ -137,8 +139,4 @@ fn get_task_counts_for_job(
                 DashboardTaskState::Finished => (running, failed, finished + 1),
             },
         )
-}
-
-fn get_time_as_secs(time: SystemTime) -> f64 {
-    time.duration_since(UNIX_EPOCH).unwrap().as_secs() as f64
 }

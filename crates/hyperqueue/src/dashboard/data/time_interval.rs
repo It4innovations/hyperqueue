@@ -15,6 +15,16 @@ impl TimeRange {
     }
 }
 
+impl Default for TimeRange {
+    fn default() -> Self {
+        let now = SystemTime::now();
+        Self {
+            start: now - Duration::from_secs(30 * 60),
+            end: now,
+        }
+    }
+}
+
 /// Decides how will the currently active time range be selected.
 pub enum TimeMode {
     /// The latest time will always be `[now() - duration, now()]`.
