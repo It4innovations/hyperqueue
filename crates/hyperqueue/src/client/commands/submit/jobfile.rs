@@ -4,12 +4,13 @@ use crate::client::commands::submit::command::{
 use crate::client::commands::submit::defs::{ArrayDef, JobDef, TaskDef};
 use crate::client::commands::submit::defs::{PinMode as PinModeDef, TaskConfigDef};
 use crate::client::globalsettings::GlobalSettings;
+use crate::common::arraydef::IntArray;
 use crate::common::utils::fs::get_current_dir;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     JobDescription, PinMode, SubmitRequest, TaskDescription, TaskWithDependencies,
 };
-use crate::JobTaskId;
+use crate::{JobTaskCount, JobTaskId};
 use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
@@ -79,9 +80,17 @@ fn build_task(tdef: TaskDef, max_id: &mut JobTaskId) -> TaskWithDependencies {
 }
 
 fn build_job_desc_array(array: ArrayDef) -> JobDescription {
+    let ids = array
+        .ids
+        .unwrap_or_else(|| IntArray::from_range(0, array.entries.len() as JobTaskCount));
+    let entries = if array.entries.is_empty() {
+        None
+    } else {
+        Some(array.entries.into_iter().map(|s| s.into()).collect())
+    };
     JobDescription::Array {
-        ids: array.ids,
-        entries: None,
+        ids,
+        entries,
         task_desc: build_task_description(array.config),
     }
 }
