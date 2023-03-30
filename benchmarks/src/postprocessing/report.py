@@ -42,12 +42,12 @@ class ClusterReport:
 def load_profiling_data(cluster: Cluster) -> ProfilingData:
     data = {}
 
-    for (_, process) in cluster.processes():
+    for _, process in cluster.processes():
         if PROFILER_METADATA_KEY in process.metadata:
             records = process.metadata[PROFILER_METADATA_KEY]
             process_records = {}
 
-            for (tag, file) in records.items():
+            for tag, file in records.items():
                 file = Path(file)
                 if file.is_file():
                     process_records[tag] = file
@@ -62,7 +62,7 @@ def load_profiling_data(cluster: Cluster) -> ProfilingData:
 def load_monitoring_data(directory: Path, cluster: Cluster) -> MonitoringData:
     data = {}
 
-    for (node, process) in cluster.processes():
+    for node, process in cluster.processes():
         if "monitor" == process.key:
             trace_file = node_monitoring_trace(directory, node.hostname)
             if trace_file.exists():

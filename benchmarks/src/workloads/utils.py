@@ -32,7 +32,7 @@ def measure_hq_tasks(
     ]
 
     resources = resources or {}
-    for (name, amount) in resources.items():
+    for name, amount in resources.items():
         args += ["--resource", f"{name}={amount}"]
 
     args += [

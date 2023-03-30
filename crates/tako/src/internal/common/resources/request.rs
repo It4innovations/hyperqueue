@@ -151,9 +151,21 @@ impl ResourceRequestVariants {
     }
 
     pub fn sort_key(&self, allocator: &ResourceAllocator) -> (f32, TimeRequest) {
-        self.variants[1..]
+        let (i, score) = self
+            .variants
             .iter()
-            .fold(self.variants[0].sort_key(allocator), |(score, time), rq| {
+            .enumerate()
+            .find_map(|(i, rq)| {
+                if allocator.is_capable_to_run(rq) {
+                    Some((i, rq.sort_key(allocator)))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        self.variants[i + 1..]
+            .iter()
+            .fold(score, |(score, time), rq| {
                 let (score2, time2) = rq.sort_key(allocator);
                 (score.min(score2), time.min(time2))
             })

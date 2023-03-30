@@ -47,7 +47,7 @@ class PbsManager(DefaultManager):
     async def handle_status(self, input: MockInput) -> CommandResponse:
         job_ids = []
         args = input.arguments
-        for (index, arg) in enumerate(args[:-1]):
+        for index, arg in enumerate(args[:-1]):
             if arg == "-f":
                 job_ids.append(args[index + 1])
 

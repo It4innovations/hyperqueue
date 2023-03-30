@@ -91,7 +91,7 @@ class ClusterHelper:
                 for res in pool.map(start_process_pool, pool_args):
                     spawned.append(res)
 
-        for (process, args) in zip(spawned, pool_args):
+        for process, args in zip(spawned, pool_args):
             self.cluster.add(process=process, key=args.name, **args.metadata)
 
     def start_monitoring(self, nodes: List[str], observe_processes=False):

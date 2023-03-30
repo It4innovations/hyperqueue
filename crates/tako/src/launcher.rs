@@ -82,6 +82,14 @@ impl<'a> LaunchContext<'a> {
         &self.task.resources.requests()[self.resource_index]
     }
 
+    pub fn n_resource_variants(&self) -> usize {
+        self.task.resources.requests().len()
+    }
+
+    pub fn resource_variant(&self) -> usize {
+        self.resource_index
+    }
+
     pub fn allocation(&self) -> &'a Allocation {
         self.task.resource_allocation().unwrap()
     }

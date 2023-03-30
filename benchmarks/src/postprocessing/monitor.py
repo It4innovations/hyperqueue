@@ -78,7 +78,7 @@ def is_valid_process(process: ProcessInfo) -> bool:
 
 
 def get_processes_by_hostname(cluster: Cluster, hostname: str) -> Iterator[ProcessInfo]:
-    for (_, process) in cluster.get_processes(hostname=hostname):
+    for _, process in cluster.get_processes(hostname=hostname):
         if is_valid_process(process):
             yield process
 
@@ -131,7 +131,7 @@ def render_node_per_cpu_pct_utilization(figure: Figure, df: pd.DataFrame):
     data = {}
     tooltips = []
 
-    for (i, cpu) in enumerate(cpus):
+    for i, cpu in enumerate(cpus):
         key = f"cpu_{i}"
         data[key] = cpu / 100.0
         data[f"{key}_x"] = cpu.index
@@ -146,7 +146,7 @@ def render_node_per_cpu_pct_utilization(figure: Figure, df: pd.DataFrame):
     data = ColumnDataSource(data)
 
     colors = select_colors(cpus)
-    for (i, color) in enumerate(colors):
+    for i, color in enumerate(colors):
         figure.line(
             x=f"cpu_{i}_x",
             y=f"cpu_{i}",
@@ -272,7 +272,7 @@ def render_nodes_resource_usage(
 ) -> LayoutDOM:
     items = sorted(resources_df.groupby(HOSTNAME_KEY), key=lambda item: item[0])
     rows = []
-    for (hostname, node_data) in items:
+    for hostname, node_data in items:
         utilization = render_node_utilization(node_data)
 
         header_text = get_node_description(report, hostname)
@@ -323,7 +323,7 @@ def create_global_resource_datasource_and_tooltips(
     items = sorted(df.groupby(HOSTNAME_KEY), key=lambda item: item[0])
     tooltips = []
 
-    for (hostname, node_data) in items:
+    for hostname, node_data in items:
         records = node_data[node_data[HOSTNAME_KEY] == hostname]
         records.index = records[DATETIME_KEY]
 
@@ -370,7 +370,7 @@ def create_global_resources_df(monitoring: MonitoringData) -> pd.DataFrame:
     for each node in the cluster.
     """
     data = defaultdict(list)
-    for (node, records) in monitoring.items():
+    for node, records in monitoring.items():
         for record in records:
             record: MonitoringRecord = record
             data[DATETIME_KEY].append(pd.to_datetime(record.timestamp, unit="s"))
@@ -391,10 +391,10 @@ def create_per_process_resources_df(monitoring: MonitoringData) -> pd.DataFrame:
     per each observed process.
     """
     data = defaultdict(list)
-    for (node, records) in monitoring.items():
+    for node, records in monitoring.items():
         for record in records:
             record: MonitoringRecord = record
-            for (pid, process) in record.processes.items():
+            for pid, process in record.processes.items():
                 process: ProcessRecord = process
 
                 data[DATETIME_KEY].append(pd.to_datetime(record.timestamp, unit="s"))

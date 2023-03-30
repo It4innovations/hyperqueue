@@ -223,6 +223,13 @@ fn write_node_file(ctx: &LaunchContext, path: &Path) -> std::io::Result<()> {
 fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinition) {
     let resource_map = ctx.get_resource_map();
 
+    if ctx.n_resource_variants() > 1 {
+        program.env.insert(
+            "HQ_RESOURCE_VARIANT".into(),
+            ctx.resource_variant().to_string().into(),
+        );
+    }
+
     for entry in ctx.resources().entries() {
         let resource_name = resource_map.get_name(entry.resource_id).unwrap();
         program.env.insert(

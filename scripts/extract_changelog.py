@@ -11,7 +11,7 @@ def normalize(version: str) -> str:
 
 def get_matching_lines(text: str, tag: str):
     lines = list(text.splitlines(keepends=False))
-    for (index, line) in enumerate(lines):
+    for index, line in enumerate(lines):
         if line.startswith("# "):
             version = normalize(line.lstrip("# "))
             if version == tag:

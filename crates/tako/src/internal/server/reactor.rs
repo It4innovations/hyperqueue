@@ -385,11 +385,7 @@ pub(crate) fn on_steal_response(
                     log::debug!("Task stealing was successful task={}", task_id);
                     if let Some(w_id) = to_worker_id {
                         let task = core.get_task(task_id);
-                        let worker = core.get_worker_by_id_or_panic(w_id);
-                        comm.send_worker_message(
-                            w_id,
-                            &task.make_compute_message(Vec::new(), worker),
-                        );
+                        comm.send_worker_message(w_id, &task.make_compute_message(Vec::new()));
                         TaskRuntimeState::Assigned(w_id)
                     } else {
                         comm.ask_for_scheduling();

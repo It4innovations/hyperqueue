@@ -49,7 +49,7 @@ class Env:
         return p
 
     def check_process_exited(self, process: subprocess.Popen, expected_code=0):
-        for (n, p) in self.processes:
+        for n, p in self.processes:
             if p is process:
                 if process.poll() is None:
                     raise Exception(f"Process with pid {process.pid} is still running")
@@ -211,7 +211,7 @@ class HqEnv(Env):
 
     def stop_server(self):
         self.command(["server", "stop"])
-        for (_, p) in self.get_processes_by_name("server"):
+        for _, p in self.get_processes_by_name("server"):
             p.wait()
             self.check_process_exited(p)
 
@@ -228,7 +228,7 @@ class HqEnv(Env):
         self.kill_process(process[0])
 
     def find_process_by_pid(self, pid: int) -> Optional[Tuple[str, subprocess.Popen]]:
-        for (name, process) in self.processes:
+        for name, process in self.processes:
             if process.pid == pid:
                 return (name, process)
         return None
