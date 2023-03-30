@@ -123,13 +123,13 @@ pub struct TaskConfigDef {
     pub request: SmallVec<[ResourceRequestDef; 1]>,
 
     #[serde(default)]
-    pub stdout: String,
+    pub stdout: Option<String>,
 
     #[serde(default)]
-    pub stderr: String,
+    pub stderr: Option<String>,
 
     #[serde(default)]
-    pub cwd: String,
+    pub cwd: Option<String>,
 
     #[serde(default)]
     pub pin: PinMode,
