@@ -146,6 +146,9 @@ pub struct TaskConfigDef {
 
     #[serde(default)]
     pub crash_limit: u32,
+
+    #[serde(default)]
+    pub stdin: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]

@@ -44,7 +44,7 @@ fn build_task_description(cfg: TaskConfigDef) -> TaskDescription {
             env: cfg.env,
             stdout: create_stdio(cfg.stdout.as_deref(), DEFAULT_STDOUT_PATH, false),
             stderr: create_stdio(cfg.stderr.as_deref(), DEFAULT_STDERR_PATH, false),
-            stdin: vec![],
+            stdin: cfg.stdin.map(|s| s.as_bytes().into()).unwrap_or_default(),
             cwd: PathBuf::from(cfg.cwd.unwrap_or("".into())),
         },
         resources: ResourceRequestVariants {

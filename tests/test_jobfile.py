@@ -37,8 +37,9 @@ task_dir = true
 time_limit = "1m 10s"
 priority = -1
 crash_limit = 12
-command = ["bash", "-c", "echo $ABC $XYZ; >&2 echo error"]
+command = ["bash", "-c", "echo $ABC $XYZ; >&2 echo error; (echo \\"$(</dev/stdin)\\")"]
 env = {"ABC" = "123", "XYZ" = "aaaa"}
+stdin = "Hello world!"
 [[task.request]]
 n_nodes = 2
 
@@ -59,10 +60,6 @@ command = ["sleep", "0"]
 """
     )
     hq_env.command(["job", "submit-file", "job.toml"])
-
-    time.sleep(1)
-    table = hq_env.command(["task", "info", "1", "200"], as_table=True)
-
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
@@ -79,6 +76,9 @@ command = ["sleep", "0"]
     paths = table.get_row_value("Paths").split("\n")
     assert paths[1].endswith("testout-12")
     assert paths[2].endswith("testerr-12")
+
+    r = hq_env.command(["job", "cat", "1", "stdout", "--tasks", "12"]).strip()
+    assert r == "123 aaaa\nHello world!"
 
     table = hq_env.command(["task", "info", "1", "200"], as_table=True)
     table.check_row_value("Pin", "taskset")
