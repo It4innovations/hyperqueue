@@ -47,7 +47,7 @@ impl WorkerUtilizationChart {
                 .name(name)
                 .marker(symbols::Marker::Dot)
                 .style(Style::default().fg(color))
-                .graph_type(GraphType::Line)
+                .graph_type(GraphType::Scatter)
                 .data(items)
         }
 

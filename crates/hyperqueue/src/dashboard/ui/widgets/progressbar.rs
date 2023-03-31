@@ -39,11 +39,11 @@ pub fn render_progress_bar_at(
     width: u8,
     style: ProgressPrintStyle,
 ) -> String {
-    assert!((0.00..=1.00).contains(&progress));
+    let progress = progress.clamp(0.0, 1.0);
     let label = label.unwrap_or_default();
 
     let percent = format!(" ({}%)", (progress * 100.00) as u32);
-    let percent = format!("{percent:>6}");
+    let percent = format!("{percent:>7}");
 
     // Keep the length of the progressbar correct after the padding and %usage label
     let num_characters = width
