@@ -8,8 +8,11 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::progressbar::{
     get_progress_bar_color, render_progress_bar_at, ProgressPrintStyle,
 };
+use crate::dashboard::utils::calculate_average;
 
-const CPU_METER_LEN: u8 = 18;
+const CPU_METER_PROGRESSBAR_WIDTH: u8 = 18;
+// 4 characters for the label
+const CPU_METER_WIDTH: u8 = CPU_METER_PROGRESSBAR_WIDTH + 4;
 
 pub fn render_cpu_util_table(
     cpu_util_list: &[f64],
@@ -18,18 +21,26 @@ pub fn render_cpu_util_table(
     constraints: &[Constraint],
     table_style: Style,
 ) {
-    let indexed_util: Vec<(&f64, i32)> = cpu_util_list.iter().zip(1..).collect();
-    let rows: Vec<Row> = indexed_util
-        .chunks(constraints.len())
-        .map(|cpu_util_row| {
-            let columns: Vec<Cell> = cpu_util_row
-                .iter()
-                .map(|(&cpu_util, position)| {
+    let width = constraints.len();
+    let height = (cpu_util_list.len() as f64 / width as f64).ceil() as usize;
+
+    let mut rows: Vec<Vec<(f64, usize)>> = vec![vec![]; height];
+    for (position, &cpu_util) in cpu_util_list.iter().enumerate() {
+        let row = position % height;
+        rows[row].push((cpu_util, position));
+    }
+
+    let rows: Vec<Row> = rows
+        .into_iter()
+        .map(|targets| {
+            let columns: Vec<Cell> = targets
+                .into_iter()
+                .map(|(cpu_util, position)| {
                     let progress = cpu_util / 100.00;
                     Cell::from(render_progress_bar_at(
                         Some(format!("{position:>3} ")),
                         progress,
-                        CPU_METER_LEN,
+                        CPU_METER_PROGRESSBAR_WIDTH,
                         ProgressPrintStyle::default(),
                     ))
                     .style(get_progress_bar_color(progress))
@@ -39,16 +50,11 @@ pub fn render_cpu_util_table(
         })
         .collect();
 
-    let avg_prog = cpu_util_list
-        .iter()
-        .copied()
-        .reduce(|cpu_a, cpu_b| (cpu_a + cpu_b))
-        .unwrap_or(0.0)
-        / cpu_util_list.len() as f64;
+    let avg_cpu = calculate_average(cpu_util_list);
     let avg_progressbar = render_progress_bar_at(
         None,
-        avg_prog / 100.00,
-        CPU_METER_LEN,
+        avg_cpu / 100.00,
+        CPU_METER_PROGRESSBAR_WIDTH,
         ProgressPrintStyle::default(),
     );
     let title = styles::table_title(format!(
@@ -69,7 +75,7 @@ pub fn render_cpu_util_table(
 
 /// Creates the column sizes for the cpu_util_table, each column divides the row equally.
 pub fn get_column_constraints(rect: Rect, num_cpus: usize) -> Vec<Constraint> {
-    let max_columns = (rect.width / CPU_METER_LEN as u16) as usize;
+    let max_columns = (rect.width / CPU_METER_WIDTH as u16) as usize;
     let num_columns = cmp::min(max_columns, num_cpus);
 
     std::iter::repeat(Constraint::Percentage((100 / num_columns) as u16))

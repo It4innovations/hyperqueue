@@ -1,4 +1,5 @@
 use tui::style::{Color, Modifier, Style};
+use unicode_width::UnicodeWidthStr;
 
 const GREEN_THRESHOLD: f64 = 0.5;
 const YELLOW_THRESHOLD: f64 = 0.7;
@@ -41,8 +42,15 @@ pub fn render_progress_bar_at(
     assert!((0.00..=1.00).contains(&progress));
     let label = label.unwrap_or_default();
 
+    let percent = format!(" ({}%)", (progress * 100.00) as u32);
+    let percent = format!("{percent:>6}");
+
     // Keep the length of the progressbar correct after the padding and %usage label
-    let num_characters = width - 6 - label.len() as u8;
+    let num_characters = width
+        .saturating_sub(percent.len() as u8)
+        .saturating_sub(label.len() as u8);
+    assert!(num_characters > 1);
+
     let indicator_count = (progress * (num_characters as f64)).ceil();
     let indicator = std::iter::repeat(style.indicator)
         .take(indicator_count as usize)
@@ -51,14 +59,16 @@ pub fn render_progress_bar_at(
         .take(num_characters as usize - indicator_count as usize)
         .collect::<String>();
 
-    let percent = format!("({}%)", (progress * 100.00) as u32);
-    format!("{label}{indicator}{filler} {percent:>5}")
+    let progress_bar = format!("{label}{indicator}{filler}{percent}");
+    let progress_width = UnicodeWidthStr::width(progress_bar.as_str());
+    assert_eq!(progress_width, width as usize);
+    progress_bar
 }
 
 impl Default for ProgressPrintStyle {
     fn default() -> Self {
         Self {
-            indicator: '▌',
+            indicator: '█',
             unused_area: '░',
         }
     }
