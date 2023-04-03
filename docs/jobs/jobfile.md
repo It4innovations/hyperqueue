@@ -20,11 +20,11 @@ First, we create file with the following content:
 command = ["sleep", "1"]
 ```
 
-Let us assume that we have named this file as ``myjob``,
+Let us assume that we have named this file as ``myfile.toml``,
 then we can run the following command to submit a job:
 
 ```commandline
-$ hq job submit-file myfile
+$ hq job submit-file myfile.toml
 ```
 
 The effect will be same as running:
@@ -101,7 +101,7 @@ command = ["sleep", "3"]
 
 ## Task arrays
 
-If you want to create uniform tasks you can define task array (similar to ``--array`):
+If you want to create uniform tasks you can define task array (similar to `--array`):
 
 ```toml
 [[array]]
@@ -109,7 +109,7 @@ ids = "1,2,50-100"
 command = ["sleep", "1"]
 ```
 
-You can also specify array with content of ``HQ_ENTRIES``:
+You can also specify array with content of `HQ_ENTRIES`:
 
 ```toml
 [[array]]
@@ -123,12 +123,34 @@ command = ["sleep", "1"]
 
 ## Task dependencies
 
-TODO
+Job Definition File allows to define a dependencies between tasks. In other words,
+it means that the task may be executed only if the previous tasks are already finished.
+
+The task's option `deps` defines on which tasks the given task dependents.
+The task is addressed by their IDs.
+
+The following example creates three tasks where the third task depends on the first two tasks.
+ 
+
+```toml
+[[task]]
+id = 1
+command = [...]
+
+[[task]]
+id = 3
+command = [...]
+
+[[task]]
+id = 5
+command = [...]
+deps = [1, 3] # <---- Dependancy on tasks 1 and 3
+```
 
 ## Resource variants
 
 More resource configurations may be defined for a task.
-In this case, HyperQueue will takes into account all these configurations during scheduling.
+In this case, HyperQueue will take into account all these configurations during scheduling.
 When a task is started exactly one configuration is chosen.
 If in a given moment more configuration are possible for a given task,
 the configuration first defined has a higher priority.

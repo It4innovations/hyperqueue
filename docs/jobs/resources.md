@@ -235,5 +235,5 @@ then each task will require two cores.
 
 ## Resource variants
 
-A task may have attached more resource requests. There are no command line interface for
+A task may have attached more resource requests. There is no command line interface for
 this feature, but it can be configured through [Job Definition File](jobfile.md).

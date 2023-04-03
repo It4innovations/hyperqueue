@@ -151,6 +151,11 @@ impl ResourceRequestVariants {
     }
 
     pub fn sort_key(&self, allocator: &ResourceAllocator) -> (f32, TimeRequest) {
+        /*
+          The following unwrap is ok since there has to be always at least at least one
+          runnable configuration. Otherwise this task should not be assigned to the worker.
+          If the unwrap fails, then it means a fatal error in server scheduler.
+        */
         let (i, score) = self
             .variants
             .iter()
