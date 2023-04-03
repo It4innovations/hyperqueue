@@ -15,9 +15,9 @@ edition = "2021"
 authors = ["Ada Böhm <ada@kreatrix.org>", "Jakub Beránek <berykubik@gmail.com>"]
 
 [workspace.dependencies]
-tokio = "1.25"
+tokio = "1.27"
 log = "0.4"
-env_logger = "0.9"
+env_logger = "0.10"
 clap = "4.0.29"
 clap_complete = "4.0.6"
 serde = "1"
@@ -34,12 +34,12 @@ byteorder = "1.4"
 rmp-serde = "1.0.0"
 hex = "0.4"
 rand = "0.8"
-gethostname = "0.2"
+gethostname = "0.4"
 thiserror = "1"
 tempdir = "0.3"
 tracing = "0.1"
 anyhow = "1"
-nix = "0.25"
+nix = "0.26"
 
 [profile.release]
 panic = "abort"

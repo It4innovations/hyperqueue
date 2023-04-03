@@ -38,20 +38,20 @@ num_cpus = "1.13.0"
 cli-table = { version = "0.4.6", default-features = false }
 atty = "0.2"
 serde-tuple-vec-map = "1"
-dirs = "4.0"
+dirs = "5.0"
 rmpv = { version = "1.0", features = ["with-serde"] }
 nom = "7.1"
 nom-supreme = { version = "0.8.0"}
-bstr = { version = "0.2", features = ["serde1"] }
+bstr = { version = "1.4", features = ["serde"] }
 colored = "2"
 byteorder = "1.4"
 const_format = "0.2"
-textwrap = "0.15"
+textwrap = "0.16"
 async-compression = { version = "0.3", features = ["tokio", "gzip"] }
 flate2 = { version = "1", features = ["default"] }
 psutil = "3.2"
-chumsky = "0.8.0"
-toml = "0.5"
+chumsky = "0.9"
+toml = "0.7"
 
 # Dashboard
 tui = { version = "0.19.0", default-features = false, features = ["termion"], optional = true }
@@ -65,9 +65,9 @@ tako = { path = "../tako" }
 jemallocator = { version = "0.5", optional = true }
 
 [dev-dependencies]
-derive_builder = "0.11"
+derive_builder = "0.12"
 insta = "1.15.0"
-criterion = { version = "0.3", features = ["html_reports"] }
+criterion = { version = "0.4", features = ["html_reports"] }
 
 [features]
 default = ["jemalloc"]
