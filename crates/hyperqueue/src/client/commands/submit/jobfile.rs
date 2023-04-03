@@ -71,11 +71,10 @@ fn build_task(tdef: TaskDef, max_id: &mut JobTaskId) -> TaskWithDependencies {
         *max_id = JobTaskId::new(max_id.as_num() + 1);
         *max_id
     });
-    let task_desc = build_task_description(tdef.config);
     TaskWithDependencies {
         id,
-        task_desc,
-        dependencies: vec![],
+        task_desc: build_task_description(tdef.config),
+        dependencies: tdef.deps,
     }
 }
 

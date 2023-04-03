@@ -158,6 +158,9 @@ pub struct TaskDef {
 
     #[serde(flatten)]
     pub config: TaskConfigDef,
+
+    #[serde(default)]
+    pub deps: Vec<JobTaskId>,
 }
 
 fn deserialize_array_opt<'de, D>(deserializer: D) -> Result<Option<IntArray>, D::Error>

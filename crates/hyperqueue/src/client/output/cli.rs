@@ -667,12 +667,12 @@ impl Output for CliOutput {
             let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, &task);
             let task_id = task.task_id;
 
-            let task_desc = match &job.job_desc {
+            let (task_desc, task_deps) = match &job.job_desc {
                 JobDescription::Array {
                     ids: _,
                     entries: _,
                     task_desc,
-                } => task_desc,
+                } => (task_desc, [].as_slice()),
 
                 JobDescription::Graph { tasks } => {
                     let opt_task_dep = tasks.iter().find(|t| t.id == task_id);
@@ -681,7 +681,7 @@ impl Output for CliOutput {
                             log::error!("Task {task_id} not found in (graph) job {job_id}");
                             return;
                         }
-                        Some(task_dep) => &task_dep.task_desc,
+                        Some(task_dep) => (&task_dep.task_desc, task_dep.dependencies.as_slice()),
                     }
                 }
             };
@@ -792,6 +792,15 @@ impl Output for CliOutput {
                 vec![
                     "Crash limit".cell().bold(true),
                     task_desc.crash_limit.cell(),
+                ],
+                vec![
+                    "Dependencies".cell().bold(true),
+                    task_deps
+                        .iter()
+                        .map(|task_id| task_id.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                        .cell(),
                 ],
             ];
             self.print_vertical_table(rows);

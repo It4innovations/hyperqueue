@@ -292,3 +292,31 @@ command = ["/bin/bash", "-c", "echo $HQ_ENTRY"]
     for i in expected.keys():
         stdout = default_task_output(job_id=1, task_id=i, type="stdout")
         check_file_contents(stdout, expected[i] + "\n")
+
+
+def test_job_file_dependencies(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.start_worker()
+    tmp_path.joinpath("job.toml").write_text(
+        """
+[[task]]
+id = 1
+command = ["sleep", "0"]
+
+[[task]]
+id = 3
+command = ["sleep", "0"]
+
+[[task]]
+id = 5
+command = ["sleep", "0"]
+deps = [1, 3]
+    """
+    )
+    hq_env.command(["job", "submit-file", "job.toml"])
+    table = hq_env.command(["task", "info", "1", "5"], as_table=True)
+    table.check_row_value("Dependencies", "1,3")
+    table = hq_env.command(["task", "info", "1", "1"], as_table=True)
+    table.check_row_value("Dependencies", "")
+    table = hq_env.command(["task", "info", "1", "3"], as_table=True)
+    table.check_row_value("Dependencies", "")
