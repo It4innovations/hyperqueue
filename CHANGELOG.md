@@ -10,6 +10,16 @@ See more details below.
 
 ### Resource management
 
+* You can now specify more resource for one task, e.g.: 1 cpu and 1 gpu OR 4 cpus. The scheduler considers both configuration in task planning.
+  Fro example let us assume that we have many tasks with the mentioned configuration and worker with 16 cpus and 4 gpus. The tasks will fully utilize the node, 4 tasks will run in the configuration with gpu and 3 tasks will run in the cpu only mode.
+  
+* Job Definition File is a TOML file that can define a job.
+  It allows to submit a complex jobs without using Python API (dependencies, resource variants, ...).
+
+  ```console
+  $ hq job submit-file myfile.toml
+  ``` 
+
 * You can now specify (indexed) resource values provided by workers as strings (previously only
   integers were allowed). Notably, automatic detection of Nvidia GPUs specified with string UUIDs
   now works.
@@ -31,6 +41,8 @@ introduced for better alignment with shells, which typically do not support comp
 HQ passes the resource names to executed tasks through environment variables, so it has to take this
 into account. Note that the `/` symbol in resource name will be normalized to `_` when being passed
 to a task.
+
+* `hq task info` now shows more information
 
 ## Changes
 
