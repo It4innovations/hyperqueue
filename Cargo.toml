@@ -15,7 +15,7 @@ edition = "2021"
 authors = ["Ada Böhm <ada@kreatrix.org>", "Jakub Beránek <berykubik@gmail.com>"]
 
 [workspace.dependencies]
-tokio = "1.25"
+tokio = "1.27"
 log = "0.4"
 env_logger = "0.9"
 clap = "4.0.29"
