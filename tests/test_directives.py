@@ -64,7 +64,7 @@ def test_hq_directives_mode_auto(hq_env: HqEnv):
 
     hq_env.command(
         ["submit", "--directives", "auto", "test.sh"],
-        expect_fail="Found argument '--foo' which wasn't expected",
+        expect_fail="unexpected argument '--foo' found",
     )
 
 
@@ -81,7 +81,7 @@ def test_hq_directives_mode_file(hq_env: HqEnv):
 
     hq_env.command(
         ["submit", "--directives", "file", "program"],
-        expect_fail="Found argument '--foo' which wasn't expected",
+        expect_fail="unexpected argument '--foo' found",
     )
 
 
