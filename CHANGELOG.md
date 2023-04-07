@@ -1,4 +1,4 @@
-# Dev
+# v0.15.0
 
 ## Breaking changes
 
@@ -10,11 +10,12 @@ See more details below.
 
 ### Resource management
 
-* You can now specify more resource for one task, e.g.: 1 cpu and 1 gpu OR 4 cpus. The scheduler considers both configuration in task planning.
-  Fro example let us assume that we have many tasks with the mentioned configuration and worker with 16 cpus and 4 gpus. The tasks will fully utilize the node, 4 tasks will run in the configuration with gpu and 3 tasks will run in the cpu only mode.
+* You can now specify more resources for one task, e.g.: 1 cpu and 1 gpu OR 4 cpus. The scheduler considers both configurations in task planning.
+  For example let us assume that we have many tasks with the mentioned configuration and worker with 16 cpus and 4 gpus.
+  The tasks will fully utilize the node, 4 tasks will run in the configuration with gpu and 3 tasks will run in the cpu only mode.
   
 * Job Definition File is a TOML file that can define a job.
-  It allows to submit a complex jobs without using Python API (dependencies, resource variants, ...).
+  It allows to submit complex jobs without using Python API (dependencies, resource variants, ...).
 
   ```console
   $ hq job submit-file myfile.toml
