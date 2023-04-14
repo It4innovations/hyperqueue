@@ -145,15 +145,17 @@ pub async fn start_hq_worker(
     let mut configuration = gather_configuration(opts)?;
     finalize_configuration(&mut configuration);
 
-    let (future, worker) = initialize_worker(gsettings.server_directory(), configuration).await?;
+    let worker = initialize_worker(gsettings.server_directory(), configuration).await?;
 
     gsettings.printer().print_worker_info(WorkerInfo {
         id: worker.id,
-        configuration: worker.configuration,
+        configuration: worker.configuration.clone(),
         started: Utc::now(),
         ended: None,
     });
-    future.await.map_err(|e| e.into())
+    worker.run().await?;
+    log::info!("Worker stopping");
+    Ok(())
 }
 
 fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfiguration> {

@@ -60,9 +60,9 @@ impl RunningWorker {
                 let set = LocalSet::new();
                 set.run_until(async move {
                     match initialize_worker(&server_dir, configuration).await {
-                        Ok((future, _)) => {
+                        Ok(worker) => {
                             tx.send(Ok(())).unwrap();
-                            if let Err(error) = future.await {
+                            if let Err(error) = worker.run().await {
                                 log::error!("HyperQueue worker ended with error: {error:?}");
                             }
                         }
