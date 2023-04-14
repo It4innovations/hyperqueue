@@ -2,7 +2,7 @@ use std::future::Future;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use bytes::{Bytes, BytesMut};
 use futures::{SinkExt, Stream, StreamExt};
@@ -221,7 +221,8 @@ pub async fn run_worker(
             _ = overview_fut => { unreachable!() }
         };
 
-        match result {
+        // Handle sending stop info to the server and finishing running tasks gracefully.
+        let result = match result {
             Ok(Some(msg)) => {
                 // Worker wants to end gracefully, send message to the server
                 {
@@ -239,11 +240,42 @@ pub async fn run_worker(
                 // Server has disconnected
                 tokio::select! {
                     _ = &mut try_start_tasks => { unreachable!() }
-                    r = finish_tasks_on_server_lost(state) => r
+                    r = finish_tasks_on_server_lost(state.clone()) => r
                 }
                 Err(e)
             }
+        };
+
+        // At this point, there can still be some tasks that are running.
+        // We cancel them here to make sure that we do not leak their spawned processes, if possible.
+        // The futures of the tasks are scheduled onto the current tokio Runtime using spawn_local,
+        // therefore we do not need to await any specific future to drive them forward.
+        // try_start_tasks is not being polled, therefore no new tasks should be started.
+        {
+            let mut state_mut = state.get_mut();
+            for task in state_mut.running_tasks.clone() {
+                state_mut.cancel_task(task);
+            }
         }
+
+        let start = Instant::now();
+        loop {
+            if state.get().running_tasks.is_empty() {
+                break;
+            }
+
+            // Do not wait for the tasks forever
+            if start.elapsed() > Duration::from_secs(5) {
+                break;
+            }
+
+            log::info!("Waiting for tasks to be shut down...");
+            // The await will drive the event loop forward, giving the task futures a chance
+            // to remove themselves from state.running_tasks
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+
+        result
     };
 
     // Provide a local task set for spawning futures

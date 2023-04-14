@@ -105,7 +105,7 @@ def test_job_file_resource_variants1(hq_env: HqEnv, tmp_path):
         """
 [[task]]
 id = 0
-command = ["sleep", "0"]
+command = ["sleep", "1"]
 
 [[task.request]]
 resources = { "cpus" = "8" }
@@ -116,6 +116,7 @@ resources = { "cpus" = "1", "gpus" = "1" }
     )
     hq_env.command(["job", "submit-file", "job.toml"])
 
+    wait_for_job_state(hq_env, 1, "RUNNING")
     table = hq_env.command(["task", "info", "1", "0"], as_table=True)
     table.check_row_value(
         "Resources",
