@@ -584,7 +584,7 @@ async fn task_process<F: Future<Output = tako::Result<TaskResult>>>(
         );
 
         // We have received a stop command for this task.
-        // We should attempt ti kill it and wait until the child process from `task_future` resolves.
+        // We should attempt to kill it and wait until the child process from `task_future` resolves.
         send_signal(signal::SIGINT)?;
 
         Ok(stop_reason.into())

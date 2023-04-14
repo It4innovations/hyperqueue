@@ -1,12 +1,14 @@
 use std::future::Future;
 use std::path::Path;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context};
+use signal_hook::consts::{SIGINT, SIGTERM, SIGTSTP};
+use signal_hook::iterator::Signals;
 use tako::Error as DsError;
 use tokio::net::lookup_host;
 use tokio::sync::Notify;
-use tokio::task::LocalSet;
 
 use tako::worker::{run_worker, WorkerConfiguration};
 use tako::WorkerId;
@@ -17,18 +19,76 @@ use crate::common::serverdir::ServerDir;
 use crate::worker::start::{HqTaskLauncher, WORKER_EXTRA_PROCESS_PID};
 use crate::worker::streamer::StreamerRef;
 
-pub type WorkerStopFlag = Arc<Notify>;
+/// Listens for SIGTSTP, SIGINT or SIGTERM signals.
+/// When any of these signals is received, it notifies the passed Notify object.
+struct SignalThread {
+    signal_thread: Option<std::thread::JoinHandle<()>>,
+    signal_handle: signal_hook::iterator::Handle,
+}
+
+impl SignalThread {
+    fn new(stop_flag: Arc<Notify>) -> Self {
+        let mut signals =
+            Signals::new([SIGTSTP, SIGINT, SIGTERM]).expect("Cannot create signal set");
+        let signal_handle = signals.handle();
+        let signal_thread = std::thread::spawn(move || {
+            for signal in &mut signals {
+                log::debug!("Received signal {signal}");
+                stop_flag.notify_one();
+            }
+        });
+        Self {
+            signal_handle,
+            signal_thread: Some(signal_thread),
+        }
+    }
+}
+
+impl Drop for SignalThread {
+    fn drop(&mut self) {
+        self.signal_handle.close();
+        self.signal_thread
+            .take()
+            .unwrap()
+            .join()
+            .expect("Signal thread crashed");
+    }
+}
 
 pub struct InitializedWorker {
     pub id: WorkerId,
     pub configuration: WorkerConfiguration,
-    pub stop_flag: WorkerStopFlag,
+    future: Pin<Box<dyn Future<Output = Result<(), DsError>>>>,
+    // The thread will be dropped once the worker is dropped
+    _signal_thread: SignalThread,
+}
+
+impl InitializedWorker {
+    fn new(
+        id: WorkerId,
+        configuration: WorkerConfiguration,
+        future: Pin<Box<dyn Future<Output = Result<(), DsError>>>>,
+        signal_thread: SignalThread,
+    ) -> Self {
+        Self {
+            id,
+            configuration,
+            future,
+            _signal_thread: signal_thread,
+        }
+    }
+}
+
+impl InitializedWorker {
+    pub async fn run(self) -> Result<(), DsError> {
+        self.future.await
+    }
 }
 
 pub async fn initialize_worker(
     server_directory: &Path,
     configuration: WorkerConfiguration,
-) -> anyhow::Result<(impl Future<Output = Result<(), DsError>>, InitializedWorker)> {
+) -> anyhow::Result<InitializedWorker> {
     log::info!("Starting hyperqueue worker {}", env!("CARGO_PKG_VERSION"));
     let server_dir = ServerDir::open(server_directory).context("Cannot load server directory")?;
     let record = server_dir.read_access_record().with_context(|| {
@@ -53,33 +113,24 @@ pub async fn initialize_worker(
     let streamer_ref = StreamerRef::start(&server_addresses, record.tako_secret_key().clone());
 
     log::debug!("Starting Tako worker ...");
+    let stop_flag = Arc::new(Notify::new());
     let ((worker_id, configuration), worker_future) = run_worker(
         &server_addresses,
         configuration,
         Some(record.tako_secret_key().clone()),
         Box::new(HqTaskLauncher::new(record.server_uid(), streamer_ref)),
+        stop_flag.clone(),
     )
     .await?;
 
-    let stop_flag = Arc::new(Notify::new());
-    let worker = InitializedWorker {
-        id: worker_id,
+    let signal_thread = SignalThread::new(stop_flag);
+    let worker = InitializedWorker::new(
+        worker_id,
         configuration,
-        stop_flag: stop_flag.clone(),
-    };
-
-    let future = async move {
-        let local_set = LocalSet::new();
-        local_set
-            .run_until(async move {
-                tokio::select! {
-                    res = worker_future => res,
-                    () = stop_flag.notified() => { Ok(()) }
-                }
-            })
-            .await
-    };
-    Ok((future, worker))
+        Box::pin(worker_future),
+        signal_thread,
+    );
+    Ok(worker)
 }
 
 /// Utility function that adds common data to an already created worker configuration.

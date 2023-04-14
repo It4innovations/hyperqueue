@@ -99,11 +99,14 @@ pub async fn connect_to_server_and_authenticate(
     })
 }
 
+/// Connects to the server and starts a message receiving loop.
+/// The worker will attempt to clean up after itself once it's stopped or once stop_flag is notified.
 pub async fn run_worker(
     scheduler_addresses: &[SocketAddr],
     mut configuration: WorkerConfiguration,
     secret_key: Option<Arc<SecretKey>>,
     launcher_setup: Box<dyn TaskLauncher>,
+    stop_flag: Arc<Notify>,
 ) -> crate::Result<(
     (WorkerId, WorkerConfiguration),
     impl Future<Output = crate::Result<()>>,
@@ -209,6 +212,10 @@ pub async fn run_worker(
                 log::info!("Idle timeout reached");
                 Ok(Some(FromWorkerMessage::Stop(WorkerStopReason::IdleTimeout)))
             }
+            _ = stop_flag.notified() => {
+                log::info!("Worker received an external stop notification");
+                Ok(None)
+            }
             _ = &mut try_start_tasks => { unreachable!() }
             _ = heartbeat_fut => { unreachable!() }
             _ = overview_fut => { unreachable!() }
@@ -238,6 +245,13 @@ pub async fn run_worker(
             }
         }
     };
+
+    // Provide a local task set for spawning futures
+    let future = async move {
+        let set = tokio::task::LocalSet::new();
+        set.run_until(future).await
+    };
+
     Ok(((worker_id, configuration), future))
 }
 

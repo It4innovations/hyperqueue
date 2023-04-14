@@ -15,6 +15,7 @@ use crate::worker::WorkerConfiguration;
 use derive_builder::Builder;
 use orion::auth::SecretKey;
 use tokio::io::AsyncWriteExt;
+use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
 use crate::internal::worker::rpc::run_worker;
@@ -177,6 +178,7 @@ pub(super) async fn start_worker(
                 configuration,
                 secret_key,
                 Box::new(TestTaskLauncher),
+                Arc::new(Notify::new()),
             )
             .await;
 
