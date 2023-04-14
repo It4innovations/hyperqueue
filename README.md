@@ -187,10 +187,9 @@ Check out the [documentation](https://it4innovations.github.io/hyperqueue/).
 
   Yes, see [task arrays](https://it4innovations.github.io/hyperqueue/stable/jobs/arrays).
 
-* **Does HQ support jobs with dependencies?**
+* **Does HQ support dependencies between tasks?**
 
-  Yes, but only using the (currently experimental and undocumented) Python API. It is currently not
-  possible to specify dependencies using the CLI.
+  Yes.
 
 * **How is HQ implemented?**
 
