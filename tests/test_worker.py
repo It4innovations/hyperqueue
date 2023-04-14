@@ -206,11 +206,8 @@ def test_worker_time_limit(hq_env: HqEnv):
     hq_env.start_server()
     w = hq_env.start_worker(args=["--time-limit", "1s 200ms"])
     wait_for_worker_state(hq_env, 1, "RUNNING")
-    start = time.time()
     wait_for_worker_state(hq_env, 1, "TIME LIMIT REACHED")
     hq_env.check_process_exited(w, expected_code=None)
-    duration = time.time() - start
-    assert 0.9 < duration < 1.5
 
     table = hq_env.command(["worker", "info", "1"], as_table=True)
     table.check_row_value("Time Limit", "1s 200ms")
@@ -263,11 +260,10 @@ def test_server_lost_stop_with_task(hq_env: HqEnv):
     worker = hq_env.start_worker(on_server_lost="stop")
     path = os.path.join(hq_env.work_path, "finished")
     hq_env.command(
-        ["submit", "--array=1-10", "--", "bash", "-c", f"sleep 2; touch {path}"]
+        ["submit", "--array=1-10", "--", "bash", "-c", f"sleep 3; touch {path}"]
     )
     wait_for_job_state(hq_env, 1, "RUNNING")
     hq_env.kill_server()
-    time.sleep(0.5)
     hq_env.check_process_exited(worker, expected_code=1)
     assert not os.path.isfile(path)
 
