@@ -49,20 +49,22 @@ class Env:
         return p
 
     def check_process_exited(self, process: subprocess.Popen, expected_code=0):
-        for n, p in self.processes:
-            if p is process:
-                if process.poll() is None:
-                    raise Exception(f"Process with pid {process.pid} is still running")
-                if expected_code == "error":
-                    assert process.returncode != 0
-                elif expected_code is not None:
-                    assert process.returncode == expected_code
+        def is_process_alive():
+            for n, p in self.processes:
+                if p is process:
+                    if process.poll() is None:
+                        return True
+                    if expected_code == "error":
+                        assert process.returncode != 0
+                    elif expected_code is not None:
+                        assert process.returncode == expected_code
 
-                self.processes = [
-                    (n, p) for (n, p) in self.processes if p is not process
-                ]
-                return
-        raise Exception(f"Process with pid {process.pid} not found")
+                    self.processes = [
+                        (n, p) for (n, p) in self.processes if p is not process
+                    ]
+                    return False
+            raise Exception(f"Process with pid {process.pid} not found")
+        wait_until(lambda: not is_process_alive())
 
     def check_running_processes(self):
         """Checks that everything is still running"""

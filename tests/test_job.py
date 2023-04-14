@@ -1442,17 +1442,18 @@ def test_crashing_job_status_default(count, hq_env: HqEnv):
 
 def test_crashing_job_by_files(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(["submit", "--", "bash", "-c", "sleep 1; echo done > output.txt"])
+    hq_env.command(["submit", "--", "bash", "-c", "sleep 3; echo done > output.txt"])
 
     # Crashing tasks threshold is 5
     for i in range(5):
         hq_env.start_worker()
         wait_for_job_state(hq_env, 1, "RUNNING")
         hq_env.kill_worker(i + 1)
+        if i < 4:
+            wait_for_job_state(hq_env, 1, "WAITING")
 
     hq_env.start_worker()
     wait_for_job_state(hq_env, 1, "FAILED")
-    time.sleep(2)
 
     table = list_jobs(hq_env)
     table.check_column_value("State", 0, "FAILED")
