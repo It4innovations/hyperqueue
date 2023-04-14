@@ -1,8 +1,11 @@
 import os
+import signal
+import subprocess
 import time
 from datetime import datetime
 from os.path import isdir, isfile, join
 from pathlib import Path
+from typing import Callable, Optional
 
 import pytest
 
@@ -12,7 +15,7 @@ from .utils.cmd import python
 from .utils.io import check_file_contents, read_file
 from .utils.job import default_task_output, list_jobs
 from .utils.table import parse_multiline_cell
-from .utils.wait import wait_for_pid_exit, wait_until
+from .utils.wait import wait_for_pid_exit, wait_for_worker_state, wait_until
 
 
 def test_job_submit(hq_env: HqEnv):
@@ -468,38 +471,11 @@ def test_cancel_all(hq_env: HqEnv):
 
 
 def test_cancel_terminate_process_children(hq_env: HqEnv):
-    hq_env.start_server()
-    hq_env.start_worker()
+    def cancel(worker_process):
+        hq_env.command(["job", "cancel", "1"])
+        wait_for_job_state(hq_env, 1, "CANCELED")
 
-    hq_env.command(
-        [
-            "submit",
-            "--",
-            *python(
-                """
-import os
-import sys
-import time
-print(os.getpid(), flush=True)
-pid = os.fork()
-if pid > 0:
-    print(pid, flush=True)
-time.sleep(3600)
-"""
-            ),
-        ]
-    )
-    wait_for_job_state(hq_env, 1, "RUNNING")
-    wait_until(lambda: len(read_file(default_task_output()).splitlines()) == 2)
-
-    hq_env.command(["job", "cancel", "1"])
-    wait_for_job_state(hq_env, 1, "CANCELED")
-
-    pids = [int(pid) for pid in read_file(default_task_output()).splitlines()]
-
-    parent, child = pids
-    wait_for_pid_exit(parent)
-    wait_for_pid_exit(child)
+    check_child_process_exited(hq_env, cancel)
 
 
 def test_cancel_send_sigint(hq_env: HqEnv):
@@ -582,8 +558,8 @@ time.sleep(3600)
 def test_reporting_state_after_worker_lost(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_workers(2, cpus=1)
-    hq_env.command(["submit", "sleep", "1"])
-    hq_env.command(["submit", "sleep", "1"])
+    hq_env.command(["submit", "sleep", "2"])
+    hq_env.command(["submit", "sleep", "2"])
 
     wait_for_job_state(hq_env, [1, 2], "RUNNING")
 
@@ -592,15 +568,17 @@ def test_reporting_state_after_worker_lost(hq_env: HqEnv):
     table.check_column_value("State", 1, "RUNNING")
     hq_env.kill_worker(1)
 
-    time.sleep(0.25)
+    def task_is_waiting():
+        table = list_jobs(hq_env)
+        if table.get_column_value("State")[0] == "WAITING":
+            return 0, 1
+        elif table.get_column_value("State")[1] == "WAITING":
+            return 1, 0
+        else:
+            return None
 
+    idx, other = wait_until(task_is_waiting)
     table = list_jobs(hq_env)
-    if table.get_column_value("State")[0] == "WAITING":
-        idx, other = 0, 1
-    elif table.get_column_value("State")[1] == "WAITING":
-        idx, other = 1, 0
-    else:
-        assert 0
     assert table.get_column_value("State")[other] == "RUNNING"
 
     wait_for_job_state(hq_env, other + 1, "FINISHED")
@@ -1422,20 +1400,22 @@ def test_zero_custom_error_message(hq_env: HqEnv):
 
 
 @pytest.mark.parametrize("count", [None, 1, 7])
-def test_crashing_job_status_default(count, hq_env: HqEnv):
+def test_crashing_job_status_default(count: Optional[int], hq_env: HqEnv):
     hq_env.start_server()
 
-    if count:
-        hq_env.command(["submit", f"--crash-limit={count}", "sleep", "10"])
-    else:
-        # Crashing tasks threshold is 5 by default
-        hq_env.command(["submit", "sleep", "10"])
-        count = 5
+    count = count if count is not None else 5
+
+    hq_env.command(["submit", f"--crash-limit={count}", "sleep", "10"])
 
     for i in range(count):
         hq_env.start_worker()
         wait_for_job_state(hq_env, 1, "RUNNING")
         hq_env.kill_worker(i + 1)
+        if i < count - 1:
+            wait_for_job_state(hq_env, 1, "WAITING")
+
+    wait_for_job_state(hq_env, 1, "FAILED")
+
     table = list_jobs(hq_env)
     table.check_column_value("State", 0, "FAILED")
 
@@ -1494,11 +1474,39 @@ time.sleep(3600)
     wait_for_pid_exit(pid)
 
 
-# TODO: fix this somehow
+def test_kill_task_subprocess_when_worker_is_interrupted(hq_env: HqEnv):
+    def interrupt_worker(worker_process):
+        hq_env.kill_worker(1, signal=signal.SIGINT)
+
+    check_child_process_exited(hq_env, interrupt_worker)
+
+
 @pytest.mark.xfail
-def test_kill_task_subprocess_when_worker_dies(hq_env: HqEnv):
+def test_kill_task_subprocess_when_worker_is_terminated(hq_env: HqEnv):
+    def terminate_worker(worker_process):
+        hq_env.kill_worker(1, signal=signal.SIGTERM)
+
+    check_child_process_exited(hq_env, terminate_worker)
+
+
+def test_kill_task_subprocess_when_worker_is_stopped(hq_env: HqEnv):
+    def stop_worker(worker_process):
+        hq_env.command(["worker", "stop", "1"])
+        wait_for_worker_state(hq_env, 1, "STOPPED")
+        hq_env.check_process_exited(worker_process)
+
+    check_child_process_exited(hq_env, stop_worker)
+
+
+def check_child_process_exited(
+    hq_env: HqEnv, stop_fn: Callable[[subprocess.Popen], None]
+):
+    """
+    Creates a task that spawns a child, and then calls `stop_fn`, which should kill either the task
+    or the worker. The function then checks that both the task process and its child have been killed.
+    """
     hq_env.start_server()
-    hq_env.start_worker()
+    worker_process = hq_env.start_worker()
 
     hq_env.command(
         [
@@ -1507,28 +1515,23 @@ def test_kill_task_subprocess_when_worker_dies(hq_env: HqEnv):
             *python(
                 """
 import os
+import sys
 import time
-
-child_pid = os.fork()
-if child_pid == 0:
-    time.sleep(3600)
-else:
-    print(child_pid, flush=True)
+print(os.getpid(), flush=True)
+pid = os.fork()
+if pid > 0:
+    print(pid, flush=True)
 time.sleep(3600)
 """
             ),
         ]
     )
     wait_for_job_state(hq_env, 1, "RUNNING")
+    wait_until(lambda: len(read_file(default_task_output()).splitlines()) == 2)
+    pids = [int(pid) for pid in read_file(default_task_output()).splitlines()]
 
-    def get_pid():
-        pid = read_file(default_task_output()).strip()
-        if not pid:
-            return None
-        return int(pid)
+    stop_fn(worker_process)
 
-    pid = wait_until(get_pid)
-
-    hq_env.kill_worker(1)
-
-    wait_for_pid_exit(pid)
+    parent, child = pids
+    wait_for_pid_exit(parent)
+    wait_for_pid_exit(child)

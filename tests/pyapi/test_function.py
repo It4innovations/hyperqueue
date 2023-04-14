@@ -3,6 +3,7 @@ import time
 from pathlib import Path
 
 import pytest
+
 from hyperqueue.client import Client, FailedJobsException, PythonEnv
 from hyperqueue.ffi.protocol import ResourceRequest
 from hyperqueue.job import Job

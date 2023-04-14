@@ -64,6 +64,7 @@ class Env:
                     ]
                     return False
             raise Exception(f"Process with pid {process.pid} not found")
+
         wait_until(lambda: not is_process_alive())
 
     def check_running_processes(self):
@@ -90,13 +91,13 @@ class Env:
             if n == name:
                 yield (i, p)
 
-    def kill_process(self, name: str):
+    def kill_process(self, name: str, signal: int = signal.SIGTERM) -> subprocess.Popen:
         for i, p in self.get_processes_by_name(name):
             del self.processes[i]
             # Kill the whole group since the process may spawn a child
             if p.returncode is None and not p.poll():
-                os.killpg(os.getpgid(p.pid), signal.SIGTERM)
-            return
+                os.killpg(os.getpgid(p.pid), signal)
+            return p
         else:
             raise Exception("Process not found")
 
@@ -220,14 +221,16 @@ class HqEnv(Env):
     def kill_server(self):
         self.kill_process("server")
 
-    def kill_worker(self, worker_id: int):
+    def kill_worker(self, worker_id: int, signal: int = signal.SIGTERM, wait=True):
         table = self.command(["worker", "info", str(worker_id)], as_table=True)
         pid = table.get_row_value("Process pid")
         process = self.find_process_by_pid(int(pid))
         if process is None:
             raise Exception(f"Worker {worker_id} not found")
 
-        self.kill_process(process[0])
+        process = self.kill_process(process[0], signal=signal)
+        if wait:
+            wait_until(lambda: process.poll() is not None)
 
     def find_process_by_pid(self, pid: int) -> Optional[Tuple[str, subprocess.Popen]]:
         for name, process in self.processes:
