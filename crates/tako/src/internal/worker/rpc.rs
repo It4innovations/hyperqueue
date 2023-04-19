@@ -2,7 +2,7 @@ use std::future::Future;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration};
+use std::time::Duration;
 
 use bytes::{Bytes, BytesMut};
 use futures::{SinkExt, Stream, StreamExt};
@@ -38,7 +38,6 @@ use crate::launcher::TaskLauncher;
 use crate::WorkerId;
 use futures::future::Either;
 use tokio::sync::Notify;
-
 
 async fn start_listener() -> crate::Result<(TcpListener, u16)> {
     let address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
@@ -255,30 +254,7 @@ pub async fn run_worker(
         // The futures of the tasks are scheduled onto the current tokio Runtime using spawn_local,
         // therefore we do not need to await any specific future to drive them forward.
         // try_start_tasks is not being polled, therefore no new tasks should be started.
-        {
-            let mut state_mut = state.get_mut();
-            for task in state_mut.running_tasks.clone() {
-                state_mut.cancel_task(task);
-            }
-        }
-
-        let start = Instant::now();
-        loop {
-            if state.get().running_tasks.is_empty() {
-                break;
-            }
-
-            // Do not wait for the tasks forever
-            if start.elapsed() > Duration::from_secs(5) {
-                break;
-            }
-
-            log::info!("Waiting for tasks to be shut down...");
-            // The await will drive the event loop forward, giving the task futures a chance
-            // to remove themselves from state.running_tasks
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
-
+        cancel_running_tasks_on_worker_end(state).await;
         result
     };
 
@@ -315,6 +291,33 @@ async fn finish_tasks_on_server_lost(state: WorkerStateRef) {
             } else {
                 log::info!("No running tasks remain")
             }
+        }
+    }
+}
+
+async fn cancel_running_tasks_on_worker_end(state: WorkerStateRef) {
+    let notify = {
+        let mut state = state.get_mut();
+        state.drop_non_running_tasks();
+        for task in state.running_tasks.clone() {
+            state.cancel_task(task);
+        }
+
+        if state.running_tasks.is_empty() {
+            return;
+        }
+
+        let notify = Rc::new(Notify::new());
+        state.comm().set_idle_worker_notify(notify.clone());
+        notify
+    };
+    log::info!("Waiting for stopping running tasks");
+    match tokio::time::timeout(MAX_WAIT_FOR_RUNNING_TASKS_SHUTDOWN, notify.notified()).await {
+        Ok(_) => {
+            log::info!("All running tasks were stopped");
+        }
+        Err(_) => {
+            log::info!("Timed out while waiting for running tasks to stop");
         }
     }
 }
@@ -465,9 +468,12 @@ async fn send_overview_loop(
         loop {
             std::thread::sleep(send_interval);
             let hw_state = sampler.fetch_hw_state()?;
-            tx.blocking_send(hw_state)
-                .expect("Cannot send HW state to overview loop");
+            if let Err(error) = tx.blocking_send(hw_state) {
+                log::error!("Cannot send HW state to overview loop: {error:?}");
+                break;
+            }
         }
+        Ok(())
     });
 
     let mut poll_interval = tokio::time::interval(send_interval);
