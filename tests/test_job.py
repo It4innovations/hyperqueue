@@ -1481,10 +1481,17 @@ def test_kill_task_subprocess_when_worker_is_interrupted(hq_env: HqEnv):
     check_child_process_exited(hq_env, interrupt_worker)
 
 
-@pytest.mark.xfail
 def test_kill_task_subprocess_when_worker_is_terminated(hq_env: HqEnv):
     def terminate_worker(worker_process):
         hq_env.kill_worker(1, signal=signal.SIGTERM)
+
+    check_child_process_exited(hq_env, terminate_worker)
+
+
+@pytest.mark.xfail
+def test_kill_task_subprocess_when_worker_is_killed(hq_env: HqEnv):
+    def terminate_worker(worker_process):
+        hq_env.kill_worker(1, signal=signal.SIGKILL)
 
     check_child_process_exited(hq_env, terminate_worker)
 
