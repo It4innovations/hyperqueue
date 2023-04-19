@@ -136,6 +136,7 @@ pub struct WorkerOverview {
 pub enum WorkerStopReason {
     IdleTimeout,
     TimeLimitReached,
+    Interrupted,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

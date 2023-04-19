@@ -2,7 +2,7 @@ use std::future::Future;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration};
 
 use bytes::{Bytes, BytesMut};
 use futures::{SinkExt, Stream, StreamExt};
@@ -38,6 +38,7 @@ use crate::launcher::TaskLauncher;
 use crate::WorkerId;
 use futures::future::Either;
 use tokio::sync::Notify;
+
 
 async fn start_listener() -> crate::Result<(TcpListener, u16)> {
     let address = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
@@ -98,6 +99,9 @@ pub async fn connect_to_server_and_authenticate(
         opener,
     })
 }
+
+// Maximum time to wait for running tasks to be shutdown when worker ends.
+const MAX_WAIT_FOR_RUNNING_TASKS_SHUTDOWN: Duration = Duration::from_secs(5);
 
 /// Connects to the server and starts a message receiving loop.
 /// The worker will attempt to clean up after itself once it's stopped or once stop_flag is notified.
@@ -214,7 +218,7 @@ pub async fn run_worker(
             }
             _ = stop_flag.notified() => {
                 log::info!("Worker received an external stop notification");
-                Ok(None)
+                Ok(Some(FromWorkerMessage::Stop(WorkerStopReason::Interrupted)))
             }
             _ = &mut try_start_tasks => { unreachable!() }
             _ = heartbeat_fut => { unreachable!() }
