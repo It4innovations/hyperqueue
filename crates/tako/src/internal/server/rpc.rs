@@ -214,7 +214,8 @@ async fn worker_rpc_loop(
             if let Ok(Some(reason)) = result {
                 match reason {
                     WorkerStopReason::IdleTimeout => LostWorkerReason::IdleTimeout,
-                    WorkerStopReason::TimeLimitReached => LostWorkerReason::TimeLimitReached
+                    WorkerStopReason::TimeLimitReached => LostWorkerReason::TimeLimitReached,
+                    WorkerStopReason::Interrupted => LostWorkerReason::ConnectionLost
                 }
             } else {
                 LostWorkerReason::ConnectionLost
