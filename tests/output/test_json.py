@@ -168,6 +168,38 @@ def test_print_job_detail(hq_env: HqEnv):
     schema.validate(output)
 
 
+def test_print_job_detail_resources(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(
+        ["submit", "--resource", "res1=2", "--resource", "res2=8 compact!", "--resource", "res3=all",
+         "--resource", "res4=4 scatter", "echo", "tt"])
+    output = parse_json_output(hq_env, ["--output-mode=json", "job", "info", "1"])
+
+    schema = Schema([{
+        "resources": [{
+            "min_time": 0.0,
+            "n_nodes": 0,
+            "resources": [{
+                "request": {"Compact": 2},
+                "resource": "res1"
+            }, {
+                "request": {"ForceCompact": 8},
+                "resource": "res2"
+            }, {
+                "request": "All",
+                "resource": "res3"
+            }, {
+                "request": {"Scatter": 4},
+                "resource": "res4"
+            }, {
+                "request": {"Compact": 1},
+                "resource": "cpus"
+            }]
+        }]
+    }], ignore_extra_keys=True)
+    schema.validate(output)
+
+
 def test_print_job_detail_multiple_jobs(hq_env: HqEnv):
     hq_env.start_server()
     for _ in range(2):

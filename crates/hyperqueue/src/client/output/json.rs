@@ -138,10 +138,15 @@ impl Output for JsonOutput {
                 "stdout": format_stdio_def(&stdout),
             });
                 json["resources"] = resources.variants.into_iter().map(|v| {
-                    let ResourceRequest { n_nodes, resources: _, min_time } = v;
+                    let ResourceRequest { n_nodes, resources, min_time } = v;
                     json!({
                         "n_nodes": n_nodes,
-                        "resources": [],
+                        "resources": resources.into_iter().map(|res| {
+                            json!({
+                                "resource": res.resource,
+                                "request": res.policy
+                            })
+                        }).collect::<Vec<_>>(),
                         "min_time": format_duration(min_time)
                     })}
                 ).collect();
