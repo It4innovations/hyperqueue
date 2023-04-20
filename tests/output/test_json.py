@@ -141,7 +141,7 @@ JOB_DETAIL_SCHEMA = {
     "resources": list,
     "finished_at": None,
     "max_fails": None,
-    "pin_mode": "none",
+    "pin_mode": None,
     "priority": 0,
     "program": {
         "args": ["echo", "tt"],

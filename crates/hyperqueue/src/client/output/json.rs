@@ -23,7 +23,7 @@ use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
 use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, QueueData, StatsResponse,
+    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, PinMode, QueueData, StatsResponse,
     TaskDescription, WaitForJobsResponse, WorkerInfo,
 };
 use crate::{JobId, JobTaskId};
@@ -150,7 +150,11 @@ impl Output for JsonOutput {
                         "min_time": format_duration(min_time)
                     })}
                 ).collect();
-                json["pin_mode"] = json!(pin_mode);
+                json["pin_mode"] = json!(match pin_mode {
+                    PinMode::None => None,
+                    PinMode::OpenMP => Some("openmp"),
+                    PinMode::TaskSet => Some("taskset"),
+                });
                 json["priority"] = json!(priority);
                 json["time_limit"] = json!(time_limit.map(format_duration));
                 json["task_dir"] = json!(task_dir);
