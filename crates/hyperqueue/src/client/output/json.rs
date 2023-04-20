@@ -280,7 +280,11 @@ fn fill_task_paths(dict: &mut Value, map: &TaskToPathsMap, task_id: JobTaskId) {
 }
 
 fn format_stdio_def(stdio: &StdioDef) -> Value {
-    json!(stdio)
+    match stdio {
+        StdioDef::Null => Value::Null,
+        StdioDef::File(path) => json!(Some(path)),
+        StdioDef::Pipe => json!("<pipe>"),
+    }
 }
 
 fn format_job_info(info: JobInfo) -> serde_json::Value {
