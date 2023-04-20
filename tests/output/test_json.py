@@ -147,8 +147,8 @@ JOB_DETAIL_SCHEMA = {
         "args": ["echo", "tt"],
         "env": {},
         "cwd": str,
-        "stdout": dict,
-        "stderr": dict,
+        "stdout": str,
+        "stderr": str,
     },
     "started_at": str,
     "time_limit": None,
@@ -245,10 +245,10 @@ def test_print_task_placeholders(hq_env: HqEnv):
     for i in range(4):
         task_id = tasks[i]["id"]
         assert tasks[i]["cwd"] == os.getcwd()
-        assert tasks[i]["stdout"]["File"] == default_task_output(
+        assert tasks[i]["stdout"] == default_task_output(
             task_id=task_id, type="stdout"
         )
-        assert tasks[i]["stderr"]["File"] == default_task_output(
+        assert tasks[i]["stderr"] == default_task_output(
             task_id=task_id, type="stderr"
         )
 
