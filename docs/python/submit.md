@@ -64,6 +64,31 @@ that can used to define [dependencies](dependencies.md).
 
     Currently, a new Python interpreter will be started for each Python task.
 
+#### Python environment
+When you use a Python function as a task, the task will attempt to import the `hyperqueue` package
+when it executes (to perform some bookkeeping on the background). This function will be executed on
+a worker - this means that it needs to have access to the correct Python version (and virtual environment)
+that contains the `hyperqueue` package!
+
+To make sure that the function will be executed in the correct Python environment, you can use
+[`PythonEnv`](hyperqueue.task.function.PythonEnv) and its `prologue` argument. It lets you specify
+a (shell) command that will be executed before the Python interpreter that executes your
+function is spawned.
+
+```python
+from hyperqueue.task.function import PythonEnv
+from hyperqueue import Client
+
+env = PythonEnv(
+    prologue="ml Python/XYZ && source /<my-path-to-venv>/bin/activate"
+)
+client = Client(python_env=env)
+```
+
+If you use Python functions as tasks, it is pretty much required to use `PythonEnv`, unless your
+workers are already spawned in an environment that has the correct Python loaded (e.g. using `.bashrc`
+or a similar mechanism).
+
 ### Parametrizing tasks
 You can parametrize both external or Python tasks by setting their working directory, standard
 output paths, environment variables or HyperQueue specific parameters like
