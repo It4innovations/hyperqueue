@@ -67,12 +67,9 @@ def test_print_worker_info_pbs_allocation(hq_env: HqEnv):
 
     schema = Schema(
         {
-            "allocation": {
-                "manager": "PBS",
-                "id": "x1234"
-            },
+            "allocation": {"manager": "PBS", "id": "x1234"},
         },
-        ignore_extra_keys=True
+        ignore_extra_keys=True,
     )
     schema.validate(output)
 
@@ -171,32 +168,42 @@ def test_print_job_detail(hq_env: HqEnv):
 def test_print_job_detail_resources(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(
-        ["submit", "--resource", "res1=2", "--resource", "res2=8 compact!", "--resource", "res3=all",
-         "--resource", "res4=4 scatter", "echo", "tt"])
+        [
+            "submit",
+            "--resource",
+            "res1=2",
+            "--resource",
+            "res2=8 compact!",
+            "--resource",
+            "res3=all",
+            "--resource",
+            "res4=4 scatter",
+            "echo",
+            "tt",
+        ]
+    )
     output = parse_json_output(hq_env, ["--output-mode=json", "job", "info", "1"])
 
-    schema = Schema([{
-        "resources": [{
-            "min_time": 0.0,
-            "n_nodes": 0,
-            "resources": [{
-                "request": {"Compact": 2},
-                "resource": "res1"
-            }, {
-                "request": {"ForceCompact": 8},
-                "resource": "res2"
-            }, {
-                "request": "All",
-                "resource": "res3"
-            }, {
-                "request": {"Scatter": 4},
-                "resource": "res4"
-            }, {
-                "request": {"Compact": 1},
-                "resource": "cpus"
-            }]
-        }]
-    }], ignore_extra_keys=True)
+    schema = Schema(
+        [
+            {
+                "resources": [
+                    {
+                        "min_time": 0.0,
+                        "n_nodes": 0,
+                        "resources": [
+                            {"request": {"Compact": 2}, "resource": "res1"},
+                            {"request": {"ForceCompact": 8}, "resource": "res2"},
+                            {"request": "All", "resource": "res3"},
+                            {"request": {"Scatter": 4}, "resource": "res4"},
+                            {"request": {"Compact": 1}, "resource": "cpus"},
+                        ],
+                    }
+                ]
+            }
+        ],
+        ignore_extra_keys=True,
+    )
     schema.validate(output)
 
 
@@ -245,12 +252,8 @@ def test_print_task_placeholders(hq_env: HqEnv):
     for i in range(4):
         task_id = tasks[i]["id"]
         assert tasks[i]["cwd"] == os.getcwd()
-        assert tasks[i]["stdout"] == default_task_output(
-            task_id=task_id, type="stdout"
-        )
-        assert tasks[i]["stderr"] == default_task_output(
-            task_id=task_id, type="stderr"
-        )
+        assert tasks[i]["stdout"] == default_task_output(task_id=task_id, type="stdout")
+        assert tasks[i]["stderr"] == default_task_output(task_id=task_id, type="stderr")
 
 
 def test_print_hw(hq_env: HqEnv):
