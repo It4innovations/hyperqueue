@@ -51,10 +51,28 @@ def test_print_worker_info(hq_env: HqEnv):
                 "group": str,
                 "on_server_lost": "stop",
             },
+            "allocation": None,
             "started": str,
             "ended": None,
             "id": 1,
         }
+    )
+    schema.validate(output)
+
+
+def test_print_worker_info_pbs_allocation(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"})
+    output = parse_json_output(hq_env, ["--output-mode=json", "worker", "info", "1"])
+
+    schema = Schema(
+        {
+            "allocation": {
+                "manager": "PBS",
+                "id": "x1234"
+            },
+        },
+        ignore_extra_keys=True
     )
     schema.validate(output)
 

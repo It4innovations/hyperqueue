@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use anyhow::Error;
 use chrono::{DateTime, Utc};
+use serde::{Serialize, Serializer};
 use serde_json;
 use serde_json::{json, Value};
 
@@ -16,7 +17,7 @@ use crate::client::job::WorkerMap;
 use crate::client::output::common::{group_jobs_by_status, resolve_task_paths, TaskToPathsMap};
 use crate::client::output::outputs::{Output, OutputStream};
 use crate::client::output::Verbosity;
-use crate::common::manager::info::ManagerType;
+use crate::common::manager::info::{GetManagerInfo, ManagerType};
 use crate::common::serverdir::AccessRecord;
 use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
 use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
@@ -139,10 +140,11 @@ impl Output for JsonOutput {
                 json["resources"] = resources.variants.into_iter().map(|v| {
                     let ResourceRequest { n_nodes, resources: _, min_time } = v;
                     json!({
-                    "n_nodes": n_nodes,
-                    "resources": [],
-                    "min_time": format_duration(min_time)
-                    })}).collect();
+                        "n_nodes": n_nodes,
+                        "resources": [],
+                        "min_time": format_duration(min_time)
+                    })}
+                ).collect();
                 json["pin_mode"] = json!(pin_mode);
                 json["priority"] = json!(priority);
                 json["time_limit"] = json!(time_limit.map(format_duration));
@@ -338,6 +340,20 @@ fn format_tasks(tasks: Vec<JobTaskInfo>, map: TaskToPathsMap) -> serde_json::Val
         .collect()
 }
 
+struct FormattedManagerType(ManagerType);
+
+impl Serialize for FormattedManagerType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self.0 {
+            ManagerType::Pbs => serializer.serialize_str("PBS"),
+            ManagerType::Slurm => serializer.serialize_str("Slurm"),
+        }
+    }
+}
+
 fn format_autoalloc_queue(id: QueueId, descriptor: QueueData) -> serde_json::Value {
     let QueueData {
         info,
@@ -346,11 +362,7 @@ fn format_autoalloc_queue(id: QueueId, descriptor: QueueData) -> serde_json::Val
         state,
     } = descriptor;
 
-    let manager = match manager_type {
-        ManagerType::Pbs => "PBS",
-        ManagerType::Slurm => "Slurm",
-    };
-
+    let manager = FormattedManagerType(manager_type);
     json!({
         "id": id,
         "name": name,
@@ -405,6 +417,8 @@ fn format_allocation(allocation: Allocation) -> serde_json::Value {
 }
 
 fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
+    let manager_info = worker_info.configuration.get_manager_info();
+
     let WorkerInfo {
         id,
         configuration:
@@ -440,6 +454,10 @@ fn format_worker_info(worker_info: WorkerInfo) -> serde_json::Value {
             "resources": format_resource_descriptor(&resources),
             "on_server_lost": crate::common::format::server_lost_policy_to_str(&on_server_lost),
         }),
+        "allocation": manager_info.map(|info| json!({
+            "manager": FormattedManagerType(info.manager),
+            "id": info.allocation_id
+        })),
         "started": format_datetime(started),
         "ended": ended.map(|info| json!({
             "at": format_datetime(info.ended_at)
