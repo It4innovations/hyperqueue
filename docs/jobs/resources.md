@@ -187,7 +187,10 @@ When strategy is not defined then ``compact`` is used as default.
 
 * Compact (``compact``) - Tries to allocate indices in few groups as possible in the current worker state.
 
-  Example: ``hq submit --resource cpus="8 compact" ...``
+    Example:
+    ```console
+    $ hq submit --resource cpus="8 compact" ...
+    ```
 
 * Strict Compact (``compact!``) - Always allocate indices on as few groups as possible for a target node.
   The task is not executed until the requirement could not be fully fulfilled.
@@ -195,14 +198,19 @@ When strategy is not defined then ``compact`` is used as default.
   it will always be executed with indices from a single group.
   If you ask for 8 cpus in the same way, it will always be executed with indices from two groups.
 
-  Example: ``hq submit --resource cpus="8 compact!" ...``
+    Example:
+    ```console
+    $ hq submit --resource cpus="8 compact!" ...`
+    ```
 
 * Scatter (``scatter``) - Allocate indices across as many groups as possible in the current worker state.
   E.g. Let us assume that a worker has 4 groups with 8 indices per group, and you ask for 8 cpus in the scatter mode.
   If possible in the current situation, HQ tries to run process with 2 cpus on each socket.
 
-  Example: ``hq submit --resource="8 scatter" ...``
-
+    Example:
+    ```console
+    $ hq submit --resource="8 scatter" ...
+    ```
 
 ### Resource environment variables
 When a task that has resource requests is executed, the following variables are passed to it for
