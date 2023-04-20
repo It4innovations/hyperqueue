@@ -63,7 +63,18 @@ def task_main():
 
 
 class PythonEnv:
-    def __init__(self, python_bin="python3", prologue=None, shell="bash"):
+    def __init__(
+        self,
+        python_bin: str = "python3",
+        prologue: Optional[str] = None,
+        shell: str = "bash",
+    ):
+        """
+        Describes an environment for spawning Python interpreters.
+        :param python_bin: Python binary that will be executed.
+        :param prologue: Shell command that will be executed prior to launching the Python interpreter.
+        :param shell: Shell used for executing `prologue`.
+        """
         code = "from hyperqueue.task.function import task_main as m; m()"
 
         if prologue:
