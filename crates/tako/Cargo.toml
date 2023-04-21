@@ -27,12 +27,12 @@ rand = { workspace = true, features = ["small_rng"] }
 gethostname = { workspace = true }
 tracing = { workspace = true }
 nix = { workspace = true }
+bstr = { workspace = true }
 
 hashbrown = { version = "0.12", features = ["serde", "inline-more"], default-features = false }
 tracing-subscriber = { version = "0.3", features = ["json"] }
 priority-queue = "1.0"
-bitflags = "1.2"
-bstr = { version = "0.2", features = ["serde1"] }
+bitflags = "2.1"
 psutil = "3.2.1"
 fxhash = "0.2.1"
 thin-vec = "0.2.8"

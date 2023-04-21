@@ -468,7 +468,7 @@ mod test {
     #[test]
     fn test_parse_resource_def_missing_end() {
         insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "gpu=range(10)"), @r###"
-        Unexpected token found while attempting to parse range, expected - or _:
+        Unexpected token found while attempting to parse number, expected - or _:
           gpu=range(10)
                       |
                       --- Unexpected token `)`
@@ -544,7 +544,7 @@ mod test {
     #[test]
     fn test_parse_resource_def_missing_value() {
         insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "x="), @r###"
-        Unexpected end of input found while attempting to parse resource kind, expected [ or range or sum:
+        Unexpected end of input found while attempting to parse number, expected [ or range or sum:
           x=
             |
             --- Unexpected end of input
@@ -564,7 +564,7 @@ mod test {
     #[test]
     fn test_parse_resource_def_numeric_value() {
         insta::assert_snapshot!(expect_parser_error(parse_resource_definition_inner(), "x=1"), @r###"
-        Unexpected end of input found while attempting to parse resource kind, expected _ or x:
+        Unexpected end of input found while attempting to parse number, expected _ or x:
           x=1
              |
              --- Unexpected end of input
