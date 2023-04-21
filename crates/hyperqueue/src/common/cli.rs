@@ -161,7 +161,7 @@ pub struct CommonOpts {
 #[command(
     author,
     about,
-    version(option_env!("HQ_BUILD_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))),
+    version(crate::HQ_VERSION),
     disable_help_subcommand(true),
     help_expected(true)
 )]
