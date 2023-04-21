@@ -35,3 +35,10 @@ pub const DEFAULT_WORKER_GROUP_NAME: &str = "default";
 // Reexports
 pub use tako;
 pub use tako::WrappedRcRefCell;
+
+pub const HQ_VERSION: &str = {
+    match option_env!("HQ_BUILD_VERSION") {
+        Some(version) => version,
+        None => const_format::concatcp!(env!("CARGO_PKG_VERSION"), "-dev"),
+    }
+};

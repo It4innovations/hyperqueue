@@ -89,7 +89,7 @@ pub async fn initialize_worker(
     server_directory: &Path,
     configuration: WorkerConfiguration,
 ) -> anyhow::Result<InitializedWorker> {
-    log::info!("Starting hyperqueue worker {}", env!("CARGO_PKG_VERSION"));
+    log::info!("Starting hyperqueue worker {}", crate::HQ_VERSION);
     let server_dir = ServerDir::open(server_directory).context("Cannot load server directory")?;
     let record = server_dir.read_access_record().with_context(|| {
         format!(

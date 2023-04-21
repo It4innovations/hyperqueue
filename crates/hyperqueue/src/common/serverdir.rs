@@ -11,6 +11,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::common::error::error;
 use crate::common::utils::fs::{absolute_path, create_symlink};
 use crate::transfer::auth::{deserialize_key, serialize_key};
+use crate::HQ_VERSION;
 
 #[derive(Clone)]
 pub struct ServerDir {
@@ -63,12 +64,11 @@ impl ServerDir {
 
     pub fn read_access_record(&self) -> crate::Result<AccessRecord> {
         let record = load_access_file(self.access_filename())?;
-        let version = env!("CARGO_PKG_VERSION");
-        if record.version != version {
+        if record.version != HQ_VERSION {
             return error(format!(
                 "Hyperqueue version mismatch detected.\nServer was started with version {}, \
                 but the current version is {}.",
-                record.version, version
+                record.version, HQ_VERSION
             ));
         }
 
@@ -181,7 +181,7 @@ impl AccessRecord {
         tako_secret_key: Arc<SecretKey>,
     ) -> Self {
         Self {
-            version: env!("CARGO_PKG_VERSION").to_string(),
+            version: HQ_VERSION.to_string(),
             host,
             server_uid,
             server_port,
