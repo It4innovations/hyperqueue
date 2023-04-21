@@ -55,6 +55,7 @@ impl fmt::Debug for TaskRuntimeState {
 }
 
 bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct TaskFlags: u32 {
         const KEEP    = 0b00000001;
         const OBSERVE = 0b00000010;
