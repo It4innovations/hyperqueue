@@ -152,6 +152,13 @@ pub async fn handle_resubmit(
                 }
             }
 
+            if job.log.is_some() {
+                return ToClientMessage::Error(
+                    "Resubmit is not currently supported when output streaming (`--log`) is used"
+                        .to_string(),
+                );
+            }
+
             let job_desc = if !message.filter.is_empty() {
                 match &job.job_desc {
                     JobDescription::Array {
