@@ -1,4 +1,4 @@
 pub mod allocator;
-pub mod counts;
+pub mod concise;
 pub mod map;
 pub mod pool;

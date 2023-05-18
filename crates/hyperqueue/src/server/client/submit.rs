@@ -533,7 +533,7 @@ mod tests {
                 min_time: Duration::from_secs(2),
                 resources: smallvec![ResourceRequestEntry {
                     resource: CPU_RESOURCE_NAME.to_string(),
-                    policy: AllocationRequest::Compact(cpu_count as ResourceAmount),
+                    policy: AllocationRequest::Compact(ResourceAmount::new_units(cpu_count)),
                 }],
             }),
             pin_mode: PinMode::None,

@@ -2,8 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 use crate::hwstats::WorkerHwStateMessage;
-use crate::internal::common::resources::{ResourceAmount, ResourceIndex};
+use crate::internal::common::resources::{ResourceAmount, ResourceIndex, ResourceUnits};
 use crate::internal::messages::common::TaskFailInfo;
+use crate::resources::ResourceFractions;
 use crate::task::SerializedTaskContext;
 use crate::{InstanceId, Priority};
 use crate::{TaskId, WorkerId};
@@ -108,16 +109,10 @@ pub struct StealResponseMsg {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
-pub enum TaskResourceAllocationValue {
-    Indices(Vec<ResourceIndex>),
-    Sum(ResourceAmount),
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct ResourceAllocation {
     pub resource: String,
-    pub value: TaskResourceAllocationValue,
+    pub indices: Vec<(ResourceIndex, ResourceFractions)>,
+    pub amount: ResourceAmount,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

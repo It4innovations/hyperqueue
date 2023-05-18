@@ -28,11 +28,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub mod resources {
     pub use crate::internal::common::resources::{
-        Allocation, AllocationRequest, AllocationValue, NumOfNodes, ResourceAllocation,
-        ResourceAmount, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
+        Allocation, AllocationRequest, NumOfNodes, ResourceAllocation, ResourceAmount,
+        ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, ResourceFractions,
         ResourceIndex, ResourceLabel, ResourceRequest, ResourceRequestEntries,
-        ResourceRequestEntry, ResourceRequestVariants, TimeRequest, AMD_GPU_RESOURCE_NAME,
-        CPU_RESOURCE_ID, CPU_RESOURCE_NAME, MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME,
+        ResourceRequestEntry, ResourceRequestVariants, ResourceUnits, TimeRequest,
+        AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME, MEM_RESOURCE_NAME,
+        NVIDIA_GPU_RESOURCE_NAME,
     };
 
     pub use crate::internal::common::resources::map::ResourceMap;

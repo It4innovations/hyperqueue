@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -216,7 +217,7 @@ impl WorkerState {
         self.comm.notify_start_task();
     }
 
-    pub fn start_task(&mut self, task_id: TaskId, task_env: TaskEnv, allocation: Allocation) {
+    pub fn start_task(&mut self, task_id: TaskId, task_env: TaskEnv, allocation: Rc<Allocation>) {
         let task = self.get_task_mut(task_id);
         task.state = TaskState::Running(task_env, allocation);
         self.running_tasks.insert(task_id);

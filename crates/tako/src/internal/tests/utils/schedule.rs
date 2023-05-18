@@ -48,7 +48,7 @@ pub fn new_test_worker(
     on_new_worker(core, &mut TestComm::default(), worker);
 }
 
-pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u64) {
+pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u32) {
     let wcfg = create_test_worker_config(worker_id, ResourceDescriptor::simple(cpus));
     new_test_worker(
         core,
@@ -58,7 +58,7 @@ pub fn create_test_worker(core: &mut Core, worker_id: WorkerId, cpus: u64) {
     );
 }
 
-pub fn create_test_workers(core: &mut Core, cpus: &[u64]) {
+pub fn create_test_workers(core: &mut Core, cpus: &[u32]) {
     for (i, c) in cpus.iter().enumerate() {
         let worker_id = WorkerId::new((100 + i) as u32);
         create_test_worker(core, worker_id, *c);

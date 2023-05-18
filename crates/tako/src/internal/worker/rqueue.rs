@@ -6,6 +6,7 @@ use crate::internal::worker::state::TaskMap;
 use crate::internal::worker::task::Task;
 use crate::{Priority, PriorityTuple, Set, TaskId, WorkerId};
 use priority_queue::PriorityQueue;
+use std::rc::Rc;
 use std::time::Duration;
 
 type QueuePriorityTuple = (Priority, Priority, Priority); // user priority, resource priority, scheduler priority
@@ -72,7 +73,7 @@ impl ResourceWaitQueue {
         p
     }
 
-    pub fn release_allocation(&mut self, allocation: Allocation) {
+    pub fn release_allocation(&mut self, allocation: Rc<Allocation>) {
         self.allocator.release_allocation(allocation);
     }
 
@@ -137,7 +138,7 @@ impl ResourceWaitQueue {
         &mut self,
         task_map: &TaskMap,
         remaining_time: Option<Duration>,
-    ) -> Vec<(TaskId, Allocation, usize)> {
+    ) -> Vec<(TaskId, Rc<Allocation>, usize)> {
         self.allocator.init_allocator(remaining_time);
         let mut out = Vec::new();
         while !self.try_start_tasks_helper(task_map, &mut out) {
@@ -149,7 +150,7 @@ impl ResourceWaitQueue {
     fn try_start_tasks_helper(
         &mut self,
         _task_map: &TaskMap,
-        out: &mut Vec<(TaskId, Allocation, usize)>,
+        out: &mut Vec<(TaskId, Rc<Allocation>, usize)>,
     ) -> bool {
         let current_priority: QueuePriorityTuple = if let Some(Some(priority)) =
             self.queues.values().map(|qfr| qfr.current_priority()).max()
@@ -186,10 +187,11 @@ mod tests {
     use crate::internal::common::resources::{
         ResourceDescriptor, ResourceRequest, ResourceRequestVariants,
     };
-    use crate::internal::tests::utils::resources::ResBuilder;
     use crate::internal::tests::utils::resources::{cpus_compact, ResourceRequestBuilder};
+    use crate::internal::tests::utils::resources::{ra_builder, ResBuilder};
     use crate::internal::worker::rqueue::ResourceWaitQueue;
     use crate::internal::worker::test_util::{worker_task, WorkerTaskBuilder};
+    use std::ops::Deref;
     use std::time::Duration;
 
     use crate::internal::messages::worker::WorkerResourceCounts;
@@ -465,7 +467,7 @@ mod tests {
         rq.new_worker(
             400.into(),
             WorkerResources::from_transport(WorkerResourceCounts {
-                n_resources: vec![2, 0],
+                n_resources: ra_builder(&[2, 0]).deref().clone(),
             }),
         );
 
@@ -476,7 +478,7 @@ mod tests {
         rq.new_worker(
             401.into(),
             WorkerResources::from_transport(WorkerResourceCounts {
-                n_resources: vec![2, 2],
+                n_resources: ra_builder(&[2, 2]).deref().clone(),
             }),
         );
         assert_eq!(rq.resource_priority(&rq1), 0);
@@ -487,7 +489,7 @@ mod tests {
             rq.new_worker(
                 WorkerId::new(i),
                 WorkerResources::from_transport(WorkerResourceCounts {
-                    n_resources: vec![3, 0],
+                    n_resources: ra_builder(&[3, 0]).deref().clone(),
                 }),
             );
         }
@@ -540,7 +542,7 @@ mod tests {
         rq.new_worker(
             400.into(),
             WorkerResources::from_transport(WorkerResourceCounts {
-                n_resources: vec![16, 2, 0, 1],
+                n_resources: ra_builder(&[16, 2, 0, 1]).deref().clone(),
             }),
         );
 
@@ -573,7 +575,7 @@ mod tests {
         rq.new_worker(
             400.into(),
             WorkerResources::from_transport(WorkerResourceCounts {
-                n_resources: vec![16, 2, 0, 1],
+                n_resources: ra_builder(&[16, 2, 0, 1]).deref().clone(),
             }),
         );
 
@@ -606,7 +608,7 @@ mod tests {
         rq.new_worker(
             400.into(),
             WorkerResources::from_transport(WorkerResourceCounts {
-                n_resources: vec![16, 2, 0, 1],
+                n_resources: ra_builder(&[16, 2, 0, 1]).deref().clone(),
             }),
         );
 

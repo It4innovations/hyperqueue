@@ -6,13 +6,14 @@ use crate::internal::worker::taskenv::TaskEnv;
 use crate::launcher::{LaunchContext, StopReason, TaskFuture, TaskLaunchData, TaskResult};
 use crate::TaskId;
 use futures::future::Either;
+use std::rc::Rc;
 use tokio::sync::oneshot;
 
 pub(crate) fn run_task(
     state: &mut WorkerState,
     state_ref: &WorkerStateRef,
     task_id: TaskId,
-    allocation: Allocation,
+    allocation: Rc<Allocation>,
     resource_index: usize,
 ) {
     log::debug!("Task={} assigned", task_id);

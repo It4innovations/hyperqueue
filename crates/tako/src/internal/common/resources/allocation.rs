@@ -1,8 +1,12 @@
 use crate::format_comma_delimited;
-use crate::internal::common::resources::{ResourceAmount, ResourceId, ResourceIndex};
-use crate::internal::worker::resources::counts::ResourceCountVec;
+use crate::internal::common::resources::{
+    ResourceAmount, ResourceId, ResourceIndex, ResourceUnits,
+};
+use crate::resources::AllocationRequest::All;
+use crate::resources::ResourceFractions;
 use smallvec::SmallVec;
 
+/*
 #[derive(Debug)]
 pub enum AllocationValue {
     Indices(SmallVec<[ResourceIndex; 2]>),
@@ -30,80 +34,109 @@ impl AllocationValue {
         self.indices().map(format_comma_delimited)
     }
 
-    pub fn amount(&self) -> ResourceAmount {
-        match self {
-            AllocationValue::Indices(indices) => indices.len() as ResourceAmount,
-            AllocationValue::Sum(amount) => *amount,
-        }
+    pub fn amount(&self) -> ResourceUnits {
+        todo!() // remember fractions for indices
+                /*match self {
+                    AllocationValue::Indices(indices) => indices.len() as ResourceUnits,
+                    AllocationValue::Sum(size) => *size,
+                }*/
     }
+}*/
+
+#[derive(Debug)]
+pub struct AllocationIndex {
+    pub index: ResourceIndex,
+    pub group_idx: u32,
+    pub fractions: ResourceFractions,
 }
 
 #[derive(Debug)]
 pub struct ResourceAllocation {
-    pub resource: ResourceId,
-    pub value: AllocationValue,
+    pub resource_id: ResourceId,
+    pub amount: ResourceAmount,
+    pub indices: SmallVec<[AllocationIndex; 1]>,
 }
 
-pub type ResourceAllocations = SmallVec<[ResourceAllocation; 2]>;
+impl ResourceAllocation {
+    pub fn resource_indices(&self) -> impl Iterator<Item = ResourceIndex> + '_ {
+        self.indices.iter().map(|x| x.index)
+    }
+}
+
+pub type ResourceAllocations = Vec<ResourceAllocation>;
 
 #[derive(Debug)]
 pub struct Allocation {
     pub nodes: Vec<String>,
     pub resources: ResourceAllocations,
-    pub counts: ResourceCountVec, // Store counts profile - it is used when Allocation is freed, to find the right profile
 }
 
 impl Allocation {
-    #[inline]
-    pub fn new(
-        nodes: Vec<String>,
-        resources: ResourceAllocations,
-        counts: ResourceCountVec,
-    ) -> Self {
+    /*pub fn new_multi_node(nodes: Vec<String>) -> Self {
         Allocation {
             nodes,
-            resources,
-            counts,
+            resources: Vec::new(),
+        }
+    }*/
+
+    pub fn new() -> Self {
+        Allocation {
+            nodes: Vec::new(),
+            resources: Vec::new(),
         }
     }
 
+    pub fn add_resource_allocation(&mut self, ra: ResourceAllocation) {
+        self.resources.push(ra);
+    }
+
     pub fn resource_allocation(&self, id: ResourceId) -> Option<&ResourceAllocation> {
-        self.resources.iter().find(|r| r.resource == id)
+        self.resources.iter().find(|r| r.resource_id == id)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::common::resources::AllocationValue;
-    use crate::resources::{Allocation, ResourceAmount, ResourceIndex};
+    use crate::internal::common::resources::allocation::AllocationIndex;
+    use crate::internal::common::resources::ResourceId;
+    use crate::resources::{
+        Allocation, ResourceAllocation, ResourceAmount, ResourceIndex, ResourceUnits,
+    };
     use crate::Set;
 
     impl Allocation {
+        pub fn new_simple(counts: &[ResourceUnits]) -> Self {
+            Allocation {
+                nodes: Vec::new(),
+                resources: counts
+                    .iter()
+                    .enumerate()
+                    .filter(|(id, c)| **c > 0)
+                    .map(|(id, c)| ResourceAllocation {
+                        resource_id: ResourceId::new(id as u32),
+                        amount: ResourceAmount::new_units(*c),
+                        indices: (0..*c)
+                            .map(|x| AllocationIndex {
+                                index: ResourceIndex::new(x as u32),
+                                group_idx: 0,
+                                fractions: 0,
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            }
+        }
         pub fn get_indices(&self, idx: u32) -> Vec<ResourceIndex> {
             let a = self
                 .resources
                 .iter()
-                .find(|r| r.resource == idx.into())
+                .find(|r| r.resource_id == idx.into())
                 .unwrap();
-            match &a.value {
-                AllocationValue::Indices(x) => x.to_vec(),
-                AllocationValue::Sum(_) => panic!("Sum not indices"),
-            }
-        }
-
-        pub fn get_sum(&self, idx: u32) -> ResourceAmount {
-            let a = self
-                .resources
-                .iter()
-                .find(|r| r.resource == idx.into())
-                .unwrap();
-            match &a.value {
-                AllocationValue::Indices(_) => panic!("Indices not sum"),
-                AllocationValue::Sum(s) => *s,
-            }
+            a.indices.iter().map(|a| a.index).collect()
         }
     }
 
+    /*
     impl AllocationValue {
         pub fn get_checked_indices(&self) -> Vec<u32> {
             match self {
@@ -117,5 +150,5 @@ mod tests {
                 }
             }
         }
-    }
+    }*/
 }

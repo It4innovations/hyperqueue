@@ -72,7 +72,7 @@ impl TaskBuilder {
         self
     }
 
-    pub fn cpus_compact(mut self, count: ResourceAmount) -> TaskBuilder {
+    pub fn cpus_compact<A: Into<ResourceAmount>>(mut self, count: A) -> TaskBuilder {
         self.resources_builder = self.resources_builder.cpus(count);
         self
     }
@@ -82,10 +82,10 @@ impl TaskBuilder {
         self
     }
 
-    pub fn add_resource<Id: Into<ResourceId>>(
+    pub fn add_resource<Id: Into<ResourceId>, A: Into<ResourceAmount>>(
         mut self,
         id: Id,
-        amount: ResourceAmount,
+        amount: A,
     ) -> TaskBuilder {
         self.resources_builder = self.resources_builder.add(id, amount);
         self

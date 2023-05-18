@@ -55,6 +55,8 @@ fn deserialize_resource_entries<'de, D>(deserializer: D) -> Result<ResourceReque
 where
     D: Deserializer<'de>,
 {
+    todo!()
+    /*
     let tmp = Map::<String, IntOrString>::deserialize(deserializer)?;
 
     let mut result = ResourceRequestEntries::new();
@@ -70,7 +72,7 @@ where
             policy,
         })
     }
-    Ok(result)
+    Ok(result)*/
 }
 
 fn deserialize_human_duration_opt<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>

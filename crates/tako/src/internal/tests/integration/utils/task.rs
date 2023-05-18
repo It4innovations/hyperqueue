@@ -168,7 +168,7 @@ pub struct ResourceRequestConfig {
 }
 
 impl ResourceRequestConfigBuilder {
-    pub fn cpus(self, n_cpus: ResourceAmount) -> Self {
+    pub fn cpus<A: Into<ResourceAmount>>(self, n_cpus: A) -> Self {
         self.add_compact("cpus", n_cpus)
     }
 
@@ -183,13 +183,13 @@ impl ResourceRequestConfigBuilder {
         })
     }
 
-    pub fn add_compact(mut self, name: &str, amount: ResourceAmount) -> Self {
-        self._add(name, AllocationRequest::Compact(amount));
+    pub fn add_compact<A: Into<ResourceAmount>>(mut self, name: &str, amount: A) -> Self {
+        self._add(name, AllocationRequest::Compact(amount.into()));
         self
     }
 
-    pub fn add_force_compact(mut self, name: &str, amount: ResourceAmount) -> Self {
-        self._add(name, AllocationRequest::ForceCompact(amount));
+    pub fn add_force_compact<A: Into<ResourceAmount>>(mut self, name: &str, amount: A) -> Self {
+        self._add(name, AllocationRequest::ForceCompact(amount.into()));
         self
     }
 }

@@ -1,4 +1,6 @@
-use crate::internal::common::resources::{ResourceAmount, ResourceIndex, ResourceLabel};
+use crate::internal::common::resources::{
+    ResourceAmount, ResourceIndex, ResourceLabel, ResourceUnits,
+};
 use crate::internal::common::utils::{format_comma_delimited, has_unique_elements};
 use crate::internal::common::Set;
 use serde::{Deserialize, Serialize};
@@ -33,7 +35,7 @@ pub enum ResourceDescriptorKind {
 }
 
 impl ResourceDescriptorKind {
-    pub fn regular_sockets(n_sockets: ResourceAmount, socket_size: ResourceAmount) -> Self {
+    pub fn regular_sockets(n_sockets: ResourceUnits, socket_size: ResourceUnits) -> Self {
         assert!(n_sockets > 0);
         assert!(socket_size > 0);
         if n_sockets == 1 {
@@ -106,7 +108,7 @@ impl ResourceDescriptorKind {
         })
     }
 
-    pub fn simple_indices(size: u32) -> Self {
+    pub fn simple_indices(size: ResourceUnits) -> Self {
         assert!(size > 0);
         ResourceDescriptorKind::Range {
             start: ResourceIndex::from(0),
@@ -125,14 +127,16 @@ impl ResourceDescriptorKind {
 
     pub fn size(&self) -> ResourceAmount {
         match self {
-            ResourceDescriptorKind::List { values } => values.len() as ResourceAmount,
-            ResourceDescriptorKind::Range { start, end } if end >= start => {
-                (end.as_num() + 1 - start.as_num()) as ResourceAmount
+            ResourceDescriptorKind::List { values } => {
+                ResourceAmount::new_units(values.len() as ResourceUnits)
             }
-            ResourceDescriptorKind::Range { .. } => 0,
+            ResourceDescriptorKind::Range { start, end } if end >= start => {
+                ResourceAmount::new_units(end.as_num() + 1 - start.as_num())
+            }
+            ResourceDescriptorKind::Range { .. } => ResourceAmount::ZERO,
             ResourceDescriptorKind::Sum { size } => *size,
             ResourceDescriptorKind::Groups { groups } => {
-                groups.iter().map(|x| x.len() as ResourceAmount).sum()
+                ResourceAmount::new_units(groups.iter().map(|x| x.len() as ResourceUnits).sum())
             }
         }
     }
@@ -218,7 +222,7 @@ impl ResourceDescriptor {
                 .validate()
                 .map_err(|e| format!("Invalid resource definition for {}: {:?}", item.name, e))?;
 
-            if item.kind.size() == 0 {
+            if item.kind.size().is_zero() {
                 return Err(format!("Resource {} is empty", item.name).into());
             }
             if item.name == "cpus" {
@@ -248,20 +252,22 @@ mod tests {
             }
         }
 
-        pub fn sum(name: &str, size: u64) -> Self {
+        pub fn sum(name: &str, size: u32) -> Self {
             ResourceDescriptorItem {
                 name: name.to_string(),
-                kind: ResourceDescriptorKind::Sum { size: size.into() },
+                kind: ResourceDescriptorKind::Sum {
+                    size: ResourceAmount::new_units(size),
+                },
             }
         }
     }
 
     impl ResourceDescriptor {
-        pub fn simple(n_cpus: ResourceAmount) -> Self {
+        pub fn simple(n_cpus: ResourceUnits) -> Self {
             Self::sockets(1, n_cpus)
         }
 
-        pub fn sockets(n_sockets: ResourceAmount, n_cpus_per_socket: ResourceAmount) -> Self {
+        pub fn sockets(n_sockets: ResourceUnits, n_cpus_per_socket: ResourceUnits) -> Self {
             ResourceDescriptor::new(vec![ResourceDescriptorItem {
                 name: CPU_RESOURCE_NAME.to_string(),
                 kind: ResourceDescriptorKind::regular_sockets(n_sockets, n_cpus_per_socket),

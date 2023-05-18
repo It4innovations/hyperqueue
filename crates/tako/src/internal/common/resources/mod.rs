@@ -1,11 +1,12 @@
 pub mod allocation;
+pub mod amount;
 pub mod descriptor;
 pub mod map;
 pub mod request;
 
 use crate::define_id_type;
 use crate::internal::common::index::IndexVec;
-pub use allocation::{Allocation, AllocationValue, ResourceAllocation, ResourceAllocations};
+pub use allocation::{Allocation, ResourceAllocation, ResourceAllocations};
 pub use descriptor::{
     DescriptorError, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
 };
@@ -18,13 +19,12 @@ pub use request::{
     ResourceRequestVariants, TimeRequest,
 };
 
+pub use amount::{ResourceAmount, ResourceFractions, ResourceUnits};
+
 pub type NumOfNodes = u32;
 
 // Identifies a globally unique Resource request stored in Core.
 define_id_type!(ResourceId, u32);
-
-/// Represents some amount within a single generic resource (e.g. 100 MiB of memory).
-pub type ResourceAmount = u64;
 
 // Represents an index within a single generic resource (e.g. GPU with ID 1).
 define_id_type!(ResourceIndex, u32);

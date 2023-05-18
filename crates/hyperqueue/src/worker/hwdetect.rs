@@ -127,11 +127,13 @@ pub fn detect_additional_resources(
 
     if !has_resource(items, MEM_RESOURCE_NAME) {
         if let Ok(mem) = read_linux_memory() {
-            log::info!("Detected {mem}B of memory ({})", human_size(mem));
-            items.push(ResourceDescriptorItem {
-                name: MEM_RESOURCE_NAME.to_string(),
-                kind: ResourceDescriptorKind::Sum { size: mem },
-            });
+            todo!() /*
+                    log::info!("Detected {mem}B of memory ({})", human_size(mem));
+                    items.push(ResourceDescriptorItem {
+                        name: MEM_RESOURCE_NAME.to_string(),
+                        kind: ResourceDescriptorKind::Sum { size: mem },
+                    });
+                    */
         }
     }
     Ok(gpu_families)

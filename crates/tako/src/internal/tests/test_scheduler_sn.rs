@@ -14,7 +14,7 @@ use crate::internal::tests::utils::schedule::{
 use crate::internal::tests::utils::task::task;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::tests::utils::workflows::submit_example_1;
-use crate::resources::{ResourceAmount, ResourceDescriptorItem};
+use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceUnits};
 use crate::{TaskId, WorkerId};
 use std::time::Duration;
 
@@ -323,6 +323,7 @@ fn test_resource_balancing1() {
 
 #[test]
 fn test_resource_balancing2() {
+    let u = ResourceAmount::new_units;
     let mut rt = TestEnv::new();
     rt.new_workers(&[12, 12, 12]);
 
@@ -330,13 +331,14 @@ fn test_resource_balancing2() {
         4, 4, 4, /* 12 */ 4, 4, 4, /* 12 */ 4, 4, 4, /* 12 */
     ]]);
     rt.balance();
-    assert_eq!(rt.worker_load(100).get(0.into()), 12);
-    assert_eq!(rt.worker_load(101).get(0.into()), 12);
-    assert_eq!(rt.worker_load(102).get(0.into()), 12);
+    assert_eq!(rt.worker_load(100).get(0.into()), u(12));
+    assert_eq!(rt.worker_load(101).get(0.into()), u(12));
+    assert_eq!(rt.worker_load(102).get(0.into()), u(12));
 }
 
 #[test]
 fn test_resource_balancing3() {
+    let u = ResourceAmount::new_units;
     let mut rt = TestEnv::new();
     rt.new_workers(&[12, 12, 12]);
 
@@ -348,13 +350,14 @@ fn test_resource_balancing3() {
         &[6],          // 6
     ]);
     rt.balance();
-    assert!(rt.worker_load(100).get(0.into()) >= 12);
-    assert!(rt.worker_load(101).get(0.into()) >= 12);
-    assert!(rt.worker_load(102).get(0.into()) >= 12);
+    assert!(rt.worker_load(100).get(0.into()) >= u(12));
+    assert!(rt.worker_load(101).get(0.into()) >= u(12));
+    assert!(rt.worker_load(102).get(0.into()) >= u(12));
 }
 
 #[test]
 fn test_resource_balancing4() {
+    let u = ResourceAmount::new_units;
     let mut rt = TestEnv::new();
     rt.new_workers(&[12, 12, 12]);
 
@@ -362,13 +365,14 @@ fn test_resource_balancing4() {
         2, 4, 2, 4, /* 12 */ 4, 4, 4, /* 12 */ 2, 2, 2, 2, 4, /* 12 */
     ]]);
     rt.balance();
-    assert_eq!(rt.worker_load(100).get(0.into()), 12);
-    assert_eq!(rt.worker_load(101).get(0.into()), 12);
-    assert_eq!(rt.worker_load(102).get(0.into()), 12);
+    assert_eq!(rt.worker_load(100).get(0.into()), u(12));
+    assert_eq!(rt.worker_load(101).get(0.into()), u(12));
+    assert_eq!(rt.worker_load(102).get(0.into()), u(12));
 }
 
 #[test]
 fn test_resource_balancing5() {
+    let u = ResourceAmount::new_units;
     let mut rt = TestEnv::new();
     rt.new_workers(&[12, 12, 12]);
 
@@ -376,11 +380,12 @@ fn test_resource_balancing5() {
         2, 4, 2, 4, 2, /* 14 */ 4, 4, 4, /* 12 */ 4, 4, 4, /* 12 */
     ]]);
     rt.balance();
-    rt.check_worker_load_lower_bounds(&[10, 12, 12]);
+    rt.check_worker_load_lower_bounds(&[u(10), u(12), u(12)]);
 }
 
 #[test]
 fn test_resource_balancing6() {
+    let u = ResourceAmount::new_units;
     let mut rt = TestEnv::new();
     rt.new_workers(&[12, 12, 12, 12, 12]);
     rt.new_assigned_tasks_cpus(&[
@@ -391,11 +396,12 @@ fn test_resource_balancing6() {
         &[12],
     ]);
     rt.balance();
-    rt.check_worker_load_lower_bounds(&[12, 12, 12]);
+    rt.check_worker_load_lower_bounds(&[u(12), u(12), u(12)]);
 }
 
 #[test]
 fn test_resource_balancing7() {
+    let u = ResourceAmount::new_units;
     let mut rt = TestEnv::new();
 
     rt.new_workers(&[12, 12, 12]);
@@ -414,19 +420,20 @@ fn test_resource_balancing7() {
     rt.new_task_running(TaskBuilder::new(33).cpus_compact(4), 102);
 
     rt.schedule();
-    rt.check_worker_load_lower_bounds(&[12, 12, 12]);
+    rt.check_worker_load_lower_bounds(&[u(12), u(12), u(12)]);
 }
 
 #[test]
 fn test_resources_blocked_workers() {
+    let u = ResourceAmount::new_units;
     let mut rt = TestEnv::new();
     rt.new_workers(&[4, 8, 2]);
 
     rt.new_assigned_tasks_cpus(&[&[4, 4, 4, 4, 4]]);
     rt.balance();
-    assert!(rt.worker_load(100).get(0.into()) >= 4);
-    assert!(rt.worker_load(101).get(0.into()) >= 8);
-    assert_eq!(rt.worker_load(102).get(0.into()), 0);
+    assert!(rt.worker_load(100).get(0.into()) >= u(4));
+    assert!(rt.worker_load(101).get(0.into()) >= u(8));
+    assert_eq!(rt.worker_load(102).get(0.into()), u(0));
 
     assert!(!rt.worker(100).is_parked());
     assert!(!rt.worker(101).is_parked());
@@ -456,14 +463,15 @@ fn test_resources_blocked_workers() {
 
 #[test]
 fn test_resources_no_workers1() {
+    let u = ResourceAmount::new_units;
     let mut rt = TestEnv::new();
     rt.new_workers(&[4, 8, 2]);
 
     rt.new_ready_tasks_cpus(&[8, 8, 16, 24]);
     rt.schedule();
-    assert_eq!(rt.worker_load(100).get(0.into()), 0);
-    assert_eq!(rt.worker_load(101).get(0.into()), 16);
-    assert_eq!(rt.worker_load(102).get(0.into()), 0);
+    assert_eq!(rt.worker_load(100).get(0.into()), u(0));
+    assert_eq!(rt.worker_load(101).get(0.into()), u(16));
+    assert_eq!(rt.worker_load(102).get(0.into()), u(0));
 
     let (sn, mn) = rt.core().take_sleeping_tasks();
     assert_eq!(sn.len(), 2);
@@ -472,7 +480,7 @@ fn test_resources_no_workers1() {
 
 #[test]
 fn test_resources_no_workers2() {
-    fn check(task_cpu_counts: &[ResourceAmount]) {
+    fn check(task_cpu_counts: &[ResourceUnits]) {
         println!("Checking order {:?}", task_cpu_counts);
 
         let mut rt = TestEnv::new();
@@ -487,15 +495,15 @@ fn test_resources_no_workers2() {
 
         rt.new_ready_tasks_cpus(task_cpu_counts);
         rt.schedule();
-        assert_eq!(rt.worker_load(100).get(0.into()), 0);
-        assert_eq!(rt.worker_load(101).get(0.into()), 0);
-        assert_eq!(rt.worker_load(102).get(0.into()), 0);
+        assert!(rt.worker_load(100).get(0.into()).is_zero());
+        assert!(rt.worker_load(101).get(0.into()).is_zero());
+        assert!(rt.worker_load(102).get(0.into()).is_zero());
 
         rt.new_workers(&[9, 10]);
         rt.schedule();
-        assert_eq!(rt.worker_load(100).get(0.into()), 0);
-        assert_eq!(rt.worker_load(101).get(0.into()), 0);
-        assert_eq!(rt.worker_load(102).get(0.into()), 0);
+        assert!(rt.worker_load(100).get(0.into()).is_zero());
+        assert!(rt.worker_load(101).get(0.into()).is_zero());
+        assert!(rt.worker_load(102).get(0.into()).is_zero());
         assert_eq!(rt.worker(103).sn_tasks().len(), 1);
         assert_eq!(rt.worker(104).sn_tasks().len(), 1);
 
