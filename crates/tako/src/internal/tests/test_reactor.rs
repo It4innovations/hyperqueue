@@ -30,7 +30,7 @@ use crate::internal::tests::utils::task::{task, task_running_msg, task_with_deps
 use crate::internal::tests::utils::workflows::{submit_example_1, submit_example_3};
 use crate::internal::tests::utils::{env, schedule};
 use crate::internal::worker::configuration::OverviewConfiguration;
-use crate::resources::{ResourceDescriptorItem, ResourceMap};
+use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceMap};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{TaskId, WorkerId};
 
@@ -71,12 +71,15 @@ fn test_worker_add() {
     assert_eq!(new_w.len(), 1);
     assert_eq!(new_w[0].0.as_num(), 402);
 
-    assert_eq!(new_w[0].1.resources.resources[0].kind.size(), 4);
+    assert_eq!(
+        new_w[0].1.resources.resources[0].kind.size(),
+        ResourceAmount::new_units(4)
+    );
 
     assert!(
         matches!(comm.take_broadcasts(1)[0], ToWorkerMessage::NewWorker(NewWorkerMsg {
             worker_id: WorkerId(402), address: ref _a, resources: ref r,
-        }) if r.n_resources == vec![4])
+        }) if r.n_resources == vec![ResourceAmount::new_units(4)])
     );
 
     comm.check_need_scheduling();
@@ -129,7 +132,7 @@ fn test_worker_add() {
     assert!(
         matches!(comm.take_broadcasts(1)[0], ToWorkerMessage::NewWorker(NewWorkerMsg {
             worker_id: WorkerId(502), address: ref a, resources: ref r,
-        }) if a == "test2:123" && r.n_resources == vec![5, 0, 100_000_000])
+        }) if a == "test2:123" && r.n_resources == vec![ResourceAmount::new_units(5), ResourceAmount::new_units(0), ResourceAmount::new_units(100_000_000)])
     );
     comm.check_need_scheduling();
     comm.emptiness_check();

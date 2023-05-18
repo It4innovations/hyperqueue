@@ -3,11 +3,12 @@ use crate::internal::common::stablemap::ExtractKey;
 use crate::internal::messages::worker::ComputeTaskMsg;
 use crate::internal::worker::taskenv::TaskEnv;
 use crate::{InstanceId, Priority, TaskId, WorkerId};
+use std::rc::Rc;
 use std::time::Duration;
 
 pub enum TaskState {
     Waiting(u32),
-    Running(TaskEnv, Allocation),
+    Running(TaskEnv, Rc<Allocation>),
 }
 
 pub struct Task {

@@ -1,9 +1,15 @@
 use std::time::Duration;
 
 use crate::internal::common::resources::request::{ResourceRequest, ResourceRequestEntry};
-use crate::internal::common::resources::{ResourceId, ResourceRequestVariants};
-use crate::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
+use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, ResourceVec};
+use crate::resources::{AllocationRequest, NumOfNodes, ResourceAmount, ResourceUnits};
 pub use ResourceRequestBuilder as ResBuilder;
+
+impl Into<ResourceAmount> for u32 {
+    fn into(self) -> ResourceAmount {
+        ResourceAmount::new_units(self)
+    }
+}
 
 #[derive(Default, Clone)]
 pub struct ResourceRequestBuilder {
@@ -13,8 +19,8 @@ pub struct ResourceRequestBuilder {
 }
 
 impl ResourceRequestBuilder {
-    pub fn add<Id: Into<ResourceId>>(self, id: Id, amount: ResourceAmount) -> Self {
-        self.add_compact(id, amount)
+    pub fn add<Id: Into<ResourceId>, A: Into<ResourceAmount>>(self, id: Id, units: A) -> Self {
+        self.add_compact(id, units)
     }
 
     pub fn n_nodes(mut self, n_nodes: NumOfNodes) -> Self {
@@ -22,7 +28,7 @@ impl ResourceRequestBuilder {
         self
     }
 
-    pub fn cpus(self, count: ResourceAmount) -> Self {
+    pub fn cpus<A: Into<ResourceAmount>>(self, count: A) -> Self {
         self.add(0, count)
     }
 
@@ -33,22 +39,30 @@ impl ResourceRequestBuilder {
         });
     }
 
-    pub fn add_compact<Id: Into<ResourceId>>(mut self, id: Id, amount: ResourceAmount) -> Self {
-        self._add(id.into(), AllocationRequest::Compact(amount));
-        self
-    }
-
-    pub fn add_force_compact<Id: Into<ResourceId>>(
+    pub fn add_compact<Id: Into<ResourceId>, A: Into<ResourceAmount>>(
         mut self,
         id: Id,
-        amount: ResourceAmount,
+        amount: A,
     ) -> Self {
-        self._add(id.into(), AllocationRequest::ForceCompact(amount));
+        self._add(id.into(), AllocationRequest::Compact(amount.into()));
         self
     }
 
-    pub fn add_scatter<Id: Into<ResourceId>>(mut self, id: Id, amount: ResourceAmount) -> Self {
-        self._add(id.into(), AllocationRequest::Scatter(amount));
+    pub fn add_force_compact<Id: Into<ResourceId>, A: Into<ResourceAmount>>(
+        mut self,
+        id: Id,
+        amount: A,
+    ) -> Self {
+        self._add(id.into(), AllocationRequest::ForceCompact(amount.into()));
+        self
+    }
+
+    pub fn add_scatter<Id: Into<ResourceId>, A: Into<ResourceAmount>>(
+        mut self,
+        id: Id,
+        amount: A,
+    ) -> Self {
+        self._add(id.into(), AllocationRequest::Scatter(amount.into()));
         self
     }
 
@@ -69,7 +83,7 @@ impl ResourceRequestBuilder {
                 0,
                 ResourceRequestEntry {
                     resource_id: 0.into(),
-                    request: AllocationRequest::Compact(1),
+                    request: AllocationRequest::Compact(ResourceAmount::new_units(1)),
                 },
             )
         }
@@ -81,17 +95,15 @@ impl ResourceRequestBuilder {
     }
 }
 
-pub fn cpus_compact(count: ResourceAmount) -> ResBuilder {
+pub fn cpus_compact(count: ResourceUnits) -> ResBuilder {
     ResBuilder::default().add(0, count)
 }
-/*
-pub fn cpus_force_compact(count: NumOfCpus) -> ResBuilder {
-    ResBuilder::default().cpus(CpuRequest::ForceCompact(count))
+
+pub fn ra_builder(units: &[ResourceUnits]) -> ResourceVec<ResourceAmount> {
+    let vec: Vec<ResourceAmount> = units
+        .iter()
+        .copied()
+        .map(ResourceAmount::new_units)
+        .collect();
+    vec.into()
 }
-pub fn cpus_scatter(count: NumOfCpus) -> ResBuilder {
-    ResBuilder::default().cpus(CpuRequest::Scatter(count))
-}
-pub fn cpus_all() -> ResBuilder {
-    ResBuilder::default().cpus(CpuRequest::All)
-}
-*/

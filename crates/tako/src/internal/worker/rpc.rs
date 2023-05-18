@@ -15,11 +15,11 @@ use tokio::time::timeout;
 use crate::comm::{ConnectionRegistration, RegisterWorker};
 use crate::hwstats::WorkerHwStateMessage;
 use crate::internal::common::resources::map::ResourceMap;
-use crate::internal::common::resources::{Allocation, AllocationValue};
+use crate::internal::common::resources::Allocation;
 use crate::internal::common::WrappedRcRefCell;
 use crate::internal::messages::worker::{
-    FromWorkerMessage, StealResponseMsg, TaskResourceAllocation, TaskResourceAllocationValue,
-    ToWorkerMessage, WorkerOverview, WorkerRegistrationResponse, WorkerStopReason,
+    FromWorkerMessage, StealResponseMsg, TaskResourceAllocation, ToWorkerMessage, WorkerOverview,
+    WorkerRegistrationResponse, WorkerStopReason,
 };
 use crate::internal::server::rpc::ConnectionDescriptor;
 use crate::internal::transfer::auth::{
@@ -518,15 +518,15 @@ fn resource_allocation_to_msg(
             .map(
                 |alloc| crate::internal::messages::worker::ResourceAllocation {
                     resource: resource_map
-                        .get_name(alloc.resource)
+                        .get_name(alloc.resource_id)
                         .unwrap_or("unknown")
                         .to_string(),
-                    value: match &alloc.value {
-                        AllocationValue::Indices(indices) => {
-                            TaskResourceAllocationValue::Indices(indices.iter().cloned().collect())
-                        }
-                        AllocationValue::Sum(amount) => TaskResourceAllocationValue::Sum(*amount),
-                    },
+                    amount: alloc.amount,
+                    indices: alloc
+                        .indices
+                        .iter()
+                        .map(|i| (i.index, i.fractions))
+                        .collect(),
                 },
             )
             .collect(),

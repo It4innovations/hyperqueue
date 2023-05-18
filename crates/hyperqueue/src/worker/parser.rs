@@ -3,7 +3,7 @@ use chumsky::text::TextParser;
 use chumsky::{Error, Parser};
 
 use tako::resources::{
-    DescriptorError, ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind,
+    DescriptorError, ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind, ResourceUnits,
 };
 
 use crate::common::parser2::{
@@ -53,8 +53,8 @@ fn parse_resource_group_x_notation() -> impl CharParser<ResourceDescriptorKind> 
         .then(just('x').ignore_then(parse_u32()))
         .map(|(groups, group_size)| {
             ResourceDescriptorKind::regular_sockets(
-                groups as ResourceAmount,
-                group_size as ResourceAmount,
+                groups as ResourceUnits,
+                group_size as ResourceUnits,
             )
         })
 }
@@ -150,7 +150,7 @@ fn parse_resource_sum() -> impl CharParser<ResourceDescriptorKind> {
 
     let value = parse_u64()
         .labelled("sum")
-        .map(|size| ResourceDescriptorKind::Sum { size });
+        .map(|size| ResourceDescriptorKind::Sum { size: todo!() });
 
     value.delimited_by(start, end)
 }
@@ -488,18 +488,18 @@ mod test {
     #[test]
     fn test_parse_resource_def_sum() {
         check_item(
-            parse_resource_definition("mem=sum(1000_3000_2000)"),
+            parse_resource_definition("mem=sum(1_3000_2000)"),
             "mem",
-            res_kind_sum(1000_3000_2000),
+            res_kind_sum(1_3000_2000),
         );
     }
 
     #[test]
     fn test_parse_resource_def_sum_whitespace() {
         check_item(
-            parse_resource_definition("   mem  = sum ( 1000_3000_2000 ) "),
+            parse_resource_definition("   mem  = sum ( 1_3000_2000 ) "),
             "mem",
-            res_kind_sum(1000_3000_2000),
+            res_kind_sum(1_3000_2000),
         );
     }
 

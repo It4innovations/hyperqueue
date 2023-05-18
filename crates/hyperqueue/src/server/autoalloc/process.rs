@@ -29,6 +29,7 @@ use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueI
 use crate::server::state::StateRef;
 use crate::transfer::messages::{AllocationQueueParams, QueueData, QueueState};
 use crate::{get_or_return, JobId};
+use tako::resources::ResourceAmount;
 
 #[derive(Copy, Clone)]
 enum RefreshReason {
@@ -899,6 +900,7 @@ mod tests {
     use crate::server::state::StateRef;
     use crate::tests::utils::create_hq_state;
     use crate::transfer::messages::{JobDescription, PinMode, TaskDescription};
+    use tako::resources::ResourceAmount;
 
     #[tokio::test]
     async fn fill_backlog() {
@@ -1743,7 +1745,7 @@ mod tests {
             min_time,
             resources: smallvec![ResourceRequestEntry {
                 resource: CPU_RESOURCE_NAME.to_string(),
-                policy: AllocationRequest::Compact(1),
+                policy: AllocationRequest::Compact(ResourceAmount::new_units(1)),
             }],
         });
 

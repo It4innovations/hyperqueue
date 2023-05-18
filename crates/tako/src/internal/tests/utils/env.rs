@@ -18,7 +18,9 @@ use crate::internal::tests::utils::schedule;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::internal::transfer::auth::{deserialize, serialize};
 use crate::internal::worker::configuration::OverviewConfiguration;
-use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind};
+use crate::resources::{
+    ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind, ResourceUnits,
+};
 use crate::task::SerializedTaskContext;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{TaskId, WorkerId};
@@ -126,7 +128,7 @@ impl TestEnv {
         self.new_workers_ext(&defs);
     }
 
-    pub fn new_ready_tasks_cpus(&mut self, tasks: &[ResourceAmount]) -> Vec<TaskId> {
+    pub fn new_ready_tasks_cpus(&mut self, tasks: &[ResourceUnits]) -> Vec<TaskId> {
         let tasks: Vec<_> = tasks
             .iter()
             .map(|n_cpus| {
@@ -151,7 +153,7 @@ impl TestEnv {
         self._test_assign(task_id.into(), worker_id.into());
     }
 
-    pub fn new_assigned_tasks_cpus(&mut self, tasks: &[&[ResourceAmount]]) {
+    pub fn new_assigned_tasks_cpus(&mut self, tasks: &[&[ResourceUnits]]) {
         for (i, tdefs) in tasks.iter().enumerate() {
             let w_id = WorkerId::new(100 + i as u32);
             let task_ids = self.new_ready_tasks_cpus(tdefs);

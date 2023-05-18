@@ -3,7 +3,7 @@ use crate::internal::messages::worker::{
     ComputeTaskMsg, NewWorkerMsg, ToWorkerMessage, WorkerResourceCounts,
 };
 use crate::internal::server::workerload::WorkerResources;
-use crate::internal::tests::utils::resources::ResourceRequestBuilder;
+use crate::internal::tests::utils::resources::{ra_builder, ResourceRequestBuilder};
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::OverviewConfiguration;
 use crate::internal::worker::rpc::process_worker_message;
@@ -13,6 +13,7 @@ use crate::resources::{ResourceDescriptor, ResourceMap};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{Set, TaskId, WorkerId};
 use smallvec::smallvec;
+use std::ops::Deref;
 use std::time::Duration;
 use tokio::sync::oneshot::Receiver;
 
@@ -158,12 +159,12 @@ fn test_worker_other_workers() {
     assert!(state.ready_task_queue.worker_resources().is_empty());
 
     let r1 = WorkerResourceCounts {
-        n_resources: vec![2, 0, 1],
+        n_resources: ra_builder(&[2, 0, 1]).deref().clone(),
     };
     let wr1 = WorkerResources::from_transport(r1.clone());
 
     let r2 = WorkerResourceCounts {
-        n_resources: vec![2, 1],
+        n_resources: ra_builder(&[2, 1]).deref().clone(),
     };
     let wr2 = WorkerResources::from_transport(r2.clone());
 

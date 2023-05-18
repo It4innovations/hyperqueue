@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize, Serializer};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::WorkerOverview;
 use crate::internal::worker::configuration::WorkerConfiguration;
-use crate::resources::{AllocationRequest, NumOfNodes, ResourceDescriptor, CPU_RESOURCE_NAME};
+use crate::resources::{
+    AllocationRequest, NumOfNodes, ResourceAmount, ResourceDescriptor, CPU_RESOURCE_NAME,
+};
 use crate::task::SerializedTaskContext;
 use crate::{Priority, TaskId, WorkerId};
 use smallvec::{smallvec, SmallVec};
@@ -35,7 +37,7 @@ impl Default for ResourceRequest {
             n_nodes: 0,
             resources: smallvec![ResourceRequestEntry {
                 resource: CPU_RESOURCE_NAME.to_string(),
-                policy: AllocationRequest::Compact(1),
+                policy: AllocationRequest::Compact(ResourceAmount::new_units(1)),
             }],
             min_time: Default::default(),
         }

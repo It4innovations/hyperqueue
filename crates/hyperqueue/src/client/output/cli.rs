@@ -1395,11 +1395,13 @@ fn resource_summary_kind(kind: &ResourceDescriptorKind) -> String {
 
 fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String {
     let special_format = |descriptor: &ResourceDescriptorItem| -> Option<String> {
+        todo!();
+        /*
         if descriptor.name == tako::resources::MEM_RESOURCE_NAME {
             if let ResourceDescriptorKind::Sum { size } = descriptor.kind {
                 return Some(human_size(size));
             }
-        }
+        }*/
         None
     };
 
@@ -1431,7 +1433,8 @@ mod tests {
     use crate::client::output::cli::{resources_full_describe, resources_summary};
     use tako::internal::tests::utils::shared::{res_kind_groups, res_kind_list, res_kind_sum};
     use tako::resources::{
-        ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, MEM_RESOURCE_NAME,
+        ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, ResourceUnits,
+        MEM_RESOURCE_NAME,
     };
 
     #[test]
@@ -1515,7 +1518,7 @@ mod tests {
     fn test_resources_summary_mem() {
         let d = ResourceDescriptor::new(vec![ResourceDescriptorItem {
             name: MEM_RESOURCE_NAME.into(),
-            kind: res_kind_sum(4 * 1024 * 1024 * 1024 + 123 * 1024 * 1024),
+            kind: res_kind_sum(4 * 1024 + 123),
         }]);
         assert_eq!(resources_summary(&d, false), "mem 4.12 GiB");
     }

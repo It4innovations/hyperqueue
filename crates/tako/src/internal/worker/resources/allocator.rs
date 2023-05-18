@@ -5,23 +5,23 @@ use crate::internal::common::resources::{
     ResourceAllocation, ResourceAllocations, ResourceId, ResourceVec,
 };
 use crate::internal::server::workerload::WorkerResources;
-use crate::internal::worker::resources::counts::{
-    resource_count_add_at, ResourceCount, ResourceCountVec,
-};
+use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::resources::pool::ResourcePool;
-use crate::resources::{Allocation, ResourceAmount, ResourceDescriptor, ResourceMap};
-use smallvec::smallvec;
+use crate::resources::{
+    Allocation, ResourceAmount, ResourceDescriptor, ResourceMap, ResourceUnits,
+};
+use std::rc::Rc;
 use std::time::Duration;
 
 pub struct ResourceAllocator {
     pools: ResourceVec<ResourcePool>,
-    free_resources: ResourceCountVec,
+    free_resources: ConciseFreeResources,
     remaining_time: Option<Duration>,
 
     blocked_requests: Vec<BlockedRequest>,
     higher_priority_blocked_requests: usize,
-    running_tasks: Vec<ResourceCountVec>, // TODO: Rework on multiset?
+    running_tasks: Vec<Rc<Allocation>>, // TODO: Rework on multiset?
     own_resources: WorkerResources,
 }
 
@@ -31,7 +31,7 @@ struct BlockedRequest {
     request: ResourceRequest,
     /// Reachable state of free resources AFTER some of currently running tasks is finished AND
     /// this resource request is enabled
-    witnesses: Vec<ResourceCountVec>,
+    witnesses: Vec<ConciseFreeResources>,
 }
 
 impl ResourceAllocator {
@@ -59,8 +59,13 @@ impl ResourceAllocator {
             pools[idx] = ResourcePool::new(&item.kind, idx, label_map);
         }
 
-        let free_resources =
-            ResourceCountVec::new(pools.iter().map(|p| p.count()).collect::<Vec<_>>().into());
+        let free_resources = ConciseFreeResources::new(
+            pools
+                .iter()
+                .map(|p| p.concise_state())
+                .collect::<Vec<_>>()
+                .into(),
+        );
 
         ResourceAllocator {
             pools,
@@ -83,34 +88,24 @@ impl ResourceAllocator {
         self.blocked_requests.clear();
     }
 
-    fn claim_resources(&mut self, counts: ResourceCountVec) -> Allocation {
-        assert!(self.pools.len() >= counts.len());
-        let mut allocations = ResourceAllocations::new();
-        for (i, (pool, count)) in self.pools.iter_mut().zip(counts.all_counts()).enumerate() {
-            if count.iter().sum::<ResourceAmount>() > 0 {
-                allocations.push(ResourceAllocation {
-                    resource: ResourceId::new(i as u32),
-                    value: pool.claim_resources(count),
-                });
-            }
+    fn release_allocation_helper(&mut self, allocation: &Allocation) {
+        self.free_resources.add(allocation);
+        for al in &allocation.resources {
+            self.pools[al.resource_id].release_allocation(al);
         }
-        Allocation::new(Vec::new(), allocations, counts)
     }
 
-    pub fn release_allocation(&mut self, allocation: Allocation) {
-        for al in allocation.resources {
-            self.pools[al.resource].release_allocation(al.value);
-        }
-        self.free_resources.add(&allocation.counts);
+    pub fn release_allocation(&mut self, allocation: Rc<Allocation>) {
+        self.release_allocation_helper(&allocation);
         let position = self
             .running_tasks
             .iter()
-            .position(|c| c == &allocation.counts)
+            .position(|a| Rc::ptr_eq(a, &allocation))
             .unwrap();
         self.running_tasks.swap_remove(position);
     }
 
-    pub fn take_running_allocations(self) -> Vec<ResourceCountVec> {
+    pub fn take_running_allocations(self) -> Vec<Rc<Allocation>> {
         self.running_tasks
     }
 
@@ -120,103 +115,45 @@ impl ResourceAllocator {
 
     fn has_resources_for_entry(
         pool: &ResourcePool,
-        free: &ResourceCount,
+        free: &ConciseResourceState,
         policy: &AllocationRequest,
     ) -> bool {
-        let sum = free.iter().sum::<ResourceAmount>();
+        let max_alloc = free.amount_max_alloc();
         match policy {
             AllocationRequest::Compact(amount) | AllocationRequest::Scatter(amount) => {
-                *amount <= sum
+                *amount <= max_alloc
             }
             AllocationRequest::ForceCompact(amount) => {
-                if *amount > sum {
-                    return false;
-                }
-                if *amount == 0 {
+                if amount.is_zero() {
                     return true;
                 }
-                let socket_size = (((amount - 1) / pool.min_group_size()) as usize) + 1;
-                if free.len() < socket_size {
+                if *amount > max_alloc {
                     return false;
                 }
-                let mut free = free.clone();
-                free.sort_unstable();
-                let sum = free.iter().rev().take(socket_size).sum();
-                *amount <= sum
-            }
-            AllocationRequest::All => sum == pool.full_size(),
-        }
-    }
+                let (units, fractions) = amount.split();
+                if fractions > 0 {
+                    todo!() // Fractions and ForceCompact is not supported in the current version
+                }
+                let socket_count = (((units - 1) / pool.min_group_size()) as usize) + 1;
+                if free.n_groups() < socket_count {
+                    return false;
+                }
+                let mut groups: Vec<ResourceUnits> = free.groups().to_vec();
+                groups.sort_unstable();
+                let sum: ResourceUnits = groups.iter().rev().take(socket_count).sum();
 
-    fn try_allocate_compact(free: &mut ResourceCount, mut amount: ResourceAmount) -> ResourceCount {
-        let mut result = ResourceCount::new();
-        loop {
-            if let Some((i, c)) = free
-                .iter_mut()
-                .enumerate()
-                .filter(|(_i, c)| **c >= amount)
-                .min_by_key(|(_i, c)| **c)
-            {
-                resource_count_add_at(&mut result, i, amount);
-                *c -= amount;
-                return result;
-            } else {
-                let (i, c) = free
-                    .iter_mut()
-                    .enumerate()
-                    .max_by_key(|(_i, c)| **c)
-                    .unwrap();
-                resource_count_add_at(&mut result, i, *c);
-                amount -= *c;
-                *c = 0;
+                units <= sum
             }
-        }
-    }
-
-    fn try_allocate_scatter(free: &mut ResourceCount, mut amount: ResourceAmount) -> ResourceCount {
-        assert!(free.iter().sum::<ResourceAmount>() >= amount);
-        let mut result = ResourceCount::new();
-
-        let mut idx = 0;
-        while amount > 0 {
-            if free[idx] > 0 {
-                free[idx] -= 1;
-                amount -= 1;
-                resource_count_add_at(&mut result, idx, 1);
-            }
-            idx = (idx + 1) % free.len();
-        }
-        result
-    }
-
-    fn allocate_entry(free: &mut ResourceCount, policy: &AllocationRequest) -> ResourceCount {
-        match policy {
-            AllocationRequest::Compact(amount)
-            | AllocationRequest::ForceCompact(amount)
-            | AllocationRequest::Scatter(amount)
-                if free.len() == 1 =>
-            {
-                free[0] -= *amount;
-                smallvec![*amount]
-            }
-            AllocationRequest::Compact(amount) | AllocationRequest::ForceCompact(amount) => {
-                Self::try_allocate_compact(free, *amount)
-            }
-            AllocationRequest::Scatter(amount) => Self::try_allocate_scatter(free, *amount),
-            AllocationRequest::All => {
-                let result = free.clone();
-                free.fill(0);
-                result
-            }
+            AllocationRequest::All => max_alloc == pool.full_size(),
         }
     }
 
     fn compute_witness<'b>(
         pools: &[ResourcePool],
-        free: &ResourceCountVec,
+        free: &ConciseFreeResources,
         request: &ResourceRequest,
-        running: impl Iterator<Item = &'b ResourceCountVec>,
-    ) -> Option<ResourceCountVec> {
+        running: impl Iterator<Item = &'b Rc<Allocation>>,
+    ) -> Option<ConciseFreeResources> {
         let mut free = free.clone();
         if Self::has_resources_for_request(pools, &free, request) {
             return Some(free);
@@ -232,7 +169,7 @@ impl ResourceAllocator {
 
     fn has_resources_for_request(
         pools: &[ResourcePool],
-        free: &ResourceCountVec,
+        free: &ConciseFreeResources,
         request: &ResourceRequest,
     ) -> bool {
         request.entries().iter().all(|entry| {
@@ -247,38 +184,34 @@ impl ResourceAllocator {
 
     fn compute_witnesses(
         pools: &[ResourcePool],
-        free_resources: &ResourceCountVec,
-        running: &mut [ResourceCountVec],
+        free_resources: &ConciseFreeResources,
+        running: &mut [Rc<Allocation>],
         request: &ResourceRequest,
-    ) -> Vec<ResourceCountVec> {
+    ) -> Vec<ConciseFreeResources> {
         let mut full = free_resources.clone();
         for running in running.iter() {
             full.add(running);
         }
 
-        let mut witnesses = Vec::with_capacity(free_resources.len() * 2);
+        let mut witnesses: Vec<ConciseFreeResources> =
+            Vec::with_capacity(2 * free_resources.n_resources());
 
-        let compute_witnesses = |witnesses: &mut Vec<ResourceCountVec>,
-                                 running: &[ResourceCountVec]| {
+        let compute_witnesses = |witnesses: &mut Vec<ConciseFreeResources>,
+                                 running: &[Rc<Allocation>]| {
             let w = Self::compute_witness(pools, free_resources, request, running.iter());
             witnesses.push(w.unwrap());
             let w = Self::compute_witness(pools, free_resources, request, running.iter().rev());
             witnesses.push(w.unwrap());
         };
 
-        for i in 0..free_resources.len() {
+        for i in 0..free_resources.n_resources() {
             let idx = ResourceId::from(i as u32);
+            /*running
+            .sort_unstable_by_key(|x| (x.get_sum(idx), -(x.fraction(&full) * 10_000.0) as u32));*/
             running.sort_unstable_by_key(|x| {
-                (
-                    x.get(idx).iter().sum::<ResourceAmount>(),
-                    (x.fraction(&full) * 10_000.0) as u32,
-                )
-            });
-            running.sort_unstable_by_key(|x| {
-                (
-                    x.get(idx).iter().sum::<ResourceAmount>(),
-                    -(x.fraction(&full) * 10_000.0) as u32,
-                )
+                x.resource_allocation(idx)
+                    .map(|a| a.amount)
+                    .unwrap_or(ResourceAmount::ZERO)
             });
             compute_witnesses(&mut witnesses, running);
         }
@@ -292,7 +225,7 @@ impl ResourceAllocator {
         });
     }
 
-    fn check_blocked_request(&mut self, allocation: &ResourceCountVec) -> bool {
+    fn check_blocked_request(&mut self, allocation: &Allocation) -> bool {
         for blocked in &mut self.blocked_requests[..self.higher_priority_blocked_requests] {
             if blocked.witnesses.is_empty() {
                 blocked.witnesses = Self::compute_witnesses(
@@ -304,7 +237,7 @@ impl ResourceAllocator {
             }
             for witness in &blocked.witnesses {
                 let mut free = witness.clone();
-                assert!(free.remove(allocation));
+                free.remove(allocation);
                 if !Self::has_resources_for_request(&self.pools, &free, &blocked.request) {
                     return false;
                 }
@@ -316,14 +249,15 @@ impl ResourceAllocator {
     pub fn try_allocate(
         &mut self,
         request: &ResourceRequestVariants,
-    ) -> Option<(Allocation, usize)> {
-        request.requests().iter().enumerate().find_map(|(i, r)| {
-            self.try_allocate_counts(r)
-                .map(|c| (self.claim_resources(c), i))
-        })
+    ) -> Option<(Rc<Allocation>, usize)> {
+        request
+            .requests()
+            .iter()
+            .enumerate()
+            .find_map(|(i, r)| self.try_allocate_variant(r).map(|c| (c, i)))
     }
 
-    fn try_allocate_counts(&mut self, request: &ResourceRequest) -> Option<ResourceCountVec> {
+    fn try_allocate_variant(&mut self, request: &ResourceRequest) -> Option<Rc<Allocation>> {
         if let Some(remaining_time) = self.remaining_time {
             if remaining_time < request.min_time() {
                 return None;
@@ -339,24 +273,21 @@ impl ResourceAllocator {
             return None;
         }
 
-        let mut allocation = ResourceCountVec::default();
+        let mut allocation = Allocation::new();
         for entry in request.entries() {
-            allocation.set(
-                entry.resource_id,
-                Self::allocate_entry(
-                    self.free_resources.get_mut(entry.resource_id),
-                    &entry.request,
-                ),
-            )
+            let pool = self.pools.get_mut(entry.resource_id.as_usize()).unwrap();
+            allocation
+                .add_resource_allocation(pool.claim_resources(entry.resource_id, &entry.request))
         }
+        self.free_resources.remove(&allocation);
 
         if !self.check_blocked_request(&allocation) {
-            self.free_resources.add(&allocation);
+            self.release_allocation_helper(&allocation);
             return None;
         }
-
-        self.running_tasks.push(allocation.clone());
-        Some(allocation)
+        let allocation_rc = Rc::new(allocation);
+        self.running_tasks.push(allocation_rc.clone());
+        Some(allocation_rc)
     }
 
     pub fn difficulty_score(&self, entry: &ResourceRequestEntry) -> f32 {
@@ -364,20 +295,22 @@ impl ResourceAllocator {
             .pools
             .get(entry.resource_id)
             .map(|x| x.full_size())
-            .unwrap_or(0);
-        if size == 0 {
+            .unwrap_or(ResourceAmount::ZERO);
+        if size.is_zero() {
             0.0f32
         } else {
             match entry.request {
                 AllocationRequest::Compact(amount) | AllocationRequest::Scatter(amount) => {
-                    amount as f32 / size as f32
+                    amount.total_fractions() as f32 / size.total_fractions() as f32
                 }
                 AllocationRequest::ForceCompact(amount)
                     if self.pools[entry.resource_id].n_groups() == 1 =>
                 {
-                    amount as f32 / size as f32
+                    amount.total_fractions() as f32 / size.total_fractions() as f32
                 }
-                AllocationRequest::ForceCompact(amount) => (amount * 2) as f32 / size as f32,
+                AllocationRequest::ForceCompact(amount) => {
+                    (amount.total_fractions() * 2) as f32 / size.total_fractions() as f32
+                }
                 AllocationRequest::All => 2.0,
             }
         }
@@ -385,29 +318,32 @@ impl ResourceAllocator {
 
     pub fn validate(&self) {
         #[cfg(debug_assertions)]
-        for (pool, count) in self.pools.iter().zip(self.free_resources.all_counts()) {
+        for (pool, state) in self.pools.iter().zip(self.free_resources.all_states()) {
             pool.validate();
-            assert_eq!(&pool.count(), count);
+            assert_eq!(pool.concise_state().strip_zeros(), state.strip_zeros());
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::gateway::ResourceRequest;
+    use crate::internal::common::resources::allocation::AllocationIndex;
     use crate::internal::common::resources::descriptor::{
         ResourceDescriptor, ResourceDescriptorKind,
     };
-    use crate::internal::common::resources::{
-        Allocation, AllocationValue, ResourceId, ResourceRequestVariants,
-    };
+    use crate::internal::common::resources::{Allocation, ResourceId, ResourceRequestVariants};
     use crate::internal::tests::utils::resources::{cpus_compact, ResBuilder};
     use crate::internal::tests::utils::shared::res_allocator_from_descriptor;
     use crate::internal::tests::utils::sorted_vec;
     use crate::internal::worker::resources::allocator::ResourceAllocator;
-    use crate::internal::worker::resources::counts::ResourceCountVec;
+    use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
     use crate::internal::worker::resources::pool::ResourcePool;
-    use crate::resources::{ResourceAmount, ResourceDescriptorItem};
+    use crate::resources::{
+        ResourceAllocation, ResourceAmount, ResourceDescriptorItem, ResourceIndex, ResourceUnits,
+    };
     use smallvec::smallvec;
+    use std::rc::Rc;
     use std::time::Duration;
 
     impl ResourceAllocator {
@@ -423,8 +359,8 @@ mod tests {
     }
 
     pub fn simple_descriptor(
-        n_sockets: ResourceAmount,
-        socket_size: ResourceAmount,
+        n_sockets: ResourceUnits,
+        socket_size: ResourceUnits,
     ) -> ResourceDescriptor {
         ResourceDescriptor::new(vec![ResourceDescriptorItem {
             name: "cpus".to_string(),
@@ -437,8 +373,8 @@ mod tests {
     }
 
     fn simple_allocator(
-        free: &[ResourceAmount],
-        running: &[&[ResourceAmount]],
+        free: &[ResourceUnits],
+        running: &[&[ResourceUnits]],
         remaining_time: Option<Duration>,
     ) -> ResourceAllocator {
         let mut names = vec!["cpus".to_string()];
@@ -455,7 +391,7 @@ mod tests {
                 }
                 ResourceDescriptorItem {
                     name: names[i].clone(),
-                    kind: ResourceDescriptorKind::simple_indices(total as u32),
+                    kind: ResourceDescriptorKind::simple_indices(total),
                 }
             })
             .collect();
@@ -463,10 +399,12 @@ mod tests {
 
         let mut ac = res_allocator_from_descriptor(descriptor);
         for r in running {
-            let c = ResourceCountVec::new_simple(r);
-            assert!(ac.free_resources.remove(&c));
-            ac.claim_resources(c.clone());
-            ac.running_tasks.push(c);
+            assert_eq!(r.len(), 1); // As far I see, only 1 element array is now used in tests
+            let units = r[0];
+            let rq = ResBuilder::default()
+                .add(0, ResourceAmount::new_units(units))
+                .finish();
+            ac.try_allocate_variant(&rq).unwrap();
         }
         ac.init_allocator(remaining_time);
         ac
@@ -474,20 +412,21 @@ mod tests {
 
     fn simple_alloc(
         allocator: &mut ResourceAllocator,
-        counts: &[ResourceAmount],
+        counts: &[ResourceUnits],
         expect_pass: bool,
     ) {
         let mut builder = ResBuilder::default();
         for (i, count) in counts.iter().enumerate() {
             if *count > 0 {
-                builder = builder.add(ResourceId::from(i as u32), *count);
+                builder = builder.add(
+                    ResourceId::from(i as u32),
+                    ResourceAmount::new_units(*count),
+                );
             }
         }
-        let al = allocator.try_allocate_counts(&builder.finish());
+        let al = allocator.try_allocate_variant(&builder.finish());
         if expect_pass {
-            let r = al.unwrap();
-            r.assert_eq(counts);
-            allocator.claim_resources(r);
+            al.unwrap();
         } else {
             assert!(al.is_none());
         }
@@ -507,7 +446,7 @@ mod tests {
                 &Default::default(),
             ),
         ];
-        let free = ResourceCountVec::new_simple(&[1, 2]);
+        let free = ConciseFreeResources::new_simple(&[1, 2]);
         let rq = ResBuilder::default().add(0, 3).add(1, 1).finish();
 
         assert!(ResourceAllocator::compute_witness(&pools, &free, &rq, [].iter()).is_none());
@@ -515,7 +454,7 @@ mod tests {
             &pools,
             &mut free.clone(),
             &rq,
-            [ResourceCountVec::new_simple(&[1])].iter()
+            [Rc::new(Allocation::new_simple(&[1]))].iter()
         )
         .is_none());
         assert_eq!(
@@ -524,16 +463,16 @@ mod tests {
                 &free,
                 &rq,
                 [
-                    ResourceCountVec::new_simple(&[1]),
-                    ResourceCountVec::new_simple(&[1]),
-                    ResourceCountVec::new_simple(&[1])
+                    Rc::new(Allocation::new_simple(&[1])),
+                    Rc::new(Allocation::new_simple(&[1])),
+                    Rc::new(Allocation::new_simple(&[1]))
                 ]
                 .iter()
             ),
-            Some(ResourceCountVec::new_simple(&[3, 2]))
+            Some(ConciseFreeResources::new_simple(&[3, 2]))
         );
 
-        let free = ResourceCountVec::new_simple(&[4, 2]);
+        let free = ConciseFreeResources::new_simple(&[4, 2]);
         assert_eq!(
             ResourceAllocator::compute_witness(&pools, &free, &rq, [].iter()),
             Some(free.clone())
@@ -546,15 +485,15 @@ mod tests {
                 &free,
                 &rq,
                 [
-                    ResourceCountVec::new_simple(&[2]),
-                    ResourceCountVec::new_simple(&[2]),
-                    ResourceCountVec::new_simple(&[2]),
-                    ResourceCountVec::new_simple(&[0, 3]),
-                    ResourceCountVec::new_simple(&[0, 3])
+                    Rc::new(Allocation::new_simple(&[2])),
+                    Rc::new(Allocation::new_simple(&[2])),
+                    Rc::new(Allocation::new_simple(&[2])),
+                    Rc::new(Allocation::new_simple(&[0, 3])),
+                    Rc::new(Allocation::new_simple(&[0, 3]))
                 ]
                 .iter()
             ),
-            Some(ResourceCountVec::new_simple(&[10, 5]))
+            Some(ConciseFreeResources::new_simple(&[10, 5]))
         );
     }
 
@@ -578,9 +517,9 @@ mod tests {
     fn test_allocator_priority_check1() {
         // Running: [1,1,1], free: [1], try: [2p1] [1p0]
         let mut allocator = simple_allocator(&[1], &[&[1], &[1], &[1]], None);
-
         simple_alloc(&mut allocator, &[2], false);
         allocator.free_resources.assert_eq(&[1]);
+        allocator.validate();
 
         allocator.close_priority_level();
 
@@ -731,13 +670,9 @@ mod tests {
         let (al, idx) = allocator.try_allocate(&rq).unwrap();
         assert_eq!(idx, 0);
         assert_eq!(al.resources.len(), 1);
-        assert_eq!(al.resources[0].resource, ResourceId::new(0));
-        assert_eq!(al.resources[0].value.get_checked_indices().len(), 3);
-        assert!(al.resources[0]
-            .value
-            .get_checked_indices()
-            .iter()
-            .all(|x| *x < 4));
+        assert_eq!(al.resources[0].resource_id, ResourceId::new(0));
+        assert_eq!(al.resources[0].indices.len(), 3);
+        assert!(al.resources[0].resource_indices().all(|x| x.as_num() < 4));
 
         let rq = cpus_compact(2).finish_v();
         assert!(allocator.try_allocate(&rq).is_none());
@@ -751,15 +686,18 @@ mod tests {
         let rq = cpus_compact(4).finish_v();
         let (al, _idx) = allocator.try_allocate(&rq).unwrap();
         assert_eq!(
-            al.resources[0].value.get_checked_indices(),
-            vec![0, 1, 2, 3]
+            al.resources[0].resource_indices().collect::<Vec<_>>(),
+            vec![3.into(), 2.into(), 1.into(), 0.into()]
         );
         assert_eq!(allocator.running_tasks.len(), 1);
         allocator.release_allocation(al);
         assert_eq!(allocator.running_tasks.len(), 0);
-        assert_eq!(allocator.free_resources.get(0.into())[0], 4);
-        let v: Vec<ResourceAmount> = vec![4];
-        assert_eq!(allocator.pools[ResourceId::new(0)].count().to_vec(), v);
+        allocator
+            .free_resources
+            .get(0.into())
+            .amount_sum()
+            .assert_eq_units(4);
+        assert_eq!(allocator.free_resources.get(0.into()).n_groups(), 1);
 
         allocator.init_allocator(None);
 
@@ -783,12 +721,12 @@ mod tests {
         assert!(allocator.try_allocate(&rq2).is_none());
 
         let mut v = Vec::new();
-        v.append(&mut al1.resources[0].value.get_checked_indices());
+        v.extend(al1.resources[0].resource_indices());
         assert_eq!(v.len(), 1);
-        v.append(&mut al5.resources[0].value.get_checked_indices());
+        v.extend(al5.resources[0].resource_indices());
         assert_eq!(v.len(), 3);
-        v.append(&mut al3.resources[0].value.get_checked_indices());
-        assert_eq!(sorted_vec(v), vec![0, 1, 2, 3]);
+        v.extend(al3.resources[0].resource_indices());
+        assert_eq!(sorted_vec(v), vec![0.into(), 1.into(), 2.into(), 3.into()]);
         allocator.validate();
     }
 
@@ -857,13 +795,13 @@ mod tests {
         assert_eq!(
             al.resource_allocation(0.into())
                 .unwrap()
-                .value
-                .get_checked_indices(),
-            (0..24u32).collect::<Vec<_>>()
+                .resource_indices()
+                .collect::<Vec<_>>(),
+            (0..24u32).rev().map(ResourceIndex::new).collect::<Vec<_>>()
         );
-        assert_eq!(allocator.get_current_free(0), 0);
+        assert!(allocator.get_current_free(0).is_zero());
         allocator.release_allocation(al);
-        assert_eq!(allocator.get_current_free(0), 24);
+        assert_eq!(allocator.get_current_free(0), ResourceAmount::new_units(24));
         allocator.validate();
     }
 
@@ -877,13 +815,13 @@ mod tests {
         assert_eq!(
             al.resource_allocation(0.into())
                 .unwrap()
-                .value
-                .get_checked_indices(),
-            (0..24u32).collect::<Vec<_>>()
+                .resource_indices()
+                .collect::<Vec<_>>(),
+            (0..24u32).map(ResourceIndex::new).collect::<Vec<_>>()
         );
-        assert_eq!(allocator.get_current_free(0), 0);
+        assert!(allocator.get_current_free(0).is_zero());
         allocator.release_allocation(al);
-        assert_eq!(allocator.get_current_free(0), 24);
+        assert_eq!(allocator.get_current_free(0), ResourceAmount::new_units(24));
 
         allocator.init_allocator(None);
 
@@ -1018,7 +956,9 @@ mod tests {
             },
             ResourceDescriptorItem {
                 name: "res1".to_string(),
-                kind: ResourceDescriptorKind::Sum { size: 100_000_000 },
+                kind: ResourceDescriptorKind::Sum {
+                    size: ResourceAmount::new_units(100_000_000),
+                },
             },
             ResourceDescriptorItem {
                 name: "res2".to_string(),
@@ -1033,13 +973,13 @@ mod tests {
 
         assert_eq!(
             allocator.free_resources,
-            ResourceCountVec::new(
+            ConciseFreeResources::new(
                 vec![
-                    smallvec![4],
-                    smallvec![96],
-                    smallvec![100_000_000],
-                    smallvec![2],
-                    smallvec![2]
+                    ConciseResourceState::new_simple(&[4]),
+                    ConciseResourceState::new_simple(&[96]),
+                    ConciseResourceState::new_simple(&[100_000_000]),
+                    ConciseResourceState::new_simple(&[2]),
+                    ConciseResourceState::new_simple(&[2]),
                 ]
                 .into()
             )
@@ -1053,40 +993,37 @@ mod tests {
         rq.validate().unwrap();
         let (al, _) = allocator.try_allocate(&rq).unwrap();
         assert_eq!(al.resources.len(), 4);
-        assert_eq!(al.resources[0].resource.as_num(), 0);
+        assert_eq!(al.resources[0].resource_id.as_num(), 0);
 
-        assert_eq!(al.resources[1].resource.as_num(), 1);
-        assert!(matches!(
-            &al.resources[1].value,
-            AllocationValue::Indices(indices) if indices.len() == 12
-        ));
+        assert_eq!(al.resources[1].resource_id.as_num(), 1);
+        assert_eq!(al.resources[1].indices.len(), 12);
 
-        assert_eq!(al.resources[2].resource.as_num(), 2);
-        assert!(matches!(
-            &al.resources[2].value,
-            AllocationValue::Sum(1000_000)
-        ));
+        assert_eq!(al.resources[2].resource_id.as_num(), 2);
+        assert_eq!(al.resources[2].amount, ResourceAmount::new_units(1_000_000));
 
-        assert_eq!(al.resources[3].resource.as_num(), 4);
-        assert!(matches!(
-            &al.resources[3].value,
-            AllocationValue::Indices(indices) if indices.len() == 1
-        ));
+        assert_eq!(al.resources[3].resource_id.as_num(), 4);
+        assert_eq!(al.resources[3].indices.len(), 1);
 
-        assert_eq!(allocator.get_current_free(1), 84);
-        assert_eq!(allocator.get_current_free(2), 99_000_000);
-        assert_eq!(allocator.get_current_free(3), 2);
-        assert_eq!(allocator.get_current_free(4), 1);
+        assert_eq!(allocator.get_current_free(1), ResourceAmount::new_units(84));
+        assert_eq!(
+            allocator.get_current_free(2),
+            ResourceAmount::new_units(99_000_000)
+        );
+        assert_eq!(allocator.get_current_free(3), ResourceAmount::new_units(2));
+        assert_eq!(allocator.get_current_free(4), ResourceAmount::new_units(1));
 
         let rq = cpus_compact(1).add(4, 2).finish_v();
         assert!(allocator.try_allocate(&rq).is_none());
 
         allocator.release_allocation(al);
 
-        assert_eq!(allocator.get_current_free(1), 96);
-        assert_eq!(allocator.get_current_free(2), 100_000_000);
-        assert_eq!(allocator.get_current_free(3), 2);
-        assert_eq!(allocator.get_current_free(4), 2);
+        assert_eq!(allocator.get_current_free(1), ResourceAmount::new_units(96));
+        assert_eq!(
+            allocator.get_current_free(2),
+            ResourceAmount::new_units(100_000_000)
+        );
+        assert_eq!(allocator.get_current_free(3), ResourceAmount::new_units(2));
+        assert_eq!(allocator.get_current_free(4), ResourceAmount::new_units(2));
 
         allocator.init_allocator(None);
         assert!(allocator.try_allocate(&rq).is_some());
@@ -1115,5 +1052,316 @@ mod tests {
         assert!(allocator.try_allocate(&rq).is_none());
 
         allocator.validate();
+    }
+
+    #[test]
+    fn test_allocator_sum_max_fractions() {
+        let descriptor = ResourceDescriptor::new(vec![ResourceDescriptorItem {
+            name: "cpus".to_string(),
+            kind: ResourceDescriptorKind::Sum {
+                size: ResourceAmount::new(0, 300),
+            },
+        }]);
+        let mut allocator = test_allocator(&descriptor);
+        allocator.init_allocator(None);
+        let rq = ResBuilder::default()
+            .add(0, ResourceAmount::new(1, 0))
+            .finish_v();
+        assert!(allocator.try_allocate(&rq).is_none());
+        let rq = ResBuilder::default()
+            .add(0, ResourceAmount::new(0, 301))
+            .finish_v();
+        assert!(allocator.try_allocate(&rq).is_none());
+        let rq = ResBuilder::default()
+            .add(0, ResourceAmount::new(0, 250))
+            .finish_v();
+        assert!(allocator.try_allocate(&rq).is_some());
+    }
+
+    #[test]
+    fn test_allocator_indices_and_fractions() {
+        let descriptor = simple_descriptor(1, 4);
+        let mut allocator = test_allocator(&descriptor);
+        allocator.init_allocator(None);
+        let rq = ResBuilder::default()
+            .add(0, ResourceAmount::new(4, 1))
+            .finish_v();
+        assert!(allocator.try_allocate(&rq).is_none());
+
+        let rq = ResBuilder::default()
+            .add(0, ResourceAmount::new(2, 1500))
+            .finish_v();
+        let al1 = allocator.try_allocate(&rq).unwrap().0;
+        assert_eq!(al1.resources[0].indices.len(), 3);
+        assert_eq!(al1.resources[0].indices[0].fractions, 0);
+        assert_eq!(al1.resources[0].indices[1].fractions, 0);
+        assert_eq!(al1.resources[0].indices[2].fractions, 1500);
+        assert_eq!(al1.resources[0].amount, ResourceAmount::new(2, 1500));
+
+        let rq = ResBuilder::default()
+            .add(0, ResourceAmount::new(0, 5200))
+            .finish_v();
+        let al2 = allocator.try_allocate(&rq).unwrap().0;
+        assert_eq!(al2.resources[0].indices.len(), 1);
+        assert_eq!(al2.resources[0].indices[0].fractions, 5200);
+        assert_eq!(
+            al2.resources[0].indices[0].index,
+            al1.resources[0].indices[2].index
+        );
+        assert_eq!(al2.resources[0].amount, ResourceAmount::new(0, 5200));
+
+        let al3 = allocator.try_allocate(&rq).unwrap().0;
+        assert_eq!(al3.resources[0].indices.len(), 1);
+        assert_eq!(al3.resources[0].indices[0].fractions, 5200);
+        assert_ne!(
+            al3.resources[0].indices[0].index,
+            al1.resources[0].indices[2].index
+        );
+        assert_eq!(al3.resources[0].amount, ResourceAmount::new(0, 5200));
+
+        assert!(allocator.try_allocate(&rq).is_none());
+
+        allocator.release_allocation(al1);
+
+        assert_eq!(
+            allocator.pools[0.into()].concise_state().amount_sum(),
+            ResourceAmount::new(2, 9600)
+        );
+
+        allocator.release_allocation(al3);
+        allocator.release_allocation(al2);
+
+        assert_eq!(
+            allocator.pools[0.into()].concise_state().amount_sum(),
+            ResourceAmount::new(4, 0)
+        );
+    }
+
+    #[test]
+    fn test_allocator_fractions_compactness() {
+        // Two 0.75 does not gives 1.5
+        let descriptor = simple_descriptor(1, 2);
+        let mut allocator = test_allocator(&descriptor);
+        allocator.init_allocator(None);
+        let rq1 = ResBuilder::default()
+            .add(0, ResourceAmount::new(0, 7500))
+            .finish_v();
+        let rq2 = ResBuilder::default()
+            .add(0, ResourceAmount::new(0, 2500))
+            .finish_v();
+
+        let al1 = allocator.try_allocate(&rq1).unwrap().0;
+        let al2 = allocator.try_allocate(&rq1).unwrap().0;
+        let al3 = allocator.try_allocate(&rq2).unwrap().0;
+        let al4 = allocator.try_allocate(&rq2).unwrap().0;
+        assert_eq!(
+            allocator.pools[0.into()].concise_state().amount_sum(),
+            ResourceAmount::new(0, 0)
+        );
+        allocator.release_allocation(al1);
+        allocator.release_allocation(al2);
+
+        allocator.init_allocator(None);
+
+        assert_eq!(
+            allocator.pools[0.into()].concise_state().amount_sum(),
+            ResourceAmount::new(1, 5000)
+        );
+
+        let rq3 = ResBuilder::default()
+            .add(0, ResourceAmount::new(1, 5000))
+            .finish_v();
+        assert!(allocator.try_allocate(&rq3).is_none());
+        allocator.release_allocation(al4);
+        allocator.init_allocator(None);
+        let al5 = allocator.try_allocate(&rq3).unwrap().0;
+        allocator.release_allocation(al3);
+        allocator.release_allocation(al5);
+
+        assert_eq!(
+            allocator.pools[0.into()].concise_state().amount_sum(),
+            ResourceAmount::new(2, 0)
+        );
+    }
+
+    #[test]
+    fn test_allocator_groups_and_fractions_scatter() {
+        let descriptor = simple_descriptor(3, 2);
+        let mut allocator = test_allocator(&descriptor);
+        allocator.init_allocator(None);
+        let rq1 = ResBuilder::default()
+            .add_scatter(0, ResourceAmount::new(6, 1))
+            .finish_v();
+        assert!(allocator.try_allocate(&rq1).is_none());
+
+        let rq1 = ResBuilder::default()
+            .add_scatter(0, ResourceAmount::new(2, 5000))
+            .finish_v();
+        let al1 = allocator.try_allocate(&rq1).unwrap().0;
+        let al2 = allocator.try_allocate(&rq1).unwrap().0;
+        allocator.validate();
+        let r1 = &al1.resources[0].indices;
+        let r2 = &al2.resources[0].indices;
+        assert_eq!(r1[2].fractions, 5000);
+        assert_eq!(r2[2].fractions, 5000);
+        assert_eq!(r1[2].group_idx, r2[2].group_idx);
+        allocator.release_allocation(al1);
+        allocator.release_allocation(al2);
+        assert_eq!(
+            allocator.pools[0.into()].concise_state().amount_sum(),
+            ResourceAmount::new_units(6)
+        );
+    }
+
+    #[test]
+    fn test_allocator_groups_and_fractions() {
+        let descriptor = simple_descriptor(3, 2);
+        let mut allocator = test_allocator(&descriptor);
+        allocator.init_allocator(None);
+        let rq1 = ResBuilder::default()
+            .add(0, ResourceAmount::new(6, 1))
+            .finish_v();
+        assert!(allocator.try_allocate(&rq1).is_none());
+
+        let rq1 = ResBuilder::default()
+            .add_compact(0, ResourceAmount::new(3, 5000))
+            .finish_v();
+        let al1 = allocator.try_allocate(&rq1).unwrap().0;
+        // pools [[1 1] [1 0.5] [0 0]
+
+        let r1 = &al1.resources[0].indices;
+        assert_eq!(r1.len(), 4);
+        assert_eq!(r1[0].group_idx, r1[1].group_idx);
+        assert_eq!(r1[2].group_idx, r1[3].group_idx);
+        assert_ne!(r1[0].group_idx, r1[2].group_idx);
+
+        let rq2 = ResBuilder::default()
+            .add_compact(0, ResourceAmount::new(0, 4000))
+            .finish_v();
+        let al2 = allocator.try_allocate(&rq2).unwrap().0;
+        // pools [[1 1] [0.1 1] [0 0]
+
+        let r2 = &al2.resources[0].indices;
+        assert_eq!(r2.len(), 1);
+        assert_eq!(r2[0].group_idx, r1[2].group_idx);
+
+        allocator.release_allocation(al1);
+        // pools [[1 1] [0.6 1] [1 1]
+
+        let rq3 = ResBuilder::default()
+            .add_compact(0, ResourceAmount::new(2, 8000))
+            .finish_v();
+        let al3 = allocator.try_allocate(&rq3).unwrap().0;
+        // pools [[1 1] [0.6 0.2] [0 0]
+
+        let r3 = &al3.resources[0].indices;
+        assert_eq!(r3.len(), 3);
+        assert_eq!(r3[0].group_idx, r3[1].group_idx);
+        assert_ne!(r3[0].group_idx, r3[2].group_idx);
+        assert_ne!(r3[0].group_idx, r2[0].group_idx);
+        assert_ne!(r3[1].group_idx, r2[0].group_idx);
+        assert_eq!(r3[2].group_idx, r2[0].group_idx);
+        assert_ne!(r3[2].index, r2[0].index);
+
+        let rq4 = ResBuilder::default()
+            .add_compact(0, ResourceAmount::new(0, 7000))
+            .finish_v();
+        let al4 = allocator.try_allocate(&rq4).unwrap().0;
+        // pools [[1 0.3] [0.6 0.2] [0 0]
+        allocator.validate();
+
+        allocator.release_allocation(al2);
+        // pools [[1 0.3] [1 0.2] [0 0]
+
+        let rq6 = ResBuilder::default()
+            .add_compact(0, ResourceAmount::new(2, 3000))
+            .finish_v();
+        let al6 = allocator.try_allocate(&rq6).unwrap().0;
+        let r5 = &al6.resources[0].indices;
+        assert_eq!(r5.len(), 3);
+        assert_eq!(r5[0].fractions, 0);
+        assert_eq!(r5[1].fractions, 3000);
+        assert_eq!(r5[2].fractions, 0);
+        assert_eq!(r5[0].group_idx, r5[1].group_idx);
+        assert_ne!(r5[2].group_idx, r5[0].group_idx);
+        allocator.validate();
+
+        allocator.release_allocation(al3);
+        allocator.release_allocation(al4);
+        allocator.release_allocation(al6);
+
+        assert_eq!(
+            allocator.pools[0.into()].concise_state().amount_sum(),
+            ResourceAmount::new_units(6)
+        );
+    }
+
+    #[test]
+    fn test_allocator_sum_fractions() {
+        let descriptor = ResourceDescriptor::new(vec![ResourceDescriptorItem {
+            name: "cpus".to_string(),
+            kind: ResourceDescriptorKind::Sum {
+                size: ResourceAmount::new_units(2),
+            },
+        }]);
+        let mut allocator = test_allocator(&descriptor);
+        allocator.init_allocator(None);
+        let rq = ResBuilder::default()
+            .add(0, ResourceAmount::new(2, 3000))
+            .finish_v();
+        assert!(allocator.try_allocate(&rq).is_none());
+
+        let rq = ResBuilder::default()
+            .add(0, ResourceAmount::new(1, 3000))
+            .finish_v();
+        let al1 = allocator.try_allocate(&rq).unwrap().0;
+        assert_eq!(al1.resources[0].indices.len(), 0);
+        assert_eq!(al1.resources[0].amount, ResourceAmount::new(1, 3000));
+        allocator.validate();
+
+        let rq = ResBuilder::default()
+            .add(0, ResourceAmount::new(0, 7001))
+            .finish_v();
+        assert!(allocator.try_allocate(&rq).is_none());
+
+        let rq = ResBuilder::default()
+            .add(0, ResourceAmount::new(0, 7000))
+            .finish_v();
+        let al2 = allocator.try_allocate(&rq).unwrap().0;
+        assert_eq!(al2.resources[0].indices.len(), 0);
+        assert_eq!(al2.resources[0].amount, ResourceAmount::new(0, 7000));
+
+        allocator.release_allocation(al1);
+
+        let rq = ResBuilder::default()
+            .add(0, ResourceAmount::new(2, 0))
+            .finish_v();
+        assert!(allocator.try_allocate(&rq).is_none());
+        let rq = ResBuilder::default()
+            .add(0, ResourceAmount::new(1, 3001))
+            .finish_v();
+        assert!(allocator.try_allocate(&rq).is_none());
+
+        let rq = ResBuilder::default()
+            .add(0, ResourceAmount::new(1, 0))
+            .finish_v();
+        let al3 = allocator.try_allocate(&rq).unwrap().0;
+
+        let rq = ResBuilder::default()
+            .add(0, ResourceAmount::new(0, 2000))
+            .finish_v();
+        let al4 = allocator.try_allocate(&rq).unwrap().0;
+
+        allocator.release_allocation(al4);
+        assert_eq!(
+            allocator.pools[0.into()].concise_state().amount_sum(),
+            ResourceAmount::new(0, 3000)
+        );
+        allocator.release_allocation(al2);
+        allocator.release_allocation(al3);
+        assert_eq!(
+            allocator.pools[0.into()].concise_state().amount_sum(),
+            ResourceAmount::new_units(2)
+        )
     }
 }

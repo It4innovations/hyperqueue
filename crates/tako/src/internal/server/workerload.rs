@@ -3,7 +3,7 @@ use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::common::resources::request::ResourceRequestEntry;
 use crate::internal::common::resources::{
     ResourceAmount, ResourceDescriptor, ResourceId, ResourceRequest, ResourceRequestVariants,
-    ResourceVec,
+    ResourceUnits, ResourceVec,
 };
 use crate::internal::messages::worker::WorkerResourceCounts;
 use crate::resources::AllocationRequest;
@@ -25,7 +25,10 @@ impl WorkerResources {
     }
 
     pub(crate) fn get(&self, resource_id: ResourceId) -> ResourceAmount {
-        self.n_resources.get(resource_id).copied().unwrap_or(0)
+        self.n_resources
+            .get(resource_id)
+            .copied()
+            .unwrap_or(ResourceAmount::ZERO)
     }
 
     pub(crate) fn from_description(
@@ -42,7 +45,8 @@ impl WorkerResources {
             .max()
             .unwrap_or(0);
 
-        let mut n_resources: ResourceVec<ResourceAmount> = IndexVec::filled(0, resource_count);
+        let mut n_resources: ResourceVec<ResourceAmount> =
+            IndexVec::filled(ResourceAmount::ZERO, resource_count);
 
         for descriptor in &resource_desc.resources {
             let position = resource_map.get_index(&descriptor.name).unwrap();
@@ -61,13 +65,9 @@ impl WorkerResources {
     }
 
     pub(crate) fn is_capable_to_run(&self, rqv: &ResourceRequestVariants) -> bool {
-        rqv.requests().iter().any(|rq| {
-            rq.entries().iter().all(|r| {
-                let ask = r.request.min_amount();
-                let has = self.get(r.resource_id);
-                ask <= has
-            })
-        })
+        rqv.requests()
+            .iter()
+            .any(|rq| self.is_capable_to_run_request(rq))
     }
 
     pub(crate) fn to_transport(&self) -> WorkerResourceCounts {
@@ -85,23 +85,23 @@ impl WorkerResources {
         }
     }
 
-    pub fn difficulty_score(&self, request: &ResourceRequest) -> u32 {
+    pub fn difficulty_score(&self, request: &ResourceRequest) -> u64 {
         let mut result = 0;
         for entry in request.entries() {
             let count = self
                 .n_resources
                 .get(entry.resource_id)
                 .copied()
-                .unwrap_or(0);
-            if count == 0 {
+                .unwrap_or(ResourceAmount::ZERO);
+            if count.is_zero() {
                 return 0;
             }
-            result += ((entry.request.amount(count) * 512) / (count * 512)) as u32;
+            result += entry.request.amount(count).total_fractions() / count.total_fractions();
         }
         result
     }
 
-    pub fn difficulty_score_of_rqv(&self, rqv: &ResourceRequestVariants) -> u32 {
+    pub fn difficulty_score_of_rqv(&self, rqv: &ResourceRequestVariants) -> u64 {
         rqv.requests()
             .iter()
             .map(|r| self.difficulty_score(r))
@@ -128,7 +128,7 @@ pub struct WorkerLoad {
 impl WorkerLoad {
     pub(crate) fn new(worker_resources: &WorkerResources) -> WorkerLoad {
         WorkerLoad {
-            n_resources: IndexVec::filled(0, worker_resources.n_resources.len()),
+            n_resources: IndexVec::filled(ResourceAmount::ZERO, worker_resources.n_resources.len()),
             non_first_rq: Default::default(),
             round_robin_counter: 0,
         }
@@ -199,7 +199,10 @@ impl WorkerLoad {
     }
 
     pub(crate) fn get(&self, resource_id: ResourceId) -> ResourceAmount {
-        self.n_resources.get(resource_id).copied().unwrap_or(0)
+        self.n_resources
+            .get(resource_id)
+            .copied()
+            .unwrap_or(ResourceAmount::ZERO)
     }
 
     pub(crate) fn have_immediate_resources_for_rq(
@@ -246,16 +249,20 @@ impl WorkerLoad {
     pub(crate) fn load_wrt_request(&self, wr: &WorkerResources, request: &ResourceRequest) -> u32 {
         let mut result = 0;
         for entry in request.entries() {
-            let count = wr.n_resources.get(entry.resource_id).copied().unwrap_or(0);
-            if count == 0 {
+            let count = wr
+                .n_resources
+                .get(entry.resource_id)
+                .copied()
+                .unwrap_or(ResourceAmount::ZERO);
+            if count.is_zero() {
                 return 0;
             }
             let load = self
                 .n_resources
                 .get(entry.resource_id)
                 .copied()
-                .unwrap_or(0);
-            result += ((load * 512) / (count * 512)) as u32;
+                .unwrap_or(ResourceAmount::ZERO);
+            result += (load.total_fractions() * 512 / count.total_fractions()) as u32;
         }
         result
     }
@@ -290,22 +297,27 @@ impl ResourceRequestLowerBound {
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::common::resources::ResourceRequestVariants;
+    use crate::internal::common::resources::{ResourceRequestVariants, ResourceVec};
     use crate::internal::server::workerload::{
         ResourceRequestLowerBound, WorkerLoad, WorkerResources,
     };
-    use crate::internal::tests::utils::resources::{cpus_compact, ResBuilder};
+    use crate::internal::tests::utils::resources::{cpus_compact, ra_builder, ResBuilder};
+    use crate::resources::{ResourceAmount, ResourceUnits};
     use crate::TaskId;
     use smallvec::smallvec;
 
+    pub fn wr_builder(units: &[ResourceUnits]) -> WorkerResources {
+        WorkerResources {
+            n_resources: ra_builder(units),
+        }
+    }
+
     #[test]
     fn worker_load_check_lb() {
-        let wr = WorkerResources {
-            n_resources: vec![2, 10, 100, 5].into(),
-        };
+        let wr = wr_builder(&[2, 10, 100, 5]);
         let load = WorkerLoad::new(&wr);
         let load2 = WorkerLoad {
-            n_resources: vec![0, 9, 0, 0, 0, 0].into(),
+            n_resources: ra_builder(&[0, 9, 0, 0, 0, 0]),
             non_first_rq: Default::default(),
             round_robin_counter: 0,
         };
@@ -347,49 +359,58 @@ mod tests {
 
     #[test]
     fn worker_load_variants() {
-        let wr = WorkerResources {
-            n_resources: vec![13, 4, 5].into(),
-        };
+        let wr = wr_builder(&[13, 4, 5]);
         let mut load = WorkerLoad::new(&wr);
         let rq1 = ResBuilder::default().add(0, 2).add(1, 2).finish();
         let rq2 = ResBuilder::default().add(0, 4).finish();
         let rqv = ResourceRequestVariants::new(smallvec![rq1, rq2]);
 
         load.add_request(TaskId::new(1), &rqv, &wr);
-        assert_eq!(load.n_resources, vec![2, 2, 0].into());
+        assert_eq!(load.n_resources, ra_builder(&[2, 2, 0]));
         assert!(load.non_first_rq.is_empty());
 
         load.add_request(TaskId::new(2), &rqv, &wr);
-        assert_eq!(load.n_resources, vec![4, 4, 0].into());
+        assert_eq!(load.n_resources, ra_builder(&[4, 4, 0]));
         assert!(load.non_first_rq.is_empty());
 
         load.add_request(TaskId::new(3), &rqv, &wr);
-        assert_eq!(load.n_resources, vec![8, 4, 0].into());
+        assert_eq!(load.n_resources, ra_builder(&[8, 4, 0]));
         assert_eq!(load.non_first_rq.len(), 1);
         assert_eq!(load.non_first_rq.get(&TaskId::new(3)), Some(&1));
 
         load.add_request(TaskId::new(4), &rqv, &wr);
-        assert_eq!(load.n_resources, vec![12, 4, 0].into());
+        assert_eq!(load.n_resources, ra_builder(&[12, 4, 0]));
         assert_eq!(load.non_first_rq.len(), 2);
         assert_eq!(load.non_first_rq.get(&TaskId::new(4)), Some(&1));
 
         load.add_request(TaskId::new(5), &rqv, &wr);
         assert!(
-            load.n_resources == vec![16, 4, 0].into() || load.n_resources == vec![14, 6, 0].into()
+            load.n_resources == ra_builder(&[16, 4, 0]).into()
+                || load.n_resources == ra_builder(&[14, 6, 0]).into()
         );
         let resources = load.n_resources.clone();
 
         load.remove_request(TaskId::new(3), &rqv, &wr);
         assert_eq!(
             load.n_resources,
-            vec![resources[0.into()] - 4, resources[1.into()], 0].into()
+            vec![
+                resources[0.into()] - ResourceAmount::new_units(4),
+                resources[1.into()],
+                ResourceAmount::ZERO,
+            ]
+            .into()
         );
         assert!(load.non_first_rq.get(&TaskId::new(3)).is_none());
 
         load.remove_request(TaskId::new(1), &rqv, &wr);
         assert_eq!(
             load.n_resources,
-            vec![resources[0.into()] - 6, resources[1.into()] - 2, 0].into()
+            vec![
+                resources[0.into()] - ResourceAmount::new_units(6),
+                resources[1.into()] - ResourceAmount::new_units(2),
+                ResourceAmount::ZERO,
+            ]
+            .into()
         );
         assert!(load.non_first_rq.get(&TaskId::new(1)).is_none());
     }

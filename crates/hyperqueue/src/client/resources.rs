@@ -6,7 +6,7 @@ use nom::sequence::{pair, preceded, separated_pair, tuple};
 use nom_supreme::tag::complete::tag;
 use nom_supreme::ParserExt;
 
-use tako::resources::{AllocationRequest, ResourceAmount};
+use tako::resources::{AllocationRequest, ResourceAmount, ResourceUnits};
 
 use crate::common::parser::{consume_all, p_u64, NomResult};
 use crate::worker::parser::{is_valid_resource_char, is_valid_starting_resource_char};
@@ -23,16 +23,17 @@ fn p_allocation_request(input: &str) -> NomResult<AllocationRequest> {
                 )),
             )),
             |(count, policy)| {
-                let count = count as ResourceAmount;
+                let count = count as ResourceUnits;
                 if count == 0 {
                     return Err(anyhow::anyhow!("Requesting zero resources is not allowed"));
                 }
-                Ok(match policy {
-                    None | Some("compact") => AllocationRequest::Compact(count),
-                    Some("compact!") => AllocationRequest::ForceCompact(count),
-                    Some("scatter") => AllocationRequest::Scatter(count),
-                    _ => unreachable!(),
-                })
+                todo!()
+                // Ok(match policy {
+                //     None | Some("compact") => AllocationRequest::Compact(count),
+                //     Some("compact!") => AllocationRequest::ForceCompact(count),
+                //     Some("scatter") => AllocationRequest::Scatter(count),
+                //     _ => unreachable!(),
+                // })
             },
         ),
     ))(input)
@@ -79,19 +80,31 @@ mod test {
         );
         assert_eq!(
             parse_resource_request("ab1c=10").unwrap(),
-            ("ab1c".to_string(), AllocationRequest::Compact(10))
+            (
+                "ab1c".to_string(),
+                AllocationRequest::Compact(ResourceAmount::new_units(10))
+            )
         );
         assert_eq!(
             parse_resource_request("a=5_000 compact").unwrap(),
-            ("a".to_string(), AllocationRequest::Compact(5000))
+            (
+                "a".to_string(),
+                AllocationRequest::Compact(ResourceAmount::new_units(5000))
+            )
         );
         assert_eq!(
             parse_resource_request("cpus=351 scatter").unwrap(),
-            ("cpus".to_string(), AllocationRequest::Scatter(351))
+            (
+                "cpus".to_string(),
+                AllocationRequest::Scatter(ResourceAmount::new_units(351))
+            )
         );
         assert_eq!(
             parse_resource_request("cpus=11 compact!").unwrap(),
-            ("cpus".to_string(), AllocationRequest::ForceCompact(11))
+            (
+                "cpus".to_string(),
+                AllocationRequest::ForceCompact(ResourceAmount::new_units(11))
+            )
         );
     }
 
@@ -111,7 +124,10 @@ expected Letter at character 0: "=1"
     fn test_parse_identifier_slash() {
         assert_eq!(
             parse_resource_request("a/b=1").unwrap(),
-            ("a/b".to_string(), AllocationRequest::Compact(1))
+            (
+                "a/b".to_string(),
+                AllocationRequest::Compact(ResourceAmount::new_units(1))
+            )
         );
     }
 

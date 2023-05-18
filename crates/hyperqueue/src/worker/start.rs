@@ -235,7 +235,7 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
     }
 
     for alloc in &ctx.allocation().resources {
-        let resource_name = resource_map.get_name(alloc.resource).unwrap();
+        let resource_name = resource_map.get_name(alloc.resource_id).unwrap();
         if let Some(labels) = allocation_to_labels(alloc, ctx) {
             if resource_name == CPU_RESOURCE_NAME {
                 /* Extra variables for CPUS */
@@ -290,7 +290,7 @@ fn allocation_to_labels(allocation: &ResourceAllocation, ctx: &LaunchContext) ->
         format_comma_delimited(
             indices
                 .iter()
-                .map(|index| label_map.get_label(allocation.resource, *index)),
+                .map(|index| label_map.get_label(allocation.resource_id, *index)),
         )
     })
 }
@@ -305,7 +305,7 @@ fn pin_program(
         allocation
             .resources
             .iter()
-            .find(|r| r.resource == CPU_RESOURCE_ID)
+            .find(|r| r.resource_id == CPU_RESOURCE_ID)
             .and_then(|r| allocation_to_labels(r, ctx))
     };
     match pin_mode {

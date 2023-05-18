@@ -36,6 +36,7 @@ bitflags = "2"
 psutil = "3.2.1"
 fxhash = "0.2.1"
 thin-vec = "0.2.8"
+derive_more = "0.99"
 
 [dev-dependencies]
 anyhow = { workspace = true }

@@ -1,7 +1,7 @@
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::resources::{
-    ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, ResourceMap,
+    ResourceAmount, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, ResourceMap,
 };
 
 pub fn res_kind_range(start: u32, end: u32) -> ResourceDescriptorKind {
@@ -26,8 +26,10 @@ pub fn res_kind_groups(groups: &[Vec<&str>]) -> ResourceDescriptorKind {
     }
 }
 
-pub fn res_kind_sum(size: u64) -> ResourceDescriptorKind {
-    ResourceDescriptorKind::Sum { size }
+pub fn res_kind_sum(size: u32) -> ResourceDescriptorKind {
+    ResourceDescriptorKind::Sum {
+        size: ResourceAmount::new_units(size),
+    }
 }
 
 pub fn res_item(name: &str, kind: ResourceDescriptorKind) -> ResourceDescriptorItem {

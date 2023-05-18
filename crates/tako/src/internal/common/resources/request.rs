@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::internal::common::error::DsError;
-use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId};
+use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId, ResourceUnits};
 
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
@@ -23,7 +23,7 @@ impl AllocationRequest {
             AllocationRequest::Scatter(n_cpus)
             | AllocationRequest::ForceCompact(n_cpus)
             | AllocationRequest::Compact(n_cpus) => {
-                if *n_cpus == 0 {
+                if n_cpus.is_zero() {
                     Err(DsError::GenericError(
                         "Zero resources cannot be requested".to_string(),
                     ))
@@ -40,7 +40,7 @@ impl AllocationRequest {
             AllocationRequest::Compact(amount)
             | AllocationRequest::ForceCompact(amount)
             | AllocationRequest::Scatter(amount) => *amount,
-            AllocationRequest::All => 1,
+            AllocationRequest::All => ResourceAmount::new_units(1),
         }
     }
 

@@ -15,7 +15,7 @@ use tako::gateway::{
     ResourceRequest, ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants,
 };
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
-use tako::resources::{AllocationRequest, NumOfNodes, CPU_RESOURCE_NAME};
+use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount, CPU_RESOURCE_NAME};
 
 use super::directives::parse_hq_directives;
 use crate::client::commands::submit::directives::parse_hq_directives_from_file;
@@ -463,7 +463,7 @@ impl JobSubmitOpts {
                 0,
                 ResourceRequestEntry {
                     resource: CPU_RESOURCE_NAME.to_string(),
-                    policy: AllocationRequest::Compact(1),
+                    policy: AllocationRequest::Compact(ResourceAmount::new_units(1)),
                 },
             )
         }

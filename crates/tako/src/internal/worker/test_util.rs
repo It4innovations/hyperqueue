@@ -8,6 +8,7 @@ use crate::internal::worker::state::TaskMap;
 use crate::internal::worker::task::Task;
 use crate::{InstanceId, Priority, TaskId, WorkerId};
 use smallvec::smallvec;
+use std::rc::Rc;
 use std::time::Duration;
 
 pub struct WorkerTaskBuilder {
@@ -97,7 +98,7 @@ impl ResourceQueueBuilder {
         self.queue.new_worker(worker_id, wr);
     }
 
-    pub fn start_tasks(&mut self) -> Map<u64, Allocation> {
+    pub fn start_tasks(&mut self) -> Map<u64, Rc<Allocation>> {
         self.queue
             .try_start_tasks(&self.task_map, None)
             .into_iter()
@@ -105,7 +106,7 @@ impl ResourceQueueBuilder {
             .collect()
     }
 
-    pub fn start_tasks_duration(&mut self, duration: Duration) -> Map<u64, Allocation> {
+    pub fn start_tasks_duration(&mut self, duration: Duration) -> Map<u64, Rc<Allocation>> {
         self.queue
             .try_start_tasks(&self.task_map, Some(duration))
             .into_iter()
