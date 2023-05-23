@@ -135,7 +135,17 @@
 <span class=normal>135</span>
 <span class=normal>136</span>
 <span class=normal>137</span>
-<span class=normal>138</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>import</span> <span class=nn>itertools</span>
+<span class=normal>138</span>
+<span class=normal>139</span>
+<span class=normal>140</span>
+<span class=normal>141</span>
+<span class=normal>142</span>
+<span class=normal>143</span>
+<span class=normal>144</span>
+<span class=normal>145</span>
+<span class=normal>146</span>
+<span class=normal>147</span>
+<span class=normal>148</span></pre></div></td><td class=code><div><pre><span></span><a id=line-1 name=line-1></a><span class=kn>import</span> <span class=nn>itertools</span>
 <a id=line-2 name=line-2></a><span class=kn>import</span> <span class=nn>logging</span>
 <a id=line-3 name=line-3></a><span class=kn>from</span> <span class=nn>typing</span> <span class=kn>import</span> <span class=n>Dict</span><span class=p>,</span> <span class=n>Optional</span><span class=p>,</span> <span class=n>Sequence</span>
 <a id=line-4 name=line-4></a>
@@ -149,7 +159,7 @@
 <a id=line-12 name=line-12></a>    <span class=n>TaskFailureMap</span><span class=p>,</span>
 <a id=line-13 name=line-13></a>    <span class=n>TaskId</span><span class=p>,</span>
 <a id=line-14 name=line-14></a><span class=p>)</span>
-<a id=line-15 name=line-15></a><span class=kn>from</span> <span class=nn>.job</span> <span class=kn>import</span> <span class=n>Job</span><span class=p>,</span> <span class=n>SubmittedJob</span>
+<a id=line-15 name=line-15></a><span class=kn>from</span> <span class=nn>.job</span> <span class=kn>import</span> <span class=n>HasJobId</span><span class=p>,</span> <span class=n>Job</span><span class=p>,</span> <span class=n>SubmittedJob</span><span class=p>,</span> <span class=n>get_job_id</span>
 <a id=line-16 name=line-16></a><span class=kn>from</span> <span class=nn>.task.function</span> <span class=kn>import</span> <span class=n>PythonEnv</span>
 <a id=line-17 name=line-17></a><span class=kn>from</span> <span class=nn>.utils.string</span> <span class=kn>import</span> <span class=n>pluralize</span>
 <a id=line-18 name=line-18></a>
@@ -249,28 +259,38 @@
 <a id=line-112 name=line-112></a>        <span class=n>result</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>connection</span><span class=o>.</span><span class=n>get_failed_tasks</span><span class=p>([</span><span class=n>job</span><span class=o>.</span><span class=n>id</span><span class=p>])</span>
 <a id=line-113 name=line-113></a>        <span class=k>return</span> <span class=n>result</span><span class=p>[</span><span class=n>job</span><span class=o>.</span><span class=n>id</span><span class=p>]</span>
 <a id=line-114 name=line-114></a>
-<a id=line-115 name=line-115></a>
-<a id=line-116 name=line-116></a><span class=k>def</span> <span class=nf>create_progress_callback</span><span class=p>():</span>
-<a id=line-117 name=line-117></a>    <span class=n>bar</span> <span class=o>=</span> <span class=kc>None</span>
+<a id=line-115 name=line-115></a>    <span class=k>def</span> <span class=nf>forget</span><span class=p>(</span><span class=bp>self</span><span class=p>,</span> <span class=n>job</span><span class=p>:</span> <span class=n>HasJobId</span><span class=p>):</span>
+<a id=line-116 name=line-116></a><span class=w>        </span><span class=sd>&quot;&quot;&quot;</span>
+<a id=line-117 name=line-117></a><span class=sd>        Forget a completed job to free up its resources from the server.</span>
 <a id=line-118 name=line-118></a>
-<a id=line-119 name=line-119></a>    <span class=k>def</span> <span class=nf>cb</span><span class=p>(</span><span class=n>jobs</span><span class=p>):</span>
-<a id=line-120 name=line-120></a>        <span class=k>nonlocal</span> <span class=n>bar</span>
-<a id=line-121 name=line-121></a>
-<a id=line-122 name=line-122></a>        <span class=k>if</span> <span class=n>bar</span> <span class=ow>is</span> <span class=kc>None</span><span class=p>:</span>
-<a id=line-123 name=line-123></a>            <span class=n>total_tasks</span> <span class=o>=</span> <span class=nb>sum</span><span class=p>(</span><span class=n>s</span><span class=p>[</span><span class=s2>&quot;total&quot;</span><span class=p>]</span> <span class=k>for</span> <span class=n>s</span> <span class=ow>in</span> <span class=n>jobs</span><span class=o>.</span><span class=n>values</span><span class=p>())</span>
-<a id=line-124 name=line-124></a>            <span class=n>bar</span> <span class=o>=</span> <span class=n>tqdm</span><span class=p>(</span><span class=n>total</span><span class=o>=</span><span class=n>total_tasks</span><span class=p>,</span> <span class=n>unit</span><span class=o>=</span><span class=s2>&quot;task&quot;</span><span class=p>)</span>
+<a id=line-119 name=line-119></a><span class=sd>        :param job: Submitted job (or job ID) that will be forgotten.</span>
+<a id=line-120 name=line-120></a><span class=sd>        &quot;&quot;&quot;</span>
+<a id=line-121 name=line-121></a>        <span class=n>job_id</span> <span class=o>=</span> <span class=n>get_job_id</span><span class=p>(</span><span class=n>job</span><span class=p>)</span>
+<a id=line-122 name=line-122></a>        <span class=bp>self</span><span class=o>.</span><span class=n>connection</span><span class=o>.</span><span class=n>forget_job</span><span class=p>(</span><span class=n>job_id</span><span class=p>)</span>
+<a id=line-123 name=line-123></a>        <span class=n>logging</span><span class=o>.</span><span class=n>info</span><span class=p>(</span><span class=sa>f</span><span class=s2>&quot;Forgotten job </span><span class=si>{</span><span class=n>job_id</span><span class=si>}</span><span class=s2>&quot;</span><span class=p>)</span>
+<a id=line-124 name=line-124></a>
 <a id=line-125 name=line-125></a>
-<a id=line-126 name=line-126></a>        <span class=n>job_count</span> <span class=o>=</span> <span class=nb>len</span><span class=p>(</span><span class=n>jobs</span><span class=p>)</span>
-<a id=line-127 name=line-127></a>        <span class=n>completed</span> <span class=o>=</span> <span class=nb>sum</span><span class=p>(</span><span class=mi>1</span> <span class=k>if</span> <span class=n>s</span><span class=p>[</span><span class=s2>&quot;completed&quot;</span><span class=p>]</span> <span class=k>else</span> <span class=mi>0</span> <span class=k>for</span> <span class=n>s</span> <span class=ow>in</span> <span class=n>jobs</span><span class=o>.</span><span class=n>values</span><span class=p>())</span>
+<a id=line-126 name=line-126></a><span class=k>def</span> <span class=nf>create_progress_callback</span><span class=p>():</span>
+<a id=line-127 name=line-127></a>    <span class=n>bar</span> <span class=o>=</span> <span class=kc>None</span>
 <a id=line-128 name=line-128></a>
-<a id=line-129 name=line-129></a>        <span class=n>job_text</span> <span class=o>=</span> <span class=n>pluralize</span><span class=p>(</span><span class=s2>&quot;job&quot;</span><span class=p>,</span> <span class=n>job_count</span><span class=p>)</span>
-<a id=line-130 name=line-130></a>        <span class=n>bar</span><span class=o>.</span><span class=n>set_postfix_str</span><span class=p>(</span><span class=sa>f</span><span class=s2>&quot;</span><span class=si>{</span><span class=n>completed</span><span class=si>}</span><span class=s2>/</span><span class=si>{</span><span class=n>job_count</span><span class=si>}</span><span class=s2> </span><span class=si>{</span><span class=n>job_text</span><span class=si>}</span><span class=s2> completed&quot;</span><span class=p>)</span>
+<a id=line-129 name=line-129></a>    <span class=k>def</span> <span class=nf>cb</span><span class=p>(</span><span class=n>jobs</span><span class=p>):</span>
+<a id=line-130 name=line-130></a>        <span class=k>nonlocal</span> <span class=n>bar</span>
 <a id=line-131 name=line-131></a>
-<a id=line-132 name=line-132></a>        <span class=n>finished_tasks</span> <span class=o>=</span> <span class=nb>sum</span><span class=p>(</span><span class=n>s</span><span class=p>[</span><span class=s2>&quot;finished&quot;</span><span class=p>]</span> <span class=k>for</span> <span class=n>s</span> <span class=ow>in</span> <span class=n>jobs</span><span class=o>.</span><span class=n>values</span><span class=p>())</span>
-<a id=line-133 name=line-133></a>
-<a id=line-134 name=line-134></a>        <span class=n>delta</span> <span class=o>=</span> <span class=n>finished_tasks</span> <span class=o>-</span> <span class=n>bar</span><span class=o>.</span><span class=n>n</span>
-<a id=line-135 name=line-135></a>        <span class=k>if</span> <span class=n>delta</span><span class=p>:</span>
-<a id=line-136 name=line-136></a>            <span class=n>bar</span><span class=o>.</span><span class=n>update</span><span class=p>(</span><span class=n>delta</span><span class=p>)</span>
-<a id=line-137 name=line-137></a>
-<a id=line-138 name=line-138></a>    <span class=k>return</span> <span class=n>cb</span>
-</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2023-05-23 06:40 </p></div></div></body></html>
+<a id=line-132 name=line-132></a>        <span class=k>if</span> <span class=n>bar</span> <span class=ow>is</span> <span class=kc>None</span><span class=p>:</span>
+<a id=line-133 name=line-133></a>            <span class=n>total_tasks</span> <span class=o>=</span> <span class=nb>sum</span><span class=p>(</span><span class=n>s</span><span class=p>[</span><span class=s2>&quot;total&quot;</span><span class=p>]</span> <span class=k>for</span> <span class=n>s</span> <span class=ow>in</span> <span class=n>jobs</span><span class=o>.</span><span class=n>values</span><span class=p>())</span>
+<a id=line-134 name=line-134></a>            <span class=n>bar</span> <span class=o>=</span> <span class=n>tqdm</span><span class=p>(</span><span class=n>total</span><span class=o>=</span><span class=n>total_tasks</span><span class=p>,</span> <span class=n>unit</span><span class=o>=</span><span class=s2>&quot;task&quot;</span><span class=p>)</span>
+<a id=line-135 name=line-135></a>
+<a id=line-136 name=line-136></a>        <span class=n>job_count</span> <span class=o>=</span> <span class=nb>len</span><span class=p>(</span><span class=n>jobs</span><span class=p>)</span>
+<a id=line-137 name=line-137></a>        <span class=n>completed</span> <span class=o>=</span> <span class=nb>sum</span><span class=p>(</span><span class=mi>1</span> <span class=k>if</span> <span class=n>s</span><span class=p>[</span><span class=s2>&quot;completed&quot;</span><span class=p>]</span> <span class=k>else</span> <span class=mi>0</span> <span class=k>for</span> <span class=n>s</span> <span class=ow>in</span> <span class=n>jobs</span><span class=o>.</span><span class=n>values</span><span class=p>())</span>
+<a id=line-138 name=line-138></a>
+<a id=line-139 name=line-139></a>        <span class=n>job_text</span> <span class=o>=</span> <span class=n>pluralize</span><span class=p>(</span><span class=s2>&quot;job&quot;</span><span class=p>,</span> <span class=n>job_count</span><span class=p>)</span>
+<a id=line-140 name=line-140></a>        <span class=n>bar</span><span class=o>.</span><span class=n>set_postfix_str</span><span class=p>(</span><span class=sa>f</span><span class=s2>&quot;</span><span class=si>{</span><span class=n>completed</span><span class=si>}</span><span class=s2>/</span><span class=si>{</span><span class=n>job_count</span><span class=si>}</span><span class=s2> </span><span class=si>{</span><span class=n>job_text</span><span class=si>}</span><span class=s2> completed&quot;</span><span class=p>)</span>
+<a id=line-141 name=line-141></a>
+<a id=line-142 name=line-142></a>        <span class=n>finished_tasks</span> <span class=o>=</span> <span class=nb>sum</span><span class=p>(</span><span class=n>s</span><span class=p>[</span><span class=s2>&quot;finished&quot;</span><span class=p>]</span> <span class=k>for</span> <span class=n>s</span> <span class=ow>in</span> <span class=n>jobs</span><span class=o>.</span><span class=n>values</span><span class=p>())</span>
+<a id=line-143 name=line-143></a>
+<a id=line-144 name=line-144></a>        <span class=n>delta</span> <span class=o>=</span> <span class=n>finished_tasks</span> <span class=o>-</span> <span class=n>bar</span><span class=o>.</span><span class=n>n</span>
+<a id=line-145 name=line-145></a>        <span class=k>if</span> <span class=n>delta</span><span class=p>:</span>
+<a id=line-146 name=line-146></a>            <span class=n>bar</span><span class=o>.</span><span class=n>update</span><span class=p>(</span><span class=n>delta</span><span class=p>)</span>
+<a id=line-147 name=line-147></a>
+<a id=line-148 name=line-148></a>    <span class=k>return</span> <span class=n>cb</span>
+</pre></div></td></tr></table></div><p class=footer> Generated by <a href=https://github.com/spirali/nedoc>nedoc</a> v0.10 at 2023-05-23 09:43 </p></div></div></body></html>
