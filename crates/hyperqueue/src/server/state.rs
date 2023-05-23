@@ -1,9 +1,14 @@
+use std::cmp::min;
 use std::collections::BTreeMap;
+
+use chrono::Utc;
 
 use tako::gateway::{
     CancelTasks, FromGatewayMessage, LostWorkerMessage, NewWorkerMessage, TaskFailedMessage,
     TaskState, TaskUpdate, ToGatewayMessage,
 };
+use tako::ItemId;
+use tako::{define_wrapped_type, TaskId};
 
 use crate::server::autoalloc::{AutoAllocService, LostWorkerDetails};
 use crate::server::event::events::JobInfo;
@@ -13,10 +18,6 @@ use crate::server::rpc::Backend;
 use crate::server::worker::Worker;
 use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
-use chrono::Utc;
-use std::cmp::min;
-use tako::ItemId;
-use tako::{define_wrapped_type, TaskId};
 
 pub struct State {
     jobs: crate::Map<JobId, Job>,
@@ -66,11 +67,12 @@ fn cancel_tasks_from_callback(
         match response {
             ToGatewayMessage::CancelTasksResponse(msg) => {
                 let mut state = state_ref.get_mut();
-                let job = state.get_job_mut(job_id).unwrap();
-                log::debug!("Tasks {:?} canceled", msg.cancelled_tasks);
-                log::debug!("Tasks {:?} already finished", msg.already_finished);
-                for tako_id in msg.cancelled_tasks {
-                    job.set_cancel_state(tako_id, &tako_ref);
+                if let Some(job) = state.get_job_mut(job_id) {
+                    log::debug!("Tasks {:?} canceled", msg.cancelled_tasks);
+                    log::debug!("Tasks {:?} already finished", msg.already_finished);
+                    for tako_id in msg.cancelled_tasks {
+                        job.set_cancel_state(tako_id, &tako_ref);
+                    }
                 }
             }
             ToGatewayMessage::Error(msg) => {
@@ -124,6 +126,22 @@ impl State {
         if let Some(autoalloc) = &self.autoalloc_service {
             autoalloc.on_job_created(job_id);
         }
+    }
+
+    /// Completely forgets this job, in order to reduce memory usage.
+    pub(crate) fn forget_job(&mut self, job_id: JobId) -> Option<Job> {
+        let job = match self.jobs.remove(&job_id) {
+            Some(job) => {
+                assert!(job.is_terminated());
+                job
+            }
+            None => {
+                log::error!("Trying to forget unknown job {job_id}");
+                return None;
+            }
+        };
+        self.base_task_id_to_job_id.remove(&job.base_task_id);
+        Some(job)
     }
 
     pub fn get_job_mut_by_tako_task_id(&mut self, task_id: TakoTaskId) -> Option<&mut Job> {

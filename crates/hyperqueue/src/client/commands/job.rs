@@ -1,17 +1,20 @@
+use clap::Parser;
+
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
 use crate::client::output::outputs::OutputStream;
 use crate::client::output::resolve_task_paths;
 use crate::client::status::{job_status, Status};
 use crate::common::cli::{parse_last_all_range, parse_last_range, TaskSelectorArg};
+use crate::common::utils::str::pluralize;
 use crate::rpc_call;
 use crate::transfer::connection::{ClientConnection, ClientSession};
 use crate::transfer::messages::{
-    CancelJobResponse, CancelRequest, FromClientMessage, IdSelector, JobDetail, JobDetailRequest,
-    JobInfoRequest, TaskIdSelector, TaskSelector, TaskStatusSelector, ToClientMessage,
+    CancelJobResponse, CancelRequest, ForgetJobRequest, FromClientMessage, IdSelector, JobDetail,
+    JobDetailRequest, JobInfoRequest, TaskIdSelector, TaskSelector, TaskStatusSelector,
+    ToClientMessage,
 };
 use crate::JobId;
-use clap::Parser;
 
 #[derive(Parser)]
 pub struct JobListOpts {
@@ -37,6 +40,35 @@ pub struct JobCancelOpts {
     /// Select job(s) to cancel
     #[arg(value_parser = parse_last_all_range)]
     pub selector: IdSelector,
+}
+
+#[derive(Parser)]
+pub struct JobForgetOpts {
+    /// Select job(s) to forget
+    #[arg(value_parser = parse_last_all_range)]
+    pub selector: IdSelector,
+    /// Forget only jobs with the given states.
+    /// You can use multiple states separated by a comma.
+    /// You can only filter by states that mark a completed job.
+    #[arg(long, value_delimiter(','), value_enum, default_value("finished"))]
+    pub filter: Vec<CompletedJobStatus>,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug)]
+pub enum CompletedJobStatus {
+    Finished,
+    Failed,
+    Canceled,
+}
+
+impl CompletedJobStatus {
+    pub fn into_status(self) -> Status {
+        match self {
+            CompletedJobStatus::Finished => Status::Finished,
+            CompletedJobStatus::Failed => Status::Failed,
+            CompletedJobStatus::Canceled => Status::Canceled,
+        }
+    }
 }
 
 #[derive(Parser)]
@@ -236,5 +268,34 @@ pub async fn cancel_job(
             }
         }
     }
+    Ok(())
+}
+
+pub async fn forget_job(
+    _gsettings: &GlobalSettings,
+    session: &mut ClientSession,
+    opts: JobForgetOpts,
+) -> anyhow::Result<()> {
+    let JobForgetOpts { selector, filter } = opts;
+
+    let response = rpc_call!(session.connection(), FromClientMessage::ForgetJob(ForgetJobRequest {
+            selector,
+            filter: filter.into_iter().map(|s| s.into_status()).collect()
+    }), ToClientMessage::ForgetJobResponse(r) => r)
+    .await?;
+
+    let mut message = format!(
+        "{} {} were forgotten",
+        response.forgotten,
+        pluralize("job", response.forgotten)
+    );
+    if response.ignored > 0 {
+        message.push_str(&format!(
+            ", {} were ignored due to wrong state or invalid ID",
+            response.ignored
+        ));
+    }
+    log::info!("{message}");
+
     Ok(())
 }

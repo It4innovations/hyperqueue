@@ -1,3 +1,12 @@
+# Dev
+
+## New features
+
+## Job submission
+* A new command `hq job forget <job-selector>` has been introduced. It can be used to completely forget a job, and thus
+reduce the memory usage of the HQ server. It is useful especially if you submit a large amount of jobs and keep the
+server running for a long time.
+
 # v0.15.0
 
 ## Breaking changes

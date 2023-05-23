@@ -253,6 +253,24 @@ $ hq job cancel <job-selector>
 
 Cancelling a job will cancel all of its tasks that are not yet completed.
 
+## Forgetting jobs
+If you want to completely forget a job, and thus free up its associated memory, you can do that using
+the `hq job forget` command[^1]:
+
+```console
+$ hq job forget <job-selector>
+```
+
+By default, only successfully finished jobs will be forgotten. You can use the `--status` parameter to forget jobs in
+other statuses:
+
+```console
+$ hq job forget all --status finished,canceled
+```
+
+However, only jobs that are completed, i.e. that have finished successfully, failed or have been canceled, can be forgotten.
+If you want to forget a waiting or a running job, [cancel](#cancelling-jobs) it first.
+
 ## Waiting for jobs
 There are three ways of waiting until a job completes:
 
