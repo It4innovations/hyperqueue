@@ -7,8 +7,8 @@ use cli_table::ColorChoice;
 use hyperqueue::client::commands::autoalloc::command_autoalloc;
 use hyperqueue::client::commands::event::command_event_log;
 use hyperqueue::client::commands::job::{
-    cancel_job, output_job_cat, output_job_detail, output_job_list, output_job_summary,
-    JobCancelOpts, JobCatOpts, JobInfoOpts, JobListOpts,
+    cancel_job, forget_job, output_job_cat, output_job_detail, output_job_list, output_job_summary,
+    JobCancelOpts, JobCatOpts, JobForgetOpts, JobInfoOpts, JobListOpts,
 };
 use hyperqueue::client::commands::log::command_log;
 use hyperqueue::client::commands::server::command_server;
@@ -118,6 +118,11 @@ async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow
 async fn command_job_cancel(gsettings: &GlobalSettings, opts: JobCancelOpts) -> anyhow::Result<()> {
     let mut connection = get_client_session(gsettings.server_directory()).await?;
     cancel_job(gsettings, &mut connection, opts.selector).await
+}
+
+async fn command_job_delete(gsettings: &GlobalSettings, opts: JobForgetOpts) -> anyhow::Result<()> {
+    let mut connection = get_client_session(gsettings.server_directory()).await?;
+    forget_job(gsettings, &mut connection, opts).await
 }
 
 async fn command_job_resubmit(
@@ -378,6 +383,9 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Cancel(opts),
         }) => command_job_cancel(&gsettings, opts).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::Forget(opts),
+        }) => command_job_delete(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Resubmit(opts),
         }) => command_job_resubmit(&gsettings, opts).await,

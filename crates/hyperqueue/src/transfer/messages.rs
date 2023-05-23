@@ -24,6 +24,7 @@ pub enum FromClientMessage {
     Submit(SubmitRequest),
     Resubmit(ResubmitRequest),
     Cancel(CancelRequest),
+    ForgetJob(ForgetJobRequest),
     JobDetail(JobDetailRequest),
     JobInfo(JobInfoRequest),
     WorkerList,
@@ -157,6 +158,12 @@ pub struct CancelRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct ForgetJobRequest {
+    pub selector: IdSelector,
+    pub filter: Vec<Status>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JobInfoRequest {
     pub selector: IdSelector,
 }
@@ -235,6 +242,7 @@ pub enum ToClientMessage {
     StatsResponse(StatsResponse),
     StopWorkerResponse(Vec<(WorkerId, StopWorkerResponse)>),
     CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
+    ForgetJobResponse(ForgetJobResponse),
     AutoAllocResponse(AutoAllocResponse),
     WaitForJobsResponse(WaitForJobsResponse),
     MonitoringEventsResponse(Vec<MonitoringEvent>),
@@ -246,6 +254,14 @@ pub enum CancelJobResponse {
     Canceled(Vec<JobTaskId>, JobTaskCount),
     InvalidJob,
     Failed(String),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ForgetJobResponse {
+    // How many jobs were forgotten
+    pub forgotten: usize,
+    // How many jobs were ignored due to not being completed or not existing
+    pub ignored: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

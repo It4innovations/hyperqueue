@@ -17,11 +17,11 @@ use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::connection::ServerConnection;
-use crate::transfer::messages::WaitForJobsResponse;
 use crate::transfer::messages::{
     CancelJobResponse, FromClientMessage, IdSelector, JobDetail, JobInfoResponse, StatsResponse,
     StopWorkerResponse, TaskSelector, ToClientMessage, WorkerListResponse,
 };
+use crate::transfer::messages::{ForgetJobResponse, WaitForJobsResponse};
 use crate::{JobId, JobTaskCount, WorkerId};
 
 pub mod autoalloc;
@@ -107,6 +107,9 @@ pub async fn client_rpc_loop<
                     }
                     FromClientMessage::Cancel(msg) => {
                         handle_job_cancel(&state_ref, &tako_ref, &msg.selector).await
+                    }
+                    FromClientMessage::ForgetJob(msg) => {
+                        handle_job_forget(&state_ref, &msg.selector, msg.filter)
                     }
                     FromClientMessage::JobDetail(msg) => {
                         compute_job_detail(&state_ref, msg.job_id_selector, msg.task_selector)
@@ -346,53 +349,81 @@ async fn handle_job_cancel(
 
     let mut responses: Vec<(JobId, CancelJobResponse)> = Vec::new();
     for job_id in job_ids {
-        let tako_task_ids;
-        {
-            let n_tasks = match state_ref.get().get_job(job_id) {
-                None => {
-                    responses.push((job_id, CancelJobResponse::InvalidJob));
-                    continue;
-                }
-                Some(job) => {
-                    tako_task_ids = job.non_finished_task_ids();
-                    job.n_tasks()
-                }
-            };
-            if tako_task_ids.is_empty() {
-                responses.push((job_id, CancelJobResponse::Canceled(Vec::new(), n_tasks)));
-                continue;
-            }
-        }
+        let response = cancel_job(state_ref, tako_ref, job_id).await;
+        responses.push((job_id, response));
+    }
 
-        let canceled_tasks = match tako_ref
-            .send_tako_message(FromGatewayMessage::CancelTasks(CancelTasks {
-                tasks: tako_task_ids,
-            }))
-            .await
-            .unwrap()
-        {
-            ToGatewayMessage::CancelTasksResponse(msg) => msg.cancelled_tasks,
-            ToGatewayMessage::Error(msg) => {
-                responses.push((job_id, CancelJobResponse::Failed(msg.message)));
-                continue;
+    ToClientMessage::CancelJobResponse(responses)
+}
+
+async fn cancel_job(state_ref: &StateRef, tako_ref: &Backend, job_id: JobId) -> CancelJobResponse {
+    let tako_task_ids;
+    {
+        let n_tasks = match state_ref.get().get_job(job_id) {
+            None => {
+                return CancelJobResponse::InvalidJob;
             }
-            _ => panic!("Invalid message"),
+            Some(job) => {
+                tako_task_ids = job.non_finished_task_ids();
+                job.n_tasks()
+            }
         };
+        if tako_task_ids.is_empty() {
+            return CancelJobResponse::Canceled(Vec::new(), n_tasks);
+        }
+    }
 
-        let mut state = state_ref.get_mut();
-        let job = state.get_job_mut(job_id).unwrap();
+    let canceled_tasks = match tako_ref
+        .send_tako_message(FromGatewayMessage::CancelTasks(CancelTasks {
+            tasks: tako_task_ids,
+        }))
+        .await
+        .unwrap()
+    {
+        ToGatewayMessage::CancelTasksResponse(msg) => msg.cancelled_tasks,
+        ToGatewayMessage::Error(msg) => {
+            return CancelJobResponse::Failed(msg.message);
+        }
+        _ => panic!("Invalid message"),
+    };
+
+    let mut state = state_ref.get_mut();
+    if let Some(job) = state.get_job_mut(job_id) {
         let canceled_ids: Vec<_> = canceled_tasks
             .iter()
             .map(|tako_id| job.set_cancel_state(*tako_id, tako_ref))
             .collect();
         let already_finished = job.n_tasks() - canceled_ids.len() as JobTaskCount;
-        responses.push((
-            job_id,
-            CancelJobResponse::Canceled(canceled_ids, already_finished),
-        ));
+        CancelJobResponse::Canceled(canceled_ids, already_finished)
+    } else {
+        CancelJobResponse::Canceled(vec![], 0)
     }
+}
 
-    ToClientMessage::CancelJobResponse(responses)
+fn handle_job_forget(
+    state_ref: &StateRef,
+    selector: &IdSelector,
+    allowed_statuses: Vec<Status>,
+) -> ToClientMessage {
+    let mut state = state_ref.get_mut();
+    let job_ids: Vec<JobId> = get_job_ids(&state, selector);
+    let mut forgotten: usize = 0;
+
+    for &job_id in &job_ids {
+        let can_be_forgotten = state
+            .get_job(job_id)
+            .map(|j| {
+                j.is_terminated() && allowed_statuses.contains(&job_status(&j.make_job_info()))
+            })
+            .unwrap_or(false);
+        if can_be_forgotten {
+            state.forget_job(job_id);
+            forgotten += 1;
+        }
+    }
+    let ignored = job_ids.len() - forgotten;
+
+    ToClientMessage::ForgetJobResponse(ForgetJobResponse { forgotten, ignored })
 }
 
 async fn handle_worker_list(state_ref: &StateRef) -> ToClientMessage {

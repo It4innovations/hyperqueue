@@ -8,7 +8,9 @@ use tako::WorkerId;
 
 use crate::client::commands::autoalloc::AutoAllocOpts;
 use crate::client::commands::event::EventLogOpts;
-use crate::client::commands::job::{JobCancelOpts, JobCatOpts, JobInfoOpts, JobListOpts};
+use crate::client::commands::job::{
+    JobCancelOpts, JobCatOpts, JobForgetOpts, JobInfoOpts, JobListOpts,
+};
 use crate::client::commands::log::LogOpts;
 use crate::client::commands::server::ServerOpts;
 use crate::client::commands::submit::{JobResubmitOpts, JobSubmitFileOpts, JobSubmitOpts};
@@ -295,8 +297,17 @@ pub enum JobCommand {
     Summary,
     /// Display detailed information of the selected job
     Info(JobInfoOpts),
-    /// Cancel a specific job
+    /// Cancel a specific job.
+    /// This will cancel all tasks, stopping them from being computation.
+    /// The job will still remain in the server's memory, and you will be able to resubmit it later.
     Cancel(JobCancelOpts),
+    /// Forget a specific job.
+    /// This will remove the job from the server's memory, forgetting it completely and reducing
+    /// the server's memory usage.
+    ///
+    /// You can only forget jobs that have been completed, i.e. that are not running or waiting to
+    /// be executed. You have to cancel these jobs first.
+    Forget(JobForgetOpts),
     /// Shows task(s) streams(stdout, stderr) of a specific job
     Cat(JobCatOpts),
     /// Submit a job to HyperQueue
