@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
-from ..utils.wait import wait_until
+from ..utils.wait import wait_for_job_list_count
 
 
 def test_forget_waiting_job(hq_env: HqEnv):
@@ -67,18 +67,12 @@ def test_forget_multiple_jobs(hq_env: HqEnv):
     wait_for_job_list_count(hq_env, 1)
 
 
-def wait_for_job_list_count(hq_env: HqEnv, count: int):
-    wait_until(
-        lambda: len(hq_env.command(["job", "list", "--all"], as_table=True)) == count
-    )
-
-
 def forget_jobs(
-    hq_env: HqEnv,
-    selector: str,
-    forgotten: int,
-    statutes: Optional[List[str]] = None,
-    ignored: int = 0,
+        hq_env: HqEnv,
+        selector: str,
+        forgotten: int,
+        statutes: Optional[List[str]] = None,
+        ignored: int = 0,
 ):
     pluralized = "jobs" if forgotten != 1 else "job"
 

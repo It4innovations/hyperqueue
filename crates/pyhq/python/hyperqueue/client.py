@@ -12,7 +12,7 @@ from .ffi.client import (
     TaskFailureMap,
     TaskId,
 )
-from .job import Job, SubmittedJob
+from .job import Job, SubmittedJob, HasJobId, get_job_id
 from .task.function import PythonEnv
 from .utils.string import pluralize
 
@@ -53,9 +53,9 @@ class FailedJobsException(Exception):
 
 class Client:
     def __init__(
-        self,
-        server_dir: Optional[GenericPath] = None,
-        python_env: Optional[PythonEnv] = None,
+            self,
+            server_dir: Optional[GenericPath] = None,
+            python_env: Optional[PythonEnv] = None,
     ):
         """
         A client serves as a gateway for submitting jobs and querying information about a running
@@ -111,6 +111,16 @@ class Client:
     def get_failed_tasks(self, job: SubmittedJob) -> Dict[TaskId, FailedTaskContext]:
         result = self.connection.get_failed_tasks([job.id])
         return result[job.id]
+
+    def forget(self, job: HasJobId):
+        """
+        Forget a completed job to free up its resources from the server.
+
+        :param job: Submitted job (or job ID) that will be forgotten.
+        """
+        job_id = get_job_id(job)
+        self.connection.forget_job(job_id)
+        logging.info(f"Forgotten job {job_id}")
 
 
 def create_progress_callback():
