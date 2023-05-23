@@ -12,7 +12,7 @@ from .ffi.client import (
     TaskFailureMap,
     TaskId,
 )
-from .job import Job, SubmittedJob, HasJobId, get_job_id
+from .job import HasJobId, Job, SubmittedJob, get_job_id
 from .task.function import PythonEnv
 from .utils.string import pluralize
 
@@ -53,9 +53,9 @@ class FailedJobsException(Exception):
 
 class Client:
     def __init__(
-            self,
-            server_dir: Optional[GenericPath] = None,
-            python_env: Optional[PythonEnv] = None,
+        self,
+        server_dir: Optional[GenericPath] = None,
+        python_env: Optional[PythonEnv] = None,
     ):
         """
         A client serves as a gateway for submitting jobs and querying information about a running
