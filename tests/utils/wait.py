@@ -76,3 +76,9 @@ def wait_for_pid_exit(pid: int):
     Waits until the given `pid` does not represent any process anymore.
     """
     wait_until(lambda: not psutil.pid_exists(pid))
+
+
+def wait_for_job_list_count(env, count: int):
+    wait_until(
+        lambda: len(env.command(["job", "list", "--all"], as_table=True)) == count
+    )

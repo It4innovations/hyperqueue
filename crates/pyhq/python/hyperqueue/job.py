@@ -1,6 +1,7 @@
-import dataclasses
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union
+
+import dataclasses
 
 from .common import GenericPath
 from .ffi import JobId, TaskId
@@ -17,10 +18,10 @@ class Job:
     """
 
     def __init__(
-        self,
-        default_workdir: Optional[GenericPath] = None,
-        max_fails: Optional[int] = 1,
-        default_env: Optional[EnvType] = None,
+            self,
+            default_workdir: Optional[GenericPath] = None,
+            max_fails: Optional[int] = 1,
+            default_env: Optional[EnvType] = None,
     ):
         """
         :param default_workdir: Default working directory for tasks.
@@ -45,19 +46,19 @@ class Job:
         return self.task_map.get(id)
 
     def program(
-        self,
-        args: ProgramArgs,
-        *,
-        env: Optional[EnvType] = None,
-        cwd: Optional[GenericPath] = None,
-        stdout: Optional[GenericPath] = default_stdout(),
-        stderr: Optional[GenericPath] = default_stderr(),
-        stdin: Optional[Union[str, bytes]] = None,
-        deps: Sequence[Task] = (),
-        name: Optional[str] = None,
-        task_dir: bool = False,
-        priority: int = 0,
-        resources: Optional[Union[ResourceRequest, Sequence[ResourceRequest]]] = None,
+            self,
+            args: ProgramArgs,
+            *,
+            env: Optional[EnvType] = None,
+            cwd: Optional[GenericPath] = None,
+            stdout: Optional[GenericPath] = default_stdout(),
+            stderr: Optional[GenericPath] = default_stderr(),
+            stdin: Optional[Union[str, bytes]] = None,
+            deps: Sequence[Task] = (),
+            name: Optional[str] = None,
+            task_dir: bool = False,
+            priority: int = 0,
+            resources: Optional[Union[ResourceRequest, Sequence[ResourceRequest]]] = None,
     ) -> ExternalProgram:
         """
         Creates a new task that will execute the provided command.
@@ -95,19 +96,19 @@ class Job:
         return task
 
     def function(
-        self,
-        fn,
-        *,
-        args=(),
-        kwargs=None,
-        env: Optional[EnvType] = None,
-        cwd: Optional[GenericPath] = None,
-        stdout: Optional[GenericPath] = default_stdout(),
-        stderr: Optional[GenericPath] = default_stderr(),
-        deps: Sequence[Task] = (),
-        name: Optional[str] = None,
-        priority: int = 0,
-        resources: Optional[Union[ResourceRequest, Sequence[ResourceRequest]]] = None,
+            self,
+            fn,
+            *,
+            args=(),
+            kwargs=None,
+            env: Optional[EnvType] = None,
+            cwd: Optional[GenericPath] = None,
+            stdout: Optional[GenericPath] = default_stdout(),
+            stderr: Optional[GenericPath] = default_stderr(),
+            deps: Sequence[Task] = (),
+            name: Optional[str] = None,
+            priority: int = 0,
+            resources: Optional[Union[ResourceRequest, Sequence[ResourceRequest]]] = None,
     ) -> PythonFunction:
         """
         Creates a new task that will execute the provided Python function.
@@ -161,6 +162,18 @@ class SubmittedJob:
 
     job: Job
     id: JobId
+
+
+HasJobId = Union[JobId, SubmittedJob]
+
+
+def get_job_id(job: HasJobId) -> JobId:
+    if isinstance(job, SubmittedJob):
+        return job.id
+    elif isinstance(job, (JobId, int)):
+        return job
+    else:
+        raise ValueError(f"Invalid value of type {type(job)} passed to `get_job_id`")
 
 
 def merge_envs(default: EnvType, env: Optional[EnvType]) -> EnvType:

@@ -6,9 +6,10 @@ use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::utils::fs::get_current_dir;
 use hyperqueue::server::job::JobTaskState;
 use hyperqueue::transfer::messages::{
-    FromClientMessage, IdSelector, JobDescription as HqJobDescription, JobDetailRequest,
-    JobInfoRequest, JobInfoResponse, PinMode, SubmitRequest, TaskDescription as HqTaskDescription,
-    TaskIdSelector, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
+    ForgetJobRequest, FromClientMessage, IdSelector, JobDescription as HqJobDescription,
+    JobDetailRequest, JobInfoRequest, JobInfoResponse, PinMode, SubmitRequest,
+    TaskDescription as HqTaskDescription, TaskIdSelector, TaskSelector, TaskStatusSelector,
+    TaskWithDependencies, ToClientMessage,
 };
 use hyperqueue::{rpc_call, tako, JobTaskCount, Set};
 use pyo3::types::PyTuple;
@@ -76,6 +77,26 @@ pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: JobDescription) -
                 .await
                 .map_py_err()?;
         Ok(response.job.info.id.as_num())
+    })
+}
+
+pub fn forget_job_impl(py: Python, ctx: ClientContextPtr, job_id: PyJobId) -> PyResult<()> {
+    run_future(async move {
+        let message = FromClientMessage::ForgetJob(ForgetJobRequest {
+            selector: IdSelector::Specific(IntArray::from_id(job_id)),
+            filter: vec![Status::Canceled, Status::Failed, Status::Finished],
+        });
+
+        let mut ctx = borrow_mut!(py, ctx);
+        let response =
+            rpc_call!(ctx.session.connection(), message, ToClientMessage::ForgetJobResponse(r) => r)
+                .await
+                .map_py_err()?;
+        if response.forgotten == 1 {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("Cannot forget job {job_id}. It either hasn't been completed yet, or it does not exist").into())
+        }
     })
 }
 

@@ -10,7 +10,7 @@ use tokio::runtime::Builder;
 
 use hyperqueue::transfer::connection::ClientSession;
 
-use crate::client::job::FailedTaskMap;
+use crate::client::job::{forget_job_impl, FailedTaskMap};
 use crate::cluster::Cluster;
 use crate::utils::run_future;
 use client::job::{get_failed_tasks_impl, submit_job_impl, wait_for_jobs_impl, JobDescription};
@@ -47,6 +47,11 @@ fn stop_server(py: Python, ctx: ClientContextPtr) -> PyResult<()> {
 #[pyfunction]
 fn submit_job(py: Python, ctx: ClientContextPtr, job: JobDescription) -> PyResult<PyJobId> {
     submit_job_impl(py, ctx, job)
+}
+
+#[pyfunction]
+fn forget_job(py: Python, ctx: ClientContextPtr, job_id: PyJobId) -> PyResult<()> {
+    forget_job_impl(py, ctx, job_id)
 }
 
 /// Wait until the specified jobs finish.
@@ -115,6 +120,7 @@ fn hyperqueue(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(stop_server, m)?)?;
 
     m.add_function(wrap_pyfunction!(submit_job, m)?)?;
+    m.add_function(wrap_pyfunction!(forget_job, m)?)?;
     m.add_function(wrap_pyfunction!(wait_for_jobs, m)?)?;
     m.add_function(wrap_pyfunction!(get_failed_tasks, m)?)?;
 

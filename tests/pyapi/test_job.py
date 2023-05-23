@@ -8,18 +8,18 @@ import pytest
 from hyperqueue.client import FailedJobsException
 from hyperqueue.ffi.protocol import ResourceRequest
 from hyperqueue.job import Job
-
+from . import bash, prepare_job_client
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
 from ..utils.io import check_file_contents
 from ..utils.table import parse_multiline_cell
-from . import bash, prepare_job_client
+from ..utils.wait import wait_for_job_list_count
 
 
 def test_submit_empty_job(hq_env: HqEnv):
     (job, client) = prepare_job_client(hq_env)
     with pytest.raises(
-        Exception, match="Submitted job must have at least a single task"
+            Exception, match="Submitted job must have at least a single task"
     ):
         client.submit(job)
 
@@ -266,3 +266,26 @@ def test_resource_variants(hq_env: HqEnv):
         "Resources",
         "# Variant 1\ncpus: 2 compact\n# Variant 2\ncpus: 1 compact\ngpus: 2 compact",
     )
+
+
+def test_job_forget(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+
+    job.program(args=bash("hostname"))
+    submitted_job = client.submit(job)
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    client.forget(submitted_job)
+
+    wait_for_job_list_count(hq_env, 0)
+
+
+def test_job_forget_running(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+
+    job.program(args=bash("sleep 100"))
+    submitted_job = client.submit(job)
+    wait_for_job_state(hq_env, 1, "RUNNING")
+
+    with pytest.raises(Exception, match="Cannot forget job 1"):
+        client.forget(submitted_job)

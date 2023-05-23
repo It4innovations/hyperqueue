@@ -52,3 +52,6 @@ class ClientConnection:
             }
             for (job_id, task_data) in jobs.items()
         }
+
+    def forget_job(self, job_id: JobId):
+        return ffi.forget_job(self.ctx, job_id)
