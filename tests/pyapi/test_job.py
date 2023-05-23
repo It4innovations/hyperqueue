@@ -8,18 +8,19 @@ import pytest
 from hyperqueue.client import FailedJobsException
 from hyperqueue.ffi.protocol import ResourceRequest
 from hyperqueue.job import Job
-from . import bash, prepare_job_client
+
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
 from ..utils.io import check_file_contents
 from ..utils.table import parse_multiline_cell
 from ..utils.wait import wait_for_job_list_count
+from . import bash, prepare_job_client
 
 
 def test_submit_empty_job(hq_env: HqEnv):
     (job, client) = prepare_job_client(hq_env)
     with pytest.raises(
-            Exception, match="Submitted job must have at least a single task"
+        Exception, match="Submitted job must have at least a single task"
     ):
         client.submit(job)
 

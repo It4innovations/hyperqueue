@@ -68,11 +68,11 @@ def test_forget_multiple_jobs(hq_env: HqEnv):
 
 
 def forget_jobs(
-        hq_env: HqEnv,
-        selector: str,
-        forgotten: int,
-        statutes: Optional[List[str]] = None,
-        ignored: int = 0,
+    hq_env: HqEnv,
+    selector: str,
+    forgotten: int,
+    statutes: Optional[List[str]] = None,
+    ignored: int = 0,
 ):
     pluralized = "jobs" if forgotten != 1 else "job"
 

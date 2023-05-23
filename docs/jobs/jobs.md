@@ -261,15 +261,15 @@ the `hq job forget` command[^1]:
 $ hq job forget <job-selector>
 ```
 
-By default, only successfully finished jobs will be forgotten. You can use the `--status` parameter to forget jobs in
-other statuses:
+By default, all completed jobs (finished/failed/canceled) will be forgotten. You can use the `--status` parameter to
+only forget jobs in certain statuses:
 
 ```console
 $ hq job forget all --status finished,canceled
 ```
 
-However, only jobs that are completed, i.e. that have finished successfully, failed or have been canceled, can be forgotten.
-If you want to forget a waiting or a running job, [cancel](#cancelling-jobs) it first.
+However, only jobs that are completed, i.e. that have been finished successfully, failed or have been canceled, can be
+forgotten. If you want to forget a waiting or a running job, [cancel](#cancelling-jobs) it first.
 
 ## Waiting for jobs
 There are three ways of waiting until a job completes:

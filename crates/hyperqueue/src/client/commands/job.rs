@@ -50,7 +50,12 @@ pub struct JobForgetOpts {
     /// Forget only jobs with the given states.
     /// You can use multiple states separated by a comma.
     /// You can only filter by states that mark a completed job.
-    #[arg(long, value_delimiter(','), value_enum, default_value("finished"))]
+    #[arg(
+        long,
+        value_delimiter(','),
+        value_enum,
+        default_value("finished,failed,canceled")
+    )]
     pub filter: Vec<CompletedJobStatus>,
 }
 
