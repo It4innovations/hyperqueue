@@ -130,7 +130,7 @@ jobs:
           CARGO_PROFILE_DIST_PANIC: unwind
           CARGO_PROFILE_DIST_STRIP: none
         with:
-          maturin-version: latest
+          maturin-version: 0.13.5
           manylinux: 2014
           command: build
           args: --manifest-path crates/pyhq/Cargo.toml --profile dist --out wheels
