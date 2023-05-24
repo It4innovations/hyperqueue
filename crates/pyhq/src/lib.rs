@@ -89,8 +89,9 @@ impl HqClusterContext {
         self.cluster.server_dir().to_string_lossy().into_owned()
     }
 
-    pub fn stop(&mut self) {
-        self.cluster.stop();
+    pub fn stop(&mut self) -> PyResult<()> {
+        self.cluster.stop()?;
+        Ok(())
     }
 
     pub fn add_worker(&mut self, cores: usize) -> PyResult<()> {

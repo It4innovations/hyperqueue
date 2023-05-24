@@ -38,10 +38,14 @@ impl Cluster {
         Ok(())
     }
 
-    pub fn stop(&mut self) {
-        self.server
-            .take()
-            .expect("Attempting to stop an already stopped server")
-            .stop();
+    pub fn stop(&mut self) -> anyhow::Result<()> {
+        if let Some(server) = self.server.take() {
+            server.stop();
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "Attempting to stop an already stopped server"
+            ))
+        }
     }
 }
