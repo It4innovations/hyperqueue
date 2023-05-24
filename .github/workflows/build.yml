@@ -125,6 +125,11 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v1
+        with:
+          key: pyhq
+      - name: Build HQ
+        run: cargo build
       - uses: messense/maturin-action@v1
         env:
           CARGO_PROFILE_DIST_PANIC: unwind
@@ -134,6 +139,15 @@ jobs:
           manylinux: 2014
           command: build
           args: --manifest-path crates/pyhq/Cargo.toml --profile dist --out wheels
+      - name: Test Python wheel
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+          python3 -m pip install -U setuptools wheel pip
+          python3 -m pip install -r tests/requirements.txt
+          WHEEL=`realpath wheels/*.whl`
+          python3 -m pip install $WHEEL[all]
+          python3 -m pytest tests/pyapi
       - name: Upload test artifacts
         uses: actions/upload-artifact@v2
         with:
