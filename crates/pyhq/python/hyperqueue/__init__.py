@@ -14,3 +14,4 @@ It can be submitted using a client.
 from .client import Client  # noqa: F401
 from .cluster import LocalCluster  # noqa: F401
 from .job import Job  # noqa: F401
+from .ffi import get_version  # noqa: F401

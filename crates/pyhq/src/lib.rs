@@ -15,6 +15,7 @@ use crate::cluster::Cluster;
 use crate::utils::run_future;
 use client::job::{get_failed_tasks_impl, submit_job_impl, wait_for_jobs_impl, JobDescription};
 use client::server::{connect_to_server_impl, stop_server_impl};
+use hyperqueue::HQ_VERSION;
 
 mod client;
 pub mod cluster;
@@ -33,6 +34,11 @@ type ClientContextPtr = Py<HqClientContext>;
 
 type PyJobId = u32;
 type PyTaskId = u32;
+
+#[pyfunction]
+fn get_hq_version() -> String {
+    HQ_VERSION.to_string()
+}
 
 #[pyfunction]
 fn connect_to_server(py: Python, directory: Option<String>) -> PyResult<ClientContextPtr> {
@@ -113,6 +119,9 @@ fn hyperqueue(_py: Python, m: &PyModule) -> PyResult<()> {
     let mut builder = Builder::new_current_thread();
     builder.enable_all();
     pyo3_asyncio::tokio::init(builder);
+
+    // Common
+    m.add_function(wrap_pyfunction!(get_hq_version, m)?)?;
 
     // Client
     m.add_class::<HqClientContext>()?;
