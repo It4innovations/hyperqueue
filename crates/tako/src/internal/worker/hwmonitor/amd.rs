@@ -16,7 +16,7 @@ pub fn get_amd_gpu_state() -> crate::Result<GpuCollectionStats> {
     command.args(["--json", "--showuse", "--showbus", "--showmemuse"]);
     let output = command
         .output()
-        .map_err::<DsError, _>(|error| format!("Cannot execute nvidia-smi: {error:?}").into())?;
+        .map_err::<DsError, _>(|error| format!("Cannot execute rocm-smi: {error:?}").into())?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
