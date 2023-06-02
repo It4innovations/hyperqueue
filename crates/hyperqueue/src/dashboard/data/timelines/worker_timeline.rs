@@ -15,6 +15,11 @@ pub struct WorkerDisconnectInfo {
     pub time: Time,
 }
 
+pub enum WorkerStatus {
+    Connected,
+    Disconnected(WorkerDisconnectInfo),
+}
+
 pub struct WorkerRecord {
     id: WorkerId,
     connection_time: SystemTime,
@@ -71,37 +76,45 @@ impl WorkerTimeline {
         }
     }
 
-    pub fn get_worker_ids(&self) -> impl Iterator<Item = WorkerId> + '_ {
-        self.workers.values().map(|worker| worker.id)
-    }
-
     pub fn get_worker_config_for(&self, worker_id: WorkerId) -> Option<&WorkerConfiguration> {
         self.workers.get(&worker_id).map(|w| &w.worker_config)
-    }
-
-    pub fn get_worker_disconnect_info(&self, worker_id: WorkerId) -> Option<WorkerDisconnectInfo> {
-        self.workers
-            .get(&worker_id)
-            .and_then(|w| w.disconnect_info.clone())
     }
 
     pub fn get_connected_worker_ids_at(
         &self,
         time: SystemTime,
     ) -> impl Iterator<Item = WorkerId> + '_ {
-        self.workers
-            .iter()
-            .filter(move |(_, worker)| {
-                let has_started = worker.connection_time <= time;
-                let has_finished = match worker.disconnect_info {
-                    Some(WorkerDisconnectInfo {
-                        time: lost_time, ..
-                    }) => lost_time <= time,
-                    None => false,
-                };
-                has_started && !has_finished
+        self.get_known_worker_ids_at(time)
+            .filter_map(|(id, status)| match status {
+                WorkerStatus::Connected => Some(id),
+                WorkerStatus::Disconnected(_) => None,
             })
-            .map(|(worker_id, _)| *worker_id)
+    }
+
+    pub fn get_known_worker_ids_at(
+        &self,
+        time: SystemTime,
+    ) -> impl Iterator<Item = (WorkerId, WorkerStatus)> + '_ {
+        self.workers.iter().filter_map(move |(worker_id, worker)| {
+            let has_started = worker.connection_time <= time;
+            let disconnect_info = worker.disconnect_info.as_ref().and_then(|info| {
+                if info.time <= time {
+                    Some(info.clone())
+                } else {
+                    None
+                }
+            });
+            let status = if has_started {
+                if let Some(disconnect_info) = disconnect_info {
+                    WorkerStatus::Disconnected(disconnect_info)
+                } else {
+                    WorkerStatus::Connected
+                }
+            } else {
+                return None;
+            };
+            Some((*worker_id, status))
+        })
     }
 
     pub fn get_worker_overview_at(

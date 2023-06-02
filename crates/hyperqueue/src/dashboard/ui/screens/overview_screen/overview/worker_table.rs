@@ -3,9 +3,9 @@ use tui::style::{Color, Style};
 use tui::widgets::{Cell, Row};
 
 use tako::gateway::LostWorkerReason;
-use tako::{Set, WorkerId};
+use tako::WorkerId;
 
-use crate::dashboard::data::timelines::worker_timeline::WorkerDisconnectInfo;
+use crate::dashboard::data::timelines::worker_timeline::{WorkerDisconnectInfo, WorkerStatus};
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::styles::table_style_selected;
 use crate::dashboard::ui::terminal::DashboardFrame;
@@ -40,39 +40,33 @@ struct WorkerRow {
 impl WorkerTable {
     pub fn update(&mut self, data: &DashboardData) {
         let current_time = data.current_time();
-        let connected_workers: Set<WorkerId> = data
-            .workers()
-            .get_connected_worker_ids_at(current_time)
-            .collect();
 
         let mut rows: Vec<WorkerRow> = data
             .workers()
-            .get_worker_ids()
+            .get_known_worker_ids_at(current_time)
             .into_iter()
-            .map(|worker_id| {
+            .map(|(worker_id, status)| {
                 let config = data.workers().get_worker_config_for(worker_id);
                 let hostname = config.map(|config| config.hostname.clone());
 
-                let is_connected = connected_workers.contains(&worker_id);
-                let state = if !is_connected {
-                    let disconnected = data.workers().get_worker_disconnect_info(worker_id);
-                    WorkerState::Disconnected {
-                        info: disconnected.unwrap(),
-                    }
-                } else {
-                    let overview = data
-                        .workers()
-                        .get_worker_overview_at(worker_id, current_time)
-                        .map(|item| &item.item);
-                    let hw_state = overview.and_then(|o| o.hw_state.as_ref());
-                    let average_cpu_usage = hw_state.map(get_average_cpu_usage_for_worker);
-                    let memory_usage =
-                        hw_state.map(|s| get_memory_usage_pct(&s.state.memory_usage));
-                    let running_tasks = overview.map(|o| o.running_tasks.len() as u32).unwrap_or(0);
-                    WorkerState::Connected {
-                        num_tasks: running_tasks,
-                        average_cpu_usage,
-                        memory_usage,
+                let state = match status {
+                    WorkerStatus::Disconnected(info) => WorkerState::Disconnected { info },
+                    WorkerStatus::Connected => {
+                        let overview = data
+                            .workers()
+                            .get_worker_overview_at(worker_id, current_time)
+                            .map(|item| &item.item);
+                        let hw_state = overview.and_then(|o| o.hw_state.as_ref());
+                        let average_cpu_usage = hw_state.map(get_average_cpu_usage_for_worker);
+                        let memory_usage =
+                            hw_state.map(|s| get_memory_usage_pct(&s.state.memory_usage));
+                        let running_tasks =
+                            overview.map(|o| o.running_tasks.len() as u32).unwrap_or(0);
+                        WorkerState::Connected {
+                            num_tasks: running_tasks,
+                            average_cpu_usage,
+                            memory_usage,
+                        }
                     }
                 };
 
