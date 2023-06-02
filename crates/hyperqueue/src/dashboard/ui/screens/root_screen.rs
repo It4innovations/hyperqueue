@@ -6,12 +6,16 @@ use crate::dashboard::ui::screens::overview_screen::WorkerOverviewScreen;
 use crate::dashboard::ui::terminal::{Backend, DashboardFrame, DashboardTerminal};
 use chrono::Local;
 use std::ops::ControlFlow;
+use std::time::Duration;
 use termion::event::Key;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
-use tui::text::{Span, Spans};
+use tui::text::{Span, Spans, Text};
 use tui::widgets::{Block, Borders, Paragraph, Tabs, Wrap};
 use tui::Frame;
+
+const KEY_TIMELINE_SOONER: char = 'o';
+const KEY_TIMELINE_LATER: char = 'p';
 
 #[derive(Default)]
 pub struct RootScreen {
@@ -52,7 +56,11 @@ impl RootScreen {
             .expect("An error occurred while drawing the dashboard");
     }
 
-    pub fn handle_key(&mut self, input: Key) -> ControlFlow<anyhow::Result<()>> {
+    pub fn handle_key(
+        &mut self,
+        input: Key,
+        data: &mut DashboardData,
+    ) -> ControlFlow<anyhow::Result<()>> {
         if input == Key::Char('q') {
             return ControlFlow::Break(Ok(()));
         }
@@ -66,6 +74,14 @@ impl RootScreen {
             Key::Char('w') => {
                 self.current_screen = SelectedScreen::WorkerOverview;
             }
+            Key::Char(c) if c == KEY_TIMELINE_SOONER => data.set_time_range(
+                data.current_time_range()
+                    .sooner(Duration::from_secs(60 * 5)),
+            ),
+            Key::Char(c) if c == KEY_TIMELINE_LATER => {
+                data.set_time_range(data.current_time_range().later(Duration::from_secs(60 * 5)))
+            }
+            Key::Char('r') => data.set_live_time_mode(),
 
             _ => {
                 self.get_current_screen_mut().handle_key(input);
@@ -85,7 +101,7 @@ impl RootScreen {
 
 pub fn get_root_screen_chunks(frame: &DashboardFrame) -> RootChunks {
     let root_screen_chunks = Layout::default()
-        .constraints(vec![Constraint::Length(3), Constraint::Percentage(100)])
+        .constraints(vec![Constraint::Length(4), Constraint::Percentage(100)])
         .direction(Direction::Vertical)
         .split(frame.size());
 
@@ -139,6 +155,11 @@ pub fn render_screen_tabs(current_screen: SelectedScreen, rect: Rect, frame: &mu
 }
 
 fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame<Backend>) {
+    let chunks = Layout::default()
+        .constraints(vec![Constraint::Length(1), Constraint::Percentage(100)])
+        .direction(Direction::Vertical)
+        .split(rect);
+
     let range = data.current_time_range();
     let start: chrono::DateTime<Local> = range.start.into();
     let end: chrono::DateTime<Local> = range.end.into();
@@ -146,10 +167,22 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame<Backend>)
     const FORMAT: &str = "%d.%m. %H:%M:%S";
 
     let formatted = format!("{} - {}", start.format(FORMAT), end.format(FORMAT));
-    let paragraph = Paragraph::new(vec![Spans::from(formatted)])
+    let range_paragraph = Paragraph::new(vec![Spans::from(formatted)])
         .style(Style::default())
         .block(Block::default())
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true });
-    frame.render_widget(paragraph, rect);
+
+    frame.render_widget(range_paragraph, chunks[0]);
+
+    let mut shortcuts = format!(
+        r#"<{KEY_TIMELINE_SOONER}> -5 minutes
+<{KEY_TIMELINE_LATER}> +5 minutes"#
+    );
+    if !data.is_live_time_mode() {
+        shortcuts.push_str("\n<r> live view");
+    }
+
+    let shortcuts_paragraph = Paragraph::new(Text::from(shortcuts)).wrap(Wrap { trim: true });
+    frame.render_widget(shortcuts_paragraph, chunks[1]);
 }

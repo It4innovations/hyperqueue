@@ -88,6 +88,18 @@ impl DashboardData {
             .get_allocations_for_queue(queue_id, time)
     }
 
+    pub fn set_time_range(&mut self, range: TimeRange) {
+        self.time_mode = TimeMode::Fixed(range);
+    }
+
+    pub fn set_live_time_mode(&mut self) {
+        self.time_mode = TimeMode::Live(DEFAULT_LIVE_DURATION);
+    }
+
+    pub fn is_live_time_mode(&self) -> bool {
+        matches!(self.time_mode, TimeMode::Live(_))
+    }
+
     pub fn current_time(&self) -> Time {
         self.time_mode.get_current_time()
     }
