@@ -1,4 +1,6 @@
+use crate::common::format::human_size;
 use std::cmp;
+use tako::hwstats::MemoryStats;
 use tui::layout::{Constraint, Rect};
 use tui::style::Style;
 use tui::widgets::{Cell, Row, Table};
@@ -16,6 +18,7 @@ const CPU_METER_WIDTH: u8 = CPU_METER_PROGRESSBAR_WIDTH + 4;
 
 pub fn render_cpu_util_table(
     cpu_util_list: &[f64],
+    mem_util: &MemoryStats,
     rect: Rect,
     frame: &mut DashboardFrame,
     constraints: &[Constraint],
@@ -57,10 +60,15 @@ pub fn render_cpu_util_table(
         CPU_METER_PROGRESSBAR_WIDTH,
         ProgressPrintStyle::default(),
     );
+
+    let mem_used = mem_util.total - mem_util.free;
     let title = styles::table_title(format!(
-        "Worker CPU Utilization ({} CPUs), Avg = {}",
+        "Worker Utilization ({} CPUs), Avg CPU = {}, Mem = {:.0}% ({}/{})",
         cpu_util_list.len(),
-        avg_progressbar
+        avg_progressbar,
+        (mem_used as f64 / mem_util.total as f64) * 100.0,
+        human_size(mem_used),
+        human_size(mem_util.total)
     ));
     let body_block = styles::table_block_with_title(title);
 
