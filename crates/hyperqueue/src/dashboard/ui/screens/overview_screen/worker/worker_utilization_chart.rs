@@ -98,7 +98,7 @@ impl WorkerUtilizationChart {
             .block(
                 Block::default()
                     .title(Span::styled(
-                        "Utilization history",
+                        "Utilization History",
                         Style::default()
                             .fg(Color::White)
                             .add_modifier(Modifier::BOLD),

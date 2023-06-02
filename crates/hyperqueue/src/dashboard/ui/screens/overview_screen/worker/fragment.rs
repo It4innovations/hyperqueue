@@ -15,6 +15,7 @@ use crate::dashboard::ui::screens::overview_screen::worker::worker_config_table:
 use crate::dashboard::ui::screens::overview_screen::worker::worker_utilization_chart::WorkerUtilizationChart;
 use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 use crate::JobTaskId;
+use tako::hwstats::MemoryStats;
 use tako::WorkerId;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
@@ -27,6 +28,7 @@ pub struct WorkerOverviewFragment {
     worker_tasks_table: TasksTable,
 
     worker_per_core_cpu_util: Vec<f64>,
+    worker_mem_util: MemoryStats,
 }
 
 impl WorkerOverviewFragment {
@@ -60,6 +62,7 @@ impl WorkerOverviewFragment {
         );
         render_cpu_util_table(
             &self.worker_per_core_cpu_util,
+            &self.worker_mem_util,
             layout.current_utilization,
             frame,
             &cpu_usage_columns,
@@ -82,13 +85,19 @@ impl WorkerOverviewFragment {
         if let Some(worker_id) = self.worker_id {
             self.utilization_history.update(data, worker_id);
 
-            if let Some(cpu_util) = data
+            if let Some((cpu_util, mem_util)) = data
                 .workers()
                 .get_worker_overview_at(worker_id, data.current_time())
                 .and_then(|overview| overview.item.hw_state.as_ref())
-                .map(|hw_state| &hw_state.state.cpu_usage.cpu_per_core_percent_usage)
+                .map(|hw_state| {
+                    (
+                        &hw_state.state.cpu_usage.cpu_per_core_percent_usage,
+                        &hw_state.state.memory_usage,
+                    )
+                })
             {
                 self.worker_per_core_cpu_util = cpu_util.into_iter().map(|&v| v as f64).collect();
+                self.worker_mem_util = mem_util.clone();
             }
 
             let tasks_info: Vec<(JobTaskId, &TaskInfo)> =
