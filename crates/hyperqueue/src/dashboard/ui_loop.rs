@@ -43,7 +43,9 @@ pub async fn start_ui_loop(gsettings: &GlobalSettings) -> anyhow::Result<()> {
         while let Some(dashboard_event) = rx.recv().await {
             match dashboard_event {
                 DashboardEvent::KeyPressEvent(input) => {
-                    if let ControlFlow::Break(res) = root_screen.handle_key(input) {
+                    if let ControlFlow::Break(res) =
+                        root_screen.handle_key(input, &mut dashboard_data)
+                    {
                         return res;
                     }
                 }

@@ -1,5 +1,5 @@
 use crate::dashboard::data::Time;
-use std::ops::Sub;
+use std::ops::{Add, Sub};
 use std::time::{Duration, SystemTime};
 
 #[derive(Copy, Clone, Debug)]
@@ -12,6 +12,14 @@ impl TimeRange {
     pub fn new(start: Time, end: Time) -> Self {
         assert!(start <= end);
         Self { start, end }
+    }
+
+    pub fn sooner(&self, duration: Duration) -> Self {
+        TimeRange::new(self.start.sub(duration), self.end.sub(duration))
+    }
+
+    pub fn later(&self, duration: Duration) -> Self {
+        TimeRange::new(self.start.add(duration), self.end.add(duration))
     }
 }
 
