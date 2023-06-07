@@ -14,7 +14,7 @@ use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 use crate::common::error::error;
-use crate::common::serverdir::AccessRecord;
+use crate::common::serverdir::FullAccessRecord;
 use crate::common::utils::network::get_hostname;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use crate::transfer::protocol::make_protocol_builder;
@@ -115,10 +115,10 @@ pub struct ClientSession {
 
 /// Client -> server connection
 impl ClientSession {
-    pub async fn connect_to_server(record: &AccessRecord) -> crate::Result<ClientSession> {
+    pub async fn connect_to_server(record: &FullAccessRecord) -> crate::Result<ClientSession> {
         let connection = try_connect_to_server(record).await?;
 
-        let key = record.hq_secret_key().clone();
+        let key = record.client_key().clone();
         Ok(ClientSession {
             connection: HqConnection::init(connection, false, key).await?,
             server_uid: record.server_uid().to_string(),
@@ -134,15 +134,15 @@ impl ClientSession {
     }
 }
 
-async fn try_connect_to_server(record: &AccessRecord) -> crate::Result<TcpStream> {
-    let address = format!("{}:{}", record.host(), record.server_port());
+async fn try_connect_to_server(record: &FullAccessRecord) -> crate::Result<TcpStream> {
+    let address = format!("{}:{}", record.client_host(), record.client_port());
     match TcpStream::connect(&address).await {
         Ok(conn) => Ok(conn),
         // 113 = EHOSTUNREACH on Linux. Replace with ErrorKind::HostUnreachable once it's stabilized
         Err(error) if matches!(error.raw_os_error(), Some(113)) => {
             let hostname = get_hostname(None);
-            if hostname == record.host() {
-                let localhost_address = format!("localhost:{}", record.server_port());
+            if hostname == record.client_host() {
+                let localhost_address = format!("localhost:{}", record.client_port());
                 log::debug!(
                     "Could not reach {address}. It's host matches the local hostname, retrying\
 with `{localhost_address}`.",

@@ -10,7 +10,7 @@ use crate::client::status::{get_task_status, job_status, Status};
 use crate::common::env::is_hq_env;
 use crate::common::format::{human_duration, human_size};
 use crate::common::manager::info::GetManagerInfo;
-use crate::common::serverdir::AccessRecord;
+use crate::common::serverdir::FullAccessRecord;
 use crate::server::autoalloc::{Allocation, AllocationState};
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
@@ -354,25 +354,23 @@ impl Output for CliOutput {
         self.print_vertical_table(rows);
     }
 
-    fn print_server_record(&self, server_dir: &Path, record: &AccessRecord) {
+    fn print_server_description(&self, server_dir: &Path, record: &FullAccessRecord) {
         let rows = vec![
             vec![
                 "Server directory".cell().bold(true),
                 server_dir.display().cell(),
             ],
             vec!["Server UID".cell().bold(true), record.server_uid().cell()],
-            vec!["Host".cell().bold(true), record.host().cell()],
-            vec!["Pid".cell().bold(true), record.pid().cell()],
-            vec!["HQ port".cell().bold(true), record.server_port().cell()],
-            vec![
-                "Workers port".cell().bold(true),
-                record.worker_port().cell(),
-            ],
-            vec![
-                "Start date".cell().bold(true),
-                record.start_date().format("%F %T %Z").cell(),
-            ],
+            vec!["Client host".cell().bold(true), record.client_host().cell()],
+            vec!["Client port".cell().bold(true), record.client_port().cell()],
+            vec!["Worker host".cell().bold(true), record.worker_host().cell()],
+            vec!["Worker port".cell().bold(true), record.worker_port().cell()],
             vec!["Version".cell().bold(true), record.version().cell()],
+            // vec!["Pid".cell().bold(true), record.pid().cell()],
+            // vec![
+            //     "Start date".cell().bold(true),
+            //     record.start_date().format("%F %T %Z").cell(),
+            // ],
         ];
         self.print_vertical_table(rows);
     }

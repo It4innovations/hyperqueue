@@ -38,7 +38,7 @@ impl ServerDir {
         })
     }
 
-    pub fn create(directory: &Path, record: &AccessRecord) -> crate::Result<ServerDir> {
+    pub fn create(directory: &Path, record: &FullAccessRecord) -> crate::Result<ServerDir> {
         let dir_path = create_new_server_dir(directory)?;
 
         let server_dir = ServerDir::open(&dir_path)?;
@@ -62,7 +62,7 @@ impl ServerDir {
         self.path(ACCESS_FILE)
     }
 
-    pub fn read_access_record(&self) -> crate::Result<AccessRecord> {
+    pub fn read_access_record(&self) -> crate::Result<FullAccessRecord> {
         let record = load_access_file(self.access_filename())?;
         if record.version != HQ_VERSION {
             return error(format!(
@@ -134,13 +134,23 @@ fn create_new_server_dir(directory: &Path) -> crate::Result<PathBuf> {
     Ok(dir_path)
 }
 
+/*
+pub struct ServerDescription {
+    pub record: FullAccessRecord,
+
+    /// Server process pid
+    pub pid: u32,
+
+    pub start_date: DateTime<Utc>,
+}*/
+
 /// This data structure represents information required to connect to a running instance of
 /// HyperQueue.
 ///
 /// It is stored on disk during `hq start` and loaded by both client operations (stats, submit) and
 /// HyperQueue workers in order to connect to the server instance.
 #[derive(Serialize, Deserialize, Eq, PartialEq)]
-pub struct AccessRecord {
+pub struct FullAccessRecord {
     /// Version of HQ
     version: String,
 
@@ -148,80 +158,77 @@ pub struct AccessRecord {
     #[serde(default)]
     server_uid: String,
 
+    client: ConnectAccessRecordPart,
+
+    worker: ConnectAccessRecordPart,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq)]
+pub struct ConnectAccessRecordPart {
     /// Hostname or IP address of the HyperQueue server
     host: String,
 
-    /// Server process pid
-    pid: u32,
-
-    /// Port that you can connect to as a HyperQueue client
-    server_port: u16,
-
-    /// Port that you can connect to as a Tako worker
-    worker_port: u16,
-
-    start_date: DateTime<Utc>,
+    port: u16,
 
     #[serde(serialize_with = "serde_serialize_key")]
     #[serde(deserialize_with = "serde_deserialize_key")]
-    hq_secret_key: Arc<SecretKey>,
-
-    #[serde(serialize_with = "serde_serialize_key")]
-    #[serde(deserialize_with = "serde_deserialize_key")]
-    tako_secret_key: Arc<SecretKey>,
+    secret_key: Arc<SecretKey>,
 }
 
-impl AccessRecord {
+impl FullAccessRecord {
     pub fn new(
         host: String,
         server_uid: String,
-        server_port: u16,
+        client_port: u16,
         worker_port: u16,
-        hq_secret_key: Arc<SecretKey>,
-        tako_secret_key: Arc<SecretKey>,
+        client_key: Arc<SecretKey>,
+        worker_key: Arc<SecretKey>,
     ) -> Self {
         Self {
             version: HQ_VERSION.to_string(),
-            host,
             server_uid,
-            server_port,
-            worker_port,
-            start_date: Utc::now(),
-            hq_secret_key,
-            tako_secret_key,
-            pid: std::process::id(),
+            client: ConnectAccessRecordPart {
+                host: host.clone(), // TOOD: Allow separate host for client
+                port: client_port,
+                secret_key: client_key,
+            },
+            worker: ConnectAccessRecordPart {
+                host,
+                port: worker_port,
+                secret_key: worker_key,
+            },
         }
     }
     pub fn version(&self) -> &str {
         &self.version
     }
-    pub fn host(&self) -> &str {
-        &self.host
+    pub fn worker_host(&self) -> &str {
+        &self.worker.host
     }
-    pub fn pid(&self) -> u32 {
-        self.pid
+    pub fn client_host(&self) -> &str {
+        &self.client.host
     }
     pub fn server_uid(&self) -> &str {
         &self.server_uid
     }
-    pub fn server_port(&self) -> u16 {
-        self.server_port
+    pub fn client_port(&self) -> u16 {
+        self.client.port
     }
     pub fn worker_port(&self) -> u16 {
-        self.worker_port
+        self.worker.port
     }
-    pub fn start_date(&self) -> &DateTime<Utc> {
-        &self.start_date
+    pub fn client_key(&self) -> &Arc<SecretKey> {
+        &self.client.secret_key
     }
-    pub fn hq_secret_key(&self) -> &Arc<SecretKey> {
-        &self.hq_secret_key
-    }
-    pub fn tako_secret_key(&self) -> &Arc<SecretKey> {
-        &self.tako_secret_key
+    pub fn worker_key(&self) -> &Arc<SecretKey> {
+        &self.worker.secret_key
     }
 }
 
-pub fn store_access_record<P: AsRef<Path>>(record: &AccessRecord, path: P) -> crate::Result<()> {
+pub fn store_access_record<P: AsRef<Path>>(
+    record: &FullAccessRecord,
+    path: P,
+) -> crate::Result<()> {
     let mut options = OpenOptions::new();
     options.write(true).create_new(true).mode(0o400); // Read for user, nothing for others
 
@@ -231,7 +238,7 @@ pub fn store_access_record<P: AsRef<Path>>(record: &AccessRecord, path: P) -> cr
     Ok(())
 }
 
-pub fn load_access_file<P: AsRef<Path>>(path: P) -> crate::Result<AccessRecord> {
+pub fn load_access_file<P: AsRef<Path>>(path: P) -> crate::Result<FullAccessRecord> {
     let file = File::open(path)?;
     Ok(serde_json::from_reader(file)?)
 }
@@ -243,12 +250,12 @@ mod tests {
     use tempdir::TempDir;
 
     use crate::common::serverdir::{
-        create_new_server_dir, load_access_file, store_access_record, AccessRecord,
+        create_new_server_dir, load_access_file, store_access_record, FullAccessRecord,
     };
 
     #[test]
     fn test_roundtrip() {
-        let record = AccessRecord::new(
+        let record = FullAccessRecord::new(
             "foo".into(),
             "testHQ".into(),
             42,

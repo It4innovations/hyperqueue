@@ -97,7 +97,7 @@ pub async fn initialize_worker(
             server_dir.access_filename()
         )
     })?;
-    let server_address = format!("{}:{}", record.host(), record.worker_port());
+    let server_address = format!("{}:{}", record.worker_host(), record.worker_port());
     log::info!("Connecting to: {}", server_address);
 
     std::fs::create_dir_all(&configuration.work_dir)?;
@@ -110,14 +110,14 @@ pub async fn initialize_worker(
     log::debug!("Resolved server to addresses {server_addresses:?}");
 
     log::debug!("Starting streamer ...");
-    let streamer_ref = StreamerRef::start(&server_addresses, record.tako_secret_key().clone());
+    let streamer_ref = StreamerRef::start(&server_addresses, record.worker_key().clone());
 
     log::debug!("Starting Tako worker ...");
     let stop_flag = Arc::new(Notify::new());
     let ((worker_id, configuration), worker_future) = run_worker(
         &server_addresses,
         configuration,
-        Some(record.tako_secret_key().clone()),
+        Some(record.worker_key().clone()),
         Box::new(HqTaskLauncher::new(record.server_uid(), streamer_ref)),
         stop_flag.clone(),
     )

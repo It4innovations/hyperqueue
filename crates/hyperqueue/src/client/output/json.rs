@@ -18,7 +18,7 @@ use crate::client::output::common::{group_jobs_by_status, resolve_task_paths, Ta
 use crate::client::output::outputs::{Output, OutputStream};
 use crate::client::output::Verbosity;
 use crate::common::manager::info::{GetManagerInfo, ManagerType};
-use crate::common::serverdir::AccessRecord;
+use crate::common::serverdir::FullAccessRecord;
 use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
 use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
@@ -49,15 +49,16 @@ impl Output for JsonOutput {
         self.print(format_worker_info(worker_info));
     }
 
-    fn print_server_record(&self, server_dir: &Path, record: &AccessRecord) {
+    fn print_server_description(&self, server_dir: &Path, record: &FullAccessRecord) {
         let json = json!({
             "server_dir": server_dir,
             "server_uid": record.server_uid(),
-            "host": record.host(),
-            "pid": record.pid(),
-            "hq_port": record.server_port(),
+            "worker_host": record.worker_host(),
+            "client_host": record.client_host(),
+            "client_port": record.client_port(),
             "worker_port": record.worker_port(),
-            "start_date": record.start_date(),
+            // "pid": record.pid(),
+            // "start_date": record.start_date(),
             "version": record.version(),
         });
         self.print(json);
