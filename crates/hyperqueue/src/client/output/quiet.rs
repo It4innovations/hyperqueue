@@ -13,7 +13,7 @@ use crate::client::output::common::{
 };
 use crate::client::output::outputs::{Output, OutputStream};
 use crate::client::status::{job_status, Status};
-use crate::common::serverdir::AccessRecord;
+use crate::common::serverdir::FullAccessRecord;
 use crate::server::autoalloc::Allocation;
 use crate::server::job::JobTaskInfo;
 use crate::stream::reader::logfile::Summary;
@@ -59,7 +59,7 @@ impl Output for Quiet {
     fn print_worker_info(&self, _worker_info: WorkerInfo) {}
 
     // Server
-    fn print_server_record(&self, server_dir: &Path, _record: &AccessRecord) {
+    fn print_server_description(&self, server_dir: &Path, _record: &FullAccessRecord) {
         println!("{}", server_dir.to_str().unwrap())
     }
     fn print_server_stats(&self, _stats: StatsResponse) {}

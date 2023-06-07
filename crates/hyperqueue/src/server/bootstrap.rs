@@ -10,7 +10,9 @@ use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::common::serverdir::{default_server_directory, AccessRecord, ServerDir, SYMLINK_PATH};
+use crate::common::serverdir::{
+    default_server_directory, FullAccessRecord, ServerDir, SYMLINK_PATH,
+};
 use crate::server::autoalloc::create_autoalloc_service;
 use crate::server::event::log::start_event_streaming;
 use crate::server::event::log::EventLogWriter;
@@ -24,8 +26,8 @@ use rand::Rng;
 use std::time::Duration;
 
 enum ServerStatus {
-    Offline(AccessRecord),
-    Online(AccessRecord),
+    Offline(FullAccessRecord),
+    Online(FullAccessRecord),
 }
 
 pub struct ServerConfig {
@@ -86,8 +88,8 @@ pub async fn get_client_session(server_directory: &Path) -> anyhow::Result<Clien
             format!(
                 "Access token found but HQ server {}:{} is unreachable.\n\
                 Try to (re)start the server using `hq server start{}`",
-                access_record.host(),
-                access_record.server_port(),
+                access_record.client_host(),
+                access_record.client_port(),
                 server_dir_msg,
             )
         })?;
@@ -127,8 +129,8 @@ pub async fn initialize_server(
     .with_context(|| "Cannot create HQ server socket".to_string())?;
     let server_port = client_listener.local_addr()?.port();
 
-    let hq_secret_key = Arc::new(generate_key());
-    let tako_secret_key = Arc::new(generate_key());
+    let client_key = Arc::new(generate_key());
+    let worker_key = Arc::new(generate_key());
     let server_uid = generate_server_uid();
 
     let (event_storage, event_stream_fut) = prepare_event_management(&server_cfg).await?;
@@ -139,25 +141,26 @@ pub async fn initialize_server(
 
     let (tako_server, tako_future) = Backend::start(
         state_ref.clone(),
-        tako_secret_key.clone(),
+        worker_key.clone(),
         server_cfg.idle_timeout,
         server_cfg.worker_port,
     )
     .await?;
 
-    let record = AccessRecord::new(
+    let record = FullAccessRecord::new(
         server_cfg.host,
         server_uid,
         server_port,
         tako_server.worker_port(),
-        hq_secret_key.clone(),
-        tako_secret_key.clone(),
+        client_key.clone(),
+        worker_key.clone(),
     );
 
     let server_dir = ServerDir::create(server_directory, &record)?;
+
     gsettings
         .printer()
-        .print_server_record(server_directory, &record);
+        .print_server_description(server_directory, &record);
 
     let end_flag = Arc::new(Notify::new());
     let end_flag_check = end_flag.clone();
@@ -175,7 +178,7 @@ pub async fn initialize_server(
         log::info!("Stopping server");
     };
 
-    let key = hq_secret_key;
+    let key = client_key;
     let fut = async move {
         tokio::pin! {
             let autoalloc_process = autoalloc_process;
@@ -256,7 +259,7 @@ pub async fn print_server_info(gsettings: &GlobalSettings) -> anyhow::Result<()>
         Err(_) | Ok(ServerStatus::Offline(_)) => anyhow::bail!("No online server found"),
         Ok(ServerStatus::Online(record)) => gsettings
             .printer()
-            .print_server_record(gsettings.server_directory(), &record),
+            .print_server_description(gsettings.server_directory(), &record),
     }
     Ok(())
 }
@@ -266,7 +269,9 @@ mod tests {
     use tempdir::TempDir;
     use tokio::sync::Notify;
 
-    use crate::common::serverdir::{store_access_record, AccessRecord, ServerDir, SYMLINK_PATH};
+    use crate::common::serverdir::{
+        store_access_record, FullAccessRecord, ServerDir, SYMLINK_PATH,
+    };
     use crate::server::bootstrap::{
         get_client_session, get_server_status, initialize_server, ServerConfig,
     };
@@ -311,7 +316,7 @@ mod tests {
         let tmp_dir = TempDir::new("foo").unwrap();
         let tmp_path = tmp_dir.into_path();
         let server_dir = ServerDir::open(&tmp_path).unwrap();
-        let record = AccessRecord::new(
+        let record = FullAccessRecord::new(
             "foo".into(),
             "testHQ".into(),
             42,
@@ -333,7 +338,7 @@ mod tests {
         std::os::unix::fs::symlink(&actual_dir, tmp_dir.join(SYMLINK_PATH)).unwrap();
 
         let server_dir = ServerDir::open(&actual_dir).unwrap();
-        let record = AccessRecord::new(
+        let record = FullAccessRecord::new(
             "foo".into(),
             "testHQ".into(),
             42,

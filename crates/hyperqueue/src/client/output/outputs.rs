@@ -1,4 +1,4 @@
-use crate::common::serverdir::AccessRecord;
+use crate::common::serverdir::FullAccessRecord;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, StatsResponse, WaitForJobsResponse, WorkerInfo,
 };
@@ -38,7 +38,7 @@ pub trait Output {
     fn print_worker_info(&self, worker_info: WorkerInfo);
 
     // Server
-    fn print_server_record(&self, server_dir: &Path, record: &AccessRecord);
+    fn print_server_description(&self, server_dir: &Path, record: &FullAccessRecord);
     fn print_server_stats(&self, stats: StatsResponse);
 
     // Jobs
