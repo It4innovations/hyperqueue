@@ -47,7 +47,7 @@ pub async fn wait_for_jobs(
                         status_selector: TaskStatusSelector::Specific(vec![Status::Failed]),
                     })
                 }),
-                ToClientMessage::JobDetailResponse(r) => r
+                ToClientMessage::JobDetailResponse(r) => r.details
             )
             .await?
         }

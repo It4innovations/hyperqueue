@@ -230,12 +230,18 @@ pub struct WaitForJobsRequest {
     pub selector: IdSelector,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct JobDetailResponse {
+    pub details: Vec<(JobId, Option<JobDetail>)>,
+    pub server_uid: String,
+}
+
 // Messages server -> client
 #[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ToClientMessage {
     JobInfoResponse(JobInfoResponse),
-    JobDetailResponse(Vec<(JobId, Option<JobDetail>)>),
+    JobDetailResponse(JobDetailResponse),
     SubmitResponse(SubmitResponse),
     WorkerListResponse(WorkerListResponse),
     WorkerInfoResponse(Option<WorkerInfo>),
@@ -287,6 +293,7 @@ pub struct StatsResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitResponse {
     pub job: JobDetail,
+    pub server_uid: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

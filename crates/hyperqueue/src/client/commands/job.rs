@@ -167,14 +167,14 @@ pub async fn output_job_detail(
             status_selector: TaskStatusSelector::All,
         }),
     });
-    let responses =
+    let response =
         rpc_call!(session.connection(), message, ToClientMessage::JobDetailResponse(r) => r)
             .await?;
 
     let worker_map = get_worker_map(session).await?;
-    let server_uid = session.server_uid();
 
-    let jobs: Vec<JobDetail> = responses
+    let jobs: Vec<JobDetail> = response
+        .details
         .into_iter()
         .filter_map(|(id, job)| match job {
             Some(job) => Some(job),
@@ -186,7 +186,7 @@ pub async fn output_job_detail(
         .collect();
     gsettings
         .printer()
-        .print_job_detail(jobs, worker_map, server_uid);
+        .print_job_detail(jobs, worker_map, &response.server_uid);
     Ok(())
 }
 
@@ -202,15 +202,15 @@ pub async fn output_job_cat(
         job_id_selector: job_selector,
         task_selector,
     });
-    let mut responses =
+    let mut response =
         rpc_call!(session.connection(), message, ToClientMessage::JobDetailResponse(r) => r)
             .await?;
 
-    if let Some((job_id, opt_job)) = responses.pop() {
+    if let Some((job_id, opt_job)) = response.details.pop() {
         match opt_job {
             None => log::error!("Job {job_id} was not found"),
             Some(job) => {
-                let task_paths = resolve_task_paths(&job, session.server_uid());
+                let task_paths = resolve_task_paths(&job, &response.server_uid);
                 for task_id in job.tasks_not_found {
                     log::warn!("Task {task_id} not found");
                 }

@@ -131,6 +131,8 @@ pub trait TaskLauncher {
         ctx: LaunchContext,
         stop_receiver: tokio::sync::oneshot::Receiver<StopReason>,
     ) -> crate::Result<TaskLaunchData>;
+
+    fn set_server_uid(&mut self, server_uid: &str);
 }
 
 /// Create an output stream file on the given path.

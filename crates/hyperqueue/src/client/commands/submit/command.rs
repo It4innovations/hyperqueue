@@ -786,7 +786,7 @@ pub async fn resubmit_computation(
     gsettings.printer().print_job_detail(
         vec![response.job],
         get_worker_map(session).await?,
-        session.server_uid(),
+        &response.server_uid,
     );
     Ok(())
 }

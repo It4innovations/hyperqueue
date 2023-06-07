@@ -104,7 +104,10 @@ pub async fn handle_submit(
         r => panic!("Invalid response: {r:?}"),
     };
 
-    ToClientMessage::SubmitResponse(SubmitResponse { job: job_detail })
+    ToClientMessage::SubmitResponse(SubmitResponse {
+        job: job_detail,
+        server_uid: state_ref.get().server_uid().to_string(),
+    })
 }
 
 /// Prefills placeholders in the submit request and creates job ID
