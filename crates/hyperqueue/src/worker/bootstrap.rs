@@ -91,13 +91,13 @@ pub async fn initialize_worker(
 ) -> anyhow::Result<InitializedWorker> {
     log::info!("Starting hyperqueue worker {}", crate::HQ_VERSION);
     let server_dir = ServerDir::open(server_directory).context("Cannot load server directory")?;
-    let record = server_dir.read_access_record().with_context(|| {
+    let record = server_dir.read_worker_access_record().with_context(|| {
         format!(
             "Cannot load access record from {:?}",
             server_dir.access_filename()
         )
     })?;
-    let server_address = format!("{}:{}", record.worker_host(), record.worker_port());
+    let server_address = format!("{}:{}", record.worker.host, record.worker.port);
     log::info!("Connecting to: {}", server_address);
 
     std::fs::create_dir_all(&configuration.work_dir)?;
@@ -110,15 +110,15 @@ pub async fn initialize_worker(
     log::debug!("Resolved server to addresses {server_addresses:?}");
 
     log::debug!("Starting streamer ...");
-    let streamer_ref = StreamerRef::start(&server_addresses, record.worker_key().clone());
+    let streamer_ref = StreamerRef::start(&server_addresses, record.worker.secret_key.clone());
 
     log::debug!("Starting Tako worker ...");
     let stop_flag = Arc::new(Notify::new());
     let ((worker_id, configuration), worker_future) = run_worker(
         &server_addresses,
         configuration,
-        Some(record.worker_key().clone()),
-        Box::new(HqTaskLauncher::new(record.server_uid(), streamer_ref)),
+        Some(record.worker.secret_key.clone()),
+        Box::new(HqTaskLauncher::new(streamer_ref)),
         stop_flag.clone(),
     )
     .await?;

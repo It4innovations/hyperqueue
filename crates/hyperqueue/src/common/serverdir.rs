@@ -10,6 +10,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::common::error::error;
 use crate::common::utils::fs::{absolute_path, create_symlink};
+use crate::server::worker::Worker;
 use crate::transfer::auth::{deserialize_key, serialize_key};
 use crate::HQ_VERSION;
 
@@ -62,8 +63,21 @@ impl ServerDir {
         self.path(ACCESS_FILE)
     }
 
-    pub fn read_access_record(&self) -> crate::Result<FullAccessRecord> {
-        let record = load_access_file(self.access_filename())?;
+    pub fn read_worker_access_record(&self) -> crate::Result<WorkerAccessRecord> {
+        let record = load_worker_access_file(self.access_filename())?;
+        if record.version != HQ_VERSION {
+            return error(format!(
+                "Hyperqueue version mismatch detected.\nServer was started with version {}, \
+                but the current version is {}.",
+                record.version, HQ_VERSION
+            ));
+        }
+
+        Ok(record)
+    }
+
+    pub fn read_client_access_record(&self) -> crate::Result<ClientAccessRecord> {
+        let record = load_client_access_file(self.access_filename())?;
         if record.version != HQ_VERSION {
             return error(format!(
                 "Hyperqueue version mismatch detected.\nServer was started with version {}, \
@@ -163,16 +177,34 @@ pub struct FullAccessRecord {
     worker: ConnectAccessRecordPart,
 }
 
+/// Subset of FullAccess record needed only by clients
+#[derive(Serialize, Deserialize, Eq, PartialEq)]
+pub struct ClientAccessRecord {
+    /// Version of HQ
+    pub version: String,
+
+    pub client: ConnectAccessRecordPart,
+}
+
+/// Subset of FullAccess record needed only by workers
+#[derive(Serialize, Deserialize, Eq, PartialEq)]
+pub struct WorkerAccessRecord {
+    /// Version of HQ
+    pub version: String,
+
+    pub worker: ConnectAccessRecordPart,
+}
+
 #[derive(Serialize, Deserialize, Eq, PartialEq)]
 pub struct ConnectAccessRecordPart {
     /// Hostname or IP address of the HyperQueue server
-    host: String,
+    pub host: String,
 
-    port: u16,
+    pub port: u16,
 
     #[serde(serialize_with = "serde_serialize_key")]
     #[serde(deserialize_with = "serde_deserialize_key")]
-    secret_key: Arc<SecretKey>,
+    pub secret_key: Arc<SecretKey>,
 }
 
 impl FullAccessRecord {
@@ -238,7 +270,12 @@ pub fn store_access_record<P: AsRef<Path>>(
     Ok(())
 }
 
-pub fn load_access_file<P: AsRef<Path>>(path: P) -> crate::Result<FullAccessRecord> {
+pub fn load_worker_access_file<P: AsRef<Path>>(path: P) -> crate::Result<WorkerAccessRecord> {
+    let file = File::open(path)?;
+    Ok(serde_json::from_reader(file)?)
+}
+
+pub fn load_client_access_file<P: AsRef<Path>>(path: P) -> crate::Result<ClientAccessRecord> {
     let file = File::open(path)?;
     Ok(serde_json::from_reader(file)?)
 }
@@ -247,26 +284,38 @@ pub fn load_access_file<P: AsRef<Path>>(path: P) -> crate::Result<FullAccessReco
 mod tests {
     use std::fs::DirEntry;
     use std::path::PathBuf;
+    use std::sync::Arc;
     use tempdir::TempDir;
 
     use crate::common::serverdir::{
-        create_new_server_dir, load_access_file, store_access_record, FullAccessRecord,
+        create_new_server_dir, load_client_access_file, load_worker_access_file,
+        store_access_record, FullAccessRecord,
     };
+    use crate::transfer::auth::generate_key;
 
     #[test]
-    fn test_roundtrip() {
+    fn test_store_load() {
         let record = FullAccessRecord::new(
             "foo".into(),
             "testHQ".into(),
             42,
             43,
-            Default::default(),
-            Default::default(),
+            Arc::new(generate_key()),
+            Arc::new(generate_key()),
         );
         let path = TempDir::new("foo").unwrap().into_path().join("access.json");
         store_access_record(&record, path.clone()).unwrap();
-        let loaded = load_access_file(path).unwrap();
-        assert!(record == loaded);
+        let loaded = load_worker_access_file(&path).unwrap();
+        assert_eq!(loaded.version, record.version);
+        assert_eq!(loaded.worker.host, record.worker_host());
+        assert_eq!(loaded.worker.port, record.worker_port());
+        assert_eq!(&loaded.worker.secret_key, record.worker_key());
+
+        let loaded = load_client_access_file(&path).unwrap();
+        assert_eq!(loaded.version, record.version);
+        assert_eq!(loaded.client.host, record.client_host());
+        assert_eq!(loaded.client.port, record.client_port());
+        assert_eq!(&loaded.client.secret_key, record.client_key());
     }
 
     #[test]

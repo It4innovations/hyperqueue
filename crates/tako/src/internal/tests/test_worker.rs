@@ -28,6 +28,11 @@ impl TaskLauncher for TestLauncher {
         // Test should not directly call this function
         unreachable!()
     }
+
+    fn set_server_uid(&mut self, _server_uid: &str) {
+        // Test should not directly call this function
+        unreachable!()
+    }
 }
 
 fn create_test_worker_config() -> WorkerConfiguration {

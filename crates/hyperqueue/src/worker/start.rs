@@ -57,9 +57,9 @@ pub struct HqTaskLauncher {
 }
 
 impl HqTaskLauncher {
-    pub fn new(server_uid: &str, streamer_ref: StreamerRef) -> Self {
+    pub fn new(streamer_ref: StreamerRef) -> Self {
         Self {
-            server_uid: server_uid.to_string(),
+            server_uid: String::new(),
             streamer_ref,
         }
     }
@@ -167,6 +167,10 @@ impl TaskLauncher for HqTaskLauncher {
             Box::pin(task_future),
             serialized_context,
         ))
+    }
+
+    fn set_server_uid(&mut self, server_uid: &str) {
+        self.server_uid = server_uid.to_string()
     }
 }
 

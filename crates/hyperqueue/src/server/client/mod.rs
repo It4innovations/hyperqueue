@@ -18,8 +18,9 @@ use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
-    CancelJobResponse, FromClientMessage, IdSelector, JobDetail, JobInfoResponse, StatsResponse,
-    StopWorkerResponse, TaskSelector, ToClientMessage, WorkerListResponse,
+    CancelJobResponse, FromClientMessage, IdSelector, JobDetail, JobDetailResponse,
+    JobInfoResponse, StatsResponse, StopWorkerResponse, TaskSelector, ToClientMessage,
+    WorkerListResponse,
 };
 use crate::transfer::messages::{ForgetJobResponse, WaitForJobsResponse};
 use crate::{JobId, JobTaskCount, WorkerId};
@@ -291,7 +292,10 @@ fn compute_job_detail(
             responses.push((job_id, None));
         }
     }
-    ToClientMessage::JobDetailResponse(responses)
+    ToClientMessage::JobDetailResponse(JobDetailResponse {
+        details: responses,
+        server_uid: state.server_uid().to_string(),
+    })
 }
 
 fn get_job_ids(state: &State, selector: &IdSelector) -> Vec<JobId> {

@@ -11,7 +11,7 @@ use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::serverdir::{
-    default_server_directory, FullAccessRecord, ServerDir, SYMLINK_PATH,
+    default_server_directory, ClientAccessRecord, FullAccessRecord, ServerDir, SYMLINK_PATH,
 };
 use crate::server::autoalloc::create_autoalloc_service;
 use crate::server::event::log::start_event_streaming;
@@ -26,8 +26,8 @@ use rand::Rng;
 use std::time::Duration;
 
 enum ServerStatus {
-    Offline(FullAccessRecord),
-    Online(FullAccessRecord),
+    Offline(ClientAccessRecord),
+    Online(ClientAccessRecord),
 }
 
 pub struct ServerConfig {
@@ -73,7 +73,7 @@ pub async fn get_client_session(server_directory: &Path) -> anyhow::Result<Clien
     } else {
         String::new()
     };
-    let access_record = sd.read_access_record().with_context(|| {
+    let access_record = sd.read_client_access_record().with_context(|| {
         format!(
             "No running instance of HQ found at {:?}.\n\
             Try to start the server: `hq server start{}` or use a different server directory.",
@@ -88,9 +88,7 @@ pub async fn get_client_session(server_directory: &Path) -> anyhow::Result<Clien
             format!(
                 "Access token found but HQ server {}:{} is unreachable.\n\
                 Try to (re)start the server using `hq server start{}`",
-                access_record.client_host(),
-                access_record.client_port(),
-                server_dir_msg,
+                access_record.client.host, access_record.client.port, server_dir_msg,
             )
         })?;
 
@@ -98,7 +96,7 @@ pub async fn get_client_session(server_directory: &Path) -> anyhow::Result<Clien
 }
 
 async fn get_server_status(server_directory: &Path) -> crate::Result<ServerStatus> {
-    let record = ServerDir::open(server_directory).and_then(|sd| sd.read_access_record())?;
+    let record = ServerDir::open(server_directory).and_then(|sd| sd.read_client_access_record())?;
 
     if ClientSession::connect_to_server(&record).await.is_err() {
         return Ok(ServerStatus::Offline(record));
@@ -255,13 +253,14 @@ async fn start_server(
 }
 
 pub async fn print_server_info(gsettings: &GlobalSettings) -> anyhow::Result<()> {
-    match get_server_status(gsettings.server_directory()).await {
+    todo!()
+    /*match get_server_status(gsettings.server_directory()).await {
         Err(_) | Ok(ServerStatus::Offline(_)) => anyhow::bail!("No online server found"),
         Ok(ServerStatus::Online(record)) => gsettings
             .printer()
             .print_server_description(gsettings.server_directory(), &record),
     }
-    Ok(())
+    Ok(())*/
 }
 
 #[cfg(test)]

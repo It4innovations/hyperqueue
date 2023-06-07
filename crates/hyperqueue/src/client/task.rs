@@ -61,11 +61,12 @@ pub async fn output_job_task_list(
         job_id_selector,
         task_selector,
     });
-    let responses =
+    let response =
         rpc_call!(session.connection(), message, ToClientMessage::JobDetailResponse(r) => r)
             .await?;
 
-    let jobs = responses
+    let jobs = response
+        .details
         .into_iter()
         .filter_map(|(job_id, opt_job)| match opt_job {
             Some(job) => Some((job_id, job)),
@@ -79,7 +80,7 @@ pub async fn output_job_task_list(
     gsettings.printer().print_task_list(
         jobs,
         get_worker_map(session).await?,
-        session.server_uid(),
+        &response.server_uid,
         verbosity,
     );
     Ok(())
@@ -102,11 +103,11 @@ pub async fn output_job_task_info(
             status_selector: TaskStatusSelector::All,
         }),
     });
-    let responses =
+    let response =
         rpc_call!(session.connection(), message, ToClientMessage::JobDetailResponse(r) => r)
             .await?;
 
-    let (job_id, opt_job) = responses.get(0).unwrap();
+    let (job_id, opt_job) = response.details.get(0).unwrap();
     match opt_job {
         None => log::error!("Cannot find job {job_id}"),
         Some(job) => {
@@ -114,7 +115,7 @@ pub async fn output_job_task_info(
                 (*job_id, job.clone()),
                 job.tasks.clone(),
                 get_worker_map(session).await?,
-                session.server_uid(),
+                &response.server_uid,
                 verbosity,
             );
 
