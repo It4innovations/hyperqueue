@@ -51,11 +51,17 @@ pub struct WorkerState {
 
     resource_map: ResourceMap,
     resource_label_map: ResourceLabelMap,
+
+    server_uid: String,
 }
 
 impl WorkerState {
     pub(crate) fn comm(&mut self) -> &mut WorkerComm {
         &mut self.comm
+    }
+
+    pub fn server_uid(&self) -> &str {
+        &self.server_uid
     }
 
     #[inline]
@@ -282,6 +288,7 @@ impl WorkerStateRef {
         _secret_key: Option<Arc<SecretKey>>,
         resource_map: ResourceMap,
         task_launcher: Box<dyn TaskLauncher>,
+        server_uid: String,
     ) -> Self {
         let resource_label_map = ResourceLabelMap::new(&configuration.resources, &resource_map);
         let allocator =
@@ -306,6 +313,7 @@ impl WorkerStateRef {
             last_task_finish_time: now,
             reservation: false,
             worker_addresses: Default::default(),
+            server_uid,
         })
     }
 }

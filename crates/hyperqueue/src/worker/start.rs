@@ -52,16 +52,12 @@ pub struct RunningTaskContext {
 }
 
 pub struct HqTaskLauncher {
-    server_uid: String,
     streamer_ref: StreamerRef,
 }
 
 impl HqTaskLauncher {
     pub fn new(streamer_ref: StreamerRef) -> Self {
-        Self {
-            server_uid: String::new(),
-            streamer_ref,
-        }
+        Self { streamer_ref }
     }
 }
 
@@ -139,7 +135,7 @@ impl TaskLauncher for HqTaskLauncher {
                 task_id,
                 instance_id: launch_ctx.instance_id(),
                 submit_dir: &submit_dir,
-                server_uid: &self.server_uid,
+                server_uid: launch_ctx.server_uid(),
             };
             let paths = ResolvablePaths::from_program_def(&mut program);
             fill_placeholders_in_paths(paths, ctx);
@@ -167,10 +163,6 @@ impl TaskLauncher for HqTaskLauncher {
             Box::pin(task_future),
             serialized_context,
         ))
-    }
-
-    fn set_server_uid(&mut self, server_uid: &str) {
-        self.server_uid = server_uid.to_string()
     }
 }
 

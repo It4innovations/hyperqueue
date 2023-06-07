@@ -76,6 +76,7 @@ impl Backend {
                     .send(StreamServerControlMessage::AddConnection(connection))
                     .is_ok());
             })),
+            state_ref.get().server_uid().to_string(),
         )
         .await?;
 

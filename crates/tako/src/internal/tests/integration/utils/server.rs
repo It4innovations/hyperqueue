@@ -234,6 +234,7 @@ async fn create_handle(
         config.panic_on_worker_lost,
         config.idle_timeout,
         None,
+        "testuid".to_string(),
     )
     .await
     .expect("Could not start server");

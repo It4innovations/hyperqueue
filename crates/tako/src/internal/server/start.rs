@@ -56,6 +56,7 @@ pub async fn server_start(
     panic_on_worker_lost: bool,
     idle_timeout: Option<Duration>,
     custom_conn_handler: Option<CustomConnectionHandler>,
+    server_uid: String,
 ) -> crate::Result<(ServerRef, impl Future<Output = crate::Result<()>>)> {
     log::debug!("Waiting for workers on {:?}", listen_address);
     let listener = TcpListener::bind(listen_address).await?;
@@ -69,7 +70,13 @@ pub async fn server_start(
         panic_on_worker_lost,
     );
 
-    let core_ref = CoreRef::new(listener_port, secret_key, idle_timeout, custom_conn_handler);
+    let core_ref = CoreRef::new(
+        listener_port,
+        secret_key,
+        idle_timeout,
+        custom_conn_handler,
+        server_uid,
+    );
     let connections = crate::internal::server::rpc::connection_initiator(
         listener,
         core_ref.clone(),

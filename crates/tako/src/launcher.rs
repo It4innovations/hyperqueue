@@ -121,6 +121,10 @@ impl<'a> LaunchContext<'a> {
     pub fn get_resource_label_map(&self) -> &ResourceLabelMap {
         self.state.get_resource_label_map()
     }
+
+    pub fn server_uid(&self) -> &str {
+        self.state.server_uid()
+    }
 }
 
 pub trait TaskLauncher {
@@ -131,8 +135,6 @@ pub trait TaskLauncher {
         ctx: LaunchContext,
         stop_receiver: tokio::sync::oneshot::Receiver<StopReason>,
     ) -> crate::Result<TaskLaunchData>;
-
-    fn set_server_uid(&mut self, server_uid: &str);
 }
 
 /// Create an output stream file on the given path.
