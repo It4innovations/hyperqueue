@@ -144,6 +144,7 @@ pub async fn run_worker(
                     other_workers,
                     resource_names,
                     server_idle_timeout,
+                    server_uid,
                 } = open_message(&mut opener, &data?)?;
 
                 sync_worker_configuration(&mut configuration, server_idle_timeout);
@@ -158,6 +159,7 @@ pub async fn run_worker(
                     secret_key,
                     ResourceMap::from_vec(resource_names),
                     launcher_setup,
+                    server_uid,
                 );
 
                 {

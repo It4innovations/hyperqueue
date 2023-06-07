@@ -174,6 +174,7 @@ async fn worker_rpc_loop(
             })
             .collect(),
         server_idle_timeout: *core_ref.get().idle_timeout(),
+        server_uid: core_ref.get().server_uid().to_string(),
     };
     queue_sender
         .send(serialize(&message).unwrap().into())

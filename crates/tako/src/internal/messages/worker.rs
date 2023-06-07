@@ -14,6 +14,7 @@ pub struct WorkerRegistrationResponse {
     pub resource_names: Vec<String>,
     pub other_workers: Vec<NewWorkerMsg>,
     pub server_idle_timeout: Option<Duration>,
+    pub server_uid: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

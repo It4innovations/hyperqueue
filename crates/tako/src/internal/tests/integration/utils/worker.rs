@@ -289,8 +289,4 @@ impl TaskLauncher for TestTaskLauncher {
             }
         })))
     }
-
-    fn set_server_uid(&mut self, _server_uid: &str) {
-        // do hothing
-    }
 }

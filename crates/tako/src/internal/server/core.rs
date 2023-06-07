@@ -44,6 +44,7 @@ pub struct Core {
     idle_timeout: Option<Duration>,
 
     secret_key: Option<Arc<SecretKey>>,
+    server_uid: String,
     custom_conn_handler: Option<CustomConnectionHandler>,
 }
 
@@ -55,12 +56,14 @@ impl CoreRef {
         secret_key: Option<Arc<SecretKey>>,
         idle_timeout: Option<Duration>,
         custom_conn_handler: Option<CustomConnectionHandler>,
+        server_uid: String,
     ) -> Self {
         CoreRef::wrap(Core {
             worker_listen_port,
             secret_key,
             idle_timeout,
             custom_conn_handler,
+            server_uid,
             ..Default::default()
         })
     }
@@ -93,6 +96,10 @@ impl Core {
 
     pub fn idle_timeout(&self) -> &Option<Duration> {
         &self.idle_timeout
+    }
+
+    pub fn server_uid(&self) -> &str {
+        &self.server_uid
     }
 
     pub(crate) fn multi_node_queue_split_mut(
