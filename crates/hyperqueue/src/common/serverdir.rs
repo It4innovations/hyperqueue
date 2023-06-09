@@ -255,10 +255,23 @@ impl FullAccessRecord {
     pub fn worker_key(&self) -> &Arc<SecretKey> {
         &self.worker.secret_key
     }
+
+    pub fn split(self) -> (ClientAccessRecord, WorkerAccessRecord) {
+        (
+            ClientAccessRecord {
+                version: self.version.clone(),
+                client: self.client,
+            },
+            WorkerAccessRecord {
+                version: self.version,
+                worker: self.worker,
+            },
+        )
+    }
 }
 
-pub fn store_access_record<P: AsRef<Path>>(
-    record: &FullAccessRecord,
+pub fn store_access_record<R: ?Sized + Serialize, P: AsRef<Path>>(
+    record: &R,
     path: P,
 ) -> crate::Result<()> {
     let mut options = OpenOptions::new();
