@@ -173,6 +173,7 @@ class HqEnv(Env):
         set_hostname=True,
         wait_for_start=True,
         on_server_lost="stop",
+        server_dir=None,
     ) -> subprocess.Popen:
         self.id_counter += 1
         worker_id = self.id_counter
@@ -184,7 +185,7 @@ class HqEnv(Env):
         worker_args = [
             get_hq_binary(self.debug),
             "--server-dir",
-            self.server_dir,
+            server_dir or self.server_dir,
             "worker",
             "start",
             f"--work-dir={work_dir}",
@@ -251,6 +252,7 @@ class HqEnv(Env):
         log=False,
         ignore_stderr=False,
         env=None,
+        use_server_dir=True,
     ):
         if isinstance(args, str):
             args = [args]
@@ -260,7 +262,10 @@ class HqEnv(Env):
         if isinstance(stdin, str):
             stdin = stdin.encode()
 
-        args = [get_hq_binary(self.debug), "--server-dir", self.server_dir] + args
+        final_args = [get_hq_binary(self.debug)]
+        if use_server_dir:
+            final_args += ["--server-dir", self.server_dir]
+        final_args += args
         cwd = cwd or self.work_path
         environment = self.make_default_env(log=log)
         if env is not None:
@@ -268,11 +273,11 @@ class HqEnv(Env):
         stderr = subprocess.DEVNULL if ignore_stderr else subprocess.STDOUT
 
         if not wait:
-            return subprocess.Popen(args, stderr=stderr, cwd=cwd, env=environment)
+            return subprocess.Popen(final_args, stderr=stderr, cwd=cwd, env=environment)
 
         else:
             process = subprocess.Popen(
-                args,
+                final_args,
                 stdout=subprocess.PIPE,
                 stderr=stderr,
                 cwd=cwd,

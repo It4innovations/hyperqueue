@@ -21,6 +21,7 @@ use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
 use crate::transfer::connection::ClientSession;
+use orion::kdf::SecretKey;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use std::time::Duration;
@@ -37,6 +38,9 @@ pub struct ServerConfig {
     pub worker_port: Option<u16>,
     pub event_buffer_size: usize,
     pub event_log_path: Option<PathBuf>,
+    pub worker_secret_key: Option<Arc<SecretKey>>,
+    pub client_secret_key: Option<Arc<SecretKey>>,
+    pub server_uid: Option<String>,
 }
 
 /// This function initializes the HQ server.
@@ -105,7 +109,7 @@ async fn get_server_status(server_directory: &Path) -> crate::Result<ServerStatu
     Ok(ServerStatus::Online(record))
 }
 
-fn generate_server_uid() -> String {
+pub fn generate_server_uid() -> String {
     rand::thread_rng()
         .sample_iter(&Alphanumeric)
         .take(6)
@@ -115,7 +119,7 @@ fn generate_server_uid() -> String {
 
 pub async fn initialize_server(
     gsettings: &GlobalSettings,
-    server_cfg: ServerConfig,
+    mut server_cfg: ServerConfig,
 ) -> anyhow::Result<(impl Future<Output = anyhow::Result<()>>, Arc<Notify>)> {
     let server_directory = gsettings.server_directory();
 
@@ -127,9 +131,18 @@ pub async fn initialize_server(
     .with_context(|| "Cannot create HQ server socket".to_string())?;
     let server_port = client_listener.local_addr()?.port();
 
-    let client_key = Arc::new(generate_key());
-    let worker_key = Arc::new(generate_key());
-    let server_uid = generate_server_uid();
+    let server_uid = server_cfg
+        .server_uid
+        .take()
+        .unwrap_or_else(|| generate_server_uid());
+    let worker_key = server_cfg
+        .worker_secret_key
+        .take()
+        .unwrap_or_else(|| Arc::new(generate_key()));
+    let client_key = server_cfg
+        .client_secret_key
+        .take()
+        .unwrap_or_else(|| Arc::new(generate_key()));
 
     let (event_storage, event_stream_fut) = prepare_event_management(&server_cfg).await?;
     let state_ref = StateRef::new(event_storage, server_uid.clone());

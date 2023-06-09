@@ -1,8 +1,10 @@
 import json
 import os
+from schema import Schema
 import signal
 import socket
 import subprocess
+import random
 from typing import List
 
 import pytest
@@ -113,3 +115,94 @@ def test_delete_symlink_after_ctrl_c(hq_env: HqEnv):
     hq_env.check_process_exited(process, 0)
 
     assert not os.path.isdir(os.path.join(hq_env.server_dir, "hq-current"))
+
+
+def test_generate_access(hq_env: HqEnv):
+    client_port = 18000 + random.randint(0, 1000)
+    worker_port = 14000 + random.randint(0, 1000)
+    hq_env.command(
+        [
+            "server",
+            "generate-access",
+            "myaccess.json",
+            f"--worker-port={worker_port}",
+            f"--client-port={client_port}",
+        ],
+        use_server_dir=False,
+    )
+
+    with open("myaccess.json", "r") as f:
+        access = json.load(f)
+
+    schema = Schema(
+        {
+            "version": str,
+            "server_uid": str,
+            "worker": {"host": str, "port": int, "secret_key": str},
+            "client": {"host": str, "port": int, "secret_key": str},
+        },
+    )
+    schema.validate(access)
+
+    hq_env.start_server(args=["--access-file=myaccess.json"])
+
+    with open("hq-server/hq-current/access.json", "r") as f:
+        access2 = json.load(f)
+    assert access == access2
+
+
+def test_generate_partial_access(hq_env: HqEnv):
+    client_port = 18000 + random.randint(0, 1000)
+    worker_port = 14000 + random.randint(0, 1000)
+    hq_env.command(
+        [
+            "server",
+            "generate-access",
+            "myaccess.json",
+            f"--worker-port={worker_port}",
+            f"--client-port={client_port}",
+            "--client-file=client.json",
+            "--worker-file=worker.json",
+        ],
+        use_server_dir=False,
+    )
+
+    with open("client.json", "r") as f:
+        access = json.load(f)
+
+    schema = Schema(
+        {
+            "version": str,
+            "client": {"host": str, "port": int, "secret_key": str},
+        },
+    )
+    schema.validate(access)
+
+    with open("worker.json", "r") as f:
+        access = json.load(f)
+
+    schema = Schema(
+        {
+            "version": str,
+            "worker": {"host": str, "port": int, "secret_key": str},
+        },
+    )
+    schema.validate(access)
+
+    hq_env.start_server(args=["--access-file=myaccess.json"])
+
+    WORKER_SD = "acc/worker"
+    os.makedirs(os.path.join(WORKER_SD, "hq-current"))
+    os.rename("worker.json", os.path.join(WORKER_SD, "hq-current", "access.json"))
+    hq_env.start_worker(server_dir=WORKER_SD)
+
+    CLIENT_SD = "acc/client"
+    os.makedirs(os.path.join(CLIENT_SD, "hq-current"))
+    os.rename("client.json", os.path.join(CLIENT_SD, "hq-current", "access.json"))
+
+    result = hq_env.command(
+        [f"--server-dir={CLIENT_SD}", "worker", "list"],
+        use_server_dir=False,
+        as_table=True,
+    )
+    assert result.get_row_value("1") == "RUNNING"
