@@ -80,24 +80,18 @@ def test_print_server_record(hq_env: HqEnv):
 
     schema = Schema(
         {
-            "host": socket.gethostname(),
-            "hq_port": int,
-            "pid": process.pid,
-            "server_dir": hq_env.server_dir,
-            "start_date": str,
-            "version": str,
+            "worker_host": socket.gethostname(),
+            "client_host": socket.gethostname(),
             "worker_port": int,
+            "server_dir": None,
+            "version": str,
+            "client_port": int,
             "server_uid": str,
         }
     )
     schema.validate(output)
 
-    time = iso8601.parse_date(output["start_date"])
-    now = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
-    duration = now - time
-    assert abs(duration).total_seconds() > 0
-
-    assert 0 < int(output["hq_port"]) < 65536
+    assert 0 < int(output["client_port"]) < 65536
     assert 0 < int(output["worker_port"]) < 65536
     assert output["server_uid"].isalnum() and len(output["server_uid"]) == 6
 

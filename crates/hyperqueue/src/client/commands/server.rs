@@ -5,7 +5,7 @@ use crate::common::utils::network::get_hostname;
 use crate::common::utils::time::parse_human_time;
 use crate::rpc_call;
 use crate::server::bootstrap::{
-    generate_server_uid, get_client_session, init_hq_server, print_server_info, ServerConfig,
+    generate_server_uid, get_client_session, init_hq_server, ServerConfig,
 };
 use crate::transfer::auth::generate_key;
 use crate::transfer::connection::ClientSession;
@@ -178,8 +178,24 @@ async fn print_server_stats(
     Ok(())
 }
 
+pub async fn print_server_info(gsettings: &GlobalSettings) -> anyhow::Result<()> {
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    let response = crate::rpc_call!(
+        session.connection(),
+        FromClientMessage::ServerInfo,
+        ToClientMessage::ServerInfo(r) => r
+    )
+    .await?;
+
+    gsettings
+        .printer()
+        // We are not using gsettings.server_directory() as it is local one
+        .print_server_description(None, &response);
+    Ok(())
+}
+
 fn command_server_generate_access(
-    gsettings: &GlobalSettings,
+    _gsettings: &GlobalSettings,
     opts: GenerateAccessOpts,
 ) -> anyhow::Result<()> {
     let server_uid = generate_server_uid();

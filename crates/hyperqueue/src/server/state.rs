@@ -16,6 +16,7 @@ use crate::server::event::storage::EventStorage;
 use crate::server::job::Job;
 use crate::server::rpc::Backend;
 use crate::server::worker::Worker;
+use crate::transfer::messages::ServerInfo;
 use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
 
@@ -43,7 +44,7 @@ pub struct State {
     pub(crate) autoalloc_service: Option<AutoAllocService>,
     event_storage: EventStorage,
 
-    server_uid: String,
+    server_info: ServerInfo,
 }
 
 define_wrapped_type!(StateRef, State, pub);
@@ -101,6 +102,14 @@ impl State {
     pub fn add_worker(&mut self, worker: Worker) {
         let worker_id = worker.worker_id();
         assert!(self.workers.insert(worker_id, worker).is_none())
+    }
+
+    pub fn server_info(&self) -> &ServerInfo {
+        &self.server_info
+    }
+
+    pub fn set_worker_port(&mut self, port: u16) {
+        self.server_info.worker_port = port;
     }
 
     pub fn add_job(&mut self, job: Job) {
@@ -305,10 +314,6 @@ impl State {
         self.autoalloc_service = None;
     }
 
-    pub fn server_uid(&self) -> &str {
-        &self.server_uid
-    }
-
     pub fn event_storage(&self) -> &EventStorage {
         &self.event_storage
     }
@@ -322,7 +327,7 @@ impl State {
 }
 
 impl StateRef {
-    pub fn new(event_storage: EventStorage, uid: String) -> StateRef {
+    pub fn new(event_storage: EventStorage, server_info: ServerInfo) -> StateRef {
         Self(WrappedRcRefCell::wrap(State {
             jobs: Default::default(),
             workers: Default::default(),
@@ -331,7 +336,7 @@ impl StateRef {
             task_id_counter: 1,
             autoalloc_service: None,
             event_storage,
-            server_uid: uid,
+            server_info,
         }))
     }
 }

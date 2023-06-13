@@ -1,6 +1,6 @@
-use crate::common::serverdir::FullAccessRecord;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, StatsResponse, WaitForJobsResponse, WorkerInfo,
+    AutoAllocListResponse, JobDetail, JobInfo, ServerInfo, StatsResponse, WaitForJobsResponse,
+    WorkerInfo,
 };
 
 use crate::client::job::WorkerMap;
@@ -38,7 +38,7 @@ pub trait Output {
     fn print_worker_info(&self, worker_info: WorkerInfo);
 
     // Server
-    fn print_server_description(&self, server_dir: &Path, record: &FullAccessRecord);
+    fn print_server_description(&self, server_dir: Option<&Path>, record: &ServerInfo);
     fn print_server_stats(&self, stats: StatsResponse);
 
     // Jobs

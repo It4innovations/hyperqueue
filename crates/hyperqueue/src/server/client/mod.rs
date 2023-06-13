@@ -131,6 +131,9 @@ pub async fn client_rpc_loop<
                             .collect();
                         ToClientMessage::MonitoringEventsResponse(events)
                     }
+                    FromClientMessage::ServerInfo => {
+                        ToClientMessage::ServerInfo(state_ref.get().server_info().clone())
+                    }
                 };
                 if let Err(error) = tx.send(response).await {
                     log::error!("Cannot reply to client: {error:?}");
@@ -294,7 +297,7 @@ fn compute_job_detail(
     }
     ToClientMessage::JobDetailResponse(JobDetailResponse {
         details: responses,
-        server_uid: state.server_uid().to_string(),
+        server_uid: state.server_info().server_uid.clone(),
     })
 }
 

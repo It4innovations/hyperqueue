@@ -30,19 +30,20 @@ def start_server_get_output(hq_env: HqEnv, args: List[str]) -> Table:
 
 def test_server_host(hq_env: HqEnv):
     table = start_server_get_output(hq_env, ["--host", "abcd123"])
-    table.check_row_value("Host", "abcd123")
+    table.check_row_value("Worker host", "abcd123")
+    table.check_row_value("Client host", "abcd123")
 
 
 def test_server_client_port(hq_env: HqEnv):
     port = str(find_free_port())
     table = start_server_get_output(hq_env, ["--client-port", port])
-    table.check_row_value("HQ port", port)
+    table.check_row_value("Client port", port)
 
 
 def test_server_worker_port(hq_env: HqEnv):
     port = str(find_free_port())
     table = start_server_get_output(hq_env, ["--worker-port", port])
-    table.check_row_value("Workers port", port)
+    table.check_row_value("Worker port", port)
 
 
 def test_version_mismatch(hq_env: HqEnv):
@@ -74,14 +75,12 @@ def test_server_info(hq_env: HqEnv):
     process = hq_env.start_server()
 
     table = hq_env.command(["server", "info"], as_table=True)
-    table.check_row_value("Server directory", hq_env.server_dir)
-    table.check_row_value("Host", socket.gethostname())
-    table.check_row_value("Pid", str(process.pid))
+    table.check_row_value("Client host", socket.gethostname())
+    table.check_row_value("Worker host", socket.gethostname())
     server_uid = table.get_row_value("Server UID")
     assert len(server_uid) == 6
     assert server_uid.isalnum()
-
-    assert len(table) == 8
+    assert len(table) == 6
 
 
 def test_server_stop(hq_env: HqEnv):

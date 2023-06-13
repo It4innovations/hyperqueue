@@ -21,6 +21,8 @@ use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
 use crate::transfer::connection::ClientSession;
+use crate::transfer::messages::ServerInfo;
+use crate::HQ_VERSION;
 use orion::kdf::SecretKey;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
@@ -129,7 +131,7 @@ pub async fn initialize_server(
     ))
     .await
     .with_context(|| "Cannot create HQ server socket".to_string())?;
-    let server_port = client_listener.local_addr()?.port();
+    let client_port = client_listener.local_addr()?.port();
 
     let server_uid = server_cfg
         .server_uid
@@ -145,7 +147,17 @@ pub async fn initialize_server(
         .unwrap_or_else(|| Arc::new(generate_key()));
 
     let (event_storage, event_stream_fut) = prepare_event_management(&server_cfg).await?;
-    let state_ref = StateRef::new(event_storage, server_uid.clone());
+    let state_ref = StateRef::new(
+        event_storage,
+        ServerInfo {
+            version: HQ_VERSION.to_string(),
+            server_uid: server_uid.clone(),
+            client_host: server_cfg.host.clone(),
+            worker_host: server_cfg.host.clone(),
+            client_port,
+            worker_port: 0, // Will be set later
+        },
+    );
     let (autoalloc_service, autoalloc_process) = create_autoalloc_service(state_ref.clone());
     // TODO: remove this hack
     state_ref.get_mut().autoalloc_service = Some(autoalloc_service);
@@ -158,11 +170,15 @@ pub async fn initialize_server(
     )
     .await?;
 
+    let worker_port = tako_server.worker_port();
+
+    state_ref.get_mut().set_worker_port(worker_port);
+
     let record = FullAccessRecord::new(
         server_cfg.host,
         server_uid,
-        server_port,
-        tako_server.worker_port(),
+        client_port,
+        worker_port,
         client_key.clone(),
         worker_key.clone(),
     );
@@ -171,7 +187,7 @@ pub async fn initialize_server(
 
     gsettings
         .printer()
-        .print_server_description(server_directory, &record);
+        .print_server_description(Some(server_directory), state_ref.get().server_info());
 
     let end_flag = Arc::new(Notify::new());
     let end_flag_check = end_flag.clone();
@@ -263,17 +279,6 @@ async fn start_server(
     std::fs::remove_file(gsettings.server_directory().join(SYMLINK_PATH)).ok();
 
     Ok(())
-}
-
-pub async fn print_server_info(gsettings: &GlobalSettings) -> anyhow::Result<()> {
-    todo!()
-    /*match get_server_status(gsettings.server_directory()).await {
-        Err(_) | Ok(ServerStatus::Offline(_)) => anyhow::bail!("No online server found"),
-        Ok(ServerStatus::Online(record)) => gsettings
-            .printer()
-            .print_server_description(gsettings.server_directory(), &record),
-    }
-    Ok(())*/
 }
 
 #[cfg(test)]

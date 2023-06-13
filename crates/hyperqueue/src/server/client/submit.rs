@@ -106,7 +106,7 @@ pub async fn handle_submit(
 
     ToClientMessage::SubmitResponse(SubmitResponse {
         job: job_detail,
-        server_uid: state_ref.get().server_uid().to_string(),
+        server_uid: state_ref.get().server_info().server_uid.clone(),
     })
 }
 
@@ -123,12 +123,17 @@ fn prepare_job(request: &mut SubmitRequest, state: &mut State) -> (JobId, TakoTa
             &mut task_desc.program,
             job_id,
             &request.submit_dir,
-            state.server_uid(),
+            &state.server_info().server_uid,
         );
     };
 
     if let Some(ref mut log) = request.log {
-        fill_placeholders_log(log, job_id, &request.submit_dir, state.server_uid());
+        fill_placeholders_log(
+            log,
+            job_id,
+            &request.submit_dir,
+            &state.server_info().server_uid,
+        );
         *log = normalize_path(log, &request.submit_dir);
     }
 
