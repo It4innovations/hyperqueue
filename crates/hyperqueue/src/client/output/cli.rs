@@ -10,13 +10,12 @@ use crate::client::status::{get_task_status, job_status, Status};
 use crate::common::env::is_hq_env;
 use crate::common::format::{human_duration, human_size};
 use crate::common::manager::info::GetManagerInfo;
-use crate::common::serverdir::FullAccessRecord;
 use crate::server::autoalloc::{Allocation, AllocationState};
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDescription, JobDetail, JobInfo, PinMode, QueueData, QueueState,
-    StatsResponse, TaskDescription, WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
+    ServerInfo, StatsResponse, TaskDescription, WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
 };
 use crate::{JobId, JobTaskCount, WorkerId};
 
@@ -354,24 +353,35 @@ impl Output for CliOutput {
         self.print_vertical_table(rows);
     }
 
-    fn print_server_description(&self, server_dir: &Path, record: &FullAccessRecord) {
-        let rows = vec![
+    fn print_server_description(&self, server_dir: Option<&Path>, info: &ServerInfo) {
+        let mut rows = vec![
             vec![
-                "Server directory".cell().bold(true),
-                server_dir.display().cell(),
+                "Server UID".cell().bold(true),
+                info.server_uid.to_string().cell(),
             ],
-            vec!["Server UID".cell().bold(true), record.server_uid().cell()],
-            vec!["Client host".cell().bold(true), record.client_host().cell()],
-            vec!["Client port".cell().bold(true), record.client_port().cell()],
-            vec!["Worker host".cell().bold(true), record.worker_host().cell()],
-            vec!["Worker port".cell().bold(true), record.worker_port().cell()],
-            vec!["Version".cell().bold(true), record.version().cell()],
+            vec![
+                "Client host".cell().bold(true),
+                info.client_host.to_string().cell(),
+            ],
+            vec!["Client port".cell().bold(true), info.client_port.cell()],
+            vec![
+                "Worker host".cell().bold(true),
+                info.worker_host.to_string().cell(),
+            ],
+            vec!["Worker port".cell().bold(true), info.worker_port.cell()],
+            vec!["Version".cell().bold(true), info.version.to_string().cell()],
             // vec!["Pid".cell().bold(true), record.pid().cell()],
             // vec![
             //     "Start date".cell().bold(true),
             //     record.start_date().format("%F %T %Z").cell(),
             // ],
         ];
+        if let Some(dir) = server_dir {
+            rows.insert(
+                0,
+                vec!["Server directory".cell().bold(true), dir.display().cell()],
+            )
+        }
         self.print_vertical_table(rows);
     }
 

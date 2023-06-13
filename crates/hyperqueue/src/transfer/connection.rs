@@ -14,7 +14,7 @@ use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 use crate::common::error::error;
-use crate::common::serverdir::{ClientAccessRecord, FullAccessRecord};
+use crate::common::serverdir::ClientAccessRecord;
 use crate::common::utils::network::get_hostname;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use crate::transfer::protocol::make_protocol_builder;

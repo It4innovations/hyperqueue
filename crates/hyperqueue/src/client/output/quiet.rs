@@ -13,13 +13,12 @@ use crate::client::output::common::{
 };
 use crate::client::output::outputs::{Output, OutputStream};
 use crate::client::status::{job_status, Status};
-use crate::common::serverdir::FullAccessRecord;
 use crate::server::autoalloc::Allocation;
 use crate::server::job::JobTaskInfo;
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, StatsResponse, WaitForJobsResponse, WorkerExitInfo,
-    WorkerInfo,
+    AutoAllocListResponse, JobDetail, JobInfo, ServerInfo, StatsResponse, WaitForJobsResponse,
+    WorkerExitInfo, WorkerInfo,
 };
 use crate::JobId;
 
@@ -59,8 +58,10 @@ impl Output for Quiet {
     fn print_worker_info(&self, _worker_info: WorkerInfo) {}
 
     // Server
-    fn print_server_description(&self, server_dir: &Path, _record: &FullAccessRecord) {
-        println!("{}", server_dir.to_str().unwrap())
+    fn print_server_description(&self, server_dir: Option<&Path>, _record: &ServerInfo) {
+        if let Some(dir) = server_dir {
+            println!("{}", dir.display());
+        }
     }
     fn print_server_stats(&self, _stats: StatsResponse) {}
 

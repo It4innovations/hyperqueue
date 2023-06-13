@@ -35,6 +35,7 @@ pub enum FromClientMessage {
     AutoAlloc(AutoAllocRequest),
     WaitForJobs(WaitForJobsRequest),
     MonitoringEvents(MonitoringEventRequest),
+    ServerInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -236,6 +237,16 @@ pub struct JobDetailResponse {
     pub server_uid: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ServerInfo {
+    pub server_uid: String,
+    pub client_host: String,
+    pub worker_host: String,
+    pub client_port: u16,
+    pub worker_port: u16,
+    pub version: String,
+}
+
 // Messages server -> client
 #[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
@@ -253,6 +264,7 @@ pub enum ToClientMessage {
     WaitForJobsResponse(WaitForJobsResponse),
     MonitoringEventsResponse(Vec<MonitoringEvent>),
     Error(String),
+    ServerInfo(ServerInfo),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
