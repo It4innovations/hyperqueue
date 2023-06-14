@@ -34,6 +34,9 @@ impl RunningServer {
                 worker_port: None,
                 event_buffer_size: 100,
                 event_log_path: None,
+                client_secret_key: None,
+                worker_secret_key: None,
+                server_uid: None,
             };
 
             let main_future = async move {
