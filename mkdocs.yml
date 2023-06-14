@@ -18,6 +18,7 @@ nav:
     - Server: deployment/server.md
     - Workers: deployment/worker.md
     - Automatic Allocation: deployment/allocation.md
+    - Without Shared Filesystem: deployment/cloud.md
   - Task computation:
     - Jobs and Tasks: jobs/jobs.md
     - Task Arrays: jobs/arrays.md
