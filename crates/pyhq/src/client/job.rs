@@ -296,10 +296,10 @@ pub fn get_failed_tasks_impl(
                 .await
                 .map_py_err()?;
 
-        let mut result = HashMap::with_capacity(response.len());
-        for (job_id, job_detail) in response {
+        let mut result = HashMap::with_capacity(response.details.len());
+        for (job_id, job_detail) in response.details {
             if let Some(job_detail) = job_detail {
-                let mut task_path_map = resolve_task_paths(&job_detail, ctx.session.server_uid());
+                let mut task_path_map = resolve_task_paths(&job_detail, &response.server_uid);
                 let mut tasks = HashMap::with_capacity(job_detail.tasks.len());
                 for task in job_detail.tasks {
                     match task.state {
