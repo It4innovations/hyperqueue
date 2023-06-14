@@ -136,7 +136,7 @@ pub async fn initialize_server(
     let server_uid = server_cfg
         .server_uid
         .take()
-        .unwrap_or_else(|| generate_server_uid());
+        .unwrap_or_else(generate_server_uid);
     let worker_key = server_cfg
         .worker_secret_key
         .take()
@@ -318,6 +318,9 @@ mod tests {
             worker_port: None,
             event_buffer_size: 1_000_000,
             event_log_path: None,
+            worker_secret_key: None,
+            client_secret_key: None,
+            server_uid: None,
         };
         initialize_server(&gsettings, server_cfg).await.unwrap()
     }

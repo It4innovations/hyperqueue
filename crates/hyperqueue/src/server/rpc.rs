@@ -64,6 +64,7 @@ impl Backend {
         let stream_server_control = start_stream_server();
         let stream_server_control2 = stream_server_control.clone();
 
+        let server_uid = state_ref.get().server_info().server_uid.clone();
         let (server_ref, server_future) = tako::server::server_start(
             SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), worker_port.unwrap_or(0)),
             Some(key),
@@ -76,7 +77,7 @@ impl Backend {
                     .send(StreamServerControlMessage::AddConnection(connection))
                     .is_ok());
             })),
-            state_ref.get().server_info().server_uid.clone(),
+            server_uid,
         )
         .await?;
 

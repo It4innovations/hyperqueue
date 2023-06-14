@@ -52,6 +52,7 @@ fn create_worker_state() -> WorkerStateRef {
         None,
         Default::default(),
         Box::new(BenchmarkTaskLauncher),
+        "testuid".to_string(),
     )
 }
 
