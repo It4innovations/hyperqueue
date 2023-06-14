@@ -1,13 +1,13 @@
 import json
 import os
-from schema import Schema
+import random
 import signal
 import socket
 import subprocess
-import random
 from typing import List
 
 import pytest
+from schema import Schema
 
 from .conftest import HqEnv
 from .utils import parse_table
@@ -72,7 +72,7 @@ def test_version_mismatch(hq_env: HqEnv):
 
 
 def test_server_info(hq_env: HqEnv):
-    process = hq_env.start_server()
+    hq_env.start_server()
 
     table = hq_env.command(["server", "info"], as_table=True)
     table.check_row_value("Client host", socket.gethostname())

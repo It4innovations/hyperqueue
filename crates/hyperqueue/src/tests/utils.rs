@@ -5,6 +5,8 @@ use tokio::task::{JoinHandle, LocalSet};
 use crate::common::parser::{consume_all, NomResult};
 use crate::common::parser2::CharParser;
 use crate::server::state::StateRef;
+use crate::transfer::messages::ServerInfo;
+use crate::HQ_VERSION;
 
 pub fn check_parse_error<F: FnMut(&str) -> NomResult<O>, O>(
     parser: F,
@@ -40,5 +42,15 @@ pub async fn run_concurrent<
 }
 
 pub fn create_hq_state() -> StateRef {
-    StateRef::new(Default::default(), "testHQ".to_string())
+    StateRef::new(
+        Default::default(),
+        ServerInfo {
+            server_uid: "testuid".to_string(),
+            client_host: "test".to_string(),
+            worker_host: "test".to_string(),
+            client_port: 1200,
+            worker_port: 1400,
+            version: HQ_VERSION.to_string(),
+        },
+    )
 }

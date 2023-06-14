@@ -1,9 +1,7 @@
-import datetime
 import os
 import socket
 from typing import List
 
-import iso8601
 from schema import Schema
 
 from ..conftest import HqEnv
@@ -75,7 +73,7 @@ def test_print_worker_info_pbs_allocation(hq_env: HqEnv):
 
 
 def test_print_server_record(hq_env: HqEnv):
-    process = hq_env.start_server()
+    hq_env.start_server()
     output = parse_json_output(hq_env, ["--output-mode=json", "server", "info"])
 
     schema = Schema(
