@@ -134,7 +134,7 @@ jobs:
           CARGO_PROFILE_DIST_PANIC: unwind
           CARGO_PROFILE_DIST_STRIP: none
         with:
-          docker-options: -e HQ_BUILD_VERSION=${{ needs.set-env.outputs.version }}
+          docker-options: -e HQ_BUILD_VERSION=${{ needs.set-env.outputs.version }} --user ${UID}
           maturin-version: 0.13.5
           manylinux: 2014
           command: build
