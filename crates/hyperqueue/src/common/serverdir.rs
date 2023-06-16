@@ -44,8 +44,8 @@ impl ServerDir {
         let access_file_path = server_dir.access_filename();
         store_access_record(record, access_file_path)?;
 
-        create_symlink(&directory.join(SYMLINK_PATH), &dir_path)?;
-
+        let symlink = directory.join(SYMLINK_PATH);
+        create_symlink(&symlink, &dir_path)?;
         Ok(server_dir)
     }
 
