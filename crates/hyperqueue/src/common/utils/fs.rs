@@ -14,8 +14,10 @@ pub fn absolute_path(path: PathBuf) -> PathBuf {
 
 pub fn create_symlink(symlink_path: &Path, target: &Path) -> crate::Result<()> {
     if symlink_path.exists() {
+        log::debug!("Symlink {} exists, removing", symlink_path.display());
         std::fs::remove_file(symlink_path)?;
     }
+    log::debug!("Creating new symlink: {}", symlink_path.display());
     std::os::unix::fs::symlink(target, symlink_path)?;
     Ok(())
 }
