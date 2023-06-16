@@ -1,3 +1,4 @@
+use chrono::Utc;
 use std::future::Future;
 
 use tokio::task::{JoinHandle, LocalSet};
@@ -35,7 +36,7 @@ pub async fn run_concurrent<
     background_fut: Fut1,
     fut: Fut2,
 ) -> (LocalSet, JoinHandle<R>) {
-    let set = tokio::task::LocalSet::new();
+    let set = LocalSet::new();
     let handle = set.spawn_local(background_fut);
     set.run_until(fut).await;
     (set, handle)
@@ -51,6 +52,8 @@ pub fn create_hq_state() -> StateRef {
             client_port: 1200,
             worker_port: 1400,
             version: HQ_VERSION.to_string(),
+            pid: std::process::id(),
+            start_date: Utc::now(),
         },
     )
 }

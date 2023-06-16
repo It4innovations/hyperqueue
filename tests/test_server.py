@@ -72,15 +72,16 @@ def test_version_mismatch(hq_env: HqEnv):
 
 
 def test_server_info(hq_env: HqEnv):
-    hq_env.start_server()
+    process = hq_env.start_server()
 
     table = hq_env.command(["server", "info"], as_table=True)
     table.check_row_value("Client host", socket.gethostname())
     table.check_row_value("Worker host", socket.gethostname())
+    table.check_row_value("Pid", str(process.pid))
     server_uid = table.get_row_value("Server UID")
     assert len(server_uid) == 6
     assert server_uid.isalnum()
-    assert len(table) == 6
+    assert len(table) == 8
 
 
 def test_server_stop(hq_env: HqEnv):
@@ -137,8 +138,8 @@ def test_generate_access(hq_env: HqEnv):
         {
             "version": str,
             "server_uid": str,
-            "worker": {"host": str, "port": int, "secret_key": str},
-            "client": {"host": str, "port": int, "secret_key": str},
+            "worker": {"host": str, "port": worker_port, "secret_key": str},
+            "client": {"host": str, "port": client_port, "secret_key": str},
         },
     )
     schema.validate(access)
@@ -172,7 +173,7 @@ def test_generate_partial_access(hq_env: HqEnv):
     schema = Schema(
         {
             "version": str,
-            "client": {"host": str, "port": int, "secret_key": str},
+            "client": {"host": str, "port": client_port, "secret_key": str},
         },
     )
     schema.validate(access)
@@ -183,7 +184,7 @@ def test_generate_partial_access(hq_env: HqEnv):
     schema = Schema(
         {
             "version": str,
-            "worker": {"host": str, "port": int, "secret_key": str},
+            "worker": {"host": str, "port": worker_port, "secret_key": str},
         },
     )
     schema.validate(access)

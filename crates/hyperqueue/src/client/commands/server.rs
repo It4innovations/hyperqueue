@@ -1,6 +1,6 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::server::client_stop_server;
-use crate::common::serverdir::{store_access_record, FullAccessRecord};
+use crate::common::serverdir::{load_access_record, store_access_record, FullAccessRecord};
 use crate::common::utils::network::get_hostname;
 use crate::common::utils::time::parse_human_time;
 use crate::rpc_call;
@@ -11,7 +11,6 @@ use crate::transfer::auth::generate_key;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{FromClientMessage, StatsResponse, ToClientMessage};
 use clap::Parser;
-use std::fs::File;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,7 +26,7 @@ pub struct GenerateAccessOpts {
     /// Target filename of the full access file that will be generated
     access_file: PathBuf,
 
-    /// Target filename of the access file for worker that will be generated
+    /// Target filename of the access file for client that will be generated
     #[arg(long)]
     client_file: Option<PathBuf>,
 
@@ -111,12 +110,10 @@ pub async fn command_server(gsettings: &GlobalSettings, opts: ServerOpts) -> any
 }
 
 async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyhow::Result<()> {
-    let access_file: Option<FullAccessRecord> = if let Some(path) = opts.access_file {
-        let file = File::open(path)?;
-        Some(serde_json::from_reader(file)?)
-    } else {
-        None
-    };
+    let access_file: Option<FullAccessRecord> = opts
+        .access_file
+        .map(|path| load_access_record(path.as_path()))
+        .transpose()?;
 
     let host = opts
         .host

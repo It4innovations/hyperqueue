@@ -370,11 +370,11 @@ impl Output for CliOutput {
             ],
             vec!["Worker port".cell().bold(true), info.worker_port.cell()],
             vec!["Version".cell().bold(true), info.version.to_string().cell()],
-            // vec!["Pid".cell().bold(true), record.pid().cell()],
-            // vec![
-            //     "Start date".cell().bold(true),
-            //     record.start_date().format("%F %T %Z").cell(),
-            // ],
+            vec!["Pid".cell().bold(true), info.pid.cell()],
+            vec![
+                "Start date".cell().bold(true),
+                info.start_date.format("%F %T %Z").cell(),
+            ],
         ];
         if let Some(dir) = server_dir {
             rows.insert(

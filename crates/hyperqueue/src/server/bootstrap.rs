@@ -23,6 +23,7 @@ use crate::transfer::auth::generate_key;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::ServerInfo;
 use crate::HQ_VERSION;
+use chrono::Utc;
 use orion::kdf::SecretKey;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
@@ -156,6 +157,8 @@ pub async fn initialize_server(
             worker_host: server_cfg.host.clone(),
             client_port,
             worker_port: 0, // Will be set later
+            pid: std::process::id(),
+            start_date: Utc::now(),
         },
     );
     let (autoalloc_service, autoalloc_process) = create_autoalloc_service(state_ref.clone());
