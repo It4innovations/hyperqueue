@@ -245,6 +245,8 @@ pub struct ServerInfo {
     pub client_port: u16,
     pub worker_port: u16,
     pub version: String,
+    pub pid: u32,
+    pub start_date: DateTime<Utc>,
 }
 
 // Messages server -> client

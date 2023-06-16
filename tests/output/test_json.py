@@ -1,7 +1,9 @@
+import datetime
 import os
 import socket
 from typing import List
 
+import iso8601
 from schema import Schema
 
 from ..conftest import HqEnv
@@ -73,7 +75,7 @@ def test_print_worker_info_pbs_allocation(hq_env: HqEnv):
 
 
 def test_print_server_record(hq_env: HqEnv):
-    hq_env.start_server()
+    process = hq_env.start_server()
     output = parse_json_output(hq_env, ["--output-mode=json", "server", "info"])
 
     schema = Schema(
@@ -85,9 +87,18 @@ def test_print_server_record(hq_env: HqEnv):
             "version": str,
             "client_port": int,
             "server_uid": str,
+            "start_date": str,
+            "pid": int,
         }
     )
     schema.validate(output)
+
+    time = iso8601.parse_date(output["start_date"])
+    now = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
+    duration = now - time
+    assert abs(duration).total_seconds() > 0
+
+    assert process.pid == output["pid"]
 
     assert 0 < int(output["client_port"]) < 65536
     assert 0 < int(output["worker_port"]) < 65536

@@ -56,8 +56,8 @@ impl Output for JsonOutput {
             "client_host": record.client_host,
             "client_port": record.client_port,
             "worker_port": record.worker_port,
-            // "pid": record.pid(),
-            // "start_date": record.start_date(),
+            "pid": record.pid,
+            "start_date": record.start_date,
             "version": record.version,
         });
         self.print(json);

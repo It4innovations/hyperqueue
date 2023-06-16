@@ -42,8 +42,8 @@ impl ServerDir {
 
         let server_dir = ServerDir::open(&dir_path)?;
         let access_file_path = server_dir.access_filename();
-        log::info!("Saving access file as '{}'", access_file_path.display());
         store_access_record(record, access_file_path)?;
+
         create_symlink(&directory.join(SYMLINK_PATH), &dir_path)?;
 
         Ok(server_dir)
@@ -268,16 +268,21 @@ impl FullAccessRecord {
     }
 }
 
+pub fn load_access_record(path: &Path) -> crate::Result<FullAccessRecord> {
+    let file = File::open(path)?;
+    Ok(serde_json::from_reader(file)?)
+}
+
 pub fn store_access_record<R: ?Sized + Serialize, P: AsRef<Path>>(
     record: &R,
     path: P,
 ) -> crate::Result<()> {
+    log::info!("Storing access file as '{}'", path.as_ref().display());
     let mut options = OpenOptions::new();
     options.write(true).create_new(true).mode(0o400); // Read for user, nothing for others
 
-    let file = options.open(path)?;
+    let file = options.open(path.as_ref())?;
     serde_json::to_writer_pretty(file, record)?;
-
     Ok(())
 }
 
