@@ -133,6 +133,7 @@ jobs:
         env:
           CARGO_PROFILE_DIST_PANIC: unwind
           CARGO_PROFILE_DIST_STRIP: none
+          CARGO_TARGET_DIR: target
         with:
           docker-options: -e HQ_BUILD_VERSION=${{ needs.set-env.outputs.version }}
           maturin-version: 0.13.5
