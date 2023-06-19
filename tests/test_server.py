@@ -206,3 +206,46 @@ def test_generate_partial_access(hq_env: HqEnv):
         as_table=True,
     )
     assert result.get_row_value("1") == "RUNNING"
+
+
+def test_generate_partial_access_hosts(hq_env: HqEnv):
+    client_port = 18000 + random.randint(0, 1000)
+    worker_port = 14000 + random.randint(0, 1000)
+    hq_env.command(
+        [
+            "server",
+            "generate-access",
+            "myaccess.json",
+            f"--worker-port={worker_port}",
+            f"--client-port={client_port}",
+            "--client-file=client.json",
+            "--worker-file=worker.json",
+            "--worker-host=192.168.1.1",
+            "--client-host=baf.bar.cz",
+        ],
+        use_server_dir=False,
+    )
+
+    with open("client.json", "r") as f:
+        access = json.load(f)
+
+    schema = Schema(
+        {
+            "version": str,
+            "client": {"host": "baf.bar.cz", "port": client_port, "secret_key": str},
+        },
+    )
+    schema.validate(access)
+
+    with open("worker.json", "r") as f:
+        access = json.load(f)
+
+    schema = Schema(
+        {
+            "version": str,
+            "worker": {"host": "192.168.1.1", "port": worker_port, "secret_key": str},
+        },
+    )
+    schema.validate(access)
+
+    hq_env.start_server(args=["--access-file=myaccess.json"])

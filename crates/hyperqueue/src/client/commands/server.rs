@@ -1,6 +1,8 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::server::client_stop_server;
-use crate::common::serverdir::{load_access_record, store_access_record, FullAccessRecord};
+use crate::common::serverdir::{
+    load_access_record, store_access_record, ConnectAccessRecordPart, FullAccessRecord,
+};
 use crate::common::utils::network::get_hostname;
 use crate::common::utils::time::parse_human_time;
 use crate::rpc_call;
@@ -37,6 +39,14 @@ pub struct GenerateAccessOpts {
     /// Override target host name, otherwise local hostname is used
     #[arg(long)]
     host: Option<String>,
+
+    /// Override target host name for clients
+    #[arg(long)]
+    client_host: Option<String>,
+
+    /// Override target host name for workers
+    #[arg(long)]
+    worker_host: Option<String>,
 
     /// Port for connecting client
     #[arg(long)]
@@ -115,9 +125,15 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
         .map(|path| load_access_record(path.as_path()))
         .transpose()?;
 
-    let host = opts
+    let worker_host = opts
         .host
+        .clone()
         .or_else(|| access_file.as_ref().map(|a| a.worker_host().to_string()))
+        .unwrap_or_else(|| get_hostname(None));
+
+    let client_host = opts
+        .host
+        .or_else(|| access_file.as_ref().map(|a| a.client_host().to_string()))
         .unwrap_or_else(|| get_hostname(None));
 
     let worker_port = opts
@@ -128,7 +144,8 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
         .or(access_file.as_ref().map(|a| a.client_port()));
 
     let server_cfg = ServerConfig {
-        host,
+        client_host,
+        worker_host,
         idle_timeout: opts.idle_timeout,
         client_port,
         worker_port,
@@ -198,15 +215,21 @@ fn command_server_generate_access(
     let server_uid = generate_server_uid();
     let worker_key = Arc::new(generate_key());
     let client_key = Arc::new(generate_key());
-    let host = get_hostname(opts.host);
+    let client_host = get_hostname(opts.client_host.or_else(|| opts.host.clone()));
+    let worker_host = get_hostname(opts.worker_host.or(opts.host));
 
     let record = FullAccessRecord::new(
-        host,
+        ConnectAccessRecordPart {
+            host: client_host,
+            port: opts.client_port,
+            secret_key: client_key,
+        },
+        ConnectAccessRecordPart {
+            host: worker_host,
+            port: opts.worker_port,
+            secret_key: worker_key,
+        },
         server_uid,
-        opts.client_port,
-        opts.worker_port,
-        client_key,
-        worker_key,
     );
 
     store_access_record(&record, &opts.access_file)?;

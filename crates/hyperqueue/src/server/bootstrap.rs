@@ -11,7 +11,8 @@ use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::serverdir::{
-    default_server_directory, ClientAccessRecord, FullAccessRecord, ServerDir, SYMLINK_PATH,
+    default_server_directory, ClientAccessRecord, ConnectAccessRecordPart, FullAccessRecord,
+    ServerDir, SYMLINK_PATH,
 };
 use crate::server::autoalloc::create_autoalloc_service;
 use crate::server::event::log::start_event_streaming;
@@ -35,7 +36,8 @@ enum ServerStatus {
 }
 
 pub struct ServerConfig {
-    pub host: String,
+    pub client_host: String,
+    pub worker_host: String,
     pub idle_timeout: Option<Duration>,
     pub client_port: Option<u16>,
     pub worker_port: Option<u16>,
@@ -153,8 +155,8 @@ pub async fn initialize_server(
         ServerInfo {
             version: HQ_VERSION.to_string(),
             server_uid: server_uid.clone(),
-            client_host: server_cfg.host.clone(),
-            worker_host: server_cfg.host.clone(),
+            client_host: server_cfg.client_host.clone(),
+            worker_host: server_cfg.worker_host.clone(),
             client_port,
             worker_port: 0, // Will be set later
             pid: std::process::id(),
@@ -178,12 +180,17 @@ pub async fn initialize_server(
     state_ref.get_mut().set_worker_port(worker_port);
 
     let record = FullAccessRecord::new(
-        server_cfg.host,
+        ConnectAccessRecordPart {
+            host: server_cfg.client_host,
+            port: client_port,
+            secret_key: client_key.clone(),
+        },
+        ConnectAccessRecordPart {
+            host: server_cfg.worker_host,
+            port: worker_port,
+            secret_key: worker_key.clone(),
+        },
         server_uid,
-        client_port,
-        worker_port,
-        client_key.clone(),
-        worker_key.clone(),
     );
 
     let server_dir = ServerDir::create(server_directory, &record)?;
@@ -290,7 +297,7 @@ mod tests {
     use tokio::sync::Notify;
 
     use crate::common::serverdir::{
-        store_access_record, FullAccessRecord, ServerDir, SYMLINK_PATH,
+        store_access_record, ConnectAccessRecordPart, FullAccessRecord, ServerDir, SYMLINK_PATH,
     };
     use crate::server::bootstrap::{
         get_client_session, get_server_status, initialize_server, ServerConfig,
@@ -301,6 +308,7 @@ mod tests {
     use crate::client::output::cli::CliOutput;
     use crate::client::server::client_stop_server;
     use crate::tests::utils::run_concurrent;
+    use crate::transfer::auth::generate_key;
     use cli_table::ColorChoice;
     use std::future::Future;
     use std::path::Path;
@@ -315,7 +323,8 @@ mod tests {
             Box::new(CliOutput::new(ColorChoice::Never)),
         );
         let server_cfg = ServerConfig {
-            host: "localhost".to_string(),
+            worker_host: "localhost".to_string(),
+            client_host: "localhost".to_string(),
             idle_timeout: None,
             client_port: None,
             worker_port: None,
@@ -340,12 +349,17 @@ mod tests {
         let tmp_path = tmp_dir.into_path();
         let server_dir = ServerDir::open(&tmp_path).unwrap();
         let record = FullAccessRecord::new(
-            "foo".into(),
+            ConnectAccessRecordPart {
+                host: "foo".into(),
+                port: 42,
+                secret_key: Arc::new(generate_key()),
+            },
+            ConnectAccessRecordPart {
+                host: "bar".into(),
+                port: 42,
+                secret_key: Arc::new(generate_key()),
+            },
             "testHQ".into(),
-            42,
-            43,
-            Default::default(),
-            Default::default(),
         );
         store_access_record(&record, server_dir.access_filename()).unwrap();
 
@@ -362,12 +376,17 @@ mod tests {
 
         let server_dir = ServerDir::open(&actual_dir).unwrap();
         let record = FullAccessRecord::new(
-            "foo".into(),
+            ConnectAccessRecordPart {
+                host: "foo".into(),
+                port: 42,
+                secret_key: Arc::new(generate_key()),
+            },
+            ConnectAccessRecordPart {
+                host: "bar".into(),
+                port: 42,
+                secret_key: Arc::new(generate_key()),
+            },
             "testHQ".into(),
-            42,
-            43,
-            Default::default(),
-            Default::default(),
         );
         store_access_record(&record, server_dir.access_filename()).unwrap();
 

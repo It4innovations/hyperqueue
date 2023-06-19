@@ -207,26 +207,15 @@ pub struct ConnectAccessRecordPart {
 
 impl FullAccessRecord {
     pub fn new(
-        host: String,
+        client: ConnectAccessRecordPart,
+        worker: ConnectAccessRecordPart,
         server_uid: String,
-        client_port: u16,
-        worker_port: u16,
-        client_key: Arc<SecretKey>,
-        worker_key: Arc<SecretKey>,
     ) -> Self {
         Self {
             version: HQ_VERSION.to_string(),
             server_uid,
-            client: ConnectAccessRecordPart {
-                host: host.clone(), // TOOD: Allow separate host for client
-                port: client_port,
-                secret_key: client_key,
-            },
-            worker: ConnectAccessRecordPart {
-                host,
-                port: worker_port,
-                secret_key: worker_key,
-            },
+            client,
+            worker,
         }
     }
     pub fn version(&self) -> &str {
@@ -305,19 +294,24 @@ mod tests {
 
     use crate::common::serverdir::{
         create_new_server_dir, load_client_access_file, load_worker_access_file,
-        store_access_record, FullAccessRecord,
+        store_access_record, ConnectAccessRecordPart, FullAccessRecord,
     };
     use crate::transfer::auth::generate_key;
 
     #[test]
     fn test_store_load() {
         let record = FullAccessRecord::new(
-            "foo".into(),
+            ConnectAccessRecordPart {
+                host: "foo".into(),
+                port: 42,
+                secret_key: Arc::new(generate_key()),
+            },
+            ConnectAccessRecordPart {
+                host: "bar".into(),
+                port: 42,
+                secret_key: Arc::new(generate_key()),
+            },
             "testHQ".into(),
-            42,
-            43,
-            Arc::new(generate_key()),
-            Arc::new(generate_key()),
         );
         let path = TempDir::new("foo").unwrap().into_path().join("access.json");
         store_access_record(&record, path.clone()).unwrap();
