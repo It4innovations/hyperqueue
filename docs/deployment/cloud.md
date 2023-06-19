@@ -51,3 +51,12 @@ For starting a client you can use `client.json` as `access.json` while it does n
 For starting a worker you can use `worker.json` as `access.json` while it does not contain information for clients.
 
 For starting server (`hq server start --access-file=...`) you have to use `full.json` as it contains all necessary information.
+
+
+# Setting different server hostname for workers and clients
+
+You can use the following command to configure different hostnames under which the server is visible to workers and clients.
+
+```commandline
+hq server generate-access full.json --worker-host=<WORKER_HOST> --client-host=<CLIENT_HOST> ...
+```

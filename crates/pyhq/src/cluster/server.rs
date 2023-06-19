@@ -27,8 +27,10 @@ impl RunningServer {
                 server_dir,
                 Box::new(CliOutput::new(termcolor::ColorChoice::Never)),
             );
+            let host = get_hostname(None);
             let config = ServerConfig {
-                host: get_hostname(None),
+                client_host: host.clone(),
+                worker_host: host,
                 idle_timeout: None,
                 client_port: None,
                 worker_port: None,
