@@ -110,6 +110,17 @@ struct SharedQueueOpts {
     #[arg(long, global = true)]
     no_dry_run: bool,
 
+    /// Shell command that will be executed on each allocated node, before a worker is created on
+    /// that node.
+    #[arg(long)]
+    worker_start_cmd: Option<String>,
+
+    /// Shell command that will be executed on each allocated node, just before the allocation ends.
+    /// Note that this execution is best-effort. It is not guaranteed that the script will always
+    /// be executed.
+    #[arg(long)]
+    worker_stop_cmd: Option<String>,
+
     /// Additional arguments passed to the submit command
     #[arg(trailing_var_arg(true))]
     additional_args: Vec<String>,
@@ -205,6 +216,8 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
         max_worker_count,
         name,
         worker_args,
+        worker_start_cmd,
+        worker_stop_cmd,
         additional_args,
         on_server_lost,
         no_dry_run: _,
@@ -265,6 +278,8 @@ wasted allocation duration."
         timelimit: time_limit,
         name,
         additional_args,
+        worker_start_cmd,
+        worker_stop_cmd,
         max_worker_count,
         worker_args,
         idle_timeout,

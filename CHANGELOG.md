@@ -7,6 +7,16 @@
 reduce the memory usage of the HQ server. It is useful especially if you submit a large amount of jobs and keep the
 server running for a long time.
 
+## Automatic allocation
+* Autoalloc can now execute a custom shell command/script on each worker node before the worker starts and after the 
+worker stops. You can use this feature e.g. to initialize some data or load software modules for each worker node.
+
+  ```console
+  $ hq alloc add pbs --time-limit 30m \
+    --worker-start-cmd "/project/xxx/init-node.sh" \
+    --worker-stop-cmd "/project/xxx/cleanup-node.sh"
+  ```
+
 # v0.15.0
 
 ## Breaking changes

@@ -90,6 +90,14 @@ creating a new allocation queue:
 automatic allocator. We suggest that you do not use a long duration for this parameter, as it can
 result in wasting precious allocation time.
 
+- `--worker-start-cmd <cmd>` This shell command will be executed on each allocated node just before a worker is started
+on the given node. You can use it e.g. to initialize some shared environment for the node, or to load software modules.
+
+- `--worker-stop-cmd <cmd>` This shell command will be executed on each allocated node just after the worker stops on
+that node. You can use it e.g. to clean up a previously initialized environment for the node. **Note that the execution of
+this command is best-effort! It is not guaranteed that the command will always be executed.** For example, PBS/Slurm can
+kill the allocation without giving HQ a chance to run the command.
+
 - `--name <name>` Name of the allocation queue. Will be used to name allocations. Serves for debug purposes only.
 
 [^1]: You can use various [shortcuts](../cli/shortcuts.md#duration) for the duration value.
