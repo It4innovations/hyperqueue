@@ -221,6 +221,9 @@ pub struct AllocationQueueParams {
     pub max_worker_count: Option<u32>,
     pub additional_args: Vec<String>,
 
+    pub worker_start_cmd: Option<String>,
+    pub worker_stop_cmd: Option<String>,
+
     // Black-box worker args that will be passed to `worker start`
     pub worker_args: Vec<String>,
     pub idle_timeout: Option<Duration>,

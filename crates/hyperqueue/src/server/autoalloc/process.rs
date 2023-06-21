@@ -228,6 +228,8 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
         timelimit,
         additional_args,
         max_worker_count,
+        worker_start_cmd,
+        worker_stop_cmd,
         worker_args,
         idle_timeout,
     } = params;
@@ -239,6 +241,8 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
         max_worker_count,
         worker_args,
         idle_timeout,
+        worker_start_cmd,
+        worker_stop_cmd,
     )
 }
 
@@ -1680,6 +1684,8 @@ mod tests {
                     vec![],
                     max_worker_count,
                     vec![],
+                    None,
+                    None,
                     None,
                 ),
                 RateLimiter::new(

@@ -491,7 +491,17 @@ mod tests {
         let _id = state.create_id();
         let id = state.add_queue(AllocationQueue::new(
             ManagerType::Pbs,
-            QueueInfo::new(1, 1, Duration::from_secs(1), vec![], None, vec![], None),
+            QueueInfo::new(
+                1,
+                1,
+                Duration::from_secs(1),
+                vec![],
+                None,
+                vec![],
+                None,
+                None,
+                None,
+            ),
             None,
             Box::new(NullHandler),
             RateLimiter::new(vec![Duration::from_secs(1)], 1, 1, Duration::from_secs(1)),

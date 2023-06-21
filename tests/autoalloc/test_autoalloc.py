@@ -566,7 +566,7 @@ def test_too_high_time_request(hq_env: HqEnv, spec: ManagerSpec):
         assert len(table) == 0
 
 
-def get_worker_args(script_path: str):
+def get_exec_script(script_path: str):
     """
     `script_path` should be a path to qsub or sbatch submit script.
     """
@@ -576,7 +576,14 @@ def get_worker_args(script_path: str):
             line
             for line in data.splitlines(keepends=False)
             if line and not line.startswith("#")
-        ][0].split(" ")[1:]
+        ][0]
+
+
+def get_worker_args(script_path: str):
+    """
+    `script_path` should be a path to qsub or sbatch submit script.
+    """
+    return get_exec_script(script_path).split(" ")[1:]
 
 
 @all_managers
@@ -690,6 +697,30 @@ def test_pass_on_server_lost(hq_env: HqEnv, spec: ManagerSpec):
             "--on-server-lost",
             "stop",
         ]
+
+
+@all_managers
+def test_start_stop_cmd(hq_env: HqEnv, spec: ManagerSpec):
+    queue = ManagerQueue()
+    manager = ExtractSubmitScriptPath(queue, spec.manager)
+
+    with MockJobManager(hq_env, spec.adapt(manager)):
+        hq_env.start_server()
+        prepare_tasks(hq_env)
+
+        add_queue(
+            hq_env,
+            manager=spec.manager_type(),
+            start_cmd="init.sh",
+            stop_cmd="unload.sh",
+        )
+
+        script = queue.get()
+        assert (
+            get_exec_script(script)
+            == f"init.sh && {get_hq_binary()} worker start --idle-timeout 5m \
+--manager {spec.manager_type()} --server-dir {hq_env.server_dir}/001 --on-server-lost finish-running; unload.sh"
+        )
 
 
 def test_autoalloc_pause_resume_queue_status(hq_env: HqEnv):

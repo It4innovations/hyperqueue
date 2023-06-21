@@ -1,6 +1,7 @@
 use crate::common::manager::info::ManagerType;
 use anyhow::Context;
 use bstr::ByteSlice;
+use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
@@ -155,4 +156,56 @@ pub fn build_worker_args(
     }
 
     args
+}
+
+pub fn wrap_worker_cmd(
+    mut worker_cmd: String,
+    worker_start_cmd: Option<&str>,
+    worker_stop_cmd: Option<&str>,
+) -> String {
+    if let Some(start_cmd) = worker_start_cmd {
+        worker_cmd = format!("{start_cmd} && {worker_cmd}");
+    }
+    if let Some(stop_cmd) = worker_stop_cmd {
+        write!(worker_cmd, "; {stop_cmd}").unwrap();
+    }
+
+    worker_cmd
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::server::autoalloc::queue::common::wrap_worker_cmd;
+
+    #[test]
+    fn wrap_cmd_noop() {
+        assert_eq!(
+            wrap_worker_cmd("foo".to_string(), None, None),
+            "foo".to_string()
+        );
+    }
+
+    #[test]
+    fn wrap_cmd_start() {
+        assert_eq!(
+            wrap_worker_cmd("foo bar".to_string(), Some("init.sh"), None),
+            "init.sh && foo bar".to_string()
+        );
+    }
+
+    #[test]
+    fn wrap_cmd_stop() {
+        assert_eq!(
+            wrap_worker_cmd("foo bar".to_string(), None, Some("unload.sh")),
+            "foo bar; unload.sh".to_string()
+        );
+    }
+
+    #[test]
+    fn wrap_cmd_start_stop() {
+        assert_eq!(
+            wrap_worker_cmd("foo bar".to_string(), Some("init.sh"), Some("unload.sh")),
+            "init.sh && foo bar; unload.sh".to_string()
+        );
+    }
 }
