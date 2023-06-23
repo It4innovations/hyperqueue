@@ -244,7 +244,10 @@ wasted allocation duration."
 
     let mut worker_args = vec![];
     if let Some(cpus) = cpus {
-        worker_args.extend(["--cpus".to_string(), cpus.into_original_input()]);
+        worker_args.extend([
+            "--cpus".to_string(),
+            format!("\"{}\"", cpus.into_original_input()),
+        ]);
     }
     for arg in resource {
         worker_args.extend([
@@ -264,12 +267,12 @@ wasted allocation duration."
     if let Some(overview_interval) = overview_interval {
         worker_args.extend([
             "--overview-interval".to_string(),
-            overview_interval.into_original_input(),
+            format!("\"{}\"", overview_interval.into_original_input()),
         ]);
     }
     worker_args.extend([
         "--on-server-lost".to_string(),
-        server_lost_policy_to_str(&on_server_lost.into()).to_string(),
+        format!("\"{}\"", server_lost_policy_to_str(&on_server_lost.into())),
     ]);
 
     AllocationQueueParams {

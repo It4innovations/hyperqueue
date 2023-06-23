@@ -271,8 +271,9 @@ def test_pbs_multinode_allocation(hq_env: HqEnv):
             commands = extract_script_commands(f.read())
             assert (
                 commands
-                == f"pbsdsh -- bash -l -c '{get_hq_binary()} worker start --idle-timeout 5m \
---manager pbs --server-dir {hq_env.server_dir}/001 --on-server-lost finish-running'"
+                == f"""pbsdsh -- bash -l -c '{get_hq_binary()} worker start --idle-timeout "5m" \
+--time-limit "59m 50s" --manager "pbs" --server-dir "{hq_env.server_dir}/001" --on-server-lost \
+"finish-running"'"""
             )
 
 
@@ -290,8 +291,9 @@ def test_slurm_multinode_allocation(hq_env: HqEnv):
             commands = extract_script_commands(f.read())
             assert (
                 commands
-                == f"srun --overlap {get_hq_binary()} worker start --idle-timeout 5m \
---manager slurm --server-dir {hq_env.server_dir}/001 --on-server-lost finish-running"
+                == f"""srun --overlap {get_hq_binary()} worker start --idle-timeout "5m" \
+--time-limit "59m 50s" --manager "slurm" --server-dir "{hq_env.server_dir}/001" --on-server-lost "finish-running"
+""".rstrip()
             )
 
 
@@ -617,13 +619,16 @@ def test_pass_cpu_and_resources_to_worker(hq_env: HqEnv, spec: ManagerSpec):
             "worker",
             "start",
             "--idle-timeout",
-            "5m",
+            '"5m"',
+            "--time-limit",
+            '"59m',
+            '50s"',
             "--manager",
-            spec.manager_type(),
+            f'"{spec.manager_type()}"',
             "--server-dir",
-            f"{hq_env.server_dir}/001",
+            f'"{hq_env.server_dir}/001"',
             "--cpus",
-            "2x8",
+            '"2x8"',
             "--resource",
             '"x=sum(100)"',
             "--resource",
@@ -633,7 +638,7 @@ def test_pass_cpu_and_resources_to_worker(hq_env: HqEnv, spec: ManagerSpec):
             "--no-hyper-threading",
             "--no-detect-resources",
             "--on-server-lost",
-            "finish-running",
+            '"finish-running"',
         ]
 
 
@@ -660,13 +665,16 @@ def test_pass_idle_timeout_to_worker(hq_env: HqEnv, spec: ManagerSpec):
             "worker",
             "start",
             "--idle-timeout",
-            "30m",
+            '"30m"',
+            "--time-limit",
+            '"59m',
+            '50s"',
             "--manager",
-            spec.manager_type(),
+            f'"{spec.manager_type()}"',
             "--server-dir",
-            f"{hq_env.server_dir}/001",
+            f'"{hq_env.server_dir}/001"',
             "--on-server-lost",
-            "finish-running",
+            '"finish-running"',
         ]
 
 
@@ -689,13 +697,16 @@ def test_pass_on_server_lost(hq_env: HqEnv, spec: ManagerSpec):
             "worker",
             "start",
             "--idle-timeout",
-            "5m",
+            '"5m"',
+            "--time-limit",
+            '"59m',
+            '50s"',
             "--manager",
-            spec.manager_type(),
+            f'"{spec.manager_type()}"',
             "--server-dir",
-            f"{hq_env.server_dir}/001",
+            f'"{hq_env.server_dir}/001"',
             "--on-server-lost",
-            "stop",
+            '"stop"',
         ]
 
 
@@ -718,8 +729,9 @@ def test_start_stop_cmd(hq_env: HqEnv, spec: ManagerSpec):
         script = queue.get()
         assert (
             get_exec_script(script)
-            == f"init.sh && {get_hq_binary()} worker start --idle-timeout 5m \
---manager {spec.manager_type()} --server-dir {hq_env.server_dir}/001 --on-server-lost finish-running; unload.sh"
+            == f"""init.sh && {get_hq_binary()} worker start --idle-timeout "5m" \
+--time-limit "59m 50s" --manager "{spec.manager_type()}" --server-dir "{hq_env.server_dir}/001" \
+--on-server-lost "finish-running"; unload.sh"""
         )
 
 
