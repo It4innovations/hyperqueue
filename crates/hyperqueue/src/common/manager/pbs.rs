@@ -15,11 +15,10 @@ fn parse_pbs_job_remaining_time(job_id: &str, data: &str) -> anyhow::Result<Dura
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Could not find walltime key for job {}", job_id))?,
     )?;
-    let used = parse_hms_time(
-        data_json["Jobs"][job_id]["resources_used"]["walltime"]
-            .as_str()
-            .ok_or_else(|| anyhow::anyhow!("Could not find used time key for job {}", job_id))?,
-    )?;
+    let used = data_json["Jobs"][job_id]["resources_used"]["walltime"]
+        .as_str()
+        .and_then(|v| parse_hms_time(v).ok())
+        .unwrap_or_default();
 
     if walltime < used {
         anyhow::bail!("Pbs: Used time is bigger then walltime");
