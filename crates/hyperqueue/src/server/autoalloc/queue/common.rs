@@ -142,12 +142,15 @@ pub fn build_worker_args(
     let idle_timeout = queue_info
         .idle_timeout
         .unwrap_or_else(get_default_worker_idle_time);
-    let duration = humantime::format_duration(idle_timeout).to_string();
+    let idle_timeout = humantime::format_duration(idle_timeout);
+
+    // Allow some time for cleanup
+    let time_limit = queue_info.timelimit.saturating_sub(Duration::from_secs(10));
+    let time_limit = humantime::format_duration(time_limit);
+
     let mut args = format!(
-        "{} worker start --idle-timeout {} --manager {} --server-dir {}",
+        "{} worker start --idle-timeout \"{idle_timeout}\" --time-limit \"{time_limit}\" --manager \"{manager}\" --server-dir \"{}\"",
         hq_path.display(),
-        duration,
-        manager,
         server_dir.display()
     );
 
