@@ -12,6 +12,8 @@ pub enum HqError {
     DeserializationError(String),
     #[error("Tako error: {0}")]
     TakoError(#[from] tako::Error),
+    #[error("Version error: {0}")]
+    VersionError(String),
     #[error("Error: {0}")]
     GenericError(String),
 }
