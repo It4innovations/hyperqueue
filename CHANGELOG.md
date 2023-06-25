@@ -2,12 +2,19 @@
 
 ## New features
 
-## Job submission
+### Pregenerating access files
+
+* Via command `hq server generate-access` you can precreate an access file that can be later used for staring server,
+  and connecting workers, and clients. This is usefull in cloud environments.
+
+### Job submission
+
 * A new command `hq job forget <job-selector>` has been introduced. It can be used to completely forget a job, and thus
 reduce the memory usage of the HQ server. It is useful especially if you submit a large amount of jobs and keep the
 server running for a long time.
 
-## Automatic allocation
+### Automatic allocation
+
 * Autoalloc can now execute a custom shell command/script on each worker node before the worker starts and after the 
 worker stops. You can use this feature e.g. to initialize some data or load software modules for each worker node.
 
@@ -16,6 +23,14 @@ worker stops. You can use this feature e.g. to initialize some data or load soft
     --worker-start-cmd "/project/xxx/init-node.sh" \
     --worker-stop-cmd "/project/xxx/cleanup-node.sh"
   ```
+
+## Changes
+
+### Access file
+
+The format of the access file is changed. It is mostly internal change but you can experience parsing error when connecting
+an old client/worker to a new server (Connecting a new client/worker to an old server will given you a proper message).
+
 
 # v0.15.0
 
