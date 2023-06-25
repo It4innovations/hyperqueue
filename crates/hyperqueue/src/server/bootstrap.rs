@@ -10,6 +10,7 @@ use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
 use crate::client::globalsettings::GlobalSettings;
+use crate::common::error::HqError;
 use crate::common::serverdir::{
     default_server_directory, ClientAccessRecord, ConnectAccessRecordPart, FullAccessRecord,
     ServerDir, SYMLINK_PATH,
@@ -82,7 +83,12 @@ pub async fn get_client_session(server_directory: &Path) -> anyhow::Result<Clien
     } else {
         String::new()
     };
-    let access_record = sd.read_client_access_record().with_context(|| {
+    let access_record_r = sd.read_client_access_record();
+
+    if let Err(HqError::VersionError(msg)) = access_record_r {
+        anyhow::bail!(msg);
+    }
+    let access_record = access_record_r.with_context(|| {
         format!(
             "No running instance of HQ found at {:?}.\n\
             Try to start the server: `hq server start{}` or use a different server directory.",

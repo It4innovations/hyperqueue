@@ -66,7 +66,7 @@ def test_version_mismatch(hq_env: HqEnv):
 
     with pytest.raises(
         Exception,
-        match=f"Server was started with version {version}.1, but the current version is {version}",
+        match=f"Access record contains version {version}.1, but the current version is {version}",
     ):
         hq_env.command(["job", "list"], as_table=True)
 

@@ -1,4 +1,5 @@
 use std::fs::{File, OpenOptions};
+use std::io::Read;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -8,6 +9,7 @@ use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::common::error::error;
+use crate::common::error::HqError::VersionError;
 use crate::common::utils::fs::{absolute_path, create_symlink};
 use crate::transfer::auth::{deserialize_key, serialize_key};
 use crate::HQ_VERSION;
@@ -62,29 +64,11 @@ impl ServerDir {
     }
 
     pub fn read_worker_access_record(&self) -> crate::Result<WorkerAccessRecord> {
-        let record = load_worker_access_file(self.access_filename())?;
-        if record.version != HQ_VERSION {
-            return error(format!(
-                "Hyperqueue version mismatch detected.\nServer was started with version {}, \
-                but the current version is {}.",
-                record.version, HQ_VERSION
-            ));
-        }
-
-        Ok(record)
+        load_worker_access_file(self.access_filename())
     }
 
     pub fn read_client_access_record(&self) -> crate::Result<ClientAccessRecord> {
-        let record = load_client_access_file(self.access_filename())?;
-        if record.version != HQ_VERSION {
-            return error(format!(
-                "Hyperqueue version mismatch detected.\nServer was started with version {}, \
-                but the current version is {}.",
-                record.version, HQ_VERSION
-            ));
-        }
-
-        Ok(record)
+        load_client_access_file(self.access_filename())
     }
 }
 
@@ -155,6 +139,11 @@ pub struct ServerDescription {
 
     pub start_date: DateTime<Utc>,
 }*/
+
+#[derive(Deserialize)]
+pub struct VersionOnly<'a> {
+    version: &'a str,
+}
 
 /// This data structure represents information required to connect to a running instance of
 /// HyperQueue.
@@ -257,9 +246,24 @@ impl FullAccessRecord {
     }
 }
 
+fn load_and_check_version(path: &Path) -> crate::Result<String> {
+    let mut file = File::open(path)?;
+    let mut string = String::new();
+    file.read_to_string(&mut string)?;
+    let record: VersionOnly = serde_json::from_str(&string)?;
+    if record.version != HQ_VERSION {
+        return Err(VersionError(format!(
+            "Hyperqueue version mismatch detected.\nAccess record contains version {}, \
+                but the current version is {}.",
+            record.version, HQ_VERSION
+        )));
+    }
+    Ok(string)
+}
+
 pub fn load_access_record(path: &Path) -> crate::Result<FullAccessRecord> {
-    let file = File::open(path)?;
-    Ok(serde_json::from_reader(file)?)
+    let raw = load_and_check_version(path)?;
+    Ok(serde_json::from_str(&raw)?)
 }
 
 pub fn store_access_record<R: ?Sized + Serialize, P: AsRef<Path>>(
@@ -276,13 +280,13 @@ pub fn store_access_record<R: ?Sized + Serialize, P: AsRef<Path>>(
 }
 
 pub fn load_worker_access_file<P: AsRef<Path>>(path: P) -> crate::Result<WorkerAccessRecord> {
-    let file = File::open(path)?;
-    Ok(serde_json::from_reader(file)?)
+    let raw = load_and_check_version(path.as_ref())?;
+    Ok(serde_json::from_str(&raw)?)
 }
 
 pub fn load_client_access_file<P: AsRef<Path>>(path: P) -> crate::Result<ClientAccessRecord> {
-    let file = File::open(path)?;
-    Ok(serde_json::from_reader(file)?)
+    let raw = load_and_check_version(path.as_ref())?;
+    Ok(serde_json::from_str(&raw)?)
 }
 
 #[cfg(test)]
