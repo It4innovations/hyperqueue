@@ -1,3 +1,4 @@
+import multiprocessing
 import time
 
 import pytest
@@ -226,6 +227,18 @@ def test_worker_detect_multiple_gpus_from_env(hq_env: HqEnv):
     )
     assert "gpus/nvidia: [0,1]" in resources
     assert "gpus/amd: [1]" in resources
+
+
+@pytest.mark.skipif(
+    multiprocessing.cpu_count() < 2,
+    reason="This test needs at least two cores to be available",
+)
+def test_worker_detect_respect_cpu_mask(hq_env: HqEnv):
+    hq_env.start_server()
+    resources = hq_env.command(
+        ["worker", "hwdetect"], cmd_prefix=["taskset", "-c", "1"]
+    )
+    assert "cpus: [1]" in resources
 
 
 def test_task_info_resources(hq_env: HqEnv):

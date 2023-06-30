@@ -1,13 +1,11 @@
-use crate::common::parser::{consume_all, p_u32, NomResult};
 use anyhow::anyhow;
-
-use crate::common::format::human_size;
 use nom::character::complete::{newline, satisfy, space0};
 use nom::combinator::{map, map_res, opt};
 use nom::multi::{many1, separated_list1};
 use nom::sequence::{preceded, terminated, tuple};
 use nom::Parser;
 use nom_supreme::tag::complete::tag;
+
 use tako::hwstats::GpuFamily;
 use tako::internal::has_unique_elements;
 use tako::resources::{
@@ -16,8 +14,28 @@ use tako::resources::{
 };
 use tako::{format_comma_delimited, Set};
 
+use crate::common::format::human_size;
+use crate::common::parser::{consume_all, p_u32, NomResult};
+
 pub fn detect_cpus() -> anyhow::Result<ResourceDescriptorKind> {
     read_linux_numa()
+        .map(|numa_nodes| {
+            let filtered = filter_masked_cpus(numa_nodes.clone());
+            if filtered.iter().flatten().count() != numa_nodes.iter().flatten().count() {
+                log::info!(
+                    "Some cores were filtered by a CPU mask. All cores: {:?}. Allowed cores: {:?}.",
+                    numa_nodes
+                        .iter()
+                        .map(|c| format_comma_delimited(c.iter().map(|c| c.as_num())))
+                        .collect::<Vec<_>>(),
+                    filtered
+                        .iter()
+                        .map(|c| format_comma_delimited(c.iter().map(|c| c.as_num())))
+                        .collect::<Vec<_>>()
+                );
+            }
+            filtered
+        })
         .and_then(|groups| {
             ResourceDescriptorKind::groups_numeric(groups)
                 .map_err(|_| anyhow!("Inconsistent CPU naming got from detection"))
@@ -30,6 +48,26 @@ pub fn detect_cpus() -> anyhow::Result<ResourceDescriptorKind> {
             };
             Ok(ResourceDescriptorKind::simple_indices(n_cpus))
         })
+}
+
+/// Filter cores that are not allowed because of CPU affinity mask.
+fn filter_masked_cpus(numa_nodes: Vec<Vec<ResourceIndex>>) -> Vec<Vec<ResourceIndex>> {
+    match core_affinity::get_core_ids() {
+        Some(allowed) => {
+            let cpu_set: Set<usize> = allowed.into_iter().map(|core_id| core_id.id).collect();
+            numa_nodes
+                .into_iter()
+                .map(|mut numa_node| {
+                    numa_node.retain(|&cpu| cpu_set.contains(&cpu.into()));
+                    numa_node
+                })
+                .collect()
+        }
+        None => {
+            log::error!("Failed to found CPU mask. Allowing all cores.");
+            numa_nodes
+        }
+    }
 }
 
 pub fn prune_hyper_threading(
@@ -235,8 +273,9 @@ fn parse_comma_separated_values(input: &str) -> anyhow::Result<Vec<String>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_range, read_linux_numa};
     use tako::AsIdVec;
+
+    use super::{parse_range, read_linux_numa};
 
     #[test]
     fn test_parse_range() {
