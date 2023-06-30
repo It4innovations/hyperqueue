@@ -253,7 +253,9 @@ class HqEnv(Env):
         ignore_stderr=False,
         env=None,
         use_server_dir=True,
+        cmd_prefix: Optional[List[str]] = None,
     ):
+        cmd_prefix = cmd_prefix if cmd_prefix is not None else []
         if isinstance(args, str):
             args = [args]
         else:
@@ -262,7 +264,7 @@ class HqEnv(Env):
         if isinstance(stdin, str):
             stdin = stdin.encode()
 
-        final_args = [get_hq_binary(self.debug)]
+        final_args = cmd_prefix + [get_hq_binary(self.debug)]
         if use_server_dir:
             final_args += ["--server-dir", self.server_dir]
         final_args += args
