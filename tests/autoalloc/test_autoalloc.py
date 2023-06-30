@@ -255,6 +255,16 @@ def test_queue_submit_success(hq_env: HqEnv, spec: ManagerSpec):
         wait_for_alloc(hq_env, "QUEUED", "1.job")
 
 
+@all_managers
+def test_submit_time_request_equal_to_time_limit(hq_env: HqEnv, spec: ManagerSpec):
+    with MockJobManager(hq_env, spec.handler()):
+        hq_env.start_server()
+        hq_env.command(["submit", "--time-request", "10m", "sleep", "1"])
+
+        add_queue(hq_env, manager=spec.manager_type(), time_limit="10m")
+        wait_for_alloc(hq_env, "QUEUED", "1.job")
+
+
 def test_pbs_multinode_allocation(hq_env: HqEnv):
     queue = ManagerQueue()
 

@@ -60,7 +60,7 @@ fn can_queue_execute_job(job: &Job, queue_info: &QueueInfo) -> bool {
         JobDescription::Array {
             task_desc: TaskDescription { resources, .. },
             ..
-        } => resources.min_time() < queue_info.timelimit(),
+        } => resources.min_time() <= queue_info.timelimit(),
         JobDescription::Graph { tasks } => {
             // TODO: optimize
             tasks
@@ -68,7 +68,7 @@ fn can_queue_execute_job(job: &Job, queue_info: &QueueInfo) -> bool {
                 .map(|t| t.task_desc.resources.min_time())
                 .min()
                 .unwrap_or(Duration::ZERO)
-                < queue_info.timelimit()
+                <= queue_info.timelimit()
         }
     }
 }
