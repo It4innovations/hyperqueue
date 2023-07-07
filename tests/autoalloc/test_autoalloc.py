@@ -1,9 +1,10 @@
 import time
 from os.path import dirname, join
 from pathlib import Path
-from typing import List
+from typing import List, Literal
 
 import pytest
+from inline_snapshot import snapshot
 
 from ..conftest import HqEnv, get_hq_binary
 from ..utils.wait import (
@@ -263,6 +264,14 @@ def test_submit_time_request_equal_to_time_limit(hq_env: HqEnv, spec: ManagerSpe
         wait_for_alloc(hq_env, "QUEUED", "1.job")
 
 
+def normalize_output(hq_env: HqEnv, manager: Literal["pbs", "slurm"], output: str) -> str:
+    return (
+        output.replace(get_hq_binary(), "<hq-binary>")
+        .replace(hq_env.server_dir, "<server-dir>")
+        .replace(f'"{manager}"', '"<manager>"')
+    )
+
+
 def test_pbs_multinode_allocation(hq_env: HqEnv):
     queue = ManagerQueue()
 
@@ -274,10 +283,11 @@ def test_pbs_multinode_allocation(hq_env: HqEnv):
         qsub_script_path = queue.get()
 
         with open(qsub_script_path) as f:
-            commands = extract_script_commands(f.read())
-            assert commands == f"""pbsdsh -- bash -l -c '{get_hq_binary()} worker start --idle-timeout "5m" \
---time-limit "59m 50s" --manager "pbs" --server-dir "{hq_env.server_dir}/001" --on-server-lost \
-"finish-running"'"""
+            commands = normalize_output(hq_env, "pbs", extract_script_commands(f.read()))
+            assert commands == snapshot(
+                'pbsdsh -- bash -l -c \'<hq-binary> worker start --idle-timeout "5m" --time-limit "59m 50s"'
+                ' --manager "<manager>" --server-dir "<server-dir>/001" --on-server-lost "finish-running"\''
+            )
 
 
 def test_slurm_multinode_allocation(hq_env: HqEnv):
@@ -291,10 +301,11 @@ def test_slurm_multinode_allocation(hq_env: HqEnv):
         add_queue(hq_env, manager="slurm", workers_per_alloc=2)
         sbatch_script_path = queue.get()
         with open(sbatch_script_path) as f:
-            commands = extract_script_commands(f.read())
-            assert commands == f"""srun --overlap {get_hq_binary()} worker start --idle-timeout "5m" \
---time-limit "59m 50s" --manager "slurm" --server-dir "{hq_env.server_dir}/001" --on-server-lost "finish-running"
-""".rstrip()
+            commands = normalize_output(hq_env, "slurm", extract_script_commands(f.read()))
+            assert commands == snapshot(
+                'srun --overlap <hq-binary> worker start --idle-timeout "5m" --time-limit "59m 50s" --manager'
+                ' "<manager>" --server-dir "<server-dir>/001" --on-server-lost "finish-running"'
+            )
 
 
 @all_managers
@@ -611,31 +622,11 @@ def test_pass_cpu_and_resources_to_worker(hq_env: HqEnv, spec: ManagerSpec):
         )
 
         script = queue.get()
-        assert get_worker_args(script) == [
-            "worker",
-            "start",
-            "--idle-timeout",
-            '"5m"',
-            "--time-limit",
-            '"59m',
-            '50s"',
-            "--manager",
-            f'"{spec.manager_type()}"',
-            "--server-dir",
-            f'"{hq_env.server_dir}/001"',
-            "--cpus",
-            '"2x8"',
-            "--resource",
-            '"x=sum(100)"',
-            "--resource",
-            '"y=range(1-4)"',
-            "--resource",
-            '"z=[1,2,4]"',
-            "--no-hyper-threading",
-            "--no-detect-resources",
-            "--on-server-lost",
-            '"finish-running"',
-        ]
+        assert normalize_output(hq_env, spec.manager_type(), " ".join(get_worker_args(script))) == snapshot(
+            'worker start --idle-timeout "5m" --time-limit "59m 50s" --manager "<manager>" --server-dir'
+            ' "<server-dir>/001" --cpus "2x8" --resource "x=sum(100)" --resource "y=range(1-4)" --resource "z=[1,2,4]"'
+            ' --no-hyper-threading --no-detect-resources --on-server-lost "finish-running"'
+        )
 
 
 @all_managers
@@ -657,21 +648,10 @@ def test_pass_idle_timeout_to_worker(hq_env: HqEnv, spec: ManagerSpec):
         )
 
         script_path = queue.get()
-        assert get_worker_args(script_path) == [
-            "worker",
-            "start",
-            "--idle-timeout",
-            '"30m"',
-            "--time-limit",
-            '"59m',
-            '50s"',
-            "--manager",
-            f'"{spec.manager_type()}"',
-            "--server-dir",
-            f'"{hq_env.server_dir}/001"',
-            "--on-server-lost",
-            '"finish-running"',
-        ]
+        assert normalize_output(hq_env, spec.manager_type(), " ".join(get_worker_args(script_path))) == snapshot(
+            'worker start --idle-timeout "30m" --time-limit "59m 50s" --manager "<manager>" --server-dir'
+            ' "<server-dir>/001" --on-server-lost "finish-running"'
+        )
 
 
 @all_managers
@@ -689,21 +669,10 @@ def test_pass_on_server_lost(hq_env: HqEnv, spec: ManagerSpec):
             additional_worker_args=["--on-server-lost=stop"],
         )
         qsub_script_path = queue.get()
-        assert get_worker_args(qsub_script_path) == [
-            "worker",
-            "start",
-            "--idle-timeout",
-            '"5m"',
-            "--time-limit",
-            '"59m',
-            '50s"',
-            "--manager",
-            f'"{spec.manager_type()}"',
-            "--server-dir",
-            f'"{hq_env.server_dir}/001"',
-            "--on-server-lost",
-            '"stop"',
-        ]
+        assert normalize_output(hq_env, spec.manager_type(), " ".join(get_worker_args(qsub_script_path))) == snapshot(
+            'worker start --idle-timeout "5m" --time-limit "59m 50s" --manager "<manager>" --server-dir'
+            ' "<server-dir>/001" --on-server-lost "stop"'
+        )
 
 
 @all_managers
@@ -723,9 +692,10 @@ def test_start_stop_cmd(hq_env: HqEnv, spec: ManagerSpec):
         )
 
         script = queue.get()
-        assert get_exec_script(script) == f"""init.sh && {get_hq_binary()} worker start --idle-timeout "5m" \
---time-limit "59m 50s" --manager "{spec.manager_type()}" --server-dir "{hq_env.server_dir}/001" \
---on-server-lost "finish-running"; unload.sh"""
+        assert normalize_output(hq_env, spec.manager_type(), get_exec_script(script)) == snapshot(
+            'init.sh && <hq-binary> worker start --idle-timeout "5m" --time-limit "59m 50s" --manager "<manager>"'
+            ' --server-dir "<server-dir>/001" --on-server-lost "finish-running"; unload.sh'
+        )
 
 
 def test_autoalloc_pause_resume_queue_status(hq_env: HqEnv):
