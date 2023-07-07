@@ -25,12 +25,8 @@ class BenchmarkRunner:
         self.workdir.mkdir(parents=True, exist_ok=True)
         self.exit_on_error = exit_on_error
 
-    def materialize_and_skip(
-        self, descriptors: List[BenchmarkDescriptor]
-    ) -> List[BenchmarkInstance]:
-        instances = create_identifiers(
-            descriptors, workdir=self.workdir, default_timeout_s=DEFAULT_TIMEOUT_S
-        )
+    def materialize_and_skip(self, descriptors: List[BenchmarkDescriptor]) -> List[BenchmarkInstance]:
+        instances = create_identifiers(descriptors, workdir=self.workdir, default_timeout_s=DEFAULT_TIMEOUT_S)
         return self._skip_completed(instances)
 
     def compute_materialized(
@@ -40,9 +36,7 @@ class BenchmarkRunner:
             identifier = instance.identifier
 
             logging.info(f"Executing benchmark {identifier}")
-            ctx = BenchmarkContext(
-                workdir=Path(identifier.workdir), timeout_s=identifier.timeout
-            )
+            ctx = BenchmarkContext(workdir=Path(identifier.workdir), timeout_s=identifier.timeout)
             executor = self._create_executor(instance.descriptor)
 
             try:
@@ -56,18 +50,14 @@ class BenchmarkRunner:
 
             yield (instance, result)
 
-    def compute(
-        self, descriptors: List[BenchmarkDescriptor]
-    ) -> Iterable[Tuple[BenchmarkInstance, BenchmarkResult]]:
+    def compute(self, descriptors: List[BenchmarkDescriptor]) -> Iterable[Tuple[BenchmarkInstance, BenchmarkResult]]:
         instances = self.materialize_and_skip(descriptors)
         yield from self.compute_materialized(instances)
 
     def save(self):
         self.database.save()
 
-    def _skip_completed(
-        self, infos: List[BenchmarkInstance]
-    ) -> List[BenchmarkInstance]:
+    def _skip_completed(self, infos: List[BenchmarkInstance]) -> List[BenchmarkInstance]:
         not_completed = []
         visited = set()
         skipped = 0
@@ -94,10 +84,8 @@ class BenchmarkRunner:
         if isinstance(result, Failure):
             logging.error(f"Benchmark {key} has failed: {result.traceback}")
             if self.exit_on_error:
-                raise Exception(
-                    f"""Benchmark {identifier} has failed: {result}
-You can find details in {identifier.workdir}"""
-                )
+                raise Exception(f"""Benchmark {identifier} has failed: {result}
+You can find details in {identifier.workdir}""")
         elif isinstance(result, Timeout):
             logging.info(f"Benchmark {key} has timeouted after {result.timeout}s")
         elif isinstance(result, Success):

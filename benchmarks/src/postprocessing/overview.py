@@ -52,9 +52,7 @@ EntryMap = Dict[str, BenchmarkEntry]
 
 
 def render(template: str, **kwargs) -> str:
-    return Template(template).render(
-        **kwargs, format_bytes=lambda v: humanize.naturalsize(v, binary=True)
-    )
+    return Template(template).render(**kwargs, format_bytes=lambda v: humanize.naturalsize(v, binary=True))
 
 
 def style(level=0) -> Dict[str, Any]:
@@ -62,9 +60,7 @@ def style(level=0) -> Dict[str, Any]:
 
 
 def render_benchmark(entry: BenchmarkEntry):
-    with open(
-        os.path.join(os.path.dirname(__file__), "templates/benchmark.html")
-    ) as file:
+    with open(os.path.join(os.path.dirname(__file__), "templates/benchmark.html")) as file:
         template = file.read()
 
     node_utilization = {
@@ -100,9 +96,7 @@ def render_hq_comparison(entries: List[BenchmarkEntry]):
                 panel = render_bench_subtab(render_profiling_data(report), name)
             elif key == "Global usage":
                 per_node_df = create_global_resources_df(report.monitoring)
-                panel = render_bench_subtab(
-                    render_global_resource_usage(report, per_node_df), name
-                )
+                panel = render_bench_subtab(render_global_resource_usage(report, per_node_df), name)
             elif key == "Node usage":
                 # Keep maximum of each subfigure for axis sync between rows
                 per_node_df = create_global_resources_df(report.monitoring)
@@ -111,17 +105,13 @@ def render_hq_comparison(entries: List[BenchmarkEntry]):
                 for fig in figs:
                     figmax = fig.y_range.end
                     if node_maxes.get(fig.title.text) is not None:
-                        node_maxes[fig.title.text] = max(
-                            figmax, node_maxes[fig.title.text]
-                        )
+                        node_maxes[fig.title.text] = max(figmax, node_maxes[fig.title.text])
                     else:
                         node_maxes[fig.title.text] = figmax
                 panel = render_bench_subtab(child, name)
             elif key == "Process usage":
                 per_process_df = create_per_process_resources_df(report.monitoring)
-                panel = render_bench_subtab(
-                    render_process_resource_usage(report, per_process_df), name
-                )
+                panel = render_bench_subtab(render_process_resource_usage(report, per_process_df), name)
             widgets[key].append(panel)
 
     for w in widgets["Node usage"]:
@@ -184,17 +174,13 @@ def render_workload(
     workload_params: str,
     data: pd.DataFrame,
 ):
-    with open(
-        os.path.join(os.path.dirname(__file__), "templates/workload.html")
-    ) as file:
+    with open(os.path.join(os.path.dirname(__file__), "templates/workload.html")) as file:
         template = file.read()
 
     environments = {}
     for group, group_data in groupby_environment(data):
         key = group[0] + "(" + group[1] + ") [" + workload + ":" + workload_params + "]"
-        environments[key] = render_environment(
-            level + 1, entry_map, group[0], group[1], group_data
-        )
+        environments[key] = render_environment(level + 1, entry_map, group[0], group[1], group_data)
     return render(template, environments=environments)
 
 
@@ -229,9 +215,7 @@ def pregenerate_entries(database: Database, directory: Path) -> EntryMap:
     entry_map = {}
     with Pool() as pool:
         args = [(record, directory) for record in database.records]
-        for (record, _), entry in tqdm.tqdm(
-            zip(args, pool.imap(generate_entry, args)), total=len(args)
-        ):
+        for (record, _), entry in tqdm.tqdm(zip(args, pool.imap(generate_entry, args)), total=len(args)):
             if entry is not None:
                 entry_map[record.benchmark_metadata["key"]] = entry
     return entry_map
@@ -248,9 +232,7 @@ def generate_summary_html(database: Database, directory: Path) -> Path:
 
 
 def summary_by_benchmark(df: pd.DataFrame, file):
-    grouped = df.groupby(["workload", "workload-params", "env", "env-params"])[
-        "duration"
-    ]
+    grouped = df.groupby(["workload", "workload-params", "env", "env-params"])["duration"]
     with pd_print_all():
         for group, data in sorted(grouped, key=lambda item: item[0]):
             result = data.describe().to_frame().transpose()
@@ -285,9 +267,7 @@ def two_level_summary(
             print(file=file)
 
 
-def generate_comparison_html(
-    benchmarks: List[str], database: Database, directory: Path
-):
+def generate_comparison_html(benchmarks: List[str], database: Database, directory: Path):
     entry_map = pregenerate_entries(database, directory)
     ensure_directory(directory.joinpath("comparisons"))
 
@@ -321,9 +301,7 @@ def generate_summary_text(database: Database, file):
         two_level_summary(df, groupby_workload, groupby_environment, f)
 
         print("Grouped by environment:", file=f)
-        two_level_summary(
-            df, groupby_environment, groupby_workload, f, print_total=True
-        )
+        two_level_summary(df, groupby_environment, groupby_workload, f, print_total=True)
 
         print("Grouped by benchmark:", file=f)
         summary_by_benchmark(df, f)
@@ -361,9 +339,7 @@ def create_comparer_page(database: Database, directory: Path, addr: str):
     comparisons = {}
     for comparison in glob(str(directory.joinpath("comparisons/*"))):
         name = os.path.basename(comparison)
-        comparisons[name] = create_href(
-            addr, Path("comparisons").joinpath(name), os.path.splitext(name)[0]
-        )
+        comparisons[name] = create_href(addr, Path("comparisons").joinpath(name), os.path.splitext(name)[0])
 
     comparisons_col = column(list(comparisons.values()))
 

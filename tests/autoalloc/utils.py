@@ -7,11 +7,7 @@ from .mock.manager import Manager, WrappedManager
 
 
 def extract_script_args(script: str, prefix: str) -> List[str]:
-    return [
-        line[len(prefix) :].strip()
-        for line in script.splitlines(keepends=False)
-        if line.startswith(prefix)
-    ]
+    return [line[len(prefix) :].strip() for line in script.splitlines(keepends=False) if line.startswith(prefix)]
 
 
 def extract_script_commands(script: str) -> str:
@@ -19,9 +15,7 @@ def extract_script_commands(script: str) -> str:
     Returns all non-empty lines as text from `script` that do not start with a bash comment (`#`).
     """
     return "\n".join(
-        line.strip()
-        for line in script.splitlines(keepends=False)
-        if not line.startswith("#") and line.strip()
+        line.strip() for line in script.splitlines(keepends=False) if not line.startswith("#") and line.strip()
     )
 
 

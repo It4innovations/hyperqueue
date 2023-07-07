@@ -21,9 +21,7 @@ class Sleep(Workload, ABC):
 
 class SleepHQ(Sleep):
     def execute(self, env: HqEnvironment) -> WorkloadExecutionResult:
-        return measure_hq_tasks(
-            env, ["sleep", str(self.sleep_duration)], task_count=self.task_count
-        )
+        return measure_hq_tasks(env, ["sleep", str(self.sleep_duration)], task_count=self.task_count)
 
 
 class SleepSnake(Sleep):

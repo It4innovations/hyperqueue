@@ -47,9 +47,7 @@ def measure_hq_tasks(
     return result(timer.duration())
 
 
-def measure_snake_tasks(
-    env: Environment, command: str, task_count: int, cpus_per_task=1
-) -> WorkloadExecutionResult:
+def measure_snake_tasks(env: Environment, command: str, task_count: int, cpus_per_task=1) -> WorkloadExecutionResult:
     assert isinstance(env, SnakeEnvironment)
 
     args = f"""rule all:

@@ -35,33 +35,23 @@ def execute(
     options = deserialize_submit_options(submit_options)
 
     database_file = (directory / "result.json").resolve()
-    if (
-        database_path
-        and database_path.is_file()
-        and database_file != database_path.resolve()
-    ):
+    if database_path and database_path.is_file() and database_file != database_path.resolve():
         database_file = directory / database_path.name
         shutil.copyfile(database_path, database_file)
 
     database = Database(database_file)
-    runner = BenchmarkRunner(
-        database, workdir=directory, materialize_fn=materialize_benchmark
-    )
+    runner = BenchmarkRunner(database, workdir=directory, materialize_fn=materialize_benchmark)
     benchmark_count = len(identifiers)
 
     def run():
-        for identifier, benchmark, result in tqdm(
-            runner.compute(identifiers), total=benchmark_count
-        ):
+        for identifier, benchmark, result in tqdm(runner.compute(identifiers), total=benchmark_count):
             logging.info(f"Finished benchmark {identifier}: {result}")
 
     max_runtime = options.walltime
     if max_runtime.total_seconds() > 60:
         max_runtime = max_runtime - timedelta(minutes=1)
 
-    logging.info(
-        f"Starting to benchmark {benchmark_count} benchmarks, max time is {max_runtime}"
-    )
+    logging.info(f"Starting to benchmark {benchmark_count} benchmarks, max time is {max_runtime}")
 
     start = time.time()
     try:
@@ -84,11 +74,7 @@ def execute(
             root_dir = directory / "resubmits"
         directory = generate_job_dir(root_dir)
 
-        remaining = [
-            identifier
-            for identifier in identifiers
-            if not database.has_record_for(identifier)
-        ]
+        remaining = [identifier for identifier in identifiers if not database.has_record_for(identifier)]
 
         logging.warning(
             f"Benchmark didn't finish in {max_runtime}, computed {benchmark_count - len(remaining)}"

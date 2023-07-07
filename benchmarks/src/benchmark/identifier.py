@@ -62,9 +62,7 @@ def create_identifiers(
     for descriptor in descriptors:
         identifiers.extend(
             BenchmarkInstance(
-                identifier=create_identifier(
-                    workdir, descriptor, default_timeout_s, index=index
-                ),
+                identifier=create_identifier(workdir, descriptor, default_timeout_s, index=index),
                 descriptor=descriptor,
             )
             for index in range(descriptor.repeat_count)
@@ -112,11 +110,7 @@ def create_benchmark_key(
     environment_params: Dict[str, Any],
     index: int,
 ) -> str:
-    return (
-        f"{workload}-{format_value(workload_params)}-{environment}-"
-        f"{format_value(environment_params)}-"
-        f"{index}"
-    )
+    return f"{workload}-{format_value(workload_params)}-{environment}-{format_value(environment_params)}-{index}"
 
 
 def format_value(value):

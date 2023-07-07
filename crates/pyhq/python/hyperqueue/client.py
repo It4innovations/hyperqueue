@@ -83,9 +83,7 @@ class Client:
             raise Exception("Submitted job must have at least a single task")
 
         job_id = self.connection.submit_job(job_desc)
-        logging.info(
-            f"Submitted job {job_id} with {task_count} {pluralize('task', task_count)}"
-        )
+        logging.info(f"Submitted job {job_id} with {task_count} {pluralize('task', task_count)}")
         return SubmittedJob(job=job, id=job_id)
 
     def wait_for_jobs(self, jobs: Sequence[SubmittedJob], raise_on_error=True) -> bool:
@@ -95,9 +93,7 @@ class Client:
         job_ids_str = ",".join(str(id) for id in job_ids)
         if len(jobs) > 1:
             job_ids_str = "{" + job_ids_str + "}"
-        logging.info(
-            f"Waiting for {pluralize('job', len(jobs))} {job_ids_str} to finish"
-        )
+        logging.info(f"Waiting for {pluralize('job', len(jobs))} {job_ids_str} to finish")
 
         callback = create_progress_callback()
 

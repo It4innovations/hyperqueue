@@ -19,9 +19,7 @@ class SlurmCommandAdapter(CommandHandler):
     def __init__(self, handler: Manager):
         self.handler = handler
 
-    async def handle_command(
-        self, request: Request, cmd: str
-    ) -> Optional[CommandResponse]:
+    async def handle_command(self, request: Request, cmd: str) -> Optional[CommandResponse]:
         input = await extract_mock_input(request)
 
         if cmd == "sbatch":

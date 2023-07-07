@@ -11,9 +11,7 @@ def test_submit_mn(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_workers(2)
 
-    hq_env.command(
-        ["submit", "--nodes=3", "--", "bash", "-c", "sleep 1; cat ${HQ_NODE_FILE}"]
-    )
+    hq_env.command(["submit", "--nodes=3", "--", "bash", "-c", "sleep 1; cat ${HQ_NODE_FILE}"])
     time.sleep(0.5)
     table = hq_env.command(["job", "info", "1"], as_table=True)
     table.check_row_value("Resources", "nodes: 3")

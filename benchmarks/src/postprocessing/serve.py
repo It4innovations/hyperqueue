@@ -61,9 +61,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
 
     class ComparisonHandler(web.RequestHandler):
         def get(self, key: str):
-            html_file = open(
-                Path("summary/comparisons").joinpath(key), "r", encoding="utf-8"
-            )
+            html_file = open(Path("summary/comparisons").joinpath(key), "r", encoding="utf-8")
             source_code = html_file.read()
             self.write(source_code)
 
@@ -79,16 +77,10 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             compare0 = tables[1] > tables[0]
 
             def color_0(x):
-                return [
-                    "background-color:red" if i[1][0] else ""
-                    for i in compare0.iterrows()
-                ]
+                return ["background-color:red" if i[1][0] else "" for i in compare0.iterrows()]
 
             def color_1(x):
-                return [
-                    "background-color:red" if i[1][0] else ""
-                    for i in compare1.iterrows()
-                ]
+                return ["background-color:red" if i[1][0] else "" for i in compare1.iterrows()]
 
             # tables[1].style.apply_index(color_b)
             output = ""
@@ -104,9 +96,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             plt.savefig(img, format="png")
             plt.clf()
 
-            with open(
-                os.path.join(os.path.dirname(__file__), "templates/compare_table.html")
-            ) as fp:
+            with open(os.path.join(os.path.dirname(__file__), "templates/compare_table.html")) as fp:
                 file = fp.read()
 
                 self.write(render(file, tables=output))
@@ -127,9 +117,7 @@ def serve_summary_html(database: Database, directory: Path, port: int):
         def summary_reader_buffer(self):
             df = create_database_df(database)
             print("Grouped by workload:", file=self.summary_txt)
-            two_level_summary(
-                df, groupby_workload, groupby_environment, self.summary_txt
-            )
+            two_level_summary(df, groupby_workload, groupby_environment, self.summary_txt)
             print("Grouped by environment:", file=self.summary_txt)
             two_level_summary(
                 df,
@@ -160,7 +148,6 @@ def serve_summary_html(database: Database, directory: Path, port: int):
                         key = line_parsed[0]
                         entries = []
                         continue
-
                     entries.append(line_parsed[0]) if line_parsed[0] != "" else None
                     i += 1
                     if line == "":
@@ -175,24 +162,16 @@ def serve_summary_html(database: Database, directory: Path, port: int):
             self.summary_reader_buffer()
             data = self.summary_reader()
             df = create_database_df(database)
-            grouped = df.groupby(
-                ["workload", "workload-params", "env", "env-params", "index"]
-            )["duration"]
+            grouped = df.groupby(["workload", "workload-params", "env", "env-params", "index"])["duration"]
             pairs = []
             for pair in list(grouped):
-                pairs.append(
-                    [pair[0], pair[1].describe().dropna().to_frame().T.to_html()]
-                )
+                pairs.append([pair[0], pair[1].describe().dropna().to_frame().T.to_html()])
             data["Grouped by benchmark:"] = pairs
             for i in range(len(data["Grouped by benchmark:"])):
-                formated_str = "-".join(
-                    [str(z) for z in data["Grouped by benchmark:"][i][0]]
-                )
+                formated_str = "-".join([str(z) for z in data["Grouped by benchmark:"][i][0]])
                 formated_str = formated_str.replace(",", "_")
                 data["Grouped by benchmark:"][i][0] = formated_str
-            with open(
-                os.path.join(os.path.dirname(__file__), "templates/summary.html")
-            ) as fp:
+            with open(os.path.join(os.path.dirname(__file__), "templates/summary.html")) as fp:
                 file = fp.read()
                 self.write(render(file, data=data, keys=list(data.keys())[:2]))
             # self.write(data)

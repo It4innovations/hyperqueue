@@ -190,9 +190,7 @@ def test_add_queue(hq_env: HqEnv, spec: ManagerSpec):
 def test_pbs_queue_qsub_args(hq_env: HqEnv):
     queue = ManagerQueue()
 
-    with MockJobManager(
-        hq_env, adapt_pbs(ExtractSubmitScriptPath(queue, PbsManager()))
-    ):
+    with MockJobManager(hq_env, adapt_pbs(ExtractSubmitScriptPath(queue, PbsManager()))):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -268,9 +266,7 @@ def test_submit_time_request_equal_to_time_limit(hq_env: HqEnv, spec: ManagerSpe
 def test_pbs_multinode_allocation(hq_env: HqEnv):
     queue = ManagerQueue()
 
-    with MockJobManager(
-        hq_env, adapt_pbs(ExtractSubmitScriptPath(queue, PbsManager()))
-    ):
+    with MockJobManager(hq_env, adapt_pbs(ExtractSubmitScriptPath(queue, PbsManager()))):
         hq_env.start_server()
         prepare_tasks(hq_env)
 
@@ -279,12 +275,9 @@ def test_pbs_multinode_allocation(hq_env: HqEnv):
 
         with open(qsub_script_path) as f:
             commands = extract_script_commands(f.read())
-            assert (
-                commands
-                == f"""pbsdsh -- bash -l -c '{get_hq_binary()} worker start --idle-timeout "5m" \
+            assert commands == f"""pbsdsh -- bash -l -c '{get_hq_binary()} worker start --idle-timeout "5m" \
 --time-limit "59m 50s" --manager "pbs" --server-dir "{hq_env.server_dir}/001" --on-server-lost \
 "finish-running"'"""
-            )
 
 
 def test_slurm_multinode_allocation(hq_env: HqEnv):
@@ -299,12 +292,9 @@ def test_slurm_multinode_allocation(hq_env: HqEnv):
         sbatch_script_path = queue.get()
         with open(sbatch_script_path) as f:
             commands = extract_script_commands(f.read())
-            assert (
-                commands
-                == f"""srun --overlap {get_hq_binary()} worker start --idle-timeout "5m" \
+            assert commands == f"""srun --overlap {get_hq_binary()} worker start --idle-timeout "5m" \
 --time-limit "59m 50s" --manager "slurm" --server-dir "{hq_env.server_dir}/001" --on-server-lost "finish-running"
 """.rstrip()
-            )
 
 
 @all_managers
@@ -410,8 +400,10 @@ def test_fail_on_remove_queue_with_running_jobs(hq_env: HqEnv, spec: ManagerSpec
         remove_queue(
             hq_env,
             1,
-            expect_fail="Allocation queue has running jobs, so it will not be removed. "
-            "Use `--force` if you want to remove the queue anyway",
+            expect_fail=(
+                "Allocation queue has running jobs, so it will not be removed. "
+                "Use `--force` if you want to remove the queue anyway"
+            ),
         )
         wait_for_alloc(hq_env, "RUNNING", job_id)
 
@@ -502,9 +494,7 @@ def dry_run_cmd(spec: ManagerSpec) -> List[str]:
     return ["alloc", "dry-run", spec.manager_type(), "--time-limit", "1h"]
 
 
-@pytest.mark.skipif(
-    PBS_AVAILABLE, reason="This test will not work properly if `qsub` is available"
-)
+@pytest.mark.skipif(PBS_AVAILABLE, reason="This test will not work properly if `qsub` is available")
 def test_pbs_dry_run_missing_qsub(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(
@@ -584,11 +574,7 @@ def get_exec_script(script_path: str):
     """
     with open(script_path) as f:
         data = f.read()
-        return [
-            line
-            for line in data.splitlines(keepends=False)
-            if line and not line.startswith("#")
-        ][0]
+        return [line for line in data.splitlines(keepends=False) if line and not line.startswith("#")][0]
 
 
 def get_worker_args(script_path: str):
@@ -737,12 +723,9 @@ def test_start_stop_cmd(hq_env: HqEnv, spec: ManagerSpec):
         )
 
         script = queue.get()
-        assert (
-            get_exec_script(script)
-            == f"""init.sh && {get_hq_binary()} worker start --idle-timeout "5m" \
+        assert get_exec_script(script) == f"""init.sh && {get_hq_binary()} worker start --idle-timeout "5m" \
 --time-limit "59m 50s" --manager "{spec.manager_type()}" --server-dir "{hq_env.server_dir}/001" \
 --on-server-lost "finish-running"; unload.sh"""
-        )
 
 
 def test_autoalloc_pause_resume_queue_status(hq_env: HqEnv):
@@ -793,9 +776,7 @@ def test_external_pbs_submit_single_worker(cluster_hq_env: HqEnv, pbs_credential
 
 
 @pbs_test
-def test_external_pbs_submit_multiple_workers(
-    cluster_hq_env: HqEnv, pbs_credentials: str
-):
+def test_external_pbs_submit_multiple_workers(cluster_hq_env: HqEnv, pbs_credentials: str):
     cluster_hq_env.start_server()
     prepare_tasks(cluster_hq_env, count=100)
 
@@ -812,9 +793,7 @@ def test_external_pbs_submit_multiple_workers(
 
 
 @slurm_test
-def test_external_slurm_submit_single_worker(
-    cluster_hq_env: HqEnv, slurm_credentials: str
-):
+def test_external_slurm_submit_single_worker(cluster_hq_env: HqEnv, slurm_credentials: str):
     cluster_hq_env.start_server()
     prepare_tasks(cluster_hq_env, count=10)
 
@@ -830,9 +809,7 @@ def test_external_slurm_submit_single_worker(
 
 
 @slurm_test
-def test_external_slurm_submit_multiple_workers(
-    cluster_hq_env: HqEnv, slurm_credentials: str
-):
+def test_external_slurm_submit_multiple_workers(cluster_hq_env: HqEnv, slurm_credentials: str):
     cluster_hq_env.start_server()
     prepare_tasks(cluster_hq_env, count=100)
 
@@ -848,9 +825,7 @@ def test_external_slurm_submit_multiple_workers(
     wait_for_job_state(cluster_hq_env, 1, "FINISHED")
 
 
-def wait_for_alloc(
-    hq_env: HqEnv, state: str, allocation_id: str, timeout=DEFAULT_TIMEOUT
-):
+def wait_for_alloc(hq_env: HqEnv, state: str, allocation_id: str, timeout=DEFAULT_TIMEOUT):
     """
     Wait until an allocation has the given `state`.
     Assumes a single allocation queue.
@@ -878,9 +853,7 @@ def wait_for_alloc(
         raise e
 
 
-def start_server_with_quick_refresh(
-    hq_env: HqEnv, autoalloc_refresh_ms=100, autoalloc_status_check_ms=100
-):
+def start_server_with_quick_refresh(hq_env: HqEnv, autoalloc_refresh_ms=100, autoalloc_status_check_ms=100):
     hq_env.start_server(
         env={
             "HQ_AUTOALLOC_REFRESH_INTERVAL_MS": str(autoalloc_refresh_ms),

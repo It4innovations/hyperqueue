@@ -23,9 +23,7 @@ def response_error(stdout="", stderr="", code=1):
 
 class CommandHandler(ABC):
     @abc.abstractmethod
-    async def handle_command(
-        self, request: Request, cmd: str
-    ) -> Optional[CommandResponse]:
+    async def handle_command(self, request: Request, cmd: str) -> Optional[CommandResponse]:
         return response_error()
 
 

@@ -80,9 +80,7 @@ class HqClusterInfo(EnvironmentDescriptor):
         return params
 
 
-def assign_workers(
-    workers: List[HqWorkerConfig], nodes: List[str]
-) -> Dict[str, List[HqWorkerConfig]]:
+def assign_workers(workers: List[HqWorkerConfig], nodes: List[str]) -> Dict[str, List[HqWorkerConfig]]:
     round_robin_node = 0
     used_round_robin = set()
 
@@ -99,14 +97,10 @@ def assign_workers(
             node = round_robin_node
             round_robin_node = (round_robin_node + 1) % len(nodes)
             if node in used_round_robin:
-                logging.warning(
-                    f"There are more workers ({len(workers)}) than worker nodes ({len(nodes)})"
-                )
+                logging.warning(f"There are more workers ({len(workers)}) than worker nodes ({len(nodes)})")
             used_round_robin.add(node)
         if node >= len(nodes):
-            raise Exception(
-                f"Selected worker node is {node}, but there are only {len(nodes)} worker node(s)"
-            )
+            raise Exception(f"Selected worker node is {node}, but there are only {len(nodes)} worker node(s)")
         node_assignments[nodes[node]].append(worker)
     return dict(node_assignments)
 
@@ -126,11 +120,7 @@ class HqEnvironment(Environment, EnvStateManager):
         self.nodes = self.info.cluster.node_list.resolve()
         assert self.nodes
 
-        worker_nodes = (
-            self.nodes
-            if isinstance(self.info.cluster.node_list, Local)
-            else self.nodes[1:]
-        )
+        worker_nodes = self.nodes if isinstance(self.info.cluster.node_list, Local) else self.nodes[1:]
         if not worker_nodes:
             raise Exception("No worker nodes are available")
 
@@ -234,9 +224,7 @@ class HqEnvironment(Environment, EnvStateManager):
 
     def _wait_for_workers(self, count: int):
         def get_worker_count():
-            output = subprocess.check_output(
-                self._shared_args() + ["--output-mode", "json", "worker", "list"]
-            )
+            output = subprocess.check_output(self._shared_args() + ["--output-mode", "json", "worker", "list"])
             return len(json.loads(output)) == count
 
         wait_until(lambda: get_worker_count())
@@ -245,9 +233,7 @@ class HqEnvironment(Environment, EnvStateManager):
         return f"hyperqueue={'DEBUG' if self.info.debug else 'INFO'}"
 
 
-def apply_profilers(
-    args: StartProcessArgs, profilers: List[Profiler], output_dir: Path
-):
+def apply_profilers(args: StartProcessArgs, profilers: List[Profiler], output_dir: Path):
     for profiler in profilers:
         profiler.check_availability()
         result = profiler.profile(args.args, output_dir.absolute())

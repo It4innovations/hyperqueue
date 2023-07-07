@@ -52,9 +52,7 @@ def load_profiling_data(cluster: Cluster) -> ProfilingData:
                 if file.is_file():
                     process_records[tag] = file
                 else:
-                    logging.warning(
-                        f"Profiler record `{tag}` for `{process.key}` not found at {file}"
-                    )
+                    logging.warning(f"Profiler record `{tag}` for `{process.key}` not found at {file}")
             data[process.key] = process_records
     return data
 
@@ -69,7 +67,5 @@ def load_monitoring_data(directory: Path, cluster: Cluster) -> MonitoringData:
                 with open(trace_file) as f:
                     data[node] = MonitoringRecord.deserialize_records(f)
             else:
-                logging.warning(
-                    f"Monitoring trace for {node.hostname} not found at {trace_file}"
-                )
+                logging.warning(f"Monitoring trace for {node.hostname} not found at {trace_file}")
     return data

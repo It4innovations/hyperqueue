@@ -62,9 +62,7 @@ def get_process_aggregated_stats(report: ClusterReport) -> Dict[Any, ProcessStat
                 if pid in pid_to_key:
                     key = pid_to_key[pid]
                     used_keys.add(key)
-                    process_stats[key]["max_rss"] = max(
-                        process_record.rss, process_stats[key]["max_rss"]
-                    )
+                    process_stats[key]["max_rss"] = max(process_record.rss, process_stats[key]["max_rss"])
                     process_stats[key]["avg_cpu"].append(process_record.cpu)
 
     for worker in process_stats:
@@ -74,10 +72,7 @@ def get_process_aggregated_stats(report: ClusterReport) -> Dict[Any, ProcessStat
     for key in unused_keys:
         del process_stats[key]
 
-    return {
-        k: ProcessStats(max_rss=v["max_rss"], avg_cpu=v["avg_cpu"])
-        for (k, v) in process_stats.items()
-    }
+    return {k: ProcessStats(max_rss=v["max_rss"], avg_cpu=v["avg_cpu"]) for (k, v) in process_stats.items()}
 
 
 def average(data) -> float:

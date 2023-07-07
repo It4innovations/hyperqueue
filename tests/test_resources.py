@@ -24,16 +24,11 @@ def test_worker_resources_display(hq_env: HqEnv):
         ],
     )
     table = hq_env.command(["worker", "list"], as_table=True)
-    assert table.get_column_value("Resources") == [
-        "cpus 4x2; fairy 10001000; potato 12; shark 4"
-    ]
+    assert table.get_column_value("Resources") == ["cpus 4x2; fairy 10001000; potato 12; shark 4"]
 
     table = hq_env.command(["worker", "info", "1"], as_table=True)
     print(table.get_row_value("Resources"))
-    assert (
-        table.get_row_value("Resources")
-        == "cpus: 4x2\nfairy: 10001000\npotato: 12\nshark: 4"
-    )
+    assert table.get_row_value("Resources") == "cpus: 4x2\nfairy: 10001000\npotato: 12\nshark: 4"
 
 
 def test_task_resources_ignore_worker_without_resource(hq_env: HqEnv):
@@ -61,9 +56,7 @@ def test_task_resources_ignore_worker_without_resource(hq_env: HqEnv):
     hq_env.start_worker(cpus=4, args=["--resource", "fairy=sum(1000)"])
     check_unscheduled()
 
-    hq_env.start_worker(
-        cpus=4, args=["--resource", "fairy=sum(2)", "--resource", "potato=sum(500)"]
-    )
+    hq_env.start_worker(cpus=4, args=["--resource", "fairy=sum(2)", "--resource", "potato=sum(500)"])
     check_unscheduled()
 
 
@@ -80,8 +73,10 @@ def test_task_resources_allocate(hq_env: HqEnv):
             "--",
             "bash",
             "-c",
-            "echo $HQ_RESOURCE_REQUEST_fairy:$HQ_RESOURCE_REQUEST_potato"  # no comma
-            ":$HQ_RESOURCE_VALUES_fairy:$HQ_RESOURCE_VALUES_potato",
+            (  # no comma
+                "echo $HQ_RESOURCE_REQUEST_fairy:$HQ_RESOURCE_REQUEST_potato"
+                ":$HQ_RESOURCE_VALUES_fairy:$HQ_RESOURCE_VALUES_potato"
+            ),
         ]
     )
 
@@ -188,10 +183,9 @@ echo $CUDA_VISIBLE_DEVICES
         ]
     )
     wait_for_job_state(hq_env, 1, "FINISHED")
-    assert list(
-        set(int(v) for v in line.split(","))
-        for line in read_file(default_task_output()).splitlines()
-    ) == [{0, 1}]
+    assert list(set(int(v) for v in line.split(",")) for line in read_file(default_task_output()).splitlines()) == [
+        {0, 1}
+    ]
 
 
 @pytest.mark.parametrize(
@@ -210,9 +204,7 @@ def test_worker_detect_gpus_from_env(hq_env: HqEnv, env_and_res: str):
 
 def test_worker_detect_uuid_gpus_from_env(hq_env: HqEnv):
     hq_env.start_server()
-    resources = hq_env.command(
-        ["worker", "hwdetect"], env={"CUDA_VISIBLE_DEVICES": "foo,bar"}
-    )
+    resources = hq_env.command(["worker", "hwdetect"], env={"CUDA_VISIBLE_DEVICES": "foo,bar"})
     assert "gpus/nvidia: [foo,bar]" in resources
 
 
@@ -235,9 +227,7 @@ def test_worker_detect_multiple_gpus_from_env(hq_env: HqEnv):
 )
 def test_worker_detect_respect_cpu_mask(hq_env: HqEnv):
     hq_env.start_server()
-    resources = hq_env.command(
-        ["worker", "hwdetect"], cmd_prefix=["taskset", "-c", "1"]
-    )
+    resources = hq_env.command(["worker", "hwdetect"], cmd_prefix=["taskset", "-c", "1"])
     assert "cpus: [1]" in resources
 
 
@@ -295,14 +285,12 @@ def test_resource_name_ensure_normalization(hq_env: HqEnv):
             "--resource",
             f"{res_name}=1",
             "--",
-            *python(
-                """
+            *python("""
 import os
 import sys
 print(os.environ["HQ_RESOURCE_REQUEST_gpus_amd"], flush=True)
 print(os.environ["HQ_RESOURCE_VALUES_gpus_amd"], flush=True)
-"""
-            ),
+"""),
         ]
     )
     hq_env.start_worker(args=["--resource", f"{res_name}=[0]"])

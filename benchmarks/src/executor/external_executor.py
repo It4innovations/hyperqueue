@@ -27,18 +27,12 @@ class ExternalBenchmarkExecutor(BenchmarkExecutor):
     def __init__(self, init_script: Optional[Path] = None):
         self.init_script = init_script.resolve()
 
-    def execute(
-        self, benchmark: BenchmarkDescriptor, ctx: BenchmarkContext
-    ) -> BenchmarkResult:
+    def execute(self, benchmark: BenchmarkDescriptor, ctx: BenchmarkContext) -> BenchmarkResult:
         return execute_benchmark_in_external_process(benchmark, ctx, self.init_script)
 
 
-def serialize_benchmark(
-    descriptor: BenchmarkDescriptor, ctx: BenchmarkContext
-) -> bytes:
-    serialized_benchmark = SerializedBenchmark(
-        descriptor=descriptor, ctx=ctx, cwd=Path(os.getcwd()).absolute()
-    )
+def serialize_benchmark(descriptor: BenchmarkDescriptor, ctx: BenchmarkContext) -> bytes:
+    serialized_benchmark = SerializedBenchmark(descriptor=descriptor, ctx=ctx, cwd=Path(os.getcwd()).absolute())
     return pickle.dumps(serialized_benchmark)
 
 
@@ -117,7 +111,7 @@ def run_in_process(
                     with open(stdout_file) as stdout:
                         with open(stderr_file) as stderr:
                             return (
-                                f"Benchmark launch in external process ended with exception.\n"
+                                "Benchmark launch in external process ended with exception.\n"
                                 f"Stdout: {stdout.read()}\n"
                                 f"Stderr: {stderr.read()}\n"
                                 f"Exit code: {returncode}"

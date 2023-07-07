@@ -74,10 +74,7 @@ class ClusterHelper:
             workdir.mkdir(parents=True, exist_ok=True)
             return workdir.absolute()
 
-        pool_args = [
-            dataclasses.replace(args, workdir=prepare_workdir(args.workdir))
-            for args in processes
-        ]
+        pool_args = [dataclasses.replace(args, workdir=prepare_workdir(args.workdir)) for args in processes]
 
         logging.debug(f"Starting cluster processes: {pool_args}")
 
@@ -103,9 +100,7 @@ class ClusterHelper:
         if pyenv:
             init_cmd += [f"source {pyenv}/bin/activate"]
         else:
-            logging.warning(
-                "No Python virtualenv detected. Monitoring will probably not work."
-            )
+            logging.warning("No Python virtualenv detected. Monitoring will probably not work.")
 
         nodes = sorted(set(nodes))
         workdir = self.workdir / "monitoring"

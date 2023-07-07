@@ -13,15 +13,11 @@ from .utils.table import parse_multiline_cell
 def test_job_array_submit(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker(cpus=4)
-    hq_env.command(
-        ["submit", "--array=30-36", "--", "bash", "-c", "echo $HQ_JOB_ID-$HQ_TASK_ID"]
-    )
+    hq_env.command(["submit", "--array=30-36", "--", "bash", "-c", "echo $HQ_JOB_ID-$HQ_TASK_ID"])
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     for i in list(range(0, 30)) + list(range(37, 40)):
-        assert not os.path.isfile(
-            os.path.join(hq_env.work_path, default_task_output(job_id=1, task_id=i))
-        )
+        assert not os.path.isfile(os.path.join(hq_env.work_path, default_task_output(job_id=1, task_id=i)))
         assert not os.path.isfile(
             os.path.join(
                 hq_env.work_path,
@@ -30,9 +26,7 @@ def test_job_array_submit(hq_env: HqEnv):
         )
 
     for i in range(36, 37):
-        stdout = os.path.join(
-            hq_env.work_path, default_task_output(job_id=1, task_id=i)
-        )
+        stdout = os.path.join(hq_env.work_path, default_task_output(job_id=1, task_id=i))
         assert os.path.isfile(stdout)
         assert os.path.isfile(
             os.path.join(
@@ -94,22 +88,13 @@ def test_job_array_error_some(hq_env: HqEnv):
     assert table.header == ["Task ID", "Worker", "Error"]
 
     assert table.get_column_value("Task ID")[0] == "2"
-    assert (
-        table.get_column_value("Error")[0]
-        == "Error: Program terminated with exit code 1"
-    )
+    assert table.get_column_value("Error")[0] == "Error: Program terminated with exit code 1"
 
     assert table.get_column_value("Task ID")[1] == "3"
-    assert (
-        table.get_column_value("Error")[1]
-        == "Error: Program terminated with exit code 1"
-    )
+    assert table.get_column_value("Error")[1] == "Error: Program terminated with exit code 1"
 
     assert table.get_column_value("Task ID")[2] == "7"
-    assert (
-        table.get_column_value("Error")[2]
-        == "Error: Program terminated with exit code 1"
-    )
+    assert table.get_column_value("Error")[2] == "Error: Program terminated with exit code 1"
 
     table = hq_env.command(["task", "list", "1"], as_table=True)
     for i, state in enumerate(
@@ -229,9 +214,7 @@ def test_array_times(hq_env: HqEnv):
     hq_env.command(["submit", "--array=1-3", "sleep", "1"])
     wait_for_job_state(hq_env, 1, "FINISHED")
 
-    time.sleep(
-        1.2
-    )  # This sleep is not redundant, we check that after finished time is not moving
+    time.sleep(1.2)  # This sleep is not redundant, we check that after finished time is not moving
 
     for i in range(1, 4):
         table = hq_env.command(["task", "info", "1", str(i)], as_table=True)

@@ -19,9 +19,7 @@ from . import bash, prepare_job_client
 
 def test_submit_empty_job(hq_env: HqEnv):
     (job, client) = prepare_job_client(hq_env)
-    with pytest.raises(
-        Exception, match="Submitted job must have at least a single task"
-    ):
+    with pytest.raises(Exception, match="Submitted job must have at least a single task"):
         client.submit(job)
 
 
@@ -138,12 +136,8 @@ def test_job_generic_resources(hq_env: HqEnv):
             "fairy=sum(1000)",
         ]
     )
-    t1 = job.program(
-        args=bash("echo Hello"), resources=ResourceRequest(resources={"gpus": 1})
-    )
-    job.program(
-        args=bash("echo Hello"), resources=ResourceRequest(resources={"gpus": 4})
-    )
+    t1 = job.program(args=bash("echo Hello"), resources=ResourceRequest(resources={"gpus": 1}))
+    job.program(args=bash("echo Hello"), resources=ResourceRequest(resources={"gpus": 4}))
     job.program(
         args=bash("echo Hello"),
         resources=ResourceRequest(resources={"gpus": 2}),
@@ -181,9 +175,7 @@ def test_task_priorities(hq_env: HqEnv):
             job.function(lambda: 0, priority=p)
     job_id = client.submit(job)
     client.wait_for_jobs([job_id])
-    data = hq_env.command(["--output-mode=json", "task", "list", "1"], as_json=True)[
-        "1"
-    ]
+    data = hq_env.command(["--output-mode=json", "task", "list", "1"], as_json=True)["1"]
 
     starts1 = [(props["id"], iso8601.parse_date(props["started_at"])) for props in data]
     starts2 = starts1[:]
@@ -212,9 +204,7 @@ def test_resource_uniqueness_priorities(hq_env: HqEnv):
     job_id = client.submit(job)
     client.wait_for_jobs([job_id])
 
-    data = hq_env.command(["--output-mode=json", "task", "list", "1"], as_json=True)[
-        "1"
-    ]
+    data = hq_env.command(["--output-mode=json", "task", "list", "1"], as_json=True)["1"]
     print(data)
     tasks_on_worker_2 = [t["id"] for t in data if t["worker"] == 1]
     print(tasks_on_worker_2)
