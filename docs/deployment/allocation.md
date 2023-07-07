@@ -53,58 +53,105 @@ create multiple allocation queues, and you can even combine PBS queues with Slur
 In addition to arguments that are passed to `qsub`/`sbatch`, you can also use several other command line options when
 creating a new allocation queue:
 
-- **`--time-limit <duration>`** Sets the walltime of created allocations[^1].
+#### Time limit
+Format[^1]: **`--time-limit <duration>`**
 
-    This parameter is **required**, as HyperQueue must know the duration of the individual allocations.
-    Make sure that you pass a  time limit that does not exceed the limit of the PBS/Slurm queue
-    that you intend to use, otherwise the allocation submissions will fail. You can use the
-    [`dry-run` command](#dry-run-command) to debug this.
+Sets the walltime of created allocations.
 
-- `--backlog <count>` How many allocations should be queued (waiting to be started) in PBS/Slurm at any given time.
-- `--workers-per-alloc <count>` How many workers should be requested in each allocation. This corresponds
-  to the number of requested nodes, as the allocator will always create a single worker per node.
-- `--max-worker-count <count>` Maximum number of workers that can be queued or running in the created
-  allocation queue. The amount of workers will be limited by the manager (PBS/Slurm), but you can
-  use this parameter to make the limit smaller, for example if you also want to create manager allocations
-  outside HyperQueue.
-- **Worker resources** You can specify [CPU](../jobs/cresources.md) and [generic](../jobs/resources.md)
-  resources of workers spawned in the created allocation queue. The name and syntax of these parameters
-  is the same as when you create a worker manually:
+This parameter is **required**, as HyperQueue must know the duration of the individual allocations.
+Make sure that you pass a  time limit that does not exceed the limit of the PBS/Slurm queue
+that you intend to use, otherwise the allocation submissions will fail. You can use the
+[`dry-run` command](#dry-run-command) to debug this.
 
-    === "PBS"
-    
-        ```bash
-        $ hq alloc add pbs --time-limit 1h --cpus 4x4 --resource "gpus/nvidia=range(1-2)" -- -qqprod -AAccount1
-        ```
-    
-    === "Slurm"
-    
-        ``` bash
-        $ hq alloc add slurm --time-limit 1h --cpus 4x4 --resource "gpus/nvidia=range(1-2)" -- --partition=p1
-        ```
+Workers in this allocation queue will be by default created with a time limit equal to the time limit of the queue
+(unless overridden with [Worker time limit](#worker-time-limit)).
+
+!!! Important
+    If you specify a [time request](../jobs/jobs.md#time-management)
+    for a task, you should be aware that the time limit for the allocation queue **should be larger than the time request**
+    if you want to run this task on workers created by this allocations queue, because it will always take some time before
+    a worker is fully initialized. For example, if you set `--time-request 1h` when submitting a task, and `--time-limit 1h`
+    when creating an allocation queue, this task will never get scheduled on workers from this queue.
+
+#### Backlog
+Format: `--backlog <count>`
+
+How many allocations should be queued (waiting to be started) in PBS/Slurm at any given time. Has to be a positive integer.
+
+#### Workers per allocation
+Format: `--workers-per-alloc <count>`
+
+How many workers should be requested in each allocation. This corresponds to the number of requested nodes, as the allocator
+will always create a single worker per node.
+
+#### Max worker count
+Format: `--max-worker-count <count>`
+
+Maximum number of workers that can be queued or running in the allocation queue. The total amount of workers will be usually
+limited by the manager (PBS/Slurm), but you can use this parameter to make the limit smaller, for example if you also want
+to create manager allocations outside HyperQueue.
+
+#### Worker resources
+You can specify [CPU](../jobs/cresources.md) and [generic](../jobs/resources.md) resources of workers spawned by the
+allocation queue. The name and syntax of these parameters is the same as when you create a
+[worker manually](../jobs/resources.md#worker-resources):
+
+=== "PBS"
+
+    ```bash
+    $ hq alloc add pbs --time-limit 1h --cpus 4x4 --resource "gpus/nvidia=range(1-2)" -- -qqprod -AAccount1
+    ```
+
+=== "Slurm"
+
+    ```bash
+    $ hq alloc add slurm --time-limit 1h --cpus 4x4 --resource "gpus/nvidia=range(1-2)" -- --partition=p1
+    ```
     
     If you do not pass any resources, they will be detected automatically (same as it works with
     `hq worker start`).
 
-- `--idle-timeout <duration>` [Idle timeout](worker.md#idle-timeout) for workers started by the
-automatic allocator. We suggest that you do not use a long duration for this parameter, as it can
-result in wasting precious allocation time.
+#### Idle timeout
+Format[^1]: `--idle-timeout <duration>`
 
-- `--worker-start-cmd <cmd>` This shell command will be executed on each allocated node just before a worker is started
-on the given node. You can use it e.g. to initialize some shared environment for the node, or to load software modules.
+Sets the [idle timeout](worker.md#idle-timeout) for workers started by the allocation queue. We suggest that you do not
+use a long duration for this parameter, as it can result in wasting precious allocation time.
 
-- `--worker-stop-cmd <cmd>` This shell command will be executed on each allocated node just after the worker stops on
-that node. You can use it e.g. to clean up a previously initialized environment for the node. **Note that the execution of
-this command is best-effort! It is not guaranteed that the command will always be executed.** For example, PBS/Slurm can
-kill the allocation without giving HQ a chance to run the command.
+#### Worker start command
+Format: `--worker-start-cmd <cmd>`
 
-- `--worker-time-limit <duration>` Sets the time limit of workers spawned in the allocations of this queue[^1]. After the
-time limit expires, the worker will be stopped. Normally, the worker time limit is set to the time limit of the allocation
-queue. But if you want, you can shorten it with this command to make the worker exit sooner, for example to give more
-time for a worker stop command (`--worker-stop-cmd`) to execute. Note that this command is not designed to stop workers
-early if they have nothing to do. This functionality is provided by `--idle-timeout`.
+Specifies a shell command that will be executed on each allocated node just before a worker is started
+on that node. You can use it e.g. to initialize some shared environment for the node, or to load software modules.
 
-- `--name <name>` Name of the allocation queue. Will be used to name allocations. Serves for debug purposes only.
+#### Worker stop command
+Format: - `--worker-stop-cmd <cmd>`
+
+Specifies a shell command that will be executed on each allocated node just after the worker stops on
+that node. You can use it e.g. to clean up a previously initialized environment for the node.
+
+!!! Warning
+
+    The execution of this command is best-effort! It is not guaranteed that the command will always be executed. For example,
+    PBS/Slurm can kill the allocation without giving HQ a chance to run the command.
+
+#### Worker time limit
+Format[^1]: `--worker-time-limit <duration>`
+
+Sets the time limit of workers spawned by the allocation queue. After the time limit expires, the worker will be stopped.
+By default, the worker time limit is set to the time limit of the allocation queue. But if you want, you can shorten it
+with this flag to make the worker exit sooner, for example to give more time for a [worker stop command](#worker-stop-command)
+to execute.
+
+!!! Note
+
+    This command is not designed to stop workers early if they have nothing to do. This functionality is
+    provided by [idle timeout](#idle-timeout).
+
+#### Name
+Format: `--name <name>`
+
+Name of the allocation queue. It will be used to name allocations submitted to the job manager. Serves for debug purposes
+only.
 
 [^1]: You can use various [shortcuts](../cli/shortcuts.md#duration) for the duration value.
 
