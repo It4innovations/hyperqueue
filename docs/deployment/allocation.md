@@ -98,6 +98,12 @@ that node. You can use it e.g. to clean up a previously initialized environment 
 this command is best-effort! It is not guaranteed that the command will always be executed.** For example, PBS/Slurm can
 kill the allocation without giving HQ a chance to run the command.
 
+- `--worker-time-limit <duration>` Sets the time limit of workers spawned in the allocations of this queue[^1]. After the
+time limit expires, the worker will be stopped. Normally, the worker time limit is set to the time limit of the allocation
+queue. But if you want, you can shorten it with this command to make the worker exit sooner, for example to give more
+time for a worker stop command (`--worker-stop-cmd`) to execute. Note that this command is not designed to stop workers
+early if they have nothing to do. This functionality is provided by `--idle-timeout`.
+
 - `--name <name>` Name of the allocation queue. Will be used to name allocations. Serves for debug purposes only.
 
 [^1]: You can use various [shortcuts](../cli/shortcuts.md#duration) for the duration value.

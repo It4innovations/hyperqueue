@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use clap::Parser;
+use humantime::format_duration;
 
 use crate::client::commands::worker::{ArgServerLostPolicy, SharedWorkerStartOpts};
 use crate::client::globalsettings::GlobalSettings;
@@ -121,6 +122,15 @@ struct SharedQueueOpts {
     #[arg(long)]
     worker_stop_cmd: Option<String>,
 
+    /// Time limit after which workers in the submitted allocations will be stopped.
+    /// By default, it is set to the time limit of the allocation.
+    /// However, if you want the workers to be stopped sooner, for example to give `worker_stop_cmd`
+    /// more time to execute before the allocation is killed, you can lower the worker time limit.
+    ///
+    /// The limit must not be larger than the allocation time limit.
+    #[arg(long, value_parser = parse_hms_or_human_time)]
+    worker_time_limit: Option<Duration>,
+
     /// Additional arguments passed to the submit command
     #[arg(trailing_var_arg(true))]
     additional_args: Vec<String>,
@@ -208,7 +218,7 @@ pub async fn command_autoalloc(
     Ok(())
 }
 
-fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
+fn args_to_params(args: SharedQueueOpts) -> anyhow::Result<AllocationQueueParams> {
     let SharedQueueOpts {
         backlog,
         time_limit,
@@ -218,6 +228,7 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
         worker_args,
         worker_start_cmd,
         worker_stop_cmd,
+        worker_time_limit,
         additional_args,
         on_server_lost,
         no_dry_run: _,
@@ -229,6 +240,14 @@ fn args_to_params(args: SharedQueueOpts) -> AllocationQueueParams {
                 "You have set an idle timeout longer than 10 minutes. This can result in \
 wasted allocation duration."
             );
+        }
+    }
+
+    if let Some(ref worker_time_limit) = worker_time_limit {
+        if worker_time_limit > &time_limit {
+            return Err(anyhow::anyhow!(
+                "Worker time limit cannot be larger than queue time limit"
+            ));
         }
     }
 
@@ -275,7 +294,13 @@ wasted allocation duration."
         format!("\"{}\"", server_lost_policy_to_str(&on_server_lost.into())),
     ]);
 
-    AllocationQueueParams {
+    let worker_time_limit = worker_time_limit.unwrap_or(time_limit);
+    worker_args.extend([
+        "--time-limit".to_string(),
+        format!("\"{}\"", format_duration(worker_time_limit)),
+    ]);
+
+    Ok(AllocationQueueParams {
         workers_per_alloc,
         backlog,
         timelimit: time_limit,
@@ -286,7 +311,7 @@ wasted allocation duration."
         max_worker_count,
         worker_args,
         idle_timeout,
-    }
+    })
 }
 
 async fn dry_run_command(mut session: ClientSession, opts: DryRunOpts) -> anyhow::Result<()> {
@@ -296,7 +321,7 @@ async fn dry_run_command(mut session: ClientSession, opts: DryRunOpts) -> anyhow
     };
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::DryRun {
         manager,
-        parameters,
+        parameters: parameters?,
     });
 
     rpc_call!(session.connection(), message,
@@ -325,7 +350,7 @@ async fn add_queue(mut session: ClientSession, opts: AddQueueOpts) -> anyhow::Re
 
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue {
         manager,
-        parameters,
+        parameters: parameters?,
         dry_run,
     });
 

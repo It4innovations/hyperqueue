@@ -31,6 +31,7 @@ def add_queue(
     additional_worker_args: List[str] = None,
     additional_args=None,
     time_limit="1h",
+    worker_time_limit: Optional[str] = None,
     dry_run=False,
     start_cmd: Optional[str] = None,
     stop_cmd: Optional[str] = None,
@@ -51,6 +52,8 @@ def add_queue(
     )
     if time_limit is not None:
         args.extend(["--time-limit", time_limit])
+    if worker_time_limit is not None:
+        args.extend(["--worker-time-limit", worker_time_limit])
     if start_cmd is not None:
         args.extend(["--worker-start-cmd", start_cmd])
     if stop_cmd is not None:

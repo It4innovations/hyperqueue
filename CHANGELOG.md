@@ -23,6 +23,17 @@ worker stops. You can use this feature e.g. to initialize some data or load soft
     --worker-start-cmd "/project/xxx/init-node.sh" \
     --worker-stop-cmd "/project/xxx/cleanup-node.sh"
   ```
+* You can now set a time limit for workers spawned in allocations with the `--worker-time-limit` flag. You can use this
+command to make workers stop sooner, so that you e.g. give more headroom for a `--worker-stop-cmd` command to execute
+before the allocation is terminated. If you do not use this parameter, worker time limit will be set to the time limit
+of the allocation.
+
+  Example:
+  ```console
+  $ hq alloc add pbs --time-limit 1h --worker-time-limit 58m --worker-stop-cmd "/project/xxxx/slow-command.sh"
+  ```
+  In this case, the allocation will run for one hour, but the HQ worker will be stopped after 58 minutes (unless it is
+  stopped sooner because of idle timeout). The worker stop command will thus have at least two minutes to execute.
 
 ## Changes
 
