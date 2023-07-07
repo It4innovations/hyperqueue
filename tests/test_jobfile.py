@@ -9,12 +9,10 @@ from .utils.job import default_task_output
 def test_job_file_submit_minimal(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker()
-    tmp_path.joinpath("job.toml").write_text(
-        """
+    tmp_path.joinpath("job.toml").write_text("""
 [[task]]
 command = ["sleep", "0"]
-    """
-    )
+    """)
     hq_env.command(["job", "submit-file", "job.toml"])
     wait_for_job_state(hq_env, 1, "FINISHED")
 
@@ -22,8 +20,7 @@ command = ["sleep", "0"]
 def test_job_file_submit_maximal(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_workers(3, cpus=4, args=["--resource", "gpus=[0,1]"])
-    tmp_path.joinpath("job.toml").write_text(
-        """
+    tmp_path.joinpath("job.toml").write_text("""
 name = "test-job"
 stream_log = "output.log"
 max_fails = 11
@@ -56,8 +53,7 @@ time_request = "10s"
 id = 13
 pin = "omp"
 command = ["sleep", "0"]
-"""
-    )
+""")
     hq_env.command(["job", "submit-file", "job.toml"])
     wait_for_job_state(hq_env, 1, "FINISHED")
 
@@ -101,8 +97,7 @@ def test_job_file_resource_variants1(hq_env: HqEnv, tmp_path):
     hq_env.start_worker(cpus=2, args=["--resource", "gpus=[0,1]"])
     hq_env.start_workers(2, cpus=4)
 
-    tmp_path.joinpath("job.toml").write_text(
-        """
+    tmp_path.joinpath("job.toml").write_text("""
 [[task]]
 id = 0
 command = ["sleep", "1"]
@@ -112,8 +107,7 @@ resources = { "cpus" = "8" }
 
 [[task.request]]
 resources = { "cpus" = "1", "gpus" = "1" }
-"""
-    )
+""")
     hq_env.command(["job", "submit-file", "job.toml"])
 
     wait_for_job_state(hq_env, 1, "RUNNING")
@@ -132,8 +126,7 @@ def test_job_file_resource_variants2(hq_env: HqEnv, tmp_path):
     hq_env.start_workers(1, cpus=4, args=["--resource", "x=[0,1]"])
     hq_env.start_workers(2, cpus=2, args=["--resource", "x=[0]", "--resource", "y=[0]"])
 
-    tmp_path.joinpath("job.toml").write_text(
-        """
+    tmp_path.joinpath("job.toml").write_text("""
     [[task]]
     id = 0
     command = ["/bin/bash",
@@ -147,8 +140,7 @@ def test_job_file_resource_variants2(hq_env: HqEnv, tmp_path):
 
     [[task.request]]
     resources = { "cpus" = "4", "x" = "1" }
-    """
-    )
+    """)
     hq_env.command(["job", "submit-file", "job.toml"])
     wait_for_job_state(hq_env, 1, "FINISHED")
     table = hq_env.command(["task", "info", "1", "0"], as_table=True)
@@ -161,10 +153,7 @@ def test_job_file_resource_variants3(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker(cpus=16, args=["--resource", "x=[0,1]"])
 
-    tmp_path.joinpath("job.toml").write_text(
-        "\n".join(
-            [
-                f"""
+    tmp_path.joinpath("job.toml").write_text("\n".join([f"""
     [[task]]
     id = {x}
     command = ["/bin/bash",
@@ -174,11 +163,7 @@ def test_job_file_resource_variants3(hq_env: HqEnv, tmp_path):
     resources = {{ "cpus" = "1", "x"=1 }}
     [[task.request]]
     resources = {{ "cpus" = "4" }}
-    """
-                for x in range(5)
-            ]
-        )
-    )
+    """ for x in range(5)]))
     hq_env.command(["job", "submit-file", "job.toml"])
     wait_for_job_state(hq_env, 1, "FINISHED")
 
@@ -191,8 +176,7 @@ def test_job_file_resource_variants3(hq_env: HqEnv, tmp_path):
 def test_job_file_auto_id(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker()
-    tmp_path.joinpath("job.toml").write_text(
-        """
+    tmp_path.joinpath("job.toml").write_text("""
 [[task]]
 command = ["sleep", "0"]
 
@@ -209,8 +193,7 @@ command = ["sleep", "0"]
 
 [[task]]
 command = ["sleep", "0"]
-    """
-    )
+    """)
     hq_env.command(["job", "submit-file", "job.toml"])
     wait_for_job_state(hq_env, 1, "FINISHED")
     r = hq_env.command(["--output-mode=json", "job", "info", "1"], as_json=True)
@@ -220,13 +203,11 @@ command = ["sleep", "0"]
 
 def test_job_file_array(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
-    tmp_path.joinpath("job.toml").write_text(
-        """
+    tmp_path.joinpath("job.toml").write_text("""
 [array]
 ids = "2, 10-14, 120"
 command = ["sleep", "0"]
-    """
-    )
+    """)
     hq_env.command(["job", "submit-file", "job.toml"])
     r = hq_env.command(["job", "info", "1"], as_table=True)
     r.check_row_value("Tasks", "7; Ids: 2, 10-14, 120")
@@ -234,8 +215,7 @@ command = ["sleep", "0"]
 
 def test_job_file_fail_mixing_array_and_tasks(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
-    tmp_path.joinpath("job.toml").write_text(
-        """
+    tmp_path.joinpath("job.toml").write_text("""
 [array]
 ids = "2"
 command = ["sleep", "0"]
@@ -243,8 +223,7 @@ command = ["sleep", "0"]
 [[task]]
 id = 1
 command = ["sleep", "0"]
-    """
-    )
+    """)
     hq_env.command(
         ["job", "submit-file", "job.toml"],
         expect_fail="Definition of array job and individual task cannot be mixed",
@@ -254,13 +233,11 @@ command = ["sleep", "0"]
 def test_job_file_array_entries_without_ids(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker()
-    tmp_path.joinpath("job.toml").write_text(
-        """
+    tmp_path.joinpath("job.toml").write_text("""
 [array]
 entries = ["a", "bb", "ccc"]
 command = ["/bin/bash", "-c", "echo $HQ_ENTRY"]
-    """
-    )
+    """)
 
     expected = {0: "a", 1: "bb", 2: "ccc"}
 
@@ -275,14 +252,12 @@ command = ["/bin/bash", "-c", "echo $HQ_ENTRY"]
 def test_job_file_array_entries_with_ids(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker()
-    tmp_path.joinpath("job.toml").write_text(
-        """
+    tmp_path.joinpath("job.toml").write_text("""
 [array]
 ids = "2,10-12"
 entries = ["a", "bb", "ccc", "x"]
 command = ["/bin/bash", "-c", "echo $HQ_ENTRY"]
-    """
-    )
+    """)
 
     expected = {2: "a", 10: "bb", 11: "ccc", 12: "x"}
 
@@ -297,8 +272,7 @@ command = ["/bin/bash", "-c", "echo $HQ_ENTRY"]
 def test_job_file_dependencies(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker()
-    tmp_path.joinpath("job.toml").write_text(
-        """
+    tmp_path.joinpath("job.toml").write_text("""
 [[task]]
 id = 1
 command = ["sleep", "0"]
@@ -311,8 +285,7 @@ command = ["sleep", "0"]
 id = 5
 command = ["sleep", "0"]
 deps = [1, 3]
-    """
-    )
+    """)
     hq_env.command(["job", "submit-file", "job.toml"])
     table = hq_env.command(["task", "info", "1", "5"], as_table=True)
     table.check_row_value("Dependencies", "1,3")

@@ -28,9 +28,7 @@ app = typer.Typer()
 
 
 @app.command()
-def compare_hq_version(
-    baseline: str, modified: Optional[str] = None, zero_worker: Optional[bool] = False
-):
+def compare_hq_version(baseline: str, modified: Optional[str] = None, zero_worker: Optional[bool] = False):
     """
     Compares the performance of two HQ versions.
     If `modified` is not set, the current git workspace version will be used.
@@ -71,13 +69,9 @@ def sleep():
     task_counts = (10, 100, 1000)
     descriptions = []
 
-    def add_product(
-        workloads: List[Workload], environments: List[EnvironmentDescriptor]
-    ):
+    def add_product(workloads: List[Workload], environments: List[EnvironmentDescriptor]):
         for env, workload in itertools.product(environments, workloads):
-            descriptions.append(
-                BenchmarkDescriptor(env_descriptor=env, workload=workload)
-            )
+            descriptions.append(BenchmarkDescriptor(env_descriptor=env, workload=workload))
 
     add_product([SleepSnake(tc) for tc in task_counts], [SnakeEnvironmentDescriptor()])
     add_product(

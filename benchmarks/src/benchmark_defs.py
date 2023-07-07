@@ -82,18 +82,12 @@ def _create_hq_benchmarks(
     return descriptors
 
 
-def create_basic_hq_benchmarks(
-    artifacts: List[BuiltBinary], repeat_count=2
-) -> List[BenchmarkDescriptor]:
+def create_basic_hq_benchmarks(artifacts: List[BuiltBinary], repeat_count=2) -> List[BenchmarkDescriptor]:
     workloads = list(sleep_workloads())
-    return _create_hq_benchmarks(
-        artifacts, [HqWorkerConfig()], workloads, repeat_count=repeat_count
-    )
+    return _create_hq_benchmarks(artifacts, [HqWorkerConfig()], workloads, repeat_count=repeat_count)
 
 
-def create_resources_hq_benchmarks(
-    artifacts: List[BuiltBinary], repeat_count=2
-) -> List[BenchmarkDescriptor]:
+def create_resources_hq_benchmarks(artifacts: List[BuiltBinary], repeat_count=2) -> List[BenchmarkDescriptor]:
     workloads = list(sleep_resource_benchmarks())
     return _create_hq_benchmarks(
         artifacts,

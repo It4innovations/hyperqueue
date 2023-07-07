@@ -19,13 +19,9 @@ def default_stderr() -> str:
 
 # TODO: how to resolve TASK_ID in the context of some other task?
 class Output:
-    def __init__(
-        self, name: str, filepath: Optional[str] = None, extension: Optional[str] = None
-    ):
+    def __init__(self, name: str, filepath: Optional[str] = None, extension: Optional[str] = None):
         if filepath and extension:
-            raise ValidationException(
-                "Parameters `filepath` and `extension` are mutually exclusive"
-            )
+            raise ValidationException("Parameters `filepath` and `extension` are mutually exclusive")
 
         self.name = name
         self.filepath = filepath

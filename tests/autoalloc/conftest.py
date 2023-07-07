@@ -33,9 +33,7 @@ def create_env_in_home(request):
     # We cannot create server directory in /tmp, because it wouldn't be available to compute nodes
     testname = request.node.name
     now = datetime.now()
-    directory = (
-        Path.home() / ".hq-pytest" / f"{testname}-{now.strftime('%d-%m-%y-%H-%M-%S')}"
-    )
+    directory = Path.home() / ".hq-pytest" / f"{testname}-{now.strftime('%d-%m-%y-%H-%M-%S')}"
     directory.mkdir(parents=True, exist_ok=False)
     with run_hq_env(directory) as env:
         try:
@@ -53,13 +51,9 @@ def cluster_hq_env(request):
 def pbs_test(fn):
     signature = inspect.signature(fn)
     if "hq_env" in signature.parameters:
-        raise Exception(
-            "Do not use the `hq_env` fixture with `pbs_test`. Use `cluster_hq_env` instead."
-        )
+        raise Exception("Do not use the `hq_env` fixture with `pbs_test`. Use `cluster_hq_env` instead.")
 
-    @pytest.mark.skipif(
-        not PBS_AVAILABLE, reason="This test can be run only if PBS is available"
-    )
+    @pytest.mark.skipif(not PBS_AVAILABLE, reason="This test can be run only if PBS is available")
     @pytest.mark.pbs
     @functools.wraps(fn)
     def wrapped(*args, **kwargs):
@@ -84,13 +78,9 @@ def slurm_credentials() -> str:
 def slurm_test(fn):
     signature = inspect.signature(fn)
     if "hq_env" in signature.parameters:
-        raise Exception(
-            "Do not use the `hq_env` fixture with `slurm_test`. Use `cluster_hq_env` instead."
-        )
+        raise Exception("Do not use the `hq_env` fixture with `slurm_test`. Use `cluster_hq_env` instead.")
 
-    @pytest.mark.skipif(
-        not SLURM_AVAILABLE, reason="This test can be run only if SLURM is available"
-    )
+    @pytest.mark.skipif(not SLURM_AVAILABLE, reason="This test can be run only if SLURM is available")
     @pytest.mark.slurm
     @functools.wraps(fn)
     def wrapped(*args, **kwargs):

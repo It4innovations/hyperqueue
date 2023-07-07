@@ -65,6 +65,5 @@ class SnakeEnvironment(Environment, EnvStateManager):
         )
         if not ret:
             raise Exception(
-                f"SnakeMake execution failed. You can find more details in "
-                f"{self.workdir / '.snakemake' / 'log'}"
+                f"SnakeMake execution failed. You can find more details in {self.workdir / '.snakemake' / 'log'}"
             )

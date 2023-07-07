@@ -103,9 +103,7 @@ def parse_table(table_info):
                 current_rows = []
             divider_count += 1
             # End early
-            if ((divider_count == 3) or (divider_count == 2 and header is None)) and (
-                i + 1
-            ) < len(lines):
+            if ((divider_count == 3) or (divider_count == 2 and header is None)) and (i + 1) < len(lines):
                 return Table(rows, header=header), lines[(i + 1) :]
             continue
         items = [x.strip() for x in line.split("|")[1:-1]]

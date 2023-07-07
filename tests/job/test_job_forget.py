@@ -61,9 +61,7 @@ def test_forget_multiple_jobs(hq_env: HqEnv):
     hq_env.command(["submit", "/non-existing"])
     wait_for_job_state(hq_env, 7, "FAILED")
 
-    forget_jobs(
-        hq_env, "all", forgotten=6, ignored=1, statutes=["finished", "canceled"]
-    )
+    forget_jobs(hq_env, "all", forgotten=6, ignored=1, statutes=["finished", "canceled"])
     wait_for_job_list_count(hq_env, 1)
 
 

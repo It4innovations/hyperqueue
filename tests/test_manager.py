@@ -57,19 +57,13 @@ def test_manager_autodetect(hq_env: HqEnv):
     with hq_env.mock.mock_program_with_code("qstat", qstat_return_walltime("x1234")):
         with hq_env.mock.mock_program_with_code("scontrol", scontrol_return("y5678")):
             hq_env.start_worker(cpus=1)
-            hq_env.start_worker(
-                cpus=1, env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"}
-            )
+            hq_env.start_worker(cpus=1, env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"})
             hq_env.start_worker(cpus=1, env={"SLURM_JOB_ID": "y5678"})
 
             table = hq_env.command(["worker", "list"], as_table=True)
             table.check_columns_value(["Manager", "Manager Job ID"], 0, ["None", "N/A"])
-            table.check_columns_value(
-                ["Manager", "Manager Job ID"], 1, ["PBS", "x1234"]
-            )
-            table.check_columns_value(
-                ["Manager", "Manager Job ID"], 2, ["SLURM", "y5678"]
-            )
+            table.check_columns_value(["Manager", "Manager Job ID"], 1, ["PBS", "x1234"])
+            table.check_columns_value(["Manager", "Manager Job ID"], 2, ["SLURM", "y5678"])
 
             table = hq_env.command(["worker", "info", "2"], as_table=True)
             table.check_row_value("Manager", "PBS")
@@ -84,9 +78,7 @@ def test_manager_set_none(hq_env: HqEnv):
     hq_env.start_server()
     args = ["--manager", "none"]
     hq_env.start_worker(cpus=1, args=args)
-    hq_env.start_worker(
-        cpus=1, args=args, env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"}
-    )
+    hq_env.start_worker(cpus=1, args=args, env={"PBS_ENVIRONMENT": "PBS_BATCH", "PBS_JOBID": "x1234"})
     hq_env.start_worker(cpus=1, args=args, env={"SLURM_JOB_ID": "y5678"})
 
     table = hq_env.command(["worker", "list"], as_table=True)
@@ -139,9 +131,7 @@ def test_manager_slurm(hq_env: HqEnv):
     hq_env.start_server()
 
     with hq_env.mock.mock_program_with_code("scontrol", scontrol_return("abcd")):
-        hq_env.start_worker(
-            cpus=1, args=["--manager", "slurm"], env={"SLURM_JOB_ID": "abcd"}
-        )
+        hq_env.start_worker(cpus=1, args=["--manager", "slurm"], env={"SLURM_JOB_ID": "abcd"})
 
     table = hq_env.command(["worker", "list"], as_table=True)
     table.check_columns_value(["Manager", "Manager Job ID"], 0, ["SLURM", "abcd"])

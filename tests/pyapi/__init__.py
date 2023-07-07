@@ -9,9 +9,7 @@ from ..conftest import HqEnv
 from ..utils.mock import ProgramMock
 
 
-def prepare_job_client(
-    hq_env: HqEnv, with_worker=True, **job_args
-) -> Tuple[Job, Client]:
+def prepare_job_client(hq_env: HqEnv, with_worker=True, **job_args) -> Tuple[Job, Client]:
     hq_env.start_server()
     if with_worker:
         hq_env.start_worker()

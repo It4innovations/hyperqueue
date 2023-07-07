@@ -76,9 +76,7 @@ def test_worker_capture_nvidia_gpu_state(hq_env: HqEnv):
 print("BUS1, 10.0 %, 100 MiB, 200 MiB")
 """,
         ):
-            hq_env.start_worker(
-                args=["--overview-interval", "10ms", "--resource", "gpus/nvidia=[0]"]
-            )
+            hq_env.start_worker(args=["--overview-interval", "10ms", "--resource", "gpus/nvidia=[0]"])
             wait_for_worker_state(hq_env, 1, "RUNNING")
             time.sleep(0.2)
             hq_env.command(["worker", "stop", "1"])
@@ -122,9 +120,7 @@ data = {
 print(json.dumps(data))
 """,
         ):
-            hq_env.start_worker(
-                args=["--overview-interval", "10ms", "--resource", "gpus/amd=[0]"]
-            )
+            hq_env.start_worker(args=["--overview-interval", "10ms", "--resource", "gpus/amd=[0]"])
             wait_for_worker_state(hq_env, 1, "RUNNING")
             time.sleep(0.2)
             hq_env.command(["worker", "stop", "1"])

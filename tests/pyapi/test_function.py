@@ -33,9 +33,7 @@ def test_submit_python_prologue(hq_env: HqEnv):
 
     hq_env.start_server()
     hq_env.start_worker()
-    client = Client(
-        hq_env.server_dir, python_env=PythonEnv(prologue=f"source {init_sh.resolve()}")
-    )
+    client = Client(hq_env.server_dir, python_env=PythonEnv(prologue=f"source {init_sh.resolve()}"))
 
     def body():
         print(os.environ.get("ABC"))
@@ -58,9 +56,7 @@ def test_submit_pyfunction_fail(hq_env: HqEnv):
     client.wait_for_jobs([job_id], raise_on_error=False)
     errors = client.get_failed_tasks(job_id)
     assert list(errors.keys()) == [0]
-    assert errors[0].error.endswith(
-        '    raise Exception("MyException")\nException: MyException\n'
-    )
+    assert errors[0].error.endswith('    raise Exception("MyException")\nException: MyException\n')
     assert errors[0].stderr == os.path.abspath("err")
 
 

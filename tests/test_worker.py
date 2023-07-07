@@ -158,18 +158,10 @@ def test_worker_list_resources(hq_env: HqEnv):
 
     table = list_all_workers(hq_env)
     assert len(table) == 4
-    table.check_columns_value(
-        ["ID", "State", "Resources"], 0, ["1", "RUNNING", "cpus 10"]
-    )
-    table.check_columns_value(
-        ["ID", "State", "Resources"], 1, ["2", "RUNNING", "cpus 4x5"]
-    )
-    table.check_columns_value(
-        ["ID", "State", "Resources"], 2, ["3", "RUNNING", "cpus 2x3"]
-    )
-    table.check_columns_value(
-        ["ID", "State", "Resources"], 3, ["4", "RUNNING", "cpus 1x1 1x2 1x3"]
-    )
+    table.check_columns_value(["ID", "State", "Resources"], 0, ["1", "RUNNING", "cpus 10"])
+    table.check_columns_value(["ID", "State", "Resources"], 1, ["2", "RUNNING", "cpus 4x5"])
+    table.check_columns_value(["ID", "State", "Resources"], 2, ["3", "RUNNING", "cpus 2x3"])
+    table.check_columns_value(["ID", "State", "Resources"], 3, ["4", "RUNNING", "cpus 1x1 1x2 1x3"])
 
 
 def test_idle_timeout_server_cfg(hq_env: HqEnv):
@@ -259,9 +251,7 @@ def test_server_lost_stop_with_task(hq_env: HqEnv):
     hq_env.start_server()
     worker = hq_env.start_worker(on_server_lost="stop")
     path = os.path.join(hq_env.work_path, "finished")
-    hq_env.command(
-        ["submit", "--array=1-10", "--", "bash", "-c", f"sleep 3; touch {path}"]
-    )
+    hq_env.command(["submit", "--array=1-10", "--", "bash", "-c", f"sleep 3; touch {path}"])
     wait_for_job_state(hq_env, 1, "RUNNING")
     hq_env.kill_server()
     hq_env.check_process_exited(worker, expected_code=1)
@@ -289,9 +279,7 @@ def test_server_lost_finish_running_with_task(hq_env: HqEnv):
     time.sleep(2.0)
     hq_env.check_process_exited(worker, expected_code=1)
 
-    files = [
-        path for path in os.listdir(hq_env.work_path) if path.startswith("finished-")
-    ]
+    files = [path for path in os.listdir(hq_env.work_path) if path.startswith("finished-")]
     assert len(files) == 1
 
 

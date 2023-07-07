@@ -39,11 +39,7 @@ def test_stream_submit(hq_env: HqEnv):
     result = hq_env.command(["log", "mylog", "show", "--channel=stderr"])
     assert result == ""
 
-    lines = set(
-        hq_env.command(
-            ["log", "mylog", "show", "--channel=stderr", "--show-empty"], as_lines=True
-        )
-    )
+    lines = set(hq_env.command(["log", "mylog", "show", "--channel=stderr", "--show-empty"], as_lines=True))
     for i in range(1, 21):
         assert "{0:02}: > stream closed".format(i) in lines
 
@@ -57,9 +53,7 @@ def test_stream_submit(hq_env: HqEnv):
     result = hq_env.command(["log", "mylog", "cat", "stdout"])
     assert result == "".join(["Hello from {}\n".format(i) for i in range(1, 21)])
 
-    result = hq_env.command(
-        ["log", "mylog", "cat", "stdout", "--task=3-4,2"]
-    ).splitlines()
+    result = hq_env.command(["log", "mylog", "cat", "stdout", "--task=3-4,2"]).splitlines()
     assert result[0] == "Hello from 3"
     assert result[1] == "Hello from 4"
     assert result[2] == "Hello from 2"
@@ -292,8 +286,10 @@ def test_stream_unfinished_large(hq_env: HqEnv):
             "--",
             "python3",
             "-c",
-            "import time; import sys; sys.stdout.write('ab' * (16 * 1024 + 3));"
-            "sys.stdout.flush(); time.sleep(2); print('end')",
+            (
+                "import time; import sys; sys.stdout.write('ab' * (16 * 1024 + 3));"
+                "sys.stdout.flush(); time.sleep(2); print('end')"
+            ),
         ]
     )
     hq_env.start_workers(1)
@@ -330,10 +326,7 @@ def test_stream_task_fail(hq_env: HqEnv):
     )
 
     wait_for_job_state(hq_env, 1, "FAILED")
-    wait_until(
-        lambda: hq_env.command(["log", "mylog", "show"])
-        == "0:0> Start\n0: > stream closed\n"
-    )
+    wait_until(lambda: hq_env.command(["log", "mylog", "show"]) == "0:0> Start\n0: > stream closed\n")
 
     check_no_stream_connections(hq_env)
 
@@ -361,10 +354,7 @@ def test_stream_task_cancel(hq_env: HqEnv):
     hq_env.command(["job", "cancel", "1"])
     wait_for_job_state(hq_env, 1, "CANCELED")
 
-    wait_until(
-        lambda: hq_env.command(["log", "mylog", "show"])
-        == "0:0> Start\n0: > stream closed\n"
-    )
+    wait_until(lambda: hq_env.command(["log", "mylog", "show"]) == "0:0> Start\n0: > stream closed\n")
 
     check_no_stream_connections(hq_env)
 
@@ -391,10 +381,7 @@ def test_stream_worker_killed(hq_env: HqEnv):
     hq_env.kill_worker(1)
     wait_for_job_state(hq_env, 1, "WAITING")
 
-    wait_until(
-        lambda: hq_env.command(["log", "mylog", "show"])
-        == "0:0> Start\n0: > stream closed\n"
-    )
+    wait_until(lambda: hq_env.command(["log", "mylog", "show"]) == "0:0> Start\n0: > stream closed\n")
 
     table = hq_env.command(["server", "info", "--stats"], as_table=True)
     table.check_row_value("Stream connections", "")
@@ -421,9 +408,6 @@ def test_stream_timeout(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    wait_until(
-        lambda: hq_env.command(["log", "mylog", "show"])
-        == "0:0> Start\n0: > stream closed\n"
-    )
+    wait_until(lambda: hq_env.command(["log", "mylog", "show"]) == "0:0> Start\n0: > stream closed\n")
 
     check_no_stream_connections(hq_env)

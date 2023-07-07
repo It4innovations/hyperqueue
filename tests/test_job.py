@@ -88,9 +88,7 @@ def test_job_custom_name(hq_env: HqEnv):
 
     table = list_jobs(hq_env)
     assert len(table) == 1
-    table.check_columns_value(
-        ["ID", "Name", "State"], 0, ["1", "sleep_prog", "WAITING"]
-    )
+    table.check_columns_value(["ID", "Name", "State"], 0, ["1", "sleep_prog", "WAITING"])
 
     with pytest.raises(Exception):
         hq_env.command(["submit", "--name=second_sleep \n", "sleep", "1"])
@@ -153,29 +151,17 @@ def test_job_output_default(hq_env: HqEnv, tmp_path):
 
     wait_for_job_state(hq_env, [1, 2, 3], ["FINISHED", "FAILED"])
 
-    check_file_contents(
-        os.path.join(tmp_path, default_task_output(job_id=1, type="stdout")), "hello\n"
-    )
-    check_file_contents(
-        os.path.join(tmp_path, default_task_output(job_id=1, type="stderr")), ""
-    )
-    check_file_contents(
-        os.path.join(tmp_path, default_task_output(job_id=2, type="stdout")), ""
-    )
+    check_file_contents(os.path.join(tmp_path, default_task_output(job_id=1, type="stdout")), "hello\n")
+    check_file_contents(os.path.join(tmp_path, default_task_output(job_id=1, type="stderr")), "")
+    check_file_contents(os.path.join(tmp_path, default_task_output(job_id=2, type="stdout")), "")
 
-    with open(
-        os.path.join(tmp_path, default_task_output(job_id=2, type="stderr"))
-    ) as f:
+    with open(os.path.join(tmp_path, default_task_output(job_id=2, type="stderr"))) as f:
         data = f.read()
         assert "No such file or directory" in data
         assert data.startswith("ls:")
 
-    check_file_contents(
-        os.path.join(tmp_path, default_task_output(job_id=3, type="stdout")), ""
-    )
-    check_file_contents(
-        os.path.join(tmp_path, default_task_output(job_id=3, type="stderr")), ""
-    )
+    check_file_contents(os.path.join(tmp_path, default_task_output(job_id=3, type="stdout")), "")
+    check_file_contents(os.path.join(tmp_path, default_task_output(job_id=3, type="stderr")), "")
 
 
 def test_job_create_output_folders(hq_env: HqEnv):
@@ -203,9 +189,7 @@ def test_job_create_output_folders(hq_env: HqEnv):
 def test_job_output_configured(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker(cpus=1)
-    hq_env.command(
-        ["submit", "--stdout=abc", "--stderr=xyz", "--", "bash", "-c", "echo 'hello'"]
-    )
+    hq_env.command(["submit", "--stdout=abc", "--stderr=xyz", "--", "bash", "-c", "echo 'hello'"])
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     check_file_contents(os.path.join(tmp_path, "abc"), "hello\n")
@@ -235,18 +219,12 @@ def test_job_output_absolute_path(hq_env: HqEnv, tmp_path):
 def test_job_output_none(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_worker(cpus=1)
-    hq_env.command(
-        ["submit", "--stdout=none", "--stderr=none", "--", "bash", "-c", "echo 'hello'"]
-    )
+    hq_env.command(["submit", "--stdout=none", "--stderr=none", "--", "bash", "-c", "echo 'hello'"])
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     assert not os.path.exists(os.path.join(tmp_path, "none"))
-    assert not os.path.exists(
-        os.path.join(tmp_path, default_task_output(job_id=1, task_id=0, type="stdout"))
-    )
-    assert not os.path.exists(
-        os.path.join(tmp_path, default_task_output(job_id=1, task_id=0, type="stderr"))
-    )
+    assert not os.path.exists(os.path.join(tmp_path, default_task_output(job_id=1, task_id=0, type="stdout")))
+    assert not os.path.exists(os.path.join(tmp_path, default_task_output(job_id=1, task_id=0, type="stderr")))
 
 
 def test_job_filters(hq_env: HqEnv):
@@ -270,14 +248,10 @@ def test_job_filters(hq_env: HqEnv):
     table.check_column_value("State", 2, "WAITING")
     assert len(table) == 3
 
-    table_canceled = hq_env.command(
-        ["job", "list", "--filter", "canceled"], as_table=True
-    )
+    table_canceled = hq_env.command(["job", "list", "--filter", "canceled"], as_table=True)
     assert len(table_canceled) == 1
 
-    table_waiting = hq_env.command(
-        ["job", "list", "--filter", "waiting"], as_table=True
-    )
+    table_waiting = hq_env.command(["job", "list", "--filter", "waiting"], as_table=True)
     assert len(table_waiting) == 2
 
     hq_env.start_worker(cpus=1)
@@ -285,22 +259,16 @@ def test_job_filters(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 4, "RUNNING")
 
-    table_running = hq_env.command(
-        ["job", "list", "--filter", "running"], as_table=True
-    )
+    table_running = hq_env.command(["job", "list", "--filter", "running"], as_table=True)
     assert len(table_running) == 1
 
-    table_finished = hq_env.command(
-        ["job", "list", "--filter", "finished"], as_table=True
-    )
+    table_finished = hq_env.command(["job", "list", "--filter", "finished"], as_table=True)
     assert len(table_finished) == 1
 
     table_failed = hq_env.command(["job", "list", "--filter", "failed"], as_table=True)
     assert len(table_failed) == 1
 
-    table_failed = hq_env.command(
-        ["job", "list", "--filter", "failed,finished"], as_table=True
-    )
+    table_failed = hq_env.command(["job", "list", "--filter", "failed,finished"], as_table=True)
     assert len(table_failed) == 2
 
 
@@ -486,8 +454,7 @@ def test_cancel_send_sigint(hq_env: HqEnv):
         [
             "submit",
             "--",
-            *python(
-                """
+            *python("""
 import sys
 import time
 import signal
@@ -500,8 +467,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 print("ready", flush=True)
 time.sleep(3600)
-"""
-            ),
+"""),
         ]
     )
     wait_for_job_state(hq_env, 1, "RUNNING")
@@ -510,10 +476,7 @@ time.sleep(3600)
     hq_env.command(["job", "cancel", "1"])
     wait_for_job_state(hq_env, 1, "CANCELED")
 
-    wait_until(
-        lambda: read_file(default_task_output()).splitlines(keepends=False)[1]
-        == "sigint"
-    )
+    wait_until(lambda: read_file(default_task_output()).splitlines(keepends=False)[1] == "sigint")
 
 
 def test_cancel_kill_if_sigint_fails(hq_env: HqEnv):
@@ -524,8 +487,7 @@ def test_cancel_kill_if_sigint_fails(hq_env: HqEnv):
         [
             "submit",
             "--",
-            *python(
-                """
+            *python("""
 import os
 import sys
 import time
@@ -539,8 +501,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 print("ready", flush=True)
 time.sleep(3600)
-"""
-            ),
+"""),
         ]
     )
     wait_for_job_state(hq_env, 1, "RUNNING")
@@ -612,9 +573,7 @@ def test_set_env(hq_env: HqEnv):
     )
     wait_for_job_state(hq_env, 1, "FINISHED")
 
-    check_file_contents(
-        os.path.join(hq_env.work_path, default_task_output()), "BAR BAR2\n"
-    )
+    check_file_contents(os.path.join(hq_env.work_path, default_task_output()), "BAR BAR2\n")
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
     table.check_row_value("Environment", "FOO=BAR\nFOO2=BAR2")
@@ -773,9 +732,7 @@ def test_job_resubmit_empty(hq_env: HqEnv):
 
 def test_job_resubmit_with_log(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(
-        ["submit", "--array=1-10", "--log", "foo.bin", "--", "/bin/nonexisting"]
-    )
+    hq_env.command(["submit", "--array=1-10", "--log", "foo.bin", "--", "/bin/nonexisting"])
     hq_env.start_workers(1)
     wait_for_job_state(hq_env, 1, "FAILED")
 
@@ -875,12 +832,8 @@ def test_job_tasks_makespan(hq_env: HqEnv):
     hq_env.command(["job", "cancel", "1"])
     wait_for_job_state(hq_env, 1, "CANCELED")
 
-    times_1 = hq_env.command(["task", "list", "1"], as_table=True).get_column_value(
-        "Makespan"
-    )
-    times_2 = hq_env.command(["task", "list", "1"], as_table=True).get_column_value(
-        "Makespan"
-    )
+    times_1 = hq_env.command(["task", "list", "1"], as_table=True).get_column_value("Makespan")
+    times_2 = hq_env.command(["task", "list", "1"], as_table=True).get_column_value("Makespan")
     assert times_1 == times_2
 
 
@@ -939,9 +892,7 @@ def test_job_completion_time(hq_env: HqEnv):
     assert not table.get_row_value("Makespan").startswith("1s")
 
     wait_for_job_state(hq_env, 1, "FINISHED")
-    time.sleep(
-        1.2
-    )  # This sleep is not redundant, we check that after finished time is not moving
+    time.sleep(1.2)  # This sleep is not redundant, we check that after finished time is not moving
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
     assert table.get_row_value("Makespan").startswith("1s")
@@ -1060,25 +1011,18 @@ def test_job_shell_script_fail_not_executable(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
-    assert (
-        """Error: Cannot execute "./test.sh": Permission denied (os error 13)
+    assert """Error: Cannot execute "./test.sh": Permission denied (os error 13)
 The script that you have tried to execute (`./test.sh`) is not executable.
-Try making it executable or add a shebang line to it."""
-        == table.get_column_value("Error")[0]
-    )
+Try making it executable or add a shebang line to it.""" == table.get_column_value("Error")[0]
 
 
 def test_job_shell_script_read_interpreter(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
-    Path("test.sh").write_text(
-        """#!/bin/bash
+    Path("test.sh").write_text("""#!/bin/bash
 echo 'Hello' > out.txt
-"""
-    )
-    for job_id, path in enumerate(
-        ("test.sh", "./test.sh", os.path.realpath("test.sh"))
-    ):
+""")
+    for job_id, path in enumerate(("test.sh", "./test.sh", os.path.realpath("test.sh"))):
         hq_env.command(["submit", path])
         wait_for_job_state(hq_env, job_id + 1, "FINISHED")
 
@@ -1172,9 +1116,7 @@ print("err1", file=sys.stderr)
 
     output = hq_env.command(["job", "cat", "1", "stdout", "--print-task-header"])
     print(output)
-    assert (
-        output
-        == """
+    assert output == """
 # Task 1
 1
 out1
@@ -1188,12 +1130,9 @@ out2
 out1
 out2
 """.lstrip()
-    )
 
     output = hq_env.command(["job", "cat", "1", "stderr", "--print-task-header"])
-    assert (
-        output
-        == """
+    assert output == """
 # Task 1
 1
 err1
@@ -1204,7 +1143,6 @@ err1
 3
 err1
 """.lstrip()
-    )
 
 
 def test_job_cat_status(hq_env: HqEnv):
@@ -1230,12 +1168,8 @@ assert os.environ['HQ_TASK_ID'] not in ['4', '5', '6', '8']
     )
     wait_for_job_state(hq_env, 1, "FAILED")
 
-    output = hq_env.command(
-        ["job", "cat", "--task-status=finished", "1", "stdout", "--print-task-header"]
-    )
-    assert (
-        output
-        == """
+    output = hq_env.command(["job", "cat", "--task-status=finished", "1", "stdout", "--print-task-header"])
+    assert output == """
 # Task 3
 3
 out
@@ -1246,14 +1180,9 @@ out
 9
 out
 """.lstrip()
-    )
 
-    output = hq_env.command(
-        ["job", "cat", "--task-status=failed", "--tasks", "3-7", "1", "stdout"]
-    )
-    assert (
-        output
-        == """
+    output = hq_env.command(["job", "cat", "--task-status=failed", "--tasks", "3-7", "1", "stdout"])
+    assert output == """
 4
 out
 5
@@ -1261,16 +1190,10 @@ out
 6
 out
 """.lstrip()
-    )
 
-    output_selected = hq_env.command(
-        ["job", "cat", "--task-status", "finished,failed", "1", "stdout"]
-    )
+    output_selected = hq_env.command(["job", "cat", "--task-status", "finished,failed", "1", "stdout"])
     output_default = hq_env.command(["job", "cat", "1", "stdout"])
-    assert (
-        output_selected
-        == output_default
-        == """
+    assert output_selected == output_default == """
 3
 out
 4
@@ -1286,7 +1209,6 @@ out
 9
 out
 """.lstrip()
-    )
 
 
 def test_job_cat_last(hq_env: HqEnv):
@@ -1321,9 +1243,7 @@ def test_submit_task_dir(hq_env: HqEnv, mode):
             "--",
             "bash",
             "-c",
-            "echo $HQ_TASK_DIR; touch $HQ_TASK_DIR/xyz; sleep 2; {}".format(
-                "exit 1" if mode == "FAILED" else ""
-            ),
+            "echo $HQ_TASK_DIR; touch $HQ_TASK_DIR/xyz; sleep 2; {}".format("exit 1" if mode == "FAILED" else ""),
         ]
     )
     wait_for_job_state(hq_env, 1, "RUNNING")
@@ -1377,16 +1297,13 @@ def test_long_custom_error_message(hq_env: HqEnv):
             "--",
             "python",
             "-c",
-            "import os; f = open(os.environ['HQ_ERROR_FILENAME'], 'w');"
-            "f.write('a' * 10_000); f.flush(); sys.exit(1)",
+            "import os; f = open(os.environ['HQ_ERROR_FILENAME'], 'w');f.write('a' * 10_000); f.flush(); sys.exit(1)",
         ]
     )
     wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
-    assert table.get_column_value("Error")[0].endswith(
-        "aaaaaa\n[The message was truncated]"
-    )
+    assert table.get_column_value("Error")[0].endswith("aaaaaa\n[The message was truncated]")
 
 
 def test_zero_custom_error_message(hq_env: HqEnv):
@@ -1400,16 +1317,13 @@ def test_zero_custom_error_message(hq_env: HqEnv):
             "--",
             "python",
             "-c",
-            "import os; f = open(os.environ['HQ_ERROR_FILENAME'], 'w');" "sys.exit(1)",
+            "import os; f = open(os.environ['HQ_ERROR_FILENAME'], 'w');sys.exit(1)",
         ]
     )
     wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
-    assert (
-        table.get_column_value("Error")[0]
-        == "Error: Task created an error file, but it is empty"
-    )
+    assert table.get_column_value("Error")[0] == "Error: Task created an error file, but it is empty"
     # print(table)
 
 
@@ -1462,15 +1376,13 @@ def test_kill_task_when_worker_dies(hq_env: HqEnv):
         [
             "submit",
             "--",
-            *python(
-                """
+            *python("""
 import os
 import time
 
 print(os.getpid(), flush=True)
 time.sleep(3600)
-"""
-            ),
+"""),
         ]
     )
     wait_for_job_state(hq_env, 1, "RUNNING")
@@ -1519,9 +1431,7 @@ def test_kill_task_subprocess_when_worker_is_stopped(hq_env: HqEnv):
     check_child_process_exited(hq_env, stop_worker)
 
 
-def check_child_process_exited(
-    hq_env: HqEnv, stop_fn: Callable[[subprocess.Popen], None]
-):
+def check_child_process_exited(hq_env: HqEnv, stop_fn: Callable[[subprocess.Popen], None]):
     """
     Creates a task that spawns a child, and then calls `stop_fn`, which should kill either the task
     or the worker. The function then checks that both the task process and its child have been killed.
@@ -1533,8 +1443,7 @@ def check_child_process_exited(
         [
             "submit",
             "--",
-            *python(
-                """
+            *python("""
 import os
 import sys
 import time
@@ -1543,8 +1452,7 @@ pid = os.fork()
 if pid > 0:
     print(pid, flush=True)
 time.sleep(3600)
-"""
-            ),
+"""),
         ]
     )
     wait_for_job_state(hq_env, 1, "RUNNING")

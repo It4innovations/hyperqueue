@@ -17,18 +17,14 @@ def run_benchmarks(workdir: Path, descriptors: List[BenchmarkDescriptor]) -> Dat
     runner = BenchmarkRunner(database, workdir=workdir)
 
     materialized = runner.materialize_and_skip(descriptors)
-    for _info, _result in tqdm.tqdm(
-        runner.compute_materialized(materialized), total=len(materialized)
-    ):
+    for _info, _result in tqdm.tqdm(runner.compute_materialized(materialized), total=len(materialized)):
         pass
 
     runner.save()
     return database
 
 
-def run_benchmarks_with_postprocessing(
-    workdir: Path, descriptors: List[BenchmarkDescriptor]
-):
+def run_benchmarks_with_postprocessing(workdir: Path, descriptors: List[BenchmarkDescriptor]):
     database = run_benchmarks(workdir, descriptors)
 
     summary_txt = workdir / "summary.txt"

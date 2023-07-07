@@ -246,9 +246,7 @@ def test_print_task_placeholders(hq_env: HqEnv):
 
     output = parse_json_output(hq_env, ["--output-mode=json", "job", "info", "1"])
 
-    schema = Schema(
-        [{"id": id, "state": "finished"} for id in range(1, 5)], ignore_extra_keys=True
-    )
+    schema = Schema([{"id": id, "state": "finished"} for id in range(1, 5)], ignore_extra_keys=True)
     schema.validate(output[0]["tasks"])
 
     tasks = sorted(output[0]["tasks"], key=lambda t: t["id"])

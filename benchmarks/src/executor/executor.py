@@ -15,7 +15,5 @@ class BenchmarkContext:
 
 
 class BenchmarkExecutor:
-    def execute(
-        self, benchmark: BenchmarkDescriptor, ctx: BenchmarkContext
-    ) -> BenchmarkResult:
+    def execute(self, benchmark: BenchmarkDescriptor, ctx: BenchmarkContext) -> BenchmarkResult:
         raise NotImplementedError

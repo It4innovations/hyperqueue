@@ -10,15 +10,11 @@ from .executor import BenchmarkContext, BenchmarkExecutor
 class LocalBenchmarkExecutor(BenchmarkExecutor):
     """Executes benchmarks in the current process"""
 
-    def execute(
-        self, benchmark: BenchmarkDescriptor, ctx: BenchmarkContext
-    ) -> BenchmarkResult:
+    def execute(self, benchmark: BenchmarkDescriptor, ctx: BenchmarkContext) -> BenchmarkResult:
         return execute_benchmark(benchmark, ctx)
 
 
-def execute_benchmark(
-    descriptor: BenchmarkDescriptor, ctx: BenchmarkContext
-) -> BenchmarkResult:
+def execute_benchmark(descriptor: BenchmarkDescriptor, ctx: BenchmarkContext) -> BenchmarkResult:
     env = descriptor.env_descriptor.create_environment(ctx.workdir)
     workload = descriptor.workload
 

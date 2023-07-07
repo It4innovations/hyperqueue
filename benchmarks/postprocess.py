@@ -29,9 +29,7 @@ def cluster_serve(
 
 @cluster.command("generate")
 def cluster_generate(
-    directory: Path = typer.Argument(
-        ..., exists=True, file_okay=False, help="Directory containing `cluster.json`"
-    ),
+    directory: Path = typer.Argument(..., exists=True, file_okay=False, help="Directory containing `cluster.json`"),
     output: Path = Path("out.html"),
 ):
     """Generate a HTML file with monitoring and profiling report for the given directory"""

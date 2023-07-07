@@ -65,11 +65,7 @@ def create_submit_script_body(
     workdir = Path(os.getcwd()).absolute()
     resubmit_flag = "--resubmit" if resubmit else "--no-resubmit"
 
-    init_cmd = (
-        f"source {options.init_script.absolute()} || exit 1"
-        if options.init_script
-        else ""
-    )
+    init_cmd = f"source {options.init_script.absolute()} || exit 1" if options.init_script else ""
 
     command = f"""{header}
 
