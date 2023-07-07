@@ -88,13 +88,16 @@ they are often started inside PBS/Slurm jobs that have a limited duration.
 It is very useful for the workers to know how much remaining time ("lifetime") do they have until they will be stopped.
 This duration is called the `Worker time limit`.
 
-When a worker is started inside a PBS or Slurm job, it will automatically calculate the time limit from the job's
-metadata. If you want to set time limit manually for workers started outside of PBS/Slurm jobs or if you want to
+When a worker is started manually inside a PBS or Slurm job, it will automatically calculate the time limit from the job's
+metadata. If you want to set time limit for workers started outside of PBS/Slurm jobs or if you want to
 override the detected settings, you can use the `--time-limit=<DURATION>` option[^1] when starting the worker.
 
 [^1]: You can use various [shortcuts](../cli/shortcuts.md#duration) for the duration value.
 
 When the time limit is reached, the worker is automatically terminated.
+
+The time limit of a worker affects what tasks can be scheduled to it. For example, a task submitted with `--time-request 10m`
+will not be scheduled onto a worker that only has a remaining time limit of 5 minutes.
 
 ## Idle timeout
 When you deploy *HQ* workers inside a PBS or Slurm job, keeping the worker alive will drain resources from your
