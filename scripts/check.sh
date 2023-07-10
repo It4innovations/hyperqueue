@@ -9,7 +9,7 @@ cargo fmt --all
 
 # Format Python code
 isort --profile black scripts tests benchmarks crates/pyhq/python
-black --preview -l 120 scripts tests benchmarks crates/pyhq/python
+black scripts tests benchmarks crates/pyhq/python
 
 # Lint Python code
 flake8 scripts tests benchmarks crates/pyhq/python

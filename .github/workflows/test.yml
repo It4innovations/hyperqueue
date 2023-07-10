@@ -86,7 +86,7 @@ jobs:
       - name: Check Python formatting
         run: |
           export DIRECTORIES="scripts tests benchmarks crates/pyhq/python"
-          python -m black --preview -l 120 --check $DIRECTORIES
+          python -m black --check $DIRECTORIES
           python -m flake8 $DIRECTORIES
 
       - name: Build docs
