@@ -83,6 +83,8 @@ jobs:
             name: powerpc64
           - arch: armv7-unknown-linux-gnueabihf
             name: raspberry-pi
+          - arch: aarch64-unknown-linux-gnu
+            name: arm64-linux
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
