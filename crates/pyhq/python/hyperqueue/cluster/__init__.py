@@ -54,11 +54,11 @@ class LocalCluster:
         cores = config.cores or multiprocessing.cpu_count()
         self.cluster.add_worker(cores)
 
-    def client(self) -> Client:
+    def client(self, **client_args) -> Client:
         """
         Creates a client connected to this cluster.
         """
-        return Client(self.cluster.server_dir)
+        return Client(self.cluster.server_dir, **client_args)
 
     def stop(self):
         """
