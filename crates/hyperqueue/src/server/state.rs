@@ -154,12 +154,7 @@ impl State {
     }
 
     pub fn get_job_mut_by_tako_task_id(&mut self, task_id: TakoTaskId) -> Option<&mut Job> {
-        let job_id: JobId = *self
-            .base_task_id_to_job_id
-            .range(..=task_id)
-            .rev()
-            .next()?
-            .1;
+        let job_id: JobId = *self.base_task_id_to_job_id.range(..=task_id).next_back()?.1;
         let job = self.jobs.get_mut(&job_id)?;
         if task_id
             < TakoTaskId::new(

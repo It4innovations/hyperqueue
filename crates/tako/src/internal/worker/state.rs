@@ -217,7 +217,7 @@ impl WorkerState {
     }
 
     pub fn start_task(&mut self, task_id: TaskId, task_env: TaskEnv, allocation: Allocation) {
-        let mut task = self.get_task_mut(task_id);
+        let task = self.get_task_mut(task_id);
         task.state = TaskState::Running(task_env, allocation);
         self.running_tasks.insert(task_id);
     }

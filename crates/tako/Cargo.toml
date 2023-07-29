@@ -29,10 +29,10 @@ tracing = { workspace = true }
 nix = { workspace = true }
 bstr = { workspace = true }
 
-hashbrown = { version = "0.12", features = ["serde", "inline-more"], default-features = false }
+hashbrown = { version = "0.14", features = ["serde", "inline-more"], default-features = false }
 tracing-subscriber = { version = "0.3", features = ["json"] }
-priority-queue = "1.0"
-bitflags = "2.1"
+priority-queue = "1"
+bitflags = "2"
 psutil = "3.2.1"
 fxhash = "0.2.1"
 thin-vec = "0.2.8"

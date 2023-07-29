@@ -47,7 +47,7 @@ colored = "2"
 byteorder = "1.4"
 const_format = "0.2"
 textwrap = "0.16"
-async-compression = { version = "0.3", features = ["tokio", "gzip"] }
+async-compression = { version = "0.4", features = ["tokio", "gzip"] }
 flate2 = { version = "1", features = ["default"] }
 psutil = "3.2"
 chumsky = "0.9"

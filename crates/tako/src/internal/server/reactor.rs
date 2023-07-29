@@ -42,7 +42,7 @@ pub(crate) fn on_remove_worker(
     let (task_map, worker_map) = core.split_tasks_workers_mut();
     let task_ids: Vec<_> = task_map.task_ids().collect();
     for task_id in task_ids {
-        let mut task = task_map.get_task_mut(task_id);
+        let task = task_map.get_task_mut(task_id);
         let new_state = match &mut task.state {
             TaskRuntimeState::Waiting(_) => continue,
             TaskRuntimeState::Assigned(w_id)
@@ -213,7 +213,7 @@ pub(crate) fn on_task_running(
 
     let (tasks, workers) = core.split_tasks_workers_mut();
     let simple_worker_list = &[worker_id];
-    if let Some(mut task) = tasks.find_task_mut(task_id) {
+    if let Some(task) = tasks.find_task_mut(task_id) {
         let worker_ids = match &task.state {
             TaskRuntimeState::Assigned(w_id) | TaskRuntimeState::Stealing(w_id, None) => {
                 assert_eq!(*w_id, worker_id);
@@ -270,7 +270,7 @@ pub(crate) fn on_task_finished(
 ) {
     {
         let (tasks, workers) = core.split_tasks_workers_mut();
-        if let Some(mut task) = tasks.find_task_mut(msg.id) {
+        if let Some(task) = tasks.find_task_mut(msg.id) {
             log::debug!("Task id={} finished on worker={}", task.id, worker_id);
 
             if task.configuration.resources.is_multi_node() {}
@@ -413,7 +413,7 @@ pub(crate) fn on_steal_response(
             }
         };
 
-        let mut task = core.get_task_mut(task_id);
+        let task = core.get_task_mut(task_id);
         if let TaskRuntimeState::Waiting(_winfo) = &new_state {
             task.set_fresh_flag(true)
         };

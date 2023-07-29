@@ -11,7 +11,7 @@ use hyperqueue::transfer::messages::{
     TaskDescription as HqTaskDescription, TaskIdSelector, TaskSelector, TaskStatusSelector,
     TaskWithDependencies, ToClientMessage,
 };
-use hyperqueue::{rpc_call, tako, JobTaskCount, Set};
+use hyperqueue::{rpc_call, tako, JobTaskCount, JobTaskId, Set};
 use pyo3::types::PyTuple;
 use pyo3::{IntoPy, PyAny, PyResult, Python};
 use std::collections::HashMap;
@@ -221,7 +221,7 @@ pub fn wait_for_jobs_impl(
 
             for job in response.jobs.iter() {
                 if is_terminated(job) {
-                    remaining_job_ids.remove(&job.id.into());
+                    remaining_job_ids.remove(&PyJobId::from(job.id));
                 }
             }
 
@@ -305,7 +305,7 @@ pub fn get_failed_tasks_impl(
                     match task.state {
                         JobTaskState::Failed { error, .. } => {
                             let id = task.task_id.as_num();
-                            let path_ctx = task_path_map.remove(&id.into()).flatten();
+                            let path_ctx = task_path_map.remove(&JobTaskId::from(id)).flatten();
                             let (stdout, stderr, cwd) = match path_ctx {
                                 Some(paths) => (
                                     stdio_to_string(paths.stdout),
