@@ -446,7 +446,7 @@ impl Core {
                     fw_check(task);
                     let mut set = Set::new();
                     for worker_id in ws {
-                        assert!(self.workers.contains_key(&worker_id));
+                        assert!(self.workers.contains_key(worker_id));
                         assert!(set.insert(*worker_id));
                     }
                     for (worker_id, worker) in self.workers.iter() {

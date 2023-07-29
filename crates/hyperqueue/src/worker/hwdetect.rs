@@ -58,7 +58,7 @@ fn filter_masked_cpus(numa_nodes: Vec<Vec<ResourceIndex>>) -> Vec<Vec<ResourceIn
             numa_nodes
                 .into_iter()
                 .map(|mut numa_node| {
-                    numa_node.retain(|&cpu| cpu_set.contains(&cpu.into()));
+                    numa_node.retain(|&cpu| cpu_set.contains(&cpu.as_usize()));
                     numa_node
                 })
                 .collect()

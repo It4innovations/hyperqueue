@@ -92,6 +92,11 @@ macro_rules! define_id_type {
             pub fn as_num(&self) -> $type {
                 self.0 as $type
             }
+
+            #[inline]
+            pub fn as_usize(&self) -> usize {
+                self.0 as usize
+            }
         }
 
         impl $crate::ItemId for $name {

@@ -1,7 +1,7 @@
 pytest==7.1.2
 pytest-xdist==2.5.0
 flake8==4.0.1
-black==23.3.0
+black==23.7.0
 isort==5.10.1
 iso8601==1.0.2
 schema==0.7.5

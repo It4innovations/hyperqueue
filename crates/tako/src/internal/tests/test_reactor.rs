@@ -1108,7 +1108,7 @@ fn check_worker_tasks_exact(core: &Core, worker_id: u32, tasks: &[TaskId]) {
     let worker = core.get_worker_by_id_or_panic(worker_id.into());
     assert_eq!(worker.sn_tasks().len(), tasks.len());
     for task in tasks {
-        assert!(worker.sn_tasks().contains(&task));
+        assert!(worker.sn_tasks().contains(task));
     }
 }
 
