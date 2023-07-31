@@ -141,7 +141,7 @@ pub trait TaskLauncher {
 /// If the path is relative, the file will be created relative to `cwd`.
 fn create_output_stream(def: &StdioDef, cwd: &Path) -> crate::Result<Stdio> {
     let stdio = match def {
-        StdioDef::File(path) => {
+        StdioDef::File { path, .. } => {
             let stream_path = if path.is_relative() {
                 cwd.join(path)
             } else {

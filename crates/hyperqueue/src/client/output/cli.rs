@@ -978,7 +978,7 @@ fn multiline_cell<T: AsRef<str>>(rows: Vec<(&'static str, T)>) -> CellStruct {
 fn stdio_to_str(stdio: &StdioDef) -> &str {
     match stdio {
         StdioDef::Null => "<None>",
-        StdioDef::File(filename) => filename.to_str().unwrap(),
+        StdioDef::File { path, .. } => path.to_str().unwrap(),
         StdioDef::Pipe => "<Stream>",
     }
 }
@@ -1283,11 +1283,11 @@ fn get_task_paths<'a>(
         Some(ref paths) => (
             Some(paths.cwd.to_str().unwrap()),
             match &paths.stdout {
-                StdioDef::File(filename) => Some(filename.to_str().unwrap()),
+                StdioDef::File { path, .. } => Some(path.to_str().unwrap()),
                 _ => None,
             },
             match &paths.stderr {
-                StdioDef::File(filename) => Some(filename.to_str().unwrap()),
+                StdioDef::File { path, .. } => Some(path.to_str().unwrap()),
                 _ => None,
             },
         ),

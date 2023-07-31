@@ -247,7 +247,7 @@ pub fn parse_resolvable_string(data: &str) -> Vec<StringPart> {
 #[cfg(test)]
 mod tests {
     use std::path::{Path, PathBuf};
-    use tako::program::{ProgramDefinition, StdioDef};
+    use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 
     use crate::common::env::{HQ_INSTANCE_ID, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
     use crate::common::placeholders::{
@@ -341,11 +341,17 @@ mod tests {
         assert_eq!(program.cwd, PathBuf::from("/foo/testHQ/5-%{TASK_ID}"));
         assert_eq!(
             program.stdout,
-            StdioDef::File("/foo/testHQ/5-%{TASK_ID}/out".into())
+            StdioDef::File {
+                path: "/foo/testHQ/5-%{TASK_ID}/out".into(),
+                on_close: FileOnCloseBehavior::None
+            }
         );
         assert_eq!(
             program.stderr,
-            StdioDef::File("/foo/testHQ/5-%{TASK_ID}/err".into())
+            StdioDef::File {
+                path: "/foo/testHQ/5-%{TASK_ID}/err".into(),
+                on_close: FileOnCloseBehavior::None
+            }
         );
     }
 
@@ -363,11 +369,17 @@ mod tests {
         assert_eq!(paths.cwd, PathBuf::from("/foo/testHQ-10-6"));
         assert_eq!(
             paths.stdout,
-            StdioDef::File("/foo/testHQ-10-6/5/stdout".into())
+            StdioDef::File {
+                path: "/foo/testHQ-10-6/5/stdout".into(),
+                on_close: FileOnCloseBehavior::None
+            }
         );
         assert_eq!(
             paths.stderr,
-            StdioDef::File("/foo/testHQ-10-6/5/stderr".into())
+            StdioDef::File {
+                path: "/foo/testHQ-10-6/5/stderr".into(),
+                on_close: FileOnCloseBehavior::None
+            }
         );
     }
 
@@ -383,8 +395,20 @@ mod tests {
 
         fill_placeholders_in_paths(ResolvablePaths::from_paths(&mut paths), ctx);
         assert_eq!(paths.cwd, PathBuf::from("/foo/bar/1"));
-        assert_eq!(paths.stdout, StdioDef::File("/foo/bar/1/2.out".into()));
-        assert_eq!(paths.stderr, StdioDef::File("/foo/bar/1/2.err".into()));
+        assert_eq!(
+            paths.stdout,
+            StdioDef::File {
+                path: "/foo/bar/1/2.out".into(),
+                on_close: FileOnCloseBehavior::None
+            }
+        );
+        assert_eq!(
+            paths.stderr,
+            StdioDef::File {
+                path: "/foo/bar/1/2.err".into(),
+                on_close: FileOnCloseBehavior::None
+            }
+        );
     }
 
     struct ResolvedPaths {
@@ -406,8 +430,14 @@ mod tests {
     fn paths(cwd: &str, stdout: &str, stderr: &str) -> ResolvedPaths {
         ResolvedPaths {
             cwd: cwd.to_string().into(),
-            stdout: StdioDef::File(stdout.to_string().into()),
-            stderr: StdioDef::File(stderr.to_string().into()),
+            stdout: StdioDef::File {
+                path: stdout.to_string().into(),
+                on_close: FileOnCloseBehavior::None,
+            },
+            stderr: StdioDef::File {
+                path: stderr.to_string().into(),
+                on_close: FileOnCloseBehavior::None,
+            },
         }
     }
 
@@ -444,8 +474,18 @@ mod tests {
         ProgramDefinition {
             args: vec![],
             env,
-            stdout: stdout.map(|v| StdioDef::File(v.into())).unwrap_or_default(),
-            stderr: stderr.map(|v| StdioDef::File(v.into())).unwrap_or_default(),
+            stdout: stdout
+                .map(|v| StdioDef::File {
+                    path: v.into(),
+                    on_close: FileOnCloseBehavior::None,
+                })
+                .unwrap_or_default(),
+            stderr: stderr
+                .map(|v| StdioDef::File {
+                    path: v.into(),
+                    on_close: FileOnCloseBehavior::None,
+                })
+                .unwrap_or_default(),
             stdin: vec![],
             cwd: cwd.into(),
         }

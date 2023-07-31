@@ -193,7 +193,7 @@ async fn resend_stdio(
 }
 
 fn create_directory_if_needed(file: &StdioDef) -> io::Result<()> {
-    if let StdioDef::File(path) = file {
+    if let StdioDef::File { path, .. } = file {
         if let Some(path) = path.parent() {
             std::fs::create_dir_all(path)?;
         }

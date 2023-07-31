@@ -11,7 +11,7 @@ use smallvec::smallvec;
 use tako::gateway::{
     ResourceRequest, ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants,
 };
-use tako::program::{ProgramDefinition, StdioDef};
+use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, NumOfNodes, CPU_RESOURCE_NAME};
 
 use super::directives::parse_hq_directives;
@@ -103,7 +103,10 @@ impl FromStr for ArgEnvironmentVar {
 fn parse_stdio_def(value: &str) -> anyhow::Result<StdioDef> {
     Ok(match value {
         "none" => StdioDef::Null,
-        _ => StdioDef::File(value.into()),
+        _ => StdioDef::File {
+            path: value.into(),
+            on_close: FileOnCloseBehavior::None,
+        },
     })
 }
 
@@ -423,7 +426,10 @@ impl JobSubmitOpts {
 fn create_stdio(arg: Option<StdioDef>, log: &Option<PathBuf>, default: &str) -> StdioDef {
     arg.unwrap_or_else(|| {
         if log.is_none() {
-            StdioDef::File(default.into())
+            StdioDef::File {
+                path: default.into(),
+                on_close: FileOnCloseBehavior::None,
+            }
         } else {
             StdioDef::Pipe
         }
@@ -521,7 +527,6 @@ pub async fn submit_computation(
                 time_limit,
                 log,
                 crash_limit,
-                ..
             },
     } = opts;
 
@@ -680,7 +685,9 @@ fn warn_missing_task_id(opts: &JobSubmitOpts, task_count: u32) {
 
     let check_path = |path: Option<&StdioDef>, stream: &str| {
         let path = path.and_then(|stdio| match &stdio {
-            StdioDef::File(path) => Some(opts.conf.cwd.clone().unwrap_or_default().join(path)),
+            StdioDef::File { path, .. } => {
+                Some(opts.conf.cwd.clone().unwrap_or_default().join(path))
+            }
             _ => None,
         });
         if let Some(path) = path.as_ref().and_then(|p| p.to_str()) {
@@ -722,14 +729,14 @@ fn warn_unknown_placeholders(opts: &JobSubmitOpts) {
 
     check(
         opts.conf.stdout.as_ref().and_then(|arg| match &arg {
-            StdioDef::File(path) => Some(path.as_path()),
+            StdioDef::File { path, .. } => Some(path.as_path()),
             _ => None,
         }),
         "stdout path",
     );
     check(
         opts.conf.stderr.as_ref().and_then(|arg| match &arg {
-            StdioDef::File(path) => Some(path.as_path()),
+            StdioDef::File { path, .. } => Some(path.as_path()),
             _ => None,
         }),
         "stderr path",

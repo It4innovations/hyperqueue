@@ -36,8 +36,14 @@ async fn test_submit_simple_task_ok() {
                     .task(
                         TaskConfigBuilder::default()
                             .args(simple_args(&["bash", "-c", "echo 'hello'"]))
-                            .stdout(StdioDef::File(stdout.clone()))
-                            .stderr(StdioDef::File(stderr.clone())),
+                            .stdout(StdioDef::File {
+                                path: stdout.clone(),
+                                on_close: Default::default(),
+                            })
+                            .stderr(StdioDef::File {
+                                path: stderr.clone(),
+                                on_close: Default::default(),
+                            }),
                     )
                     .build(),
             )

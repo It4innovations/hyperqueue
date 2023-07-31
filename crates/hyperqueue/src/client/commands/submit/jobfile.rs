@@ -15,7 +15,7 @@ use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
 use tako::gateway::{ResourceRequest, ResourceRequestVariants};
-use tako::program::{ProgramDefinition, StdioDef};
+use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 
 #[derive(Parser)]
 pub struct JobSubmitFileOpts {
@@ -29,11 +29,17 @@ fn create_stdio(def: Option<&str>, default: &str, is_log: bool) -> StdioDef {
             if is_log {
                 StdioDef::Pipe
             } else {
-                StdioDef::File(PathBuf::from(default))
+                StdioDef::File {
+                    path: PathBuf::from(default),
+                    on_close: FileOnCloseBehavior::None,
+                }
             }
         }
         Some("none") => StdioDef::Null,
-        Some(x) => StdioDef::File(PathBuf::from(x)),
+        Some(x) => StdioDef::File {
+            path: PathBuf::from(x),
+            on_close: FileOnCloseBehavior::None,
+        },
     }
 }
 
