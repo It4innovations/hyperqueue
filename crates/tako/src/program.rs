@@ -3,11 +3,22 @@ use bstr::BString;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+/// What should happen with a file, once its owning task finishes executing?
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Default)]
+pub enum FileOnCloseBehavior {
+    /// Don't do anything
+    #[default]
+    None,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Default)]
 pub enum StdioDef {
     #[default]
     Null,
-    File(PathBuf),
+    File {
+        path: PathBuf,
+        on_close: FileOnCloseBehavior,
+    },
     Pipe,
 }
 
@@ -18,7 +29,10 @@ impl StdioDef {
     {
         match self {
             StdioDef::Null => StdioDef::Null,
-            StdioDef::File(filename) => StdioDef::File(f(filename)),
+            StdioDef::File { path, on_close } => StdioDef::File {
+                path: f(path),
+                on_close,
+            },
             StdioDef::Pipe => StdioDef::Pipe,
         }
     }

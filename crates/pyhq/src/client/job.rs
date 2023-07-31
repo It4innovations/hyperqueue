@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tako::gateway::{ResourceRequestEntries, ResourceRequestEntry, ResourceRequestVariants};
-use tako::program::{ProgramDefinition, StdioDef};
+use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
 
 use crate::utils::error::ToPyResult;
@@ -126,8 +126,20 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
         .into_iter()
         .map(|(k, v)| (k.into(), v.into()))
         .collect();
-    let stdout = desc.stdout.map(StdioDef::File).unwrap_or_default();
-    let stderr = desc.stderr.map(StdioDef::File).unwrap_or_default();
+    let stdout = desc
+        .stdout
+        .map(|path| StdioDef::File {
+            path,
+            on_close: FileOnCloseBehavior::None,
+        })
+        .unwrap_or_default();
+    let stderr = desc
+        .stderr
+        .map(|path| StdioDef::File {
+            path,
+            on_close: FileOnCloseBehavior::None,
+        })
+        .unwrap_or_default();
     let stdin = desc.stdin.unwrap_or_default();
     let cwd = desc.cwd.unwrap_or_else(|| submit_dir.to_path_buf());
 
@@ -271,7 +283,7 @@ pub type FailedTaskMap = HashMap<PyJobId, HashMap<PyTaskId, FailedTaskContext>>;
 
 fn stdio_to_string(stdio: StdioDef) -> Option<String> {
     match stdio {
-        StdioDef::File(path) => Some(path.to_string_lossy().to_string()),
+        StdioDef::File { path, .. } => Some(path.to_string_lossy().to_string()),
         _ => None,
     }
 }

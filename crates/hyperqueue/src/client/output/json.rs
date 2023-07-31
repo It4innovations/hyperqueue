@@ -282,7 +282,7 @@ fn fill_task_paths(dict: &mut Value, map: &TaskToPathsMap, task_id: JobTaskId) {
 fn format_stdio_def(stdio: &StdioDef) -> Value {
     match stdio {
         StdioDef::Null => Value::Null,
-        StdioDef::File(path) => json!(Some(path)),
+        StdioDef::File { path, .. } => json!(Some(path)),
         StdioDef::Pipe => json!("<pipe>"),
     }
 }
