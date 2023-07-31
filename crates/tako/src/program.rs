@@ -5,10 +5,13 @@ use std::path::PathBuf;
 
 /// What should happen with a file, once its owning task finishes executing?
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Default)]
+#[serde(rename_all = "kebab-case")]
 pub enum FileOnCloseBehavior {
     /// Don't do anything
     #[default]
     None,
+    /// Remove the file if its task has finished successfully
+    RmIfFinished,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Default)]

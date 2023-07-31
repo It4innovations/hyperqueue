@@ -5,11 +5,13 @@ use crate::common::error::HqError;
 use crate::common::utils::time::parse_human_time;
 use crate::{JobTaskCount, JobTaskId};
 use bstr::BString;
+use serde::de::MapAccess;
 use serde::{Deserialize, Deserializer};
 use smallvec::SmallVec;
 use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{ResourceRequest, ResourceRequestEntries, ResourceRequestEntry};
+use tako::program::FileOnCloseBehavior;
 use tako::resources::{AllocationRequest, NumOfNodes};
 use tako::{Map, Priority};
 
@@ -86,6 +88,56 @@ where
     }
 }
 
+#[derive(Deserialize, Debug, PartialEq)]
+pub struct StdioDefFull {
+    pub path: PathBuf,
+    pub on_close: FileOnCloseBehavior,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum StdioDefInput {
+    None,
+    Path(PathBuf),
+    Full(StdioDefFull),
+}
+
+impl<'de> Deserialize<'de> for StdioDefInput {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct StdioVisitor;
+        impl<'de> serde::de::Visitor<'de> for StdioVisitor {
+            type Value = StdioDefInput;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(formatter, "a string containing file path or a structure with two attributes (`path` and `on_close`)")
+            }
+
+            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                Ok(StdioDefInput::Full(StdioDefFull::deserialize(
+                    serde::de::value::MapAccessDeserializer::new(map),
+                )?))
+            }
+
+            fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(match s {
+                    "none" => StdioDefInput::None,
+                    _ => StdioDefInput::Path(PathBuf::from(s)),
+                })
+            }
+        }
+
+        deserializer.deserialize_any(StdioVisitor)
+    }
+}
+
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct ResourceRequestDef {
@@ -123,10 +175,10 @@ pub struct TaskConfigDef {
     pub request: SmallVec<[ResourceRequestDef; 1]>,
 
     #[serde(default)]
-    pub stdout: Option<String>,
+    pub stdout: Option<StdioDefInput>,
 
     #[serde(default)]
-    pub stderr: Option<String>,
+    pub stderr: Option<StdioDefInput>,
 
     #[serde(default)]
     pub cwd: Option<String>,
@@ -240,9 +292,10 @@ impl JobDef {
 
 #[cfg(test)]
 mod test {
-    use crate::client::commands::submit::defs::JobDef;
+    use crate::client::commands::submit::defs::{JobDef, StdioDefFull, StdioDefInput};
     use crate::common::error::HqError;
     use bstr::{BString, ByteSlice};
+    use tako::program::FileOnCloseBehavior;
 
     #[test]
     fn test_read_minimal_def() {
@@ -343,6 +396,41 @@ mod test {
                 .get(BString::from("XYZ").as_bstr())
                 .unwrap(),
             "55"
+        );
+    }
+
+    #[test]
+    fn test_parse_stdio_string() {
+        let r = JobDef::parse(
+            r#"
+        [[task]]
+        command = ["sleep", "1"]
+        stdout = "foo"
+        "#,
+        )
+        .unwrap();
+        assert_eq!(
+            r.tasks[0].config.stdout,
+            Some(StdioDefInput::Path("foo".into()))
+        );
+    }
+
+    #[test]
+    fn test_parse_stdio_struct() {
+        let r = JobDef::parse(
+            r#"
+        [[task]]
+        command = ["sleep", "1"]
+        stdout = { path = "foo", on_close = "rm-if-finished" }
+        "#,
+        )
+        .unwrap();
+        assert_eq!(
+            r.tasks[0].config.stdout,
+            Some(StdioDefInput::Full(StdioDefFull {
+                path: "foo".into(),
+                on_close: FileOnCloseBehavior::RmIfFinished
+            }))
         );
     }
 }

@@ -1,7 +1,9 @@
 use crate::client::commands::submit::command::{
     send_submit_request, DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH,
 };
-use crate::client::commands::submit::defs::{ArrayDef, JobDef, TaskDef};
+use crate::client::commands::submit::defs::{
+    ArrayDef, JobDef, StdioDefFull, StdioDefInput, TaskDef,
+};
 use crate::client::commands::submit::defs::{PinMode as PinModeDef, TaskConfigDef};
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::arraydef::IntArray;
@@ -23,7 +25,7 @@ pub struct JobSubmitFileOpts {
     path: PathBuf,
 }
 
-fn create_stdio(def: Option<&str>, default: &str, is_log: bool) -> StdioDef {
+fn create_stdio(def: Option<StdioDefInput>, default: &str, is_log: bool) -> StdioDef {
     match def {
         None => {
             if is_log {
@@ -31,15 +33,18 @@ fn create_stdio(def: Option<&str>, default: &str, is_log: bool) -> StdioDef {
             } else {
                 StdioDef::File {
                     path: PathBuf::from(default),
-                    on_close: FileOnCloseBehavior::None,
+                    on_close: FileOnCloseBehavior::default(),
                 }
             }
         }
-        Some("none") => StdioDef::Null,
-        Some(x) => StdioDef::File {
-            path: PathBuf::from(x),
-            on_close: FileOnCloseBehavior::None,
+        Some(StdioDefInput::None) => StdioDef::Null,
+        Some(StdioDefInput::Path(path)) => StdioDef::File {
+            path,
+            on_close: FileOnCloseBehavior::default(),
         },
+        Some(StdioDefInput::Full(StdioDefFull { path, on_close })) => {
+            StdioDef::File { path, on_close }
+        }
     }
 }
 
@@ -48,8 +53,8 @@ fn build_task_description(cfg: TaskConfigDef) -> TaskDescription {
         program: ProgramDefinition {
             args: cfg.command.into_iter().map(|x| x.into()).collect(),
             env: cfg.env,
-            stdout: create_stdio(cfg.stdout.as_deref(), DEFAULT_STDOUT_PATH, false),
-            stderr: create_stdio(cfg.stderr.as_deref(), DEFAULT_STDERR_PATH, false),
+            stdout: create_stdio(cfg.stdout, DEFAULT_STDOUT_PATH, false),
+            stderr: create_stdio(cfg.stderr, DEFAULT_STDERR_PATH, false),
             stdin: cfg.stdin.map(|s| s.as_bytes().into()).unwrap_or_default(),
             cwd: cfg.cwd.map(|x| x.into()).unwrap_or_else(get_current_dir),
         },
