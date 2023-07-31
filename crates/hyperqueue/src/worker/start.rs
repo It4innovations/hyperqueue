@@ -36,7 +36,7 @@ use crate::worker::streamer::StreamerRef;
 use crate::{JobId, JobTaskId};
 use serde::{Deserialize, Serialize};
 use tako::comm::serialize;
-use tako::program::{ProgramDefinition, StdioDef};
+use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{
     Allocation, ResourceAllocation, AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
     NVIDIA_GPU_RESOURCE_NAME,
@@ -551,8 +551,33 @@ async fn run_task(
             }),
         }
     } else {
-        let task_fut = async move { status_to_result(child_wait(child, &program.stdin).await?) };
+        let task_fut = async move {
+            let result = status_to_result(child_wait(child, &program.stdin).await?);
+            futures::future::join(
+                cleanup_task_file(result.as_ref().ok(), &program.stdout),
+                cleanup_task_file(result.as_ref().ok(), &program.stderr),
+            )
+            .await;
+            result
+        };
         task_process(task_fut, pid, job_id, job_task_id, end_receiver).await
+    }
+}
+
+async fn cleanup_task_file(result: Option<&TaskResult>, stdio: &StdioDef) {
+    if let StdioDef::File {
+        path,
+        on_close: FileOnCloseBehavior::RmIfFinished,
+    } = stdio
+    {
+        if let Some(TaskResult::Finished) = result {
+            if let Err(error) = tokio::fs::remove_file(&path).await {
+                log::error!(
+                    "Could not delete file {} after task has been finished: {error:?}",
+                    path.display()
+                );
+            }
+        }
     }
 }
 
