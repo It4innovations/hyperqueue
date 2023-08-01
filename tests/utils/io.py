@@ -16,6 +16,10 @@ def write_file(path: str, content: str):
         f.write(content)
 
 
+def create_file(path: str):
+    write_file(path, "")
+
+
 def find_free_port():
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
         s.bind(("", 0))
