@@ -6,6 +6,9 @@ use std::{fs, io};
 
 use anyhow::{anyhow, bail};
 use bstr::BString;
+use chumsky::primitive::{filter, just};
+use chumsky::text::TextParser;
+use chumsky::Parser as ChumskyParser;
 use clap::{ArgMatches, Parser};
 use smallvec::smallvec;
 use tako::gateway::{
@@ -23,6 +26,7 @@ use crate::client::resources::{parse_allocation_request, parse_resource_request}
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::cli::OptsWithMatches;
+use crate::common::parser2::{all_consuming, CharParser, ParseError};
 use crate::common::placeholders::{
     get_unknown_placeholders, parse_resolvable_string, StringPart, CWD_PLACEHOLDER,
     JOB_ID_PLACEHOLDER, TASK_ID_PLACEHOLDER,
@@ -99,15 +103,64 @@ impl FromStr for ArgEnvironmentVar {
     }
 }
 
-// Represents a filepath. If "none" is passed to it, it will behave as if no path is needed.
-fn parse_stdio_def(value: &str) -> anyhow::Result<StdioDef> {
-    Ok(match value {
-        "none" => StdioDef::Null,
-        _ => StdioDef::File {
-            path: value.into(),
-            on_close: FileOnCloseBehavior::None,
-        },
+#[derive(Clone, Debug, PartialEq)]
+enum StdioDefInput {
+    None,
+    File {
+        path: Option<PathBuf>,
+        on_close: FileOnCloseBehavior,
+    },
+}
+
+impl StdioDefInput {
+    fn path(&self) -> Option<&Path> {
+        match self {
+            StdioDefInput::None => None,
+            StdioDefInput::File { path, .. } => path.as_deref(),
+        }
+    }
+}
+
+impl FromStr for StdioDefInput {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "none" => Ok(StdioDefInput::None),
+            _ => Ok(parse_stdio_def(s).map_err(|error| format!("Cannot parse stream: {error:?}"))?),
+        }
+    }
+}
+
+fn stdio_def_parser() -> impl CharParser<StdioDefInput> {
+    let path = filter(|&c| c != ':')
+        .repeated()
+        .at_least(1)
+        .padded()
+        .collect::<String>()
+        .labelled("File path");
+    let separator = just(':');
+    let mode = just("rm-if-finished")
+        .to(FileOnCloseBehavior::RmIfFinished)
+        .labelled("rm-if-finished");
+
+    let mode_complete = separator.ignore_then(mode);
+    let path_complete = path.or_not().then(mode_complete.or_not());
+
+    path_complete.try_map(|(path, mode), span| {
+        if path.is_none() && mode.is_none() {
+            return Err(ParseError::custom(span, "Input cannot be empty"));
+        }
+
+        Ok(StdioDefInput::File {
+            path: path.map(PathBuf::from),
+            on_close: mode.unwrap_or(FileOnCloseBehavior::None),
+        })
     })
+}
+
+fn parse_stdio_def(input: &str) -> anyhow::Result<StdioDefInput> {
+    all_consuming(stdio_def_parser()).parse_text(input)
 }
 
 #[derive(clap::ValueEnum, Clone)]
@@ -175,13 +228,13 @@ pub struct SubmitJobConfOpts {
 
     /// Path where the standard output of the job will be stored.
     /// The path must be accessible from worker nodes
-    #[arg(long, value_parser = parse_stdio_def)]
-    stdout: Option<StdioDef>,
+    #[arg(long)]
+    stdout: Option<StdioDefInput>,
 
     /// Path where the standard error of the job will be stored.
     /// The path must be accessible from worker nodes
-    #[arg(long, value_parser = parse_stdio_def)]
-    stderr: Option<StdioDef>,
+    #[arg(long)]
+    stderr: Option<StdioDefInput>,
 
     /// Specify additional environment variable for the job.
     /// You can pass this flag multiple times to pass multiple variables
@@ -423,17 +476,26 @@ impl JobSubmitOpts {
     }
 }
 
-fn create_stdio(arg: Option<StdioDef>, log: &Option<PathBuf>, default: &str) -> StdioDef {
-    arg.unwrap_or_else(|| {
-        if log.is_none() {
-            StdioDef::File {
-                path: default.into(),
-                on_close: FileOnCloseBehavior::None,
+fn create_stdio(arg: Option<StdioDefInput>, log: &Option<PathBuf>, default: &str) -> StdioDef {
+    match arg {
+        Some(arg) => match arg {
+            StdioDefInput::None => StdioDef::Null,
+            StdioDefInput::File { path, on_close } => StdioDef::File {
+                path: path.unwrap_or_else(|| PathBuf::from(default)),
+                on_close,
+            },
+        },
+        None => {
+            if log.is_none() {
+                StdioDef::File {
+                    path: default.into(),
+                    on_close: FileOnCloseBehavior::None,
+                }
+            } else {
+                StdioDef::Pipe
             }
-        } else {
-            StdioDef::Pipe
         }
-    })
+    }
 }
 
 fn handle_directives(
@@ -651,7 +713,7 @@ fn warn_array_task_count(opts: &JobSubmitOpts, task_count: u32) {
     }
 
     let is_path_some =
-        |path: Option<&StdioDef>| -> bool { path.map_or(true, |x| !matches!(x, StdioDef::Null)) };
+        |path: Option<&StdioDefInput>| -> bool { path.map_or(true, |x| x.path().is_some()) };
 
     let mut task_files = 0;
     let mut active_dirs = Vec::new();
@@ -683,12 +745,11 @@ fn warn_missing_task_id(opts: &JobSubmitOpts, task_count: u32) {
         .map(|p| parse_resolvable_string(p).contains(&StringPart::Placeholder(CWD_PLACEHOLDER)))
         .unwrap_or(false);
 
-    let check_path = |path: Option<&StdioDef>, stream: &str| {
-        let path = path.and_then(|stdio| match &stdio {
-            StdioDef::File { path, .. } => {
-                Some(opts.conf.cwd.clone().unwrap_or_default().join(path))
-            }
-            _ => None,
+    let check_path = |path: Option<&StdioDefInput>, stream: &str| {
+        let path = path.and_then(|stdio| {
+            stdio
+                .path()
+                .map(|path| opts.conf.cwd.clone().unwrap_or_default().join(path))
         });
         if let Some(path) = path.as_ref().and_then(|p| p.to_str()) {
             let placeholders = parse_resolvable_string(path);
@@ -728,17 +789,11 @@ fn warn_unknown_placeholders(opts: &JobSubmitOpts) {
     };
 
     check(
-        opts.conf.stdout.as_ref().and_then(|arg| match &arg {
-            StdioDef::File { path, .. } => Some(path.as_path()),
-            _ => None,
-        }),
+        opts.conf.stdout.as_ref().and_then(|arg| arg.path()),
         "stdout path",
     );
     check(
-        opts.conf.stderr.as_ref().and_then(|arg| match &arg {
-            StdioDef::File { path, .. } => Some(path.as_path()),
-            _ => None,
-        }),
+        opts.conf.stderr.as_ref().and_then(|arg| arg.path()),
         "stderr path",
     );
     check(opts.conf.log.as_deref(), "log path");
@@ -848,7 +903,14 @@ fn make_entries_from_json(filename: &Path) -> anyhow::Result<Vec<BString>> {
 
 #[cfg(test)]
 mod tests {
+    use crate::client::commands::submit::command::{
+        parse_stdio_def, stdio_def_parser, StdioDefInput,
+    };
+    use crate::common::parser2::all_consuming;
+    use crate::tests::utils::expect_parser_error;
+    use std::path::PathBuf;
     use std::str::FromStr;
+    use tako::program::FileOnCloseBehavior;
 
     use super::ArgEnvironmentVar;
 
@@ -884,5 +946,76 @@ mod tests {
         let env: ArgEnvironmentVar = FromStr::from_str("key=value=value2").unwrap();
         assert_eq!(env.key, "key");
         assert_eq!(env.value, "value=value2");
+    }
+
+    #[test]
+    fn stdio_empty() {
+        insta::assert_snapshot!(expect_parser_error(all_consuming(stdio_def_parser()), ""), @r###"
+        Unexpected end of input found, expected something else:
+        (the input was empty)
+        "###);
+    }
+
+    #[test]
+    fn stdio_just_path() {
+        assert_eq!(
+            parse_stdio_def("foo/bar/baz.txt").unwrap(),
+            StdioDefInput::File {
+                path: Some(PathBuf::from("foo/bar/baz.txt")),
+                on_close: FileOnCloseBehavior::None
+            }
+        )
+    }
+
+    #[test]
+    fn stdio_path_and_mode() {
+        assert_eq!(
+            parse_stdio_def("foo/bar/baz.txt:rm-if-finished").unwrap(),
+            StdioDefInput::File {
+                path: Some(PathBuf::from("foo/bar/baz.txt")),
+                on_close: FileOnCloseBehavior::RmIfFinished
+            }
+        )
+    }
+
+    #[test]
+    fn stdio_just_mode() {
+        assert_eq!(
+            parse_stdio_def(":rm-if-finished").unwrap(),
+            StdioDefInput::File {
+                path: None,
+                on_close: FileOnCloseBehavior::RmIfFinished
+            }
+        )
+    }
+
+    #[test]
+    fn stdio_missing_mode() {
+        insta::assert_snapshot!(expect_parser_error(all_consuming(stdio_def_parser()), "foo:"), @r###"
+        Unexpected end of input found while attempting to parse rm-if-finished, expected r:
+          foo:
+              |
+              --- Unexpected end of input
+        "###);
+    }
+
+    #[test]
+    fn stdio_invalid_mode() {
+        insta::assert_snapshot!(expect_parser_error(all_consuming(stdio_def_parser()), "foo:bar"), @r###"
+        Unexpected token found while attempting to parse rm-if-finished, expected r:
+          foo:bar
+              |
+              --- Unexpected token `b`
+        "###);
+    }
+
+    #[test]
+    fn stdio_only_colon() {
+        insta::assert_snapshot!(expect_parser_error(all_consuming(stdio_def_parser()), ":"), @r###"
+        Unexpected end of input found, expected something else:
+          :
+          |
+          --- Input cannot be empty
+        "###);
     }
 }
