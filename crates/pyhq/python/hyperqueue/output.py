@@ -1,7 +1,28 @@
+import dataclasses
 import uuid
-from typing import List, Optional
+from typing import List, Literal, Optional, Union
 
+from .common import GenericPath
 from .validation import ValidationException
+
+FileOnCloseBehavior = Literal["none", "rm-if-finished"]
+
+
+@dataclasses.dataclass
+class StdioDef:
+    path: Optional[GenericPath]
+    on_close: FileOnCloseBehavior
+
+    @staticmethod
+    def from_path(path: GenericPath) -> "StdioDef":
+        return StdioDef(path=path, on_close="none")
+
+    @staticmethod
+    def remove_if_finished(path: Optional[GenericPath] = None) -> "StdioDef":
+        return StdioDef(path=path, on_close="rm-if-finished")
+
+
+Stdio = Union[GenericPath, StdioDef]
 
 
 # Keep in sync with `DEFAULT_STDOUT_PATH`
@@ -19,13 +40,9 @@ def default_stderr() -> str:
 
 # TODO: how to resolve TASK_ID in the context of some other task?
 class Output:
-    def __init__(
-        self, name: str, filepath: Optional[str] = None, extension: Optional[str] = None
-    ):
+    def __init__(self, name: str, filepath: Optional[str] = None, extension: Optional[str] = None):
         if filepath and extension:
-            raise ValidationException(
-                "Parameters `filepath` and `extension` are mutually exclusive"
-            )
+            raise ValidationException("Parameters `filepath` and `extension` are mutually exclusive")
 
         self.name = name
         self.filepath = filepath

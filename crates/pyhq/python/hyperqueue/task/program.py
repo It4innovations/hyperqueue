@@ -3,7 +3,7 @@ from typing import Dict, List, Optional, Sequence, Union
 from ..common import GenericPath
 from ..ffi import TaskId
 from ..ffi.protocol import ResourceRequest, TaskDescription
-from ..output import Output, gather_outputs
+from ..output import Output, Stdio, gather_outputs
 from ..validation import ValidationException, validate_args
 from .task import EnvType, Task, _make_ffi_requests
 
@@ -22,8 +22,8 @@ class ExternalProgram(Task):
         args: List[str],
         env: Optional[EnvType] = None,
         cwd: Optional[GenericPath] = None,
-        stdout: Optional[GenericPath] = None,
-        stderr: Optional[GenericPath] = None,
+        stdout: Optional[Stdio] = None,
+        stderr: Optional[Stdio] = None,
         stdin: Optional[Union[str, bytes]] = None,
         name: Optional[str] = None,
         dependencies: Sequence[Task] = (),

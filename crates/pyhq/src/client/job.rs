@@ -1,4 +1,6 @@
-use hyperqueue::client::commands::submit::command::DEFAULT_CRASH_LIMIT;
+use hyperqueue::client::commands::submit::command::{
+    DEFAULT_CRASH_LIMIT, DEFAULT_STDERR_PATH, DEFAULT_STDOUT_PATH,
+};
 use hyperqueue::client::output::resolve_task_paths;
 use hyperqueue::client::resources::parse_allocation_request;
 use hyperqueue::client::status::{is_terminated, Status};
@@ -21,6 +23,7 @@ use tako::gateway::{ResourceRequestEntries, ResourceRequestEntry, ResourceReques
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
 
+use crate::marshal::FromPy;
 use crate::utils::error::ToPyResult;
 use crate::{borrow_mut, run_future, ClientContextPtr, FromPyObject, PyJobId, PyTaskId};
 
@@ -37,13 +40,19 @@ pub struct ResourceRequestDescription {
 }
 
 #[derive(Debug, FromPyObject)]
+pub struct StdioDefInput {
+    path: Option<PathBuf>,
+    on_close: FromPy<FileOnCloseBehavior>,
+}
+
+#[derive(Debug, FromPyObject)]
 pub struct TaskDescription {
     id: u32,
     args: Vec<String>,
     cwd: Option<PathBuf>,
     env: HashMap<String, String>,
-    stdout: Option<PathBuf>,
-    stderr: Option<PathBuf>,
+    stdout: Option<StdioDefInput>,
+    stderr: Option<StdioDefInput>,
     stdin: Option<Vec<u8>>,
     dependencies: Vec<u32>,
     task_dir: bool,
@@ -128,16 +137,16 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
         .collect();
     let stdout = desc
         .stdout
-        .map(|path| StdioDef::File {
-            path,
-            on_close: FileOnCloseBehavior::None,
+        .map(|stdio| StdioDef::File {
+            path: stdio.path.unwrap_or(PathBuf::from(DEFAULT_STDOUT_PATH)),
+            on_close: stdio.on_close.extract(),
         })
         .unwrap_or_default();
     let stderr = desc
         .stderr
-        .map(|path| StdioDef::File {
-            path,
-            on_close: FileOnCloseBehavior::None,
+        .map(|stdio| StdioDef::File {
+            path: stdio.path.unwrap_or(PathBuf::from(DEFAULT_STDERR_PATH)),
+            on_close: stdio.on_close.extract(),
         })
         .unwrap_or_default();
     let stdin = desc.stdin.unwrap_or_default();
