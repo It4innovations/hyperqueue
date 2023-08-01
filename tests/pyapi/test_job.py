@@ -8,6 +8,7 @@ import pytest
 from hyperqueue.client import FailedJobsException
 from hyperqueue.ffi.protocol import ResourceRequest
 from hyperqueue.job import Job
+from hyperqueue.output import StdioDef
 
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
@@ -72,6 +73,19 @@ def test_submit_stdio(hq_env: HqEnv):
     wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
     check_file_contents("out", "Test1\nHello\n")
     check_file_contents("err", "Test2\n")
+
+
+def test_stdio_rm_if_finished(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+    job.program(
+        args="hostname",
+        stdout=StdioDef.remove_if_finished(path="out"),
+        stderr=StdioDef.remove_if_finished(path="err"),
+    )
+    submitted_job = client.submit(job)
+    wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
+    assert not Path("out").is_file()
+    assert not Path("err").is_file()
 
 
 def test_wait_for_job(hq_env: HqEnv):

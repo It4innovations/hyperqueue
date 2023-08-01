@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Sequence, Union
 from .common import GenericPath
 from .ffi import JobId, TaskId
 from .ffi.protocol import JobDescription, ResourceRequest
-from .output import default_stderr, default_stdout
+from .output import Stdio, default_stderr, default_stdout
 from .task.function import PythonFunction
 from .task.program import ExternalProgram, ProgramArgs
 from .task.task import EnvType, Task
@@ -46,8 +46,8 @@ class Job:
         *,
         env: Optional[EnvType] = None,
         cwd: Optional[GenericPath] = None,
-        stdout: Optional[GenericPath] = default_stdout(),
-        stderr: Optional[GenericPath] = default_stderr(),
+        stdout: Optional[Stdio] = default_stdout(),
+        stderr: Optional[Stdio] = default_stderr(),
         stdin: Optional[Union[str, bytes]] = None,
         deps: Sequence[Task] = (),
         name: Optional[str] = None,
@@ -98,8 +98,8 @@ class Job:
         kwargs=None,
         env: Optional[EnvType] = None,
         cwd: Optional[GenericPath] = None,
-        stdout: Optional[GenericPath] = default_stdout(),
-        stderr: Optional[GenericPath] = default_stderr(),
+        stdout: Optional[Stdio] = default_stdout(),
+        stderr: Optional[Stdio] = default_stderr(),
         deps: Sequence[Task] = (),
         name: Optional[str] = None,
         priority: int = 0,
