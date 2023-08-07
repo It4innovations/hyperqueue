@@ -49,7 +49,7 @@ max_fails = 11
 
 [[task]]
 stdout = "testout-%{TASK_ID}
-stderr = "testerr-%{TASK_ID}"
+stderr = { path = "testerr-%{TASK_ID}", mode = "rm-if-finished" }
 task_dir = true
 time_limit = "1m 10s"
 priority = -1
