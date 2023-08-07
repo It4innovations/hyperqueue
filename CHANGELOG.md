@@ -1,3 +1,15 @@
+# Dev
+
+## New features
+
+### Job submission
+* You can now specify `cleanup modes` when passing `stdout`/`stderr` paths to tasks. Cleanup mode decides what should
+happen with the file once the task has finished executing. Currently, a single cleanup mode is implemented, which removes
+the file if the task has finished successfully:
+```bash
+$ hq submit --stdout=out.txt:rm-if-finished /my-program
+```
+
 # v0.16.0
 
 ## New features
