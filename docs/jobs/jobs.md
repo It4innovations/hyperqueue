@@ -337,6 +337,28 @@ If the message is longer than 2KiB, then it is truncated to 2KiB.
 
 If task terminates with zero return code, then the error file is ignored.
 
+## Automatic file cleanup
+If you create a lot of tasks and do not use [output streaming](streaming.md), a lot of `stdout`/`stderr`
+files can be created on the disk. In certain cases, you might not be interested in the contents of these files, especially
+if the task has finished successfully, and you instead want to remove them as soon as they are not needed.
+
+For that, you can use a file cleanup mode when specifying `stdout` and/or `stderr` to choose what should happen with
+the file when its task finishes. The mode is specified as a name following a colon (`:`) after the file path.
+Currently, one cleanup mode is implemented:
+
+- Remove the file if the task has [finished](#task-state) successfully:
+```bash
+$ hq submit --stdout="out.txt:rm-if-finished" /my-program
+```
+The file will not be deleted if the task fails or is cancelled.
+
+!!! Note
+    If you want to use the default `stdout`/`stderr` file path (and you don't want to look it up), you can also specify
+    just the cleanup mode without the file path:
+    ```bash
+    $ hq submit --stdout=":rm-if-finished" /my-program
+    ```
+
 ## Useful job commands
 Here is a list of useful job commands:
 
