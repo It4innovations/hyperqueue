@@ -20,11 +20,11 @@ therefore, there is a special section about [CPU resources](cresources.md).
 
 ## Worker resources
 
-Each worker have one or mores resources attached. Each resource is a **resource pool**
+Each worker has one or mores resources attached. Each resource is a **resource pool**
 identified by a name. A resource pool represents some resources provided by a worker; each task can
-then ask for a part of resources contained in that pool.
+then ask for a part of the resources contained in that pool.
 
-There are two kind of resource pools:
+There are two kinds of resource pools:
 
 * **Indexed pool**: This pool represents an enumerated set of resources represented by strings.
 Each resource has its own identity. Tasks do not ask for specific values from the set, they just specify
@@ -81,7 +81,7 @@ where `NAMEi` is a name (string ) of the `i`-th resource pool and `DEFi` is a de
     quotes, like this:
 
     ```bash
-    $ hq worker start --resources "foo=sum(5)"
+    $ hq worker start --resource "foo=sum(5)"
     ```
 
 ### Resource names
@@ -138,7 +138,7 @@ if resource "cpus" are not explicitly defined, it will always be detected.
 When you submit a job, you can define a **resource requests** with the `--resource` flag:
 
 ```bash
-$ hq submit --resource <NAME1>=<AMOUNT1> --resources <NAME2>=<AMOUNT2> ...
+$ hq submit --resource <NAME1>=<AMOUNT1> --resource <NAME2>=<AMOUNT2> ...
 ```
 
 Where `NAME` is a name of the requested resource and the `AMOUNT` is a positive integer defining the
@@ -209,7 +209,7 @@ When strategy is not defined then ``compact`` is used as default.
 
     Example:
     ```console
-    $ hq submit --resource="8 scatter" ...
+    $ hq submit --resource cpus="8 scatter" ...
     ```
 
 ### Resource environment variables
