@@ -40,16 +40,16 @@ From version 0.13.0, CPUs are managed as any other resource under name "cpus", w
 
 * There are some extra environmental variables for CPUs (see below).
 
-* CPUs are automatically detected. See below information about NUMA or Hyper Threading
+* CPUs are automatically detected. See below for information about NUMA or Hyper Threading.
 
-* CPUs provided by worker can be explicitly specified via ``--cpus``, see below.
+* CPUs provided by a worker can be explicitly specified via ``--cpus``, see below.
 
 
 ## CPU related environment variables
 
 The following variables are created when a task is executed:
 
-* ``HQ_CPUS`` - List of cores assigned to task. (this is alias for ``HQ_RESOURCE_VALUES_cpus``)
+* ``HQ_CPUS`` - List of cores assigned to a task. (this is an alias for ``HQ_RESOURCE_VALUES_cpus``).
 * ``HQ_PIN`` - Is set to `taskset` or `omp` (depending on the used pin mode) if the task was pinned
 by HyperQueue (see below).
 * ``NUM_OMP_THREADS`` -- Set to number of cores assigned for task. (For compatibility with OpenMP).
@@ -131,8 +131,8 @@ allocated by HQ.
 
 ## NUMA allocation strategy
 
-Worker automatically detect number of CPUs and on Linux system it also detects partitioning into sockets.
-When NUMA architecture is automatically detected, indexed resource with groups is used for resource "cpus".
+Workers automatically detect the number of CPUs and on Linux systems they also detect their partitioning into sockets.
+When a NUMA architecture is automatically detected, indexed resource with groups is used for resource "cpus".
 
 You can then use allocation strategies for groups to specify how sockets are
 allocated. They follow the same rules as normal allocation strategies;
@@ -176,7 +176,7 @@ The default policy is the `compact` policy, i.e. `--cpus=<X>` is equivalent to `
 
 !!! note
 
-    Specifying policy has effect only if you have more than one socket (physical CPUs).
+    Specifying a policy only has an effect if you have more than one socket (physical CPUs).
     In case of a single socket, policies are indistinguishable.
 
 
