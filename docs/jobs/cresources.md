@@ -131,7 +131,7 @@ allocated by HQ.
 
 ## NUMA allocation strategy
 
-Workers automatically detect the number of CPUs and on Linux systems it also detects their partitioning into sockets.
+Workers automatically detect the number of CPUs and on Linux systems they also detect their partitioning into sockets.
 When the NUMA architecture is automatically detected, indexed resource with groups is used for resource "cpus".
 
 You can then use allocation strategies for groups to specify how sockets are
