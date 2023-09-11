@@ -183,24 +183,40 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
     let hostname = get_hostname(hostname);
 
     let mut resources: Vec<_> = resource.into_iter().map(|x| x.into_parsed_arg()).collect();
-    if !resources.iter().any(|x| x.name == CPU_RESOURCE_NAME) {
-        resources.push(ResourceDescriptorItem {
-            name: CPU_RESOURCE_NAME.to_string(),
-            kind: if let Some(cpus) = cpus {
+    let cpu_resources = resources.iter().find(|x| x.name == CPU_RESOURCE_NAME);
+    let specified_cpu_resource = match cpu_resources {
+        Some(item) => {
+            if cpus.is_some() {
+                bail!("Parameters --cpus and --resource cpus=... cannot be combined");
+            }
+            item.kind.clone()
+        }
+        None => {
+            let kind = if let Some(cpus) = cpus {
                 cpus.into_parsed_arg()
             } else {
                 detect_cpus()?
-            },
-        })
-    } else if cpus.is_some() {
-        bail!("Parameters --cpus and --resource cpus=... cannot be combined");
+            };
+            resources.push(ResourceDescriptorItem {
+                name: CPU_RESOURCE_NAME.to_string(),
+                kind: kind.clone(),
+            });
+            kind
+        }
+    };
+
+    if matches!(
+        specified_cpu_resource,
+        tako::resources::ResourceDescriptorKind::Sum { .. }
+    ) {
+        bail!("Resource kind `sum` cannot be used with CPUs. CPUs must have identity");
     }
 
     if no_hyper_threading {
         let cpus = resources
             .iter_mut()
             .find(|x| x.name == CPU_RESOURCE_NAME)
-            .unwrap();
+            .expect("No CPUs resource found");
         cpus.kind = prune_hyper_threading(&cpus.kind)?;
     }
 

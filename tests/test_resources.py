@@ -298,3 +298,21 @@ print(os.environ["HQ_RESOURCE_VALUES_gpus_amd"], flush=True)
 
     with open(default_task_output()) as f:
         assert f.read() == "1 compact\n0\n"
+
+
+def test_cpu_resource_sum(hq_env: HqEnv):
+    hq_env.start_server()
+
+    hq_env.command(
+        args=["worker", "start", "--cpus=sum(5)"],
+        expect_fail="Resource kind `sum` cannot be used with CPUs",
+    )
+
+
+def test_manual_cpu_resource_sum(hq_env: HqEnv):
+    hq_env.start_server()
+
+    hq_env.command(
+        args=["worker", "start", "--resource", "cpus=sum(5)"],
+        expect_fail="Resource kind `sum` cannot be used with CPUs",
+    )
