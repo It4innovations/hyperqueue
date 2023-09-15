@@ -59,6 +59,21 @@ contain each filepath on a separate line and then pass it to the submit command 
 $ hq submit --each-line entries.txt ...
 ```
 
+!!! tip
+    To directly use an environment variable in the submitted command, you have to make sure that it will be expanded
+    when the command is executed, not when the command is submitted. You should also execute the command in a bash script
+    if you want to specify it directly and not via a script file.
+    
+    For example, the following command is **incorrect**, as it will expand `HQ_ENTRY` during submission (probably to an
+    empty string) and submit a command `ls `:
+    ```bash
+    $ hq submit --each-line files.txt ls $HQ_ENTRY
+    ```
+    To actually submit the command `ls $HQ_ENTRY`, you can e.g. wrap the command in apostrophes and run it in a shell:
+    ```bash
+    $ hq submit --each-line files.txt bash -c 'ls $HQ_ENTRY'
+    ```
+
 ### JSON array
 You can also specify the source using a JSON array stored inside a file. HyperQueue will then create a task for each
 item in the array and pass the item as a JSON string to the corresponding task using the environment variable `HQ_ENTRY`.
