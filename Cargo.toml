@@ -8,6 +8,7 @@ default-members = [
     "crates/hyperqueue",
     "crates/tako"
 ]
+resolver = "2"
 
 [workspace.package]
 rust-version = "1.64.0"
