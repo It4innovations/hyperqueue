@@ -124,7 +124,7 @@ Specifies a shell command that will be executed on each allocated node just befo
 on that node. You can use it e.g. to initialize some shared environment for the node, or to load software modules.
 
 #### Worker stop command
-Format: - `--worker-stop-cmd <cmd>`
+Format: `--worker-stop-cmd <cmd>`
 
 Specifies a shell command that will be executed on each allocated node just after the worker stops on
 that node. You can use it e.g. to clean up a previously initialized environment for the node.
