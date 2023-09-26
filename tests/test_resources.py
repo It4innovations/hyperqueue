@@ -1,3 +1,4 @@
+import collections
 import multiprocessing
 import time
 
@@ -21,14 +22,16 @@ def test_worker_resources_display(hq_env: HqEnv):
             "fairy=sum(1000_1000)",
             "--resource",
             "shark=[1,3,5,2]",
+            "--resource",
+            "small=sum(0.5)",
         ],
     )
     table = hq_env.command(["worker", "list"], as_table=True)
-    assert table.get_column_value("Resources") == ["cpus 4x2; fairy 10001000; potato 12; shark 4"]
+    assert table.get_column_value("Resources") == ["cpus 4x2; fairy 10001000; potato 12; shark 4; small 0.5"]
 
     table = hq_env.command(["worker", "info", "1"], as_table=True)
     print(table.get_row_value("Resources"))
-    assert table.get_row_value("Resources") == "cpus: 4x2\nfairy: 10001000\npotato: 12\nshark: 4"
+    assert table.get_row_value("Resources") == "cpus: 4x2\nfairy: 10001000\npotato: 12\nshark: 4\nsmall: 0.5"
 
 
 def test_task_resources_ignore_worker_without_resource(hq_env: HqEnv):
@@ -128,6 +131,141 @@ def test_task_resources_range_multiple_allocated_values(hq_env: HqEnv):
             all_values += values
     assert all(31 <= x <= 36 for x in all_values)
     assert len(set(all_values)) == 6
+
+
+def test_task_resource_fractions_sum(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus=4, args=["--resource", "foo=sum(2)"])
+
+    hq_env.command(
+        [
+            "submit",
+            "--array=1-4",
+            "--resource",
+            "foo=0.5",
+            "--",
+            "bash",
+            "-c",
+            "date +%s%N\nsleep 1",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    times = []
+    for task_id in range(1, 5):
+        with open(default_task_output(task_id=task_id)) as f:
+            times.append(int(f.readline().rstrip()))
+    times.sort()
+    assert ((times[-1] - times[0]) / 1000_000_000) < 0.15
+
+
+def test_task_resource_fractions_scatter(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus=4, args=["--resource", "foo=[[a,b,c],[i, j, k],[x, y],[v, w]]"])
+
+    hq_env.command(
+        [
+            "submit",
+            "--resource",
+            "foo=3.5",
+            "--",
+            "bash",
+            "-c",
+            "echo $HQ_RESOURCE_VALUES_foo",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    with open(default_task_output()) as f:
+        r = f.readline().rstrip().split(",")
+        assert len(r) == 4
+        assert len(set(r)) == 4
+
+
+def test_task_resource_fractions_sum2(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus=4, args=["--resource", "foo=sum(2.2)"])
+
+    hq_env.command(
+        [
+            "submit",
+            "--array=1-4",
+            "--resource",
+            "foo=0.6",
+            "--",
+            "bash",
+            "-c",
+            "date +%s%N\nsleep 1",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    times = []
+    for task_id in range(1, 5):
+        with open(default_task_output(task_id=task_id)) as f:
+            times.append(int(f.readline().rstrip()))
+    times.sort()
+    assert 0.99 < ((times[-1] - times[0]) / 1000_000_000) < 1.25
+
+
+def test_task_resource_fractions_sharing_small(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus=4, args=["--resource", "foo=[a,b]"])
+
+    hq_env.command(
+        [
+            "submit",
+            "--array=1-4",
+            "--resource",
+            "foo=0.4",
+            "--",
+            "bash",
+            "-c",
+            "date +%s%N\necho $HQ_RESOURCE_VALUES_foo\nsleep 1",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    times = []
+    counts = collections.Counter()
+    for task_id in range(1, 5):
+        with open(default_task_output(task_id=task_id)) as f:
+            times.append(int(f.readline().rstrip()))
+            name = f.readline().strip()
+            assert name in ["a", "b"]
+            counts[name] += 1
+    times.sort()
+    assert ((times[-1] - times[0]) / 1000_000_000) < 0.15
+    assert counts == collections.Counter({"a": 2, "b": 2})
+
+
+def test_task_resource_fractions_sharing_larger(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus=4, args=["--resource", "foo=[a0, a1, a2, a3, a4, a5, a6, a7, a8, a9]"])
+
+    hq_env.command(
+        [
+            "submit",
+            "--array=1-4",
+            "--resource",
+            "foo=2.5",
+            "--",
+            "bash",
+            "-c",
+            "date +%s%N\necho $HQ_RESOURCE_VALUES_foo\nsleep 1",
+        ]
+    )
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    times = []
+    counts_frac = collections.Counter()
+    counts_whole = collections.Counter()
+    for task_id in range(1, 5):
+        with open(default_task_output(task_id=task_id)) as f:
+            times.append(int(f.readline().rstrip()))
+            names = f.readline().strip().split(",")
+            for name in names[:-1]:
+                counts_whole[name] += 1
+            counts_frac[names[-1]] += 1
+    times.sort()
+    assert ((times[-1] - times[0]) / 1000_000_000) < 0.15
+    assert tuple(counts_frac.values()) == (2, 2)
+    assert tuple(counts_whole.values()) == (1,) * 8
 
 
 def test_task_resources_allocate_string(hq_env: HqEnv):

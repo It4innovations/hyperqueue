@@ -195,11 +195,11 @@ def test_print_job_detail_resources(hq_env: HqEnv):
                         "min_time": 0.0,
                         "n_nodes": 0,
                         "resources": [
-                            {"request": {"Compact": 2}, "resource": "res1"},
-                            {"request": {"ForceCompact": 8}, "resource": "res2"},
+                            {"request": {"Compact": 2 * 10_000}, "resource": "res1"},
+                            {"request": {"ForceCompact": 8 * 10_000}, "resource": "res2"},
                             {"request": "All", "resource": "res3"},
-                            {"request": {"Scatter": 4}, "resource": "res4"},
-                            {"request": {"Compact": 1}, "resource": "cpus"},
+                            {"request": {"Scatter": 4 * 10_000}, "resource": "res4"},
+                            {"request": {"Compact": 1 * 10_000}, "resource": "cpus"},
                         ],
                     }
                 ]

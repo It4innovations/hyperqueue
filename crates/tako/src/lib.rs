@@ -39,6 +39,10 @@ pub mod resources {
     pub use crate::internal::common::resources::map::ResourceMap;
 
     pub use crate::internal::common::resources::descriptor::DescriptorError;
+
+    pub use crate::internal::common::resources::amount::{
+        FRACTIONS_MAX_DIGITS, FRACTIONS_PER_UNIT,
+    };
 }
 
 pub mod server {

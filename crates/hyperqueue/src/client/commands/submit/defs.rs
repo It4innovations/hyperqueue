@@ -12,13 +12,13 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tako::gateway::{ResourceRequest, ResourceRequestEntries, ResourceRequestEntry};
 use tako::program::FileOnCloseBehavior;
-use tako::resources::{AllocationRequest, NumOfNodes};
+use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
 use tako::{Map, Priority};
 
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum IntOrString {
-    Int(u64),
+    Int(u32),
     String(String),
 }
 
@@ -55,14 +55,12 @@ fn deserialize_resource_entries<'de, D>(deserializer: D) -> Result<ResourceReque
 where
     D: Deserializer<'de>,
 {
-    todo!()
-    /*
     let tmp = Map::<String, IntOrString>::deserialize(deserializer)?;
 
     let mut result = ResourceRequestEntries::new();
     for (k, v) in tmp {
         let policy = match v {
-            IntOrString::Int(n) => AllocationRequest::Compact(n),
+            IntOrString::Int(n) => AllocationRequest::Compact(ResourceAmount::new_units(n)),
             IntOrString::String(s) => {
                 parse_allocation_request(&s).map_err(serde::de::Error::custom)?
             }
@@ -72,7 +70,7 @@ where
             policy,
         })
     }
-    Ok(result)*/
+    Ok(result)
 }
 
 fn deserialize_human_duration_opt<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>

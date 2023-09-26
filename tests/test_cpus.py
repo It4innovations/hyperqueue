@@ -69,7 +69,7 @@ def test_job_num_of_cpus(hq_env: HqEnv):
     table = hq_env.command(["job", "info", "6"], as_table=True)
     table.check_row_value("Resources", "cpus: all")
     lst = read_list(default_task_output(job_id=6))
-    assert list(range(12)) == lst
+    assert list(range(12)) == sorted(lst)
 
 
 def test_set_omp_num_threads(hq_env: HqEnv):

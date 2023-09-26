@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::internal::common::error::DsError;
-use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId, ResourceUnits};
+use crate::internal::common::resources::{NumOfNodes, ResourceAmount, ResourceId};
 
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
@@ -19,17 +19,27 @@ pub enum AllocationRequest {
 
 impl AllocationRequest {
     pub fn validate(&self) -> crate::Result<()> {
+        let check_nonzero = |amount: &ResourceAmount| {
+            if amount.is_zero() {
+                Err(DsError::GenericError(
+                    "Zero resources cannot be requested".to_string(),
+                ))
+            } else {
+                Ok(())
+            }
+        };
         match &self {
-            AllocationRequest::Scatter(n_cpus)
-            | AllocationRequest::ForceCompact(n_cpus)
-            | AllocationRequest::Compact(n_cpus) => {
-                if n_cpus.is_zero() {
+            AllocationRequest::ForceCompact(amount) => check_nonzero(amount).and_then(|_| {
+                if amount.fractions() > 0 {
                     Err(DsError::GenericError(
-                        "Zero resources cannot be requested".to_string(),
+                        "ForceCompact have to use whole resource counts".to_string(),
                     ))
                 } else {
                     Ok(())
                 }
+            }),
+            AllocationRequest::Scatter(amount) | AllocationRequest::Compact(amount) => {
+                check_nonzero(amount)
             }
             AllocationRequest::All => Ok(()),
         }

@@ -1,76 +1,59 @@
-use nom::branch::alt;
-use nom::bytes::complete::take_while;
-use nom::character::complete::{anychar, char, multispace0, multispace1};
-use nom::combinator::{map, map_res, opt, recognize, verify};
-use nom::sequence::{pair, preceded, separated_pair, tuple};
-use nom_supreme::tag::complete::tag;
-use nom_supreme::ParserExt;
+use chumsky::primitive::{choice, filter, just};
+use chumsky::text::TextParser;
+use chumsky::Parser;
 
-use tako::resources::{AllocationRequest, ResourceAmount, ResourceUnits};
+use tako::resources::AllocationRequest;
 
-use crate::common::parser::{consume_all, p_u64, NomResult};
+use crate::common::parser2::{
+    all_consuming, parse_exact_string, parse_resource_amount, CharParser, ParseError,
+};
 use crate::worker::parser::{is_valid_resource_char, is_valid_starting_resource_char};
 
-fn p_allocation_request(input: &str) -> NomResult<AllocationRequest> {
-    alt((
-        map(tag("all"), |_| AllocationRequest::All),
-        map_res(
-            tuple((
-                p_u64,
-                opt(preceded(
-                    multispace1,
-                    alt((tag("compact!"), tag("compact"), tag("scatter"))),
-                )),
-            )),
-            |(count, policy)| {
-                let count = count as ResourceUnits;
-                if count == 0 {
-                    return Err(anyhow::anyhow!("Requesting zero resources is not allowed"));
-                }
-                todo!()
-                // Ok(match policy {
-                //     None | Some("compact") => AllocationRequest::Compact(count),
-                //     Some("compact!") => AllocationRequest::ForceCompact(count),
-                //     Some("scatter") => AllocationRequest::Scatter(count),
-                //     _ => unreachable!(),
-                // })
-            },
-        ),
-    ))(input)
+fn p_allocation_request() -> impl CharParser<AllocationRequest> {
+    parse_exact_string("all")
+        .map(|_| AllocationRequest::All)
+        .or(parse_resource_amount()
+            .padded()
+            .then(choice((just("compact!"), just("compact"), just("scatter"))).or_not())
+            .try_map(|(amount, policy), span| {
+                let alloc = match policy {
+                    None | Some("compact") => AllocationRequest::Compact(amount),
+                    Some("compact!") => AllocationRequest::ForceCompact(amount),
+                    Some("scatter") => AllocationRequest::Scatter(amount),
+                    _ => unreachable!(),
+                };
+                alloc
+                    .validate()
+                    .map_err(|e| ParseError::custom(span, e.to_string()))?;
+                Ok(alloc)
+            }))
 }
 
-/// Parses a resource identifier.
-/// It has to be an alphanumeric string beginning with a letter. It can also a slash.
-fn p_resource_identifier(input: &str) -> NomResult<&str> {
-    recognize(pair(
-        verify(anychar, |&c| is_valid_starting_resource_char(c)).context("Letter"),
-        take_while(is_valid_resource_char).context("Letter, digit or slash"),
-    ))(input)
+fn p_resource_identifier() -> impl CharParser<String> {
+    filter(|&c| is_valid_starting_resource_char(c))
+        .chain(filter(|&c| is_valid_resource_char(c)).repeated())
+        .map(|s| s.iter().collect::<String>())
 }
 
-fn p_resource_request(input: &str) -> NomResult<(String, AllocationRequest)> {
-    map(
-        separated_pair(
-            p_resource_identifier.context("Resource identifier"),
-            tuple((multispace0, char('='), multispace0)),
-            p_allocation_request.context("Resource amount"),
-        ),
-        |(name, value)| (name.to_string(), value),
-    )(input)
+fn p_resource_request() -> impl CharParser<(String, AllocationRequest)> {
+    p_resource_identifier()
+        .then_ignore(just("=").padded())
+        .then(p_allocation_request())
 }
 
 pub fn parse_resource_request(input: &str) -> anyhow::Result<(String, AllocationRequest)> {
-    consume_all(p_resource_request, input)
+    all_consuming(p_resource_request()).parse_text(input)
 }
 
 pub fn parse_allocation_request(input: &str) -> anyhow::Result<AllocationRequest> {
-    consume_all(p_allocation_request, input)
+    all_consuming(p_allocation_request()).parse_text(input)
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::tests::utils::check_parse_error;
+    use crate::tests::utils::{check_parse_error, expect_parser_error};
+    use tako::resources::ResourceAmount;
 
     #[test]
     fn test_parse_resource_request() {
@@ -110,13 +93,9 @@ mod test {
 
     #[test]
     fn test_parse_no_name() {
-        check_parse_error(
-            p_resource_request,
-            "=1",
-            r#"Parse error
-expected Resource identifier at character 0: "=1"
-expected Letter at character 0: "=1"
-  expected: Verify at character 0: "=1""#,
+        assert_eq!(
+            expect_parser_error(all_consuming(p_resource_request()), "=1"),
+            "Unexpected token found, expected something else:\n  =1\n  |\n  --- Unexpected token `=`\n",
         );
     }
 
@@ -133,47 +112,33 @@ expected Letter at character 0: "=1"
 
     #[test]
     fn test_parse_identifier_start_with_digit() {
-        check_parse_error(
-            p_resource_request,
-            "1a=1",
-            r#"Parse error
-expected Resource identifier at character 0: "1a=1"
-expected Letter at character 0: "1a=1"
-  expected: Verify at character 0: "1a=1""#,
+        assert_eq!(
+            expect_parser_error(all_consuming(p_resource_request()), "1a=1"),
+            "Unexpected token found, expected something else:\n  1a=1\n  |\n  --- Unexpected token `1`\n",
         );
     }
 
     #[test]
     fn test_parse_zero_resources() {
-        check_parse_error(
-            p_resource_request,
-            "aa=0",
-            r#"Parse error
-expected Resource amount at character 3: "0"
-  "Requesting zero resources is not allowed" at character 3: "0""#,
+        assert_eq!(
+            expect_parser_error(all_consuming(p_resource_request()), "aa=0"),
+            "Unexpected end of input found, expected something else:\n  aa=0\n     |\n     --- Error: Zero resources cannot be requested\n",
         );
     }
 
     #[test]
     fn test_parse_resource_request_error() {
-        check_parse_error(
-            p_resource_request,
-            "",
-            r#"Parse error
-expected Resource identifier at the end of input
-expected Letter at the end of input
-  expected something at the end of input"#,
+        assert_eq!(
+            expect_parser_error(all_consuming(p_resource_request()), ""),
+            "Unexpected end of input found, expected something else:\n(the input was empty)",
         );
-        check_parse_error(
-            p_resource_request,
-            "a",
-            r#"Parse error
-expected "=" at the end of input"#,
+        assert_eq!(
+            expect_parser_error(all_consuming(p_resource_request()), "a"),
+            "Unexpected end of input found, expected =:\n  a\n   |\n   --- Unexpected end of input\n",
         );
-        check_parse_error(
-            p_resource_request,
-            "a=x",
-            "Parse error\nexpected Resource amount at character 2: \"x\"\n  expected one of the following 2 variants:\n    expected \"all\" at character 2: \"x\"\n    or\n    expected integer at character 2: \"x\"",
+        assert_eq!(
+            expect_parser_error(all_consuming(p_resource_request()), "a=x"),
+            "Unexpected token found, expected all:\n  a=x\n    |\n    --- Unexpected token `x`\n",
         );
     }
 }

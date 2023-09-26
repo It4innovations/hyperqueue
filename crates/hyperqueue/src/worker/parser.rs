@@ -3,11 +3,11 @@ use chumsky::text::TextParser;
 use chumsky::{Error, Parser};
 
 use tako::resources::{
-    DescriptorError, ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind, ResourceUnits,
+    DescriptorError, ResourceDescriptorItem, ResourceDescriptorKind, ResourceUnits,
 };
 
 use crate::common::parser2::{
-    all_consuming, parse_exact_string, parse_u32, parse_u64, CharParser, ParseError,
+    all_consuming, parse_exact_string, parse_resource_amount, parse_u32, CharParser, ParseError,
 };
 
 pub fn parse_cpu_definition(input: &str) -> anyhow::Result<ResourceDescriptorKind> {
@@ -148,9 +148,9 @@ fn parse_resource_sum() -> impl CharParser<ResourceDescriptorKind> {
     let start = parse_exact_string("sum").then(just('(').padded());
     let end = just(')').padded();
 
-    let value = parse_u64()
+    let value = parse_resource_amount()
         .labelled("sum")
-        .map(|size| ResourceDescriptorKind::Sum { size: todo!() });
+        .map(|size| ResourceDescriptorKind::Sum { size });
 
     value.delimited_by(start, end)
 }
@@ -212,6 +212,7 @@ mod test {
     use tako::internal::tests::utils::shared::{
         res_kind_groups, res_kind_list, res_kind_range, res_kind_sum,
     };
+    use tako::resources::ResourceAmount;
 
     use super::*;
 
@@ -491,6 +492,17 @@ mod test {
             parse_resource_definition("mem=sum(1_3000_2000)"),
             "mem",
             res_kind_sum(1_3000_2000),
+        );
+    }
+
+    #[test]
+    fn test_parse_resource_def_sum_frac() {
+        check_item(
+            parse_resource_definition("mem=sum(1.5)"),
+            "mem",
+            ResourceDescriptorKind::Sum {
+                size: ResourceAmount::new(1, 5000),
+            },
         );
     }
 

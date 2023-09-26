@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 use crate::hwstats::WorkerHwStateMessage;
-use crate::internal::common::resources::{ResourceAmount, ResourceIndex, ResourceUnits};
+use crate::internal::common::resources::{ResourceAmount, ResourceIndex};
 use crate::internal::messages::common::TaskFailInfo;
 use crate::resources::ResourceFractions;
 use crate::task::SerializedTaskContext;

@@ -9,8 +9,9 @@ use nom_supreme::tag::complete::tag;
 use tako::hwstats::GpuFamily;
 use tako::internal::has_unique_elements;
 use tako::resources::{
-    ResourceDescriptorItem, ResourceDescriptorKind, ResourceIndex, ResourceLabel,
-    AMD_GPU_RESOURCE_NAME, MEM_RESOURCE_NAME, NVIDIA_GPU_RESOURCE_NAME,
+    ResourceAmount, ResourceDescriptorItem, ResourceDescriptorKind, ResourceFractions,
+    ResourceIndex, ResourceLabel, AMD_GPU_RESOURCE_NAME, FRACTIONS_PER_UNIT, MEM_RESOURCE_NAME,
+    NVIDIA_GPU_RESOURCE_NAME,
 };
 use tako::{format_comma_delimited, Set};
 
@@ -127,13 +128,18 @@ pub fn detect_additional_resources(
 
     if !has_resource(items, MEM_RESOURCE_NAME) {
         if let Ok(mem) = read_linux_memory() {
-            todo!() /*
-                    log::info!("Detected {mem}B of memory ({})", human_size(mem));
-                    items.push(ResourceDescriptorItem {
-                        name: MEM_RESOURCE_NAME.to_string(),
-                        kind: ResourceDescriptorKind::Sum { size: mem },
-                    });
-                    */
+            log::info!("Detected {mem}B of memory ({})", human_size(mem));
+            let units = mem / (1024 * 1024);
+            let fractions = ((mem % (1024 * 1024)) * FRACTIONS_PER_UNIT as u64) / (1024 * 1024);
+            items.push(ResourceDescriptorItem {
+                name: MEM_RESOURCE_NAME.to_string(),
+                kind: ResourceDescriptorKind::Sum {
+                    size: ResourceAmount::new(
+                        units.try_into().unwrap(),
+                        fractions as ResourceFractions,
+                    ),
+                },
+            });
         }
     }
     Ok(gpu_families)

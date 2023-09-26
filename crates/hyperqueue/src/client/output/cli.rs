@@ -8,7 +8,7 @@ use crate::client::job::WorkerMap;
 use crate::client::output::outputs::{Output, OutputStream, MAX_DISPLAYED_WORKERS};
 use crate::client::status::{get_task_status, job_status, Status};
 use crate::common::env::is_hq_env;
-use crate::common::format::{human_duration, human_size};
+use crate::common::format::{human_duration, human_mem_amount, human_size};
 use crate::common::manager::info::GetManagerInfo;
 use crate::server::autoalloc::{Allocation, AllocationState};
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState, StartedTaskData};
@@ -1395,13 +1395,11 @@ fn resource_summary_kind(kind: &ResourceDescriptorKind) -> String {
 
 fn resources_summary(resources: &ResourceDescriptor, multiline: bool) -> String {
     let special_format = |descriptor: &ResourceDescriptorItem| -> Option<String> {
-        todo!();
-        /*
         if descriptor.name == tako::resources::MEM_RESOURCE_NAME {
             if let ResourceDescriptorKind::Sum { size } = descriptor.kind {
-                return Some(human_size(size));
+                return Some(human_mem_amount(size));
             }
-        }*/
+        }
         None
     };
 
