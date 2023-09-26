@@ -29,7 +29,6 @@ use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueI
 use crate::server::state::StateRef;
 use crate::transfer::messages::{AllocationQueueParams, QueueData, QueueState};
 use crate::{get_or_return, JobId};
-use tako::resources::ResourceAmount;
 
 #[derive(Copy, Clone)]
 enum RefreshReason {

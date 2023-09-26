@@ -1,3 +1,4 @@
+use tako::resources::ResourceAmount;
 use tako::worker::ServerLostPolicy;
 
 pub fn human_duration(duration: chrono::Duration) -> String {
@@ -23,6 +24,15 @@ pub fn human_size(size: u64) -> String {
         format!("{:.2} MiB", size as f64 / (1024 * 1024) as f64)
     } else {
         format!("{:.2} GiB", size as f64 / (1024 * 1024 * 1024) as f64)
+    }
+}
+
+pub fn human_mem_amount(amount: ResourceAmount) -> String {
+    let f = amount.as_f32();
+    if f < 512f32 {
+        format!("{:.2} MiB", f)
+    } else {
+        format!("{:.2} GiB", f / 1024.0)
     }
 }
 

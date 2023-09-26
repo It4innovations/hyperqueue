@@ -5,6 +5,7 @@ pub type ResourceUnits = u32;
 pub type ResourceFractions = u32;
 
 pub const FRACTIONS_PER_UNIT: ResourceFractions = 10_000;
+pub const FRACTIONS_MAX_DIGITS: usize = 4; // = log10(FRACTIONS_PER_UNIT)
 
 #[derive(
     Debug,
@@ -60,6 +61,10 @@ impl ResourceAmount {
 
     pub fn total_fractions(&self) -> u64 {
         self.0
+    }
+
+    pub fn as_f32(&self) -> f32 {
+        self.0 as f32 / FRACTIONS_PER_UNIT as f32
     }
 }
 

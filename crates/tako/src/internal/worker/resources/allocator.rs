@@ -1,9 +1,7 @@
 use crate::internal::common::resources::request::{
     AllocationRequest, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
 };
-use crate::internal::common::resources::{
-    ResourceAllocation, ResourceAllocations, ResourceId, ResourceVec,
-};
+use crate::internal::common::resources::{ResourceId, ResourceVec};
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
 use crate::internal::worker::resources::map::ResourceLabelMap;
@@ -327,8 +325,7 @@ impl ResourceAllocator {
 
 #[cfg(test)]
 mod tests {
-    use crate::gateway::ResourceRequest;
-    use crate::internal::common::resources::allocation::AllocationIndex;
+
     use crate::internal::common::resources::descriptor::{
         ResourceDescriptor, ResourceDescriptorKind,
     };
@@ -339,10 +336,8 @@ mod tests {
     use crate::internal::worker::resources::allocator::ResourceAllocator;
     use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
     use crate::internal::worker::resources::pool::ResourcePool;
-    use crate::resources::{
-        ResourceAllocation, ResourceAmount, ResourceDescriptorItem, ResourceIndex, ResourceUnits,
-    };
-    use smallvec::smallvec;
+    use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceIndex, ResourceUnits};
+
     use std::rc::Rc;
     use std::time::Duration;
 

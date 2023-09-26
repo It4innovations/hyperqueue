@@ -1,19 +1,14 @@
-use crate::gateway::ResourceRequest;
 use crate::internal::common::resources::allocation::AllocationIndex;
 use crate::internal::common::resources::amount::FRACTIONS_PER_UNIT;
 use crate::internal::common::resources::descriptor::ResourceDescriptorKind;
 use crate::internal::common::resources::{ResourceAmount, ResourceId, ResourceIndex};
 use crate::internal::common::Map;
-use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
+use crate::internal::worker::resources::concise::ConciseResourceState;
 use crate::internal::worker::resources::map::ResourceLabelMap;
-use crate::resources::{
-    Allocation, AllocationRequest, ResourceAllocation, ResourceFractions, ResourceUnits,
-};
+use crate::resources::{AllocationRequest, ResourceAllocation, ResourceFractions, ResourceUnits};
 use crate::Set;
-use log::Level::Debug;
-use nix::libc::group;
+
 use smallvec::{smallvec, SmallVec};
-use std::cmp::max_by_key;
 
 #[derive(Debug)]
 pub(crate) struct IndicesResourcePool {
@@ -249,10 +244,10 @@ impl ResourcePool {
             .collect();
 
         loop {
-            if let Some((group_idx, a)) = amounts
+            if let Some((group_idx, _a)) = amounts
                 .iter()
                 .enumerate()
-                .filter(|(i, a)| **a >= remaining)
+                .filter(|(_i, a)| **a >= remaining)
                 .min_by_key(|(_i, a)| **a)
             {
                 let (units, fractions) = remaining.split();
@@ -529,7 +524,7 @@ mod tests {
                 ResourcePool::Indices(_) => {
                     vec![0]
                 }
-                ResourcePool::Groups(pool) => {
+                ResourcePool::Groups(_pool) => {
                     let mut result: Vec<_> = allocation
                         .indices
                         .iter()

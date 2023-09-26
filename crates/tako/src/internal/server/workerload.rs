@@ -3,7 +3,7 @@ use crate::internal::common::resources::map::ResourceMap;
 use crate::internal::common::resources::request::ResourceRequestEntry;
 use crate::internal::common::resources::{
     ResourceAmount, ResourceDescriptor, ResourceId, ResourceRequest, ResourceRequestVariants,
-    ResourceUnits, ResourceVec,
+    ResourceVec,
 };
 use crate::internal::messages::worker::WorkerResourceCounts;
 use crate::resources::AllocationRequest;
@@ -297,7 +297,7 @@ impl ResourceRequestLowerBound {
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::common::resources::{ResourceRequestVariants, ResourceVec};
+    use crate::internal::common::resources::ResourceRequestVariants;
     use crate::internal::server::workerload::{
         ResourceRequestLowerBound, WorkerLoad, WorkerResources,
     };

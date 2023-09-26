@@ -1,10 +1,11 @@
 use anyhow::anyhow;
 use chumsky::error::{Simple, SimpleReason};
-use chumsky::primitive::end;
+use chumsky::primitive::{end, just};
 use chumsky::text::ident;
 use chumsky::{Error, Parser, Span};
 use colored::Color;
 use std::ops::Range;
+use tako::resources::{ResourceAmount, FRACTIONS_MAX_DIGITS};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParseError {
@@ -230,12 +231,24 @@ pub fn parse_u32() -> impl CharParser<u32> {
     })
 }
 
-/// Parse 8-byte integer.
-pub fn parse_u64() -> impl CharParser<u64> {
-    parse_integer_string().try_map(|p, span| {
-        p.parse::<u64>()
-            .map_err(|_| ParseError::custom(span, "Cannot parse as 8-byte unsigned integer"))
-    })
+pub fn parse_resource_amount() -> impl CharParser<ResourceAmount> {
+    parse_u32()
+        .then(just('.').ignore_then(parse_integer_string()).or_not())
+        .try_map(|(units, frac), span| {
+            let f = if let Some(s) = frac {
+                if s.len() > FRACTIONS_MAX_DIGITS {
+                    return Err(ParseError::custom(span, "Resource precision exceeded"));
+                }
+                let mut n = s.parse::<u32>().unwrap();
+                for _ in s.len()..FRACTIONS_MAX_DIGITS {
+                    n *= 10;
+                }
+                n
+            } else {
+                0
+            };
+            Ok(ResourceAmount::new(units, f))
+        })
 }
 
 /// Parses an exact string.
@@ -281,6 +294,40 @@ mod tests {
         assert_eq!(parse_u32().parse_text("0").unwrap(), 0);
         assert_eq!(parse_u32().parse_text("1").unwrap(), 1);
         assert_eq!(parse_u32().parse_text("1019").unwrap(), 1019);
+    }
+
+    #[test]
+    fn test_parse_resource_amount() {
+        assert_eq!(
+            parse_resource_amount().parse_text("0").unwrap(),
+            ResourceAmount::ZERO
+        );
+        assert_eq!(
+            parse_resource_amount().parse_text("123").unwrap(),
+            ResourceAmount::new_units(123)
+        );
+        assert_eq!(
+            parse_resource_amount().parse_text("0.01").unwrap(),
+            ResourceAmount::new(0, 100)
+        );
+        assert_eq!(
+            parse_resource_amount().parse_text("3.").unwrap(),
+            ResourceAmount::new(3, 0)
+        );
+        assert_eq!(
+            parse_resource_amount().parse_text("100.0001").unwrap(),
+            ResourceAmount::new(100, 1)
+        );
+        assert_eq!(
+            parse_resource_amount().parse_text("100.9").unwrap(),
+            ResourceAmount::new(100, 9000)
+        );
+        assert_eq!(
+            parse_resource_amount().parse_text("0.346").unwrap(),
+            ResourceAmount::new(0, 3460)
+        );
+        dbg!(parse_resource_amount().parse_text("0.12345"));
+        assert!(parse_resource_amount().parse_text("0.12345").is_err());
     }
 
     #[test]

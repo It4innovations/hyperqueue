@@ -4,7 +4,7 @@ use crate::resources::{
     Allocation, ResourceAllocation, ResourceAmount, ResourceFractions, ResourceIndex, ResourceUnits,
 };
 use crate::Map;
-use smallvec::{smallvec, SmallVec};
+use smallvec::SmallVec;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) struct ConciseResourceState {
@@ -118,16 +118,6 @@ impl ConciseResourceState {
         &self.free_units
     }
 
-    pub fn amount_sum(&self) -> ResourceAmount {
-        let units = ResourceAmount::new_units(self.free_units.iter().sum());
-        let fractions = self
-            .fractions
-            .values()
-            .map(|f| ResourceAmount::new_fractions(*f))
-            .sum();
-        return units + fractions;
-    }
-
     pub fn amount_max_alloc(&self) -> ResourceAmount {
         let units = self.free_units.iter().sum();
         let fractions = *self.fractions.values().max().unwrap_or(&0);
@@ -176,9 +166,9 @@ impl ConciseFreeResources {
         &self.resources[resource_id]
     }
 
-    pub fn get_mut(&mut self, resource_id: ResourceId) -> &mut ConciseResourceState {
+    /*pub fn get_mut(&mut self, resource_id: ResourceId) -> &mut ConciseResourceState {
         &mut self.resources[resource_id]
-    }
+    }*/
 
     pub fn all_states(&self) -> &[ConciseResourceState] {
         &self.resources
@@ -188,9 +178,8 @@ impl ConciseFreeResources {
 #[cfg(test)]
 mod tests {
     use crate::internal::worker::resources::concise::{ConciseFreeResources, ConciseResourceState};
-    use crate::resources::{ResourceAmount, ResourceUnits};
+    use crate::resources::ResourceUnits;
     use crate::Map;
-    use smallvec::smallvec;
 
     impl ConciseFreeResources {
         pub fn new_simple(counts: &[ResourceUnits]) -> Self {

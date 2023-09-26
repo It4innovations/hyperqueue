@@ -240,11 +240,12 @@ fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinitio
             if resource_name == CPU_RESOURCE_NAME {
                 /* Extra variables for CPUS */
                 program.env.insert(HQ_CPUS.into(), labels.clone().into());
-                if !program.env.contains_key(b"OMP_NUM_THREADS".as_bstr()) {
-                    program.env.insert(
-                        "OMP_NUM_THREADS".into(),
-                        alloc.value.amount().to_string().into(),
-                    );
+                if !program.env.contains_key(b"OMP_NUM_THREADS".as_bstr())
+                    && alloc.amount.fractions() == 0
+                {
+                    program
+                        .env
+                        .insert("OMP_NUM_THREADS".into(), alloc.amount.to_string().into());
                 }
             }
             if resource_name == NVIDIA_GPU_RESOURCE_NAME {
@@ -286,13 +287,12 @@ fn resource_env_var_name(prefix: &str, resource_name: &str) -> BString {
 
 fn allocation_to_labels(allocation: &ResourceAllocation, ctx: &LaunchContext) -> Option<String> {
     let label_map = ctx.get_resource_label_map();
-    allocation.value.indices().map(|indices| {
-        format_comma_delimited(
-            indices
-                .iter()
-                .map(|index| label_map.get_label(allocation.resource_id, *index)),
-        )
-    })
+    if allocation.indices.is_empty() {
+        return None;
+    }
+    Some(format_comma_delimited(allocation.indices.iter().map(
+        |idx| label_map.get_label(allocation.resource_id, idx.index),
+    )))
 }
 
 fn pin_program(
