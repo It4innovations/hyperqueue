@@ -52,7 +52,7 @@ pub fn parse_allocation_request(input: &str) -> anyhow::Result<AllocationRequest
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::tests::utils::{check_parse_error, expect_parser_error};
+    use crate::tests::utils::expect_parser_error;
     use tako::resources::ResourceAmount;
 
     #[test]

@@ -326,7 +326,6 @@ mod tests {
             parse_resource_amount().parse_text("0.346").unwrap(),
             ResourceAmount::new(0, 3460)
         );
-        dbg!(parse_resource_amount().parse_text("0.12345"));
         assert!(parse_resource_amount().parse_text("0.12345").is_err());
     }
 

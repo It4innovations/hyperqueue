@@ -124,6 +124,17 @@ impl ConciseResourceState {
         ResourceAmount::new(units, fractions)
     }
 
+    #[cfg(test)]
+    pub fn amount_sum(&self) -> ResourceAmount {
+        let units = ResourceAmount::new_units(self.free_units.iter().sum());
+        let fractions = self
+            .fractions
+            .values()
+            .map(|f| ResourceAmount::new_fractions(*f))
+            .sum();
+        return units + fractions;
+    }
+
     pub(crate) fn strip_zeros(&self) -> ConciseResourceState {
         ConciseResourceState::new(
             self.free_units.clone(),
