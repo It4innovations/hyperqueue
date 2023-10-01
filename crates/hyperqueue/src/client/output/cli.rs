@@ -1431,8 +1431,7 @@ mod tests {
     use crate::client::output::cli::{resources_full_describe, resources_summary};
     use tako::internal::tests::utils::shared::{res_kind_groups, res_kind_list, res_kind_sum};
     use tako::resources::{
-        ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, ResourceUnits,
-        MEM_RESOURCE_NAME,
+        ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind, MEM_RESOURCE_NAME,
     };
 
     #[test]

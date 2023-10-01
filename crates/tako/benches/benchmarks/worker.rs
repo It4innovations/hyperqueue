@@ -20,6 +20,7 @@ use tokio::sync::Notify;
 
 use tako::internal::worker::state::{TaskMap, WorkerStateRef};
 use tako::internal::worker::task::Task;
+use tako::resources::ResourceAmount;
 use tako::TaskId;
 
 use crate::create_worker;
@@ -199,11 +200,11 @@ fn bench_resource_queue_release_allocation(c: &mut BenchmarkGroup<WallTime>) {
                     smallvec![
                         ResourceRequestEntry {
                             resource_id: 0.into(),
-                            request: AllocationRequest::Compact(64),
+                            request: AllocationRequest::Compact(ResourceAmount::new_units(64)),
                         },
                         ResourceRequestEntry {
                             resource_id: 1.into(),
-                            request: AllocationRequest::Compact(2),
+                            request: AllocationRequest::Compact(ResourceAmount::new_units(2)),
                         },
                     ],
                 )]);
@@ -241,11 +242,15 @@ fn bench_resource_queue_start_tasks(c: &mut BenchmarkGroup<WallTime>) {
                                     smallvec![
                                         ResourceRequestEntry {
                                             resource_id: 0.into(),
-                                            request: AllocationRequest::Compact(64),
+                                            request: AllocationRequest::Compact(
+                                                ResourceAmount::new_units(64)
+                                            ),
                                         },
                                         ResourceRequestEntry {
                                             resource_id: 1.into(),
-                                            request: AllocationRequest::Compact(2),
+                                            request: AllocationRequest::Compact(
+                                                ResourceAmount::new_units(2)
+                                            ),
                                         },
                                     ],
                                 )]);
