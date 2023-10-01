@@ -29,7 +29,7 @@ use crate::{borrow_mut, run_future, ClientContextPtr, FromPyObject, PyJobId, PyT
 
 #[derive(Debug, FromPyObject)]
 enum AllocationValue {
-    Int(u64),
+    Int(u32),
     String(String),
 }
 
@@ -166,9 +166,9 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
                                 Ok(ResourceRequestEntry {
                                     resource,
                                     policy: match alloc {
-                                        AllocationValue::Int(value) => {
-                                            AllocationRequest::Compact(value as ResourceAmount)
-                                        }
+                                        AllocationValue::Int(value) => AllocationRequest::Compact(
+                                            ResourceAmount::new_units(value),
+                                        ),
                                         AllocationValue::String(str) => {
                                             parse_allocation_request(&str)?
                                         }
