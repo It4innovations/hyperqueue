@@ -23,7 +23,7 @@ fn test_no_deps_scattering_1() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[5, 5, 5]);
 
-    let tasks: Vec<Task> = (1..=4).map(|i| task(i)).collect();
+    let tasks: Vec<Task> = (1..=4).map(task).collect();
     submit_test_tasks(&mut core, tasks);
 
     let mut scheduler = create_test_scheduler();
@@ -38,9 +38,9 @@ fn test_no_deps_scattering_1() {
 
     assert_eq!(m1.len() + m2.len() + m3.len(), 4);
     assert!(
-        (m1.len() == 4 && m2.len() == 0 && m3.len() == 0)
-            || (m1.len() == 0 && m2.len() == 4 && m3.len() == 0)
-            || (m1.len() == 0 && m2.len() == 0 && m3.len() == 4)
+        (m1.len() == 4 && m2.is_empty() && m3.is_empty())
+            || (m1.is_empty() && m2.len() == 4 && m3.is_empty())
+            || (m1.is_empty() && m2.is_empty() && m3.len() == 4)
     );
 }
 
@@ -85,7 +85,7 @@ fn test_no_deps_distribute_without_balance() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[10, 10, 10]);
 
-    let tasks: Vec<Task> = (1..=150).map(|i| task(i)).collect();
+    let tasks: Vec<Task> = (1..=150).map(task).collect();
     submit_test_tasks(&mut core, tasks);
 
     let mut scheduler = create_test_scheduler();
@@ -115,8 +115,8 @@ fn test_no_deps_distribute_with_balance() {
         assert!(w.is_underloaded());
     }
 
-    let mut active_ids: Set<TaskId> = (1..301).into_iter().map(|id| id.into()).collect();
-    let tasks: Vec<Task> = (1..301).map(|i| task(i)).collect();
+    let mut active_ids: Set<TaskId> = (1..301).map(|id| id.into()).collect();
+    let tasks: Vec<Task> = (1..301).map(task).collect();
     submit_test_tasks(&mut core, tasks);
 
     let mut scheduler = create_test_scheduler();
@@ -578,7 +578,7 @@ fn test_generic_resource_assign2() {
             None,
             vec![
                 ResourceDescriptorItem::range("Res0", 1, 10),
-                ResourceDescriptorItem::sum("Res1", 1000_000),
+                ResourceDescriptorItem::sum("Res1", 1_000_000),
             ],
         ),
     ]);
@@ -654,7 +654,7 @@ fn test_generic_resource_balance1() {
             None,
             vec![
                 ResourceDescriptorItem::range("Res0", 1, 10),
-                ResourceDescriptorItem::sum("Res1", 1000_000),
+                ResourceDescriptorItem::sum("Res1", 1_000_000),
             ],
         ),
     ]);
@@ -703,7 +703,7 @@ fn test_generic_resource_balance2() {
             None,
             vec![
                 ResourceDescriptorItem::range("Res0", 1, 10),
-                ResourceDescriptorItem::sum("Res1", 1000_000),
+                ResourceDescriptorItem::sum("Res1", 1_000_000),
             ],
         ),
     ]);

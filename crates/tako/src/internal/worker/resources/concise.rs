@@ -132,7 +132,7 @@ impl ConciseResourceState {
             .values()
             .map(|f| ResourceAmount::new_fractions(*f))
             .sum();
-        return units + fractions;
+        units + fractions
     }
 
     pub(crate) fn strip_zeros(&self) -> ConciseResourceState {

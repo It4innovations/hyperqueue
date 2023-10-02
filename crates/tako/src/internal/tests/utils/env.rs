@@ -113,7 +113,7 @@ impl TestEnv {
                     gpu_families: Default::default(),
                 }),
                 idle_timeout: None,
-                time_limit: time_limit.clone(),
+                time_limit: *time_limit,
                 on_server_lost: ServerLostPolicy::Stop,
                 extra: Default::default(),
             };

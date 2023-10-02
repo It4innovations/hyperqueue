@@ -100,9 +100,9 @@ fn test_schedule_mn_simple() {
     };
 
     let task3 = core.get_task(3.into());
-    let ws3 = test_mn_task(&task3, &mut comm, true);
+    let ws3 = test_mn_task(task3, &mut comm, true);
     let task4 = core.get_task(4.into());
-    let ws4 = test_mn_task(&task4, &mut comm, true);
+    let ws4 = test_mn_task(task4, &mut comm, true);
     for w in &ws4 {
         assert!(!ws3.contains(w));
     }
@@ -122,7 +122,7 @@ fn test_schedule_mn_simple() {
     core.sanity_check();
 
     let task2 = core.get_task(2.into());
-    let ws2 = test_mn_task(&task2, &mut comm, false);
+    let ws2 = test_mn_task(task2, &mut comm, false);
     comm.emptiness_check();
 
     finish_on_worker(&mut core, 3, ws2[0], 0);

@@ -273,7 +273,7 @@ impl TaskLauncher for TestTaskLauncher {
                 ctx.allocation(),
                 ctx.body().len(),
             );
-            rmp_serde::from_slice(&ctx.body())?
+            rmp_serde::from_slice(ctx.body())?
         };
 
         Ok(TaskLaunchData::from_future(Box::pin(async move {

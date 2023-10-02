@@ -78,7 +78,7 @@ impl std::fmt::Display for ResourceAmount {
         write!(f, "{}", self.units())?;
         if fractions != 0 {
             let num = format!("{:01$}", fractions, 4);
-            write!(f, ".{}", num.trim_end_matches("0"))?;
+            write!(f, ".{}", num.trim_end_matches('0'))?;
         }
         Ok(())
     }

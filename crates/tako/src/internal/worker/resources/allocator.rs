@@ -983,7 +983,7 @@ mod tests {
         let rq: ResourceRequestVariants = cpus_compact(1)
             .add(4, 1)
             .add(1, 12)
-            .add(2, 1000_000)
+            .add(2, 1_000_000)
             .finish_v();
         rq.validate().unwrap();
         let (al, _) = allocator.try_allocate(&rq).unwrap();

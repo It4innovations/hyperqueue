@@ -66,7 +66,7 @@ fn create_test_worker_state(config: WorkerConfiguration) -> WorkerStateRef {
         config,
         None,
         resource_map,
-        Box::new(TestLauncher::default()),
+        Box::new(TestLauncher),
         "testuid".to_string(),
     )
 }

@@ -273,8 +273,6 @@ pub(crate) fn on_task_finished(
         if let Some(task) = tasks.find_task_mut(msg.id) {
             log::debug!("Task id={} finished on worker={}", task.id, worker_id);
 
-            if task.configuration.resources.is_multi_node() {}
-
             assert!(task.is_assigned_or_stolen_from(worker_id));
 
             match &task.state {
