@@ -30,6 +30,7 @@ use crate::{borrow_mut, run_future, ClientContextPtr, FromPyObject, PyJobId, PyT
 #[derive(Debug, FromPyObject)]
 enum AllocationValue {
     Int(u32),
+    Float(f32),
     String(String),
 }
 
@@ -169,6 +170,11 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
                                         AllocationValue::Int(value) => AllocationRequest::Compact(
                                             ResourceAmount::new_units(value),
                                         ),
+                                        AllocationValue::Float(value) => {
+                                            AllocationRequest::Compact(ResourceAmount::from_float(
+                                                value,
+                                            ))
+                                        }
                                         AllocationValue::String(str) => {
                                             parse_allocation_request(&str)?
                                         }

@@ -6,14 +6,14 @@ from ..output import StdioDef
 
 class ResourceRequest:
     n_nodes: int = 0
-    resources: Dict[str, Union[int, str]] = dataclasses.field(default_factory=dict)
+    resources: Dict[str, Union[int, float, str]] = dataclasses.field(default_factory=dict)
 
     def __init__(
         self,
         *,
         n_nodes=0,
-        cpus: Union[int, str] = 1,
-        resources: Optional[Dict[str, Union[int, str]]] = None,
+        cpus: Union[int, float, str] = 1,
+        resources: Optional[Dict[str, Union[int, float, str]]] = None,
     ):
         self.n_nodes = n_nodes
         if resources is None:
