@@ -53,6 +53,12 @@ time_request = "10s"
 id = 13
 pin = "omp"
 command = ["sleep", "0"]
+
+[[task]]
+id = 14
+command = ["sleep", "0"]
+[[task.request]]
+resources = { "gpus" = 1.1 }
 """)
     hq_env.command(["job", "submit-file", "job.toml"])
     wait_for_job_state(hq_env, 1, "FINISHED")
@@ -89,6 +95,9 @@ command = ["sleep", "0"]
 
     table = hq_env.command(["task", "info", "1", "13"], as_table=True)
     table.check_row_value("Pin", "omp")
+
+    table = hq_env.command(["task", "info", "1", "14"], as_table=True)
+    table.check_row_value("Resources", "gpus: 1.1 compact")
 
 
 def test_job_file_resource_variants1(hq_env: HqEnv, tmp_path):

@@ -17,8 +17,9 @@ use tako::{Map, Priority};
 
 #[derive(Deserialize)]
 #[serde(untagged)]
-pub enum IntOrString {
+enum PrimitiveType {
     Int(u32),
+    Float(f32),
     String(String),
 }
 
@@ -55,13 +56,14 @@ fn deserialize_resource_entries<'de, D>(deserializer: D) -> Result<ResourceReque
 where
     D: Deserializer<'de>,
 {
-    let tmp = Map::<String, IntOrString>::deserialize(deserializer)?;
+    let tmp = Map::<String, PrimitiveType>::deserialize(deserializer)?;
 
     let mut result = ResourceRequestEntries::new();
     for (k, v) in tmp {
         let policy = match v {
-            IntOrString::Int(n) => AllocationRequest::Compact(ResourceAmount::new_units(n)),
-            IntOrString::String(s) => {
+            PrimitiveType::Int(n) => AllocationRequest::Compact(ResourceAmount::new_units(n)),
+            PrimitiveType::Float(f) => AllocationRequest::Compact(ResourceAmount::from_float(f)),
+            PrimitiveType::String(s) => {
                 parse_allocation_request(&s).map_err(serde::de::Error::custom)?
             }
         };
