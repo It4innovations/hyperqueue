@@ -95,7 +95,7 @@ fn test_query_enough_workers2() {
     rt.schedule();
 
     let r = compute_new_worker_query(
-        &rt.core(),
+        rt.core(),
         &[
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(2),
@@ -125,7 +125,7 @@ fn test_query_not_enough_workers3() {
     rt.schedule();
 
     let r = compute_new_worker_query(
-        &rt.core(),
+        rt.core(),
         &[
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(2),
@@ -155,7 +155,7 @@ fn test_query_many_workers_needed() {
     rt.schedule();
 
     let r = compute_new_worker_query(
-        &rt.core(),
+        rt.core(),
         &[
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(2),
@@ -201,7 +201,7 @@ fn test_query_multi_node_tasks() {
     rt.schedule();
 
     let r = compute_new_worker_query(
-        &rt.core(),
+        rt.core(),
         &[
             WorkerTypeQuery {
                 descriptor: ResourceDescriptor::simple(1),

@@ -39,7 +39,7 @@ impl ResourceDescriptorKind {
         assert!(n_sockets > 0);
         assert!(socket_size > 0);
         if n_sockets == 1 {
-            Self::simple_indices(socket_size as u32)
+            Self::simple_indices(socket_size)
         } else {
             let mut sockets = Vec::with_capacity(n_sockets as usize);
             let mut i = 0;

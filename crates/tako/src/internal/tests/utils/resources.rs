@@ -5,9 +5,9 @@ use crate::internal::common::resources::{ResourceId, ResourceRequestVariants, Re
 use crate::resources::{AllocationRequest, NumOfNodes, ResourceAmount, ResourceUnits};
 pub use ResourceRequestBuilder as ResBuilder;
 
-impl Into<ResourceAmount> for u32 {
-    fn into(self) -> ResourceAmount {
-        ResourceAmount::new_units(self)
+impl From<u32> for ResourceAmount {
+    fn from(val: u32) -> Self {
+        ResourceAmount::new_units(val)
     }
 }
 
@@ -34,7 +34,7 @@ impl ResourceRequestBuilder {
 
     fn _add(&mut self, id: ResourceId, request: AllocationRequest) {
         self.resources.push(ResourceRequestEntry {
-            resource_id: id.into(),
+            resource_id: id,
             request,
         });
     }

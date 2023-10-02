@@ -385,8 +385,8 @@ mod tests {
 
         load.add_request(TaskId::new(5), &rqv, &wr);
         assert!(
-            load.n_resources == ra_builder(&[16, 4, 0]).into()
-                || load.n_resources == ra_builder(&[14, 6, 0]).into()
+            load.n_resources == ra_builder(&[16, 4, 0])
+                || load.n_resources == ra_builder(&[14, 6, 0])
         );
         let resources = load.n_resources.clone();
 

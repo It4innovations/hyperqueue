@@ -145,7 +145,7 @@ async fn test_panic_on_worker_lost() {
 async fn test_lost_worker_with_tasks_continue() {
     run_test(Default::default(), |mut handler| async move {
         let _workers = handler
-            .start_workers(|| Default::default(), 2)
+            .start_workers(Default::default, 2)
             .await
             .unwrap();
 

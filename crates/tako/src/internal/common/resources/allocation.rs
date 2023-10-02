@@ -69,7 +69,7 @@ mod tests {
                         amount: ResourceAmount::new_units(*c),
                         indices: (0..*c)
                             .map(|x| AllocationIndex {
-                                index: ResourceIndex::new(x as u32),
+                                index: ResourceIndex::new(x),
                                 group_idx: 0,
                                 fractions: 0,
                             })

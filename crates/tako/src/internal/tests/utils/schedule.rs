@@ -88,8 +88,8 @@ pub(crate) fn force_assign_mn(
 ) {
     core.remove_from_ready_to_assign(task_id);
     let (task_map, worker_map) = core.split_tasks_workers_mut();
-    let mut task = task_map.get_task_mut(task_id);
-    scheduler.assign_multinode(worker_map, &mut task, workers);
+    let task = task_map.get_task_mut(task_id);
+    scheduler.assign_multinode(worker_map, task, workers);
 }
 
 pub(crate) fn start_mn_task_on_worker(core: &mut Core, task_id: TaskId, worker_ids: Vec<WorkerId>) {
@@ -98,7 +98,7 @@ pub(crate) fn start_mn_task_on_worker(core: &mut Core, task_id: TaskId, worker_i
     force_assign_mn(
         core,
         &mut scheduler,
-        worker_ids.into_iter().map(|x| x.into()).collect(),
+        worker_ids.into_iter().collect(),
         task_id,
     );
     scheduler.finish_scheduling(core, &mut comm);

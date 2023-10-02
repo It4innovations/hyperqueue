@@ -157,12 +157,12 @@ fn test_submit_jobs() {
     assert_eq!(t1.get_unfinished_deps(), 0);
     assert_eq!(t2.get_unfinished_deps(), 1);
 
-    check_task_consumers_exact(&t1, &[t2]);
+    check_task_consumers_exact(t1, &[t2]);
 
     let t3 = task(604);
-    let t4 = task_with_deps(602, &[&t1, &t3], 1);
+    let t4 = task_with_deps(602, &[t1, &t3], 1);
     let t5 = task_with_deps(603, &[&t3], 1);
-    let t6 = task_with_deps(601, &[&t3, &t4, &t5, &t2], 1);
+    let t6 = task_with_deps(601, &[&t3, &t4, &t5, t2], 1);
 
     on_new_tasks(&mut core, &mut comm, vec![t6, t3, t4, t5]);
     comm.check_need_scheduling();
@@ -173,10 +173,10 @@ fn test_submit_jobs() {
     let t4 = core.get_task(602.into());
     let t6 = core.get_task(601.into());
 
-    check_task_consumers_exact(&t1, &[t2, t4]);
+    check_task_consumers_exact(t1, &[t2, t4]);
     assert_eq!(t1.get_unfinished_deps(), 0);
 
-    check_task_consumers_exact(&t2, &[t6]);
+    check_task_consumers_exact(t2, &[t6]);
 
     assert_eq!(t1.get_unfinished_deps(), 0);
     assert_eq!(t2.get_unfinished_deps(), 1);

@@ -517,8 +517,8 @@ mod tests {
             op: F,
         ) {
             for task_id in task_ids {
-                let task_id: TaskId = task_id.clone().into();
-                if !op(&self.get_task(task_id)) {
+                let task_id: TaskId = (*task_id).into();
+                if !op(self.get_task(task_id)) {
                     panic!("Task {} does not satisfy the condition", task_id);
                 }
             }
@@ -530,8 +530,8 @@ mod tests {
             op: F,
         ) {
             for worker_id in worker_ids {
-                let worker_id: WorkerId = worker_id.clone().into();
-                if !op(&self.get_worker_by_id_or_panic(worker_id)) {
+                let worker_id: WorkerId = (*worker_id).into();
+                if !op(self.get_worker_by_id_or_panic(worker_id)) {
                     panic!("Worker {} does not satisfy the condition", worker_id);
                 }
             }

@@ -167,7 +167,7 @@ impl ResourcePool {
         pool.indices
             .iter_mut()
             .enumerate()
-            .map(|(group_id, group)| {
+            .flat_map(|(group_id, group)| {
                 std::mem::take(group)
                     .into_iter()
                     .map(move |index| AllocationIndex {
@@ -176,7 +176,6 @@ impl ResourcePool {
                         fractions: 0,
                     })
             })
-            .flatten()
             .collect()
     }
 
@@ -198,26 +197,24 @@ impl ResourcePool {
                         fractions: 0,
                     })
                 }
-            } else {
-                if let Some((index, f)) =
-                    Self::best_fraction_match(&mut pool.fractions[group_idx], fractions)
-                {
-                    *f -= fractions;
-                    indices.push(AllocationIndex {
-                        index: *index,
-                        group_idx: group_idx as u32,
-                        fractions,
-                    });
-                    fractions = 0;
-                } else if let Some(index) = pool.indices[group_idx].pop() {
-                    pool.fractions[group_idx].insert(index, FRACTIONS_PER_UNIT - fractions);
-                    indices.push(AllocationIndex {
-                        index,
-                        group_idx: group_idx as u32,
-                        fractions,
-                    });
-                    fractions = 0;
-                }
+            } else if let Some((index, f)) =
+                Self::best_fraction_match(&mut pool.fractions[group_idx], fractions)
+            {
+                *f -= fractions;
+                indices.push(AllocationIndex {
+                    index: *index,
+                    group_idx: group_idx as u32,
+                    fractions,
+                });
+                fractions = 0;
+            } else if let Some(index) = pool.indices[group_idx].pop() {
+                pool.fractions[group_idx].insert(index, FRACTIONS_PER_UNIT - fractions);
+                indices.push(AllocationIndex {
+                    index,
+                    group_idx: group_idx as u32,
+                    fractions,
+                });
+                fractions = 0;
             }
             group_idx = (group_idx + 1) % pool.indices.len();
         }
