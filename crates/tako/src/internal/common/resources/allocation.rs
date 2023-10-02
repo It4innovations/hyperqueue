@@ -13,6 +13,7 @@ pub struct AllocationIndex {
 pub struct ResourceAllocation {
     pub resource_id: ResourceId,
     pub amount: ResourceAmount,
+    // INVARIANT: indices are sorted by .fractions, i.e. non-whole allocations are at the end
     pub indices: SmallVec<[AllocationIndex; 1]>,
 }
 

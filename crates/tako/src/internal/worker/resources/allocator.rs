@@ -1275,10 +1275,10 @@ mod tests {
         let r5 = &al6.resources[0].indices;
         assert_eq!(r5.len(), 3);
         assert_eq!(r5[0].fractions, 0);
-        assert_eq!(r5[1].fractions, 3000);
-        assert_eq!(r5[2].fractions, 0);
-        assert_eq!(r5[0].group_idx, r5[1].group_idx);
-        assert_ne!(r5[2].group_idx, r5[0].group_idx);
+        assert_eq!(r5[1].fractions, 0);
+        assert_eq!(r5[2].fractions, 3000);
+        assert_eq!(r5[0].group_idx, r5[2].group_idx);
+        assert_ne!(r5[1].group_idx, r5[0].group_idx);
         allocator.validate();
 
         allocator.release_allocation(al3);

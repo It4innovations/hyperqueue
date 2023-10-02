@@ -230,6 +230,7 @@ impl ResourcePool {
     ) -> SmallVec<[AllocationIndex; 1]> {
         let mut indices = Default::default();
         let mut remaining = amount;
+        let mut fraction_idx: Option<usize> = None;
 
         let mut amounts: Vec<_> = pool
             .indices
@@ -301,6 +302,7 @@ impl ResourcePool {
                         Self::best_fraction_match(&mut pool.fractions[group_idx], fractions)
                     {
                         *f -= fractions;
+                        fraction_idx = Some(indices.len());
                         indices.push(AllocationIndex {
                             index: *index,
                             group_idx: group_idx as u32,
@@ -311,6 +313,11 @@ impl ResourcePool {
                 }
                 remaining = ResourceAmount::new(units, fractions)
             }
+        }
+
+        if let Some(allocation_idx) = fraction_idx {
+            let last = indices.len() - 1;
+            indices.swap(allocation_idx, last);
         }
 
         indices
