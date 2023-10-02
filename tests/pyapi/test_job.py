@@ -231,13 +231,13 @@ def test_resources_task(hq_env: HqEnv):
 
     job.program(
         args=bash("echo Hello"),
-        resources=ResourceRequest(cpus="2", resources={"res0": 1}),
+        resources=ResourceRequest(cpus="2", resources={"res0": 1, "res1": 105.1}),
     )
     submitted_job = client.submit(job)
     wait_for_job_state(hq_env, 1, "WAITING")
 
     table = hq_env.command(["task", "info", str(submitted_job.id), "0"], as_table=True)
-    table.check_row_value("Resources", "cpus: 2 compact\nres0: 1 compact")
+    table.check_row_value("Resources", "cpus: 2 compact\nres0: 1 compact\nres1: 105.1 compact")
 
 
 def test_priority_task(hq_env: HqEnv):
