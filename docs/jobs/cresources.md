@@ -53,6 +53,7 @@ The following variables are created when a task is executed:
 * ``HQ_PIN`` - Is set to `taskset` or `omp` (depending on the used pin mode) if the task was pinned
 by HyperQueue (see below).
 * ``NUM_OMP_THREADS`` -- Set to number of cores assigned for task. (For compatibility with OpenMP).
+                         This option is not set when you ask for a non-integer number of CPUs.
 
 
 ## Pinning

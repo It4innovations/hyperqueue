@@ -173,3 +173,11 @@ and 3 tasks in the second one.
 
 For a task with resource variants, HyperQueue sets variable `HQ_RESOURCE_VARIANT`
 to an index of chosen variant (counted from 0) when a task is started.
+
+
+## Non-integer resource amounts
+
+You may specify a resource number as float, e.g. `resources = { "foo" = 1.5 }`.
+It is valid but internally the type if converted to float, that may for some numbers lead to
+a rounding up when number is converted to 4-digit precision of resource amounts. 
+If you want to avoid this, put the number into parentheses, e.g. `resources = { "foo" = "1.5" }`.

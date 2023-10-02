@@ -141,7 +141,7 @@ When you submit a job, you can define a **resource requests** with the `--resour
 $ hq submit --resource <NAME1>=<AMOUNT1> --resource <NAME2>=<AMOUNT2> ...
 ```
 
-Where `NAME` is a name of the requested resource and the `AMOUNT` is a positive integer defining the
+Where `NAME` is a name of the requested resource and the `AMOUNT` is a positive number defining the
 size of the request.
 
 Tasks with such resource requests will only be executed on workers that fulfill all the specified
@@ -211,6 +211,32 @@ When strategy is not defined then ``compact`` is used as default.
     ```console
     $ hq submit --resource cpus="8 scatter" ...
     ```
+  
+### Non-integer allocation of resources
+
+Amount of the resource may be a non-integer number.
+E.g. you may ask for 0.5 of a resource. It tells the scheduler that you want to utilize only half of the resource
+and if another process asks for at most 0.5 of the resource, it may get the same resource.
+This resource sharing is done on logical of HyperQueue and actual resource sharing is up to tasks.
+
+The precision for defining amount is four decimal places. Therefore, the minimal resource amount that you
+can ask for is `0.0001`.
+
+For sum resources, the amount is simply removed from the pool as in the case of integer resources.
+
+In the case of an indexed resource, the partial resource is always taken from a single index. 
+It means that if there is an indexed resource with two indices that are both utilized on 0.75,
+then a task that ask for 0.5 of this resource will not be started, despite there is available 0.5 of the resource in total,
+because there is no single index that is free at least on 0.5.
+
+If non-integer is bigger than 1, than integer part is always satisfied as whole indices and rest is a part of another index.
+E.g. when you ask for 2.5 of an indexed resource, you will get 2 complete indices and one index allocated on 50%.
+
+
+!!! note
+
+    In the current version, policy "compact!" is not allowed with non-integer amounts.
+
 
 ### Resource environment variables
 When a task that has resource requests is executed, the following variables are passed to it for
@@ -218,7 +244,8 @@ each resource request named `<NAME>`:
 
 * `HQ_RESOURCE_REQUEST_<NAME>` contains the amount of requested resources.
 * `HQ_RESOURCE_VALUES_<NAME>` contains the specific resource values allocated for the task as a
-comma-separated list. This variable is only filled for indexed resource pool.
+comma-separated list. This variable is only filled for an indexed resource pool.
+In case of non-integer amount, the partially allocated index is always the last index.
 
 The slash symbol (`/`) in resource name is normalized to underscore (`_`) when being used in the
 environment variable name.
