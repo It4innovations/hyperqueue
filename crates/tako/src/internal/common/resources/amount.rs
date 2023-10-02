@@ -38,6 +38,10 @@ impl ResourceAmount {
         ResourceAmount(units as u64 * FRACTIONS_PER_UNIT as u64)
     }
 
+    pub fn from_float(value: f32) -> Self {
+        ResourceAmount((value * FRACTIONS_PER_UNIT as f32).ceil() as u64)
+    }
+
     pub fn new_fractions(fractions: ResourceFractions) -> Self {
         assert!(fractions < FRACTIONS_PER_UNIT);
         ResourceAmount(fractions as u64)
@@ -99,6 +103,22 @@ mod tests {
         assert_eq!(r1 + r2, ResourceAmount::new(12, 5555));
         assert_eq!(r1 + r3, ResourceAmount::new(18, 1233));
         assert_eq!(r1 + ResourceAmount::ZERO, r1);
+    }
+
+    #[test]
+    pub fn test_amount_from_float() {
+        assert_eq!(
+            ResourceAmount::from_float(2.0f32),
+            ResourceAmount::new_units(2)
+        );
+        assert_eq!(
+            ResourceAmount::from_float(1.1f32),
+            ResourceAmount::new(1, 1000)
+        );
+        assert_eq!(
+            ResourceAmount::from_float(20.0001f32),
+            ResourceAmount::new(20, 1)
+        );
     }
 
     #[test]
