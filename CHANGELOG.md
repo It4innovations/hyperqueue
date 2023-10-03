@@ -1,5 +1,12 @@
 # Dev
 
+## Breaking change
+
+### Memory resource in megabytes
+
+* Automatically detected resource "mem" that is the size of RAM of a worker is now using megabytes as a unit.
+  i.e. `--resource mem=100` asks now for 100 MiB (previously 100 bytes).
+
 ## New features
 
 ### Non-integer resource requests

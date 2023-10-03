@@ -120,7 +120,7 @@ The following resources are detected automatically if a resource of a given name
     # The worker will have resource gpus/nvidia=[2,3]
     ```
 
-* RAM of the node is detected as resource "mem" in bytes. 
+* RAM of the node is detected as resource "mem" in megabytes; i.e. `--resource mem=100` asks for 100 MiBs of the memory.
 
 If you want to see how is your system seen by a worker without actually starting it,
 you can start: 
