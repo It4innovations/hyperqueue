@@ -5,7 +5,7 @@ pub type ResourceUnits = u32;
 pub type ResourceFractions = u32;
 
 pub const FRACTIONS_PER_UNIT: ResourceFractions = 10_000;
-pub const FRACTIONS_MAX_DIGITS: usize = 4; // = log10(FRACTIONS_PER_UNIT)
+pub const FRACTIONS_MAX_DIGITS: usize = FRACTIONS_PER_UNIT.ilog10() as usize;
 
 #[derive(
     Debug,

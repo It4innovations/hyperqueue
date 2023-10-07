@@ -90,10 +90,7 @@ async fn test_submit_2_sleeps_on_separated_2() {
             )
             .await;
 
-        let workers = handler
-            .start_workers(Default::default, 3)
-            .await
-            .unwrap();
+        let workers = handler.start_workers(Default::default, 3).await.unwrap();
         let worker_ids: Vec<WorkerId> = workers.iter().map(|x| x.id).collect();
 
         wait_for_task_start(&mut handler, 1).await;

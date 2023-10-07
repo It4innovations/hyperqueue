@@ -130,7 +130,9 @@ impl ResourceAllocator {
                 }
                 let (units, fractions) = amount.split();
                 if fractions > 0 {
-                    todo!() // Fractions and ForceCompact is not supported in the current version
+                    // Fractions and ForceCompact is not supported in the current version
+                    // It is checked in resource request validation, this code should be unreachable
+                    unreachable!()
                 }
                 let socket_count = (((units - 1) / pool.min_group_size()) as usize) + 1;
                 if free.n_groups() < socket_count {
