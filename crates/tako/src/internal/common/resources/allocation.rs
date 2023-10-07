@@ -31,6 +31,12 @@ pub struct Allocation {
     pub resources: ResourceAllocations,
 }
 
+impl Default for Allocation {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Allocation {
     pub fn new() -> Self {
         Allocation {

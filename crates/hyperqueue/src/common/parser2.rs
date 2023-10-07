@@ -231,6 +231,7 @@ pub fn parse_u32() -> impl CharParser<u32> {
     })
 }
 
+/// Parse int32 or float with FRACTIONS_MAX_DIGITS precision (e.g. "2", "3.3", "0.0001")
 pub fn parse_resource_amount() -> impl CharParser<ResourceAmount> {
     parse_u32()
         .then(just('.').ignore_then(parse_integer_string()).or_not())
@@ -326,7 +327,13 @@ mod tests {
             parse_resource_amount().parse_text("0.346").unwrap(),
             ResourceAmount::new(0, 3460)
         );
-        assert!(parse_resource_amount().parse_text("0.12345").is_err());
+        let r = parse_resource_amount().parse_text("0.12345");
+        insta::assert_snapshot!(r.unwrap_err().to_string().as_str(), @r###"
+        Unexpected end of input found, expected something else:
+          0.12345
+          |
+          --- Resource precision exceeded
+        "###);
     }
 
     #[test]
