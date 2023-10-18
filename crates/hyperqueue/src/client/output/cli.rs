@@ -11,7 +11,7 @@ use crate::common::env::is_hq_env;
 use crate::common::format::{human_duration, human_size};
 use crate::common::manager::info::GetManagerInfo;
 use crate::server::autoalloc::{Allocation, AllocationState};
-use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState, StartedTaskData};
+use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDescription, JobDetail, JobInfo, PinMode, QueueData, QueueState,
@@ -176,14 +176,20 @@ impl CliOutput {
             .iter()
             .filter_map(|t: &JobTaskInfo| match &t.state {
                 JobTaskState::Failed {
-                    started_data: StartedTaskData { worker_ids, .. },
+                    started_data,
                     error,
                     ..
-                } => Some(vec![
-                    t.task_id.cell(),
-                    format_workers(worker_ids, worker_map).cell(),
-                    error.to_owned().cell().foreground_color(Some(Color::Red)),
-                ]),
+                } => {
+                    let worker_ids = started_data
+                        .as_ref()
+                        .map(|data| data.worker_ids.as_slice())
+                        .unwrap_or(&[]);
+                    Some(vec![
+                        t.task_id.cell(),
+                        format_workers(worker_ids, worker_map).cell(),
+                        error.to_owned().cell().foreground_color(Some(Color::Red)),
+                    ])
+                }
                 _ => None,
             })
             .take(SHOWN_TASKS)
@@ -1262,13 +1268,16 @@ fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<DateTim
             ..
         }
         | JobTaskState::Failed {
-            started_data,
+            started_data: Some(started_data),
             end_date,
             ..
         } => (Some(started_data.start_date), Some(*end_date)),
         JobTaskState::Canceled {
             started_data: None,
             cancelled_date: _,
+        }
+        | JobTaskState::Failed {
+            started_data: None, ..
         }
         | JobTaskState::Waiting => (None, None),
     }

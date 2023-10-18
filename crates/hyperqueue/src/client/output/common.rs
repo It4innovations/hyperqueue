@@ -41,7 +41,10 @@ pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
                 }
                 | JobTaskState::Running { started_data, .. }
                 | JobTaskState::Finished { started_data, .. }
-                | JobTaskState::Failed { started_data, .. } => {
+                | JobTaskState::Failed {
+                    started_data: Some(started_data),
+                    ..
+                } => {
                     let ctx = CompletePlaceholderCtx {
                         job_id: job.info.id,
                         task_id: task.task_id,
