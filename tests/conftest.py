@@ -164,11 +164,13 @@ class HqEnv(Env):
         wait_for_start=True,
         on_server_lost="stop",
         server_dir=None,
+        work_dir: Optional[str] = None,
     ) -> subprocess.Popen:
         self.id_counter += 1
         worker_id = self.id_counter
         worker_env = self.make_default_env()
-        work_dir = f"workdir{worker_id}"
+        if work_dir is None:
+            work_dir = f"workdir{worker_id}"
 
         if env:
             worker_env.update(env)

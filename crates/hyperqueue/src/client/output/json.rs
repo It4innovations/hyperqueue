@@ -342,7 +342,9 @@ fn format_tasks(tasks: Vec<JobTaskInfo>, map: TaskToPathsMap) -> serde_json::Val
                     end_date,
                     error,
                 } => {
-                    fill_task_started_data(&mut data, started_data);
+                    if let Some(started_data) = started_data {
+                        fill_task_started_data(&mut data, started_data);
+                    }
                     data["finished_at"] = format_datetime(end_date);
                     data["error"] = error.into();
                 }

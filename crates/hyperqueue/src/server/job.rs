@@ -38,7 +38,7 @@ pub enum JobTaskState {
         end_date: DateTime<Utc>,
     },
     Failed {
-        started_data: StartedTaskData,
+        started_data: Option<StartedTaskData>,
         end_date: DateTime<Utc>,
         error: String,
     },
@@ -52,9 +52,9 @@ impl JobTaskState {
     pub fn started_data(&self) -> Option<&StartedTaskData> {
         match self {
             JobTaskState::Running { started_data, .. }
-            | JobTaskState::Finished { started_data, .. }
-            | JobTaskState::Failed { started_data, .. } => Some(started_data),
-            JobTaskState::Canceled { started_data, .. } => started_data.as_ref(),
+            | JobTaskState::Finished { started_data, .. } => Some(started_data),
+            JobTaskState::Failed { started_data, .. }
+            | JobTaskState::Canceled { started_data, .. } => started_data.as_ref(),
             _ => None,
         }
     }
@@ -334,20 +334,29 @@ impl Job {
     }
 
     pub fn set_failed_state(&mut self, tako_task_id: TakoTaskId, error: String, backend: &Backend) {
-        let (_, state) = self.get_task_state_mut(tako_task_id);
+        let (task_id, state) = self.get_task_state_mut(tako_task_id);
         let now = Utc::now();
         match state {
             JobTaskState::Running { started_data } => {
                 *state = JobTaskState::Failed {
                     error,
-                    started_data: started_data.clone(),
+                    started_data: Some(started_data.clone()),
                     end_date: now,
                 };
+
                 self.counters.n_running_tasks -= 1;
-                self.counters.n_failed_tasks += 1;
             }
-            _ => panic!("Invalid worker state, expected Running, got {state:?}"),
+            JobTaskState::Waiting => {
+                *state = JobTaskState::Failed {
+                    error,
+                    started_data: None,
+                    end_date: now,
+                }
+            }
+            _ => panic!("Invalid task {task_id} state, expected Running or Waiting, got {state:?}"),
         }
+        self.counters.n_failed_tasks += 1;
+
         self.check_termination(backend, now);
     }
 

@@ -94,7 +94,13 @@ impl TaskLauncher for HqTaskLauncher {
             pin_program(&mut program, launch_ctx.allocation(), pin_mode, &launch_ctx)?;
 
             let task_dir = if task_dir {
-                let task_dir = TempDir::new_in(&launch_ctx.worker_configuration().work_dir, "t")?;
+                let task_dir = TempDir::new_in(&launch_ctx.worker_configuration().work_dir, "t")
+                    .map_err(|error| {
+                        format!(
+                            "Cannot create task_dir in worker's workdir at {}: {error:?}",
+                            launch_ctx.worker_configuration().work_dir.display()
+                        )
+                    })?;
                 program.env.insert(
                     HQ_TASK_DIR.into(),
                     task_dir.path().to_string_lossy().to_string().into(),
@@ -108,7 +114,12 @@ impl TaskLauncher for HqTaskLauncher {
                 );
                 if !launch_ctx.node_list().is_empty() {
                     let filename = task_dir.path().join("hq-nodelist");
-                    write_node_file(&launch_ctx, &filename)?;
+                    write_node_file(&launch_ctx, &filename).map_err(|error| {
+                        format!(
+                            "Cannot write node file at {}: {error:?}",
+                            filename.display()
+                        )
+                    })?;
                     program.env.insert(
                         HQ_NODE_FILE.into(),
                         filename.to_string_lossy().to_string().into(),
@@ -140,8 +151,18 @@ impl TaskLauncher for HqTaskLauncher {
             let paths = ResolvablePaths::from_program_def(&mut program);
             fill_placeholders_in_paths(paths, ctx);
 
-            create_directory_if_needed(&program.stdout)?;
-            create_directory_if_needed(&program.stderr)?;
+            create_directory_if_needed(&program.stdout).map_err(|error| {
+                format!(
+                    "Cannot create stdout directory at {:?}: {error:?}",
+                    program.stdout
+                )
+            })?;
+            create_directory_if_needed(&program.stderr).map_err(|error| {
+                format!(
+                    "Cannot create stderr directory at {:?}: {error:?}",
+                    program.stdout
+                )
+            })?;
 
             (program, job_id, task_id, launch_ctx.instance_id(), task_dir)
         };

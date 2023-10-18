@@ -1431,6 +1431,18 @@ def test_kill_task_subprocess_when_worker_is_stopped(hq_env: HqEnv):
     check_child_process_exited(hq_env, stop_worker)
 
 
+def test_fail_to_start_issue629(hq_env: HqEnv, tmpdir):
+    """
+    Regression test for https://github.com/It4innovations/hyperqueue/issues/629.
+    By using an invalid stdout path, we should cause task spawning to fail, which should be handled gracefully.
+    """
+    hq_env.start_server()
+    hq_env.start_worker()
+
+    hq_env.command(["submit", "--stdout=/dev/null/foo.txt", "ls"])
+    wait_for_job_state(hq_env, 1, "FAILED")
+
+
 def check_child_process_exited(hq_env: HqEnv, stop_fn: Callable[[subprocess.Popen], None]):
     """
     Creates a task that spawns a child, and then calls `stop_fn`, which should kill either the task
