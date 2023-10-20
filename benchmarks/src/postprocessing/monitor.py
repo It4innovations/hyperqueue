@@ -131,11 +131,11 @@ def render_node_per_cpu_pct_utilization(figure: Figure, df: pd.DataFrame):
         key = f"cpu_{i}"
         data[key] = cpu / 100.0
         data[f"{key}_x"] = cpu.index
-        tooltips.append((f"CPU #{i}", f"@{key}"))
+        tooltips.append((f"CPU #{i}", f"@{key}{{0.00}}"))
 
     data["cpu_mean"] = cpu_mean / 100.0
     data["cpu_mean_x"] = cpu_mean.index
-    tooltips.append(("CPU avg.", "@cpu_mean"))
+    tooltips.append(("CPU avg.", "@cpu_mean{0.00}"))
 
     figure.add_tools(HoverTool(tooltips=tooltips))
 
