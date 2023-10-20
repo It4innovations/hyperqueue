@@ -3,11 +3,11 @@ import datetime
 from pathlib import Path
 from typing import Optional
 
-from mashumaro import DataClassJSONMixin
+from ..utils.io import from_json, to_json
 
 
 @dataclasses.dataclass(frozen=True)
-class PBSSubmitOptions(DataClassJSONMixin):
+class PBSSubmitOptions:
     queue: str
     nodes: int
     walltime: datetime.timedelta
@@ -18,9 +18,9 @@ class PBSSubmitOptions(DataClassJSONMixin):
 
 def serialize_submit_options(options: PBSSubmitOptions, path: Path):
     with open(path, "w") as f:
-        f.write(options.to_json())
+        to_json(options, f)
 
 
 def deserialize_submit_options(path: Path) -> PBSSubmitOptions:
     with open(path) as f:
-        return PBSSubmitOptions.from_json(f.read())
+        return from_json(PBSSubmitOptions, f)

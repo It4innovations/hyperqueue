@@ -1,10 +1,8 @@
 import dataclasses
 
-from mashumaro import DataClassDictMixin
-
 
 @dataclasses.dataclass(frozen=True)
-class BenchmarkResult(DataClassDictMixin):
+class BenchmarkResult:
     pass
 
 
