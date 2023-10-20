@@ -25,6 +25,7 @@ from bokeh.models import (
     PreText,
     Range1d,
     Tabs,
+    Row,
 )
 from bokeh.palettes import d3
 from bokeh.plotting import Figure, figure
@@ -55,6 +56,56 @@ IO_WRITE_KEY = "io-write"
 PID_KEY = "pid"
 AVG_CPU_KEY = "cpu-avg"
 RSS_KEY = "rss"
+PROCESS_CPU_TIME_USER_KEY = "cpu-time-user"
+PROCESS_CPU_TIME_SYSTEM_KEY = "cpu-time-system"
+PROCESS_CPU_TIME_USER_CHILDREN_KEY = "cpu-time-children-user"
+PROCESS_CPU_TIME_SYSTEM_CHILDREN_KEY = "cpu-time-children-system"
+
+
+def generate_cluster_report(report: ClusterReport, output: Path):
+    page = create_page(report)
+
+    ensure_directory(output.parent)
+    logging.info(f"Generating monitoring report into {output}")
+    save(page, output, title="Cluster monitor", resources=CDN)
+
+
+def create_page(report: ClusterReport):
+    structure = []
+    per_node_df = create_global_resources_df(report.monitoring)
+
+    if not per_node_df.empty:
+        structure += [
+            (
+                "Global utilization",
+                lambda r: render_global_resource_usage(r, per_node_df),
+            )
+        ]
+
+    if not per_node_df.empty:
+        structure += [("Node utilization", lambda r: render_nodes_resource_usage(r, per_node_df))]
+
+    per_process_df = create_per_process_resources_df(report.monitoring)
+    if not per_process_df.empty:
+        structure += [
+            (
+                "Process utilization",
+                lambda r: render_process_resource_usage(r, per_process_df),
+            )
+        ]
+
+    structure.append(("Output", render_output))
+
+    if report.profiling_data:
+        structure.append(("Profiler", render_profiling_data))
+
+    tabs = []
+    for name, fn in structure:
+        widget = fn(report)
+        if widget is not None:
+            tabs.append(Panel(child=widget, title=name))
+
+    return Tabs(tabs=tabs)
 
 
 @dataclasses.dataclass
@@ -382,6 +433,10 @@ def create_per_process_resources_df(monitoring: MonitoringData) -> pd.DataFrame:
                 data[PID_KEY].append(int(pid))
                 data[AVG_CPU_KEY].append(process.cpu)
                 data[RSS_KEY].append(process.rss)
+                data[PROCESS_CPU_TIME_USER_KEY].append(process.cpu_times.user)
+                data[PROCESS_CPU_TIME_SYSTEM_KEY].append(process.cpu_times.system)
+                data[PROCESS_CPU_TIME_USER_CHILDREN_KEY].append(process.cpu_times.children_user)
+                data[PROCESS_CPU_TIME_SYSTEM_CHILDREN_KEY].append(process.cpu_times.children_system)
     return pd.DataFrame(data)
 
 
@@ -560,6 +615,14 @@ def render_process_resource_usage(report: ClusterReport, per_process_df: pd.Data
             data = ColumnDataSource(dict(cpu=cpu / 100.0, x=cpu.index))
             cpu_figure.line(x="x", y="cpu", color="blue", legend_label="CPU usage (%)", source=data)
 
+            cpu_times = [
+                ("User CPU time", PROCESS_CPU_TIME_USER_KEY),
+                ("System CPU time", PROCESS_CPU_TIME_SYSTEM_KEY),
+                ("User + children CPU time", PROCESS_CPU_TIME_USER_CHILDREN_KEY),
+                ("System + children CPU time", PROCESS_CPU_TIME_SYSTEM_CHILDREN_KEY),
+            ]
+            cpu_time_figures = [render_process_cpu_time(process_data, key, time, label) for (label, key) in cpu_times]
+
             summary = PreText(text=f"""
 PID: {pid}
 Key: {process.key}
@@ -567,55 +630,24 @@ Max. RSS: {humanize.naturalsize(max_rss, binary=True)}
 Avg. CPU: {avg_cpu:.02f} %
 """.strip())
 
-            columns = [summary, mem_figure, cpu_figure]
-            return Panel(child=Column(children=columns), title=process.key)
+            right_col = Column(children=cpu_time_figures)
+            left_col = Column(children=[summary, mem_figure, cpu_figure])
+            return Panel(child=Row(children=[left_col, right_col]), title=process.key)
 
         return Panel(child=create_tabs(pids, render_process), title=node.hostname)
 
     return create_node_tabs(report, render_node)
 
 
-def create_page(report: ClusterReport):
-    structure = []
-    per_node_df = create_global_resources_df(report.monitoring)
+def render_process_cpu_time(process_data, key: str, time, label: str) -> Figure:
+    range = get_time_range(process_data[DATETIME_KEY])
 
-    if not per_node_df.empty:
-        structure += [
-            (
-                "Global utilization",
-                lambda r: render_global_resource_usage(r, per_node_df),
-            )
-        ]
+    data = resample(process_data[key], time)
+    cpu_time_figure = prepare_time_range_figure(range)
+    cpu_time_figure.yaxis.axis_label = f"{label} (accum. s)"
+    cpu_time_figure.y_range = Range1d(0, 1)
+    cpu_time_figure.add_tools(HoverTool(tooltips=[(label, "@cpu_time{0.00}")]))
 
-    if not per_node_df.empty:
-        structure += [("Node utilization", lambda r: render_nodes_resource_usage(r, per_node_df))]
-
-    per_process_df = create_per_process_resources_df(report.monitoring)
-    if not per_process_df.empty:
-        structure += [
-            (
-                "Process utilization",
-                lambda r: render_process_resource_usage(r, per_process_df),
-            )
-        ]
-
-    structure.append(("Output", render_output))
-
-    if report.profiling_data:
-        structure.append(("Profiler", render_profiling_data))
-
-    tabs = []
-    for name, fn in structure:
-        widget = fn(report)
-        if widget is not None:
-            tabs.append(Panel(child=widget, title=name))
-
-    return Tabs(tabs=tabs)
-
-
-def generate_cluster_report(report: ClusterReport, output: Path):
-    page = create_page(report)
-
-    ensure_directory(output.parent)
-    logging.info(f"Generating monitoring report into {output}")
-    save(page, output, title="Cluster monitor", resources=CDN)
+    data = ColumnDataSource(dict(cpu_time=data, x=data.index))
+    cpu_time_figure.line(x="x", y="cpu_time", color="blue", legend_label=label, source=data)
+    return cpu_time_figure

@@ -18,10 +18,19 @@ class ResourceRecord:
 
 
 @dataclasses.dataclass
+class ProcessCpuTimes:
+    user: float
+    system: float
+    children_user: float
+    children_system: float
+
+
+@dataclasses.dataclass
 class ProcessRecord:
     rss: int
     vm: int
     cpu: float
+    cpu_times: ProcessCpuTimes
 
 
 @dataclasses.dataclass
@@ -65,7 +74,16 @@ def record_processes(processes: List[psutil.Process]) -> Dict[str, ProcessRecord
         try:
             memory_info = process.memory_info()
             cpu_utilization = process.cpu_percent()
-            data[str(process.pid)] = ProcessRecord(rss=memory_info.rss, vm=memory_info.vms, cpu=cpu_utilization)
+            cpu_times = process.cpu_times()
+            cpu_times = ProcessCpuTimes(
+                user=cpu_times.user,
+                system=cpu_times.system,
+                children_user=cpu_times.children_user,
+                children_system=cpu_times.children_system,
+            )
+            data[str(process.pid)] = ProcessRecord(
+                rss=memory_info.rss, vm=memory_info.vms, cpu=cpu_utilization, cpu_times=cpu_times
+            )
         except BaseException as e:
             logging.error(e)
     return data
