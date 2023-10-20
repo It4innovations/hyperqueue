@@ -1,13 +1,13 @@
-import dataclasses
 import logging
-from typing import Dict, List
+import typing
+from typing import Dict, List, TypeVar
 
+import dataclasses
 import psutil
-from mashumaro import DataClassJSONMixin
 
 
 @dataclasses.dataclass
-class ResourceRecord(DataClassJSONMixin):
+class ResourceRecord:
     cpu: List[float]
     mem: float
     connections: int
@@ -18,14 +18,14 @@ class ResourceRecord(DataClassJSONMixin):
 
 
 @dataclasses.dataclass
-class ProcessRecord(DataClassJSONMixin):
+class ProcessRecord:
     rss: int
     vm: int
     cpu: float
 
 
 @dataclasses.dataclass
-class MonitoringRecord(DataClassJSONMixin):
+class MonitoringRecord:
     timestamp: float
     resources: ResourceRecord
     processes: Dict[str, ProcessRecord]
@@ -34,11 +34,11 @@ class MonitoringRecord(DataClassJSONMixin):
     def deserialize_records(file) -> List["MonitoringRecord"]:
         records = []
         for line in file:
-            records.append(MonitoringRecord.from_json(line))
+            records.append(from_json(MonitoringRecord, line))
         return records
 
     def serialize(self, file):
-        file.write(self.to_json())
+        to_json(self, file)
 
 
 def record_resources() -> ResourceRecord:
@@ -77,3 +77,22 @@ def generate_record(timestamp: int, processes: List[psutil.Process]) -> Monitori
         resources=record_resources(),
         processes=record_processes(processes),
     )
+
+
+# This code is duplicated because Python cannot handle both relative imports and this file being executed as a package.
+Type = TypeVar("Type")
+
+
+def from_json(cls: type[Type], input: typing.Union[typing.TextIO, str]) -> Type:
+    from serde import json
+
+    if not isinstance(input, str):
+        input = input.read()
+    return json.from_json(cls, input)
+
+
+def to_json(object: typing.Any, file: typing.TextIO):
+    from serde import json
+
+    serialized = json.to_json(object)
+    file.write(serialized)

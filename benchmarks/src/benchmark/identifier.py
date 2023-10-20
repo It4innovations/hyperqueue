@@ -3,14 +3,12 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from mashumaro import DataClassDictMixin
-
 from ..environment import EnvironmentDescriptor
 from ..workloads import Workload
 
 
 @dataclasses.dataclass(frozen=True)
-class BenchmarkIdentifier(DataClassDictMixin):
+class BenchmarkIdentifier:
     # Name of the workload
     workload: str
     # Environment type
