@@ -136,7 +136,7 @@ jobs:
           CARGO_TARGET_DIR: target
         with:
           docker-options: -e HQ_BUILD_VERSION=${{ needs.set-env.outputs.version }}
-          maturin-version: 0.13.5
+          maturin-version: 1.3.0
           manylinux: 2014
           command: build
           args: --manifest-path crates/pyhq/Cargo.toml --profile dist --out wheels
