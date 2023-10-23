@@ -61,6 +61,9 @@ jobs:
           command: build
           args: --profile dist
 
+      - name: Compress debuginfo
+        run: objcopy --compress-debug-sections=zlib-gnu target/dist/hq
+
       - name: Prepare archive
         id: archive
         run: |
