@@ -11,7 +11,7 @@ default-members = [
 resolver = "2"
 
 [workspace.package]
-rust-version = "1.64.0"
+rust-version = "1.70.0"
 edition = "2021"
 authors = ["Ada Böhm <ada@kreatrix.org>", "Jakub Beránek <berykubik@gmail.com>"]
 
@@ -52,4 +52,4 @@ panic = "abort"
 inherits = "release"
 lto = true
 codegen-units = 1
-strip = "debuginfo"
+debug = "line-tables-only"
