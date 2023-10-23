@@ -144,10 +144,15 @@ pub fn build_worker_args(
         .unwrap_or_else(get_default_worker_idle_time);
     let idle_timeout = humantime::format_duration(idle_timeout);
 
+    let mut env = String::new();
+    if let Ok(log_env) = std::env::var("RUST_LOG") {
+        write!(env, "RUST_LOG={log_env} ").unwrap();
+    }
+
     let mut args = format!(
-        "{} worker start --idle-timeout \"{idle_timeout}\" --manager \"{manager}\" --server-dir \"{}\"",
-        hq_path.display(),
-        server_dir.display()
+        "{env}{hq} worker start --idle-timeout \"{idle_timeout}\" --manager \"{manager}\" --server-dir \"{server_dir}\"",
+        hq = hq_path.display(),
+        server_dir = server_dir.display()
     );
 
     if !queue_info.worker_args.is_empty() {
