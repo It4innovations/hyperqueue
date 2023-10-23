@@ -1,8 +1,11 @@
 use std::io;
+use std::io::IsTerminal;
+use std::panic::PanicInfo;
 
 use clap::{CommandFactory, FromArgMatches};
 use clap_complete::generate;
 use cli_table::ColorChoice;
+use colored::Colorize;
 
 use hyperqueue::client::commands::autoalloc::command_autoalloc;
 use hyperqueue::client::commands::event::command_event_log;
@@ -46,6 +49,7 @@ use hyperqueue::transfer::messages::{
 use hyperqueue::worker::hwdetect::{
     detect_additional_resources, detect_cpus, prune_hyper_threading,
 };
+use hyperqueue::HQ_VERSION;
 use tako::resources::{ResourceDescriptor, ResourceDescriptorItem, CPU_RESOURCE_NAME};
 
 #[cfg(feature = "jemalloc")]
@@ -326,8 +330,40 @@ fn generate_completion(opts: GenerateCompletionOpts) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn hq_panic_hook(_info: &PanicInfo) {
+    let message = format!(
+        r#"Oops, HyperQueue has crashed. This is a bug, sorry for that.
+If you would be so kind, please report this issue at the HQ issue tracker: https://github.com/It4innovations/hyperqueue/issues/new?title=HQ%20crashes
+Please include the above error (starting from "thread ... panicked ...") and the stack backtrace in the issue contents, along with the following information:
+
+HyperQueue version: {version}
+
+You can also re-run HyperQueue server (and its workers) with the `RUST_LOG=hq=debug,tako=debug`
+environment variable, and attach the logs to the issue, to provide us more information.
+"#,
+        version = HQ_VERSION
+    );
+
+    if io::stdout().is_terminal() {
+        eprintln!("{}", message.red());
+    } else {
+        eprintln!("{message}");
+    };
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> hyperqueue::Result<()> {
+    // Augment panics - first print the error and backtrace like normally,
+    // and then print our own custom error message.
+    let std_panic = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info: &PanicInfo| {
+        std_panic(info);
+        hq_panic_hook(info);
+    }));
+
+    // Also enable backtraces by default.
+    std::env::set_var("RUST_BACKTRACE", "full");
+
     let matches = RootOptions::command().get_matches();
     let top_opts = match RootOptions::from_arg_matches(&matches) {
         Ok(opts) => opts,
