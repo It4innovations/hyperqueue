@@ -22,6 +22,10 @@ the file if the task has finished successfully:
 $ hq submit --stdout=out.txt:rm-if-finished /my-program
 ```
 
+## Fixes
+
+* Fixed crash when task fails during its initialization
+
 
 # v0.16.0
 
