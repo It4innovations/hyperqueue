@@ -1,3 +1,4 @@
+import datetime
 import random
 import time
 from pathlib import Path
@@ -294,3 +295,18 @@ def test_job_forget_running(hq_env: HqEnv):
 
     with pytest.raises(Exception, match="Cannot forget job 1"):
         client.forget(submitted_job)
+
+
+def test_resource_min_time(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+
+    job.program(
+        args=bash("echo Hello"),
+        resources=[
+            ResourceRequest(min_time=datetime.timedelta(seconds=42)),
+        ],
+    )
+    client.submit(job)
+
+    data = hq_env.command(["--output-mode=json", "job", "info", "last"], as_json=True)[0]
+    assert data["task-desc"]["graph"][0]["resources"][0]["min_time"] == 42.0
