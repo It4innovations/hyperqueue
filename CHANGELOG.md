@@ -1,3 +1,12 @@
+# Dev
+
+## Breaking change
+* The output format of the `job info` command with JSON output mode has been changed. Note that
+the JSON output mode is still unstable.
+
+## New features
+* Allow setting minimum duration for a task (`min_time` resource value) using the Python API.
+
 # v0.17.0
 
 ## Breaking change
