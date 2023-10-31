@@ -131,31 +131,35 @@ def test_print_job_list(hq_env: HqEnv):
     schema.validate(output)
 
 
-JOB_DETAIL_SCHEMA = {
+ARRAY_JOB_DETAIL_SCHEMA = {
     "info": {
         "id": int,
         "name": "echo",
         "task_count": 1,
         "task_stats": dict,
     },
-    "resources": list,
+    "task-desc": {
+        "array": {
+            "resources": list,
+            "priority": 0,
+            "program": {
+                "args": ["echo", "tt"],
+                "env": {},
+                "cwd": str,
+                "stdout": str,
+                "stderr": str,
+            },
+            "pin_mode": None,
+            "crash_limit": int,
+            "task_dir": bool,
+            "time_limit": None,
+        }
+    },
     "finished_at": None,
     "max_fails": None,
-    "pin_mode": None,
-    "priority": 0,
-    "program": {
-        "args": ["echo", "tt"],
-        "env": {},
-        "cwd": str,
-        "stdout": str,
-        "stderr": str,
-    },
     "started_at": str,
-    "time_limit": None,
     "submit_dir": str,
     "tasks": list,
-    "task_dir": bool,
-    "crash_limit": int,
 }
 
 
@@ -164,7 +168,7 @@ def test_print_job_detail(hq_env: HqEnv):
     hq_env.command(["submit", "echo", "tt"])
     output = parse_json_output(hq_env, ["--output-mode=json", "job", "info", "1"])
 
-    schema = Schema([JOB_DETAIL_SCHEMA])
+    schema = Schema([ARRAY_JOB_DETAIL_SCHEMA])
     schema.validate(output)
 
 
@@ -188,26 +192,24 @@ def test_print_job_detail_resources(hq_env: HqEnv):
     output = parse_json_output(hq_env, ["--output-mode=json", "job", "info", "1"])
 
     schema = Schema(
-        [
-            {
-                "resources": [
-                    {
-                        "min_time": 0.0,
-                        "n_nodes": 0,
-                        "resources": [
-                            {"request": {"Compact": 2 * 10_000}, "resource": "res1"},
-                            {"request": {"ForceCompact": 8 * 10_000}, "resource": "res2"},
-                            {"request": "All", "resource": "res3"},
-                            {"request": {"Scatter": 4 * 10_000}, "resource": "res4"},
-                            {"request": {"Compact": 1 * 10_000}, "resource": "cpus"},
-                        ],
-                    }
-                ]
-            }
-        ],
+        {
+            "resources": [
+                {
+                    "min_time": 0.0,
+                    "n_nodes": 0,
+                    "resources": [
+                        {"request": {"Compact": 2 * 10_000}, "resource": "res1"},
+                        {"request": {"ForceCompact": 8 * 10_000}, "resource": "res2"},
+                        {"request": "All", "resource": "res3"},
+                        {"request": {"Scatter": 4 * 10_000}, "resource": "res4"},
+                        {"request": {"Compact": 1 * 10_000}, "resource": "cpus"},
+                    ],
+                }
+            ]
+        },
         ignore_extra_keys=True,
     )
-    schema.validate(output)
+    schema.validate(output[0]["task-desc"]["array"])
 
 
 def test_print_job_detail_multiple_jobs(hq_env: HqEnv):
@@ -216,7 +218,7 @@ def test_print_job_detail_multiple_jobs(hq_env: HqEnv):
         hq_env.command(["submit", "echo", "tt"])
     output = parse_json_output(hq_env, ["--output-mode=json", "job", "info", "1,2"])
 
-    schema = Schema([JOB_DETAIL_SCHEMA])
+    schema = Schema([ARRAY_JOB_DETAIL_SCHEMA])
     schema.validate(output)
 
 

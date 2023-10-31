@@ -80,90 +80,63 @@ impl Output for JsonOutput {
         self.print(json!(statuses))
     }
     fn print_job_detail(&self, jobs: Vec<JobDetail>, _worker_map: WorkerMap, server_uid: &str) {
-        let job_details: Vec<_> = jobs.into_iter().map(|job| {
-            let task_paths = resolve_task_paths(&job, server_uid);
+        let job_details: Vec<_> = jobs
+            .into_iter()
+            .map(|job| {
+                let task_paths = resolve_task_paths(&job, server_uid);
 
-            let JobDetail {
-                info,
-                job_desc,
-                tasks,
-                tasks_not_found: _,
-                max_fails,
-                submission_date,
-                completion_date_or_now,
-                submit_dir,
-            } = job;
+                let JobDetail {
+                    info,
+                    job_desc,
+                    tasks,
+                    tasks_not_found: _,
+                    max_fails,
+                    submission_date,
+                    completion_date_or_now,
+                    submit_dir,
+                } = job;
 
-            let finished_at = if info.counters.is_terminated(info.n_tasks) {
-                Some(completion_date_or_now)
-            } else {
-                None
-            };
+                let finished_at = if info.counters.is_terminated(info.n_tasks) {
+                    Some(completion_date_or_now)
+                } else {
+                    None
+                };
 
-            let mut json = json!({
-            "info": format_job_info(info),
-            "max_fails": max_fails,
-            "started_at": format_datetime(submission_date),
-            "finished_at": finished_at.map(format_datetime),
-            "submit_dir": submit_dir
-        });
-
-            if let JobDescription::Array {
-                task_desc:
-                TaskDescription {
-                    program:
-                    ProgramDefinition {
-                        args,
-                        env,
-                        stdout,
-                        stderr,
-                        cwd,
-                        stdin: _,
-                    },
-                    resources,
-                    pin_mode,
-                    time_limit,
-                    priority,
-                    task_dir,
-                    crash_limit,
-                },
-                ..
-            } = job_desc
-            {
-                json["program"] = json!({
-                "args": args.into_iter().map(|args| args.to_string()).collect::<Vec<_>>(),
-                "env": env.into_iter().map(|(key, value)| (key.to_string(), value.to_string())).collect::<Map<String, String>>(),
-                "cwd": cwd,
-                "stderr": format_stdio_def(&stderr),
-                "stdout": format_stdio_def(&stdout),
-            });
-                json["resources"] = resources.variants.into_iter().map(|v| {
-                    let ResourceRequest { n_nodes, resources, min_time } = v;
-                    json!({
-                        "n_nodes": n_nodes,
-                        "resources": resources.into_iter().map(|res| {
-                            json!({
-                                "resource": res.resource,
-                                "request": res.policy
-                            })
-                        }).collect::<Vec<_>>(),
-                        "min_time": format_duration(min_time)
-                    })}
-                ).collect();
-                json["pin_mode"] = json!(match pin_mode {
-                    PinMode::None => None,
-                    PinMode::OpenMP => Some("openmp"),
-                    PinMode::TaskSet => Some("taskset"),
+                let mut json = json!({
+                    "info": format_job_info(info),
+                    "max_fails": max_fails,
+                    "started_at": format_datetime(submission_date),
+                    "finished_at": finished_at.map(format_datetime),
+                    "submit_dir": submit_dir
                 });
-                json["priority"] = json!(priority);
-                json["time_limit"] = json!(time_limit.map(format_duration));
-                json["task_dir"] = json!(task_dir);
-                json["crash_limit"] = json!(crash_limit);
-            }
 
-            json["tasks"] = format_tasks(tasks, task_paths);
-            json
-        }).collect();
+                let task_description = match job_desc {
+                    JobDescription::Array { task_desc, .. } => {
+                        let mut task = json!({});
+                        format_task_description(task_desc, &mut task);
+                        json!({
+                            "array": task
+                        })
+                    }
+                    JobDescription::Graph { tasks } => {
+                        let tasks: Vec<Value> = tasks
+                            .into_iter()
+                            .map(|task| {
+                                let mut json = json!({});
+                                format_task_description(task.task_desc, &mut json);
+                                json
+                            })
+                            .collect();
+                        json!({
+                            "graph": tasks
+                        })
+                    }
+                };
+                json["task-desc"] = task_description;
+                json["tasks"] = format_tasks(tasks, task_paths);
+                json
+            })
+            .collect();
         self.print(Value::Array(job_details));
     }
 
@@ -216,12 +189,14 @@ impl Output for JsonOutput {
 
     fn print_task_info(
         &self,
-        _job: (JobId, JobDetail),
-        _tasks: Vec<JobTaskInfo>,
+        job: (JobId, JobDetail),
+        tasks: Vec<JobTaskInfo>,
         _worker_map: WorkerMap,
-        _server_uid: &str,
+        server_uid: &str,
         _verbosity: Verbosity,
     ) {
+        let map = resolve_task_paths(&job.1, server_uid);
+        self.print(format_tasks(tasks, map));
     }
 
     fn print_summary(&self, filename: &Path, summary: Summary) {
@@ -255,6 +230,64 @@ impl Output for JsonOutput {
     fn print_error(&self, error: Error) {
         self.print(json!({ "error": format!("{error:?}") }))
     }
+}
+
+fn format_task_description(task_desc: TaskDescription, json: &mut Value) {
+    let TaskDescription {
+        program:
+            ProgramDefinition {
+                args,
+                env,
+                stdout,
+                stderr,
+                cwd,
+                stdin: _,
+            },
+        resources,
+        pin_mode,
+        time_limit,
+        priority,
+        task_dir,
+        crash_limit,
+    } = task_desc;
+
+    json["program"] = json!({
+        "args": args.into_iter().map(|args| args.to_string()).collect::<Vec<_>>(),
+        "env": env.into_iter().map(|(key, value)| (key.to_string(), value.to_string())).collect::<Map<String, String>>(),
+        "cwd": cwd,
+        "stderr": format_stdio_def(&stderr),
+        "stdout": format_stdio_def(&stdout),
+    });
+    json["resources"] = resources
+        .variants
+        .into_iter()
+        .map(|v| {
+            let ResourceRequest {
+                n_nodes,
+                resources,
+                min_time,
+            } = v;
+            json!({
+                "n_nodes": n_nodes,
+                "resources": resources.into_iter().map(|res| {
+                    json!({
+                        "resource": res.resource,
+                        "request": res.policy
+                    })
+                }).collect::<Vec<_>>(),
+                "min_time": format_duration(min_time)
+            })
+        })
+        .collect();
+    json["pin_mode"] = json!(match pin_mode {
+        PinMode::None => None,
+        PinMode::OpenMP => Some("openmp"),
+        PinMode::TaskSet => Some("taskset"),
+    });
+    json["priority"] = json!(priority);
+    json["time_limit"] = json!(time_limit.map(format_duration));
+    json["task_dir"] = json!(task_dir);
+    json["crash_limit"] = json!(crash_limit);
 }
 
 fn fill_task_started_data(dict: &mut Value, data: StartedTaskData) {
