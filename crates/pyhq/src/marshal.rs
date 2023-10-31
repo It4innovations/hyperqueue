@@ -59,3 +59,9 @@ impl<'a> FromPyObject<'a> for WrappedDuration {
         Ok(WrappedDuration(Duration::from_nanos(nanoseconds as u64)))
     }
 }
+
+impl From<WrappedDuration> for Duration {
+    fn from(value: WrappedDuration) -> Self {
+        value.0
+    }
+}

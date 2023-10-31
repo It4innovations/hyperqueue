@@ -23,7 +23,7 @@ use tako::gateway::{ResourceRequestEntries, ResourceRequestEntry, ResourceReques
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 use tako::resources::{AllocationRequest, NumOfNodes, ResourceAmount};
 
-use crate::marshal::FromPy;
+use crate::marshal::{FromPy, WrappedDuration};
 use crate::utils::error::ToPyResult;
 use crate::{borrow_mut, run_future, ClientContextPtr, FromPyObject, PyJobId, PyTaskId};
 
@@ -38,6 +38,7 @@ enum AllocationValue {
 pub struct ResourceRequestDescription {
     n_nodes: NumOfNodes,
     resources: HashMap<String, AllocationValue>,
+    min_time: Option<WrappedDuration>,
 }
 
 #[derive(Debug, FromPyObject)]
@@ -182,7 +183,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
                                 })
                             })
                             .collect::<anyhow::Result<ResourceRequestEntries>>()?,
-                        min_time: Default::default(),
+                        min_time: rq.min_time.map(|v| v.into()).unwrap_or_default(),
                     })
                 })
                 .collect::<anyhow::Result<_>>()?,
