@@ -34,8 +34,8 @@ tempdir = { workspace = true }
 nix = { workspace = true }
 bstr = { workspace = true }
 
-humantime = "2.1.0"
-num_cpus = "1.13.0"
+humantime = "2"
+num_cpus = "1"
 cli-table = { version = "0.4.6", default-features = false }
 atty = "0.2"
 serde-tuple-vec-map = "1"
