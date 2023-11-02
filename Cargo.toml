@@ -16,7 +16,7 @@ edition = "2021"
 authors = ["Ada Böhm <ada@kreatrix.org>", "Jakub Beránek <berykubik@gmail.com>"]
 
 [workspace.dependencies]
-tokio = "1.29"
+tokio = "1.33"
 log = "0.4"
 env_logger = "0.10"
 clap = "4"
@@ -40,7 +40,7 @@ thiserror = "1"
 tempdir = "0.3"
 tracing = "0.1"
 anyhow = "1"
-nix = "0.26"
+nix = { version = "0.27", features = ["process", "signal"] }
 bstr = { version = "1.4", features = ["serde"] }
 
 [profile.release]
