@@ -44,7 +44,7 @@ def measure_hq_tasks(
     with activate_cwd(env.workdir):
         with timer.time():
             env.submit(args)
-    return result(timer.duration())
+    return create_result(timer.duration())
 
 
 def measure_snake_tasks(env: Environment, command: str, task_count: int, cpus_per_task=1) -> WorkloadExecutionResult:
@@ -65,8 +65,8 @@ rule benchmark:
     timer = Timings()
     with timer.time():
         env.submit(args, cpus_per_task)
-    return result(timer.duration())
+    return create_result(timer.duration())
 
 
-def result(duration: float) -> WorkloadExecutionResult:
+def create_result(duration: float) -> WorkloadExecutionResult:
     return WorkloadExecutionResult(duration=duration)
