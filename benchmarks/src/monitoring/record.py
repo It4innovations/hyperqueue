@@ -30,6 +30,7 @@ class ProcessRecord:
     rss: int
     vm: int
     cpu: float
+    cpu_children: float
     cpu_times: ProcessCpuTimes
 
 
@@ -50,12 +51,23 @@ class MonitoringRecord:
         to_json(self, file)
 
 
-def record_resources() -> ResourceRecord:
+@dataclasses.dataclass
+class MonitoringOptions:
+    observe_network: bool = False
+
+
+def record_resources(options: MonitoringOptions) -> ResourceRecord:
     cpus = psutil.cpu_percent(percpu=True)
     mem = psutil.virtual_memory().percent
-    connections = sum(1 if c[5] == "ESTABLISHED" else 0 for c in psutil.net_connections())
-    bytes = psutil.net_io_counters()
-    io = psutil.disk_io_counters()
+
+    if options.observe_network:
+        connections = sum(1 if c[5] == "ESTABLISHED" else 0 for c in psutil.net_connections())
+        bytes = psutil.net_io_counters()
+        io = psutil.disk_io_counters()
+    else:
+        connections = 0
+        bytes = None
+        io = None
 
     return ResourceRecord(
         cpu=cpus,
@@ -68,12 +80,24 @@ def record_resources() -> ResourceRecord:
     )
 
 
-def record_processes(processes: List[psutil.Process]) -> Dict[str, ProcessRecord]:
+def record_processes(
+    processes: List[psutil.Process], process_map: Dict[int, psutil.Process]
+) -> Dict[str, ProcessRecord]:
     data = {}
     for process in processes:
         try:
             memory_info = process.memory_info()
             cpu_utilization = process.cpu_percent()
+            cpu_utilization_children = 0
+
+            # We need to cache the child processes so that `.cpu_percent()` returns the correct
+            # results.
+            for child in process.children(recursive=True):
+                if child.pid not in process_map:
+                    process_map[child.pid] = child
+                child = process_map[child.pid]
+                cpu_utilization_children += child.cpu_percent()
+
             cpu_times = process.cpu_times()
             cpu_times = ProcessCpuTimes(
                 user=cpu_times.user,
@@ -85,6 +109,7 @@ def record_processes(processes: List[psutil.Process]) -> Dict[str, ProcessRecord
                 rss=memory_info.rss,
                 vm=memory_info.vms,
                 cpu=cpu_utilization,
+                cpu_children=cpu_utilization_children,
                 cpu_times=cpu_times,
             )
         except BaseException as e:
@@ -92,11 +117,13 @@ def record_processes(processes: List[psutil.Process]) -> Dict[str, ProcessRecord
     return data
 
 
-def generate_record(timestamp: int, processes: List[psutil.Process]) -> MonitoringRecord:
+def generate_record(
+    timestamp: int, processes: List[psutil.Process], process_map: Dict[int, psutil.Process], options: MonitoringOptions
+) -> MonitoringRecord:
     return MonitoringRecord(
         timestamp=timestamp,
-        resources=record_resources(),
-        processes=record_processes(processes),
+        resources=record_resources(options),
+        processes=record_processes(processes, process_map),
     )
 
 

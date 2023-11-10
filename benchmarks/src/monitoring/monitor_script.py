@@ -7,7 +7,7 @@ import time
 import click
 import psutil
 from cluster.io import measure_and_store
-from record import generate_record
+from record import generate_record, MonitoringOptions
 
 
 @click.command()
@@ -16,7 +16,10 @@ from record import generate_record
 @click.option("--dump-interval", default=10)
 @click.option("--observe-pids", default="")
 def main(output: str, capture_interval: int, dump_interval: int, observe_pids: str):
+    options = MonitoringOptions(observe_network=False)
+
     processes = []
+    process_map = {}
     for pid in observe_pids.split(","):
         try:
             processes.append(psutil.Process(int(pid)))
@@ -26,7 +29,11 @@ def main(output: str, capture_interval: int, dump_interval: int, observe_pids: s
 
     def capture(timestamp):
         try:
-            return generate_record(timestamp, processes)
+            start = time.time()
+            result = generate_record(timestamp, processes, process_map, options)
+            duration = time.time() - start
+            logging.info(f"Capturing data took {duration:.5f}s")
+            return result
         except Exception as e:
             logging.error("Opening cluster exception: {}".format(e))
             return None
