@@ -6,6 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from hyperqueue import Client
 from ..clusterutils import ClusterInfo
 from ..clusterutils.cluster_helper import ClusterHelper, StartProcessArgs
 from ..clusterutils.node_list import Local
@@ -215,6 +216,9 @@ class HqEnvironment(Environment, EnvStateManager):
 
         self.submit_id += 1
         return result
+
+    def create_client(self, **kwargs) -> Client:
+        return Client(self.server_dir, **kwargs)
 
     def _shared_args(self) -> List[str]:
         return [str(self.binary_path), "--server-dir", str(self.server_dir)]
