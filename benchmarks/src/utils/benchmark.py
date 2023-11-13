@@ -12,6 +12,14 @@ from ..postprocessing.overview import generate_summary_html, generate_summary_te
 DEFAULT_DATA_JSON = "data.json"
 
 
+def has_work_left(workdir: Path, descriptors: List[BenchmarkDescriptor]) -> bool:
+    database = Database(workdir / DEFAULT_DATA_JSON)
+    runner = BenchmarkRunner(database, workdir=workdir)
+
+    materialized = runner.materialize_and_skip(descriptors)
+    return len(materialized) > 0
+
+
 def run_benchmarks(workdir: Path, descriptors: List[BenchmarkDescriptor]) -> Database:
     database = Database(workdir / DEFAULT_DATA_JSON)
     runner = BenchmarkRunner(database, workdir=workdir)

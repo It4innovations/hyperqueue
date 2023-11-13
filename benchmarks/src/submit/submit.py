@@ -27,15 +27,6 @@ def deserialize_identifiers(path: Path) -> List[BenchmarkIdentifier]:
     return [BenchmarkIdentifier.from_dict(item) for item in items]
 
 
-def format_pbs_time(duration: datetime.timedelta) -> str:
-    days, seconds = duration.days, duration.seconds
-    hours = days * 24 + seconds // 3600
-    minutes = (seconds % 3600) // 60
-    seconds = seconds % 60
-
-    return f"{hours:02}:{minutes:02}:{seconds:02}"
-
-
 def create_submit_script_header(directory: Path, options: PBSSubmitOptions):
     stdout = directory / "stdout"
     stderr = directory / "stderr"
