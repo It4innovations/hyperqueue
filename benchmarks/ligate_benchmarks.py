@@ -1,7 +1,13 @@
 import datetime
+import itertools
 import logging
+from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Any, List
+
+import numpy as np
+import pandas as pd
+import typer
 
 from hyperqueue import Client, Job
 from hyperqueue.job import SubmittedJob
@@ -21,6 +27,7 @@ from src.workloads.utils import create_result
 from src.workloads.workload import WorkloadExecutionResult
 
 LIGEN_ROOT = Path("/mnt/proj2/dd-21-9/beranekj/awh-hq")
+# LIGEN_ROOT = Path("/projects/it4i/ligate/cadd")
 BENCH_WORKDIR = Path("benchmark/ligen")
 
 
@@ -37,7 +44,7 @@ class LigenWorkload(Workload):
 
     def parameters(self) -> Dict[str, Any]:
         return {
-            "smi": str(self.smi_path),
+            "smi": self.smi_path.name,
             "molecules-per-task": self.max_molecules,
             "screening-threads": self.screening_threads,
         }
@@ -96,26 +103,47 @@ class LigenWorkload(Workload):
         return client.submit(job)
 
 
-def analyze_results(data_path: Path):
+def analyze_results_utilization(data_path: Path) -> pd.DataFrame:
+    results = defaultdict(list)
+
     db = Database(data_path)
     for key, row in db.data.items():
         workdir = row.benchmark_metadata["workdir"]
-        workload = row.workload
         params = row.workload_params
         duration = row.duration
 
+        results["input"].append(params["smi"])
+        results["hq-worker-threads"].append(row.environment_params["worker_threads"])
+        results["screening-threads"].append(params["screening-threads"])
+        results["molecules-per-task"].append(params["molecules-per-task"])
+        results["duration"].append(duration)
+
         cluster_report = ClusterReport.load(Path(workdir))
+        worker_node_utilizations = []
+        worker_cpu_utilizations = []
+
         for node, records in cluster_report.monitoring.items():
             processes = node.processes
             worker_processes = tuple(proc.pid for proc in processes if proc.key.startswith("worker"))
             if len(worker_processes) > 0:
                 for record in records:
+                    avg_node_util = np.mean(record.resources.cpu)
+                    worker_node_utilizations.append(avg_node_util)
+
+                    worker_cpu_util = 0
                     for pid, process_resources in record.processes.items():
                         pid = int(pid)
                         if pid in worker_processes:
-                            print(record.timestamp, process_resources)
+                            worker_cpu_util += process_resources.cpu + process_resources.cpu_children
+                    worker_cpu_utilizations.append(worker_cpu_util)
 
-        print(workload, params, duration, workdir)
+        node_util = np.mean(worker_node_utilizations)
+        worker_util = np.mean(worker_cpu_utilizations)
+
+        results["worker-node-util"].append(node_util)
+        results["worker-cpu-util"].append(worker_util)
+
+    return pd.DataFrame(results)
 
 
 def build_descriptions() -> List[BenchmarkDescriptor]:
@@ -126,7 +154,7 @@ def build_descriptions() -> List[BenchmarkDescriptor]:
 
     env = HqClusterInfo(
         cluster=ClusterInfo(monitor_nodes=True, node_list=Local()),
-        environment_params=dict(worker_count=1),
+        environment_params=dict(worker_count=1, worker_threads=worker_threads),
         workers=[HqWorkerConfig(cpus=worker_threads)],
         binary=hq_path,
         worker_profilers=[],
@@ -134,39 +162,47 @@ def build_descriptions() -> List[BenchmarkDescriptor]:
 
     descriptions = []
 
-    input_smi = LIGEN_ROOT / "ligenApptainer/dataset/ligands.smi"
-    thread_count = [1, 8]
+    input_smi = LIGEN_ROOT / "ligenApptainer/dataset/artif-200.smi"
+    threads_variants = [1, 8]
+    max_molecules_variants = [1, 10, 200]
 
-    for threads in thread_count:
-        workload = LigenWorkload(smi_path=input_smi, max_molecules=100, screening_threads=threads)
-        descriptions.append(BenchmarkDescriptor(env_descriptor=env, workload=workload))
+    for threads, max_molecules in itertools.product(threads_variants, max_molecules_variants):
+        if max_molecules == 1 and threads > 1:
+            continue
+        workload = LigenWorkload(smi_path=input_smi, max_molecules=max_molecules, screening_threads=threads)
+        descriptions.append(
+            BenchmarkDescriptor(env_descriptor=env, workload=workload, timeout=datetime.timedelta(minutes=10))
+        )
 
     return descriptions
 
 
-def run():
-    # shutil.rmtree("benchmark", ignore_errors=True)
+app = typer.Typer()
 
+
+@app.command()
+def run(slurm: bool = False):
     descriptions = build_descriptions()
-    if has_work_left(BENCH_WORKDIR, descriptions):
 
-        def compute():
-            run_benchmarks_with_postprocessing(BENCH_WORKDIR, descriptions)
-            analyze_results(BENCH_WORKDIR / DEFAULT_DATA_JSON)
+    def compute():
+        run_benchmarks_with_postprocessing(BENCH_WORKDIR, descriptions)
+        df = analyze_results_utilization(BENCH_WORKDIR / DEFAULT_DATA_JSON)
+        df.to_csv("results.csv", index=False)
 
+    if has_work_left(BENCH_WORKDIR, descriptions) and slurm:
         run_in_slurm(
             SlurmOptions(
                 name="slurm-auto-submit",
                 queue="qcpu_exp",
                 project="DD-21-9",
-                walltime=datetime.timedelta(minutes=1),
+                walltime=datetime.timedelta(minutes=30),
                 init_script=Path("/mnt/proj2/dd-21-9/beranekj/modules.sh"),
                 workdir=Path("slurm").absolute(),
             ),
             compute,
         )
     else:
-        print("Everything has been computed")
+        compute()
 
 
 if __name__ == "__main__":
@@ -175,4 +211,5 @@ if __name__ == "__main__":
         format="%(levelname)s:%(asctime)s.%(msecs)03d:%(funcName)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    run()
+    # shutil.rmtree("benchmark", ignore_errors=True)
+    app()

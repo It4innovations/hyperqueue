@@ -1,3 +1,6 @@
+import datetime
+from datetime import timedelta
+
 import dataclasses
 import os
 from pathlib import Path
@@ -44,7 +47,7 @@ class BenchmarkDescriptor:
     workload: Workload
     repeat_count: int = 1
     executor_config: Optional[BenchmarkExecutorConfig] = None
-    timeout: Optional[int] = None
+    timeout: timedelta = datetime.timedelta(seconds=120)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -53,14 +56,12 @@ class BenchmarkInstance:
     descriptor: BenchmarkDescriptor
 
 
-def create_identifiers(
-    descriptors: List[BenchmarkDescriptor], workdir: Path, default_timeout_s: int
-) -> List[BenchmarkInstance]:
+def create_identifiers(descriptors: List[BenchmarkDescriptor], workdir: Path) -> List[BenchmarkInstance]:
     identifiers = []
     for descriptor in descriptors:
         identifiers.extend(
             BenchmarkInstance(
-                identifier=create_identifier(workdir, descriptor, default_timeout_s, index=index),
+                identifier=create_identifier(workdir, descriptor, index=index),
                 descriptor=descriptor,
             )
             for index in range(descriptor.repeat_count)
@@ -68,9 +69,7 @@ def create_identifiers(
     return identifiers
 
 
-def create_identifier(
-    workdir: Path, descriptor: BenchmarkDescriptor, default_timeout_s: int, index: int
-) -> BenchmarkIdentifier:
+def create_identifier(workdir: Path, descriptor: BenchmarkDescriptor, index: int) -> BenchmarkIdentifier:
     env_name = descriptor.env_descriptor.name()
     env_params = descriptor.env_descriptor.parameters()
     metadata = descriptor.env_descriptor.metadata()
@@ -97,7 +96,7 @@ def create_identifier(
         environment_params=env_params,
         index=index,
         metadata=metadata,
-        timeout=descriptor.timeout or default_timeout_s,
+        timeout=int(descriptor.timeout.total_seconds()),
     )
 
 

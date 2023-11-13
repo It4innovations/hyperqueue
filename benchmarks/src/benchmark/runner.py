@@ -15,8 +15,6 @@ from .identifier import (
 )
 from .result import BenchmarkResult, Failure, Success, Timeout
 
-DEFAULT_TIMEOUT_S = 120
-
 
 class BenchmarkRunner:
     def __init__(self, database: Database, workdir: Path, exit_on_error=True):
@@ -26,7 +24,7 @@ class BenchmarkRunner:
         self.exit_on_error = exit_on_error
 
     def materialize_and_skip(self, descriptors: List[BenchmarkDescriptor]) -> List[BenchmarkInstance]:
-        instances = create_identifiers(descriptors, workdir=self.workdir, default_timeout_s=DEFAULT_TIMEOUT_S)
+        instances = create_identifiers(descriptors, workdir=self.workdir)
         return self._skip_completed(instances)
 
     def compute_materialized(
