@@ -30,6 +30,8 @@ def run_in_slurm(options: SlurmOptions, fn: Callable[[], None]) -> SubmittedSlur
     if running_in_slurm():
         fn()
     else:
+        venv_path = Path(os.environ["VIRTUAL_ENV"]).absolute() / "bin" / "activate"
+
         workdir = os.getcwd()
         alloc_dir = generate_job_dir(options.workdir)
         stdout = alloc_dir / "stdout"
@@ -44,6 +46,7 @@ def run_in_slurm(options: SlurmOptions, fn: Callable[[], None]) -> SubmittedSlur
 #SBATCH --error {stderr}
 
 source {options.init_script}
+source {venv_path}
 
 cd {workdir} || exit 1
 {sys.executable} -u {' '.join(sys.argv)}
