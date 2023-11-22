@@ -406,19 +406,16 @@ async fn process_queue(
 
 fn get_data_from_worker<'a>(
     state: &'a mut AutoAllocState,
-    id: WorkerId,
     manager_info: &ManagerInfo,
 ) -> Option<(&'a mut AllocationQueue, QueueId, AllocationId)> {
     let allocation_id = &manager_info.allocation_id;
-    match state.get_queue_id_by_allocation(allocation_id) {
-        Some(queue_id) => state
-            .get_queue_mut(queue_id)
-            .map(|queue| (queue, queue_id, allocation_id.clone())),
-        None => {
-            log::warn!("Worker {id} belongs to an unknown allocation {allocation_id}");
-            None
-        }
-    }
+    state
+        .get_queue_id_by_allocation(allocation_id)
+        .and_then(|queue_id| {
+            state
+                .get_queue_mut(queue_id)
+                .map(|queue| (queue, queue_id, allocation_id.clone()))
+        })
 }
 
 /// Synchronize the state of allocations with the external job manager.
@@ -494,8 +491,16 @@ fn on_worker_connected(
     worker_id: WorkerId,
     manager_info: &ManagerInfo,
 ) {
-    let (queue, queue_id, allocation_id) =
-        get_or_return!(get_data_from_worker(state, worker_id, manager_info));
+    let (queue, queue_id, allocation_id) = match get_data_from_worker(state, manager_info) {
+        Some(ret) => ret,
+        None => {
+            log::warn!(
+                "Worker {worker_id} belongs to an unknown allocation {}",
+                manager_info.allocation_id
+            );
+            return;
+        }
+    };
     log::debug!("Worker {worker_id} connected to allocation {allocation_id}");
 
     let allocation = get_or_return!(queue.get_allocation_mut(&allocation_id));
@@ -539,7 +544,7 @@ fn on_worker_lost(
     worker_details: LostWorkerDetails,
 ) {
     let (queue, queue_id, allocation_id) =
-        get_or_return!(get_data_from_worker(state, worker_id, manager_info));
+        get_or_return!(get_data_from_worker(state, manager_info));
     let allocation = get_or_return!(queue.get_allocation_mut(&allocation_id));
 
     match allocation.status {
