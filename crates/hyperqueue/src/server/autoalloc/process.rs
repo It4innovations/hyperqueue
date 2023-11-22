@@ -501,7 +501,7 @@ fn on_worker_connected(
             return;
         }
     };
-    log::debug!("Worker {worker_id} connected to allocation {allocation_id}");
+    log::info!("Worker {worker_id} connected from allocation {allocation_id}");
 
     let allocation = get_or_return!(queue.get_allocation_mut(&allocation_id));
     match allocation.status {
