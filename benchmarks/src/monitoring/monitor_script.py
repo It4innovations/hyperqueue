@@ -21,11 +21,12 @@ def main(output: str, capture_interval: int, dump_interval: int, observe_pids: s
     processes = []
     process_map = {}
     for pid in observe_pids.split(","):
-        try:
-            processes.append(psutil.Process(int(pid)))
-            logging.info(f"Observing PID {pid}")
-        except BaseException as e:
-            logging.error(e)
+        if pid:
+            try:
+                processes.append(psutil.Process(int(pid)))
+                logging.info(f"Observing PID {pid}")
+            except BaseException as e:
+                logging.error(e)
 
     def capture(timestamp):
         try:

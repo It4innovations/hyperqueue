@@ -1,28 +1,25 @@
-import dataclasses
 import itertools
 import logging
+import multiprocessing
 from pathlib import Path
 from typing import List, Optional
 
+import dataclasses
 import typer
+
 from src.benchmark.identifier import BenchmarkDescriptor
 from src.benchmark_defs import create_basic_hq_benchmarks
 from src.build.hq import BuildConfig, iterate_binaries
 from src.build.repository import TAG_WORKSPACE
 from src.clusterutils import ClusterInfo
 from src.clusterutils.node_list import Local
-
-# from src.clusterutils.profiler import (
-#     PerfEventsProfiler,
-#     FlamegraphProfiler,
-#     CachegrindProfiler,
-# )
 from src.environment import EnvironmentDescriptor
+from src.environment.dask import DaskClusterInfo, DaskWorkerConfig
 from src.environment.hq import HqClusterInfo, HqWorkerConfig
 from src.environment.snake import SnakeEnvironmentDescriptor
 from src.utils.benchmark import run_benchmarks_with_postprocessing
 from src.workloads import Workload
-from src.workloads.sleep import SleepHQ, SleepSnake
+from src.workloads.sleep import SleepHQ, SleepSnake, SleepDask
 
 app = typer.Typer()
 
@@ -75,6 +72,15 @@ def sleep():
 
     add_product([SleepSnake(tc) for tc in task_counts], [SnakeEnvironmentDescriptor()])
     add_product(
+        [SleepDask(tc) for tc in task_counts],
+        [
+            DaskClusterInfo(
+                cluster_info=ClusterInfo(monitor_nodes=True, node_list=Local()),
+                workers=[DaskWorkerConfig(cores=multiprocessing.cpu_count())],
+            )
+        ],
+    )
+    add_product(
         [SleepHQ(tc) for tc in task_counts],
         [
             HqClusterInfo(
@@ -82,7 +88,6 @@ def sleep():
                 environment_params=dict(worker_count=1),
                 workers=[HqWorkerConfig()],
                 binary=hq_path,
-                worker_profilers=[],
             )
         ],
     )

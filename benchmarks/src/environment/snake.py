@@ -33,13 +33,6 @@ class SnakeEnvironment(Environment, EnvStateManager):
         self.info = info
         self.snakefile = info.workdir / "Snakefile"
 
-    def __enter__(self):
-        self.start()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.stop()
-
     @property
     def workdir(self) -> Path:
         return self.info.workdir

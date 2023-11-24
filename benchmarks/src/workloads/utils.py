@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Callable
 
 from ..environment import Environment
 from ..environment.hq import HqEnvironment
@@ -65,6 +65,18 @@ rule benchmark:
     timer = Timings()
     with timer.time():
         env.submit(args, cpus_per_task)
+    return create_result(timer.duration())
+
+
+def measure_dask_tasks(env: Environment, submit_fn: Callable[["distributed.Client"], None]) -> WorkloadExecutionResult:
+    from ..environment.dask import DaskEnvironment
+
+    assert isinstance(env, DaskEnvironment)
+    logging.debug(f"[Dask] Submitting")
+
+    timer = Timings()
+    with timer.time():
+        submit_fn(env.get_client())
     return create_result(timer.duration())
 
 

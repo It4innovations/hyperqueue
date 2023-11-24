@@ -132,13 +132,6 @@ class HqEnvironment(Environment, EnvStateManager):
 
         self.submit_id = 0
 
-    def __enter__(self):
-        self.start()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.stop()
-
     @property
     def workdir(self) -> Path:
         return self._workdir
