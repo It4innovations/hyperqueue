@@ -27,12 +27,17 @@ def run_benchmarks(workdir: Path, descriptors: List[BenchmarkDescriptor]) -> Dat
     runner = BenchmarkRunner(database, workdir=workdir)
 
     materialized = runner.materialize_and_skip(descriptors)
-    last_save_time = time.time()
-    for _info, _result in tqdm.tqdm(runner.compute_materialized(materialized), total=len(materialized)):
-        duration = time.time() - last_save_time
-        if duration > timedelta(seconds=30).total_seconds():
-            last_save_time = time.time()
-            runner.save()
+
+    try:
+        last_save_time = time.time()
+        for _info, _result in tqdm.tqdm(runner.compute_materialized(materialized), total=len(materialized)):
+            duration = time.time() - last_save_time
+            if duration > timedelta(seconds=30).total_seconds():
+                last_save_time = time.time()
+                runner.save()
+    except KeyboardInterrupt:
+        runner.save()
+        raise
 
     runner.save()
     return database
