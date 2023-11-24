@@ -1,4 +1,6 @@
 import logging
+import time
+from datetime import timedelta
 from pathlib import Path
 from typing import List
 
@@ -25,8 +27,12 @@ def run_benchmarks(workdir: Path, descriptors: List[BenchmarkDescriptor]) -> Dat
     runner = BenchmarkRunner(database, workdir=workdir)
 
     materialized = runner.materialize_and_skip(descriptors)
+    last_save_time = time.time()
     for _info, _result in tqdm.tqdm(runner.compute_materialized(materialized), total=len(materialized)):
-        pass
+        duration = time.time() - last_save_time
+        if duration > timedelta(seconds=30).total_seconds():
+            last_save_time = time.time()
+            runner.save()
 
     runner.save()
     return database
