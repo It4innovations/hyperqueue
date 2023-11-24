@@ -1,14 +1,16 @@
+import time
 from abc import ABC
 from typing import Any, Dict
 
+from .utils import measure_hq_tasks, measure_snake_tasks, measure_dask_tasks
+from .workload import Workload, WorkloadExecutionResult
+from ..environment.dask import DaskEnvironment
 from ..environment.hq import HqEnvironment
 from ..environment.snake import SnakeEnvironment
-from .utils import measure_hq_tasks, measure_snake_tasks
-from .workload import Workload, WorkloadExecutionResult
 
 
 class Sleep(Workload, ABC):
-    def __init__(self, task_count: int, sleep_duration=0):
+    def __init__(self, task_count: int, sleep_duration: float = 0.0):
         self.task_count = task_count
         self.sleep_duration = sleep_duration
 
@@ -31,3 +33,18 @@ class SleepSnake(Sleep):
             f"sleep {self.sleep_duration}; echo '' > {{output}}",
             task_count=self.task_count,
         )
+
+
+class SleepDask(Sleep):
+    def execute(self, env: DaskEnvironment) -> WorkloadExecutionResult:
+        from distributed import Client
+
+        def run(client: Client):
+            def sleep(duration: float):
+                time.sleep(duration)
+                return duration
+
+            tasks = [client.submit(sleep, self.sleep_duration, pure=False) for _ in range(self.task_count)]
+            client.gather(tasks)
+
+        return measure_dask_tasks(env, run)

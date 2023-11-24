@@ -114,7 +114,8 @@ class ClusterHelper:
             if observe_processes:
                 node_processes = self.cluster.get_processes(hostname=node)
                 pids = [str(process.pid) for (_, process) in node_processes]
-                args += ["--observe-pids", ",".join(pids)]
+                if pids:
+                    args += ["--observe-pids", ",".join(pids)]
             process = StartProcessArgs(
                 args=args,
                 hostname=node,
