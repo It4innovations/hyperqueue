@@ -52,7 +52,7 @@ Example submission script:
 
     # Run a worker on all allocated nodes
     ml OpenMPI
-    mpirun /<path-to-hyperqueue>/hq worker start --manager pbs
+    pbsdsh /<path-to-hyperqueue>/hq worker start --manager pbs
     ```
 
 === "Slurm"
@@ -66,7 +66,7 @@ Example submission script:
 
     # Run a worker on all allocated nodes
     ml OpenMPI
-    mpirun /<path-to-hyperqueue>/hq worker start --manager slurm
+    srun --overlap /<path-to-hyperqueue>/hq worker start --manager slurm
     ```
 
 The worker will try to automatically detect that it is started under a PBS/Slurm job, but you can also explicitly pass

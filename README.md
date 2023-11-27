@@ -102,7 +102,7 @@ with the HyperQueue developers, you can use our [Zulip](https://hyperqueue.zulip
       - Start worker on all nodes of a Slurm job
 
         ```bash
-        $ sbatch <your-params-of-sbatch> --wrap "srun hq worker start"
+        $ sbatch <your-params-of-sbatch> --wrap "srun --overlap hq worker start"
         ```
 
 * Monitor the state of jobs
