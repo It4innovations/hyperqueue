@@ -17,6 +17,7 @@ class BuildConfig:
     git_ref: str = TAG_WORKSPACE
     release: bool = True
     zero_worker: bool = False
+    debug_symbols: bool = False
 
 
 @dataclasses.dataclass
@@ -58,6 +59,11 @@ def build_tag(config: BuildConfig, resolved_ref: str) -> Path:
     with checkout_tag(tag):
         logging.info(f"Building {build_description}")
         env = os.environ.copy()
+
+        if config.debug_symbols:
+            profile_name = "RELEASE" if config.release else "DEV"
+            env[f"CARGO_PROFILE_{profile_name}_DEBUG"] = "line-tables-only"
+
         args = ["cargo", "build"]
         if config.release:
             env["RUSTFLAGS"] = "-C target-cpu=native"
