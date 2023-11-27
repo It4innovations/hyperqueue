@@ -1,3 +1,5 @@
+import os
+
 import dataclasses
 import json
 import logging
@@ -138,6 +140,9 @@ class HqEnvironment(Environment, EnvStateManager):
 
     def start(self):
         self.state_start()
+
+        # Make sure to kill any previously running HQ binaries
+        subprocess.run(["killall", os.path.basename(self.binary_path)], check=False)
 
         logging.info("Starting HQ server")
         self.start_server()
