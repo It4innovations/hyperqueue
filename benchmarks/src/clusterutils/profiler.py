@@ -129,3 +129,37 @@ class CallgrindProfiler(Profiler):
 
     def __repr__(self):
         return "CallgrindProfiler"
+
+
+class SamplyProfiler(Profiler):
+    """
+    Uses Samply to sample the execution.
+    You can use `samply load <profile.json>` to display the reuslts.
+    """
+
+    TAG = "samply"
+
+    def __init__(self, sampling_rate: int = 100):
+        self.sampling_rate = sampling_rate
+
+    def check_availability(self):
+        if not is_binary_available("samply"):
+            raise Exception("Samply profiler is not available. Please install it using `cargo install samply`.")
+
+    def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
+        output_path = output_dir / "profile.json"
+        args = [
+            "samply",
+            "record",
+            "-o",
+            str(output_path),
+            "--no-open",
+            "--rate",
+            str(self.sampling_rate),
+            "--",
+        ] + command
+
+        return ProfiledCommand(args=args, tag=SamplyProfiler.TAG, output_path=output_path)
+
+    def __repr__(self):
+        return "SamplyProfiler"
