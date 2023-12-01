@@ -56,7 +56,7 @@ class BenchmarkInstance:
     descriptor: BenchmarkDescriptor
 
 
-def create_identifiers(descriptors: List[BenchmarkDescriptor], workdir: Path) -> List[BenchmarkInstance]:
+def create_benchmark_instances(descriptors: List[BenchmarkDescriptor], workdir: Path) -> List[BenchmarkInstance]:
     identifiers = []
     for descriptor in descriptors:
         identifiers.extend(

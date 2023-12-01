@@ -11,7 +11,7 @@ from .identifier import (
     BenchmarkDescriptor,
     BenchmarkIdentifier,
     BenchmarkInstance,
-    create_identifiers,
+    create_benchmark_instances,
 )
 from .result import BenchmarkResult, Failure, Success, Timeout
 
@@ -24,7 +24,7 @@ class BenchmarkRunner:
         self.exit_on_error = exit_on_error
 
     def materialize_and_skip(self, descriptors: List[BenchmarkDescriptor]) -> List[BenchmarkInstance]:
-        instances = create_identifiers(descriptors, workdir=self.workdir)
+        instances = create_benchmark_instances(descriptors, workdir=self.workdir)
         return self._skip_completed(instances)
 
     def compute_materialized(
