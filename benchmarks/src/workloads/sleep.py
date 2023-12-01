@@ -42,7 +42,25 @@ class SleepDask(Sleep):
         def run(client: Client):
             def sleep(duration: float):
                 time.sleep(duration)
-                return duration
+
+            tasks = [client.submit(sleep, self.sleep_duration, pure=False) for _ in range(self.task_count)]
+            client.gather(tasks)
+
+        return measure_dask_tasks(env, run)
+
+
+class SleepDaskSpawn(Sleep):
+    def name(self) -> str:
+        return "sleep-spawn"
+
+    def execute(self, env: DaskEnvironment) -> WorkloadExecutionResult:
+        from distributed import Client
+
+        def run(client: Client):
+            def sleep(duration: float):
+                import subprocess
+
+                subprocess.run(["sleep", str(duration)])
 
             tasks = [client.submit(sleep, self.sleep_duration, pure=False) for _ in range(self.task_count)]
             client.gather(tasks)
