@@ -1,3 +1,4 @@
+import datetime
 import os
 
 import dataclasses
@@ -201,6 +202,16 @@ class HqEnvironment(Environment, EnvStateManager):
 
     def stop(self):
         self.state_stop()
+
+        logging.info("Stopping HQ server and waiting for server and workers to stop")
+
+        # Stop the server
+        subprocess.run([*self._shared_args(), "server", "stop"])
+        # Wait for the server and worker to end
+        self.cluster.wait_for_process_end(
+            lambda p: p.key == "server" or p.key.startswith("worker"), duration=datetime.timedelta(seconds=5)
+        )
+        # Send SIGINT to everything
         self.cluster.stop(use_sigint=True)
 
     def submit(self, args: List[str]) -> subprocess.CompletedProcess:

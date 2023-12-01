@@ -1,11 +1,14 @@
+import datetime
+
 import dataclasses
 import functools
 import logging
 import time
 from multiprocessing import Pool
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable
 
+import psutil
 from cluster.cluster import (
     Cluster,
     Node,
@@ -51,11 +54,34 @@ class ClusterHelper:
         return list(self.cluster.nodes.keys())
 
     @property
-    def processes(self) -> List[Process]:
+    def processes(self) -> List[ProcessInfo]:
         processes = []
         for node in self.cluster.nodes.values():
             processes += node.processes
         return processes
+
+    def wait_for_process_end(
+        self, filter_fn: Callable[[ProcessInfo], bool], duration: datetime.timedelta = datetime.timedelta(seconds=5)
+    ):
+        """
+        Wait until processed that pass through the given `filter_fn` are stopped.
+        :param filter_fn: Filter function to select a process.
+        :param duration: How long to wait (for all processes together) at most.
+        """
+        start = time.time()
+        for process_info in self.processes:
+            if filter_fn(process_info):
+                try:
+                    process = psutil.Process(process_info.pid)
+                except psutil.NoSuchProcess:
+                    logging.warning(f"Process {process_info.pid} has already stopped")
+                    continue
+
+                while process.is_running():
+                    if time.time() - start < duration.total_seconds():
+                        time.sleep(0.1)
+                    else:
+                        return
 
     def commit(self):
         with open(self.workdir / CLUSTER_FILENAME, "w") as f:
