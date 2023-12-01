@@ -48,11 +48,19 @@ class BenchmarkResultRecord:
 
 
 class Database:
-    def __init__(self, path: Path, metadata: Optional[Any] = None):
+    @staticmethod
+    def from_file(path: Path, metadata: Optional[Any] = None):
+        assert path.is_file()
+        data = load_database_records(path)
+        return Database(path=path, data=data, metadata=metadata)
+
+    @staticmethod
+    def empty(path: Path, metadata: Optional[Any] = None):
+        return Database(path=path, data={}, metadata=metadata)
+
+    def __init__(self, path: Path, data: Optional[Dict[Any, DatabaseRecord]] = None, metadata: Optional[Any] = None):
         self.path = path
-        self.data = {}
-        if self.path.is_file():
-            self.data = load_database(path)
+        self.data = data if data is not None else {}
         self.metadata = metadata or np.nan
 
     @property
@@ -104,6 +112,11 @@ class Database:
         df = pd.DataFrame(data)
         df.to_json(self.path, orient="split", index=False)
 
+    def filter(self, identifiers: List[BenchmarkIdentifier]) -> "Database":
+        keys = set(create_identifier_key(identifier) for identifier in identifiers)
+        data = {k: v for (k, v) in self.data.items() if k in keys}
+        return Database(path=self.path, data=data, metadata=self.metadata)
+
 
 def serialize(value) -> str:
     if isinstance(value, dict):
@@ -127,7 +140,7 @@ def parse_record(entry) -> DatabaseRecord:
     )
 
 
-def load_database(path: Path) -> Dict[Any, DatabaseRecord]:
+def load_database_records(path: Path) -> Dict[Any, DatabaseRecord]:
     database = pd.read_json(path, orient="split", convert_dates=False)
     entries = database.to_dict("records")
 
