@@ -32,7 +32,10 @@ class Profiler:
 class FlamegraphProfiler(Profiler):
     TAG = "flamegraph"
 
-    def __init__(self, frequency: int):
+    def __init__(self, frequency: int = 100):
+        """
+        :param frequency: How many times per second should the call stack be sampled.
+        """
         self.frequency = frequency
 
     def check_availability(self):
@@ -45,6 +48,8 @@ class FlamegraphProfiler(Profiler):
         args = [
             "perf",
             "record",
+            # Only record the process, not its children
+            "-i",
             "--call-graph",
             "dwarf",
             "--freq",
