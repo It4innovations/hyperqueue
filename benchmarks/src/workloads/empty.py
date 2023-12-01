@@ -13,7 +13,7 @@ class EmptyDask(Workload):
         return "empty"
 
     def parameters(self) -> Dict[str, Any]:
-        return {"task-count": self.task_count}
+        return {"task_count": self.task_count}
 
     def execute(self, env: DaskEnvironment) -> WorkloadExecutionResult:
         from distributed import Client
