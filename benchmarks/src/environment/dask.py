@@ -22,6 +22,8 @@ class DaskWorkerConfig:
 class DaskClusterInfo(EnvironmentDescriptor):
     cluster_info: ClusterInfo
     workers: List[DaskWorkerConfig]
+    # Additional information that describes the environment
+    environment_params: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def create_environment(self, workdir: Path) -> Environment:
         return DaskEnvironment(self, workdir)
@@ -30,7 +32,9 @@ class DaskClusterInfo(EnvironmentDescriptor):
         return "dask"
 
     def parameters(self) -> Dict[str, Any]:
-        return {}
+        params = dict(worker_count=len(self.workers))
+        params.update(self.environment_params)
+        return params
 
     def metadata(self) -> Dict[str, Any]:
         return {}
