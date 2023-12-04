@@ -26,11 +26,15 @@ Sometimes a worker might crash while it is executing some task. In that case the
 different worker and the task will begin executing from the beginning.
 
 In order to let the executed application know that the same task is being executed repeatedly, HyperQueue assigns each
-execution a separate **Instance id**. It is a 32b non-negative number that identifies each (re-)execution of a task.
+execution a separate **Instance ID**. It is a 32b non-negative number that identifies each (re-)execution of a task.
 
-It is guaranteed that a newer execution of a task will have a larger instance id, however HyperQueue explicitly
-**does not** guarantee any specific values or differences between two ids. Each instance id is valid only for a particular
-task. Two different tasks may have the same instance id.
+It is guaranteed that a newer execution of a task will have a larger instance ID, however HyperQueue explicitly
+**does not** guarantee any specific values or differences between two IDs. Each instance ID is valid only for a particular
+task. Two different tasks may have the same instance ID.
+
+Instance IDs can be useful e.g. when a task is restarted, and you want to distinguish the output of the first execution
+and the restarted execution (by default, HQ will overwrite the standard output/error file of the first execution). You
+can instead create a separate stdout/stderr file for each task execution using the [instance ID placeholder](jobs.md#placeholders).
 
 ## Task array failures
 By default, when a single task of a [task array](arrays.md) fails, the computation of the job will continue.

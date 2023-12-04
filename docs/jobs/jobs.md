@@ -110,12 +110,12 @@ $ hq submit --env KEY1=VAL1 --env KEY2=VAL2 ...
 
 Each executed task will also automatically receive the following environment variables:
 
-| Variable name    | Explanation                                                       |
-|------------------|-------------------------------------------------------------------|
-| `HQ_JOB_ID`      | Job id                                                            |
-| `HQ_TASK_ID`     | Task id                                                           |
-| `HQ_INSTANCE_ID` | [Instance id](failure.md#task-restart)                            |
-| `HQ_RESOURCE_...`| A set of variables related to allocated [resources](resources.md) |
+| Variable name     | Explanation                                                       |
+|-------------------|-------------------------------------------------------------------|
+| `HQ_JOB_ID`       | Job id                                                            |
+| `HQ_TASK_ID`      | Task id                                                           |
+| `HQ_INSTANCE_ID`  | [Instance id](failure.md#task-restart)                            |
+| `HQ_RESOURCE_...` | A set of variables related to allocated [resources](resources.md) |
 
 ### Time management
 You can specify two time-related parameters when submitting a job. They will be applied to each task of the submitted job.
@@ -186,16 +186,23 @@ Placeholders are enclosed in curly braces (`{}`) and prefixed with a percent (`%
 
 You can use the following placeholders:
 
-| Placeholder      | Will be replaced by                           | Available for                    |
-|------------------|-----------------------------------------------|----------------------------------|
-| `%{JOB_ID}`      | Job ID                                        | `stdout`, `stderr`, `cwd`, `log` |
-| `%{TASK_ID}`     | Task ID                                       | `stdout`, `stderr`, `cwd`        |
-| `%{INSTANCE_ID}` | [Instance ID](failure.md#task-restart)        | `stdout`, `stderr`, `cwd`        |
-| `%{SUBMIT_DIR}`  | Directory from which the job was submitted.   | `stdout`, `stderr`, `cwd`, `log` |
-| `%{CWD}`         | Working directory of the task.                | `stdout`, `stderr`               |
-| `%{SERVER_UID}`  | Server unique ID (a string of length 6)[^uid] | `stdout`, `stderr`, `cwd`, `log` |
+| Placeholder      | Will be replaced by                         | Available for                    |
+|------------------|---------------------------------------------|----------------------------------|
+| `%{JOB_ID}`      | Job ID                                      | `stdout`, `stderr`, `cwd`, `log` |
+| `%{TASK_ID}`     | Task ID                                     | `stdout`, `stderr`, `cwd`        |
+| `%{INSTANCE_ID}` | [Instance ID](failure.md#task-restart)      | `stdout`, `stderr`, `cwd`        |
+| `%{SUBMIT_DIR}`  | Directory from which the job was submitted. | `stdout`, `stderr`, `cwd`, `log` |
+| `%{CWD}`         | Working directory of the task.              | `stdout`, `stderr`               |
+| `%{SERVER_UID}`  | Unique server ID.                           | `stdout`, `stderr`, `cwd`, `log` |
 
-[^uid] Server generates a random `SERVER_UID` string every time a new server is started (`hq server start`).
+`SERVER_UID` is a random string that is unique for each new server execution (each `hq server start` gets a separate value).
+
+As an example, if you wanted to include the [Instance ID](failure.md#task-restart) in the `stdout` path (to
+distinguish the individual outputs of restarted tasks), you can use placeholders like this:
+
+```bash
+$ hq submit --stdout '%{CWD}/job-%{JOB_ID}/%{TASK_ID}-%{INSTANCE_ID}.stdout' ...
+```
 
 ## State
 At any moment in time, each task and job has a specific *state* that represents what is currently happening to it. You
