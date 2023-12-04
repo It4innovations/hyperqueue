@@ -13,6 +13,9 @@ nav:
   - Getting Started:
     - Quickstart: quickstart.md
     - Cheatsheet: cheatsheet.md
+  - Examples:
+    - examples/README.md
+    - Iterative computation: examples/iterative-computation/README.md
   - Deployment:
     - deployment/index.md
     - Server: deployment/server.md
@@ -81,6 +84,9 @@ plugins:
       canonical_version: stable
   - nedoc:
       path: python/apidoc
+  - gen-files:
+      scripts:
+        - scripts/doc_copy_examples.py
 
 extra:
   analytics:
