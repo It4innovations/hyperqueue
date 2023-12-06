@@ -2,10 +2,11 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Type
 
 from .benchmark.identifier import BenchmarkDescriptor
-from .build.hq import BuiltBinary
+from .build.hq import BuiltBinary, iterate_binaries, BuildConfig
 from .clusterutils import ClusterInfo
 from .clusterutils.node_list import Local
 from .clusterutils.profiler import FlamegraphProfiler
+from .environment.dask import DaskClusterInfo, DaskWorkerConfig
 from .environment.hq import HqClusterInfo, HqSumWorkerResource, HqWorkerConfig
 from .workloads import Workload
 from .workloads.sleep import Sleep, SleepHQ
@@ -95,3 +96,25 @@ def create_resources_hq_benchmarks(artifacts: List[BuiltBinary], repeat_count=2)
         workloads,
         repeat_count=repeat_count,
     )
+
+
+def single_node_hq_cluster(hq_path: Path, worker_threads=128, **env) -> HqClusterInfo:
+    return HqClusterInfo(
+        cluster=ClusterInfo(monitor_nodes=True, node_list=Local()),
+        environment_params=dict(worker_threads=worker_threads, **env),
+        workers=[HqWorkerConfig(cpus=worker_threads)],
+        binary=hq_path,
+        worker_profilers=[],
+    )
+
+
+def single_node_dask_cluster(worker_threads=128) -> DaskClusterInfo:
+    return DaskClusterInfo(
+        cluster_info=ClusterInfo(monitor_nodes=True, node_list=Local()),
+        environment_params=dict(worker_threads=worker_threads),
+        workers=[DaskWorkerConfig(cores=worker_threads)],
+    )
+
+
+def get_hq_binary(**kwargs) -> Path:
+    return next(iterate_binaries([BuildConfig(**kwargs)])).binary_path

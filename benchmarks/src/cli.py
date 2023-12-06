@@ -1,20 +1,21 @@
 import datetime
 import inspect
 import logging
+import shutil
 from pathlib import Path
 from typing import Iterable, Optional, Type
 
 import typer
 from typer import Typer
 
-from src.submit.slurm import run_in_slurm, SlurmOptions
-from src.utils.benchmark import (
+from .benchmark.database import Database
+from .benchmark.identifier import BenchmarkDescriptor, create_benchmark_instances
+from .submit.slurm import run_in_slurm, SlurmOptions
+from .utils.benchmark import (
     run_benchmarks_with_postprocessing,
     has_work_left,
     load_or_create_database,
 )
-from src.benchmark.database import Database
-from src.benchmark.identifier import BenchmarkDescriptor, create_benchmark_instances
 
 
 class TestCase:
@@ -72,7 +73,7 @@ def run_test_case(workdir: Path, case: TestCase, slurm: bool):
                 name="slurm-auto-submit",
                 queue="qcpu_exp",
                 project="DD-21-9",
-                walltime=datetime.timedelta(minutes=30),
+                walltime=datetime.timedelta(hours=2),
                 init_script=Path("/mnt/proj2/dd-21-9/beranekj/modules.sh"),
                 workdir=Path("slurm").absolute(),
             ),
@@ -87,9 +88,12 @@ def register_case(app: Typer):
         case = cls()
 
         @app.command(name=case.name())
-        def command(workdir: Optional[Path] = None, slurm: bool = False):
+        def command(workdir: Optional[Path] = None, slurm: bool = False, clear: bool = False):
             if workdir is None:
                 workdir = Path("benchmarks") / case.name()
+            workdir = workdir.absolute()
+            if clear:
+                shutil.rmtree(workdir, ignore_errors=True)
             run_test_case(workdir=workdir, case=case, slurm=slurm)
 
         command.__doc__ = f"""

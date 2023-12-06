@@ -2,15 +2,15 @@ import datetime
 from pathlib import Path
 from typing import Iterable
 
-from definitions import single_node_hq_cluster, single_node_dask_cluster, get_hq_binary
 from src.analysis.chart import render_chart_to_png
 from src.analysis.dataframe import DataFrameExtractor
 from src.benchmark.database import Database, DatabaseRecord
 from src.benchmark.identifier import BenchmarkDescriptor
+from src.benchmark_defs import single_node_hq_cluster, single_node_dask_cluster, get_hq_binary
+from src.cli import TestCase, register_case, create_cli
 from src.workloads import SleepHQ
 from src.workloads.empty import EmptyDask
 from src.workloads.sleep import SleepDask, SleepDaskSpawn
-from test_case import TestCase, register_case, create_cli
 
 cli = create_cli()
 
