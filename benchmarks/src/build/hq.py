@@ -55,7 +55,9 @@ def build_tag(config: BuildConfig, resolved_ref: str) -> Path:
         logging.info(f"{tag} already built at {path}")
         return path
 
-    build_description = f"{tag} (release={config.release}, zero_worker={config.zero_worker})"
+    build_description = (
+        f"{tag} (release={config.release}, zero_worker={config.zero_worker}, debug_symbols={config.debug_symbols})"
+    )
     with checkout_tag(tag):
         logging.info(f"Building {build_description}")
         env = os.environ.copy()

@@ -8,7 +8,7 @@ import dataclasses
 import typer
 
 from src.benchmark.identifier import BenchmarkDescriptor
-from src.benchmark_defs import create_basic_hq_benchmarks
+from src.benchmark_defs import create_basic_hq_benchmarks, get_hq_binary, single_node_hq_cluster
 from src.build.hq import BuildConfig, iterate_binaries
 from src.build.repository import TAG_WORKSPACE
 from src.clusterutils import ClusterInfo
@@ -93,6 +93,22 @@ def sleep():
     )
 
     run_benchmarks_with_postprocessing(workdir, descriptions)
+
+
+def profile():
+    from src.clusterutils.profiler import SamplyProfiler
+
+    hq_path = get_hq_binary(debug_symbols=True)
+
+    hq_env = dataclasses.replace(
+        single_node_hq_cluster(hq_path, worker_threads=16), worker_profilers=[SamplyProfiler(100)]
+    )
+    sleep_time = 250
+    task_count = 50000
+    workload = SleepHQ(task_count=task_count, sleep_duration=sleep_time / task_count)
+    run_benchmarks_with_postprocessing(
+        Path("benchmarks"), [BenchmarkDescriptor(env_descriptor=hq_env, workload=workload)]
+    )
 
 
 if __name__ == "__main__":
