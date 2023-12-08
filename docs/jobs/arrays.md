@@ -100,3 +100,19 @@ If `items.json` contained this content:
 ```
 then HyperQueue would create two tasks, one with `HQ_ENTRY` set to `{"batch_size": 4, "learning_rate": 0.01}`
 and the other with `HQ_ENTRY` set to `{"batch_size": 8, "learning_rate": 0.001}`.
+
+### Combining with `--each-line`/`--from-json` with `--array`
+
+Option `--each-line` or `--from-json` can be combined with option `--array`.
+In such case, only a subset of lines/json will be submited.
+If `--array` defines an ID that exceeds the number of lines in the file (or the number of elements in JSON), then the ID is silently removed.
+
+
+For example:
+
+```commandline
+$ hq submit --each-line input.txt --array "2, 8-10"
+```
+
+If `input.txt` has sufficiently many lines then it will create array job with four tasks. One for 3rd line of file and three tasks for 9th-11th line
+(note that first line has id 0). It analogously works for `--from-json`.
