@@ -1,29 +1,42 @@
 In distributed systems, failure is inevitable. This sections describes how HyperQueue handles various types of failures
 and how can you affect its behavior.
 
-## Resubmitting jobs
-When a job fails or is canceled, you might want to submit it again, without the need to pass all the original
-parameters. You can achieve this using **resubmit**:
+## Resubmitting array jobs
+When a job fails or is canceled, you can submit it again. 
+However, in case of [task arrays](arrays.md), different tasks may end in different states, and often we want to 
+recompute only tasks with a specific status (e.g. failed tasks).
 
-```bash
-$ hq job resubmit <job-id>
+By following combination of commands you may recompute only failed tasks. Let us assume that we want to recompute
+all failed jobs in job 5:
+
+```commandline
+$ hq submit --array=`hq job task-ids 5 --filter=failed` ./my-computation
+```
+It works as follows: Command `hq job task-ids 5 --filter=failed` returns IDs of failed jobs of job `5`, and we set
+it to `--array` parameter that starts only tasks for given IDs.
+
+If we want to recompute all failed tasks and all canceled tasks we can do it as follows:
+
+```commandline
+$ hq submit --array=`hq job task-ids 5 --filter=failed,canceled` ./my-computation
 ```
 
-It wil create a new job that has the same configuration as the job with the entered job id. 
+Note that it also works with `--each-line` or `--from-json`, i.e.:
 
-This is especially useful for [task arrays](arrays.md). By default, `resubmit` will submit all tasks of the original job;
-however, you can specify only a subset of tasks based on their [state](jobs.md#task-state):
+```commandline
+# Original computation
+$ hq submit --each-line=input.txt ./my-computation
 
-```bash
-$ hq job resubmit <job-id> --status=failed,canceled
+
+# Resubmitting failed jobs
+$ hq submit --each-line=input.txt --array=`hq job task-ids last --filter=failed` ./my-computation
 ```
 
-Using this command you can resubmit e.g. only the tasks that have failed, without the need to recompute all tasks of
-a large task array.
 
 ## Task restart
-Sometimes a worker might crash while it is executing some task. In that case the server will reschedule that task to a
-different worker and the task will begin executing from the beginning.
+
+Sometimes a worker might crash while it is executing some task. In that case the server will automatically
+reschedule that task to a different worker and the task will begin executing from the beginning.
 
 In order to let the executed application know that the same task is being executed repeatedly, HyperQueue assigns each
 execution a separate **Instance ID**. It is a 32b non-negative number that identifies each (re-)execution of a task.
@@ -43,7 +56,7 @@ You can change this behavior with the `--max-fails=<X>` option of the `submit` c
 If specified, once more tasks than `X` tasks fail, the rest of the job's tasks that were not completed yet will be canceled.
 
 For example:
-```bash
+```commandline
 $ hq submit --array 1-1000 --max-fails 5 ...
 ```
 This will create a task array with `1000` tasks. Once `5` or more tasks fail, the remaining uncompleted tasks of the job
