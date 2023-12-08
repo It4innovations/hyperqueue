@@ -1,6 +1,7 @@
 # Dev
 
 ## Breaking change
+
 * The output format of the `job info` command with JSON output mode has been changed. Note that
 the JSON output mode is still unstable.
 
