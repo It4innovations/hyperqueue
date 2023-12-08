@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
 
@@ -17,6 +18,7 @@ use crate::client::job::WorkerMap;
 use crate::client::output::common::{group_jobs_by_status, resolve_task_paths, TaskToPathsMap};
 use crate::client::output::outputs::{Output, OutputStream};
 use crate::client::output::Verbosity;
+use crate::common::arraydef::IntArray;
 use crate::common::manager::info::{GetManagerInfo, ManagerType};
 use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
 use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
@@ -197,6 +199,14 @@ impl Output for JsonOutput {
     ) {
         let map = resolve_task_paths(&job.1, server_uid);
         self.print(format_tasks(tasks, map));
+    }
+
+    fn print_task_ids(&self, job_task_ids: Vec<(JobId, IntArray)>) {
+        let map: HashMap<JobId, Vec<u32>> = job_task_ids
+            .into_iter()
+            .map(|(key, value)| (key, value.iter().collect()))
+            .collect();
+        self.print(json!(map));
     }
 
     fn print_summary(&self, filename: &Path, summary: Summary) {

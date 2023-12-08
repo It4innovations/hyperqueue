@@ -1,14 +1,16 @@
+use crate::client::commands::job::JobTaskIdsOpts;
 use crate::client::globalsettings::GlobalSettings;
 use crate::client::job::get_worker_map;
 use crate::client::output::{Verbosity, VerbosityFlag};
 use crate::common::arraydef::IntArray;
 use crate::common::cli::{parse_last_range, parse_last_single_id, TaskSelectorArg};
-use crate::rpc_call;
+use crate::common::error::HqError;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDetailRequest, SingleIdSelector, TaskIdSelector,
     TaskSelector, TaskStatusSelector, ToClientMessage,
 };
+use crate::{rpc_call, JobId};
 
 #[derive(clap::Parser)]
 pub struct TaskOpts {
@@ -125,5 +127,46 @@ pub async fn output_job_task_info(
         }
     }
 
+    Ok(())
+}
+
+pub async fn output_job_task_ids(
+    gsettings: &GlobalSettings,
+    session: &mut ClientSession,
+    opts: JobTaskIdsOpts,
+) -> anyhow::Result<()> {
+    let message = FromClientMessage::JobDetail(JobDetailRequest {
+        job_id_selector: opts.selector,
+        task_selector: Some(TaskSelector {
+            id_selector: TaskIdSelector::All,
+            status_selector: if opts.filter.is_empty() {
+                TaskStatusSelector::All
+            } else {
+                TaskStatusSelector::Specific(opts.filter)
+            },
+        }),
+    });
+    let response =
+        rpc_call!(session.connection(), message, ToClientMessage::JobDetailResponse(r) => r)
+            .await?;
+    let mut job_task_ids: Vec<_> = response
+        .details
+        .iter()
+        .map(|(job_id, detail)| {
+            Ok((
+                *job_id,
+                IntArray::from_ids(
+                    detail
+                        .as_ref()
+                        .ok_or_else(|| HqError::GenericError("Job Id not found".to_string()))?
+                        .tasks
+                        .iter()
+                        .map(|info| info.task_id.as_num()),
+                ),
+            ))
+        })
+        .collect::<crate::Result<Vec<(JobId, IntArray)>>>()?;
+    job_task_ids.sort_unstable_by_key(|x| x.0);
+    gsettings.printer().print_task_ids(job_task_ids);
     Ok(())
 }

@@ -9,7 +9,7 @@ use tako::WorkerId;
 use crate::client::commands::autoalloc::AutoAllocOpts;
 use crate::client::commands::event::EventLogOpts;
 use crate::client::commands::job::{
-    JobCancelOpts, JobCatOpts, JobForgetOpts, JobInfoOpts, JobListOpts,
+    JobCancelOpts, JobCatOpts, JobForgetOpts, JobInfoOpts, JobListOpts, JobTaskIdsOpts,
 };
 use crate::client::commands::log::LogOpts;
 use crate::client::commands::server::ServerOpts;
@@ -320,6 +320,8 @@ pub enum JobCommand {
     Wait(JobWaitOpts),
     /// Interactively observe the execution of a job
     Progress(JobProgressOpts),
+    /// Print tasks Ids for given job
+    TaskIds(JobTaskIdsOpts),
 }
 
 #[derive(Parser)]

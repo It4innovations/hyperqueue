@@ -10,6 +10,7 @@ use std::path::Path;
 
 use crate::client::output::common::TaskToPathsMap;
 use crate::client::output::Verbosity;
+use crate::common::arraydef::IntArray;
 use crate::server::job::JobTaskInfo;
 use crate::JobId;
 use core::time::Duration;
@@ -77,6 +78,7 @@ pub trait Output {
         server_uid: &str,
         verbosity: Verbosity,
     );
+    fn print_task_ids(&self, jobs_task_id: Vec<(JobId, IntArray)>);
 
     // Log
     fn print_summary(&self, filename: &Path, summary: Summary);

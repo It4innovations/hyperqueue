@@ -13,6 +13,7 @@ use crate::client::output::common::{
 };
 use crate::client::output::outputs::{Output, OutputStream};
 use crate::client::status::{job_status, Status};
+use crate::common::arraydef::IntArray;
 use crate::server::autoalloc::Allocation;
 use crate::server::job::JobTaskInfo;
 use crate::stream::reader::logfile::Summary;
@@ -129,6 +130,8 @@ impl Output for Quiet {
         _verbosity: Verbosity,
     ) {
     }
+
+    fn print_task_ids(&self, _job_task_ids: Vec<(JobId, IntArray)>) {}
 
     // Log
     fn print_summary(&self, _filename: &Path, _summary: Summary) {}

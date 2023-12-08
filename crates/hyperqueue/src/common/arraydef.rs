@@ -38,19 +38,22 @@ impl IntArray {
         IntArray { ranges }
     }
 
-    pub fn from_ids(ids: Vec<u32>) -> IntArray {
+    // ids has to be sorted!
+    pub fn from_ids(ids: impl Iterator<Item = u32>) -> IntArray {
         let mut ranges: Vec<IntRange> = Vec::new();
+        let mut last_id = None;
         for id in ids {
-            if let Some(pos) = ranges.iter().position(|x| id == (x.start + x.count)) {
-                ranges[pos].count += 1;
+            if last_id.map(|last_id| last_id + 1 == id).unwrap_or(false) {
+                ranges.last_mut().unwrap().count += 1;
             } else {
                 ranges.push(IntRange::new(id, 1, 1));
             }
+            last_id = Some(id)
         }
         IntArray { ranges }
     }
     pub fn from_id(id: u32) -> IntArray {
-        Self::from_ids(vec![id])
+        Self::from_ids([id].iter().copied())
     }
 
     pub fn from_range(start: u32, count: u32) -> Self {
@@ -104,7 +107,11 @@ impl fmt::Display for IntArray {
                 ));
             }
         }
-        write!(f, "{}", &str[0..str.len() - 2])
+        if str.len() >= 2 {
+            write!(f, "{}", &str[0..str.len() - 2])
+        } else {
+            Ok(())
+        }
     }
 }
 

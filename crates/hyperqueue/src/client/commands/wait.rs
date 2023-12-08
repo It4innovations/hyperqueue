@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::io::Write;
 use std::time::{Duration, SystemTime};
 use tokio::time::sleep;
@@ -17,7 +18,7 @@ use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDetailRequest, JobInfo, JobInfoRequest, TaskIdSelector,
     TaskSelector, TaskStatusSelector, ToClientMessage, WaitForJobsRequest,
 };
-use crate::{rpc_call, JobId, JobTaskCount, Set};
+use crate::{rpc_call, JobId, JobTaskCount};
 use colored::Colorize;
 
 pub async fn wait_for_jobs(
@@ -72,18 +73,23 @@ pub async fn wait_for_jobs(
 
 pub async fn wait_for_jobs_with_progress(
     session: &mut ClientSession,
-    mut jobs: Vec<JobInfo>,
+    jobs: &[JobInfo],
 ) -> anyhow::Result<()> {
-    jobs.retain(|info| !is_terminated(info));
-
-    if jobs.is_empty() {
+    if jobs.iter().all(is_terminated) {
         log::warn!("There are no jobs to wait for");
     } else {
-        let total_tasks: JobTaskCount = jobs.iter().map(|info| info.n_tasks).sum();
-        let mut remaining_job_ids: Set<JobId> = jobs.into_iter().map(|info| info.id).collect();
+        let total_tasks: JobTaskCount = jobs
+            .iter()
+            .filter(|info| !is_terminated(info))
+            .map(|info| info.n_tasks)
+            .sum();
+        let mut remaining_job_ids: BTreeSet<JobId> = jobs
+            .iter()
+            .filter(|info| !is_terminated(info))
+            .map(|info| info.id)
+            .collect();
 
         let total_jobs = remaining_job_ids.len();
-
         log::info!(
             "Waiting for {} {} with {} {}",
             total_jobs,
@@ -95,15 +101,14 @@ pub async fn wait_for_jobs_with_progress(
         let mut counters = JobTaskCounters::default();
 
         loop {
-            let ids_ref = &mut remaining_job_ids;
             let response = rpc_call!(
                 session.connection(),
                 FromClientMessage::JobInfo(JobInfoRequest {
-                    selector: IdSelector::Specific(IntArray::from_ids(ids_ref.iter().map(|&id| id.into()).collect())),
+                    selector: IdSelector::Specific(IntArray::from_ids(remaining_job_ids.iter().map(|x| x.as_num()))),
                 }),
                 ToClientMessage::JobInfoResponse(r) => r
             )
-                .await?;
+            .await?;
 
             let mut current_counters = counters;
             for job in &response.jobs {

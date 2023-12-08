@@ -35,6 +35,7 @@ use crate::client::output::common::{
 };
 use crate::client::output::json::format_datetime;
 use crate::client::output::Verbosity;
+use crate::common::arraydef::IntArray;
 use crate::common::utils::str::{pluralize, select_plural, truncate_middle};
 use crate::worker::start::WORKER_EXTRA_PROCESS_PID;
 use anyhow::Error;
@@ -422,6 +423,12 @@ impl Output for CliOutput {
             "successfully".color(colored::Color::Green),
             job.info.id
         );
+    }
+
+    fn print_task_ids(&self, job_task_ids: Vec<(JobId, IntArray)>) {
+        for (_, array) in &job_task_ids {
+            println!("{}", array);
+        }
     }
 
     fn print_job_list(&self, jobs: Vec<JobInfo>, total_jobs: usize) {

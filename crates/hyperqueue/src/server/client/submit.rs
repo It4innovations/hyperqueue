@@ -194,7 +194,7 @@ pub async fn handle_resubmit(
 
                         ids.sort_unstable();
                         JobDescription::Array {
-                            ids: IntArray::from_ids(ids),
+                            ids: IntArray::from_ids(ids.iter().copied()),
                             entries: entries.clone(),
                             task_desc: task_desc.clone(),
                         }

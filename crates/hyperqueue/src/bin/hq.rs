@@ -11,7 +11,7 @@ use hyperqueue::client::commands::autoalloc::command_autoalloc;
 use hyperqueue::client::commands::event::command_event_log;
 use hyperqueue::client::commands::job::{
     cancel_job, forget_job, output_job_cat, output_job_detail, output_job_list, output_job_summary,
-    JobCancelOpts, JobCatOpts, JobForgetOpts, JobInfoOpts, JobListOpts,
+    JobCancelOpts, JobCatOpts, JobForgetOpts, JobInfoOpts, JobListOpts, JobTaskIdsOpts,
 };
 use hyperqueue::client::commands::log::command_log;
 use hyperqueue::client::commands::server::command_server;
@@ -32,7 +32,8 @@ use hyperqueue::client::output::outputs::{Output, Outputs};
 use hyperqueue::client::output::quiet::Quiet;
 use hyperqueue::client::status::Status;
 use hyperqueue::client::task::{
-    output_job_task_info, output_job_task_list, TaskCommand, TaskInfoOpts, TaskListOpts, TaskOpts,
+    output_job_task_ids, output_job_task_info, output_job_task_list, TaskCommand, TaskInfoOpts,
+    TaskListOpts, TaskOpts,
 };
 use hyperqueue::common::cli::{
     get_task_id_selector, get_task_selector, ColorPolicy, CommonOpts, GenerateCompletionOpts,
@@ -137,6 +138,14 @@ async fn command_job_resubmit(
     resubmit_computation(gsettings, &mut connection, opts).await
 }
 
+async fn command_job_task_ids(
+    gsettings: &GlobalSettings,
+    opts: JobTaskIdsOpts,
+) -> anyhow::Result<()> {
+    let mut connection = get_client_session(gsettings.server_directory()).await?;
+    output_job_task_ids(gsettings, &mut connection, opts).await
+}
+
 async fn command_job_wait(gsettings: &GlobalSettings, opts: JobWaitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_session(gsettings.server_directory()).await?;
     wait_for_jobs(gsettings, &mut connection, opts.selector).await
@@ -155,7 +164,7 @@ async fn command_job_progress(
         ToClientMessage::JobInfoResponse(r) => r
     )
     .await?;
-    wait_for_jobs_with_progress(&mut session, response.jobs).await
+    wait_for_jobs_with_progress(&mut session, &response.jobs).await
 }
 
 async fn command_task_list(gsettings: &GlobalSettings, opts: TaskListOpts) -> anyhow::Result<()> {
@@ -431,6 +440,9 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Progress(opts),
         }) => command_job_progress(&gsettings, opts).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::TaskIds(opts),
+        }) => command_job_task_ids(&gsettings, opts).await,
         SubCommand::Task(TaskOpts {
             subcmd: TaskCommand::List(opts),
         }) => command_task_list(&gsettings, opts).await,
