@@ -6,6 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Any, List, Iterable
 
+import dask
 import distributed
 import numpy as np
 import pandas as pd
@@ -129,7 +130,7 @@ class LigenDaskWorkload(LigenHQWorkload):
                 self.submit_ligen_benchmark(env, client)
         return create_result(timer.duration())
 
-    def submit_ligen_benchmark(self, env: DaskEnvironment, client: distributed.Client) -> SubmittedJob:
+    def submit_ligen_benchmark(self, env: DaskEnvironment, client: distributed.Client):
         from ligate.ligen.common import LigenTaskContext
         from ligate.ligen.expansion import create_configs_from_smi, expand_task
         from ligate.ligen.virtual_screening import ScreeningConfig, screening_task
@@ -150,7 +151,8 @@ class LigenDaskWorkload(LigenHQWorkload):
         # TODO: use client.map
         expand_tasks = []
         for config in expansion_configs:
-            expand_tasks.append((config, client.submit(expand_task, ctx, config)))
+            with dask.annotate(resources=dict(cores=1)):
+                expand_tasks.append((config, client.submit(expand_task, ctx, config)))
 
         screen_tasks = []
         for expand_config, expand_future in expand_tasks:
@@ -166,7 +168,8 @@ class LigenDaskWorkload(LigenHQWorkload):
                 num_workers_docknscore=self.screening_threads,
             )
 
-            future = client.submit(screening_task, ctx, config, expand_future)
+            with dask.annotate(resources=dict(cores=self.screening_threads)):
+                future = client.submit(screening_task, ctx, config, expand_future)
             screen_tasks.append(future)
 
         # dask.visualize(*screen_tasks, filename="out.svg")
@@ -232,16 +235,17 @@ class DaskVsHqLigen(TestCase):
 
     def generate_descriptors(self) -> Iterable[BenchmarkDescriptor]:
         hq_path = get_hq_binary()
-        hq_env = single_node_hq_cluster(hq_path, worker_threads=16)
-        dask_env = single_node_dask_cluster(worker_threads=16)
+
+        worker_threads = min(multiprocessing.cpu_count(), 64)
+        hq_env = single_node_hq_cluster(hq_path, worker_threads=worker_threads)
+        dask_env = single_node_dask_cluster(worker_threads=worker_threads)
         timeout = datetime.timedelta(minutes=10)
 
-        input_smi = CURRENT_DIR / "datasets/ligen/artif-10.smi"
-        threads_variants = [1, 2, 8]
-        max_molecules_variants = [5, 20, 50]
+        input_smi = CURRENT_DIR / "datasets/ligen/artif-200.smi"
+        variants = [(1, 1), (4, 4), (8, 8), (32, 4)]  # One molecule per task, one thread per task
 
         def gen_descriptions(env: EnvironmentDescriptor, workload_cls) -> List[BenchmarkDescriptor]:
-            for threads, max_molecules in itertools.product(threads_variants, max_molecules_variants):
+            for max_molecules, threads in variants:
                 if max_molecules == 1 and threads > 1:
                     continue
                 workload = workload_cls(smi_path=input_smi, max_molecules=max_molecules, screening_threads=threads)
@@ -272,12 +276,12 @@ def benchmark_aggregated_vs_separate_tasks():
     """
     hq_path = get_hq_binary()
     env = single_node_hq_cluster(hq_path, worker_threads=min(multiprocessing.cpu_count(), 64))
-    input_smi = get_dataset_path(Path("ligen/artif-32.smi"))
+    input_smi = get_dataset_path(Path("ligen/artif-200.smi"))
 
-    max_molecules_variants = [1, 4, 8, 16]
+    variants = [(1, 1), (4, 4), (8, 8)]
     descriptions = []
-    for max_molecules in max_molecules_variants:
-        workload = LigenHQWorkload(smi_path=input_smi, max_molecules=max_molecules, screening_threads=max_molecules)
+    for max_molecules, num_threads in variants:
+        workload = LigenHQWorkload(smi_path=input_smi, max_molecules=max_molecules, screening_threads=num_threads)
         descriptions.append(
             BenchmarkDescriptor(env_descriptor=env, workload=workload, timeout=datetime.timedelta(minutes=10))
         )

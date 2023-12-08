@@ -15,7 +15,12 @@ from ..clusterutils.node_list import Local
 
 @dataclasses.dataclass(frozen=True)
 class DaskWorkerConfig:
-    cores: int
+    """
+    One Dask worker corresponds to one node.
+    """
+
+    processes: int
+    threads_per_process: int
 
 
 @dataclasses.dataclass(frozen=True)
@@ -67,8 +72,12 @@ class DaskEnvironment(Environment, EnvStateManager):
         assert isinstance(self.info.cluster_info.node_list, Local)
 
         worker_count = len(self.info.workers)
+        assert worker_count == 1
         self.local_cluster = LocalCluster(
-            n_workers=worker_count, threads_per_worker=self.info.workers[0].cores, dashboard_address=None
+            n_workers=self.info.workers[0].processes,
+            threads_per_worker=self.info.workers[0].threads_per_process,
+            resources=dict(cores=self.info.workers[0].threads_per_process),
+            dashboard_address=None,
         )
         self.client = self.local_cluster.get_client()
         self.client.wait_for_workers(n_workers=worker_count)

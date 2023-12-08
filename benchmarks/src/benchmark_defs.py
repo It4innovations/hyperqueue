@@ -112,7 +112,7 @@ def single_node_dask_cluster(worker_threads=128) -> DaskClusterInfo:
     return DaskClusterInfo(
         cluster_info=ClusterInfo(monitor_nodes=True, node_list=Local()),
         environment_params=dict(worker_threads=worker_threads),
-        workers=[DaskWorkerConfig(cores=worker_threads)],
+        workers=[DaskWorkerConfig(processes=1, threads_per_process=worker_threads)],
     )
 
 
