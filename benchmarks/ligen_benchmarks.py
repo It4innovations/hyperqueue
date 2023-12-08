@@ -1,5 +1,4 @@
 import datetime
-import itertools
 import logging
 import multiprocessing
 from collections import defaultdict
@@ -176,49 +175,6 @@ class LigenDaskWorkload(LigenHQWorkload):
         client.gather(screen_tasks)
 
 
-def analyze_results_utilization(data_path: Path) -> pd.DataFrame:
-    results = defaultdict(list)
-
-    db = Database(data_path)
-    for key, row in db.data.items():
-        workdir = row.benchmark_metadata["workdir"]
-        params = row.workload_params
-        duration = row.duration
-
-        results["input"].append(params["smi"])
-        results["hq-worker-threads"].append(row.environment_params["worker_threads"])
-        results["screening-threads"].append(params["screening-threads"])
-        results["molecules-per-task"].append(params["molecules-per-task"])
-        results["duration"].append(duration)
-
-        cluster_report = ClusterReport.load(Path(workdir))
-        worker_node_utilizations = []
-        worker_cpu_utilizations = []
-
-        for node, records in cluster_report.monitoring.items():
-            processes = node.processes
-            worker_processes = tuple(proc.pid for proc in processes if proc.key.startswith("worker"))
-            if len(worker_processes) > 0:
-                for record in records:
-                    avg_node_util = np.mean(record.resources.cpu)
-                    worker_node_utilizations.append(avg_node_util)
-
-                    worker_cpu_util = 0
-                    for pid, process_resources in record.processes.items():
-                        pid = int(pid)
-                        if pid in worker_processes:
-                            worker_cpu_util += process_resources.cpu + process_resources.cpu_children
-                    worker_cpu_utilizations.append(worker_cpu_util)
-
-        node_util = np.mean(worker_node_utilizations)
-        worker_util = np.mean(worker_cpu_utilizations)
-
-        results["worker-node-util"].append(node_util)
-        results["worker-cpu-util"].append(worker_util)
-
-    return pd.DataFrame(results)
-
-
 def get_dataset_path(path: Path) -> Path:
     return CURRENT_DIR / "datasets" / path
 
@@ -257,6 +213,11 @@ class DaskVsHqLigen(TestCase):
     def postprocess(self, workdir: Path, database: Database):
         import seaborn as sns
 
+        df = analyze_results_utilization(database)
+        print(f"""UTILIZATION
+{df}
+""")
+
         df = (
             DataFrameExtractor(database)
             .extract("index", "duration", "environment")
@@ -267,6 +228,48 @@ class DaskVsHqLigen(TestCase):
         ax = sns.lineplot(df, x="threads", y="duration", hue="environment", marker="o")
         ax.set(ylabel="Duration [s]", xlabel="Threads")
         render_chart_to_png(workdir / "dask-vs-hq-ligen.png")
+
+
+def analyze_results_utilization(db: Database) -> pd.DataFrame:
+    results = defaultdict(list)
+
+    for key, row in db.data.items():
+        workdir = row.benchmark_metadata["workdir"]
+        params = row.workload_params
+        duration = row.duration
+
+        results["input"].append(params["smi"])
+        results["hq-worker-threads"].append(row.environment_params["worker_threads"])
+        results["screening-threads"].append(params["screening-threads"])
+        results["molecules-per-task"].append(params["molecules-per-task"])
+        results["duration"].append(duration)
+
+        cluster_report = ClusterReport.load(Path(workdir))
+        worker_node_utilizations = []
+        worker_cpu_utilizations = []
+
+        for node, records in cluster_report.monitoring.items():
+            processes = node.processes
+            worker_processes = tuple(proc.pid for proc in processes if proc.key.startswith("worker"))
+            if len(worker_processes) > 0:
+                for record in records:
+                    avg_node_util = np.mean(record.resources.cpu)
+                    worker_node_utilizations.append(avg_node_util)
+
+                    worker_cpu_util = 0
+                    for pid, process_resources in record.processes.items():
+                        pid = int(pid)
+                        if pid in worker_processes:
+                            worker_cpu_util += process_resources.cpu + process_resources.cpu_children
+                    worker_cpu_utilizations.append(worker_cpu_util)
+
+        node_util = np.mean(worker_node_utilizations)
+        worker_util = np.mean(worker_cpu_utilizations)
+
+        results["worker-node-util"].append(node_util)
+        results["worker-cpu-util"].append(worker_util)
+
+    return pd.DataFrame(results)
 
 
 def benchmark_aggregated_vs_separate_tasks():
