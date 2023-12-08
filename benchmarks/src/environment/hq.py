@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from hyperqueue import Client
+from hyperqueue.task.function import PythonEnv
 from ..clusterutils import ClusterInfo
 from ..clusterutils.cluster_helper import ClusterHelper, StartProcessArgs
 from ..clusterutils.node_list import Local
@@ -227,6 +228,8 @@ class HqEnvironment(Environment, EnvStateManager):
         return result
 
     def create_client(self, **kwargs) -> Client:
+        if "python_env" not in kwargs:
+            kwargs["python_env"] = PythonEnv(prologue=f"source {os.environ['VIRTUAL_ENV']}/bin/activate")
         return Client(self.server_dir, **kwargs)
 
     def _shared_args(self) -> List[str]:
