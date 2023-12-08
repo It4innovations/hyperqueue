@@ -59,6 +59,18 @@ pub struct JobForgetOpts {
     pub filter: Vec<CompletedJobStatus>,
 }
 
+#[derive(Parser)]
+pub struct JobTaskIdsOpts {
+    /// Single ID, ID range or `last` to display the most recently submitted job
+    #[arg(value_parser = parse_last_all_range)]
+    pub selector: IdSelector,
+
+    /// Select only tasks with given state(s)
+    /// You can use multiple states separated by a comma.
+    #[arg(long, value_delimiter(','), value_enum)]
+    pub filter: Vec<Status>,
+}
+
 #[derive(clap::ValueEnum, Clone, Debug)]
 pub enum CompletedJobStatus {
     Finished,

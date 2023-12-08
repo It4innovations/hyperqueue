@@ -1476,3 +1476,22 @@ time.sleep(3600)
     parent, child = pids
     wait_for_pid_exit(parent)
     wait_for_pid_exit(child)
+
+def test_job_task_ids(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--array=2,7,9,20-30", "--", "python", "-c", "import os; assert os.environ['HQ_TASK_ID'] not in ['25', '26', '27', '28']"])
+    hq_env.start_workers(1, cpus=1)
+    wait_for_job_state(hq_env, 1, "FAILED")
+
+    result = hq_env.command(["job", "task-ids", "1"])
+    assert result == "2, 7, 9, 20-30\n"
+
+    result = hq_env.command(["job", "task-ids", "1", "--filter", "finished"])
+    assert result == "2, 7, 9, 20-24, 29-30\n"
+
+    result = hq_env.command(["job", "task-ids", "1", "--filter", "failed"])
+    assert result == "25-28\n"
+
+    result = hq_env.command(["job", "task-ids", "1", "--filter", "canceled"])
+    assert result == "\n"
+

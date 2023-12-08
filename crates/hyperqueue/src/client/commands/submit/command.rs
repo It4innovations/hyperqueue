@@ -681,7 +681,7 @@ pub(crate) async fn send_submit_request(
         )
         .await?;
     } else if progress {
-        wait_for_jobs_with_progress(session, vec![info]).await?;
+        wait_for_jobs_with_progress(session, &[info]).await?;
     }
     Ok(())
 }
