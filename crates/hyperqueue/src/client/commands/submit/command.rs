@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::io::{BufRead, Read};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -246,14 +247,14 @@ pub struct SubmitJobConfOpts {
     // Parameters for creating array jobs
     /// Create a task array where a task will be created for each line of the given file.
     /// The corresponding line will be passed to the task in environment variable `HQ_ENTRY`.
-    #[arg(long, conflicts_with("array"), value_hint = clap::ValueHint::FilePath)]
+    #[arg(long, value_hint = clap::ValueHint::FilePath)]
     each_line: Option<PathBuf>,
 
     /// Create a task array where a task will be created for each item of a JSON array stored in
     /// the given file.
     /// The corresponding item from the array will be passed as a JSON string to the task in
     /// environment variable `HQ_ENTRY`.
-    #[arg(long, conflicts_with("array"), conflicts_with("each_line"), value_hint = clap::ValueHint::FilePath)]
+    #[arg(long, conflicts_with("each_line"), value_hint = clap::ValueHint::FilePath)]
     from_json: Option<PathBuf>,
 
     /// Create a task array where a task will be created for each number in the specified number range.
@@ -687,7 +688,7 @@ pub(crate) async fn send_submit_request(
 }
 
 fn get_ids_and_entries(opts: &JobSubmitOpts) -> anyhow::Result<(IntArray, Option<Vec<BString>>)> {
-    let entries = if let Some(ref filename) = opts.conf.each_line {
+    let mut entries = if let Some(ref filename) = opts.conf.each_line {
         Some(read_lines(filename)?)
     } else if let Some(ref filename) = opts.conf.from_json {
         Some(make_entries_from_json(filename)?)
@@ -695,10 +696,30 @@ fn get_ids_and_entries(opts: &JobSubmitOpts) -> anyhow::Result<(IntArray, Option
         None
     };
 
-    let ids = if let Some(ref entries) = entries {
+    let ids = if let Some(array) = &opts.conf.array {
+        if let Some(es) = entries {
+            let id_set: BTreeSet<u32> = array
+                .iter()
+                .filter(|id| (*id as usize) < es.len())
+                .collect();
+            entries = Some(
+                es.into_iter()
+                    .enumerate()
+                    .filter_map(|(id, value)| {
+                        if id_set.contains(&(id as u32)) {
+                            Some(value)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+            );
+            IntArray::from_ids(id_set.iter().copied())
+        } else {
+            array.clone()
+        }
+    } else if let Some(ref entries) = entries {
         IntArray::from_range(0, entries.len() as JobTaskCount)
-    } else if let Some(ref array) = opts.conf.array {
-        array.clone()
     } else {
         IntArray::from_id(0)
     };
