@@ -8,13 +8,12 @@ use crate::client::status::{job_status, Status};
 use crate::common::cli::{parse_last_all_range, parse_last_range, TaskSelectorArg};
 use crate::common::utils::str::pluralize;
 use crate::rpc_call;
-use crate::transfer::connection::{ClientConnection, ClientSession};
+use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     CancelJobResponse, CancelRequest, ForgetJobRequest, FromClientMessage, IdSelector, JobDetail,
     JobDetailRequest, JobInfoRequest, TaskIdSelector, TaskSelector, TaskStatusSelector,
     ToClientMessage,
 };
-use crate::JobId;
 
 #[derive(Parser)]
 pub struct JobListOpts {
@@ -105,28 +104,6 @@ pub struct JobCatOpts {
     /// Type of output stream to display
     #[arg(value_enum)]
     pub stream: OutputStream,
-}
-
-pub async fn get_last_job_id(connection: &mut ClientConnection) -> crate::Result<Option<JobId>> {
-    let message = FromClientMessage::JobInfo(JobInfoRequest {
-        selector: IdSelector::LastN(1),
-    });
-    let response = rpc_call!(connection, message, ToClientMessage::JobInfoResponse(r) => r).await?;
-
-    Ok(response.jobs.last().map(|job| job.id))
-}
-
-pub async fn get_job_ids(connection: &mut ClientConnection) -> crate::Result<Option<Vec<JobId>>> {
-    let message = FromClientMessage::JobInfo(JobInfoRequest {
-        selector: IdSelector::All,
-    });
-    let response = rpc_call!(connection, message, ToClientMessage::JobInfoResponse(r) => r).await?;
-
-    let mut ids: Vec<JobId> = Vec::new();
-    for job in response.jobs {
-        ids.push(job.id);
-    }
-    Ok(Option::from(ids))
 }
 
 pub async fn output_job_list(
