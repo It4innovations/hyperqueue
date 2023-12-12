@@ -104,7 +104,7 @@ and the other with `HQ_ENTRY` set to `{"batch_size": 8, "learning_rate": 0.001}`
 ### Combining with `--each-line`/`--from-json` with `--array`
 
 Option `--each-line` or `--from-json` can be combined with option `--array`.
-In such case, only a subset of lines/json will be submited.
+In such case, only a subset of lines/json will be submitted.
 If `--array` defines an ID that exceeds the number of lines in the file (or the number of elements in JSON), then the ID is silently removed.
 
 

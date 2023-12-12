@@ -219,7 +219,7 @@ command = ["sleep", "0"]
     """)
     hq_env.command(["job", "submit-file", "job.toml"])
     r = hq_env.command(["job", "info", "1"], as_table=True)
-    r.check_row_value("Tasks", "7; Ids: 2, 10-14, 120")
+    r.check_row_value("Tasks", "7; Ids: 2,10-14,120")
 
 
 def test_job_file_fail_mixing_array_and_tasks(hq_env: HqEnv, tmp_path):

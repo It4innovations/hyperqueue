@@ -155,7 +155,7 @@ pub async fn output_job_task_ids(
         .map(|(job_id, detail)| {
             Ok((
                 *job_id,
-                IntArray::from_ids(
+                IntArray::from_sorted_ids(
                     detail
                         .as_ref()
                         .ok_or_else(|| HqError::GenericError("Job Id not found".to_string()))?

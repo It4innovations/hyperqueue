@@ -234,9 +234,9 @@ pub fn wait_for_jobs_impl(
 
         loop {
             let selector =
-                IdSelector::Specific(IntArray::from_ids(remaining_job_ids.iter().copied()));
+                IdSelector::Specific(IntArray::from_sorted_ids(remaining_job_ids.iter().copied()));
 
-            response = hyperqueue::rpc_call!(
+            response = rpc_call!(
                 ctx.session.connection(),
                 FromClientMessage::JobInfo(JobInfoRequest {
                     selector,
@@ -310,7 +310,7 @@ pub fn get_failed_tasks_impl(
 ) -> PyResult<FailedTaskMap> {
     run_future(async move {
         let message = FromClientMessage::JobDetail(JobDetailRequest {
-            job_id_selector: IdSelector::Specific(IntArray::from_ids(job_ids.into_iter())),
+            job_id_selector: IdSelector::Specific(IntArray::from_sorted_ids(job_ids.into_iter())),
             task_selector: Some(TaskSelector {
                 id_selector: TaskIdSelector::All,
                 status_selector: TaskStatusSelector::Specific(vec![Status::Failed]),

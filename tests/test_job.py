@@ -702,10 +702,10 @@ def test_job_resubmit_with_status(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["job", "resubmit", "1", "--filter=failed"], as_table=True)
-    table.check_row_value("Tasks", "4; Ids: 4-6, 8")
+    table.check_row_value("Tasks", "4; Ids: 4-6,8")
 
     table = hq_env.command(["job", "resubmit", "1", "--filter=finished"], as_table=True)
-    table.check_row_value("Tasks", "3; Ids: 3, 7, 9")
+    table.check_row_value("Tasks", "3; Ids: 3,7,9")
 
 
 def test_job_resubmit_all(hq_env: HqEnv):
@@ -715,7 +715,7 @@ def test_job_resubmit_all(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FINISHED")
 
     table = hq_env.command(["job", "resubmit", "1"], as_table=True)
-    table.check_row_value("Tasks", "3; Ids: 2, 7, 9")
+    table.check_row_value("Tasks", "3; Ids: 2,7,9")
 
 
 def test_job_resubmit_empty(hq_env: HqEnv):
@@ -1477,21 +1477,30 @@ time.sleep(3600)
     wait_for_pid_exit(parent)
     wait_for_pid_exit(child)
 
+
 def test_job_task_ids(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(["submit", "--array=2,7,9,20-30", "--", "python", "-c", "import os; assert os.environ['HQ_TASK_ID'] not in ['25', '26', '27', '28']"])
+    hq_env.command(
+        [
+            "submit",
+            "--array=2,7,9,20-30",
+            "--",
+            "python",
+            "-c",
+            "import os; assert os.environ['HQ_TASK_ID'] not in ['25', '26', '27', '28']",
+        ]
+    )
     hq_env.start_workers(1, cpus=1)
     wait_for_job_state(hq_env, 1, "FAILED")
 
     result = hq_env.command(["job", "task-ids", "1"])
-    assert result == "2, 7, 9, 20-30\n"
+    assert result == "2,7,9,20-30\n"
 
     result = hq_env.command(["job", "task-ids", "1", "--filter", "finished"])
-    assert result == "2, 7, 9, 20-24, 29-30\n"
+    assert result == "2,7,9,20-24,29-30\n"
 
     result = hq_env.command(["job", "task-ids", "1", "--filter", "failed"])
     assert result == "25-28\n"
 
     result = hq_env.command(["job", "task-ids", "1", "--filter", "canceled"])
     assert result == "\n"
-
