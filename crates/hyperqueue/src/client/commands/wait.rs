@@ -104,7 +104,7 @@ pub async fn wait_for_jobs_with_progress(
             let response = rpc_call!(
                 session.connection(),
                 FromClientMessage::JobInfo(JobInfoRequest {
-                    selector: IdSelector::Specific(IntArray::from_ids(remaining_job_ids.iter().map(|x| x.as_num()))),
+                    selector: IdSelector::Specific(IntArray::from_sorted_ids(remaining_job_ids.iter().map(|x| x.as_num()))),
                 }),
                 ToClientMessage::JobInfoResponse(r) => r
             )

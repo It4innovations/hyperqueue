@@ -320,7 +320,7 @@ pub enum JobCommand {
     Wait(JobWaitOpts),
     /// Interactively observe the execution of a job
     Progress(JobProgressOpts),
-    /// Print tasks Ids for given job
+    /// Print task Ids for given job
     TaskIds(JobTaskIdsOpts),
 }
 

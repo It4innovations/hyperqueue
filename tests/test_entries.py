@@ -123,7 +123,8 @@ def test_each_line_with_array(hq_env: HqEnv):
         [
             "submit",
             "--each-line=input",
-            "--array", "2-4, 6",
+            "--array",
+            "2-4, 6",
             "--",
             "bash",
             "-c",
@@ -154,7 +155,8 @@ def test_json_with_array(hq_env: HqEnv):
         [
             "submit",
             "--from-json=input",
-            "--array", "2-3, 5, 6, 7, 1000",
+            "--array",
+            "2-3, 5, 6, 7, 1000",
             "--",
             "bash",
             "-c",

@@ -7,7 +7,7 @@ However, in case of [task arrays](arrays.md), different tasks may end in differe
 recompute only tasks with a specific status (e.g. failed tasks).
 
 By following combination of commands you may recompute only failed tasks. Let us assume that we want to recompute
-all failed jobs in job 5:
+all failed tasks in job 5:
 
 ```commandline
 $ hq submit --array=`hq job task-ids 5 --filter=failed` ./my-computation

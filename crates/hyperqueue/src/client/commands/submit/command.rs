@@ -714,7 +714,7 @@ fn get_ids_and_entries(opts: &JobSubmitOpts) -> anyhow::Result<(IntArray, Option
                     })
                     .collect(),
             );
-            IntArray::from_ids(id_set.iter().copied())
+            IntArray::from_sorted_ids(id_set.into_iter())
         } else {
             array.clone()
         }

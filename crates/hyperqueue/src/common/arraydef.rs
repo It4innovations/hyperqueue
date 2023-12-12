@@ -38,22 +38,22 @@ impl IntArray {
         IntArray { ranges }
     }
 
-    // ids has to be sorted!
-    pub fn from_ids(ids: impl Iterator<Item = u32>) -> IntArray {
+    pub fn from_sorted_ids(ids: impl Iterator<Item = u32>) -> IntArray {
         let mut ranges: Vec<IntRange> = Vec::new();
         let mut last_id = None;
         for id in ids {
+            debug_assert!(last_id.map(|last_id| last_id < id).unwrap_or(true));
             if last_id.map(|last_id| last_id + 1 == id).unwrap_or(false) {
                 ranges.last_mut().unwrap().count += 1;
             } else {
                 ranges.push(IntRange::new(id, 1, 1));
             }
-            last_id = Some(id)
+            last_id = Some(id);
         }
         IntArray { ranges }
     }
     pub fn from_id(id: u32) -> IntArray {
-        Self::from_ids([id].iter().copied())
+        Self::from_sorted_ids([id].into_iter())
     }
 
     pub fn from_range(start: u32, count: u32) -> Self {
@@ -92,26 +92,19 @@ impl FromStr for IntArray {
 
 impl fmt::Display for IntArray {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut str = String::new();
-        for x in &self.ranges {
+        for (idx, x) in self.ranges.iter().enumerate() {
+            if idx > 0 {
+                write!(f, ",")?;
+            }
             if x.count == 1 {
-                str.push_str(&format!("{}, ", x.start));
+                write!(f, "{}", x.start)?;
             } else if x.step == 1 {
-                str.push_str(&format!("{}-{}, ", x.start, x.start + x.count - 1));
+                write!(f, "{}-{}", x.start, x.start + x.count - 1)?;
             } else {
-                str.push_str(&format!(
-                    "{}-{}:{}, ",
-                    x.start,
-                    x.start + x.count - 1,
-                    x.step
-                ));
+                write!(f, "{}-{}:{}", x.start, x.start + x.count - 1, x.step)?;
             }
         }
-        if str.len() >= 2 {
-            write!(f, "{}", &str[0..str.len() - 2])
-        } else {
-            Ok(())
-        }
+        Ok(())
     }
 }
 

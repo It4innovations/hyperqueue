@@ -426,8 +426,12 @@ impl Output for CliOutput {
     }
 
     fn print_task_ids(&self, job_task_ids: Vec<(JobId, IntArray)>) {
-        for (_, array) in &job_task_ids {
-            println!("{}", array);
+        if job_task_ids.len() == 1 {
+            println!("{}", job_task_ids[0].1);
+        } else {
+            for (job_id, array) in &job_task_ids {
+                println!("{}: {}", job_id, array);
+            }
         }
     }
 
