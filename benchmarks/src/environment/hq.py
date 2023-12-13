@@ -53,6 +53,7 @@ class HqWorkerConfig:
     cpus: Optional[int] = None
     node: Optional[int] = None
     resources: HqWorkerResources = dataclasses.field(default_factory=dict)
+    overview_interval: datetime.timedelta = datetime.timedelta(seconds=0)
 
 
 @dataclasses.dataclass
@@ -188,6 +189,7 @@ class HqEnvironment(Environment, EnvStateManager):
                     args += ["--cpus", str(worker.cpus)]
                 for name, resource in worker.resources.items():
                     args += ["--resource", f"{name}={resource.format()}"]
+                args += ["--overview-interval", f"{int(worker.overview_interval.total_seconds())}s"]
                 args = StartProcessArgs(
                     args=args,
                     hostname=node,
