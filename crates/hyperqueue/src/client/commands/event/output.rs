@@ -1,5 +1,5 @@
 use crate::client::output::json::format_datetime;
-use crate::server::event::events::MonitoringEventPayload;
+use crate::server::event::events::{JobInfo, MonitoringEventPayload};
 use crate::server::event::MonitoringEvent;
 use serde_json::json;
 use tako::worker::WorkerOverview;
@@ -83,12 +83,26 @@ fn format_payload(event: MonitoringEventPayload) -> serde_json::Value {
             "id": task_id
         }),
         MonitoringEventPayload::JobCreated(job_id, job_info) => json!({
+            "type": "job-created",
             "job-id": job_id,
-            "job-info": job_info,
+            "job-info": JobInfoFormatter(&job_info).to_json(),
         }),
         MonitoringEventPayload::JobCompleted(job_id, completion_date) => json!({
+            "type": "job-completed",
             "job-id": job_id,
             "completion-date": completion_date
         }),
+    }
+}
+
+// We need a special formatter, since BString cannot be used as a hashmap key for JSON
+struct JobInfoFormatter<'a>(&'a JobInfo);
+
+impl<'a> JobInfoFormatter<'a> {
+    fn to_json(self) -> serde_json::Value {
+        // Only format the job name for now
+        json!({
+            "name": self.0.name
+        })
     }
 }
