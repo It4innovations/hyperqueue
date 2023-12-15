@@ -13,7 +13,7 @@ use crate::client::commands::job::{
 };
 use crate::client::commands::log::LogOpts;
 use crate::client::commands::server::ServerOpts;
-use crate::client::commands::submit::{JobResubmitOpts, JobSubmitFileOpts, JobSubmitOpts};
+use crate::client::commands::submit::{JobSubmitFileOpts, JobSubmitOpts};
 use crate::client::commands::worker::{WorkerFilter, WorkerStartOpts};
 use crate::client::output::outputs::Outputs;
 use crate::client::status::Status;
@@ -299,7 +299,6 @@ pub enum JobCommand {
     Info(JobInfoOpts),
     /// Cancel a specific job.
     /// This will cancel all tasks, stopping them from being computation.
-    /// The job will still remain in the server's memory, and you will be able to resubmit it later.
     Cancel(JobCancelOpts),
     /// Forget a specific job.
     /// This will remove the job from the server's memory, forgetting it completely and reducing
@@ -314,8 +313,6 @@ pub enum JobCommand {
     Submit(JobSubmitOpts),
     /// Submit a job through a job definition file
     SubmitFile(JobSubmitFileOpts),
-    /// Resubmits tasks of a job
-    Resubmit(JobResubmitOpts),
     /// Waits until a job is finished
     Wait(JobWaitOpts),
     /// Interactively observe the execution of a job

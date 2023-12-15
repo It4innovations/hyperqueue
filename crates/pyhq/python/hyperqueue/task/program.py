@@ -95,6 +95,8 @@ def get_task_outputs(task: ExternalProgram) -> Dict[str, Output]:
     outputs = gather_outputs(task.args) + gather_outputs(task.env)
     for output in outputs:
         if output.name in output_map:
-            raise ValidationException(f"Output `{output.name}` has been defined multiple times")
+            raise ValidationException(
+                f"Output `{output.name}` has been defined multiple times"
+            )
         output_map[output.name] = output
     return output_map

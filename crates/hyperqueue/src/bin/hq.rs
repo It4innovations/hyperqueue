@@ -16,8 +16,7 @@ use hyperqueue::client::commands::job::{
 use hyperqueue::client::commands::log::command_log;
 use hyperqueue::client::commands::server::command_server;
 use hyperqueue::client::commands::submit::{
-    resubmit_computation, submit_computation, submit_computation_from_job_file, JobResubmitOpts,
-    JobSubmitFileOpts, JobSubmitOpts,
+    submit_computation, submit_computation_from_job_file, JobSubmitFileOpts, JobSubmitOpts,
 };
 use hyperqueue::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use hyperqueue::client::commands::worker::{
@@ -128,14 +127,6 @@ async fn command_job_cancel(gsettings: &GlobalSettings, opts: JobCancelOpts) -> 
 async fn command_job_delete(gsettings: &GlobalSettings, opts: JobForgetOpts) -> anyhow::Result<()> {
     let mut connection = get_client_session(gsettings.server_directory()).await?;
     forget_job(gsettings, &mut connection, opts).await
-}
-
-async fn command_job_resubmit(
-    gsettings: &GlobalSettings,
-    opts: JobResubmitOpts,
-) -> anyhow::Result<()> {
-    let mut connection = get_client_session(gsettings.server_directory()).await?;
-    resubmit_computation(gsettings, &mut connection, opts).await
 }
 
 async fn command_job_task_ids(
@@ -431,9 +422,6 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Forget(opts),
         }) => command_job_delete(&gsettings, opts).await,
-        SubCommand::Job(JobOpts {
-            subcmd: JobCommand::Resubmit(opts),
-        }) => command_job_resubmit(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::Wait(opts),
         }) => command_job_wait(&gsettings, opts).await,
