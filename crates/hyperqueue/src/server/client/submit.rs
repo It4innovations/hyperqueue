@@ -56,18 +56,22 @@ pub async fn handle_submit(
         submit_dir: &submit_dir,
     };
 
-    let new_tasks: anyhow::Result<NewTasksMessage> = {
+    let result: anyhow::Result<(NewTasksMessage, Duration)> = {
         match job_desc.clone() {
             JobDescription::Array {
                 ids,
                 entries,
                 task_desc,
-            } => Ok(build_tasks_array(ids, entries, task_desc, job_ctx)),
+            } => {
+                let tasks = build_tasks_array(ids, entries, task_desc, job_ctx);
+                let min_time = task_desc.
+                Ok((tasks, min_time))
+            },
             JobDescription::Graph { tasks } => build_tasks_graph(tasks, job_ctx),
         }
     };
 
-    let new_tasks = match new_tasks {
+    let new_tasks = match result {
         Err(error) => {
             state_ref.get_mut().revert_to_job_id(job_id);
             return ToClientMessage::Error(error.to_string());

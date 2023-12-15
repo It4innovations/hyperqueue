@@ -11,6 +11,7 @@ use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use smallvec::SmallVec;
 use std::path::PathBuf;
+use std::time::Duration;
 use tako::comm::deserialize;
 use tako::task::SerializedTaskContext;
 use tako::ItemId;
@@ -119,11 +120,13 @@ pub struct Job {
 
     pub log: Option<PathBuf>,
 
-    pub job_desc: JobDescription,
     pub name: String,
 
     pub submission_date: DateTime<Utc>,
     pub completion_date: Option<DateTime<Utc>>,
+
+    // Data needed for allocator estimator
+    pub min_time: Duration,
 
     submit_dir: PathBuf,
 
@@ -137,46 +140,30 @@ impl Job {
     // I am disabling it now
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        job_desc: JobDescription,
         job_id: JobId,
+        task_ids: impl Iterator<Item = TaskId>,
         base_task_id: TakoTaskId,
         name: String,
         max_fails: Option<JobTaskCount>,
         log: Option<PathBuf>,
         submit_dir: PathBuf,
+        min_time: Duration,
     ) -> Self {
         let base = base_task_id.as_num();
-        let tasks = match &job_desc {
-            JobDescription::Array { ids, .. } => ids
-                .iter()
-                .enumerate()
-                .map(|(i, task_id)| {
-                    (
-                        TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
-                        JobTaskInfo {
-                            state: JobTaskState::Waiting,
-                            task_id: task_id.into(),
-                        },
-                    )
-                })
-                .collect(),
-            JobDescription::Graph { tasks } => tasks
-                .iter()
-                .enumerate()
-                .map(|(i, task)| {
-                    (
-                        TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
-                        JobTaskInfo {
-                            state: JobTaskState::Waiting,
-                            task_id: task.id,
-                        },
-                    )
-                })
-                .collect(),
-        };
+        let tasks = task_ids
+            .enumerate()
+            .map(|(i, task_id)| {
+                (
+                    TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
+                    JobTaskInfo {
+                        state: JobTaskState::Waiting,
+                        task_id: task_id.into(),
+                    },
+                )
+            })
+            .collect();
 
         Job {
-            job_desc,
             job_id,
             counters: Default::default(),
             base_task_id,
@@ -186,6 +173,7 @@ impl Job {
             log,
             submission_date: Utc::now(),
             completion_date: None,
+            min_time,
             submit_dir,
             completion_callbacks: Default::default(),
         }
