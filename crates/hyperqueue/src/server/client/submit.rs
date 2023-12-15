@@ -220,7 +220,7 @@ fn build_tasks_array(
         Some(entries) => ids
             .iter()
             .zip(tako_base_id..)
-            .zip(entries.into_iter())
+            .zip(entries)
             .map(|((task_id, tako_id), entry)| {
                 build_task_conf(
                     serialize_task_body(&ctx, task_id.into(), Some(entry), &task_desc),
