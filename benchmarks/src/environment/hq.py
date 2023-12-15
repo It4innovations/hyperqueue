@@ -7,7 +7,7 @@ import logging
 import subprocess
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable
 
 from hyperqueue import Client
 from hyperqueue.task.function import PythonEnv
@@ -15,6 +15,7 @@ from ..clusterutils import ClusterInfo
 from ..clusterutils.cluster_helper import ClusterHelper, StartProcessArgs
 from ..clusterutils.node_list import Local
 from ..clusterutils.profiler import PROFILER_METADATA_KEY, Profiler
+from ..trace.export import export_hq_events_to_chrome
 from ..utils import check_file_exists
 from ..utils.process import execute_process
 from ..utils.timing import wait_until
@@ -67,6 +68,9 @@ class HqClusterInfo(EnvironmentDescriptor):
     worker_profilers: List[Profiler] = dataclasses.field(default_factory=list)
     # Additional information that describes the environment
     environment_params: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    # Should events be stored to disk and recorded to JSON?
+    # If yes, they will appear at <workdir>/events.json
+    generate_event_log: bool = False
 
     def __post_init__(self):
         self.binary = self.binary.absolute()
@@ -111,6 +115,12 @@ def assign_workers(workers: List[HqWorkerConfig], nodes: List[str]) -> Dict[str,
     return dict(node_assignments)
 
 
+def postprocess_events(binary_path: Path, event_log_path: Path, event_log_json_path: Path, workdir: Path):
+    with open(event_log_json_path, "w") as f:
+        subprocess.run([str(binary_path), "event-log", "export", str(event_log_path)], stdout=f, check=True)
+    export_hq_events_to_chrome(event_log_json_path, workdir / "events-chrome.json")
+
+
 class HqEnvironment(Environment, EnvStateManager):
     def __init__(self, info: HqClusterInfo, workdir: Path):
         EnvStateManager.__init__(self)
@@ -136,10 +146,15 @@ class HqEnvironment(Environment, EnvStateManager):
         logging.debug(f"Worker assignment: {self.worker_assignment}")
 
         self.submit_id = 0
+        self.postprocessing_fns: List[Callable[[], None]] = []
 
     @property
     def workdir(self) -> Path:
         return self._workdir
+
+    @property
+    def server_workdir(self) -> Path:
+        return self.workdir / "server"
 
     def start(self):
         self.state_start()
@@ -160,10 +175,19 @@ class HqEnvironment(Environment, EnvStateManager):
         logging.info(f"{self.worker_count} HQ worker(s) connected")
 
     def start_server(self):
-        workdir = self.server_dir / "server"
+        workdir = self.server_workdir
+
+        args = self._shared_args() + ["server", "start"]
+        if self.info.generate_event_log:
+            event_log_path = workdir / "events.bin"
+            event_log_json_path = workdir / "events.json"
+            self.postprocessing_fns.append(
+                lambda: postprocess_events(self.binary_path, event_log_path, event_log_json_path, workdir)
+            )
+            args += ["--event-log-path", str(event_log_path)]
 
         args = StartProcessArgs(
-            args=self._shared_args() + ["server", "start"],
+            args=args,
             hostname=self.nodes[0],
             name="server",
             workdir=workdir,
@@ -216,6 +240,9 @@ class HqEnvironment(Environment, EnvStateManager):
         )
         # Send SIGINT to everything
         self.cluster.stop(use_sigint=True)
+
+        for fn in self.postprocessing_fns:
+            fn()
 
     def submit(self, args: List[str]) -> subprocess.CompletedProcess:
         path = self.server_dir / f"submit-{self.submit_id}"
