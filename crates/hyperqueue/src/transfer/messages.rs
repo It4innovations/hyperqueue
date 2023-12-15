@@ -22,7 +22,6 @@ use tako::worker::WorkerConfiguration;
 #[derive(Serialize, Deserialize, Debug)]
 pub enum FromClientMessage {
     Submit(SubmitRequest),
-    Resubmit(ResubmitRequest),
     Cancel(CancelRequest),
     ForgetJob(ForgetJobRequest),
     JobDetail(JobDetailRequest),
@@ -145,12 +144,6 @@ pub enum TaskStatusSelector {
 pub struct TaskSelector {
     pub id_selector: TaskIdSelector,
     pub status_selector: TaskStatusSelector,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ResubmitRequest {
-    pub job_id: JobId,
-    pub filter: Vec<Status>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -9,7 +9,9 @@ class CloudWrapper:
     Wraps a callable so that cloudpickle is used to pickle it, caching the pickle.
     """
 
-    def __init__(self, fn, pickled_fn=None, cache=True, protocol=cloudpickle.DEFAULT_PROTOCOL):
+    def __init__(
+        self, fn, pickled_fn=None, cache=True, protocol=cloudpickle.DEFAULT_PROTOCOL
+    ):
         if fn is None:
             if pickled_fn is None:
                 raise ValueError("Pass at least one of `fn` and `pickled_fn`")
@@ -25,7 +27,9 @@ class CloudWrapper:
         self.pickled_fn = pickled_fn
         self.cache = cache
         self.protocol = protocol
-        self.__doc__ = "CloudWrapper for {!r}. Original doc:\n\n{}".format(self.fn, self.fn.__doc__)
+        self.__doc__ = "CloudWrapper for {!r}. Original doc:\n\n{}".format(
+            self.fn, self.fn.__doc__
+        )
         if hasattr(self.fn, "__name__"):
             self.__name__ = self.fn.__name__
 
@@ -52,7 +56,9 @@ class CloudWrapper:
         return pfn
 
     def __call__(self, *args, **kwargs):
-        logging.debug(f"Running function {self.fn} using args {args} and kwargs {kwargs}")
+        logging.debug(
+            f"Running function {self.fn} using args {args} and kwargs {kwargs}"
+        )
         return self.fn(*args, **kwargs)
 
     def __reduce__(self):

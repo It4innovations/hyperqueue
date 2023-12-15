@@ -22,9 +22,7 @@ use super::directives::parse_hq_directives;
 use crate::client::commands::submit::directives::parse_hq_directives_from_file;
 use crate::client::commands::wait::{wait_for_jobs, wait_for_jobs_with_progress};
 use crate::client::globalsettings::GlobalSettings;
-use crate::client::job::get_worker_map;
 use crate::client::resources::{parse_allocation_request, parse_resource_request};
-use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::cli::OptsWithMatches;
 use crate::common::parser2::{all_consuming, CharParser, ParseError};
@@ -37,8 +35,8 @@ use crate::common::utils::str::pluralize;
 use crate::common::utils::time::parse_human_time;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    FromClientMessage, IdSelector, JobDescription, PinMode, ResubmitRequest, SubmitRequest,
-    TaskDescription, ToClientMessage,
+    FromClientMessage, IdSelector, JobDescription, PinMode, SubmitRequest, TaskDescription,
+    ToClientMessage,
 };
 use crate::{rpc_call, JobTaskCount, Map};
 
@@ -841,36 +839,6 @@ fn check_suspicious_options(opts: &JobSubmitOpts, task_count: u32) -> anyhow::Re
     warn_missing_task_id(opts, task_count);
     warn_unknown_placeholders(opts);
     check_valid_cwd(opts)?;
-    Ok(())
-}
-
-#[derive(Parser)]
-pub struct JobResubmitOpts {
-    /// Job that should be resubmitted
-    job_id: u32,
-
-    /// Resubmit only tasks with the given states.
-    /// You can use multiple states separated by a comma.
-    #[arg(long, value_delimiter(','), value_enum)]
-    filter: Vec<Status>,
-}
-
-pub async fn resubmit_computation(
-    gsettings: &GlobalSettings,
-    session: &mut ClientSession,
-    opts: JobResubmitOpts,
-) -> anyhow::Result<()> {
-    let message = FromClientMessage::Resubmit(ResubmitRequest {
-        job_id: opts.job_id.into(),
-        filter: opts.filter,
-    });
-    let response =
-        rpc_call!(session.connection(), message, ToClientMessage::SubmitResponse(r) => r).await?;
-    gsettings.printer().print_job_detail(
-        vec![response.job],
-        get_worker_map(session).await?,
-        &response.server_uid,
-    );
     Ok(())
 }
 

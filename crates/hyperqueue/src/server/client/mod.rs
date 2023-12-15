@@ -92,9 +92,6 @@ pub async fn client_rpc_loop<
                         submit::handle_submit(&state_ref, &tako_ref, msg).await
                     }
                     FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, &msg.selector),
-                    FromClientMessage::Resubmit(msg) => {
-                        submit::handle_resubmit(&state_ref, &tako_ref, msg).await
-                    }
                     FromClientMessage::Stop => {
                         end_flag.notify_one();
                         break;

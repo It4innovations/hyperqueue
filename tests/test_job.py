@@ -686,62 +686,6 @@ def test_job_last(hq_env: HqEnv):
     table.check_row_value("ID", "2")
 
 
-def test_job_resubmit_with_status(hq_env: HqEnv):
-    hq_env.start_server()
-    hq_env.command(
-        [
-            "submit",
-            "--array=3-9",
-            "--",
-            "python3",
-            "-c",
-            "import os; assert os.environ['HQ_TASK_ID'] not in ['4', '5', '6', '8']",
-        ]
-    )
-    hq_env.start_workers(2, cpus=1)
-    wait_for_job_state(hq_env, 1, "FAILED")
-
-    table = hq_env.command(["job", "resubmit", "1", "--filter=failed"], as_table=True)
-    table.check_row_value("Tasks", "4; Ids: 4-6,8")
-
-    table = hq_env.command(["job", "resubmit", "1", "--filter=finished"], as_table=True)
-    table.check_row_value("Tasks", "3; Ids: 3,7,9")
-
-
-def test_job_resubmit_all(hq_env: HqEnv):
-    hq_env.start_server()
-    hq_env.command(["submit", "--array=2,7,9", "--", "/bin/hostname"])
-    hq_env.start_workers(2, cpus=1)
-    wait_for_job_state(hq_env, 1, "FINISHED")
-
-    table = hq_env.command(["job", "resubmit", "1"], as_table=True)
-    table.check_row_value("Tasks", "3; Ids: 2,7,9")
-
-
-def test_job_resubmit_empty(hq_env: HqEnv):
-    hq_env.start_server()
-    hq_env.command(["submit", "--array=2,7,9", "--", "/bin/hostname"])
-    hq_env.start_workers(2, cpus=1)
-    wait_for_job_state(hq_env, 1, "FINISHED")
-
-    hq_env.command(
-        ["job", "resubmit", "--filter=canceled", "1"],
-        expect_fail="Filtered task(s) are empty, can't submit empty job",
-    )
-
-
-def test_job_resubmit_with_log(hq_env: HqEnv):
-    hq_env.start_server()
-    hq_env.command(["submit", "--array=1-10", "--log", "foo.bin", "--", "/bin/nonexisting"])
-    hq_env.start_workers(1)
-    wait_for_job_state(hq_env, 1, "FAILED")
-
-    hq_env.command(
-        ["job", "resubmit", "1"],
-        expect_fail="Resubmit is not currently supported when output streaming (`--log`) is used",
-    )
-
-
 def test_job_priority(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.command(

@@ -7,7 +7,9 @@ from ..output import StdioDef
 
 class ResourceRequest:
     n_nodes: int = 0
-    resources: Dict[str, Union[int, float, str]] = dataclasses.field(default_factory=dict)
+    resources: Dict[str, Union[int, float, str]] = dataclasses.field(
+        default_factory=dict
+    )
     min_time: Optional[float] = None
 
     def __init__(

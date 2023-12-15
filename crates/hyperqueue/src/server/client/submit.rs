@@ -14,7 +14,6 @@ use tako::gateway::{
 use tako::program::ProgramDefinition;
 use tako::TaskId;
 
-use crate::client::status::get_task_status;
 use crate::common::arraydef::IntArray;
 use crate::common::env::{HQ_ENTRY, HQ_JOB_ID, HQ_SUBMIT_DIR, HQ_TASK_ID};
 use crate::common::placeholders::{
@@ -25,8 +24,8 @@ use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
-    JobDescription, ResubmitRequest, SubmitRequest, SubmitResponse, TaskBody, TaskDescription,
-    TaskIdSelector, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
+    JobDescription, SubmitRequest, SubmitResponse, TaskBody, TaskDescription, TaskIdSelector,
+    TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
 use crate::{JobId, JobTaskId, Priority, TakoTaskId};
 
@@ -139,84 +138,6 @@ fn prepare_job(request: &mut SubmitRequest, state: &mut State) -> (JobId, TakoTa
 
     let task_count = request.job_desc.task_count();
     (job_id, state.new_task_id(task_count))
-}
-
-pub async fn handle_resubmit(
-    state_ref: &StateRef,
-    tako_ref: &Backend,
-    message: ResubmitRequest,
-) -> ToClientMessage {
-    let msg_submit: SubmitRequest = {
-        let state = state_ref.get_mut();
-        let job = state.get_job(message.job_id);
-
-        if let Some(job) = job {
-            match job.job_desc {
-                JobDescription::Array { .. } => {}
-                _ => {
-                    return ToClientMessage::Error(
-                        "Resubmit is not supported for this job".to_string(),
-                    )
-                }
-            }
-
-            if job.log.is_some() {
-                return ToClientMessage::Error(
-                    "Resubmit is not currently supported when output streaming (`--log`) is used"
-                        .to_string(),
-                );
-            }
-
-            let job_desc = if !message.filter.is_empty() {
-                match &job.job_desc {
-                    JobDescription::Array {
-                        task_desc,
-                        entries,
-                        ids: _,
-                    } => {
-                        let mut ids: Vec<u32> = job
-                            .tasks
-                            .values()
-                            .filter_map(|v| {
-                                if message.filter.contains(&get_task_status(&v.state)) {
-                                    Some(v.task_id.as_num())
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
-
-                        if ids.is_empty() {
-                            return ToClientMessage::Error(
-                                "Filtered task(s) are empty, can't submit empty job".to_string(),
-                            );
-                        }
-
-                        ids.sort_unstable();
-                        JobDescription::Array {
-                            ids: IntArray::from_sorted_ids(ids.into_iter()),
-                            entries: entries.clone(),
-                            task_desc: task_desc.clone(),
-                        }
-                    }
-                    _ => unimplemented!(),
-                }
-            } else {
-                job.job_desc.clone()
-            };
-
-            SubmitRequest {
-                job_desc,
-                name: job.name.clone(),
-                max_fails: job.max_fails,
-                submit_dir: std::env::current_dir().expect("Cannot get current working directory"),
-                log: None, // TODO: Reuse log configuration
-            }
-        } else {
-            return ToClientMessage::Error("Invalid job_id".to_string());
-        }
-    };
-    handle_submit(state_ref, tako_ref, msg_submit).await
 }
 
 async fn start_log_streaming(tako_ref: &Backend, job_id: JobId, path: PathBuf) {
