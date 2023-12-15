@@ -2,7 +2,8 @@
 
 ## Breaking change
 
-* Mechanism for resubmitting tasks was changed. Command `resubmit` was removed, see the manual for replacement.
+* Mechanism for resubmitting tasks was changed. Command `resubmit` was removed,
+  see https://it4innovations.github.io/hyperqueue/latest/jobs/failure/ for replacement.
 
 * The output format of the `job info` command with JSON output mode has been changed. Note that
 the JSON output mode is still unstable.
