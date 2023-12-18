@@ -56,8 +56,10 @@ pub async fn handle_submit(
         submit_dir: &submit_dir,
     };
 
+    let small_job_desc = job_desc.clone_without_large_data();
+
     let new_tasks: anyhow::Result<NewTasksMessage> = {
-        match job_desc.clone() {
+        match job_desc {
             JobDescription::Array {
                 ids,
                 entries,
@@ -76,7 +78,7 @@ pub async fn handle_submit(
     };
 
     let job = Job::new(
-        job_desc,
+        small_job_desc,
         job_id,
         tako_base_id,
         name,
@@ -84,10 +86,12 @@ pub async fn handle_submit(
         log.clone(),
         submit_dir,
     );
+
     let job_detail = job.make_job_detail(Some(&TaskSelector {
         id_selector: TaskIdSelector::All,
         status_selector: TaskStatusSelector::All,
     }));
+
     state_ref.get_mut().add_job(job);
 
     if let Some(log) = log {

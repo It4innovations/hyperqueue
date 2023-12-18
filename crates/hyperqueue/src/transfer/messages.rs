@@ -77,11 +77,35 @@ pub struct TaskDescription {
     pub crash_limit: u32,
 }
 
+impl TaskDescription {
+    pub fn clone_without_large_data(&self) -> TaskDescription {
+        TaskDescription {
+            program: self.program.clone_without_large_data(),
+            resources: self.resources.clone(),
+            pin_mode: self.pin_mode.clone(),
+            task_dir: self.task_dir,
+            time_limit: self.time_limit.clone(),
+            priority: self.priority,
+            crash_limit: self.crash_limit,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskWithDependencies {
     pub id: JobTaskId,
     pub task_desc: TaskDescription,
     pub dependencies: Vec<JobTaskId>,
+}
+
+impl TaskWithDependencies {
+    pub fn clone_without_large_data(&self) -> TaskWithDependencies {
+        TaskWithDependencies {
+            id: self.id,
+            task_desc: self.task_desc.clone_without_large_data(),
+            dependencies: self.dependencies.clone(),
+        }
+    }
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -102,6 +126,23 @@ impl JobDescription {
         match self {
             JobDescription::Array { ids, .. } => ids.id_count() as JobTaskCount,
             JobDescription::Graph { tasks } => tasks.len() as JobTaskCount,
+        }
+    }
+
+    pub fn clone_without_large_data(&self) -> JobDescription {
+        match self {
+            JobDescription::Array {
+                ids,
+                entries: _,
+                task_desc,
+            } => JobDescription::Array {
+                ids: ids.clone(),
+                entries: None, // Forget entries!
+                task_desc: task_desc.clone_without_large_data(),
+            },
+            JobDescription::Graph { tasks } => JobDescription::Graph {
+                tasks: tasks.iter().map(|t| t.clone_without_large_data()).collect(),
+            },
         }
     }
 }
