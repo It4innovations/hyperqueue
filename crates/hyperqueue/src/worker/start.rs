@@ -23,7 +23,8 @@ use tako::launcher::{
 use tako::{format_comma_delimited, InstanceId};
 
 use crate::common::env::{
-    HQ_CPUS, HQ_ERROR_FILENAME, HQ_INSTANCE_ID, HQ_NODE_FILE, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR,
+    HQ_CPUS, HQ_ENTRY, HQ_ERROR_FILENAME, HQ_INSTANCE_ID, HQ_JOB_ID, HQ_NODE_FILE, HQ_PIN,
+    HQ_SUBMIT_DIR, HQ_TASK_DIR, HQ_TASK_ID,
 };
 use crate::common::placeholders::{
     fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
@@ -84,12 +85,30 @@ impl TaskLauncher for HqTaskLauncher {
 
             let body: TaskBody = tako::comm::deserialize(launch_ctx.body())?;
             let TaskBody {
-                mut program,
+                program,
                 pin: pin_mode,
                 task_dir,
                 job_id,
                 task_id,
+                submit_dir,
+                entry,
             } = body;
+
+            let mut program = program.into_owned();
+
+            program
+                .env
+                .insert(HQ_JOB_ID.into(), job_id.to_string().into());
+            program
+                .env
+                .insert(HQ_TASK_ID.into(), task_id.to_string().into());
+            program.env.insert(
+                HQ_SUBMIT_DIR.into(),
+                BString::from(submit_dir.to_string_lossy().as_bytes()),
+            );
+            if let Some(entry) = entry {
+                program.env.insert(HQ_ENTRY.into(), entry);
+            }
 
             pin_program(&mut program, launch_ctx.allocation(), pin_mode, &launch_ctx)?;
 
