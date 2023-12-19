@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde::Serialize;
+use std::borrow::Cow;
 
 use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
@@ -9,7 +10,7 @@ use crate::server::autoalloc::{Allocation, QueueId, QueueInfo};
 use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
 use bstr::BString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::server::event::MonitoringEvent;
@@ -58,12 +59,14 @@ impl PinMode {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct TaskBody {
-    pub program: ProgramDefinition,
+pub struct TaskBody<'a> {
+    pub program: Cow<'a, ProgramDefinition>,
     pub pin: PinMode,
     pub task_dir: bool,
     pub job_id: JobId,
     pub task_id: JobTaskId,
+    pub submit_dir: Cow<'a, Path>,
+    pub entry: Option<BString>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -78,16 +81,8 @@ pub struct TaskDescription {
 }
 
 impl TaskDescription {
-    pub fn clone_without_large_data(&self) -> TaskDescription {
-        TaskDescription {
-            program: self.program.clone_without_large_data(),
-            resources: self.resources.clone(),
-            pin_mode: self.pin_mode.clone(),
-            task_dir: self.task_dir,
-            time_limit: self.time_limit.clone(),
-            priority: self.priority,
-            crash_limit: self.crash_limit,
-        }
+    pub fn strip_large_data(&mut self) {
+        self.program.strip_large_data();
     }
 }
 
@@ -99,12 +94,8 @@ pub struct TaskWithDependencies {
 }
 
 impl TaskWithDependencies {
-    pub fn clone_without_large_data(&self) -> TaskWithDependencies {
-        TaskWithDependencies {
-            id: self.id,
-            task_desc: self.task_desc.clone_without_large_data(),
-            dependencies: self.dependencies.clone(),
-        }
+    pub fn strip_large_data(&mut self) {
+        self.task_desc.strip_large_data();
     }
 }
 
@@ -129,21 +120,22 @@ impl JobDescription {
         }
     }
 
-    pub fn clone_without_large_data(&self) -> JobDescription {
+    pub fn strip_large_data(&mut self) {
         match self {
             JobDescription::Array {
-                ids,
-                entries: _,
+                ids: _,
+                entries,
                 task_desc,
-            } => JobDescription::Array {
-                ids: ids.clone(),
-                entries: None, // Forget entries!
-                task_desc: task_desc.clone_without_large_data(),
-            },
-            JobDescription::Graph { tasks } => JobDescription::Graph {
-                tasks: tasks.iter().map(|t| t.clone_without_large_data()).collect(),
-            },
-        }
+            } => {
+                *entries = None;
+                task_desc.strip_large_data();
+            }
+            JobDescription::Graph { tasks } => {
+                for task in tasks {
+                    task.strip_large_data()
+                }
+            }
+        };
     }
 }
 

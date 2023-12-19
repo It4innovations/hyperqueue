@@ -11,6 +11,8 @@ the JSON output mode is still unstable.
 ## New features
 * Allow setting minimum duration for a task (`min_time` resource value) using the Python API.
 
+* Optimizations related to job submit & long term memory saving
+
 # v0.17.0
 
 ## Breaking change

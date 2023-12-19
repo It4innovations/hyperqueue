@@ -62,27 +62,20 @@ pub struct ProgramDefinition {
     pub cwd: PathBuf,
 }
 
-fn shortened_bstring(str: &BString) -> BString {
-    if str.len() < 256 {
-        str.clone()
-    } else {
-        format!("<{} bytes>", str.len()).into()
-    }
-}
+const MAX_SHORTENED_BSTRING: usize = 256;
+const MAX_SHORTENED_ARGS: usize = 128;
 
 impl ProgramDefinition {
-    pub fn clone_without_large_data(&self) -> ProgramDefinition {
-        ProgramDefinition {
-            args: self.args.iter().take(128).map(shortened_bstring).collect(),
-            env: self
-                .env
-                .iter()
-                .map(|(k, v)| (shortened_bstring(k), shortened_bstring(v)))
-                .collect(),
-            stdout: self.stdout.clone(),
-            stderr: self.stderr.clone(),
-            stdin: Vec::new(), // Forget stdin
-            cwd: self.cwd.clone(),
+    pub fn strip_large_data(&mut self) {
+        self.stdin = Vec::new();
+        if self.args.len() > MAX_SHORTENED_ARGS {
+            self.args.truncate(MAX_SHORTENED_ARGS);
+            self.args.shrink_to_fit();
+        }
+        for arg in &mut self.args {
+            if arg.len() > MAX_SHORTENED_BSTRING {
+                *arg = format!("<{} bytes>", arg.len()).into()
+            }
         }
     }
 }
