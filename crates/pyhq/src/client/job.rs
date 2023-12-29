@@ -10,8 +10,8 @@ use hyperqueue::server::job::JobTaskState;
 use hyperqueue::transfer::messages::{
     ForgetJobRequest, FromClientMessage, IdSelector, JobDescription as HqJobDescription,
     JobDetailRequest, JobInfoRequest, JobInfoResponse, PinMode, SubmitRequest,
-    TaskDescription as HqTaskDescription, TaskIdSelector, TaskSelector, TaskStatusSelector,
-    TaskWithDependencies, ToClientMessage,
+    TaskDescription as HqTaskDescription, TaskIdSelector, TaskKind, TaskSelector,
+    TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
 use hyperqueue::{rpc_call, tako, JobTaskCount, JobTaskId, Set};
 use pyo3::types::PyTuple;
@@ -193,17 +193,19 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
     };
 
     Ok(HqTaskDescription {
-        program: ProgramDefinition {
-            args,
-            env,
-            stdout,
-            stderr,
-            stdin,
-            cwd,
+        kind: TaskKind::ExternalProgram {
+            program: ProgramDefinition {
+                args,
+                env,
+                stdout,
+                stderr,
+                stdin,
+                cwd,
+            },
+            pin_mode: PinMode::None,
+            task_dir: desc.task_dir,
         },
         resources,
-        pin_mode: PinMode::None,
-        task_dir: desc.task_dir,
         priority: desc.priority,
         time_limit: None,
         crash_limit: DEFAULT_CRASH_LIMIT,

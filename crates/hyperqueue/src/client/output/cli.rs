@@ -15,7 +15,8 @@ use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDescription, JobDetail, JobInfo, PinMode, QueueData, QueueState,
-    ServerInfo, StatsResponse, TaskDescription, WaitForJobsResponse, WorkerExitInfo, WorkerInfo,
+    ServerInfo, StatsResponse, TaskDescription, TaskKind, WaitForJobsResponse, WorkerExitInfo,
+    WorkerInfo,
 };
 use crate::{JobId, JobTaskCount, WorkerId};
 
@@ -102,72 +103,79 @@ impl CliOutput {
         task_desc: &TaskDescription,
     ) {
         let TaskDescription {
-            program,
+            kind,
             resources,
-            pin_mode,
             time_limit,
             priority,
-            task_dir: _,
             crash_limit,
         } = task_desc;
 
-        let resources = format_resource_variants(resources);
-        rows.push(vec![
-            "Resources".cell().bold(true),
-            if !matches!(pin_mode, PinMode::None) {
-                format!("{resources} [pin]")
-            } else {
-                resources
+        match kind {
+            TaskKind::ExternalProgram {
+                program,
+                pin_mode,
+                task_dir: _task_dir,
+            } => {
+                let resources = format_resource_variants(resources);
+                rows.push(vec![
+                    "Resources".cell().bold(true),
+                    if !matches!(pin_mode, PinMode::None) {
+                        format!("{resources} [pin]")
+                    } else {
+                        resources
+                    }
+                    .cell(),
+                ]);
+
+                rows.push(vec!["Priority".cell().bold(true), priority.cell()]);
+
+                rows.push(vec![
+                    "Command".cell().bold(true),
+                    program
+                        .args
+                        .iter()
+                        .map(|x| textwrap::fill(&x.to_string(), TERMINAL_WIDTH))
+                        .collect::<Vec<String>>()
+                        .join("\n")
+                        .cell(),
+                ]);
+                rows.push(vec![
+                    "Stdout".cell().bold(true),
+                    stdio_to_str(&program.stdout).cell(),
+                ]);
+                rows.push(vec![
+                    "Stderr".cell().bold(true),
+                    stdio_to_str(&program.stderr).cell(),
+                ]);
+                let mut env_vars: Vec<(_, _)> =
+                    program.env.iter().filter(|(k, _)| !is_hq_env(k)).collect();
+                env_vars.sort_by_key(|item| item.0);
+                rows.push(vec![
+                    "Environment".cell().bold(true),
+                    env_vars
+                        .into_iter()
+                        .map(|(k, v)| format!("{k}={v}"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                        .cell(),
+                ]);
+
+                rows.push(vec![
+                    "Working directory".cell().bold(true),
+                    program.cwd.display().to_string().cell(),
+                ]);
+
+                rows.push(vec![
+                    "Task time limit".cell().bold(true),
+                    time_limit
+                        .map(|duration| format_duration(duration).to_string())
+                        .unwrap_or_else(|| "None".to_string())
+                        .cell(),
+                ]);
+
+                rows.push(vec!["Crash limit".cell().bold(true), crash_limit.cell()]);
             }
-            .cell(),
-        ]);
-
-        rows.push(vec!["Priority".cell().bold(true), priority.cell()]);
-
-        rows.push(vec![
-            "Command".cell().bold(true),
-            program
-                .args
-                .iter()
-                .map(|x| textwrap::fill(&x.to_string(), TERMINAL_WIDTH))
-                .collect::<Vec<String>>()
-                .join("\n")
-                .cell(),
-        ]);
-        rows.push(vec![
-            "Stdout".cell().bold(true),
-            stdio_to_str(&program.stdout).cell(),
-        ]);
-        rows.push(vec![
-            "Stderr".cell().bold(true),
-            stdio_to_str(&program.stderr).cell(),
-        ]);
-        let mut env_vars: Vec<(_, _)> = program.env.iter().filter(|(k, _)| !is_hq_env(k)).collect();
-        env_vars.sort_by_key(|item| item.0);
-        rows.push(vec![
-            "Environment".cell().bold(true),
-            env_vars
-                .into_iter()
-                .map(|(k, v)| format!("{k}={v}"))
-                .collect::<Vec<_>>()
-                .join("\n")
-                .cell(),
-        ]);
-
-        rows.push(vec![
-            "Working directory".cell().bold(true),
-            program.cwd.display().to_string().cell(),
-        ]);
-
-        rows.push(vec![
-            "Task time limit".cell().bold(true),
-            time_limit
-                .map(|duration| format_duration(duration).to_string())
-                .unwrap_or_else(|| "None".to_string())
-                .cell(),
-        ]);
-
-        rows.push(vec!["Crash limit".cell().bold(true), crash_limit.cell()]);
+        }
     }
 
     fn print_task_summary(&self, tasks: &[JobTaskInfo], info: &JobInfo, worker_map: &WorkerMap) {
@@ -711,124 +719,127 @@ impl Output for CliOutput {
                 }
             };
 
-            let mut env_vars: Vec<(_, _)> = task_desc
-                .program
-                .env
-                .iter()
-                .filter(|(k, _)| !is_hq_env(k))
-                .collect();
-            env_vars.sort_by_key(|item| item.0);
+            match &task_desc.kind {
+                TaskKind::ExternalProgram {
+                    program,
+                    pin_mode,
+                    task_dir,
+                } => {
+                    let mut env_vars: Vec<(_, _)> =
+                        program.env.iter().filter(|(k, _)| !is_hq_env(k)).collect();
+                    env_vars.sort_by_key(|item| item.0);
 
-            let rows: Vec<Vec<CellStruct>> = vec![
-                vec!["Task ID".cell().bold(true), task_id.cell()],
-                vec![
-                    "State".cell().bold(true),
-                    status_to_cell(&get_task_status(&task.state)),
-                ],
-                vec![
-                    "Command".cell().bold(true),
-                    task_desc
-                        .program
-                        .args
-                        .iter()
-                        .map(|x| textwrap::fill(&x.to_string(), TERMINAL_WIDTH))
-                        .collect::<Vec<String>>()
-                        .join("\n")
-                        .cell(),
-                ],
-                vec![
-                    "Environment".cell().bold(true),
-                    env_vars
-                        .into_iter()
-                        .map(|(k, v)| format!("{k}={v}"))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                        .cell(),
-                ],
-                vec![
-                    "Worker".cell().bold(true),
-                    match task.state.get_workers() {
-                        Some(workers) => format_workers(workers, &worker_map),
-                        _ => "".into(),
-                    }
-                    .cell(),
-                ],
-                vec![
-                    "Times".cell().bold(true),
-                    multiline_cell(vec![
-                        (
-                            "Start",
-                            start
-                                .map(|x| format_time(x).to_string())
-                                .unwrap_or_else(|| "".to_string()),
-                        ),
-                        (
-                            "End",
-                            end.map(|x| format_time(x).to_string())
-                                .unwrap_or_else(|| "".to_string()),
-                        ),
-                        ("Makespan", format_task_duration(start, end)),
-                    ]),
-                ],
-                vec![
-                    "Paths".cell().bold(true),
-                    multiline_cell(vec![
-                        ("Workdir", cwd),
-                        ("Stdout", stdout),
-                        ("Stderr", stderr),
-                    ]),
-                ],
-                vec![
-                    "Error".cell().bold(true),
-                    match (verbosity, &task.state) {
-                        (Verbosity::Normal, JobTaskState::Failed { error, .. }) => {
-                            let mut error_mut = error.clone();
-                            if error_mut.len() >= ERROR_TRUNCATE_LENGTH_INFO {
-                                error_mut.truncate(ERROR_TRUNCATE_LENGTH_INFO);
-                                error_mut.push_str("...");
-                                is_truncated = true;
+                    let rows: Vec<Vec<CellStruct>> = vec![
+                        vec!["Task ID".cell().bold(true), task_id.cell()],
+                        vec![
+                            "State".cell().bold(true),
+                            status_to_cell(&get_task_status(&task.state)),
+                        ],
+                        vec![
+                            "Command".cell().bold(true),
+                            program
+                                .args
+                                .iter()
+                                .map(|x| textwrap::fill(&x.to_string(), TERMINAL_WIDTH))
+                                .collect::<Vec<String>>()
+                                .join("\n")
+                                .cell(),
+                        ],
+                        vec![
+                            "Environment".cell().bold(true),
+                            env_vars
+                                .into_iter()
+                                .map(|(k, v)| format!("{k}={v}"))
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                                .cell(),
+                        ],
+                        vec![
+                            "Worker".cell().bold(true),
+                            match task.state.get_workers() {
+                                Some(workers) => format_workers(workers, &worker_map),
+                                _ => "".into(),
                             }
-                            error_mut.cell().foreground_color(Some(Color::Red))
-                        }
-                        (Verbosity::Verbose, JobTaskState::Failed { error, .. }) => {
-                            error.to_owned().cell().foreground_color(Some(Color::Red))
-                        }
-                        _ => "".cell(),
-                    },
-                ],
-                vec![
-                    "Time limit".cell().bold(true),
-                    task_desc
-                        .time_limit
-                        .map(|duration| format_duration(duration).to_string())
-                        .unwrap_or_else(|| "None".to_string())
-                        .cell(),
-                ],
-                vec![
-                    "Resources".cell().bold(true),
-                    format_resource_variants(&task_desc.resources).cell(),
-                ],
-                vec!["Priority".cell().bold(true), task_desc.priority.cell()],
-                vec!["Pin".cell().bold(true), task_desc.pin_mode.to_str().cell()],
-                vec![
-                    "Task dir".cell().bold(true),
-                    if task_desc.task_dir { "yes" } else { "no" }.cell(),
-                ],
-                vec![
-                    "Crash limit".cell().bold(true),
-                    task_desc.crash_limit.cell(),
-                ],
-                vec![
-                    "Dependencies".cell().bold(true),
-                    task_deps
-                        .iter()
-                        .map(|task_id| task_id.to_string())
-                        .collect::<Vec<_>>()
-                        .join(",")
-                        .cell(),
-                ],
-            ];
-            self.print_vertical_table(rows);
+                            .cell(),
+                        ],
+                        vec![
+                            "Times".cell().bold(true),
+                            multiline_cell(vec![
+                                (
+                                    "Start",
+                                    start
+                                        .map(|x| format_time(x).to_string())
+                                        .unwrap_or_else(|| "".to_string()),
+                                ),
+                                (
+                                    "End",
+                                    end.map(|x| format_time(x).to_string())
+                                        .unwrap_or_else(|| "".to_string()),
+                                ),
+                                ("Makespan", format_task_duration(start, end)),
+                            ]),
+                        ],
+                        vec![
+                            "Paths".cell().bold(true),
+                            multiline_cell(vec![
+                                ("Workdir", cwd),
+                                ("Stdout", stdout),
+                                ("Stderr", stderr),
+                            ]),
+                        ],
+                        vec![
+                            "Error".cell().bold(true),
+                            match (verbosity, &task.state) {
+                                (Verbosity::Normal, JobTaskState::Failed { error, .. }) => {
+                                    let mut error_mut = error.clone();
+                                    if error_mut.len() >= ERROR_TRUNCATE_LENGTH_INFO {
+                                        error_mut.truncate(ERROR_TRUNCATE_LENGTH_INFO);
+                                        error_mut.push_str("...");
+                                        is_truncated = true;
+                                    }
+                                    error_mut.cell().foreground_color(Some(Color::Red))
+                                }
+                                (Verbosity::Verbose, JobTaskState::Failed { error, .. }) => {
+                                    error.to_owned().cell().foreground_color(Some(Color::Red))
+                                }
+                                _ => "".cell(),
+                            },
+                        ],
+                        vec![
+                            "Time limit".cell().bold(true),
+                            task_desc
+                                .time_limit
+                                .map(|duration| format_duration(duration).to_string())
+                                .unwrap_or_else(|| "None".to_string())
+                                .cell(),
+                        ],
+                        vec![
+                            "Resources".cell().bold(true),
+                            format_resource_variants(&task_desc.resources).cell(),
+                        ],
+                        vec!["Priority".cell().bold(true), task_desc.priority.cell()],
+                        vec!["Pin".cell().bold(true), pin_mode.to_str().cell()],
+                        vec![
+                            "Task dir".cell().bold(true),
+                            if *task_dir { "yes" } else { "no" }.cell(),
+                        ],
+                        vec![
+                            "Crash limit".cell().bold(true),
+                            task_desc.crash_limit.cell(),
+                        ],
+                        vec![
+                            "Dependencies".cell().bold(true),
+                            task_deps
+                                .iter()
+                                .map(|task_id| task_id.to_string())
+                                .collect::<Vec<_>>()
+                                .join(",")
+                                .cell(),
+                        ],
+                    ];
+                    self.print_vertical_table(rows);
+                }
+            }
         }
 
         if is_truncated {

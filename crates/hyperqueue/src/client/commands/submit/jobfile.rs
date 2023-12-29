@@ -10,7 +10,7 @@ use crate::common::arraydef::IntArray;
 use crate::common::utils::fs::get_current_dir;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    JobDescription, PinMode, SubmitRequest, TaskDescription, TaskWithDependencies,
+    JobDescription, PinMode, SubmitRequest, TaskDescription, TaskKind, TaskWithDependencies,
 };
 use crate::{JobTaskCount, JobTaskId};
 use clap::Parser;
@@ -50,13 +50,21 @@ fn create_stdio(def: Option<StdioDefInput>, default: &str, is_log: bool) -> Stdi
 
 fn build_task_description(cfg: TaskConfigDef) -> TaskDescription {
     TaskDescription {
-        program: ProgramDefinition {
-            args: cfg.command.into_iter().map(|x| x.into()).collect(),
-            env: cfg.env,
-            stdout: create_stdio(cfg.stdout, DEFAULT_STDOUT_PATH, false),
-            stderr: create_stdio(cfg.stderr, DEFAULT_STDERR_PATH, false),
-            stdin: cfg.stdin.map(|s| s.as_bytes().into()).unwrap_or_default(),
-            cwd: cfg.cwd.map(|x| x.into()).unwrap_or_else(get_current_dir),
+        kind: TaskKind::ExternalProgram {
+            program: ProgramDefinition {
+                args: cfg.command.into_iter().map(|x| x.into()).collect(),
+                env: cfg.env,
+                stdout: create_stdio(cfg.stdout, DEFAULT_STDOUT_PATH, false),
+                stderr: create_stdio(cfg.stderr, DEFAULT_STDERR_PATH, false),
+                stdin: cfg.stdin.map(|s| s.as_bytes().into()).unwrap_or_default(),
+                cwd: cfg.cwd.map(|x| x.into()).unwrap_or_else(get_current_dir),
+            },
+            pin_mode: match cfg.pin {
+                PinModeDef::None => PinMode::None,
+                PinModeDef::TaskSet => PinMode::TaskSet,
+                PinModeDef::OpenMP => PinMode::OpenMP,
+            },
+            task_dir: cfg.task_dir,
         },
         resources: ResourceRequestVariants {
             variants: if cfg.request.is_empty() {
@@ -65,12 +73,6 @@ fn build_task_description(cfg: TaskConfigDef) -> TaskDescription {
                 cfg.request.into_iter().map(|r| r.into_request()).collect()
             },
         },
-        pin_mode: match cfg.pin {
-            PinModeDef::None => PinMode::None,
-            PinModeDef::TaskSet => PinMode::TaskSet,
-            PinModeDef::OpenMP => PinMode::OpenMP,
-        },
-        task_dir: cfg.task_dir,
         time_limit: cfg.time_limit,
         priority: cfg.priority,
         crash_limit: cfg.crash_limit,

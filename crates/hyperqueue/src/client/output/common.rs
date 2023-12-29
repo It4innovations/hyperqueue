@@ -3,7 +3,7 @@ use crate::common::placeholders::{
     fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
 };
 use crate::server::job::JobTaskState;
-use crate::transfer::messages::{JobDescription, JobDetail, JobInfo, TaskDescription};
+use crate::transfer::messages::{JobDescription, JobDetail, JobInfo, TaskDescription, TaskKind};
 use crate::JobTaskId;
 use std::path::PathBuf;
 use tako::program::StdioDef;
@@ -33,40 +33,42 @@ pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
     job.tasks
         .iter()
         .map(|task| {
-            let program = &get_task_desc(task.task_id).program;
-            let paths = match &task.state {
-                JobTaskState::Canceled {
-                    started_data: Some(started_data),
-                    ..
-                }
-                | JobTaskState::Running { started_data, .. }
-                | JobTaskState::Finished { started_data, .. }
-                | JobTaskState::Failed {
-                    started_data: Some(started_data),
-                    ..
-                } => {
-                    let ctx = CompletePlaceholderCtx {
-                        job_id: job.info.id,
-                        task_id: task.task_id,
-                        instance_id: started_data.context.instance_id,
-                        submit_dir: &job.submit_dir,
-                        server_uid,
-                    };
+            let task_desc = get_task_desc(task.task_id);
+            let paths = match &task_desc.kind {
+                TaskKind::ExternalProgram { program, .. } => match &task.state {
+                    JobTaskState::Canceled {
+                        started_data: Some(started_data),
+                        ..
+                    }
+                    | JobTaskState::Running { started_data, .. }
+                    | JobTaskState::Finished { started_data, .. }
+                    | JobTaskState::Failed {
+                        started_data: Some(started_data),
+                        ..
+                    } => {
+                        let ctx = CompletePlaceholderCtx {
+                            job_id: job.info.id,
+                            task_id: task.task_id,
+                            instance_id: started_data.context.instance_id,
+                            submit_dir: &job.submit_dir,
+                            server_uid,
+                        };
 
-                    let mut resolved_paths = ResolvedTaskPaths {
-                        cwd: program.cwd.clone(),
-                        stdout: program.stdout.clone(),
-                        stderr: program.stderr.clone(),
-                    };
-                    let paths = ResolvablePaths {
-                        cwd: &mut resolved_paths.cwd,
-                        stdout: &mut resolved_paths.stdout,
-                        stderr: &mut resolved_paths.stderr,
-                    };
-                    fill_placeholders_in_paths(paths, ctx);
-                    Some(resolved_paths)
-                }
-                _ => None,
+                        let mut resolved_paths = ResolvedTaskPaths {
+                            cwd: program.cwd.clone(),
+                            stdout: program.stdout.clone(),
+                            stderr: program.stderr.clone(),
+                        };
+                        let paths = ResolvablePaths {
+                            cwd: &mut resolved_paths.cwd,
+                            stdout: &mut resolved_paths.stdout,
+                            stderr: &mut resolved_paths.stderr,
+                        };
+                        fill_placeholders_in_paths(paths, ctx);
+                        Some(resolved_paths)
+                    }
+                    _ => None,
+                },
             };
             (task.task_id, paths)
         })

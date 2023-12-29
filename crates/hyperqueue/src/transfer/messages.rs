@@ -70,11 +70,18 @@ pub struct TaskBody<'a> {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum TaskKind {
+    ExternalProgram {
+        program: ProgramDefinition,
+        pin_mode: PinMode,
+        task_dir: bool,
+    },
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskDescription {
-    pub program: ProgramDefinition,
+    pub kind: TaskKind,
     pub resources: ResourceRequestVariants,
-    pub pin_mode: PinMode,
-    pub task_dir: bool,
     pub time_limit: Option<Duration>,
     pub priority: tako::Priority,
     pub crash_limit: u32,
@@ -82,7 +89,11 @@ pub struct TaskDescription {
 
 impl TaskDescription {
     pub fn strip_large_data(&mut self) {
-        self.program.strip_large_data();
+        match &mut self.kind {
+            TaskKind::ExternalProgram { program, .. } => {
+                program.strip_large_data();
+            }
+        }
     }
 }
 
