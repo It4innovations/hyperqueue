@@ -23,7 +23,7 @@ use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
     JobDescription, SubmitRequest, SubmitResponse, TaskBody, TaskDescription, TaskIdSelector,
-    TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
+    TaskKind, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
 use crate::{JobId, JobTaskId, Priority, TakoTaskId};
 
@@ -125,12 +125,16 @@ fn prepare_job(request: &mut SubmitRequest, state: &mut State) -> (JobId, TakoTa
         ref mut task_desc, ..
     } = request.job_desc
     {
-        fill_placeholders_after_submit(
-            &mut task_desc.program,
-            job_id,
-            &request.submit_dir,
-            &state.server_info().server_uid,
-        );
+        match &mut task_desc.kind {
+            TaskKind::ExternalProgram { program, .. } => {
+                fill_placeholders_after_submit(
+                    program,
+                    job_id,
+                    &request.submit_dir,
+                    &state.server_info().server_uid,
+                );
+            }
+        }
     };
 
     if let Some(ref mut log) = request.log {
@@ -163,19 +167,27 @@ fn serialize_task_body(
     entry: Option<BString>,
     task_desc: &TaskDescription,
 ) -> Box<[u8]> {
-    let body_msg = TaskBody {
-        program: Cow::Borrowed(&task_desc.program),
-        pin: task_desc.pin_mode.clone(),
-        task_dir: task_desc.task_dir,
-        job_id: ctx.job_id,
-        task_id,
-        submit_dir: Cow::Borrowed(ctx.submit_dir),
-        entry,
-    };
-    let body = tako::comm::serialize(&body_msg).expect("Could not serialize task body");
-    // Make sure that `into_boxed_slice` is a no-op.
-    debug_assert_eq!(body.capacity(), body.len());
-    body.into_boxed_slice()
+    match &task_desc.kind {
+        TaskKind::ExternalProgram {
+            program,
+            pin_mode,
+            task_dir,
+        } => {
+            let body_msg = TaskBody {
+                program: Cow::Borrowed(program),
+                pin: pin_mode.clone(),
+                task_dir: *task_dir,
+                job_id: ctx.job_id,
+                task_id,
+                submit_dir: Cow::Borrowed(ctx.submit_dir),
+                entry,
+            };
+            let body = tako::comm::serialize(&body_msg).expect("Could not serialize task body");
+            // Make sure that `into_boxed_slice` is a no-op.
+            debug_assert_eq!(body.capacity(), body.len());
+            body.into_boxed_slice()
+        }
+    }
 }
 
 fn build_tasks_array(
@@ -322,7 +334,7 @@ fn build_tasks_graph(
 #[cfg(test)]
 mod tests {
     use crate::server::client::submit::{build_tasks_graph, JobContext};
-    use crate::transfer::messages::{PinMode, TaskDescription, TaskWithDependencies};
+    use crate::transfer::messages::{PinMode, TaskDescription, TaskKind, TaskWithDependencies};
     use smallvec::smallvec;
     use std::path::{Path, PathBuf};
     use std::time::Duration;
@@ -429,13 +441,17 @@ mod tests {
         cpu_count: u32,
     ) -> TaskDescription {
         TaskDescription {
-            program: ProgramDefinition {
-                args: vec![],
-                env: Default::default(),
-                stdout: Default::default(),
-                stderr: Default::default(),
-                stdin: vec![],
-                cwd: Default::default(),
+            kind: TaskKind::ExternalProgram {
+                program: ProgramDefinition {
+                    args: vec![],
+                    env: Default::default(),
+                    stdout: Default::default(),
+                    stderr: Default::default(),
+                    stdin: vec![],
+                    cwd: Default::default(),
+                },
+                pin_mode: PinMode::None,
+                task_dir: false,
             },
             resources: ResourceRequestVariants::new_simple(ResourceRequest {
                 n_nodes: 0,
@@ -445,8 +461,6 @@ mod tests {
                     policy: AllocationRequest::Compact(ResourceAmount::new_units(cpu_count)),
                 }],
             }),
-            pin_mode: PinMode::None,
-            task_dir: false,
             time_limit,
             priority,
             crash_limit: 5,

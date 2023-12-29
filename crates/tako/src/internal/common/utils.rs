@@ -13,7 +13,6 @@ macro_rules! static_assert_size {
 }
 
 use crate::Set;
-pub use static_assert_size;
 
 pub fn format_comma_delimited<I: IntoIterator<Item = T>, T: Display>(iter: I) -> String {
     iter.into_iter()

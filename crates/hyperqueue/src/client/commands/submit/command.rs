@@ -36,7 +36,7 @@ use crate::common::utils::time::parse_human_time;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDescription, PinMode, SubmitRequest, TaskDescription,
-    ToClientMessage,
+    TaskKind, ToClientMessage,
 };
 use crate::{rpc_call, JobTaskCount, Map};
 
@@ -631,13 +631,16 @@ pub async fn submit_computation(
         task_dir
     };
 
-    let task_desc = TaskDescription {
+    let task_kind = TaskKind::ExternalProgram {
         program: program_def,
-        resources: ResourceRequestVariants::new(smallvec![resources]),
         pin_mode: pin.map(|arg| arg.into()).unwrap_or(PinMode::None),
+        task_dir,
+    };
+    let task_desc = TaskDescription {
+        kind: task_kind,
+        resources: ResourceRequestVariants::new(smallvec![resources]),
         priority,
         time_limit,
-        task_dir,
         crash_limit,
     };
 

@@ -109,7 +109,7 @@ pub async fn output_job_task_info(
         rpc_call!(session.connection(), message, ToClientMessage::JobDetailResponse(r) => r)
             .await?;
 
-    let (job_id, opt_job) = response.details.get(0).unwrap();
+    let (job_id, opt_job) = response.details.first().unwrap();
     match opt_job {
         None => log::error!("Cannot find job {job_id}"),
         Some(job) => {

@@ -903,7 +903,7 @@ mod tests {
     use crate::server::job::Job;
     use crate::server::state::StateRef;
     use crate::tests::utils::create_hq_state;
-    use crate::transfer::messages::{JobDescription, PinMode, TaskDescription};
+    use crate::transfer::messages::{JobDescription, PinMode, TaskDescription, TaskKind};
     use tako::resources::ResourceAmount;
 
     #[tokio::test]
@@ -1758,10 +1758,12 @@ mod tests {
                 ids: IntArray::from_range(0, tasks),
                 entries: None,
                 task_desc: TaskDescription {
-                    program: def,
+                    kind: TaskKind::ExternalProgram {
+                        program: def,
+                        pin_mode: PinMode::None,
+                        task_dir: false,
+                    },
                     resources,
-                    pin_mode: PinMode::None,
-                    task_dir: false,
                     time_limit: None,
                     priority: 0,
                     crash_limit: 5,
