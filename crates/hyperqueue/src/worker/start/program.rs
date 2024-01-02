@@ -36,7 +36,7 @@ use crate::common::placeholders::{
     fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
 };
 use crate::common::utils::fs::{bytes_to_path, is_implicit_path, path_has_extension};
-use crate::transfer::messages::{PinMode, TaskBody};
+use crate::transfer::messages::{PinMode, TaskBuildDescription};
 use crate::transfer::stream::ChannelId;
 use crate::worker::start::RunningTaskContext;
 use crate::worker::streamer::StreamSender;
@@ -67,8 +67,8 @@ pub fn build_program_task(
             build_ctx.body().len(),
         );
 
-        let body: TaskBody = tako::comm::deserialize(build_ctx.body())?;
-        let TaskBody {
+        let body: TaskBuildDescription = tako::comm::deserialize(build_ctx.body())?;
+        let TaskBuildDescription {
             program,
             pin: pin_mode,
             task_dir,
