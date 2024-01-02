@@ -4,7 +4,7 @@ pub(crate) mod rpc;
 pub mod rqueue;
 pub mod state;
 pub mod task;
-pub mod taskenv;
+pub mod task_comm;
 
 pub mod comm;
 pub mod configuration;

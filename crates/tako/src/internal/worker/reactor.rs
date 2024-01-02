@@ -2,7 +2,7 @@ use crate::internal::common::resources::Allocation;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{FromWorkerMessage, TaskRunningMsg};
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
-use crate::internal::worker::taskenv::TaskEnv;
+use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::{LaunchContext, StopReason, TaskFuture, TaskLaunchData, TaskResult};
 use crate::TaskId;
 use futures::future::Either;
@@ -19,9 +19,9 @@ pub(crate) fn run_task(
     log::debug!("Task={} assigned", task_id);
 
     let (end_sender, end_receiver) = oneshot::channel();
-    let task_env = TaskEnv::new(end_sender);
+    let task_comm = RunningTaskComm::new(end_sender);
 
-    state.start_task(task_id, task_env, allocation);
+    state.start_task(task_id, task_comm, allocation);
 
     let task = state.get_task(task_id);
     assert_eq!(task.n_outputs, 0);
@@ -81,7 +81,7 @@ async fn execute_task(task_future: TaskFuture, state_ref: WorkerStateRef, task_i
                     let mut state = state_ref.get_mut();
                     let task = state.get_task_mut(task_id);
                     log::debug!("Task {} timeouted", task.id);
-                    task.task_env_mut().unwrap().send_stop(StopReason::Timeout)
+                    task.task_comm_mut().unwrap().timeout_task()
                 }
                 task_future.await
             }
