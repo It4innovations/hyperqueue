@@ -23,8 +23,8 @@ use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
     JobDescription, SubmitRequest, SubmitResponse, TaskBuildDescription, TaskDescription,
-    TaskIdSelector, TaskKind, TaskSelector, TaskStatusSelector, TaskWithDependencies,
-    ToClientMessage,
+    TaskIdSelector, TaskKind, TaskKindProgram, TaskSelector, TaskStatusSelector,
+    TaskWithDependencies, ToClientMessage,
 };
 use crate::{JobId, JobTaskId, Priority, TakoTaskId};
 
@@ -127,7 +127,7 @@ fn prepare_job(request: &mut SubmitRequest, state: &mut State) -> (JobId, TakoTa
     } = request.job_desc
     {
         match &mut task_desc.kind {
-            TaskKind::ExternalProgram { program, .. } => {
+            TaskKind::ExternalProgram(TaskKindProgram { program, .. }) => {
                 fill_placeholders_after_submit(
                     program,
                     job_id,
@@ -169,11 +169,11 @@ fn serialize_task_body(
     task_desc: &TaskDescription,
 ) -> Box<[u8]> {
     match &task_desc.kind {
-        TaskKind::ExternalProgram {
+        TaskKind::ExternalProgram(TaskKindProgram {
             program,
             pin_mode,
             task_dir,
-        } => {
+        }) => {
             let body_msg = TaskBuildDescription {
                 program: Cow::Borrowed(program),
                 pin: pin_mode.clone(),
@@ -335,7 +335,9 @@ fn build_tasks_graph(
 #[cfg(test)]
 mod tests {
     use crate::server::client::submit::{build_tasks_graph, JobContext};
-    use crate::transfer::messages::{PinMode, TaskDescription, TaskKind, TaskWithDependencies};
+    use crate::transfer::messages::{
+        PinMode, TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
+    };
     use smallvec::smallvec;
     use std::path::{Path, PathBuf};
     use std::time::Duration;
@@ -442,7 +444,7 @@ mod tests {
         cpu_count: u32,
     ) -> TaskDescription {
         TaskDescription {
-            kind: TaskKind::ExternalProgram {
+            kind: TaskKind::ExternalProgram(TaskKindProgram {
                 program: ProgramDefinition {
                     args: vec![],
                     env: Default::default(),
@@ -453,7 +455,7 @@ mod tests {
                 },
                 pin_mode: PinMode::None,
                 task_dir: false,
-            },
+            }),
             resources: ResourceRequestVariants::new_simple(ResourceRequest {
                 n_nodes: 0,
                 min_time: Duration::from_secs(2),

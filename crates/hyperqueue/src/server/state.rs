@@ -344,7 +344,9 @@ mod tests {
     use crate::server::job::Job;
     use crate::server::state::State;
     use crate::tests::utils::create_hq_state;
-    use crate::transfer::messages::{JobDescription, PinMode, TaskDescription, TaskKind};
+    use crate::transfer::messages::{
+        JobDescription, PinMode, TaskDescription, TaskKind, TaskKindProgram,
+    };
     use crate::{JobId, TakoTaskId};
 
     fn dummy_program_definition() -> ProgramDefinition {
@@ -367,11 +369,11 @@ mod tests {
             ids,
             entries: None,
             task_desc: TaskDescription {
-                kind: TaskKind::ExternalProgram {
+                kind: TaskKind::ExternalProgram(TaskKindProgram {
                     program: dummy_program_definition(),
                     pin_mode: PinMode::None,
                     task_dir: false,
-                },
+                }),
                 resources: Default::default(),
                 time_limit: None,
                 priority: 0,

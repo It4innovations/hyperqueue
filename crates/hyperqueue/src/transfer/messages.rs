@@ -73,12 +73,15 @@ pub struct TaskBuildDescription<'a> {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TaskKindProgram {
+    pub program: ProgramDefinition,
+    pub pin_mode: PinMode,
+    pub task_dir: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TaskKind {
-    ExternalProgram {
-        program: ProgramDefinition,
-        pin_mode: PinMode,
-        task_dir: bool,
-    },
+    ExternalProgram(TaskKindProgram),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -93,7 +96,7 @@ pub struct TaskDescription {
 impl TaskDescription {
     pub fn strip_large_data(&mut self) {
         match &mut self.kind {
-            TaskKind::ExternalProgram { program, .. } => {
+            TaskKind::ExternalProgram(TaskKindProgram { program, .. }) => {
                 program.strip_large_data();
             }
         }
