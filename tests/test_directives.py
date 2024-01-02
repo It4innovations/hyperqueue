@@ -43,6 +43,7 @@ def test_hq_directives_from_file(hq_env: HqEnv):
     assert table.get_row_value("Tasks") == "5; Ids: 0-4"
 
     hq_env.command(["submit", "test"])
+    wait_for_job_state(hq_env, 4, "FAILED")
     table = hq_env.command(["job", "info", "4"], as_table=True)
     assert table[0].get_row_value("Name") == "test"
 
