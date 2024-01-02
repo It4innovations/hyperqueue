@@ -17,9 +17,14 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
 
+use tako::comm::serialize;
 use tako::launcher::{
-    command_from_definitions, StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher,
-    TaskResult,
+    command_from_definitions, StopReason, TaskBuildContext, TaskLaunchData, TaskResult,
+};
+use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
+use tako::resources::{
+    Allocation, ResourceAllocation, AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
+    NVIDIA_GPU_RESOURCE_NAME,
 };
 use tako::{format_comma_delimited, InstanceId};
 
@@ -33,183 +38,156 @@ use crate::common::placeholders::{
 use crate::common::utils::fs::{bytes_to_path, is_implicit_path, path_has_extension};
 use crate::transfer::messages::{PinMode, TaskBody};
 use crate::transfer::stream::ChannelId;
+use crate::worker::start::RunningTaskContext;
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use crate::{JobId, JobTaskId};
-use serde::{Deserialize, Serialize};
-use tako::comm::serialize;
-use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
-use tako::resources::{
-    Allocation, ResourceAllocation, AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
-    NVIDIA_GPU_RESOURCE_NAME,
-};
 
 const MAX_CUSTOM_ERROR_LENGTH: usize = 2048; // 2KiB
 
-/// Data created when a task is started on a worker.
-/// It can be accessed through the state of a running task.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RunningTaskContext {
-    pub instance_id: InstanceId,
-}
+const STDIO_BUFFER_SIZE: usize = 16 * 1024; // 16kB
 
-pub struct HqTaskLauncher {
-    streamer_ref: StreamerRef,
-}
-
-impl HqTaskLauncher {
-    pub fn new(streamer_ref: StreamerRef) -> Self {
-        Self { streamer_ref }
-    }
-}
-
-impl TaskLauncher for HqTaskLauncher {
-    fn build_task(
-        &self,
-        build_ctx: TaskBuildContext,
-        stop_receiver: Receiver<StopReason>,
-    ) -> tako::Result<TaskLaunchData> {
-        let (program, job_id, job_task_id, instance_id, task_dir): (
-            ProgramDefinition,
-            JobId,
-            JobTaskId,
-            InstanceId,
-            Option<TempDir>,
-        ) = {
-            log::debug!(
-                "Starting program launcher task_id={} res={:?} alloc={:?} body_len={}",
-                build_ctx.task_id(),
-                build_ctx.resources(),
-                build_ctx.allocation(),
-                build_ctx.body().len(),
-            );
-
-            let body: TaskBody = tako::comm::deserialize(build_ctx.body())?;
-            let TaskBody {
-                program,
-                pin: pin_mode,
-                task_dir,
-                job_id,
-                task_id,
-                submit_dir,
-                entry,
-            } = body;
-
-            let mut program = program.into_owned();
-
-            program
-                .env
-                .insert(HQ_JOB_ID.into(), job_id.to_string().into());
-            program
-                .env
-                .insert(HQ_TASK_ID.into(), task_id.to_string().into());
-            program.env.insert(
-                HQ_SUBMIT_DIR.into(),
-                BString::from(submit_dir.to_string_lossy().as_bytes()),
-            );
-            if let Some(entry) = entry {
-                program.env.insert(HQ_ENTRY.into(), entry);
-            }
-
-            pin_program(&mut program, build_ctx.allocation(), pin_mode, &build_ctx)?;
-
-            let task_dir = if task_dir {
-                let task_dir = TempDir::new_in(&build_ctx.worker_configuration().work_dir, "t")
-                    .map_err(|error| {
-                        format!(
-                            "Cannot create task_dir in worker's workdir at {}: {error:?}",
-                            build_ctx.worker_configuration().work_dir.display()
-                        )
-                    })?;
-                program.env.insert(
-                    HQ_TASK_DIR.into(),
-                    task_dir.path().to_string_lossy().to_string().into(),
-                );
-                program.env.insert(
-                    HQ_ERROR_FILENAME.into(),
-                    get_custom_error_filename(&task_dir)
-                        .to_string_lossy()
-                        .to_string()
-                        .into(),
-                );
-                if !build_ctx.node_list().is_empty() {
-                    let filename = task_dir.path().join("hq-nodelist");
-                    write_node_file(&build_ctx, &filename).map_err(|error| {
-                        format!(
-                            "Cannot write node file at {}: {error:?}",
-                            filename.display()
-                        )
-                    })?;
-                    program.env.insert(
-                        HQ_NODE_FILE.into(),
-                        filename.to_string_lossy().to_string().into(),
-                    );
-                }
-                Some(task_dir)
-            } else {
-                None
-            };
-
-            // Do not insert resources for multi-node tasks, semantics has to be cleared
-            if build_ctx.node_list().is_empty() {
-                insert_resources_into_env(&build_ctx, &mut program);
-            }
-
-            let submit_dir: PathBuf = program.env[<&BStr>::from(HQ_SUBMIT_DIR)].to_string().into();
-            program.env.insert(
-                HQ_INSTANCE_ID.into(),
-                build_ctx.instance_id().to_string().into(),
-            );
-
-            let ctx = CompletePlaceholderCtx {
-                job_id,
-                task_id,
-                instance_id: build_ctx.instance_id(),
-                submit_dir: &submit_dir,
-                server_uid: build_ctx.server_uid(),
-            };
-            let paths = ResolvablePaths::from_program_def(&mut program);
-            fill_placeholders_in_paths(paths, ctx);
-
-            create_directory_if_needed(&program.stdout).map_err(|error| {
-                format!(
-                    "Cannot create stdout directory at {:?}: {error:?}",
-                    program.stdout
-                )
-            })?;
-            create_directory_if_needed(&program.stderr).map_err(|error| {
-                format!(
-                    "Cannot create stderr directory at {:?}: {error:?}",
-                    program.stdout
-                )
-            })?;
-
-            (program, job_id, task_id, build_ctx.instance_id(), task_dir)
-        };
-
-        let context = RunningTaskContext { instance_id };
-        let serialized_context = serialize(&context)?;
-
-        let task_future = create_task_future(
-            self.streamer_ref.clone(),
-            program,
-            job_id,
-            job_task_id,
-            instance_id,
-            stop_receiver,
-            task_dir,
+pub fn build_program_task(
+    build_ctx: TaskBuildContext,
+    stop_receiver: Receiver<StopReason>,
+    streamer_ref: &StreamerRef,
+) -> tako::Result<TaskLaunchData> {
+    let (program, job_id, job_task_id, instance_id, task_dir): (
+        ProgramDefinition,
+        JobId,
+        JobTaskId,
+        InstanceId,
+        Option<TempDir>,
+    ) = {
+        log::debug!(
+            "Starting program launcher task_id={} res={:?} alloc={:?} body_len={}",
+            build_ctx.task_id(),
+            build_ctx.resources(),
+            build_ctx.allocation(),
+            build_ctx.body().len(),
         );
 
-        Ok(TaskLaunchData::new(
-            Box::pin(task_future),
-            serialized_context,
-        ))
-    }
+        let body: TaskBody = tako::comm::deserialize(build_ctx.body())?;
+        let TaskBody {
+            program,
+            pin: pin_mode,
+            task_dir,
+            job_id,
+            task_id,
+            submit_dir,
+            entry,
+        } = body;
+
+        let mut program = program.into_owned();
+
+        program
+            .env
+            .insert(HQ_JOB_ID.into(), job_id.to_string().into());
+        program
+            .env
+            .insert(HQ_TASK_ID.into(), task_id.to_string().into());
+        program.env.insert(
+            HQ_SUBMIT_DIR.into(),
+            BString::from(submit_dir.to_string_lossy().as_bytes()),
+        );
+        if let Some(entry) = entry {
+            program.env.insert(HQ_ENTRY.into(), entry);
+        }
+
+        pin_program(&mut program, build_ctx.allocation(), pin_mode, &build_ctx)?;
+
+        let task_dir = if task_dir {
+            let task_dir = TempDir::new_in(&build_ctx.worker_configuration().work_dir, "t")
+                .map_err(|error| {
+                    format!(
+                        "Cannot create task_dir in worker's workdir at {}: {error:?}",
+                        build_ctx.worker_configuration().work_dir.display()
+                    )
+                })?;
+            program.env.insert(
+                HQ_TASK_DIR.into(),
+                task_dir.path().to_string_lossy().to_string().into(),
+            );
+            program.env.insert(
+                HQ_ERROR_FILENAME.into(),
+                get_custom_error_filename(&task_dir)
+                    .to_string_lossy()
+                    .to_string()
+                    .into(),
+            );
+            if !build_ctx.node_list().is_empty() {
+                let filename = task_dir.path().join("hq-nodelist");
+                write_node_file(&build_ctx, &filename).map_err(|error| {
+                    format!(
+                        "Cannot write node file at {}: {error:?}",
+                        filename.display()
+                    )
+                })?;
+                program.env.insert(
+                    HQ_NODE_FILE.into(),
+                    filename.to_string_lossy().to_string().into(),
+                );
+            }
+            Some(task_dir)
+        } else {
+            None
+        };
+
+        // Do not insert resources for multi-node tasks, semantics has to be cleared
+        if build_ctx.node_list().is_empty() {
+            insert_resources_into_env(&build_ctx, &mut program);
+        }
+
+        let submit_dir: PathBuf = program.env[<&BStr>::from(HQ_SUBMIT_DIR)].to_string().into();
+        program.env.insert(
+            HQ_INSTANCE_ID.into(),
+            build_ctx.instance_id().to_string().into(),
+        );
+
+        let ctx = CompletePlaceholderCtx {
+            job_id,
+            task_id,
+            instance_id: build_ctx.instance_id(),
+            submit_dir: &submit_dir,
+            server_uid: build_ctx.server_uid(),
+        };
+        let paths = ResolvablePaths::from_program_def(&mut program);
+        fill_placeholders_in_paths(paths, ctx);
+
+        create_directory_if_needed(&program.stdout).map_err(|error| {
+            format!(
+                "Cannot create stdout directory at {:?}: {error:?}",
+                program.stdout
+            )
+        })?;
+        create_directory_if_needed(&program.stderr).map_err(|error| {
+            format!(
+                "Cannot create stderr directory at {:?}: {error:?}",
+                program.stdout
+            )
+        })?;
+
+        (program, job_id, task_id, build_ctx.instance_id(), task_dir)
+    };
+
+    let context = RunningTaskContext { instance_id };
+    let serialized_context = serialize(&context)?;
+
+    let task_future = create_task_future(
+        streamer_ref.clone(),
+        program,
+        job_id,
+        job_task_id,
+        instance_id,
+        stop_receiver,
+        task_dir,
+    );
+
+    Ok(TaskLaunchData::new(
+        Box::pin(task_future),
+        serialized_context,
+    ))
 }
-
-pub const WORKER_EXTRA_PROCESS_PID: &str = "ProcessPid";
-
-const STDIO_BUFFER_SIZE: usize = 16 * 1024; // 16kB
 
 async fn resend_stdio(
     job_id: JobId,
