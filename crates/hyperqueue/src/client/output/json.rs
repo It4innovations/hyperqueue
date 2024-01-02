@@ -25,7 +25,7 @@ use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDescription, JobDetail, JobInfo, PinMode, QueueData, ServerInfo,
-    StatsResponse, TaskDescription, TaskKind, WaitForJobsResponse, WorkerInfo,
+    StatsResponse, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerInfo,
 };
 use crate::{JobId, JobTaskId};
 
@@ -252,11 +252,11 @@ fn format_task_description(task_desc: TaskDescription, json: &mut Value) {
     } = task_desc;
 
     match kind {
-        TaskKind::ExternalProgram {
+        TaskKind::ExternalProgram(TaskKindProgram {
             program,
             pin_mode,
             task_dir,
-        } => {
+        }) => {
             let ProgramDefinition {
                 args,
                 env,

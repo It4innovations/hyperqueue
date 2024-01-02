@@ -10,7 +10,7 @@ use hyperqueue::server::job::JobTaskState;
 use hyperqueue::transfer::messages::{
     ForgetJobRequest, FromClientMessage, IdSelector, JobDescription as HqJobDescription,
     JobDetailRequest, JobInfoRequest, JobInfoResponse, PinMode, SubmitRequest,
-    TaskDescription as HqTaskDescription, TaskIdSelector, TaskKind, TaskSelector,
+    TaskDescription as HqTaskDescription, TaskIdSelector, TaskKind, TaskKindProgram, TaskSelector,
     TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
 use hyperqueue::{rpc_call, tako, JobTaskCount, JobTaskId, Set};
@@ -193,7 +193,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
     };
 
     Ok(HqTaskDescription {
-        kind: TaskKind::ExternalProgram {
+        kind: TaskKind::ExternalProgram(TaskKindProgram {
             program: ProgramDefinition {
                 args,
                 env,
@@ -204,7 +204,7 @@ fn build_task_desc(desc: TaskDescription, submit_dir: &Path) -> anyhow::Result<H
             },
             pin_mode: PinMode::None,
             task_dir: desc.task_dir,
-        },
+        }),
         resources,
         priority: desc.priority,
         time_limit: None,

@@ -10,7 +10,8 @@ use crate::common::arraydef::IntArray;
 use crate::common::utils::fs::get_current_dir;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    JobDescription, PinMode, SubmitRequest, TaskDescription, TaskKind, TaskWithDependencies,
+    JobDescription, PinMode, SubmitRequest, TaskDescription, TaskKind, TaskKindProgram,
+    TaskWithDependencies,
 };
 use crate::{JobTaskCount, JobTaskId};
 use clap::Parser;
@@ -50,7 +51,7 @@ fn create_stdio(def: Option<StdioDefInput>, default: &str, is_log: bool) -> Stdi
 
 fn build_task_description(cfg: TaskConfigDef) -> TaskDescription {
     TaskDescription {
-        kind: TaskKind::ExternalProgram {
+        kind: TaskKind::ExternalProgram(TaskKindProgram {
             program: ProgramDefinition {
                 args: cfg.command.into_iter().map(|x| x.into()).collect(),
                 env: cfg.env,
@@ -65,7 +66,7 @@ fn build_task_description(cfg: TaskConfigDef) -> TaskDescription {
                 PinModeDef::OpenMP => PinMode::OpenMP,
             },
             task_dir: cfg.task_dir,
-        },
+        }),
         resources: ResourceRequestVariants {
             variants: if cfg.request.is_empty() {
                 smallvec![ResourceRequest::default()]

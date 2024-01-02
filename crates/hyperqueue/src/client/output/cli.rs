@@ -15,8 +15,8 @@ use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDescription, JobDetail, JobInfo, PinMode, QueueData, QueueState,
-    ServerInfo, StatsResponse, TaskDescription, TaskKind, WaitForJobsResponse, WorkerExitInfo,
-    WorkerInfo,
+    ServerInfo, StatsResponse, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse,
+    WorkerExitInfo, WorkerInfo,
 };
 use crate::{JobId, JobTaskCount, WorkerId};
 
@@ -111,11 +111,11 @@ impl CliOutput {
         } = task_desc;
 
         match kind {
-            TaskKind::ExternalProgram {
+            TaskKind::ExternalProgram(TaskKindProgram {
                 program,
                 pin_mode,
                 task_dir: _task_dir,
-            } => {
+            }) => {
                 let resources = format_resource_variants(resources);
                 rows.push(vec![
                     "Resources".cell().bold(true),
@@ -720,11 +720,11 @@ impl Output for CliOutput {
             };
 
             match &task_desc.kind {
-                TaskKind::ExternalProgram {
+                TaskKind::ExternalProgram(TaskKindProgram {
                     program,
                     pin_mode,
                     task_dir,
-                } => {
+                }) => {
                     let mut env_vars: Vec<(_, _)> =
                         program.env.iter().filter(|(k, _)| !is_hq_env(k)).collect();
                     env_vars.sort_by_key(|item| item.0);

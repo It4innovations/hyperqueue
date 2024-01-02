@@ -3,7 +3,9 @@ use crate::common::placeholders::{
     fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
 };
 use crate::server::job::JobTaskState;
-use crate::transfer::messages::{JobDescription, JobDetail, JobInfo, TaskDescription, TaskKind};
+use crate::transfer::messages::{
+    JobDescription, JobDetail, JobInfo, TaskDescription, TaskKind, TaskKindProgram,
+};
 use crate::JobTaskId;
 use std::path::PathBuf;
 use tako::program::StdioDef;
@@ -35,7 +37,7 @@ pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
         .map(|task| {
             let task_desc = get_task_desc(task.task_id);
             let paths = match &task_desc.kind {
-                TaskKind::ExternalProgram { program, .. } => match &task.state {
+                TaskKind::ExternalProgram(TaskKindProgram { program, .. }) => match &task.state {
                     JobTaskState::Canceled {
                         started_data: Some(started_data),
                         ..
