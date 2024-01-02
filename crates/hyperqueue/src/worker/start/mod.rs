@@ -1,6 +1,10 @@
+use bstr::BString;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use tokio::sync::oneshot::Receiver;
 
+use crate::transfer::messages::{TaskBuildDescription, TaskKind};
+use crate::{JobId, JobTaskId};
 use tako::launcher::{StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher};
 use tako::InstanceId;
 
@@ -34,6 +38,36 @@ impl TaskLauncher for HqTaskLauncher {
         build_ctx: TaskBuildContext,
         stop_receiver: Receiver<StopReason>,
     ) -> tako::Result<TaskLaunchData> {
-        build_program_task(build_ctx, stop_receiver, &self.streamer_ref)
+        log::debug!(
+            "Starting task launcher task_id={} res={:?} alloc={:?} body_len={}",
+            build_ctx.task_id(),
+            build_ctx.resources(),
+            build_ctx.allocation(),
+            build_ctx.body().len(),
+        );
+
+        let desc: TaskBuildDescription = tako::comm::deserialize(build_ctx.body())?;
+        let shared = SharedTaskDescription {
+            job_id: desc.job_id,
+            task_id: desc.task_id,
+            submit_dir: desc.submit_dir.as_ref(),
+            entry: desc.entry,
+        };
+        match desc.task_kind.into_owned() {
+            TaskKind::ExternalProgram(program) => build_program_task(
+                build_ctx,
+                stop_receiver,
+                &self.streamer_ref,
+                program,
+                shared,
+            ),
+        }
     }
+}
+
+struct SharedTaskDescription<'a> {
+    job_id: JobId,
+    task_id: JobTaskId,
+    submit_dir: &'a Path,
+    entry: Option<BString>,
 }

@@ -63,9 +63,7 @@ impl PinMode {
 /// job ID, task ID, entry and submit_dir.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskBuildDescription<'a> {
-    pub program: Cow<'a, ProgramDefinition>,
-    pub pin: PinMode,
-    pub task_dir: bool,
+    pub task_kind: Cow<'a, TaskKind>,
     pub job_id: JobId,
     pub task_id: JobTaskId,
     pub submit_dir: Cow<'a, Path>,

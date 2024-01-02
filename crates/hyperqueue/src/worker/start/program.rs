@@ -36,9 +36,9 @@ use crate::common::placeholders::{
     fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
 };
 use crate::common::utils::fs::{bytes_to_path, is_implicit_path, path_has_extension};
-use crate::transfer::messages::{PinMode, TaskBuildDescription};
+use crate::transfer::messages::{PinMode, TaskKindProgram};
 use crate::transfer::stream::ChannelId;
-use crate::worker::start::RunningTaskContext;
+use crate::worker::start::{RunningTaskContext, SharedTaskDescription};
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use crate::{JobId, JobTaskId};
@@ -51,7 +51,21 @@ pub fn build_program_task(
     build_ctx: TaskBuildContext,
     stop_receiver: Receiver<StopReason>,
     streamer_ref: &StreamerRef,
+    program: TaskKindProgram,
+    shared: SharedTaskDescription,
 ) -> tako::Result<TaskLaunchData> {
+    let TaskKindProgram {
+        mut program,
+        pin_mode,
+        task_dir,
+    } = program;
+    let SharedTaskDescription {
+        job_id,
+        task_id,
+        submit_dir,
+        entry,
+    } = shared;
+
     let (program, job_id, job_task_id, instance_id, task_dir): (
         ProgramDefinition,
         JobId,
@@ -59,27 +73,6 @@ pub fn build_program_task(
         InstanceId,
         Option<TempDir>,
     ) = {
-        log::debug!(
-            "Starting program launcher task_id={} res={:?} alloc={:?} body_len={}",
-            build_ctx.task_id(),
-            build_ctx.resources(),
-            build_ctx.allocation(),
-            build_ctx.body().len(),
-        );
-
-        let body: TaskBuildDescription = tako::comm::deserialize(build_ctx.body())?;
-        let TaskBuildDescription {
-            program,
-            pin: pin_mode,
-            task_dir,
-            job_id,
-            task_id,
-            submit_dir,
-            entry,
-        } = body;
-
-        let mut program = program.into_owned();
-
         program
             .env
             .insert(HQ_JOB_ID.into(), job_id.to_string().into());
