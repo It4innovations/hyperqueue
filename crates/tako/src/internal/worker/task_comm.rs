@@ -13,11 +13,11 @@ impl RunningTaskComm {
         }
     }
 
-    pub fn cancel_task(&mut self) {
+    pub fn send_cancel_notification(&mut self) {
         self.send_stop(StopReason::Cancel);
     }
 
-    pub fn timeout_task(&mut self) {
+    pub fn send_timeout_notification(&mut self) {
         self.send_stop(StopReason::Timeout);
     }
 

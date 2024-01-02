@@ -31,7 +31,7 @@ use crate::internal::worker::configuration::{
     sync_worker_configuration, OverviewConfiguration, ServerLostPolicy, WorkerConfiguration,
 };
 use crate::internal::worker::hwmonitor::HwSampler;
-use crate::internal::worker::reactor::run_task;
+use crate::internal::worker::reactor::start_task;
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
 use crate::internal::worker::task::Task;
 use crate::launcher::TaskLauncher;
@@ -350,7 +350,7 @@ async fn task_starter_process(state_ref: WrappedRcRefCell<WorkerState>, notify: 
             }
 
             for (task_id, allocation, resource_index) in allocations {
-                run_task(&mut state, &state_ref, task_id, allocation, resource_index);
+                start_task(&mut state, &state_ref, task_id, allocation, resource_index);
             }
         }
     }

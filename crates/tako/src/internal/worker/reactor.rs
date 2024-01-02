@@ -3,13 +3,16 @@ use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{FromWorkerMessage, TaskRunningMsg};
 use crate::internal::worker::state::{WorkerState, WorkerStateRef};
 use crate::internal::worker::task_comm::RunningTaskComm;
-use crate::launcher::{LaunchContext, StopReason, TaskFuture, TaskLaunchData, TaskResult};
+use crate::launcher::{TaskBuildContext, TaskFuture, TaskLaunchData, TaskResult};
 use crate::TaskId;
 use futures::future::Either;
 use std::rc::Rc;
 use tokio::sync::oneshot;
 
-pub(crate) fn run_task(
+/// Primary entrypoint for starting a task on a worker.
+/// The tako task will be started as a separate tokio task spawned onto the currently
+/// active Runtime.
+pub(crate) fn start_task(
     state: &mut WorkerState,
     state_ref: &WorkerStateRef,
     task_id: TaskId,
@@ -27,7 +30,7 @@ pub(crate) fn run_task(
     assert_eq!(task.n_outputs, 0);
 
     match state.task_launcher.build_task(
-        LaunchContext {
+        TaskBuildContext {
             task,
             state,
             resource_index,
@@ -47,7 +50,7 @@ pub(crate) fn run_task(
                     context: task_context,
                 }));
 
-            tokio::task::spawn_local(execute_task(task_future, state_ref.clone(), task_id));
+            tokio::task::spawn_local(handle_task_future(task_future, state_ref.clone(), task_id));
         }
         Err(error) => {
             log::debug!(
@@ -60,7 +63,9 @@ pub(crate) fn run_task(
     };
 }
 
-async fn execute_task(task_future: TaskFuture, state_ref: WorkerStateRef, task_id: TaskId) {
+/// Polls the task future and makes sure that various situations
+/// (like cancellation, errors, timeout) are handled correctly.
+async fn handle_task_future(task_future: TaskFuture, state_ref: WorkerStateRef, task_id: TaskId) {
     let time_limit = {
         let state = state_ref.get();
         if let Some(task) = state.find_task(task_id) {
@@ -81,7 +86,11 @@ async fn execute_task(task_future: TaskFuture, state_ref: WorkerStateRef, task_i
                     let mut state = state_ref.get_mut();
                     let task = state.get_task_mut(task_id);
                     log::debug!("Task {} timeouted", task.id);
-                    task.task_comm_mut().unwrap().timeout_task()
+                    // Send a message to the task future that it should terminate
+                    // because it has been timeouted. Currently, we trust the
+                    // implementation of the task and we don't further timeout
+                    // it here.
+                    task.task_comm_mut().unwrap().send_timeout_notification();
                 }
                 task_future.await
             }
