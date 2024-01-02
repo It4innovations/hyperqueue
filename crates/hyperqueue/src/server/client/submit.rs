@@ -168,27 +168,17 @@ fn serialize_task_body(
     entry: Option<BString>,
     task_desc: &TaskDescription,
 ) -> Box<[u8]> {
-    match &task_desc.kind {
-        TaskKind::ExternalProgram(TaskKindProgram {
-            program,
-            pin_mode,
-            task_dir,
-        }) => {
-            let body_msg = TaskBuildDescription {
-                program: Cow::Borrowed(program),
-                pin: pin_mode.clone(),
-                task_dir: *task_dir,
-                job_id: ctx.job_id,
-                task_id,
-                submit_dir: Cow::Borrowed(ctx.submit_dir),
-                entry,
-            };
-            let body = tako::comm::serialize(&body_msg).expect("Could not serialize task body");
-            // Make sure that `into_boxed_slice` is a no-op.
-            debug_assert_eq!(body.capacity(), body.len());
-            body.into_boxed_slice()
-        }
-    }
+    let body_msg = TaskBuildDescription {
+        task_kind: Cow::Borrowed(&task_desc.kind),
+        job_id: ctx.job_id,
+        task_id,
+        submit_dir: Cow::Borrowed(ctx.submit_dir),
+        entry,
+    };
+    let body = tako::comm::serialize(&body_msg).expect("Could not serialize task body");
+    // Make sure that `into_boxed_slice` is a no-op.
+    debug_assert_eq!(body.capacity(), body.len());
+    body.into_boxed_slice()
 }
 
 fn build_tasks_array(
