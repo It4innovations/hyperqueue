@@ -71,7 +71,7 @@ jobs:
           name: pytest artifacts
           path: artifacts.tar
 
-      - name: Lint
+      - name: Lint Rust
         uses: actions-rs/cargo@v1
         with:
           command: clippy
@@ -83,11 +83,11 @@ jobs:
           command: fmt
           args: --all -- --check
 
+      - name: Lint Python
+        run: python -m ruff check
+
       - name: Check Python formatting
-        run: |
-          export DIRECTORIES="scripts tests benchmarks crates/pyhq/python"
-          python -m black --check $DIRECTORIES
-          python -m flake8 $DIRECTORIES
+        run: python -m ruff format --check
 
       - name: Build docs
         run: |

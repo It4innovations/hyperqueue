@@ -84,8 +84,10 @@ class BenchmarkRunner:
         if isinstance(result, Failure):
             logging.error(f"Benchmark {key} has failed: {result.traceback}")
             if self.exit_on_error:
-                raise Exception(f"""Benchmark {identifier} has failed: {result}
-You can find details in {identifier.workdir}""")
+                raise Exception(
+                    f"""Benchmark {identifier} has failed: {result}
+You can find details in {identifier.workdir}"""
+                )
         elif isinstance(result, Timeout):
             logging.info(f"Benchmark {key} has timeouted after {result.timeout}s")
         elif isinstance(result, Success):

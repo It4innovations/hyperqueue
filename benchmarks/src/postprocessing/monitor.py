@@ -623,12 +623,14 @@ def render_process_resource_usage(report: ClusterReport, per_process_df: pd.Data
             ]
             cpu_time_figures = [render_process_cpu_time(process_data, key, time, label) for (label, key) in cpu_times]
 
-            summary = PreText(text=f"""
+            summary = PreText(
+                text=f"""
 PID: {pid}
 Key: {process.key}
 Max. RSS: {humanize.naturalsize(max_rss, binary=True)}
 Avg. CPU: {avg_cpu:.02f} %
-""".strip())
+""".strip()
+            )
 
             right_col = Column(children=cpu_time_figures)
             left_col = Column(children=[summary, mem_figure, cpu_figure])
