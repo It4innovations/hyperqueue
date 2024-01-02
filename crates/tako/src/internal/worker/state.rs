@@ -184,7 +184,7 @@ impl WorkerState {
             }
             Some(task) => match task.state {
                 TaskState::Running(ref mut env, _) => {
-                    env.cancel_task();
+                    env.send_cancel_notification();
                     false
                 }
                 TaskState::Waiting(_) => true,

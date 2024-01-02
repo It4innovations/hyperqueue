@@ -8,7 +8,7 @@ use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::OverviewConfiguration;
 use crate::internal::worker::rpc::process_worker_message;
 use crate::internal::worker::state::WorkerStateRef;
-use crate::launcher::{LaunchContext, StopReason, TaskLaunchData, TaskLauncher};
+use crate::launcher::{StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher};
 use crate::resources::{ResourceDescriptor, ResourceMap};
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
 use crate::{Set, TaskId, WorkerId};
@@ -23,7 +23,7 @@ struct TestLauncher;
 impl TaskLauncher for TestLauncher {
     fn build_task(
         &self,
-        _ctx: LaunchContext,
+        _ctx: TaskBuildContext,
         _stop_receiver: Receiver<StopReason>,
     ) -> crate::Result<TaskLaunchData> {
         // Test should not directly call this function

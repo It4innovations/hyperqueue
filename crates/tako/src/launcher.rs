@@ -67,13 +67,14 @@ impl TaskLaunchData {
     }
 }
 
-pub struct LaunchContext<'a> {
+/// Data necessary to build a task (create a Future representing that task).
+pub struct TaskBuildContext<'a> {
     pub(crate) task: &'a Task,
     pub(crate) state: &'a WorkerState,
     pub(crate) resource_index: usize,
 }
 
-impl<'a> LaunchContext<'a> {
+impl<'a> TaskBuildContext<'a> {
     pub fn task_id(&self) -> TaskId {
         self.task.id
     }
@@ -132,7 +133,7 @@ pub trait TaskLauncher {
     /// `state_ref` must not be borrowed when this function is called.  
     fn build_task(
         &self,
-        ctx: LaunchContext,
+        ctx: TaskBuildContext,
         stop_receiver: tokio::sync::oneshot::Receiver<StopReason>,
     ) -> crate::Result<TaskLaunchData>;
 }

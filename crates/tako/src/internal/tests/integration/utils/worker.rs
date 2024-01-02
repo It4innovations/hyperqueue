@@ -9,7 +9,7 @@ use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceDescriptor;
 use crate::internal::server::core::CoreRef;
 use crate::internal::worker::configuration::OverviewConfiguration;
-use crate::launcher::{LaunchContext, StopReason, TaskResult};
+use crate::launcher::{StopReason, TaskBuildContext, TaskResult};
 use crate::program::ProgramDefinition;
 use crate::worker::WorkerConfiguration;
 use derive_builder::Builder;
@@ -262,7 +262,7 @@ struct TestTaskLauncher;
 impl TaskLauncher for TestTaskLauncher {
     fn build_task(
         &self,
-        ctx: LaunchContext,
+        ctx: TaskBuildContext,
         stop_receiver: tokio::sync::oneshot::Receiver<StopReason>,
     ) -> crate::Result<TaskLaunchData> {
         let program: ProgramDefinition = {

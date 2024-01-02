@@ -8,7 +8,7 @@ use tako::internal::messages::worker::ComputeTaskMsg;
 use tako::internal::tests::utils::shared::res_allocator_from_descriptor;
 use tako::internal::worker::comm::WorkerComm;
 use tako::internal::worker::rqueue::ResourceWaitQueue;
-use tako::launcher::{LaunchContext, StopReason, TaskLaunchData, TaskLauncher, TaskResult};
+use tako::launcher::{StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher, TaskResult};
 use tako::resources::{
     AllocationRequest, ResourceDescriptor, ResourceDescriptorItem, ResourceDescriptorKind,
     ResourceRequest, ResourceRequestEntry, ResourceRequestVariants, TimeRequest, CPU_RESOURCE_NAME,
@@ -30,7 +30,7 @@ struct BenchmarkTaskLauncher;
 impl TaskLauncher for BenchmarkTaskLauncher {
     fn build_task(
         &self,
-        _ctx: LaunchContext,
+        _ctx: TaskBuildContext,
         _stop_receiver: tokio::sync::oneshot::Receiver<StopReason>,
     ) -> tako::Result<TaskLaunchData> {
         Ok(TaskLaunchData::from_future(Box::pin(async move {

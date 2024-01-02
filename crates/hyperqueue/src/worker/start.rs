@@ -18,7 +18,8 @@ use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
 
 use tako::launcher::{
-    command_from_definitions, LaunchContext, StopReason, TaskLaunchData, TaskLauncher, TaskResult,
+    command_from_definitions, StopReason, TaskBuildContext, TaskLaunchData, TaskLauncher,
+    TaskResult,
 };
 use tako::{format_comma_delimited, InstanceId};
 
@@ -65,7 +66,7 @@ impl HqTaskLauncher {
 impl TaskLauncher for HqTaskLauncher {
     fn build_task(
         &self,
-        launch_ctx: LaunchContext,
+        build_ctx: TaskBuildContext,
         stop_receiver: Receiver<StopReason>,
     ) -> tako::Result<TaskLaunchData> {
         let (program, job_id, job_task_id, instance_id, task_dir): (
@@ -77,13 +78,13 @@ impl TaskLauncher for HqTaskLauncher {
         ) = {
             log::debug!(
                 "Starting program launcher task_id={} res={:?} alloc={:?} body_len={}",
-                launch_ctx.task_id(),
-                launch_ctx.resources(),
-                launch_ctx.allocation(),
-                launch_ctx.body().len(),
+                build_ctx.task_id(),
+                build_ctx.resources(),
+                build_ctx.allocation(),
+                build_ctx.body().len(),
             );
 
-            let body: TaskBody = tako::comm::deserialize(launch_ctx.body())?;
+            let body: TaskBody = tako::comm::deserialize(build_ctx.body())?;
             let TaskBody {
                 program,
                 pin: pin_mode,
@@ -110,14 +111,14 @@ impl TaskLauncher for HqTaskLauncher {
                 program.env.insert(HQ_ENTRY.into(), entry);
             }
 
-            pin_program(&mut program, launch_ctx.allocation(), pin_mode, &launch_ctx)?;
+            pin_program(&mut program, build_ctx.allocation(), pin_mode, &build_ctx)?;
 
             let task_dir = if task_dir {
-                let task_dir = TempDir::new_in(&launch_ctx.worker_configuration().work_dir, "t")
+                let task_dir = TempDir::new_in(&build_ctx.worker_configuration().work_dir, "t")
                     .map_err(|error| {
                         format!(
                             "Cannot create task_dir in worker's workdir at {}: {error:?}",
-                            launch_ctx.worker_configuration().work_dir.display()
+                            build_ctx.worker_configuration().work_dir.display()
                         )
                     })?;
                 program.env.insert(
@@ -131,9 +132,9 @@ impl TaskLauncher for HqTaskLauncher {
                         .to_string()
                         .into(),
                 );
-                if !launch_ctx.node_list().is_empty() {
+                if !build_ctx.node_list().is_empty() {
                     let filename = task_dir.path().join("hq-nodelist");
-                    write_node_file(&launch_ctx, &filename).map_err(|error| {
+                    write_node_file(&build_ctx, &filename).map_err(|error| {
                         format!(
                             "Cannot write node file at {}: {error:?}",
                             filename.display()
@@ -150,22 +151,22 @@ impl TaskLauncher for HqTaskLauncher {
             };
 
             // Do not insert resources for multi-node tasks, semantics has to be cleared
-            if launch_ctx.node_list().is_empty() {
-                insert_resources_into_env(&launch_ctx, &mut program);
+            if build_ctx.node_list().is_empty() {
+                insert_resources_into_env(&build_ctx, &mut program);
             }
 
             let submit_dir: PathBuf = program.env[<&BStr>::from(HQ_SUBMIT_DIR)].to_string().into();
             program.env.insert(
                 HQ_INSTANCE_ID.into(),
-                launch_ctx.instance_id().to_string().into(),
+                build_ctx.instance_id().to_string().into(),
             );
 
             let ctx = CompletePlaceholderCtx {
                 job_id,
                 task_id,
-                instance_id: launch_ctx.instance_id(),
+                instance_id: build_ctx.instance_id(),
                 submit_dir: &submit_dir,
-                server_uid: launch_ctx.server_uid(),
+                server_uid: build_ctx.server_uid(),
             };
             let paths = ResolvablePaths::from_program_def(&mut program);
             fill_placeholders_in_paths(paths, ctx);
@@ -183,13 +184,13 @@ impl TaskLauncher for HqTaskLauncher {
                 )
             })?;
 
-            (program, job_id, task_id, launch_ctx.instance_id(), task_dir)
+            (program, job_id, task_id, build_ctx.instance_id(), task_dir)
         };
 
         let context = RunningTaskContext { instance_id };
         let serialized_context = serialize(&context)?;
 
-        let task_future = run_task(
+        let task_future = create_task_future(
             self.streamer_ref.clone(),
             program,
             job_id,
@@ -245,7 +246,7 @@ fn get_custom_error_filename(task_dir: &TempDir) -> PathBuf {
     task_dir.path().join("hq-error")
 }
 
-fn write_node_file(ctx: &LaunchContext, path: &Path) -> std::io::Result<()> {
+fn write_node_file(ctx: &TaskBuildContext, path: &Path) -> std::io::Result<()> {
     let file = File::create(path)?;
     let mut file = BufWriter::new(file);
     for worker_id in ctx.node_list() {
@@ -256,7 +257,7 @@ fn write_node_file(ctx: &LaunchContext, path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-fn insert_resources_into_env(ctx: &LaunchContext, program: &mut ProgramDefinition) {
+fn insert_resources_into_env(ctx: &TaskBuildContext, program: &mut ProgramDefinition) {
     let resource_map = ctx.get_resource_map();
 
     if ctx.n_resource_variants() > 1 {
@@ -325,7 +326,7 @@ fn resource_env_var_name(prefix: &str, resource_name: &str) -> BString {
     bytes.into()
 }
 
-fn allocation_to_labels(allocation: &ResourceAllocation, ctx: &LaunchContext) -> Option<String> {
+fn allocation_to_labels(allocation: &ResourceAllocation, ctx: &TaskBuildContext) -> Option<String> {
     let label_map = ctx.get_resource_label_map();
     if allocation.indices.is_empty() {
         return None;
@@ -339,7 +340,7 @@ fn pin_program(
     program: &mut ProgramDefinition,
     allocation: &Allocation,
     pin_mode: PinMode,
-    ctx: &LaunchContext,
+    ctx: &TaskBuildContext,
 ) -> tako::Result<()> {
     let comma_delimited_cpu_ids = || {
         allocation
@@ -391,7 +392,7 @@ fn looks_like_bash_script(path: &Path) -> bool {
 /// Zero-worker mode measures pure overhead of HyperQueue.
 /// In this mode the task is not executed at all.
 #[cfg(feature = "zero-worker")]
-async fn run_task(
+async fn create_task_future(
     _streamer_ref: StreamerRef,
     _program: ProgramDefinition,
     _job_id: JobId,
@@ -499,7 +500,7 @@ fn check_error_filename(task_dir: TempDir) -> Option<tako::Error> {
 }
 
 #[cfg(not(feature = "zero-worker"))]
-async fn run_task(
+async fn create_task_future(
     streamer_ref: StreamerRef,
     program: ProgramDefinition,
     job_id: JobId,
@@ -564,7 +565,7 @@ async fn run_task(
             status_to_result(response?.0)
         };
 
-        let guard_fut = task_process(main_fut, pid, job_id, job_task_id, end_receiver);
+        let guard_fut = handle_task_with_signals(main_fut, pid, job_id, job_task_id, end_receiver);
         futures::pin_mut!(guard_fut);
 
         match futures::future::select(guard_fut, close_responder).await {
@@ -600,7 +601,7 @@ async fn run_task(
             .await;
             result
         };
-        task_process(task_fut, pid, job_id, job_task_id, end_receiver).await
+        handle_task_with_signals(task_fut, pid, job_id, job_task_id, end_receiver).await
     }
 }
 
@@ -622,7 +623,7 @@ async fn cleanup_task_file(result: Option<&TaskResult>, stdio: &StdioDef) {
 }
 
 /// Handles waiting for the task process future to finish, while reacting to `end_receiver` events.
-async fn task_process<F: Future<Output = tako::Result<TaskResult>>>(
+async fn handle_task_with_signals<F: Future<Output = tako::Result<TaskResult>>>(
     task_future: F,
     pid: u32,
     job_id: JobId,
