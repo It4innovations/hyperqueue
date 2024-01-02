@@ -24,8 +24,10 @@ def execute_process(
         if result.returncode != 0:
             with open(stdout) as stdout_file:
                 with open(stderr) as stderr_file:
-                    raise Exception(f"""The process {args} has exited with error code {result.returncode}
+                    raise Exception(
+                        f"""The process {args} has exited with error code {result.returncode}
 Stdout: {stdout_file.read()}
 Stderr: {stderr_file.read()}
-""".strip())
+""".strip()
+                    )
     return result

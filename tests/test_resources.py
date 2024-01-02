@@ -423,12 +423,14 @@ def test_resource_name_ensure_normalization(hq_env: HqEnv):
             "--resource",
             f"{res_name}=1",
             "--",
-            *python("""
+            *python(
+                """
 import os
 import sys
 print(os.environ["HQ_RESOURCE_REQUEST_gpus_amd"], flush=True)
 print(os.environ["HQ_RESOURCE_VALUES_gpus_amd"], flush=True)
-"""),
+"""
+            ),
         ]
     )
     hq_env.start_worker(args=["--resource", f"{res_name}=[0]"])

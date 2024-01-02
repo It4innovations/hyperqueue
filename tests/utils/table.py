@@ -78,9 +78,9 @@ class Table:
 
 
 def parse_table(table_info):
-    if type(table_info) == str:
+    if isinstance(table_info, str):
         lines = table_info.strip().split("\n")
-    elif type(table_info) == list:
+    elif isinstance(table_info, list):
         lines = table_info
 
     rows = []

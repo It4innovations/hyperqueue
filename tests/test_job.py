@@ -454,7 +454,8 @@ def test_cancel_send_sigint(hq_env: HqEnv):
         [
             "submit",
             "--",
-            *python("""
+            *python(
+                """
 import sys
 import time
 import signal
@@ -467,7 +468,8 @@ signal.signal(signal.SIGINT, signal_handler)
 
 print("ready", flush=True)
 time.sleep(3600)
-"""),
+"""
+            ),
         ]
     )
     wait_for_job_state(hq_env, 1, "RUNNING")
@@ -487,7 +489,8 @@ def test_cancel_kill_if_sigint_fails(hq_env: HqEnv):
         [
             "submit",
             "--",
-            *python("""
+            *python(
+                """
 import os
 import sys
 import time
@@ -501,7 +504,8 @@ signal.signal(signal.SIGINT, signal_handler)
 
 print("ready", flush=True)
 time.sleep(3600)
-"""),
+"""
+            ),
         ]
     )
     wait_for_job_state(hq_env, 1, "RUNNING")
@@ -890,8 +894,7 @@ def test_job_submit_program_not_found(hq_env: HqEnv):
     table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     assert (
         'Error: Cannot execute "foo --bar --baz=5": No such file or directory (os error 2)\n'
-        "The program that you have tried to execute (`foo`) was not found."
-        == table.get_column_value("Error")[0]
+        "The program that you have tried to execute (`foo`) was not found." == table.get_column_value("Error")[0]
     )
 
 
@@ -963,9 +966,11 @@ Try making it executable or add a shebang line to it.""" == table.get_column_val
 def test_job_shell_script_read_interpreter(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_worker()
-    Path("test.sh").write_text("""#!/bin/bash
+    Path("test.sh").write_text(
+        """#!/bin/bash
 echo 'Hello' > out.txt
-""")
+"""
+    )
     for job_id, path in enumerate(("test.sh", "./test.sh", os.path.realpath("test.sh"))):
         hq_env.command(["submit", path])
         wait_for_job_state(hq_env, job_id + 1, "FINISHED")
@@ -1060,7 +1065,9 @@ print("err1", file=sys.stderr)
 
     output = hq_env.command(["job", "cat", "1", "stdout", "--print-task-header"])
     print(output)
-    assert output == """
+    assert (
+        output
+        == """
 # Task 1
 1
 out1
@@ -1074,9 +1081,12 @@ out2
 out1
 out2
 """.lstrip()
+    )
 
     output = hq_env.command(["job", "cat", "1", "stderr", "--print-task-header"])
-    assert output == """
+    assert (
+        output
+        == """
 # Task 1
 1
 err1
@@ -1087,6 +1097,7 @@ err1
 3
 err1
 """.lstrip()
+    )
 
 
 def test_job_cat_status(hq_env: HqEnv):
@@ -1113,7 +1124,9 @@ assert os.environ['HQ_TASK_ID'] not in ['4', '5', '6', '8']
     wait_for_job_state(hq_env, 1, "FAILED")
 
     output = hq_env.command(["job", "cat", "--task-status=finished", "1", "stdout", "--print-task-header"])
-    assert output == """
+    assert (
+        output
+        == """
 # Task 3
 3
 out
@@ -1124,9 +1137,12 @@ out
 9
 out
 """.lstrip()
+    )
 
     output = hq_env.command(["job", "cat", "--task-status=failed", "--tasks", "3-7", "1", "stdout"])
-    assert output == """
+    assert (
+        output
+        == """
 4
 out
 5
@@ -1134,10 +1150,14 @@ out
 6
 out
 """.lstrip()
+    )
 
     output_selected = hq_env.command(["job", "cat", "--task-status", "finished,failed", "1", "stdout"])
     output_default = hq_env.command(["job", "cat", "1", "stdout"])
-    assert output_selected == output_default == """
+    assert (
+        output_selected
+        == output_default
+        == """
 3
 out
 4
@@ -1153,6 +1173,7 @@ out
 9
 out
 """.lstrip()
+    )
 
 
 def test_job_cat_last(hq_env: HqEnv):
@@ -1320,13 +1341,15 @@ def test_kill_task_when_worker_dies(hq_env: HqEnv):
         [
             "submit",
             "--",
-            *python("""
+            *python(
+                """
 import os
 import time
 
 print(os.getpid(), flush=True)
 time.sleep(3600)
-"""),
+"""
+            ),
         ]
     )
     wait_for_job_state(hq_env, 1, "RUNNING")
@@ -1399,7 +1422,8 @@ def check_child_process_exited(hq_env: HqEnv, stop_fn: Callable[[subprocess.Pope
         [
             "submit",
             "--",
-            *python("""
+            *python(
+                """
 import os
 import sys
 import time
@@ -1408,7 +1432,8 @@ pid = os.fork()
 if pid > 0:
     print(pid, flush=True)
 time.sleep(3600)
-"""),
+"""
+            ),
         ]
     )
     wait_for_job_state(hq_env, 1, "RUNNING")
