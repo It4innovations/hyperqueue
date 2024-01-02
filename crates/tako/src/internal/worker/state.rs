@@ -22,7 +22,7 @@ use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::rqueue::ResourceWaitQueue;
 use crate::internal::worker::task::{Task, TaskState};
-use crate::internal::worker::taskenv::TaskEnv;
+use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::launcher::TaskLauncher;
 use crate::TaskId;
 use crate::WorkerId;
@@ -217,9 +217,14 @@ impl WorkerState {
         self.comm.notify_start_task();
     }
 
-    pub fn start_task(&mut self, task_id: TaskId, task_env: TaskEnv, allocation: Rc<Allocation>) {
+    pub fn start_task(
+        &mut self,
+        task_id: TaskId,
+        task_comm: RunningTaskComm,
+        allocation: Rc<Allocation>,
+    ) {
         let task = self.get_task_mut(task_id);
-        task.state = TaskState::Running(task_env, allocation);
+        task.state = TaskState::Running(task_comm, allocation);
         self.running_tasks.insert(task_id);
     }
 

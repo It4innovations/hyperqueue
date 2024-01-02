@@ -1,14 +1,14 @@
 use crate::internal::common::resources::Allocation;
 use crate::internal::common::stablemap::ExtractKey;
 use crate::internal::messages::worker::ComputeTaskMsg;
-use crate::internal::worker::taskenv::TaskEnv;
+use crate::internal::worker::task_comm::RunningTaskComm;
 use crate::{InstanceId, Priority, TaskId, WorkerId};
 use std::rc::Rc;
 use std::time::Duration;
 
 pub enum TaskState {
     Waiting(u32),
-    Running(TaskEnv, Rc<Allocation>),
+    Running(RunningTaskComm, Rc<Allocation>),
 }
 
 pub struct Task {
@@ -61,9 +61,9 @@ impl Task {
         }
     }
 
-    pub fn task_env_mut(&mut self) -> Option<&mut TaskEnv> {
+    pub fn task_comm_mut(&mut self) -> Option<&mut RunningTaskComm> {
         match self.state {
-            TaskState::Running(ref mut env, _) => Some(env),
+            TaskState::Running(ref mut comm, _) => Some(comm),
             _ => None,
         }
     }
