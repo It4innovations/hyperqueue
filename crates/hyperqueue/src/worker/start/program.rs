@@ -47,7 +47,7 @@ const MAX_CUSTOM_ERROR_LENGTH: usize = 2048; // 2KiB
 
 const STDIO_BUFFER_SIZE: usize = 16 * 1024; // 16kB
 
-pub fn build_program_task(
+pub(super) fn build_program_task(
     build_ctx: TaskBuildContext,
     stop_receiver: Receiver<StopReason>,
     streamer_ref: &StreamerRef,
