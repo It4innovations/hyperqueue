@@ -22,8 +22,9 @@ use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
-    JobDescription, SubmitRequest, SubmitResponse, TaskBody, TaskDescription, TaskIdSelector,
-    TaskKind, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
+    JobDescription, SubmitRequest, SubmitResponse, TaskBuildDescription, TaskDescription,
+    TaskIdSelector, TaskKind, TaskSelector, TaskStatusSelector, TaskWithDependencies,
+    ToClientMessage,
 };
 use crate::{JobId, JobTaskId, Priority, TakoTaskId};
 
@@ -173,7 +174,7 @@ fn serialize_task_body(
             pin_mode,
             task_dir,
         } => {
-            let body_msg = TaskBody {
+            let body_msg = TaskBuildDescription {
                 program: Cow::Borrowed(program),
                 pin: pin_mode.clone(),
                 task_dir: *task_dir,

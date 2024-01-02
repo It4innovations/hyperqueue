@@ -58,8 +58,11 @@ impl PinMode {
     }
 }
 
+/// Description of a task that is ready to be started
+/// and know specific information about itself, like
+/// job ID, task ID, entry and submit_dir.
 #[derive(Serialize, Deserialize, Debug)]
-pub struct TaskBody<'a> {
+pub struct TaskBuildDescription<'a> {
     pub program: Cow<'a, ProgramDefinition>,
     pub pin: PinMode,
     pub task_dir: bool,
