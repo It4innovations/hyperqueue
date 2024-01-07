@@ -99,7 +99,7 @@ fn format_payload(event: MonitoringEventPayload) -> serde_json::Value {
 struct JobInfoFormatter<'a>(&'a JobInfo);
 
 impl<'a> JobInfoFormatter<'a> {
-    fn to_json(self) -> serde_json::Value {
+    fn to_json(&self) -> serde_json::Value {
         // Only format the job name for now
         json!({
             "name": self.0.name
