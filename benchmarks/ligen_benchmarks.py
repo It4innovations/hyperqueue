@@ -239,7 +239,8 @@ def analyze_results_utilization(db: Database) -> pd.DataFrame:
         duration = row.duration
 
         results["input"].append(params["smi"])
-        results["hq-worker-threads"].append(row.environment_params["worker_threads"])
+        results["environment"].append(row.environment)
+        results["worker-threads"].append(row.environment_params["worker_threads"])
         results["screening-threads"].append(params["screening-threads"])
         results["molecules-per-task"].append(params["molecules-per-task"])
         results["duration"].append(duration)
