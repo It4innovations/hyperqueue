@@ -7,5 +7,5 @@ pyserde==0.12.3
 psutil==5.8.0
 humanize==3.12.0
 git+https://github.com/it4innovations/snailwatch@4d590c55e6b1e404e0398e8005dd998f5bc50be9#subdirectory=client
-jinja2==3.0.3
+jinja2==3.1.3
 matplotlib==3.6.2
