@@ -6,9 +6,7 @@
 
 ![Tests](https://github.com/it4innovations/hyperqueue/actions/workflows/test.yml/badge.svg)
 
-**HyperQueue** (HQ) lets you build a computation plan consisting of a large amount of tasks and then
-execute it transparently over a system like SLURM/PBS. It dynamically groups tasks into SLURM/PBS jobs and distributes
-them to fully utilize allocated nodes. You thus do not have to manually aggregate your tasks into SLURM/PBS jobs.
+**HyperQueue** is a tool designed to simplify execution of large workflows (task graphs) on HPC clusters. It allows you to execute a large number of tasks in a simple way, without having to manually submit jobs into batch schedulers like Slurm or PBS. You just specify what you want to compute – HyperQueue will automatically ask for computational resources and dynamically load-balance tasks across all allocated nodes and cores. HyperQueue can also work without Slurm/PBS as a general task executor.
 
 [Documentation](https://it4innovations.github.io/hyperqueue/)
 
@@ -20,17 +18,19 @@ with the HyperQueue developers, you can use our [Zulip](https://hyperqueue.zulip
 ## Features
 
 - **Resource management**
-    - Load balancing of tasks across all available HPC resources (jobs)
-    - Automatic submission of HPC jobs on behalf of the user
-    - Tasks can specify complex arbitrary resource requirements (# of cores, GPUs, memory, ...)
+    - Load balancing of tasks across all available (HPC) resources
+    - Automatic submission of Slurm/PBS jobs on behalf of the user
+    - Complex and arbitrary task resource requirements (# of cores, GPUs, memory, FPGAs, ...)
+      - Fractional resources (task needs `0.5` of a GPU)
+      - Resource variants (task needs `1 GPU and 4 CPU cores` or `16 CPU cores`)
 
 - **Performance**
-    - The inner scheduler can scale to hundreds of nodes and workers
-    - The overhead per one task is below 0.1ms.
-    - Allows streaming of outputs from tasks to avoid creating many small files on distributed filesystems
+    - Scheduler can scale to hundreds of nodes and workers
+    - Overhead per one task is below `0.1ms`
+    - Allows streaming of stdout/stderr from tasks to avoid creating many small files on distributed filesystems
 
 - **Easy deployment**
-    - HQ is provided as a single, statically linked binary without any dependencies apart from `libc`
+    - Provided as a single, statically linked binary without any dependencies apart from `libc`
     - No admin access to a cluster is needed for its usage
 
 # Getting started
