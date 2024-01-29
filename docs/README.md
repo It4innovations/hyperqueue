@@ -2,10 +2,7 @@
   <img src="imgs/hq.png">
 </div>
 
-**HyperQueue** is a tool designed to simplify execution of large workflows on HPC clusters. It allows you to execute a
-large number of tasks in a simple way, without having to manually submit jobs into batch schedulers like PBS or Slurm.
-You just specify what you want to compute – HyperQueue will automatically ask for computational resources and dynamically
-load-balance tasks across all allocated nodes and cores.
+**HyperQueue** is a tool designed to simplify execution of large workflows (task graphs) on HPC clusters. It allows you to execute a large number of tasks in a simple way, without having to manually submit jobs into batch schedulers like Slurm or PBS. You just specify what you want to compute – HyperQueue will automatically ask for computational resources and dynamically load-balance tasks across all allocated nodes and cores. HyperQueue can also work without Slurm/PBS as a general task executor.
 
 ## Useful links
 - [Installation](installation.md)
