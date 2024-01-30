@@ -17,7 +17,7 @@ def test_job_cat_stdout(hq_env: HqEnv):
     assert output.strip() == "2"
 
     output = hq_env.command(["job", "cat", "--tasks", "0", "1", "stdout"])
-    assert "Task 0 not found" in output.strip()
+    assert "Task 0 of job 1 not found" in output.strip()
 
 
 def test_job_cat_stderr(hq_env: HqEnv):
@@ -45,7 +45,7 @@ print(os.environ['HQ_TASK_ID'], file=sys.stderr)
     assert output.splitlines() == ["1", "2"]
 
     output = hq_env.command(["job", "cat", "--tasks", "3", "1", "stdout"])
-    assert "Task 3 not found" in output.strip()
+    assert "Task 3 of job 1 not found" in output.strip()
 
 
 def test_job_cat_no_output(hq_env: HqEnv):
@@ -92,15 +92,15 @@ print("err1", file=sys.stderr)
     assert (
         output
         == """
-# Task 1
+# Job 1, task 1
 1
 out1
 out2
-# Task 2
+# Job 1, task 2
 2
 out1
 out2
-# Task 3
+# Job 1, task 3
 3
 out1
 out2
@@ -111,13 +111,13 @@ out2
     assert (
         output
         == """
-# Task 1
+# Job 1, task 1
 1
 err1
-# Task 2
+# Job 1, task 2
 2
 err1
-# Task 3
+# Job 1, task 3
 3
 err1
 """.lstrip()
@@ -151,13 +151,13 @@ assert os.environ['HQ_TASK_ID'] not in ['4', '5', '6', '8']
     assert (
         output
         == """
-# Task 3
+# Job 1, task 3
 3
 out
-# Task 7
+# Job 1, task 7
 7
 out
-# Task 9
+# Job 1, task 9
 9
 out
 """.lstrip()
@@ -218,3 +218,23 @@ def test_job_cat_last(hq_env: HqEnv):
 
     output = hq_env.command(["job", "cat", "last", "stderr"])
     assert output == ""
+
+
+def test_cat_multiple_jobs(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker()
+    hq_env.command(["submit", "--array=1-2", *bash('echo "$HQ_JOB_ID: $HQ_TASK_ID"')])
+    hq_env.command(["submit", "--array=1-2", *bash('echo "$HQ_JOB_ID: $HQ_TASK_ID"')])
+    wait_for_job_state(hq_env, [1, 2], "FINISHED")
+    assert (
+        hq_env.command(["job", "cat", "1-2", "--print-task-header", "stdout"])
+        == """# Job 1, task 1
+1: 1
+# Job 1, task 2
+1: 2
+# Job 2, task 1
+2: 1
+# Job 2, task 2
+2: 2
+"""
+    )

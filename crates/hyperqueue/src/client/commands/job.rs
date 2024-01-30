@@ -191,34 +191,39 @@ pub async fn output_job_cat(
         job_id_selector: job_selector,
         task_selector,
     });
-    let mut response =
+    let response =
         rpc_call!(session.connection(), message, ToClientMessage::JobDetailResponse(r) => r)
             .await?;
 
-    if let Some((job_id, opt_job)) = response.details.pop() {
+    if response.details.is_empty() {
+        log::error!("No jobs were found");
+        return Ok(());
+    }
+
+    for (job_id, opt_job) in response.details {
         match opt_job {
-            None => log::error!("Job {job_id} was not found"),
             Some(job) => {
                 let task_paths = resolve_task_paths(&job, &response.server_uid);
-                for task_id in job.tasks_not_found {
-                    log::warn!("Task {task_id} not found");
+                for task_id in &job.tasks_not_found {
+                    log::warn!("Task {task_id} of job {job_id} not found");
                 }
 
                 if job.tasks.is_empty() {
-                    log::warn!("No tasks were selected, there is nothing to print");
-                    return Ok(());
+                    log::warn!(
+                        "No tasks were selected for job {job_id}, there is nothing to print"
+                    );
+                    continue;
                 }
 
-                return gsettings.printer().print_job_output(
-                    job.tasks,
+                gsettings.printer().print_job_output(
+                    job,
                     output_stream,
                     task_header,
                     task_paths,
-                );
+                )?;
             }
+            None => log::error!("Job {job_id} was not found"),
         }
-    } else {
-        log::error!("No jobs were found");
     }
     Ok(())
 }

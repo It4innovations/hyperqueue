@@ -166,7 +166,7 @@ impl Output for JsonOutput {
 
     fn print_job_output(
         &self,
-        _tasks: Vec<JobTaskInfo>,
+        _job_detail: JobDetail,
         _output_stream: OutputStream,
         _task_header: bool,
         _task_paths: TaskToPathsMap,
