@@ -1,5 +1,5 @@
 import os.path
-from typing import List, Tuple
+from typing import Tuple
 
 from hyperqueue import LocalCluster
 from hyperqueue.client import Client
@@ -15,10 +15,6 @@ def prepare_job_client(hq_env: HqEnv, with_worker=True, **job_args) -> Tuple[Job
         hq_env.start_worker()
     client = Client(hq_env.server_dir)
     return (Job(**job_args), client)
-
-
-def bash(command: str) -> List[str]:
-    return ["bash", "-c", command]
 
 
 def hq_env_from_cluster(cluster: LocalCluster) -> HqEnv:

@@ -16,7 +16,8 @@ from ..utils import wait_for_job_state
 from ..utils.io import check_file_contents
 from ..utils.table import parse_multiline_cell
 from ..utils.wait import wait_for_job_list_count
-from . import bash, prepare_job_client
+from ..utils.cmd import bash
+from . import prepare_job_client
 
 
 def test_submit_empty_job(hq_env: HqEnv):
