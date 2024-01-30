@@ -9,4 +9,7 @@ def python(command: str) -> List[str]:
 
 
 def bash(command: str) -> List[str]:
+    """
+    Returns commands that will run in a bash script.
+    """
     return ["bash", "-c", command]
