@@ -103,12 +103,12 @@ impl Output for Quiet {
     }
     fn print_job_output(
         &self,
-        tasks: Vec<JobTaskInfo>,
+        job_detail: JobDetail,
         output_stream: OutputStream,
         task_header: bool,
         task_paths: TaskToPathsMap,
     ) -> anyhow::Result<()> {
-        print_job_output(tasks, output_stream, task_header, task_paths)
+        print_job_output(job_detail, output_stream, task_header, task_paths)
     }
 
     // Tasks

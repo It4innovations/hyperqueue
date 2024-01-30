@@ -598,12 +598,12 @@ impl Output for CliOutput {
 
     fn print_job_output(
         &self,
-        tasks: Vec<JobTaskInfo>,
+        job_detail: JobDetail,
         output_stream: OutputStream,
         task_header: bool,
         task_paths: TaskToPathsMap,
     ) -> anyhow::Result<()> {
-        print_job_output(tasks, output_stream, task_header, task_paths)
+        print_job_output(job_detail, output_stream, task_header, task_paths)
     }
 
     fn print_task_list(
@@ -1135,7 +1135,7 @@ pub fn job_progress_bar(counters: JobTaskCounters, n_tasks: JobTaskCount, width:
 }
 
 pub fn print_job_output(
-    tasks: Vec<JobTaskInfo>,
+    job_detail: JobDetail,
     output_stream: OutputStream,
     task_header: bool,
     task_paths: TaskToPathsMap,
@@ -1151,7 +1151,12 @@ pub fn print_job_output(
         };
 
         if task_header {
-            writeln!(stdout, "# Task {}", task_info.task_id).expect("Could not write output");
+            writeln!(
+                stdout,
+                "# Job {}, task {}",
+                job_detail.info.id, task_info.task_id
+            )
+            .expect("Could not write output");
         }
 
         if let Some(path) = opt_path {
@@ -1172,8 +1177,8 @@ pub fn print_job_output(
         }
     };
 
-    for task in tasks {
-        read_stream(&task, &output_stream);
+    for task in &job_detail.tasks {
+        read_stream(task, &output_stream);
     }
 
     Ok(())

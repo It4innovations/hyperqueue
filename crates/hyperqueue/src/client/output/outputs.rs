@@ -25,7 +25,7 @@ pub enum Outputs {
     Quiet,
 }
 
-#[derive(clap::ValueEnum, Clone)]
+#[derive(clap::ValueEnum, Clone, Copy)]
 pub enum OutputStream {
     /// Displays stdout output stream for given job and task(s)
     Stdout,
@@ -56,7 +56,7 @@ pub trait Output {
     );
     fn print_job_output(
         &self,
-        tasks: Vec<JobTaskInfo>,
+        job: JobDetail,
         output_stream: OutputStream,
         task_header: bool,
         task_paths: TaskToPathsMap,
