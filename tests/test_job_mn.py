@@ -103,3 +103,15 @@ def test_submit_mn_different_groups(hq_env: HqEnv):
     table.check_row_value("State", "WAITING")
     hq_env.start_workers(1, args=["--group=g2"])
     wait_for_job_state(hq_env, 1, "FINISHED")
+
+
+def test_submit_mn_time_request(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_workers(2)
+    hq_env.start_workers(1, args=["--time-limit=1s"], final_check=False)
+    hq_env.command(["submit", "--nodes=3", "--time-request=2s", "--", "/bin/hostname"])
+    time.sleep(0.7)
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("State", "WAITING")
+    hq_env.start_workers(1, args=["--time-limit=3s"])
+    wait_for_job_state(hq_env, 1, "FINISHED")

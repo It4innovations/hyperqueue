@@ -34,7 +34,6 @@ pub struct Core {
     has_new_tasks: bool,
 
     sleeping_sn_tasks: Vec<TaskId>, // Tasks that cannot be scheduled to any available worker
-    sleeping_mn_tasks: Vec<TaskId>,
 
     maximal_task_id: TaskId,
     worker_id_counter: u32,
@@ -141,22 +140,12 @@ impl Core {
         self.sleeping_sn_tasks.push(task_id);
     }
 
-    pub fn add_sleeping_mn_task(&mut self, task_id: TaskId) {
-        self.sleeping_mn_tasks.push(task_id);
-    }
-
     pub fn sleeping_sn_tasks(&self) -> &[TaskId] {
         &self.sleeping_sn_tasks
     }
 
-    pub fn sleeping_mn_tasks(&self) -> &[TaskId] {
-        &self.sleeping_mn_tasks
-    }
-
-    pub fn take_sleeping_tasks(&mut self) -> (Vec<TaskId>, Vec<TaskId>) {
-        let sn = std::mem::take(&mut self.sleeping_sn_tasks);
-        let mn = std::mem::take(&mut self.sleeping_mn_tasks);
-        (sn, mn)
+    pub fn take_sleeping_tasks(&mut self) -> Vec<TaskId> {
+        std::mem::take(&mut self.sleeping_sn_tasks)
     }
 
     pub fn get_server_info(&self) -> ServerInfo {
@@ -189,11 +178,11 @@ impl Core {
 
     pub fn new_worker(&mut self, worker: Worker) {
         /* Wake up sleeping tasks */
-        let (mut sleeping_sn_tasks, mut sleeping_mn_tasks) = self.take_sleeping_tasks();
+        let mut sleeping_sn_tasks = self.take_sleeping_tasks();
         self.single_node_ready_to_assign
             .append(&mut sleeping_sn_tasks);
-        self.multi_node_ready_to_assign
-            .append(&mut sleeping_mn_tasks);
+
+        self.multi_node_queue.wakeup_sleeping_tasks();
 
         let worker_id = worker.id;
         if let Some(g) = self.worker_groups.get_mut(&worker.configuration.group) {
@@ -322,9 +311,6 @@ impl Core {
             .tasks
             .remove(task_id)
             .expect("Trying to remove non-existent task");
-        if task.configuration.resources.is_multi_node() {
-            self.multi_node_queue.remove_task(task.id);
-        }
         assert!(!task.has_consumers());
         task.state
     }

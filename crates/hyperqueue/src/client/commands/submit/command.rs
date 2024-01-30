@@ -194,7 +194,6 @@ pub struct SubmitJobConfOpts {
         long,
         conflicts_with("pin"),
         conflicts_with("cpus"),
-        conflicts_with("time_request"),
         default_value_t = 0
     )]
     nodes: NumOfNodes,

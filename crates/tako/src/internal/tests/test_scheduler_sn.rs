@@ -473,9 +473,8 @@ fn test_resources_no_workers1() {
     assert_eq!(rt.worker_load(101).get(0.into()), u(16));
     assert_eq!(rt.worker_load(102).get(0.into()), u(0));
 
-    let (sn, mn) = rt.core().take_sleeping_tasks();
+    let sn = rt.core().take_sleeping_tasks();
     assert_eq!(sn.len(), 2);
-    assert_eq!(mn.len(), 0);
 }
 
 #[test]
@@ -507,10 +506,9 @@ fn test_resources_no_workers2() {
         assert_eq!(rt.worker(103).sn_tasks().len(), 1);
         assert_eq!(rt.worker(104).sn_tasks().len(), 1);
 
-        let (sn, mn) = rt.core().take_sleeping_tasks();
+        let sn = rt.core().take_sleeping_tasks();
         assert_eq!(sn.len(), 1);
         assert_eq!(sn[0], TaskId::new(unschedulable_index));
-        assert!(mn.is_empty());
     }
 
     check(&[9, 10, 11]);

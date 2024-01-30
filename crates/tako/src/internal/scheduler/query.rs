@@ -65,20 +65,8 @@ pub(crate) fn compute_new_worker_query(
         }
     }
 
-    let mut mn_task_profiles: Map<NumOfNodes, u32> = Map::new();
-    for task_id in core.sleeping_mn_tasks() {
-        let task = core.get_task(*task_id);
-        let n_nodes = task.configuration.resources.unwrap_first().n_nodes();
-        assert!(n_nodes > 0);
-        *mn_task_profiles.entry(n_nodes).or_default() += 1;
-    }
-    let (queue, map, _ws) = core.multi_node_queue_split();
-    for task_id in queue.all_tasks() {
-        let task = map.get_task(*task_id);
-        let n_nodes = task.configuration.resources.unwrap_first().n_nodes();
-        assert!(n_nodes > 0);
-        *mn_task_profiles.entry(n_nodes).or_default() += 1;
-    }
+    let (queue, _map, _ws) = core.multi_node_queue_split();
+    let mn_task_profiles = queue.get_profiles();
 
     let mut multi_node_allocations: Vec<_> = mn_task_profiles
         .iter()

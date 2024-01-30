@@ -3,7 +3,8 @@
 use crate::internal::messages::worker::ToWorkerMessage;
 use crate::internal::server::core::Core;
 use crate::internal::server::task::Task;
-use crate::internal::tests::utils::env::{create_test_comm, TestComm};
+use crate::internal::tests::utils::env::{create_test_comm, TestComm, TestEnv};
+use crate::internal::tests::utils::resources::ResBuilder;
 use crate::internal::tests::utils::schedule::{
     create_test_scheduler, create_test_worker, create_test_worker_config, create_test_workers,
     finish_on_worker, new_test_worker, submit_test_tasks,
@@ -12,6 +13,7 @@ use crate::internal::tests::utils::sorted_vec;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::resources::{ResourceDescriptor, ResourceMap};
 use crate::{Priority, TaskId, WorkerId};
+use std::time::Duration;
 
 /*fn get_mn_placement(task: &Task) -> Vec<WorkerId> {
     match &task.state {
@@ -243,15 +245,12 @@ fn test_mn_not_enough() {
         assert!(core.get_task(TaskId::new(*t)).is_waiting());
     }
 
-    assert_eq!(
-        sorted_vec(core.sleeping_mn_tasks().to_owned()),
-        vec![
-            TaskId::new(1),
-            TaskId::new(2),
-            TaskId::new(3),
-            TaskId::new(4)
-        ]
-    );
+    let (mn_queue, _, _) = core.multi_node_queue_split();
+
+    assert!(mn_queue.is_sleeping(&ResBuilder::default().n_nodes(3).finish()));
+    assert!(mn_queue.is_sleeping(&ResBuilder::default().n_nodes(5).finish()));
+    assert!(mn_queue.is_sleeping(&ResBuilder::default().n_nodes(11).finish()));
+    assert!(mn_queue.is_sleeping(&ResBuilder::default().n_nodes(2).finish()));
 }
 
 #[test]
@@ -334,4 +333,35 @@ fn test_mn_schedule_on_groups() {
     scheduler.run_scheduling(&mut core, &mut comm);
     core.sanity_check();
     assert!(core.task_map().get_task(1.into()).is_waiting());
+}
+
+#[test]
+fn test_schedule_mn_time_request1() {
+    let mut rt = TestEnv::new();
+    rt.new_workers_ext(&[
+        (1, None, Vec::new()),
+        (1, Some(Duration::new(29_999, 0)), Vec::new()),
+        (1, Some(Duration::new(30_001, 0)), Vec::new()),
+    ]);
+    rt.new_task(TaskBuilder::new(1).n_nodes(3).time_request(30_000));
+    rt.schedule();
+    assert!(rt.task(1.into()).is_waiting());
+
+    rt.new_task(TaskBuilder::new(2).n_nodes(2).time_request(30_000));
+    rt.schedule();
+    assert!(rt.task(1.into()).is_waiting());
+    assert!(rt.task(2.into()).is_mn_running());
+}
+
+#[test]
+fn test_schedule_mn_time_request2() {
+    let mut rt = TestEnv::new();
+    rt.new_workers_ext(&[
+        (1, Some(Duration::new(59_999, 0)), Vec::new()),
+        (1, Some(Duration::new(29_999, 0)), Vec::new()),
+        (1, Some(Duration::new(30_001, 0)), Vec::new()),
+    ]);
+    rt.new_task(TaskBuilder::new(1).n_nodes(3).time_request(23_998));
+    rt.schedule();
+    assert!(rt.task(1.into()).is_mn_running());
 }
