@@ -8,6 +8,7 @@ use tokio::time::sleep;
 //use crate::internal::common::trace::trace_time;
 use crate::internal::common::Map;
 use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
+use crate::internal::scheduler::multinode::MultiNodeAllocator;
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{Core, CoreRef};
 use crate::internal::server::task::{Task, TaskRuntimeState};
@@ -333,54 +334,18 @@ impl SchedulerState {
     // }
 
     fn try_start_multinode_tasks(&mut self, core: &mut Core) {
-        let mut selected_workers = Vec::new();
         loop {
             // "while let" not used because of lifetime problems
             let (mn_queue, task_map, worker_map, worker_groups) = core.multi_node_queue_split_mut();
-            if let Some((task_id, _)) = mn_queue.queue.peek() {
-                let task_id = *task_id;
+            let allocator =
+                MultiNodeAllocator::new(mn_queue, task_map, worker_map, worker_groups, self.now);
+            if let Some((task_id, workers)) = allocator.try_allocate_task() {
                 let task = task_map.get_task_mut(task_id);
-                let n_nodes = task.configuration.resources.unwrap_first().n_nodes() as usize;
-                assert!(n_nodes > 0);
-
-                let mut found = false;
-                let mut big_enough = false;
-                'outer: for group in worker_groups.values() {
-                    if group.size() < n_nodes {
-                        continue;
-                    }
-                    big_enough = true;
-                    selected_workers.clear();
-                    for worker_id in group.worker_ids() {
-                        let worker = worker_map.get_worker(worker_id);
-                        if worker.is_free() {
-                            selected_workers.push(worker_id);
-                        }
-                        if selected_workers.len() == n_nodes {
-                            found = true;
-                            break 'outer;
-                        }
-                    }
-                }
-                if found {
-                    mn_queue.queue.pop();
-                    self.assign_multinode(worker_map, task, std::mem::take(&mut selected_workers));
-                    continue;
-                } else if !big_enough {
-                    log::debug!(
-                        "Multi-node task {} put into sleep. (n_nodes={}, workers={})",
-                        task_id,
-                        n_nodes,
-                        worker_map.len()
-                    );
-                    mn_queue.queue.pop();
-                    core.add_sleeping_mn_task(task_id);
-                    continue;
-                } else {
-                    return;
-                }
+                self.assign_multinode(worker_map, task, workers);
+                continue;
+            } else {
+                return;
             }
-            return;
         }
     }
 
@@ -389,7 +354,6 @@ impl SchedulerState {
         if !core.has_workers() {
             return false;
         }
-
         log::debug!("Scheduling started");
 
         if core.check_has_new_tasks_and_reset() {
@@ -411,7 +375,6 @@ impl SchedulerState {
                 }
             }
         }
-
         self.try_start_multinode_tasks(core);
 
         let ready_tasks = core.take_single_node_ready_to_assign();

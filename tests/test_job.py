@@ -909,12 +909,11 @@ def test_job_submit_program_not_found_file_exists(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FAILED")
 
     table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
-    assert (
-        f"""Error: Cannot execute "foo": No such file or directory (os error 2)
+    assert f"""Error: Cannot execute "foo": No such file or directory (os error 2)
 The program that you have tried to execute (`foo`) was not found.
-The file `{join(os.getcwd(), 'foo')}` exists, maybe you have meant `./foo` instead?"""
-        == table.get_column_value("Error")[0]
-    )
+The file `{join(os.getcwd(), 'foo')}` exists, maybe you have meant `./foo` instead?""" == table.get_column_value(
+        "Error"
+    )[0]
 
 
 def test_job_stdin_basic(hq_env: HqEnv):

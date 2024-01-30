@@ -1,9 +1,10 @@
 import os.path
 from typing import Tuple
 
-from hyperqueue import LocalCluster
 from hyperqueue.client import Client
 from hyperqueue.job import Job
+
+from hyperqueue import LocalCluster
 
 from ..conftest import HqEnv
 from ..utils.mock import ProgramMock

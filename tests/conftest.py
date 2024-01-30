@@ -4,6 +4,7 @@ import os
 import signal
 import subprocess
 import time
+from dataclasses import dataclass
 from typing import Iterable, List, Optional, Tuple
 
 import pytest
@@ -24,12 +25,19 @@ def get_hq_binary(debug=True):
 RUNNING_IN_CI = "CI" in os.environ
 
 
+@dataclass
+class ManagedProcess:
+    name: str
+    process: subprocess.Popen
+    final_check: bool = True
+
+
 class Env:
     def __init__(self, work_path):
         self.processes = []
         self.work_path = work_path
 
-    def start_process(self, name, args, env=None, catch_io=True, cwd=None):
+    def start_process(self, name, args, env=None, catch_io=True, cwd=None, final_check=True):
         cwd = str(cwd or self.work_path)
         logfile = (self.work_path / name).with_suffix(".out")
         print(f"Starting process {name} with logfile {logfile}")
@@ -45,13 +53,13 @@ class Env:
                 )
         else:
             p = subprocess.Popen(args, cwd=cwd, env=env)
-        self.processes.append((name, p))
+        self.processes.append(ManagedProcess(name=name, process=p, final_check=final_check))
         return p
 
     def check_process_exited(self, process: subprocess.Popen, expected_code=0):
         def is_process_alive():
-            for n, p in self.processes:
-                if p is process:
+            for p in self.processes:
+                if p.process is process:
                     if process.poll() is None:
                         return True
                     if expected_code == "error":
@@ -59,7 +67,7 @@ class Env:
                     elif expected_code is not None:
                         assert process.returncode == expected_code
 
-                    self.processes = [(n, p) for (n, p) in self.processes if p is not process]
+                    self.processes = [p for p in self.processes if p.process is not process]
                     return False
             raise Exception(f"Process with pid {process.pid} not found")
 
@@ -67,29 +75,33 @@ class Env:
 
     def check_running_processes(self):
         """Checks that everything is still running"""
-        for name, process in self.processes:
-            if process.poll() is not None:
-                raise Exception("Process {0} crashed (log in {1}/{0}.out)".format(name, self.work_path))
+        for p in self.processes:
+            if p.final_check and p.process.poll() is not None:
+                raise Exception("Process {0} crashed (log in {1}/{0}.out)".format(p.name, self.work_path))
 
     def kill_all(self):
         self.sort_processes_for_kill()
-        for _, process in self.processes:
+        for p in self.processes:
             # Kill the whole group since the process may spawn a child
-            if not process.poll():
-                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            if not p.process.poll():
+                try:
+                    os.killpg(os.getpgid(p.process.pid), signal.SIGTERM)
+                except ProcessLookupError as e:
+                    if p.final_check:
+                        raise e
 
-    def get_processes_by_name(self, name: str) -> Iterable[Tuple[int, subprocess.Popen]]:
-        for i, (n, p) in enumerate(self.processes):
-            if n == name:
-                yield (i, p)
+    def get_processes_by_name(self, name: str) -> Iterable[Tuple[int, ManagedProcess]]:
+        for i, p in enumerate(self.processes):
+            if p.name == name:
+                yield i, p
 
     def kill_process(self, name: str, signal: int = signal.SIGTERM) -> subprocess.Popen:
         for i, p in self.get_processes_by_name(name):
             del self.processes[i]
             # Kill the whole group since the process may spawn a child
-            if p.returncode is None and not p.poll():
-                os.killpg(os.getpgid(p.pid), signal)
-            return p
+            if p.process.returncode is None and not p.process.poll():
+                os.killpg(os.getpgid(p.process.pid), signal)
+            return p.process
         else:
             raise Exception("Process not found")
 
@@ -165,6 +177,7 @@ class HqEnv(Env):
         on_server_lost="stop",
         server_dir=None,
         work_dir: Optional[str] = None,
+        final_check: bool = False,
     ) -> subprocess.Popen:
         self.id_counter += 1
         worker_id = self.id_counter
@@ -191,7 +204,7 @@ class HqEnv(Env):
             worker_args += ["--cpus", str(cpus)]
         if args:
             worker_args += list(args)
-        r = self.start_process(hostname, worker_args, env=worker_env)
+        r = self.start_process(hostname, worker_args, final_check=final_check, env=worker_env)
 
         if wait_for_start:
             print(wait_for_start)
@@ -221,14 +234,14 @@ class HqEnv(Env):
         if process is None:
             raise Exception(f"Worker {worker_id} not found")
 
-        process = self.kill_process(process[0], signal=signal)
+        process = self.kill_process(process.name, signal=signal)
         if wait:
             wait_until(lambda: process.poll() is not None)
 
-    def find_process_by_pid(self, pid: int) -> Optional[Tuple[str, subprocess.Popen]]:
-        for name, process in self.processes:
-            if process.pid == pid:
-                return (name, process)
+    def find_process_by_pid(self, pid: int) -> Optional[ManagedProcess]:
+        for p in self.processes:
+            if p.process.pid == pid:
+                return p
         return None
 
     def command(
@@ -305,7 +318,7 @@ class HqEnv(Env):
 
     def sort_processes_for_kill(self):
         # Kill server last to avoid workers ending too soon
-        self.processes.sort(key=lambda process: 1 if "server" in process[0] else 0)
+        self.processes.sort(key=lambda process: 1 if "server" in process.name else 0)
 
 
 @pytest.fixture(autouse=False, scope="function")

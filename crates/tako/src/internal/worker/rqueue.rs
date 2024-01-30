@@ -14,7 +14,7 @@ type QueuePriorityTuple = (Priority, Priority, Priority); // user priority, reso
 #[derive(Debug)]
 pub(crate) struct QueueForRequest {
     resource_priority: Priority,
-    queue: priority_queue::PriorityQueue<TaskId, PriorityTuple>,
+    queue: PriorityQueue<TaskId, PriorityTuple>,
 }
 
 impl QueueForRequest {

@@ -5,7 +5,6 @@ from pathlib import Path
 
 import iso8601
 import pytest
-
 from hyperqueue.client import FailedJobsException
 from hyperqueue.ffi.protocol import ResourceRequest
 from hyperqueue.job import Job
