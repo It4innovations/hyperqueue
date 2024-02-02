@@ -257,6 +257,35 @@ def test_slurm_queue_sbatch_args(hq_env: HqEnv):
             ]
 
 
+def test_slurm_queue_sbatch_additional_output(hq_env: HqEnv):
+    class Manager(SlurmManager):
+        def submit_response(self, job_id: str) -> str:
+            return f"""
+No reservation for this job
+--> Verifying valid submit host (login)...OK
+--> Verifying valid jobname...OK
+--> Verifying valid ssh keys...OK
+--> Verifying access to desired queue (normal)...OK
+--> Checking available allocation...OK
+Submitted batch job {job_id}            
+"""
+
+    handler = Manager()
+
+    with MockJobManager(hq_env, adapt_slurm(handler)):
+        hq_env.start_server()
+        prepare_tasks(hq_env)
+
+        job_id = handler.job_id(0)
+
+        add_queue(
+            hq_env,
+            manager="slurm",
+            time_limit="3m",
+        )
+        wait_for_alloc(hq_env, "QUEUED", job_id)
+
+
 @all_managers
 def test_queue_submit_success(hq_env: HqEnv, spec: ManagerSpec):
     with MockJobManager(hq_env, spec.handler()):

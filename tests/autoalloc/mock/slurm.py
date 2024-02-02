@@ -91,4 +91,4 @@ class SlurmManager(DefaultManager):
 
     def submit_response(self, job_id: str) -> str:
         # Job ID has to be the fourth item (separated by spaces)
-        return f"submitted job id {job_id}"
+        return f"Submitted batch job {job_id}"
