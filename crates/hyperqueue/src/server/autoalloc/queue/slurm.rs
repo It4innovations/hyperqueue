@@ -74,11 +74,14 @@ impl QueueHandler for SlurmHandler {
                 &worker_args,
             );
             let id = submit_script(script, "sbatch", &working_dir, |output| {
+                log::debug!("Sbatch output: {output}");
                 output
-                    .split(' ')
-                    .nth(3)
-                    .ok_or_else(|| anyhow::anyhow!("Missing job id in sbatch output"))
-                    .map(|id| id.to_string())
+                    .lines()
+                    .map(|l| l.trim())
+                    .find(|l| l.to_lowercase().starts_with("submitted batch job"))
+                    .and_then(|l| l.split(' ').nth(3))
+                    .map(|l| l.to_string())
+                    .ok_or_else(|| anyhow::anyhow!("Missing job id in sbatch output\n{output}"))
             })
             .await;
 
