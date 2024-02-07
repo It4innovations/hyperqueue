@@ -15,6 +15,10 @@ For more general discussion or feature requests, please use our
 [discussion forum](https://github.com/It4innovations/hyperqueue/discussions). If you want to chat
 with the HyperQueue developers, you can use our [Zulip](https://hyperqueue.zulipchat.com/) server.
 
+This image shows how HyperQueue can work on a distributed cluster that uses Slurm or PBS:
+
+<img src="docs/imgs/architecture-bg.png" width="500" alt="Architecture of HyperQueue deployed on a Slurm/PBS cluster" />
+
 ## Features
 
 - **Resource management**
