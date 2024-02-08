@@ -1,8 +1,6 @@
 use crate::gateway::{MultiNodeAllocationResponse, NewWorkerAllocationResponse, WorkerTypeQuery};
 use crate::internal::server::core::Core;
 use crate::internal::server::workerload::{WorkerLoad, WorkerResources};
-use crate::resources::NumOfNodes;
-use crate::Map;
 
 /* Read the documentation of NewWorkerQuery in gateway.rs */
 pub(crate) fn compute_new_worker_query(

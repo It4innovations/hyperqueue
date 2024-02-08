@@ -9,7 +9,7 @@ use crate::internal::tests::utils::schedule::{
     create_test_scheduler, create_test_worker, create_test_worker_config, create_test_workers,
     finish_on_worker, new_test_worker, submit_test_tasks,
 };
-use crate::internal::tests::utils::sorted_vec;
+
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::resources::{ResourceDescriptor, ResourceMap};
 use crate::{Priority, TaskId, WorkerId};

@@ -984,7 +984,7 @@ mod tests {
             10.into(),
             &create_worker(&allocs[0].id),
         );
-        check_running_workers(get_allocations(&state, queue_id).get(0).unwrap(), vec![10]);
+        check_running_workers(get_allocations(&state, queue_id).first().unwrap(), vec![10]);
     }
 
     #[tokio::test]
@@ -1011,7 +1011,7 @@ mod tests {
             );
         }
         check_running_workers(
-            get_allocations(&state, queue_id).get(0).unwrap(),
+            get_allocations(&state, queue_id).first().unwrap(),
             vec![0, 1],
         );
     }
@@ -1046,7 +1046,7 @@ mod tests {
             lost_worker_normal(LostWorkerReason::ConnectionLost),
         );
         check_finished_workers(
-            get_allocations(&state, queue_id).get(0).unwrap(),
+            get_allocations(&state, queue_id).first().unwrap(),
             vec![(0, LostWorkerReason::ConnectionLost)],
         );
     }

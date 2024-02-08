@@ -37,17 +37,11 @@ fn task_priority_tuple(task: &Task) -> PriorityTuple {
 }
 
 impl MultiNodeQueue {
-    pub fn recompute_priorities(&mut self, task_map: &TaskMap) {
+    pub fn recompute_priorities(&mut self, _task_map: &TaskMap) {
         /*if self.queues.is_empty() {
             return;
-        }
-        let new_queue = PriorityQueue::with_capacity(self.queue.len());
-        let old_queue = std::mem::replace(&mut self.queue, new_queue);
-        for (task_id, _) in old_queue {
-            let task = task_map.get_task(task_id);
-            self.add_task(task)
-        }
-        todo!()*/
+        }*/
+        // TODO: Not priority now, but it should be implemented also for multi node tasks
     }
 
     pub fn get_profiles(&self) -> Map<NumOfNodes, u32> {
@@ -209,8 +203,7 @@ impl<'a> MultiNodeAllocator<'a> {
                         qfr.queue.pop();
                         continue;
                     }
-                    match find_workers_for_task(&rq, self.worker_map, self.worker_groups, self.now)
-                    {
+                    match find_workers_for_task(rq, self.worker_map, self.worker_groups, self.now) {
                         TaskFindWorkersResult::Ready(workers) => {
                             let task_id = qfr.queue.pop().unwrap().0;
                             return Some((task_id, workers));
