@@ -33,6 +33,12 @@ pub struct TestEnv {
     worker_id_counter: <WorkerId as ItemId>::IdType,
 }
 
+impl Default for TestEnv {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TestEnv {
     pub fn new() -> TestEnv {
         TestEnv {

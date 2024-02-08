@@ -6,6 +6,12 @@ pub struct TestWorkerComm {
     start_task_notifications: usize,
 }
 
+impl Default for TestWorkerComm {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TestWorkerComm {
     pub fn new() -> Self {
         TestWorkerComm {
