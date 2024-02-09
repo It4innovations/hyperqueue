@@ -200,7 +200,7 @@ pub enum SubCommand {
     AutoAlloc(AutoAllocOpts),
     /// Event log management
     EventLog(EventLogOpts),
-    /// Commands for the dashboard
+    /// Start the HyperQueue CLI dashboard
     #[cfg(feature = "dashboard")]
     Dashboard(DashboardOpts),
     /// Generate shell completion script
