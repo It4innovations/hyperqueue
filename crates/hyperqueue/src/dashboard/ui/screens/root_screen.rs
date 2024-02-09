@@ -7,7 +7,7 @@ use crate::dashboard::ui::terminal::{Backend, DashboardFrame, DashboardTerminal}
 use chrono::Local;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Span, Spans, Text};
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph, Tabs, Wrap};
 use ratatui::Frame;
 use std::ops::ControlFlow;
@@ -127,7 +127,7 @@ pub fn render_screen_tabs(current_screen: SelectedScreen, rect: Rect, frame: &mu
         .iter()
         .map(|t| {
             let (first, rest) = t.split_at(1);
-            Spans::from(vec![
+            Line::from(vec![
                 Span::styled(first, Style::default().fg(Color::Yellow)),
                 Span::styled(rest, Style::default().fg(Color::Green)),
             ])
@@ -167,7 +167,7 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame<Backend>)
     const FORMAT: &str = "%d.%m. %H:%M:%S";
 
     let formatted = format!("{} - {}", start.format(FORMAT), end.format(FORMAT));
-    let range_paragraph = Paragraph::new(vec![Spans::from(formatted)])
+    let range_paragraph = Paragraph::new(vec![Line::from(formatted)])
         .style(Style::default())
         .block(Block::default())
         .alignment(Alignment::Center)

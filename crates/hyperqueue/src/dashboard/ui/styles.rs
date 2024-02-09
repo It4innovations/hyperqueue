@@ -1,6 +1,6 @@
 use ratatui::{
     style::{Color, Modifier, Style},
-    text::{Span, Spans},
+    text::{Line, Span},
     widgets::{Block, Borders, Row},
 };
 
@@ -24,11 +24,11 @@ pub fn style_table_title() -> Style {
         .add_modifier(Modifier::BOLD)
 }
 
-pub fn table_title<'a>(part_1: String) -> Spans<'a> {
-    Spans::from(vec![Span::styled(part_1, style_table_title())])
+pub fn table_title<'a>(part_1: String) -> Line<'a> {
+    Line::from(vec![Span::styled(part_1, style_table_title())])
 }
 
-pub fn table_block_with_title(title: Spans) -> Block {
+pub fn table_block_with_title(title: Line) -> Block {
     Block::default()
         .borders(Borders::ALL)
         .style(Style::default().bg(Color::Black))

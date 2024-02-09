@@ -4,7 +4,7 @@ use ratatui::widgets::{Paragraph, Row, Table, TableState, Wrap};
 
 use crate::dashboard::ui::styles;
 use crate::dashboard::ui::terminal::DashboardFrame;
-use ratatui::text::Spans;
+use ratatui::text::{Line, Span};
 
 static HIGHLIGHT: &str = "=> ";
 
@@ -118,7 +118,7 @@ impl<T> StatefulTable<T> {
 
             frame.render_stateful_widget(table, rect, &mut self.state);
         } else {
-            let header_text = vec![Spans::from("No data")];
+            let header_text = Line::from(vec![Span::from("No data")]);
             let paragraph = Paragraph::new(header_text)
                 .block(body_block)
                 .style(styles::style_no_data())
