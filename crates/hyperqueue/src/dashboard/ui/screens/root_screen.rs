@@ -3,7 +3,7 @@ use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::screens::autoalloc_screen::AutoAllocScreen;
 use crate::dashboard::ui::screens::job_screen::JobScreen;
 use crate::dashboard::ui::screens::overview_screen::WorkerOverviewScreen;
-use crate::dashboard::ui::terminal::{Backend, DashboardFrame, DashboardTerminal};
+use crate::dashboard::ui::terminal::{DashboardFrame, DashboardTerminal};
 use chrono::Local;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -154,7 +154,7 @@ pub fn render_screen_tabs(current_screen: SelectedScreen, rect: Rect, frame: &mu
     frame.render_widget(screen_tabs, rect);
 }
 
-fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame<Backend>) {
+fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame) {
     let chunks = Layout::default()
         .constraints(vec![Constraint::Length(1), Constraint::Percentage(100)])
         .direction(Direction::Vertical)
