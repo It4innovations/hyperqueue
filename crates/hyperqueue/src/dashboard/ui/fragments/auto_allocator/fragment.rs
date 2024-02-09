@@ -15,7 +15,7 @@ use crate::dashboard::ui::fragments::auto_allocator::allocations_info_table::All
 use crate::dashboard::ui::fragments::auto_allocator::queue_info_table::AllocationQueueInfoTable;
 use crate::dashboard::ui::fragments::auto_allocator::queue_params_display::QueueParamsTable;
 use crate::server::autoalloc::QueueId;
-use tui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
 pub struct AutoAllocatorFragment {
@@ -137,7 +137,7 @@ struct AutoAllocFragmentLayout {
 
 impl AutoAllocFragmentLayout {
     fn new(rect: &Rect) -> Self {
-        let auto_alloc_screen_chunks = tui::layout::Layout::default()
+        let auto_alloc_screen_chunks = ratatui::layout::Layout::default()
             .constraints(vec![
                 Constraint::Percentage(5),
                 Constraint::Percentage(40),

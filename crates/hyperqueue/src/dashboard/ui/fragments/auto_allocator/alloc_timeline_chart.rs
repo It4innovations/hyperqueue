@@ -1,19 +1,19 @@
 use std::time::{Duration, SystemTime};
 
+use ratatui::layout::Rect;
+use ratatui::widgets::canvas::{Canvas, Context, Painter, Shape};
 use tako::Map;
-use tui::layout::Rect;
-use tui::widgets::canvas::{Canvas, Context, Painter, Shape};
 
 use crate::dashboard::data::timelines::alloc_timeline::{get_allocation_status, AllocationStatus};
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::server::autoalloc::{AllocationId, QueueId};
 use chrono::{DateTime, Local};
+use ratatui::style::{Color, Style};
+use ratatui::symbols;
+use ratatui::text::Span;
+use ratatui::widgets::{Block, Borders};
 use std::default::Default;
-use tui::style::{Color, Style};
-use tui::symbols;
-use tui::text::Span;
-use tui::widgets::{Block, Borders};
 
 /// Margin for the chart time labels.
 const LABEL_Y_MARGIN: f64 = 1.00;

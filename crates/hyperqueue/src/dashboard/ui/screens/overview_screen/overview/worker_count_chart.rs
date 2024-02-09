@@ -1,10 +1,10 @@
 use std::time::SystemTime;
 
-use tui::layout::Rect;
-use tui::style::{Color, Modifier, Style};
-use tui::symbols;
-use tui::text::Span;
-use tui::widgets::{Block, Borders, Chart, Dataset, GraphType};
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::symbols;
+use ratatui::text::Span;
+use ratatui::widgets::{Block, Borders, Chart, Dataset, GraphType};
 
 use crate::dashboard::data::{DashboardData, TimeRange};
 use crate::dashboard::ui::styles::chart_style_deselected;

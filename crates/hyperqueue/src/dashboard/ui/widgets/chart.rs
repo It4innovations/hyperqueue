@@ -1,12 +1,12 @@
 use chrono::{DateTime, Local};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use ratatui::layout::{Alignment, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::symbols::Marker;
+use ratatui::text::Span;
+use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset};
 use tako::Map;
-use tui::layout::{Alignment, Rect};
-use tui::style::{Color, Modifier, Style};
-use tui::symbols::Marker;
-use tui::text::Span;
-use tui::widgets::{Axis, Block, Borders, Chart, Dataset};
 
 use crate::dashboard::data::{DashboardData, TimeRange};
 use crate::dashboard::ui::styles::chart_style_deselected;

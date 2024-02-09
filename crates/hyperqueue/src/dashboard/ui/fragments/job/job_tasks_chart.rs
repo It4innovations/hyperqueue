@@ -5,11 +5,11 @@ use crate::dashboard::ui::widgets::chart::{
     get_time_as_secs, ChartPlotter, DashboardChart, PlotStyle,
 };
 use crate::JobId;
+use ratatui::layout::Rect;
+use ratatui::style::Color;
+use ratatui::symbols::Marker;
 use std::time::SystemTime;
 use tako::Map;
-use tui::layout::Rect;
-use tui::style::Color;
-use tui::symbols::Marker;
 
 const RUNNING_TAG: &str = "Running";
 const FINISHED_TAG: &str = "Finished";

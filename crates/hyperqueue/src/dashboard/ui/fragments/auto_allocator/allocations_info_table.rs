@@ -5,11 +5,11 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::server::autoalloc::AllocationId;
 use chrono::{DateTime, Local};
+use ratatui::layout::{Constraint, Rect};
+use ratatui::style::Style;
+use ratatui::widgets::{Cell, Row};
 use std::time::SystemTime;
 use termion::event::Key;
-use tui::layout::{Constraint, Rect};
-use tui::style::Style;
-use tui::widgets::{Cell, Row};
 
 #[derive(Default)]
 pub struct AllocationInfoTable {

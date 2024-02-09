@@ -5,12 +5,12 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::JobTaskId;
 use chrono::{DateTime, Local};
+use ratatui::layout::{Constraint, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::widgets::{Cell, Row};
 use std::time::SystemTime;
 use tako::WorkerId;
 use termion::event::Key;
-use tui::layout::{Constraint, Rect};
-use tui::style::{Color, Modifier, Style};
-use tui::widgets::{Cell, Row};
 
 // Task State Strings
 const RUNNING: &str = "RUNNING";

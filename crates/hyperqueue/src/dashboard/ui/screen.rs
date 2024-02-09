@@ -1,5 +1,5 @@
+use ratatui::layout::Rect;
 use termion::event::Key;
-use tui::layout::Rect;
 
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::terminal::DashboardFrame;

@@ -2,8 +2,8 @@ use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::fragments::auto_allocator::fragment::AutoAllocatorFragment;
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::terminal::DashboardFrame;
+use ratatui::layout::Rect;
 use termion::event::Key;
-use tui::layout::Rect;
 
 #[derive(Default)]
 pub struct AutoAllocScreen {

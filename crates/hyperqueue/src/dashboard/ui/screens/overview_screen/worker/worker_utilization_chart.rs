@@ -1,8 +1,8 @@
-use tui::layout::{Constraint, Rect};
-use tui::style::{Color, Modifier, Style};
-use tui::symbols;
-use tui::text::Span;
-use tui::widgets::{Block, Borders, Chart, Dataset, GraphType};
+use ratatui::layout::{Constraint, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::symbols;
+use ratatui::text::Span;
+use ratatui::widgets::{Block, Borders, Chart, Dataset, GraphType};
 
 use tako::hwstats::WorkerHwStateMessage;
 use tako::worker::WorkerOverview;
