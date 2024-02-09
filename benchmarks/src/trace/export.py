@@ -3,7 +3,7 @@ import enum
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Iterable, List, Optional, Dict, Any, Set
+from typing import Iterable, List, Optional, Dict, Any
 
 import dataclasses
 

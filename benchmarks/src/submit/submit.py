@@ -1,4 +1,3 @@
-import datetime
 import json
 import logging
 import os
@@ -34,8 +33,8 @@ def create_submit_script_header(directory: Path, options: PBSSubmitOptions):
 
     project = f"#PBS -A {options.project}" if options.project else ""
 
+    # PBS -l select={options.nodes},walltime={format_pbs_time(options.walltime)}
     return f"""#!/bin/bash
-#PBS -l select={options.nodes},walltime={format_pbs_time(options.walltime)}
 #PBS -q {options.queue}
 #PBS -N {name}
 #PBS -o {stdout}
