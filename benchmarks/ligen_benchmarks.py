@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Iterable
 
 import dask
+import dataclasses
 import distributed
 import numpy as np
 import pandas as pd
@@ -190,15 +191,17 @@ class DaskVsHqLigen(TestCase):
     """
 
     def generate_descriptors(self) -> Iterable[BenchmarkDescriptor]:
-        hq_path = get_hq_binary()
+        hq_path = get_hq_binary(debug_symbols=True)
 
         worker_threads = min(multiprocessing.cpu_count(), 64)
-        hq_env = single_node_hq_cluster(hq_path, worker_threads=worker_threads)
+        hq_env = dataclasses.replace(
+            single_node_hq_cluster(hq_path, worker_threads=worker_threads), generate_event_log=False
+        )
         dask_env = single_node_dask_cluster(worker_threads=worker_threads)
         timeout = datetime.timedelta(minutes=10)
 
-        input_smi = CURRENT_DIR / "datasets/ligen/artif-200.smi"
-        variants = [(1, 1), (4, 4), (8, 8), (32, 4)]  # One molecule per task, one thread per task
+        input_smi = CURRENT_DIR / "datasets/ligen/artif-32.smi"
+        variants = [(1, 1), (4, 4)]  # , (4, 4), (8, 8), (32, 4)]  # One molecule per task, one thread per task
 
         def gen_descriptions(env: EnvironmentDescriptor, workload_cls) -> List[BenchmarkDescriptor]:
             for max_molecules, threads in variants:
@@ -214,9 +217,11 @@ class DaskVsHqLigen(TestCase):
         import seaborn as sns
 
         df = analyze_results_utilization(database)
-        print(f"""UTILIZATION
+        print(
+            f"""UTILIZATION
 {df}
-""")
+"""
+        )
 
         df = (
             DataFrameExtractor(database)
@@ -279,10 +284,10 @@ def benchmark_aggregated_vs_separate_tasks():
     per input ligand, vs. when we use 4/8/16 ligands for each task.
     """
     hq_path = get_hq_binary()
-    env = single_node_hq_cluster(hq_path, worker_threads=min(multiprocessing.cpu_count(), 64))
-    input_smi = get_dataset_path(Path("ligen/artif-200.smi"))
+    env = single_node_hq_cluster(hq_path, worker_threads=min(multiprocessing.cpu_count(), 64), version="base")
+    input_smi = get_dataset_path(Path("ligen/artif-2.smi"))
 
-    variants = [(1, 1), (4, 4), (8, 8)]
+    variants = [(1, 1)]  # , (4, 4), (8, 8)]
     descriptions = []
     for max_molecules, num_threads in variants:
         workload = LigenHQWorkload(smi_path=input_smi, max_molecules=max_molecules, screening_threads=num_threads)

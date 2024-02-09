@@ -31,7 +31,8 @@ class DaskVsHqSleep(TestCase):
         hq_env = single_node_hq_cluster(hq_path, worker_threads=worker_threads)
         dask_env = single_node_dask_cluster(worker_threads=worker_threads)
 
-        task_counts = [100, 1000, 5000, 10000, 25000, 50000]
+        task_counts = [50000]  # [100, 1000, 5000, 10000, 25000, 50000]
+        repeat_count = 1
 
         types = [
             (hq_env, SleepHQ),
@@ -42,7 +43,9 @@ class DaskVsHqSleep(TestCase):
             for task_count in task_counts:
                 sleep_duration = total_duration_single_thread / task_count
                 workload = workload_cls(task_count=task_count, sleep_duration=sleep_duration)
-                yield BenchmarkDescriptor(env_descriptor=env, workload=workload, timeout=timeout, repeat_count=2)
+                yield BenchmarkDescriptor(
+                    env_descriptor=env, workload=workload, timeout=timeout, repeat_count=repeat_count
+                )
 
     def postprocess(self, workdir: Path, database: Database):
         import seaborn as sns
@@ -61,7 +64,7 @@ class DaskVsHqSleep(TestCase):
         )
 
         ax = sns.scatterplot(df, x="task-count", y="duration", hue="environment", marker="o")
-        ax.set(ylabel="Duration [s]", xlabel="Task count")
+        ax.set(ylabel="Duration [s]", xlabel="Task count", ylim=(0, None))
         # ax.set(yscale="log")
         render_chart_to_png(workdir / "dask-vs-hq-sleep.png")
 
@@ -106,7 +109,7 @@ class DaskVsHqEmpty(TestCase):
         )
 
         ax = sns.lineplot(df, x="task-count", y="duration", hue="environment", marker="o")
-        ax.set(ylabel="Duration [s]", xlabel="Task count")
+        ax.set(ylabel="Duration [s]", xlabel="Task count", ylim=(0, None))
         # ax.set(yscale="log")
         render_chart_to_png(workdir / "dask-vs-hq-empty.png")
 
