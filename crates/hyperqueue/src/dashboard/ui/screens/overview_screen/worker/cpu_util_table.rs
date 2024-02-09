@@ -70,7 +70,7 @@ pub fn render_cpu_util_table(
         human_size(mem_used),
         human_size(mem_util.total)
     ));
-    let body_block = styles::table_block_with_title(title);
+    let body_block = styles::table_block_with_title(title.into());
 
     let table = Table::new(rows)
         .block(body_block)
