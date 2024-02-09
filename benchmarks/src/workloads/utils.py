@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, TYPE_CHECKING
 
 from ..environment import Environment
 from ..environment.hq import HqEnvironment
@@ -7,6 +7,9 @@ from ..environment.snake import SnakeEnvironment
 from ..utils import activate_cwd
 from ..utils.timing import Timings
 from .workload import WorkloadExecutionResult
+
+if TYPE_CHECKING:
+    import distributed
 
 
 def measure_hq_tasks(
@@ -72,7 +75,7 @@ def measure_dask_tasks(env: Environment, submit_fn: Callable[["distributed.Clien
     from ..environment.dask import DaskEnvironment
 
     assert isinstance(env, DaskEnvironment)
-    logging.debug(f"[Dask] Submitting")
+    logging.debug("[Dask] Submitting")
 
     timer = Timings()
     with timer.time():

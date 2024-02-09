@@ -26,6 +26,7 @@ class ExternalBenchmarkExecutor(BenchmarkExecutor):
 
     def __init__(self, init_script: Optional[Path] = None):
         self.init_script = init_script.resolve()
+        raise NotImplementedError()
 
     def execute(self, benchmark: BenchmarkDescriptor, ctx: BenchmarkContext) -> BenchmarkResult:
         return execute_benchmark_in_external_process(benchmark, ctx, self.init_script)
