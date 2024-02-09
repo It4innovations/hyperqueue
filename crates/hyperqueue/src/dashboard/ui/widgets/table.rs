@@ -105,12 +105,11 @@ impl<T> StatefulTable<T> {
 
         if self.has_items() {
             let rows = self.items.iter().map(row_cell_mapper);
-            let mut table = Table::new(rows)
+            let mut table = Table::new(rows, &columns.column_widths)
                 .block(body_block)
                 .highlight_style(styles::style_table_highlight())
                 .style(table_style)
-                .highlight_symbol(HIGHLIGHT)
-                .widths(&columns.column_widths);
+                .highlight_symbol(HIGHLIGHT);
 
             if let Some(column_headers) = columns.table_headers {
                 table = table.header(styles::style_column_headers(column_headers));
