@@ -20,7 +20,7 @@ use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::CoreRef;
 use crate::internal::server::reactor::{
     on_new_worker, on_remove_worker, on_steal_response, on_task_error, on_task_finished,
-    on_task_running, on_tasks_transferred,
+    on_task_running,
 };
 use crate::internal::server::worker::Worker;
 use crate::internal::transfer::auth::{
@@ -274,9 +274,6 @@ pub(crate) async fn worker_receive_loop<
             }
             FromWorkerMessage::TaskFailed(msg) => {
                 on_task_error(&mut core, &mut *comm, worker_id, msg.id, msg.info);
-            }
-            FromWorkerMessage::DataDownloaded(msg) => {
-                on_tasks_transferred(&mut core, worker_id, msg.id)
             }
             FromWorkerMessage::StealResponse(msg) => {
                 on_steal_response(&mut core, &mut *comm, worker_id, msg)

@@ -242,7 +242,7 @@ fn handle_new_tasks(
         .shared_data
         .into_iter()
         .map(|c| {
-            assert!(c.n_outputs == 0 || c.n_outputs == 1); // TODO: Implementation for more outputs
+            assert_eq!(c.n_outputs, 0); // TODO: Implementation for more outputs
             let keep = c.keep;
             let observe = c.observe;
             (Rc::new(create_task_configuration(core, c)), keep, observe)

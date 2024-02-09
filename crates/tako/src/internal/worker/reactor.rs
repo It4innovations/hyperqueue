@@ -102,7 +102,7 @@ async fn handle_task_future(task_future: TaskFuture, state_ref: WorkerStateRef, 
     match result {
         Ok(TaskResult::Finished) => {
             log::debug!("Inner task finished id={}", task_id);
-            state.finish_task(task_id, 0);
+            state.finish_task(task_id);
         }
         Ok(TaskResult::Canceled) => {
             log::debug!("Inner task canceled id={}", task_id);

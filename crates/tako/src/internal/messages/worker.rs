@@ -73,9 +73,6 @@ pub enum ToWorkerMessage {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskFinishedMsg {
     pub id: TaskId,
-    pub size: u64,
-    /*#[serde(with = "serde_bytes")]
-    pub r#type: Vec<u8>,*/
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -141,7 +138,6 @@ pub enum FromWorkerMessage {
     TaskFinished(TaskFinishedMsg),
     TaskFailed(TaskFailedMsg),
     TaskRunning(TaskRunningMsg),
-    DataDownloaded(DataDownloadedMsg),
     StealResponse(StealResponseMsg),
     Overview(WorkerOverview),
     Heartbeat,

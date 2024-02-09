@@ -2,6 +2,8 @@ from ..conftest import HqEnv
 from ..utils import wait_for_job_state
 from ..utils.cmd import bash
 from . import prepare_job_client
+from hyperqueue import Client, Job
+import time
 
 
 def test_single_dep(hq_env: HqEnv):
@@ -38,3 +40,20 @@ def test_dep_failed(hq_env: HqEnv):
     assert table.get_row_value("1") == "CANCELED"
     assert table.get_row_value("2") == "CANCELED"
     assert table.get_row_value("3") == "FINISHED"
+
+
+def test_kill_worker_with_deps(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(cpus="4")
+    hq_env.start_worker(cpus="4")
+    client = Client(hq_env.server_dir)
+
+    job = Job()
+    jobs = [job.program(bash("sleep 1")) for _ in range(16)]
+    job.program(bash("sleep 1"), deps=jobs)
+    submitted_job = client.submit(job)
+    wait_for_job_state(hq_env, submitted_job.id, "RUNNING")
+    hq_env.kill_worker(1)
+    hq_env.kill_worker(2)
+    time.sleep(2.0)
+    wait_for_job_state(hq_env, submitted_job.id, "WAITING")

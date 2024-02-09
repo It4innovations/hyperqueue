@@ -4,18 +4,12 @@ use std::time::Duration;
 use thin_vec::ThinVec;
 
 use crate::internal::common::stablemap::ExtractKey;
-use crate::internal::common::{Map, Set};
+use crate::internal::common::Set;
 use crate::internal::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::internal::server::taskmap::TaskMap;
 use crate::WorkerId;
 use crate::{static_assert_size, TaskId};
 use crate::{InstanceId, Priority};
-
-#[derive(Debug)]
-#[cfg_attr(test, derive(Eq, PartialEq))]
-pub struct DataInfo {
-    pub size: u64,
-}
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct WaitingInfo {
@@ -24,11 +18,7 @@ pub struct WaitingInfo {
 }
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
-pub struct FinishInfo {
-    pub data_info: DataInfo,
-    pub placement: Set<WorkerId>,
-    pub future_placement: Map<WorkerId, u32>,
-}
+pub struct FinishInfo {}
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum TaskRuntimeState {
@@ -351,14 +341,6 @@ impl Task {
     }
 
     #[inline]
-    pub(crate) fn data_info(&self) -> Option<&FinishInfo> {
-        match &self.state {
-            TaskRuntimeState::Finished(finfo) => Some(finfo),
-            _ => None,
-        }
-    }
-
-    #[inline]
     pub(crate) fn get_assigned_worker(&self) -> Option<WorkerId> {
         match &self.state {
             TaskRuntimeState::Assigned(id)
@@ -368,42 +350,6 @@ impl Task {
             | TaskRuntimeState::Stealing(_, None)
             | TaskRuntimeState::RunningMultiNode(_)
             | TaskRuntimeState::Finished(_) => None,
-        }
-    }
-
-    #[cfg(test)]
-    #[inline]
-    pub(crate) fn get_placement(&self) -> Option<&Set<WorkerId>> {
-        match &self.state {
-            TaskRuntimeState::Finished(finfo) => Some(&finfo.placement),
-            _ => None,
-        }
-    }
-
-    pub(crate) fn remove_future_placement(&mut self, worker_id: WorkerId) {
-        match &mut self.state {
-            TaskRuntimeState::Finished(finfo) => {
-                let count = finfo.future_placement.get_mut(&worker_id).unwrap();
-                if *count <= 1 {
-                    assert_ne!(*count, 0);
-                    finfo.future_placement.remove(&worker_id);
-                } else {
-                    *count -= 1;
-                }
-            }
-            _ => {
-                unreachable!()
-            }
-        }
-    }
-
-    #[inline]
-    pub(crate) fn set_future_placement(&mut self, worker_id: WorkerId) {
-        match self.state {
-            TaskRuntimeState::Finished(ref mut finfo) => {
-                (*finfo.future_placement.entry(worker_id).or_insert(0)) += 1;
-            }
-            _ => unreachable!(),
         }
     }
 

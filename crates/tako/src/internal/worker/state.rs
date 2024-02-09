@@ -228,9 +228,9 @@ impl WorkerState {
         self.running_tasks.insert(task_id);
     }
 
-    pub fn finish_task(&mut self, task_id: TaskId, size: u64) {
+    pub fn finish_task(&mut self, task_id: TaskId) {
         self.remove_task(task_id, true);
-        let message = FromWorkerMessage::TaskFinished(TaskFinishedMsg { id: task_id, size });
+        let message = FromWorkerMessage::TaskFinished(TaskFinishedMsg { id: task_id });
         self.comm.send_message_to_server(message);
     }
 

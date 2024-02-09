@@ -14,7 +14,6 @@ use crate::internal::server::core::Core;
 use crate::internal::server::reactor::{
     on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker, on_reset_keep_flag,
     on_set_observe_flag, on_steal_response, on_task_error, on_task_finished, on_task_running,
-    on_tasks_transferred,
 };
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
@@ -260,10 +259,7 @@ fn test_assignments_and_finish() {
         &mut core,
         &mut comm,
         100.into(),
-        TaskFinishedMsg {
-            id: 15.into(),
-            size: 301,
-        },
+        TaskFinishedMsg { id: 15.into() },
     );
 
     assert!(core.find_task(15.into()).is_none());
@@ -283,10 +279,7 @@ fn test_assignments_and_finish() {
         &mut core,
         &mut comm,
         101.into(),
-        TaskFinishedMsg {
-            id: 12.into(),
-            size: 5000,
-        },
+        TaskFinishedMsg { id: 12.into() },
     );
 
     assert!(core.get_task(12.into()).is_finished());
@@ -303,10 +296,7 @@ fn test_assignments_and_finish() {
         &mut core,
         &mut comm,
         100.into(),
-        TaskFinishedMsg {
-            id: 11.into(),
-            size: 1000,
-        },
+        TaskFinishedMsg { id: 11.into() },
     );
 
     comm.check_need_scheduling();
@@ -329,10 +319,7 @@ fn test_assignments_and_finish() {
         &mut core,
         &mut comm,
         101.into(),
-        TaskFinishedMsg {
-            id: 13.into(),
-            size: 1000,
-        },
+        TaskFinishedMsg { id: 13.into() },
     );
 
     comm.check_need_scheduling();
@@ -384,33 +371,6 @@ fn test_running_task_on_error() {
 
     assert!(core.find_task(16.into()).is_none());
     assert!(core.find_task(15.into()).is_none());
-    core.sanity_check();
-}
-
-#[test]
-fn test_running_task_on_task_transferred_invalid() {
-    let mut core = Core::default();
-    create_test_workers(&mut core, &[1, 1, 1]);
-    on_tasks_transferred(&mut core, 102.into(), 42.into());
-    core.sanity_check();
-}
-
-#[test]
-fn test_running_task_on_task_transferred() {
-    let mut core = Core::default();
-    create_test_workers(&mut core, &[1, 1, 1]);
-    submit_example_1(&mut core);
-    start_and_finish_on_worker(&mut core, 11, 100, 1000);
-    start_and_finish_on_worker(&mut core, 12, 101, 1000);
-    start_on_worker(&mut core, 13, 101);
-
-    on_tasks_transferred(&mut core, 101.into(), 11.into());
-
-    let ws = core.get_task(11.into()).get_placement().unwrap().clone();
-    let mut set = Set::new();
-    set.insert(WorkerId::new(100));
-    set.insert(WorkerId::new(101));
-    assert_eq!(ws, set);
     core.sanity_check();
 }
 
@@ -529,10 +489,7 @@ fn finish_task_without_outputs() {
         &mut core,
         &mut comm,
         100.into(),
-        TaskFinishedMsg {
-            id: 1.into(),
-            size: 0,
-        },
+        TaskFinishedMsg { id: 1.into() },
     );
     comm.check_need_scheduling();
     comm.emptiness_check();
@@ -850,10 +807,7 @@ fn test_finished_before_steal_response() {
         &mut core,
         &mut comm,
         101.into(),
-        TaskFinishedMsg {
-            id: 1.into(),
-            size: 0,
-        },
+        TaskFinishedMsg { id: 1.into() },
     );
 
     comm.check_need_scheduling();
@@ -939,10 +893,7 @@ fn test_after_cancel_messages() {
         &mut core,
         &mut comm,
         101.into(),
-        TaskFinishedMsg {
-            id: 1.into(),
-            size: 100,
-        },
+        TaskFinishedMsg { id: 1.into() },
     );
     comm.emptiness_check();
 
