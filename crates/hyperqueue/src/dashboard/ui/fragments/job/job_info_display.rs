@@ -4,9 +4,9 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::transfer::messages::JobDescription;
 use chrono::{DateTime, Local};
+use ratatui::layout::{Constraint, Rect};
+use ratatui::widgets::{Cell, Row};
 use std::borrow::Cow;
-use tui::layout::{Constraint, Rect};
-use tui::widgets::{Cell, Row};
 
 #[derive(Default)]
 pub struct JobInfoTable {

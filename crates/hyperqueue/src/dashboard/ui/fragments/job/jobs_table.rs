@@ -8,10 +8,10 @@ use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::JobId;
 use std::time::SystemTime;
 
+use ratatui::layout::{Constraint, Rect};
+use ratatui::style::Style;
+use ratatui::widgets::{Cell, Row};
 use termion::event::Key;
-use tui::layout::{Constraint, Rect};
-use tui::style::Style;
-use tui::widgets::{Cell, Row};
 
 #[derive(Default)]
 pub struct JobsTable {

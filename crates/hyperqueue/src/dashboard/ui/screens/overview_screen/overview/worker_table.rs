@@ -1,6 +1,6 @@
-use tui::layout::{Constraint, Rect};
-use tui::style::{Color, Style};
-use tui::widgets::{Cell, Row};
+use ratatui::layout::{Constraint, Rect};
+use ratatui::style::{Color, Style};
+use ratatui::widgets::{Cell, Row};
 
 use tako::gateway::LostWorkerReason;
 use tako::WorkerId;

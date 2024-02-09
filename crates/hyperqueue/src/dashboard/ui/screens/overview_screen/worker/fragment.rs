@@ -15,9 +15,9 @@ use crate::dashboard::ui::screens::overview_screen::worker::worker_config_table:
 use crate::dashboard::ui::screens::overview_screen::worker::worker_utilization_chart::WorkerUtilizationChart;
 use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 use crate::JobTaskId;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use tako::hwstats::MemoryStats;
 use tako::WorkerId;
-use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
 pub struct WorkerOverviewFragment {

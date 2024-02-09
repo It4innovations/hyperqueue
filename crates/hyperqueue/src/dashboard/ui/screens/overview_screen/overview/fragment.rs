@@ -1,5 +1,5 @@
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use termion::event::Key;
-use tui::layout::{Constraint, Direction, Layout, Rect};
 
 use tako::WorkerId;
 
@@ -71,7 +71,7 @@ struct OverviewFragmentLayout {
 
 impl OverviewFragmentLayout {
     fn new(rect: &Rect) -> Self {
-        let base_chunks = tui::layout::Layout::default()
+        let base_chunks = ratatui::layout::Layout::default()
             .constraints(vec![
                 Constraint::Percentage(45),
                 Constraint::Percentage(50),

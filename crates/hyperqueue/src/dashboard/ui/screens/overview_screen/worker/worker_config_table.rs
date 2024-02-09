@@ -1,9 +1,9 @@
 use crate::dashboard::ui::styles::table_style_deselected;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
+use ratatui::layout::{Constraint, Rect};
+use ratatui::widgets::{Cell, Row};
 use tako::worker::WorkerConfiguration;
-use tui::layout::{Constraint, Rect};
-use tui::widgets::{Cell, Row};
 
 #[derive(Default)]
 pub struct WorkerConfigTable {

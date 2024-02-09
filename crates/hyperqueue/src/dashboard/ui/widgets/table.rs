@@ -1,10 +1,10 @@
-use tui::layout::{Alignment, Constraint, Rect};
-use tui::style::Style;
-use tui::widgets::{Paragraph, Row, Table, TableState, Wrap};
+use ratatui::layout::{Alignment, Constraint, Rect};
+use ratatui::style::Style;
+use ratatui::widgets::{Paragraph, Row, Table, TableState, Wrap};
 
 use crate::dashboard::ui::styles;
 use crate::dashboard::ui::terminal::DashboardFrame;
-use tui::text::Spans;
+use ratatui::text::Spans;
 
 static HIGHLIGHT: &str = "=> ";
 

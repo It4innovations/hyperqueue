@@ -17,8 +17,8 @@ use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 use crate::dashboard::ui::fragments::job::job_info_display::JobInfoTable;
 use crate::dashboard::ui::fragments::job::job_tasks_chart::JobTaskChart;
 use crate::JobTaskId;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use tako::WorkerId;
-use tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
 pub struct JobFragment {
@@ -126,7 +126,7 @@ struct JobFragmentLayout {
 
 impl JobFragmentLayout {
     fn new(rect: &Rect) -> Self {
-        let job_screen_chunks = tui::layout::Layout::default()
+        let job_screen_chunks = ratatui::layout::Layout::default()
             .constraints(vec![
                 Constraint::Percentage(5),
                 Constraint::Percentage(40),

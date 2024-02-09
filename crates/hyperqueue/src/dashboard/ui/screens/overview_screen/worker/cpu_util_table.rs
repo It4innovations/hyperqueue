@@ -1,9 +1,9 @@
 use crate::common::format::human_size;
+use ratatui::layout::{Constraint, Rect};
+use ratatui::style::Style;
+use ratatui::widgets::{Cell, Row, Table};
 use std::cmp;
 use tako::hwstats::MemoryStats;
-use tui::layout::{Constraint, Rect};
-use tui::style::Style;
-use tui::widgets::{Cell, Row, Table};
 
 use crate::dashboard::ui::styles;
 use crate::dashboard::ui::terminal::DashboardFrame;

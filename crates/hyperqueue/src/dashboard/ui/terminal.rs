@@ -1,10 +1,10 @@
 use std::io::{stdout, Stdout};
 
+use ratatui::backend::TermionBackend as TerminalBackend;
+use ratatui::{Frame, Terminal};
 use termion::input::MouseTerminal;
 use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::AlternateScreen;
-use tui::backend::TermionBackend as TerminalBackend;
-use tui::{Frame, Terminal};
 
 pub type Backend = TerminalBackend<AlternateScreen<MouseTerminal<RawTerminal<Stdout>>>>;
 pub type DashboardTerminal = Terminal<Backend>;
