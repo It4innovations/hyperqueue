@@ -4,7 +4,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::symbols::Marker;
-use ratatui::text::Span;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset};
 use tako::Map;
 
@@ -118,7 +118,7 @@ impl DashboardChart {
                     .map(|(_, y)| if *y > y_max { *y } else { y_max })
                     .fold(y_max, f64::max);
                 Dataset::default()
-                    .name(label)
+                    .name(Line::from(label.as_str()))
                     .marker(style.marker)
                     .style(Style::default().fg(style.color))
                     .data(dataset)
