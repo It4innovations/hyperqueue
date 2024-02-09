@@ -192,7 +192,7 @@ pub fn get_time_as_secs(time: SystemTime) -> f64 {
     time.duration_since(UNIX_EPOCH).unwrap().as_secs() as f64
 }
 
-fn format_tims_hms(time: SystemTime) -> String {
+fn format_time_hms(time: SystemTime) -> String {
     let datetime: chrono::DateTime<Local> = time.into();
     datetime.format("%H:%M:%S").to_string()
 }
@@ -203,8 +203,8 @@ pub fn x_axis_time_chart(range: TimeRange) -> Axis<'static> {
         .style(Style::default().fg(Color::Gray))
         .bounds([get_time_as_secs(range.start), get_time_as_secs(range.end)])
         .labels(vec![
-            format_tims_hms(range.start).into(),
-            format_tims_hms(range.end).into(),
+            format_time_hms(range.start).into(),
+            format_time_hms(range.end).into(),
         ])
 }
 
