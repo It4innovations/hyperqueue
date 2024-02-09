@@ -34,6 +34,7 @@ nav:
     - Multinode Tasks: jobs/multinode.md
   - CLI:
     - Shortcuts: cli/shortcuts.md
+    - Dashboard: cli/dashboard.md
     - Output mode: cli/output-mode.md
   - Python API:
       - Getting started: python/index.md
