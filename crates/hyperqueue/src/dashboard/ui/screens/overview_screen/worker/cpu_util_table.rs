@@ -72,11 +72,10 @@ pub fn render_cpu_util_table(
     ));
     let body_block = styles::table_block_with_title(title.into());
 
-    let table = Table::new(rows)
+    let table = Table::new(rows, constraints)
         .block(body_block)
         .highlight_style(styles::style_table_highlight())
-        .style(table_style)
-        .widths(constraints);
+        .style(table_style);
 
     frame.render_widget(table, rect);
 }
