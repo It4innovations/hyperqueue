@@ -1,7 +1,7 @@
 use crate::internal::common::resources::{
     ResourceAmount, ResourceIndex, ResourceLabel, ResourceUnits,
 };
-use crate::internal::common::utils::{format_comma_delimited, has_unique_elements};
+use crate::internal::common::utils::has_unique_elements;
 use crate::internal::common::Set;
 use serde::{Deserialize, Serialize};
 
@@ -173,21 +173,6 @@ impl ResourceDescriptorKind {
             ResourceDescriptorKind::Sum { .. } => {}
         }
         Ok(())
-    }
-}
-
-impl std::fmt::Display for ResourceDescriptorKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::List { values } => {
-                write!(f, "[{}]", format_comma_delimited(values))
-            }
-            Self::Range { start, end } => {
-                write!(f, "Range({start}-{end})")
-            }
-            Self::Sum { size } => write!(f, "Sum({size})"),
-            Self::Groups { .. } => todo!(),
-        }
     }
 }
 
