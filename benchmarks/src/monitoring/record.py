@@ -82,7 +82,10 @@ def record_processes(processes: List[psutil.Process]) -> Dict[str, ProcessRecord
                 children_system=cpu_times.children_system,
             )
             data[str(process.pid)] = ProcessRecord(
-                rss=memory_info.rss, vm=memory_info.vms, cpu=cpu_utilization, cpu_times=cpu_times
+                rss=memory_info.rss,
+                vm=memory_info.vms,
+                cpu=cpu_utilization,
+                cpu_times=cpu_times,
             )
         except BaseException as e:
             logging.error(e)

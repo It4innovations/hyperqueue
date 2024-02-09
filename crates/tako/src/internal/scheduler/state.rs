@@ -1,25 +1,22 @@
-use std::cmp::{Ordering, Reverse};
+use std::cmp::Reverse;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use tokio::sync::Notify;
 use tokio::time::sleep;
 
-//use crate::internal::common::trace::trace_time;
 use crate::internal::common::Map;
 use crate::internal::messages::worker::{TaskIdsMsg, ToWorkerMessage};
 use crate::internal::scheduler::multinode::MultiNodeAllocator;
 use crate::internal::server::comm::{Comm, CommSenderRef};
 use crate::internal::server::core::{Core, CoreRef};
 use crate::internal::server::task::{Task, TaskRuntimeState};
-use crate::internal::server::taskmap::TaskMap;
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workerload::ResourceRequestLowerBound;
 use crate::internal::server::workermap::WorkerMap;
 use crate::{TaskId, WorkerId};
 
 use super::metrics::compute_b_level_metric;
-use super::utils::task_transfer_cost;
 
 // Long duration - 1 year
 const LONG_DURATION: std::time::Duration = std::time::Duration::from_secs(365 * 24 * 60 * 60);
@@ -98,7 +95,6 @@ impl SchedulerState {
     fn choose_worker_for_task(
         &mut self,
         task: &Task,
-        taskmap: &TaskMap,
         worker_map: &Map<WorkerId, Worker>,
         try_prev_worker: bool, // Enable heuristics that tries to fit tasks on fewer workers
     ) -> Option<WorkerId> {
@@ -119,22 +115,11 @@ impl SchedulerState {
 
         self.tmp_workers.clear(); // This has to be called AFTER fast path
 
-        let mut costs = u64::MAX;
         for worker in worker_map.values() {
             if !worker.is_capable_to_run_rqv(&task.configuration.resources, self.now) {
                 continue;
             }
-
-            let c = task_transfer_cost(taskmap, task, worker.id);
-            match c.cmp(&costs) {
-                Ordering::Less => {
-                    costs = c;
-                    self.tmp_workers.clear();
-                    self.tmp_workers.push(worker.id);
-                }
-                Ordering::Equal => self.tmp_workers.push(worker.id),
-                Ordering::Greater => { /* Do nothing */ }
-            }
+            self.tmp_workers.push(worker.id)
         }
         self.pick_worker()
     }
@@ -251,7 +236,7 @@ impl SchedulerState {
     }
 
     pub fn assign(&mut self, core: &mut Core, task_id: TaskId, worker_id: WorkerId) {
-        let (inputs, assigned_worker) = {
+        {
             let (tasks, workers) = core.split_tasks_workers_mut();
             let task = tasks.get_task(task_id);
             let assigned_worker = task.get_assigned_worker();
@@ -273,14 +258,6 @@ impl SchedulerState {
             }
             (task.inputs.clone(), assigned_worker)
         };
-
-        for ti in inputs.into_iter() {
-            let input = core.get_task_mut(ti.task());
-            if let Some(wr) = assigned_worker {
-                input.remove_future_placement(wr);
-            }
-            input.set_future_placement(worker_id);
-        }
 
         let (tasks, workers) = core.split_tasks_workers_mut();
         let task = tasks.get_task_mut(task_id);
@@ -395,12 +372,7 @@ impl SchedulerState {
                     }
 
                     if let Some(task) = core.find_task(task_id) {
-                        self.choose_worker_for_task(
-                            task,
-                            core.task_map(),
-                            core.get_worker_map(),
-                            try_prev_worker,
-                        )
+                        self.choose_worker_for_task(task, core.get_worker_map(), try_prev_worker)
                     } else {
                         continue;
                     }
@@ -491,7 +463,7 @@ impl SchedulerState {
                 // and tN is the lowest cost to schedule here
                 ts.sort_by_cached_key(|&task_id| {
                     let task = task_map.get_task(task_id);
-                    let mut cost = task_transfer_cost(task_map, task, worker.id);
+                    let mut cost = 0; // TODO: Transfer costs
                     if !task.is_fresh() && task.get_assigned_worker() != Some(worker.id) {
                         cost += 10_000_000;
                     }

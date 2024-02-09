@@ -7,8 +7,8 @@ use crate::internal::messages::worker::{
 };
 use crate::internal::server::comm::Comm;
 use crate::internal::server::core::Core;
-use crate::internal::server::task::{DataInfo, Task, TaskRuntimeState};
 use crate::internal::server::task::{FinishInfo, WaitingInfo};
+use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
 use crate::internal::server::workermap::WorkerMap;
 use crate::{TaskId, WorkerId};
@@ -84,13 +84,7 @@ pub(crate) fn on_remove_worker(
                     continue;
                 }
             }
-            TaskRuntimeState::Finished(finfo) => {
-                finfo.future_placement.remove(&worker_id);
-                finfo.placement.remove(&worker_id);
-                if finfo.placement.is_empty() {
-                    todo!();
-                    // We have lost last worker that have this data
-                }
+            TaskRuntimeState::Finished(_finfo) => {
                 continue;
             }
             TaskRuntimeState::RunningMultiNode(ws) => {
@@ -306,11 +300,7 @@ pub(crate) fn on_task_finished(
                 placement.insert(worker_id);
             }
 
-            task.state = TaskRuntimeState::Finished(FinishInfo {
-                data_info: DataInfo { size: msg.size },
-                placement,
-                future_placement: Default::default(),
-            });
+            task.state = TaskRuntimeState::Finished(FinishInfo {});
             comm.ask_for_scheduling();
 
             if task.is_observed() {
@@ -601,25 +591,6 @@ pub(crate) fn on_cancel_tasks(
     (to_unregister.into_iter().collect(), already_finished)
 }
 
-pub(crate) fn on_tasks_transferred(core: &mut Core, worker_id: WorkerId, task_id: TaskId) {
-    log::debug!("Task id={} transferred to worker={}", task_id, worker_id);
-    // TODO handle the race when task is removed from server before this message arrives
-    if let Some(task) = core.find_task_mut(task_id) {
-        match &mut task.state {
-            TaskRuntimeState::Finished(ref mut winfo) => {
-                winfo.placement.insert(worker_id);
-            }
-            TaskRuntimeState::Waiting(_)
-            | TaskRuntimeState::Running { .. }
-            | TaskRuntimeState::RunningMultiNode(_)
-            | TaskRuntimeState::Assigned(_)
-            | TaskRuntimeState::Stealing(_, _) => {
-                panic!("Invalid task state");
-            }
-        };
-    }
-}
-
 fn unregister_as_consumer(core: &mut Core, comm: &mut impl Comm, task_id: TaskId) {
     let inputs: Vec<TaskId> = core
         .get_task(task_id)
@@ -640,7 +611,7 @@ fn remove_task_if_possible(core: &mut Core, _comm: &mut impl Comm, task_id: Task
     }
 
     match core.remove_task(task_id) {
-        TaskRuntimeState::Finished(finfo) => finfo.placement,
+        TaskRuntimeState::Finished(_finfo) => { /* Ok */ }
         _ => unreachable!(),
     };
     log::debug!("Task id={task_id} is no longer needed");

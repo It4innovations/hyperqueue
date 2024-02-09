@@ -141,10 +141,7 @@ pub fn finish_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
         core,
         &mut comm,
         worker_id.into(),
-        TaskFinishedMsg {
-            id: task_id.into(),
-            size,
-        },
+        TaskFinishedMsg { id: task_id.into() },
     );
 }
 
