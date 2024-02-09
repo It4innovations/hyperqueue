@@ -16,6 +16,9 @@ the JSON output mode is still unstable.
 
 * Optimizations related to job submit & long term memory saving
 
+* The CLI dashboard is now enabled by default. You can try it with the `hq dashboard` command. Note that it is still
+very experimental and a lot of useful features are missing.
+
 # v0.17.0
 
 ## Breaking change
