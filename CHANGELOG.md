@@ -9,7 +9,10 @@
 the JSON output mode is still unstable.
 
 ## New features
-* Allow setting minimum duration for a task (`min_time` resource value) using the Python API.
+
+* Combination of --time-request and --nodes is now allowed
+
+* Allow setting a time request for a task (`min_time` resource value) using the Python API.
 
 * Optimizations related to job submit & long term memory saving
 
