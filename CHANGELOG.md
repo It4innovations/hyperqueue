@@ -1,4 +1,4 @@
-# Dev
+# v0.18.0
 
 ## Breaking change
 
@@ -18,6 +18,7 @@ the JSON output mode is still unstable.
 
 * The CLI dashboard is now enabled by default. You can try it with the `hq dashboard` command. Note that it is still
 very experimental and a lot of useful features are missing.
+
 
 # v0.17.0
 
