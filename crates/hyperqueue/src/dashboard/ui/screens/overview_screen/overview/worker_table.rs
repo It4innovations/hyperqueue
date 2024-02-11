@@ -44,7 +44,6 @@ impl WorkerTable {
         let mut rows: Vec<WorkerRow> = data
             .workers()
             .get_known_worker_ids_at(current_time)
-            .into_iter()
             .map(|(worker_id, status)| {
                 let config = data.workers().get_worker_config_for(worker_id);
                 let hostname = config.map(|config| config.hostname.clone());

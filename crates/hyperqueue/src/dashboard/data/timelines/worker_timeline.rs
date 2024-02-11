@@ -21,7 +21,6 @@ pub enum WorkerStatus {
 }
 
 pub struct WorkerRecord {
-    id: WorkerId,
     connection_time: SystemTime,
     worker_config: WorkerConfiguration,
     worker_overviews: TimeBasedVec<WorkerOverview>,
@@ -53,7 +52,6 @@ impl WorkerTimeline {
                     self.workers.insert(
                         *id,
                         WorkerRecord {
-                            id: *id,
                             connection_time: event.time,
                             worker_config: *info.clone(),
                             worker_overviews: Default::default(),

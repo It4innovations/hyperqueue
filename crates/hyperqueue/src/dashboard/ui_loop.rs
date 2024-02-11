@@ -109,7 +109,7 @@ async fn send_event_repeatedly(
 fn setup_panics() {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        write!(io::stdout(), "{}", ToMainScreen).unwrap();
+        print!("{}", ToMainScreen);
         io::stdout()
             .into_raw_mode()
             .unwrap()

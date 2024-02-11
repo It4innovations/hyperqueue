@@ -5,6 +5,7 @@ pub use fetch::create_data_fetch_process;
 pub use time_based_vec::ItemWithTime;
 pub use time_interval::TimeRange;
 
+#[allow(clippy::module_inception)]
 mod data;
 mod fetch;
 mod time_based_vec;

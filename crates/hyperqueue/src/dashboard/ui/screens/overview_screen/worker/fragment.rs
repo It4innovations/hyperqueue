@@ -96,7 +96,7 @@ impl WorkerOverviewFragment {
                     )
                 })
             {
-                self.worker_per_core_cpu_util = cpu_util.into_iter().map(|&v| v as f64).collect();
+                self.worker_per_core_cpu_util = cpu_util.iter().map(|&v| v as f64).collect();
                 self.worker_mem_util = mem_util.clone();
             }
 
