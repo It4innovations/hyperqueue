@@ -144,8 +144,8 @@ impl DashboardChart {
                     .title("t->")
                     .style(Style::default().fg(Color::Gray))
                     .bounds([
-                        get_time_as_secs(self.end_time - self.view_size) as f64,
-                        get_time_as_secs(self.end_time) as f64,
+                        get_time_as_secs(self.end_time - self.view_size),
+                        get_time_as_secs(self.end_time),
                     ])
                     .labels(vec![
                         Span::from(start_time_label.format("%H:%M").to_string()),

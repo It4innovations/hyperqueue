@@ -122,7 +122,7 @@ pub fn get_root_screen_chunks(frame: &DashboardFrame) -> RootChunks {
 
 /// Renders the top `tab bar` of the dashboard.
 pub fn render_screen_tabs(current_screen: SelectedScreen, rect: Rect, frame: &mut DashboardFrame) {
-    let screen_names = vec!["Jobs", "AutoAllocator", "Workers"];
+    let screen_names = ["Jobs", "AutoAllocator", "Workers"];
     let screen_titles: Vec<Line> = screen_names
         .iter()
         .map(|t| {

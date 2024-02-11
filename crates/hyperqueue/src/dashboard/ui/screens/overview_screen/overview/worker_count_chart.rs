@@ -51,7 +51,7 @@ impl WorkerCountChart {
         let worker_counts: Vec<(f64, f64)> = self
             .worker_records
             .iter()
-            .map(|record| (get_time_as_secs(record.time) as f64, record.count as f64))
+            .map(|record| (get_time_as_secs(record.time), record.count as f64))
             .collect();
         let datasets = vec![Dataset::default()
             .name("Connected workers")

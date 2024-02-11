@@ -33,11 +33,6 @@ impl AllocationInfoTable {
         self.table.select_previous_wrap();
     }
 
-    pub fn get_selected_allocation_id(&self) -> Option<&AllocationId> {
-        let selection = self.table.current_selection();
-        selection.map(|(id, _)| id)
-    }
-
     pub fn clear_selection(&mut self) {
         self.table.clear_selection();
     }

@@ -31,13 +31,8 @@ impl WorkerUtilizationChart {
                 .iter()
                 .map(|record| {
                     (
-                        get_time_as_secs(record.time) as f64,
-                        record
-                            .item
-                            .hw_state
-                            .as_ref()
-                            .map(|state| get_value(&state))
-                            .unwrap_or(0.0),
+                        get_time_as_secs(record.time),
+                        record.item.hw_state.as_ref().map(&get_value).unwrap_or(0.0),
                     )
                 })
                 .collect::<Vec<(f64, f64)>>()
@@ -112,11 +107,11 @@ impl WorkerUtilizationChart {
 
     pub fn update(&mut self, data: &DashboardData, worker_id: WorkerId) {
         let time_range = data.current_time_range();
-        let overviews = data
+        self.overviews = data
             .workers()
             .get_worker_overviews_at(worker_id, time_range)
-            .unwrap_or(&[]);
-        self.overviews = overviews.into_iter().cloned().collect();
+            .unwrap_or(&[])
+            .to_vec();
         self.range = time_range;
     }
 }
