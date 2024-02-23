@@ -1,4 +1,4 @@
-use env_logger::fmt::Color;
+use env_logger::fmt::style::{AnsiColor, Color, Style};
 use env_logger::DEFAULT_FILTER_ENV;
 use log::LevelFilter;
 use std::io::Write;
@@ -23,16 +23,14 @@ pub fn setup_logging(verbose: bool) {
         // Shortened format
         // <time> <level> <message>
         builder.format(|buf, record| {
-            let mut level_style = buf.default_level_style(record.level());
-            level_style.set_bold(true);
-            let mut style = buf.style();
-            style.set_color(Color::Black).set_intense(true);
+            let level_style = buf.default_level_style(record.level()).bold();
+            let style = Style::new().fg_color(Some(Color::Ansi(AnsiColor::Black)));
+            let timestamp = buf.timestamp_seconds();
+            let level = record.level();
+            let args = record.args();
             writeln!(
                 buf,
-                "{} {} {}",
-                style.value(buf.timestamp_seconds()),
-                level_style.value(record.level()),
-                record.args()
+                "{style}{timestamp}{style:#} {level_style}{level}{level_style:#} {args}",
             )
         });
     }
