@@ -1,6 +1,5 @@
 use std::fs::File;
 use std::future::Future;
-use std::io;
 use std::io::{BufWriter, ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
@@ -29,8 +28,8 @@ use tako::resources::{
 use tako::{format_comma_delimited, InstanceId};
 
 use crate::common::env::{
-    HQ_CPUS, HQ_ENTRY, HQ_ERROR_FILENAME, HQ_INSTANCE_ID, HQ_JOB_ID, HQ_NODE_FILE, HQ_PIN,
-    HQ_SUBMIT_DIR, HQ_TASK_DIR, HQ_TASK_ID,
+    HQ_CPUS, HQ_ENTRY, HQ_ERROR_FILENAME, HQ_HOST_FILE, HQ_INSTANCE_ID, HQ_JOB_ID, HQ_NODE_FILE,
+    HQ_NUM_NODES, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR, HQ_TASK_ID,
 };
 use crate::common::placeholders::{
     fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
@@ -109,8 +108,32 @@ pub(super) fn build_program_task(
                     .into(),
             );
             if !build_ctx.node_list().is_empty() {
-                let filename = task_dir.path().join("hq-nodelist");
-                write_node_file(&build_ctx, &filename).map_err(|error| {
+                program.env.insert(
+                    HQ_NUM_NODES.into(),
+                    build_ctx.node_list().len().to_string().into(),
+                );
+
+                /*
+                   We write a hostnames in two forms "full" and "short" names.
+                   Short hostname is a hostname where a part after a first "." is removed
+                   (e.g. a host name for cn710.karolina.it4i.cz is cn710)
+
+                   We are providing both because some systems (e.g. SLURM or OpenMPI) use just short names
+                */
+
+                let filename = task_dir.path().join("hq-hostfile");
+                write_node_file(&build_ctx, &filename, false).map_err(|error| {
+                    format!(
+                        "Cannot write node file at {}: {error:?}",
+                        filename.display()
+                    )
+                })?;
+                program.env.insert(
+                    HQ_HOST_FILE.into(),
+                    filename.to_string_lossy().to_string().into(),
+                );
+                let filename = task_dir.path().join("hq-nodefile");
+                write_node_file(&build_ctx, &filename, true).map_err(|error| {
                     format!(
                         "Cannot write node file at {}: {error:?}",
                         filename.display()
@@ -204,7 +227,7 @@ async fn resend_stdio(
     Ok(())
 }
 
-fn create_directory_if_needed(file: &StdioDef) -> io::Result<()> {
+fn create_directory_if_needed(file: &StdioDef) -> std::io::Result<()> {
     if let StdioDef::File { path, .. } = file {
         if let Some(path) = path.parent() {
             std::fs::create_dir_all(path)?;
@@ -217,11 +240,21 @@ fn get_custom_error_filename(task_dir: &TempDir) -> PathBuf {
     task_dir.path().join("hq-error")
 }
 
-fn write_node_file(ctx: &TaskBuildContext, path: &Path) -> std::io::Result<()> {
+fn is_ip_address(hostname: &str) -> bool {
+    hostname.chars().all(|c| c.is_ascii_digit() || c == '.')
+}
+
+fn write_node_file(ctx: &TaskBuildContext, path: &Path, short_names: bool) -> std::io::Result<()> {
     let file = File::create(path)?;
     let mut file = BufWriter::new(file);
     for worker_id in ctx.node_list() {
-        file.write_all(ctx.worker_hostname(*worker_id).unwrap().as_bytes())?;
+        let hostname = ctx.worker_hostname(*worker_id).unwrap();
+        let node_name = if short_names && !is_ip_address(hostname) {
+            hostname.split_once('.').map(|x| x.0).unwrap_or(hostname)
+        } else {
+            hostname
+        };
+        file.write_all(node_name.as_bytes())?;
         file.write_all(b"\n")?;
     }
     file.flush()?;

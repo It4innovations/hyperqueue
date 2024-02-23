@@ -1,3 +1,17 @@
+# Dev
+
+## New features
+
+* `HQ_NUM_NODES` for multi-node tasks introduced. It contains the number of nodes assigned to task.
+  You do not need to manually count lines in `HQ_NODE_FILE` anymore.
+
+## Changes
+
+* Node file generated for multi-node tasks now contains only short hostnames
+  (e.g. if hostname is "cn690.karolina.it4i.cz", only "cn690" is written into node list)
+  You can read ``HQ_HOST_FILE`` if you need to get full hostnames without stripping.
+
+
 # v0.18.0
 
 ## Breaking change

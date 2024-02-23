@@ -178,6 +178,7 @@ class HqEnv(Env):
         server_dir=None,
         work_dir: Optional[str] = None,
         final_check: bool = False,
+        hostname=None,
     ) -> subprocess.Popen:
         self.id_counter += 1
         worker_id = self.id_counter
@@ -197,7 +198,8 @@ class HqEnv(Env):
             f"--on-server-lost={on_server_lost}",
             "--no-detect-resources",  # Ignore resources on testing machine
         ]
-        hostname = f"worker{worker_id}"
+        if hostname is None:
+            hostname = f"worker{worker_id}"
         if set_hostname:
             worker_args += ["--hostname", hostname]
         if cpus is not None:
