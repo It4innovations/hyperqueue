@@ -11,7 +11,7 @@ def test_submit_mn(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.start_workers(2)
 
-    hq_env.command(["submit", "--nodes=3", "--", "bash", "-c", "sleep 1; cat ${HQ_NODE_FILE}"])
+    hq_env.command(["submit", "--nodes=3", "--", "bash", "-c", "sleep 1; echo ${HQ_NUM_NODES}; cat ${HQ_NODE_FILE}"])
     time.sleep(0.5)
     table = hq_env.command(["job", "info", "1"], as_table=True)
     table.check_row_value("Resources", "nodes: 3")
@@ -28,6 +28,7 @@ def test_submit_mn(hq_env: HqEnv):
 
     wait_for_job_state(hq_env, 1, "FINISHED", timeout_s=1.2)
     with open(default_task_output(1)) as f:
+        assert f.readline() == "3\n"
         hosts = f.read().rstrip().split("\n")
         assert hosts == ws
     # assert len(nodes) == 3
@@ -115,3 +116,16 @@ def test_submit_mn_time_request(hq_env: HqEnv):
     table.check_row_value("State", "WAITING")
     hq_env.start_workers(1, args=["--time-limit=3s"])
     wait_for_job_state(hq_env, 1, "FINISHED")
+
+
+def test_submit_mn_complex_hostname(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.start_worker(hostname="cn690.karolina.it4i.cz")
+    hq_env.start_worker(hostname="cn710.karolina.it4i.cz")
+
+    hq_env.command(["submit", "--nodes=2", "--", "bash", "-c", "sleep 1; cat ${HQ_NODE_FILE}; cat ${HQ_HOST_FILE}"])
+    wait_for_job_state(hq_env, 1, "FINISHED", timeout_s=1.2)
+    with open(default_task_output(1)) as f:
+        hosts = f.read().rstrip().split("\n")
+        assert sorted(hosts[:2]) == ["cn690", "cn710"]
+        assert sorted(hosts[2:4]) == ["cn690.karolina.it4i.cz", "cn710.karolina.it4i.cz"]
