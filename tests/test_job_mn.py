@@ -124,7 +124,7 @@ def test_submit_mn_complex_hostname(hq_env: HqEnv):
     hq_env.start_worker(hostname="cn710.karolina.it4i.cz")
 
     hq_env.command(["submit", "--nodes=2", "--", "bash", "-c", "sleep 1; cat ${HQ_NODE_FILE}; cat ${HQ_HOST_FILE}"])
-    wait_for_job_state(hq_env, 1, "FINISHED", timeout_s=1.2)
+    wait_for_job_state(hq_env, 1, "FINISHED")
     with open(default_task_output(1)) as f:
         hosts = f.read().rstrip().split("\n")
         assert sorted(hosts[:2]) == ["cn690", "cn710"]
