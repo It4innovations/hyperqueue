@@ -1,14 +1,12 @@
 use crate::server::event::log::canonical_header;
 use crate::server::event::MonitoringEvent;
-use async_compression::tokio::write::GzipEncoder;
-use async_compression::Level;
 use std::path::Path;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
 /// Streams monitoring events into a file on disk.
 pub struct EventLogWriter {
-    file: GzipEncoder<File>,
+    file: File,
     buffer: Vec<u8>,
 }
 
@@ -20,8 +18,6 @@ impl EventLogWriter {
         let header = rmp_serde::encode::to_vec(&canonical_header())?;
         file.write_all(&header).await?;
         file.flush().await?;
-
-        let file = GzipEncoder::with_quality(file, Level::Fastest);
 
         // Keep buffer capacity larger than max size to avoid reallocation if we overflow
         // the buffer.
