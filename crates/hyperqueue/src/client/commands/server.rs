@@ -91,12 +91,12 @@ struct ServerStartOpts {
     #[arg(long, default_value_t = 1000000)]
     event_store_size: usize,
 
-    /// Path to a log file where events will be stored.
-    #[arg(long, hide(true))]
-    event_log_path: Option<PathBuf>,
+    /// Path to a log file where events will be stored.    
+    #[arg(long)]
+    journal: Option<PathBuf>,
 
     /// Path to access file that is used for configuration of secret keys and ports
-    #[arg(long, hide(true))]
+    #[arg(long)]
     access_file: Option<PathBuf>,
 }
 
@@ -150,7 +150,7 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
         client_port,
         worker_port,
         event_buffer_size: opts.event_store_size,
-        event_log_path: opts.event_log_path,
+        journal_path: opts.journal,
         worker_secret_key: access_file.as_ref().map(|a| a.worker_key().clone()),
         client_secret_key: access_file.as_ref().map(|a| a.client_key().clone()),
         server_uid: access_file.as_ref().map(|a| a.server_uid().to_string()),

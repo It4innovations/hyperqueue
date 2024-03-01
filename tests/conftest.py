@@ -223,8 +223,8 @@ class HqEnv(Env):
     def stop_server(self):
         self.command(["server", "stop"])
         for _, p in self.get_processes_by_name("server"):
-            p.wait()
-            self.check_process_exited(p)
+            p.process.wait()
+            self.check_process_exited(p.process)
 
     def kill_server(self):
         self.kill_process("server")

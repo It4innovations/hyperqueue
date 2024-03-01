@@ -1,7 +1,7 @@
 use crate::server::event::log::canonical_header;
 use crate::server::event::MonitoringEvent;
 use std::path::Path;
-use tokio::fs::File;
+use tokio::fs::{File, OpenOptions};
 use tokio::io::AsyncWriteExt;
 
 /// Streams monitoring events into a file on disk.
@@ -13,8 +13,12 @@ pub struct EventLogWriter {
 const BUF_MAX_SIZE: usize = 16 * 1024;
 
 impl EventLogWriter {
-    pub async fn create(path: &Path) -> anyhow::Result<Self> {
-        let mut file = File::create(path).await?;
+    pub async fn create_or_append(path: &Path) -> anyhow::Result<Self> {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .await?;
         let header = rmp_serde::encode::to_vec(&canonical_header())?;
         file.write_all(&header).await?;
         file.flush().await?;
