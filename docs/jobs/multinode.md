@@ -67,7 +67,7 @@ If you are running SLURM you should start the MPI program as follows:
 ```
 #!/bin/sh
 
-srun --nodefile $HQ_NODE_FILE --nodes=$HQ_NUM_NODES mpirun ...
+srun --nodefile=$HQ_NODE_FILE --nodes=$HQ_NUM_NODES mpirun ...
 ```
 
 Note: It is important to set `--nodes` otherwise the node file will not be respected.
