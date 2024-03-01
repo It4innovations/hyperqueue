@@ -48,7 +48,7 @@ nom-supreme = { version = "0.8"}
 colored = "2"
 const_format = "0.2"
 textwrap = "0.16"
-async-compression = { version = "0.4", features = ["tokio", "gzip"] }
+# async-compression = { version = "0.4", features = ["tokio", "gzip"] }
 flate2 = { version = "1", features = ["default"] }
 chumsky = "0.9"
 toml = "0.8"

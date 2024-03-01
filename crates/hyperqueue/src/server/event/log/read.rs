@@ -1,7 +1,6 @@
 use crate::server::event::log::{canonical_header, LogFileHeader};
 use crate::server::event::MonitoringEvent;
 use anyhow::anyhow;
-use flate2::read::GzDecoder;
 use rmp_serde::decode::Error;
 use std::fs::File;
 use std::io::ErrorKind;
@@ -9,7 +8,7 @@ use std::path::Path;
 
 /// Reads events from a file in a streaming fashion.
 pub struct EventLogReader {
-    source: GzDecoder<File>,
+    source: File,
 }
 
 impl EventLogReader {
@@ -25,8 +24,7 @@ impl EventLogReader {
             ));
         }
 
-        let source = GzDecoder::new(file);
-        Ok(Self { source })
+        Ok(Self { source: file })
     }
 }
 
