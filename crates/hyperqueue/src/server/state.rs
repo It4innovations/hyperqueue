@@ -2,6 +2,7 @@ use std::cmp::min;
 use std::collections::BTreeMap;
 
 use chrono::Utc;
+use nom::combinator::rest;
 
 use tako::gateway::{
     CancelTasks, FromGatewayMessage, LostWorkerMessage, NewWorkerMessage, TaskFailedMessage,
@@ -14,6 +15,7 @@ use crate::server::autoalloc::{AutoAllocService, LostWorkerDetails};
 use crate::server::event::events::JobInfo;
 use crate::server::event::storage::EventStorage;
 use crate::server::job::Job;
+use crate::server::restore::StateRestorer;
 use crate::server::rpc::Backend;
 use crate::server::worker::Worker;
 use crate::transfer::messages::ServerInfo;
@@ -21,8 +23,8 @@ use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
 
 pub struct State {
-    jobs: crate::Map<JobId, Job>,
-    workers: crate::Map<WorkerId, Worker>,
+    jobs: Map<JobId, Job>,
+    workers: Map<WorkerId, Worker>,
 
     // Here we store TaskId -> JobId data, but to make it sparse
     // we store ONLY the base_task_id there, i.e. each job has here
@@ -39,7 +41,7 @@ pub struct State {
     // To make this query efficient, we use BTreeMap and not Map
     base_task_id_to_job_id: BTreeMap<TakoTaskId, JobId>,
     job_id_counter: <JobId as ItemId>::IdType,
-    task_id_counter: <TaskId as ItemId>::IdType,
+    task_id_counter: <TakoTaskId as ItemId>::IdType,
 
     pub(crate) autoalloc_service: Option<AutoAllocService>,
     event_storage: EventStorage,
@@ -318,6 +320,10 @@ impl State {
 
     pub fn autoalloc(&self) -> &AutoAllocService {
         self.autoalloc_service.as_ref().unwrap()
+    }
+
+    pub fn restore_state(&mut self, restorer: StateRestorer) {
+        self.job_id_counter = restorer.job_id_counter()
     }
 }
 

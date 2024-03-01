@@ -19,6 +19,7 @@ use crate::server::autoalloc::create_autoalloc_service;
 use crate::server::event::log::start_event_streaming;
 use crate::server::event::log::EventLogWriter;
 use crate::server::event::storage::EventStorage;
+use crate::server::restore::StateRestorer;
 use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
 use crate::transfer::auth::generate_key;
@@ -43,7 +44,7 @@ pub struct ServerConfig {
     pub client_port: Option<u16>,
     pub worker_port: Option<u16>,
     pub event_buffer_size: usize,
-    pub event_log_path: Option<PathBuf>,
+    pub journal_path: Option<PathBuf>,
     pub worker_secret_key: Option<Arc<SecretKey>>,
     pub client_secret_key: Option<Arc<SecretKey>>,
     pub server_uid: Option<String>,
@@ -142,6 +143,18 @@ pub async fn initialize_server(
     .with_context(|| "Cannot create HQ server socket".to_string())?;
     let client_port = client_listener.local_addr()?.port();
 
+    let restorer = if let Some(path) = &server_cfg.journal_path {
+        if path.exists() {
+            let mut restorer = StateRestorer::default();
+            restorer.load_event_file(path)?;
+            Some(restorer)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     let server_uid = server_cfg
         .server_uid
         .take()
@@ -172,6 +185,10 @@ pub async fn initialize_server(
     let (autoalloc_service, autoalloc_process) = create_autoalloc_service(state_ref.clone());
     // TODO: remove this hack
     state_ref.get_mut().autoalloc_service = Some(autoalloc_service);
+
+    if let Some(restorer) = restorer {
+        state_ref.get_mut().restore_state(restorer);
+    }
 
     let (tako_server, tako_future) = Backend::start(
         state_ref.clone(),
@@ -262,13 +279,15 @@ pub async fn initialize_server(
 async fn prepare_event_management(
     server_cfg: &ServerConfig,
 ) -> anyhow::Result<(EventStorage, Pin<Box<dyn Future<Output = ()>>>)> {
-    Ok(if let Some(ref log_path) = server_cfg.event_log_path {
-        let writer = EventLogWriter::create(log_path).await.map_err(|error| {
-            anyhow!(
-                "Cannot create event log file at `{}`: {error:?}",
-                log_path.display()
-            )
-        })?;
+    Ok(if let Some(ref log_path) = server_cfg.journal_path {
+        let writer = EventLogWriter::create_or_append(log_path)
+            .await
+            .map_err(|error| {
+                anyhow!(
+                    "Cannot create event log file at `{}`: {error:?}",
+                    log_path.display()
+                )
+            })?;
 
         let (tx, stream_fut) = start_event_streaming(writer);
         (
