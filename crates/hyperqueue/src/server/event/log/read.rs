@@ -1,20 +1,23 @@
+use crate::server::event::log::write::bincode_config;
 use crate::server::event::log::{canonical_header, LogFileHeader};
 use crate::server::event::MonitoringEvent;
 use anyhow::anyhow;
-use rmp_serde::decode::Error;
+use bincode::Options;
 use std::fs::File;
-use std::io::ErrorKind;
+use std::io::BufReader;
+use std::ops::Deref;
 use std::path::Path;
 
 /// Reads events from a file in a streaming fashion.
 pub struct EventLogReader {
-    source: File,
+    source: BufReader<File>,
 }
 
 impl EventLogReader {
     pub fn open(path: &Path) -> anyhow::Result<Self> {
-        let mut file = File::open(path)?;
-        let header: LogFileHeader = rmp_serde::from_read(&mut file)
+        let mut file = BufReader::new(File::open(path)?);
+        let header: LogFileHeader = bincode_config()
+            .deserialize_from(&mut file)
             .map_err(|error| anyhow!("Cannot load HQ event log file header: {error:?}"))?;
 
         let expected_header = canonical_header();
@@ -29,18 +32,20 @@ impl EventLogReader {
 }
 
 impl Iterator for EventLogReader {
-    type Item = Result<MonitoringEvent, rmp_serde::decode::Error>;
+    type Item = Result<MonitoringEvent, bincode::Error>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        match rmp_serde::from_read(&mut self.source) {
+        match bincode_config().deserialize_from(&mut self.source) {
             Ok(event) => Some(Ok(event)),
-            Err(Error::InvalidMarkerRead(error))
-                if matches!(error.kind(), ErrorKind::UnexpectedEof) =>
-            {
-                None
-            }
-            Err(error) => Some(Err(error)),
+            Err(error) => match error.deref() {
+                bincode::ErrorKind::Io(e)
+                    if matches!(e.kind(), std::io::ErrorKind::UnexpectedEof) =>
+                {
+                    None
+                }
+                _ => Some(Err(error)),
+            },
         }
     }
 }

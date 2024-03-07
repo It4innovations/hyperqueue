@@ -24,6 +24,12 @@ impl From<serde_json::error::Error> for HqError {
     }
 }
 
+impl From<bincode::Error> for HqError {
+    fn from(e: bincode::Error) -> Self {
+        Self::SerializationError(e.to_string())
+    }
+}
+
 impl From<rmp_serde::encode::Error> for HqError {
     fn from(e: rmp_serde::encode::Error) -> Self {
         Self::SerializationError(e.to_string())
