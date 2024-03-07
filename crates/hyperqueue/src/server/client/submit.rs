@@ -22,7 +22,7 @@ use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
-    JobDescription, SubmitRequest, SubmitResponse, TaskBuildDescription, TaskDescription,
+    JobTaskDescription, SubmitRequest, SubmitResponse, TaskBuildDescription, TaskDescription,
     TaskIdSelector, TaskKind, TaskKindProgram, TaskSelector, TaskStatusSelector,
     TaskWithDependencies, ToClientMessage,
 };
@@ -41,23 +41,17 @@ pub async fn handle_submit(
 ) -> ToClientMessage {
     let (job_id, tako_base_id) = prepare_job(&mut message, &mut state_ref.get_mut());
 
-    let SubmitRequest {
-        mut job_desc,
-        name,
-        max_fails,
-        submit_dir,
-        log,
-    } = message;
+    let SubmitRequest { mut job_desc } = message;
 
     let job_ctx = JobContext {
         job_id,
         tako_base_id,
-        submit_dir: &submit_dir,
+        submit_dir: &job_desc.submit_dir,
     };
 
     let new_tasks: anyhow::Result<NewTasksMessage> = {
-        match &mut job_desc {
-            JobDescription::Array {
+        match &mut job_desc.task_desc {
+            JobTaskDescription::Array {
                 ids,
                 entries,
                 task_desc,
@@ -67,7 +61,7 @@ pub async fn handle_submit(
                 task_desc,
                 job_ctx,
             )),
-            JobDescription::Graph { tasks } => build_tasks_graph(tasks, job_ctx),
+            JobTaskDescription::Graph { tasks } => build_tasks_graph(tasks, job_ctx),
         }
     };
 
@@ -81,15 +75,8 @@ pub async fn handle_submit(
         Ok(new_tasks) => new_tasks,
     };
 
-    let job = Job::new(
-        job_desc,
-        job_id,
-        tako_base_id,
-        name,
-        max_fails,
-        log.clone(),
-        submit_dir,
-    );
+    let log = job_desc.log.clone();
+    let job = Job::new(job_desc, job_id, tako_base_id);
 
     let job_detail = job.make_job_detail(Some(&TaskSelector {
         id_selector: TaskIdSelector::All,
@@ -122,33 +109,33 @@ fn prepare_job(request: &mut SubmitRequest, state: &mut State) -> (JobId, TakoTa
     let job_id = state.new_job_id();
 
     // Prefill currently known placeholders eagerly
-    if let JobDescription::Array {
+    if let JobTaskDescription::Array {
         ref mut task_desc, ..
-    } = request.job_desc
+    } = request.job_desc.task_desc
     {
         match &mut task_desc.kind {
             TaskKind::ExternalProgram(TaskKindProgram { program, .. }) => {
                 fill_placeholders_after_submit(
                     program,
                     job_id,
-                    &request.submit_dir,
+                    &request.job_desc.submit_dir,
                     &state.server_info().server_uid,
                 );
             }
         }
     };
 
-    if let Some(ref mut log) = request.log {
+    if let Some(ref mut log) = request.job_desc.log {
         fill_placeholders_log(
             log,
             job_id,
-            &request.submit_dir,
+            &request.job_desc.submit_dir,
             &state.server_info().server_uid,
         );
-        *log = normalize_path(log, &request.submit_dir);
+        *log = normalize_path(log, &request.job_desc.submit_dir);
     }
 
-    let task_count = request.job_desc.task_count();
+    let task_count = request.job_desc.task_desc.task_count();
     (job_id, state.new_task_id(task_count))
 }
 

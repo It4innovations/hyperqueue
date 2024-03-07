@@ -3,7 +3,7 @@ use crate::server::event::events::{JobInfo, MonitoringEventPayload};
 use crate::server::event::log::EventStreamSender;
 use crate::server::event::{MonitoringEvent, MonitoringEventId};
 use crate::transfer::messages::AllocationQueueParams;
-use crate::{JobId, TakoTaskId, WorkerId};
+use crate::{JobId, JobTaskId, TakoTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use std::collections::vec_deque::VecDeque;
 use std::time::SystemTime;
@@ -84,18 +84,22 @@ impl EventStorage {
     }
 
     #[inline]
-    pub fn on_task_started(&mut self, task_id: TakoTaskId, worker_id: WorkerId) {
-        self.insert_event(MonitoringEventPayload::TaskStarted { task_id, worker_id });
+    pub fn on_task_started(&mut self, job_id: JobId, task_id: JobTaskId, worker_id: WorkerId) {
+        self.insert_event(MonitoringEventPayload::TaskStarted {
+            job_id,
+            task_id,
+            worker_id,
+        });
     }
 
     #[inline]
-    pub fn on_task_finished(&mut self, task_id: TaskId) {
-        self.insert_event(MonitoringEventPayload::TaskFinished(task_id));
+    pub fn on_task_finished(&mut self, job_id: JobId, task_id: JobTaskId) {
+        self.insert_event(MonitoringEventPayload::TaskFinished { job_id, task_id });
     }
 
     #[inline]
-    pub fn on_task_failed(&mut self, task_id: TaskId) {
-        self.insert_event(MonitoringEventPayload::TaskFailed(task_id));
+    pub fn on_task_failed(&mut self, job_id: JobId, task_id: JobTaskId) {
+        self.insert_event(MonitoringEventPayload::TaskFailed { job_id, task_id });
     }
 
     pub fn on_allocation_queue_created(&mut self, id: QueueId, parameters: AllocationQueueParams) {

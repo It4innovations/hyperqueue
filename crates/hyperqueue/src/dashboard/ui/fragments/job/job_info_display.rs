@@ -2,7 +2,7 @@ use crate::dashboard::data::timelines::job_timeline::DashboardJobInfo;
 use crate::dashboard::ui::styles::table_style_deselected;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
-use crate::transfer::messages::JobDescription;
+use crate::transfer::messages::JobTaskDescription;
 use chrono::{DateTime, Local};
 use ratatui::layout::{Constraint, Rect};
 use ratatui::widgets::{Cell, Row};
@@ -48,6 +48,7 @@ fn create_rows(params: &DashboardJobInfo) -> Vec<JobInfoDataRow> {
     });
     let log_path = params
         .job_info
+        .job_desc
         .log
         .as_ref()
         .map(|log_path| log_path.to_string_lossy().to_string())
@@ -56,9 +57,9 @@ fn create_rows(params: &DashboardJobInfo) -> Vec<JobInfoDataRow> {
     vec![
         JobInfoDataRow {
             label: "Job Type: ",
-            data: match params.job_info.job_desc {
-                JobDescription::Array { .. } => "Array".into(),
-                JobDescription::Graph { .. } => "Graph".into(),
+            data: match params.job_info.job_desc.task_desc {
+                JobTaskDescription::Array { .. } => "Array".into(),
+                JobTaskDescription::Graph { .. } => "Graph".into(),
             },
         },
         JobInfoDataRow {
@@ -71,7 +72,7 @@ fn create_rows(params: &DashboardJobInfo) -> Vec<JobInfoDataRow> {
         },
         JobInfoDataRow {
             label: "Num Tasks: ",
-            data: params.job_info.task_ids.len().to_string().into(),
+            data: todo!(), /*params.job_info.task_ids.len().to_string().into(),*/
         },
         JobInfoDataRow {
             label: "Log Path: ",
@@ -81,6 +82,7 @@ fn create_rows(params: &DashboardJobInfo) -> Vec<JobInfoDataRow> {
             label: "Max Fails: ",
             data: params
                 .job_info
+                .job_desc
                 .max_fails
                 .map(|fails| fails.to_string())
                 .unwrap_or_default()

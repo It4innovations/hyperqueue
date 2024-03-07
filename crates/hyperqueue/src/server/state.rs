@@ -123,12 +123,7 @@ impl State {
         self.event_storage.on_job_submitted(
             job_id,
             JobInfo {
-                name: job.name.clone(),
                 job_desc: job.job_desc.clone(),
-                base_task_id: job.base_task_id,
-                task_ids: job.tasks.iter().map(|(id, _)| *id).collect(),
-                max_fails: job.max_fails,
-                log: job.log.clone(),
                 submission_date: job.submission_date,
             },
         );
@@ -218,37 +213,44 @@ impl State {
             );
             job.set_cancel_state(task_id, tako_ref);
         }
-        job.set_failed_state(msg.id, msg.info.message, tako_ref);
+        let task_id = job.set_failed_state(msg.id, msg.info.message, tako_ref);
 
-        if let Some(max_fails) = job.max_fails {
-            if job.counters.n_failed_tasks > max_fails {
+        if let Some(max_fails) = &job.job_desc.max_fails {
+            if job.counters.n_failed_tasks > *max_fails {
                 let task_ids = job.non_finished_task_ids();
                 cancel_tasks_from_callback(state_ref, tako_ref, job.job_id, task_ids);
             }
         }
-        self.event_storage.on_task_failed(msg.id);
+        let job_id = job.job_id;
+        self.event_storage.on_task_failed(job_id, task_id);
     }
 
     pub fn process_task_update(&mut self, msg: TaskUpdate, backend: &Backend) {
         log::debug!("Task id={} updated {:?}", msg.id, msg.state);
-        let (mut job_id, mut is_job_terminated): (Option<JobId>, bool) = (None, false);
         match msg.state {
             TaskState::Running {
                 worker_ids,
                 context,
             } => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
-                job.set_running_state(msg.id, worker_ids.clone(), context);
+                let task_id = job.set_running_state(msg.id, worker_ids.clone(), context);
 
                 // TODO: Prepare it for multi-node tasks
                 // This (incomplete) version just takes the first worker as "the worker" for task
-                self.event_storage.on_task_started(msg.id, worker_ids[0]);
+                let job_id = job.job_id;
+                self.event_storage
+                    .on_task_started(job_id, task_id, worker_ids[0]);
             }
             TaskState::Finished => {
+                let now = Utc::now();
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
-                job.set_finished_state(msg.id, backend);
-                (job_id, is_job_terminated) = (Some(job.job_id), job.is_terminated());
-                self.event_storage.on_task_finished(msg.id);
+                let task_id = job.set_finished_state(msg.id, now, backend);
+                let is_job_terminated = job.is_terminated();
+                let job_id = job.job_id;
+                self.event_storage.on_task_finished(job_id, task_id);
+                if is_job_terminated {
+                    self.event_storage.on_job_completed(job_id, now);
+                }
             }
             TaskState::Waiting => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
@@ -258,11 +260,6 @@ impl State {
                 unreachable!()
             }
         };
-
-        if is_job_terminated {
-            self.event_storage
-                .on_job_completed(job_id.unwrap(), chrono::offset::Utc::now());
-        }
     }
 
     pub fn process_worker_new(&mut self, msg: NewWorkerMessage) {
@@ -351,7 +348,7 @@ mod tests {
     use crate::server::state::State;
     use crate::tests::utils::create_hq_state;
     use crate::transfer::messages::{
-        JobDescription, PinMode, TaskDescription, TaskKind, TaskKindProgram,
+        JobTaskDescription, PinMode, TaskDescription, TaskKind, TaskKindProgram,
     };
     use crate::{JobId, TakoTaskId};
 
@@ -371,7 +368,7 @@ mod tests {
         job_id: J,
         base_task_id: T,
     ) -> Job {
-        let job_desc = JobDescription::Array {
+        let job_desc = JobTaskDescription::Array {
             ids,
             entries: None,
             task_desc: TaskDescription {

@@ -1,9 +1,9 @@
 use crate::server::autoalloc::AllocationId;
 use crate::server::autoalloc::QueueId;
-use crate::transfer::messages::AllocationQueueParams;
-use crate::transfer::messages::JobDescription;
-use crate::WorkerId;
+use crate::transfer::messages::JobTaskDescription;
+use crate::transfer::messages::{AllocationQueueParams, JobDescription};
 use crate::{JobId, JobTaskCount, TakoTaskId};
+use crate::{JobTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -25,13 +25,20 @@ pub enum MonitoringEventPayload {
     JobCompleted(JobId, DateTime<Utc>),
     /// Task has started to execute on some worker
     TaskStarted {
-        task_id: TakoTaskId,
+        job_id: JobId,
+        task_id: JobTaskId,
         worker_id: WorkerId,
     },
     /// Task has been finished
-    TaskFinished(TakoTaskId),
+    TaskFinished {
+        job_id: JobId,
+        task_id: JobTaskId,
+    },
     // Task that failed to execute
-    TaskFailed(TakoTaskId),
+    TaskFailed {
+        job_id: JobId,
+        task_id: JobTaskId,
+    },
     /// New allocation queue has been created
     AllocationQueueCreated(QueueId, Box<AllocationQueueParams>),
     /// Allocation queue has been removed
@@ -50,14 +57,7 @@ pub enum MonitoringEventPayload {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobInfo {
-    pub name: String,
     pub job_desc: JobDescription,
-
-    pub base_task_id: TakoTaskId,
-    pub task_ids: Vec<TakoTaskId>,
-    pub max_fails: Option<JobTaskCount>,
-    pub log: Option<PathBuf>,
-
     pub submission_date: DateTime<Utc>,
 }
 

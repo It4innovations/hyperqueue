@@ -904,7 +904,7 @@ mod tests {
     use crate::server::state::StateRef;
     use crate::tests::utils::create_hq_state;
     use crate::transfer::messages::{
-        JobDescription, PinMode, TaskDescription, TaskKind, TaskKindProgram,
+        JobTaskDescription, PinMode, TaskDescription, TaskKind, TaskKindProgram,
     };
     use tako::resources::ResourceAmount;
 
@@ -1756,7 +1756,7 @@ mod tests {
         });
 
         Job::new(
-            JobDescription::Array {
+            JobTaskDescription::Array {
                 ids: IntArray::from_range(0, tasks),
                 entries: None,
                 task_desc: TaskDescription {

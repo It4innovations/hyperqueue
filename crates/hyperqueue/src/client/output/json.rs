@@ -24,7 +24,7 @@ use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
 use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, PinMode, QueueData, ServerInfo,
+    AutoAllocListResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData, ServerInfo,
     StatsResponse, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerInfo,
 };
 use crate::{JobId, JobTaskId};
@@ -92,10 +92,8 @@ impl Output for JsonOutput {
                     job_desc,
                     tasks,
                     tasks_not_found: _,
-                    max_fails,
                     submission_date,
                     completion_date_or_now,
-                    submit_dir,
                 } = job;
 
                 let finished_at = if info.counters.is_terminated(info.n_tasks) {
@@ -106,21 +104,21 @@ impl Output for JsonOutput {
 
                 let mut json = json!({
                     "info": format_job_info(info),
-                    "max_fails": max_fails,
+                    "max_fails": job_desc.max_fails,
                     "started_at": format_datetime(submission_date),
                     "finished_at": finished_at.map(format_datetime),
-                    "submit_dir": submit_dir
+                    "submit_dir": job_desc.submit_dir
                 });
 
-                let task_description = match job_desc {
-                    JobDescription::Array { task_desc, .. } => {
+                let task_description = match job_desc.task_desc {
+                    JobTaskDescription::Array { task_desc, .. } => {
                         let mut task = json!({});
                         format_task_description(task_desc, &mut task);
                         json!({
                             "array": task
                         })
                     }
-                    JobDescription::Graph { tasks } => {
+                    JobTaskDescription::Graph { tasks } => {
                         let tasks: Vec<Value> = tasks
                             .into_iter()
                             .map(|task| {

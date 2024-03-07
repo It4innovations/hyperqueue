@@ -78,7 +78,7 @@ fn create_rows(job_infos: Vec<(&JobId, &DashboardJobInfo)>) -> Vec<JobInfoRow> {
         .iter()
         .map(|(job_id, info)| JobInfoRow {
             id: **job_id,
-            name: info.job_info.name.clone(),
+            name: info.job_info.job_desc.name.clone(),
         })
         .collect()
 }
