@@ -92,7 +92,7 @@ mod tests {
         let tmpdir = TempDir::new("hq").unwrap();
         let path = tmpdir.path().join("foo");
         {
-            let writer = EventLogWriter::create(&path).await.unwrap();
+            let writer = EventLogWriter::create_or_append(&path).await.unwrap();
             writer.finish().await.unwrap();
         }
 
@@ -106,7 +106,7 @@ mod tests {
         let path = tmpdir.path().join("foo");
 
         {
-            let mut writer = EventLogWriter::create(&path).await.unwrap();
+            let mut writer = EventLogWriter::create_or_append(&path).await.unwrap();
             for id in 0..100000 {
                 writer
                     .store(MonitoringEvent {
@@ -140,7 +140,7 @@ mod tests {
     async fn streaming_read_partial() {
         let tmpdir = TempDir::new("hq").unwrap();
         let path = tmpdir.path().join("foo");
-        let mut writer = EventLogWriter::create(&path).await.unwrap();
+        let mut writer = EventLogWriter::create_or_append(&path).await.unwrap();
 
         let time = SystemTime::now();
         writer

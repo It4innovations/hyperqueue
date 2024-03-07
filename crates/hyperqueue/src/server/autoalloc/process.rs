@@ -904,7 +904,7 @@ mod tests {
     use crate::server::state::StateRef;
     use crate::tests::utils::create_hq_state;
     use crate::transfer::messages::{
-        JobTaskDescription, PinMode, TaskDescription, TaskKind, TaskKindProgram,
+        JobDescription, JobTaskDescription, PinMode, TaskDescription, TaskKind, TaskKindProgram,
     };
     use tako::resources::ResourceAmount;
 
@@ -1756,27 +1756,29 @@ mod tests {
         });
 
         Job::new(
-            JobTaskDescription::Array {
-                ids: IntArray::from_range(0, tasks),
-                entries: None,
-                task_desc: TaskDescription {
-                    kind: TaskKind::ExternalProgram(TaskKindProgram {
-                        program: def,
-                        pin_mode: PinMode::None,
-                        task_dir: false,
-                    }),
-                    resources,
-                    time_limit: None,
-                    priority: 0,
-                    crash_limit: 5,
+            JobDescription {
+                task_desc: JobTaskDescription::Array {
+                    ids: IntArray::from_range(0, tasks),
+                    entries: None,
+                    task_desc: TaskDescription {
+                        kind: TaskKind::ExternalProgram(TaskKindProgram {
+                            program: def,
+                            pin_mode: PinMode::None,
+                            task_dir: false,
+                        }),
+                        resources,
+                        time_limit: None,
+                        priority: 0,
+                        crash_limit: 5,
+                    },
                 },
+                name: "job".to_string(),
+                max_fails: None,
+                submit_dir: Default::default(),
+                log: None,
             },
             job_id.into(),
             (1000 * job_id).into(),
-            "job".to_string(),
-            None,
-            None,
-            Default::default(),
         )
     }
 

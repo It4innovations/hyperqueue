@@ -354,7 +354,7 @@ mod tests {
             client_port: None,
             worker_port: None,
             event_buffer_size: 1_000_000,
-            event_log_path: None,
+            journal_path: None,
             worker_secret_key: None,
             client_secret_key: None,
             server_uid: None,

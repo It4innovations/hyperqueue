@@ -348,7 +348,7 @@ mod tests {
     use crate::server::state::State;
     use crate::tests::utils::create_hq_state;
     use crate::transfer::messages::{
-        JobTaskDescription, PinMode, TaskDescription, TaskKind, TaskKindProgram,
+        JobDescription, JobTaskDescription, PinMode, TaskDescription, TaskKind, TaskKindProgram,
     };
     use crate::{JobId, TakoTaskId};
 
@@ -368,7 +368,7 @@ mod tests {
         job_id: J,
         base_task_id: T,
     ) -> Job {
-        let job_desc = JobTaskDescription::Array {
+        let task_desc = JobTaskDescription::Array {
             ids,
             entries: None,
             task_desc: TaskDescription {
@@ -384,13 +384,15 @@ mod tests {
             },
         };
         Job::new(
-            job_desc,
+            JobDescription {
+                task_desc,
+                name: "".to_string(),
+                max_fails: None,
+                submit_dir: Default::default(),
+                log: None,
+            },
             job_id.into(),
             base_task_id.into(),
-            "".to_string(),
-            None,
-            None,
-            Default::default(),
         )
     }
 
