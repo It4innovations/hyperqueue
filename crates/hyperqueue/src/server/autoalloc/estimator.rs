@@ -3,7 +3,7 @@ use crate::server::autoalloc::QueueInfo;
 use crate::server::job::Job;
 use crate::server::state::State;
 use crate::server::worker::Worker;
-use crate::transfer::messages::{JobDescription, TaskDescription};
+use crate::transfer::messages::{JobTaskDescription, TaskDescription};
 use crate::JobId;
 use std::time::Duration;
 use tako::Map;
@@ -56,12 +56,12 @@ pub fn get_server_task_state(state: &State, queue_info: &QueueInfo) -> ServerTas
 
 /// Guesses if workers from the given queue can compute tasks from the given job.
 fn can_queue_execute_job(job: &Job, queue_info: &QueueInfo) -> bool {
-    match &job.job_desc {
-        JobDescription::Array {
+    match &job.job_desc.task_desc {
+        JobTaskDescription::Array {
             task_desc: TaskDescription { resources, .. },
             ..
         } => resources.min_time() <= queue_info.timelimit(),
-        JobDescription::Graph { tasks } => {
+        JobTaskDescription::Graph { tasks } => {
             // TODO: optimize
             tasks
                 .iter()

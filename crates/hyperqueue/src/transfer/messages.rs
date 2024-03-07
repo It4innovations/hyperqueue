@@ -116,7 +116,7 @@ impl TaskWithDependencies {
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum JobDescription {
+pub enum JobTaskDescription {
     /// Either a single-task job or a task array usually submitted through the CLI.
     Array {
         ids: IntArray,
@@ -127,17 +127,17 @@ pub enum JobDescription {
     Graph { tasks: Vec<TaskWithDependencies> },
 }
 
-impl JobDescription {
+impl JobTaskDescription {
     pub fn task_count(&self) -> JobTaskCount {
         match self {
-            JobDescription::Array { ids, .. } => ids.id_count() as JobTaskCount,
-            JobDescription::Graph { tasks } => tasks.len() as JobTaskCount,
+            JobTaskDescription::Array { ids, .. } => ids.id_count() as JobTaskCount,
+            JobTaskDescription::Graph { tasks } => tasks.len() as JobTaskCount,
         }
     }
 
     pub fn strip_large_data(&mut self) {
         match self {
-            JobDescription::Array {
+            JobTaskDescription::Array {
                 ids: _,
                 entries,
                 task_desc,
@@ -145,7 +145,7 @@ impl JobDescription {
                 *entries = None;
                 task_desc.strip_large_data();
             }
-            JobDescription::Graph { tasks } => {
+            JobTaskDescription::Graph { tasks } => {
                 for task in tasks {
                     task.strip_large_data()
                 }
@@ -154,13 +154,24 @@ impl JobDescription {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct SubmitRequest {
-    pub job_desc: JobDescription,
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct JobDescription {
+    pub task_desc: JobTaskDescription,
     pub name: String,
     pub max_fails: Option<JobTaskCount>,
     pub submit_dir: PathBuf,
     pub log: Option<PathBuf>,
+}
+
+impl JobDescription {
+    pub fn strip_large_data(&mut self) {
+        self.task_desc.strip_large_data()
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SubmitRequest {
+    pub job_desc: JobDescription,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -388,11 +399,9 @@ pub struct JobDetail {
     pub job_desc: JobDescription,
     pub tasks: Vec<JobTaskInfo>,
     pub tasks_not_found: Vec<JobTaskId>,
-    pub max_fails: Option<JobTaskCount>,
 
     // Date when job was submitted
     pub submission_date: DateTime<Utc>,
-    pub submit_dir: PathBuf,
 
     // Time when job was completed or now if job is not completed
     pub completion_date_or_now: DateTime<Utc>,

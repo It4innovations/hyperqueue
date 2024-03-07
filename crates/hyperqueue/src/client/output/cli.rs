@@ -14,7 +14,7 @@ use crate::server::autoalloc::{Allocation, AllocationState};
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::stream::reader::logfile::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDescription, JobDetail, JobInfo, PinMode, QueueData, QueueState,
+    AutoAllocListResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData, QueueState,
     ServerInfo, StatsResponse, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse,
     WorkerExitInfo, WorkerInfo,
 };
@@ -498,10 +498,8 @@ impl Output for CliOutput {
                 job_desc,
                 mut tasks,
                 tasks_not_found: _,
-                max_fails: _,
                 submission_date,
                 completion_date_or_now,
-                submit_dir,
             } = job;
 
             let mut rows = vec![
@@ -519,11 +517,11 @@ impl Output for CliOutput {
             rows.push(vec![state_label, status]);
 
             let mut n_tasks = info.n_tasks.to_string();
-            match &job_desc {
-                JobDescription::Array { ids, .. } => {
+            match &job_desc.task_desc {
+                JobTaskDescription::Array { ids, .. } => {
                     write!(n_tasks, "; Ids: {ids}").unwrap();
                 }
-                JobDescription::Graph { .. } => {
+                JobTaskDescription::Graph { .. } => {
                     // TODO
                 }
             }
@@ -534,7 +532,7 @@ impl Output for CliOutput {
                 format_job_workers(&tasks, &worker_map).cell(),
             ]);
 
-            if let JobDescription::Array { task_desc, .. } = &job_desc {
+            if let JobTaskDescription::Array { task_desc, .. } = &job_desc.task_desc {
                 self.print_job_shared_task_description(&mut rows, task_desc);
             }
 
@@ -545,7 +543,7 @@ impl Output for CliOutput {
 
             rows.push(vec![
                 "Submission directory".cell().bold(true),
-                submit_dir.to_str().unwrap().cell(),
+                job_desc.submit_dir.to_str().unwrap().cell(),
             ]);
 
             rows.push(vec![
@@ -700,14 +698,14 @@ impl Output for CliOutput {
             let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, &task);
             let task_id = task.task_id;
 
-            let (task_desc, task_deps) = match &job.job_desc {
-                JobDescription::Array {
+            let (task_desc, task_deps) = match &job.job_desc.task_desc {
+                JobTaskDescription::Array {
                     ids: _,
                     entries: _,
                     task_desc,
                 } => (task_desc, [].as_slice()),
 
-                JobDescription::Graph { tasks } => {
+                JobTaskDescription::Graph { tasks } => {
                     let opt_task_dep = tasks.iter().find(|t| t.id == task_id);
                     match opt_task_dep {
                         None => {

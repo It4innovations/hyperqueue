@@ -10,8 +10,8 @@ use crate::common::arraydef::IntArray;
 use crate::common::utils::fs::get_current_dir;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    JobDescription, PinMode, SubmitRequest, TaskDescription, TaskKind, TaskKindProgram,
-    TaskWithDependencies,
+    JobDescription, JobTaskDescription, PinMode, SubmitRequest, TaskDescription, TaskKind,
+    TaskKindProgram, TaskWithDependencies,
 };
 use crate::{JobTaskCount, JobTaskId};
 use clap::Parser;
@@ -92,7 +92,7 @@ fn build_task(tdef: TaskDef, max_id: &mut JobTaskId) -> TaskWithDependencies {
     }
 }
 
-fn build_job_desc_array(array: ArrayDef) -> JobDescription {
+fn build_job_desc_array(array: ArrayDef) -> JobTaskDescription {
     let ids = array
         .ids
         .unwrap_or_else(|| IntArray::from_range(0, array.entries.len() as JobTaskCount));
@@ -101,14 +101,14 @@ fn build_job_desc_array(array: ArrayDef) -> JobDescription {
     } else {
         Some(array.entries.into_iter().map(|s| s.into()).collect())
     };
-    JobDescription::Array {
+    JobTaskDescription::Array {
         ids,
         entries,
         task_desc: build_task_description(array.config),
     }
 }
 
-fn build_job_desc_individual_tasks(tasks: Vec<TaskDef>) -> JobDescription {
+fn build_job_desc_individual_tasks(tasks: Vec<TaskDef>) -> JobTaskDescription {
     let mut max_id: JobTaskId = tasks
         .iter()
         .map(|t| t.id)
@@ -116,7 +116,7 @@ fn build_job_desc_individual_tasks(tasks: Vec<TaskDef>) -> JobDescription {
         .flatten()
         .unwrap_or(JobTaskId(0));
 
-    JobDescription::Graph {
+    JobTaskDescription::Graph {
         tasks: tasks
             .into_iter()
             .map(|t| build_task(t, &mut max_id))
@@ -125,17 +125,19 @@ fn build_job_desc_individual_tasks(tasks: Vec<TaskDef>) -> JobDescription {
 }
 
 fn build_job_submit(jdef: JobDef) -> SubmitRequest {
-    let job_desc = if let Some(array) = jdef.array {
+    let task_desc = if let Some(array) = jdef.array {
         build_job_desc_array(array)
     } else {
         build_job_desc_individual_tasks(jdef.tasks)
     };
     SubmitRequest {
-        job_desc,
-        name: jdef.name,
-        max_fails: jdef.max_fails,
-        submit_dir: get_current_dir(),
-        log: jdef.stream_log,
+        job_desc: JobDescription {
+            task_desc,
+            name: jdef.name,
+            max_fails: jdef.max_fails,
+            submit_dir: get_current_dir(),
+            log: jdef.stream_log,
+        },
     }
 }
 

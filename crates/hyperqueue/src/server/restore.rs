@@ -3,6 +3,7 @@ use crate::server::event::log::EventLogReader;
 use crate::server::job::Job;
 use crate::server::state::State;
 use crate::{JobId, JobTaskCount, Map};
+use chumsky::chain::Chain;
 use serde_json::ser::State::Rest;
 use std::path::Path;
 use tako::ItemId;
@@ -13,16 +14,10 @@ struct RestorerJob {
 
 impl RestorerJob {
     pub fn restore(self, job_id: JobId, state: &mut State) {
-        let tako_base_id = state.new_task_id(self.job_info.task_ids.len() as JobTaskCount);
-        let job = Job::new(
-            self.job_info.job_desc,
-            job_id,
-            tako_base_id,
-            self.job_info.name,
-            self.job_info.max_fails,
-            self.job_info.log.clone(),
-            submit_dir,
-        );
+        let task_count = self.job_info.job_desc.task_desc.task_count();
+        let tako_base_id = state.new_task_id(task_count);
+        let job = Job::new(self.job_info.job_desc, job_id, tako_base_id);
+        todo!()
     }
 }
 
@@ -61,8 +56,8 @@ impl StateRestorer {
                     self.jobs.remove(&job_id);
                 }
                 MonitoringEventPayload::TaskStarted { .. } => {}
-                MonitoringEventPayload::TaskFinished(_) => {}
-                MonitoringEventPayload::TaskFailed(_) => {}
+                MonitoringEventPayload::TaskFinished { .. } => {}
+                MonitoringEventPayload::TaskFailed { .. } => {}
                 MonitoringEventPayload::AllocationQueueCreated(_, _) => {}
                 MonitoringEventPayload::AllocationQueueRemoved(_) => {}
                 MonitoringEventPayload::AllocationQueued { .. } => {}

@@ -8,8 +8,8 @@ use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::utils::fs::get_current_dir;
 use hyperqueue::server::job::JobTaskState;
 use hyperqueue::transfer::messages::{
-    ForgetJobRequest, FromClientMessage, IdSelector, JobDescription as HqJobDescription,
-    JobDetailRequest, JobInfoRequest, JobInfoResponse, PinMode, SubmitRequest,
+    ForgetJobRequest, FromClientMessage, IdSelector, JobDetailRequest, JobInfoRequest,
+    JobInfoResponse, JobTaskDescription as HqJobDescription, PinMode, SubmitRequest,
     TaskDescription as HqTaskDescription, TaskIdSelector, TaskKind, TaskKindProgram, TaskSelector,
     TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };

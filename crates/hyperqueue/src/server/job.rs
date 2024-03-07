@@ -4,7 +4,8 @@ use crate::client::status::get_task_status;
 use crate::server::rpc::Backend;
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
-    JobDescription, JobDetail, JobInfo, TaskIdSelector, TaskSelector, TaskStatusSelector,
+    JobDescription, JobDetail, JobInfo, JobTaskDescription, TaskIdSelector, TaskSelector,
+    TaskStatusSelector,
 };
 use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
@@ -112,20 +113,14 @@ impl JobTaskCounters {
 pub struct Job {
     pub job_id: JobId,
     pub base_task_id: TakoTaskId,
-    pub max_fails: Option<JobTaskCount>,
     pub counters: JobTaskCounters,
 
     pub tasks: Map<TakoTaskId, JobTaskInfo>,
 
-    pub log: Option<PathBuf>,
-
     pub job_desc: JobDescription,
-    pub name: String,
 
     pub submission_date: DateTime<Utc>,
     pub completion_date: Option<DateTime<Utc>>,
-
-    submit_dir: PathBuf,
 
     /// Holds channels that will receive information about the job after the it finishes in any way.
     /// You can subscribe to the completion message with [`Self::subscribe_to_completion`].
@@ -136,18 +131,10 @@ impl Job {
     // Probably we need some structure for the future, but as it is called in exactly one place,
     // I am disabling it now
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        job_desc: JobDescription,
-        job_id: JobId,
-        base_task_id: TakoTaskId,
-        name: String,
-        max_fails: Option<JobTaskCount>,
-        log: Option<PathBuf>,
-        submit_dir: PathBuf,
-    ) -> Self {
+    pub fn new(job_desc: JobDescription, job_id: JobId, base_task_id: TakoTaskId) -> Self {
         let base = base_task_id.as_num();
-        let tasks = match &job_desc {
-            JobDescription::Array { ids, .. } => ids
+        let tasks = match &job_desc.task_desc {
+            JobTaskDescription::Array { ids, .. } => ids
                 .iter()
                 .enumerate()
                 .map(|(i, task_id)| {
@@ -160,7 +147,7 @@ impl Job {
                     )
                 })
                 .collect(),
-            JobDescription::Graph { tasks } => tasks
+            JobTaskDescription::Graph { tasks } => tasks
                 .iter()
                 .enumerate()
                 .map(|(i, task)| {
@@ -180,13 +167,9 @@ impl Job {
             job_id,
             counters: Default::default(),
             base_task_id,
-            name,
             tasks,
-            max_fails,
-            log,
             submission_date: Utc::now(),
             completion_date: None,
-            submit_dir,
             completion_callbacks: Default::default(),
         }
     }
@@ -220,9 +203,7 @@ impl Job {
             job_desc: self.job_desc.clone(),
             tasks,
             tasks_not_found,
-            max_fails: self.max_fails,
             submission_date: self.submission_date,
-            submit_dir: self.submit_dir.clone(),
             completion_date_or_now: self.completion_date.unwrap_or_else(Utc::now),
         }
     }
@@ -230,7 +211,7 @@ impl Job {
     pub fn make_job_info(&self) -> JobInfo {
         JobInfo {
             id: self.job_id,
-            name: self.name.clone(),
+            name: self.job_desc.name.clone(),
             n_tasks: self.n_tasks(),
             counters: self.counters,
         }
@@ -277,8 +258,8 @@ impl Job {
         tako_task_id: TakoTaskId,
         workers: SmallVec<[WorkerId; 1]>,
         context: SerializedTaskContext,
-    ) {
-        let (_, state) = self.get_task_state_mut(tako_task_id);
+    ) -> JobTaskId {
+        let (task_id, state) = self.get_task_state_mut(tako_task_id);
 
         let context: RunningTaskContext =
             deserialize(&context).expect("Could not deserialize task context");
@@ -293,12 +274,14 @@ impl Job {
             };
             self.counters.n_running_tasks += 1;
         }
+
+        task_id
     }
 
     pub fn check_termination(&mut self, backend: &Backend, now: DateTime<Utc>) {
         if self.is_terminated() {
             self.completion_date = Some(now);
-            if self.log.is_some() {
+            if self.job_desc.log.is_some() {
                 backend
                     .send_stream_control(StreamServerControlMessage::UnregisterStream(self.job_id));
             }
@@ -309,9 +292,13 @@ impl Job {
         }
     }
 
-    pub fn set_finished_state(&mut self, tako_task_id: TakoTaskId, backend: &Backend) {
-        let (_, state) = self.get_task_state_mut(tako_task_id);
-        let now = Utc::now();
+    pub fn set_finished_state(
+        &mut self,
+        tako_task_id: TakoTaskId,
+        now: DateTime<Utc>,
+        backend: &Backend,
+    ) -> JobTaskId {
+        let (task_id, state) = self.get_task_state_mut(tako_task_id);
         match state {
             JobTaskState::Running { started_data } => {
                 *state = JobTaskState::Finished {
@@ -324,6 +311,7 @@ impl Job {
             _ => panic!("Invalid worker state, expected Running, got {state:?}"),
         }
         self.check_termination(backend, now);
+        task_id
     }
 
     pub fn set_waiting_state(&mut self, tako_task_id: TakoTaskId) {
@@ -333,7 +321,12 @@ impl Job {
         self.counters.n_running_tasks -= 1;
     }
 
-    pub fn set_failed_state(&mut self, tako_task_id: TakoTaskId, error: String, backend: &Backend) {
+    pub fn set_failed_state(
+        &mut self,
+        tako_task_id: TakoTaskId,
+        error: String,
+        backend: &Backend,
+    ) -> JobTaskId {
         let (task_id, state) = self.get_task_state_mut(tako_task_id);
         let now = Utc::now();
         match state {
@@ -358,6 +351,7 @@ impl Job {
         self.counters.n_failed_tasks += 1;
 
         self.check_termination(backend, now);
+        task_id
     }
 
     pub fn set_cancel_state(&mut self, tako_task_id: TakoTaskId, backend: &Backend) -> JobTaskId {

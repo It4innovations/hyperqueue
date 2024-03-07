@@ -69,27 +69,34 @@ fn format_payload(event: MonitoringEventPayload) -> serde_json::Value {
                 "allocation-id": allocation_id,
             })
         }
-        MonitoringEventPayload::TaskStarted { task_id, worker_id } => json!({
+        MonitoringEventPayload::TaskStarted {
+            job_id,
+            task_id,
+            worker_id,
+        } => json!({
             "type": "task-started",
-            "id": task_id,
+            "job": job_id,
+            "task": task_id,
             "worker": worker_id
         }),
-        MonitoringEventPayload::TaskFinished(task_id) => json!({
+        MonitoringEventPayload::TaskFinished { job_id, task_id } => json!({
             "type": "task-finished",
-            "id": task_id
+            "job": job_id,
+            "task": task_id
         }),
-        MonitoringEventPayload::TaskFailed(task_id) => json!({
+        MonitoringEventPayload::TaskFailed { job_id, task_id } => json!({
             "type": "task-failed",
-            "id": task_id
+            "job": job_id,
+            "task": task_id
         }),
         MonitoringEventPayload::JobCreated(job_id, job_info) => json!({
             "type": "job-created",
-            "job-id": job_id,
-            "job-info": JobInfoFormatter(&job_info).to_json(),
+            "job": job_id,
+            "info": JobInfoFormatter(&job_info).to_json(),
         }),
         MonitoringEventPayload::JobCompleted(job_id, completion_date) => json!({
             "type": "job-completed",
-            "job-id": job_id,
+            "job": job_id,
             "completion-date": completion_date
         }),
     }
@@ -102,7 +109,7 @@ impl<'a> JobInfoFormatter<'a> {
     fn to_json(&self) -> serde_json::Value {
         // Only format the job name for now
         json!({
-            "name": self.0.name
+            "name": self.0.job_desc.name
         })
     }
 }

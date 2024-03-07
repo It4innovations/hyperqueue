@@ -71,8 +71,13 @@ impl JobTimeline {
                     }
                 }
 
-                MonitoringEventPayload::TaskStarted { task_id, worker_id } => {
-                    if let Some((_, info)) = self
+                MonitoringEventPayload::TaskStarted {
+                    job_id,
+                    task_id,
+                    worker_id,
+                } => {
+                    todo!()
+                    /*if let Some((_, info)) = self
                         .job_timeline
                         .iter_mut()
                         .find(|(_, info)| info.job_info.task_ids.contains(task_id))
@@ -86,23 +91,25 @@ impl JobTimeline {
                                 task_end_state: None,
                             },
                         );
-                    }
+                    }*/
                 }
-                MonitoringEventPayload::TaskFinished(finished_id) => {
-                    update_task_status(
+                MonitoringEventPayload::TaskFinished { job_id, task_id } => {
+                    todo!()
+                    /*update_task_status(
                         &mut self.job_timeline,
-                        finished_id,
+                        task_id,
                         DashboardTaskState::Finished,
                         &event.time,
-                    );
+                    );*/
                 }
-                MonitoringEventPayload::TaskFailed(failed_id) => {
-                    update_task_status(
+                MonitoringEventPayload::TaskFailed { job_id, task_id } => {
+                    todo!()
+                    /*update_task_status(
                         &mut self.job_timeline,
-                        failed_id,
+                        task_id,
                         DashboardTaskState::Failed,
                         &event.time,
-                    );
+                    );*/
                 }
                 _ => {}
             }
@@ -114,15 +121,9 @@ impl JobTimeline {
         job_id: JobId,
         time: SystemTime,
     ) -> impl Iterator<Item = (JobTaskId, &TaskInfo)> + '_ {
-        let job_info = self.job_timeline.get(&job_id);
-        let base_id = job_info
-            .map(|info| info.job_info.base_task_id.as_num())
-            .unwrap();
-        job_info
-            .map(|info| info.job_tasks_info.iter())
-            .unwrap()
-            .map(move |(task_id, info)| (JobTaskId::new(task_id.as_num() - base_id + 1), info))
-            .filter(move |(_, task_info)| task_info.start_time <= time)
+        // Implementation removed as it was wrong
+        todo!();
+        std::iter::empty()
     }
 
     pub fn get_worker_task_history(
@@ -130,16 +131,18 @@ impl JobTimeline {
         worker_id: WorkerId,
         at_time: SystemTime,
     ) -> impl Iterator<Item = (JobTaskId, &TaskInfo)> + '_ {
-        self.get_jobs_created_before(at_time)
-            .flat_map(move |(_, info)| {
-                let base_id = info.job_info.base_task_id.as_num();
-                info.job_tasks_info.iter().map(move |(task_id, info)| {
-                    (JobTaskId::new(task_id.as_num() - base_id + 1), info)
-                })
-            })
-            .filter(move |(_, task_info)| {
-                task_info.worker_id == worker_id && task_info.start_time <= at_time
-            })
+        todo!();
+        std::iter::empty()
+        // self.get_jobs_created_before(at_time)
+        //     .flat_map(move |(_, info)| {
+        //         let base_id = info.job_info.base_task_id.as_num();
+        //         info.job_tasks_info.iter().map(move |(task_id, info)| {
+        //             (JobTaskId::new(task_id.as_num() - base_id + 1), info)
+        //         })
+        //     })
+        //     .filter(move |(_, task_info)| {
+        //         task_info.worker_id == worker_id && task_info.start_time <= at_time
+        //     })
     }
 
     pub fn get_job_info_for_job(&self, job_id: JobId) -> Option<&DashboardJobInfo> {
@@ -162,12 +165,13 @@ fn update_task_status(
     task_status: DashboardTaskState,
     at_time: &SystemTime,
 ) {
-    if let Some((_, job_info)) = job_timeline
+    todo!()
+    /*if let Some((_, job_info)) = job_timeline
         .iter_mut()
         .find(|(_, info)| info.job_info.task_ids.contains(task_id))
     {
         if let Some(task_info) = job_info.job_tasks_info.get_mut(task_id) {
             task_info.set_end_time_and_status(at_time, task_status);
         }
-    };
+    };*/
 }

@@ -4,7 +4,7 @@ use crate::common::placeholders::{
 };
 use crate::server::job::JobTaskState;
 use crate::transfer::messages::{
-    JobDescription, JobDetail, JobInfo, TaskDescription, TaskKind, TaskKindProgram,
+    JobDetail, JobInfo, JobTaskDescription, TaskDescription, TaskKind, TaskKindProgram,
 };
 use crate::JobTaskId;
 use std::path::PathBuf;
@@ -21,14 +21,14 @@ pub type TaskToPathsMap = Map<JobTaskId, Option<ResolvedTaskPaths>>;
 
 /// Resolves task paths of the given job, as they would look like from the perspective of the worker.
 pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
-    let task_to_desc_map: Map<JobTaskId, &TaskDescription> = match &job.job_desc {
-        JobDescription::Array { .. } => Default::default(),
-        JobDescription::Graph { tasks } => tasks.iter().map(|t| (t.id, &t.task_desc)).collect(),
+    let task_to_desc_map: Map<JobTaskId, &TaskDescription> = match &job.job_desc.task_desc {
+        JobTaskDescription::Array { .. } => Default::default(),
+        JobTaskDescription::Graph { tasks } => tasks.iter().map(|t| (t.id, &t.task_desc)).collect(),
     };
     let get_task_desc = |id: JobTaskId| -> &TaskDescription {
-        match &job.job_desc {
-            JobDescription::Array { task_desc, .. } => task_desc,
-            JobDescription::Graph { .. } => task_to_desc_map[&id],
+        match &job.job_desc.task_desc {
+            JobTaskDescription::Array { task_desc, .. } => task_desc,
+            JobTaskDescription::Graph { .. } => task_to_desc_map[&id],
         }
     };
 
@@ -52,7 +52,7 @@ pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
                             job_id: job.info.id,
                             task_id: task.task_id,
                             instance_id: started_data.context.instance_id,
-                            submit_dir: &job.submit_dir,
+                            submit_dir: &job.job_desc.submit_dir,
                             server_uid,
                         };
 
