@@ -2,9 +2,7 @@ use crate::server::event::events::{JobInfo, MonitoringEventPayload};
 use crate::server::event::log::EventLogReader;
 use crate::server::job::Job;
 use crate::server::state::State;
-use crate::{JobId, JobTaskCount, Map};
-use chumsky::chain::Chain;
-use serde_json::ser::State::Rest;
+use crate::{JobId, Map};
 use std::path::Path;
 use tako::ItemId;
 
