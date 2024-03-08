@@ -105,8 +105,11 @@ impl<Opts> OptsWithMatches<Opts> {
 
 #[derive(clap::ValueEnum, Clone)]
 pub enum ColorPolicy {
+    /// Use colors if the stdout is detected to be a terminal.
     Auto,
+    /// Always use colors.
     Always,
+    /// Never use colors.
     Never,
 }
 
