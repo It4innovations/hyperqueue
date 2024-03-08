@@ -75,7 +75,11 @@ impl Output for JsonOutput {
     }
 
     fn print_job_list(&self, jobs: Vec<JobInfo>, _total_jobs: usize) {
-        self.print(jobs.into_iter().map(format_job_info).collect());
+        self.print(
+            jobs.into_iter()
+                .map(|info| format_job_info(&info))
+                .collect(),
+        );
     }
     fn print_job_summary(&self, jobs: Vec<JobInfo>) {
         let statuses = group_jobs_by_status(&jobs);
@@ -103,14 +107,14 @@ impl Output for JsonOutput {
                 };
 
                 let mut json = json!({
-                    "info": format_job_info(info),
+                    "info": format_job_info(&info),
                     "max_fails": job_desc.max_fails,
                     "started_at": format_datetime(submission_date),
                     "finished_at": finished_at.map(format_datetime),
                     "submit_dir": job_desc.submit_dir
                 });
 
-                let task_description = match job_desc.task_desc {
+                let task_description = match &job_desc.task_desc {
                     JobTaskDescription::Array { task_desc, .. } => {
                         let mut task = json!({});
                         format_task_description(task_desc, &mut task);
@@ -123,7 +127,7 @@ impl Output for JsonOutput {
                             .into_iter()
                             .map(|task| {
                                 let mut json = json!({});
-                                format_task_description(task.task_desc, &mut json);
+                                format_task_description(&task.task_desc, &mut json);
                                 json
                             })
                             .collect();
@@ -240,7 +244,7 @@ impl Output for JsonOutput {
     }
 }
 
-fn format_task_description(task_desc: TaskDescription, json: &mut Value) {
+fn format_task_description(task_desc: &TaskDescription, json: &mut Value) {
     let TaskDescription {
         kind,
         resources,
@@ -272,7 +276,7 @@ fn format_task_description(task_desc: TaskDescription, json: &mut Value) {
             });
             json["resources"] = resources
                 .variants
-                .into_iter()
+                .iter()
                 .map(|v| {
                     let ResourceRequest {
                         n_nodes,
@@ -287,7 +291,7 @@ fn format_task_description(task_desc: TaskDescription, json: &mut Value) {
                                 "request": res.policy
                             })
                         }).collect::<Vec<_>>(),
-                        "min_time": format_duration(min_time)
+                        "min_time": format_duration(*min_time)
                     })
                 })
                 .collect();
@@ -334,7 +338,7 @@ fn format_stdio_def(stdio: &StdioDef) -> Value {
     }
 }
 
-fn format_job_info(info: JobInfo) -> serde_json::Value {
+fn format_job_info(info: &JobInfo) -> serde_json::Value {
     let JobInfo {
         id,
         name,
@@ -351,7 +355,7 @@ fn format_job_info(info: JobInfo) -> serde_json::Value {
             "finished": counters.n_finished_tasks,
             "failed": counters.n_failed_tasks,
             "canceled": counters.n_canceled_tasks,
-            "waiting": counters.n_waiting_tasks(n_tasks)
+            "waiting": counters.n_waiting_tasks(*n_tasks)
         })
     })
 }

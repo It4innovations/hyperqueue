@@ -11,9 +11,10 @@ use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
 use bstr::BString;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::time::Duration;
 
-use crate::server::event::MonitoringEvent;
+use crate::server::event::Event;
 use tako::gateway::{LostWorkerReason, MonitoringEventRequest, ResourceRequestVariants};
 use tako::program::ProgramDefinition;
 use tako::worker::WorkerConfiguration;
@@ -66,7 +67,7 @@ pub struct TaskBuildDescription<'a> {
     pub task_kind: Cow<'a, TaskKind>,
     pub job_id: JobId,
     pub task_id: JobTaskId,
-    pub submit_dir: Cow<'a, Path>,
+    pub submit_dir: Cow<'a, PathBuf>,
     pub entry: Option<BString>,
 }
 
@@ -319,7 +320,7 @@ pub enum ToClientMessage {
     ForgetJobResponse(ForgetJobResponse),
     AutoAllocResponse(AutoAllocResponse),
     WaitForJobsResponse(WaitForJobsResponse),
-    MonitoringEventsResponse(Vec<MonitoringEvent>),
+    MonitoringEventsResponse(Vec<Event>),
     Error(String),
     ServerInfo(ServerInfo),
 }
@@ -396,7 +397,7 @@ pub struct JobInfoResponse {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobDetail {
     pub info: JobInfo,
-    pub job_desc: JobDescription,
+    pub job_desc: Rc<JobDescription>,
     pub tasks: Vec<JobTaskInfo>,
     pub tasks_not_found: Vec<JobTaskId>,
 

@@ -1,6 +1,6 @@
 use crate::server::autoalloc::{AllocationId, QueueId};
-use crate::server::event::events::MonitoringEventPayload;
-use crate::server::event::MonitoringEvent;
+use crate::server::event::payload::EventPayload;
+use crate::server::event::Event;
 use crate::transfer::messages::AllocationQueueParams;
 use crate::Map;
 use std::time::SystemTime;
@@ -94,10 +94,10 @@ impl AllocationQueueInfo {
 
 impl AllocationTimeline {
     /// Assumes that `events` are sorted by time.
-    pub fn handle_new_events(&mut self, events: &[MonitoringEvent]) {
+    pub fn handle_new_events(&mut self, events: &[Event]) {
         for event in events {
             match &event.payload {
-                MonitoringEventPayload::AllocationQueueCreated(id, params) => {
+                EventPayload::AllocationQueueCreated(id, params) => {
                     self.queue_timelines.insert(
                         *id,
                         AllocationQueueInfo {
@@ -108,11 +108,11 @@ impl AllocationTimeline {
                         },
                     );
                 }
-                MonitoringEventPayload::AllocationQueueRemoved(queue_id) => {
+                EventPayload::AllocationQueueRemoved(queue_id) => {
                     let queue_state = self.queue_timelines.get_mut(queue_id).unwrap();
                     queue_state.removal_time = Some(event.time);
                 }
-                MonitoringEventPayload::AllocationQueued {
+                EventPayload::AllocationQueued {
                     queue_id,
                     allocation_id,
                     worker_count,
@@ -124,7 +124,7 @@ impl AllocationTimeline {
                         event.time,
                     );
                 }
-                MonitoringEventPayload::AllocationStarted(queue_id, allocation_id) => {
+                EventPayload::AllocationStarted(queue_id, allocation_id) => {
                     let queue_state = self.queue_timelines.get_mut(queue_id).unwrap();
                     queue_state.update_allocation_state(
                         allocation_id,
@@ -132,7 +132,7 @@ impl AllocationTimeline {
                         event.time,
                     );
                 }
-                MonitoringEventPayload::AllocationFinished(queue_id, allocation_id) => {
+                EventPayload::AllocationFinished(queue_id, allocation_id) => {
                     let queue_state = self.queue_timelines.get_mut(queue_id).unwrap();
                     queue_state.update_allocation_state(
                         allocation_id,

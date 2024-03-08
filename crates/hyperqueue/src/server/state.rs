@@ -12,7 +12,6 @@ use tako::ItemId;
 use tako::{define_wrapped_type, TaskId};
 
 use crate::server::autoalloc::{AutoAllocService, LostWorkerDetails};
-use crate::server::event::events::JobInfo;
 use crate::server::event::storage::EventStorage;
 use crate::server::job::Job;
 use crate::server::restore::StateRestorer;
@@ -120,13 +119,6 @@ impl State {
             .base_task_id_to_job_id
             .insert(job.base_task_id, job_id)
             .is_none());
-        self.event_storage.on_job_submitted(
-            job_id,
-            JobInfo {
-                job_desc: job.job_desc.clone(),
-                submission_date: job.submission_date,
-            },
-        );
         assert!(self.jobs.insert(job_id, job).is_none());
 
         if let Some(autoalloc) = &self.autoalloc_service {
@@ -213,7 +205,7 @@ impl State {
             );
             job.set_cancel_state(task_id, tako_ref);
         }
-        let task_id = job.set_failed_state(msg.id, msg.info.message, tako_ref);
+        let task_id = job.set_failed_state(msg.id, msg.info.message.clone(), tako_ref);
 
         if let Some(max_fails) = &job.job_desc.max_fails {
             if job.counters.n_failed_tasks > *max_fails {
@@ -222,24 +214,28 @@ impl State {
             }
         }
         let job_id = job.job_id;
-        self.event_storage.on_task_failed(job_id, task_id);
+        self.event_storage
+            .on_task_failed(job_id, task_id, msg.info.message);
     }
 
     pub fn process_task_update(&mut self, msg: TaskUpdate, backend: &Backend) {
         log::debug!("Task id={} updated {:?}", msg.id, msg.state);
         match msg.state {
             TaskState::Running {
+                instance_id,
                 worker_ids,
                 context,
             } => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
                 let task_id = job.set_running_state(msg.id, worker_ids.clone(), context);
 
-                // TODO: Prepare it for multi-node tasks
-                // This (incomplete) version just takes the first worker as "the worker" for task
                 let job_id = job.job_id;
-                self.event_storage
-                    .on_task_started(job_id, task_id, worker_ids[0]);
+                self.event_storage.on_task_started(
+                    job_id,
+                    task_id,
+                    instance_id,
+                    worker_ids.clone(),
+                );
             }
             TaskState::Finished => {
                 let now = Utc::now();
@@ -249,7 +245,7 @@ impl State {
                 let job_id = job.job_id;
                 self.event_storage.on_task_finished(job_id, task_id);
                 if is_job_terminated {
-                    self.event_storage.on_job_completed(job_id, now);
+                    self.event_storage.on_job_completed(job_id);
                 }
             }
             TaskState::Waiting => {
@@ -319,7 +315,7 @@ impl State {
         self.autoalloc_service.as_ref().unwrap()
     }
 
-    pub fn restore_state(&mut self, restorer: StateRestorer) {
+    pub fn restore_state(&mut self, restorer: &StateRestorer) {
         self.job_id_counter = restorer.job_id_counter()
     }
 }

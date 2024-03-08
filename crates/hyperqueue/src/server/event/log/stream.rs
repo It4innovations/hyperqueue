@@ -1,12 +1,12 @@
 use crate::common::utils::str::pluralize;
 use crate::server::event::log::write::EventLogWriter;
-use crate::server::event::MonitoringEvent;
+use crate::server::event::Event;
 use std::future::Future;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
-pub type EventStreamSender = mpsc::UnboundedSender<MonitoringEvent>;
-pub type EventStreamReceiver = mpsc::UnboundedReceiver<MonitoringEvent>;
+pub type EventStreamSender = mpsc::UnboundedSender<Event>;
+pub type EventStreamReceiver = mpsc::UnboundedReceiver<Event>;
 
 fn create_event_stream_queue() -> (EventStreamSender, EventStreamReceiver) {
     mpsc::unbounded_channel()
@@ -50,7 +50,6 @@ async fn streaming_process(
 ) -> anyhow::Result<()> {
     let mut flush_fut = tokio::time::interval(FLUSH_PERIOD);
     let mut events = 0;
-
     loop {
         tokio::select! {
             _ = flush_fut.tick() => {

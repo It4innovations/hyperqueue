@@ -1,5 +1,5 @@
 use crate::server::event::log::canonical_header;
-use crate::server::event::MonitoringEvent;
+use crate::server::event::{bincode_config, Event};
 use bincode::Options;
 use std::path::Path;
 use tokio::fs::{File, OpenOptions};
@@ -12,11 +12,6 @@ pub struct EventLogWriter {
 }
 
 const BUF_MAX_SIZE: usize = 16 * 1024;
-
-#[inline]
-pub(crate) fn bincode_config() -> impl Options {
-    bincode::DefaultOptions::new().allow_trailing_bytes()
-}
 
 impl EventLogWriter {
     pub async fn create_or_append(path: &Path) -> anyhow::Result<Self> {
@@ -36,7 +31,7 @@ impl EventLogWriter {
     }
 
     #[inline]
-    pub async fn store(&mut self, event: MonitoringEvent) -> anyhow::Result<()> {
+    pub async fn store(&mut self, event: Event) -> anyhow::Result<()> {
         bincode_config().serialize_into(&mut self.buffer, &event)?;
         if self.is_buffer_full() {
             self.write_buffer().await?;

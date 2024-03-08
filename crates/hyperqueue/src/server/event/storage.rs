@@ -1,19 +1,22 @@
 use crate::server::autoalloc::{AllocationId, QueueId};
-use crate::server::event::events::{JobInfo, MonitoringEventPayload};
 use crate::server::event::log::EventStreamSender;
-use crate::server::event::{MonitoringEvent, MonitoringEventId};
-use crate::transfer::messages::AllocationQueueParams;
+use crate::server::event::payload::EventPayload;
+use crate::server::event::{bincode_config, Event, EventId};
+use crate::transfer::messages::{AllocationQueueParams, JobDescription};
 use crate::{JobId, JobTaskId, TakoTaskId, WorkerId};
+use bincode::Options;
 use chrono::{DateTime, Utc};
+use smallvec::SmallVec;
 use std::collections::vec_deque::VecDeque;
+use std::rc::Rc;
 use std::time::SystemTime;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::TaskId;
+use tako::{InstanceId, TaskId};
 
 pub struct EventStorage {
     event_store_size: usize,
-    event_queue: VecDeque<MonitoringEvent>,
+    event_queue: VecDeque<Event>,
     last_event_id: u32,
     stream_sender: Option<EventStreamSender>,
 }
@@ -42,10 +45,7 @@ impl EventStorage {
     /// Returns all events that have event ID larger than `id`.
     /// There is no guarantee on the order of the events, if you want any specific order, you have
     /// to sort them.
-    pub fn get_events_after(
-        &self,
-        id: MonitoringEventId,
-    ) -> impl Iterator<Item = &MonitoringEvent> {
+    pub fn get_events_after(&self, id: EventId) -> impl Iterator<Item = &Event> {
         self.event_queue
             .iter()
             .rev()
@@ -53,64 +53,78 @@ impl EventStorage {
     }
 
     pub fn on_worker_added(&mut self, id: WorkerId, configuration: WorkerConfiguration) {
-        self.insert_event(MonitoringEventPayload::WorkerConnected(
-            id,
-            Box::new(configuration),
-        ));
+        self.insert_event(EventPayload::WorkerConnected(id, Box::new(configuration)));
     }
 
     pub fn on_worker_lost(&mut self, id: WorkerId, reason: LostWorkerReason) {
-        self.insert_event(MonitoringEventPayload::WorkerLost(id, reason));
+        self.insert_event(EventPayload::WorkerLost(id, reason));
     }
 
     #[inline]
     pub fn on_overview_received(&mut self, worker_overview: WorkerOverview) {
-        self.insert_event(MonitoringEventPayload::WorkerOverviewReceived(
-            worker_overview,
-        ));
+        self.insert_event(EventPayload::WorkerOverviewReceived(worker_overview));
     }
 
-    #[inline]
-    pub fn on_job_submitted(&mut self, job_id: JobId, job_info: JobInfo) {
-        self.insert_event(MonitoringEventPayload::JobCreated(
+    pub fn on_job_submitted_full(
+        &mut self,
+        job_id: JobId,
+        job_desc: &JobDescription,
+    ) -> crate::Result<()> {
+        self.insert_event(EventPayload::JobCreatedFull(
             job_id,
-            Box::new(job_info),
+            bincode_config().serialize(job_desc)?,
         ));
+        Ok(())
+    }
+
+    // pub fn on_job_submitted_short(&mut self, job_id: JobId, job_desc: Rc<JobDescription>) {
+    //     self.insert_event(EventPayload::JobCreatedShort(job_id, job_desc));
+    // }
+
+    #[inline]
+    pub fn on_job_completed(&mut self, job_id: JobId) {
+        self.insert_event(EventPayload::JobCompleted(job_id));
     }
 
     #[inline]
-    pub fn on_job_completed(&mut self, job_id: JobId, at_time: DateTime<Utc>) {
-        self.insert_event(MonitoringEventPayload::JobCompleted(job_id, at_time));
-    }
-
-    #[inline]
-    pub fn on_task_started(&mut self, job_id: JobId, task_id: JobTaskId, worker_id: WorkerId) {
-        self.insert_event(MonitoringEventPayload::TaskStarted {
+    pub fn on_task_started(
+        &mut self,
+        job_id: JobId,
+        task_id: JobTaskId,
+        instance_id: InstanceId,
+        worker_ids: SmallVec<[WorkerId; 1]>,
+    ) {
+        self.insert_event(EventPayload::TaskStarted {
             job_id,
             task_id,
-            worker_id,
+            instance_id,
+            workers: worker_ids,
         });
     }
 
     #[inline]
     pub fn on_task_finished(&mut self, job_id: JobId, task_id: JobTaskId) {
-        self.insert_event(MonitoringEventPayload::TaskFinished { job_id, task_id });
+        self.insert_event(EventPayload::TaskFinished { job_id, task_id });
     }
 
     #[inline]
-    pub fn on_task_failed(&mut self, job_id: JobId, task_id: JobTaskId) {
-        self.insert_event(MonitoringEventPayload::TaskFailed { job_id, task_id });
+    pub fn on_task_failed(&mut self, job_id: JobId, task_id: JobTaskId, error: String) {
+        self.insert_event(EventPayload::TaskFailed {
+            job_id,
+            task_id,
+            error,
+        });
     }
 
     pub fn on_allocation_queue_created(&mut self, id: QueueId, parameters: AllocationQueueParams) {
-        self.insert_event(MonitoringEventPayload::AllocationQueueCreated(
+        self.insert_event(EventPayload::AllocationQueueCreated(
             id,
             Box::new(parameters),
         ))
     }
 
     pub fn on_allocation_queue_removed(&mut self, id: QueueId) {
-        self.insert_event(MonitoringEventPayload::AllocationQueueRemoved(id))
+        self.insert_event(EventPayload::AllocationQueueRemoved(id))
     }
 
     pub fn on_allocation_queued(
@@ -119,7 +133,7 @@ impl EventStorage {
         allocation_id: AllocationId,
         worker_count: u64,
     ) {
-        self.insert_event(MonitoringEventPayload::AllocationQueued {
+        self.insert_event(EventPayload::AllocationQueued {
             queue_id,
             allocation_id,
             worker_count,
@@ -127,26 +141,20 @@ impl EventStorage {
     }
 
     pub fn on_allocation_started(&mut self, queue_id: QueueId, allocation_id: AllocationId) {
-        self.insert_event(MonitoringEventPayload::AllocationStarted(
-            queue_id,
-            allocation_id,
-        ));
+        self.insert_event(EventPayload::AllocationStarted(queue_id, allocation_id));
     }
 
     pub fn on_allocation_finished(&mut self, queue_id: QueueId, allocation_id: AllocationId) {
-        self.insert_event(MonitoringEventPayload::AllocationFinished(
-            queue_id,
-            allocation_id,
-        ));
+        self.insert_event(EventPayload::AllocationFinished(queue_id, allocation_id));
     }
 
-    fn insert_event(&mut self, payload: MonitoringEventPayload) {
+    fn insert_event(&mut self, payload: EventPayload) {
         self.last_event_id += 1;
 
-        let event = MonitoringEvent {
+        let event = Event {
             payload,
             id: self.last_event_id,
-            time: SystemTime::now(),
+            time: Utc::now(),
         };
         self.stream_event(&event);
         self.event_queue.push_back(event);
@@ -156,12 +164,16 @@ impl EventStorage {
         }
     }
 
-    fn stream_event(&mut self, event: &MonitoringEvent) {
+    fn stream_event(&mut self, event: &Event) {
         if let Some(ref streamer) = self.stream_sender {
             if streamer.send(event.clone()).is_err() {
                 log::error!("Event streaming queue has been closed.");
                 self.stream_sender = None;
             }
         }
+    }
+
+    pub fn close_stream(&mut self) {
+        self.stream_sender = None;
     }
 }

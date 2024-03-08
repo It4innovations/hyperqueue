@@ -273,6 +273,13 @@ fn handle_new_tasks(
         let task = Task::new(task.id, inputs, conf.clone(), task.body, *keep, *observe);
         tasks.push(task);
     }
+    if !msg.adjust_instance_id.is_empty() {
+        for task in &mut tasks {
+            if let Some(instance_id) = msg.adjust_instance_id.get(&task.id) {
+                task.instance_id = *instance_id;
+            }
+        }
+    }
     on_new_tasks(core, comm, tasks);
 
     assert!(client_sender

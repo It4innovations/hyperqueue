@@ -11,7 +11,7 @@ use tako::TaskGroup;
 
 use crate::client::status::{job_status, Status};
 use crate::common::serverdir::ServerDir;
-use crate::server::event::MonitoringEvent;
+use crate::server::event::Event;
 use crate::server::job::JobTaskCounters;
 use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
@@ -27,6 +27,8 @@ use crate::{JobId, JobTaskCount, WorkerId};
 
 pub mod autoalloc;
 mod submit;
+
+pub(crate) use submit::{start_log_streaming, submit_job_desc};
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
@@ -120,7 +122,7 @@ pub async fn client_rpc_loop<
                         handle_wait_for_jobs_message(&state_ref, msg.selector).await
                     }
                     FromClientMessage::MonitoringEvents(request) => {
-                        let events: Vec<MonitoringEvent> = state_ref
+                        let events: Vec<Event> = state_ref
                             .get()
                             .event_storage()
                             .get_events_after(request.after_id.unwrap_or(0))

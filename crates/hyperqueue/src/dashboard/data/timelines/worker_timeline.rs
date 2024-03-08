@@ -1,8 +1,8 @@
 use crate::dashboard::data::time_based_vec::{ItemWithTime, TimeBasedVec};
 use crate::dashboard::data::time_interval::TimeRange;
 use crate::dashboard::data::Time;
-use crate::server::event::events::MonitoringEventPayload;
-use crate::server::event::MonitoringEvent;
+use crate::server::event::payload::EventPayload;
+use crate::server::event::Event;
 use crate::WorkerId;
 use std::time::SystemTime;
 use tako::gateway::LostWorkerReason;
@@ -45,10 +45,10 @@ pub struct WorkerTimeline {
 
 impl WorkerTimeline {
     /// Assumes that `events` are sorted by time.
-    pub fn handle_new_events(&mut self, events: &[MonitoringEvent]) {
+    pub fn handle_new_events(&mut self, events: &[Event]) {
         for event in events {
             match &event.payload {
-                MonitoringEventPayload::WorkerConnected(id, info) => {
+                EventPayload::WorkerConnected(id, info) => {
                     self.workers.insert(
                         *id,
                         WorkerRecord {
@@ -59,12 +59,12 @@ impl WorkerTimeline {
                         },
                     );
                 }
-                MonitoringEventPayload::WorkerLost(lost_id, reason) => {
+                EventPayload::WorkerLost(lost_id, reason) => {
                     if let Some(worker) = self.workers.get_mut(lost_id) {
                         worker.set_loss_details(event.time, reason.clone());
                     }
                 }
-                MonitoringEventPayload::WorkerOverviewReceived(overview) => {
+                EventPayload::WorkerOverviewReceived(overview) => {
                     if let Some(worker) = self.workers.get_mut(&overview.id) {
                         worker.worker_overviews.push(event.time, overview.clone());
                     }

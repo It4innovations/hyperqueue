@@ -56,6 +56,7 @@ impl CoreRef {
         idle_timeout: Option<Duration>,
         custom_conn_handler: Option<CustomConnectionHandler>,
         server_uid: String,
+        worker_id_initial_value: WorkerId,
     ) -> Self {
         CoreRef::wrap(Core {
             worker_listen_port,
@@ -63,6 +64,7 @@ impl CoreRef {
             idle_timeout,
             custom_conn_handler,
             server_uid,
+            worker_id_counter: worker_id_initial_value.as_num(),
             ..Default::default()
         })
     }

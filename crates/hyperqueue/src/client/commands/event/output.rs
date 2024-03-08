@@ -1,10 +1,11 @@
 use crate::client::output::json::format_datetime;
-use crate::server::event::events::{JobInfo, MonitoringEventPayload};
-use crate::server::event::MonitoringEvent;
+use crate::server::event::payload::EventPayload;
+use crate::server::event::Event;
+use crate::transfer::messages::JobDescription;
 use serde_json::json;
 use tako::worker::WorkerOverview;
 
-pub fn format_event(event: MonitoringEvent) -> serde_json::Value {
+pub fn format_event(event: Event) -> serde_json::Value {
     json!({
         "id": event.id,
         "time": format_datetime(event.time),
@@ -12,38 +13,38 @@ pub fn format_event(event: MonitoringEvent) -> serde_json::Value {
     })
 }
 
-fn format_payload(event: MonitoringEventPayload) -> serde_json::Value {
+fn format_payload(event: EventPayload) -> serde_json::Value {
     match event {
-        MonitoringEventPayload::WorkerConnected(id, configuration) => json!({
+        EventPayload::WorkerConnected(id, configuration) => json!({
             "type": "worker-connected",
             "id": id,
             "extra": configuration.extra
         }),
-        MonitoringEventPayload::WorkerLost(id, reason) => json!({
+        EventPayload::WorkerLost(id, reason) => json!({
             "type": "worker-lost",
             "id": id,
             "reason": reason
         }),
-        MonitoringEventPayload::WorkerOverviewReceived(WorkerOverview { id, hw_state, .. }) => {
+        EventPayload::WorkerOverviewReceived(WorkerOverview { id, hw_state, .. }) => {
             json!({
                 "type": "worker-overview",
                 "id": id,
                 "hw-state": hw_state
             })
         }
-        MonitoringEventPayload::AllocationQueueCreated(id, _params) => {
+        EventPayload::AllocationQueueCreated(id, _params) => {
             json!({
                 "type": "autoalloc-queue-created",
                 "queue-id": id
             })
         }
-        MonitoringEventPayload::AllocationQueueRemoved(id) => {
+        EventPayload::AllocationQueueRemoved(id) => {
             json!({
                 "type": "autoalloc-queue-removed",
                 "queue-id": id
             })
         }
-        MonitoringEventPayload::AllocationQueued {
+        EventPayload::AllocationQueued {
             queue_id,
             allocation_id,
             worker_count,
@@ -55,61 +56,66 @@ fn format_payload(event: MonitoringEventPayload) -> serde_json::Value {
                 "worker-count": worker_count
             })
         }
-        MonitoringEventPayload::AllocationStarted(queue_id, allocation_id) => {
+        EventPayload::AllocationStarted(queue_id, allocation_id) => {
             json!({
                 "type": "autoalloc-allocation-started",
                 "queue-id": queue_id,
                 "allocation-id": allocation_id,
             })
         }
-        MonitoringEventPayload::AllocationFinished(queue_id, allocation_id) => {
+        EventPayload::AllocationFinished(queue_id, allocation_id) => {
             json!({
                 "type": "autoalloc-allocation-finished",
                 "queue-id": queue_id,
                 "allocation-id": allocation_id,
             })
         }
-        MonitoringEventPayload::TaskStarted {
-            job_id,
-            task_id,
-            worker_id,
+        EventPayload::TaskStarted {
+            job_id, task_id, ..
         } => json!({
             "type": "task-started",
             "job": job_id,
             "task": task_id,
-            "worker": worker_id
+            "worker": -1
         }),
-        MonitoringEventPayload::TaskFinished { job_id, task_id } => json!({
+        EventPayload::TaskFinished { job_id, task_id } => json!({
             "type": "task-finished",
             "job": job_id,
             "task": task_id
         }),
-        MonitoringEventPayload::TaskFailed { job_id, task_id } => json!({
+        EventPayload::TaskFailed {
+            job_id,
+            task_id,
+            error,
+        } => json!({
             "type": "task-failed",
             "job": job_id,
-            "task": task_id
+            "task": task_id,
+            "error": error
         }),
-        MonitoringEventPayload::JobCreated(job_id, job_info) => json!({
+        EventPayload::JobCreatedFull(job_id, job_info) => {
+            todo!()
+        }
+        /*EventPayload::JobCreatedShort(job_id, job_desc) => json!({
             "type": "job-created",
             "job": job_id,
-            "info": JobInfoFormatter(&job_info).to_json(),
-        }),
-        MonitoringEventPayload::JobCompleted(job_id, completion_date) => json!({
+            "desc": JobInfoFormatter(&job_desc).to_json(),
+        }),*/
+        EventPayload::JobCompleted(job_id) => json!({
             "type": "job-completed",
             "job": job_id,
-            "completion-date": completion_date
         }),
     }
 }
 
 // We need a special formatter, since BString cannot be used as a hashmap key for JSON
-struct JobInfoFormatter<'a>(&'a JobInfo);
+struct JobInfoFormatter<'a>(&'a JobDescription);
 
 impl<'a> JobInfoFormatter<'a> {
     fn to_json(&self) -> serde_json::Value {
         // Only format the job name for now
         json!({
-            "name": self.0.job_desc.name
+            "name": self.0.name
         })
     }
 }

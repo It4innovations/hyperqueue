@@ -6,7 +6,7 @@ use crate::dashboard::data::timelines::job_timeline::{DashboardJobInfo, JobTimel
 use crate::dashboard::data::timelines::worker_timeline::WorkerTimeline;
 use crate::dashboard::data::{Time, TimeRange};
 use crate::server::autoalloc::{AllocationId, QueueId};
-use crate::server::event::MonitoringEvent;
+use crate::server::event::Event;
 use crate::transfer::messages::AllocationQueueParams;
 use crate::{JobId, JobTaskId};
 use std::time::{Duration, SystemTime};
@@ -26,7 +26,7 @@ pub struct DashboardData {
 }
 
 impl DashboardData {
-    pub fn push_new_events(&mut self, mut events: Vec<MonitoringEvent>) {
+    pub fn push_new_events(&mut self, mut events: Vec<Event>) {
         events.sort_unstable_by_key(|e| e.time());
 
         // Update data views

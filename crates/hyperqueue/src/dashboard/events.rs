@@ -1,4 +1,4 @@
-use crate::server::event::MonitoringEvent;
+use crate::server::event::Event;
 use termion::event::Key;
 
 #[derive(Debug, Clone)]
@@ -8,5 +8,5 @@ pub enum DashboardEvent {
     /// Updates the dashboard ui with the latest data
     UiTick,
     /// New events were fetched from the server
-    FetchedEvents(Vec<MonitoringEvent>),
+    FetchedEvents(Vec<Event>),
 }

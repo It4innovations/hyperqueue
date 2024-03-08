@@ -242,7 +242,7 @@ pub(crate) fn on_task_running(
         };
 
         if task.is_observed() {
-            comm.send_client_task_started(task_id, worker_ids, context);
+            comm.send_client_task_started(task_id, task.instance_id, worker_ids, context);
         }
     }
 }

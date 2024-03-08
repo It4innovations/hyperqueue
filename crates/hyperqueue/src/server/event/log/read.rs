@@ -1,6 +1,5 @@
-use crate::server::event::log::write::bincode_config;
 use crate::server::event::log::{canonical_header, LogFileHeader};
-use crate::server::event::MonitoringEvent;
+use crate::server::event::{bincode_config, Event};
 use anyhow::anyhow;
 use bincode::Options;
 use std::fs::File;
@@ -32,7 +31,7 @@ impl EventLogReader {
 }
 
 impl Iterator for EventLogReader {
-    type Item = Result<MonitoringEvent, bincode::Error>;
+    type Item = Result<Event, bincode::Error>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -52,11 +51,11 @@ impl Iterator for EventLogReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::server::event::events::MonitoringEventPayload;
     use crate::server::event::log::{
         EventLogReader, EventLogWriter, LogFileHeader, HQ_LOG_HEADER, HQ_LOG_VERSION,
     };
-    use crate::server::event::MonitoringEvent;
+    use crate::server::event::payload::EventPayload;
+    use crate::server::event::Event;
     use std::fs::File;
     use std::io::Write;
     use std::time::SystemTime;
@@ -114,10 +113,10 @@ mod tests {
             let mut writer = EventLogWriter::create_or_append(&path).await.unwrap();
             for id in 0..100000 {
                 writer
-                    .store(MonitoringEvent {
+                    .store(Event {
                         id,
                         time: SystemTime::now(),
-                        payload: MonitoringEventPayload::WorkerLost(
+                        payload: EventPayload::WorkerLost(
                             0.into(),
                             LostWorkerReason::ConnectionLost,
                         ),
@@ -134,7 +133,7 @@ mod tests {
             assert_eq!(event.id, id);
             assert!(matches!(
                 event.payload,
-                MonitoringEventPayload::WorkerLost(id, LostWorkerReason::ConnectionLost)
+                EventPayload::WorkerLost(id, LostWorkerReason::ConnectionLost)
                 if id.as_num() == 0
             ));
         }
@@ -149,10 +148,10 @@ mod tests {
 
         let time = SystemTime::now();
         writer
-            .store(MonitoringEvent {
+            .store(Event {
                 id: 42,
                 time,
-                payload: MonitoringEventPayload::AllocationFinished(0, "a".to_string()),
+                payload: EventPayload::AllocationFinished(0, "a".to_string()),
             })
             .await
             .unwrap();
@@ -164,7 +163,7 @@ mod tests {
         assert_eq!(event.time, time);
         assert!(matches!(
             event.payload,
-            MonitoringEventPayload::AllocationFinished(0, _)
+            EventPayload::AllocationFinished(0, _)
         ));
     }
 }
