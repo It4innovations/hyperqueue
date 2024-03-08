@@ -1,33 +1,22 @@
-pub mod events;
 pub mod log;
+pub mod payload;
 pub mod storage;
 
-use events::MonitoringEventPayload;
+use bincode::Options;
+use chrono::{DateTime, Utc};
+use payload::EventPayload;
 use serde::{Deserialize, Serialize};
-use std::time::SystemTime;
 
-pub type MonitoringEventId = u32;
+pub type EventId = u32;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MonitoringEvent {
-    pub id: MonitoringEventId,
-    pub time: SystemTime,
-    pub payload: MonitoringEventPayload,
+pub struct Event {
+    pub id: EventId,
+    pub time: DateTime<Utc>,
+    pub payload: EventPayload,
 }
 
-impl MonitoringEvent {
-    #[inline]
-    pub fn id(&self) -> MonitoringEventId {
-        self.id
-    }
-
-    #[inline]
-    pub fn time(&self) -> SystemTime {
-        self.time
-    }
-
-    #[inline]
-    pub fn payload(&self) -> &MonitoringEventPayload {
-        &self.payload
-    }
+#[inline]
+pub(crate) fn bincode_config() -> impl Options {
+    bincode::DefaultOptions::new().allow_trailing_bytes()
 }

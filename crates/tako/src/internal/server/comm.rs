@@ -15,7 +15,7 @@ use crate::internal::server::core::Core;
 use crate::internal::transfer::auth::serialize;
 use crate::internal::worker::configuration::WorkerConfiguration;
 use crate::task::SerializedTaskContext;
-use crate::{TaskId, WorkerId};
+use crate::{InstanceId, TaskId, WorkerId};
 
 pub trait Comm {
     fn send_worker_message(&mut self, worker_id: WorkerId, message: &ToWorkerMessage);
@@ -26,6 +26,7 @@ pub trait Comm {
     fn send_client_task_started(
         &mut self,
         task_id: TaskId,
+        instance_id: InstanceId,
         worker_ids: &[WorkerId],
         context: SerializedTaskContext,
     );
@@ -152,6 +153,7 @@ impl Comm for CommSender {
     fn send_client_task_started(
         &mut self,
         task_id: TaskId,
+        instance_id: InstanceId,
         worker_ids: &[WorkerId],
         context: SerializedTaskContext,
     ) {
@@ -161,6 +163,7 @@ impl Comm for CommSender {
             .send(ToGatewayMessage::TaskUpdate(TaskUpdate {
                 id: task_id,
                 state: TaskState::Running {
+                    instance_id,
                     worker_ids: worker_ids.into(),
                     context,
                 },

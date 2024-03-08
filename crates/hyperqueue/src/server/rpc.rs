@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use orion::kdf::SecretKey;
 use tako::gateway::{FromGatewayMessage, ToGatewayMessage};
+use tako::WorkerId;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio::time::Duration;
@@ -55,6 +56,7 @@ impl Backend {
         key: Arc<SecretKey>,
         idle_timeout: Option<Duration>,
         worker_port: Option<u16>,
+        worker_id_initial_value: WorkerId,
     ) -> crate::Result<(Backend, impl Future<Output = crate::Result<()>>)> {
         let msd = Duration::from_millis(20);
 
@@ -78,6 +80,7 @@ impl Backend {
                     .is_ok());
             })),
             server_uid,
+            worker_id_initial_value,
         )
         .await?;
 

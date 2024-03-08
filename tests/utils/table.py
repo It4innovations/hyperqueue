@@ -22,7 +22,7 @@ class Table:
         assert self.rows
         return Table(self.rows[1:], self.rows[0])
 
-    def get_row_value(self, key: str) -> Optional[str]:
+    def get_row_value(self, key) -> Optional[str]:
         """
         Assumes vertical table (each value has a separate row).
         """
@@ -104,7 +104,7 @@ def parse_table(table_info):
             divider_count += 1
             # End early
             if ((divider_count == 3) or (divider_count == 2 and header is None)) and (i + 1) < len(lines):
-                return Table(rows, header=header), lines[(i + 1) :]
+                return Table(rows, header=header), lines[(i + 1):]
             continue
         items = [x.strip() for x in line.split("|")[1:-1]]
 

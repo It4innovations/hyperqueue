@@ -14,6 +14,7 @@ use crate::internal::scheduler::state::scheduler_loop;
 use crate::internal::server::client::process_client_message;
 use crate::internal::server::comm::CommSenderRef;
 use crate::internal::server::core::{CoreRef, CustomConnectionHandler};
+use crate::WorkerId;
 
 pub struct ServerRef {
     core_ref: CoreRef,
@@ -57,6 +58,7 @@ pub async fn server_start(
     idle_timeout: Option<Duration>,
     custom_conn_handler: Option<CustomConnectionHandler>,
     server_uid: String,
+    worker_id_initial_value: WorkerId,
 ) -> crate::Result<(ServerRef, impl Future<Output = crate::Result<()>>)> {
     log::debug!("Waiting for workers on {:?}", listen_address);
     let listener = TcpListener::bind(listen_address).await?;
@@ -76,6 +78,7 @@ pub async fn server_start(
         idle_timeout,
         custom_conn_handler,
         server_uid,
+        worker_id_initial_value,
     );
     let connections = crate::internal::server::rpc::connection_initiator(
         listener,

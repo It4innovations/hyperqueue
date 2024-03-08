@@ -31,6 +31,8 @@ use orion::kdf::SecretKey;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use std::time::Duration;
+use tako::gateway::{FromGatewayMessage, ToGatewayMessage};
+use tako::WorkerId;
 
 enum ServerStatus {
     Offline(ClientAccessRecord),
@@ -132,7 +134,13 @@ pub fn generate_server_uid() -> String {
 pub async fn initialize_server(
     gsettings: &GlobalSettings,
     mut server_cfg: ServerConfig,
-) -> anyhow::Result<(impl Future<Output = anyhow::Result<()>>, Arc<Notify>)> {
+    worker_id_initial_value: WorkerId,
+) -> anyhow::Result<(
+    impl Future<Output = anyhow::Result<()>>,
+    Arc<Notify>,
+    StateRef,
+    Backend,
+)> {
     let server_directory = gsettings.server_directory();
 
     let client_listener = TcpListener::bind(SocketAddr::new(
@@ -142,18 +150,6 @@ pub async fn initialize_server(
     .await
     .with_context(|| "Cannot create HQ server socket".to_string())?;
     let client_port = client_listener.local_addr()?.port();
-
-    let restorer = if let Some(path) = &server_cfg.journal_path {
-        if path.exists() {
-            let mut restorer = StateRestorer::default();
-            restorer.load_event_file(path)?;
-            Some(restorer)
-        } else {
-            None
-        }
-    } else {
-        None
-    };
 
     let server_uid = server_cfg
         .server_uid
@@ -182,19 +178,17 @@ pub async fn initialize_server(
             start_date: Utc::now(),
         },
     );
+
     let (autoalloc_service, autoalloc_process) = create_autoalloc_service(state_ref.clone());
     // TODO: remove this hack
     state_ref.get_mut().autoalloc_service = Some(autoalloc_service);
-
-    if let Some(restorer) = restorer {
-        state_ref.get_mut().restore_state(restorer);
-    }
 
     let (tako_server, tako_future) = Backend::start(
         state_ref.clone(),
         worker_key.clone(),
         server_cfg.idle_timeout,
         server_cfg.worker_port,
+        worker_id_initial_value,
     )
     .await?;
 
@@ -239,6 +233,9 @@ pub async fn initialize_server(
     };
 
     let key = client_key;
+    let state_ref2 = state_ref.clone();
+    let tako_server2 = tako_server.clone();
+
     let fut = async move {
         tokio::pin! {
             let autoalloc_process = autoalloc_process;
@@ -266,6 +263,7 @@ pub async fn initialize_server(
 
         log::debug!("Shutting down event streaming");
 
+        state_ref.get_mut().event_storage_mut().close_stream();
         // StateRef needs to be dropped at this moment, because it may contain a sender
         // that has to be shut-down for `event_stream_fut` to resolve.
         drop(state_ref);
@@ -273,7 +271,7 @@ pub async fn initialize_server(
 
         result
     };
-    Ok((fut, end_flag_ret))
+    Ok((fut, end_flag_ret, state_ref2, tako_server2))
 }
 
 async fn prepare_event_management(
@@ -302,12 +300,55 @@ async fn prepare_event_management(
     })
 }
 
-async fn start_server(
-    gsettings: &GlobalSettings,
-    server_config: ServerConfig,
-) -> anyhow::Result<()> {
-    let (fut, _) = initialize_server(gsettings, server_config).await?;
+async fn start_server(gsettings: &GlobalSettings, server_cfg: ServerConfig) -> anyhow::Result<()> {
+    let restorer = if let Some(path) = &server_cfg.journal_path {
+        if path.exists() {
+            let mut restorer = StateRestorer::default();
+            restorer.load_event_file(path)?;
+            Some(restorer)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let (fut, _, state_ref, tako_ref) = initialize_server(
+        gsettings,
+        server_cfg,
+        restorer
+            .as_ref()
+            .map(|r| r.worker_id_counter())
+            .unwrap_or(WorkerId::new(0)),
+    )
+    .await?;
+    let new_tasks = if let Some(restorer) = restorer {
+        // This is early state recovery, we restore jobs later as we start futures because restoring
+        // jobs already needs a running Tako
+        let mut state = state_ref.get_mut();
+        state.restore_state(&restorer);
+        Some(restorer.restore_jobs(&mut state)?)
+    } else {
+        None
+    };
     let local_set = LocalSet::new();
+
+    if let Some(new_tasks) = new_tasks {
+        local_set.spawn_local(async move {
+            log::debug!("Restoring old tasks into Tako");
+            for msg in new_tasks {
+                match tako_ref
+                    .send_tako_message(FromGatewayMessage::NewTasks(msg))
+                    .await
+                    .unwrap()
+                {
+                    ToGatewayMessage::NewTasksResponse(_) => { /* Ok */ }
+                    r => panic!("Invalid response: {r:?}"),
+                };
+            }
+            log::debug!("Restoration of old tasks is completed");
+        });
+    };
     local_set.run_until(fut).await?;
 
     // Delete symlink to mark that the server is no longer active

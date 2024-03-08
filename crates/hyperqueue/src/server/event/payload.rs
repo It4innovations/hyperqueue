@@ -1,43 +1,45 @@
 use crate::server::autoalloc::AllocationId;
 use crate::server::autoalloc::QueueId;
-use crate::transfer::messages::JobTaskDescription;
 use crate::transfer::messages::{AllocationQueueParams, JobDescription};
-use crate::{JobId, JobTaskCount, TakoTaskId};
+use crate::JobId;
 use crate::{JobTaskId, WorkerId};
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use smallvec::SmallVec;
+use std::rc::Rc;
 use tako::gateway::LostWorkerReason;
-use tako::static_assert_size;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
+use tako::{static_assert_size, InstanceId};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum MonitoringEventPayload {
+pub enum EventPayload {
     /// New worker has connected to the server
     WorkerConnected(WorkerId, Box<WorkerConfiguration>),
     /// Worker has disconnected from the server
     WorkerLost(WorkerId, LostWorkerReason),
     /// Worker has proactively send its overview (task status and HW utilization report) to the server
     WorkerOverviewReceived(WorkerOverview),
-    /// A Job was submitted by the user.
-    JobCreated(JobId, Box<JobInfo>),
+    /// A Job was submitted by the user -- full information to reconstruct the job;
+    ///  it will be only stored into file, not held in memory
+    ///  Vec<u8> is serialized JobDescription; the main reason is avoid duplication of JobDescription
+    ///  (we serialize it before it is stripped down)
+    ///  and a nice side effect is that Events can be deserialized without deserializing a potentially large submit data
+    JobCreatedFull(JobId, Vec<u8>),
     /// All tasks of the job have finished.
-    JobCompleted(JobId, DateTime<Utc>),
+    JobCompleted(JobId),
     /// Task has started to execute on some worker
     TaskStarted {
         job_id: JobId,
         task_id: JobTaskId,
-        worker_id: WorkerId,
+        instance_id: InstanceId,
+        workers: SmallVec<[WorkerId; 1]>,
     },
     /// Task has been finished
-    TaskFinished {
-        job_id: JobId,
-        task_id: JobTaskId,
-    },
+    TaskFinished { job_id: JobId, task_id: JobTaskId },
     // Task that failed to execute
     TaskFailed {
         job_id: JobId,
         task_id: JobTaskId,
+        error: String,
     },
     /// New allocation queue has been created
     AllocationQueueCreated(QueueId, Box<AllocationQueueParams>),
@@ -55,11 +57,5 @@ pub enum MonitoringEventPayload {
     AllocationFinished(QueueId, AllocationId),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JobInfo {
-    pub job_desc: JobDescription,
-    pub submission_date: DateTime<Utc>,
-}
-
 // Keep the size of the event structure in check
-static_assert_size!(MonitoringEventPayload, 136);
+static_assert_size!(EventPayload, 136);

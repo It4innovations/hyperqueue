@@ -8,7 +8,7 @@ use crate::resources::{
     AllocationRequest, NumOfNodes, ResourceAmount, ResourceDescriptor, CPU_RESOURCE_NAME,
 };
 use crate::task::SerializedTaskContext;
-use crate::{Priority, TaskId, WorkerId};
+use crate::{InstanceId, Map, Priority, TaskId, WorkerId};
 use smallvec::{smallvec, SmallVec};
 use std::time::Duration;
 
@@ -133,6 +133,7 @@ pub struct TaskConfiguration {
 pub struct NewTasksMessage {
     pub tasks: Vec<TaskConfiguration>,
     pub shared_data: Vec<SharedTaskConfiguration>,
+    pub adjust_instance_id: Map<TaskId, InstanceId>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -218,6 +219,7 @@ pub enum TaskState {
     Invalid,
     Waiting,
     Running {
+        instance_id: InstanceId,
         worker_ids: SmallVec<[WorkerId; 1]>,
         context: SerializedTaskContext,
     },

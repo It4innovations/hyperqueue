@@ -29,6 +29,10 @@ impl<T> WrappedRcRefCell<T> {
             inner: Rc::new(RefCell::new(t)),
         }
     }
+
+    pub fn strong_count(&self) -> usize {
+        Rc::strong_count(&self.inner)
+    }
 }
 
 impl<T: ?Sized> WrappedRcRefCell<T> {

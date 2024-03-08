@@ -1,5 +1,5 @@
-use crate::server::event::events::{JobInfo, MonitoringEventPayload};
-use crate::server::event::MonitoringEvent;
+use crate::server::event::payload::{EventPayload, JobInfo};
+use crate::server::event::Event;
 use crate::{JobId, JobTaskId, TakoTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use std::time::SystemTime;
@@ -50,10 +50,10 @@ impl TaskInfo {
 
 impl JobTimeline {
     /// Assumes that `events` are sorted by time.
-    pub fn handle_new_events(&mut self, events: &[MonitoringEvent]) {
+    pub fn handle_new_events(&mut self, events: &[Event]) {
         for event in events {
             match &event.payload {
-                MonitoringEventPayload::JobCreated(job_id, job_info) => {
+                EventPayload::JobCreated(job_id, job_info) => {
                     self.job_timeline.insert(
                         *job_id,
                         DashboardJobInfo {
@@ -65,13 +65,13 @@ impl JobTimeline {
                     );
                 }
 
-                MonitoringEventPayload::JobCompleted(job_id, completion_date) => {
+                EventPayload::JobCompleted(job_id, completion_date) => {
                     if let Some(job_info) = self.job_timeline.get_mut(job_id) {
                         job_info.completion_date = Some(*completion_date)
                     }
                 }
 
-                MonitoringEventPayload::TaskStarted {
+                EventPayload::TaskStarted {
                     job_id,
                     task_id,
                     worker_id,
@@ -93,7 +93,7 @@ impl JobTimeline {
                         );
                     }*/
                 }
-                MonitoringEventPayload::TaskFinished { job_id, task_id } => {
+                EventPayload::TaskFinished { job_id, task_id } => {
                     todo!()
                     /*update_task_status(
                         &mut self.job_timeline,
@@ -102,7 +102,7 @@ impl JobTimeline {
                         &event.time,
                     );*/
                 }
-                MonitoringEventPayload::TaskFailed { job_id, task_id } => {
+                EventPayload::TaskFailed { job_id, task_id } => {
                     todo!()
                     /*update_task_status(
                         &mut self.job_timeline,
