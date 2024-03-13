@@ -362,7 +362,15 @@ async fn main() -> hyperqueue::Result<()> {
     }));
 
     // Also enable backtraces by default.
+    // This enables backtraces when panicking, but also for normal anyhow errors.
     std::env::set_var("RUST_BACKTRACE", "full");
+
+    // This further disables backtraces for normal anyhow errors.
+    // They should not be printed to users in release mode.
+    #[cfg(not(debug_assertions))]
+    {
+        std::env::set_var("RUST_LIB_BACKTRACE", "0");
+    }
 
     let matches = RootOptions::command().get_matches();
     let top_opts = match RootOptions::from_arg_matches(&matches) {
