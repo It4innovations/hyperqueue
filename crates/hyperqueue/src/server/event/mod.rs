@@ -1,6 +1,6 @@
 pub mod log;
 pub mod payload;
-pub mod storage;
+pub mod streamer;
 
 use bincode::Options;
 use chrono::{DateTime, Utc};
@@ -11,7 +11,6 @@ pub type EventId = u32;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Event {
-    pub id: EventId,
     pub time: DateTime<Utc>,
     pub payload: EventPayload,
 }

@@ -1,5 +1,6 @@
 use crate::common::utils::str::pluralize;
 use crate::server::event::log::write::EventLogWriter;
+use crate::server::event::payload::EventPayload;
 use crate::server::event::Event;
 use std::future::Future;
 use std::time::Duration;
@@ -59,8 +60,13 @@ async fn streaming_process(
                 match res {
                     Some(event) => {
                         log::trace!("Event: {event:?}");
+                        let end = matches!(event.payload, EventPayload::ServerStop);
                         writer.store(event).await?;
                         events += 1;
+                        if end {
+                            writer.flush().await?;
+                            break
+                        }
                     }
                     None => break
                 }

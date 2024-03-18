@@ -5,33 +5,39 @@ use std::sync::Arc;
 
 use orion::kdf::SecretKey;
 use tako::gateway::{FromGatewayMessage, ToGatewayMessage};
-use tako::WorkerId;
+use tako::{define_wrapped_type, WorkerId};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio::time::Duration;
 
 use crate::common::error::error;
+use crate::server::event::streamer::EventStreamer;
+use crate::server::event::Event;
 use crate::server::state::StateRef;
+use crate::server::Senders;
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::stream::server::rpc::start_stream_server;
 use crate::WrappedRcRefCell;
 
-struct Inner {
+struct InnerBackend {
     tako_sender: UnboundedSender<FromGatewayMessage>,
     tako_responses: VecDeque<oneshot::Sender<ToGatewayMessage>>,
     stream_server_control: UnboundedSender<StreamServerControlMessage>,
-
     worker_port: u16,
 }
 
 #[derive(Clone)]
 pub struct Backend {
-    inner: WrappedRcRefCell<Inner>,
+    inner: WrappedRcRefCell<InnerBackend>,
 }
 
 impl Backend {
     pub fn worker_port(&self) -> u16 {
         self.inner.get().worker_port
+    }
+
+    pub fn send_stream_control(&self, message: StreamServerControlMessage) {
+        assert!(self.inner.get().stream_server_control.send(message).is_ok())
     }
 
     pub async fn send_tako_message(
@@ -47,12 +53,9 @@ impl Backend {
         Ok(rx.await.unwrap())
     }
 
-    pub fn send_stream_control(&self, message: StreamServerControlMessage) {
-        assert!(self.inner.get().stream_server_control.send(message).is_ok())
-    }
-
     pub async fn start(
         state_ref: StateRef,
+        events: EventStreamer,
         key: Arc<SecretKey>,
         idle_timeout: Option<Duration>,
         worker_port: Option<u16>,
@@ -84,39 +87,40 @@ impl Backend {
         )
         .await?;
 
-        let server = Backend {
-            inner: WrappedRcRefCell::wrap(Inner {
+        let backend = Backend {
+            inner: WrappedRcRefCell::wrap(InnerBackend {
                 tako_sender: to_tako_sender,
                 tako_responses: Default::default(),
                 worker_port: server_ref.get_worker_listen_port(),
                 stream_server_control,
             }),
         };
-        let server2 = server.clone();
+
+        let senders = Senders {
+            backend: backend.clone(),
+            events,
+        };
 
         let future = async move {
             let tako_msg_reader = async move {
                 while let Some(message) = from_tako_receiver.recv().await {
                     match message {
                         ToGatewayMessage::TaskUpdate(msg) => {
-                            state_ref.get_mut().process_task_update(msg, &server2)
+                            state_ref.get_mut().process_task_update(msg, &senders)
                         }
                         ToGatewayMessage::TaskFailed(msg) => {
                             state_ref
                                 .get_mut()
-                                .process_task_failed(&state_ref, &server2, msg);
+                                .process_task_failed(&state_ref, &senders, msg);
                         }
                         ToGatewayMessage::NewWorker(msg) => {
-                            state_ref.get_mut().process_worker_new(msg)
+                            state_ref.get_mut().process_worker_new(msg, &senders.events);
                         }
                         ToGatewayMessage::LostWorker(msg) => state_ref
                             .get_mut()
-                            .process_worker_lost(&state_ref, &server2, msg),
+                            .process_worker_lost(&state_ref, &senders.events, msg),
                         ToGatewayMessage::WorkerOverview(overview) => {
-                            state_ref
-                                .get_mut()
-                                .event_storage_mut()
-                                .on_overview_received(overview);
+                            senders.events.on_overview_received(overview);
                         }
                         ToGatewayMessage::NewTasksResponse(_)
                         | ToGatewayMessage::CancelTasksResponse(_)
@@ -125,8 +129,13 @@ impl Backend {
                         | ToGatewayMessage::ServerInfo(_)
                         | ToGatewayMessage::WorkerStopped
                         | ToGatewayMessage::NewWorkerAllocationQueryResponse(_) => {
-                            let response =
-                                server2.inner.get_mut().tako_responses.pop_front().unwrap();
+                            let response = senders
+                                .backend
+                                .inner
+                                .get_mut()
+                                .tako_responses
+                                .pop_front()
+                                .unwrap();
                             response.send(message).unwrap();
                         }
                     }
@@ -158,7 +167,7 @@ impl Backend {
             }
         };
 
-        Ok((server, future))
+        Ok((backend, future))
     }
 }
 
@@ -167,13 +176,13 @@ mod tests {
     use tako::gateway::{FromGatewayMessage, ServerInfo, ToGatewayMessage};
     use tokio::net::TcpStream;
 
-    use crate::server::rpc::Backend;
+    use crate::server::backend::Senders;
     use crate::tests::utils::{create_hq_state, run_concurrent};
 
     #[tokio::test]
     async fn test_server_connect_worker() {
         let state = create_hq_state();
-        let (server, _fut) = Backend::start(state, Default::default(), None, None)
+        let (server, _fut) = Senders::start(state, Default::default(), None, None)
             .await
             .unwrap();
         TcpStream::connect(format!("127.0.0.1:{}", server.worker_port()))
@@ -184,7 +193,7 @@ mod tests {
     #[tokio::test]
     async fn test_server_info() {
         let state = create_hq_state();
-        let (server, fut) = Backend::start(state, Default::default(), None, None)
+        let (server, fut) = Senders::start(state, Default::default(), None, None)
             .await
             .unwrap();
         run_concurrent(fut, async move {

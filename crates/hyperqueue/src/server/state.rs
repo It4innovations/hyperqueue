@@ -12,11 +12,11 @@ use tako::ItemId;
 use tako::{define_wrapped_type, TaskId};
 
 use crate::server::autoalloc::{AutoAllocService, LostWorkerDetails};
-use crate::server::event::storage::EventStorage;
+use crate::server::event::streamer::EventStreamer;
 use crate::server::job::Job;
 use crate::server::restore::StateRestorer;
-use crate::server::rpc::Backend;
 use crate::server::worker::Worker;
+use crate::server::Senders;
 use crate::transfer::messages::ServerInfo;
 use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
@@ -43,7 +43,6 @@ pub struct State {
     task_id_counter: <TakoTaskId as ItemId>::IdType,
 
     pub(crate) autoalloc_service: Option<AutoAllocService>,
-    event_storage: EventStorage,
 
     server_info: ServerInfo,
 }
@@ -52,7 +51,7 @@ define_wrapped_type!(StateRef, State, pub);
 
 fn cancel_tasks_from_callback(
     state_ref: &StateRef,
-    tako_ref: &Backend,
+    senders: &Senders,
     job_id: JobId,
     tasks: Vec<TakoTaskId>,
 ) {
@@ -60,11 +59,11 @@ fn cancel_tasks_from_callback(
         return;
     }
     log::debug!("Canceling {:?} tasks", tasks);
-    let tako_ref = tako_ref.clone();
+    let senders2 = senders.clone();
     let state_ref = state_ref.clone();
     tokio::task::spawn_local(async move {
         let message = FromGatewayMessage::CancelTasks(CancelTasks { tasks });
-        let response = tako_ref.send_tako_message(message).await.unwrap();
+        let response = senders2.backend.send_tako_message(message).await.unwrap();
 
         match response {
             ToGatewayMessage::CancelTasksResponse(msg) => {
@@ -73,7 +72,7 @@ fn cancel_tasks_from_callback(
                     log::debug!("Tasks {:?} canceled", msg.cancelled_tasks);
                     log::debug!("Tasks {:?} already finished", msg.already_finished);
                     for tako_id in msg.cancelled_tasks {
-                        job.set_cancel_state(tako_id, &tako_ref);
+                        job.set_cancel_state(tako_id, &senders2);
                     }
                 }
             }
@@ -192,7 +191,7 @@ impl State {
     pub fn process_task_failed(
         &mut self,
         state_ref: &StateRef,
-        tako_ref: &Backend,
+        senders: &Senders,
         msg: TaskFailedMessage,
     ) {
         log::debug!("Task id={} failed: {:?}", msg.id, msg.info);
@@ -203,22 +202,23 @@ impl State {
                 "Task id={} canceled because of task dependency fails",
                 task_id
             );
-            job.set_cancel_state(task_id, tako_ref);
+            job.set_cancel_state(task_id, senders);
         }
-        let task_id = job.set_failed_state(msg.id, msg.info.message.clone(), tako_ref);
+        let task_id = job.set_failed_state(msg.id, msg.info.message.clone(), senders);
 
         if let Some(max_fails) = &job.job_desc.max_fails {
             if job.counters.n_failed_tasks > *max_fails {
                 let task_ids = job.non_finished_task_ids();
-                cancel_tasks_from_callback(state_ref, tako_ref, job.job_id, task_ids);
+                cancel_tasks_from_callback(state_ref, senders, job.job_id, task_ids);
             }
         }
         let job_id = job.job_id;
-        self.event_storage
+        senders
+            .events
             .on_task_failed(job_id, task_id, msg.info.message);
     }
 
-    pub fn process_task_update(&mut self, msg: TaskUpdate, backend: &Backend) {
+    pub fn process_task_update(&mut self, msg: TaskUpdate, senders: &Senders) {
         log::debug!("Task id={} updated {:?}", msg.id, msg.state);
         match msg.state {
             TaskState::Running {
@@ -230,22 +230,19 @@ impl State {
                 let task_id = job.set_running_state(msg.id, worker_ids.clone(), context);
 
                 let job_id = job.job_id;
-                self.event_storage.on_task_started(
-                    job_id,
-                    task_id,
-                    instance_id,
-                    worker_ids.clone(),
-                );
+                senders
+                    .events
+                    .on_task_started(job_id, task_id, instance_id, worker_ids.clone());
             }
             TaskState::Finished => {
                 let now = Utc::now();
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
-                let task_id = job.set_finished_state(msg.id, now, backend);
+                let task_id = job.set_finished_state(msg.id, now, senders);
                 let is_job_terminated = job.is_terminated();
                 let job_id = job.job_id;
-                self.event_storage.on_task_finished(job_id, task_id);
+                senders.events.on_task_finished(job_id, task_id);
                 if is_job_terminated {
-                    self.event_storage.on_job_completed(job_id);
+                    senders.events.on_job_completed(job_id);
                 }
             }
             TaskState::Waiting => {
@@ -258,7 +255,7 @@ impl State {
         };
     }
 
-    pub fn process_worker_new(&mut self, msg: NewWorkerMessage) {
+    pub fn process_worker_new(&mut self, msg: NewWorkerMessage, events: &EventStreamer) {
         log::debug!("New worker id={}", msg.worker_id);
         self.add_worker(Worker::new(msg.worker_id, msg.configuration.clone()));
         // TODO: use observer in event storage instead of sending these messages directly
@@ -266,14 +263,13 @@ impl State {
             autoalloc.on_worker_connected(msg.worker_id, &msg.configuration);
         }
 
-        self.event_storage
-            .on_worker_added(msg.worker_id, msg.configuration);
+        events.on_worker_added(msg.worker_id, msg.configuration);
     }
 
     pub fn process_worker_lost(
         &mut self,
         _state_ref: &StateRef,
-        _tako_ref: &Backend,
+        events: &EventStreamer,
         msg: LostWorkerMessage,
     ) {
         log::debug!("Worker lost id={}", msg.worker_id);
@@ -296,19 +292,12 @@ impl State {
             job.set_waiting_state(task_id);
         }
 
-        self.event_storage.on_worker_lost(msg.worker_id, msg.reason);
+        events.on_worker_lost(msg.worker_id, msg.reason);
     }
 
     pub fn stop_autoalloc(&mut self) {
         // Drop the sender
         self.autoalloc_service = None;
-    }
-
-    pub fn event_storage(&self) -> &EventStorage {
-        &self.event_storage
-    }
-    pub fn event_storage_mut(&mut self) -> &mut EventStorage {
-        &mut self.event_storage
     }
 
     pub fn autoalloc(&self) -> &AutoAllocService {
@@ -321,7 +310,7 @@ impl State {
 }
 
 impl StateRef {
-    pub fn new(event_storage: EventStorage, server_info: ServerInfo) -> StateRef {
+    pub fn new(server_info: ServerInfo) -> StateRef {
         Self(WrappedRcRefCell::wrap(State {
             jobs: Default::default(),
             workers: Default::default(),
@@ -329,7 +318,6 @@ impl StateRef {
             job_id_counter: 1,
             task_id_counter: 1,
             autoalloc_service: None,
-            event_storage,
             server_info,
         }))
     }

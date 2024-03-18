@@ -7,7 +7,6 @@ use tako::worker::WorkerOverview;
 
 pub fn format_event(event: Event) -> serde_json::Value {
     json!({
-        "id": event.id,
         "time": format_datetime(event.time),
         "event": format_payload(event.payload)
     })
@@ -83,6 +82,11 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
             "job": job_id,
             "task": task_id
         }),
+        EventPayload::TaskCanceled { job_id, task_id } => json!({
+            "type": "task-canceled",
+            "job": job_id,
+            "task": task_id
+        }),
         EventPayload::TaskFailed {
             job_id,
             task_id,
@@ -105,6 +109,11 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
             "type": "job-completed",
             "job": job_id,
         }),
+        EventPayload::ServerStop => {
+            json!({
+                "type": "server-stop",
+            })
+        }
     }
 }
 

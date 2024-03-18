@@ -20,8 +20,8 @@ use crate::common::placeholders::{
     fill_placeholders_after_submit, fill_placeholders_log, normalize_path,
 };
 use crate::server::job::Job;
-use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
+use crate::server::Senders;
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
     JobDescription, JobTaskDescription, SubmitRequest, SubmitResponse, TaskBuildDescription,
@@ -69,15 +69,14 @@ pub(crate) fn submit_job_desc(
 
 pub(crate) async fn handle_submit(
     state_ref: &StateRef,
-    tako_ref: &Backend,
+    senders: &Senders,
     mut message: SubmitRequest,
 ) -> ToClientMessage {
     let job_id = state_ref.get_mut().new_job_id();
     let SubmitRequest { mut job_desc } = message;
 
-    state_ref
-        .get_mut()
-        .event_storage_mut()
+    senders
+        .events
         .on_job_submitted_full(job_id, &job_desc)
         .unwrap();
 
@@ -100,10 +99,11 @@ pub(crate) async fn handle_submit(
     };
 
     if let Some(log) = log {
-        start_log_streaming(tako_ref, job_id, log).await;
+        start_log_streaming(senders, job_id, log).await;
     }
 
-    match tako_ref
+    match senders
+        .backend
         .send_tako_message(FromGatewayMessage::NewTasks(new_tasks))
         .await
         .unwrap()
@@ -155,13 +155,15 @@ fn prepare_job(
     (job_id, state.new_task_id(task_count))
 }
 
-pub(crate) async fn start_log_streaming(tako_ref: &Backend, job_id: JobId, path: PathBuf) {
+pub(crate) async fn start_log_streaming(senders: &Senders, job_id: JobId, path: PathBuf) {
     let (sender, receiver) = oneshot::channel();
-    tako_ref.send_stream_control(StreamServerControlMessage::RegisterStream {
-        job_id,
-        path,
-        response: sender,
-    });
+    senders
+        .backend
+        .send_stream_control(StreamServerControlMessage::RegisterStream {
+            job_id,
+            path,
+            response: sender,
+        });
     assert!(receiver.await.is_ok());
 }
 

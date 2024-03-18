@@ -13,7 +13,6 @@ use crate::client::status::{job_status, Status};
 use crate::common::serverdir::ServerDir;
 use crate::server::event::Event;
 use crate::server::job::JobTaskCounters;
-use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::connection::ServerConnection;
@@ -28,11 +27,12 @@ use crate::{JobId, JobTaskCount, WorkerId};
 pub mod autoalloc;
 mod submit;
 
+use crate::server::Senders;
 pub(crate) use submit::{start_log_streaming, submit_job_desc};
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
-    tako_ref: Backend,
+    senders: &Senders,
     server_dir: ServerDir,
     listener: TcpListener,
     end_flag: Arc<Notify>,
@@ -41,14 +41,14 @@ pub async fn handle_client_connections(
     let group = TaskGroup::default();
     while let Ok((connection, _)) = group.run_until(listener.accept()).await {
         let state_ref = state_ref.clone();
-        let tako_ref = tako_ref.clone();
+        let senders2 = senders.clone();
         let end_flag = end_flag.clone();
         let key = key.clone();
         let server_dir = server_dir.clone();
 
         group.add_task(async move {
             if let Err(e) =
-                handle_client(connection, server_dir, state_ref, tako_ref, end_flag, key).await
+                handle_client(connection, server_dir, state_ref, &senders2, end_flag, key).await
             {
                 log::error!("Client error: {}", e);
             }
@@ -60,7 +60,7 @@ async fn handle_client(
     socket: TcpStream,
     server_dir: ServerDir,
     state_ref: StateRef,
-    tako_ref: Backend,
+    carrier: &Senders,
     end_flag: Arc<Notify>,
     key: Arc<SecretKey>,
 ) -> crate::Result<()> {
@@ -68,7 +68,7 @@ async fn handle_client(
     let socket = ServerConnection::accept_client(socket, key).await?;
     let (tx, rx) = socket.split();
 
-    client_rpc_loop(tx, rx, server_dir, state_ref, tako_ref, end_flag).await;
+    client_rpc_loop(tx, rx, server_dir, state_ref, carrier, end_flag).await;
     log::debug!("Client connection ended");
     Ok(())
 }
@@ -81,7 +81,7 @@ pub async fn client_rpc_loop<
     mut rx: Rx,
     server_dir: ServerDir,
     state_ref: StateRef,
-    tako_ref: Backend,
+    carrier: &Senders,
     end_flag: Arc<Notify>,
 ) where
     Tx::Error: Debug,
@@ -91,7 +91,7 @@ pub async fn client_rpc_loop<
             Ok(message) => {
                 let response = match message {
                     FromClientMessage::Submit(msg) => {
-                        submit::handle_submit(&state_ref, &tako_ref, msg).await
+                        submit::handle_submit(&state_ref, &carrier, msg).await
                     }
                     FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, &msg.selector),
                     FromClientMessage::Stop => {
@@ -103,10 +103,10 @@ pub async fn client_rpc_loop<
                         handle_worker_info(&state_ref, msg.worker_id).await
                     }
                     FromClientMessage::StopWorker(msg) => {
-                        handle_worker_stop(&state_ref, &tako_ref, msg.selector).await
+                        handle_worker_stop(&state_ref, &carrier, msg.selector).await
                     }
                     FromClientMessage::Cancel(msg) => {
-                        handle_job_cancel(&state_ref, &tako_ref, &msg.selector).await
+                        handle_job_cancel(&state_ref, &carrier, &msg.selector).await
                     }
                     FromClientMessage::ForgetJob(msg) => {
                         handle_job_forget(&state_ref, &msg.selector, msg.filter)
@@ -114,7 +114,7 @@ pub async fn client_rpc_loop<
                     FromClientMessage::JobDetail(msg) => {
                         compute_job_detail(&state_ref, msg.job_id_selector, msg.task_selector)
                     }
-                    FromClientMessage::Stats => compose_server_stats(&state_ref, &tako_ref).await,
+                    FromClientMessage::Stats => compose_server_stats(&state_ref, &carrier).await,
                     FromClientMessage::AutoAlloc(msg) => {
                         autoalloc::handle_autoalloc_message(&server_dir, &state_ref, msg).await
                     }
@@ -122,12 +122,11 @@ pub async fn client_rpc_loop<
                         handle_wait_for_jobs_message(&state_ref, msg.selector).await
                     }
                     FromClientMessage::MonitoringEvents(request) => {
-                        let events: Vec<Event> = state_ref
-                            .get()
-                            .event_storage()
-                            .get_events_after(request.after_id.unwrap_or(0))
-                            .cloned()
-                            .collect();
+                        /*let events: Vec<Event> = communi
+                        .get_events_after(request.after_id.unwrap_or(0))
+                        .cloned()
+                        .collect();*/
+                        let events = todo!();
                         ToClientMessage::MonitoringEventsResponse(events)
                     }
                     FromClientMessage::ServerInfo => {
@@ -214,7 +213,7 @@ async fn handle_wait_for_jobs_message(
 
 async fn handle_worker_stop(
     state_ref: &StateRef,
-    tako_ref: &Backend,
+    senders: &Senders,
     selector: IdSelector,
 ) -> ToClientMessage {
     log::debug!("Client asked for worker termination {:?}", selector);
@@ -247,8 +246,8 @@ async fn handle_worker_stop(
             responses.push((worker_id, StopWorkerResponse::InvalidWorker));
             continue;
         }
-        let response = tako_ref
-            .clone()
+        let response = senders
+            .backend
             .send_tako_message(FromGatewayMessage::StopWorker(StopWorkerRequest {
                 worker_id,
             }))
@@ -308,10 +307,12 @@ fn get_job_ids(state: &State, selector: &IdSelector) -> Vec<JobId> {
     }
 }
 
-async fn compose_server_stats(_state_ref: &StateRef, backend: &Backend) -> ToClientMessage {
+async fn compose_server_stats(_state_ref: &StateRef, senders: &Senders) -> ToClientMessage {
     let stream_stats = {
         let (sender, receiver) = oneshot::channel();
-        backend.send_stream_control(StreamServerControlMessage::Stats(sender));
+        senders
+            .backend
+            .send_stream_control(StreamServerControlMessage::Stats(sender));
         receiver.await.unwrap()
     };
     ToClientMessage::StatsResponse(StatsResponse { stream_stats })
@@ -338,7 +339,7 @@ fn compute_job_info(state_ref: &StateRef, selector: &IdSelector) -> ToClientMess
 
 async fn handle_job_cancel(
     state_ref: &StateRef,
-    tako_ref: &Backend,
+    carrier: &Senders,
     selector: &IdSelector,
 ) -> ToClientMessage {
     let job_ids: Vec<JobId> = match selector {
@@ -355,14 +356,14 @@ async fn handle_job_cancel(
 
     let mut responses: Vec<(JobId, CancelJobResponse)> = Vec::new();
     for job_id in job_ids {
-        let response = cancel_job(state_ref, tako_ref, job_id).await;
+        let response = cancel_job(state_ref, carrier, job_id).await;
         responses.push((job_id, response));
     }
 
     ToClientMessage::CancelJobResponse(responses)
 }
 
-async fn cancel_job(state_ref: &StateRef, tako_ref: &Backend, job_id: JobId) -> CancelJobResponse {
+async fn cancel_job(state_ref: &StateRef, carrier: &Senders, job_id: JobId) -> CancelJobResponse {
     let tako_task_ids;
     {
         let n_tasks = match state_ref.get().get_job(job_id) {
@@ -379,7 +380,8 @@ async fn cancel_job(state_ref: &StateRef, tako_ref: &Backend, job_id: JobId) -> 
         }
     }
 
-    let canceled_tasks = match tako_ref
+    let canceled_tasks = match carrier
+        .backend
         .send_tako_message(FromGatewayMessage::CancelTasks(CancelTasks {
             tasks: tako_task_ids,
         }))
@@ -397,7 +399,7 @@ async fn cancel_job(state_ref: &StateRef, tako_ref: &Backend, job_id: JobId) -> 
     if let Some(job) = state.get_job_mut(job_id) {
         let canceled_ids: Vec<_> = canceled_tasks
             .iter()
-            .map(|tako_id| job.set_cancel_state(*tako_id, tako_ref))
+            .map(|tako_id| job.set_cancel_state(*tako_id, carrier))
             .collect();
         let already_finished = job.n_tasks() - canceled_ids.len() as JobTaskCount;
         CancelJobResponse::Canceled(canceled_ids, already_finished)

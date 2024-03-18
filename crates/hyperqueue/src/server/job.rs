@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::client::status::get_task_status;
-use crate::server::rpc::Backend;
+use crate::server::state::State;
+use crate::server::Senders;
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
     JobDescription, JobDetail, JobInfo, JobTaskDescription, TaskIdSelector, TaskSelector,
@@ -279,11 +280,12 @@ impl Job {
         task_id
     }
 
-    pub fn check_termination(&mut self, backend: &Backend, now: DateTime<Utc>) {
+    pub fn check_termination(&mut self, senders: &Senders, now: DateTime<Utc>) {
         if self.is_terminated() {
             self.completion_date = Some(now);
             if self.job_desc.log.is_some() {
-                backend
+                senders
+                    .backend
                     .send_stream_control(StreamServerControlMessage::UnregisterStream(self.job_id));
             }
 
@@ -297,7 +299,7 @@ impl Job {
         &mut self,
         tako_task_id: TakoTaskId,
         now: DateTime<Utc>,
-        backend: &Backend,
+        senders: &Senders,
     ) -> JobTaskId {
         let (task_id, state) = self.get_task_state_mut(tako_task_id);
         match state {
@@ -311,7 +313,7 @@ impl Job {
             }
             _ => panic!("Invalid worker state, expected Running, got {state:?}"),
         }
-        self.check_termination(backend, now);
+        self.check_termination(senders, now);
         task_id
     }
 
@@ -326,7 +328,7 @@ impl Job {
         &mut self,
         tako_task_id: TakoTaskId,
         error: String,
-        backend: &Backend,
+        carrier: &Senders,
     ) -> JobTaskId {
         let (task_id, state) = self.get_task_state_mut(tako_task_id);
         let now = Utc::now();
@@ -351,11 +353,11 @@ impl Job {
         }
         self.counters.n_failed_tasks += 1;
 
-        self.check_termination(backend, now);
+        self.check_termination(carrier, now);
         task_id
     }
 
-    pub fn set_cancel_state(&mut self, tako_task_id: TakoTaskId, backend: &Backend) -> JobTaskId {
+    pub fn set_cancel_state(&mut self, tako_task_id: TakoTaskId, senders: &Senders) -> JobTaskId {
         let now = Utc::now();
 
         let (task_id, state) = self.get_task_state_mut(tako_task_id);
@@ -376,8 +378,10 @@ impl Job {
             state => panic!("Invalid job state that is being canceled: {task_id:?} {state:?}"),
         }
 
+        senders.events.on_task_canceled(self.job_id, task_id);
+
         self.counters.n_canceled_tasks += 1;
-        self.check_termination(backend, now);
+        self.check_termination(senders, now);
         task_id
     }
 

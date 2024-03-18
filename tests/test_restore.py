@@ -5,8 +5,6 @@ from .utils import wait_for_job_state
 import os
 
 
-# TODO: Test canceled tasks
-
 def test_restore_fully_finished(hq_env: HqEnv, tmp_path):
     journal_path = os.path.join(tmp_path, "my.journal")
     hq_env.start_server(args=["--journal", journal_path])
@@ -121,3 +119,17 @@ def test_restore_partially_failed_task(hq_env: HqEnv, tmp_path):
     wait_for_job_state(hq_env, [1], "FAILED")
     markers = sorted([name for name in os.listdir(tmp_path) if name.startswith("task-marker")])
     assert markers == ["task-marker1", "task-marker3", "task-marker4"]
+
+
+def test_restore_canceled(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.command(["submit", "--array=0-3", "--", "hostname"])
+    hq_env.command(["submit", "--", "sleep", "0"])
+    hq_env.command(["job", "cancel", "all"])
+    wait_for_job_state(hq_env, [1, 2], "CANCELED")
+    hq_env.stop_server()
+
+    hq_env.start_server(args=["--journal", journal_path])
+    out = hq_env.command(["--output-mode=json", "job", "list"], as_json=True)
+    assert len(out) == 0
