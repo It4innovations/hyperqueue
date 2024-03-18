@@ -34,12 +34,20 @@ pub enum EventPayload {
         workers: SmallVec<[WorkerId; 1]>,
     },
     /// Task has been finished
-    TaskFinished { job_id: JobId, task_id: JobTaskId },
+    TaskFinished {
+        job_id: JobId,
+        task_id: JobTaskId,
+    },
     // Task that failed to execute
     TaskFailed {
         job_id: JobId,
         task_id: JobTaskId,
         error: String,
+    },
+    /// Task has been canceled
+    TaskCanceled {
+        job_id: JobId,
+        task_id: JobTaskId,
     },
     /// New allocation queue has been created
     AllocationQueueCreated(QueueId, Box<AllocationQueueParams>),
@@ -55,6 +63,7 @@ pub enum EventPayload {
     AllocationStarted(QueueId, AllocationId),
     /// PBS/Slurm allocation has finished executing
     AllocationFinished(QueueId, AllocationId),
+    ServerStop,
 }
 
 // Keep the size of the event structure in check

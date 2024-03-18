@@ -13,6 +13,7 @@ use crate::common::serverdir::ServerDir;
 use crate::server::autoalloc::process::autoalloc_process;
 use crate::server::autoalloc::state::AutoAllocState;
 use crate::server::autoalloc::{Allocation, QueueId};
+use crate::server::event::streamer::EventStreamer;
 use crate::server::state::StateRef;
 use crate::transfer::messages::{AllocationQueueParams, QueueData};
 use crate::JobId;
@@ -150,10 +151,11 @@ impl AutoAllocService {
 
 pub fn create_autoalloc_service(
     state_ref: StateRef,
+    events: EventStreamer,
 ) -> (AutoAllocService, impl Future<Output = ()>) {
     let (tx, rx) = make_rpc_queue();
     let autoalloc = AutoAllocState::new();
-    let process = autoalloc_process(state_ref, autoalloc, rx);
+    let process = autoalloc_process(state_ref, events, autoalloc, rx);
     let service = AutoAllocService { sender: tx };
     (service, process)
 }

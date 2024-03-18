@@ -16,12 +16,13 @@ use crate::common::serverdir::{
     ServerDir, SYMLINK_PATH,
 };
 use crate::server::autoalloc::create_autoalloc_service;
+use crate::server::backend::Backend;
 use crate::server::event::log::start_event_streaming;
 use crate::server::event::log::EventLogWriter;
-use crate::server::event::storage::EventStorage;
+use crate::server::event::streamer::EventStreamer;
 use crate::server::restore::StateRestorer;
-use crate::server::rpc::Backend;
 use crate::server::state::StateRef;
+use crate::server::Senders;
 use crate::transfer::auth::generate_key;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::ServerInfo;
@@ -139,7 +140,7 @@ pub async fn initialize_server(
     impl Future<Output = anyhow::Result<()>>,
     Arc<Notify>,
     StateRef,
-    Backend,
+    Senders,
 )> {
     let server_directory = gsettings.server_directory();
 
@@ -164,27 +165,22 @@ pub async fn initialize_server(
         .take()
         .unwrap_or_else(|| Arc::new(generate_key()));
 
-    let (event_storage, event_stream_fut) = prepare_event_management(&server_cfg).await?;
-    let state_ref = StateRef::new(
-        event_storage,
-        ServerInfo {
-            version: HQ_VERSION.to_string(),
-            server_uid: server_uid.clone(),
-            client_host: server_cfg.client_host.clone(),
-            worker_host: server_cfg.worker_host.clone(),
-            client_port,
-            worker_port: 0, // Will be set later
-            pid: std::process::id(),
-            start_date: Utc::now(),
-        },
-    );
+    let state_ref = StateRef::new(ServerInfo {
+        version: HQ_VERSION.to_string(),
+        server_uid: server_uid.clone(),
+        client_host: server_cfg.client_host.clone(),
+        worker_host: server_cfg.worker_host.clone(),
+        client_port,
+        worker_port: 0, // Will be set later
+        pid: std::process::id(),
+        start_date: Utc::now(),
+    });
 
-    let (autoalloc_service, autoalloc_process) = create_autoalloc_service(state_ref.clone());
-    // TODO: remove this hack
-    state_ref.get_mut().autoalloc_service = Some(autoalloc_service);
+    let (events, event_stream_fut) = prepare_event_management(&server_cfg).await?;
 
-    let (tako_server, tako_future) = Backend::start(
+    let (backend, comm_fut) = Backend::start(
         state_ref.clone(),
+        events.clone(),
         worker_key.clone(),
         server_cfg.idle_timeout,
         server_cfg.worker_port,
@@ -192,7 +188,12 @@ pub async fn initialize_server(
     )
     .await?;
 
-    let worker_port = tako_server.worker_port();
+    let (autoalloc_service, autoalloc_process) =
+        create_autoalloc_service(state_ref.clone(), events.clone());
+    // TODO: remove this hack
+    state_ref.get_mut().autoalloc_service = Some(autoalloc_service);
+
+    let worker_port = backend.worker_port();
 
     state_ref.get_mut().set_worker_port(worker_port);
 
@@ -234,12 +235,16 @@ pub async fn initialize_server(
 
     let key = client_key;
     let state_ref2 = state_ref.clone();
-    let tako_server2 = tako_server.clone();
+
+    let senders = Senders { backend, events };
+
+    let senders2 = senders.clone();
 
     let fut = async move {
         tokio::pin! {
             let autoalloc_process = autoalloc_process;
         };
+        let events = senders.events.clone();
 
         let result = tokio::select! {
             _ = stop_check => {
@@ -247,14 +252,14 @@ pub async fn initialize_server(
             }
             _ = crate::server::client::handle_client_connections(
                 state_ref.clone(),
-                tako_server,
+                &senders,
                 server_dir,
                 client_listener,
                 end_flag,
                 key
             ) => { Ok(()) }
             _ = &mut autoalloc_process => { Ok(()) }
-            r = tako_future => { r.map_err(|e| e.into()) }
+            r = comm_fut => { r.map_err(|e| e.into()) }
         };
 
         log::debug!("Shutting down auto allocation");
@@ -263,20 +268,17 @@ pub async fn initialize_server(
 
         log::debug!("Shutting down event streaming");
 
-        state_ref.get_mut().event_storage_mut().close_stream();
-        // StateRef needs to be dropped at this moment, because it may contain a sender
-        // that has to be shut-down for `event_stream_fut` to resolve.
-        drop(state_ref);
+        events.on_server_stop();
         event_stream_fut.await;
 
         result
     };
-    Ok((fut, end_flag_ret, state_ref2, tako_server2))
+    Ok((fut, end_flag_ret, state_ref2, senders2))
 }
 
 async fn prepare_event_management(
     server_cfg: &ServerConfig,
-) -> anyhow::Result<(EventStorage, Pin<Box<dyn Future<Output = ()>>>)> {
+) -> anyhow::Result<(EventStreamer, Pin<Box<dyn Future<Output = ()>>>)> {
     Ok(if let Some(ref log_path) = server_cfg.journal_path {
         let writer = EventLogWriter::create_or_append(log_path)
             .await
@@ -288,13 +290,10 @@ async fn prepare_event_management(
             })?;
 
         let (tx, stream_fut) = start_event_streaming(writer);
-        (
-            EventStorage::new(server_cfg.event_buffer_size, Some(tx)),
-            Box::pin(stream_fut),
-        )
+        (EventStreamer::new(Some(tx)), Box::pin(stream_fut))
     } else {
         (
-            EventStorage::new(server_cfg.event_buffer_size, None),
+            EventStreamer::new(None),
             Box::pin(futures::future::ready(())),
         )
     })
@@ -313,7 +312,7 @@ async fn start_server(gsettings: &GlobalSettings, server_cfg: ServerConfig) -> a
         None
     };
 
-    let (fut, _, state_ref, tako_ref) = initialize_server(
+    let (fut, _, state_ref, carrier) = initialize_server(
         gsettings,
         server_cfg,
         restorer
@@ -337,7 +336,8 @@ async fn start_server(gsettings: &GlobalSettings, server_cfg: ServerConfig) -> a
         local_set.spawn_local(async move {
             log::debug!("Restoring old tasks into Tako");
             for msg in new_tasks {
-                match tako_ref
+                match carrier
+                    .backend
                     .send_tako_message(FromGatewayMessage::NewTasks(msg))
                     .await
                     .unwrap()

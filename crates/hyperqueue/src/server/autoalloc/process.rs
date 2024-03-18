@@ -26,7 +26,9 @@ use crate::server::autoalloc::state::{
     RateLimiterStatus,
 };
 use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
+use crate::server::event::streamer::EventStreamer;
 use crate::server::state::StateRef;
+use crate::server::Senders;
 use crate::transfer::messages::{AllocationQueueParams, QueueData, QueueState};
 use crate::{get_or_return, JobId};
 
@@ -39,13 +41,14 @@ enum RefreshReason {
 
 pub async fn autoalloc_process(
     state_ref: StateRef,
+    events: EventStreamer,
     mut autoalloc: AutoAllocState,
     mut receiver: RpcReceiver<AutoAllocMessage>,
 ) {
     let timeout = get_refresh_timeout();
     loop {
         let refresh_reason = match tokio::time::timeout(timeout, receiver.recv()).await {
-            Ok(Some(message)) => handle_message(&mut autoalloc, &state_ref, message).await,
+            Ok(Some(message)) => handle_message(&mut autoalloc, &events, message).await,
             Ok(None) => break,
             Err(_) => {
                 log::debug!(
@@ -56,7 +59,7 @@ pub async fn autoalloc_process(
             }
         };
         if let Some(reason) = refresh_reason {
-            refresh_state(&state_ref, &mut autoalloc, reason).await;
+            refresh_state(&state_ref, &events, &mut autoalloc, reason).await;
         }
     }
     stop_all_allocations(&autoalloc).await;
@@ -66,7 +69,7 @@ pub async fn autoalloc_process(
 /// If `None` is returned, all queues will be refreshed.
 async fn handle_message(
     autoalloc: &mut AutoAllocState,
-    state_ref: &StateRef,
+    events: &EventStreamer,
     message: AutoAllocMessage,
 ) -> Option<RefreshReason> {
     log::debug!("Handling message {message:?}");
@@ -76,7 +79,7 @@ async fn handle_message(
                 "Registering worker {id} for allocation {}",
                 manager_info.allocation_id
             );
-            on_worker_connected(state_ref, autoalloc, id, &manager_info);
+            on_worker_connected(&events, autoalloc, id, &manager_info);
             autoalloc
                 .get_queue_id_by_allocation(&manager_info.allocation_id)
                 .map(RefreshReason::UpdateQueue)
@@ -86,7 +89,7 @@ async fn handle_message(
                 "Removing worker {id} from allocation {}",
                 manager_info.allocation_id
             );
-            on_worker_lost(state_ref, autoalloc, id, &manager_info, details);
+            on_worker_lost(&events, autoalloc, id, &manager_info, details);
             autoalloc
                 .get_queue_id_by_allocation(&manager_info.allocation_id)
                 .map(RefreshReason::UpdateQueue)
@@ -123,7 +126,7 @@ async fn handle_message(
             response,
         } => {
             log::debug!("Creating queue, manager={manager:?}, params={params:?}");
-            let result = create_queue(autoalloc, state_ref, server_directory, manager, params);
+            let result = create_queue(autoalloc, events, server_directory, manager, params);
             let queue_id = result.as_ref().ok().copied();
             response.respond(result);
             queue_id.map(RefreshReason::UpdateQueue)
@@ -134,7 +137,7 @@ async fn handle_message(
             response,
         } => {
             log::debug!("Removing queue {id}");
-            let result = remove_queue(autoalloc, state_ref, id, force).await;
+            let result = remove_queue(autoalloc, events, id, force).await;
             response.respond(result);
             None
         }
@@ -257,7 +260,7 @@ fn create_rate_limiter() -> RateLimiter {
 
 fn create_queue(
     autoalloc: &mut AutoAllocState,
-    state_ref: &StateRef,
+    events: &EventStreamer,
     server_directory: PathBuf,
     manager: ManagerType,
     params: AllocationQueueParams,
@@ -272,10 +275,7 @@ fn create_queue(
                 AllocationQueue::new(manager, queue_info, name, handler, create_rate_limiter());
             let id = {
                 let id = autoalloc.add_queue(queue);
-                state_ref
-                    .get_mut()
-                    .event_storage_mut()
-                    .on_allocation_queue_created(id, params);
+                events.on_allocation_queue_created(id, params);
                 id
             };
 
@@ -288,7 +288,7 @@ fn create_queue(
 // TODO: use proper error type
 async fn remove_queue(
     autoalloc: &mut AutoAllocState,
-    state_ref: &StateRef,
+    events: &EventStreamer,
     id: QueueId,
     force: bool,
 ) -> anyhow::Result<()> {
@@ -322,10 +322,7 @@ not be removed. Use `--force` if you want to remove the queue anyway"
         }
     }
 
-    state_ref
-        .get_mut()
-        .event_storage_mut()
-        .on_allocation_queue_removed(id);
+    events.on_allocation_queue_removed(id);
 
     Ok(())
 }
@@ -350,7 +347,12 @@ async fn stop_all_allocations(autoalloc: &AutoAllocState) {
 
 /// Processes updates either for a single queue or for all queues and removes stale directories
 /// from disk.
-async fn refresh_state(state: &StateRef, autoalloc: &mut AutoAllocState, reason: RefreshReason) {
+async fn refresh_state(
+    state_ref: &StateRef,
+    events: &EventStreamer,
+    autoalloc: &mut AutoAllocState,
+    reason: RefreshReason,
+) {
     let queue_ids: Vec<QueueId> = match reason {
         RefreshReason::UpdateAllQueues | RefreshReason::NewJob(_) => {
             autoalloc.queue_ids().collect()
@@ -365,15 +367,16 @@ async fn refresh_state(state: &StateRef, autoalloc: &mut AutoAllocState, reason:
     };
 
     for id in queue_ids {
-        refresh_queue_allocations(state, autoalloc, id).await;
-        process_queue(state, autoalloc, id, new_job_id).await;
+        refresh_queue_allocations(events, autoalloc, id).await;
+        process_queue(state_ref, events, autoalloc, id, new_job_id).await;
     }
 
     remove_inactive_directories(autoalloc).await;
 }
 
 async fn process_queue(
-    state: &StateRef,
+    state_ref: &StateRef,
+    events: &EventStreamer,
     autoalloc: &mut AutoAllocState,
     id: QueueId,
     new_job_id: Option<JobId>,
@@ -399,7 +402,7 @@ async fn process_queue(
     };
 
     if try_to_submit {
-        queue_try_submit(id, autoalloc, state, new_job_id).await;
+        queue_try_submit(id, autoalloc, state_ref, events, new_job_id).await;
     }
     try_pause_queue(autoalloc, id);
 }
@@ -420,7 +423,7 @@ fn get_data_from_worker<'a>(
 
 /// Synchronize the state of allocations with the external job manager.
 async fn refresh_queue_allocations(
-    state_ref: &StateRef,
+    events: &EventStreamer,
     autoalloc: &mut AutoAllocState,
     id: QueueId,
 ) {
@@ -464,7 +467,7 @@ async fn refresh_queue_allocations(
                     Ok(status) => match status {
                         AllocationExternalStatus::Failed { .. }
                         | AllocationExternalStatus::Finished { .. } => sync_allocation_status(
-                            state_ref,
+                            events,
                             id,
                             queue,
                             &allocation_id,
@@ -486,7 +489,7 @@ async fn refresh_queue_allocations(
 
 // Event reactors
 fn on_worker_connected(
-    state_ref: &StateRef,
+    events: &EventStreamer,
     state: &mut AutoAllocState,
     worker_id: WorkerId,
     manager_info: &ManagerInfo,
@@ -511,10 +514,7 @@ fn on_worker_connected(
                 disconnected_workers: Default::default(),
                 started_at: SystemTime::now(),
             };
-            state_ref
-                .get_mut()
-                .event_storage_mut()
-                .on_allocation_started(queue_id, allocation_id.clone());
+            events.on_allocation_started(queue_id, allocation_id.clone());
         }
         AllocationState::Running {
             ref mut connected_workers,
@@ -537,7 +537,7 @@ fn on_worker_connected(
 }
 
 fn on_worker_lost(
-    state_ref: &StateRef,
+    events: &EventStreamer,
     state: &mut AutoAllocState,
     worker_id: WorkerId,
     manager_info: &ManagerInfo,
@@ -563,7 +563,7 @@ fn on_worker_lost(
             }
             disconnected_workers.on_worker_lost(worker_id, worker_details);
             sync_allocation_status(
-                state_ref,
+                events,
                 queue_id,
                 queue,
                 &allocation_id,
@@ -591,7 +591,7 @@ enum AllocationSyncReason {
 }
 
 fn sync_allocation_status(
-    state_ref: &StateRef,
+    events: &EventStreamer,
     queue_id: QueueId,
     queue: &mut AllocationQueue,
     allocation_id: &str,
@@ -696,10 +696,7 @@ fn sync_allocation_status(
         None => {}
     }
     if action.is_some() {
-        state_ref
-            .get_mut()
-            .event_storage_mut()
-            .on_allocation_finished(queue_id, allocation_id.to_string());
+        events.on_allocation_finished(queue_id, allocation_id.to_string());
     }
 }
 
@@ -707,6 +704,7 @@ async fn queue_try_submit(
     queue_id: QueueId,
     autoalloc: &mut AutoAllocState,
     state_ref: &StateRef,
+    events: &EventStreamer,
     new_job_id: Option<JobId>,
 ) {
     let (max_allocs_to_spawn, workers_per_alloc, mut task_state, mut max_workers_to_spawn) = {
@@ -777,15 +775,13 @@ async fn queue_try_submit(
 
         let result = schedule_fut.await;
 
-        let mut state = state_ref.get_mut();
-        let event_manager = state.event_storage_mut();
         match result {
             Ok(submission_result) => {
                 let working_dir = submission_result.working_dir().to_path_buf();
                 match submission_result.into_id() {
                     Ok(allocation_id) => {
                         log::info!("Queued {workers_to_spawn} worker(s) into queue {queue_id}: allocation ID {allocation_id}");
-                        event_manager.on_allocation_queued(
+                        events.on_allocation_queued(
                             queue_id,
                             allocation_id.clone(),
                             workers_to_spawn,

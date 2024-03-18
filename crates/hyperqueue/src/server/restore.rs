@@ -3,7 +3,6 @@ use crate::server::event::bincode_config;
 use crate::server::event::log::EventLogReader;
 use crate::server::event::payload::EventPayload;
 use crate::server::job::{Job, JobTaskState, StartedTaskData};
-use crate::server::rpc::Backend;
 use crate::server::state::{State, StateRef};
 use crate::transfer::messages::JobDescription;
 use crate::worker::start::RunningTaskContext;
@@ -116,17 +115,20 @@ impl StateRestorer {
             let event = event?;
             match event.payload {
                 EventPayload::WorkerConnected(worker_id, _) => {
+                    log::debug!("Replaying: WorkerConnected {worker_id}");
                     self.max_worker_id = self.max_worker_id.max(worker_id.as_num());
                 }
                 EventPayload::WorkerLost(_, _) => {}
                 EventPayload::WorkerOverviewReceived(_) => {}
                 //EventPayload::JobCreatedShort(job_id, job_info) => {}
                 EventPayload::JobCreatedFull(job_id, serialized_job_desc) => {
+                    log::debug!("Replaying: JobCreated {job_id}");
                     let job_desc = bincode_config().deserialize(&serialized_job_desc)?;
                     self.jobs.insert(job_id, RestorerJob::new(job_desc));
                     self.max_job_id = self.max_job_id.max(job_id.as_num());
                 }
                 EventPayload::JobCompleted(job_id) => {
+                    log::debug!("Replaying: JobCompleted {job_id}");
                     self.jobs.remove(&job_id);
                 }
                 EventPayload::TaskStarted {
@@ -135,6 +137,9 @@ impl StateRestorer {
                     instance_id,
                     workers,
                 } => {
+                    log::debug!(
+                        "Replaying: TaskStarted {job_id} {task_id} {instance_id} {workers:?}"
+                    );
                     if let Some(job) = self.jobs.get_mut(&job_id) {
                         job.tasks.insert(
                             task_id,
@@ -151,9 +156,11 @@ impl StateRestorer {
                     }
                 }
                 EventPayload::TaskFinished { job_id, task_id } => {
+                    log::debug!("Replaying: TaskFinished {job_id} {task_id}");
                     if let Some(job) = self.jobs.get_mut(&job_id) {
-                        let job = job.tasks.get_mut(&task_id).unwrap();
-                        job.state = match std::mem::replace(&mut job.state, JobTaskState::Waiting) {
+                        let task = job.tasks.get_mut(&task_id).unwrap();
+                        task.state = match std::mem::replace(&mut task.state, JobTaskState::Waiting)
+                        {
                             JobTaskState::Running { started_data } => JobTaskState::Finished {
                                 started_data,
                                 end_date: event.time,
@@ -167,9 +174,11 @@ impl StateRestorer {
                     task_id,
                     error,
                 } => {
+                    log::debug!("Replaying: TaskFailed {job_id} {task_id}");
                     if let Some(job) = self.jobs.get_mut(&job_id) {
-                        let job = job.tasks.get_mut(&task_id).unwrap();
-                        job.state = match std::mem::replace(&mut job.state, JobTaskState::Waiting) {
+                        let task = job.tasks.get_mut(&task_id).unwrap();
+                        task.state = match std::mem::replace(&mut task.state, JobTaskState::Waiting)
+                        {
                             JobTaskState::Waiting => JobTaskState::Failed {
                                 started_data: None,
                                 end_date: event.time,
@@ -184,11 +193,43 @@ impl StateRestorer {
                         }
                     }
                 }
+                EventPayload::TaskCanceled { job_id, task_id } => {
+                    log::debug!("Replaying: TaskCanceled {job_id} {task_id}");
+                    if let Some(job) = self.jobs.get_mut(&job_id) {
+                        let task = job.tasks.get_mut(&task_id);
+                        if let Some(task) = task {
+                            task.state =
+                                match std::mem::replace(&mut task.state, JobTaskState::Waiting) {
+                                    JobTaskState::Running { started_data } => {
+                                        JobTaskState::Canceled {
+                                            started_data: Some(started_data),
+                                            cancelled_date: event.time,
+                                        }
+                                    }
+                                    _ => JobTaskState::Canceled {
+                                        started_data: None,
+                                        cancelled_date: event.time,
+                                    },
+                                }
+                        } else {
+                            job.tasks.insert(
+                                task_id,
+                                RestorerTaskInfo {
+                                    state: JobTaskState::Canceled {
+                                        started_data: None,
+                                        cancelled_date: event.time,
+                                    },
+                                },
+                            );
+                        }
+                    }
+                }
                 EventPayload::AllocationQueueCreated(_, _) => {}
                 EventPayload::AllocationQueueRemoved(_) => {}
                 EventPayload::AllocationQueued { .. } => {}
                 EventPayload::AllocationStarted(_, _) => {}
                 EventPayload::AllocationFinished(_, _) => {}
+                EventPayload::ServerStop => { /* Do nothing */ }
             }
         }
         Ok(())
