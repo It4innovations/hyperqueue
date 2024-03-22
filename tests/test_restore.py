@@ -133,3 +133,19 @@ def test_restore_canceled(hq_env: HqEnv, tmp_path):
     hq_env.start_server(args=["--journal", journal_path])
     out = hq_env.command(["--output-mode=json", "job", "list"], as_json=True)
     assert len(out) == 0
+
+
+def test_repeated_restore(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.command(["submit", "--array=0-3", "--", "hostname"])
+    hq_env.stop_server()
+
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.command(["submit", "--array=0-3", "--", "hostname"])
+    time.sleep(1.0)
+    hq_env.stop_server()
+
+    hq_env.start_server(args=["--journal", journal_path])
+    out = hq_env.command(["--output-mode=json", "job", "list"], as_json=True)
+    assert len(out) == 2

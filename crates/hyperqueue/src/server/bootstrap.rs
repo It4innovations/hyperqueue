@@ -280,14 +280,12 @@ async fn prepare_event_management(
     server_cfg: &ServerConfig,
 ) -> anyhow::Result<(EventStreamer, Pin<Box<dyn Future<Output = ()>>>)> {
     Ok(if let Some(ref log_path) = server_cfg.journal_path {
-        let writer = EventLogWriter::create_or_append(log_path)
-            .await
-            .map_err(|error| {
-                anyhow!(
-                    "Cannot create event log file at `{}`: {error:?}",
-                    log_path.display()
-                )
-            })?;
+        let writer = EventLogWriter::create_or_append(log_path).map_err(|error| {
+            anyhow!(
+                "Cannot create event log file at `{}`: {error:?}",
+                log_path.display()
+            )
+        })?;
 
         let (tx, stream_fut) = start_event_streaming(writer);
         (EventStreamer::new(Some(tx)), Box::pin(stream_fut))

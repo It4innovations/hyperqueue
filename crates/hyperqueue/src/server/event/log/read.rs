@@ -1,9 +1,11 @@
-use crate::server::event::log::{canonical_header, LogFileHeader};
+use crate::server::event::log::HQ_JOURNAL_HEADER;
 use crate::server::event::{bincode_config, Event};
-use anyhow::anyhow;
+use crate::HQ_VERSION;
+use anyhow::{anyhow, bail};
 use bincode::Options;
 use std::fs::File;
 use std::io::BufReader;
+use std::io::Read;
 use std::ops::Deref;
 use std::path::Path;
 
@@ -15,17 +17,17 @@ pub struct EventLogReader {
 impl EventLogReader {
     pub fn open(path: &Path) -> anyhow::Result<Self> {
         let mut file = BufReader::new(File::open(path)?);
-        let header: LogFileHeader = bincode_config()
+        let mut header = [0u8; 8];
+        file.read_exact(&mut header)?;
+        if header != HQ_JOURNAL_HEADER {
+            bail!("Invalid journal format");
+        }
+        let hq_version: String = bincode_config()
             .deserialize_from(&mut file)
             .map_err(|error| anyhow!("Cannot load HQ event log file header: {error:?}"))?;
-
-        let expected_header = canonical_header();
-        if header != expected_header {
-            return Err(anyhow!(
-                "Invalid HQ event log file header.\nFound: {header:?}\nExpected: {expected_header:?}"
-            ));
+        if hq_version != HQ_VERSION {
+            bail!("Version of journal {hq_version} does not match with {HQ_VERSION}");
         }
-
         Ok(Self { source: file })
     }
 }
@@ -52,7 +54,7 @@ impl Iterator for EventLogReader {
 #[cfg(test)]
 mod tests {
     use crate::server::event::log::{
-        EventLogReader, EventLogWriter, LogFileHeader, HQ_LOG_HEADER, HQ_LOG_VERSION,
+        EventLogReader, EventLogWriter, LogFileHeader, HQ_JOURNAL_HEADER, HQ_LOG_VERSION,
     };
     use crate::server::event::payload::EventPayload;
     use crate::server::event::Event;
@@ -80,7 +82,7 @@ mod tests {
             rmp_serde::encode::write(
                 &mut file,
                 &LogFileHeader {
-                    header: HQ_LOG_HEADER.into(),
+                    header: HQ_JOURNAL_HEADER.into(),
                     version: HQ_LOG_VERSION + 1,
                 },
             )

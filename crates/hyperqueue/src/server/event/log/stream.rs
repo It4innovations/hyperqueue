@@ -54,17 +54,17 @@ async fn streaming_process(
     loop {
         tokio::select! {
             _ = flush_fut.tick() => {
-                writer.flush().await?;
+                writer.flush()?;
             }
             res = receiver.recv() => {
                 match res {
                     Some(event) => {
                         log::trace!("Event: {event:?}");
                         let end = matches!(event.payload, EventPayload::ServerStop);
-                        writer.store(event).await?;
+                        writer.store(event)?;
                         events += 1;
                         if end {
-                            writer.flush().await?;
+                            writer.flush()?;
                             break
                         }
                     }
@@ -73,7 +73,7 @@ async fn streaming_process(
             }
         }
     }
-    writer.finish().await?;
+    writer.finish()?;
 
     log::debug!(
         "Written {events} {} into the event log.",
