@@ -23,7 +23,7 @@ use crate::resources::{
 };
 use crate::task::SerializedTaskContext;
 use crate::worker::{ServerLostPolicy, WorkerConfiguration};
-use crate::{TaskId, WorkerId};
+use crate::{InstanceId, TaskId, WorkerId};
 use std::time::Duration;
 
 pub struct TestEnv {
@@ -349,6 +349,7 @@ impl Comm for TestComm {
     fn send_client_task_started(
         &mut self,
         task_id: TaskId,
+        _instance_id: InstanceId,
         _worker_id: &[WorkerId],
         _context: SerializedTaskContext,
     ) {

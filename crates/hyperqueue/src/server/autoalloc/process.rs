@@ -865,6 +865,7 @@ pub fn prepare_queue_cleanup(
 mod tests {
     use std::future::Future;
     use std::pin::Pin;
+    use std::rc::Rc;
     use std::time::{Duration, Instant};
 
     use anyhow::anyhow;
@@ -896,6 +897,7 @@ mod tests {
     use crate::server::autoalloc::{
         Allocation, AllocationId, AutoAllocResult, LostWorkerDetails, QueueId, QueueInfo,
     };
+    use crate::server::event::streamer::EventStreamer;
     use crate::server::job::Job;
     use crate::server::state::StateRef;
     use crate::tests::utils::create_hq_state;
@@ -916,7 +918,14 @@ mod tests {
             QueueBuilder::default().backlog(4).workers_per_alloc(2),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        queue_try_submit(
+            queue_id,
+            &mut state,
+            &hq_state,
+            &EventStreamer::new(None),
+            None,
+        )
+        .await;
 
         let allocations = get_allocations(&state, queue_id);
         assert_eq!(allocations.len(), 4);
@@ -934,7 +943,14 @@ mod tests {
         let queue_id = add_queue(&mut state, handler, QueueBuilder::default().backlog(4));
 
         for _ in 0..5 {
-            queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+            queue_try_submit(
+                queue_id,
+                &mut state,
+                &hq_state,
+                &EventStreamer::new(None),
+                None,
+            )
+            .await;
         }
 
         assert_eq!(get_allocations(&state, queue_id).len(), 4);
@@ -952,8 +968,9 @@ mod tests {
             QueueBuilder::default().backlog(1).workers_per_alloc(1),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
-        on_worker_connected(&hq_state, &mut state, 0.into(), &create_worker("foo"));
+        let s = EventStreamer::new(None);
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
+        on_worker_connected(&s, &mut state, 0.into(), &create_worker("foo"));
         assert!(get_allocations(&state, queue_id)
             .iter()
             .all(|alloc| !alloc.is_running()));
@@ -971,15 +988,11 @@ mod tests {
             QueueBuilder::default().backlog(1).workers_per_alloc(1),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        let s = EventStreamer::new(None);
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         let allocs = get_allocations(&state, queue_id);
 
-        on_worker_connected(
-            &hq_state,
-            &mut state,
-            10.into(),
-            &create_worker(&allocs[0].id),
-        );
+        on_worker_connected(&s, &mut state, 10.into(), &create_worker(&allocs[0].id));
         check_running_workers(get_allocations(&state, queue_id).first().unwrap(), vec![10]);
     }
 
@@ -995,16 +1008,12 @@ mod tests {
             QueueBuilder::default().backlog(1).workers_per_alloc(2),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        let s = EventStreamer::new(None);
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         let allocs = get_allocations(&state, queue_id);
 
         for id in [0, 1] {
-            on_worker_connected(
-                &hq_state,
-                &mut state,
-                id.into(),
-                &create_worker(&allocs[0].id),
-            );
+            on_worker_connected(&s, &mut state, id.into(), &create_worker(&allocs[0].id));
         }
         check_running_workers(
             get_allocations(&state, queue_id).first().unwrap(),
@@ -1024,18 +1033,14 @@ mod tests {
             QueueBuilder::default().backlog(1).workers_per_alloc(1),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        let s = EventStreamer::new(None);
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         let allocs = get_allocations(&state, queue_id);
 
         let worker_id: WorkerId = 0.into();
-        on_worker_connected(
-            &hq_state,
-            &mut state,
-            worker_id,
-            &create_worker(&allocs[0].id),
-        );
+        on_worker_connected(&s, &mut state, worker_id, &create_worker(&allocs[0].id));
         on_worker_lost(
-            &hq_state,
+            &s,
             &mut state,
             worker_id,
             &create_worker(&allocs[0].id),
@@ -1059,19 +1064,16 @@ mod tests {
             QueueBuilder::default().backlog(1).workers_per_alloc(2),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        let s = EventStreamer::new(None);
+
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         let allocs = get_allocations(&state, queue_id);
 
         for id in [0, 1] {
-            on_worker_connected(
-                &hq_state,
-                &mut state,
-                id.into(),
-                &create_worker(&allocs[0].id),
-            );
+            on_worker_connected(&s, &mut state, id.into(), &create_worker(&allocs[0].id));
         }
         on_worker_lost(
-            &hq_state,
+            &s,
             &mut state,
             0.into(),
             &create_worker(&allocs[0].id),
@@ -1084,7 +1086,7 @@ mod tests {
             vec![(0, LostWorkerReason::ConnectionLost)],
         );
         on_worker_lost(
-            &hq_state,
+            &s,
             &mut state,
             1.into(),
             &create_worker(&allocs[0].id),
@@ -1108,7 +1110,8 @@ mod tests {
         let handler = always_queued_handler();
         let queue_id = add_queue(&mut state, handler, QueueBuilder::default().backlog(3));
 
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        let s = EventStreamer::new(None);
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         assert_eq!(get_allocations(&state, queue_id).len(), 0);
     }
 
@@ -1125,7 +1128,8 @@ mod tests {
         );
 
         // 5 tasks, 3 * 2 workers -> last two allocations should be ignored
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        let s = EventStreamer::new(None);
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         assert_eq!(get_allocations(&state, queue_id).len(), 3);
     }
 
@@ -1141,13 +1145,14 @@ mod tests {
         handler_state.get_mut().allocation_will_fail = true;
 
         // Only try the first allocation in the backlog
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        let s = EventStreamer::new(None);
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         assert_eq!(handler_state.get().allocation_attempts, 1);
 
         handler_state.get_mut().allocation_will_fail = false;
 
         // Finish the rest
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         assert_eq!(handler_state.get().allocation_attempts, 6);
     }
 
@@ -1168,7 +1173,8 @@ mod tests {
 
         // Allocations last for 30 minutes, but job requires 60 minutes
         // Nothing should be scheduled
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        let s = EventStreamer::new(None);
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         assert_eq!(get_allocations(&state, queue_id).len(), 0);
     }
 
@@ -1186,32 +1192,23 @@ mod tests {
             QueueBuilder::default().backlog(4).max_worker_count(Some(5)),
         );
 
+        let s = EventStreamer::new(None);
         // Put 4 allocations into the queue.
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         let allocations = get_allocations(&state, queue_id);
         assert_eq!(allocations.len(), 4);
 
         // Start 2 allocations
-        on_worker_connected(
-            &hq_state,
-            &mut state,
-            0.into(),
-            &create_worker(&allocations[0].id),
-        );
-        on_worker_connected(
-            &hq_state,
-            &mut state,
-            1.into(),
-            &create_worker(&allocations[1].id),
-        );
+        on_worker_connected(&s, &mut state, 0.into(), &create_worker(&allocations[0].id));
+        on_worker_connected(&s, &mut state, 1.into(), &create_worker(&allocations[1].id));
 
         // Create only one additional allocation
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         assert_eq!(get_allocations(&state, queue_id).len(), 5);
 
         // Finish one allocation
         on_worker_lost(
-            &hq_state,
+            &s,
             &mut state,
             1.into(),
             &create_worker(&allocations[1].id),
@@ -1219,7 +1216,7 @@ mod tests {
         );
 
         // One worker was freed, create an additional allocation
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         assert_eq!(get_allocations(&state, queue_id).len(), 6);
     }
 
@@ -1239,7 +1236,8 @@ mod tests {
                 .max_worker_count(Some(6)),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        let s = EventStreamer::new(None);
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         let allocations = get_allocations(&state, queue_id);
         assert_eq!(allocations.len(), 2);
         assert_eq!(allocations[0].target_worker_count, 4);
@@ -1265,13 +1263,14 @@ mod tests {
         let dirs = vec![make_dir(), make_dir()];
         state.set_inactive_allocation_directories(dirs.iter().cloned().collect());
 
+        let s = EventStreamer::new(None);
         // Delete oldest directory
-        refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
+        refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
         assert!(!dirs[0].exists());
         assert!(dirs[1].exists());
 
         // Delete second oldest directory
-        refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
+        refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
         assert!(!dirs[1].exists());
     }
 
@@ -1293,9 +1292,10 @@ mod tests {
 
         shared.get_mut().allocation_will_fail = true;
 
-        refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
+        let s = EventStreamer::new(None);
+        refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
         check_queue_exists(&state, queue_id);
-        refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
+        refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
         check_queue_paused(&state, queue_id);
     }
 
@@ -1314,16 +1314,28 @@ mod tests {
                 .backlog(5)
                 .limiter_max_alloc_fails(2),
         );
-
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        let s = EventStreamer::new(None);
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
 
         let allocations = get_allocations(&state, queue_id);
         fail_allocation(&hq_state, &mut state, &allocations[0].id);
-        refresh_state(&hq_state, &mut state, RefreshReason::UpdateQueue(queue_id)).await;
+        refresh_state(
+            &hq_state,
+            &s,
+            &mut state,
+            RefreshReason::UpdateQueue(queue_id),
+        )
+        .await;
         check_queue_exists(&state, queue_id);
 
         fail_allocation(&hq_state, &mut state, &allocations[1].id);
-        refresh_state(&hq_state, &mut state, RefreshReason::UpdateQueue(queue_id)).await;
+        refresh_state(
+            &hq_state,
+            &s,
+            &mut state,
+            RefreshReason::UpdateQueue(queue_id),
+        )
+        .await;
         check_queue_paused(&state, queue_id);
     }
 
@@ -1353,11 +1365,11 @@ mod tests {
         let check_alloc_count = |count: usize| {
             assert_eq!(shared.get().allocation_attempts, count);
         };
-
+        let s = EventStreamer::new(None);
         let mut now = Instant::now();
         {
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
+            refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(1);
         }
 
@@ -1365,13 +1377,13 @@ mod tests {
         {
             now += Duration::from_millis(500);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
+            refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(1);
         }
         {
             now += Duration::from_millis(1500);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
+            refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(2);
         }
 
@@ -1379,20 +1391,20 @@ mod tests {
         {
             now += Duration::from_millis(5000);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
+            refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(2);
         }
         {
             now += Duration::from_millis(6000);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
+            refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(3);
         }
         // The delay shouldn't increase any more when we have reached the maximum delay
         {
             now += Duration::from_millis(11000);
             let _mock = MockTime::mock(now);
-            refresh_state(&hq_state, &mut state, RefreshReason::UpdateAllQueues).await;
+            refresh_state(&hq_state, &s, &mut state, RefreshReason::UpdateAllQueues).await;
             check_alloc_count(4);
         }
     }
@@ -1409,18 +1421,14 @@ mod tests {
             QueueBuilder::default().backlog(1).workers_per_alloc(1),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        let s = EventStreamer::new(None);
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         let allocs = get_allocations(&state, queue_id);
 
         let worker_id: WorkerId = 0.into();
-        on_worker_connected(
-            &hq_state,
-            &mut state,
-            worker_id,
-            &create_worker(&allocs[0].id),
-        );
+        on_worker_connected(&s, &mut state, worker_id, &create_worker(&allocs[0].id));
         on_worker_lost(
-            &hq_state,
+            &s,
             &mut state,
             worker_id,
             &create_worker(&allocs[0].id),
@@ -1448,18 +1456,14 @@ mod tests {
             QueueBuilder::default().backlog(1).workers_per_alloc(1),
         );
 
-        queue_try_submit(queue_id, &mut state, &hq_state, None).await;
+        let s = EventStreamer::new(None);
+        queue_try_submit(queue_id, &mut state, &hq_state, &s, None).await;
         let allocs = get_allocations(&state, queue_id);
 
         let worker_id: WorkerId = 0.into();
-        on_worker_connected(
-            &hq_state,
-            &mut state,
-            worker_id,
-            &create_worker(&allocs[0].id),
-        );
+        on_worker_connected(&s, &mut state, worker_id, &create_worker(&allocs[0].id));
         on_worker_lost(
-            &hq_state,
+            &s,
             &mut state,
             worker_id,
             &create_worker(&allocs[0].id),
@@ -1752,7 +1756,7 @@ mod tests {
         });
 
         Job::new(
-            JobDescription {
+            Rc::new(JobDescription {
                 task_desc: JobTaskDescription::Array {
                     ids: IntArray::from_range(0, tasks),
                     entries: None,
@@ -1772,7 +1776,7 @@ mod tests {
                 max_fails: None,
                 submit_dir: Default::default(),
                 log: None,
-            },
+            }),
             job_id.into(),
             (1000 * job_id).into(),
         )
@@ -1860,9 +1864,10 @@ mod tests {
     fn fail_allocation(hq_state: &StateRef, autoalloc: &mut AutoAllocState, allocation_id: &str) {
         let minfo = create_worker(allocation_id);
         let worker_id: WorkerId = 0.into();
-        on_worker_connected(hq_state, autoalloc, worker_id, &minfo);
+        let s = EventStreamer::new(None);
+        on_worker_connected(&s, autoalloc, worker_id, &minfo);
         on_worker_lost(
-            hq_state,
+            &s,
             autoalloc,
             worker_id,
             &minfo,

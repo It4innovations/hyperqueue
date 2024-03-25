@@ -176,13 +176,15 @@ mod tests {
     use tako::gateway::{FromGatewayMessage, ServerInfo, ToGatewayMessage};
     use tokio::net::TcpStream;
 
-    use crate::server::backend::Senders;
+    use crate::server::backend::{Backend, Senders};
+    use crate::server::event::streamer::EventStreamer;
     use crate::tests::utils::{create_hq_state, run_concurrent};
 
     #[tokio::test]
     async fn test_server_connect_worker() {
         let state = create_hq_state();
-        let (server, _fut) = Senders::start(state, Default::default(), None, None)
+        let s = EventStreamer::new(None);
+        let (server, _fut) = Backend::start(state, s, Default::default(), None, None, 1.into())
             .await
             .unwrap();
         TcpStream::connect(format!("127.0.0.1:{}", server.worker_port()))
@@ -193,7 +195,8 @@ mod tests {
     #[tokio::test]
     async fn test_server_info() {
         let state = create_hq_state();
-        let (server, fut) = Senders::start(state, Default::default(), None, None)
+        let s = EventStreamer::new(None);
+        let (server, fut) = Backend::start(state, s, Default::default(), None, None, 1.into())
             .await
             .unwrap();
         run_concurrent(fut, async move {
