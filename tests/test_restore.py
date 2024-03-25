@@ -149,3 +149,23 @@ def test_repeated_restore(hq_env: HqEnv, tmp_path):
     hq_env.start_server(args=["--journal", journal_path])
     out = hq_env.command(["--output-mode=json", "job", "list"], as_json=True)
     assert len(out) == 2
+
+
+def test_restore_not_fully_written_log(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.command(["submit", "--array=0-3", "--", "hostname"])
+    hq_env.stop_server()
+
+    file_size = os.path.getsize(journal_path)
+    with open(journal_path, "a") as f:
+        f.truncate(file_size - 1)
+
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.command(["submit", "--array=0-3", "--", "hostname"])
+    time.sleep(1.0)
+    hq_env.stop_server()
+
+    hq_env.start_server(args=["--journal", journal_path])
+    out = hq_env.command(["--output-mode=json", "job", "list"], as_json=True)
+    assert len(out) == 2

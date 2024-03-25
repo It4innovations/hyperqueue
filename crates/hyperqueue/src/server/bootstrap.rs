@@ -136,6 +136,7 @@ pub async fn initialize_server(
     gsettings: &GlobalSettings,
     mut server_cfg: ServerConfig,
     worker_id_initial_value: WorkerId,
+    truncate_log: Option<u64>,
 ) -> anyhow::Result<(
     impl Future<Output = anyhow::Result<()>>,
     Arc<Notify>,
@@ -176,7 +177,7 @@ pub async fn initialize_server(
         start_date: Utc::now(),
     });
 
-    let (events, event_stream_fut) = prepare_event_management(&server_cfg).await?;
+    let (events, event_stream_fut) = prepare_event_management(&server_cfg, truncate_log).await?;
 
     let (backend, comm_fut) = Backend::start(
         state_ref.clone(),
@@ -278,9 +279,10 @@ pub async fn initialize_server(
 
 async fn prepare_event_management(
     server_cfg: &ServerConfig,
+    truncate_log: Option<u64>,
 ) -> anyhow::Result<(EventStreamer, Pin<Box<dyn Future<Output = ()>>>)> {
     Ok(if let Some(ref log_path) = server_cfg.journal_path {
-        let writer = EventLogWriter::create_or_append(log_path).map_err(|error| {
+        let writer = EventLogWriter::create_or_append(log_path, truncate_log).map_err(|error| {
             anyhow!(
                 "Cannot create event log file at `{}`: {error:?}",
                 log_path.display()
@@ -298,16 +300,21 @@ async fn prepare_event_management(
 }
 
 async fn start_server(gsettings: &GlobalSettings, server_cfg: ServerConfig) -> anyhow::Result<()> {
-    let restorer = if let Some(path) = &server_cfg.journal_path {
+    let (restorer, truncate) = if let Some(path) = &server_cfg.journal_path {
         if path.exists() {
             let mut restorer = StateRestorer::default();
-            restorer.load_event_file(path)?;
-            Some(restorer)
+            let truncate = restorer.load_event_file(path)?;
+            if truncate.is_some() {
+                log::warn!(
+                    "Journal contains not fully written data; they will removed from the log"
+                );
+            }
+            (Some(restorer), truncate)
         } else {
-            None
+            (None, None)
         }
     } else {
-        None
+        (None, None)
     };
 
     let (fut, _, state_ref, carrier) = initialize_server(
@@ -317,6 +324,7 @@ async fn start_server(gsettings: &GlobalSettings, server_cfg: ServerConfig) -> a
             .as_ref()
             .map(|r| r.worker_id_counter())
             .unwrap_or(WorkerId::new(0)),
+        truncate,
     )
     .await?;
     let new_tasks = if let Some(restorer) = restorer {
@@ -398,7 +406,7 @@ mod tests {
             client_secret_key: None,
             server_uid: None,
         };
-        let (fut, notify, _, _) = initialize_server(&gsettings, server_cfg, 1.into())
+        let (fut, notify, _, _) = initialize_server(&gsettings, server_cfg, 1.into(), None)
             .await
             .unwrap();
         (fut, notify)
