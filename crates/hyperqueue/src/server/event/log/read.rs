@@ -53,11 +53,10 @@ impl Iterator for EventLogReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::server::event::log::{
-        EventLogReader, EventLogWriter, LogFileHeader, HQ_JOURNAL_HEADER, HQ_LOG_VERSION,
-    };
+    use crate::server::event::log::{EventLogReader, EventLogWriter, HQ_JOURNAL_HEADER};
     use crate::server::event::payload::EventPayload;
     use crate::server::event::Event;
+    use chrono::Utc;
     use std::fs::File;
     use std::io::Write;
     use std::time::SystemTime;
@@ -79,60 +78,49 @@ mod tests {
         let path = tmpdir.path().join("foo");
         {
             let mut file = File::create(&path).unwrap();
-            rmp_serde::encode::write(
-                &mut file,
-                &LogFileHeader {
-                    header: HQ_JOURNAL_HEADER.into(),
-                    version: HQ_LOG_VERSION + 1,
-                },
-            )
-            .unwrap();
+            rmp_serde::encode::write(&mut file, "hqjl0000").unwrap();
             file.flush().unwrap();
         }
-
         assert!(EventLogReader::open(&path).is_err());
     }
 
-    #[tokio::test]
-    async fn read_no_events() {
+    #[test]
+    fn read_no_events() {
         let tmpdir = TempDir::new("hq").unwrap();
         let path = tmpdir.path().join("foo");
         {
-            let writer = EventLogWriter::create_or_append(&path).await.unwrap();
-            writer.finish().await.unwrap();
+            let writer = EventLogWriter::create_or_append(&path).unwrap();
+            writer.finish().unwrap();
         }
 
         let mut reader = EventLogReader::open(&path).unwrap();
         assert!(reader.next().is_none());
     }
 
-    #[tokio::test]
-    async fn roundtrip_exhaust_buffer() {
+    #[test]
+    fn roundtrip_exhaust_buffer() {
         let tmpdir = TempDir::new("hq").unwrap();
         let path = tmpdir.path().join("foo");
 
         {
-            let mut writer = EventLogWriter::create_or_append(&path).await.unwrap();
-            for id in 0..100000 {
+            let mut writer = EventLogWriter::create_or_append(&path).unwrap();
+            for _id in 0..100000 {
                 writer
                     .store(Event {
-                        id,
-                        time: SystemTime::now(),
+                        time: Utc::now(),
                         payload: EventPayload::WorkerLost(
                             0.into(),
                             LostWorkerReason::ConnectionLost,
                         ),
                     })
-                    .await
                     .unwrap();
             }
-            writer.finish().await.unwrap();
+            writer.finish().unwrap();
         }
 
         let mut reader = EventLogReader::open(&path).unwrap();
         for id in 0..100000 {
             let event = reader.next().unwrap().unwrap();
-            assert_eq!(event.id, id);
             assert!(matches!(
                 event.payload,
                 EventPayload::WorkerLost(id, LostWorkerReason::ConnectionLost)
@@ -142,26 +130,23 @@ mod tests {
         assert!(reader.next().is_none());
     }
 
-    #[tokio::test]
-    async fn streaming_read_partial() {
+    #[test]
+    fn streaming_read_partial() {
         let tmpdir = TempDir::new("hq").unwrap();
         let path = tmpdir.path().join("foo");
-        let mut writer = EventLogWriter::create_or_append(&path).await.unwrap();
+        let mut writer = EventLogWriter::create_or_append(&path).unwrap();
 
-        let time = SystemTime::now();
+        let time = Utc::now();
         writer
             .store(Event {
-                id: 42,
                 time,
                 payload: EventPayload::AllocationFinished(0, "a".to_string()),
             })
-            .await
             .unwrap();
-        writer.flush().await.unwrap();
+        writer.flush().unwrap();
 
         let mut reader = EventLogReader::open(&path).unwrap();
         let event = reader.next().unwrap().unwrap();
-        assert_eq!(event.id, 42);
         assert_eq!(event.time, time);
         assert!(matches!(
             event.payload,

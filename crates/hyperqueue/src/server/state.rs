@@ -325,6 +325,7 @@ impl StateRef {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
     use tako::program::{ProgramDefinition, StdioDef};
 
     use crate::common::arraydef::IntArray;
@@ -368,13 +369,13 @@ mod tests {
             },
         };
         Job::new(
-            JobDescription {
+            Rc::new(JobDescription {
                 task_desc,
                 name: "".to_string(),
                 max_fails: None,
                 submit_dir: Default::default(),
                 log: None,
-            },
+            }),
             job_id.into(),
             base_task_id.into(),
         )

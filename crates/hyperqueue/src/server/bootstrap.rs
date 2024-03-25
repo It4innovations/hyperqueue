@@ -398,7 +398,10 @@ mod tests {
             client_secret_key: None,
             server_uid: None,
         };
-        initialize_server(&gsettings, server_cfg).await.unwrap()
+        let (fut, notify, _, _) = initialize_server(&gsettings, server_cfg, 1.into())
+            .await
+            .unwrap();
+        (fut, notify)
     }
 
     #[tokio::test]

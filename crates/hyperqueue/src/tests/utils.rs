@@ -43,17 +43,14 @@ pub async fn run_concurrent<
 }
 
 pub fn create_hq_state() -> StateRef {
-    StateRef::new(
-        Default::default(),
-        ServerInfo {
-            server_uid: "testuid".to_string(),
-            client_host: "test".to_string(),
-            worker_host: "test".to_string(),
-            client_port: 1200,
-            worker_port: 1400,
-            version: HQ_VERSION.to_string(),
-            pid: std::process::id(),
-            start_date: Utc::now(),
-        },
-    )
+    StateRef::new(ServerInfo {
+        server_uid: "testuid".to_string(),
+        client_host: "test".to_string(),
+        worker_host: "test".to_string(),
+        client_port: 1200,
+        worker_port: 1400,
+        version: HQ_VERSION.to_string(),
+        pid: std::process::id(),
+        start_date: Utc::now(),
+    })
 }
