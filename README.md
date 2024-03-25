@@ -163,6 +163,12 @@ Check out the [documentation](https://it4innovations.github.io/hyperqueue/).
   No. None of functionality is bound to any HPC technology. Communication between all components is performed using
   TCP/IP. You can also run HQ locally.
 
+* **What operating systems does HQ support?**
+
+  HyperQueue currently only officially supports Linux (Ubuntu, Debian, CentOS, etc.). It shouldn't be that difficult to
+  compile it for other operating systems with minor modifications, however we do not provide any support nor promise to
+  fix any bugs for other operating systems.
+
 * **Is it safe to run HQ on a login node shared by other users?**
 
   Yes. All communication is secured and encrypted. The server generates a secret file and only those users that have
