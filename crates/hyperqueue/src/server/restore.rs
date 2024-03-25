@@ -108,10 +108,10 @@ impl StateRestorer {
             .collect::<crate::Result<Vec<NewTasksMessage>>>()
     }
 
-    pub fn load_event_file(&mut self, path: &Path) -> crate::Result<()> {
+    pub fn load_event_file(&mut self, path: &Path) -> crate::Result<Option<u64>> {
         log::debug!("Loading event file {}", path.display());
-        let event_reader = EventLogReader::open(path)?;
-        for event in event_reader {
+        let mut event_reader = EventLogReader::open(path)?;
+        for event in &mut event_reader {
             let event = event?;
             match event.payload {
                 EventPayload::WorkerConnected(worker_id, _) => {
@@ -232,6 +232,10 @@ impl StateRestorer {
                 EventPayload::ServerStop => { /* Do nothing */ }
             }
         }
-        Ok(())
+        Ok(if event_reader.contains_partial_data() {
+            Some(event_reader.position())
+        } else {
+            None
+        })
     }
 }

@@ -4,19 +4,24 @@ use crate::HQ_VERSION;
 use anyhow::{anyhow, bail};
 use bincode::Options;
 use std::fs::File;
-use std::io::BufReader;
 use std::io::Read;
+use std::io::{BufReader, Seek};
 use std::ops::Deref;
 use std::path::Path;
 
 /// Reads events from a file in a streaming fashion.
 pub struct EventLogReader {
     source: BufReader<File>,
+    position: u64,
+    size: u64,
+    partial_data_error: bool,
 }
 
 impl EventLogReader {
     pub fn open(path: &Path) -> anyhow::Result<Self> {
-        let mut file = BufReader::new(File::open(path)?);
+        let raw_file = File::open(path)?;
+        let size = raw_file.metadata()?.len();
+        let mut file = BufReader::new(raw_file);
         let mut header = [0u8; 8];
         file.read_exact(&mut header)?;
         if header != HQ_JOURNAL_HEADER {
@@ -28,21 +33,38 @@ impl EventLogReader {
         if hq_version != HQ_VERSION {
             bail!("Version of journal {hq_version} does not match with {HQ_VERSION}");
         }
-        Ok(Self { source: file })
+        Ok(Self {
+            position: file.stream_position().unwrap(),
+            size,
+            source: file,
+            partial_data_error: false,
+        })
+    }
+
+    pub fn contains_partial_data(&self) -> bool {
+        self.partial_data_error
+    }
+
+    pub fn position(&self) -> u64 {
+        self.position
     }
 }
 
-impl Iterator for EventLogReader {
+impl Iterator for &mut EventLogReader {
     type Item = Result<Event, bincode::Error>;
 
-    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
+        self.position = self.source.stream_position().unwrap();
+        if self.position == self.size {
+            return None;
+        }
         match bincode_config().deserialize_from(&mut self.source) {
             Ok(event) => Some(Ok(event)),
             Err(error) => match error.deref() {
                 bincode::ErrorKind::Io(e)
                     if matches!(e.kind(), std::io::ErrorKind::UnexpectedEof) =>
                 {
+                    self.partial_data_error = true;
                     None
                 }
                 _ => Some(Err(error)),
@@ -57,7 +79,8 @@ mod tests {
     use crate::server::event::payload::EventPayload;
     use crate::server::event::Event;
     use chrono::Utc;
-    use std::fs::File;
+    use chumsky::chain::Chain;
+    use std::fs::{File, OpenOptions};
     use std::io::Write;
     use std::time::SystemTime;
     use tako::gateway::LostWorkerReason;
@@ -89,12 +112,71 @@ mod tests {
         let tmpdir = TempDir::new("hq").unwrap();
         let path = tmpdir.path().join("foo");
         {
-            let writer = EventLogWriter::create_or_append(&path).unwrap();
+            let writer = EventLogWriter::create_or_append(&path, None).unwrap();
             writer.finish().unwrap();
         }
 
         let mut reader = EventLogReader::open(&path).unwrap();
-        assert!(reader.next().is_none());
+        assert!((&mut reader).next().is_none());
+    }
+
+    #[test]
+    fn test_not_fully_written_journal() {
+        let tmpdir = TempDir::new("hq").unwrap();
+        let path = tmpdir.path().join("foo");
+
+        {
+            let mut writer = EventLogWriter::create_or_append(&path, None).unwrap();
+            for _id in 0..100 {
+                writer
+                    .store(Event {
+                        time: Utc::now(),
+                        payload: EventPayload::WorkerLost(
+                            0.into(),
+                            LostWorkerReason::ConnectionLost,
+                        ),
+                    })
+                    .unwrap();
+            }
+        }
+
+        let size;
+        {
+            let mut f = OpenOptions::new().write(true).open(&path).unwrap();
+            size = f.metadata().unwrap().len();
+            assert!(size > 500);
+            f.set_len(size - 1).unwrap(); // Truncate file
+        }
+
+        let truncate;
+        {
+            let mut reader = EventLogReader::open(&path).unwrap();
+            let mut count = 0;
+            for item in &mut reader {
+                item.unwrap();
+                count += 1;
+            }
+            assert!(reader.contains_partial_data());
+            assert_eq!(count, 99);
+            assert!(reader.position() < size - 1);
+            truncate = reader.position();
+        }
+
+        {
+            let mut f = OpenOptions::new().write(true).open(&path).unwrap();
+            f.set_len(truncate).unwrap(); // Truncate file
+        }
+
+        {
+            let mut reader = EventLogReader::open(&path).unwrap();
+            let mut count = 0;
+            for item in &mut reader {
+                item.unwrap();
+                count += 1;
+            }
+            assert!(!reader.contains_partial_data());
+            assert_eq!(count, 99);
+        }
     }
 
     #[test]
@@ -103,7 +185,7 @@ mod tests {
         let path = tmpdir.path().join("foo");
 
         {
-            let mut writer = EventLogWriter::create_or_append(&path).unwrap();
+            let mut writer = EventLogWriter::create_or_append(&path, None).unwrap();
             for _id in 0..100000 {
                 writer
                     .store(Event {
@@ -120,21 +202,21 @@ mod tests {
 
         let mut reader = EventLogReader::open(&path).unwrap();
         for id in 0..100000 {
-            let event = reader.next().unwrap().unwrap();
+            let event = (&mut reader).next().unwrap().unwrap();
             assert!(matches!(
                 event.payload,
                 EventPayload::WorkerLost(id, LostWorkerReason::ConnectionLost)
                 if id.as_num() == 0
             ));
         }
-        assert!(reader.next().is_none());
+        assert!((&mut reader).next().is_none());
     }
 
     #[test]
     fn streaming_read_partial() {
         let tmpdir = TempDir::new("hq").unwrap();
         let path = tmpdir.path().join("foo");
-        let mut writer = EventLogWriter::create_or_append(&path).unwrap();
+        let mut writer = EventLogWriter::create_or_append(&path, None).unwrap();
 
         let time = Utc::now();
         writer
@@ -146,7 +228,7 @@ mod tests {
         writer.flush().unwrap();
 
         let mut reader = EventLogReader::open(&path).unwrap();
-        let event = reader.next().unwrap().unwrap();
+        let event = (&mut reader).next().unwrap().unwrap();
         assert_eq!(event.time, time);
         assert!(matches!(
             event.payload,

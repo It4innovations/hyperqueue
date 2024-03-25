@@ -3,7 +3,7 @@ use crate::server::event::{bincode_config, Event};
 use crate::HQ_VERSION;
 use bincode::Options;
 use std::fs::{File, OpenOptions};
-use std::io::{BufWriter, Seek, Write};
+use std::io::{BufWriter, Seek, SeekFrom, Write};
 use std::path::Path;
 
 /// Streams monitoring events into a file on disk.
@@ -12,18 +12,27 @@ pub struct EventLogWriter {
 }
 
 impl EventLogWriter {
-    pub fn create_or_append(path: &Path) -> anyhow::Result<Self> {
-        let mut file = if !path.exists() {
-            let mut file = BufWriter::new(File::create(path)?);
+    pub fn create_or_append(path: &Path, truncate: Option<u64>) -> anyhow::Result<Self> {
+        let mut raw_file = OpenOptions::new().write(true).create(true).open(path)?;
+
+        let position = if let Some(size) = truncate {
+            raw_file.set_len(size)?;
+            size
+        } else {
+            raw_file.metadata()?.len()
+        };
+
+        raw_file.seek(SeekFrom::Start(position))?;
+        let mut file = BufWriter::new(raw_file);
+
+        if position == 0 {
             if file.stream_position()? == 0 {
                 file.write_all(HQ_JOURNAL_HEADER)?;
                 bincode_config().serialize_into(&mut file, HQ_VERSION)?;
                 file.flush()?;
             }
-            file
-        } else {
-            BufWriter::new(OpenOptions::new().create(true).append(true).open(path)?)
         };
+
         Ok(Self { file })
     }
 

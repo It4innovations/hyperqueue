@@ -37,7 +37,7 @@ pub fn command_event_log(opts: EventLogOpts) -> anyhow::Result<()> {
 }
 
 fn export_json(opts: ExportOpts) -> anyhow::Result<()> {
-    let file = EventLogReader::open(&opts.logfile).map_err(|error| {
+    let mut file = EventLogReader::open(&opts.logfile).map_err(|error| {
         anyhow!(
             "Cannot open event log file at `{}`: {error:?}",
             opts.logfile.display()
@@ -49,7 +49,7 @@ fn export_json(opts: ExportOpts) -> anyhow::Result<()> {
     let mut stdout = BufWriter::new(stdout);
 
     let mut count = 0;
-    for event in file {
+    for event in &mut file {
         match event {
             Ok(event) => {
                 writeln!(stdout, "{}", format_event(event))?;
