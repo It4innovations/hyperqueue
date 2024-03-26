@@ -1,5 +1,7 @@
 import datetime
+import os.path
 import random
+import sys
 import time
 from pathlib import Path
 
@@ -74,6 +76,24 @@ def test_submit_stdio(hq_env: HqEnv):
     wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
     check_file_contents("out", "Test1\nHello\n")
     check_file_contents("err", "Test2\n")
+
+
+def test_empty_stdio(hq_env: HqEnv):
+    (job, client) = prepare_job_client(hq_env)
+
+    def foo():
+        print("Hello")
+        print("Hello", file=sys.stderr)
+
+    job.function(
+        foo,
+        stdout=None,
+        stderr=None,
+    )
+    submitted_job = client.submit(job)
+    wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
+    assert not os.path.isfile("0.stdout")
+    assert not os.path.isfile("0.stderr")
 
 
 def test_stdio_rm_if_finished(hq_env: HqEnv):
