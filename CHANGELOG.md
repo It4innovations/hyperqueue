@@ -11,6 +11,10 @@
   (e.g. if hostname is "cn690.karolina.it4i.cz", only "cn690" is written into node list)
   You can read ``HQ_HOST_FILE`` if you need to get full hostnames without stripping.
 
+## Fixes
+
+* Enable passing of empty `stdout`/`stderr` to Python function tasks in the Python
+  API (https://github.com/It4innovations/hyperqueue/issues/691).
 
 # v0.18.0
 
