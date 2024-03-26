@@ -10,6 +10,9 @@ FileOnCloseBehavior = Literal["none", "rm-if-finished"]
 
 @dataclasses.dataclass
 class StdioDef:
+    """
+    If `path` is `None`, then the default HQ path will be used.
+    """
     path: Optional[GenericPath]
     on_close: FileOnCloseBehavior
 

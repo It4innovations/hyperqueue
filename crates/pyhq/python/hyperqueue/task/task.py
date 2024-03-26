@@ -58,12 +58,14 @@ class Task:
         raise NotImplementedError
 
 
-def build_stdio(stdio: Stdio, stream: str) -> StdioDef:
+def build_stdio(stdio: Optional[Stdio], stream: str) -> Optional[StdioDef]:
     if isinstance(stdio, (str, Path)):
         return StdioDef.from_path(stdio)
     elif isinstance(stdio, StdioDef):
         return stdio
+    elif stdio is None:
+        return None
     else:
         raise ValidationException(
-            f"Invalid value provided for `{stream}`: {type(stdio)}. Expected str, Path or `StdioDef`."
+            f"Invalid value provided for `{stream}`: {type(stdio)}. Expected str, Path or `StdioDef` or `None`."
         )
