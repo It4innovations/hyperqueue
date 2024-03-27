@@ -93,3 +93,47 @@ jobs:
         run: |
           python -m pip install -r docs/requirements.txt
           mkdocs build
+
+  compatibility_mode:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: x86_64-apple-darwin
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - uses: Swatinem/rust-cache@v1
+        with:
+          key: ${{ matrix.os }}
+
+      - name: Build HyperQueue
+        run: cargo build --no-default-features
+      - name: Run HyperQueue
+        run: cargo run --no-default-features -- --version
+
+      - name: Setup Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: "3.8"
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          python -m pip install -r tests/requirements.txt
+
+      - name: Install coreutils
+        run: brew install coreutils
+
+      - name: Build Python binding
+        run: |
+          maturin build --manifest-path crates/pyhq/Cargo.toml --out wheels
+          WHEEL=`realpath wheels/*.whl`
+          python -m pip install $WHEEL[all]
