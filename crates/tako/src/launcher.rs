@@ -168,6 +168,7 @@ pub fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result
 
     let mut command = Command::new(definition.args[0].to_os_str_lossy());
 
+    #[cfg(target_os = "linux")]
     unsafe {
         command.pre_exec(|| {
             // We need to create a new process group for the task, so that we can
