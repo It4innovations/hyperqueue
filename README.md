@@ -165,9 +165,9 @@ Check out the [documentation](https://it4innovations.github.io/hyperqueue/).
 
 * **What operating systems does HQ support?**
 
-  HyperQueue currently only officially supports Linux (Ubuntu, Debian, CentOS, etc.). It shouldn't be that difficult to
-  compile it for other operating systems with minor modifications, however we do not provide any support nor promise to
-  fix any bugs for other operating systems.
+  HyperQueue currently only officially supports Linux (Ubuntu, Debian, CentOS, etc.). It might be possible to
+  compile it for other operating systems, however we do not provide any support nor promise to fix any bugs for other
+  operating systems.
 
 * **Is it safe to run HQ on a login node shared by other users?**
 
