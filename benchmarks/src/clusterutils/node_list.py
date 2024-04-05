@@ -1,6 +1,7 @@
 import abc
 import os
 import socket
+import subprocess
 from typing import List
 
 
@@ -36,6 +37,21 @@ def get_pbs_nodes() -> List[str]:
 
     with open(os.environ["PBS_NODEFILE"]) as f:
         return [line.strip() for line in f]
+
+
+class Slurm(NodeList):
+    def resolve(self) -> List[str]:
+        return get_slurm_nodes()
+
+
+def get_slurm_nodes() -> List[str]:
+    assert is_inside_slurm()
+    output = subprocess.check_output(["scontrol", "show", "hostnames"])
+    return output.decode().split("\n")
+
+
+def is_inside_slurm() -> bool:
+    return "SLURM_NODELIST" in os.environ
 
 
 class Explicit(NodeList):
