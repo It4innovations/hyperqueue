@@ -75,10 +75,7 @@ pub(crate) async fn handle_submit(
     let job_id = state_ref.get_mut().new_job_id();
     let SubmitRequest { mut job_desc } = message;
 
-    senders
-        .events
-        .on_job_submitted_full(job_id, &job_desc)
-        .unwrap();
+    senders.events.on_job_submitted(job_id, &job_desc).unwrap();
 
     let new_tasks = match submit_job_desc(&mut state_ref.get_mut(), job_id, job_desc) {
         Err(error) => {

@@ -1,11 +1,67 @@
 import json
 import time
+import subprocess
 from typing import List
 
 from schema import Schema
 
-from .conftest import HqEnv
+from .conftest import HqEnv, get_hq_binary
 from .utils import wait_for_worker_state
+
+
+def test_worker_stream_events1(hq_env: HqEnv, tmp_path):
+    journal = tmp_path.joinpath("test.journal")
+    hq_env.start_server(args=["--journal", journal])
+    hq_env.command(["submit", "--", "sleep", "1"])
+
+    hq_bin = get_hq_binary()
+    out_txt = tmp_path.joinpath("out.txt")
+    with open(out_txt, "w") as out:
+        p = subprocess.Popen([hq_bin, "--server-dir", hq_env.server_dir, "event-log", "stream"], stdout=out)
+    time.sleep(0.6)
+    hq_env.command(["submit", "--", "hostname"])
+    time.sleep(0.6)
+    assert not p.poll()
+    hq_env.stop_server()
+    time.sleep(0.6)
+    p.wait(timeout=1)
+
+    with open(out_txt, "r") as out:
+        data = out.read().rstrip().split("\n")
+        events = [json.loads(s) for s in data]
+        assert len(events) == 3
+        assert events[0]["event"]["type"] == "server-start"
+        assert events[1]["event"]["type"] == "job-created"
+        assert events[1]["event"]["desc"]["name"] == "sleep"
+        assert events[2]["event"]["type"] == "job-created"
+        assert events[2]["event"]["desc"]["name"] == "hostname"
+
+
+def test_worker_stream_events2(hq_env: HqEnv, tmp_path):
+    journal = tmp_path.joinpath("test.journal")
+    hq_env.start_server(args=["--journal", journal])
+    hq_env.command(["submit", "--", "sleep", "1"])
+
+    hq_bin = get_hq_binary()
+    out_txt = tmp_path.joinpath("out.txt")
+    with open(out_txt, "w") as out:
+        p = subprocess.Popen([hq_bin, "--server-dir", hq_env.server_dir, "event-log", "stream"], stdout=out)
+    time.sleep(0.6)
+    hq_env.command(["submit", "--", "hostname"])
+    time.sleep(0.6)
+    assert not p.poll()
+    p.kill()
+    p.wait(timeout=1)
+
+    with open(out_txt, "r") as out:
+        data = out.read().rstrip().split("\n")
+        events = [json.loads(s) for s in data]
+        assert len(events) == 3
+        assert events[0]["event"]["type"] == "server-start"
+        assert events[1]["event"]["type"] == "job-created"
+        assert events[1]["event"]["desc"]["name"] == "sleep"
+        assert events[2]["event"]["type"] == "job-created"
+        assert events[2]["event"]["desc"]["name"] == "hostname"
 
 
 def test_worker_connected_event(hq_env: HqEnv):
@@ -97,24 +153,23 @@ def test_worker_capture_nvidia_gpu_state(hq_env: HqEnv):
 def test_worker_capture_amd_gpu_state(hq_env: HqEnv):
     def body():
         with hq_env.mock.mock_program_with_code(
-            "rocm-smi",
-            """
-import json
-
-data = {
-    "card0": {
-        "GPU use (%)": "1.5",
-        "GPU memory use (%)": "12.5",
-        "PCI Bus": "FOOBAR1"
-    },
-    "card1": {
-        "GPU use (%)": "12.5",
-        "GPU memory use (%)": "64.0",
-        "PCI Bus": "FOOBAR2"
+                "rocm-smi",
+                """
+    import json
+    data = {
+        "card0": {
+            "GPU use (%)": "1.5",
+            "GPU memory use (%)": "12.5",
+            "PCI Bus": "FOOBAR1"
+        },
+        "card1": {
+            "GPU use (%)": "12.5",
+            "GPU memory use (%)": "64.0",
+            "PCI Bus": "FOOBAR2"
+        }
     }
-}
-print(json.dumps(data))
-        """,
+    print(json.dumps(data))
+            """,
         ):
             hq_env.start_worker(args=["--overview-interval", "10ms", "--resource", "gpus/amd=[0]"])
             wait_for_worker_state(hq_env, 1, "RUNNING")

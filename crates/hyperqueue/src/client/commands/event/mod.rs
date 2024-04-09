@@ -1,8 +1,13 @@
 mod output;
 
 use crate::client::commands::event::output::format_event;
+use crate::client::globalsettings::GlobalSettings;
+use crate::common::error::HqError;
 use crate::common::utils::str::pluralize;
+use crate::rpc_call;
+use crate::server::bootstrap::get_client_session;
 use crate::server::event::log::EventLogReader;
+use crate::transfer::messages::{FromClientMessage, IdSelector, JobInfoRequest, ToClientMessage};
 use anyhow::anyhow;
 use clap::{Parser, ValueHint};
 use std::io::{BufWriter, Write};
@@ -20,6 +25,9 @@ enum EventCommand {
     /// Export events from a log file to NDJSON (line-delimited JSON).
     /// Events will be exported to `stdout`, you can redirect it e.g. to a file.
     Export(ExportOpts),
+
+    /// Live stream events from server
+    Stream,
 }
 
 #[derive(Parser)]
@@ -30,10 +38,35 @@ struct ExportOpts {
     logfile: PathBuf,
 }
 
-pub fn command_event_log(opts: EventLogOpts) -> anyhow::Result<()> {
+pub async fn command_event_log(
+    gsettings: &GlobalSettings,
+    opts: EventLogOpts,
+) -> anyhow::Result<()> {
     match opts.command {
         EventCommand::Export(opts) => export_json(opts),
+        EventCommand::Stream => stream_json(gsettings).await,
     }
+}
+
+async fn stream_json(gsettings: &GlobalSettings) -> anyhow::Result<()> {
+    let mut connection = get_client_session(gsettings.server_directory()).await?;
+    connection
+        .connection()
+        .send(FromClientMessage::StreamEvents)
+        .await?;
+    let stdout = std::io::stdout();
+    let stdout = stdout.lock();
+    let mut stdout = BufWriter::new(stdout);
+    while let Some(event) = connection.connection().receive().await {
+        let event = event?;
+        if let ToClientMessage::Event(e) = event {
+            writeln!(stdout, "{}", format_event(e))?;
+            stdout.flush()?;
+        } else {
+            anyhow::bail!("Invalid message receive, not ToClientMessage::Event");
+        }
+    }
+    Ok(())
 }
 
 fn export_json(opts: ExportOpts) -> anyhow::Result<()> {
