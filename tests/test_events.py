@@ -70,12 +70,7 @@ def test_worker_disable_overview(hq_env: HqEnv):
 
 def test_worker_capture_nvidia_gpu_state(hq_env: HqEnv):
     def body():
-        with hq_env.mock.mock_program_with_code(
-            "nvidia-smi",
-            """
-print("BUS1, 10.0 %, 100 MiB, 200 MiB")
-""",
-        ):
+        with hq_env.mock.mock_program_with_code("nvidia-smi", 'print("BUS1, 10.0 %, 100 MiB, 200 MiB")'):
             hq_env.start_worker(args=["--overview-interval", "10ms", "--resource", "gpus/nvidia=[0]"])
             wait_for_worker_state(hq_env, 1, "RUNNING")
             time.sleep(0.2)
@@ -95,6 +90,7 @@ print("BUS1, 10.0 %, 100 MiB, 200 MiB")
             ]
         }
     )
+    print(event)
     schema.validate(event)
 
 
@@ -118,7 +114,7 @@ data = {
     }
 }
 print(json.dumps(data))
-""",
+        """,
         ):
             hq_env.start_worker(args=["--overview-interval", "10ms", "--resource", "gpus/amd=[0]"])
             wait_for_worker_state(hq_env, 1, "RUNNING")
@@ -153,7 +149,7 @@ def find_events(events, type: str) -> List:
 
 def get_events(hq_env: HqEnv, callback):
     log_path = "events.log"
-    process = hq_env.start_server(args=["--event-log-path", log_path])
+    process = hq_env.start_server(args=["--journal", log_path])
     callback()
     hq_env.command(["server", "stop"])
     process.wait(timeout=5)

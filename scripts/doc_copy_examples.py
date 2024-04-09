@@ -2,6 +2,7 @@
 Copy all files from the `examples` directory to `<built-docs>/examples`, so that they can be rendered in the
 documentation.
 """
+
 import glob
 import os.path
 
