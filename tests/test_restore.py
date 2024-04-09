@@ -43,11 +43,18 @@ def test_restore_waiting_task(hq_env: HqEnv, tmp_path):
 def test_restore_partially_finished_task(hq_env: HqEnv, tmp_path):
     journal_path = os.path.join(tmp_path, "my.journal")
     hq_env.start_server(args=["--journal", journal_path])
-    hq_env.command(["submit", "--array=0-4", "--", "python", "-c",
-                    "import os, time;"
-                    f"open('{tmp_path}/task-marker' + os.environ.get('HQ_TASK_ID'), 'w').write(os.environ.get('HQ_INSTANCE_ID'));"
-                    "time.sleep(1.5 if os.environ.get('HQ_TASK_ID') in ('1','3','4') else 0);"
-                    ])
+    hq_env.command(
+        [
+            "submit",
+            "--array=0-4",
+            "--",
+            "python",
+            "-c",
+            "import os, time;"
+            f"open('{tmp_path}/task-marker' + os.environ.get('HQ_TASK_ID'), 'w').write(os.environ.get('HQ_INSTANCE_ID'));"
+            "time.sleep(1.5 if os.environ.get('HQ_TASK_ID') in ('1','3','4') else 0);",
+        ]
+    )
     hq_env.start_worker(cpus=5)
     wait_for_job_state(hq_env, 1, "RUNNING")
     time.sleep(0.2)
@@ -86,10 +93,17 @@ def test_restore_partially_finished_task(hq_env: HqEnv, tmp_path):
 def test_restore_partially_failed_task(hq_env: HqEnv, tmp_path):
     journal_path = os.path.join(tmp_path, "my.journal")
     hq_env.start_server(args=["--journal", journal_path])
-    hq_env.command(["submit", "--array=0-4", "--", "python", "-c",
-                    f"import os, time; open('{tmp_path}/task-marker' + os.environ.get('HQ_TASK_ID'), 'w');"
-                    "time.sleep(1.5 if os.environ.get('HQ_TASK_ID') in ('1','3','4') else 0); sys.exit(1)"
-                    ])
+    hq_env.command(
+        [
+            "submit",
+            "--array=0-4",
+            "--",
+            "python",
+            "-c",
+            f"import os, time; open('{tmp_path}/task-marker' + os.environ.get('HQ_TASK_ID'), 'w');"
+            "time.sleep(1.5 if os.environ.get('HQ_TASK_ID') in ('1','3','4') else 0); sys.exit(1)",
+        ]
+    )
     hq_env.start_worker(cpus=5)
     wait_for_job_state(hq_env, 1, "RUNNING")
     time.sleep(0.2)
