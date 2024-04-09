@@ -1,39 +1,41 @@
+use crate::common::error::HqError;
 use crate::server::autoalloc::{AllocationId, QueueId};
-use crate::server::event::log::EventStreamSender;
+use crate::server::event::log::{EventStreamMessage, EventStreamSender};
 use crate::server::event::payload::EventPayload;
 use crate::server::event::{bincode_config, Event, EventId};
-use crate::transfer::messages::{AllocationQueueParams, JobDescription};
+use crate::transfer::messages::{AllocationQueueParams, JobDescription, ToClientMessage};
 use crate::{JobId, JobTaskId, TakoTaskId, WorkerId};
 use bincode::Options;
 use chrono::{DateTime, Utc};
+use futures::Sink;
 use smallvec::SmallVec;
 use std::collections::vec_deque::VecDeque;
 use std::rc::Rc;
 use std::time::SystemTime;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::{InstanceId, TaskId};
+use tako::{InstanceId, TaskId, WrappedRcRefCell};
+use tokio::sync::mpsc;
+
+struct Inner {
+    storage_sender: Option<EventStreamSender>,
+    client_listeners: Vec<(mpsc::UnboundedSender<Event>, u32)>,
+}
 
 #[derive(Clone)]
 pub struct EventStreamer {
-    stream_sender: Option<EventStreamSender>,
+    inner: WrappedRcRefCell<Inner>,
 }
 
 impl EventStreamer {
     pub fn new(stream_sender: Option<EventStreamSender>) -> Self {
-        Self { stream_sender }
+        Self {
+            inner: WrappedRcRefCell::wrap(Inner {
+                storage_sender: stream_sender,
+                client_listeners: Vec::new(),
+            }),
+        }
     }
-    //
-    // /// Returns all events that have event ID larger than `id`.
-    // /// There is no guarantee on the order of the events, if you want any specific order, you have
-    // /// to sort them.
-    // pub fn get_events_after(&self, id: EventId) -> impl Iterator<Item = &Event> {
-    //     todo!()
-    //     /*self.event_queue
-    //     .iter()
-    //     .rev()
-    //     .take_while(move |event| event.id > id)*/
-    // }
 
     pub fn on_worker_added(&self, id: WorkerId, configuration: WorkerConfiguration) {
         self.send_event(EventPayload::WorkerConnected(id, Box::new(configuration)));
@@ -48,16 +50,15 @@ impl EventStreamer {
         self.send_event(EventPayload::WorkerOverviewReceived(worker_overview));
     }
 
-    pub fn on_job_submitted_full(
-        &self,
-        job_id: JobId,
-        job_desc: &JobDescription,
-    ) -> crate::Result<()> {
-        if self.stream_sender.is_none() {
-            // Skip serialization if there is no streaming end
-            return Ok(());
+    pub fn on_job_submitted(&self, job_id: JobId, job_desc: &JobDescription) -> crate::Result<()> {
+        {
+            let inner = self.inner.get();
+            if inner.storage_sender.is_none() && inner.client_listeners.is_empty() {
+                // Skip serialization if there is no streaming end
+                return Ok(());
+            }
         }
-        self.send_event(EventPayload::JobCreatedFull(
+        self.send_event(EventPayload::JobCreated(
             job_id,
             bincode_config().serialize(job_desc)?,
         ));
@@ -136,14 +137,19 @@ impl EventStreamer {
     }
 
     fn send_event(&self, payload: EventPayload) {
-        if let Some(ref streamer) = self.stream_sender {
-            if streamer
-                .send(Event {
-                    time: Utc::now(),
-                    payload,
-                })
-                .is_err()
-            {
+        let mut inner = self.inner.get_mut();
+        if inner.storage_sender.is_none() && inner.client_listeners.is_empty() {
+            return;
+        }
+        let event = Event {
+            time: Utc::now(),
+            payload,
+        };
+        inner
+            .client_listeners
+            .retain(|(listener, _)| listener.send(event.clone()).is_ok());
+        if let Some(ref streamer) = inner.storage_sender {
+            if streamer.send(EventStreamMessage::Event(event)).is_err() {
                 log::error!("Event streaming queue has been closed.");
             }
         }
@@ -151,5 +157,46 @@ impl EventStreamer {
 
     pub fn on_server_stop(&self) {
         self.send_event(EventPayload::ServerStop);
+    }
+
+    pub fn on_server_start(&self, server_uid: &str) {
+        self.send_event(EventPayload::ServerStart {
+            server_uid: server_uid.to_string(),
+        });
+    }
+
+    pub fn register_listener(
+        &self,
+        history_sender: mpsc::UnboundedSender<Event>,
+        current_sender: mpsc::UnboundedSender<Event>,
+    ) -> u32 {
+        let mut inner = self.inner.get_mut();
+        let listener_id = inner
+            .client_listeners
+            .iter()
+            .map(|x| x.1)
+            .max()
+            .unwrap_or(0)
+            + 1;
+        inner.client_listeners.push((current_sender, listener_id));
+        if let Some(ref streamer) = inner.storage_sender {
+            if streamer
+                .send(EventStreamMessage::RegisterListener(history_sender))
+                .is_err()
+            {
+                log::error!("Event streaming queue has been closed.");
+            }
+        }
+        listener_id
+    }
+
+    pub fn unregister_listener(&self, listener_id: u32) {
+        let mut inner = self.inner.get_mut();
+        let p = inner
+            .client_listeners
+            .iter()
+            .position(|(_, id)| *id == listener_id)
+            .unwrap();
+        inner.client_listeners.remove(p);
     }
 }

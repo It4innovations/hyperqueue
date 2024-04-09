@@ -23,7 +23,7 @@ pub enum EventPayload {
     ///  Vec<u8> is serialized JobDescription; the main reason is avoid duplication of JobDescription
     ///  (we serialize it before it is stripped down)
     ///  and a nice side effect is that Events can be deserialized without deserializing a potentially large submit data
-    JobCreatedFull(JobId, Vec<u8>),
+    JobCreated(JobId, Vec<u8>),
     /// All tasks of the job have finished.
     JobCompleted(JobId),
     /// Task has started to execute on some worker
@@ -63,6 +63,9 @@ pub enum EventPayload {
     AllocationStarted(QueueId, AllocationId),
     /// PBS/Slurm allocation has finished executing
     AllocationFinished(QueueId, AllocationId),
+    ServerStart {
+        server_uid: String,
+    },
     ServerStop,
 }
 

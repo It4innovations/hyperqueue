@@ -3,7 +3,7 @@ mod stream;
 mod write;
 
 pub use read::EventLogReader;
-pub use stream::{start_event_streaming, EventStreamSender};
+pub use stream::{start_event_streaming, EventStreamMessage, EventStreamSender};
 pub use write::EventLogWriter;
 
 use serde::{Deserialize, Serialize};

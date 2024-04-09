@@ -15,7 +15,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use crate::server::event::Event;
-use tako::gateway::{LostWorkerReason, MonitoringEventRequest, ResourceRequestVariants};
+use tako::gateway::{LostWorkerReason, ResourceRequestVariants};
 use tako::program::ProgramDefinition;
 use tako::worker::WorkerConfiguration;
 
@@ -35,8 +35,12 @@ pub enum FromClientMessage {
     Stop,
     AutoAlloc(AutoAllocRequest),
     WaitForJobs(WaitForJobsRequest),
-    MonitoringEvents(MonitoringEventRequest),
     ServerInfo,
+
+    // This command switches the connection into streaming connection,
+    // it will no longer reacts to any other client messages
+    // and client will only receive ToClientMessage::Event
+    StreamEvents,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -320,9 +324,9 @@ pub enum ToClientMessage {
     ForgetJobResponse(ForgetJobResponse),
     AutoAllocResponse(AutoAllocResponse),
     WaitForJobsResponse(WaitForJobsResponse),
-    MonitoringEventsResponse(Vec<Event>),
     Error(String),
     ServerInfo(ServerInfo),
+    Event(Event),
 }
 
 #[derive(Serialize, Deserialize, Debug)]

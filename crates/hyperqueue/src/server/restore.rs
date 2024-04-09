@@ -91,6 +91,7 @@ pub(crate) struct StateRestorer {
     jobs: Map<JobId, RestorerJob>,
     max_job_id: <JobId as ItemId>::IdType,
     max_worker_id: <WorkerId as ItemId>::IdType,
+    truncate_size: Option<u64>,
 }
 
 impl StateRestorer {
@@ -100,6 +101,9 @@ impl StateRestorer {
     pub fn worker_id_counter(&self) -> WorkerId {
         (self.max_worker_id + 1).into()
     }
+    pub fn truncate_size(&self) -> Option<u64> {
+        self.truncate_size
+    }
 
     pub fn restore_jobs(self, state: &mut State) -> crate::Result<Vec<NewTasksMessage>> {
         self.jobs
@@ -108,11 +112,13 @@ impl StateRestorer {
             .collect::<crate::Result<Vec<NewTasksMessage>>>()
     }
 
-    pub fn load_event_file(&mut self, path: &Path) -> crate::Result<Option<u64>> {
+    pub fn load_event_file(&mut self, path: &Path) -> crate::Result<()> {
         log::debug!("Loading event file {}", path.display());
         let mut event_reader = EventLogReader::open(path)?;
+        let mut event_counter: u64 = 0;
         for event in &mut event_reader {
             let event = event?;
+            event_counter += 1;
             match event.payload {
                 EventPayload::WorkerConnected(worker_id, _) => {
                     log::debug!("Replaying: WorkerConnected {worker_id}");
@@ -121,7 +127,7 @@ impl StateRestorer {
                 EventPayload::WorkerLost(_, _) => {}
                 EventPayload::WorkerOverviewReceived(_) => {}
                 //EventPayload::JobCreatedShort(job_id, job_info) => {}
-                EventPayload::JobCreatedFull(job_id, serialized_job_desc) => {
+                EventPayload::JobCreated(job_id, serialized_job_desc) => {
                     log::debug!("Replaying: JobCreated {job_id}");
                     let job_desc = bincode_config().deserialize(&serialized_job_desc)?;
                     self.jobs.insert(job_id, RestorerJob::new(job_desc));
@@ -229,13 +235,13 @@ impl StateRestorer {
                 EventPayload::AllocationQueued { .. } => {}
                 EventPayload::AllocationStarted(_, _) => {}
                 EventPayload::AllocationFinished(_, _) => {}
+                EventPayload::ServerStart { .. } => {}
                 EventPayload::ServerStop => { /* Do nothing */ }
             }
         }
-        Ok(if event_reader.contains_partial_data() {
-            Some(event_reader.position())
-        } else {
-            None
-        })
+        if event_reader.contains_partial_data() {
+            self.truncate_size = Some(event_reader.position())
+        }
+        Ok(())
     }
 }

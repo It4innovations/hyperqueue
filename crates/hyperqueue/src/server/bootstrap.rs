@@ -20,6 +20,7 @@ use crate::server::backend::Backend;
 use crate::server::event::log::start_event_streaming;
 use crate::server::event::log::EventLogWriter;
 use crate::server::event::streamer::EventStreamer;
+use crate::server::event::Event;
 use crate::server::restore::StateRestorer;
 use crate::server::state::StateRef;
 use crate::server::Senders;
@@ -177,7 +178,8 @@ pub async fn initialize_server(
         start_date: Utc::now(),
     });
 
-    let (events, event_stream_fut) = prepare_event_management(&server_cfg, truncate_log).await?;
+    let (events, event_stream_fut) =
+        prepare_event_management(&server_cfg, &server_uid, truncate_log).await?;
 
     let (backend, comm_fut) = Backend::start(
         state_ref.clone(),
@@ -279,6 +281,7 @@ pub async fn initialize_server(
 
 async fn prepare_event_management(
     server_cfg: &ServerConfig,
+    server_uid: &str,
     truncate_log: Option<u64>,
 ) -> anyhow::Result<(EventStreamer, Pin<Box<dyn Future<Output = ()>>>)> {
     Ok(if let Some(ref log_path) = server_cfg.journal_path {
@@ -289,8 +292,10 @@ async fn prepare_event_management(
             )
         })?;
 
-        let (tx, stream_fut) = start_event_streaming(writer);
-        (EventStreamer::new(Some(tx)), Box::pin(stream_fut))
+        let (tx, stream_fut) = start_event_streaming(writer, log_path);
+        let streamer = EventStreamer::new(Some(tx));
+        streamer.on_server_start(server_uid);
+        (streamer, Box::pin(stream_fut))
     } else {
         (
             EventStreamer::new(None),
@@ -300,21 +305,21 @@ async fn prepare_event_management(
 }
 
 async fn start_server(gsettings: &GlobalSettings, server_cfg: ServerConfig) -> anyhow::Result<()> {
-    let (restorer, truncate) = if let Some(path) = &server_cfg.journal_path {
+    let restorer = if let Some(path) = &server_cfg.journal_path {
         if path.exists() {
             let mut restorer = StateRestorer::default();
-            let truncate = restorer.load_event_file(path)?;
-            if truncate.is_some() {
+            restorer.load_event_file(path)?;
+            if restorer.truncate_size().is_some() {
                 log::warn!(
                     "Journal contains not fully written data; they will removed from the log"
                 );
             }
-            (Some(restorer), truncate)
+            Some(restorer)
         } else {
-            (None, None)
+            None
         }
     } else {
-        (None, None)
+        None
     };
 
     let (fut, _, state_ref, carrier) = initialize_server(
@@ -324,7 +329,7 @@ async fn start_server(gsettings: &GlobalSettings, server_cfg: ServerConfig) -> a
             .as_ref()
             .map(|r| r.worker_id_counter())
             .unwrap_or(WorkerId::new(0)),
-        truncate,
+        restorer.as_ref().and_then(|r| r.truncate_size()),
     )
     .await?;
     let new_tasks = if let Some(restorer) = restorer {

@@ -198,12 +198,6 @@ pub enum FromGatewayMessage {
     NewWorkerQuery(NewWorkerQuery),
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct MonitoringEventRequest {
-    /// Get events after a particular id. All events are returned if `None`.
-    pub after_id: Option<u32>,
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NewTasksResponse {
     pub n_waiting_for_workers: u64,
