@@ -4,7 +4,7 @@ On system without shared file system, all what is needed is to distribute access
 This file contains address and port where server is running and secret keys.
 By default, client and worker search for `access.json` in `$HOME/.hq-server`.
 
-# Generate access file in advance
+## Generate access file in advance
 
 In many cases you, we want to generate an access file in advance before any server is started;
 moreover, we do not want to regenerate secret keys in every start of server,
@@ -34,7 +34,7 @@ $ mv myaccess.json /mydirectory/access.json
 $ hq --server-dir=/mydirectory worker start
 ```
 
-# Splitting access for client and workers
+## Splitting access for client and workers
 
 Access file contains two secret keys and two points to connect, for clients and for workers.
 This information can be divided into two separate files,
@@ -52,8 +52,7 @@ For starting a worker you can use `worker.json` as `access.json` while it does n
 
 For starting server (`hq server start --access-file=...`) you have to use `full.json` as it contains all necessary information.
 
-
-# Setting different server hostname for workers and clients
+## Setting different server hostname for workers and clients
 
 You can use the following command to configure different hostnames under which the server is visible to workers and clients.
 
