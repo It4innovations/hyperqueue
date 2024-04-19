@@ -49,6 +49,14 @@ Once the queue is created, HyperQueue will start asking for allocations in order
 (HyperQueue workers). The exact behavior of the automatic allocation process is described [below](#behavior). You can
 create multiple allocation queues, and you can even combine PBS queues with Slurm queues.
 
+!!! warning
+
+    Note that the HQ server needs to have access to `qsub` or `sbatch` binaries on the node where it is executed. If you
+    want to submit PBS/Slurm allocations on a remote cluster, you will need to use e.g. a proxy to redirect the commands
+    to that cluster. See [this issue](https://github.com/It4innovations/hyperqueue/issues/695) for more information. If you
+    have a use-case for such remote PBS/Slurm allocation submission, please [let us know](https://github.com/It4innovations/hyperqueue/issues),
+    as we could try to make that easier in HyperQueue if there was enough interest in it.
+
 ### Parameters
 In addition to arguments that are passed to `qsub`/`sbatch`, you can also use several other command line options when
 creating a new allocation queue:
