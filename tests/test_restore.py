@@ -1,5 +1,8 @@
 import time
 
+from .autoalloc.mock.mock import MockJobManager
+from .autoalloc.mock.slurm import SlurmManager, adapt_slurm
+from .autoalloc.utils import ManagerQueue, ExtractSubmitScriptPath, add_queue, remove_queue
 from .conftest import HqEnv
 from .utils import wait_for_job_state
 import os
@@ -183,3 +186,42 @@ def test_restore_not_fully_written_log(hq_env: HqEnv, tmp_path):
     hq_env.start_server(args=["--journal", journal_path])
     out = hq_env.command(["--output-mode=json", "job", "list"], as_json=True)
     assert len(out) == 2
+
+
+def test_restore_queues(hq_env: HqEnv, tmp_path):
+    queue = ManagerQueue()
+    handler = ExtractSubmitScriptPath(queue, SlurmManager())
+
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path])
+
+    with MockJobManager(hq_env, adapt_slurm(handler)):
+        add_queue(
+            hq_env,
+            manager="slurm",
+            time_limit="3m",
+            additional_args="--foo=bar a b --baz 42",
+        )
+        add_queue(
+            hq_env,
+            manager="slurm",
+            time_limit="2m",
+        )
+        add_queue(
+            hq_env,
+            manager="slurm",
+            time_limit="1m",
+        )
+        remove_queue(
+            hq_env,
+            2,
+        )
+
+        alloc_list1 = hq_env.command(["--output-mode=json", "alloc", "list"], as_json=True)
+        assert len(alloc_list1) == 2
+
+        hq_env.stop_server()
+        hq_env.start_server(args=["--journal", journal_path])
+
+        alloc_list2 = hq_env.command(["--output-mode=json", "alloc", "list"], as_json=True)
+        assert alloc_list1 == alloc_list2
