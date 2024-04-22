@@ -152,7 +152,8 @@ pub async fn client_rpc_loop<
                     }
                     FromClientMessage::Stats => compose_server_stats(&state_ref, &senders).await,
                     FromClientMessage::AutoAlloc(msg) => {
-                        autoalloc::handle_autoalloc_message(&server_dir, &state_ref, msg).await
+                        autoalloc::handle_autoalloc_message(&server_dir, &state_ref, &senders, msg)
+                            .await
                     }
                     FromClientMessage::WaitForJobs(msg) => {
                         handle_wait_for_jobs_message(&state_ref, msg.selector).await

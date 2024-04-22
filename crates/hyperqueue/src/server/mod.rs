@@ -1,3 +1,4 @@
+use crate::server::autoalloc::AutoAllocService;
 use crate::server::backend::Backend;
 use crate::server::event::streamer::EventStreamer;
 
@@ -15,4 +16,5 @@ pub mod worker;
 pub struct Senders {
     pub backend: Backend,
     pub events: EventStreamer,
+    pub autoalloc: AutoAllocService,
 }

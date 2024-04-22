@@ -35,6 +35,11 @@ struct RestorerJob {
     tasks: Map<JobTaskId, RestorerTaskInfo>,
 }
 
+pub struct Queue {
+    pub queue_id: QueueId,
+    pub params: Box<AllocationQueueParams>,
+}
+
 impl RestorerJob {
     pub fn restore_job(
         mut self,
@@ -94,6 +99,7 @@ pub(crate) struct StateRestorer {
     max_worker_id: <WorkerId as ItemId>::IdType,
     truncate_size: Option<u64>,
     queues: Map<QueueId, Box<AllocationQueueParams>>,
+    max_queue_id: QueueId,
 }
 
 impl StateRestorer {
@@ -103,15 +109,28 @@ impl StateRestorer {
     pub fn worker_id_counter(&self) -> WorkerId {
         (self.max_worker_id + 1).into()
     }
+    pub fn queue_id_counter(&self) -> QueueId {
+        self.max_queue_id + 1
+    }
     pub fn truncate_size(&self) -> Option<u64> {
         self.truncate_size
     }
 
-    pub fn restore_jobs(self, state: &mut State) -> crate::Result<Vec<NewTasksMessage>> {
-        self.jobs
+    pub fn restore_jobs_and_queues(
+        self,
+        state: &mut State,
+    ) -> crate::Result<(Vec<NewTasksMessage>, Vec<Queue>)> {
+        let jobs = self
+            .jobs
             .into_iter()
             .map(|(job_id, job)| job.restore_job(job_id, state))
-            .collect::<crate::Result<Vec<NewTasksMessage>>>()
+            .collect::<crate::Result<Vec<NewTasksMessage>>>()?;
+        let queues = self
+            .queues
+            .into_iter()
+            .map(|(queue_id, params)| Queue { queue_id, params })
+            .collect();
+        Ok((jobs, queues))
     }
 
     pub fn load_event_file(&mut self, path: &Path) -> crate::Result<()> {
@@ -233,7 +252,8 @@ impl StateRestorer {
                     }
                 }
                 EventPayload::AllocationQueueCreated(queue_id, params) => {
-                    self.queues.insert(queue_id, params);
+                    assert!(self.queues.insert(queue_id, params).is_none());
+                    self.max_queue_id = self.max_queue_id.max(queue_id);
                 }
                 EventPayload::AllocationQueueRemoved(queue_id) => {
                     self.queues.remove(&queue_id);

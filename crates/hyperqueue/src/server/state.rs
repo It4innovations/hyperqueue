@@ -42,8 +42,6 @@ pub struct State {
     job_id_counter: <JobId as ItemId>::IdType,
     task_id_counter: <TakoTaskId as ItemId>::IdType,
 
-    pub(crate) autoalloc_service: Option<AutoAllocService>,
-
     server_info: ServerInfo,
 }
 
@@ -119,10 +117,6 @@ impl State {
             .insert(job.base_task_id, job_id)
             .is_none());
         assert!(self.jobs.insert(job_id, job).is_none());
-
-        if let Some(autoalloc) = &self.autoalloc_service {
-            autoalloc.on_job_created(job_id);
-        }
     }
 
     /// Completely forgets this job, in order to reduce memory usage.
@@ -255,53 +249,42 @@ impl State {
         };
     }
 
-    pub fn process_worker_new(&mut self, msg: NewWorkerMessage, events: &EventStreamer) {
+    pub fn process_worker_new(&mut self, msg: NewWorkerMessage, senders: &Senders) {
         log::debug!("New worker id={}", msg.worker_id);
         self.add_worker(Worker::new(msg.worker_id, msg.configuration.clone()));
         // TODO: use observer in event storage instead of sending these messages directly
-        if let Some(autoalloc) = &self.autoalloc_service {
-            autoalloc.on_worker_connected(msg.worker_id, &msg.configuration);
-        }
-
-        events.on_worker_added(msg.worker_id, msg.configuration);
+        senders
+            .autoalloc
+            .on_worker_connected(msg.worker_id, &msg.configuration);
+        senders
+            .events
+            .on_worker_added(msg.worker_id, msg.configuration);
     }
 
     pub fn process_worker_lost(
         &mut self,
         _state_ref: &StateRef,
-        events: &EventStreamer,
+        senders: &Senders,
         msg: LostWorkerMessage,
     ) {
         log::debug!("Worker lost id={}", msg.worker_id);
-        let worker = self.workers.get_mut(&msg.worker_id).unwrap();
-        worker.set_offline_state(msg.reason.clone());
-
-        if let Some(autoalloc) = &self.autoalloc_service {
-            autoalloc.on_worker_lost(
-                msg.worker_id,
-                &worker.configuration,
-                LostWorkerDetails {
-                    reason: msg.reason.clone(),
-                    lifetime: (Utc::now() - worker.started_at()).to_std().unwrap(),
-                },
-            );
-        }
-
         for task_id in msg.running_tasks {
             let job = self.get_job_mut_by_tako_task_id(task_id).unwrap();
             job.set_waiting_state(task_id);
         }
 
-        events.on_worker_lost(msg.worker_id, msg.reason);
-    }
+        let worker = self.workers.get_mut(&msg.worker_id).unwrap();
+        worker.set_offline_state(msg.reason.clone());
 
-    pub fn stop_autoalloc(&mut self) {
-        // Drop the sender
-        self.autoalloc_service = None;
-    }
-
-    pub fn autoalloc(&self) -> &AutoAllocService {
-        self.autoalloc_service.as_ref().unwrap()
+        senders.autoalloc.on_worker_lost(
+            msg.worker_id,
+            &worker.configuration,
+            LostWorkerDetails {
+                reason: msg.reason.clone(),
+                lifetime: (Utc::now() - worker.started_at()).to_std().unwrap(),
+            },
+        );
+        senders.events.on_worker_lost(msg.worker_id, msg.reason);
     }
 
     pub fn restore_state(&mut self, restorer: &StateRestorer) {
@@ -317,7 +300,6 @@ impl StateRef {
             base_task_id_to_job_id: Default::default(),
             job_id_counter: 1,
             task_id_counter: 1,
-            autoalloc_service: None,
             server_info,
         }))
     }

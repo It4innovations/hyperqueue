@@ -218,7 +218,10 @@ pub async fn command_autoalloc(
     Ok(())
 }
 
-fn args_to_params(args: SharedQueueOpts) -> anyhow::Result<AllocationQueueParams> {
+fn args_to_params(
+    manager: ManagerType,
+    args: SharedQueueOpts,
+) -> anyhow::Result<AllocationQueueParams> {
     let SharedQueueOpts {
         backlog,
         time_limit,
@@ -301,6 +304,7 @@ wasted allocation duration."
     ]);
 
     Ok(AllocationQueueParams {
+        manager,
         workers_per_alloc,
         backlog,
         timelimit: time_limit,
@@ -315,12 +319,11 @@ wasted allocation duration."
 }
 
 async fn dry_run_command(mut session: ClientSession, opts: DryRunOpts) -> anyhow::Result<()> {
-    let (manager, parameters) = match opts.subcmd {
-        DryRunCommand::Pbs(params) => (ManagerType::Pbs, args_to_params(params)),
-        DryRunCommand::Slurm(params) => (ManagerType::Slurm, args_to_params(params)),
+    let parameters = match opts.subcmd {
+        DryRunCommand::Pbs(params) => args_to_params(ManagerType::Pbs, params),
+        DryRunCommand::Slurm(params) => args_to_params(ManagerType::Slurm, params),
     };
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::DryRun {
-        manager,
         parameters: parameters?,
     });
 
@@ -340,16 +343,23 @@ async fn add_queue(mut session: ClientSession, opts: AddQueueOpts) -> anyhow::Re
     let (manager, parameters, dry_run) = match opts.subcmd {
         AddQueueCommand::Pbs(params) => {
             let no_dry_run = params.no_dry_run;
-            (ManagerType::Pbs, args_to_params(params), !no_dry_run)
+            (
+                ManagerType::Pbs,
+                args_to_params(ManagerType::Pbs, params),
+                !no_dry_run,
+            )
         }
         AddQueueCommand::Slurm(params) => {
             let no_dry_run = params.no_dry_run;
-            (ManagerType::Slurm, args_to_params(params), !no_dry_run)
+            (
+                ManagerType::Slurm,
+                args_to_params(ManagerType::Slurm, params),
+                !no_dry_run,
+            )
         }
     };
 
     let message = FromClientMessage::AutoAlloc(AutoAllocRequest::AddQueue {
-        manager,
         parameters: parameters?,
         dry_run,
     });

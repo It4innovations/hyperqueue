@@ -11,6 +11,7 @@ use tokio::sync::oneshot;
 use tokio::time::Duration;
 
 use crate::common::error::error;
+use crate::server::autoalloc::AutoAllocService;
 use crate::server::event::streamer::EventStreamer;
 use crate::server::event::Event;
 use crate::server::state::StateRef;
@@ -56,6 +57,7 @@ impl Backend {
     pub async fn start(
         state_ref: StateRef,
         events: EventStreamer,
+        autoalloc: AutoAllocService,
         key: Arc<SecretKey>,
         idle_timeout: Option<Duration>,
         worker_port: Option<u16>,
@@ -99,6 +101,7 @@ impl Backend {
         let senders = Senders {
             backend: backend.clone(),
             events,
+            autoalloc,
         };
 
         let future = async move {
@@ -114,11 +117,11 @@ impl Backend {
                                 .process_task_failed(&state_ref, &senders, msg);
                         }
                         ToGatewayMessage::NewWorker(msg) => {
-                            state_ref.get_mut().process_worker_new(msg, &senders.events);
+                            state_ref.get_mut().process_worker_new(msg, &senders);
                         }
                         ToGatewayMessage::LostWorker(msg) => state_ref
                             .get_mut()
-                            .process_worker_lost(&state_ref, &senders.events, msg),
+                            .process_worker_lost(&state_ref, &senders, msg),
                         ToGatewayMessage::WorkerOverview(overview) => {
                             senders.events.on_overview_received(overview);
                         }
@@ -173,6 +176,7 @@ impl Backend {
 
 #[cfg(test)]
 mod tests {
+    use crate::server::autoalloc::{test_alloc_service, AutoAllocService};
     use tako::gateway::{FromGatewayMessage, ServerInfo, ToGatewayMessage};
     use tokio::net::TcpStream;
 
@@ -183,10 +187,12 @@ mod tests {
     #[tokio::test]
     async fn test_server_connect_worker() {
         let state = create_hq_state();
+        let (alloc, _) = test_alloc_service();
         let s = EventStreamer::new(None);
-        let (server, _fut) = Backend::start(state, s, Default::default(), None, None, 1.into())
-            .await
-            .unwrap();
+        let (server, _fut) =
+            Backend::start(state, s, alloc, Default::default(), None, None, 1.into())
+                .await
+                .unwrap();
         TcpStream::connect(format!("127.0.0.1:{}", server.worker_port()))
             .await
             .unwrap();
@@ -195,10 +201,12 @@ mod tests {
     #[tokio::test]
     async fn test_server_info() {
         let state = create_hq_state();
+        let (alloc, _) = test_alloc_service();
         let s = EventStreamer::new(None);
-        let (server, fut) = Backend::start(state, s, Default::default(), None, None, 1.into())
-            .await
-            .unwrap();
+        let (server, fut) =
+            Backend::start(state, s, alloc, Default::default(), None, None, 1.into())
+                .await
+                .unwrap();
         run_concurrent(fut, async move {
             assert!(
                 matches!(server.send_tako_message(FromGatewayMessage::ServerInfo).await.unwrap(),

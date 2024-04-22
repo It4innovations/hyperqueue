@@ -26,13 +26,13 @@ pub struct AutoAllocState {
 }
 
 impl AutoAllocState {
-    pub fn new() -> Self {
+    pub fn new(queue_id_counter: u32) -> Self {
         Self {
             allocation_to_queue: Default::default(),
             queues: Default::default(),
             inactive_allocation_directories: Default::default(),
             max_kept_directories: MAX_KEPT_DIRECTORIES,
-            queue_id_counter: IdCounter::new(1),
+            queue_id_counter: IdCounter::new(queue_id_counter),
         }
     }
 
@@ -40,8 +40,8 @@ impl AutoAllocState {
         self.queue_id_counter.increment()
     }
 
-    pub fn add_queue(&mut self, queue: AllocationQueue) -> QueueId {
-        let id = self.create_id();
+    pub fn add_queue(&mut self, queue: AllocationQueue, queue_id: Option<QueueId>) -> QueueId {
+        let id = queue_id.unwrap_or_else(|| self.create_id());
         assert!(self.queues.insert(id, queue).is_none());
         id
     }
@@ -126,7 +126,6 @@ impl AllocationQueueState {
 pub struct AllocationQueue {
     state: AllocationQueueState,
     allocations: Map<AllocationId, Allocation>,
-    manager: ManagerType,
     info: QueueInfo,
     name: Option<String>,
     handler: Box<dyn QueueHandler>,
@@ -135,14 +134,12 @@ pub struct AllocationQueue {
 
 impl AllocationQueue {
     pub fn new(
-        manager: ManagerType,
         info: QueueInfo,
         name: Option<String>,
         handler: Box<dyn QueueHandler>,
         rate_limiter: RateLimiter,
     ) -> Self {
         Self {
-            manager,
             state: AllocationQueueState::Running,
             info,
             name,
@@ -165,7 +162,7 @@ impl AllocationQueue {
     }
 
     pub fn manager(&self) -> &ManagerType {
-        &self.manager
+        self.info.manager()
     }
 
     pub fn info(&self) -> &QueueInfo {
@@ -487,25 +484,28 @@ mod tests {
 
     #[test]
     fn remove_allocations_from_map_when_removing_queue() {
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
         let _id = state.create_id();
-        let id = state.add_queue(AllocationQueue::new(
-            ManagerType::Pbs,
-            QueueInfo::new(
-                1,
-                1,
-                Duration::from_secs(1),
-                vec![],
+        let id = state.add_queue(
+            AllocationQueue::new(
+                QueueInfo::new(
+                    ManagerType::Pbs,
+                    1,
+                    1,
+                    Duration::from_secs(1),
+                    vec![],
+                    None,
+                    vec![],
+                    None,
+                    None,
+                    None,
+                ),
                 None,
-                vec![],
-                None,
-                None,
-                None,
+                Box::new(NullHandler),
+                RateLimiter::new(vec![Duration::from_secs(1)], 1, 1, Duration::from_secs(1)),
             ),
             None,
-            Box::new(NullHandler),
-            RateLimiter::new(vec![Duration::from_secs(1)], 1, 1, Duration::from_secs(1)),
-        ));
+        );
         state.add_allocation(Allocation::new("1".to_string(), 1, Default::default()), id);
         state.add_allocation(Allocation::new("2".to_string(), 1, Default::default()), id);
         assert_eq!(state.allocation_to_queue.len(), 2);

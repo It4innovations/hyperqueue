@@ -1,6 +1,7 @@
 use crate::common::serverdir::ServerDir;
 use crate::server::autoalloc::try_submit_allocation;
 use crate::server::state::StateRef;
+use crate::server::Senders;
 use crate::transfer::messages::{
     AutoAllocListResponse, AutoAllocRequest, AutoAllocResponse, ToClientMessage,
 };
@@ -8,40 +9,36 @@ use crate::transfer::messages::{
 pub async fn handle_autoalloc_message(
     server_dir: &ServerDir,
     state_ref: &StateRef,
+    senders: &Senders,
     request: AutoAllocRequest,
 ) -> ToClientMessage {
     match request {
         AutoAllocRequest::List => {
-            let queues = state_ref.get().autoalloc().get_queues();
+            let queues = senders.autoalloc.get_queues();
             ToClientMessage::AutoAllocResponse(AutoAllocResponse::List(AutoAllocListResponse {
                 queues: queues.await,
             }))
         }
-        AutoAllocRequest::DryRun {
-            manager,
-            parameters,
-        } => {
-            if let Err(e) = try_submit_allocation(manager, parameters).await {
+        AutoAllocRequest::DryRun { parameters } => {
+            if let Err(e) = try_submit_allocation(parameters).await {
                 ToClientMessage::Error(e.to_string())
             } else {
                 ToClientMessage::AutoAllocResponse(AutoAllocResponse::DryRunSuccessful)
             }
         }
         AutoAllocRequest::AddQueue {
-            manager,
             parameters,
             dry_run,
         } => {
             if dry_run {
-                if let Err(e) = try_submit_allocation(manager.clone(), parameters.clone()).await {
+                if let Err(e) = try_submit_allocation(parameters.clone()).await {
                     return ToClientMessage::Error(e.to_string());
                 }
             }
 
-            let result = state_ref
-                .get()
-                .autoalloc()
-                .add_queue(server_dir, manager, parameters);
+            let result = senders
+                .autoalloc
+                .add_queue(server_dir.directory(), parameters, None);
             match result.await {
                 Ok(queue_id) => {
                     ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueCreated(queue_id))
@@ -50,7 +47,7 @@ pub async fn handle_autoalloc_message(
             }
         }
         AutoAllocRequest::Info { queue_id } => {
-            let result = state_ref.get().autoalloc().get_allocations(queue_id);
+            let result = senders.autoalloc.get_allocations(queue_id);
             match result.await {
                 Ok(allocations) => {
                     ToClientMessage::AutoAllocResponse(AutoAllocResponse::Info(allocations))
@@ -59,7 +56,7 @@ pub async fn handle_autoalloc_message(
             }
         }
         AutoAllocRequest::RemoveQueue { queue_id, force } => {
-            let result = state_ref.get().autoalloc().remove_queue(queue_id, force);
+            let result = senders.autoalloc.remove_queue(queue_id, force);
             match result.await {
                 Ok(_) => {
                     ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueRemoved(queue_id))
@@ -68,7 +65,7 @@ pub async fn handle_autoalloc_message(
             }
         }
         AutoAllocRequest::PauseQueue { queue_id } => {
-            let result = state_ref.get().autoalloc().pause_queue(queue_id);
+            let result = senders.autoalloc.pause_queue(queue_id);
             match result.await {
                 Ok(_) => {
                     ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueuePaused(queue_id))
@@ -77,7 +74,7 @@ pub async fn handle_autoalloc_message(
             }
         }
         AutoAllocRequest::ResumeQueue { queue_id } => {
-            let result = state_ref.get().autoalloc().resume_queue(queue_id);
+            let result = senders.autoalloc.resume_queue(queue_id);
             match result.await {
                 Ok(_) => {
                     ToClientMessage::AutoAllocResponse(AutoAllocResponse::QueueResumed(queue_id))
