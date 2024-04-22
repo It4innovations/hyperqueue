@@ -249,12 +249,10 @@ pub enum AutoAllocRequest {
         queue_id: QueueId,
     },
     AddQueue {
-        manager: ManagerType,
         parameters: AllocationQueueParams,
         dry_run: bool,
     },
     DryRun {
-        manager: ManagerType,
         parameters: AllocationQueueParams,
     },
     RemoveQueue {
@@ -271,6 +269,7 @@ pub enum AutoAllocRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AllocationQueueParams {
+    pub manager: ManagerType,
     pub workers_per_alloc: u32,
     pub backlog: u32,
     pub timelimit: Duration,

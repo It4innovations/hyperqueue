@@ -225,3 +225,18 @@ def test_restore_queues(hq_env: HqEnv, tmp_path):
 
         alloc_list2 = hq_env.command(["--output-mode=json", "alloc", "list"], as_json=True)
         assert alloc_list1 == alloc_list2
+
+        add_queue(
+            hq_env,
+            manager="slurm",
+            time_limit="1m",
+        )
+        alloc_list3 = hq_env.command(["--output-mode=json", "alloc", "list"], as_json=True)
+        assert len(alloc_list3) == 3
+        assert set(q["id"] for q in alloc_list3) == {1,3,4}
+
+        hq_env.stop_server()
+        hq_env.start_server(args=["--journal", journal_path])
+
+        alloc_list4 = hq_env.command(["--output-mode=json", "alloc", "list"], as_json=True)
+        assert alloc_list3 == alloc_list4

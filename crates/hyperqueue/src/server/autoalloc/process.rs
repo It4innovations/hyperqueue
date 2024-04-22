@@ -48,8 +48,8 @@ pub async fn autoalloc_process(
     let timeout = get_refresh_timeout();
     loop {
         let refresh_reason = match tokio::time::timeout(timeout, receiver.recv()).await {
+            Ok(None) | Ok(Some(AutoAllocMessage::QuitService)) => break,
             Ok(Some(message)) => handle_message(&mut autoalloc, &events, message).await,
-            Ok(None) => break,
             Err(_) => {
                 log::debug!(
                     "No message received in {} ms, refreshing state",
@@ -121,12 +121,12 @@ async fn handle_message(
         }
         AutoAllocMessage::AddQueue {
             server_directory,
-            manager,
             params,
+            queue_id,
             response,
         } => {
-            log::debug!("Creating queue, manager={manager:?}, params={params:?}");
-            let result = create_queue(autoalloc, events, server_directory, manager, params);
+            log::debug!("Creating queue, params={params:?}");
+            let result = create_queue(autoalloc, events, server_directory, params, queue_id);
             let queue_id = result.as_ref().ok().copied();
             response.respond(result);
             queue_id.map(RefreshReason::UpdateQueue)
@@ -173,16 +173,17 @@ async fn handle_message(
             response.respond(result);
             None
         }
+        AutoAllocMessage::QuitService => unreachable!(),
     }
 }
 
-pub async fn try_submit_allocation(
-    manager: ManagerType,
-    params: AllocationQueueParams,
-) -> anyhow::Result<()> {
+pub async fn try_submit_allocation(params: AllocationQueueParams) -> anyhow::Result<()> {
     let tmpdir = TempDir::new("hq")?;
-    let mut handler =
-        create_allocation_handler(&manager, params.name.clone(), tmpdir.as_ref().to_path_buf())?;
+    let mut handler = create_allocation_handler(
+        &params.manager,
+        params.name.clone(),
+        tmpdir.as_ref().to_path_buf(),
+    )?;
     let worker_count = params.workers_per_alloc;
     let queue_info = create_queue_info(params);
 
@@ -225,6 +226,7 @@ pub fn create_allocation_handler(
 
 pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
     let AllocationQueueParams {
+        manager,
         name: _name,
         workers_per_alloc,
         backlog,
@@ -237,6 +239,7 @@ pub fn create_queue_info(params: AllocationQueueParams) -> QueueInfo {
         idle_timeout,
     } = params;
     QueueInfo::new(
+        manager,
         backlog,
         workers_per_alloc,
         timelimit,
@@ -262,20 +265,23 @@ fn create_queue(
     autoalloc: &mut AutoAllocState,
     events: &EventStreamer,
     server_directory: PathBuf,
-    manager: ManagerType,
     params: AllocationQueueParams,
+    queue_id: Option<QueueId>,
 ) -> anyhow::Result<QueueId> {
     let name = params.name.clone();
-    let handler = create_allocation_handler(&manager, name.clone(), server_directory);
+    let handler = create_allocation_handler(&params.manager, name.clone(), server_directory);
     let queue_info = create_queue_info(params.clone());
 
     match handler {
         Ok(handler) => {
-            let queue =
-                AllocationQueue::new(manager, queue_info, name, handler, create_rate_limiter());
+            let queue = AllocationQueue::new(queue_info, name, handler, create_rate_limiter());
             let id = {
-                let id = autoalloc.add_queue(queue);
-                events.on_allocation_queue_created(id, params);
+                let id = autoalloc.add_queue(queue, queue_id);
+                if queue_id.is_none() {
+                    // When queue_id is provided, then we are restoring journal,
+                    // so we do not want to double log the event
+                    events.on_allocation_queue_created(id, params);
+                }
                 id
             };
 
@@ -909,7 +915,7 @@ mod tests {
     #[tokio::test]
     async fn fill_backlog() {
         let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler = always_queued_handler();
         let queue_id = add_queue(
@@ -937,7 +943,7 @@ mod tests {
     #[tokio::test]
     async fn do_nothing_on_full_backlog() {
         let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler = always_queued_handler();
         let queue_id = add_queue(&mut state, handler, QueueBuilder::default().backlog(4));
@@ -959,7 +965,7 @@ mod tests {
     #[tokio::test]
     async fn worker_connects_from_unknown_allocation() {
         let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler = always_queued_handler();
         let queue_id = add_queue(
@@ -979,7 +985,7 @@ mod tests {
     #[tokio::test]
     async fn start_allocation_when_worker_connects() {
         let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler = always_queued_handler();
         let queue_id = add_queue(
@@ -999,7 +1005,7 @@ mod tests {
     #[tokio::test]
     async fn add_another_worker_to_allocation() {
         let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler = always_queued_handler();
         let queue_id = add_queue(
@@ -1024,7 +1030,7 @@ mod tests {
     #[tokio::test]
     async fn finish_allocation_when_worker_disconnects() {
         let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler = always_queued_handler();
         let queue_id = add_queue(
@@ -1055,7 +1061,7 @@ mod tests {
     #[tokio::test]
     async fn finish_allocation_when_last_worker_disconnects() {
         let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler = always_queued_handler();
         let queue_id = add_queue(
@@ -1105,7 +1111,7 @@ mod tests {
     #[tokio::test]
     async fn do_not_create_allocations_without_tasks() {
         let hq_state = new_hq_state(0);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler = always_queued_handler();
         let queue_id = add_queue(&mut state, handler, QueueBuilder::default().backlog(3));
@@ -1118,7 +1124,7 @@ mod tests {
     #[tokio::test]
     async fn do_not_fill_backlog_when_tasks_run_out() {
         let hq_state = new_hq_state(5);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler = always_queued_handler();
         let queue_id = add_queue(
@@ -1136,7 +1142,7 @@ mod tests {
     #[tokio::test]
     async fn stop_allocating_on_error() {
         let hq_state = new_hq_state(5);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler_state = WrappedRcRefCell::wrap(HandlerState::default());
         let handler = stateful_handler(handler_state.clone());
@@ -1162,7 +1168,7 @@ mod tests {
         hq_state
             .get_mut()
             .add_job(create_job(0, 1, Duration::from_secs(60 * 60)));
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler = always_queued_handler();
         let queue_id = add_queue(
@@ -1181,7 +1187,7 @@ mod tests {
     #[tokio::test]
     async fn respect_max_worker_count() {
         let hq_state = new_hq_state(100);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler_state = WrappedRcRefCell::wrap(HandlerState::default());
         let handler = stateful_handler(handler_state.clone());
@@ -1223,7 +1229,7 @@ mod tests {
     #[tokio::test]
     async fn max_worker_count_shorten_last_allocation() {
         let hq_state = new_hq_state(100);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler = always_queued_handler();
 
@@ -1247,7 +1253,7 @@ mod tests {
     #[tokio::test]
     async fn delete_stale_directories_of_unsubmitted_allocations() {
         let hq_state = new_hq_state(100);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let make_dir = || {
             let tempdir = TempDir::new("hq").unwrap();
@@ -1277,7 +1283,7 @@ mod tests {
     #[tokio::test]
     async fn pause_queue_when_submission_fails_too_many_times() {
         let hq_state = new_hq_state(100);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let shared = WrappedRcRefCell::wrap(HandlerState::default());
         let handler = stateful_handler(shared.clone());
@@ -1302,7 +1308,7 @@ mod tests {
     #[tokio::test]
     async fn pause_queue_when_allocation_fails_too_many_times() {
         let hq_state = new_hq_state(100);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let shared = WrappedRcRefCell::wrap(HandlerState::default());
         let handler = stateful_handler(shared.clone());
@@ -1342,7 +1348,7 @@ mod tests {
     #[tokio::test]
     async fn respect_rate_limiter() {
         let hq_state = new_hq_state(100);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let shared = WrappedRcRefCell::wrap(HandlerState::default());
         let handler = stateful_handler(shared.clone());
@@ -1412,7 +1418,7 @@ mod tests {
     #[tokio::test]
     async fn bump_fail_counter_if_worker_fails_quick() {
         let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler = always_queued_handler();
         let queue_id = add_queue(
@@ -1447,7 +1453,7 @@ mod tests {
     #[tokio::test]
     async fn do_not_bump_fail_counter_if_worker_fails_normally() {
         let hq_state = new_hq_state(1000);
-        let mut state = AutoAllocState::new();
+        let mut state = AutoAllocState::new(1);
 
         let handler = always_queued_handler();
         let queue_id = add_queue(
@@ -1657,6 +1663,8 @@ mod tests {
     #[derive(Builder)]
     #[builder(pattern = "owned", build_fn(name = "finish"))]
     struct Queue {
+        #[builder(default = "ManagerType::Slurm")]
+        manager: ManagerType,
         #[builder(default = "1")]
         backlog: u32,
         #[builder(default = "1")]
@@ -1676,6 +1684,7 @@ mod tests {
     impl QueueBuilder {
         fn build(self) -> (QueueInfo, RateLimiter) {
             let Queue {
+                manager,
                 backlog,
                 workers_per_alloc,
                 timelimit,
@@ -1686,6 +1695,7 @@ mod tests {
             } = self.finish().unwrap();
             (
                 QueueInfo::new(
+                    manager,
                     backlog,
                     workers_per_alloc,
                     timelimit,
@@ -1712,8 +1722,8 @@ mod tests {
         queue_builder: QueueBuilder,
     ) -> QueueId {
         let (queue_info, limiter) = queue_builder.build();
-        let queue = AllocationQueue::new(ManagerType::Pbs, queue_info, None, handler, limiter);
-        autoalloc.add_queue(queue)
+        let queue = AllocationQueue::new(queue_info, None, handler, limiter);
+        autoalloc.add_queue(queue, None)
     }
 
     fn new_hq_state(waiting_tasks: u32) -> StateRef {

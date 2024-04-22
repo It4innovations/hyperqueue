@@ -84,6 +84,7 @@ pub(crate) async fn handle_submit(
         }
         Ok(new_tasks) => new_tasks,
     };
+    senders.autoalloc.on_job_created(job_id);
 
     let (job_detail, log) = {
         let state = state_ref.get();

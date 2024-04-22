@@ -1,5 +1,5 @@
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tako::Map;
 
@@ -8,7 +8,7 @@ use tako::worker::WorkerConfiguration;
 use tako::WorkerId;
 
 use crate::common::manager::info::{GetManagerInfo, ManagerInfo, ManagerType};
-use crate::common::rpc::{initiate_request, make_rpc_queue, ResponseToken, RpcSender};
+use crate::common::rpc::{initiate_request, make_rpc_queue, ResponseToken, RpcReceiver, RpcSender};
 use crate::common::serverdir::ServerDir;
 use crate::server::autoalloc::process::autoalloc_process;
 use crate::server::autoalloc::state::AutoAllocState;
@@ -28,8 +28,8 @@ pub enum AutoAllocMessage {
     GetQueues(ResponseToken<Map<QueueId, QueueData>>),
     AddQueue {
         server_directory: PathBuf,
-        manager: ManagerType,
         params: AllocationQueueParams,
+        queue_id: Option<QueueId>,
         response: ResponseToken<anyhow::Result<QueueId>>,
     },
     RemoveQueue {
@@ -46,6 +46,7 @@ pub enum AutoAllocMessage {
         response: ResponseToken<anyhow::Result<()>>,
     },
     GetAllocations(QueueId, ResponseToken<anyhow::Result<Vec<Allocation>>>),
+    QuitService,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -54,11 +55,16 @@ pub struct LostWorkerDetails {
     pub lifetime: Duration,
 }
 
+#[derive(Clone)]
 pub struct AutoAllocService {
     sender: RpcSender<AutoAllocMessage>,
 }
 
 impl AutoAllocService {
+    pub fn quit_service(&self) {
+        self.send(AutoAllocMessage::QuitService);
+    }
+
     pub fn on_worker_connected(&self, worker_id: WorkerId, configuration: &WorkerConfiguration) {
         if let Some(manager_info) = configuration.get_manager_info() {
             self.send(AutoAllocMessage::WorkerConnected(worker_id, manager_info));
@@ -86,15 +92,15 @@ impl AutoAllocService {
 
     pub fn add_queue(
         &self,
-        server_dir: &ServerDir,
-        manager: ManagerType,
+        server_dir: &Path,
         params: AllocationQueueParams,
+        queue_id: Option<QueueId>,
     ) -> impl Future<Output = anyhow::Result<QueueId>> {
         let fut = initiate_request(|token| {
             self.sender.send(AutoAllocMessage::AddQueue {
-                server_directory: server_dir.directory().to_path_buf(),
-                manager,
+                server_directory: server_dir.to_path_buf(),
                 params,
+                queue_id,
                 response: token,
             })
         });
@@ -151,11 +157,19 @@ impl AutoAllocService {
 
 pub fn create_autoalloc_service(
     state_ref: StateRef,
+    queue_id_initial_value: u32,
     events: EventStreamer,
 ) -> (AutoAllocService, impl Future<Output = ()>) {
     let (tx, rx) = make_rpc_queue();
-    let autoalloc = AutoAllocState::new();
+    let autoalloc = AutoAllocState::new(queue_id_initial_value);
     let process = autoalloc_process(state_ref, events, autoalloc, rx);
     let service = AutoAllocService { sender: tx };
     (service, process)
+}
+
+#[cfg(test)]
+pub fn test_alloc_service() -> (AutoAllocService, RpcReceiver<AutoAllocMessage>) {
+    let (tx, rx) = make_rpc_queue();
+    let service = AutoAllocService { sender: tx };
+    (service, rx)
 }

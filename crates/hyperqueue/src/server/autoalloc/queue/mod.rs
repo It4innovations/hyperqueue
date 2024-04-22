@@ -2,6 +2,7 @@ mod common;
 pub mod pbs;
 pub mod slurm;
 
+use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::state::AllocationId;
 use crate::server::autoalloc::{Allocation, AutoAllocResult, QueueId};
 use serde::{Deserialize, Serialize};
@@ -13,6 +14,7 @@ use tako::Map;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueueInfo {
+    manager: ManagerType,
     backlog: u32,
     workers_per_alloc: u32,
     timelimit: Duration,
@@ -27,6 +29,7 @@ pub struct QueueInfo {
 impl QueueInfo {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        manager: ManagerType,
         backlog: u32,
         workers_per_alloc: u32,
         timelimit: Duration,
@@ -38,6 +41,7 @@ impl QueueInfo {
         worker_stop_cmd: Option<String>,
     ) -> Self {
         Self {
+            manager,
             backlog,
             workers_per_alloc,
             timelimit,
@@ -48,6 +52,10 @@ impl QueueInfo {
             worker_start_cmd,
             worker_stop_cmd,
         }
+    }
+
+    pub fn manager(&self) -> &ManagerType {
+        &self.manager
     }
 
     pub fn backlog(&self) -> u32 {

@@ -15,7 +15,7 @@ use crate::common::serverdir::{
     default_server_directory, ClientAccessRecord, ConnectAccessRecordPart, FullAccessRecord,
     ServerDir, SYMLINK_PATH,
 };
-use crate::server::autoalloc::create_autoalloc_service;
+use crate::server::autoalloc::{create_autoalloc_service, QueueId};
 use crate::server::backend::Backend;
 use crate::server::event::log::start_event_streaming;
 use crate::server::event::log::EventLogWriter;
@@ -137,6 +137,7 @@ pub async fn initialize_server(
     gsettings: &GlobalSettings,
     mut server_cfg: ServerConfig,
     worker_id_initial_value: WorkerId,
+    queue_id_initial_value: QueueId,
     truncate_log: Option<u64>,
 ) -> anyhow::Result<(
     impl Future<Output = anyhow::Result<()>>,
@@ -181,20 +182,19 @@ pub async fn initialize_server(
     let (events, event_stream_fut) =
         prepare_event_management(&server_cfg, &server_uid, truncate_log).await?;
 
+    let (autoalloc_service, autoalloc_process) =
+        create_autoalloc_service(state_ref.clone(), queue_id_initial_value, events.clone());
+
     let (backend, comm_fut) = Backend::start(
         state_ref.clone(),
         events.clone(),
+        autoalloc_service.clone(),
         worker_key.clone(),
         server_cfg.idle_timeout,
         server_cfg.worker_port,
         worker_id_initial_value,
     )
     .await?;
-
-    let (autoalloc_service, autoalloc_process) =
-        create_autoalloc_service(state_ref.clone(), events.clone());
-    // TODO: remove this hack
-    state_ref.get_mut().autoalloc_service = Some(autoalloc_service);
 
     let worker_port = backend.worker_port();
 
@@ -239,10 +239,13 @@ pub async fn initialize_server(
     let key = client_key;
     let state_ref2 = state_ref.clone();
 
-    let senders = Senders { backend, events };
+    let senders = Senders {
+        backend,
+        events,
+        autoalloc: autoalloc_service.clone(),
+    };
 
     let senders2 = senders.clone();
-
     let fut = async move {
         tokio::pin! {
             let autoalloc_process = autoalloc_process;
@@ -266,7 +269,7 @@ pub async fn initialize_server(
         };
 
         log::debug!("Shutting down auto allocation");
-        state_ref.get_mut().stop_autoalloc();
+        autoalloc_service.quit_service();
         autoalloc_process.await;
 
         log::debug!("Shutting down event streaming");
@@ -322,35 +325,34 @@ async fn start_server(gsettings: &GlobalSettings, server_cfg: ServerConfig) -> a
         None
     };
 
-    let (fut, _, state_ref, carrier) = initialize_server(
+    let (fut, _, state_ref, senders) = initialize_server(
         gsettings,
         server_cfg,
         restorer
             .as_ref()
             .map(|r| r.worker_id_counter())
             .unwrap_or(WorkerId::new(0)),
+        restorer.as_ref().map(|r| r.queue_id_counter()).unwrap_or(1),
         restorer.as_ref().and_then(|r| r.truncate_size()),
     )
     .await?;
-    let (new_tasks, new_queues) = if let Some(restorer) = restorer {
+    let new_tasks_and_queues = if let Some(restorer) = restorer {
         // This is early state recovery, we restore jobs later as we start futures because restoring
         // jobs already needs a running Tako
         let mut state = state_ref.get_mut();
         state.restore_state(&restorer);
-        (
-            Some(restorer.restore_jobs(&mut state)?),
-            Some(restorer.restore_queues()),
-        )
+        Some(restorer.restore_jobs_and_queues(&mut state)?)
     } else {
-        (None, None)
+        None
     };
     let local_set = LocalSet::new();
 
-    if let Some(new_tasks) = new_tasks {
+    if let Some((new_tasks, new_queues)) = new_tasks_and_queues {
+        let server_dir = gsettings.server_directory().to_path_buf();
         local_set.spawn_local(async move {
             log::debug!("Restoring old tasks into Tako");
             for msg in new_tasks {
-                match carrier
+                match senders
                     .backend
                     .send_tako_message(FromGatewayMessage::NewTasks(msg))
                     .await
@@ -361,6 +363,14 @@ async fn start_server(gsettings: &GlobalSettings, server_cfg: ServerConfig) -> a
                 };
             }
             log::debug!("Restoration of old tasks is completed");
+            for queue in new_queues {
+                senders
+                    .autoalloc
+                    .add_queue(&server_dir, *queue.params, Some(queue.queue_id))
+                    .await
+                    .unwrap();
+            }
+            log::debug!("Restoration of old queues is completed");
         });
     };
     local_set.run_until(fut).await?;
@@ -414,7 +424,7 @@ mod tests {
             client_secret_key: None,
             server_uid: None,
         };
-        let (fut, notify, _, _) = initialize_server(&gsettings, server_cfg, 1.into(), None)
+        let (fut, notify, _, _) = initialize_server(&gsettings, server_cfg, 1.into(), 1, None)
             .await
             .unwrap();
         (fut, notify)
