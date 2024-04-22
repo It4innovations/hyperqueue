@@ -332,14 +332,17 @@ async fn start_server(gsettings: &GlobalSettings, server_cfg: ServerConfig) -> a
         restorer.as_ref().and_then(|r| r.truncate_size()),
     )
     .await?;
-    let new_tasks = if let Some(restorer) = restorer {
+    let (new_tasks, new_queues) = if let Some(restorer) = restorer {
         // This is early state recovery, we restore jobs later as we start futures because restoring
         // jobs already needs a running Tako
         let mut state = state_ref.get_mut();
         state.restore_state(&restorer);
-        Some(restorer.restore_jobs(&mut state)?)
+        (
+            Some(restorer.restore_jobs(&mut state)?),
+            Some(restorer.restore_queues()),
+        )
     } else {
-        None
+        (None, None)
     };
     let local_set = LocalSet::new();
 

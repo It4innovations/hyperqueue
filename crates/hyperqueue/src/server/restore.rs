@@ -1,10 +1,11 @@
+use crate::server::autoalloc::QueueId;
 use crate::server::client::submit_job_desc;
 use crate::server::event::bincode_config;
 use crate::server::event::log::EventLogReader;
 use crate::server::event::payload::EventPayload;
 use crate::server::job::{Job, JobTaskState, StartedTaskData};
 use crate::server::state::{State, StateRef};
-use crate::transfer::messages::JobDescription;
+use crate::transfer::messages::{AllocationQueueParams, JobDescription};
 use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskId, Map};
 use bincode::Options;
@@ -92,6 +93,7 @@ pub(crate) struct StateRestorer {
     max_job_id: <JobId as ItemId>::IdType,
     max_worker_id: <WorkerId as ItemId>::IdType,
     truncate_size: Option<u64>,
+    queues: Map<QueueId, Box<AllocationQueueParams>>,
 }
 
 impl StateRestorer {
@@ -230,8 +232,12 @@ impl StateRestorer {
                         }
                     }
                 }
-                EventPayload::AllocationQueueCreated(_, _) => {}
-                EventPayload::AllocationQueueRemoved(_) => {}
+                EventPayload::AllocationQueueCreated(queue_id, params) => {
+                    self.queues.insert(queue_id, params);
+                }
+                EventPayload::AllocationQueueRemoved(queue_id) => {
+                    self.queues.remove(&queue_id);
+                }
                 EventPayload::AllocationQueued { .. } => {}
                 EventPayload::AllocationStarted(_, _) => {}
                 EventPayload::AllocationFinished(_, _) => {}
