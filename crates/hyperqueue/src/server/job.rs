@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 use crate::client::status::get_task_status;
-use crate::server::state::State;
 use crate::server::Senders;
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
@@ -12,7 +11,6 @@ use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use smallvec::SmallVec;
-use std::path::PathBuf;
 use std::rc::Rc;
 use tako::comm::deserialize;
 use tako::task::SerializedTaskContext;

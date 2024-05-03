@@ -13,7 +13,11 @@ pub struct EventLogWriter {
 
 impl EventLogWriter {
     pub fn create_or_append(path: &Path, truncate: Option<u64>) -> anyhow::Result<Self> {
-        let mut raw_file = OpenOptions::new().write(true).create(true).open(path)?;
+        let mut raw_file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(path)?;
 
         let position = if let Some(size) = truncate {
             raw_file.set_len(size)?;
@@ -25,12 +29,10 @@ impl EventLogWriter {
         raw_file.seek(SeekFrom::Start(position))?;
         let mut file = BufWriter::new(raw_file);
 
-        if position == 0 {
-            if file.stream_position()? == 0 {
-                file.write_all(HQ_JOURNAL_HEADER)?;
-                bincode_config().serialize_into(&mut file, HQ_VERSION)?;
-                file.flush()?;
-            }
+        if position == 0 && file.stream_position()? == 0 {
+            file.write_all(HQ_JOURNAL_HEADER)?;
+            bincode_config().serialize_into(&mut file, HQ_VERSION)?;
+            file.flush()?;
         };
 
         Ok(Self { file })

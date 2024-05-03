@@ -28,7 +28,6 @@ use crate::server::autoalloc::state::{
 use crate::server::autoalloc::{Allocation, AllocationId, AutoAllocResult, QueueId, QueueInfo};
 use crate::server::event::streamer::EventStreamer;
 use crate::server::state::StateRef;
-use crate::server::Senders;
 use crate::transfer::messages::{AllocationQueueParams, QueueData, QueueState};
 use crate::{get_or_return, JobId};
 
@@ -79,7 +78,7 @@ async fn handle_message(
                 "Registering worker {id} for allocation {}",
                 manager_info.allocation_id
             );
-            on_worker_connected(&events, autoalloc, id, &manager_info);
+            on_worker_connected(events, autoalloc, id, &manager_info);
             autoalloc
                 .get_queue_id_by_allocation(&manager_info.allocation_id)
                 .map(RefreshReason::UpdateQueue)
@@ -89,7 +88,7 @@ async fn handle_message(
                 "Removing worker {id} from allocation {}",
                 manager_info.allocation_id
             );
-            on_worker_lost(&events, autoalloc, id, &manager_info, details);
+            on_worker_lost(events, autoalloc, id, &manager_info, details);
             autoalloc
                 .get_queue_id_by_allocation(&manager_info.allocation_id)
                 .map(RefreshReason::UpdateQueue)
@@ -1871,7 +1870,7 @@ mod tests {
         ));
     }
 
-    fn fail_allocation(hq_state: &StateRef, autoalloc: &mut AutoAllocState, allocation_id: &str) {
+    fn fail_allocation(_hq_state: &StateRef, autoalloc: &mut AutoAllocState, allocation_id: &str) {
         let minfo = create_worker(allocation_id);
         let worker_id: WorkerId = 0.into();
         let s = EventStreamer::new(None);

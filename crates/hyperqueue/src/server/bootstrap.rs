@@ -20,7 +20,6 @@ use crate::server::backend::Backend;
 use crate::server::event::log::start_event_streaming;
 use crate::server::event::log::EventLogWriter;
 use crate::server::event::streamer::EventStreamer;
-use crate::server::event::Event;
 use crate::server::restore::StateRestorer;
 use crate::server::state::StateRef;
 use crate::server::Senders;

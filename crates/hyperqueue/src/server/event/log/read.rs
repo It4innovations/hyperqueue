@@ -75,14 +75,12 @@ impl Iterator for &mut EventLogReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::server::event::log::{EventLogReader, EventLogWriter, HQ_JOURNAL_HEADER};
+    use crate::server::event::log::{EventLogReader, EventLogWriter};
     use crate::server::event::payload::EventPayload;
     use crate::server::event::Event;
     use chrono::Utc;
-    use chumsky::chain::Chain;
     use std::fs::{File, OpenOptions};
     use std::io::Write;
-    use std::time::SystemTime;
     use tako::gateway::LostWorkerReason;
     use tempdir::TempDir;
 
@@ -142,7 +140,7 @@ mod tests {
 
         let size;
         {
-            let mut f = OpenOptions::new().write(true).open(&path).unwrap();
+            let f = OpenOptions::new().write(true).open(&path).unwrap();
             size = f.metadata().unwrap().len();
             assert!(size > 500);
             f.set_len(size - 1).unwrap(); // Truncate file
@@ -163,7 +161,7 @@ mod tests {
         }
 
         {
-            let mut f = OpenOptions::new().write(true).open(&path).unwrap();
+            let f = OpenOptions::new().write(true).open(&path).unwrap();
             f.set_len(truncate).unwrap(); // Truncate file
         }
 
@@ -201,7 +199,7 @@ mod tests {
         }
 
         let mut reader = EventLogReader::open(&path).unwrap();
-        for id in 0..100000 {
+        for _id in 0..100000 {
             let event = (&mut reader).next().unwrap().unwrap();
             assert!(matches!(
                 event.payload,

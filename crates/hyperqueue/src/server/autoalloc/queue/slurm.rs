@@ -153,7 +153,7 @@ fn parse_slurm_status(items: Map<&str, &str>) -> AutoAllocResult<AllocationExter
         let value = items.get(key);
         value
             .ok_or_else(|| anyhow::anyhow!("Missing key {} in Slurm scontrol output", key))
-            .map(|v| *v)
+            .copied()
     };
     let parse_time = |time: &str| -> AutoAllocResult<SystemTime> {
         Ok(local_to_system_time(parse_slurm_datetime(time).map_err(

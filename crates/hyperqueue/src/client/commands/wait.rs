@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
 use std::io::Write;
-use std::rc::Rc;
 use std::time::{Duration, SystemTime};
 use tokio::time::sleep;
 
@@ -76,7 +75,7 @@ pub async fn wait_for_jobs_with_progress(
     session: &mut ClientSession,
     jobs: &[JobInfo],
 ) -> anyhow::Result<()> {
-    if jobs.iter().all(|info| is_terminated(info)) {
+    if jobs.iter().all(is_terminated) {
         log::warn!("There are no jobs to wait for");
     } else {
         let total_tasks: JobTaskCount = jobs

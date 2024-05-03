@@ -56,7 +56,7 @@ impl Authenticator {
         let mode = if self.secret_key.is_some() {
             let mut challenge = vec![0; CHALLENGE_LENGTH];
             secure_rand_bytes(&mut challenge).map_err(|_| "Generaing challenge failed")?;
-            self.challenge = challenge.clone();
+            self.challenge.clone_from(&challenge);
             AuthenticationMode::Encryption(Challenge { challenge })
         } else {
             AuthenticationMode::NoAuth

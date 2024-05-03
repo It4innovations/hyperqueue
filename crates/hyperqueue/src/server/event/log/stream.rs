@@ -1,11 +1,8 @@
-use crate::common::error::HqError;
 use crate::common::utils::str::pluralize;
 use crate::server::event::log::write::EventLogWriter;
 use crate::server::event::log::EventLogReader;
 use crate::server::event::payload::EventPayload;
 use crate::server::event::Event;
-use crate::transfer::messages::ToClientMessage;
-use futures::Sink;
 use std::future::Future;
 use std::path::Path;
 use std::time::Duration;

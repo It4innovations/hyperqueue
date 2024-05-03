@@ -8,12 +8,10 @@ use crate::internal::server::reactor::on_steal_response;
 use crate::internal::server::task::Task;
 use crate::internal::tests::utils::env::{create_test_comm, TestEnv};
 use crate::internal::tests::utils::schedule::{
-    create_test_scheduler, create_test_workers, finish_on_worker, start_and_finish_on_worker,
-    submit_test_tasks,
+    create_test_scheduler, create_test_workers, finish_on_worker, submit_test_tasks,
 };
 use crate::internal::tests::utils::task::task;
 use crate::internal::tests::utils::task::TaskBuilder;
-use crate::internal::tests::utils::workflows::submit_example_1;
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceUnits};
 use crate::{TaskId, WorkerId};
 use std::time::Duration;

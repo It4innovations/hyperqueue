@@ -2,12 +2,10 @@ mod output;
 
 use crate::client::commands::event::output::format_event;
 use crate::client::globalsettings::GlobalSettings;
-use crate::common::error::HqError;
 use crate::common::utils::str::pluralize;
-use crate::rpc_call;
 use crate::server::bootstrap::get_client_session;
 use crate::server::event::log::EventLogReader;
-use crate::transfer::messages::{FromClientMessage, IdSelector, JobInfoRequest, ToClientMessage};
+use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use anyhow::anyhow;
 use clap::{Parser, ValueHint};
 use std::io::{BufWriter, Write};

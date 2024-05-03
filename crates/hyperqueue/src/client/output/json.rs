@@ -124,7 +124,7 @@ impl Output for JsonOutput {
                     }
                     JobTaskDescription::Graph { tasks } => {
                         let tasks: Vec<Value> = tasks
-                            .into_iter()
+                            .iter()
                             .map(|task| {
                                 let mut json = json!({});
                                 format_task_description(&task.task_desc, &mut json);
@@ -268,11 +268,11 @@ fn format_task_description(task_desc: &TaskDescription, json: &mut Value) {
                 stdin: _,
             } = program;
             json["program"] = json!({
-                "args": args.into_iter().map(|args| args.to_string()).collect::<Vec<_>>(),
+                "args": args.iter().map(|args| args.to_string()).collect::<Vec<_>>(),
                 "env": env.into_iter().map(|(key, value)| (key.to_string(), value.to_string())).collect::<Map<String, String>>(),
                 "cwd": cwd,
-                "stderr": format_stdio_def(&stderr),
-                "stdout": format_stdio_def(&stdout),
+                "stderr": format_stdio_def(stderr),
+                "stdout": format_stdio_def(stdout),
             });
             json["resources"] = resources
                 .variants

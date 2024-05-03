@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use orion::kdf::SecretKey;
 use tako::gateway::{FromGatewayMessage, ToGatewayMessage};
-use tako::{define_wrapped_type, WorkerId};
+use tako::WorkerId;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio::time::Duration;
@@ -13,7 +13,6 @@ use tokio::time::Duration;
 use crate::common::error::error;
 use crate::server::autoalloc::AutoAllocService;
 use crate::server::event::streamer::EventStreamer;
-use crate::server::event::Event;
 use crate::server::state::StateRef;
 use crate::server::Senders;
 use crate::stream::server::control::StreamServerControlMessage;

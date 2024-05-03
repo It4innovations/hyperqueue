@@ -12,7 +12,7 @@ use tako::internal::server::comm::Comm;
 use tako::internal::server::core::Core;
 use tako::task::SerializedTaskContext;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::{TaskId, WorkerId};
+use tako::{InstanceId, TaskId, WorkerId};
 
 fn bench_b_level(c: &mut BenchmarkGroup<WallTime>) {
     for task_count in [10, 1_000, 100_000] {
@@ -91,6 +91,7 @@ impl Comm for NullComm {
     fn send_client_task_started(
         &mut self,
         _task_id: TaskId,
+        _instance_id: InstanceId,
         _worker_id: &[WorkerId],
         _context: SerializedTaskContext,
     ) {

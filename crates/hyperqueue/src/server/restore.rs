@@ -3,16 +3,14 @@ use crate::server::client::submit_job_desc;
 use crate::server::event::bincode_config;
 use crate::server::event::log::EventLogReader;
 use crate::server::event::payload::EventPayload;
-use crate::server::job::{Job, JobTaskState, StartedTaskData};
-use crate::server::state::{State, StateRef};
+use crate::server::job::{JobTaskState, StartedTaskData};
+use crate::server::state::State;
 use crate::transfer::messages::{AllocationQueueParams, JobDescription};
 use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskId, Map};
 use bincode::Options;
-use chrono::Utc;
 use std::path::Path;
-use std::rc::Rc;
-use tako::gateway::{FromGatewayMessage, NewTasksMessage, ToGatewayMessage};
+use tako::gateway::NewTasksMessage;
 use tako::{ItemId, WorkerId};
 
 struct RestorerTaskInfo {
@@ -50,16 +48,12 @@ impl RestorerJob {
         let mut new_tasks = submit_job_desc(state, job_id, self.job_desc)?;
         let job = state.get_job_mut(job_id).unwrap();
 
-        new_tasks.tasks = new_tasks
-            .tasks
-            .into_iter()
-            .filter(|t| {
-                self.tasks
-                    .get(&job.get_task_state_mut(t.id).0)
-                    .map(|tt| !tt.is_completed())
-                    .unwrap_or(true)
-            })
-            .collect();
+        new_tasks.tasks.retain(|t| {
+            self.tasks
+                .get(&job.get_task_state_mut(t.id).0)
+                .map(|tt| !tt.is_completed())
+                .unwrap_or(true)
+        });
 
         for (tako_id, job_task) in job.tasks.iter_mut() {
             if let Some(task) = self.tasks.get_mut(&job_task.task_id) {
@@ -136,10 +130,8 @@ impl StateRestorer {
     pub fn load_event_file(&mut self, path: &Path) -> crate::Result<()> {
         log::debug!("Loading event file {}", path.display());
         let mut event_reader = EventLogReader::open(path)?;
-        let mut event_counter: u64 = 0;
         for event in &mut event_reader {
             let event = event?;
-            event_counter += 1;
             match event.payload {
                 EventPayload::WorkerConnected(worker_id, _) => {
                     log::debug!("Replaying: WorkerConnected {worker_id}");

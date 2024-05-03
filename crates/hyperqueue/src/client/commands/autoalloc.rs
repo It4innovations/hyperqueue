@@ -340,22 +340,14 @@ wasting resources."
 }
 
 async fn add_queue(mut session: ClientSession, opts: AddQueueOpts) -> anyhow::Result<()> {
-    let (manager, parameters, dry_run) = match opts.subcmd {
+    let (parameters, dry_run) = match opts.subcmd {
         AddQueueCommand::Pbs(params) => {
             let no_dry_run = params.no_dry_run;
-            (
-                ManagerType::Pbs,
-                args_to_params(ManagerType::Pbs, params),
-                !no_dry_run,
-            )
+            (args_to_params(ManagerType::Pbs, params), !no_dry_run)
         }
         AddQueueCommand::Slurm(params) => {
             let no_dry_run = params.no_dry_run;
-            (
-                ManagerType::Slurm,
-                args_to_params(ManagerType::Slurm, params),
-                !no_dry_run,
-            )
+            (args_to_params(ManagerType::Slurm, params), !no_dry_run)
         }
     };
 

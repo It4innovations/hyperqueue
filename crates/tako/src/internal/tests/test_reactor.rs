@@ -3,7 +3,6 @@ use std::time::Duration;
 use crate::gateway::LostWorkerReason;
 use crate::internal::common::index::AsIdVec;
 use crate::internal::common::resources::ResourceDescriptor;
-use crate::internal::common::Set;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
     ComputeTaskMsg, NewWorkerMsg, TaskFinishedMsg, TaskIdsMsg, ToWorkerMessage,
