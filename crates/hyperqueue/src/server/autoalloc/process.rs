@@ -871,6 +871,7 @@ mod tests {
     use std::future::Future;
     use std::pin::Pin;
     use std::rc::Rc;
+    use std::sync::Arc;
     use std::time::{Duration, Instant};
 
     use anyhow::anyhow;
@@ -1765,7 +1766,7 @@ mod tests {
         });
 
         Job::new(
-            Rc::new(JobDescription {
+            Arc::new(JobDescription {
                 task_desc: JobTaskDescription::Array {
                     ids: IntArray::from_range(0, tasks),
                     entries: None,

@@ -112,7 +112,7 @@ fn test_schedule_mn_simple() {
     assert!(core.get_task(1.into()).is_waiting());
     comm.emptiness_check();
 
-    finish_on_worker(&mut core, 3, ws3[0], 0);
+    finish_on_worker(&mut core, 3, ws3[0]);
     core.sanity_check();
 
     assert!(core.find_task(3.into()).is_none());
@@ -127,7 +127,7 @@ fn test_schedule_mn_simple() {
     let ws2 = test_mn_task(task2, &mut comm, false);
     comm.emptiness_check();
 
-    finish_on_worker(&mut core, 3, ws2[0], 0);
+    finish_on_worker(&mut core, 3, ws2[0]);
     core.sanity_check();
 }
 
@@ -161,7 +161,7 @@ fn test_schedule_mn_reserve() {
         ToWorkerMessage::SetReservation(true)
     ));
     comm.emptiness_check();
-    finish_on_worker(&mut core, 1, ws1[0], 0);
+    finish_on_worker(&mut core, 1, ws1[0]);
     scheduler.run_scheduling(&mut core, &mut comm);
 
     let ws2 = core.get_task(2.into()).mn_placement().unwrap().to_vec();
@@ -174,7 +174,7 @@ fn test_schedule_mn_reserve() {
     comm.emptiness_check();
     core.sanity_check();
 
-    finish_on_worker(&mut core, 2, ws2[0], 0);
+    finish_on_worker(&mut core, 2, ws2[0]);
     scheduler.run_scheduling(&mut core, &mut comm);
     let ws3 = core.get_task(3.into()).mn_placement().unwrap().to_vec();
 
@@ -187,7 +187,7 @@ fn test_schedule_mn_reserve() {
     comm.emptiness_check();
     core.sanity_check();
 
-    finish_on_worker(&mut core, 3, ws3[0], 0);
+    finish_on_worker(&mut core, 3, ws3[0]);
     scheduler.run_scheduling(&mut core, &mut comm);
 
     for w in &[100, 101, 102] {
@@ -276,7 +276,7 @@ fn test_mn_sleep_wakeup_one_by_one() {
     assert!(core.task_map().get_task(2.into()).is_mn_running());
 
     let w = core.task_map().get_task(2.into()).mn_root_worker().unwrap();
-    finish_on_worker(&mut core, 2, w, 0);
+    finish_on_worker(&mut core, 2, w);
     create_test_worker(&mut core, 500.into(), 1);
     create_test_worker(&mut core, 501.into(), 1);
     scheduler.run_scheduling(&mut core, &mut comm);

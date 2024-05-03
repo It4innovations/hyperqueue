@@ -306,6 +306,7 @@ impl StateRef {
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
+    use std::sync::Arc;
     use tako::program::{ProgramDefinition, StdioDef};
 
     use crate::common::arraydef::IntArray;
@@ -349,7 +350,7 @@ mod tests {
             },
         };
         Job::new(
-            Rc::new(JobDescription {
+            Arc::new(JobDescription {
                 task_desc,
                 name: "".to_string(),
                 max_fails: None,

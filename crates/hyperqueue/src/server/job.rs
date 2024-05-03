@@ -11,7 +11,7 @@ use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use smallvec::SmallVec;
-use std::rc::Rc;
+use std::sync::Arc;
 use tako::comm::deserialize;
 use tako::task::SerializedTaskContext;
 use tako::ItemId;
@@ -117,7 +117,7 @@ pub struct Job {
 
     pub tasks: Map<TakoTaskId, JobTaskInfo>,
 
-    pub job_desc: Rc<JobDescription>,
+    pub job_desc: Arc<JobDescription>,
 
     pub submission_date: DateTime<Utc>,
     pub completion_date: Option<DateTime<Utc>>,
@@ -131,7 +131,7 @@ impl Job {
     // Probably we need some structure for the future, but as it is called in exactly one place,
     // I am disabling it now
     #[allow(clippy::too_many_arguments)]
-    pub fn new(job_desc: Rc<JobDescription>, job_id: JobId, base_task_id: TakoTaskId) -> Self {
+    pub fn new(job_desc: Arc<JobDescription>, job_id: JobId, base_task_id: TakoTaskId) -> Self {
         let base = base_task_id.as_num();
         let tasks = match &job_desc.task_desc {
             JobTaskDescription::Array { ids, .. } => ids

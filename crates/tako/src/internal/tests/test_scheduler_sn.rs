@@ -141,7 +141,7 @@ fn test_no_deps_distribute_with_balance() {
             match m {
                 ToWorkerMessage::ComputeTask(cm) => {
                     assert!(active_ids.remove(&cm.id));
-                    finish_on_worker(core, cm.id, worker_id, 1000);
+                    finish_on_worker(core, cm.id, worker_id);
                 }
                 _ => unreachable!(),
             };
