@@ -465,12 +465,13 @@ impl JobSubmitOpts {
                 },
             )
         }
-
-        Ok(ResourceRequest {
+        let request = ResourceRequest {
             n_nodes: self.conf.nodes,
             min_time: self.conf.time_request,
             resources,
-        })
+        };
+        request.validate()?;
+        Ok(request)
     }
 }
 
