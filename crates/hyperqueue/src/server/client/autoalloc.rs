@@ -1,6 +1,5 @@
 use crate::common::serverdir::ServerDir;
 use crate::server::autoalloc::try_submit_allocation;
-use crate::server::state::StateRef;
 use crate::server::Senders;
 use crate::transfer::messages::{
     AutoAllocListResponse, AutoAllocRequest, AutoAllocResponse, ToClientMessage,
@@ -8,7 +7,6 @@ use crate::transfer::messages::{
 
 pub async fn handle_autoalloc_message(
     server_dir: &ServerDir,
-    state_ref: &StateRef,
     senders: &Senders,
     request: AutoAllocRequest,
 ) -> ToClientMessage {

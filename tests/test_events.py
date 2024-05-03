@@ -153,8 +153,8 @@ def test_worker_capture_nvidia_gpu_state(hq_env: HqEnv):
 def test_worker_capture_amd_gpu_state(hq_env: HqEnv):
     def body():
         with hq_env.mock.mock_program_with_code(
-                "rocm-smi",
-                """
+            "rocm-smi",
+            """
     import json
     data = {
         "card0": {

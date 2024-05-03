@@ -1,20 +1,15 @@
-use crate::common::error::HqError;
 use crate::server::autoalloc::{AllocationId, QueueId};
 use crate::server::event::log::{EventStreamMessage, EventStreamSender};
 use crate::server::event::payload::EventPayload;
-use crate::server::event::{bincode_config, Event, EventId};
-use crate::transfer::messages::{AllocationQueueParams, JobDescription, ToClientMessage};
-use crate::{JobId, JobTaskId, TakoTaskId, WorkerId};
+use crate::server::event::{bincode_config, Event};
+use crate::transfer::messages::{AllocationQueueParams, JobDescription};
+use crate::{JobId, JobTaskId, WorkerId};
 use bincode::Options;
-use chrono::{DateTime, Utc};
-use futures::Sink;
+use chrono::Utc;
 use smallvec::SmallVec;
-use std::collections::vec_deque::VecDeque;
-use std::rc::Rc;
-use std::time::SystemTime;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::{InstanceId, TaskId, WrappedRcRefCell};
+use tako::{InstanceId, WrappedRcRefCell};
 use tokio::sync::mpsc;
 
 struct Inner {

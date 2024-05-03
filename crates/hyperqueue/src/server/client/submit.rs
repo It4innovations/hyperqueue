@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -12,7 +12,6 @@ use tako::gateway::{
     FromGatewayMessage, NewTasksMessage, ResourceRequestVariants, SharedTaskConfiguration,
     TaskConfiguration, ToGatewayMessage,
 };
-use tako::launcher::TaskResult;
 use tako::TaskId;
 
 use crate::common::arraydef::IntArray;
@@ -43,9 +42,9 @@ fn create_new_task_message(
         } => Ok(build_tasks_array(
             job_id,
             tako_base_id,
-            &ids,
+            ids,
             std::mem::take(entries),
-            &task_desc,
+            task_desc,
             &job_desc.submit_dir,
         )),
         JobTaskDescription::Graph { tasks } => {
@@ -70,10 +69,10 @@ pub(crate) fn submit_job_desc(
 pub(crate) async fn handle_submit(
     state_ref: &StateRef,
     senders: &Senders,
-    mut message: SubmitRequest,
+    message: SubmitRequest,
 ) -> ToClientMessage {
     let job_id = state_ref.get_mut().new_job_id();
-    let SubmitRequest { mut job_desc } = message;
+    let SubmitRequest { job_desc } = message;
 
     senders.events.on_job_submitted(job_id, &job_desc).unwrap();
 
@@ -174,7 +173,7 @@ fn serialize_task_body(
 ) -> Box<[u8]> {
     let body_msg = TaskBuildDescription {
         task_kind: Cow::Borrowed(&task_desc.kind),
-        job_id: job_id,
+        job_id,
         task_id,
         submit_dir: Cow::Borrowed(submit_dir),
         entry,

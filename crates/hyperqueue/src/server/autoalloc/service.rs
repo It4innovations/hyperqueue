@@ -7,9 +7,8 @@ use tako::gateway::LostWorkerReason;
 use tako::worker::WorkerConfiguration;
 use tako::WorkerId;
 
-use crate::common::manager::info::{GetManagerInfo, ManagerInfo, ManagerType};
-use crate::common::rpc::{initiate_request, make_rpc_queue, ResponseToken, RpcReceiver, RpcSender};
-use crate::common::serverdir::ServerDir;
+use crate::common::manager::info::{GetManagerInfo, ManagerInfo};
+use crate::common::rpc::{initiate_request, make_rpc_queue, ResponseToken, RpcSender};
 use crate::server::autoalloc::process::autoalloc_process;
 use crate::server::autoalloc::state::AutoAllocState;
 use crate::server::autoalloc::{Allocation, QueueId};
@@ -168,8 +167,14 @@ pub fn create_autoalloc_service(
 }
 
 #[cfg(test)]
-pub fn test_alloc_service() -> (AutoAllocService, RpcReceiver<AutoAllocMessage>) {
-    let (tx, rx) = make_rpc_queue();
-    let service = AutoAllocService { sender: tx };
-    (service, rx)
+pub(crate) mod tests {
+    use crate::common::rpc::{make_rpc_queue, RpcReceiver};
+    use crate::server::autoalloc::service::AutoAllocMessage;
+    use crate::server::autoalloc::AutoAllocService;
+
+    pub fn test_alloc_service() -> (AutoAllocService, RpcReceiver<AutoAllocMessage>) {
+        let (tx, rx) = make_rpc_queue();
+        let service = AutoAllocService { sender: tx };
+        (service, rx)
+    }
 }

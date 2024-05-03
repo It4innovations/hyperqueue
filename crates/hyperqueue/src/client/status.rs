@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::server::job::{JobTaskCounters, JobTaskState};
+use crate::server::job::JobTaskState;
 use crate::transfer::messages::JobInfo;
 
 #[derive(clap::ValueEnum, Clone, Copy, Serialize, Deserialize, Debug, Eq, PartialEq, Hash)]

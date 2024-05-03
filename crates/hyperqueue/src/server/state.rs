@@ -2,7 +2,6 @@ use std::cmp::min;
 use std::collections::BTreeMap;
 
 use chrono::Utc;
-use nom::combinator::rest;
 
 use tako::gateway::{
     CancelTasks, FromGatewayMessage, LostWorkerMessage, NewWorkerMessage, TaskFailedMessage,
@@ -11,8 +10,7 @@ use tako::gateway::{
 use tako::ItemId;
 use tako::{define_wrapped_type, TaskId};
 
-use crate::server::autoalloc::{AutoAllocService, LostWorkerDetails};
-use crate::server::event::streamer::EventStreamer;
+use crate::server::autoalloc::LostWorkerDetails;
 use crate::server::job::Job;
 use crate::server::restore::StateRestorer;
 use crate::server::worker::Worker;
@@ -287,7 +285,7 @@ impl State {
         senders.events.on_worker_lost(msg.worker_id, msg.reason);
     }
 
-    pub fn restore_state(&mut self, restorer: &StateRestorer) {
+    pub(crate) fn restore_state(&mut self, restorer: &StateRestorer) {
         self.job_id_counter = restorer.job_id_counter()
     }
 }

@@ -29,7 +29,7 @@ mod submit;
 
 use crate::common::error::HqError;
 use crate::server::Senders;
-pub(crate) use submit::{start_log_streaming, submit_job_desc};
+pub(crate) use submit::submit_job_desc;
 
 pub async fn handle_client_connections(
     state_ref: StateRef,
@@ -127,7 +127,7 @@ pub async fn client_rpc_loop<
             Ok(message) => {
                 let response = match message {
                     FromClientMessage::Submit(msg) => {
-                        submit::handle_submit(&state_ref, &senders, msg).await
+                        submit::handle_submit(&state_ref, senders, msg).await
                     }
                     FromClientMessage::JobInfo(msg) => compute_job_info(&state_ref, &msg.selector),
                     FromClientMessage::Stop => {
@@ -139,10 +139,10 @@ pub async fn client_rpc_loop<
                         handle_worker_info(&state_ref, msg.worker_id).await
                     }
                     FromClientMessage::StopWorker(msg) => {
-                        handle_worker_stop(&state_ref, &senders, msg.selector).await
+                        handle_worker_stop(&state_ref, senders, msg.selector).await
                     }
                     FromClientMessage::Cancel(msg) => {
-                        handle_job_cancel(&state_ref, &senders, &msg.selector).await
+                        handle_job_cancel(&state_ref, senders, &msg.selector).await
                     }
                     FromClientMessage::ForgetJob(msg) => {
                         handle_job_forget(&state_ref, &msg.selector, msg.filter)
@@ -150,18 +150,17 @@ pub async fn client_rpc_loop<
                     FromClientMessage::JobDetail(msg) => {
                         compute_job_detail(&state_ref, msg.job_id_selector, msg.task_selector)
                     }
-                    FromClientMessage::Stats => compose_server_stats(&state_ref, &senders).await,
+                    FromClientMessage::Stats => compose_server_stats(&state_ref, senders).await,
                     FromClientMessage::AutoAlloc(msg) => {
-                        autoalloc::handle_autoalloc_message(&server_dir, &state_ref, &senders, msg)
-                            .await
+                        autoalloc::handle_autoalloc_message(&server_dir, senders, msg).await
                     }
                     FromClientMessage::WaitForJobs(msg) => {
                         handle_wait_for_jobs_message(&state_ref, msg.selector).await
                     }
                     FromClientMessage::StreamEvents => {
                         log::debug!("Start streaming events to client");
-                        let (tx1, mut rx1) = tokio::sync::mpsc::unbounded_channel::<Event>();
-                        let (tx2, mut rx2) = tokio::sync::mpsc::unbounded_channel::<Event>();
+                        let (tx1, rx1) = mpsc::unbounded_channel::<Event>();
+                        let (tx2, rx2) = mpsc::unbounded_channel::<Event>();
                         let listener_id = senders.events.register_listener(tx1, tx2);
 
                         stream_events(&mut tx, &mut rx, rx1, rx2).await;

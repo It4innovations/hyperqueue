@@ -1,11 +1,10 @@
 use crate::server::autoalloc::AllocationId;
 use crate::server::autoalloc::QueueId;
-use crate::transfer::messages::{AllocationQueueParams, JobDescription};
+use crate::transfer::messages::AllocationQueueParams;
 use crate::JobId;
 use crate::{JobTaskId, WorkerId};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use std::rc::Rc;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
 use tako::{static_assert_size, InstanceId};

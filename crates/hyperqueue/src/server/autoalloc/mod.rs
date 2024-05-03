@@ -19,4 +19,4 @@ pub use service::{create_autoalloc_service, AutoAllocService, LostWorkerDetails}
 pub use state::{Allocation, AllocationId, AllocationState, QueueId};
 
 #[cfg(test)]
-pub use service::test_alloc_service;
+pub use service::tests::test_alloc_service;

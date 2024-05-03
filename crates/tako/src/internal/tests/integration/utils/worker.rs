@@ -151,9 +151,9 @@ pub(super) async fn start_worker(
     let workdir = tmpdir.path().to_path_buf().join("work");
     let logdir = tmpdir.path().to_path_buf().join("logs");
 
-    configuration.work_dir = workdir.clone();
+    configuration.work_dir.clone_from(&workdir);
     std::fs::create_dir_all(&configuration.work_dir).unwrap();
-    configuration.log_dir = logdir.clone();
+    configuration.log_dir.clone_from(&logdir);
     std::fs::create_dir_all(&configuration.log_dir).unwrap();
 
     let server_address: SocketAddr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
