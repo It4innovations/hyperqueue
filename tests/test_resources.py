@@ -456,3 +456,16 @@ def test_manual_cpu_resource_sum(hq_env: HqEnv):
         args=["worker", "start", "--resource", "cpus=sum(5)"],
         expect_fail="Resource kind `sum` cannot be used with CPUs",
     )
+
+
+def test_resources_invalid_definitions(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(
+        args=["submit", "--resource", "foo=10", "--resource", "foo=1", "--", "sleep", "1"],
+        expect_fail="Resource 'foo' defined more than once",
+    )
+
+    hq_env.command(
+        args=["submit", "--resource", "foo=0", "--", "sleep", "1"],
+        expect_fail="Zero resources cannot be requested",
+    )

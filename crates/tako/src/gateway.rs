@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize, Serializer};
 
+use crate::internal::common::error::DsError;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::WorkerOverview;
 use crate::internal::worker::configuration::WorkerConfiguration;
@@ -41,6 +42,23 @@ impl Default for ResourceRequest {
             }],
             min_time: Default::default(),
         }
+    }
+}
+
+impl ResourceRequest {
+    pub fn validate(&self) -> crate::Result<()> {
+        for (i, entry) in self.resources.iter().enumerate() {
+            entry.policy.validate()?;
+            for entry2 in &self.resources[i + 1..] {
+                if entry.resource == entry2.resource {
+                    return Err(DsError::GenericError(format!(
+                        "Resource '{}' defined more than once",
+                        entry.resource
+                    )));
+                }
+            }
+        }
+        Ok(())
     }
 }
 
