@@ -146,7 +146,6 @@ def test_worker_capture_nvidia_gpu_state(hq_env: HqEnv):
             ]
         }
     )
-    print(event)
     schema.validate(event)
 
 
@@ -155,21 +154,20 @@ def test_worker_capture_amd_gpu_state(hq_env: HqEnv):
         with hq_env.mock.mock_program_with_code(
             "rocm-smi",
             """
-    import json
-    data = {
-        "card0": {
-            "GPU use (%)": "1.5",
-            "GPU memory use (%)": "12.5",
-            "PCI Bus": "FOOBAR1"
-        },
-        "card1": {
-            "GPU use (%)": "12.5",
-            "GPU memory use (%)": "64.0",
-            "PCI Bus": "FOOBAR2"
-        }
+import json
+data = {
+    "card0": {
+        "GPU use (%)": "1.5",
+        "GPU memory use (%)": "12.5",
+        "PCI Bus": "FOOBAR1"
+    },
+    "card1": {
+        "GPU use (%)": "12.5",
+        "GPU memory use (%)": "64.0",
+        "PCI Bus": "FOOBAR2"
     }
-    print(json.dumps(data))
-            """,
+}
+print(json.dumps(data))""",
         ):
             hq_env.start_worker(args=["--overview-interval", "10ms", "--resource", "gpus/amd=[0]"])
             wait_for_worker_state(hq_env, 1, "RUNNING")

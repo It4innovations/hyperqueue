@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bstr::BString;
@@ -61,7 +61,7 @@ pub(crate) fn submit_job_desc(
     let (job_id, tako_base_id) = prepare_job(job_id, &mut job_desc, state);
     let new_tasks = create_new_task_message(job_id, tako_base_id, &mut job_desc)?;
     job_desc.strip_large_data();
-    let job = Job::new(Rc::new(job_desc), job_id, tako_base_id);
+    let job = Job::new(Arc::new(job_desc), job_id, tako_base_id);
     state.add_job(job);
     Ok(new_tasks)
 }

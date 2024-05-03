@@ -11,7 +11,7 @@ use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
 use bstr::BString;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::server::event::Event;
@@ -400,7 +400,7 @@ pub struct JobInfoResponse {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobDetail {
     pub info: JobInfo,
-    pub job_desc: Rc<JobDescription>,
+    pub job_desc: Arc<JobDescription>,
     pub tasks: Vec<JobTaskInfo>,
     pub tasks_not_found: Vec<JobTaskId>,
 

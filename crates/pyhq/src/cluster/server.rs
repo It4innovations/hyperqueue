@@ -35,7 +35,7 @@ impl RunningServer {
                 client_port: None,
                 worker_port: None,
                 event_buffer_size: 100,
-                event_log_path: None,
+                journal_path: None,
                 client_secret_key: None,
                 worker_secret_key: None,
                 server_uid: None,
@@ -45,8 +45,8 @@ impl RunningServer {
                 let set = LocalSet::new();
 
                 set.run_until(async move {
-                    match initialize_server(&settings, config).await {
-                        Ok((future, end_flag)) => {
+                    match initialize_server(&settings, config, 0.into(), 1, None).await {
+                        Ok((future, end_flag, _, _)) => {
                             tx.send(Ok(end_flag)).unwrap();
                             if let Err(error) = future.await {
                                 log::error!("HyperQueue server ended with error: {error:?}");

@@ -8,10 +8,10 @@ use hyperqueue::common::arraydef::IntArray;
 use hyperqueue::common::utils::fs::get_current_dir;
 use hyperqueue::server::job::JobTaskState;
 use hyperqueue::transfer::messages::{
-    ForgetJobRequest, FromClientMessage, IdSelector, JobDetailRequest, JobInfoRequest,
-    JobInfoResponse, JobTaskDescription as HqJobDescription, PinMode, SubmitRequest,
-    TaskDescription as HqTaskDescription, TaskIdSelector, TaskKind, TaskKindProgram, TaskSelector,
-    TaskStatusSelector, TaskWithDependencies, ToClientMessage,
+    ForgetJobRequest, FromClientMessage, IdSelector, JobDescription, JobDetailRequest,
+    JobInfoRequest, JobInfoResponse, JobTaskDescription as HqJobDescription, PinMode,
+    SubmitRequest, TaskDescription as HqTaskDescription, TaskIdSelector, TaskKind, TaskKindProgram,
+    TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
 use hyperqueue::{rpc_call, tako, JobTaskCount, JobTaskId, Set};
 use pyo3::types::PyTuple;
@@ -63,23 +63,25 @@ pub struct TaskDescription {
 }
 
 #[derive(Debug, FromPyObject)]
-pub struct JobDescription {
+pub struct PyJobDescription {
     tasks: Vec<TaskDescription>,
     max_fails: Option<JobTaskCount>,
 }
 
-pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: JobDescription) -> PyResult<u32> {
+pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: PyJobDescription) -> PyResult<u32> {
     run_future(async move {
         let submit_dir = get_current_dir();
         let tasks = build_tasks(job.tasks, &submit_dir)?;
-        let job_desc = HqJobDescription::Graph { tasks };
+        let task_desc = HqJobDescription::Graph { tasks };
 
         let message = FromClientMessage::Submit(SubmitRequest {
-            job_desc,
-            name: "".to_string(),
-            max_fails: job.max_fails,
-            submit_dir,
-            log: None,
+            job_desc: JobDescription {
+                task_desc,
+                name: "".to_string(),
+                max_fails: job.max_fails,
+                submit_dir,
+                log: None,
+            },
         });
 
         let mut ctx = borrow_mut!(py, ctx);

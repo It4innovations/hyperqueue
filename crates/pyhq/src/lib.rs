@@ -13,7 +13,7 @@ use hyperqueue::transfer::connection::ClientSession;
 use crate::client::job::{forget_job_impl, FailedTaskMap};
 use crate::cluster::Cluster;
 use crate::utils::run_future;
-use client::job::{get_failed_tasks_impl, submit_job_impl, wait_for_jobs_impl, JobDescription};
+use client::job::{get_failed_tasks_impl, submit_job_impl, wait_for_jobs_impl, PyJobDescription};
 use client::server::{connect_to_server_impl, stop_server_impl};
 use hyperqueue::HQ_VERSION;
 
@@ -51,7 +51,7 @@ fn stop_server(py: Python, ctx: ClientContextPtr) -> PyResult<()> {
 }
 
 #[pyfunction]
-fn submit_job(py: Python, ctx: ClientContextPtr, job: JobDescription) -> PyResult<PyJobId> {
+fn submit_job(py: Python, ctx: ClientContextPtr, job: PyJobDescription) -> PyResult<PyJobId> {
     submit_job_impl(py, ctx, job)
 }
 

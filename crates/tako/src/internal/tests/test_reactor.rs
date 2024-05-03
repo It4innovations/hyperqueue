@@ -472,7 +472,7 @@ fn finish_unassigned_task() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1]);
     submit_example_1(&mut core);
-    finish_on_worker(&mut core, 11, 100, 1000);
+    finish_on_worker(&mut core, 11, 100);
 }
 
 #[test]

@@ -134,7 +134,6 @@ pub fn finish_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
     core: &mut Core,
     task_id: T,
     worker_id: W,
-    size: u64,
 ) {
     let mut comm = TestComm::default();
     on_task_finished(
@@ -155,7 +154,7 @@ pub fn start_and_finish_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
     let worker_id = worker_id.into();
 
     start_on_worker(core, task_id, worker_id);
-    finish_on_worker(core, task_id, worker_id, size);
+    finish_on_worker(core, task_id, worker_id);
 }
 
 pub(crate) fn create_test_scheduler() -> SchedulerState {
