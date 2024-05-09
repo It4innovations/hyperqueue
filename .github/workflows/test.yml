@@ -99,7 +99,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-13
             target: x86_64-apple-darwin
     steps:
       - name: Checkout sources
