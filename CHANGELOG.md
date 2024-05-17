@@ -2,6 +2,8 @@
 
 ## New features
 
+* Server resilience. Server state can be loaded back from journal when server crashes.
+
 * `HQ_NUM_NODES` for multi-node tasks introduced. It contains the number of nodes assigned to task.
   You do not need to manually count lines in `HQ_NODE_FILE` anymore.
 
