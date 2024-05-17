@@ -36,7 +36,7 @@ use crate::WorkerId;
 use crate::{rpc_call, DEFAULT_WORKER_GROUP_NAME};
 
 // How often to send overview status to the server
-const DEFAULT_OVERVIEW_INTERVAL: Duration = Duration::from_secs(1);
+const DEFAULT_OVERVIEW_INTERVAL: Duration = Duration::from_secs(5);
 
 #[derive(clap::ValueEnum, Clone)]
 pub enum WorkerFilter {
