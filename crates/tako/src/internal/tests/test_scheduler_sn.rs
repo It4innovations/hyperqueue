@@ -13,7 +13,7 @@ use crate::internal::tests::utils::schedule::{
 use crate::internal::tests::utils::task::task;
 use crate::internal::tests::utils::task::TaskBuilder;
 use crate::resources::{ResourceAmount, ResourceDescriptorItem, ResourceUnits};
-use crate::{TaskId, WorkerId};
+use crate::TaskId;
 use std::time::Duration;
 
 #[test]
@@ -760,16 +760,5 @@ fn test_generic_resource_variants2() {
             .sn_tasks()
             .len(),
         4
-    );
-}
-
-fn check_task_has_worker<T: Into<TaskId>, W: Into<WorkerId>>(
-    core: &Core,
-    task_id: T,
-    worker_id: W,
-) {
-    assert_eq!(
-        core.get_task(task_id.into()).get_assigned_worker().unwrap(),
-        worker_id.into()
     );
 }

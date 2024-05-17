@@ -67,7 +67,7 @@ pub mod mock_time {
     use std::time::Instant;
 
     thread_local! {
-        static MOCK_TIME: RefCell<Option<Instant>> = RefCell::new(None);
+        static MOCK_TIME: RefCell<Option<Instant>> = const { RefCell::new(None) };
     }
 
     pub struct MockTime;

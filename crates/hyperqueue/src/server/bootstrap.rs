@@ -12,8 +12,7 @@ use tokio::task::LocalSet;
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::error::HqError;
 use crate::common::serverdir::{
-    default_server_directory, ClientAccessRecord, ConnectAccessRecordPart, FullAccessRecord,
-    ServerDir, SYMLINK_PATH,
+    default_server_directory, ConnectAccessRecordPart, FullAccessRecord, ServerDir, SYMLINK_PATH,
 };
 use crate::server::autoalloc::{create_autoalloc_service, QueueId};
 use crate::server::backend::Backend;
@@ -36,8 +35,8 @@ use tako::gateway::{FromGatewayMessage, ToGatewayMessage};
 use tako::WorkerId;
 
 enum ServerStatus {
-    Offline(ClientAccessRecord),
-    Online(ClientAccessRecord),
+    Offline,
+    Online,
 }
 
 pub struct ServerConfig {
@@ -67,11 +66,11 @@ pub async fn init_hq_server(
     server_cfg: ServerConfig,
 ) -> anyhow::Result<()> {
     match get_server_status(gsettings.server_directory()).await {
-        Err(_) | Ok(ServerStatus::Offline(_)) => {
+        Err(_) | Ok(ServerStatus::Offline) => {
             log::info!("No online server found, starting a new server");
             start_server(gsettings, server_cfg).await
         }
-        Ok(ServerStatus::Online(_)) => anyhow::bail!(
+        Ok(ServerStatus::Online) => anyhow::bail!(
             "Server at {0} is already online, please stop it first using \
             `hq server stop --server-dir {0}`",
             gsettings.server_directory().display()
@@ -118,10 +117,10 @@ async fn get_server_status(server_directory: &Path) -> crate::Result<ServerStatu
     let record = ServerDir::open(server_directory).and_then(|sd| sd.read_client_access_record())?;
 
     if ClientSession::connect_to_server(&record).await.is_err() {
-        return Ok(ServerStatus::Offline(record));
+        return Ok(ServerStatus::Offline);
     }
 
-    Ok(ServerStatus::Online(record))
+    Ok(ServerStatus::Online)
 }
 
 pub fn generate_server_uid() -> String {
@@ -456,7 +455,7 @@ mod tests {
         store_access_record(&record, server_dir.access_filename()).unwrap();
 
         let res = get_server_status(&tmp_path).await.unwrap();
-        assert!(matches!(res, ServerStatus::Offline(_)));
+        assert!(matches!(res, ServerStatus::Offline));
     }
 
     #[tokio::test]
@@ -484,7 +483,7 @@ mod tests {
 
         //let server_dir = ServerDir::open(&tmp_dir).unwrap();
         let res = get_server_status(&tmp_dir).await.unwrap();
-        assert!(matches!(res, ServerStatus::Offline(_)));
+        assert!(matches!(res, ServerStatus::Offline));
     }
 
     #[tokio::test]

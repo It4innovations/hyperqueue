@@ -449,7 +449,7 @@ mod tests {
         assert!(ResourceAllocator::compute_witness(&pools, &free, &rq, [].iter()).is_none());
         assert!(ResourceAllocator::compute_witness(
             &pools,
-            &mut free.clone(),
+            &free,
             &rq,
             [Rc::new(Allocation::new_simple(&[1]))].iter()
         )

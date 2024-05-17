@@ -62,19 +62,19 @@ where
     V: ExtractKey<K>,
 {
     #[inline]
-    pub fn find<Q: ?Sized>(&self, key: &Q) -> Option<&V>
+    pub fn find<Q>(&self, key: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
     {
         self.map.get(key).and_then(|&index| self.storage.get(index))
     }
 
     #[inline]
-    pub fn find_mut<Q: ?Sized>(&mut self, key: &Q) -> Option<&mut V>
+    pub fn find_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
     {
         self.map
             .get(key)
@@ -82,19 +82,19 @@ where
     }
 
     #[inline]
-    pub fn get<Q: ?Sized>(&self, key: &Q) -> &V
+    pub fn get<Q>(&self, key: &Q) -> &V
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
     {
         self.find(key).expect("Key not found")
     }
 
     #[inline]
-    pub fn get_mut<Q: ?Sized>(&mut self, key: &Q) -> &mut V
+    pub fn get_mut<Q>(&mut self, key: &Q) -> &mut V
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
     {
         self.find_mut(key).expect("Key not found")
     }
@@ -107,10 +107,10 @@ where
     }
 
     #[inline]
-    pub fn remove<Q: ?Sized>(&mut self, key: &Q) -> Option<V>
+    pub fn remove<Q>(&mut self, key: &Q) -> Option<V>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
     {
         self.map.remove(key).and_then(|index| {
             let idx: usize = index.into();

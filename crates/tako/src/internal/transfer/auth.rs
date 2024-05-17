@@ -239,9 +239,9 @@ where
 }
 
 #[inline]
-pub fn serialize<T: ?Sized>(value: &T) -> crate::Result<Vec<u8>>
+pub fn serialize<T>(value: &T) -> crate::Result<Vec<u8>>
 where
-    T: serde::Serialize,
+    T: serde::Serialize + ?Sized,
 {
     DefaultOptions::new()
         .with_fixint_encoding()

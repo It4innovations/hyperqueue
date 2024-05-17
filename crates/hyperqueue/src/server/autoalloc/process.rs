@@ -870,7 +870,7 @@ pub fn prepare_queue_cleanup(
 mod tests {
     use std::future::Future;
     use std::pin::Pin;
-    use std::rc::Rc;
+    
     use std::sync::Arc;
     use std::time::{Duration, Instant};
 
@@ -1266,7 +1266,7 @@ mod tests {
         state.set_max_kept_directories(max_kept);
         add_queue(&mut state, handler, QueueBuilder::default());
 
-        let dirs = vec![make_dir(), make_dir()];
+        let dirs = [make_dir(), make_dir()];
         state.set_inactive_allocation_directories(dirs.iter().cloned().collect());
 
         let s = EventStreamer::new(None);
