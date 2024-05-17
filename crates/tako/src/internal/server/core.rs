@@ -567,10 +567,10 @@ mod tests {
         let mut core = Core::default();
         let t = task::task(101);
         core.add_task(t);
-        assert!(match core.remove_task(101.into()) {
-            TaskRuntimeState::Waiting(_) => true,
-            _ => false,
-        });
+        assert!(matches!(
+            core.remove_task(101.into()),
+            TaskRuntimeState::Waiting(_)
+        ));
         assert_eq!(core.find_task(101.into()), None);
     }
 }

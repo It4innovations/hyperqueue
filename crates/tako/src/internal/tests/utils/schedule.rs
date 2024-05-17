@@ -148,7 +148,6 @@ pub fn start_and_finish_on_worker<W: Into<WorkerId>, T: Into<TaskId>>(
     core: &mut Core,
     task_id: T,
     worker_id: W,
-    size: u64,
 ) {
     let task_id = task_id.into();
     let worker_id = worker_id.into();

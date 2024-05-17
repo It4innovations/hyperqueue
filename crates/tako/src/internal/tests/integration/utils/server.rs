@@ -62,6 +62,7 @@ pub struct ServerHandle {
     out_of_band_messages: Vec<ToGatewayMessage>,
 }
 
+#[warn(clippy::large_enum_variant)]
 pub enum MessageFilter<T> {
     Expected(T),
     Unexpected(ToGatewayMessage),

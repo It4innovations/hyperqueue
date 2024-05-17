@@ -124,12 +124,9 @@ impl TaskWaitResult {
 
     pub fn assert_error_message(&self, needle: &str) {
         for event in &self.events {
-            match event {
-                TaskResult::Fail { info, .. } => {
-                    assert!(info.message.contains(needle));
-                    return;
-                }
-                _ => {}
+            if let TaskResult::Fail { info, .. } = event {
+                assert!(info.message.contains(needle));
+                return;
             }
         }
         panic!("Did not find error result for the current task");

@@ -341,8 +341,8 @@ fn test_running_task_on_error() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1]);
     submit_example_1(&mut core);
-    start_and_finish_on_worker(&mut core, 11, 100, 1000);
-    start_and_finish_on_worker(&mut core, 12, 101, 1000);
+    start_and_finish_on_worker(&mut core, 11, 100);
+    start_and_finish_on_worker(&mut core, 12, 101);
 
     start_on_worker(&mut core, 13, 102);
     core.assert_assigned(&[13]);
@@ -378,8 +378,8 @@ fn test_steal_tasks_ok() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1]);
     submit_example_1(&mut core);
-    start_and_finish_on_worker(&mut core, 11, 100, 1000);
-    start_and_finish_on_worker(&mut core, 12, 101, 1000);
+    start_and_finish_on_worker(&mut core, 11, 100);
+    start_and_finish_on_worker(&mut core, 12, 101);
 
     let task_id = 13;
     start_on_worker(&mut core, task_id, 101);
@@ -432,8 +432,8 @@ fn test_steal_tasks_running() {
     let mut core = Core::default();
     create_test_workers(&mut core, &[1, 1, 1]);
     submit_example_1(&mut core);
-    start_and_finish_on_worker(&mut core, 11, 100, 1000);
-    start_and_finish_on_worker(&mut core, 12, 101, 1000);
+    start_and_finish_on_worker(&mut core, 11, 100);
+    start_and_finish_on_worker(&mut core, 12, 101);
     start_on_worker(&mut core, 13, 101);
 
     let mut comm = create_test_comm();
@@ -507,7 +507,7 @@ fn test_task_cancel() {
 
     submit_test_tasks(&mut core, vec![t40, t41, t42]);
 
-    start_and_finish_on_worker(&mut core, 11, 101, 1000);
+    start_and_finish_on_worker(&mut core, 11, 101);
     start_on_worker(&mut core, 12, 101);
     start_on_worker(&mut core, 40, 101);
     start_on_worker(&mut core, 41, 100);
@@ -1087,11 +1087,11 @@ fn test_task_deps() {
     submit_example_3(&mut core);
     assert_eq!(core.get_read_to_assign().len(), 2);
     create_test_workers(&mut core, &[1]);
-    start_and_finish_on_worker(&mut core, 2, 100, 0);
+    start_and_finish_on_worker(&mut core, 2, 100);
     core.assert_waiting(&[3, 4, 6]);
     core.assert_ready(&[5]);
 
-    start_and_finish_on_worker(&mut core, 1, 100, 0);
+    start_and_finish_on_worker(&mut core, 1, 100);
     core.assert_waiting(&[6]);
     core.assert_ready(&[3, 4, 5]);
 }
