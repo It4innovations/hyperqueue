@@ -2,6 +2,7 @@ The server is a crucial component of HyperQueue which manages [workers](worker.m
 any computations or deploying workers, you must first start the server.
 
 ## Starting the server
+
 The server can be started by running the following command:
 
 ```bash
@@ -15,6 +16,7 @@ $ hq server start --host=HOST
 ```
 
 ## Server directory
+
 When the server is started, it creates a **server directory** where it stores information needed for submitting [jobs](../jobs/jobs.md)
 and connecting [workers](worker.md). This directory is then used to select a running HyperQueue instance.
 
@@ -43,9 +45,9 @@ $ hq --server-dir=foo worker start
     only accessible by the user who started the server.
 
 ## Keeping the server alive
+
 The server is supposed to be a long-lived component. If you shut it down, all workers will disconnect and all computations
-will be stopped. Therefore, it is important to make sure that the server will stay running e.g. even after you disconnect
-from a cluster where the server is deployed.
+will be stopped. Therefore, it is important to make sure that the server will stay running e.g. even after you disconnect from a cluster where the server is deployed.
 
 For example, if you SSH into a login node of an HPC cluster and then run the server like this:
 
@@ -57,7 +59,39 @@ The server will quit when your SSH session ends, because it will receive a SIGHU
 approaches to avoid this behavior, for example prepending the command with [nohup](https://en.wikipedia.org/wiki/Nohup)
 or using a terminal multiplexer like [tmux](https://en.wikipedia.org/wiki/Tmux).
 
+## Resuming stopped/crashed server
+
+When a server is started with a journal, it may be resumed even when a server crashed.
+Journal is a file where server writes a serie of events.
+
+You can start the server as follows:
+
+```bash
+$ hq server start --journal /path/to/journal
+```
+
+If server is stopped or crashed, and you use the same command to start the server
+and it will continue from the last point:
+
+```bash
+$ hq server start --journal /path/to/journal
+```
+
+!!! warning
+
+    This functionality resumes the state of jobs and auto allocation queues,
+    not worker connections.
+    In the current version, new workers has to be connected to the server
+    when a new server is started.
+
+!!! warning
+
+    If the server crashes, last few seconds of progress may be lost. For example
+    when a task is finished and the server crashes before the journal is written, then
+    after resumming the server, it will appear as not computed.
+
 ## Stopping server
+
 You can stop a running server with the following command:
 
 ```bash
