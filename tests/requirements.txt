@@ -5,7 +5,7 @@ schema==0.7.5
 maturin==1.3.0
 psutil==5.8.0
 jinja2==3.1.4
-requests==2.31.0
+requests==2.32.0
 aiohttp==3.9.4
 inline-snapshot==0.2.1
 ruff==0.2.1
