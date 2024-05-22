@@ -63,6 +63,14 @@ pub fn create_allocation_dir(
     Ok(dir)
 }
 
+/// Creates a name for an external allocation, based on the allocation counter
+/// and an optional name prefix.
+pub fn format_allocation_name(name: Option<String>, queue_id: u32, allocation_id: u64) -> String {
+    let mut name = name.unwrap_or_else(|| format!("hq-{queue_id}"));
+    name.push_str(&format!("-{allocation_id}"));
+    name
+}
+
 /// Submits a script into PBS/Slurm and creates debug information in the given allocation `directory`.
 pub async fn submit_script<F>(
     script: String,

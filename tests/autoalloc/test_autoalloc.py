@@ -221,7 +221,7 @@ def test_pbs_queue_qsub_args(hq_env: HqEnv):
             pbs_args = extract_script_args(data, "#PBS")
             assert pbs_args == [
                 "-l select=1",
-                "-N hq-alloc-1",
+                "-N hq-1-1",
                 f"-o {join(dirname(qsub_script_path), 'stdout')}",
                 f"-e {join(dirname(qsub_script_path), 'stderr')}",
                 "-l walltime=00:03:00",
@@ -246,10 +246,10 @@ def test_slurm_queue_sbatch_args(hq_env: HqEnv):
         sbatch_script_path = queue.get()
         with open(sbatch_script_path) as f:
             data = f.read()
-            pbs_args = extract_script_args(data, "#SBATCH")
-            assert pbs_args == [
+            slurm_args = extract_script_args(data, "#SBATCH")
+            assert slurm_args == [
                 "--nodes=1",
-                "--job-name=hq-alloc-1",
+                "--job-name=hq-1-1",
                 f"--output={join(dirname(sbatch_script_path), 'stdout')}",
                 f"--error={join(dirname(sbatch_script_path), 'stderr')}",
                 "--time=00:03:00",
@@ -906,6 +906,29 @@ def test_external_slurm_submit_multiple_workers(cluster_hq_env: HqEnv, slurm_cre
     )
     wait_for_worker_state(cluster_hq_env, [1, 2], "RUNNING", timeout_s=SLURM_TIMEOUT)
     wait_for_job_state(cluster_hq_env, 1, "FINISHED")
+
+
+def test_slurm_allocation_name(hq_env: HqEnv):
+    queue = ManagerQueue()
+    handler = ExtractSubmitScriptPath(queue, SlurmManager())
+
+    def check_name(path: str, name: str):
+        with open(path) as f:
+            data = f.read()
+            slurm_args = extract_script_args(data, "#SBATCH")
+            for arg in slurm_args:
+                if "--job-name=" in arg:
+                    assert arg[len("--job-name=") :] == name
+                    return
+            raise Exception(f"Slurm name {name} not found in {path}")
+
+    with MockJobManager(hq_env, adapt_slurm(handler)):
+        hq_env.start_server()
+        prepare_tasks(hq_env)
+
+        add_queue(hq_env, manager="slurm", name="foo", backlog=2)
+        check_name(queue.get(), "foo-1")
+        check_name(queue.get(), "foo-2")
 
 
 def wait_for_alloc(hq_env: HqEnv, state: str, allocation_id: str, timeout=DEFAULT_TIMEOUT):

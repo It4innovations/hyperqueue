@@ -25,7 +25,7 @@ ManagerType = Union[Literal["pbs"], Literal["slurm"]]
 def add_queue(
     hq_env: HqEnv,
     manager: ManagerType,
-    name: Optional[str] = "foo",
+    name: Optional[str] = None,
     backlog=1,
     workers_per_alloc=1,
     additional_worker_args: List[str] = None,
