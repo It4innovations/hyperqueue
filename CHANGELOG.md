@@ -15,6 +15,7 @@
 
 * Enable passing of empty `stdout`/`stderr` to Python function tasks in the Python
   API (https://github.com/It4innovations/hyperqueue/issues/691).
+* `hq alloc add --name <name>` will now correctly use the passed `<name>` to name allocations submitted to Slurm/PBS.
 
 # v0.18.0
 
