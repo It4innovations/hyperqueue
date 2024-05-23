@@ -18,7 +18,7 @@ authors = ["Ada Böhm <ada@kreatrix.org>", "Jakub Beránek <berykubik@gmail.com>
 [workspace.dependencies]
 tokio = "1.36"
 log = "0.4"
-env_logger = {  version = "0.11", features = ["color"] }
+env_logger = { version = "0.11", features = ["color"] }
 clap = "4"
 clap_complete = "4"
 serde = { version = "1", features = ["rc"] }
@@ -55,6 +55,3 @@ inherits = "release"
 lto = true
 codegen-units = 1
 debug = "line-tables-only"
-
-[profile.dev]
-debug = 0

@@ -91,7 +91,7 @@ struct ServerStartOpts {
     #[arg(long, default_value_t = 1000000)]
     event_store_size: usize,
 
-    /// Path to a log file where events will be stored.    
+    /// Path to a journal file where events is stored. If the file already exists, the file is used to restore the server state
     #[arg(long)]
     journal: Option<PathBuf>,
 

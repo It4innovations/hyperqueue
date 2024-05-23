@@ -1,5 +1,6 @@
 import time
 
+from .utils.cmd import python
 from .autoalloc.mock.mock import MockJobManager
 from .autoalloc.mock.slurm import SlurmManager, adapt_slurm
 from .autoalloc.utils import ManagerQueue, ExtractSubmitScriptPath, add_queue, remove_queue
@@ -51,11 +52,11 @@ def test_restore_partially_finished_task(hq_env: HqEnv, tmp_path):
             "submit",
             "--array=0-4",
             "--",
-            "python",
-            "-c",
-            "import os, time;"
-            f"open('{tmp_path}/task-marker' + os.environ.get('HQ_TASK_ID'), 'w').write(os.environ.get('HQ_INSTANCE_ID'));"
-            "time.sleep(1.5 if os.environ.get('HQ_TASK_ID') in ('1','3','4') else 0);",
+            *python(
+                "import os, time;"
+                f"open('{tmp_path}/task-marker' + os.environ.get('HQ_TASK_ID'), 'w').write(os.environ.get('HQ_INSTANCE_ID'));"
+                "time.sleep(1.5 if os.environ.get('HQ_TASK_ID') in ('1','3','4') else 0);",
+            ),
         ]
     )
     hq_env.start_worker(cpus=5)
@@ -101,10 +102,10 @@ def test_restore_partially_failed_task(hq_env: HqEnv, tmp_path):
             "submit",
             "--array=0-4",
             "--",
-            "python",
-            "-c",
-            f"import os, time; open('{tmp_path}/task-marker' + os.environ.get('HQ_TASK_ID'), 'w');"
-            "time.sleep(1.5 if os.environ.get('HQ_TASK_ID') in ('1','3','4') else 0); sys.exit(1)",
+            *python(
+                f"import os, time; open('{tmp_path}/task-marker' + os.environ.get('HQ_TASK_ID'), 'w');"
+                "time.sleep(1.5 if os.environ.get('HQ_TASK_ID') in ('1','3','4') else 0); sys.exit(1)"
+            ),
         ]
     )
     hq_env.start_worker(cpus=5)

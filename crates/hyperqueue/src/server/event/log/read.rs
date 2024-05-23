@@ -10,6 +10,9 @@ use std::ops::Deref;
 use std::path::Path;
 
 /// Reads events from a file in a streaming fashion.
+/// EventLogReader is able load a file that was not fully written; in this case `partial_data_error` is set to `true`.
+/// `position` points to the end of correct data; therefore, if the file is truncated to the
+/// `position` length it will contains only valid events and the incomplete event is discarded.
 pub struct EventLogReader {
     source: BufReader<File>,
     position: u64,
@@ -34,7 +37,7 @@ impl EventLogReader {
             bail!("Version of journal {hq_version} does not match with {HQ_VERSION}");
         }
         Ok(Self {
-            position: file.stream_position().unwrap(),
+            position: file.stream_position()?,
             size,
             source: file,
             partial_data_error: false,
