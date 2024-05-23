@@ -159,6 +159,9 @@ pub async fn client_rpc_loop<
                     }
                     FromClientMessage::StreamEvents => {
                         log::debug!("Start streaming events to client");
+                        /* We create two event queues, one for historic events and one for live events
+                        So while historic events are loaded from the file and streamed, live events are already
+                        collected and sent immediately the historic events are sent */
                         let (tx1, rx1) = mpsc::unbounded_channel::<Event>();
                         let (tx2, rx2) = mpsc::unbounded_channel::<Event>();
                         let listener_id = senders.events.register_listener(tx1, tx2);

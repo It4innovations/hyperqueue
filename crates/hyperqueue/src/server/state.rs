@@ -305,7 +305,7 @@ impl StateRef {
 
 #[cfg(test)]
 mod tests {
-    
+
     use std::sync::Arc;
     use tako::program::{ProgramDefinition, StdioDef};
 

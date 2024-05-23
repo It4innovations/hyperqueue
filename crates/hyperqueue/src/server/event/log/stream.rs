@@ -78,6 +78,10 @@ async fn streaming_process(
                         }
                     }
                     Some(EventStreamMessage::RegisterListener(tx)) => {
+                        /* We are blocking the thread here, but it is intended.
+                           But we are blocking just a thread managing log file, not the whole HQ
+                           And while this read is performed, we cannot allow modification of the file,
+                           so the writing to the file has to be paused anyway */
                         writer.flush()?;
                         let mut reader = EventLogReader::open(log_path)?;
                         for event in &mut reader {

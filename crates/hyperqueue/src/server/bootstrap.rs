@@ -306,19 +306,13 @@ async fn prepare_event_management(
 }
 
 async fn start_server(gsettings: &GlobalSettings, server_cfg: ServerConfig) -> anyhow::Result<()> {
-    let restorer = if let Some(path) = &server_cfg.journal_path {
-        if path.exists() {
-            let mut restorer = StateRestorer::default();
-            restorer.load_event_file(path)?;
-            if restorer.truncate_size().is_some() {
-                log::warn!(
-                    "Journal contains not fully written data; they will removed from the log"
-                );
-            }
-            Some(restorer)
-        } else {
-            None
+    let restorer = if server_cfg.journal_path.as_ref().is_some_and(|p| p.exists()) {
+        let mut restorer = StateRestorer::default();
+        restorer.load_event_file(server_cfg.journal_path.as_ref().unwrap())?;
+        if restorer.truncate_size().is_some() {
+            log::warn!("Journal contains not fully written data; they will removed from the log");
         }
+        Some(restorer)
     } else {
         None
     };

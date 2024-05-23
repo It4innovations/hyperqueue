@@ -175,11 +175,11 @@ impl Backend {
 
 #[cfg(test)]
 mod tests {
-    use crate::server::autoalloc::{test_alloc_service};
+    use crate::server::autoalloc::test_alloc_service;
     use tako::gateway::{FromGatewayMessage, ServerInfo, ToGatewayMessage};
     use tokio::net::TcpStream;
 
-    use crate::server::backend::{Backend};
+    use crate::server::backend::Backend;
     use crate::server::event::streamer::EventStreamer;
     use crate::tests::utils::{create_hq_state, run_concurrent};
 

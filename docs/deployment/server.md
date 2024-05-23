@@ -1,4 +1,5 @@
-The server is a crucial component of HyperQueue which manages [workers](worker.md) and [jobs](../jobs/jobs.md). Before running
+The server is a crucial component of HyperQueue which manages [workers](worker.md) and [jobs](../jobs/jobs.md). Before
+running
 any computations or deploying workers, you must first start the server.
 
 ## Starting the server
@@ -17,11 +18,13 @@ $ hq server start --host=HOST
 
 ## Server directory
 
-When the server is started, it creates a **server directory** where it stores information needed for submitting [jobs](../jobs/jobs.md)
+When the server is started, it creates a **server directory** where it stores information needed for
+submitting [jobs](../jobs/jobs.md)
 and connecting [workers](worker.md). This directory is then used to select a running HyperQueue instance.
 
 By default, the server directory will be stored in `$HOME/.hq-server`. This location may be changed with the option
-`--server-dir=<PATH>`, which is available for all HyperQueue CLI commands. You can run more instances of HyperQueue under
+`--server-dir=<PATH>`, which is available for all HyperQueue CLI commands. You can run more instances of HyperQueue
+under
 the same Unix user, by making them use different server directories.
 
 If you use a non-default server directory, make sure to pass the same `--server-dir` to all HyperQueue commands that
@@ -33,10 +36,11 @@ $ hq --server-dir=foo worker start
 ```
 
 !!! important
-    When you start the server, it will create a new subdirectory in the server directory, which will store the data of the
-    current running instance. It will also create a symlink `hq-current` which will point to the currently active subdirectory.
-    Using this approach, you can start a server using the same server directory multiple times without overwriting data
-    of the previous runs.
+When you start the server, it will create a new subdirectory in the server directory, which will store the data of the
+current running instance. It will also create a symlink `hq-current` which will point to the currently active
+subdirectory.
+Using this approach, you can start a server using the same server directory multiple times without overwriting data
+of the previous runs.
 
 !!! danger "Server directory access"
 
@@ -46,8 +50,10 @@ $ hq --server-dir=foo worker start
 
 ## Keeping the server alive
 
-The server is supposed to be a long-lived component. If you shut it down, all workers will disconnect and all computations
-will be stopped. Therefore, it is important to make sure that the server will stay running e.g. even after you disconnect from a cluster where the server is deployed.
+The server is supposed to be a long-lived component. If you shut it down, all workers will disconnect and all
+computations
+will be stopped. Therefore, it is important to make sure that the server will stay running e.g. even after you
+disconnect from a cluster where the server is deployed.
 
 For example, if you SSH into a login node of an HPC cluster and then run the server like this:
 
@@ -81,7 +87,7 @@ $ hq server start --journal /path/to/journal
 
     This functionality resumes the state of jobs and auto allocation queues,
     not worker connections.
-    In the current version, new workers has to be connected to the server
+    In the current version, new workers have to be connected to the server
     when a new server is started.
 
 !!! warning

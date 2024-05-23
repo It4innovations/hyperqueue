@@ -1,5 +1,3 @@
-
-
 pub struct ScopedTimer<'a> {
     process: &'a str,
     method: &'static str,
@@ -34,66 +32,3 @@ macro_rules! trace_time {
         $block
     }};
 }
-
-// struct FileGuard(Arc<Mutex<BufWriter<std::fs::File>>>);
-// impl std::io::Write for FileGuard {
-//     #[inline]
-//     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-//         self.0.lock().unwrap().write(buf)
-//     }
-//     #[inline]
-//     fn flush(&mut self) -> std::io::Result<()> {
-//         self.0.lock().unwrap().flush()
-//     }
-//     #[inline]
-//     fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
-//         self.0.lock().unwrap().write_all(buf)
-//     }
-//     #[inline]
-//     fn write_fmt(&mut self, fmt: Arguments<'_>) -> std::io::Result<()> {
-//         self.0.lock().unwrap().write_fmt(fmt)
-//     }
-// }
-//
-// struct Timestamp;
-// impl FormatTime for Timestamp {
-//     fn format_time(&self, w: &mut tracing_subscriber::fmt::format::Writer) -> fmt::Result {
-//         write!(
-//             w,
-//             "{}",
-//             SystemTime::now()
-//                 .duration_since(SystemTime::UNIX_EPOCH)
-//                 .unwrap()
-//                 .as_micros()
-//         )
-//     }
-// }
-
-/*
-pub fn setup_file_trace(path: String) {
-    let file = BufWriter::new(File::create(&path).expect("Unable to create trace file"));
-    let file = Arc::new(Mutex::new(file));
-
-    log::info!(
-        "Writing trace to {}",
-        std::path::PathBuf::from(path)
-            .canonicalize()
-            .unwrap()
-            .to_str()
-            .unwrap()
-    );
-
-    let make_writer = move || FileGuard(file.clone());
-
-    let subscriber = FmtSubscriber::builder()
-        .with_writer(make_writer)
-        .json()
-        .with_target(false)
-        .with_ansi(false)
-        .with_timer(Timestamp)
-        .finish();
-
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("Unable to set global tracing subscriber");
-}
-*/
