@@ -102,7 +102,7 @@ mod tests {
         let path = tmpdir.path().join("foo");
         {
             let mut file = File::create(&path).unwrap();
-            rmp_serde::encode::write(&mut file, "hqjl0000").unwrap();
+            file.write_all("hqjlxxxx".as_bytes()).unwrap();
             file.flush().unwrap();
         }
         assert!(EventLogReader::open(&path).is_err());

@@ -1,3 +1,4 @@
+use bincode::Options;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -99,7 +100,9 @@ pub fn build_task_def_from_config(
         stdin: vec![],
         cwd,
     };
-    let body = rmp_serde::to_vec(&program_def).unwrap();
+    let body = bincode::DefaultOptions::new()
+        .serialize(&program_def)
+        .unwrap();
 
     let conf = SharedTaskConfiguration {
         resources: ResourceRequestVariants {

@@ -16,11 +16,10 @@ tokio = { workspace = true, features = ["full"] }
 tokio-util = { workspace = true, features = ["codec"] }
 clap = { workspace = true, features = ["derive", "env"] }
 clap_complete = { workspace = true }
-rmp-serde = { workspace = true}
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_bytes = { workspace = true }
-bytes = {workspace = true }
+bytes = { workspace = true }
 thiserror = { workspace = true }
 gethostname = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
@@ -29,7 +28,7 @@ hex = { workspace = true }
 bincode = { workspace = true }
 smallvec = { workspace = true }
 rand = { workspace = true }
-anyhow = { workspace =  true }
+anyhow = { workspace = true }
 tempdir = { workspace = true }
 nix = { workspace = true }
 bstr = { workspace = true }
@@ -44,7 +43,7 @@ serde-tuple-vec-map = "1"
 dirs = "5.0"
 rmpv = { version = "1.0", features = ["with-serde"] }
 nom = "7.1"
-nom-supreme = { version = "0.8"}
+nom-supreme = { version = "0.8" }
 colored = "2"
 const_format = "0.2"
 textwrap = "0.16"
