@@ -14,7 +14,6 @@ tokio-util = { workspace = true, features = ["codec"] }
 bytes = { workspace = true }
 byteorder = { workspace = true }
 smallvec = { workspace = true, features = ["serde"] }
-rmp-serde = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }

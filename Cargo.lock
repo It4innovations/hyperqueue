@@ -965,7 +965,6 @@ dependencies = [
  "psutil",
  "rand 0.8.5",
  "ratatui",
- "rmp-serde",
  "rmpv",
  "serde",
  "serde-tuple-vec-map",
@@ -1886,17 +1885,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rmp-serde"
-version = "1.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bffea85eea980d8a74453e5d02a8d93028f3c34725de143085a844ebe953258a"
-dependencies = [
- "byteorder",
- "rmp",
- "serde",
-]
-
-[[package]]
 name = "rmpv"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2208,7 +2196,6 @@ dependencies = [
  "priority-queue",
  "psutil",
  "rand 0.8.5",
- "rmp-serde",
  "serde",
  "serde_bytes",
  "serde_json",

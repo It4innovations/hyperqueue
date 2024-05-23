@@ -30,17 +30,6 @@ impl From<bincode::Error> for HqError {
     }
 }
 
-impl From<rmp_serde::encode::Error> for HqError {
-    fn from(e: rmp_serde::encode::Error) -> Self {
-        Self::SerializationError(e.to_string())
-    }
-}
-impl From<rmp_serde::decode::Error> for HqError {
-    fn from(e: rmp_serde::decode::Error) -> Self {
-        Self::SerializationError(e.to_string())
-    }
-}
-
 impl From<anyhow::Error> for HqError {
     fn from(error: anyhow::Error) -> Self {
         Self::GenericError(error.to_string())

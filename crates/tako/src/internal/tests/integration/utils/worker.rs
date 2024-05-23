@@ -1,3 +1,4 @@
+use bincode::Options;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -273,7 +274,9 @@ impl TaskLauncher for TestTaskLauncher {
                 ctx.allocation(),
                 ctx.body().len(),
             );
-            rmp_serde::from_slice(ctx.body())?
+            bincode::DefaultOptions::new()
+                .deserialize(ctx.body())
+                .map_err(|_| DsError::GenericError("Body deserialization failed".into()))?
         };
 
         Ok(TaskLaunchData::from_future(Box::pin(async move {
