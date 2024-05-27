@@ -1,4 +1,4 @@
-# Dev
+# 0.19.0
 
 ## New features
 
@@ -9,6 +9,8 @@
 
 ## Changes
 
+* Dashboard is disabled in this version. We expect to reneeble it in 1-2 release cycles
+
 * Node file generated for multi-node tasks now contains only short hostnames
   (e.g. if hostname is "cn690.karolina.it4i.cz", only "cn690" is written into node list)
   You can read ``HQ_HOST_FILE`` if you need to get full hostnames without stripping.
@@ -18,6 +20,7 @@
 * Enable passing of empty `stdout`/`stderr` to Python function tasks in the Python
   API (https://github.com/It4innovations/hyperqueue/issues/691).
 * `hq alloc add --name <name>` will now correctly use the passed `<name>` to name allocations submitted to Slurm/PBS.
+
 
 # v0.18.0
 
