@@ -1,3 +1,4 @@
+import enum
 import logging
 import os
 import shutil
@@ -12,10 +13,46 @@ from .repository import TAG_WORKSPACE, checkout_tag, resolve_tag
 from .. import ROOT_DIR
 
 
+class Profile(enum.Enum):
+    Debug = 0
+    Release = 1
+    Dist = 2
+
+    def name(self) -> str:
+        if self == Profile.Debug:
+            return "dev"
+        elif self == Profile.Release:
+            return "release"
+        elif self == Profile.Dist:
+            return "dist"
+        else:
+            assert False
+
+    def target_name(self) -> str:
+        if self == Profile.Debug:
+            return "debug"
+        elif self == Profile.Release:
+            return "release"
+        elif self == Profile.Dist:
+            return "dist"
+        else:
+            assert False
+
+    def flags(self) -> List[str]:
+        if self == Profile.Debug:
+            return []
+        elif self == Profile.Release:
+            return ["--release"]
+        elif self == Profile.Dist:
+            return ["--profile", "dist"]
+        else:
+            assert False
+
+
 @dataclasses.dataclass
 class BuildConfig:
     git_ref: str = TAG_WORKSPACE
-    release: bool = True
+    profile: Profile = Profile.Release
     zero_worker: bool = False
     debug_symbols: bool = False
 
@@ -28,15 +65,11 @@ class BuiltBinary:
 
 def get_build_dir(options: BuildConfig) -> Path:
     path = ROOT_DIR / "target"
-    if options.release:
-        return path / "release"
-    return path / "debug"
+    return path / options.profile.target_name()
 
 
 def binary_name(options: BuildConfig, resolved_ref: str) -> str:
-    name = f"hq-{resolved_ref}"
-    if not options.release:
-        name += "-debug"
+    name = f"hq-{resolved_ref}-{options.profile.name()}"
     if options.zero_worker:
         name += "-zw"
     return name
@@ -56,20 +89,20 @@ def build_tag(config: BuildConfig, resolved_ref: str) -> Path:
         return path
 
     build_description = (
-        f"{tag} (release={config.release}, zero_worker={config.zero_worker}, debug_symbols={config.debug_symbols})"
+        f"{tag} (profile={config.profile.name()}, zero_worker={config.zero_worker}, debug_symbols={config.debug_symbols})"
     )
     with checkout_tag(tag):
         logging.info(f"Building {build_description}")
         env = os.environ.copy()
 
         if config.debug_symbols:
-            profile_name = "RELEASE" if config.release else "DEV"
+            profile_name = config.profile.name().upper()
             env[f"CARGO_PROFILE_{profile_name}_DEBUG"] = "line-tables-only"
 
         args = ["cargo", "build"]
-        if config.release:
+        args += config.profile.flags()
+        if config.profile != Profile.Debug:
             env["RUSTFLAGS"] = "-C target-cpu=native"
-            args += ["--release"]
         if config.zero_worker:
             args += ["--features", "zero-worker"]
 
