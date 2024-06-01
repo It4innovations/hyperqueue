@@ -19,7 +19,7 @@ def benchmark(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
 
 # Basic workloads
 def sleep_workloads(cls: Type[Sleep] = SleepHQ) -> Iterable[Workload]:
-    for task_count in (10, 100, 1000, 10000):
+    for task_count in (10, 100, 1000, 10000, 50000):
         yield cls(task_count=task_count)
 
 

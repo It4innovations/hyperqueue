@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 from ligate.ligen.expansion import SubmittedExpansion
 
+from src.build.hq import Profile
 from hyperqueue import Client, Job
 from hyperqueue.job import SubmittedJob
 from src.analysis.chart import render_chart_to_png
@@ -42,13 +43,26 @@ assert CONTAINER_PATH.is_file()
 cli = create_cli()
 
 
+@dataclasses.dataclass
+class LigenConfig:
+    container_path: Path
+    smi_path: Path
+    max_molecules: int
+    screening_threads: int
+
+    def __post_init__(self):
+        assert self.container_path.is_file()
+        assert self.smi_path.is_file()
+
+
 class LigenHQWorkload(Workload):
-    def __init__(self, smi_path: Path, max_molecules: int, screening_threads: int):
-        self.smi_path = smi_path
-        self.max_molecules = max_molecules
-        self.screening_threads = min(max_molecules, screening_threads)
-        if self.screening_threads != screening_threads:
-            logging.warning(f"Setting screening threads to {self.max_molecules}, because there won't be more work")
+    def __init__(self, config: LigenConfig):
+        self.config = config
+        self.screening_threads = min(self.config.max_molecules, self.config.screening_threads)
+        if self.screening_threads != self.config.screening_threads:
+            logging.warning(
+                f"Setting screening threads to {self.config.max_molecules}, because there won't be more work"
+            )
 
     def name(self) -> str:
         return "ligen-vscreen"
@@ -56,8 +70,8 @@ class LigenHQWorkload(Workload):
     def parameters(self) -> Dict[str, Any]:
         return {
             "env": "hq",
-            "smi": self.smi_path.name,
-            "molecules-per-task": self.max_molecules,
+            "smi": self.config.smi_path.name,
+            "molecules-per-task": self.config.max_molecules,
             "screening-threads": self.screening_threads,
         }
 
@@ -85,10 +99,10 @@ class LigenHQWorkload(Workload):
         ctx = LigenTaskContext(workdir=workdir, container_path=Path(CONTAINER_PATH).absolute())
 
         expansion_configs = create_configs_from_smi(
-            input_smi=self.smi_path,
+            input_smi=self.config.smi_path,
             workdir_inputs=inputs,
             workdir_outputs=outputs,
-            max_molecules=self.max_molecules,
+            max_molecules=self.config.max_molecules,
         )
 
         job = Job(workdir, default_env=dict(HQ_PYLOG="DEBUG"))
@@ -142,10 +156,10 @@ class LigenDaskWorkload(LigenHQWorkload):
         ctx = LigenTaskContext(workdir=workdir, container_path=Path(CONTAINER_PATH).absolute())
 
         expansion_configs = create_configs_from_smi(
-            input_smi=self.smi_path,
+            input_smi=self.config.smi_path,
             workdir_inputs=inputs,
             workdir_outputs=outputs,
-            max_molecules=self.max_molecules,
+            max_molecules=self.config.max_molecules,
         )
 
         # TODO: use client.map
@@ -207,7 +221,13 @@ class DaskVsHqLigen(TestCase):
             for max_molecules, threads in variants:
                 if max_molecules == 1 and threads > 1:
                     continue
-                workload = workload_cls(smi_path=input_smi, max_molecules=max_molecules, screening_threads=threads)
+                config = LigenConfig(
+                    container_path=CONTAINER_PATH,
+                    smi_path=input_smi,
+                    max_molecules=max_molecules,
+                    screening_threads=threads,
+                )
+                workload = workload_cls(config=config)
                 yield BenchmarkDescriptor(env_descriptor=env, workload=workload, timeout=timeout)
 
         yield from gen_descriptions(hq_env, LigenHQWorkload)
@@ -283,19 +303,25 @@ def benchmark_aggregated_vs_separate_tasks():
     This benchmark tests the performance of Ligen + HQ when we use a single task
     per input ligand, vs. when we use 4/8/16 ligands for each task.
     """
-    hq_path = get_hq_binary()
+    hq_path = get_hq_binary(profile=Profile.Dist)
     env = single_node_hq_cluster(hq_path, worker_threads=min(multiprocessing.cpu_count(), 64), version="base")
     input_smi = get_dataset_path(Path("ligen/artif-2.smi"))
 
     variants = [(1, 1)]  # , (4, 4), (8, 8)]
     descriptions = []
     for max_molecules, num_threads in variants:
-        workload = LigenHQWorkload(smi_path=input_smi, max_molecules=max_molecules, screening_threads=num_threads)
+        config = LigenConfig(
+            container_path=CONTAINER_PATH,
+            smi_path=input_smi,
+            max_molecules=max_molecules,
+            screening_threads=num_threads,
+        )
+        workload = LigenHQWorkload(config)
         descriptions.append(
             BenchmarkDescriptor(env_descriptor=env, workload=workload, timeout=datetime.timedelta(minutes=10))
         )
     run_benchmarks_with_postprocessing(BENCH_WORKDIR, descriptions)
-    df = analyze_results_utilization(BENCH_WORKDIR / DEFAULT_DATA_JSON)
+    df = analyze_results_utilization(Database.from_file(BENCH_WORKDIR / DEFAULT_DATA_JSON))
 
     output_dir = get_output_path(Path("aggregated_vs_separate_tasks"))
     df.to_csv(output_dir / "results.csv", index=False)
@@ -307,5 +333,5 @@ if __name__ == "__main__":
         format="%(levelname)s:%(asctime)s.%(msecs)03d:%(funcName)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    # benchmark_aggregated_vs_separate_tasks()
-    cli()
+    benchmark_aggregated_vs_separate_tasks()
+    # cli()
