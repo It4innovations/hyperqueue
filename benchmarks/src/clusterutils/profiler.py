@@ -139,7 +139,7 @@ class CallgrindProfiler(Profiler):
 class SamplyProfiler(Profiler):
     """
     Uses Samply to sample the execution.
-    You can use `samply load <profile.json>` to display the reuslts.
+    You can use `samply load <profile.json>` to display the results.
     """
 
     TAG = "samply"

@@ -36,6 +36,7 @@ def hq_env_local(
     monitoring=True,
     profile=False,
     debug=False,
+    encryption=True,
 ) -> HqClusterInfo:
     workers = workers or [HqWorkerConfig()]
     environment = environment or {}
@@ -53,6 +54,7 @@ def hq_env_local(
         worker_profilers=profilers,
         debug=debug,
         environment_params=environment,
+        encryption=encryption,
     )
 
 

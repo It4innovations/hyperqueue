@@ -19,6 +19,7 @@ class SlurmOptions:
     walltime: timedelta
     init_script: Path
     workdir: Path
+    node_count: int
 
 
 @dataclasses.dataclass
@@ -42,6 +43,7 @@ def run_in_slurm(options: SlurmOptions, fn: Callable[[], None]) -> SubmittedSlur
 #SBATCH --time {format_allocation_time(options.walltime)}
 #SBATCH -p {options.queue}
 #SBATCH -A {options.project}
+#SBATCH -N {options.node_count}
 #SBATCH --output {stdout}
 #SBATCH --error {stderr}
 
