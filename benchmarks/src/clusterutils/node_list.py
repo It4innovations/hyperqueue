@@ -60,3 +60,12 @@ class Explicit(NodeList):
 
     def resolve(self) -> List[str]:
         return self.nodes
+
+
+def get_active_nodes() -> NodeList:
+    if is_inside_pbs():
+        return PBS()
+    elif is_inside_slurm():
+        return Slurm()
+    else:
+        return Local()

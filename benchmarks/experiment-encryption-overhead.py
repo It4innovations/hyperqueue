@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Iterable
 
 from src.clusterutils import ClusterInfo
-from src.clusterutils.node_list import Local
+from src.clusterutils.node_list import get_active_nodes
 from src.analysis.chart import render_chart
 from src.analysis.dataframe import DataFrameExtractor
 from src.benchmark.database import Database
@@ -25,7 +25,7 @@ class EncryptionOverhead(TestCase):
         def gen_items(encrypt: bool, zero_worker: bool = False):
             hq_path = get_hq_binary(zero_worker=zero_worker)
             env = HqClusterInfo(
-                cluster=ClusterInfo(node_list=Local()),
+                cluster=ClusterInfo(node_list=get_active_nodes()),
                 environment_params=dict(encrypted=encrypt, zw=zero_worker),
                 workers=[HqWorkerConfig()],
                 binary=hq_path,
