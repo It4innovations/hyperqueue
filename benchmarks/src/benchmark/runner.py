@@ -14,6 +14,7 @@ from .identifier import (
     create_benchmark_instances,
 )
 from .result import BenchmarkResult, Failure, Success, Timeout
+from ..postprocessing.overview import generate_summary_text
 
 
 class BenchmarkRunner:
@@ -54,6 +55,8 @@ class BenchmarkRunner:
 
     def save(self):
         self.database.save()
+        summary_txt = self.workdir / "summary-wip.txt"
+        generate_summary_text(self.database, summary_txt)
 
     def _skip_completed(self, infos: List[BenchmarkInstance]) -> List[BenchmarkInstance]:
         not_completed = []
