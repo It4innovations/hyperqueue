@@ -258,7 +258,7 @@ def two_level_summary(
                 stats = results["duration"].describe()
                 duration_str = f"{stats['mean']:.4f} s"
                 if stats["count"] > 1:
-                    duration_str += f" (min={stats['min']:.4f}, max={stats['max']:.4f})"
+                    duration_str += f" (min={stats['min']:.4f}, max={stats['max']:.4f}, std={stats['std']:.4f})"
                 print(f"\t{' '.join(group)}: {duration_str}", file=file)
             if print_total:
                 mean_duration = data["duration"].mean()
