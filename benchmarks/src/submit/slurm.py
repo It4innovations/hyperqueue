@@ -4,7 +4,7 @@ import subprocess
 import sys
 from datetime import timedelta
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 import dataclasses
 
@@ -20,6 +20,7 @@ class SlurmOptions:
     init_script: Path
     workdir: Path
     node_count: int
+    wait_for_job: bool
 
 
 @dataclasses.dataclass
@@ -27,9 +28,10 @@ class SubmittedSlurmJob:
     id: int
 
 
-def run_in_slurm(options: SlurmOptions, fn: Callable[[], None]) -> SubmittedSlurmJob:
+def run_in_slurm(options: SlurmOptions, fn: Callable[[], None]) -> Optional[SubmittedSlurmJob]:
     if running_in_slurm():
         fn()
+        return None
     else:
         venv_path = Path(os.environ["VIRTUAL_ENV"]).absolute() / "bin" / "activate"
 
@@ -58,13 +60,22 @@ cd {workdir} || exit 1
         with open(script_path, "w") as f:
             f.write(script)
         logging.info(f"Submitting\n{script}\nfrom `{script_path}`")
-        output = subprocess.check_output(["sbatch", str(script_path)])
-        job_id = int(output.decode().strip().split(" ")[-1])
 
-        with open(alloc_dir / "jobid", "w") as f:
-            f.write(f"{str(job_id)}\n")
+        args = ["sbatch"]
+        if options.wait_for_job:
+            args.append("--wait")
+        args.append(str(script_path))
 
-        return SubmittedSlurmJob(job_id)
+        if options.wait_for_job:
+            subprocess.check_call(args)
+        else:
+            output = subprocess.check_output(args)
+            job_id = int(output.decode().strip().split(" ")[-1])
+
+            with open(alloc_dir / "jobid", "w") as f:
+                f.write(f"{str(job_id)}\n")
+
+            return SubmittedSlurmJob(job_id)
 
 
 def running_in_slurm():
