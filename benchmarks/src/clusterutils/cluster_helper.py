@@ -16,6 +16,7 @@ from cluster.cluster import (
     ProcessInfo,
     kill_process,
     start_process,
+    is_local,
 )
 
 from ..utils import get_pyenv_from_env
@@ -70,7 +71,7 @@ class ClusterHelper:
         """
         start = time.time()
         for process_info in self.processes:
-            if filter_fn(process_info):
+            if is_local(process_info.hostname) and filter_fn(process_info):
                 try:
                     process = psutil.Process(process_info.pid)
                 except psutil.NoSuchProcess:
