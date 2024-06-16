@@ -1,3 +1,5 @@
+import datetime
+import json
 import logging
 from typing import Dict, List, Optional, Callable, TYPE_CHECKING
 
@@ -43,11 +45,24 @@ def measure_hq_tasks(
         *command,
     ]
 
-    timer = Timings()
     with activate_cwd(env.workdir):
-        with timer.time():
-            env.submit(args)
-    return create_result(timer.duration())
+        env.submit(args)
+
+    # Calculate the real duration of the job
+    result = env.submit(["job", "info", "last", "--output-mode", "json"], measured=False)
+    metadata = json.loads(result.stdout.decode())[0]
+    start = parse_hq_time(metadata["started_at"])
+    end = parse_hq_time(metadata["finished_at"])
+    duration = end - start
+
+    return create_result(duration.total_seconds())
+
+
+def parse_hq_time(input: str) -> datetime.datetime:
+    """
+    Parses e.g. `'2024-06-16T20:01:19.44240123Z`.
+    """
+    return datetime.datetime.strptime(input[:26], "%Y-%m-%dT%H:%M:%S.%f")
 
 
 def measure_snake_tasks(env: Environment, command: str, task_count: int, cpus_per_task=1) -> WorkloadExecutionResult:

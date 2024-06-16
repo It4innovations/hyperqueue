@@ -251,16 +251,20 @@ class HqEnvironment(Environment, EnvStateManager):
         for fn in self.postprocessing_fns:
             fn()
 
-    def submit(self, args: List[str]) -> subprocess.CompletedProcess:
-        path = self.server_dir / f"submit-{self.submit_id}"
-        stdout = Path(f"{path}.out")
-        stderr = Path(f"{path}.err")
-
+    def submit(self, args: List[str], measured: bool = True) -> subprocess.CompletedProcess:
         args = self._shared_args() + args
-        logging.debug(f"[HQ] Submitting `{' '.join(args)}`")
-        result = execute_process(args, stdout=stdout, stderr=stderr, env=self._shared_envs())
 
-        self.submit_id += 1
+        if measured:
+            path = self.server_dir / f"submit-{self.submit_id}"
+            stdout = Path(f"{path}.out")
+            stderr = Path(f"{path}.err")
+
+            logging.debug(f"[HQ] Submitting `{' '.join(args)}`")
+            result = execute_process(args, stdout=stdout, stderr=stderr, env=self._shared_envs())
+
+            self.submit_id += 1
+        else:
+            result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self._shared_envs())
         return result
 
     def create_client(self, **kwargs) -> Client:
