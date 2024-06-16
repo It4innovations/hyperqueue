@@ -55,7 +55,7 @@ impl Authenticator {
     pub fn make_auth_request(&mut self) -> crate::Result<AuthenticationRequest> {
         let mode = if self.secret_key.is_some() {
             let mut challenge = vec![0; CHALLENGE_LENGTH];
-            secure_rand_bytes(&mut challenge).map_err(|_| "Generaing challenge failed")?;
+            secure_rand_bytes(&mut challenge).map_err(|_| "Generating challenge failed")?;
             self.challenge.clone_from(&challenge);
             AuthenticationMode::Encryption(Challenge { challenge })
         } else {
@@ -174,15 +174,25 @@ impl Authenticator {
     }
 }
 
+/// Override for disabling encryption, mostly for benchmarking/debugging purposes.
+pub fn is_encryption_disabled() -> bool {
+    std::env::var("HQ_SKIP_AUTHENTICATION").is_ok()
+}
+
 pub async fn do_authentication<T: AsyncRead + AsyncWrite>(
     protocol: u32,
     my_role: String,
     peer_role: String,
-    secret_key: Option<Arc<SecretKey>>,
+    mut secret_key: Option<Arc<SecretKey>>,
     writer: &mut SplitSink<Framed<T, LengthDelimitedCodec>, bytes::Bytes>,
     reader: &mut SplitStream<Framed<T, LengthDelimitedCodec>>,
 ) -> crate::Result<(Option<StreamSealer>, Option<StreamOpener>)> {
     const AUTH_TIMEOUT: Duration = Duration::from_secs(15);
+
+    if is_encryption_disabled() {
+        secret_key = None;
+    }
+
     let mut authenticator = Authenticator::new(protocol, my_role, peer_role, secret_key);
 
     /* Send authentication message */
