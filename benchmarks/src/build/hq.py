@@ -88,9 +88,7 @@ def build_tag(config: BuildConfig, resolved_ref: str) -> Path:
         logging.info(f"{tag} already built at {path}")
         return path
 
-    build_description = (
-        f"{tag} (profile={config.profile.name()}, zero_worker={config.zero_worker}, debug_symbols={config.debug_symbols})"
-    )
+    build_description = f"{tag} (profile={config.profile.name()}, zero_worker={config.zero_worker}, debug_symbols={config.debug_symbols})"
     with checkout_tag(tag):
         logging.info(f"Building {build_description}")
         env = os.environ.copy()
@@ -110,6 +108,7 @@ def build_tag(config: BuildConfig, resolved_ref: str) -> Path:
         built_binary = get_build_dir(config) / "hq"
         assert built_binary.is_file()
 
+        subprocess.run(["killall", os.path.basename(path)], check=False)
         shutil.copyfile(built_binary, path)
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
         logging.info(f"Building {build_description} finished")
