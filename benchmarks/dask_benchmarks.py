@@ -2,7 +2,7 @@ import datetime
 from pathlib import Path
 from typing import Iterable
 
-from src.analysis.chart import render_chart_to_png
+from src.analysis.chart import render_chart
 from src.analysis.dataframe import DataFrameExtractor
 from src.benchmark.database import Database, DatabaseRecord
 from src.benchmark.identifier import BenchmarkDescriptor
@@ -66,7 +66,7 @@ class DaskVsHqSleep(TestCase):
         ax = sns.scatterplot(df, x="task-count", y="duration", hue="environment", marker="o")
         ax.set(ylabel="Duration [s]", xlabel="Task count", ylim=(0, None))
         # ax.set(yscale="log")
-        render_chart_to_png(workdir / "dask-vs-hq-sleep.png")
+        render_chart(workdir / "dask-vs-hq-sleep.png")
 
 
 @register_case(cli)
@@ -111,7 +111,7 @@ class DaskVsHqEmpty(TestCase):
         ax = sns.lineplot(df, x="task-count", y="duration", hue="environment", marker="o")
         ax.set(ylabel="Duration [s]", xlabel="Task count", ylim=(0, None))
         # ax.set(yscale="log")
-        render_chart_to_png(workdir / "dask-vs-hq-empty.png")
+        render_chart(workdir / "dask-vs-hq-empty.png")
 
 
 if __name__ == "__main__":

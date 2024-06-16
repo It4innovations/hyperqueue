@@ -15,7 +15,7 @@ from ligate.ligen.expansion import SubmittedExpansion
 from src.build.hq import Profile
 from hyperqueue import Client, Job
 from hyperqueue.job import SubmittedJob
-from src.analysis.chart import render_chart_to_png
+from src.analysis.chart import render_chart
 from src.analysis.dataframe import DataFrameExtractor
 from src.benchmark.database import Database
 from src.benchmark.identifier import BenchmarkDescriptor
@@ -252,7 +252,7 @@ class DaskVsHqLigen(TestCase):
 
         ax = sns.lineplot(df, x="threads", y="duration", hue="environment", marker="o")
         ax.set(ylabel="Duration [s]", xlabel="Threads")
-        render_chart_to_png(workdir / "dask-vs-hq-ligen.png")
+        render_chart(workdir / "dask-vs-hq-ligen.png")
 
 
 def analyze_results_utilization(db: Database) -> pd.DataFrame:

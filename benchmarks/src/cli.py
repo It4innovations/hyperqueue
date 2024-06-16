@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 from typing import Iterable, Optional, Type
 
+import dataclasses
 import typer
 from typer import Typer
 
@@ -39,20 +40,18 @@ def create_cli() -> Typer:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    cli = typer.Typer()
-
-    @cli.command(hidden=True)
-    def dummy():
-        """
-        This command is here because Typer has silly defaults and doesn't generate
-        a subcommand if there is exactly one command.
-        """
-        raise NotImplementedError()
-
-    return cli
+    return typer.Typer()
 
 
-def run_test_case(workdir: Path, case: TestCase, slurm: bool):
+@dataclasses.dataclass
+class SlurmCliOptions:
+    queue: str
+    project: str
+    init_script: Path
+    node_count: int = 1
+
+
+def run_test_case(workdir: Path, case: TestCase, slurm_cli: Optional[SlurmCliOptions] = None):
     descriptors = list(case.generate_descriptors())
     has_work = has_work_left(workdir, descriptors)
 
@@ -67,14 +66,15 @@ def run_test_case(workdir: Path, case: TestCase, slurm: bool):
         database = database.filter(identifiers)
         case.postprocess(workdir=workdir, database=database)
 
-    if has_work and slurm:
+    if has_work and slurm_cli is not None:
         run_in_slurm(
             SlurmOptions(
                 name="slurm-auto-submit",
-                queue="qcpu_exp",
-                project="DD-21-9",
-                walltime=datetime.timedelta(hours=2),
-                init_script=Path("/mnt/proj2/dd-21-9/beranekj/modules.sh"),
+                queue=slurm_cli.queue,
+                project=slurm_cli.project,
+                walltime=datetime.timedelta(hours=1),
+                init_script=slurm_cli.init_script.absolute(),
+                node_count=slurm_cli.node_count,
                 workdir=Path("slurm").absolute(),
             ),
             compute,
@@ -88,13 +88,27 @@ def register_case(app: Typer):
         case = cls()
 
         @app.command(name=case.name())
-        def command(workdir: Optional[Path] = None, slurm: bool = False, clear: bool = False):
+        def command(
+            workdir: Optional[Path] = None,
+            queue: Optional[str] = None,
+            project: Optional[str] = None,
+            init_script: Optional[Path] = None,
+            node_count: Optional[int] = 1,
+            clear: bool = False,
+        ):
             if workdir is None:
                 workdir = Path("benchmarks") / case.name()
             workdir = workdir.absolute()
             if clear:
                 shutil.rmtree(workdir, ignore_errors=True)
-            run_test_case(workdir=workdir, case=case, slurm=slurm)
+
+            if queue is not None or project is not None or init_script is not None:
+                assert queue is not None and project is not None and init_script is not None
+                slurm = SlurmCliOptions(queue=queue, project=project, init_script=init_script, node_count=node_count)
+            else:
+                slurm = None
+
+            run_test_case(workdir=workdir, case=case, slurm_cli=slurm)
 
         command.__doc__ = f"""
 Run the {case.name()} benchmark.
