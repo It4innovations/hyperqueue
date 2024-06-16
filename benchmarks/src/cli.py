@@ -49,6 +49,7 @@ class SlurmCliOptions:
     project: str
     init_script: Path
     node_count: int = 1
+    wait_for_job: bool = False
 
 
 def run_test_case(workdir: Path, case: TestCase, slurm_cli: Optional[SlurmCliOptions] = None):
@@ -76,6 +77,7 @@ def run_test_case(workdir: Path, case: TestCase, slurm_cli: Optional[SlurmCliOpt
                 init_script=slurm_cli.init_script.absolute(),
                 node_count=slurm_cli.node_count,
                 workdir=Path("slurm").absolute(),
+                wait_for_job=slurm_cli.wait_for_job,
             ),
             compute,
         )
@@ -94,6 +96,7 @@ def register_case(app: Typer):
             project: Optional[str] = None,
             init_script: Optional[Path] = None,
             node_count: Optional[int] = 1,
+            wait: bool = False,
             clear: bool = False,
         ):
             if workdir is None:
@@ -104,7 +107,9 @@ def register_case(app: Typer):
 
             if queue is not None or project is not None or init_script is not None:
                 assert queue is not None and project is not None and init_script is not None
-                slurm = SlurmCliOptions(queue=queue, project=project, init_script=init_script, node_count=node_count)
+                slurm = SlurmCliOptions(
+                    queue=queue, project=project, init_script=init_script, node_count=node_count, wait_for_job=wait
+                )
             else:
                 slurm = None
 
