@@ -71,6 +71,8 @@ class HqClusterInfo(EnvironmentDescriptor):
     # Should events be stored to disk and recorded to JSON?
     # If yes, they will appear at <workdir>/events.json
     generate_event_log: bool = False
+    # Whether HyperQueue encryption should be used
+    encryption: bool = False
 
     def __post_init__(self):
         self.binary = self.binary.absolute()
@@ -191,7 +193,7 @@ class HqEnvironment(Environment, EnvStateManager):
             hostname=self.nodes[0],
             name="server",
             workdir=workdir,
-            env={"RUST_LOG": self._log_env_value()},
+            env=self._shared_envs(),
         )
 
         apply_profilers(args, self.info.server_profilers, workdir)
@@ -219,7 +221,7 @@ class HqEnvironment(Environment, EnvStateManager):
                     hostname=node,
                     name=worker_index,
                     workdir=workdir,
-                    env={"RUST_LOG": self._log_env_value()},
+                    env=self._shared_envs(),
                 )
 
                 apply_profilers(args, self.info.worker_profilers, workdir)
@@ -233,7 +235,7 @@ class HqEnvironment(Environment, EnvStateManager):
         logging.info("Stopping HQ server and waiting for server and workers to stop")
 
         # Stop the server
-        subprocess.run([*self._shared_args(), "server", "stop"])
+        subprocess.run([*self._shared_args(), "server", "stop"], env=self._shared_envs())
         # Wait for the server and worker to end
         self.cluster.wait_for_process_end(
             lambda p: p.key == "server" or p.key.startswith("worker"), duration=datetime.timedelta(seconds=5)
@@ -251,7 +253,7 @@ class HqEnvironment(Environment, EnvStateManager):
 
         args = self._shared_args() + args
         logging.debug(f"[HQ] Submitting `{' '.join(args)}`")
-        result = execute_process(args, stdout=stdout, stderr=stderr)
+        result = execute_process(args, stdout=stdout, stderr=stderr, env=self._shared_envs())
 
         self.submit_id += 1
         return result
@@ -264,18 +266,23 @@ class HqEnvironment(Environment, EnvStateManager):
     def _shared_args(self) -> List[str]:
         return [str(self.binary_path), "--server-dir", str(self.server_dir)]
 
+    def _shared_envs(self) -> Dict[str, str]:
+        env = {"RUST_LOG": f"hyperqueue={'DEBUG' if self.info.debug else 'INFO'}"}
+        if not self.info.encryption:
+            env["HQ_SKIP_AUTHENTICATION"] = "1"
+        return env
+
     def _wait_for_server_start(self):
         wait_until(lambda: (self.server_dir / "hq-current" / "access.json").is_file())
 
     def _wait_for_workers(self, count: int):
         def get_worker_count():
-            output = subprocess.check_output(self._shared_args() + ["--output-mode", "json", "worker", "list"])
+            output = subprocess.check_output(
+                self._shared_args() + ["--output-mode", "json", "worker", "list"], env=self._shared_envs()
+            )
             return len(json.loads(output)) == count
 
         wait_until(lambda: get_worker_count())
-
-    def _log_env_value(self) -> str:
-        return f"hyperqueue={'DEBUG' if self.info.debug else 'INFO'}"
 
 
 def apply_profilers(args: StartProcessArgs, profilers: List[Profiler], output_dir: Path):
