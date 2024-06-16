@@ -175,6 +175,7 @@ class HqEnvironment(Environment, EnvStateManager):
 
         self._wait_for_workers(self.worker_count)
         logging.info(f"{self.worker_count} HQ worker(s) connected")
+        logging.info(f"Worker info\n{json.loads(self._get_worker_info())}")
 
     def start_server(self):
         workdir = self.server_workdir
@@ -215,7 +216,10 @@ class HqEnvironment(Environment, EnvStateManager):
                     args += ["--cpus", str(worker.cpus)]
                 for name, resource in worker.resources.items():
                     args += ["--resource", f"{name}={resource.format()}"]
-                args += ["--overview-interval", f"{int(worker.overview_interval.total_seconds())}s"]
+                args += [
+                    "--overview-interval",
+                    f"{int(worker.overview_interval.total_seconds())}s",
+                ]
                 args = StartProcessArgs(
                     args=args,
                     hostname=node,
@@ -238,7 +242,8 @@ class HqEnvironment(Environment, EnvStateManager):
         subprocess.run([*self._shared_args(), "server", "stop"], env=self._shared_envs())
         # Wait for the server and worker to end
         self.cluster.wait_for_process_end(
-            lambda p: p.key == "server" or p.key.startswith("worker"), duration=datetime.timedelta(seconds=5)
+            lambda p: p.key == "server" or p.key.startswith("worker"),
+            duration=datetime.timedelta(seconds=5),
         )
         # Send SIGINT to everything
         self.cluster.stop(use_sigint=True)
@@ -277,12 +282,16 @@ class HqEnvironment(Environment, EnvStateManager):
 
     def _wait_for_workers(self, count: int):
         def get_worker_count():
-            output = subprocess.check_output(
-                self._shared_args() + ["--output-mode", "json", "worker", "list"], env=self._shared_envs()
-            )
+            output = self._get_worker_info()
             return len(json.loads(output)) == count
 
         wait_until(lambda: get_worker_count())
+
+    def _get_worker_info(self):
+        return subprocess.check_output(
+            self._shared_args() + ["--output-mode", "json", "worker", "list"],
+            env=self._shared_envs(),
+        )
 
 
 def apply_profilers(args: StartProcessArgs, profilers: List[Profiler], output_dir: Path):
