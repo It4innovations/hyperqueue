@@ -4,7 +4,8 @@ import subprocess
 import sys
 from datetime import timedelta
 from pathlib import Path
-from typing import Callable, Optional
+import time
+from typing import Callable
 
 import dataclasses
 
@@ -28,7 +29,7 @@ class SubmittedSlurmJob:
     id: int
 
 
-def run_in_slurm(options: SlurmOptions, fn: Callable[[], None]) -> Optional[SubmittedSlurmJob]:
+def run_in_slurm(options: SlurmOptions, fn: Callable[[], None]) -> SubmittedSlurmJob:
     if running_in_slurm():
         fn()
         return None
@@ -62,20 +63,45 @@ cd {workdir} || exit 1
         logging.info(f"Submitting\n{script}\nfrom `{script_path}`")
 
         args = ["sbatch"]
-        if options.wait_for_job:
-            args.append("--wait")
         args.append(str(script_path))
 
+        output = subprocess.check_output(args)
+        job_id = int(output.decode().strip().split(" ")[-1])
+
+        with open(alloc_dir / "jobid", "w") as f:
+            f.write(f"{str(job_id)}\n")
+
         if options.wait_for_job:
-            subprocess.check_call(args)
-        else:
-            output = subprocess.check_output(args)
-            job_id = int(output.decode().strip().split(" ")[-1])
+            try:
+                while True:
+                    if stderr.is_file():
+                        break
+                    time.sleep(1)
+                print(f"Job {job_id} has started")
 
-            with open(alloc_dir / "jobid", "w") as f:
-                f.write(f"{str(job_id)}\n")
+                tail_process = subprocess.Popen(["tail", "-f", stderr])
+                while True:
+                    status = get_job_status(job_id)
+                    if status in ("CANCELLED", "COMPLETED", "COMPLETING", "FAILED"):
+                        print(f"Job {job_id} has finished with status {status}")
+                        break
+                    time.sleep(10)
+                tail_process.kill()
+            except KeyboardInterrupt:
+                print(f"Cancelling job {job_id}")
+                subprocess.run(["scancel", str(job_id)])
+        return SubmittedSlurmJob(job_id)
 
-            return SubmittedSlurmJob(job_id)
+
+def get_job_status(job_id: int) -> str:
+    output = subprocess.run(["scontrol", "show", "job", str(job_id)], stdout=subprocess.PIPE)
+    assert output.returncode == 0
+    for line in output.stdout.decode("utf-8").splitlines():
+        line = line.strip().split()
+        if line:
+            line = line[0]
+            if line.startswith("JobState="):
+                return line[len("JobState=") :]
 
 
 def running_in_slurm():
