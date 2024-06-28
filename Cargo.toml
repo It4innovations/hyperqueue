@@ -16,7 +16,7 @@ edition = "2021"
 authors = ["Ada Böhm <ada@kreatrix.org>", "Jakub Beránek <berykubik@gmail.com>"]
 
 [workspace.dependencies]
-tokio = "1.36"
+tokio = "1"
 log = "0.4"
 env_logger = { version = "0.11", features = ["color"] }
 clap = "4"
@@ -39,7 +39,7 @@ thiserror = "1"
 tempdir = "0.3"
 tracing = "0.1"
 anyhow = "1"
-nix = { version = "0.27", features = ["process", "signal"] }
+nix = { version = "0.29", features = ["process", "signal"] }
 bstr = { version = "1.9", features = ["serde"] }
 psutil = "3"
 
