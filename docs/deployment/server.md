@@ -31,16 +31,25 @@ If you use a non-default server directory, make sure to pass the same `--server-
 should use the selected HyperQueue server:
 
 ```bash
-$ hq --server-dir=foo server start
+$ hq --server-dir=foo server start &
 $ hq --server-dir=foo worker start
 ```
 
+!!! tip
+
+    To avoid having to pass the `--server-dir` parameter to all `hq` commands separately, you can also pass it through the`HQ_SERVER_DIR` environment variable, and export it to share it for all commands in the same terminal session:
+    ```bash
+    $ export HQ_SERVER_DIR=bar
+    $ hq server start &
+    $ hq worker start &
+    ```
+
 !!! important
-When you start the server, it will create a new subdirectory in the server directory, which will store the data of the
-current running instance. It will also create a symlink `hq-current` which will point to the currently active
-subdirectory.
-Using this approach, you can start a server using the same server directory multiple times without overwriting data
-of the previous runs.
+
+    When you start the server, it will create a new subdirectory in the server directory, which will store the data of the current running instance. It will also create a symlink `hq-current` which will point to the currently active
+    subdirectory.
+    Using this approach, you can start a server using the same server directory multiple times without overwriting data
+    of the previous runs.
 
 !!! danger "Server directory access"
 
