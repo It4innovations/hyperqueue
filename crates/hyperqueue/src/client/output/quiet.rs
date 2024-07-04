@@ -70,6 +70,11 @@ impl Output for Quiet {
     fn print_job_submitted(&self, job: JobDetail) {
         println!("{}", job.info.id)
     }
+
+    fn print_job_open(&self, job_id: JobId) {
+        println!("{}", job_id);
+    }
+
     fn print_job_list(&self, jobs: Vec<JobInfo>, _total_jobs: usize) {
         for task in jobs {
             let status = job_status(&task);
@@ -86,6 +91,7 @@ impl Output for Quiet {
                 Status::Finished => "FINISHED",
                 Status::Failed => "FAILED",
                 Status::Canceled => "CANCELED",
+                Status::Opened => "OPENED",
             };
 
             println!("{status} {count}");
@@ -155,5 +161,6 @@ fn format_status(status: &Status) -> &str {
         Status::Finished => "FINISHED",
         Status::Failed => "FAILED",
         Status::Canceled => "CANCELED",
+        Status::Opened => "OPENED",
     }
 }

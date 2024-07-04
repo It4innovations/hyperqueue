@@ -10,11 +10,13 @@ use colored::Colorize;
 use hyperqueue::client::commands::autoalloc::command_autoalloc;
 use hyperqueue::client::commands::event::command_event_log;
 use hyperqueue::client::commands::job::{
-    cancel_job, forget_job, output_job_cat, output_job_detail, output_job_list, output_job_summary,
-    JobCancelOpts, JobCatOpts, JobForgetOpts, JobInfoOpts, JobListOpts, JobTaskIdsOpts,
+    cancel_job, close_job, forget_job, output_job_cat, output_job_detail, output_job_list,
+    output_job_summary, JobCancelOpts, JobCatOpts, JobCloseOpts, JobForgetOpts, JobInfoOpts,
+    JobListOpts, JobTaskIdsOpts,
 };
 use hyperqueue::client::commands::log::command_log;
 use hyperqueue::client::commands::server::command_server;
+use hyperqueue::client::commands::submit::command::{open_job, SubmitJobConfOpts};
 use hyperqueue::client::commands::submit::{
     submit_computation, submit_computation_from_job_file, JobSubmitFileOpts, JobSubmitOpts,
 };
@@ -64,6 +66,14 @@ async fn command_job_submit(
     submit_computation(gsettings, &mut session, opts).await
 }
 
+async fn command_job_open(
+    gsettings: &GlobalSettings,
+    opts: SubmitJobConfOpts,
+) -> anyhow::Result<()> {
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    open_job(gsettings, &mut session, opts).await
+}
+
 async fn command_submit_job_file(
     gsettings: &GlobalSettings,
     opts: JobSubmitFileOpts,
@@ -79,7 +89,7 @@ async fn command_job_list(gsettings: &GlobalSettings, opts: JobListOpts) -> anyh
         if opts.all {
             vec![]
         } else {
-            vec![Status::Waiting, Status::Running]
+            vec![Status::Waiting, Status::Running, Status::Opened]
         }
     } else {
         opts.filter
@@ -122,6 +132,11 @@ async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow
 async fn command_job_cancel(gsettings: &GlobalSettings, opts: JobCancelOpts) -> anyhow::Result<()> {
     let mut connection = get_client_session(gsettings.server_directory()).await?;
     cancel_job(gsettings, &mut connection, opts.selector).await
+}
+
+async fn command_job_close(gsettings: &GlobalSettings, opts: JobCloseOpts) -> anyhow::Result<()> {
+    let mut connection = get_client_session(gsettings.server_directory()).await?;
+    close_job(gsettings, &mut connection, opts.selector).await
 }
 
 async fn command_job_delete(gsettings: &GlobalSettings, opts: JobForgetOpts) -> anyhow::Result<()> {
@@ -439,6 +454,12 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::TaskIds(opts),
         }) => command_job_task_ids(&gsettings, opts).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::Open(opts),
+        }) => command_job_open(&gsettings, opts).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::Close(opts),
+        }) => command_job_close(&gsettings, opts).await,
         SubCommand::Task(TaskOpts {
             subcmd: TaskCommand::List(opts),
         }) => command_task_list(&gsettings, opts).await,

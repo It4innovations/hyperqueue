@@ -196,13 +196,10 @@ pub(super) async fn start_worker(
                             _ = &mut worker_future => break,
                             _ = &mut end_rx => break,
                             msg = control_rx.recv() => {
-                                match msg {
-                                    Some(msg) => {
-                                        match msg {
-                                            WorkerControlMessage::Pause(until) => until.await.unwrap()
-                                        }
+                                if let Some(msg) = msg {
+                                    match msg {
+                                        WorkerControlMessage::Pause(until) => until.await.unwrap()
                                     }
-                                    None => {}
                                 }
                             }
                         }

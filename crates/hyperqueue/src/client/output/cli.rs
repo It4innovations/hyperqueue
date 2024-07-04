@@ -443,12 +443,19 @@ impl Output for CliOutput {
 
     fn print_job_list(&self, jobs: Vec<JobInfo>, total_jobs: usize) {
         let job_count = jobs.len();
+        let mut has_opened = false;
         let rows: Vec<_> = jobs
             .into_iter()
             .map(|t| {
                 let status = status_to_cell(&job_status(&t));
                 vec![
-                    t.id.cell().justify(Justify::Right),
+                    if t.is_open {
+                        has_opened = true;
+                        format!("*{}", t.id).cell()
+                    } else {
+                        t.id.cell()
+                    }
+                    .justify(Justify::Right),
                     truncate_middle(&t.name, 50).cell(),
                     status,
                     t.n_tasks.cell(),
@@ -463,6 +470,10 @@ impl Output for CliOutput {
             "Tasks".cell().bold(true),
         ];
         self.print_horizontal_table(rows, header);
+
+        if has_opened {
+            println!("* = Jobs with opened session")
+        }
 
         if job_count != total_jobs {
             println!(
@@ -493,7 +504,8 @@ impl Output for CliOutput {
         for job in jobs {
             let JobDetail {
                 info,
-                job_desc,
+                job_desc: _,
+                submit_descs,
                 mut tasks,
                 tasks_not_found: _,
                 submission_date,
@@ -514,14 +526,22 @@ impl Output for CliOutput {
             let state_label = "State".cell().bold(true);
             rows.push(vec![state_label, status]);
 
+            let state_label = "Session".cell().bold(true);
+            rows.push(vec![state_label, session_to_cell(info.is_open)]);
+
             let mut n_tasks = info.n_tasks.to_string();
-            match &job_desc.task_desc {
-                JobTaskDescription::Array { ids, .. } => {
-                    write!(n_tasks, "; Ids: {ids}").unwrap();
-                }
-                JobTaskDescription::Graph { .. } => {
-                    // TODO
-                }
+            let ids =
+                IntArray::from_non_overlapping(submit_descs.iter().filter_map(|submit_desc| {
+                    match &submit_desc.task_desc {
+                        JobTaskDescription::Array { ids, .. } => Some(ids),
+                        JobTaskDescription::Graph { .. } => {
+                            // TODO
+                            None
+                        }
+                    }
+                }));
+            if !ids.is_empty() {
+                write!(n_tasks, "; Ids: {ids}").unwrap();
             }
 
             rows.push(vec!["Tasks".cell().bold(true), n_tasks.cell()]);
@@ -530,8 +550,10 @@ impl Output for CliOutput {
                 format_job_workers(&tasks, &worker_map).cell(),
             ]);
 
-            if let JobTaskDescription::Array { task_desc, .. } = &job_desc.task_desc {
-                self.print_job_shared_task_description(&mut rows, task_desc);
+            if submit_descs.len() == 1 {
+                if let JobTaskDescription::Array { task_desc, .. } = &submit_descs[0].task_desc {
+                    self.print_job_shared_task_description(&mut rows, task_desc);
+                }
             }
 
             rows.push(vec![
@@ -539,10 +561,12 @@ impl Output for CliOutput {
                 submission_date.round_subsecs(0).cell(),
             ]);
 
-            rows.push(vec![
-                "Submission directory".cell().bold(true),
-                job_desc.submit_dir.to_str().unwrap().cell(),
-            ]);
+            if submit_descs.len() == 1 {
+                rows.push(vec![
+                    "Submission directory".cell().bold(true),
+                    submit_descs[0].submit_dir.to_str().unwrap().cell(),
+                ]);
+            }
 
             rows.push(vec![
                 "Makespan".cell().bold(true),
@@ -692,23 +716,26 @@ impl Output for CliOutput {
             let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, &task);
             let task_id = task.task_id;
 
-            let (task_desc, task_deps) = match &job.job_desc.task_desc {
-                JobTaskDescription::Array {
-                    ids: _,
-                    entries: _,
-                    task_desc,
-                } => (task_desc, [].as_slice()),
-
-                JobTaskDescription::Graph { tasks } => {
-                    let opt_task_dep = tasks.iter().find(|t| t.id == task_id);
-                    match opt_task_dep {
-                        None => {
-                            log::error!("Task {task_id} not found in (graph) job {job_id}");
-                            return;
+            let (task_desc, task_deps) = if let Some(x) =
+                job.submit_descs
+                    .iter()
+                    .find_map(|submit_desc| match &submit_desc.task_desc {
+                        JobTaskDescription::Array {
+                            ids,
+                            entries: _,
+                            task_desc,
+                        } if ids.contains(task_id.as_num()) => Some((task_desc, [].as_slice())),
+                        JobTaskDescription::Array { .. } => None,
+                        JobTaskDescription::Graph { tasks } => {
+                            tasks.iter().find(|t| t.id == task_id).map(|task_dep| {
+                                (&task_dep.task_desc, task_dep.dependencies.as_slice())
+                            })
                         }
-                        Some(task_dep) => (&task_dep.task_desc, task_dep.dependencies.as_slice()),
-                    }
-                }
+                    }) {
+                x
+            } else {
+                log::error!("Task {task_id} not found in (graph) job {job_id}");
+                return;
             };
 
             match &task_desc.kind {
@@ -961,6 +988,13 @@ impl Output for CliOutput {
     fn print_error(&self, error: Error) {
         eprintln!("{error:?}");
     }
+
+    fn print_job_open(&self, job_id: JobId) {
+        println!(
+            "Job {} opened",
+            job_id.to_string().color(colored::Color::Green),
+        );
+    }
 }
 
 struct AllocationTimes {
@@ -1172,9 +1206,18 @@ pub fn print_job_output(
     Ok(())
 }
 
+fn session_to_cell(is_open: bool) -> CellStruct {
+    if is_open {
+        "open".cell().foreground_color(Some(Color::Green))
+    } else {
+        "closed".cell()
+    }
+}
+
 fn status_to_cell(status: &Status) -> CellStruct {
     match status {
         Status::Waiting => "WAITING".cell().foreground_color(Some(Color::Cyan)),
+        Status::Opened => "OPENED".cell().foreground_color(Some(Color::Cyan)),
         Status::Finished => "FINISHED".cell().foreground_color(Some(Color::Green)),
         Status::Failed => "FAILED".cell().foreground_color(Some(Color::Red)),
         Status::Running => "RUNNING".cell().foreground_color(Some(Color::Yellow)),

@@ -46,7 +46,7 @@ def wait_for_state(
 
         table = env.command(commands, as_table=True)
         last_table = table
-        items = [row for row in table if row[0] in ids]
+        items = [row for row in table if row[0].lstrip("*") in ids]
         return len(items) >= len(ids) and all(j[state_index].lower() in target_states for j in items)
 
     try:

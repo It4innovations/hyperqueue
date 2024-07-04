@@ -10,8 +10,8 @@ use crate::common::arraydef::IntArray;
 use crate::common::utils::fs::get_current_dir;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    JobDescription, JobTaskDescription, PinMode, SubmitRequest, TaskDescription, TaskKind,
-    TaskKindProgram, TaskWithDependencies,
+    JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, SubmitRequest,
+    TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
 };
 use crate::{JobTaskCount, JobTaskId};
 use clap::Parser;
@@ -132,12 +132,15 @@ fn build_job_submit(jdef: JobDef) -> SubmitRequest {
     };
     SubmitRequest {
         job_desc: JobDescription {
-            task_desc,
             name: jdef.name,
             max_fails: jdef.max_fails,
+        },
+        submit_desc: JobSubmitDescription {
+            task_desc,
             submit_dir: get_current_dir(),
             log: jdef.stream_log,
         },
+        job_id: None,
     }
 }
 

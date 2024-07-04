@@ -35,10 +35,10 @@ use crate::common::utils::str::pluralize;
 use crate::common::utils::time::parse_human_time;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    FromClientMessage, IdSelector, JobDescription, JobTaskDescription, PinMode, SubmitRequest,
-    TaskDescription, TaskKind, TaskKindProgram, ToClientMessage,
+    FromClientMessage, IdSelector, JobDescription, JobSubmitDescription, JobTaskDescription,
+    PinMode, SubmitRequest, TaskDescription, TaskKind, TaskKindProgram, ToClientMessage,
 };
-use crate::{rpc_call, JobTaskCount, Map};
+use crate::{rpc_call, JobId, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 pub const DEFAULT_CRASH_LIMIT: u32 = 5;
@@ -179,13 +179,28 @@ impl From<PinModeArg> for PinMode {
     }
 }
 
+#[derive(Parser)]
+pub struct SubmitJobConfOpts {
+    /// Name of the job
+    #[arg(long)]
+    name: Option<String>,
+
+    /// Maximum number of permitted task failures.
+    /// If this limit is reached, the job will fail immediately.
+    #[arg(long)]
+    max_fails: Option<JobTaskCount>,
+}
+
 /* This is a special kind of parser because some arguments may be configured
  * through #HQ directives.
  *
  * When this is updated, also update the `overwrite` method!!!
 */
 #[derive(Parser)]
-pub struct SubmitJobConfOpts {
+pub struct SubmitJobTaskConfOpts {
+    #[clap(flatten)]
+    job_conf: SubmitJobConfOpts,
+
     /* Other resource configurations is not yet supported in combination of nodes,
       remove conflict_with as support is done
     */
@@ -209,10 +224,6 @@ pub struct SubmitJobConfOpts {
     /// Minimal lifetime of the worker needed to start the job
     #[arg(long, value_parser = parse_human_time, default_value = "0ms")]
     time_request: Duration,
-
-    /// Name of the job
-    #[arg(long)]
-    name: Option<String>,
 
     /// Pin the job to the cores specified in `--cpus`.
     #[arg(long, value_enum)]
@@ -263,11 +274,6 @@ pub struct SubmitJobConfOpts {
     #[arg(long)]
     array: Option<IntArray>,
 
-    /// Maximum number of permitted task failures.
-    /// If this limit is reached, the job will fail immediately.
-    #[arg(long)]
-    max_fails: Option<JobTaskCount>,
-
     /// Priority of each task
     #[arg(long, default_value_t = 0)]
     priority: tako::Priority,
@@ -292,9 +298,9 @@ pub struct SubmitJobConfOpts {
     crash_limit: u32,
 }
 
-impl OptsWithMatches<SubmitJobConfOpts> {
+impl OptsWithMatches<SubmitJobTaskConfOpts> {
     /// Overwrite options in `other` with values from `self`.
-    pub fn overwrite(self, other: OptsWithMatches<SubmitJobConfOpts>) -> SubmitJobConfOpts {
+    pub fn overwrite(self, other: OptsWithMatches<SubmitJobTaskConfOpts>) -> SubmitJobTaskConfOpts {
         let (opts, self_matches) = self.into_inner();
         let (mut other_opts, other_matches) = other.into_inner();
 
@@ -311,12 +317,15 @@ impl OptsWithMatches<SubmitJobConfOpts> {
                 (other_opts.each_line, other_opts.from_json, other_opts.array)
             };
 
-        SubmitJobConfOpts {
+        SubmitJobTaskConfOpts {
+            job_conf: SubmitJobConfOpts {
+                name: opts.job_conf.name.or(other_opts.job_conf.name),
+                max_fails: opts.job_conf.max_fails.or(other_opts.job_conf.max_fails),
+            },
             nodes: get_or_default(&self_matches, &other_matches, "nodes"),
             cpus: opts.cpus.or(other_opts.cpus),
             resource,
             time_request: get_or_default(&self_matches, &other_matches, "time_request"),
-            name: opts.name.or(other_opts.name),
             pin: opts.pin.or(other_opts.pin),
             task_dir: opts.task_dir || other_opts.task_dir,
             cwd: opts.cwd.or(other_opts.cwd),
@@ -326,7 +335,6 @@ impl OptsWithMatches<SubmitJobConfOpts> {
             each_line,
             from_json,
             array,
-            max_fails: opts.max_fails.or(other_opts.max_fails),
             priority: get_or_default(&self_matches, &other_matches, "priority"),
             time_limit: opts.time_limit.or(other_opts.time_limit),
             log: opts.log.or(other_opts.log),
@@ -392,7 +400,11 @@ pub struct JobSubmitOpts {
     commands: Vec<String>,
 
     #[clap(flatten)]
-    conf: SubmitJobConfOpts,
+    conf: SubmitJobTaskConfOpts,
+
+    /// Attach a submission to an open job
+    #[clap(long)]
+    job: Option<JobId>,
 
     /// Wait for the job to finish.
     #[arg(long, conflicts_with("progress"))]
@@ -534,6 +546,27 @@ fn handle_directives(
     Ok(opts)
 }
 
+pub async fn open_job(
+    gsettings: &GlobalSettings,
+    session: &mut ClientSession,
+    opts: SubmitJobConfOpts,
+) -> anyhow::Result<()> {
+    let SubmitJobConfOpts { name, max_fails } = opts;
+
+    let name = if let Some(name) = name {
+        validate_name(name)?
+    } else {
+        "job".to_string()
+    };
+
+    let reponse = rpc_call!(session.connection(), FromClientMessage::OpenJob(JobDescription {
+         name, max_fails }), ToClientMessage::OpenJobResponse(r) => r)
+    .await?;
+
+    gsettings.printer().print_job_open(reponse.job_id);
+    Ok(())
+}
+
 pub async fn submit_computation(
     gsettings: &GlobalSettings,
     session: &mut ClientSession,
@@ -563,17 +596,18 @@ pub async fn submit_computation(
 
     let JobSubmitOpts {
         commands,
+        job: job_id,
         wait,
         progress,
         stdin: _,
         directives: _,
         conf:
-            SubmitJobConfOpts {
+            SubmitJobTaskConfOpts {
+                job_conf: SubmitJobConfOpts { name, max_fails },
                 nodes: _,
                 cpus: _,
                 resource: _,
                 time_request: _,
-                name,
                 pin,
                 task_dir,
                 cwd,
@@ -583,7 +617,6 @@ pub async fn submit_computation(
                 each_line: _,
                 from_json: _,
                 array: _,
-                max_fails,
                 priority,
                 time_limit,
                 log,
@@ -651,13 +684,13 @@ pub async fn submit_computation(
     };
 
     let request = SubmitRequest {
-        job_desc: JobDescription {
+        job_desc: JobDescription { name, max_fails },
+        submit_desc: JobSubmitDescription {
             task_desc,
-            name,
-            max_fails,
             submit_dir: get_current_dir(),
             log,
         },
+        job_id,
     };
 
     send_submit_request(gsettings, session, request, wait, progress).await
@@ -721,14 +754,13 @@ fn get_ids_and_entries(opts: &JobSubmitOpts) -> anyhow::Result<(IntArray, Option
         } else {
             array.clone()
         }
-    } else if let Some(ref entries) = entries {
-        IntArray::from_range(0, entries.len() as JobTaskCount)
     } else {
-        IntArray::from_id(0)
+        IntArray::new_empty()
     };
-
     Ok((ids, entries))
 }
+
+//IntArray::from_range(0, entries.len() as JobTaskCount)
 
 /// Warns the user that an array job might produce too many files.
 fn warn_array_task_count(opts: &JobSubmitOpts, task_count: u32) {

@@ -123,6 +123,20 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
                 "type": "server-stop",
             })
         }
+        EventPayload::JobOpen(job_id, job_desc) => {
+            json!({
+                "type": "job-open",
+                "job_id": job_id,
+                "name": job_desc.name,
+                "max_fails": job_desc.max_fails,
+            })
+        }
+        EventPayload::JobClose(job_id) => {
+            json!({
+                "type": "job-close",
+                "job_id": job_id
+            })
+        }
     }
 }
 

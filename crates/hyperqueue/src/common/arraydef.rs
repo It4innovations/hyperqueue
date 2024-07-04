@@ -34,8 +34,20 @@ pub struct IntArray {
 }
 
 impl IntArray {
+    pub fn new_empty() -> IntArray {
+        Self::new(Vec::new())
+    }
+
     pub fn new(ranges: Vec<IntRange>) -> IntArray {
         IntArray { ranges }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ranges.is_empty()
+    }
+
+    pub fn from_non_overlapping<'a>(iter: impl Iterator<Item = &'a IntArray>) -> IntArray {
+        Self::from_sorted_ids(iter.flat_map(|x| x.iter()))
     }
 
     pub fn from_sorted_ids(ids: impl Iterator<Item = u32>) -> IntArray {

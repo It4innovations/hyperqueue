@@ -1254,3 +1254,111 @@ def test_job_task_ids(hq_env: HqEnv):
 
     result = hq_env.command(["job", "task-ids", "1", "--filter", "canceled"])
     assert result == "\n"
+
+
+def test_job_open(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["job", "open"])
+    table = hq_env.command(["job", "list", "--all"], as_table=True)
+    table.check_row_value("*1", "job")
+    assert table.get_column_value("State") == ["OPENED"]
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Session", "open")
+
+    assert "Job 1 closed" in hq_env.command(["job", "close", "1"])
+    assert "job is already closed" in hq_env.command(["job", "close", "1"])
+    assert "job is already closed" in hq_env.command(["job", "close", "1"])
+
+    table = hq_env.command(["job", "list", "--all"], as_table=True)
+    table.check_row_value("1", "job")
+    assert table.get_column_value("State") == ["FINISHED"]
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Session", "closed")
+
+
+def test_job_wait_for_close(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["job", "open"])
+
+    p = hq_env.command(["job", "wait", "1"], wait=False)
+    time.sleep(1)
+    assert p.poll() is None
+    hq_env.command(["job", "close", "last"])
+    time.sleep(0.3)
+    r = p.poll()
+    assert r == 0
+
+
+def test_invalid_attach(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--", "sleep", "0"])
+    hq_env.command(["job", "open"])
+    hq_env.command(["job", "open"])
+    hq_env.command(["job", "close", "3"])
+    hq_env.command(["submit", "--job=123", "--", "sleep", "0"], expect_fail="Job 123 not found")
+    hq_env.command(["submit", "--job=1", "--", "sleep", "0"], expect_fail="Job 1 is not open")
+    hq_env.command(["submit", "--job=3", "--", "sleep", "0"], expect_fail="Job 3 is not open")
+    hq_env.command(["submit", "--job=2", "--", "sleep", "0"])
+    hq_env.command(["submit", "--job=2", "--array=0-2", "--", "sleep", "0"], expect_fail="Task 0 already exists in job")
+
+
+def test_attach_to_open_job_consecutive(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["job", "open"])
+    for _ in range(4):
+        hq_env.command(["submit", "--job=1", "--", "bash", "-c", "echo 'test' > task.${HQ_TASK_ID}"])
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Tasks", "4; Ids: 0-3")
+    assert table.get_row_value("State").endswith("WAITING (4)")
+    table = hq_env.command(["task", "list", "1"], as_table=True)
+    assert table.get_column_value("State") == ["WAITING"] * 4
+
+    hq_env.start_worker()
+    wait_for_job_state(hq_env, 1, "OPENED")
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Tasks", "4; Ids: 0-3")
+    assert table.get_row_value("State").endswith("FINISHED (4)")
+
+    table = hq_env.command(["task", "list", "1"], as_table=True)
+    assert table.get_column_value("State") == ["FINISHED"] * 4
+
+    for task_id in range(4):
+        filename = f"task.{task_id}"
+        assert os.path.isfile(filename)
+        os.unlink(filename)
+
+    for _ in range(2):
+        hq_env.command(["submit", "--job=1", "--", "bash", "-c", "echo 'test' > task.${HQ_TASK_ID}"])
+    wait_for_job_state(hq_env, 1, "OPENED")
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Tasks", "6; Ids: 0-5")
+    assert table.get_row_value("State").endswith("FINISHED (6)")
+
+    table = hq_env.command(["task", "list", "1"], as_table=True)
+    assert table.get_column_value("State") == ["FINISHED"] * 6
+
+    for task_id in range(4):
+        filename = f"task.{task_id}"
+        assert not os.path.isfile(filename)
+
+    for task_id in range(4, 6):
+        filename = f"task.{task_id}"
+        assert os.path.isfile(filename)
+
+    hq_env.command(["job", "close", "1"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+
+def test_close_job_before_worker(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["job", "open"])
+    for _ in range(4):
+        hq_env.command(["submit", "--job=1", "--", "bash", "-c", "echo 'test' > task.${HQ_TASK_ID}"])
+    hq_env.command(["job", "close", "1"])
+    wait_for_job_state(hq_env, 1, "WAITING")
+    hq_env.start_worker()
+    wait_for_job_state(hq_env, 1, "FINISHED")
