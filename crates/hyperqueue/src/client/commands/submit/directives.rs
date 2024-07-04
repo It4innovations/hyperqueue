@@ -12,7 +12,7 @@ use nom::combinator::{cut, map, opt};
 use nom::multi::separated_list0;
 use nom::sequence::{preceded, terminated, tuple};
 
-use crate::client::commands::submit::SubmitJobConfOpts;
+use crate::client::commands::submit::SubmitJobTaskConfOpts;
 use crate::common::cli::OptsWithMatches;
 use crate::common::parser::{consume_all, NomResult};
 use crate::common::utils::fs::read_at_most;
@@ -99,7 +99,7 @@ fn extract_metadata(data: &BStr) -> crate::Result<FileMetadata> {
 
 pub fn parse_hq_directives_from_file(
     path: &Path,
-) -> anyhow::Result<(OptsWithMatches<SubmitJobConfOpts>, Option<Shebang>)> {
+) -> anyhow::Result<(OptsWithMatches<SubmitJobTaskConfOpts>, Option<Shebang>)> {
     log::debug!("Extracting directives from file: {}", path.display());
 
     let file = File::open(path)?;
@@ -109,7 +109,7 @@ pub fn parse_hq_directives_from_file(
 
 pub fn parse_hq_directives(
     data: &[u8],
-) -> anyhow::Result<(OptsWithMatches<SubmitJobConfOpts>, Option<Shebang>)> {
+) -> anyhow::Result<(OptsWithMatches<SubmitJobTaskConfOpts>, Option<Shebang>)> {
     let prefix = BString::from(data);
 
     let metadata = extract_metadata(prefix.as_bstr())?;
@@ -123,7 +123,7 @@ pub fn parse_hq_directives(
     arguments.insert(0, "".to_string());
     log::debug!("Applying directive(s): {:?}", arguments);
 
-    let app = SubmitJobConfOpts::command()
+    let app = SubmitJobTaskConfOpts::command()
         .disable_help_flag(true)
         .override_usage("#HQ <hq submit parameters>");
     let matches = app.try_get_matches_from(&arguments).map_err(|error| {
@@ -133,7 +133,7 @@ pub fn parse_hq_directives(
         )
     })?;
 
-    let opts = SubmitJobConfOpts::from_arg_matches(&matches)?;
+    let opts = SubmitJobTaskConfOpts::from_arg_matches(&matches)?;
     let parsed = OptsWithMatches::new(opts, matches);
 
     Ok((parsed, metadata.shebang))

@@ -21,21 +21,29 @@ pub type TaskToPathsMap = Map<JobTaskId, Option<ResolvedTaskPaths>>;
 
 /// Resolves task paths of the given job, as they would look like from the perspective of the worker.
 pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
-    let task_to_desc_map: Map<JobTaskId, &TaskDescription> = match &job.job_desc.task_desc {
-        JobTaskDescription::Array { .. } => Default::default(),
-        JobTaskDescription::Graph { tasks } => tasks.iter().map(|t| (t.id, &t.task_desc)).collect(),
-    };
-    let get_task_desc = |id: JobTaskId| -> &TaskDescription {
-        match &job.job_desc.task_desc {
-            JobTaskDescription::Array { task_desc, .. } => task_desc,
-            JobTaskDescription::Graph { .. } => task_to_desc_map[&id],
-        }
-    };
+    let mut task_to_desc_map: Map<JobTaskId, (&std::path::Path, &TaskDescription)> =
+        Default::default();
+
+    for submit_desc in &job.submit_descs {
+        match &submit_desc.task_desc {
+            JobTaskDescription::Array { task_desc, ids, .. } => {
+                for id in ids.iter() {
+                    task_to_desc_map
+                        .insert(JobTaskId(id), (submit_desc.submit_dir.as_path(), task_desc));
+                }
+            }
+            JobTaskDescription::Graph { tasks } => {
+                for t in tasks {
+                    task_to_desc_map.insert(t.id, (submit_desc.submit_dir.as_path(), &t.task_desc));
+                }
+            }
+        };
+    }
 
     job.tasks
         .iter()
         .map(|task| {
-            let task_desc = get_task_desc(task.task_id);
+            let (submit_dir, task_desc) = task_to_desc_map.get(&task.task_id).unwrap();
             let paths = match &task_desc.kind {
                 TaskKind::ExternalProgram(TaskKindProgram { program, .. }) => match &task.state {
                     JobTaskState::Canceled {
@@ -52,7 +60,7 @@ pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
                             job_id: job.info.id,
                             task_id: task.task_id,
                             instance_id: started_data.context.instance_id,
-                            submit_dir: &job.job_desc.submit_dir,
+                            submit_dir,
                             server_uid,
                         };
 

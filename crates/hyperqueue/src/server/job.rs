@@ -4,7 +4,7 @@ use crate::client::status::get_task_status;
 use crate::server::Senders;
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
-    JobDescription, JobDetail, JobInfo, JobTaskDescription, TaskIdSelector, TaskSelector,
+    JobDescription, JobDetail, JobInfo, JobSubmitDescription, TaskIdSelector, TaskSelector,
     TaskStatusSelector,
 };
 use crate::worker::start::RunningTaskContext;
@@ -14,9 +14,7 @@ use smallvec::SmallVec;
 use std::sync::Arc;
 use tako::comm::deserialize;
 use tako::task::SerializedTaskContext;
-use tako::ItemId;
 use tako::Set;
-use tako::TaskId;
 use tokio::sync::oneshot;
 
 /// State of a task that has been started at least once.
@@ -110,14 +108,23 @@ impl JobTaskCounters {
     }
 }
 
+pub struct JobPart {
+    pub base_task_id: TakoTaskId,
+    pub job_desc: Arc<JobDescription>,
+}
+
 pub struct Job {
     pub job_id: JobId,
-    pub base_task_id: TakoTaskId,
     pub counters: JobTaskCounters,
-
     pub tasks: Map<TakoTaskId, JobTaskInfo>,
 
-    pub job_desc: Arc<JobDescription>,
+    pub job_desc: JobDescription,
+    pub submit_descs: SmallVec<[(Arc<JobSubmitDescription>, TakoTaskId); 1]>,
+
+    // If True, new tasks may be submitted into this job
+    // If true and all tasks in the job are terminated then the job
+    // is in state OPEN not FINISHED.
+    pub is_open: bool,
 
     pub submission_date: DateTime<Utc>,
     pub completion_date: Option<DateTime<Utc>>,
@@ -128,50 +135,26 @@ pub struct Job {
 }
 
 impl Job {
-    // Probably we need some structure for the future, but as it is called in exactly one place,
-    // I am disabling it now
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(job_desc: Arc<JobDescription>, job_id: JobId, base_task_id: TakoTaskId) -> Self {
-        let base = base_task_id.as_num();
-        let tasks = match &job_desc.task_desc {
-            JobTaskDescription::Array { ids, .. } => ids
-                .iter()
-                .enumerate()
-                .map(|(i, task_id)| {
-                    (
-                        TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
-                        JobTaskInfo {
-                            state: JobTaskState::Waiting,
-                            task_id: task_id.into(),
-                        },
-                    )
-                })
-                .collect(),
-            JobTaskDescription::Graph { tasks } => tasks
-                .iter()
-                .enumerate()
-                .map(|(i, task)| {
-                    (
-                        TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
-                        JobTaskInfo {
-                            state: JobTaskState::Waiting,
-                            task_id: task.id,
-                        },
-                    )
-                })
-                .collect(),
-        };
-
+    pub fn new(job_id: JobId, job_desc: JobDescription, is_open: bool) -> Self {
         Job {
-            job_desc,
             job_id,
             counters: Default::default(),
-            base_task_id,
-            tasks,
+            tasks: Default::default(),
+            job_desc,
+            submit_descs: Default::default(),
+            is_open,
             submission_date: Utc::now(),
             completion_date: None,
             completion_callbacks: Default::default(),
         }
+    }
+
+    pub fn make_task_id_set(&self) -> Set<JobTaskId> {
+        self.tasks.values().map(|t| t.task_id).collect()
+    }
+
+    pub fn max_id(&self) -> Option<JobTaskId> {
+        self.tasks.values().map(|t| t.task_id).max()
     }
 
     pub fn make_job_detail(&self, task_selector: Option<&TaskSelector>) -> JobDetail {
@@ -201,6 +184,7 @@ impl Job {
         JobDetail {
             info: self.make_job_info(),
             job_desc: self.job_desc.clone(),
+            submit_descs: self.submit_descs.iter().map(|x| x.0.clone()).collect(),
             tasks,
             tasks_not_found,
             submission_date: self.submission_date,
@@ -214,6 +198,7 @@ impl Job {
             name: self.job_desc.name.clone(),
             n_tasks: self.n_tasks(),
             counters: self.counters,
+            is_open: self.is_open,
         }
     }
 
@@ -223,7 +208,7 @@ impl Job {
     }
 
     pub fn is_terminated(&self) -> bool {
-        self.counters.is_terminated(self.n_tasks())
+        !self.is_open && self.counters.is_terminated(self.n_tasks())
     }
 
     pub fn get_task_state_mut(
@@ -281,7 +266,12 @@ impl Job {
     pub fn check_termination(&mut self, senders: &Senders, now: DateTime<Utc>) {
         if self.is_terminated() {
             self.completion_date = Some(now);
-            if self.job_desc.log.is_some() {
+            if self
+                .submit_descs
+                .first()
+                .map(|x| x.0.log.is_some())
+                .unwrap_or(false)
+            {
                 senders
                     .backend
                     .send_stream_control(StreamServerControlMessage::UnregisterStream(self.job_id));
@@ -290,6 +280,7 @@ impl Job {
             for handler in self.completion_callbacks.drain(..) {
                 handler.send(self.job_id).ok();
             }
+            senders.events.on_job_completed(self.job_id);
         }
     }
 
@@ -311,6 +302,7 @@ impl Job {
             }
             _ => panic!("Invalid worker state, expected Running, got {state:?}"),
         }
+        senders.events.on_task_finished(self.job_id, task_id);
         self.check_termination(senders, now);
         task_id
     }
@@ -326,14 +318,14 @@ impl Job {
         &mut self,
         tako_task_id: TakoTaskId,
         error: String,
-        carrier: &Senders,
+        senders: &Senders,
     ) -> JobTaskId {
         let (task_id, state) = self.get_task_state_mut(tako_task_id);
         let now = Utc::now();
         match state {
             JobTaskState::Running { started_data } => {
                 *state = JobTaskState::Failed {
-                    error,
+                    error: error.clone(),
                     started_data: Some(started_data.clone()),
                     end_date: now,
                 };
@@ -342,7 +334,7 @@ impl Job {
             }
             JobTaskState::Waiting => {
                 *state = JobTaskState::Failed {
-                    error,
+                    error: error.clone(),
                     started_data: None,
                     end_date: now,
                 }
@@ -351,7 +343,8 @@ impl Job {
         }
         self.counters.n_failed_tasks += 1;
 
-        self.check_termination(carrier, now);
+        senders.events.on_task_failed(self.job_id, task_id, error);
+        self.check_termination(senders, now);
         task_id
     }
 
@@ -377,7 +370,6 @@ impl Job {
         }
 
         senders.events.on_task_canceled(self.job_id, task_id);
-
         self.counters.n_canceled_tasks += 1;
         self.check_termination(senders, now);
         task_id

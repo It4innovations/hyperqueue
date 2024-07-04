@@ -905,10 +905,11 @@ mod tests {
     };
     use crate::server::event::streamer::EventStreamer;
     use crate::server::job::Job;
-    use crate::server::state::StateRef;
+    use crate::server::state::{State, StateRef};
     use crate::tests::utils::create_hq_state;
     use crate::transfer::messages::{
-        JobDescription, JobTaskDescription, PinMode, TaskDescription, TaskKind, TaskKindProgram,
+        JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, TaskDescription,
+        TaskKind, TaskKindProgram,
     };
     use tako::resources::ResourceAmount;
 
@@ -1165,9 +1166,7 @@ mod tests {
     #[tokio::test]
     async fn ignore_task_with_high_time_request() {
         let hq_state = new_hq_state(0);
-        hq_state
-            .get_mut()
-            .add_job(create_job(0, 1, Duration::from_secs(60 * 60)));
+        attach_job(&mut hq_state.get_mut(), 0, 1, Duration::from_secs(60 * 60));
         let mut state = AutoAllocState::new(1);
 
         let handler = always_queued_handler();
@@ -1729,9 +1728,12 @@ mod tests {
     fn new_hq_state(waiting_tasks: u32) -> StateRef {
         let state = create_hq_state();
         if waiting_tasks > 0 {
-            state
-                .get_mut()
-                .add_job(create_job(0, waiting_tasks, Duration::from_secs(0)));
+            attach_job(
+                &mut state.get_mut(),
+                0,
+                waiting_tasks,
+                Duration::from_secs(0),
+            );
         }
         state
     }
@@ -1747,7 +1749,11 @@ mod tests {
         allocations
     }
 
-    fn create_job(job_id: u32, tasks: u32, min_time: TimeRequest) -> Job {
+    fn create_job(
+        job_id: u32,
+        tasks: u32,
+        min_time: TimeRequest,
+    ) -> (Job, Arc<JobSubmitDescription>) {
         let def = ProgramDefinition {
             args: vec![],
             env: Default::default(),
@@ -1765,8 +1771,17 @@ mod tests {
             }],
         });
 
-        Job::new(
-            Arc::new(JobDescription {
+        let job = Job::new(
+            job_id.into(),
+            JobDescription {
+                name: "job".to_string(),
+                max_fails: None,
+            },
+            false,
+        );
+        (
+            job,
+            Arc::new(JobSubmitDescription {
                 task_desc: JobTaskDescription::Array {
                     ids: IntArray::from_range(0, tasks),
                     entries: None,
@@ -1782,14 +1797,16 @@ mod tests {
                         crash_limit: 5,
                     },
                 },
-                name: "job".to_string(),
-                max_fails: None,
                 submit_dir: Default::default(),
                 log: None,
             }),
-            job_id.into(),
-            (1000 * job_id).into(),
         )
+    }
+
+    fn attach_job(state: &mut State, job_id: u32, tasks: u32, min_time: TimeRequest) {
+        let (job, submit) = create_job(job_id, tasks, min_time);
+        state.add_job(job);
+        state.attach_submit(job_id.into(), submit, (job_id * 1_000).into());
     }
 
     fn create_worker(allocation_id: &str) -> ManagerInfo {

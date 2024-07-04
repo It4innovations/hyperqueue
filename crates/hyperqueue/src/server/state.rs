@@ -1,5 +1,6 @@
 use std::cmp::min;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use chrono::Utc;
 
@@ -11,11 +12,11 @@ use tako::ItemId;
 use tako::{define_wrapped_type, TaskId};
 
 use crate::server::autoalloc::LostWorkerDetails;
-use crate::server::job::Job;
+use crate::server::job::{Job, JobTaskInfo, JobTaskState};
 use crate::server::restore::StateRestorer;
 use crate::server::worker::Worker;
 use crate::server::Senders;
-use crate::transfer::messages::ServerInfo;
+use crate::transfer::messages::{JobSubmitDescription, JobTaskDescription, ServerInfo};
 use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
 
@@ -109,12 +110,48 @@ impl State {
     }
 
     pub fn add_job(&mut self, job: Job) {
+        assert!(job.submit_descs.is_empty());
         let job_id = job.job_id;
+        assert!(self.jobs.insert(job_id, job).is_none());
+    }
+
+    pub fn attach_submit(
+        &mut self,
+        job_id: JobId,
+        submit_desc: Arc<JobSubmitDescription>,
+        base_task_id: TakoTaskId,
+    ) {
+        let base = base_task_id.as_num();
+        let job = self.get_job_mut(job_id).unwrap();
+        match &submit_desc.task_desc {
+            JobTaskDescription::Array { ids, .. } => {
+                ids.iter().enumerate().for_each(|(i, task_id)| {
+                    job.tasks.insert(
+                        TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
+                        JobTaskInfo {
+                            state: JobTaskState::Waiting,
+                            task_id: task_id.into(),
+                        },
+                    );
+                })
+            }
+            JobTaskDescription::Graph { tasks } => {
+                tasks.iter().enumerate().for_each(|(i, task)| {
+                    job.tasks.insert(
+                        TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
+                        JobTaskInfo {
+                            state: JobTaskState::Waiting,
+                            task_id: task.id,
+                        },
+                    );
+                })
+            }
+        };
+        job.submit_descs.push((submit_desc, base_task_id));
         assert!(self
             .base_task_id_to_job_id
-            .insert(job.base_task_id, job_id)
+            .insert(base_task_id, job_id)
             .is_none());
-        assert!(self.jobs.insert(job_id, job).is_none());
     }
 
     /// Completely forgets this job, in order to reduce memory usage.
@@ -129,22 +166,16 @@ impl State {
                 return None;
             }
         };
-        self.base_task_id_to_job_id.remove(&job.base_task_id);
+        for (_, base_task_id) in &job.submit_descs {
+            self.base_task_id_to_job_id.remove(base_task_id);
+        }
         Some(job)
     }
 
     pub fn get_job_mut_by_tako_task_id(&mut self, task_id: TakoTaskId) -> Option<&mut Job> {
         let job_id: JobId = *self.base_task_id_to_job_id.range(..=task_id).next_back()?.1;
         let job = self.jobs.get_mut(&job_id)?;
-        if task_id
-            < TakoTaskId::new(
-                job.base_task_id.as_num() + job.n_tasks() as <TaskId as ItemId>::IdType,
-            )
-        {
-            Some(job)
-        } else {
-            None
-        }
+        Some(job)
     }
 
     pub fn new_job_id(&mut self) -> JobId {
@@ -196,7 +227,7 @@ impl State {
             );
             job.set_cancel_state(task_id, senders);
         }
-        let task_id = job.set_failed_state(msg.id, msg.info.message.clone(), senders);
+        job.set_failed_state(msg.id, msg.info.message, senders);
 
         if let Some(max_fails) = &job.job_desc.max_fails {
             if job.counters.n_failed_tasks > *max_fails {
@@ -204,10 +235,6 @@ impl State {
                 cancel_tasks_from_callback(state_ref, senders, job.job_id, task_ids);
             }
         }
-        let job_id = job.job_id;
-        senders
-            .events
-            .on_task_failed(job_id, task_id, msg.info.message);
     }
 
     pub fn process_task_update(&mut self, msg: TaskUpdate, senders: &Senders) {
@@ -229,13 +256,7 @@ impl State {
             TaskState::Finished => {
                 let now = Utc::now();
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
-                let task_id = job.set_finished_state(msg.id, now, senders);
-                let is_job_terminated = job.is_terminated();
-                let job_id = job.job_id;
-                senders.events.on_task_finished(job_id, task_id);
-                if is_job_terminated {
-                    senders.events.on_job_completed(job_id);
-                }
+                job.set_finished_state(msg.id, now, senders);
             }
             TaskState::Waiting => {
                 let job = self.get_job_mut_by_tako_task_id(msg.id).unwrap();
@@ -314,7 +335,8 @@ mod tests {
     use crate::server::state::State;
     use crate::tests::utils::create_hq_state;
     use crate::transfer::messages::{
-        JobDescription, JobTaskDescription, PinMode, TaskDescription, TaskKind, TaskKindProgram,
+        JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, TaskDescription,
+        TaskKind, TaskKindProgram,
     };
     use crate::{JobId, TakoTaskId};
 
@@ -329,11 +351,13 @@ mod tests {
         }
     }
 
-    fn test_job<J: Into<JobId>, T: Into<TakoTaskId>>(
+    fn add_test_job<J: Into<JobId>, T: Into<TakoTaskId>>(
+        state: &mut State,
         ids: IntArray,
         job_id: J,
         base_task_id: T,
-    ) -> Job {
+    ) {
+        let job_id: JobId = job_id.into();
         let task_desc = JobTaskDescription::Array {
             ids,
             entries: None,
@@ -349,15 +373,22 @@ mod tests {
                 crash_limit: 5,
             },
         };
-        Job::new(
-            Arc::new(JobDescription {
-                task_desc,
+        let job = Job::new(
+            job_id,
+            JobDescription {
                 name: "".to_string(),
                 max_fails: None,
+            },
+            false,
+        );
+        state.add_job(job);
+        state.attach_submit(
+            job_id,
+            Arc::new(JobSubmitDescription {
+                task_desc,
                 submit_dir: Default::default(),
                 log: None,
             }),
-            job_id.into(),
             base_task_id.into(),
         )
     }
@@ -375,11 +406,11 @@ mod tests {
     fn test_find_job_id_by_task_id() {
         let state_ref = create_hq_state();
         let mut state = state_ref.get_mut();
-        state.add_job(test_job(IntArray::from_range(0, 10), 223, 100));
-        state.add_job(test_job(IntArray::from_range(0, 15), 224, 110));
-        state.add_job(test_job(IntArray::from_id(0), 225, 125));
-        state.add_job(test_job(IntArray::from_id(0), 226, 126));
-        state.add_job(test_job(IntArray::from_id(0), 227, 130));
+        add_test_job(&mut state, IntArray::from_range(0, 10), 223, 100);
+        add_test_job(&mut state, IntArray::from_range(0, 15), 224, 110);
+        add_test_job(&mut state, IntArray::from_id(0), 225, 125);
+        add_test_job(&mut state, IntArray::from_id(0), 226, 126);
+        add_test_job(&mut state, IntArray::from_id(0), 227, 130);
 
         let state = &mut state;
         check_id(state, 99, None);
@@ -395,11 +426,6 @@ mod tests {
 
         check_id(state, 126, Some(226));
 
-        check_id(state, 127, None);
-        check_id(state, 129, None);
-
         check_id(state, 130, Some(227));
-
-        check_id(state, 131, None);
     }
 }

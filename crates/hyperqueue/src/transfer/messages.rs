@@ -36,6 +36,8 @@ pub enum FromClientMessage {
     AutoAlloc(AutoAllocRequest),
     WaitForJobs(WaitForJobsRequest),
     ServerInfo,
+    OpenJob(JobDescription),
+    CloseJob(CloseJobRequest),
 
     // This command switches the connection into streaming connection,
     // it will no longer reacts to any other client messages
@@ -160,15 +162,19 @@ impl JobTaskDescription {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JobDescription {
+pub struct JobSubmitDescription {
     pub task_desc: JobTaskDescription,
-    pub name: String,
-    pub max_fails: Option<JobTaskCount>,
     pub submit_dir: PathBuf,
     pub log: Option<PathBuf>,
 }
 
-impl JobDescription {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct JobDescription {
+    pub name: String,
+    pub max_fails: Option<JobTaskCount>,
+}
+
+impl JobSubmitDescription {
     pub fn strip_large_data(&mut self) {
         self.task_desc.strip_large_data()
     }
@@ -177,6 +183,8 @@ impl JobDescription {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitRequest {
     pub job_desc: JobDescription,
+    pub submit_desc: JobSubmitDescription,
+    pub job_id: Option<JobId>, // None = Normal submit, Some = Attaching tasks into an open job
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -212,6 +220,11 @@ pub struct TaskSelector {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CancelRequest {
+    pub selector: IdSelector,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CloseJobRequest {
     pub selector: IdSelector,
 }
 
@@ -323,6 +336,8 @@ pub enum ToClientMessage {
     ForgetJobResponse(ForgetJobResponse),
     AutoAllocResponse(AutoAllocResponse),
     WaitForJobsResponse(WaitForJobsResponse),
+    OpenJobResponse(OpenJobResponse),
+    CloseJobResponse(Vec<(JobId, CloseJobResponse)>),
     Error(String),
     ServerInfo(ServerInfo),
     Event(Event),
@@ -333,6 +348,13 @@ pub enum CancelJobResponse {
     Canceled(Vec<JobTaskId>, JobTaskCount),
     InvalidJob,
     Failed(String),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum CloseJobResponse {
+    Closed,
+    InvalidJob,
+    AlreadyClosed,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -369,6 +391,11 @@ pub struct SubmitResponse {
     pub server_uid: String,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct OpenJobResponse {
+    pub job_id: JobId,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobInfo {
     pub id: JobId,
@@ -376,6 +403,7 @@ pub struct JobInfo {
 
     pub n_tasks: JobTaskCount,
     pub counters: JobTaskCounters,
+    pub is_open: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -400,7 +428,8 @@ pub struct JobInfoResponse {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobDetail {
     pub info: JobInfo,
-    pub job_desc: Arc<JobDescription>,
+    pub job_desc: JobDescription,
+    pub submit_descs: Vec<Arc<JobSubmitDescription>>,
     pub tasks: Vec<JobTaskInfo>,
     pub tasks_not_found: Vec<JobTaskId>,
 

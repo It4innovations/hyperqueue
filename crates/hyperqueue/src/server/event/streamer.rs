@@ -2,7 +2,7 @@ use crate::server::autoalloc::{AllocationId, QueueId};
 use crate::server::event::log::{EventStreamMessage, EventStreamSender};
 use crate::server::event::payload::EventPayload;
 use crate::server::event::{bincode_config, Event};
-use crate::transfer::messages::{AllocationQueueParams, JobDescription};
+use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
 use crate::{JobId, JobTaskId, WorkerId};
 use bincode::Options;
 use chrono::Utc;
@@ -45,7 +45,15 @@ impl EventStreamer {
         self.send_event(EventPayload::WorkerOverviewReceived(worker_overview));
     }
 
-    pub fn on_job_submitted(&self, job_id: JobId, job_desc: &JobDescription) -> crate::Result<()> {
+    pub fn on_job_opened(&self, job_id: JobId, job_desc: JobDescription) {
+        self.send_event(EventPayload::JobOpen(job_id, job_desc));
+    }
+
+    pub fn on_job_submitted(
+        &self,
+        job_id: JobId,
+        submit_request: &SubmitRequest,
+    ) -> crate::Result<()> {
         {
             let inner = self.inner.get();
             if inner.storage_sender.is_none() && inner.client_listeners.is_empty() {
@@ -55,7 +63,7 @@ impl EventStreamer {
         }
         self.send_event(EventPayload::JobCreated(
             job_id,
-            bincode_config().serialize(job_desc)?,
+            bincode_config().serialize(submit_request)?,
         ));
         Ok(())
     }

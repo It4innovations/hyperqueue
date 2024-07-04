@@ -241,3 +241,16 @@ def test_restore_queues(hq_env: HqEnv, tmp_path):
 
         alloc_list4 = hq_env.command(["--output-mode=json", "alloc", "list"], as_json=True)
         assert alloc_list3 == alloc_list4
+
+
+def test_restore_open_job(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    hq_env.start_server(args=["--journal", journal_path])
+    for _ in range(3):
+        hq_env.command(["job", "open"])
+    hq_env.command(["job", "close", "2"])
+    hq_env.stop_server()
+    hq_env.start_server(args=["--journal", journal_path])
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    print(table)

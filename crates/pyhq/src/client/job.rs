@@ -9,9 +9,9 @@ use hyperqueue::common::utils::fs::get_current_dir;
 use hyperqueue::server::job::JobTaskState;
 use hyperqueue::transfer::messages::{
     ForgetJobRequest, FromClientMessage, IdSelector, JobDescription, JobDetailRequest,
-    JobInfoRequest, JobInfoResponse, JobTaskDescription as HqJobDescription, PinMode,
-    SubmitRequest, TaskDescription as HqTaskDescription, TaskIdSelector, TaskKind, TaskKindProgram,
-    TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
+    JobInfoRequest, JobInfoResponse, JobSubmitDescription, JobTaskDescription as HqJobDescription,
+    PinMode, SubmitRequest, TaskDescription as HqTaskDescription, TaskIdSelector, TaskKind,
+    TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
 use hyperqueue::{rpc_call, tako, JobTaskCount, JobTaskId, Set};
 use pyo3::types::PyTuple;
@@ -76,12 +76,15 @@ pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: PyJobDescription)
 
         let message = FromClientMessage::Submit(SubmitRequest {
             job_desc: JobDescription {
-                task_desc,
                 name: "".to_string(),
                 max_fails: job.max_fails,
+            },
+            submit_desc: JobSubmitDescription {
+                task_desc,
                 submit_dir,
                 log: None,
             },
+            job_id: None,
         });
 
         let mut ctx = borrow_mut!(py, ctx);

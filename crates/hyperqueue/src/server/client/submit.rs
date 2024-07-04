@@ -23,18 +23,18 @@ use crate::server::state::{State, StateRef};
 use crate::server::Senders;
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
-    JobDescription, JobTaskDescription, SubmitRequest, SubmitResponse, TaskBuildDescription,
-    TaskDescription, TaskIdSelector, TaskKind, TaskKindProgram, TaskSelector, TaskStatusSelector,
-    TaskWithDependencies, ToClientMessage,
+    JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, SubmitRequest,
+    SubmitResponse, TaskBuildDescription, TaskDescription, TaskIdSelector, TaskKind,
+    TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
-use crate::{JobId, JobTaskId, Priority, TakoTaskId};
+use crate::{JobId, JobTaskCount, JobTaskId, Priority, TakoTaskId};
 
 fn create_new_task_message(
     job_id: JobId,
     tako_base_id: TakoTaskId,
-    job_desc: &mut JobDescription,
+    submit_desc: &mut JobSubmitDescription,
 ) -> anyhow::Result<NewTasksMessage> {
-    match &mut job_desc.task_desc {
+    match &mut submit_desc.task_desc {
         JobTaskDescription::Array {
             ids,
             entries,
@@ -45,10 +45,10 @@ fn create_new_task_message(
             ids,
             std::mem::take(entries),
             task_desc,
-            &job_desc.submit_dir,
+            &submit_desc.submit_dir,
         )),
         JobTaskDescription::Graph { tasks } => {
-            build_tasks_graph(job_id, tako_base_id, tasks, &job_desc.submit_dir)
+            build_tasks_graph(job_id, tako_base_id, tasks, &submit_desc.submit_dir)
         }
     }
 }
@@ -56,44 +56,116 @@ fn create_new_task_message(
 pub(crate) fn submit_job_desc(
     state: &mut State,
     job_id: JobId,
-    mut job_desc: JobDescription,
-) -> crate::Result<NewTasksMessage> {
-    let (job_id, tako_base_id) = prepare_job(job_id, &mut job_desc, state);
-    let new_tasks = create_new_task_message(job_id, tako_base_id, &mut job_desc)?;
-    job_desc.strip_large_data();
-    let job = Job::new(Arc::new(job_desc), job_id, tako_base_id);
-    state.add_job(job);
-    Ok(new_tasks)
+    mut submit_desc: JobSubmitDescription,
+) -> crate::Result<(NewTasksMessage, Option<PathBuf>)> {
+    let (job_id, tako_base_id) = prepare_job(job_id, &mut submit_desc, state);
+    let new_tasks = create_new_task_message(job_id, tako_base_id, &mut submit_desc)?;
+    submit_desc.strip_large_data();
+    let log = submit_desc.log.clone();
+    state.attach_submit(job_id, Arc::new(submit_desc), tako_base_id);
+    Ok((new_tasks, log))
 }
 
+#[allow(clippy::await_holding_refcell_ref)] // Disable lint as it does not work well with drop
 pub(crate) async fn handle_submit(
     state_ref: &StateRef,
     senders: &Senders,
-    message: SubmitRequest,
+    mut message: SubmitRequest,
 ) -> ToClientMessage {
-    let job_id = state_ref.get_mut().new_job_id();
-    let SubmitRequest { job_desc } = message;
+    let mut state = state_ref.get_mut();
+    let (job_id, new_job) = if let Some(job_id) = message.job_id {
+        if let Some(job) = state.get_job(job_id) {
+            if !job.is_open {
+                return ToClientMessage::Error(format!("Job {job_id} is not open"));
+            }
+            match &mut message.submit_desc.task_desc {
+                JobTaskDescription::Array { ids, entries, .. } => {
+                    if ids.is_empty() {
+                        let new_id = job.max_id().map(|x| x.as_num() + 1).unwrap_or(0);
+                        if let Some(entries) = entries {
+                            *ids =
+                                IntArray::from_range(new_id, new_id + entries.len() as JobTaskCount)
+                        } else {
+                            *ids = IntArray::from_id(new_id)
+                        }
+                    } else {
+                        let id_set = job.make_task_id_set();
+                        for id in ids.iter() {
+                            let id = JobTaskId::new(id);
+                            if id_set.contains(&id) {
+                                return ToClientMessage::Error(format!(
+                                    "Task {id} already exists in job {job_id}"
+                                ));
+                            }
+                        }
+                    }
+                }
+                JobTaskDescription::Graph { tasks } => {
+                    let id_set = job.make_task_id_set();
+                    for task in tasks {
+                        if id_set.contains(&task.id) {
+                            let id = task.id;
+                            return ToClientMessage::Error(format!(
+                                "Task {id} already exists in job {job_id}"
+                            ));
+                        }
+                    }
+                }
+            }
+        } else {
+            return ToClientMessage::Error(format!("Job {job_id} not found"));
+        }
+        (job_id, false)
+    } else {
+        match &mut message.submit_desc.task_desc {
+            JobTaskDescription::Array { ids, entries, .. } => {
+                /* Try fillin task ids */
+                if ids.is_empty() {
+                    if let Some(entries) = entries {
+                        *ids = IntArray::from_range(0, entries.len() as JobTaskCount)
+                    } else {
+                        *ids = IntArray::from_id(0)
+                    }
+                }
+            }
+            JobTaskDescription::Graph { .. } => { /* Do nothing */ }
+        }
+        (state.new_job_id(), true)
+    };
 
-    senders.events.on_job_submitted(job_id, &job_desc).unwrap();
+    senders.events.on_job_submitted(job_id, &message).unwrap();
 
-    let new_tasks = match submit_job_desc(&mut state_ref.get_mut(), job_id, job_desc) {
+    let SubmitRequest {
+        job_desc,
+        submit_desc,
+        job_id: _,
+    } = message;
+
+    if new_job {
+        let job = Job::new(job_id, job_desc, false);
+        state.add_job(job);
+    }
+
+    let (new_tasks, log) = match submit_job_desc(&mut state, job_id, submit_desc) {
         Err(error) => {
-            state_ref.get_mut().revert_to_job_id(job_id);
+            if new_job {
+                state.forget_job(job_id);
+                state.revert_to_job_id(job_id);
+            }
             return ToClientMessage::Error(error.to_string());
         }
         Ok(new_tasks) => new_tasks,
     };
     senders.autoalloc.on_job_created(job_id);
 
-    let (job_detail, log) = {
-        let state = state_ref.get();
-        let job = state.get_job(job_id).unwrap();
-        let job_detail = job.make_job_detail(Some(&TaskSelector {
+    let job_detail = state
+        .get_job(job_id)
+        .unwrap()
+        .make_job_detail(Some(&TaskSelector {
             id_selector: TaskIdSelector::All,
             status_selector: TaskStatusSelector::All,
         }));
-        (job_detail, job.job_desc.log.clone())
-    };
+    drop(state);
 
     if let Some(log) = log {
         start_log_streaming(senders, job_id, log).await;
@@ -118,37 +190,37 @@ pub(crate) async fn handle_submit(
 /// Prefills placeholders in the submit request and creates job ID
 fn prepare_job(
     job_id: JobId,
-    job_desc: &mut JobDescription,
+    submit_desc: &mut JobSubmitDescription,
     state: &mut State,
 ) -> (JobId, TakoTaskId) {
     // Prefill currently known placeholders eagerly
     if let JobTaskDescription::Array {
         ref mut task_desc, ..
-    } = job_desc.task_desc
+    } = submit_desc.task_desc
     {
         match &mut task_desc.kind {
             TaskKind::ExternalProgram(TaskKindProgram { program, .. }) => {
                 fill_placeholders_after_submit(
                     program,
                     job_id,
-                    &job_desc.submit_dir,
+                    &submit_desc.submit_dir,
                     &state.server_info().server_uid,
                 );
             }
         }
     };
 
-    if let Some(ref mut log) = job_desc.log {
+    if let Some(ref mut log) = submit_desc.log {
         fill_placeholders_log(
             log,
             job_id,
-            &job_desc.submit_dir,
+            &submit_desc.submit_dir,
             &state.server_info().server_uid,
         );
-        *log = normalize_path(log, &job_desc.submit_dir);
+        *log = normalize_path(log, &submit_desc.submit_dir);
     }
 
-    let task_count = job_desc.task_desc.task_count();
+    let task_count = submit_desc.task_desc.task_count();
     (job_id, state.new_task_id(task_count))
 }
 
@@ -469,3 +541,57 @@ mod tests {
         }
     }
 }
+
+pub(crate) fn handle_open_job(
+    state_ref: &StateRef,
+    senders: &Senders,
+    job_description: JobDescription,
+) -> ToClientMessage {
+    let job_id = state_ref.get_mut().new_job_id();
+    senders
+        .events
+        .on_job_opened(job_id, job_description.clone());
+    let job = Job::new(job_id, job_description, true);
+    state_ref.get_mut().add_job(job);
+    ToClientMessage::OpenJobResponse(OpenJobResponse { job_id })
+}
+
+// /*let job_id = state_ref.get_mut().new_job_id();
+// senders.events.on_job_open(job_id).unwrap();
+//
+// let new_tasks = match submit_job_desc(&mut state_ref.get_mut(), job_id, job_desc) {
+//     Err(error) => {
+//         state_ref.get_mut().revert_to_job_id(job_id);
+//         return ToClientMessage::Error(error.to_string());
+//     }
+//     Ok(new_tasks) => new_tasks,
+// };
+//
+// let (job_detail, log) = {
+//     let state = state_ref.get();
+//     let job = state.get_job(job_id).unwrap();
+//     let job_detail = job.make_job_detail(Some(&TaskSelector {
+//         id_selector: TaskIdSelector::All,
+//         status_selector: TaskStatusSelector::All,
+//     }));
+//     (job_detail, job.job_desc.log.clone())
+// };
+//
+// if let Some(log) = log {
+//     start_log_streaming(senders, job_id, log).await;
+// }
+//
+// match senders
+//     .backend
+//     .send_tako_message(FromGatewayMessage::NewTasks(new_tasks))
+//     .await
+//     .unwrap()
+// {
+//     ToGatewayMessage::NewTasksResponse(_) => { /* Ok */ }
+//     r => panic!("Invalid response: {r:?}"),
+// };
+//
+// ToClientMessage::SubmitResponse(SubmitResponse {
+//     job: job_detail,
+//     server_uid: state_ref.get().server_info().server_uid.clone(),
+// })

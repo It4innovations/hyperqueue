@@ -1,3 +1,4 @@
+use chrono::Utc;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -17,9 +18,9 @@ use crate::server::state::{State, StateRef};
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
-    CancelJobResponse, FromClientMessage, IdSelector, JobDetail, JobDetailResponse,
-    JobInfoResponse, StatsResponse, StopWorkerResponse, TaskSelector, ToClientMessage,
-    WorkerListResponse,
+    CancelJobResponse, CloseJobResponse, FromClientMessage, IdSelector, JobDetail,
+    JobDetailResponse, JobInfoResponse, StatsResponse, StopWorkerResponse, TaskSelector,
+    ToClientMessage, WorkerListResponse,
 };
 use crate::transfer::messages::{ForgetJobResponse, WaitForJobsResponse};
 use crate::{JobId, JobTaskCount, WorkerId};
@@ -28,6 +29,7 @@ pub mod autoalloc;
 mod submit;
 
 use crate::common::error::HqError;
+use crate::server::client::submit::handle_open_job;
 use crate::server::Senders;
 pub(crate) use submit::submit_job_desc;
 
@@ -156,6 +158,12 @@ pub async fn client_rpc_loop<
                     }
                     FromClientMessage::WaitForJobs(msg) => {
                         handle_wait_for_jobs_message(&state_ref, msg.selector).await
+                    }
+                    FromClientMessage::OpenJob(job_description) => {
+                        handle_open_job(&state_ref, senders, job_description)
+                    }
+                    FromClientMessage::CloseJob(msg) => {
+                        handle_job_close(&state_ref, senders, &msg.selector).await
                     }
                     FromClientMessage::StreamEvents => {
                         log::debug!("Start streaming events to client");
@@ -403,6 +411,44 @@ async fn handle_job_cancel(
     }
 
     ToClientMessage::CancelJobResponse(responses)
+}
+
+async fn handle_job_close(
+    state_ref: &StateRef,
+    senders: &Senders,
+    selector: &IdSelector,
+) -> ToClientMessage {
+    let mut state = state_ref.get_mut();
+    let job_ids: Vec<JobId> = match selector {
+        IdSelector::All => state
+            .jobs()
+            .filter(|job| job.is_open)
+            .map(|job| job.job_id)
+            .collect(),
+        IdSelector::LastN(n) => state.last_n_ids(*n).collect(),
+        IdSelector::Specific(array) => array.iter().map(|id| id.into()).collect(),
+    };
+
+    let now = Utc::now();
+    let responses: Vec<(JobId, CloseJobResponse)> = job_ids
+        .into_iter()
+        .map(|job_id| {
+            let response = if let Some(job) = state.get_job_mut(job_id) {
+                if job.is_open {
+                    job.is_open = false;
+                    job.check_termination(senders, now);
+                    CloseJobResponse::Closed
+                } else {
+                    CloseJobResponse::AlreadyClosed
+                }
+            } else {
+                CloseJobResponse::InvalidJob
+            };
+            (job_id, response)
+        })
+        .collect();
+
+    ToClientMessage::CloseJobResponse(responses)
 }
 
 async fn cancel_job(state_ref: &StateRef, carrier: &Senders, job_id: JobId) -> CancelJobResponse {

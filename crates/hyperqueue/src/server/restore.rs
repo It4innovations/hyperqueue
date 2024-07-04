@@ -3,9 +3,11 @@ use crate::server::client::submit_job_desc;
 use crate::server::event::bincode_config;
 use crate::server::event::log::EventLogReader;
 use crate::server::event::payload::EventPayload;
-use crate::server::job::{JobTaskState, StartedTaskData};
+use crate::server::job::{Job, JobTaskState, StartedTaskData};
 use crate::server::state::State;
-use crate::transfer::messages::{AllocationQueueParams, JobDescription};
+use crate::transfer::messages::{
+    AllocationQueueParams, JobDescription, JobSubmitDescription, SubmitRequest,
+};
 use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskId, Map};
 use bincode::Options;
@@ -30,7 +32,9 @@ impl RestorerTaskInfo {
 
 struct RestorerJob {
     job_desc: JobDescription,
+    submit_descs: Vec<JobSubmitDescription>,
     tasks: Map<JobTaskId, RestorerTaskInfo>,
+    is_open: bool,
 }
 
 pub struct Queue {
@@ -43,46 +47,64 @@ impl RestorerJob {
         mut self,
         job_id: JobId,
         state: &mut State,
-    ) -> crate::Result<NewTasksMessage> {
+    ) -> crate::Result<Vec<NewTasksMessage>> {
         log::debug!("Restoring job {}", job_id);
-        let mut new_tasks = submit_job_desc(state, job_id, self.job_desc)?;
-        let job = state.get_job_mut(job_id).unwrap();
+        let job = Job::new(job_id, self.job_desc, self.is_open);
+        state.add_job(job);
+        let mut result: Vec<NewTasksMessage> = Vec::new();
+        for submit_desc in self.submit_descs {
+            let (mut new_tasks, _log) = submit_job_desc(state, job_id, submit_desc)?;
+            let job = state.get_job_mut(job_id).unwrap();
 
-        new_tasks.tasks.retain(|t| {
-            self.tasks
-                .get(&job.get_task_state_mut(t.id).0)
-                .map(|tt| !tt.is_completed())
-                .unwrap_or(true)
-        });
+            new_tasks.tasks.retain(|t| {
+                self.tasks
+                    .get(&job.get_task_state_mut(t.id).0)
+                    .map(|tt| !tt.is_completed())
+                    .unwrap_or(true)
+            });
 
-        for (tako_id, job_task) in job.tasks.iter_mut() {
-            if let Some(task) = self.tasks.get_mut(&job_task.task_id) {
-                match &task.state {
-                    JobTaskState::Waiting => continue,
-                    JobTaskState::Running { started_data } => {
-                        let instance_id = started_data.context.instance_id.as_num() + 1;
-                        new_tasks
-                            .adjust_instance_id
-                            .insert(*tako_id, instance_id.into());
-                        continue;
-                    }
-                    JobTaskState::Finished { .. } => job.counters.n_finished_tasks += 1,
-                    JobTaskState::Failed { .. } => job.counters.n_failed_tasks += 1,
-                    JobTaskState::Canceled { .. } => job.counters.n_canceled_tasks += 1,
-                }
-                job_task.state = task.state.clone();
+            if new_tasks.tasks.is_empty() {
+                continue;
             }
-        }
-        Ok(new_tasks)
-    }
-}
 
-impl RestorerJob {
-    pub fn new(job_desc: JobDescription) -> Self {
+            for (tako_id, job_task) in job.tasks.iter_mut() {
+                if let Some(task) = self.tasks.get_mut(&job_task.task_id) {
+                    match &task.state {
+                        JobTaskState::Waiting => continue,
+                        JobTaskState::Running { started_data } => {
+                            let instance_id = started_data.context.instance_id.as_num() + 1;
+                            new_tasks
+                                .adjust_instance_id
+                                .insert(*tako_id, instance_id.into());
+                            continue;
+                        }
+                        JobTaskState::Finished { .. } => job.counters.n_finished_tasks += 1,
+                        JobTaskState::Failed { .. } => job.counters.n_failed_tasks += 1,
+                        JobTaskState::Canceled { .. } => job.counters.n_canceled_tasks += 1,
+                    }
+                    job_task.state = task.state.clone();
+                }
+            }
+            result.push(new_tasks)
+        }
+        Ok(result)
+    }
+
+    pub fn new(job_desc: JobDescription, is_open: bool) -> Self {
         RestorerJob {
             job_desc,
+            submit_descs: Vec::new(),
             tasks: Map::new(),
+            is_open,
         }
+    }
+
+    pub fn add_submit(&mut self, submit_desc: JobSubmitDescription) {
+        self.submit_descs.push(submit_desc)
+    }
+
+    pub fn close(&mut self) {
+        self.is_open = false;
     }
 }
 
@@ -114,17 +136,22 @@ impl StateRestorer {
         self,
         state: &mut State,
     ) -> crate::Result<(Vec<NewTasksMessage>, Vec<Queue>)> {
-        let jobs = self
-            .jobs
-            .into_iter()
-            .map(|(job_id, job)| job.restore_job(job_id, state))
-            .collect::<crate::Result<Vec<NewTasksMessage>>>()?;
+        let mut jobs = Vec::new();
+        for (job_id, job) in self.jobs {
+            let mut new_jobs = job.restore_job(job_id, state)?;
+            jobs.append(&mut new_jobs);
+        }
         let queues = self
             .queues
             .into_iter()
             .map(|(queue_id, params)| Queue { queue_id, params })
             .collect();
         Ok((jobs, queues))
+    }
+
+    fn add_job(&mut self, job_id: JobId, job: RestorerJob) {
+        self.jobs.insert(job_id, job);
+        self.max_job_id = self.max_job_id.max(job_id.as_num());
     }
 
     pub fn load_event_file(&mut self, path: &Path) -> crate::Result<()> {
@@ -140,11 +167,14 @@ impl StateRestorer {
                 EventPayload::WorkerLost(_, _) => {}
                 EventPayload::WorkerOverviewReceived(_) => {}
                 //EventPayload::JobCreatedShort(job_id, job_info) => {}
-                EventPayload::JobCreated(job_id, serialized_job_desc) => {
+                EventPayload::JobCreated(job_id, serialized_submit_request) => {
                     log::debug!("Replaying: JobCreated {job_id}");
-                    let job_desc = bincode_config().deserialize(&serialized_job_desc)?;
-                    self.jobs.insert(job_id, RestorerJob::new(job_desc));
-                    self.max_job_id = self.max_job_id.max(job_id.as_num());
+                    let submit_request: SubmitRequest =
+                        bincode_config().deserialize(&serialized_submit_request)?;
+                    let mut job = RestorerJob::new(submit_request.job_desc, false);
+                    job.add_submit(submit_request.submit_desc);
+                    job.close();
+                    self.add_job(job_id, job);
                 }
                 EventPayload::JobCompleted(job_id) => {
                     log::debug!("Replaying: JobCompleted {job_id}");
@@ -255,6 +285,13 @@ impl StateRestorer {
                 EventPayload::AllocationFinished(_, _) => {}
                 EventPayload::ServerStart { .. } => {}
                 EventPayload::ServerStop => { /* Do nothing */ }
+                EventPayload::JobOpen(job_id, job_description) => {
+                    let job = RestorerJob::new(job_description, true);
+                    self.add_job(job_id, job);
+                }
+                EventPayload::JobClose(job_id) => {
+                    self.jobs.get_mut(&job_id).unwrap().is_open = false;
+                }
             }
         }
         if event_reader.contains_partial_data() {

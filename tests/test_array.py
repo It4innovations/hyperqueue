@@ -45,6 +45,9 @@ def test_job_array_report(hq_env: HqEnv):
     table = list_jobs(hq_env)
     table.check_column_value("State", 0, "RUNNING")
 
+    table = hq_env.command(["job", "info", "1"])
+    print(table)
+
     table = hq_env.command(["job", "info", "1"], as_table=True)
     table.check_row_value("Tasks", "10; Ids: 10-19")
 

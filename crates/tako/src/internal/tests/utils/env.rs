@@ -261,10 +261,7 @@ impl TestComm {
         len: usize,
     ) -> Vec<ToWorkerMessage> {
         let worker_id: WorkerId = worker_id.into();
-        let msgs = match self.worker_msgs.remove(&worker_id) {
-            None => vec![],
-            Some(x) => x,
-        };
+        let msgs = self.worker_msgs.remove(&worker_id).unwrap_or_default();
         if len != 0 {
             assert_eq!(msgs.len(), len);
         }
