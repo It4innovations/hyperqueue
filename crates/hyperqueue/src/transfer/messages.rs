@@ -36,6 +36,8 @@ pub enum FromClientMessage {
     AutoAlloc(AutoAllocRequest),
     WaitForJobs(WaitForJobsRequest),
     ServerInfo,
+    OpenJob,
+    CloseJob(JobId),
 
     // This command switches the connection into streaming connection,
     // it will no longer reacts to any other client messages
@@ -160,15 +162,19 @@ impl JobTaskDescription {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JobDescription {
+pub struct JobSubmitDescription {
     pub task_desc: JobTaskDescription,
-    pub name: String,
-    pub max_fails: Option<JobTaskCount>,
     pub submit_dir: PathBuf,
     pub log: Option<PathBuf>,
 }
 
-impl JobDescription {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct JobDescription {
+    pub name: String,
+    pub max_fails: Option<JobTaskCount>,
+}
+
+impl JobSubmitDescription {
     pub fn strip_large_data(&mut self) {
         self.task_desc.strip_large_data()
     }
@@ -177,6 +183,7 @@ impl JobDescription {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitRequest {
     pub job_desc: JobDescription,
+    pub submit_desc: JobSubmitDescription,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -400,7 +407,8 @@ pub struct JobInfoResponse {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobDetail {
     pub info: JobInfo,
-    pub job_desc: Arc<JobDescription>,
+    pub job_desc: JobDescription,
+    pub submit_descs: Vec<Arc<JobSubmitDescription>>,
     pub tasks: Vec<JobTaskInfo>,
     pub tasks_not_found: Vec<JobTaskId>,
 

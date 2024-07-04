@@ -28,6 +28,7 @@ pub mod autoalloc;
 mod submit;
 
 use crate::common::error::HqError;
+use crate::server::client::submit::handle_open_job;
 use crate::server::Senders;
 pub(crate) use submit::submit_job_desc;
 
@@ -156,6 +157,10 @@ pub async fn client_rpc_loop<
                     }
                     FromClientMessage::WaitForJobs(msg) => {
                         handle_wait_for_jobs_message(&state_ref, msg.selector).await
+                    }
+                    FromClientMessage::OpenJob => handle_open_job(&state_ref, senders),
+                    FromClientMessage::CloseJob(job_id) => {
+                        todo!()
                     }
                     FromClientMessage::StreamEvents => {
                         log::debug!("Start streaming events to client");

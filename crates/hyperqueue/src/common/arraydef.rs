@@ -38,6 +38,16 @@ impl IntArray {
         IntArray { ranges }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.ranges.is_empty()
+    }
+
+    pub fn from_non_overlapping<'a>(iter: impl Iterator<Item = &'a IntArray>) -> IntArray {
+        let mut ranges: Vec<IntRange> = iter.flatten_map(|x| x.ranges).collect();
+        ranges.sort_unstable_by_key(|x| x.start);
+        IntArray { ranges }
+    }
+
     pub fn from_sorted_ids(ids: impl Iterator<Item = u32>) -> IntArray {
         let mut ranges: Vec<IntRange> = Vec::new();
         let mut last_id = None;

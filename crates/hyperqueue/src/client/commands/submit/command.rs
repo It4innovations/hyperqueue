@@ -35,8 +35,8 @@ use crate::common::utils::str::pluralize;
 use crate::common::utils::time::parse_human_time;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    FromClientMessage, IdSelector, JobDescription, JobTaskDescription, PinMode, SubmitRequest,
-    TaskDescription, TaskKind, TaskKindProgram, ToClientMessage,
+    FromClientMessage, IdSelector, JobDescription, JobSubmitDescription, JobTaskDescription,
+    PinMode, SubmitRequest, TaskDescription, TaskKind, TaskKindProgram, ToClientMessage,
 };
 use crate::{rpc_call, JobTaskCount, Map};
 
@@ -651,10 +651,9 @@ pub async fn submit_computation(
     };
 
     let request = SubmitRequest {
-        job_desc: JobDescription {
+        job_desc: JobDescription { name, max_fails },
+        submit_desc: JobSubmitDescription {
             task_desc,
-            name,
-            max_fails,
             submit_dir: get_current_dir(),
             log,
         },

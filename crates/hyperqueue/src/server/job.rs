@@ -4,13 +4,13 @@ use crate::client::status::get_task_status;
 use crate::server::Senders;
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
-    JobDescription, JobDetail, JobInfo, JobTaskDescription, TaskIdSelector, TaskSelector,
-    TaskStatusSelector,
+    JobDescription, JobDetail, JobInfo, JobSubmitDescription, JobTaskDescription, TaskDescription,
+    TaskIdSelector, TaskSelector, TaskStatusSelector,
 };
 use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
 use chrono::{DateTime, Utc};
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 use std::sync::Arc;
 use tako::comm::deserialize;
 use tako::task::SerializedTaskContext;
@@ -110,14 +110,23 @@ impl JobTaskCounters {
     }
 }
 
+pub struct JobPart {
+    pub base_task_id: TakoTaskId,
+    pub job_desc: Arc<JobDescription>,
+}
+
 pub struct Job {
     pub job_id: JobId,
-    pub base_task_id: TakoTaskId,
     pub counters: JobTaskCounters,
-
     pub tasks: Map<TakoTaskId, JobTaskInfo>,
 
-    pub job_desc: Arc<JobDescription>,
+    pub job_desc: JobDescription,
+    pub submit_descs: SmallVec<[JobSubmitDescription; 1]>,
+
+    // If True, new tasks may be submitted into this job
+    // If true and all tasks in the job are terminated then the job
+    // is in state OPEN not FINISHED.
+    pub is_open: bool,
 
     pub submission_date: DateTime<Utc>,
     pub completion_date: Option<DateTime<Utc>>,
@@ -128,12 +137,27 @@ pub struct Job {
 }
 
 impl Job {
-    // Probably we need some structure for the future, but as it is called in exactly one place,
-    // I am disabling it now
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(job_desc: Arc<JobDescription>, job_id: JobId, base_task_id: TakoTaskId) -> Self {
+    pub fn new(job_id: JobId, job_desc: JobDescription, is_open: bool) -> Self {
+        Job {
+            job_id,
+            counters: Default::default(),
+            tasks: Default::default(),
+            job_desc,
+            submit_descs: Default::default(),
+            is_open,
+            submission_date: Utc::now(),
+            completion_date: None,
+            completion_callbacks: Default::default(),
+        }
+    }
+
+    pub fn attach_submit(
+        &mut self,
+        submit_desc: Arc<JobSubmitDescription>,
+        base_task_id: TakoTaskId,
+    ) {
         let base = base_task_id.as_num();
-        let tasks = match &job_desc.task_desc {
+        let tasks = match &submit_desc.task_desc {
             JobTaskDescription::Array { ids, .. } => ids
                 .iter()
                 .enumerate()
@@ -161,17 +185,6 @@ impl Job {
                 })
                 .collect(),
         };
-
-        Job {
-            job_desc,
-            job_id,
-            counters: Default::default(),
-            base_task_id,
-            tasks,
-            submission_date: Utc::now(),
-            completion_date: None,
-            completion_callbacks: Default::default(),
-        }
     }
 
     pub fn make_job_detail(&self, task_selector: Option<&TaskSelector>) -> JobDetail {
