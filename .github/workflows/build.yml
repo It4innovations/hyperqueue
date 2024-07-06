@@ -31,8 +31,14 @@ jobs:
         run: |
           echo "HQ_SHA=${{ inputs.sha || github.sha }}" | tee -a $GITHUB_ENV
   build-binaries-x64:
-    needs: [set-env]
+    needs: [ set-env ]
     runs-on: ubuntu-latest
+    env:
+      # We need to avoid using NodeJS v20, because it doesn't work with glibc 2.17.
+      # See https://github.com/actions/checkout/issues/1809.
+      ACTIONS_RUNNER_FORCED_INTERNAL_NODE_VERSION: node16
+      ACTIONS_RUNNER_FORCE_ACTIONS_NODE_VERSION: node16
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     # Use a container with GLIBC 2.17
     container: quay.io/pypa/manylinux2014_x86_64
     steps:
@@ -77,7 +83,7 @@ jobs:
           name: archive-x64
           path: ${{ steps.archive.outputs.archive-name }}
   build-binaries-ext:
-    needs: [set-env]
+    needs: [ set-env ]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -126,7 +132,7 @@ jobs:
           name: archive-${{ matrix.name }}
           path: ${{ steps.archive.outputs.archive-name }}
   build-python-binding:
-    needs: [set-env]
+    needs: [ set-env ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
