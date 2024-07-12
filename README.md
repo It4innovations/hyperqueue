@@ -15,6 +15,8 @@ For more general discussion or feature requests, please use our
 [discussion forum](https://github.com/It4innovations/hyperqueue/discussions). If you want to chat
 with the HyperQueue developers, you can use our [Zulip](https://hyperqueue.zulipchat.com/) server.
 
+If you use HyperQueue in your research, please consider [citing it](#publications).
+
 This image shows how HyperQueue can work on a distributed cluster that uses Slurm or PBS:
 
 <img src="docs/imgs/architecture-bg.png" width="500" alt="Architecture of HyperQueue deployed on a Slurm/PBS cluster" />
@@ -215,8 +217,29 @@ You can find more frequently asked questions [here](https://it4innovations.githu
 We are a group of researchers working at [IT4Innovations](https://www.it4i.cz/), the Czech National
 Supercomputing Center. We welcome any outside contributions.
 
-# References
-HyperQueue poster at [SC'21](https://sc21.supercomputing.org/proceedings/tech_poster/tech_poster_pages/rpost104.html).
+# Publications
+
+- [HyperQueue: Efficient and ergonomic task graphs on HPC clusters](https://www.sciencedirect.com/science/article/pii/S2352711024001857)
+  (paper @ SoftwareX journal)
+- [HyperQueue: Overcoming Limitations of HPC Job Managers](https://sc21.supercomputing.org/proceedings/tech_poster/tech_poster_pages/rpost104.html)
+  (poster @ SuperComputing'21)
+
+If you want to cite HyperQueue, you can use the following BibTex entry:
+
+```bibtex
+@article{hyperqueue,
+  title = {HyperQueue: Efficient and ergonomic task graphs on HPC clusters},
+  journal = {SoftwareX},
+  volume = {27},
+  pages = {101814},
+  year = {2024},
+  issn = {2352-7110},
+  doi = {https://doi.org/10.1016/j.softx.2024.101814},
+  url = {https://www.sciencedirect.com/science/article/pii/S2352711024001857},
+  author = {Jakub Beránek and Ada Böhm and Gianluca Palermo and Jan Martinovič and Branislav Jansík},
+  keywords = {Distributed computing, Task scheduling, High performance computing, Job manager}}
+}
+```
 
 # Acknowledgement
 
