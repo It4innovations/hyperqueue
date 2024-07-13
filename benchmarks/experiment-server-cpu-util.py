@@ -1,6 +1,5 @@
 from collections import defaultdict
 import datetime
-import itertools
 import os
 import subprocess
 import tempfile
@@ -11,7 +10,9 @@ import json
 
 import tqdm
 
+from src.build.hq import Profile
 from src.utils import ensure_directory
+from src.benchmark_defs import get_hq_binary
 
 import pandas as pd
 import numpy as np
@@ -19,7 +20,9 @@ import numpy as np
 import psutil
 
 
-def spawn_workers(hq_binary: Path, dir: str, worker_count: int) -> List[subprocess.Popen]:
+def spawn_workers(
+    hq_binary: Path, dir: str, worker_count: int
+) -> List[subprocess.Popen]:
     processes = []
     for _ in range(worker_count):
         processes.append(
@@ -129,7 +132,9 @@ def measure_server_util(
                 ]
             )
             duration = time.time() - start
-            print(f"Run took {duration:.3f}s, should have been {total_duration.total_seconds():.3f}s")
+            print(
+                f"Run took {duration:.3f}s, should have been {total_duration.total_seconds():.3f}s"
+            )
             if mem_usage is None:
                 mem_usage = process.memory_info()
             cpu_usages.append(process.cpu_times())
@@ -141,9 +146,11 @@ def measure_server_util(
         return (cpu_usages, mem_usage, duration)
 
 
-def create_chart(df: pd.DataFrame):
+def create_chart_increase_tasks(df: pd.DataFrame):
     import seaborn as sns
     import matplotlib.pyplot as plt
+
+    plt.clf()
 
     output_dir = ensure_directory(Path("outputs/charts"))
     df["utilization"] = df["cpu-usage-user"] + df["cpu-usage-system"]
@@ -153,15 +160,15 @@ def create_chart(df: pd.DataFrame):
     ax.set(
         ylabel="CPU time [s]",
         xlabel="Task count",
-        ylim=(0, 5),
-        xlim=(0, 220000),
+        ylim=(0, df["utilization"].max() * 1.2),
+        xlim=(0, df["task-count"].max() * 1.1),
         title="Server CPU consumption (12 workers, 1 minute span)",
     )
 
     for x, y in zip(df["task-count"], df["utilization"]):
         same_count = df[df["task-count"] == x]
         if y == same_count["utilization"].max():
-            ax.text(x + 0.1, y + 0.1, f"{y:.2f}")
+            ax.text(x + 2000, y + 0.1, f"{y:.2f}")
 
     rate = df["utilization"] / df["duration"]
     rate /= df["task-count"] / 1000
@@ -172,32 +179,68 @@ def create_chart(df: pd.DataFrame):
     plt.savefig(f"{output_dir}/server-utilization-tasks.pdf")
 
 
-if __name__ == "__main__":
-    HQ_BINARY = Path(__file__).absolute().parent.parent / "target" / "dist" / "hq"
+def create_chart_increase_workers(df: pd.DataFrame):
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+
+    plt.clf()
+
+    task_count = 50000
+
+    output_dir = ensure_directory(Path("outputs/charts"))
+    df["utilization"] = df["cpu-usage-user"] + df["cpu-usage-system"]
+    df = df[df["task-count"] == task_count]
+
+    ax = sns.scatterplot(df, x="worker-count", y=df["utilization"])
+    ax.set(
+        ylabel="CPU time [s]",
+        xlabel="Worker count",
+        ylim=(0, df["utilization"].max() * 1.2),
+        xlim=(0, df["worker-count"].max() * 1.1),
+        title=f"Server CPU consumption ({task_count} tasks, 1 minute span)",
+    )
+
+    for x, y in zip(df["worker-count"], df["utilization"]):
+        same_count = df[df["worker-count"] == x]
+        if y == same_count["utilization"].max():
+            ax.text(x, y + 0.05, f"{y:.2f}")
+
+    plt.savefig(f"{output_dir}/server-utilization-workers.png")
+    plt.savefig(f"{output_dir}/server-utilization-workers.pdf")
+
+
+def dump_results(results):
+    df = pd.DataFrame(results)
+    outputs = ensure_directory(Path("outputs"))
+    df.to_csv(f"{outputs}/server-cpu-util.csv", index=False)
+
+
+def run():
+    HQ_BINARY = get_hq_binary(profile=Profile.Dist)
 
     total_duration = datetime.timedelta(minutes=1)
-    task_counts = [10000, 50000, 100000, 150000, 200000]
-    worker_counts = [12]
+    repeat = 3
 
-    # total_duration = datetime.timedelta(seconds=5)
-    # task_counts = [1000, 2000]  # 10000, 25000, 50000, 100000, 250000]
-    # worker_counts = [1]  # , 4, 8, 12]
+    configurations = []
 
-    def dump_results(results):
-        df = pd.DataFrame(results)
-        outputs = ensure_directory(Path("outputs"))
-        df.to_csv(f"{outputs}/server-cpu-util.csv", index=False)
+    # Scale tasks
+    configurations.extend((tc, 12) for tc in [10000, 50000, 100000, 150000, 200000])
+
+    # Scale workers
+    configurations.extend((50000, wc) for wc in [1, 2, 4, 8, 12])
+
+    print(f"Benchmarking {len(configurations)} configurations")
 
     worker_cpus = 128
     results = defaultdict(list)
-    for task_count, worker_count in tqdm.tqdm(tuple(itertools.product(task_counts, worker_counts))):
+    for task_count, worker_count in tqdm.tqdm(configurations):
         cpu_usages, mem_usage, duration = measure_server_util(
             HQ_BINARY,
             task_count=task_count,
             total_duration=total_duration,
             worker_count=worker_count,
             worker_cpus=worker_cpus,
-            repeat=5,
+            repeat=repeat,
         )
         print(cpu_usages, mem_usage)
 
@@ -221,4 +264,9 @@ if __name__ == "__main__":
             results["total-duration"].append(total_duration.total_seconds())
         dump_results(results)
 
-    create_chart(pd.read_csv("outputs/server-cpu-util.csv"))
+
+if __name__ == "__main__":
+    run()
+
+    create_chart_increase_tasks(pd.read_csv("outputs/server-cpu-util.csv"))
+    create_chart_increase_workers(pd.read_csv("outputs/server-cpu-util.csv"))
