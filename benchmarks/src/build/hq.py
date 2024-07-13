@@ -54,8 +54,8 @@ class BuildConfig:
     git_ref: str = TAG_WORKSPACE
     profile: Profile = Profile.Release
     zero_worker: bool = False
-    debug_symbols: bool = False
     jemalloc: bool = False
+    debug_symbols: bool = False
 
 
 @dataclasses.dataclass
@@ -73,6 +73,10 @@ def binary_name(options: BuildConfig, resolved_ref: str) -> str:
     name = f"hq-{resolved_ref}-{options.profile.name()}"
     if options.zero_worker:
         name += "-zw"
+    if options.jemalloc:
+        name += "-jemalloc"
+    if options.debug_symbols:
+        name += "-symbols"
     return name
 
 
@@ -132,7 +136,7 @@ def iterate_binaries(configs: List[BuildConfig]) -> Iterable[BuiltBinary]:
             return ""
         return git_ref
 
-    configs = sorted(configs, key=lambda c: (sort_key(c.git_ref), c.zero_worker))
+    configs = sorted(configs, key=lambda c: (sort_key(c.git_ref), c.zero_worker, c.jemalloc))
 
     for config in configs:
         ref = resolve_tag(config.git_ref)
