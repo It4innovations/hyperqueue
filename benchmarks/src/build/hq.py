@@ -55,6 +55,7 @@ class BuildConfig:
     profile: Profile = Profile.Release
     zero_worker: bool = False
     debug_symbols: bool = False
+    jemalloc: bool = False
 
 
 @dataclasses.dataclass
@@ -101,6 +102,9 @@ def build_tag(config: BuildConfig, resolved_ref: str) -> Path:
         args += config.profile.flags()
         if config.profile != Profile.Debug:
             env["RUSTFLAGS"] = "-C target-cpu=native"
+        args += ["--no-default-features"]
+        if config.jemalloc:
+            args += ["--features", "jemalloc"]
         if config.zero_worker:
             args += ["--features", "zero-worker"]
 
