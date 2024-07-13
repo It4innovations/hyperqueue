@@ -1,3 +1,4 @@
+import shutil
 import time
 from abc import ABC
 from typing import Any, Dict
@@ -13,6 +14,8 @@ class Sleep(Workload, ABC):
     def __init__(self, task_count: int, sleep_duration: float = 0.0):
         self.task_count = task_count
         self.sleep_duration = sleep_duration
+        self.sleep_bin = shutil.which("sleep")
+        assert self.sleep_bin is not None
 
     def parameters(self) -> Dict[str, Any]:
         return dict(task_count=self.task_count, duration=self.sleep_duration)
@@ -23,14 +26,14 @@ class Sleep(Workload, ABC):
 
 class SleepHQ(Sleep):
     def execute(self, env: HqEnvironment) -> WorkloadExecutionResult:
-        return measure_hq_tasks(env, ["sleep", str(self.sleep_duration)], task_count=self.task_count)
+        return measure_hq_tasks(env, [self.sleep_bin, str(self.sleep_duration)], task_count=self.task_count)
 
 
 class SleepSnake(Sleep):
     def execute(self, env: SnakeEnvironment) -> WorkloadExecutionResult:
         return measure_snake_tasks(
             env,
-            f"sleep {self.sleep_duration}; echo '' > {{output}}",
+            f"{self.sleep_bin} {self.sleep_duration}; echo '' > {{output}}",
             task_count=self.task_count,
         )
 
@@ -60,7 +63,7 @@ class SleepDaskSpawn(Sleep):
             def sleep(duration: float):
                 import subprocess
 
-                subprocess.run(["sleep", str(duration)])
+                subprocess.run([self.sleep_bin, str(duration)])
 
             tasks = [client.submit(sleep, self.sleep_duration, pure=False) for _ in range(self.task_count)]
             client.gather(tasks)
