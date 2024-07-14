@@ -136,6 +136,9 @@ class HqEnvironment(Environment, EnvStateManager):
         self.server_dir = self.workdir / "hq"
 
         self.nodes = self.info.cluster.node_list.resolve()
+        for node in self.nodes:
+            assert len(node) > 0
+        assert len(set(self.nodes)) == len(self.nodes)
         assert self.nodes
 
         worker_nodes = self.nodes if isinstance(self.info.cluster.node_list, Local) else self.nodes[1:]
