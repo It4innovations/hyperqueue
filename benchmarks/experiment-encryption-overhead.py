@@ -21,6 +21,8 @@ cli = create_cli()
 class EncryptionOverhead(TestCase):
     """
     Benchmarks the encryption overhead of HyperQueue, both with and without the "zero-worker" mode.
+
+    Should be run on 5 nodes (server + 4 workers).
     """
 
     def generate_descriptors(self) -> Iterable[BenchmarkDescriptor]:
@@ -71,9 +73,7 @@ class EncryptionOverhead(TestCase):
                 ylim=(0, data["duration"].max() * 1.3),
             )
 
-        grid = sns.FacetGrid(
-            df, col="zero-worker", col_order=[True, False], sharey=False
-        )
+        grid = sns.FacetGrid(df, col="zero-worker", col_order=[True, False], sharey=False)
         grid.map_dataframe(draw)
         grid.add_legend()
         grid.figure.subplots_adjust(top=0.8)
