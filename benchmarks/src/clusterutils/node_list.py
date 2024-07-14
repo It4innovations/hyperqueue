@@ -47,7 +47,7 @@ class Slurm(NodeList):
 def get_slurm_nodes() -> List[str]:
     assert is_inside_slurm()
     output = subprocess.check_output(["scontrol", "show", "hostnames"])
-    return output.decode().split("\n")
+    return [node.strip() for node in output.decode().split("\n") if node.strip()]
 
 
 def is_inside_slurm() -> bool:
