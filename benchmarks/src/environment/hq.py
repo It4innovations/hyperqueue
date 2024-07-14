@@ -109,7 +109,7 @@ def assign_workers(workers: List[HqWorkerConfig], nodes: List[str]) -> Dict[str,
             node = round_robin_node
             round_robin_node = (round_robin_node + 1) % len(nodes)
             if node in used_round_robin:
-                logging.warning(f"There are more workers ({len(workers)}) than worker nodes ({len(nodes)})")
+                raise Exception(f"There are more workers ({len(workers)}) than worker nodes ({len(nodes)})")
             used_round_robin.add(node)
         if node >= len(nodes):
             raise Exception(f"Selected worker node is {node}, but there are only {len(nodes)} worker node(s)")
