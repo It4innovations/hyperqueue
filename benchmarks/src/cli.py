@@ -52,12 +52,13 @@ class SlurmCliOptions:
     wait_for_job: bool = False
 
 
-def run_test_case(workdir: Path, case: TestCase, slurm_cli: Optional[SlurmCliOptions] = None):
+def run_test_case(workdir: Path, case: TestCase, slurm_cli: Optional[SlurmCliOptions] = None,
+                  postprocess_only: bool = False):
     descriptors = list(case.generate_descriptors())
     has_work = has_work_left(workdir, descriptors)
 
     def compute():
-        if has_work:
+        if has_work and not postprocess_only:
             database = run_benchmarks_with_postprocessing(workdir, descriptors)
         else:
             database = load_or_create_database(workdir)
@@ -67,7 +68,7 @@ def run_test_case(workdir: Path, case: TestCase, slurm_cli: Optional[SlurmCliOpt
         database = database.filter(identifiers)
         case.postprocess(workdir=workdir, database=database)
 
-    if has_work and slurm_cli is not None:
+    if not postprocess_only and has_work and slurm_cli is not None:
         run_in_slurm(
             SlurmOptions(
                 name="slurm-auto-submit",
@@ -98,6 +99,7 @@ def register_case(app: Typer):
             node_count: Optional[int] = 1,
             wait: bool = False,
             clear: bool = False,
+            postprocess_only: bool = False,
         ):
             if workdir is None:
                 workdir = Path("benchmarks") / case.name()
@@ -113,7 +115,7 @@ def register_case(app: Typer):
             else:
                 slurm = None
 
-            run_test_case(workdir=workdir, case=case, slurm_cli=slurm)
+            run_test_case(workdir=workdir, case=case, slurm_cli=slurm, postprocess_only=postprocess_only)
 
         command.__doc__ = f"""
 Run the {case.name()} benchmark.
