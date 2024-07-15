@@ -29,8 +29,8 @@ class Profiler:
 # 2. perf script -i perf-records.txt | inferno-collapse-perf > stacks.folded
 # (Visualize) cat stacks.folded | inferno-flamegraph > profile.svg
 # (Compare)   inferno-diff-folded stacks1.folded stacks2.folded | inferno-flamegraph > flamediff.svg
-class FlamegraphProfiler(Profiler):
-    TAG = "flamegraph"
+class PerfProfiler(Profiler):
+    TAG = "perf-record"
 
     def __init__(self, frequency: int = 100):
         """
@@ -40,7 +40,9 @@ class FlamegraphProfiler(Profiler):
 
     def check_availability(self):
         if not is_binary_available("perf"):
-            raise Exception("Flamegraph profiling is not available. Please make sure that `perf` is available.")
+            raise Exception(
+                "Perf record profiling is not available. Please make sure that `perf` is available."
+            )
 
     def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
         path = output_dir / "perf-records.txt"
@@ -59,6 +61,44 @@ class FlamegraphProfiler(Profiler):
             "--",
         ] + command
 
+        return ProfiledCommand(args=args, tag=PerfProfiler.TAG, output_path=path)
+
+    def __repr__(self):
+        return "PerfProfiler"
+
+
+class FlamegraphProfiler(Profiler):
+    TAG = "flamegraph"
+
+    def __init__(self, frequency: int = 100, flamechart: bool = False):
+        """
+        :param frequency: How many times per second should the call stack be sampled.
+        """
+        self.frequency = frequency
+        self.flamechart = flamechart
+
+    def check_availability(self):
+        if not is_binary_available("flamegraph"):
+            raise Exception(
+                "Flamegraph profiling is not available. Please make sure that `flamegraph` is available."
+            )
+
+    def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
+        path = output_dir / "flamegraph.svg"
+
+        args = [
+            "flamegraph",
+            "--freq",
+            str(self.frequency),
+            "--output",
+            str(path),
+            "--ignore-status",
+        ]
+        if self.flamechart:
+            args.append("--flamechart")
+        args.append("--")
+        args += command
+
         return ProfiledCommand(args=args, tag=FlamegraphProfiler.TAG, output_path=path)
 
     def __repr__(self):
@@ -76,7 +116,9 @@ class PerfEventsProfiler(Profiler):
 
     def check_availability(self):
         if not is_binary_available("perf"):
-            raise Exception("Performance events profiling is not available. Please install `perf`.")
+            raise Exception(
+                "Performance events profiling is not available. Please install `perf`."
+            )
 
     def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
         path = output_dir / "perf-events.txt"
@@ -101,7 +143,9 @@ class CachegrindProfiler(Profiler):
 
     def check_availability(self):
         if not is_binary_available("valgrind"):
-            raise Exception("Valgrind profiling is not available. Please install `valgrind`.")
+            raise Exception(
+                "Valgrind profiling is not available. Please install `valgrind`."
+            )
 
     def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
         path = output_dir / "cachegrind.txt"
@@ -121,7 +165,9 @@ class CallgrindProfiler(Profiler):
 
     def check_availability(self):
         if not is_binary_available("valgrind"):
-            raise Exception("Valgrind profiling is not available. Please install `valgrind`.")
+            raise Exception(
+                "Valgrind profiling is not available. Please install `valgrind`."
+            )
 
     def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
         path = output_dir / "callgrind.txt"
@@ -149,7 +195,9 @@ class SamplyProfiler(Profiler):
 
     def check_availability(self):
         if not is_binary_available("samply"):
-            raise Exception("Samply profiler is not available. Please install it using `cargo install samply`.")
+            raise Exception(
+                "Samply profiler is not available. Please install it using `cargo install samply`."
+            )
 
     def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
         output_path = output_dir / "profile.json"
@@ -164,7 +212,9 @@ class SamplyProfiler(Profiler):
             "--",
         ] + command
 
-        return ProfiledCommand(args=args, tag=SamplyProfiler.TAG, output_path=output_path)
+        return ProfiledCommand(
+            args=args, tag=SamplyProfiler.TAG, output_path=output_path
+        )
 
     def __repr__(self):
         return "SamplyProfiler"
