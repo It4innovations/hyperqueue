@@ -70,12 +70,13 @@ class PerfProfiler(Profiler):
 class FlamegraphProfiler(Profiler):
     TAG = "flamegraph"
 
-    def __init__(self, frequency: int = 100, flamechart: bool = False):
+    def __init__(self, frequency: int = 333, flamechart: bool = False, with_children: bool = True):
         """
         :param frequency: How many times per second should the call stack be sampled.
         """
         self.frequency = frequency
         self.flamechart = flamechart
+        self.with_children = with_children
 
     def check_availability(self):
         if not is_binary_available("flamegraph"):
@@ -86,13 +87,15 @@ class FlamegraphProfiler(Profiler):
     def profile(self, command: List[str], output_dir: Path) -> ProfiledCommand:
         path = output_dir / "flamegraph.svg"
 
+        perf_cmd = f"record -F {self.frequency} --call-graph dwarf,16384 -g"
+        if not self.with_children:
+            perf_cmd += " -i"
         args = [
             "flamegraph",
-            "--freq",
-            str(self.frequency),
             "--output",
             str(path),
             "--ignore-status",
+            "--cmd", perf_cmd
         ]
         if self.flamechart:
             args.append("--flamechart")
