@@ -73,6 +73,9 @@ class HqClusterInfo(EnvironmentDescriptor):
     generate_event_log: bool = False
     # Whether HyperQueue encryption should be used
     encryption: bool = False
+    # Works around glibc <2.29 slow command startup
+    # Enables the HQ_FAST_SPAWN environment variable
+    fast_spawn: bool = False
 
     def __post_init__(self):
         self.binary = self.binary.absolute()
@@ -282,6 +285,8 @@ class HqEnvironment(Environment, EnvStateManager):
         env = {"RUST_LOG": f"hyperqueue={'DEBUG' if self.info.debug else 'INFO'}"}
         if not self.info.encryption:
             env["HQ_SKIP_AUTHENTICATION"] = "1"
+        if self.info.fast_spawn:
+            env["HQ_FAST_SPAWN"] = "1"
         return env
 
     def _wait_for_server_start(self):
