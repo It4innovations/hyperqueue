@@ -189,8 +189,11 @@ pub fn command_from_definitions(definition: &ProgramDefinition) -> crate::Result
     command.kill_on_drop(true);
     command.args(definition.args[1..].iter().map(|x| x.to_os_str_lossy()));
 
-    std::fs::create_dir_all(&definition.cwd)
-        .map_err(|error| GenericError(format!("Could not create working directory: {error:?}")))?;
+    if !definition.cwd.is_dir() {
+        std::fs::create_dir_all(&definition.cwd).map_err(|error| {
+            GenericError(format!("Could not create working directory: {error:?}"))
+        })?;
+    }
     command.current_dir(&definition.cwd);
 
     command.stdout(create_output_stream(&definition.stdout, &definition.cwd)?);
