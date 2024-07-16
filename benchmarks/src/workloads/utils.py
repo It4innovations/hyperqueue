@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+from pathlib import Path
 from typing import Dict, List, Optional, Callable, TYPE_CHECKING
 
 from ..environment import Environment
@@ -19,7 +20,10 @@ def measure_hq_tasks(
     command: List[str],
     task_count: int,
     cpus_per_task=1,
+    stdout="none",
     resources: Optional[Dict[str, int]] = None,
+    workdir: Optional[Path] = None,
+    additional_args: Optional[List[str]] = None,
 ) -> WorkloadExecutionResult:
     assert isinstance(env, HqEnvironment)
 
@@ -27,29 +31,35 @@ def measure_hq_tasks(
         "submit",
         "--array",
         f"1-{task_count}",
-        "--stdout",
-        "none",
         "--stderr",
         "none",
         "--wait",
         "--cpus",
         str(cpus_per_task),
     ]
+    if stdout is not None:
+        args.extend(["--stdout", stdout])
 
     resources = resources or {}
     for name, amount in resources.items():
         args += ["--resource", f"{name}={amount}"]
+    if additional_args is not None:
+        args.extend(additional_args)
 
     args += [
         "--",
         *command,
     ]
 
-    with activate_cwd(env.workdir):
+    if workdir is None:
+        workdir = env.workdir
+    with activate_cwd(workdir):
         env.submit(args)
 
     # Calculate the real duration of the job
-    result = env.submit(["job", "info", "last", "--output-mode", "json"], measured=False)
+    result = env.submit(
+        ["job", "info", "last", "--output-mode", "json"], measured=False
+    )
     metadata = json.loads(result.stdout.decode())[0]
     start = parse_hq_time(metadata["started_at"])
     end = parse_hq_time(metadata["finished_at"])
@@ -65,7 +75,9 @@ def parse_hq_time(input: str) -> datetime.datetime:
     return datetime.datetime.strptime(input[:26], "%Y-%m-%dT%H:%M:%S.%f")
 
 
-def measure_snake_tasks(env: Environment, command: str, task_count: int, cpus_per_task=1) -> WorkloadExecutionResult:
+def measure_snake_tasks(
+    env: Environment, command: str, task_count: int, cpus_per_task=1
+) -> WorkloadExecutionResult:
     assert isinstance(env, SnakeEnvironment)
 
     args = f"""rule all:
@@ -86,7 +98,9 @@ rule benchmark:
     return create_result(timer.duration())
 
 
-def measure_dask_tasks(env: Environment, submit_fn: Callable[["distributed.Client"], None]) -> WorkloadExecutionResult:
+def measure_dask_tasks(
+    env: Environment, submit_fn: Callable[["distributed.Client"], None]
+) -> WorkloadExecutionResult:
     from ..environment.dask import DaskEnvironment
 
     assert isinstance(env, DaskEnvironment)
