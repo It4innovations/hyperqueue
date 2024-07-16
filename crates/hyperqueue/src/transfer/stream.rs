@@ -21,6 +21,7 @@ pub struct DataMsg {
     pub task: JobTaskId,
     pub instance: InstanceId,
     pub channel: ChannelId,
+    #[serde(with = "serde_bytes")]
     pub data: Vec<u8>,
 }
 
