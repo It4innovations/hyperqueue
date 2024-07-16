@@ -22,7 +22,9 @@ from .utils.benchmark import (
 class TestCase:
     def name(self) -> str:
         def camel_to_kebab(s: str) -> str:
-            return "".join(["-" + c.lower() if c.isupper() else c for c in s]).lstrip("-")
+            return "".join(["-" + c.lower() if c.isupper() else c for c in s]).lstrip(
+                "-"
+            )
 
         return camel_to_kebab(self.__class__.__name__)
 
@@ -50,10 +52,15 @@ class SlurmCliOptions:
     init_script: Path
     node_count: int = 1
     wait_for_job: bool = False
+    walltime_h: int = 1
 
 
-def run_test_case(workdir: Path, case: TestCase, slurm_cli: Optional[SlurmCliOptions] = None,
-                  postprocess_only: bool = False):
+def run_test_case(
+    workdir: Path,
+    case: TestCase,
+    slurm_cli: Optional[SlurmCliOptions] = None,
+    postprocess_only: bool = False,
+):
     descriptors = list(case.generate_descriptors())
     has_work = has_work_left(workdir, descriptors)
 
@@ -64,7 +71,10 @@ def run_test_case(workdir: Path, case: TestCase, slurm_cli: Optional[SlurmCliOpt
             database = load_or_create_database(workdir)
 
         # Keep only results that we are interested in, there might be some old stale results
-        identifiers = [instance.identifier for instance in create_benchmark_instances(descriptors, workdir=workdir)]
+        identifiers = [
+            instance.identifier
+            for instance in create_benchmark_instances(descriptors, workdir=workdir)
+        ]
         database = database.filter(identifiers)
         case.postprocess(workdir=workdir, database=database)
 
@@ -74,7 +84,7 @@ def run_test_case(workdir: Path, case: TestCase, slurm_cli: Optional[SlurmCliOpt
                 name="slurm-auto-submit",
                 queue=slurm_cli.queue,
                 project=slurm_cli.project,
-                walltime=datetime.timedelta(hours=1),
+                walltime=datetime.timedelta(hours=slurm_cli.walltime_h),
                 init_script=slurm_cli.init_script.absolute(),
                 node_count=slurm_cli.node_count,
                 workdir=Path("slurm").absolute(),
@@ -97,6 +107,7 @@ def register_case(app: Typer):
             project: Optional[str] = None,
             init_script: Optional[Path] = None,
             node_count: Optional[int] = 1,
+            walltime_h: Optional[int] = 1,
             wait: bool = False,
             clear: bool = False,
             postprocess_only: bool = False,
@@ -108,14 +119,28 @@ def register_case(app: Typer):
                 shutil.rmtree(workdir, ignore_errors=True)
 
             if queue is not None or project is not None or init_script is not None:
-                assert queue is not None and project is not None and init_script is not None
+                assert (
+                    queue is not None
+                    and project is not None
+                    and init_script is not None
+                )
                 slurm = SlurmCliOptions(
-                    queue=queue, project=project, init_script=init_script, node_count=node_count, wait_for_job=wait
+                    queue=queue,
+                    project=project,
+                    init_script=init_script,
+                    node_count=node_count,
+                    wait_for_job=wait,
+                    walltime_h=walltime_h,
                 )
             else:
                 slurm = None
 
-            run_test_case(workdir=workdir, case=case, slurm_cli=slurm, postprocess_only=postprocess_only)
+            run_test_case(
+                workdir=workdir,
+                case=case,
+                slurm_cli=slurm,
+                postprocess_only=postprocess_only,
+            )
 
         command.__doc__ = f"""
 Run the {case.name()} benchmark.
