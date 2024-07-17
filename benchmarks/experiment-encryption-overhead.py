@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Iterable
 
+from src.postprocessing.common import format_large_int
 from src.clusterutils import ClusterInfo
 from src.clusterutils.node_list import get_active_nodes
 from src.analysis.chart import render_chart
@@ -60,22 +61,34 @@ class EncryptionOverhead(TestCase):
             .transform("zero-worker", lambda r: r.environment_params["zw"])
             .build()
         )
-        df["duration"] *= 1000
-        df["encrypted"] = np.where(df["encrypted"], "encrypted", "not encrypted")
+        df["encrypted"] = np.where(df["encrypted"], "Enabled", "Disabled")
+
+        ylabel_set = None
 
         def draw(data, **kwargs):
+            nonlocal ylabel_set
+
             ax = sns.barplot(data, x="task_count", y="duration", hue="encrypted")
             for axis in ax.containers:
-                ax.bar_label(axis, rotation=90, fmt="%.0f", padding=5)
+                ax.bar_label(axis, rotation=90, fmt="%.2f", padding=5)
             ax.set(
-                ylabel="Duration [ms]",
+                ylabel="" if ylabel_set else "Duration [s]",
                 xlabel="Task count",
                 ylim=(0, data["duration"].max() * 1.3),
             )
+            ylabel_set = True
 
-        grid = sns.FacetGrid(df, col="zero-worker", col_order=[True, False], sharey=False)
+        df["zero-worker"] = np.where(
+            df["zero-worker"], "Zero worker enabled", "Zero worker disabled"
+        )
+        grid = sns.FacetGrid(
+            df,
+            col="zero-worker",
+            sharey=False,
+        )
         grid.map_dataframe(draw)
-        grid.add_legend()
+        grid.add_legend(title="Encryption")
+        grid.set_titles(col_template="{col_name}")
         grid.figure.subplots_adjust(top=0.8)
         grid.figure.suptitle("Encryption overhead (4 workers)")
 

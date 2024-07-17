@@ -1,21 +1,15 @@
 import itertools
 from pathlib import Path
-import subprocess
-import time
-from typing import Any, Dict, Iterable
+from typing import Iterable
 
-from matplotlib import pyplot as plt
+from src.postprocessing.common import format_large_int
 from src.build.hq import Profile
-import numpy as np
-import pandas as pd
-from src.workloads.workload import WorkloadExecutionResult
-from src.environment import Environment, EnvironmentDescriptor
 from src.clusterutils import ClusterInfo
 from src.clusterutils.node_list import Local, get_active_nodes
 from src.environment.hq import HqClusterInfo, HqWorkerConfig
 from src.analysis.chart import render_chart
 from src.analysis.dataframe import DataFrameExtractor
-from src.workloads.sleep import Sleep, SleepHQ
+from src.workloads.sleep import SleepHQ
 
 from src.benchmark.database import Database
 from src.benchmark.identifier import BenchmarkDescriptor
@@ -96,11 +90,12 @@ class PerTaskOverhead(TestCase):
                 ylim=(0, data[key].max() * 1.3),
             )
 
-        # Seconds to microseconds
         df["task_per_s"] = df["task_count"] / df["duration"]
-        df["duration"] *= 1000000
-        df["overhead_per_task"] = df["duration"] / df["task_count"]
-        df["task_count_label"] = df["task_count"].map(lambda v: f"{int(v // 1000)}k")
+
+        # Seconds to microseconds
+        # df["duration"] *= 1000000
+        # df["overhead_per_task"] = df["duration"] / df["task_count"]
+        # df["task_count_label"] = df["task_count"].map(lambda v: f"{int(v // 1000)}k")
         # grid = sns.FacetGrid(
         # df, col="worker_count", col_wrap=3, sharey=True
         # )
@@ -108,10 +103,12 @@ class PerTaskOverhead(TestCase):
         # render_chart(workdir / "per-task-overhead")
         # plt.clf()
 
+        df["task_count"] = df["task_count"].map(format_large_int)
         grid = sns.FacetGrid(df, col="task_count", col_wrap=3, sharey=True)
         grid.map_dataframe(
             lambda data, **kwargs: draw(data, "task_per_s", "Task/s", **kwargs)
         )
+        grid.set_titles(col_template="{col_name} tasks")
         render_chart(workdir / "task-per-s")
 
 
