@@ -5,6 +5,10 @@ from .workload import Workload, WorkloadExecutionResult
 from ..environment.dask import DaskEnvironment
 
 
+def empty():
+    pass
+
+
 class EmptyDask(Workload):
     def __init__(self, task_count: int):
         self.task_count = task_count
@@ -19,9 +23,6 @@ class EmptyDask(Workload):
         from distributed import Client
 
         def run(client: Client):
-            def empty():
-                pass
-
             tasks = [client.submit(empty, pure=False) for _ in range(self.task_count)]
             client.gather(tasks)
 
