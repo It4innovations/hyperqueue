@@ -63,7 +63,7 @@ class EncryptionOverhead(TestCase):
         )
         df["encrypted"] = np.where(df["encrypted"], "Enabled", "Disabled")
 
-        ylabel_set = None
+        ylabel_set = False
 
         def draw(data, **kwargs):
             nonlocal ylabel_set
