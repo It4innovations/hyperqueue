@@ -135,7 +135,7 @@ def draw_scalability_chart(df: pd.DataFrame, title: str):
     df["speedup"] = speedups
     df["ideal-duration"] = ideal_durations
 
-    ylabel_top_set = None
+    ylabel_top_set = False
 
     def draw(data, **kwargs):
         nonlocal ylabel_top_set
@@ -150,13 +150,13 @@ def draw_scalability_chart(df: pd.DataFrame, title: str):
             # data = pd.concat((data, data2))
 
             ax = sns.lineplot(data, x="worker_count", y="duration", marker="o")
-            ylabel = "" if ylabel_top_set else "Duration [s]"
-            ylabel_top_set = True
             ax.set(
-                ylabel=ylabel,
+                ylabel="" if ylabel_top_set else "Duration [s]",
                 xlabel="Worker count",
                 ylim=(0, data["duration"].max() * 1.1),
             )
+            ylabel_top_set = True
+
             for x in data["worker_count"].unique():
                 max_duration = data[data["worker_count"] == x]["duration"].max()
                 x_offset = 2
