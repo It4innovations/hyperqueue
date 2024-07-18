@@ -20,7 +20,7 @@ from ..utils import check_file_exists
 from ..utils.process import execute_process
 from ..utils.timing import wait_until
 from . import Environment, EnvironmentDescriptor
-from .utils import EnvStateManager
+from .utils import EnvStateManager, assign_workers, sanity_check_nodes
 
 
 @dataclasses.dataclass(frozen=True)
@@ -76,6 +76,10 @@ class HqClusterInfo(EnvironmentDescriptor):
     # Works around glibc <2.29 slow command startup
     # Enables the HQ_FAST_SPAWN environment variable
     fast_spawn: bool = False
+    # Turns off the write of output streaming data into the log file.
+    # Used for benchmarking output streaming.
+    # Enables the HQ_SKIP_STREAMING_LOG_WRITE environment variable
+    skip_stream_log_write: bool = False
 
     def __post_init__(self):
         self.binary = self.binary.absolute()
@@ -95,32 +99,9 @@ class HqClusterInfo(EnvironmentDescriptor):
         return params
 
 
-def assign_workers(workers: List[HqWorkerConfig], nodes: List[str]) -> Dict[str, List[HqWorkerConfig]]:
-    round_robin_node = 0
-    used_round_robin = set()
-
-    node_assignments = defaultdict(list)
-    for index, worker in enumerate(workers):
-        node = worker.node
-        if node is not None:
-            if not (0 <= node < len(nodes)):
-                raise Exception(
-                    f"Invalid node assignment. Worker {index} wants to be on node "
-                    f"{node}, but there are only {len(nodes)} worker nodes"
-                )
-        else:
-            node = round_robin_node
-            round_robin_node = (round_robin_node + 1) % len(nodes)
-            if node in used_round_robin:
-                raise Exception(f"There are more workers ({len(workers)}) than worker nodes ({len(nodes)})")
-            used_round_robin.add(node)
-        if node >= len(nodes):
-            raise Exception(f"Selected worker node is {node}, but there are only {len(nodes)} worker node(s)")
-        node_assignments[nodes[node]].append(worker)
-    return dict(node_assignments)
-
-
-def postprocess_events(binary_path: Path, event_log_path: Path, event_log_json_path: Path, workdir: Path):
+def postprocess_events(
+    binary_path: Path, event_log_path: Path, event_log_json_path: Path, workdir: Path
+):
     with open(event_log_json_path, "w") as f:
         subprocess.run([str(binary_path), "journal", "export", str(event_log_path)], stdout=f, check=True)
     export_hq_events_to_chrome(event_log_json_path, workdir / "events-chrome.json")
@@ -139,12 +120,13 @@ class HqEnvironment(Environment, EnvStateManager):
         self.server_dir = self.workdir / "hq"
 
         self.nodes = self.info.cluster.node_list.resolve()
-        for node in self.nodes:
-            assert len(node) > 0
-        assert len(set(self.nodes)) == len(self.nodes)
-        assert self.nodes
+        sanity_check_nodes(self.nodes)
 
-        worker_nodes = self.nodes if isinstance(self.info.cluster.node_list, Local) else self.nodes[1:]
+        worker_nodes = (
+            self.nodes
+            if isinstance(self.info.cluster.node_list, Local)
+            else self.nodes[1:]
+        )
         if not worker_nodes:
             raise Exception("No worker nodes are available")
 
@@ -191,7 +173,9 @@ class HqEnvironment(Environment, EnvStateManager):
             event_log_path = workdir / "events.bin"
             event_log_json_path = workdir / "events.json"
             self.postprocessing_fns.append(
-                lambda: postprocess_events(self.binary_path, event_log_path, event_log_json_path, workdir)
+                lambda: postprocess_events(
+                    self.binary_path, event_log_path, event_log_json_path, workdir
+                )
             )
             args += ["--journal", str(event_log_path)]
 
@@ -245,7 +229,9 @@ class HqEnvironment(Environment, EnvStateManager):
         logging.info("Stopping HQ server and waiting for server and workers to stop")
 
         # Stop the server
-        subprocess.run([*self._shared_args(), "server", "stop"], env=self._shared_envs())
+        subprocess.run(
+            [*self._shared_args(), "server", "stop"], env=self._shared_envs()
+        )
         # Wait for the server and worker to end
         self.cluster.wait_for_process_end(
             lambda p: p.key == "server" or p.key.startswith("worker"),
@@ -257,7 +243,9 @@ class HqEnvironment(Environment, EnvStateManager):
         for fn in self.postprocessing_fns:
             fn()
 
-    def submit(self, args: List[str], measured: bool = True) -> subprocess.CompletedProcess:
+    def submit(
+        self, args: List[str], measured: bool = True
+    ) -> subprocess.CompletedProcess:
         args = self._shared_args() + args
 
         if measured:
@@ -266,16 +254,25 @@ class HqEnvironment(Environment, EnvStateManager):
             stderr = Path(f"{path}.err")
 
             logging.debug(f"[HQ] Submitting `{' '.join(args)}`")
-            result = execute_process(args, stdout=stdout, stderr=stderr, env=self._shared_envs())
+            result = execute_process(
+                args, stdout=stdout, stderr=stderr, env=self._shared_envs()
+            )
 
             self.submit_id += 1
         else:
-            result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self._shared_envs())
+            result = subprocess.run(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=self._shared_envs(),
+            )
         return result
 
     def create_client(self, **kwargs) -> Client:
         if "python_env" not in kwargs:
-            kwargs["python_env"] = PythonEnv(prologue=f"source {os.environ['VIRTUAL_ENV']}/bin/activate")
+            kwargs["python_env"] = PythonEnv(
+                prologue=f"source {os.environ['VIRTUAL_ENV']}/bin/activate"
+            )
         return Client(self.server_dir, **kwargs)
 
     def _shared_args(self) -> List[str]:
@@ -287,6 +284,8 @@ class HqEnvironment(Environment, EnvStateManager):
             env["HQ_SKIP_AUTHENTICATION"] = "1"
         if self.info.fast_spawn:
             env["HQ_FAST_SPAWN"] = "1"
+        if self.info.skip_stream_log_write:
+            env["HQ_SKIP_STREAMING_LOG_WRITE"] = "1"
         return env
 
     def _wait_for_server_start(self):
@@ -306,7 +305,9 @@ class HqEnvironment(Environment, EnvStateManager):
         )
 
 
-def apply_profilers(args: StartProcessArgs, profilers: List[Profiler], output_dir: Path):
+def apply_profilers(
+    args: StartProcessArgs, profilers: List[Profiler], output_dir: Path
+):
     for profiler in profilers:
         profiler.check_availability()
         result = profiler.profile(args.args, output_dir.absolute())
