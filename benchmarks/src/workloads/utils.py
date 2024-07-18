@@ -61,6 +61,12 @@ def measure_hq_tasks(
         ["job", "info", "last", "--output-mode", "json"], measured=False
     )
     metadata = json.loads(result.stdout.decode())[0]
+    info = metadata["info"]["task_stats"]
+    assert info["canceled"] == 0
+    assert info["failed"] == 0
+    assert info["running"] == 0
+    assert info["waiting"] == 0
+    assert info["finished"] == task_count
     start = parse_hq_time(metadata["started_at"])
     end = parse_hq_time(metadata["finished_at"])
     duration = end - start
