@@ -61,7 +61,9 @@ def record_resources(options: MonitoringOptions) -> ResourceRecord:
     mem = psutil.virtual_memory().percent
 
     if options.observe_network:
-        connections = sum(1 if c[5] == "ESTABLISHED" else 0 for c in psutil.net_connections())
+        connections = sum(
+            1 if c[5] == "ESTABLISHED" else 0 for c in psutil.net_connections()
+        )
         bytes = psutil.net_io_counters()
         io = psutil.disk_io_counters()
     else:
@@ -88,7 +90,7 @@ def record_processes(
         try:
             memory_info = process.memory_info()
             cpu_utilization = process.cpu_percent()
-            cpu_utilization_children = 0
+            cpu_utilization_children = 0.0
 
             # We need to cache the child processes so that `.cpu_percent()` returns the correct
             # results.
@@ -118,7 +120,10 @@ def record_processes(
 
 
 def generate_record(
-    timestamp: int, processes: List[psutil.Process], process_map: Dict[int, psutil.Process], options: MonitoringOptions
+    timestamp: int,
+    processes: List[psutil.Process],
+    process_map: Dict[int, psutil.Process],
+    options: MonitoringOptions,
 ) -> MonitoringRecord:
     return MonitoringRecord(
         timestamp=timestamp,
