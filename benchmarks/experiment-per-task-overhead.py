@@ -109,6 +109,9 @@ class PerTaskOverhead(TestCase):
             lambda data, **kwargs: draw(data, "task_per_s", "Task/s", **kwargs)
         )
         grid.set_titles(col_template="{col_name} tasks")
+        grid.figure.subplots_adjust(top=0.9)
+        grid.figure.suptitle(f"Tasks per second with zero worker mode")
+
         render_chart(workdir / "task-per-s")
 
 
