@@ -2,7 +2,7 @@ import datetime
 import itertools
 import math
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional
+from typing import Iterable
 
 from matplotlib import pyplot as plt
 from src.postprocessing.common import format_large_int
@@ -116,6 +116,11 @@ class Scalability(TestCase):
 
 
 def draw_scalability_chart(df: pd.DataFrame, title: str):
+    """
+    Draws a strong scalability chart.
+    Expects key "task_count", "worker_count", "task_duration" and "duration"
+    in the passed dataframe `df`.
+    """
     import seaborn as sns
 
     speedups = []

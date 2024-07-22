@@ -7,6 +7,7 @@ from typing import Any, Dict, Iterable
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
+from src.postprocessing.common import format_large_int
 from src.workloads.workload import WorkloadExecutionResult
 from src.environment import Environment, EnvironmentDescriptor
 from src.clusterutils import ClusterInfo
@@ -44,6 +45,7 @@ class DummyEnvDescriptor(EnvironmentDescriptor):
 
 
 CURRENT_DIR = Path(__file__).absolute().parent
+
 
 class LocalSleepSpawner(Sleep):
     def execute(self, env: Environment) -> WorkloadExecutionResult:
@@ -109,8 +111,7 @@ class TotalOverhead(TestCase):
                     yield BenchmarkDescriptor(
                         env_descriptor=env,
                         workload=LocalSleepSpawner(
-                            task_count=task_count,
-                            sleep_duration=duration
+                            task_count=task_count, sleep_duration=duration
                         ),
                         repeat_count=repeat_count,
                     )
@@ -123,7 +124,9 @@ class TotalOverhead(TestCase):
             .extract("index", "duration", "environment")
             .transform("task_count", lambda r: r.workload_params["task_count"])
             .transform("task_duration", lambda r: r.workload_params["duration"])
-            .transform("worker_count", lambda r: r.environment_params.get("worker_count", 1))
+            .transform(
+                "worker_count", lambda r: r.environment_params.get("worker_count", 1)
+            )
             .build()
         )
 
@@ -148,12 +151,13 @@ def render_hq_overhead_ratio_vs_manual(df: pd.DataFrame, path: Path):
     df = df[df["worker_count"] == 1]
 
     ref = data[data["environment"] != "hq"]
+
     expected_durations = []
-    for (_, row) in df.iterrows():
+    for _, row in df.iterrows():
         ref_row = ref[ref["task_count"] == row["task_count"]]
         ref_row = ref_row[ref_row["task_duration"] == row["task_duration"]]
-        ref_duration = ref_row["duration"].mean()
-        expected_durations.extend([ref_duration])
+        ref_duration = ref_row["duration"].min()
+        expected_durations.append(ref_duration)
 
     df["expected_duration"] = expected_durations
 
@@ -184,12 +188,15 @@ def draw_bar_chart_ratio(df: pd.DataFrame, title: str):
         )
         plt.axhline(y=1, color="red", linestyle="--")
 
-    df["task_duration"] = df["task_duration"].map(lambda v: f"{v}s")
+    df["task_duration"] = df["task_duration"].map(lambda v: f"Task duration {v}s")
+    df["task_count"] = df["task_count"].map(lambda v: f"{format_large_int(v)} tasks")
+
     grid = sns.FacetGrid(
         df, col="task_duration", row="task_count", sharey=False, margin_titles=True
     )
     grid.map_dataframe(draw)
     grid.add_legend(loc="upper center")
+    grid.set_titles(col_template="{col_name}", row_template="{row_name}")
     grid.figure.subplots_adjust(top=0.9, right=0.9)
     grid.figure.suptitle(title)
 
