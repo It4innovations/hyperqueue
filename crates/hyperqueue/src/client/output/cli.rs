@@ -189,10 +189,8 @@ impl CliOutput {
                     error,
                     ..
                 } => {
-                    let worker_ids = started_data
-                        .as_ref()
-                        .map(|data| data.worker_ids.as_slice())
-                        .unwrap_or(&[]);
+                    let worker_ids = started_data.as_ref().map(|data| data.worker_ids.as_slice());
+
                     Some(vec![
                         t.task_id.cell(),
                         format_workers(worker_ids, worker_map).cell(),
@@ -633,11 +631,7 @@ impl Output for CliOutput {
                         job_rows.append(&mut vec![
                             task.task_id.cell().justify(Justify::Right),
                             status_to_cell(&get_task_status(&task.state)),
-                            match task.state.get_workers() {
-                                Some(workers) => format_workers(workers, &worker_map),
-                                _ => "".into(),
-                            }
-                            .cell(),
+                            format_workers(task.state.get_workers(), &worker_map).cell(),
                             format_task_duration(start, end).cell(),
                             match (verbosity, &task.state) {
                                 (Verbosity::Normal, JobTaskState::Failed { error, .. }) => {
@@ -754,11 +748,7 @@ impl Output for CliOutput {
                         ],
                         vec![
                             "Worker".cell().bold(true),
-                            match task.state.get_workers() {
-                                Some(workers) => format_workers(workers, &worker_map),
-                                _ => "".into(),
-                            }
-                            .cell(),
+                            format_workers(task.state.get_workers(), &worker_map).cell(),
                         ],
                         vec![
                             "Times".cell().bold(true),
@@ -1267,18 +1257,22 @@ fn format_worker(id: WorkerId, worker_map: &WorkerMap) -> &str {
         .unwrap_or_else(|| "N/A")
 }
 
-fn format_workers<'a>(ids: &[WorkerId], worker_map: &'a WorkerMap) -> Cow<'a, str> {
-    if ids.len() == 1 {
-        format_worker(ids[0], worker_map).into()
-    } else {
-        assert!(!ids.is_empty());
-        let mut result = String::new();
-        //result.push_str(format_worker(ids[0], worker_map));
-        for id in ids {
-            result.push_str(format_worker(*id, worker_map));
-            result.push('\n');
+fn format_workers<'a>(ids: Option<&[WorkerId]>, worker_map: &'a WorkerMap) -> Cow<'a, str> {
+    match ids {
+        Some(ids) => {
+            if ids.len() == 1 {
+                format_worker(ids[0], worker_map).into()
+            } else {
+                assert!(!ids.is_empty());
+                let mut result = String::new();
+                for id in ids {
+                    result.push_str(format_worker(*id, worker_map));
+                    result.push('\n');
+                }
+                result.into()
+            }
         }
-        result.into()
+        None => "".into(),
     }
 }
 
