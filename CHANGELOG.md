@@ -9,7 +9,7 @@
 
 ## New features
 
-* Server resilience. Server state can be loaded back from journal when server crashes.
+* Server resilience. Server state can be loaded back from a journal when it crashes. This will restore the state of submitted jobs and also autoallocator queues. Find out more [here](https://it4innovations.github.io/hyperqueue/stable/deployment/server/#resuming-stoppedcrashed-server).
 
 * `HQ_NUM_NODES` for multi-node tasks introduced. It contains the number of nodes assigned to task.
   You do not need to manually count lines in `HQ_NODE_FILE` anymore.
