@@ -21,60 +21,62 @@ pub type TaskToPathsMap = Map<JobTaskId, Option<ResolvedTaskPaths>>;
 
 /// Resolves task paths of the given job, as they would look like from the perspective of the worker.
 pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
-    let task_to_desc_map: Map<JobTaskId, &TaskDescription> = match &job.job_desc.task_desc {
-        JobTaskDescription::Array { .. } => Default::default(),
-        JobTaskDescription::Graph { tasks } => tasks.iter().map(|t| (t.id, &t.task_desc)).collect(),
-    };
-    let get_task_desc = |id: JobTaskId| -> &TaskDescription {
-        match &job.job_desc.task_desc {
-            JobTaskDescription::Array { task_desc, .. } => task_desc,
-            JobTaskDescription::Graph { .. } => task_to_desc_map[&id],
-        }
-    };
-
-    job.tasks
-        .iter()
-        .map(|task| {
-            let task_desc = get_task_desc(task.task_id);
-            let paths = match &task_desc.kind {
-                TaskKind::ExternalProgram(TaskKindProgram { program, .. }) => match &task.state {
-                    JobTaskState::Canceled {
-                        started_data: Some(started_data),
-                        ..
-                    }
-                    | JobTaskState::Running { started_data, .. }
-                    | JobTaskState::Finished { started_data, .. }
-                    | JobTaskState::Failed {
-                        started_data: Some(started_data),
-                        ..
-                    } => {
-                        let ctx = CompletePlaceholderCtx {
-                            job_id: job.info.id,
-                            task_id: task.task_id,
-                            instance_id: started_data.context.instance_id,
-                            submit_dir: &job.job_desc.submit_dir,
-                            server_uid,
-                        };
-
-                        let mut resolved_paths = ResolvedTaskPaths {
-                            cwd: program.cwd.clone(),
-                            stdout: program.stdout.clone(),
-                            stderr: program.stderr.clone(),
-                        };
-                        let paths = ResolvablePaths {
-                            cwd: &mut resolved_paths.cwd,
-                            stdout: &mut resolved_paths.stdout,
-                            stderr: &mut resolved_paths.stderr,
-                        };
-                        fill_placeholders_in_paths(paths, ctx);
-                        Some(resolved_paths)
-                    }
-                    _ => None,
-                },
-            };
-            (task.task_id, paths)
-        })
-        .collect()
+    todo!()
+    //
+    // let task_to_desc_map: Map<JobTaskId, &TaskDescription> = match &job.job_desc.task_desc {
+    //     JobTaskDescription::Array { .. } => Default::default(),
+    //     JobTaskDescription::Graph { tasks } => tasks.iter().map(|t| (t.id, &t.task_desc)).collect(),
+    // };
+    // let get_task_desc = |id: JobTaskId| -> &TaskDescription {
+    //     match &job.job_desc.task_desc {
+    //         JobTaskDescription::Array { task_desc, .. } => task_desc,
+    //         JobTaskDescription::Graph { .. } => task_to_desc_map[&id],
+    //     }
+    // };
+    //
+    // job.tasks
+    //     .iter()
+    //     .map(|task| {
+    //         let task_desc = get_task_desc(task.task_id);
+    //         let paths = match &task_desc.kind {
+    //             TaskKind::ExternalProgram(TaskKindProgram { program, .. }) => match &task.state {
+    //                 JobTaskState::Canceled {
+    //                     started_data: Some(started_data),
+    //                     ..
+    //                 }
+    //                 | JobTaskState::Running { started_data, .. }
+    //                 | JobTaskState::Finished { started_data, .. }
+    //                 | JobTaskState::Failed {
+    //                     started_data: Some(started_data),
+    //                     ..
+    //                 } => {
+    //                     let ctx = CompletePlaceholderCtx {
+    //                         job_id: job.info.id,
+    //                         task_id: task.task_id,
+    //                         instance_id: started_data.context.instance_id,
+    //                         submit_dir: &job.job_desc.submit_dir,
+    //                         server_uid,
+    //                     };
+    //
+    //                     let mut resolved_paths = ResolvedTaskPaths {
+    //                         cwd: program.cwd.clone(),
+    //                         stdout: program.stdout.clone(),
+    //                         stderr: program.stderr.clone(),
+    //                     };
+    //                     let paths = ResolvablePaths {
+    //                         cwd: &mut resolved_paths.cwd,
+    //                         stdout: &mut resolved_paths.stdout,
+    //                         stderr: &mut resolved_paths.stderr,
+    //                     };
+    //                     fill_placeholders_in_paths(paths, ctx);
+    //                     Some(resolved_paths)
+    //                 }
+    //                 _ => None,
+    //             },
+    //         };
+    //         (task.task_id, paths)
+    //     })
+    //     .collect()
 }
 
 #[derive(Clone, Copy, Debug)]

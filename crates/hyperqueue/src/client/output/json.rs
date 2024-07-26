@@ -94,6 +94,7 @@ impl Output for JsonOutput {
                 let JobDetail {
                     info,
                     job_desc,
+                    submit_descs,
                     tasks,
                     tasks_not_found: _,
                     submission_date,
@@ -106,39 +107,31 @@ impl Output for JsonOutput {
                     None
                 };
 
-                let mut json = json!({
-                    "info": format_job_info(&info),
-                    "max_fails": job_desc.max_fails,
-                    "started_at": format_datetime(submission_date),
-                    "finished_at": finished_at.map(format_datetime),
-                    "submit_dir": job_desc.submit_dir
-                });
-
-                let task_description = match &job_desc.task_desc {
-                    JobTaskDescription::Array { task_desc, .. } => {
-                        let mut task = json!({});
-                        format_task_description(task_desc, &mut task);
-                        json!({
-                            "array": task
-                        })
-                    }
-                    JobTaskDescription::Graph { tasks } => {
-                        let tasks: Vec<Value> = tasks
-                            .iter()
-                            .map(|task| {
-                                let mut json = json!({});
-                                format_task_description(&task.task_desc, &mut json);
-                                json
-                            })
-                            .collect();
-                        json!({
-                            "graph": tasks
-                        })
-                    }
-                };
-                json["task-desc"] = task_description;
-                json["tasks"] = format_tasks(tasks, task_paths);
-                json
+                json!({
+                                    "info": format_job_info(&info),
+                                    "max_fails": job_desc.max_fails,
+                                    "started_at": format_datetime(submission_date),
+                                    "finished_at": finished_at.map(format_datetime),
+                                    "submits": submit_descs.iter().map(|submit_desc|
+                match &submit_desc.task_desc {
+                                    JobTaskDescription::Array { task_desc, .. } => {
+                                        json!({
+                                            "array": format_task_description(task_desc)
+                                        })
+                                    }
+                                    JobTaskDescription::Graph { tasks } => {
+                                        let tasks: Vec<Value> = tasks
+                                            .iter()
+                                            .map(|task| format_task_description(&task.task_desc))
+                                            .collect();
+                                        json!({
+                                            "graph": tasks
+                                        })
+                                    }
+                                }
+                                    ).collect::<Vec<_>>(),
+                                    "tasks": format_tasks(tasks, task_paths)
+                                })
             })
             .collect();
         self.print(Value::Array(job_details));
@@ -244,7 +237,7 @@ impl Output for JsonOutput {
     }
 }
 
-fn format_task_description(task_desc: &TaskDescription, json: &mut Value) {
+fn format_task_description(task_desc: &TaskDescription) -> Value {
     let TaskDescription {
         kind,
         resources,
@@ -267,43 +260,45 @@ fn format_task_description(task_desc: &TaskDescription, json: &mut Value) {
                 cwd,
                 stdin: _,
             } = program;
-            json["program"] = json!({
-                "args": args.iter().map(|args| args.to_string()).collect::<Vec<_>>(),
-                "env": env.into_iter().map(|(key, value)| (key.to_string(), value.to_string())).collect::<Map<String, String>>(),
-                "cwd": cwd,
-                "stderr": format_stdio_def(stderr),
-                "stdout": format_stdio_def(stdout),
-            });
-            json["resources"] = resources
-                .variants
-                .iter()
-                .map(|v| {
-                    let ResourceRequest {
-                        n_nodes,
-                        resources,
-                        min_time,
-                    } = v;
-                    json!({
-                        "n_nodes": n_nodes,
-                        "resources": resources.into_iter().map(|res| {
-                            json!({
-                                "resource": res.resource,
-                                "request": res.policy
-                            })
-                        }).collect::<Vec<_>>(),
-                        "min_time": format_duration(*min_time)
+            json!({
+                "program": {
+                    "args": args.iter().map(|args| args.to_string()).collect::<Vec<_>>(),
+                    "env": env.into_iter().map(|(key, value)| (key.to_string(), value.to_string())).collect::<Map<String, String>>(),
+                    "cwd": cwd,
+                    "stderr": format_stdio_def(stderr),
+                    "stdout": format_stdio_def(stdout),
+                },
+                "resources": resources
+                    .variants
+                    .iter()
+                    .map(|v| {
+                        let ResourceRequest {
+                            n_nodes,
+                            resources,
+                            min_time,
+                        } = v;
+                        json!({
+                            "n_nodes": n_nodes,
+                            "resources": resources.into_iter().map(|res| {
+                                json!({
+                                    "resource": res.resource,
+                                    "request": res.policy
+                                })
+                            }).collect::<Vec<_>>(),
+                            "min_time": format_duration(*min_time)
+                        })
                     })
-                })
-                .collect();
-            json["pin_mode"] = json!(match pin_mode {
-                PinMode::None => None,
-                PinMode::OpenMP => Some("openmp"),
-                PinMode::TaskSet => Some("taskset"),
-            });
-            json["priority"] = json!(priority);
-            json["time_limit"] = json!(time_limit.map(format_duration));
-            json["task_dir"] = json!(task_dir);
-            json["crash_limit"] = json!(crash_limit);
+                    .collect::<Vec<_>>(),
+                "pin_mode": match pin_mode {
+                    PinMode::None => None,
+                    PinMode::OpenMP => Some("openmp"),
+                    PinMode::TaskSet => Some("taskset"),
+                },
+                "priority": priority,
+                "time_limit": time_limit.map(format_duration),
+                "task_dir": task_dir,
+                "crash_limit": crash_limit,
+            })
         }
     }
 }
@@ -360,7 +355,7 @@ fn format_job_info(info: &JobInfo) -> serde_json::Value {
     })
 }
 
-fn format_tasks(tasks: Vec<JobTaskInfo>, map: TaskToPathsMap) -> serde_json::Value {
+fn format_tasks(tasks: Vec<JobTaskInfo>, map: TaskToPathsMap) -> Value {
     tasks
         .into_iter()
         .map(|task| {

@@ -702,23 +702,26 @@ impl Output for CliOutput {
             let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, &task);
             let task_id = task.task_id;
 
-            let (task_desc, task_deps) = match &job.job_desc.task_desc {
-                JobTaskDescription::Array {
-                    ids: _,
-                    entries: _,
-                    task_desc,
-                } => (task_desc, [].as_slice()),
-
-                JobTaskDescription::Graph { tasks } => {
-                    let opt_task_dep = tasks.iter().find(|t| t.id == task_id);
-                    match opt_task_dep {
-                        None => {
-                            log::error!("Task {task_id} not found in (graph) job {job_id}");
-                            return;
+            let (task_desc, task_deps) = if let Some(x) =
+                job.submit_descs
+                    .iter()
+                    .find_map(|submit_desc| match &submit_desc.task_desc {
+                        JobTaskDescription::Array {
+                            ids,
+                            entries: _,
+                            task_desc,
+                        } if ids.contains(task_id.as_num()) => Some((task_desc, [].as_slice())),
+                        JobTaskDescription::Array { .. } => None,
+                        JobTaskDescription::Graph { tasks } => {
+                            tasks.iter().find(|t| t.id == task_id).map(|task_dep| {
+                                (&task_dep.task_desc, task_dep.dependencies.as_slice())
+                            })
                         }
-                        Some(task_dep) => (&task_dep.task_desc, task_dep.dependencies.as_slice()),
-                    }
-                }
+                    }) {
+                x
+            } else {
+                log::error!("Task {task_id} not found in (graph) job {job_id}");
+                return;
             };
 
             match &task_desc.kind {
