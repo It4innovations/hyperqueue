@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::client::status::get_task_status;
+use crate::server::state::State;
 use crate::server::Senders;
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
@@ -121,7 +122,7 @@ pub struct Job {
     pub tasks: Map<TakoTaskId, JobTaskInfo>,
 
     pub job_desc: JobDescription,
-    pub submit_descs: SmallVec<[JobSubmitDescription; 1]>,
+    pub submit_descs: SmallVec<[(Arc<JobSubmitDescription>, TakoTaskId); 1]>,
 
     // If True, new tasks may be submitted into this job
     // If true and all tasks in the job are terminated then the job
@@ -151,42 +152,6 @@ impl Job {
         }
     }
 
-    pub fn attach_submit(
-        &mut self,
-        submit_desc: Arc<JobSubmitDescription>,
-        base_task_id: TakoTaskId,
-    ) {
-        let base = base_task_id.as_num();
-        let tasks = match &submit_desc.task_desc {
-            JobTaskDescription::Array { ids, .. } => ids
-                .iter()
-                .enumerate()
-                .map(|(i, task_id)| {
-                    (
-                        TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
-                        JobTaskInfo {
-                            state: JobTaskState::Waiting,
-                            task_id: task_id.into(),
-                        },
-                    )
-                })
-                .collect(),
-            JobTaskDescription::Graph { tasks } => tasks
-                .iter()
-                .enumerate()
-                .map(|(i, task)| {
-                    (
-                        TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
-                        JobTaskInfo {
-                            state: JobTaskState::Waiting,
-                            task_id: task.id,
-                        },
-                    )
-                })
-                .collect(),
-        };
-    }
-
     pub fn make_job_detail(&self, task_selector: Option<&TaskSelector>) -> JobDetail {
         let mut tasks: Vec<JobTaskInfo> = Vec::new();
         let mut tasks_not_found: Vec<JobTaskId> = vec![];
@@ -214,6 +179,7 @@ impl Job {
         JobDetail {
             info: self.make_job_info(),
             job_desc: self.job_desc.clone(),
+            submit_descs: self.submit_descs.iter().map(|x| x.0.clone()).collect(),
             tasks,
             tasks_not_found,
             submission_date: self.submission_date,
@@ -294,7 +260,12 @@ impl Job {
     pub fn check_termination(&mut self, senders: &Senders, now: DateTime<Utc>) {
         if self.is_terminated() {
             self.completion_date = Some(now);
-            if self.job_desc.log.is_some() {
+            if self
+                .submit_descs
+                .first()
+                .map(|x| x.0.log.is_some())
+                .unwrap_or(false)
+            {
                 senders
                     .backend
                     .send_stream_control(StreamServerControlMessage::UnregisterStream(self.job_id));

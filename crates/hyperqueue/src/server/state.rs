@@ -1,5 +1,6 @@
 use std::cmp::min;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use chrono::Utc;
 
@@ -11,11 +12,11 @@ use tako::ItemId;
 use tako::{define_wrapped_type, TaskId};
 
 use crate::server::autoalloc::LostWorkerDetails;
-use crate::server::job::Job;
+use crate::server::job::{Job, JobTaskInfo, JobTaskState};
 use crate::server::restore::StateRestorer;
 use crate::server::worker::Worker;
 use crate::server::Senders;
-use crate::transfer::messages::ServerInfo;
+use crate::transfer::messages::{JobSubmitDescription, JobTaskDescription, ServerInfo};
 use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
 
@@ -109,12 +110,48 @@ impl State {
     }
 
     pub fn add_job(&mut self, job: Job) {
+        assert!(job.submit_descs.is_empty());
         let job_id = job.job_id;
+        assert!(self.jobs.insert(job_id, job).is_none());
+    }
+
+    pub fn attach_submit(
+        &mut self,
+        job_id: JobId,
+        submit_desc: Arc<JobSubmitDescription>,
+        base_task_id: TakoTaskId,
+    ) {
+        let base = base_task_id.as_num();
+        let mut job = self.get_job_mut(job_id).unwrap();
+        match &submit_desc.task_desc {
+            JobTaskDescription::Array { ids, .. } => {
+                ids.iter().enumerate().for_each(|(i, task_id)| {
+                    job.tasks.insert(
+                        TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
+                        JobTaskInfo {
+                            state: JobTaskState::Waiting,
+                            task_id: task_id.into(),
+                        },
+                    );
+                })
+            }
+            JobTaskDescription::Graph { tasks } => {
+                tasks.iter().enumerate().for_each(|(i, task)| {
+                    job.tasks.insert(
+                        TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
+                        JobTaskInfo {
+                            state: JobTaskState::Waiting,
+                            task_id: task.id,
+                        },
+                    );
+                })
+            }
+        };
+        job.submit_descs.push((submit_desc, base_task_id));
         assert!(self
             .base_task_id_to_job_id
-            .insert(job.base_task_id, job_id)
+            .insert(base_task_id, job_id)
             .is_none());
-        assert!(self.jobs.insert(job_id, job).is_none());
     }
 
     /// Completely forgets this job, in order to reduce memory usage.
@@ -129,22 +166,16 @@ impl State {
                 return None;
             }
         };
-        self.base_task_id_to_job_id.remove(&job.base_task_id);
+        for (_, base_task_id) in &job.submit_descs {
+            self.base_task_id_to_job_id.remove(&base_task_id);
+        }
         Some(job)
     }
 
     pub fn get_job_mut_by_tako_task_id(&mut self, task_id: TakoTaskId) -> Option<&mut Job> {
         let job_id: JobId = *self.base_task_id_to_job_id.range(..=task_id).next_back()?.1;
         let job = self.jobs.get_mut(&job_id)?;
-        if task_id
-            < TakoTaskId::new(
-                job.base_task_id.as_num() + job.n_tasks() as <TaskId as ItemId>::IdType,
-            )
-        {
-            Some(job)
-        } else {
-            None
-        }
+        Some(job)
     }
 
     pub fn new_job_id(&mut self) -> JobId {

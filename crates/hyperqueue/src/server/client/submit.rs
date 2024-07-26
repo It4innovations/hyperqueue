@@ -58,14 +58,15 @@ pub(crate) fn submit_job_desc(
     job_id: JobId,
     job_desc: JobDescription,
     mut submit_desc: JobSubmitDescription,
-) -> crate::Result<NewTasksMessage> {
+) -> crate::Result<(NewTasksMessage, Option<PathBuf>)> {
     let (job_id, tako_base_id) = prepare_job(job_id, &mut submit_desc, state);
     let new_tasks = create_new_task_message(job_id, tako_base_id, &mut submit_desc)?;
     submit_desc.strip_large_data();
-    let mut job = Job::new(job_id, job_desc, false);
-    job.attach_submit(Arc::new(submit_desc), tako_base_id);
+    let job = Job::new(job_id, job_desc, false);
     state.add_job(job);
-    Ok(new_tasks)
+    let log = submit_desc.log.clone();
+    state.attach_submit(job_id, Arc::new(submit_desc), tako_base_id);
+    Ok((new_tasks, log))
 }
 
 pub(crate) async fn handle_submit(
@@ -74,21 +75,22 @@ pub(crate) async fn handle_submit(
     message: SubmitRequest,
 ) -> ToClientMessage {
     let job_id = state_ref.get_mut().new_job_id();
+
+    senders.events.on_job_submitted(job_id, &message).unwrap();
+
     let SubmitRequest {
         job_desc,
         submit_desc,
     } = message;
 
-    senders.events.on_job_submitted(job_id, &job_desc).unwrap();
-    let log = submit_desc.log.clone();
-
-    let new_tasks = match submit_job_desc(&mut state_ref.get_mut(), job_id, job_desc, submit_desc) {
-        Err(error) => {
-            state_ref.get_mut().revert_to_job_id(job_id);
-            return ToClientMessage::Error(error.to_string());
-        }
-        Ok(new_tasks) => new_tasks,
-    };
+    let (new_tasks, log) =
+        match submit_job_desc(&mut state_ref.get_mut(), job_id, job_desc, submit_desc) {
+            Err(error) => {
+                state_ref.get_mut().revert_to_job_id(job_id);
+                return ToClientMessage::Error(error.to_string());
+            }
+            Ok(new_tasks) => new_tasks,
+        };
     senders.autoalloc.on_job_created(job_id);
 
     let job_detail = {

@@ -10,6 +10,7 @@ use crate::server::autoalloc::{Allocation, QueueId, QueueInfo};
 use crate::server::job::{JobTaskCounters, JobTaskInfo};
 use crate::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
 use bstr::BString;
+use smallvec::SmallVec;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;

@@ -45,6 +45,9 @@ def test_job_array_report(hq_env: HqEnv):
     table = list_jobs(hq_env)
     table.check_column_value("State", 0, "RUNNING")
 
+    table = hq_env.command(["job", "info", "1"])
+    print(table)
+
     table = hq_env.command(["job", "info", "1"], as_table=True)
     table.check_row_value("Tasks", "10; Ids: 10-19")
 
@@ -98,17 +101,17 @@ def test_job_array_error_some(hq_env: HqEnv):
 
     table = hq_env.command(["task", "list", "1"], as_table=True)
     for i, state in enumerate(
-        [
-            "FINISHED",
-            "FINISHED",
-            "FAILED",
-            "FAILED",
-            "FINISHED",
-            "FINISHED",
-            "FINISHED",
-            "FAILED",
-        ]
-        + 2 * ["FINISHED"]
+            [
+                "FINISHED",
+                "FINISHED",
+                "FAILED",
+                "FAILED",
+                "FINISHED",
+                "FINISHED",
+                "FINISHED",
+                "FAILED",
+            ]
+            + 2 * ["FINISHED"]
     ):
         table.check_column_value("State", i, state)
 

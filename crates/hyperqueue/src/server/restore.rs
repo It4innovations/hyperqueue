@@ -5,7 +5,9 @@ use crate::server::event::log::EventLogReader;
 use crate::server::event::payload::EventPayload;
 use crate::server::job::{JobTaskState, StartedTaskData};
 use crate::server::state::State;
-use crate::transfer::messages::{AllocationQueueParams, JobDescription};
+use crate::transfer::messages::{
+    AllocationQueueParams, JobDescription, JobSubmitDescription, SubmitRequest,
+};
 use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskId, Map};
 use bincode::Options;
@@ -29,7 +31,7 @@ impl RestorerTaskInfo {
 }
 
 struct RestorerJob {
-    job_desc: JobDescription,
+    submit_request: SubmitRequest,
     tasks: Map<JobTaskId, RestorerTaskInfo>,
 }
 
@@ -45,7 +47,12 @@ impl RestorerJob {
         state: &mut State,
     ) -> crate::Result<NewTasksMessage> {
         log::debug!("Restoring job {}", job_id);
-        let mut new_tasks = submit_job_desc(state, job_id, self.job_desc)?;
+        let (mut new_tasks, _log) = submit_job_desc(
+            state,
+            job_id,
+            self.submit_request.job_desc,
+            self.submit_request.submit_desc,
+        )?;
         let job = state.get_job_mut(job_id).unwrap();
 
         new_tasks.tasks.retain(|t| {
@@ -78,9 +85,9 @@ impl RestorerJob {
 }
 
 impl RestorerJob {
-    pub fn new(job_desc: JobDescription) -> Self {
+    pub fn new(submit_request: SubmitRequest) -> Self {
         RestorerJob {
-            job_desc,
+            submit_request,
             tasks: Map::new(),
         }
     }
@@ -140,10 +147,11 @@ impl StateRestorer {
                 EventPayload::WorkerLost(_, _) => {}
                 EventPayload::WorkerOverviewReceived(_) => {}
                 //EventPayload::JobCreatedShort(job_id, job_info) => {}
-                EventPayload::JobCreated(job_id, serialized_job_desc) => {
+                EventPayload::JobCreated(job_id, serialized_submit_request) => {
                     log::debug!("Replaying: JobCreated {job_id}");
-                    let job_desc = bincode_config().deserialize(&serialized_job_desc)?;
-                    self.jobs.insert(job_id, RestorerJob::new(job_desc));
+                    let submit_request: SubmitRequest =
+                        bincode_config().deserialize(&serialized_submit_request)?;
+                    self.jobs.insert(job_id, RestorerJob::new(submit_request));
                     self.max_job_id = self.max_job_id.max(job_id.as_num());
                 }
                 EventPayload::JobCompleted(job_id) => {

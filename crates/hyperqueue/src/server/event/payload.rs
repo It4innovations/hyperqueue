@@ -19,7 +19,7 @@ pub enum EventPayload {
     WorkerOverviewReceived(WorkerOverview),
     /// A Job was submitted by the user -- full information to reconstruct the job;
     ///  it will be only stored into file, not held in memory
-    ///  Vec<u8> is serialized JobDescription; the main reason is avoid duplication of JobDescription
+    ///  Vec<u8> is serialized JobDescription; the main reason is avoiding duplication of JobDescription
     ///  (we serialize it before it is stripped down)
     ///  and a nice side effect is that Events can be deserialized without deserializing a potentially large submit data
     JobCreated(JobId, Vec<u8>),

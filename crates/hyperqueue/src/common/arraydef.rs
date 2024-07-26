@@ -43,7 +43,7 @@ impl IntArray {
     }
 
     pub fn from_non_overlapping<'a>(iter: impl Iterator<Item = &'a IntArray>) -> IntArray {
-        let mut ranges: Vec<IntRange> = iter.flat_map(|x| x.ranges).collect();
+        let mut ranges: Vec<IntRange> = iter.flat_map(|x| x.ranges.clone()).collect();
         ranges.sort_unstable_by_key(|x| x.start);
         IntArray { ranges }
     }
