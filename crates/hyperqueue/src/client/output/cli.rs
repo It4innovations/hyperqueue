@@ -974,6 +974,13 @@ impl Output for CliOutput {
     fn print_error(&self, error: Error) {
         eprintln!("{error:?}");
     }
+
+    fn print_job_open(&self, job_id: JobId) {
+        println!(
+            "Job {} opened",
+            job_id.to_string().color(colored::Color::Green),
+        );
+    }
 }
 
 struct AllocationTimes {

@@ -37,8 +37,8 @@ pub enum FromClientMessage {
     AutoAlloc(AutoAllocRequest),
     WaitForJobs(WaitForJobsRequest),
     ServerInfo,
-    OpenJob,
-    CloseJob(JobId),
+    OpenJob(JobDescription),
+    CloseJob(CloseJobRequest),
 
     // This command switches the connection into streaming connection,
     // it will no longer reacts to any other client messages
@@ -224,6 +224,11 @@ pub struct CancelRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct CloseJobRequest {
+    pub selector: IdSelector,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ForgetJobRequest {
     pub selector: IdSelector,
     pub filter: Vec<Status>,
@@ -331,6 +336,7 @@ pub enum ToClientMessage {
     ForgetJobResponse(ForgetJobResponse),
     AutoAllocResponse(AutoAllocResponse),
     WaitForJobsResponse(WaitForJobsResponse),
+    OpenJobResponse(OpenJobResponse),
     Error(String),
     ServerInfo(ServerInfo),
     Event(Event),
@@ -375,6 +381,11 @@ pub struct StatsResponse {
 pub struct SubmitResponse {
     pub job: JobDetail,
     pub server_uid: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct OpenJobResponse {
+    pub job_id: JobId,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

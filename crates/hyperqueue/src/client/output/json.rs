@@ -74,6 +74,12 @@ impl Output for JsonOutput {
         }))
     }
 
+    fn print_job_open(&self, job_id: JobId) {
+        self.print(json!({
+            "id": job_id
+        }))
+    }
+
     fn print_job_list(&self, jobs: Vec<JobInfo>, _total_jobs: usize) {
         self.print(
             jobs.into_iter()

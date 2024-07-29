@@ -1,6 +1,6 @@
 use crate::server::autoalloc::AllocationId;
 use crate::server::autoalloc::QueueId;
-use crate::transfer::messages::AllocationQueueParams;
+use crate::transfer::messages::{AllocationQueueParams, JobDescription};
 use crate::JobId;
 use crate::{JobTaskId, WorkerId};
 use serde::{Deserialize, Serialize};
@@ -25,6 +25,8 @@ pub enum EventPayload {
     JobCreated(JobId, Vec<u8>),
     /// All tasks of the job have finished.
     JobCompleted(JobId),
+    JobOpen(JobId, JobDescription),
+    JobClose(JobId),
     /// Task has started to execute on some worker
     TaskStarted {
         job_id: JobId,

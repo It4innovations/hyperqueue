@@ -23,9 +23,9 @@ use crate::server::state::{State, StateRef};
 use crate::server::Senders;
 use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
-    JobDescription, JobSubmitDescription, JobTaskDescription, SubmitRequest, SubmitResponse,
-    TaskBuildDescription, TaskDescription, TaskIdSelector, TaskKind, TaskKindProgram, TaskSelector,
-    TaskStatusSelector, TaskWithDependencies, ToClientMessage,
+    JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, SubmitRequest,
+    SubmitResponse, TaskBuildDescription, TaskDescription, TaskIdSelector, TaskKind,
+    TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
 use crate::{JobId, JobTaskId, Priority, TakoTaskId};
 
@@ -477,9 +477,21 @@ mod tests {
     }
 }
 
-pub(crate) fn handle_open_job(state_ref: &StateRef, senders: &Senders) -> ToClientMessage {
-    todo!()
+pub(crate) fn handle_open_job(
+    state_ref: &StateRef,
+    senders: &Senders,
+    job_description: JobDescription,
+) -> ToClientMessage {
+    let job_id = state_ref.get_mut().new_job_id();
+    senders
+        .events
+        .on_job_opened(job_id, job_description.clone());
+    xxx();
+    let job = Job::new(job_id, job_description, true);
+    state_ref.get_mut().add_job(job);
+    ToClientMessage::OpenJobResponse(OpenJobResponse { job_id })
 }
+
 // /*let job_id = state_ref.get_mut().new_job_id();
 // senders.events.on_job_open(job_id).unwrap();
 //

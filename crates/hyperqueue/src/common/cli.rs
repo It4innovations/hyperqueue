@@ -13,6 +13,7 @@ use crate::client::commands::job::{
 };
 use crate::client::commands::log::LogOpts;
 use crate::client::commands::server::ServerOpts;
+use crate::client::commands::submit::command::SubmitJobConfOpts;
 use crate::client::commands::submit::{JobSubmitFileOpts, JobSubmitOpts};
 use crate::client::commands::worker::{WorkerFilter, WorkerStartOpts};
 use crate::client::output::outputs::Outputs;
@@ -322,6 +323,8 @@ pub enum JobCommand {
     Progress(JobProgressOpts),
     /// Print task Ids for given job
     TaskIds(JobTaskIdsOpts),
+    /// Open new job (without attaching any tasks yet)
+    Open(SubmitJobConfOpts),
 }
 
 #[derive(Parser)]

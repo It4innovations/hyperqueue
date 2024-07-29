@@ -15,6 +15,7 @@ use hyperqueue::client::commands::job::{
 };
 use hyperqueue::client::commands::log::command_log;
 use hyperqueue::client::commands::server::command_server;
+use hyperqueue::client::commands::submit::command::{open_job, SubmitJobConfOpts};
 use hyperqueue::client::commands::submit::{
     submit_computation, submit_computation_from_job_file, JobSubmitFileOpts, JobSubmitOpts,
 };
@@ -62,6 +63,14 @@ async fn command_job_submit(
 ) -> anyhow::Result<()> {
     let mut session = get_client_session(gsettings.server_directory()).await?;
     submit_computation(gsettings, &mut session, opts).await
+}
+
+async fn command_job_open(
+    gsettings: &GlobalSettings,
+    opts: SubmitJobConfOpts,
+) -> anyhow::Result<()> {
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    open_job(gsettings, &mut session, opts).await
 }
 
 async fn command_submit_job_file(
@@ -439,6 +448,9 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Job(JobOpts {
             subcmd: JobCommand::TaskIds(opts),
         }) => command_job_task_ids(&gsettings, opts).await,
+        SubCommand::Job(JobOpts {
+            subcmd: JobCommand::Open(opts),
+        }) => command_job_open(&gsettings, opts).await,
         SubCommand::Task(TaskOpts {
             subcmd: TaskCommand::List(opts),
         }) => command_task_list(&gsettings, opts).await,

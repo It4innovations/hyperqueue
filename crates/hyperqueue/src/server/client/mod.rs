@@ -158,7 +158,9 @@ pub async fn client_rpc_loop<
                     FromClientMessage::WaitForJobs(msg) => {
                         handle_wait_for_jobs_message(&state_ref, msg.selector).await
                     }
-                    FromClientMessage::OpenJob => handle_open_job(&state_ref, senders),
+                    FromClientMessage::OpenJob(job_description) => {
+                        handle_open_job(&state_ref, senders, job_description)
+                    }
                     FromClientMessage::CloseJob(job_id) => {
                         todo!()
                     }

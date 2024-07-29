@@ -45,6 +45,10 @@ impl EventStreamer {
         self.send_event(EventPayload::WorkerOverviewReceived(worker_overview));
     }
 
+    pub fn on_job_opened(&self, job_id: JobId, job_desc: JobDescription) {
+        self.send_event(EventPayload::JobOpen(job_id, job_desc));
+    }
+
     pub fn on_job_submitted(
         &self,
         job_id: JobId,
