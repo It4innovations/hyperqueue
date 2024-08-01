@@ -69,4 +69,4 @@ pub enum EventPayload {
 }
 
 // Keep the size of the event structure in check
-static_assert_size!(EventPayload, 136);
+static_assert_size!(EventPayload, 176);
