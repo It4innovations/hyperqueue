@@ -893,8 +893,8 @@ def test_job_submit_program_not_found(hq_env: HqEnv):
 
     table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     assert (
-        'Error: Cannot execute "foo --bar --baz=5": No such file or directory (os error 2)\n'
-        "The program that you have tried to execute (`foo`) was not found." == table.get_column_value("Error")[0]
+            'Error: Cannot execute "foo --bar --baz=5": No such file or directory (os error 2)\n'
+            "The program that you have tried to execute (`foo`) was not found." == table.get_column_value("Error")[0]
     )
 
 
@@ -1254,3 +1254,30 @@ def test_job_task_ids(hq_env: HqEnv):
 
     result = hq_env.command(["job", "task-ids", "1", "--filter", "canceled"])
     assert result == "\n"
+
+
+def test_job_open(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(
+        [
+            "job",
+            "open",
+        ]
+    )
+    table = hq_env.command(["job", "list", "--all"], as_table=True)
+    table.check_row_value("*1", "job")
+    assert table.get_column_value("State") == ["OPENED"]
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Session", "open")
+
+    assert "Job 1 closed" in hq_env.command(["job", "close", "1"])
+    assert "job is already closed" in hq_env.command(["job", "close", "1"])
+    assert "job is already closed" in hq_env.command(["job", "close", "1"])
+
+    table = hq_env.command(["job", "list", "--all"], as_table=True)
+    table.check_row_value("1", "job")
+    assert table.get_column_value("State") == ["FINISHED"]
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Session", "closed")

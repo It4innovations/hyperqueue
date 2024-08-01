@@ -339,18 +339,20 @@ fn format_stdio_def(stdio: &StdioDef) -> Value {
     }
 }
 
-fn format_job_info(info: &JobInfo) -> serde_json::Value {
+fn format_job_info(info: &JobInfo) -> Value {
     let JobInfo {
         id,
         name,
         n_tasks,
         counters,
+        is_open,
     } = info;
 
     json!({
         "id": id,
         "name": name,
         "task_count": n_tasks,
+        "is_open": is_open,
         "task_stats": json!({
             "running": counters.n_running_tasks,
             "finished": counters.n_finished_tasks,

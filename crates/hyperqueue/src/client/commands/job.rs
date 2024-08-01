@@ -10,9 +10,9 @@ use crate::common::utils::str::pluralize;
 use crate::rpc_call;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
-    CancelJobResponse, CancelRequest, ForgetJobRequest, FromClientMessage, IdSelector, JobDetail,
-    JobDetailRequest, JobInfoRequest, TaskIdSelector, TaskSelector, TaskStatusSelector,
-    ToClientMessage,
+    CancelJobResponse, CancelRequest, CloseJobRequest, CloseJobResponse, ForgetJobRequest,
+    FromClientMessage, IdSelector, JobDetail, JobDetailRequest, JobInfoRequest, TaskIdSelector,
+    TaskSelector, TaskStatusSelector, ToClientMessage,
 };
 
 #[derive(Parser)]
@@ -36,6 +36,13 @@ pub struct JobInfoOpts {
 
 #[derive(Parser)]
 pub struct JobCancelOpts {
+    /// Select job(s) to cancel
+    #[arg(value_parser = parse_last_all_range)]
+    pub selector: IdSelector,
+}
+
+#[derive(Parser)]
+pub struct JobCloseOpts {
     /// Select job(s) to cancel
     #[arg(value_parser = parse_last_all_range)]
     pub selector: IdSelector,
@@ -264,6 +271,38 @@ pub async fn cancel_job(
             }
             CancelJobResponse::Failed(msg) => {
                 log::error!("Canceling job {} failed; {}", job_id, msg)
+            }
+        }
+    }
+    Ok(())
+}
+
+pub async fn close_job(
+    _gsettings: &GlobalSettings,
+    session: &mut ClientSession,
+    selector: IdSelector,
+) -> anyhow::Result<()> {
+    let mut responses =
+        rpc_call!(session.connection(), FromClientMessage::CloseJob(CloseJobRequest {
+         selector,
+    }), ToClientMessage::CloseJobResponse(r) => r)
+        .await?;
+    responses.sort_unstable_by_key(|x| x.0);
+
+    if responses.is_empty() {
+        log::info!("There is nothing to cancel")
+    }
+
+    for (job_id, response) in responses {
+        match response {
+            CloseJobResponse::Closed => {
+                log::info!("Job {} closed", job_id)
+            }
+            CloseJobResponse::InvalidJob => {
+                log::error!("Closing job {} failed; job not found", job_id)
+            }
+            CloseJobResponse::AlreadyClosed => {
+                log::error!("Closing job {} failed; job is already closed", job_id)
             }
         }
     }

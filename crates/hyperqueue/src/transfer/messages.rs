@@ -337,6 +337,7 @@ pub enum ToClientMessage {
     AutoAllocResponse(AutoAllocResponse),
     WaitForJobsResponse(WaitForJobsResponse),
     OpenJobResponse(OpenJobResponse),
+    CloseJobResponse(Vec<(JobId, CloseJobResponse)>),
     Error(String),
     ServerInfo(ServerInfo),
     Event(Event),
@@ -347,6 +348,13 @@ pub enum CancelJobResponse {
     Canceled(Vec<JobTaskId>, JobTaskCount),
     InvalidJob,
     Failed(String),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum CloseJobResponse {
+    Closed,
+    InvalidJob,
+    AlreadyClosed,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -395,6 +403,7 @@ pub struct JobInfo {
 
     pub n_tasks: JobTaskCount,
     pub counters: JobTaskCounters,
+    pub is_open: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

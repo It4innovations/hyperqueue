@@ -9,7 +9,8 @@ use tako::WorkerId;
 use crate::client::commands::autoalloc::AutoAllocOpts;
 use crate::client::commands::event::EventLogOpts;
 use crate::client::commands::job::{
-    JobCancelOpts, JobCatOpts, JobForgetOpts, JobInfoOpts, JobListOpts, JobTaskIdsOpts,
+    JobCancelOpts, JobCatOpts, JobCloseOpts, JobForgetOpts, JobInfoOpts, JobListOpts,
+    JobTaskIdsOpts,
 };
 use crate::client::commands::log::LogOpts;
 use crate::client::commands::server::ServerOpts;
@@ -325,6 +326,8 @@ pub enum JobCommand {
     TaskIds(JobTaskIdsOpts),
     /// Open new job (without attaching any tasks yet)
     Open(SubmitJobConfOpts),
+    /// Close a session job
+    Close(JobCloseOpts),
 }
 
 #[derive(Parser)]

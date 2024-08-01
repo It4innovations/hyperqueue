@@ -145,7 +145,7 @@ impl Job {
             tasks: Default::default(),
             job_desc,
             submit_descs: Default::default(),
-            is_open,
+            is_open: is_open,
             submission_date: Utc::now(),
             completion_date: None,
             completion_callbacks: Default::default(),
@@ -193,6 +193,7 @@ impl Job {
             name: self.job_desc.name.clone(),
             n_tasks: self.n_tasks(),
             counters: self.counters,
+            is_open: self.is_open,
         }
     }
 
@@ -202,7 +203,7 @@ impl Job {
     }
 
     pub fn is_terminated(&self) -> bool {
-        self.counters.is_terminated(self.n_tasks())
+        !self.is_open && self.counters.is_terminated(self.n_tasks())
     }
 
     pub fn get_task_state_mut(

@@ -443,12 +443,19 @@ impl Output for CliOutput {
 
     fn print_job_list(&self, jobs: Vec<JobInfo>, total_jobs: usize) {
         let job_count = jobs.len();
+        let mut has_opened = false;
         let rows: Vec<_> = jobs
             .into_iter()
             .map(|t| {
                 let status = status_to_cell(&job_status(&t));
                 vec![
-                    t.id.cell().justify(Justify::Right),
+                    if t.is_open {
+                        has_opened = true;
+                        format!("*{}", t.id).cell()
+                    } else {
+                        t.id.cell()
+                    }
+                    .justify(Justify::Right),
                     truncate_middle(&t.name, 50).cell(),
                     status,
                     t.n_tasks.cell(),
@@ -463,6 +470,10 @@ impl Output for CliOutput {
             "Tasks".cell().bold(true),
         ];
         self.print_horizontal_table(rows, header);
+
+        if has_opened {
+            println!("* = Jobs with opened session")
+        }
 
         if job_count != total_jobs {
             println!(
@@ -514,6 +525,9 @@ impl Output for CliOutput {
 
             let state_label = "State".cell().bold(true);
             rows.push(vec![state_label, status]);
+
+            let state_label = "Session".cell().bold(true);
+            rows.push(vec![state_label, session_to_cell(info.is_open)]);
 
             let mut n_tasks = info.n_tasks.to_string();
             let ids =
@@ -1192,9 +1206,18 @@ pub fn print_job_output(
     Ok(())
 }
 
+fn session_to_cell(is_open: bool) -> CellStruct {
+    if is_open {
+        "open".cell().foreground_color(Some(Color::Green))
+    } else {
+        "closed".cell()
+    }
+}
+
 fn status_to_cell(status: &Status) -> CellStruct {
     match status {
         Status::Waiting => "WAITING".cell().foreground_color(Some(Color::Cyan)),
+        Status::Opened => "OPENED".cell().foreground_color(Some(Color::Cyan)),
         Status::Finished => "FINISHED".cell().foreground_color(Some(Color::Green)),
         Status::Failed => "FAILED".cell().foreground_color(Some(Color::Red)),
         Status::Running => "RUNNING".cell().foreground_color(Some(Color::Yellow)),

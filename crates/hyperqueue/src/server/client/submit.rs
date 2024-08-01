@@ -486,7 +486,6 @@ pub(crate) fn handle_open_job(
     senders
         .events
         .on_job_opened(job_id, job_description.clone());
-    xxx();
     let job = Job::new(job_id, job_description, true);
     state_ref.get_mut().add_job(job);
     ToClientMessage::OpenJobResponse(OpenJobResponse { job_id })

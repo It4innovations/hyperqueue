@@ -11,6 +11,7 @@ pub enum Status {
     Finished,
     Failed,
     Canceled,
+    Opened,
 }
 
 pub fn job_status(info: &JobInfo) -> Status {
@@ -26,7 +27,11 @@ pub fn job_status(info: &JobInfo) -> Status {
         Status::Canceled
     } else {
         assert_eq!(info.counters.n_finished_tasks, info.n_tasks);
-        Status::Finished
+        if info.is_open {
+            Status::Opened
+        } else {
+            Status::Finished
+        }
     }
 }
 

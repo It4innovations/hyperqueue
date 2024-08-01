@@ -263,6 +263,12 @@ impl StateRestorer {
                 EventPayload::AllocationFinished(_, _) => {}
                 EventPayload::ServerStart { .. } => {}
                 EventPayload::ServerStop => { /* Do nothing */ }
+                EventPayload::JobOpen(_, _) => {
+                    todo!()
+                }
+                EventPayload::JobClose(_) => {
+                    todo!()
+                }
             }
         }
         if event_reader.contains_partial_data() {
