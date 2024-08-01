@@ -101,17 +101,17 @@ def test_job_array_error_some(hq_env: HqEnv):
 
     table = hq_env.command(["task", "list", "1"], as_table=True)
     for i, state in enumerate(
-            [
-                "FINISHED",
-                "FINISHED",
-                "FAILED",
-                "FAILED",
-                "FINISHED",
-                "FINISHED",
-                "FINISHED",
-                "FAILED",
-            ]
-            + 2 * ["FINISHED"]
+        [
+            "FINISHED",
+            "FINISHED",
+            "FAILED",
+            "FAILED",
+            "FINISHED",
+            "FINISHED",
+            "FINISHED",
+            "FAILED",
+        ]
+        + 2 * ["FINISHED"]
     ):
         table.check_column_value("State", i, state)
 

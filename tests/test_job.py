@@ -1258,12 +1258,7 @@ def test_job_task_ids(hq_env: HqEnv):
 
 def test_job_open(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(
-        [
-            "job",
-            "open",
-        ]
-    )
+    hq_env.command(["job", "open"])
     table = hq_env.command(["job", "list", "--all"], as_table=True)
     table.check_row_value("*1", "job")
     assert table.get_column_value("State") == ["OPENED"]
@@ -1281,3 +1276,10 @@ def test_job_open(hq_env: HqEnv):
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
     table.check_row_value("Session", "closed")
+
+
+def test_job_wait_for_close(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["job", "open"])
+
+    p = subprocess.Popen("")
