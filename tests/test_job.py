@@ -9,7 +9,7 @@ from typing import Callable, Optional
 
 import pytest
 
-from .conftest import HqEnv
+from .conftest import HqEnv, get_hq_binary
 from .utils import wait_for_job_state
 from .utils.cmd import python
 from .utils.io import check_file_contents, read_file
@@ -1282,4 +1282,10 @@ def test_job_wait_for_close(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["job", "open"])
 
-    p = subprocess.Popen("")
+    p = hq_env.command(["job", "wait", "1"], wait=False)
+    time.sleep(1)
+    assert p.poll() is None
+    hq_env.command(["job", "close", "last"])
+    time.sleep(0.3)
+    r = p.poll()
+    assert r == 0

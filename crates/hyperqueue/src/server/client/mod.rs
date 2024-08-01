@@ -427,7 +427,7 @@ async fn handle_job_close(
             .filter(|job| job.is_open)
             .map(|job| job.job_id)
             .collect(),
-        IdSelector::LastN(n) => state_ref.get().last_n_ids(*n).collect(),
+        IdSelector::LastN(n) => state.last_n_ids(*n).collect(),
         IdSelector::Specific(array) => array.iter().map(|id| id.into()).collect(),
     };
 
