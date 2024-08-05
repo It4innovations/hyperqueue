@@ -34,6 +34,10 @@ pub struct IntArray {
 }
 
 impl IntArray {
+    pub fn new_empty() -> IntArray {
+        Self::new(Vec::new())
+    }
+
     pub fn new(ranges: Vec<IntRange>) -> IntArray {
         IntArray { ranges }
     }

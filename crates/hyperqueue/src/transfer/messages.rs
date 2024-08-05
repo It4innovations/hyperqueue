@@ -185,6 +185,7 @@ impl JobSubmitDescription {
 pub struct SubmitRequest {
     pub job_desc: JobDescription,
     pub submit_desc: JobSubmitDescription,
+    pub job_id: Option<JobId>, // None = Normal submit, Some = Attaching tasks into an open job
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

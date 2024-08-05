@@ -145,11 +145,19 @@ impl Job {
             tasks: Default::default(),
             job_desc,
             submit_descs: Default::default(),
-            is_open: is_open,
+            is_open,
             submission_date: Utc::now(),
             completion_date: None,
             completion_callbacks: Default::default(),
         }
+    }
+
+    pub fn make_task_id_set(&self) -> Set<JobTaskId> {
+        self.tasks.values().map(|t| t.task_id).collect()
+    }
+
+    pub fn max_id(&self) -> Option<JobTaskId> {
+        self.tasks.values().map(|t| t.task_id).max()
     }
 
     pub fn make_job_detail(&self, task_selector: Option<&TaskSelector>) -> JobDetail {

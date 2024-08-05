@@ -50,6 +50,7 @@ impl RestorerJob {
         let (mut new_tasks, _log) = submit_job_desc(
             state,
             job_id,
+            self.submit_request.job_id.is_none(),
             self.submit_request.job_desc,
             self.submit_request.submit_desc,
         )?;

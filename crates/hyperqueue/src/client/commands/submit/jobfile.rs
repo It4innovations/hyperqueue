@@ -141,6 +141,7 @@ fn build_job_submit(jdef: JobDef) -> SubmitRequest {
             submit_dir: get_current_dir(),
             log: jdef.stream_log,
         },
+        job_id: None,
     }
 }
 

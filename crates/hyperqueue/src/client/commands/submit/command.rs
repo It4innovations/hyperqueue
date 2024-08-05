@@ -38,7 +38,7 @@ use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDescription, JobSubmitDescription, JobTaskDescription,
     PinMode, SubmitRequest, TaskDescription, TaskKind, TaskKindProgram, ToClientMessage,
 };
-use crate::{rpc_call, JobTaskCount, Map};
+use crate::{rpc_call, JobId, JobTaskCount, Map};
 
 const SUBMIT_ARRAY_LIMIT: JobTaskCount = 999;
 pub const DEFAULT_CRASH_LIMIT: u32 = 5;
@@ -402,6 +402,10 @@ pub struct JobSubmitOpts {
     #[clap(flatten)]
     conf: SubmitJobTaskConfOpts,
 
+    /// Attach a submission to an open job
+    #[clap(long)]
+    job: Option<JobId>,
+
     /// Wait for the job to finish.
     #[arg(long, conflicts_with("progress"))]
     wait: bool,
@@ -592,6 +596,7 @@ pub async fn submit_computation(
 
     let JobSubmitOpts {
         commands,
+        job: job_id,
         wait,
         progress,
         stdin: _,
@@ -685,6 +690,7 @@ pub async fn submit_computation(
             submit_dir: get_current_dir(),
             log,
         },
+        job_id,
     };
 
     send_submit_request(gsettings, session, request, wait, progress).await
@@ -748,14 +754,13 @@ fn get_ids_and_entries(opts: &JobSubmitOpts) -> anyhow::Result<(IntArray, Option
         } else {
             array.clone()
         }
-    } else if let Some(ref entries) = entries {
-        IntArray::from_range(0, entries.len() as JobTaskCount)
     } else {
-        IntArray::from_id(0)
+        IntArray::new_empty()
     };
-
     Ok((ids, entries))
 }
+
+//IntArray::from_range(0, entries.len() as JobTaskCount)
 
 /// Warns the user that an array job might produce too many files.
 fn warn_array_task_count(opts: &JobSubmitOpts, task_count: u32) {

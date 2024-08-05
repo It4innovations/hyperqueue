@@ -1289,3 +1289,25 @@ def test_job_wait_for_close(hq_env: HqEnv):
     time.sleep(0.3)
     r = p.poll()
     assert r == 0
+
+
+def test_invalid_attach(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["submit", "--", "sleep", "0"])
+    hq_env.command(["job", "open"])
+    hq_env.command(["job", "open"])
+    hq_env.command(["job", "close", "3"])
+    hq_env.command(["submit", "--job=123", "--", "sleep", "0"], expect_fail="Job 123 not found")
+    hq_env.command(["submit", "--job=1", "--", "sleep", "0"], expect_fail="Job 1 is not open")
+    hq_env.command(["submit", "--job=3", "--", "sleep", "0"], expect_fail="Job 3 is not open")
+    hq_env.command(["submit", "--job=2", "--", "sleep", "0"])
+    hq_env.command(["submit", "--job=2", "--array=0-2", "--", "sleep", "0"])
+
+
+def test_attach_to_open_job_consecutive(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["job", "open"])
+    hq_env.command(["submit", "--job=1", "--", "sleep", "0"])
+    hq_env.command(["submit", "--job=1", "--", "sleep", "0"])
+
+# table = hq_env.command(["job", "info", "1"], as_table=True)
