@@ -893,8 +893,8 @@ def test_job_submit_program_not_found(hq_env: HqEnv):
 
     table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     assert (
-            'Error: Cannot execute "foo --bar --baz=5": No such file or directory (os error 2)\n'
-            "The program that you have tried to execute (`foo`) was not found." == table.get_column_value("Error")[0]
+        'Error: Cannot execute "foo --bar --baz=5": No such file or directory (os error 2)\n'
+        "The program that you have tried to execute (`foo`) was not found." == table.get_column_value("Error")[0]
     )
 
 
@@ -1301,13 +1301,64 @@ def test_invalid_attach(hq_env: HqEnv):
     hq_env.command(["submit", "--job=1", "--", "sleep", "0"], expect_fail="Job 1 is not open")
     hq_env.command(["submit", "--job=3", "--", "sleep", "0"], expect_fail="Job 3 is not open")
     hq_env.command(["submit", "--job=2", "--", "sleep", "0"])
-    hq_env.command(["submit", "--job=2", "--array=0-2", "--", "sleep", "0"])
+    hq_env.command(["submit", "--job=2", "--array=0-2", "--", "sleep", "0"], expect_fail="Task 0 already exists in job")
 
 
 def test_attach_to_open_job_consecutive(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["job", "open"])
-    hq_env.command(["submit", "--job=1", "--", "sleep", "0"])
-    hq_env.command(["submit", "--job=1", "--", "sleep", "0"])
+    for _ in range(4):
+        hq_env.command(["submit", "--job=1", "--", "bash", "-c", "echo 'test' > task.${HQ_TASK_ID}"])
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Tasks", "4; Ids: 0-3")
+    assert table.get_row_value("State").endswith("WAITING (4)")
+    table = hq_env.command(["task", "list", "1"], as_table=True)
+    assert table.get_column_value("State") == ["WAITING"] * 4
 
-# table = hq_env.command(["job", "info", "1"], as_table=True)
+    hq_env.start_worker()
+    wait_for_job_state(hq_env, 1, "OPENED")
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Tasks", "4; Ids: 0-3")
+    assert table.get_row_value("State").endswith("FINISHED (4)")
+
+    table = hq_env.command(["task", "list", "1"], as_table=True)
+    assert table.get_column_value("State") == ["FINISHED"] * 4
+
+    for task_id in range(4):
+        filename = f"task.{task_id}"
+        assert os.path.isfile(filename)
+        os.unlink(filename)
+
+    for _ in range(2):
+        hq_env.command(["submit", "--job=1", "--", "bash", "-c", "echo 'test' > task.${HQ_TASK_ID}"])
+    wait_for_job_state(hq_env, 1, "OPENED")
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Tasks", "6; Ids: 0-5")
+    assert table.get_row_value("State").endswith("FINISHED (6)")
+
+    table = hq_env.command(["task", "list", "1"], as_table=True)
+    assert table.get_column_value("State") == ["FINISHED"] * 6
+
+    for task_id in range(4):
+        filename = f"task.{task_id}"
+        assert not os.path.isfile(filename)
+
+    for task_id in range(4, 6):
+        filename = f"task.{task_id}"
+        assert os.path.isfile(filename)
+
+    hq_env.command(["job", "close", "1"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+
+def test_close_job_before_worker(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["job", "open"])
+    for _ in range(4):
+        hq_env.command(["submit", "--job=1", "--", "bash", "-c", "echo 'test' > task.${HQ_TASK_ID}"])
+    hq_env.command(["job", "close", "1"])
+    wait_for_job_state(hq_env, 1, "WAITING")
+    hq_env.start_worker()
+    wait_for_job_state(hq_env, 1, "FINISHED")
