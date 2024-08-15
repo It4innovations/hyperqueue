@@ -260,7 +260,7 @@ class ScalabilityStress(TestCase):
             x_start = -(width * start_rel)
             ax.set(
                 ylabel="Node utilization (%)",
-                xlabel="" if first_row else "Time from start (s)",
+                xlabel="" if first_row else "Time from start [s]",
                 xlim=(x_start, width),
             )
 
