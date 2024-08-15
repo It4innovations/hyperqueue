@@ -1,12 +1,13 @@
 import dataclasses
 from collections import defaultdict
+from pathlib import Path
 from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
 from cluster.cluster import ProcessInfo
 
-from ..benchmark.database import Database
+from ..benchmark.database import Database, DatabaseRecord
 from .report import ClusterReport
 
 
@@ -99,3 +100,97 @@ def pd_print_all():
 
 def format_large_int(number: int) -> str:
     return f"{number:,}".replace(",", " ")
+
+
+def analyze_results_utilization(db: Database) -> pd.DataFrame:
+    """
+    Analyzes the average node and CPU core utilization of benchmarks in the given database.
+    """
+    results = defaultdict(list)
+
+    for key, row in db.data.items():
+        workdir = row.benchmark_metadata["workdir"]
+        params = row.workload_params
+        duration = row.duration
+
+        for key, value in params.items():
+            results[f"workload-{key}"].append(value)
+
+        results["environment"].append(row.environment)
+        results["worker-count"].append(row.environment_params["worker_count"])
+        results["duration"].append(duration)
+
+        cluster_report = ClusterReport.load(Path(workdir))
+        worker_node_utilizations = []
+        worker_cpu_utilizations = []
+
+        for node, records in cluster_report.monitoring.items():
+            processes = node.processes
+            worker_processes = tuple(
+                proc.pid for proc in processes if proc.key.startswith("worker")
+            )
+            if len(worker_processes) > 0:
+                for record in records:
+                    avg_node_util = np.mean(record.resources.cpu)
+                    worker_node_utilizations.append(avg_node_util)
+
+                    worker_cpu_util = 0
+                    for pid, process_resources in record.processes.items():
+                        pid = int(pid)
+                        if pid in worker_processes:
+                            worker_cpu_util += (
+                                process_resources.cpu + process_resources.cpu_children
+                            )
+                    worker_cpu_utilizations.append(worker_cpu_util)
+
+        node_util = np.mean(worker_node_utilizations)
+        worker_util = np.mean(worker_cpu_utilizations)
+
+        results["worker-node-util"].append(node_util)
+        results["worker-cpu-util"].append(worker_util)
+
+    return pd.DataFrame(results)
+
+
+def analyze_per_worker_utilization(db: Database) -> pd.DataFrame:
+    """
+    Analyzes the average node utilization of individual workers of
+    benchmarks in the given database.
+    """
+    results = defaultdict(list)
+
+    def push(row: DatabaseRecord, utilization: float, node: str, timestamp: int):
+        params = row.workload_params
+
+        # Identify benchmark
+        for key, value in params.items():
+            results[f"workload-{key}"].append(value)
+
+        results["environment"].append(row.environment)
+        results["worker-count"].append(row.environment_params["worker_count"])
+        results["uuid"].append(row.uuid)
+        results["workdir"].append(row.benchmark_metadata["workdir"])
+
+        # Identify worker
+        results["worker"].append(node)
+
+        # Identify result
+        results["timestamp"].append(timestamp)
+        results["utilization"].append(utilization)
+
+    for key, row in db.data.items():
+        workdir = row.benchmark_metadata["workdir"]
+
+        cluster_report = ClusterReport.load(Path(workdir))
+
+        for node, records in cluster_report.monitoring.items():
+            processes = node.processes
+            worker_processes = tuple(
+                proc.pid for proc in processes if proc.key.startswith("worker")
+            )
+            if len(worker_processes) > 0:
+                for record in records:
+                    avg_node_util = np.mean(record.resources.cpu)
+                    push(row, avg_node_util, node.hostname, record.timestamp)
+
+    return pd.DataFrame(results)
