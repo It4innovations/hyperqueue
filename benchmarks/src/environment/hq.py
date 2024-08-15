@@ -7,6 +7,8 @@ import logging
 import subprocess
 from collections import defaultdict
 from pathlib import Path
+import time
+import traceback
 from typing import Any, Dict, List, Optional, Callable
 
 from hyperqueue import Client
@@ -56,11 +58,23 @@ class HqWorkerConfig:
     overview_interval: datetime.timedelta = datetime.timedelta(seconds=0)
 
 
+@dataclasses.dataclass(frozen=True)
+class HqAutoallocConfig:
+    queue: str
+    project: str
+    walltime: datetime.timedelta
+    idle_timeout: Optional[datetime.timedelta] = None
+    max_workers: Optional[int] = None
+    backlog: Optional[int] = None
+    wait_end: Optional[datetime.datetime] = None
+
+
 @dataclasses.dataclass
 class HqClusterInfo(EnvironmentDescriptor):
     cluster: ClusterInfo
     binary: Path
     workers: List[HqWorkerConfig]
+    autoalloc: Optional[HqAutoallocConfig] = None
     # Enable debug logging on server and workers
     debug: bool = False
     server_profilers: List[Profiler] = dataclasses.field(default_factory=list)
@@ -126,11 +140,12 @@ class HqEnvironment(Environment, EnvStateManager):
             if isinstance(self.info.cluster.node_list, Local)
             else self.nodes[1:]
         )
-        if not worker_nodes:
+        if not worker_nodes and info.autoalloc is None:
             raise Exception("No worker nodes are available")
 
         self.worker_count = len(self.info.workers)
-        assert self.worker_count > 0
+        if info.autoalloc is None:
+            assert self.worker_count > 0
         self.worker_assignment = assign_workers(self.info.workers, worker_nodes)
         logging.debug(f"Worker assignment: {self.worker_assignment}")
 
@@ -163,6 +178,10 @@ class HqEnvironment(Environment, EnvStateManager):
         self._wait_for_workers(self.worker_count)
         logging.info(f"{self.worker_count} HQ worker(s) connected")
         logging.info(f"Worker info\n{json.loads(self._get_worker_info())}")
+
+        if self.info.autoalloc is not None:
+            logging.info("Configuring automatic allocation")
+            self.configure_autoalloc(self.info.autoalloc)
 
     def start_server(self):
         workdir = self.server_workdir
@@ -222,10 +241,48 @@ class HqEnvironment(Environment, EnvStateManager):
 
         self.cluster.start_processes(worker_processes)
 
+    def configure_autoalloc(self, autoalloc: HqAutoallocConfig):
+        args = [
+            "alloc",
+            "add",
+            "slurm",
+            "--no-dry-run",
+            "--time-limit",
+            f"{int(autoalloc.walltime.total_seconds())}s",
+        ]
+        if autoalloc.max_workers is not None:
+            args += ["--max-worker-count", str(autoalloc.max_workers)]
+        if autoalloc.backlog is not None:
+            args += ["--backlog", str(autoalloc.backlog)]
+        if autoalloc.idle_timeout is not None:
+            args += [
+                "--idle-timeout",
+                f"{int(autoalloc.idle_timeout.total_seconds())}s",
+            ]
+
+        args += ["--", f"-A{autoalloc.project}", f"-p{autoalloc.queue}"]
+
+        subprocess.run(
+            [
+                *self._shared_args(),
+                *args,
+            ],
+            env=self._shared_envs(),
+        )
+
     def stop(self):
         self.state_stop()
 
         logging.info("Stopping HQ server and waiting for server and workers to stop")
+
+        if self.info.autoalloc is not None and self.info.autoalloc.wait_end is not None:
+            print(
+                f"Sleeping for {self.info.autoalloc.wait_end} to wait for autoalloc queue to flush"
+            )
+            try:
+                time.sleep(self.info.autoalloc.wait_end.total_seconds())
+            except KeyboardInterrupt:
+                print("Interrupting autoalloc sleep")
 
         # Stop the server
         subprocess.run(
@@ -240,7 +297,11 @@ class HqEnvironment(Environment, EnvStateManager):
         self.cluster.stop(use_sigint=True)
 
         for fn in self.postprocessing_fns:
-            fn()
+            try:
+                fn()
+            except:
+                traceback.print_exc()
+                print("Postprocessing function failed")
 
     def submit(
         self, args: List[str], measured: bool = True
@@ -278,7 +339,10 @@ class HqEnvironment(Environment, EnvStateManager):
         return [str(self.binary_path), "--server-dir", str(self.server_dir)]
 
     def _shared_envs(self) -> Dict[str, str]:
-        env = {"RUST_LOG": f"hyperqueue={'DEBUG' if self.info.debug else 'INFO'}"}
+        env = {
+            "RUST_LOG": f"hyperqueue={'DEBUG' if self.info.debug else 'INFO'}",
+            "HQ_AUTOALLOC_MAX_ALLOCATION_FAILS": "100",
+        }
         if not self.info.encryption:
             env["HQ_SKIP_AUTHENTICATION"] = "1"
         if self.info.fast_spawn:
