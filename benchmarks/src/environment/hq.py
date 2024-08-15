@@ -38,12 +38,11 @@ class HqSumWorkerResource(HqWorkerResource):
 
 
 @dataclasses.dataclass(frozen=True)
-class HqIndicesWorkerResource(HqWorkerResource):
-    start: int
-    end: int
+class HqItemsWorkerResource(HqWorkerResource):
+    items: List[str]
 
     def format(self) -> str:
-        return f"indices({self.start}-{self.end})"
+        return f"[{','.join(self.items)}]"
 
 
 HqWorkerResources = Dict[str, HqWorkerResource]
