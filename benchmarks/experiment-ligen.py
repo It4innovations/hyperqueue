@@ -1,16 +1,19 @@
+from collections import defaultdict
 import datetime
 import glob
 import itertools
+import json
 import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, Any, Iterable, Tuple
+from typing import Dict, Any, Iterable, Optional, Tuple
 
 import dataclasses
 import distributed
 from matplotlib import pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 import pandas as pd
 import tqdm
@@ -32,8 +35,14 @@ from src.benchmark.identifier import BenchmarkDescriptor
 from src.benchmark_defs import get_hq_binary
 from src.cli import register_case, TestCase, create_cli
 from src.clusterutils.node_list import Local, get_active_nodes
-from src.environment.hq import HqEnvironment, HqClusterInfo, HqWorkerConfig
+from src.environment.hq import (
+    HqEnvironment,
+    HqClusterInfo,
+    HqWorkerConfig,
+    HqAutoallocConfig,
+)
 from src.utils import activate_cwd, ensure_directory
+from src.trace.export import parse_hq_time
 from src.workloads import Workload
 from src.workloads.utils import create_result, get_last_hq_job_duration
 from src.workloads.workload import WorkloadExecutionResult
@@ -425,6 +434,300 @@ class LigenAggregation(TestCase):
         render_chart(workdir / "ligen-aggregation-scalability")
 
 
+@register_case(cli)
+class LigenAutoalloc(TestCase):
+    """
+    Benchmark the LiGen workflow using automatic allocation.
+    """
+
+    def generate_descriptors(self) -> Iterable[BenchmarkDescriptor]:
+        """
+        This benchmark tests the performance of Ligen + HQ when we use a single task
+        per input ligand, vs. when we use 4/8/16 ligands for each task.
+        """
+        hq_path = get_hq_binary()
+
+        # nodes = get_active_nodes()
+        nodes = Local()
+
+        repeat_count = 1
+        variants = [
+            (16, 8),
+            # (200, 8),
+        ]
+
+        input_files = [
+            get_dataset_path(Path("ligen-karolina/ligands-24k.smi")),
+            # get_dataset_path(Path("ligen-karolina/ligands-24k-ext.smi")),
+            # get_dataset_path(Path("ligen-karolina/ligands-50k-eq.smi")),
+            # get_dataset_path(Path("ligen-karolina/ligands-100k-eq.smi")),
+            # get_dataset_path(Path("ligen-karolina/ligands-200k.smi")),
+            # get_dataset_path(Path("ligen-karolina/ligands-200k-eq.smi")),
+            # get_dataset_path(Path("ligen-karolina/ligands-24k.smi")),
+            # get_dataset_path(Path("ligen-karolina/ligands-100k.smi")),
+        ]
+        probe_mol2 = get_dataset_path(Path("ligen-karolina/crystal_AGH62581.mol2"))
+        protein_pdb = get_dataset_path(Path("ligen-karolina/protein_AGH62581.pdb"))
+
+        idle_timeouts = [5, 30]
+        parameters = list(itertools.product(input_files, variants, idle_timeouts))
+
+        def gen_items():
+            for (
+                input_smi_file,
+                (max_molecules, num_threads),
+                idle_timeout_s,
+            ) in parameters:
+                walltime = datetime.timedelta(seconds=60 * 1)
+                idle_timeout = datetime.timedelta(seconds=idle_timeout_s)
+                env = HqClusterInfo(
+                    cluster=ClusterInfo(node_list=nodes),
+                    environment_params=dict(
+                        walltime=int(walltime.total_seconds()),
+                        idle_timeout=int(idle_timeout.total_seconds()),
+                    ),
+                    generate_event_log=True,
+                    autoalloc=HqAutoallocConfig(
+                        queue="qcpu",
+                        project="DD-23-154",
+                        walltime=walltime,
+                        idle_timeout=idle_timeout,
+                        backlog=1,
+                        max_workers=4,
+                        wait_end=datetime.timedelta(seconds=45),
+                    ),
+                    workers=[],
+                    binary=hq_path,
+                    encryption=True,
+                )
+
+                config = LigenConfig(
+                    container_path=CONTAINER_PATH,
+                    smi_path=input_smi_file,
+                    probe_mol2_path=probe_mol2,
+                    protein_path=protein_pdb,
+                    max_molecules=max_molecules,
+                    screening_threads=num_threads,
+                )
+                workload = LigenHQWorkload(config)
+                yield BenchmarkDescriptor(
+                    env_descriptor=env,
+                    workload=workload,
+                    repeat_count=repeat_count,
+                    timeout=datetime.timedelta(minutes=60),
+                )
+
+        return list(gen_items())
+
+    def postprocess(self, workdir: Path, database: Database):
+        import seaborn as sns
+
+        palette = sns.color_palette()
+
+        data: Optional[pd.DataFrame] = None
+
+        for record in database.data.values():
+            bench_workdir = Path(record.benchmark_metadata["workdir"])
+            summary = parse_events(bench_workdir / "server" / "events.json")
+            df = summary.events
+
+            # Manually fix UTC
+            df["time"] = df["time"] + datetime.timedelta(hours=2)
+            last_finished = summary.last_finished + datetime.timedelta(hours=2)
+
+            idle_timeout = record.environment_params["idle_timeout"]
+
+            df = df.set_index("time")
+            print(
+                f"Allocations sum: {df.resample('1s').mean()['allocations-running'].sum()} for idle timeout {idle_timeout}s"
+            )
+
+            # Use 5s for a smoother chart
+            df = df.resample("5s").mean()
+            df["time"] = df.index
+
+            end_of_expansion = datetime.datetime.fromtimestamp(
+                find_end_of_expansion(bench_workdir)
+            )
+            df.loc[
+                df["time"] > end_of_expansion, "tasks-running"
+            ] *= record.workload_params["screening-threads"]
+
+            time_start = df["time"].min()
+            df["time"] -= time_start
+            df["time"] = df["time"].map(lambda v: v.total_seconds())
+
+            df["walltime"] = record.environment_params["walltime"]
+
+            df["idle-timeout"] = idle_timeout
+            df["input-file"] = record.workload_params["smi"]
+            df["last-finished"] = (last_finished - time_start).total_seconds()
+            df["end-of-expansion"] = (end_of_expansion - time_start).total_seconds()
+
+            if data is None:
+                data = df
+            else:
+                data = pd.concat((data, df))
+
+        max_time = data["time"].max()
+        idle_timeouts = sorted(data["idle-timeout"].unique())
+
+        def draw(data, **kwargs):
+            ax = sns.lineplot(data, x="time", y="tasks-running")
+            ax.set(
+                xlabel="Time from start [s]",
+                ylim=(0, data["tasks-running"].max() * 1.1),
+            )
+            ax.set_ylabel("Used CPU cores", color=palette[0])
+
+            # End of computation
+            end_of_expansion = data["end-of-expansion"].iloc[0]
+            computation_finished = data["last-finished"].iloc[0]
+            drain_end = max_time * 1.05
+
+            # Computational parts
+            label_y = 50
+
+            def draw_label(x: int, text: str):
+                ax.text(
+                    x=x,
+                    y=label_y,
+                    s=text,
+                    size="medium",
+                    color="black",
+                    verticalalignment="top",
+                    horizontalalignment="center",
+                )
+
+            draw_label(end_of_expansion // 2, "Expansion")
+            plt.axvline(
+                x=end_of_expansion,
+                color="black",
+                linestyle="--",
+            )
+            draw_label(
+                end_of_expansion + (computation_finished - end_of_expansion) // 2,
+                "Scoring",
+            )
+            plt.axvline(
+                x=computation_finished,
+                color="black",
+                linestyle="--",
+            )
+            draw_label(
+                computation_finished + (drain_end - computation_finished) // 2, "End"
+            )
+
+            ax2 = plt.twinx()
+            sns.lineplot(
+                data, x="time", y="allocations-running", ax=ax2, color=palette[1]
+            )
+            idle_timeout = list(data["idle-timeout"].unique())[0]
+            if idle_timeout == idle_timeouts[-1]:
+                ax2.set_ylabel("Active allocations/workers", color=palette[1])
+                ax2.yaxis.labelpad = 10
+                ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
+            else:
+                ax2.yaxis.set_visible(False)
+
+        walltime = list(data["walltime"].unique())
+        assert len(walltime) == 1
+
+        grid = sns.FacetGrid(
+            data,
+            col="idle-timeout",
+            col_order=idle_timeouts,
+            # row="input-file",
+            sharey="row",
+            margin_titles=True,
+            height=4,
+        )
+        grid.map_dataframe(draw)
+        grid.set_titles(col_template="Idle timeout: {col_name}s")
+        grid.figure.subplots_adjust(top=0.8)
+        grid.figure.suptitle(
+            f"LiGen virtual screening with automatic allocation (walltime {walltime[0]}s)"
+        )
+
+        render_chart(workdir / f"ligen-autoalloc-stats")
+        plt.clf()
+
+
+@dataclasses.dataclass
+class EventSummary:
+    events: pd.DataFrame
+    last_finished: datetime.datetime
+
+
+def parse_events(path: Path) -> EventSummary:
+    allocations_running = 0
+    allocations_queued = 0
+    tasks_running = 0
+    cpu_util = 0
+    finished = 0
+    worker_to_task = defaultdict(set)
+    task_to_worker = defaultdict(int)
+    last_finished = None
+
+    data = defaultdict(list)
+
+    def dump(time: datetime.datetime):
+        data["time"].append(time)
+        data["allocations-queued"].append(allocations_queued)
+        data["allocations-running"].append(allocations_running)
+        data["tasks-running"].append(tasks_running)
+        data["cpu-utilization"].append(cpu_util)
+
+    with open(path) as f:
+        for line in f:
+            line = json.loads(line)
+            time = parse_hq_time(line["time"])
+            event = line["event"]
+            type = event["type"]
+            task_id = event.get("id")
+            worker_id = event.get("worker")
+
+            if type == "autoalloc-allocation-queued":
+                allocations_queued += 1
+            elif type == "autoalloc-allocation-started":
+                allocations_queued -= 1
+                allocations_running += 1
+            elif type == "autoalloc-allocation-finished":
+                allocations_running -= 1
+            elif type == "task-started":
+                tasks_running += 1
+                assert worker_id is not None
+                assert task_id is not None
+                worker_to_task[worker_id].add(task_id)
+                task_to_worker[task_id] = worker_id
+            elif type == "task-finished":
+                tasks_running -= 1
+                assert task_id is not None
+                worker = task_to_worker[task_id]
+                worker_to_task[worker].remove(task_id)
+                del task_to_worker[task_id]
+                finished += 1
+                assert last_finished is None or last_finished <= time
+                last_finished = time
+            elif type == "worker-lost":
+                worker_id = event["id"]
+                tasks = worker_to_task.get(worker_id, set())
+                # print(f"Lost {len(tasks)} task(s)")
+                tasks_running -= len(tasks)
+            elif type == "worker-overview":
+                cpu_util = np.array(
+                    line["event"]["hw-state"]["state"]["cpu_usage"][
+                        "cpu_per_core_percent_usage"
+                    ]
+                ).mean()
+            else:
+                continue
+            dump(time)
+    assert len(task_to_worker) == 0
+    # print(f"Finished: {finished}")
+    return EventSummary(events=pd.DataFrame(data), last_finished=last_finished)
+
+
 def render_graph_images(df: pd.DataFrame):
     # Render task graphs to PNG
     if shutil.which("dot") is not None:
@@ -531,7 +834,7 @@ def draw_worker_utilization(df: pd.DataFrame):
         x_start = -(width * start_rel)
         ax.set(
             ylabel="Node utilization (%)",
-            xlabel="" if first_row else "Time from start (s)",
+            xlabel="" if first_row else "Time from start [s]",
             xlim=(x_start, width),
             ylim=(0, ymax),
         )
