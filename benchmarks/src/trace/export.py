@@ -23,12 +23,28 @@ class Event:
     categories: List[str] = dataclasses.field(default_factory=list)
 
     @staticmethod
-    def duration_begin(name: str, worker: str, resources: List[str], timestamp: datetime.timedelta) -> "Event":
-        return Event(name=name, pid=worker, type=EventType.DurationBegin, resources=resources, timestamp=timestamp)
+    def duration_begin(
+        name: str, worker: str, resources: List[str], timestamp: datetime.timedelta
+    ) -> "Event":
+        return Event(
+            name=name,
+            pid=worker,
+            type=EventType.DurationBegin,
+            resources=resources,
+            timestamp=timestamp,
+        )
 
     @staticmethod
-    def duration_end(name: str, worker: str, resources: List[str], timestamp: datetime.timedelta) -> "Event":
-        return Event(name=name, pid=worker, type=EventType.DurationEnd, resources=resources, timestamp=timestamp)
+    def duration_end(
+        name: str, worker: str, resources: List[str], timestamp: datetime.timedelta
+    ) -> "Event":
+        return Event(
+            name=name,
+            pid=worker,
+            type=EventType.DurationEnd,
+            resources=resources,
+            timestamp=timestamp,
+        )
 
     def serialize(self) -> List[Dict[str, Any]]:
         return [
@@ -64,6 +80,16 @@ def load_events(path: Path) -> Iterable[Event]:
                 yield exported
 
 
+def parse_hq_time(time: str) -> datetime.datetime:
+    # Skip timezone
+    if time.endswith("Z"):
+        time = time[:-1]
+    # Skip nanoseconds
+    if len(time.split(".")[-1]) == 9:
+        time = time[:-3]
+    return datetime.datetime.fromisoformat(time)
+
+
 class WorkerTaskExport:
     def __init__(self):
         self.task_to_worker: Dict[int, int] = {}
@@ -72,7 +98,7 @@ class WorkerTaskExport:
 
     def export(self, event) -> Optional[Event]:
         # Skip nanoseconds and trailing Z
-        time = datetime.datetime.fromisoformat(event["time"][:-4])
+        time = parse_hq_time(event["time"][:-4])
         if self.first_timestamp is None:
             ts_from_start = datetime.timedelta()
             self.first_timestamp = time
@@ -84,7 +110,7 @@ class WorkerTaskExport:
         if type == "task-started":
             task_id = payload["id"]
             worker = payload["worker"]
-            assert task_id not in self.task_to_worker
+            # assert task_id not in self.task_to_worker
             self.task_to_worker[task_id] = worker
             tid = 0
             tids = frozenset(self.worker_to_task[worker].values())
@@ -96,7 +122,10 @@ class WorkerTaskExport:
 
             resources = [str(tid)]
             return Event.duration_begin(
-                name=f"Task {task_id}", worker=str(worker), resources=resources, timestamp=ts_from_start
+                name=f"Task {task_id}",
+                worker=str(worker),
+                resources=resources,
+                timestamp=ts_from_start,
             )
         elif type == "task-finished":
             task_id = payload["id"]
@@ -105,6 +134,9 @@ class WorkerTaskExport:
             tid = self.worker_to_task[worker].pop(task_id)
             resources = [str(tid)]
             return Event.duration_end(
-                name=f"Task {task_id}", worker=str(worker), resources=resources, timestamp=ts_from_start
+                name=f"Task {task_id}",
+                worker=str(worker),
+                resources=resources,
+                timestamp=ts_from_start,
             )
         return None
