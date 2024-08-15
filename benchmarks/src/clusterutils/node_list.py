@@ -2,7 +2,7 @@ import abc
 import os
 import socket
 import subprocess
-from typing import List
+from typing import List, Optional
 
 
 class NodeList(abc.ABC):
@@ -69,3 +69,7 @@ def get_active_nodes() -> NodeList:
         return Slurm()
     else:
         return Local()
+
+
+def get_slurm_allocation_id() -> Optional[str]:
+    return os.environ.get("SLURM_JOB_ID")
