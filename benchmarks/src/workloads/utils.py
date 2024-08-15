@@ -57,6 +57,12 @@ def measure_hq_tasks(
         env.submit(args)
 
     # Calculate the real duration of the job
+    return create_result(get_last_hq_job_duration(env, expected_task_count=task_count))
+
+
+def get_last_hq_job_duration(
+    env: HqEnvironment, expected_task_count: Optional[int] = None
+) -> float:
     result = env.submit(
         ["job", "info", "last", "--output-mode", "json"], measured=False
     )
@@ -66,12 +72,13 @@ def measure_hq_tasks(
     assert info["failed"] == 0
     assert info["running"] == 0
     assert info["waiting"] == 0
-    assert info["finished"] == task_count
+    if expected_task_count is not None:
+        assert info["finished"] == expected_task_count
     start = parse_hq_time(metadata["started_at"])
     end = parse_hq_time(metadata["finished_at"])
     duration = end - start
 
-    return create_result(duration.total_seconds())
+    return duration.total_seconds()
 
 
 def parse_hq_time(input: str) -> datetime.datetime:
