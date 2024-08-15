@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from ..clusterutils.node_list import get_slurm_allocation_id
+
 from ..utils import ensure_directory
 from .identifier import BenchmarkIdentifier
 
@@ -58,10 +60,16 @@ class Database:
     def empty(path: Path, metadata: Optional[Any] = None):
         return Database(path=path, data={}, metadata=metadata)
 
-    def __init__(self, path: Path, data: Optional[Dict[Any, DatabaseRecord]] = None, metadata: Optional[Any] = None):
+    def __init__(
+        self,
+        path: Path,
+        data: Optional[Dict[Any, DatabaseRecord]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
         self.path = path
         self.data = data if data is not None else {}
-        self.metadata = metadata or np.nan
+        self.metadata = metadata or {}
+        self.metadata["allocation"] = get_slurm_allocation_id()
 
     @property
     def records(self) -> List[DatabaseRecord]:
