@@ -160,6 +160,8 @@ class AlternativeResources(TestCase):
         nodes = get_active_nodes()
         # nodes = Local()
 
+        repeat_count = 3
+
         worker_count = 1
         task_count = 300
         task_duration = 1
@@ -198,7 +200,9 @@ class AlternativeResources(TestCase):
                         jitter=jitter
                     )
                     yield BenchmarkDescriptor(
-                        env_descriptor=env, workload=workload, timeout=datetime.timedelta(seconds=3600),
+                        env_descriptor=env, workload=workload,
+                        repeat_count=repeat_count,
+                        timeout=datetime.timedelta(seconds=3600),
                     )
 
         yield from gen_descriptions()
