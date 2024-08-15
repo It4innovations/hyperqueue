@@ -20,6 +20,9 @@ from .utils.benchmark import (
 
 
 class TestCase:
+    def get_workdir(self) -> Path:
+        return Path("benchmarks") / self.name()
+
     def name(self) -> str:
         def camel_to_kebab(s: str) -> str:
             return "".join(["-" + c.lower() if c.isupper() else c for c in s]).lstrip(
@@ -113,7 +116,7 @@ def register_case(app: Typer):
             postprocess_only: bool = False,
         ):
             if workdir is None:
-                workdir = Path("benchmarks") / case.name()
+                workdir = case.get_workdir()
             workdir = workdir.absolute()
             if clear:
                 shutil.rmtree(workdir, ignore_errors=True)
