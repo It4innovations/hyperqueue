@@ -1,5 +1,9 @@
 # Dev
 
+## New features
+
+* Open jobs. You may dynamically submit into an existing job. See [Open jobs documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/openjobs/)
+
 ## Fixes
 
 * HQ should no longer crash while printing job info when a failed task does not have any workers

@@ -117,6 +117,7 @@ pub async fn output_job_list(
     gsettings: &GlobalSettings,
     session: &mut ClientSession,
     job_filters: Vec<Status>,
+    show_open: bool,
 ) -> anyhow::Result<()> {
     let message = FromClientMessage::JobInfo(JobInfoRequest {
         selector: IdSelector::All,
@@ -128,7 +129,7 @@ pub async fn output_job_list(
     if !job_filters.is_empty() {
         response
             .jobs
-            .retain(|j| job_filters.contains(&job_status(j)));
+            .retain(|j| (show_open && j.is_open) || job_filters.contains(&job_status(j)));
     }
     response.jobs.sort_unstable_by_key(|j| j.id);
     gsettings
