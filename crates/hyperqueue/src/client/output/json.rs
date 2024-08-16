@@ -22,7 +22,7 @@ use crate::common::arraydef::IntArray;
 use crate::common::manager::info::{GetManagerInfo, ManagerType};
 use crate::server::autoalloc::{Allocation, AllocationState, QueueId};
 use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
-use crate::stream::reader::logfile::Summary;
+use crate::stream::reader::streamdir::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData, ServerInfo,
     StatsResponse, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerInfo,

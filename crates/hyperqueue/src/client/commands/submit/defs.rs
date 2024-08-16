@@ -254,7 +254,7 @@ pub struct JobDef {
 
     pub array: Option<ArrayDef>,
 
-    pub stream_log: Option<PathBuf>,
+    pub stream: Option<PathBuf>,
 }
 
 impl JobDef {

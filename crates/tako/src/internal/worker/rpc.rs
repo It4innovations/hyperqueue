@@ -108,7 +108,7 @@ pub async fn run_worker(
     scheduler_addresses: &[SocketAddr],
     mut configuration: WorkerConfiguration,
     secret_key: Option<Arc<SecretKey>>,
-    launcher_setup: Box<dyn TaskLauncher>,
+    launcher_setup: impl Fn(&str, WorkerId) -> Box<dyn TaskLauncher>,
     stop_flag: Arc<Notify>,
 ) -> crate::Result<(
     (WorkerId, WorkerConfiguration),
@@ -151,14 +151,14 @@ pub async fn run_worker(
 
                 let start_task_notify = Rc::new(Notify::new());
                 let comm = WorkerComm::new(queue_sender, start_task_notify.clone());
-
+                let launcher = launcher_setup(&server_uid, worker_id);
                 let state_ref = WorkerStateRef::new(
                     comm,
                     worker_id,
                     configuration.clone(),
                     secret_key,
                     ResourceMap::from_vec(resource_names),
-                    launcher_setup,
+                    launcher,
                     server_uid,
                 );
 

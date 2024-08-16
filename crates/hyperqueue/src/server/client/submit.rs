@@ -6,7 +6,6 @@ use std::time::Duration;
 use bstr::BString;
 use tako::ItemId;
 use tako::Map;
-use tokio::sync::oneshot;
 
 use tako::gateway::{
     FromGatewayMessage, NewTasksMessage, ResourceRequestVariants, SharedTaskConfiguration,
@@ -21,7 +20,6 @@ use crate::common::placeholders::{
 use crate::server::job::Job;
 use crate::server::state::{State, StateRef};
 use crate::server::Senders;
-use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
     JobDescription, JobSubmitDescription, JobTaskDescription, OpenJobResponse, SubmitRequest,
     SubmitResponse, TaskBuildDescription, TaskDescription, TaskIdSelector, TaskKind,
@@ -46,10 +44,15 @@ fn create_new_task_message(
             std::mem::take(entries),
             task_desc,
             &submit_desc.submit_dir,
+            submit_desc.stream_path.as_ref(),
         )),
-        JobTaskDescription::Graph { tasks } => {
-            build_tasks_graph(job_id, tako_base_id, tasks, &submit_desc.submit_dir)
-        }
+        JobTaskDescription::Graph { tasks } => build_tasks_graph(
+            job_id,
+            tako_base_id,
+            tasks,
+            &submit_desc.submit_dir,
+            submit_desc.stream_path.as_ref(),
+        ),
     }
 }
 
@@ -57,13 +60,12 @@ pub(crate) fn submit_job_desc(
     state: &mut State,
     job_id: JobId,
     mut submit_desc: JobSubmitDescription,
-) -> crate::Result<(NewTasksMessage, Option<PathBuf>)> {
+) -> crate::Result<NewTasksMessage> {
     let (job_id, tako_base_id) = prepare_job(job_id, &mut submit_desc, state);
     let new_tasks = create_new_task_message(job_id, tako_base_id, &mut submit_desc)?;
     submit_desc.strip_large_data();
-    let log = submit_desc.log.clone();
     state.attach_submit(job_id, Arc::new(submit_desc), tako_base_id);
-    Ok((new_tasks, log))
+    Ok(new_tasks)
 }
 
 #[allow(clippy::await_holding_refcell_ref)] // Disable lint as it does not work well with drop
@@ -146,7 +148,7 @@ pub(crate) async fn handle_submit(
         state.add_job(job);
     }
 
-    let (new_tasks, log) = match submit_job_desc(&mut state, job_id, submit_desc) {
+    let new_tasks = match submit_job_desc(&mut state, job_id, submit_desc) {
         Err(error) => {
             if new_job {
                 state.forget_job(job_id);
@@ -166,10 +168,6 @@ pub(crate) async fn handle_submit(
             status_selector: TaskStatusSelector::All,
         }));
     drop(state);
-
-    if let Some(log) = log {
-        start_log_streaming(senders, job_id, log).await;
-    }
 
     match senders
         .backend
@@ -210,30 +208,18 @@ fn prepare_job(
         }
     };
 
-    if let Some(ref mut log) = submit_desc.log {
+    if let Some(path) = &mut submit_desc.stream_path {
         fill_placeholders_log(
-            log,
+            path,
             job_id,
             &submit_desc.submit_dir,
             &state.server_info().server_uid,
         );
-        *log = normalize_path(log, &submit_desc.submit_dir);
+        *path = normalize_path(path.as_path(), &submit_desc.submit_dir);
     }
 
     let task_count = submit_desc.task_desc.task_count();
     (job_id, state.new_task_id(task_count))
-}
-
-pub(crate) async fn start_log_streaming(senders: &Senders, job_id: JobId, path: PathBuf) {
-    let (sender, receiver) = oneshot::channel();
-    senders
-        .backend
-        .send_stream_control(StreamServerControlMessage::RegisterStream {
-            job_id,
-            path,
-            response: sender,
-        });
-    assert!(receiver.await.is_ok());
 }
 
 fn serialize_task_body(
@@ -242,12 +228,14 @@ fn serialize_task_body(
     entry: Option<BString>,
     task_desc: &TaskDescription,
     submit_dir: &PathBuf,
+    stream_path: Option<&PathBuf>,
 ) -> Box<[u8]> {
     let body_msg = TaskBuildDescription {
         task_kind: Cow::Borrowed(&task_desc.kind),
         job_id,
         task_id,
         submit_dir: Cow::Borrowed(submit_dir),
+        stream_path: stream_path.map(Cow::Borrowed),
         entry,
     };
     let body = tako::comm::serialize(&body_msg).expect("Could not serialize task body");
@@ -263,6 +251,7 @@ fn build_tasks_array(
     entries: Option<Vec<BString>>,
     task_desc: &TaskDescription,
     submit_dir: &PathBuf,
+    stream_path: Option<&PathBuf>,
 ) -> NewTasksMessage {
     let tako_base_id = tako_base_id.as_num();
 
@@ -280,7 +269,14 @@ fn build_tasks_array(
             .zip(tako_base_id..)
             .map(|(task_id, tako_id)| {
                 build_task_conf(
-                    serialize_task_body(job_id, task_id.into(), None, task_desc, submit_dir),
+                    serialize_task_body(
+                        job_id,
+                        task_id.into(),
+                        None,
+                        task_desc,
+                        submit_dir,
+                        stream_path,
+                    ),
                     tako_id,
                 )
             })
@@ -291,7 +287,14 @@ fn build_tasks_array(
             .zip(entries)
             .map(|((task_id, tako_id), entry)| {
                 build_task_conf(
-                    serialize_task_body(job_id, task_id.into(), Some(entry), task_desc, submit_dir),
+                    serialize_task_body(
+                        job_id,
+                        task_id.into(),
+                        Some(entry),
+                        task_desc,
+                        submit_dir,
+                        stream_path,
+                    ),
                     tako_id,
                 )
             })
@@ -318,6 +321,7 @@ fn build_tasks_graph(
     tako_base_id: TakoTaskId,
     tasks: &[TaskWithDependencies],
     submit_dir: &PathBuf,
+    stream_path: Option<&PathBuf>,
 ) -> anyhow::Result<NewTasksMessage> {
     let mut job_task_id_to_tako_id: Map<JobTaskId, TaskId> = Map::with_capacity(tasks.len());
 
@@ -368,7 +372,14 @@ fn build_tasks_graph(
 
     let mut task_configs = Vec::with_capacity(tasks.len());
     for task in tasks {
-        let body = serialize_task_body(job_id, task.id, None, &task.task_desc, submit_dir);
+        let body = serialize_task_body(
+            job_id,
+            task.id,
+            None,
+            &task.task_desc,
+            submit_dir,
+            stream_path,
+        );
         let shared_data_index = allocate_shared_data(&task.task_desc);
 
         let mut task_deps = Vec::with_capacity(task.dependencies.len());

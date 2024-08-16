@@ -388,7 +388,7 @@ mod tests {
             Arc::new(JobSubmitDescription {
                 task_desc,
                 submit_dir: Default::default(),
-                log: None,
+                stream_path: None,
             }),
             base_task_id.into(),
         )

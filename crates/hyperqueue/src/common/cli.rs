@@ -12,7 +12,7 @@ use crate::client::commands::job::{
     JobCancelOpts, JobCatOpts, JobCloseOpts, JobForgetOpts, JobInfoOpts, JobListOpts,
     JobTaskIdsOpts,
 };
-use crate::client::commands::log::LogOpts;
+use crate::client::commands::reader::ReadOpts;
 use crate::client::commands::server::ServerOpts;
 use crate::client::commands::submit::command::SubmitJobConfOpts;
 use crate::client::commands::submit::{JobSubmitFileOpts, JobSubmitOpts};
@@ -199,7 +199,7 @@ pub enum SubCommand {
     /// Commands for controlling HyperQueue workers
     Worker(WorkerOpts),
     /// Operations with log
-    Log(LogOpts),
+    Read(ReadOpts),
     /// Automatic allocation management
     #[command(name = "alloc")]
     AutoAlloc(AutoAllocOpts),

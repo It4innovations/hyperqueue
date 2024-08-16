@@ -142,7 +142,7 @@ fn build_job_submit(jdef: JobDef, job_id: Option<JobId>) -> SubmitRequest {
         submit_desc: JobSubmitDescription {
             task_desc,
             submit_dir: get_current_dir(),
-            log: jdef.stream_log,
+            stream_path: jdef.stream,
         },
         job_id,
     }

@@ -14,7 +14,7 @@ use hyperqueue::client::commands::job::{
     output_job_summary, JobCancelOpts, JobCatOpts, JobCloseOpts, JobForgetOpts, JobInfoOpts,
     JobListOpts, JobTaskIdsOpts,
 };
-use hyperqueue::client::commands::log::command_log;
+use hyperqueue::client::commands::reader::command_reader;
 use hyperqueue::client::commands::server::command_server;
 use hyperqueue::client::commands::submit::command::{open_job, SubmitJobConfOpts};
 use hyperqueue::client::commands::submit::{
@@ -474,7 +474,7 @@ async fn main() -> hyperqueue::Result<()> {
         }) => command_task_info(&gsettings, opts).await,
         #[cfg(feature = "dashboard")]
         SubCommand::Dashboard(opts) => command_dashboard_start(&gsettings, opts).await,
-        SubCommand::Log(opts) => command_log(&gsettings, opts),
+        SubCommand::Read(opts) => command_reader(&gsettings, opts),
         SubCommand::AutoAlloc(opts) => command_autoalloc(&gsettings, opts).await,
         SubCommand::EventLog(opts) => command_event_log(&gsettings, opts).await,
         SubCommand::GenerateCompletion(opts) => generate_completion(opts),

@@ -1,7 +1,7 @@
 pub mod autoalloc;
 pub mod event;
 pub mod job;
-pub mod log;
+pub mod reader;
 pub mod server;
 pub mod submit;
 pub mod wait;

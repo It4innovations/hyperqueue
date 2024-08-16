@@ -285,7 +285,7 @@ pub struct SubmitJobTaskConfOpts {
 
     /// Stream the output of tasks into this log file.
     #[arg(long)]
-    log: Option<PathBuf>,
+    stream: Option<PathBuf>,
 
     /// Create a temporary directory for task, path is provided in HQ_TASK_DIR
     /// The directory is automatically deleted when task is finished
@@ -338,7 +338,7 @@ impl OptsWithMatches<SubmitJobTaskConfOpts> {
             array,
             priority: get_or_default(&self_matches, &other_matches, "priority"),
             time_limit: opts.time_limit.or(other_opts.time_limit),
-            log: opts.log.or(other_opts.log),
+            stream: opts.stream.or(other_opts.stream),
             crash_limit: get_or_default(&self_matches, &other_matches, "crash_limit"),
         }
     }
@@ -488,7 +488,7 @@ impl JobSubmitOpts {
     }
 }
 
-fn create_stdio(arg: Option<StdioDefInput>, log: &Option<PathBuf>, default: &str) -> StdioDef {
+fn create_stdio(arg: Option<StdioDefInput>, stream: &Option<PathBuf>, default: &str) -> StdioDef {
     match arg {
         Some(arg) => match arg {
             StdioDefInput::None => StdioDef::Null,
@@ -498,7 +498,7 @@ fn create_stdio(arg: Option<StdioDefInput>, log: &Option<PathBuf>, default: &str
             },
         },
         None => {
-            if log.is_none() {
+            if stream.is_none() {
                 StdioDef::File {
                     path: default.into(),
                     on_close: FileOnCloseBehavior::None,
@@ -629,7 +629,7 @@ pub async fn submit_computation(
                 array: _,
                 priority,
                 time_limit,
-                log,
+                stream,
                 crash_limit,
             },
     } = opts;
@@ -645,8 +645,8 @@ pub async fn submit_computation(
 
     let args: Vec<BString> = commands.into_iter().map(|arg| arg.into()).collect();
 
-    let stdout = create_stdio(stdout, &log, DEFAULT_STDOUT_PATH);
-    let stderr = create_stdio(stderr, &log, DEFAULT_STDERR_PATH);
+    let stdout = create_stdio(stdout, &stream, DEFAULT_STDOUT_PATH);
+    let stderr = create_stdio(stderr, &stream, DEFAULT_STDERR_PATH);
     let cwd = cwd.unwrap_or_else(|| PathBuf::from("%{SUBMIT_DIR}"));
 
     let env_count = env.len();
@@ -698,7 +698,7 @@ pub async fn submit_computation(
         submit_desc: JobSubmitDescription {
             task_desc,
             submit_dir: get_current_dir(),
-            log,
+            stream_path: stream,
         },
         job_id,
     };
@@ -801,7 +801,7 @@ fn warn_array_task_count(opts: &JobSubmitOpts, task_count: u32) {
         task_files += task_count;
         active_dirs.push("stderr");
     }
-    if task_files > SUBMIT_ARRAY_LIMIT && opts.conf.log.is_none() {
+    if task_files > SUBMIT_ARRAY_LIMIT && opts.conf.stream.is_none() {
         log::warn!(
             "The job will create {} files for {}. \
             Consider using the `--log` option to stream all outputs into a single file",
@@ -872,7 +872,7 @@ fn warn_unknown_placeholders(opts: &JobSubmitOpts) {
         opts.conf.stderr.as_ref().and_then(|arg| arg.path()),
         "stderr path",
     );
-    check(opts.conf.log.as_deref(), "log path");
+    check(opts.conf.stream.as_deref(), "log path");
     check(opts.conf.cwd.as_deref(), "working directory path");
 }
 

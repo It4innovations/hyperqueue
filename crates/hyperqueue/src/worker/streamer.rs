@@ -1,294 +1,151 @@
-use crate::transfer::stream::{
-    ChannelId, DataMsg, EndTaskStreamMsg, FromStreamerMessage, StartTaskStreamMsg,
-    StreamRegistration, ToStreamerMessage,
-};
+use crate::common::error::HqError;
+use crate::server::event::bincode_config;
+use crate::transfer::stream::{ChannelId, StreamChunkHeader, StreamerMessage};
 use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskId, Map};
-use futures::stream::SplitStream;
-use futures::{SinkExt, StreamExt};
-use orion::aead::streaming::StreamOpener;
-use orion::aead::SecretKey;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use tako::comm::connect_to_server_and_authenticate;
-use tako::comm::ConnectionRegistration;
-use tako::comm::{open_message, seal_message, serialize};
-use tako::server::ConnectionDescriptor;
-use tako::{define_wrapped_type, InstanceId};
-use tokio::sync::mpsc::channel;
+use bincode::Options;
+use chrono::Utc;
+use rand::distributions::Alphanumeric;
+use rand::Rng;
+use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
+use std::path::{Path, PathBuf};
+use tako::{define_wrapped_type, InstanceId, WorkerId};
+use tokio::fs::File;
+use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::{channel, Receiver};
 use tokio::sync::oneshot;
 use tokio::task::spawn_local;
-use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 const STREAMER_BUFFER_SIZE: usize = 128;
+pub const STREAM_FILE_HEADER: &[u8] = b"hqsf0000";
 
-/*
-    Streamer is connection manager that holds a connections to stream server.
-    In the current version, each job establishes own connection.
-    Tasks in the same job uses the same connection.
-*/
-
-pub struct StreamInfo {
-    job_id: JobId,
-    sender: Option<Sender<FromStreamerMessage>>,
-    responses: Map<JobTaskId, oneshot::Sender<tako::Result<()>>>,
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct StreamFileHeader<'a> {
+    pub server_uid: Cow<'a, String>,
+    pub worker_id: WorkerId,
 }
 
-type StreamInfoRef = WrappedRcRefCell<StreamInfo>;
+pub struct StreamDescriptor {
+    sender: Sender<StreamerMessage>,
+}
 
 pub struct Streamer {
-    streams: Map<JobId, StreamInfoRef>,
-    server_addresses: Vec<SocketAddr>,
-    secret_key: Arc<SecretKey>,
-}
-
-impl StreamInfo {
-    /*
-        Sends an error message to each task stream that uses the same connection
-    */
-    pub fn send_error(&mut self, error: String) {
-        log::debug!("Broadcasting stream error: {}", error);
-        for (_, response_sender) in std::mem::take(&mut self.responses) {
-            let _ = response_sender.send(Err(error.as_str().into()));
-        }
-    }
-
-    /*
-        Closes a task stream, if it is the last stream that uses a connection
-        If streamer has no usafe, return true
-    */
-    pub fn close_task_stream(&mut self, task_id: JobTaskId) -> bool {
-        log::debug!("Closing task stream task_id={}", task_id);
-        let _ = self.responses.remove(&task_id).unwrap().send(Ok(()));
-        self.responses.is_empty()
-    }
-}
-
-async fn stream_receiver(
-    streamer_ref: StreamerRef,
-    streaminfo_ref: StreamInfoRef,
-    mut receiver: SplitStream<Framed<tokio::net::TcpStream, LengthDelimitedCodec>>,
-    mut opener: Option<StreamOpener>,
-) -> crate::Result<()> {
-    while let Some(data) = receiver.next().await {
-        let message = data?;
-        let msg: ToStreamerMessage = open_message(&mut opener, &message)?;
-        match msg {
-            ToStreamerMessage::EndResponse(r) => {
-                let is_finished = streaminfo_ref.get_mut().close_task_stream(r.task);
-                if is_finished {
-                    let mut streamer = streamer_ref.get_mut();
-                    streamer.remove(&streaminfo_ref);
-                }
-            }
-            ToStreamerMessage::Error(e) => return Err(e.into()),
-        }
-    }
-    log::debug!(
-        "Server closed streaming connection for job_id={}",
-        streaminfo_ref.get().job_id
-    );
-    Ok(())
+    streams: Map<PathBuf, StreamDescriptor>,
+    server_uid: String,
+    worker_id: WorkerId,
 }
 
 impl Streamer {
     /* Get tasm stream input end, if a connection to a stream server is not established,
       the new one is created
-
-      response_sender - error and finish confirmation mechanism. If an error occurs,
-      response_sender is fired with an error,
-      if a stream asked for termination (via StreamSender::close()) then response_sender is fired with
-      Ok(()) -- it is a confirmation that all data was written into a file in the stream server.
     */
     pub fn get_stream(
         &mut self,
         streamer_ref: &StreamerRef,
+        stream_path: &Path,
         job_id: JobId,
         job_task_id: JobTaskId,
         instance_id: InstanceId,
-        response_sender: oneshot::Sender<tako::Result<()>>,
-    ) -> StreamSender {
-        log::debug!("New stream for {}/{}", job_id, job_task_id);
-        if let Some(ref mut info) = self.streams.get_mut(&job_id) {
-            let mut info = info.get_mut();
-            assert!(info
-                .responses
-                .insert(job_task_id, response_sender)
-                .is_none());
-            StreamSender {
-                task_id: job_task_id,
-                instance_id,
-                sender: info.sender.as_ref().unwrap().clone(),
-            }
+    ) -> crate::Result<StreamSender> {
+        log::debug!(
+            "New stream for {}/{} ({})",
+            job_id,
+            job_task_id,
+            stream_path.display()
+        );
+        let sender = if let Some(ref mut info) = self.streams.get_mut(stream_path) {
+            info.sender.clone()
         } else {
-            log::debug!("Starting a new stream connection for job_id = {}", job_id);
-            let (queue_sender, mut queue_receiver) = channel(STREAMER_BUFFER_SIZE);
-            let mut responses = Map::new();
-            responses.insert(job_task_id, response_sender);
-            let streaminfo_ref = WrappedRcRefCell::wrap(StreamInfo {
+            log::debug!(
+                "Starting a new stream instance for job_id = {}, stream_path = {}",
                 job_id,
-                sender: Some(queue_sender.clone()),
-                responses,
-            });
-            self.streams.insert(job_id, streaminfo_ref.clone());
+                stream_path.display()
+            );
+            if !stream_path.is_dir() {
+                return Err(HqError::GenericError(format!(
+                    "Stream path {} is not a directory.",
+                    stream_path.display()
+                )));
+            }
+            let (queue_sender, queue_receiver) = channel(STREAMER_BUFFER_SIZE);
+            let stream = StreamDescriptor {
+                sender: queue_sender.clone(),
+            };
+            self.streams.insert(stream_path.to_path_buf(), stream);
+            let stream_path = stream_path.to_path_buf();
             let streamer_ref = streamer_ref.clone();
             spawn_local(async move {
-                let (server_addresses, secret_key) = {
-                    let streamer = streamer_ref.get();
-                    (
-                        streamer.server_addresses.clone(),
-                        streamer.secret_key.clone(),
-                    )
-                };
-                let ConnectionDescriptor {
-                    mut sender,
-                    receiver,
-                    opener,
-                    mut sealer,
-                    ..
-                } = match connect_to_server_and_authenticate(&server_addresses, &Some(secret_key))
-                    .await
-                {
-                    Ok(connection) => connection,
-                    Err(e) => {
-                        streamer_ref
-                            .get_mut()
-                            .send_error(&streaminfo_ref, e.to_string());
-                        return;
-                    }
-                };
-
-                if let Err(e) = sender
-                    .send(seal_message(
-                        &mut sealer,
-                        serialize(&ConnectionRegistration::Custom).unwrap().into(),
-                    ))
-                    .await
-                {
-                    streamer_ref
-                        .get_mut()
-                        .send_error(&streaminfo_ref, e.to_string());
-                    return;
+                if let Err(e) = stream_writer(&streamer_ref, &stream_path, queue_receiver).await {
+                    log::error!("Stream failed: {e}")
                 }
-
-                if let Err(e) = sender
-                    .send(seal_message(
-                        &mut sealer,
-                        serialize(&StreamRegistration { job: job_id })
-                            .unwrap()
-                            .into(),
-                    ))
-                    .await
-                {
-                    streamer_ref
-                        .get_mut()
-                        .send_error(&streaminfo_ref, e.to_string());
-                    return;
-                }
-
-                let send_loop = async {
-                    while let Some(data) = queue_receiver.recv().await {
-                        if let Err(e) = sender
-                            .send(seal_message(&mut sealer, serialize(&data).unwrap().into()))
-                            .await
-                        {
-                            log::debug!("Forwarding from queue failed");
-                            return Err(e.into());
-                        }
-                    }
-                    log::debug!("Stream send loop terminated for job {}", job_id);
-                    Ok(())
-                };
-
-                let r = tokio::select! {
-                    r = send_loop => r,
-                    r = stream_receiver(streamer_ref.clone(), streaminfo_ref.clone(), receiver, opener) => r,
-                };
-                log::debug!("Stream for job {} terminated {:?}", job_id, r);
-                if let Err(e) = r {
-                    streamer_ref
-                        .get_mut()
-                        .send_error(&streaminfo_ref, e.to_string())
-                } else {
-                    streamer_ref.get_mut().remove(&streaminfo_ref);
-                }
+                let mut streamer = streamer_ref.get_mut();
+                assert!(streamer.streams.remove(&stream_path).is_some());
             });
-            StreamSender {
-                task_id: job_task_id,
-                sender: queue_sender,
-                instance_id,
-            }
-        }
-    }
-
-    pub fn send_error(&mut self, streaminfo_ref: &StreamInfoRef, message: String) {
-        streaminfo_ref.get_mut().send_error(message);
-        self.remove(streaminfo_ref);
-    }
-
-    pub fn remove(&mut self, streaminfo_ref: &StreamInfoRef) {
-        let job_id = streaminfo_ref.get().job_id;
-        streaminfo_ref.get_mut().sender = None;
-        log::debug!("Removing stream {}", job_id);
-        if self
-            .streams
-            .get(&job_id)
-            .map(|x| x == streaminfo_ref)
-            .unwrap_or(false)
-        {
-            self.streams.remove(&job_id);
-        } else {
-            log::debug!("Stream already replaced");
-        }
+            queue_sender
+        };
+        Ok(StreamSender {
+            job_id,
+            job_task_id,
+            instance_id,
+            sender,
+        })
     }
 }
 
 define_wrapped_type!(StreamerRef, Streamer, pub);
 
 impl StreamerRef {
-    pub fn start(server_addresses: &[SocketAddr], secret_key: Arc<SecretKey>) -> StreamerRef {
+    pub fn new(server_uid: &str, worker_id: WorkerId) -> StreamerRef {
         let streamer_ref = WrappedRcRefCell::wrap(Streamer {
             streams: Default::default(),
-            secret_key,
-            server_addresses: server_addresses.to_vec(),
+            server_uid: server_uid.to_string(),
+            worker_id,
         });
-
         Self(streamer_ref)
     }
 }
 
+#[derive(Clone)]
 pub struct StreamSender {
-    sender: Sender<FromStreamerMessage>,
-    task_id: JobTaskId,
+    sender: Sender<StreamerMessage>,
+    job_id: JobId,
+    job_task_id: JobTaskId,
     instance_id: InstanceId,
 }
 
 impl StreamSender {
-    pub async fn close(&self) -> tako::Result<()> {
+    pub async fn flush(&self) -> tako::Result<()> {
+        let (sender, receiver) = oneshot::channel();
         if self
             .sender
-            .send(FromStreamerMessage::End(EndTaskStreamMsg {
-                task: self.task_id,
-                instance: self.instance_id,
-            }))
+            .send(StreamerMessage::Flush(sender))
             .await
             .is_err()
         {
-            return Err("Sending close message failed".into());
+            return Err("Sending flush message failed".into());
         }
+        receiver.await.map_err(|_| {
+            tako::Error::GenericError("Stream failed while flushing stream".to_string())
+        })?;
         Ok(())
     }
 
     pub async fn send_data(&self, channel: ChannelId, data: Vec<u8>) -> tako::Result<()> {
         if self
             .sender
-            .send(FromStreamerMessage::Data(DataMsg {
-                task: self.task_id,
-                instance: self.instance_id,
-                channel,
+            .send(StreamerMessage::Write {
+                header: StreamChunkHeader {
+                    time: Utc::now(),
+                    job: self.job_id,
+                    task: self.job_task_id,
+                    instance: self.instance_id,
+                    channel,
+                    size: data.len() as u64,
+                },
                 data,
-            }))
+            })
             .await
             .is_err()
         {
@@ -296,19 +153,53 @@ impl StreamSender {
         }
         Ok(())
     }
+}
 
-    pub async fn send_stream_start(&self) -> tako::Result<()> {
-        if self
-            .sender
-            .send(FromStreamerMessage::Start(StartTaskStreamMsg {
-                task: self.task_id,
-                instance: self.instance_id,
-            }))
-            .await
-            .is_err()
-        {
-            return Err("Sending streamer message failed".into());
+async fn stream_writer(
+    streamer_ref: &StreamerRef,
+    path: &Path,
+    mut receiver: Receiver<StreamerMessage>,
+) -> crate::Result<()> {
+    let uid: String = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(12)
+        .map(char::from)
+        .collect::<String>();
+    let mut path = path.to_path_buf();
+    path.push(format!("{uid}.hqs"));
+    log::debug!("Opening stream file {}", path.display());
+    let mut file = BufWriter::new(File::create(path).await?);
+    file.write_all(STREAM_FILE_HEADER).await?;
+    let mut buffer: Vec<u8> = Vec::new();
+    {
+        let streamer = streamer_ref.get();
+        let header = StreamFileHeader {
+            server_uid: Cow::Borrowed(&streamer.server_uid),
+            worker_id: streamer.worker_id,
+        };
+        bincode_config().serialize_into(&mut buffer, &header)?;
+    };
+    file.write_all(&buffer).await?;
+    while let Some(message) = receiver.recv().await {
+        match message {
+            StreamerMessage::Write { header, data } => {
+                log::debug!("Waiting data chunk into stream file");
+                buffer.clear();
+                bincode_config().serialize_into(&mut buffer, &header)?;
+                file.write_all(&buffer).await?;
+                if !data.is_empty() {
+                    file.write_all(&data).await?
+                }
+            }
+            StreamerMessage::Flush(callback) => {
+                log::debug!("Waiting for flush of stream file");
+                file.flush().await?;
+                if callback.send(()).is_err() {
+                    log::debug!("Flush callback failed")
+                }
+            }
         }
-        Ok(())
     }
+    log::debug!("Stream receiver is closed");
+    Ok(())
 }

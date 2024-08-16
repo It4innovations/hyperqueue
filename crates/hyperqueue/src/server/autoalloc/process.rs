@@ -1796,7 +1796,7 @@ mod tests {
                     },
                 },
                 submit_dir: Default::default(),
-                log: None,
+                stream_path: None,
             }),
         )
     }
