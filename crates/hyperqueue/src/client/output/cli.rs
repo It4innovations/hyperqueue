@@ -530,16 +530,29 @@ impl Output for CliOutput {
             rows.push(vec![state_label, session_to_cell(info.is_open)]);
 
             let mut n_tasks = info.n_tasks.to_string();
-            let ids =
-                IntArray::from_non_overlapping(submit_descs.iter().filter_map(|submit_desc| {
-                    match &submit_desc.task_desc {
-                        JobTaskDescription::Array { ids, .. } => Some(ids),
-                        JobTaskDescription::Graph { .. } => {
-                            // TODO
-                            None
+
+            let ids = if submit_descs.len() == 1
+                && matches!(&submit_descs[0].task_desc, JobTaskDescription::Array { .. })
+            {
+                match &submit_descs[0].task_desc {
+                    JobTaskDescription::Array { ids, .. } => ids.clone(),
+                    _ => unreachable!(),
+                }
+            } else {
+                let mut ids: Vec<u32> = submit_descs
+                    .iter()
+                    .flat_map(|submit_desc| match &submit_desc.task_desc {
+                        JobTaskDescription::Array { ids, .. } => {
+                            itertools::Either::Left(ids.iter())
                         }
-                    }
-                }));
+                        JobTaskDescription::Graph { tasks } => {
+                            itertools::Either::Right(tasks.iter().map(|t| t.id.as_num()))
+                        }
+                    })
+                    .collect();
+                ids.sort();
+                IntArray::from_sorted_ids(ids.into_iter())
+            };
             if !ids.is_empty() {
                 write!(n_tasks, "; Ids: {ids}").unwrap();
             }

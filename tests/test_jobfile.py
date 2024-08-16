@@ -329,3 +329,36 @@ deps = [1, 3]
     table.check_row_value("Dependencies", "")
     table = hq_env.command(["task", "info", "1", "3"], as_table=True)
     table.check_row_value("Dependencies", "")
+
+
+def test_job_file_attach(hq_env: HqEnv, tmp_path):
+    hq_env.start_server()
+    hq_env.command(["job", "open"])
+
+    tmp_path.joinpath("job1.toml").write_text(
+        """
+[[task]]
+id = 1
+command = ["sleep", "0"]
+
+[[task]]
+id = 3
+command = ["sleep", "0"]
+    """
+    )
+    tmp_path.joinpath("job2.toml").write_text(
+        """
+[[task]]
+id = 4
+command = ["sleep", "0"]
+
+[[task]]
+id = 5
+command = ["sleep", "0"]
+    """
+    )
+    hq_env.command(["job", "submit-file", "--job=1", "job1.toml"])
+    hq_env.command(["job", "submit-file", "--job=1", "job2.toml"])
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Tasks", "4; Ids: 1,3-5")
