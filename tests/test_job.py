@@ -1322,6 +1322,15 @@ def test_attach_to_open_job_array(hq_env: HqEnv):
         assert os.path.isfile(filename) == (task_id in ids)
 
 
+def test_job_list_keep_open_jobs(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["job", "open"])
+    hq_env.command(["job", "submit", "--job=1", "--", "hostname"])
+    hq_env.command(["job", "cancel", "1"])
+    table = hq_env.command(["job", "list"], as_table=True)
+    assert len(table) == 1
+
+
 def test_attach_to_open_job_consecutive(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["job", "open"])

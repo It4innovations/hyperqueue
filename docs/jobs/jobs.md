@@ -248,7 +248,9 @@ matches from the following list of rules:
 2. If at least one task has not been `completed` yet, then job state is `Waiting`.
 3. If at least one task is `Failed`, then job state is `Failed`.
 4. If at least one task is `Canceled`, then job state is `Canceled`.
-5. All tasks have to be `Finished`, therefore the job state will also be `Finished`.
+5. If all tasks are finished and job is open (see [Open Jobs](openjobs.md)), then job state is `Opened`.
+5. Remaining case: all tasks are `Finished` and job is closed, then job state is `Finished`.
+
 
 ## Cancelling jobs
 You can prematurely terminate a submitted job that haven't been completed yet by *cancelling* it using the `hq job cancel`

@@ -85,17 +85,17 @@ async fn command_submit_job_file(
 async fn command_job_list(gsettings: &GlobalSettings, opts: JobListOpts) -> anyhow::Result<()> {
     let mut connection = get_client_session(gsettings.server_directory()).await?;
 
-    let filter = if opts.filter.is_empty() {
+    let (filter, show_open) = if opts.filter.is_empty() {
         if opts.all {
-            vec![]
+            (vec![], true)
         } else {
-            vec![Status::Waiting, Status::Running, Status::Opened]
+            (vec![Status::Waiting, Status::Running, Status::Opened], true)
         }
     } else {
-        opts.filter
+        (opts.filter, false)
     };
 
-    output_job_list(gsettings, &mut connection, filter).await
+    output_job_list(gsettings, &mut connection, filter, show_open).await
 }
 
 async fn command_job_summary(gsettings: &GlobalSettings) -> anyhow::Result<()> {

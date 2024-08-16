@@ -472,7 +472,7 @@ impl Output for CliOutput {
         self.print_horizontal_table(rows, header);
 
         if has_opened {
-            println!("* = Jobs with opened session")
+            println!("* = Open jobs")
         }
 
         if job_count != total_jobs {
@@ -1004,7 +1004,7 @@ impl Output for CliOutput {
 
     fn print_job_open(&self, job_id: JobId) {
         println!(
-            "Job {} opened",
+            "Job {} is open.",
             job_id.to_string().color(colored::Color::Green),
         );
     }
