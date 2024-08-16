@@ -1,6 +1,6 @@
 use bstr::BString;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::PathBuf;
 use tokio::sync::oneshot::Receiver;
 
 use crate::transfer::messages::{TaskBuildDescription, TaskKind};
@@ -50,7 +50,8 @@ impl TaskLauncher for HqTaskLauncher {
         let shared = SharedTaskDescription {
             job_id: desc.job_id,
             task_id: desc.task_id,
-            submit_dir: desc.submit_dir.as_ref(),
+            submit_dir: desc.submit_dir.into_owned(),
+            stream_path: desc.stream_path.map(|x| x.into_owned()),
             entry: desc.entry,
         };
         match desc.task_kind.into_owned() {
@@ -65,9 +66,10 @@ impl TaskLauncher for HqTaskLauncher {
     }
 }
 
-struct SharedTaskDescription<'a> {
+struct SharedTaskDescription {
     job_id: JobId,
     task_id: JobTaskId,
-    submit_dir: &'a Path,
+    submit_dir: PathBuf,
+    stream_path: Option<PathBuf>,
     entry: Option<BString>,
 }

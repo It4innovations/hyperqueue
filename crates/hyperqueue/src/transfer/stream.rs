@@ -1,4 +1,6 @@
 use crate::{JobId, JobTaskId};
+use chrono::serde::ts_milliseconds;
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde::Serialize;
 use tako::InstanceId;
@@ -6,18 +8,15 @@ use tako::InstanceId;
 pub type ChannelId = u32;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct StreamRegistration {
+pub struct StreamTaskStart {
     pub job: JobId,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct StartTaskStreamMsg {
     pub task: JobTaskId,
     pub instance: InstanceId,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct DataMsg {
+pub struct StreamData {
+    pub job: JobId,
     pub task: JobTaskId,
     pub instance: InstanceId,
     pub channel: ChannelId,
@@ -26,25 +25,27 @@ pub struct DataMsg {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct EndTaskStreamMsg {
+pub struct StreamTaskEnd {
+    pub job: JobId,
     pub task: JobTaskId,
     pub instance: InstanceId,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum FromStreamerMessage {
-    Start(StartTaskStreamMsg),
-    Data(DataMsg),
-    End(EndTaskStreamMsg),
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct EndTaskStreamResponseMsg {
+pub struct StreamChunkHeader {
+    #[serde(with = "ts_milliseconds")]
+    pub time: DateTime<Utc>,
+    pub job: JobId,
     pub task: JobTaskId,
+    pub instance: InstanceId,
+    pub channel: ChannelId,
+    pub size: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub enum ToStreamerMessage {
-    Error(String),
-    EndResponse(EndTaskStreamResponseMsg),
+pub enum StreamerMessage {
+    Write {
+        header: StreamChunkHeader,
+        data: Vec<u8>,
+    },
+    Flush(tokio::sync::oneshot::Sender<()>),
 }

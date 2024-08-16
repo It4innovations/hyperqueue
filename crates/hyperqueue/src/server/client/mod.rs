@@ -5,7 +5,7 @@ use std::sync::Arc;
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use orion::kdf::SecretKey;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{mpsc, oneshot, Notify};
+use tokio::sync::{mpsc, Notify};
 
 use tako::gateway::{CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage};
 use tako::TaskGroup;
@@ -15,11 +15,10 @@ use crate::common::serverdir::ServerDir;
 use crate::server::event::Event;
 use crate::server::job::JobTaskCounters;
 use crate::server::state::{State, StateRef};
-use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
     CancelJobResponse, CloseJobResponse, FromClientMessage, IdSelector, JobDetail,
-    JobDetailResponse, JobInfoResponse, StatsResponse, StopWorkerResponse, TaskSelector,
+    JobDetailResponse, JobInfoResponse, StopWorkerResponse, TaskSelector,
     ToClientMessage, WorkerListResponse,
 };
 use crate::transfer::messages::{ForgetJobResponse, WaitForJobsResponse};
@@ -152,7 +151,6 @@ pub async fn client_rpc_loop<
                     FromClientMessage::JobDetail(msg) => {
                         compute_job_detail(&state_ref, msg.job_id_selector, msg.task_selector)
                     }
-                    FromClientMessage::Stats => compose_server_stats(&state_ref, senders).await,
                     FromClientMessage::AutoAlloc(msg) => {
                         autoalloc::handle_autoalloc_message(&server_dir, senders, msg).await
                     }
@@ -357,17 +355,6 @@ fn get_job_ids(state: &State, selector: &IdSelector) -> Vec<JobId> {
         IdSelector::LastN(n) => state.last_n_ids(*n).collect(),
         IdSelector::Specific(array) => array.iter().map(|id| id.into()).collect(),
     }
-}
-
-async fn compose_server_stats(_state_ref: &StateRef, senders: &Senders) -> ToClientMessage {
-    let stream_stats = {
-        let (sender, receiver) = oneshot::channel();
-        senders
-            .backend
-            .send_stream_control(StreamServerControlMessage::Stats(sender));
-        receiver.await.unwrap()
-    };
-    ToClientMessage::StatsResponse(StatsResponse { stream_stats })
 }
 
 fn compute_job_info(state_ref: &StateRef, selector: &IdSelector) -> ToClientMessage {

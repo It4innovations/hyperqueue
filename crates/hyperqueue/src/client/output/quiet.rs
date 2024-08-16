@@ -16,7 +16,7 @@ use crate::client::status::{job_status, Status};
 use crate::common::arraydef::IntArray;
 use crate::server::autoalloc::Allocation;
 use crate::server::job::JobTaskInfo;
-use crate::stream::reader::logfile::Summary;
+use crate::stream::reader::streamdir::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, ServerInfo, StatsResponse, WaitForJobsResponse,
     WorkerExitInfo, WorkerInfo,
@@ -139,7 +139,7 @@ impl Output for Quiet {
 
     fn print_task_ids(&self, _job_task_ids: Vec<(JobId, IntArray)>) {}
 
-    // Log
+    // Stream
     fn print_summary(&self, _filename: &Path, _summary: Summary) {}
 
     // Autoalloc

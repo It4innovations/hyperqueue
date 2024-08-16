@@ -15,14 +15,11 @@ use crate::server::autoalloc::AutoAllocService;
 use crate::server::event::streamer::EventStreamer;
 use crate::server::state::StateRef;
 use crate::server::Senders;
-use crate::stream::server::control::StreamServerControlMessage;
-use crate::stream::server::rpc::start_stream_server;
 use crate::WrappedRcRefCell;
 
 struct InnerBackend {
     tako_sender: UnboundedSender<FromGatewayMessage>,
     tako_responses: VecDeque<oneshot::Sender<ToGatewayMessage>>,
-    stream_server_control: UnboundedSender<StreamServerControlMessage>,
     worker_port: u16,
 }
 
@@ -34,10 +31,6 @@ pub struct Backend {
 impl Backend {
     pub fn worker_port(&self) -> u16 {
         self.inner.get().worker_port
-    }
-
-    pub fn send_stream_control(&self, message: StreamServerControlMessage) {
-        assert!(self.inner.get().stream_server_control.send(message).is_ok())
     }
 
     pub async fn send_tako_message(
@@ -67,9 +60,6 @@ impl Backend {
         let (from_tako_sender, mut from_tako_receiver) = unbounded_channel::<ToGatewayMessage>();
         let (to_tako_sender, to_tako_receiver) = unbounded_channel::<FromGatewayMessage>();
 
-        let stream_server_control = start_stream_server();
-        let stream_server_control2 = stream_server_control.clone();
-
         let server_uid = state_ref.get().server_info().server_uid.clone();
         let (server_ref, server_future) = tako::server::server_start(
             SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), worker_port.unwrap_or(0)),
@@ -78,11 +68,7 @@ impl Backend {
             from_tako_sender.clone(),
             false,
             idle_timeout,
-            Some(Box::new(move |connection| {
-                assert!(stream_server_control2
-                    .send(StreamServerControlMessage::AddConnection(connection))
-                    .is_ok());
-            })),
+            None,
             server_uid,
             worker_id_initial_value,
         )
@@ -93,7 +79,6 @@ impl Backend {
                 tako_sender: to_tako_sender,
                 tako_responses: Default::default(),
                 worker_port: server_ref.get_worker_listen_port(),
-                stream_server_control,
             }),
         };
 

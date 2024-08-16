@@ -969,6 +969,7 @@ dependencies = [
  "itertools 0.13.0",
  "jemallocator",
  "log",
+ "lru",
  "nix 0.29.0",
  "nom",
  "nom-supreme",

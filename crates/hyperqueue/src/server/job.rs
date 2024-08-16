@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::client::status::get_task_status;
 use crate::server::Senders;
-use crate::stream::server::control::StreamServerControlMessage;
 use crate::transfer::messages::{
     JobDescription, JobDetail, JobInfo, JobSubmitDescription, TaskIdSelector, TaskSelector,
     TaskStatusSelector,
@@ -292,21 +291,10 @@ impl Job {
                     })
                     .collect();
             } else {
-                self.completion_date = Some(now);
-                if self
-                    .submit_descs
-                    .first()
-                    .map(|x| x.0.log.is_some())
-                    .unwrap_or(false)
-                {
-                    senders.backend.send_stream_control(
-                        StreamServerControlMessage::UnregisterStream(self.job_id),
-                    );
-                }
-
                 for handler in self.completion_callbacks.drain(..) {
                     handler.callback.send(self.job_id).ok();
                 }
+                self.completion_date = Some(now);
                 senders.events.on_job_completed(self.job_id);
             }
         }

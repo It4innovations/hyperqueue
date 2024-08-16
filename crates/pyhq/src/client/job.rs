@@ -83,7 +83,7 @@ pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: PyJobDescription)
             submit_desc: JobSubmitDescription {
                 task_desc,
                 submit_dir,
-                log: None,
+                stream_path: None,
             },
             job_id: None,
         });

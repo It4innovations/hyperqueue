@@ -54,6 +54,7 @@ toml = "0.8"
 signal-hook = "0.3"
 core_affinity = "0.8"
 itertools = "0.13.0"
+lru = "0.12"
 
 # Dashboard
 ratatui = { version = "0.26", default-features = false, features = ["termion"], optional = true }

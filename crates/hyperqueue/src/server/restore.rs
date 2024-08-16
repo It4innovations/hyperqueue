@@ -53,7 +53,7 @@ impl RestorerJob {
         state.add_job(job);
         let mut result: Vec<NewTasksMessage> = Vec::new();
         for submit_desc in self.submit_descs {
-            let (mut new_tasks, _log) = submit_job_desc(state, job_id, submit_desc)?;
+            let mut new_tasks = submit_job_desc(state, job_id, submit_desc)?;
             let job = state.get_job_mut(job_id).unwrap();
 
             new_tasks.tasks.retain(|t| {

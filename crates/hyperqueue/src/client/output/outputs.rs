@@ -5,7 +5,7 @@ use crate::transfer::messages::{
 
 use crate::client::job::WorkerMap;
 use crate::server::autoalloc::Allocation;
-use crate::stream::reader::logfile::Summary;
+use crate::stream::reader::streamdir::Summary;
 use std::path::Path;
 
 use crate::client::output::common::TaskToPathsMap;
@@ -82,8 +82,8 @@ pub trait Output {
     );
     fn print_task_ids(&self, jobs_task_id: Vec<(JobId, IntArray)>);
 
-    // Log
-    fn print_summary(&self, filename: &Path, summary: Summary);
+    // Stream
+    fn print_summary(&self, path: &Path, summary: Summary);
 
     // Autoalloc
     fn print_autoalloc_queues(&self, info: AutoAllocListResponse);

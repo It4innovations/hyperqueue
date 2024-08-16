@@ -3,7 +3,6 @@ use std::future::Future;
 use std::io::{BufWriter, ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
-use std::rc::Rc;
 use std::time::Duration;
 
 use bstr::{BStr, BString, ByteSlice};
@@ -13,7 +12,6 @@ use nix::sys::signal;
 use nix::sys::signal::Signal;
 use tempfile::TempDir;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
 
 use tako::comm::serialize;
@@ -62,6 +60,7 @@ pub(super) fn build_program_task(
         job_id,
         task_id,
         submit_dir,
+        stream_path,
         entry,
     } = shared;
 
@@ -197,6 +196,7 @@ pub(super) fn build_program_task(
         instance_id,
         stop_receiver,
         task_dir,
+        stream_path,
     );
 
     Ok(TaskLaunchData::new(
@@ -210,18 +210,18 @@ async fn resend_stdio(
     job_task_id: JobTaskId,
     channel: ChannelId,
     stdio: Option<impl tokio::io::AsyncRead + Unpin>,
-    stream: Rc<StreamSender>,
+    stream: StreamSender,
 ) -> tako::Result<()> {
     if let Some(mut stdio) = stdio {
-        log::debug!("Starting stream {}/{}/{}", job_id, job_task_id, channel);
+        log::debug!("Resending stream {}/{}/{}", job_id, job_task_id, channel);
         loop {
             let mut buffer = vec![0; STDIO_BUFFER_SIZE];
             let size = stdio.read(&mut buffer[..]).await?;
+            buffer.truncate(size);
+            stream.send_data(channel, buffer).await?;
             if size == 0 {
                 break;
             };
-            buffer.truncate(size);
-            stream.send_data(channel, buffer).await?;
         }
     }
     Ok(())
@@ -504,6 +504,7 @@ fn check_error_filename(task_dir: TempDir) -> Option<tako::Error> {
 }
 
 #[cfg(not(feature = "zero-worker"))]
+#[allow(clippy::too_many_arguments)]
 async fn create_task_future(
     streamer_ref: StreamerRef,
     program: ProgramDefinition,
@@ -512,6 +513,7 @@ async fn create_task_future(
     instance_id: InstanceId,
     end_receiver: Receiver<StopReason>,
     task_dir: Option<TempDir>,
+    stream_path: Option<PathBuf>,
 ) -> tako::Result<TaskResult> {
     let mut command = command_from_definitions(&program)?;
 
@@ -543,17 +545,17 @@ async fn create_task_future(
 
     if matches!(program.stdout, StdioDef::Pipe) || matches!(program.stderr, StdioDef::Pipe) {
         let streamer_error =
-            |e: tako::Error| tako::Error::GenericError(format!("Streamer: {:?}", e.to_string()));
-        let (close_sender, close_responder) = oneshot::channel();
-        let stream = Rc::new(streamer_ref.get_mut().get_stream(
-            &streamer_ref,
-            job_id,
-            job_task_id,
-            instance_id,
-            close_sender,
-        ));
-
-        stream.send_stream_start().await.map_err(streamer_error)?;
+            |e: tako::Error| tako::Error::GenericError(format!("Streaming: {:?}", e.to_string()));
+        let stream = streamer_ref
+            .get_mut()
+            .get_stream(
+                &streamer_ref,
+                stream_path.as_ref().unwrap(),
+                job_id,
+                job_task_id,
+                instance_id,
+            )
+            .map_err(|e| tako::Error::GenericError(e.to_string()))?;
 
         let stream2 = stream.clone();
 
@@ -568,33 +570,9 @@ async fn create_task_future(
             );
             status_to_result(response?.0)
         };
-
-        let guard_fut = handle_task_with_signals(main_fut, pid, job_id, job_task_id, end_receiver);
-        futures::pin_mut!(guard_fut);
-
-        match futures::future::select(guard_fut, close_responder).await {
-            Either::Left((result, close_responder)) => {
-                log::debug!("Waiting for stream termination");
-                stream.close().await.map_err(streamer_error)?;
-                close_responder
-                    .await
-                    .map_err(|_| {
-                        tako::Error::GenericError(
-                            "Connection to stream failed while closing".into(),
-                        )
-                    })?
-                    .map_err(streamer_error)?;
-                result
-            }
-            Either::Right((result, _)) => Err(match result {
-                Ok(_) => streamer_error(tako::Error::GenericError(
-                    "Internal error: Stream closed without calling close()".into(),
-                )),
-                Err(_) => streamer_error(tako::Error::GenericError(
-                    "Connection to stream server closed".into(),
-                )),
-            }),
-        }
+        let r = handle_task_with_signals(main_fut, pid, job_id, job_task_id, end_receiver).await;
+        stream.flush().await?;
+        r
     } else {
         let task_fut = async move {
             let result = status_to_result(child_wait(child, &program.stdin).await?);

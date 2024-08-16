@@ -12,7 +12,7 @@ use crate::common::format::{human_duration, human_mem_amount, human_size};
 use crate::common::manager::info::GetManagerInfo;
 use crate::server::autoalloc::{Allocation, AllocationState};
 use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
-use crate::stream::reader::logfile::Summary;
+use crate::stream::reader::streamdir::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData, QueueState,
     ServerInfo, StatsResponse, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse,
@@ -877,7 +877,12 @@ impl Output for CliOutput {
 
     fn print_summary(&self, filename: &Path, summary: Summary) {
         let rows = vec![
-            vec!["Filename".cell().bold(true), filename.display().cell()],
+            vec!["Path".cell().bold(true), filename.display().cell()],
+            vec![
+                "Files".cell().bold(true),
+                summary.n_files.to_string().cell(),
+            ],
+            vec!["Jobs".cell().bold(true), summary.n_jobs.to_string().cell()],
             vec![
                 "Tasks".cell().bold(true),
                 summary.n_tasks.to_string().cell(),

@@ -30,7 +30,6 @@ pub enum FromClientMessage {
     JobInfo(JobInfoRequest),
     WorkerList,
     WorkerInfo(WorkerInfoRequest),
-    Stats,
     StopWorker(StopWorkerMessage),
     Stop,
     AutoAlloc(AutoAllocRequest),
@@ -74,6 +73,7 @@ pub struct TaskBuildDescription<'a> {
     pub job_id: JobId,
     pub task_id: JobTaskId,
     pub submit_dir: Cow<'a, PathBuf>,
+    pub stream_path: Option<Cow<'a, PathBuf>>,
     pub entry: Option<BString>,
 }
 
@@ -165,7 +165,7 @@ impl JobTaskDescription {
 pub struct JobSubmitDescription {
     pub task_desc: JobTaskDescription,
     pub submit_dir: PathBuf,
-    pub log: Option<PathBuf>,
+    pub stream_path: Option<PathBuf>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

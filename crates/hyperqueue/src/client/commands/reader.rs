@@ -1,17 +1,22 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::arraydef::IntArray;
-use crate::stream::reader::logfile::LogFile;
+use crate::stream::reader::streamdir::StreamDir;
+use crate::JobId;
 use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Parser)]
-pub struct LogOpts {
+pub struct ReadOpts {
     /// Path of log file
-    filename: PathBuf,
+    path: PathBuf,
+
+    /// Filter files for given server instance
+    #[arg(long, value_enum)]
+    pub server_uid: Option<String>,
 
     /// Operation with log file
     #[clap(subcommand)]
-    command: LogCommand,
+    command: StreamCommand,
 }
 
 #[derive(Parser)]
@@ -19,17 +24,20 @@ pub struct SummaryOpts {}
 
 #[derive(Parser)]
 pub struct ShowOpts {
+    /// JobId
+    #[arg(long)]
+    pub job: Option<JobId>,
+
     /// Filter only specific channel
     #[arg(long, value_enum)]
     pub channel: Option<Channel>,
-
-    /// Show close message even for tasks with empty stream
-    #[arg(long)]
-    pub show_empty: bool,
 }
 
 #[derive(Parser)]
 pub struct CatOpts {
+    /// JobId
+    pub job: JobId,
+
     /// Channel name: "stdout" or "stderr"
     #[arg(value_enum)]
     pub channel: Channel,
@@ -45,15 +53,21 @@ pub struct CatOpts {
 
 #[derive(Parser)]
 pub struct ExportOpts {
+    /// Job to export
+    pub job: JobId,
+
     /// Export only the specified task(s) output. You can use the array syntax to specify multiple tasks.
     #[arg(long)]
     pub task: Option<IntArray>,
 }
 
 #[derive(Parser)]
-pub enum LogCommand {
+pub enum StreamCommand {
     /// Prints summary of log file
     Summary(SummaryOpts),
+
+    /// Prints content of log ordered by time
+    Jobs,
 
     /// Prints content of log ordered by time
     Show(ShowOpts),
@@ -71,22 +85,25 @@ pub enum Channel {
     Stderr,
 }
 
-pub fn command_log(gsettings: &GlobalSettings, opts: LogOpts) -> anyhow::Result<()> {
-    let mut log_file = LogFile::open(&opts.filename)?;
+pub fn command_reader(gsettings: &GlobalSettings, opts: ReadOpts) -> anyhow::Result<()> {
+    let mut stream_dir = StreamDir::open(&opts.path, opts.server_uid.as_deref())?;
     match opts.command {
-        LogCommand::Summary(_) => {
+        StreamCommand::Summary(_) => {
             gsettings
                 .printer()
-                .print_summary(&opts.filename, log_file.summary());
+                .print_summary(&opts.path, stream_dir.summary());
         }
-        LogCommand::Show(show_opts) => {
-            log_file.show(&show_opts)?;
+        StreamCommand::Show(show_opts) => {
+            stream_dir.show(&show_opts)?;
         }
-        LogCommand::Cat(cat_opts) => {
-            log_file.cat(&cat_opts)?;
+        StreamCommand::Cat(cat_opts) => {
+            stream_dir.cat(&cat_opts)?;
         }
-        LogCommand::Export(export_opts) => {
-            log_file.export(&export_opts)?;
+        StreamCommand::Export(export_opts) => {
+            stream_dir.export(&export_opts)?;
+        }
+        StreamCommand::Jobs => {
+            stream_dir.jobs()?;
         }
     }
 
