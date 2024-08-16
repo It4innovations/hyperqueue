@@ -13,7 +13,7 @@ use crate::transfer::messages::{
     JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, SubmitRequest,
     TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
 };
-use crate::{JobTaskCount, JobTaskId};
+use crate::{JobId, JobTaskCount, JobTaskId};
 use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
@@ -24,6 +24,10 @@ use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 pub struct JobSubmitFileOpts {
     /// Path to file with job definition
     path: PathBuf,
+
+    /// Attach a submission to an open job
+    #[clap(long)]
+    job: Option<JobId>,
 }
 
 fn create_stdio(def: Option<StdioDefInput>, default: &str, is_log: bool) -> StdioDef {
@@ -124,7 +128,7 @@ fn build_job_desc_individual_tasks(tasks: Vec<TaskDef>) -> JobTaskDescription {
     }
 }
 
-fn build_job_submit(jdef: JobDef) -> SubmitRequest {
+fn build_job_submit(jdef: JobDef, job_id: Option<JobId>) -> SubmitRequest {
     let task_desc = if let Some(array) = jdef.array {
         build_job_desc_array(array)
     } else {
@@ -140,7 +144,7 @@ fn build_job_submit(jdef: JobDef) -> SubmitRequest {
             submit_dir: get_current_dir(),
             log: jdef.stream_log,
         },
-        job_id: None,
+        job_id,
     }
 }
 
@@ -155,6 +159,6 @@ pub async fn submit_computation_from_job_file(
                 anyhow::anyhow!(format!("Cannot read {}: {}", opts.path.display(), e))
             })?)?
         };
-    let request = build_job_submit(jdef);
+    let request = build_job_submit(jdef, opts.job);
     send_submit_request(gsettings, session, request, false, false).await
 }

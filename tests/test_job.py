@@ -1304,6 +1304,24 @@ def test_invalid_attach(hq_env: HqEnv):
     hq_env.command(["submit", "--job=2", "--array=0-2", "--", "sleep", "0"], expect_fail="Task 0 already exists in job")
 
 
+def test_attach_to_open_job_array(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["job", "open"])
+    hq_env.command(["submit", "--job=1", "--array=10-20", "--", "bash", "-c", "echo 'test' > task.${HQ_TASK_ID}"])
+    hq_env.command(["submit", "--job=1", "--array=1,3,5", "--", "bash", "-c", "echo 'test' > task.${HQ_TASK_ID}"])
+    hq_env.command(["submit", "--job=1", "--array=2,4,6", "--", "bash", "-c", "echo 'test' > task.${HQ_TASK_ID}"])
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Tasks", "17; Ids: 1-6,10-20")
+    hq_env.start_worker()
+    hq_env.command(["job", "close", "1"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+
+    ids = set(list(range(1, 7)) + list(range(10, 21)))
+    for task_id in range(25):
+        filename = f"task.{task_id}"
+        assert os.path.isfile(filename) == (task_id in ids)
+
+
 def test_attach_to_open_job_consecutive(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["job", "open"])
