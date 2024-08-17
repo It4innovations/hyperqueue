@@ -217,7 +217,17 @@ fn build_slurm_submit_script(
         writeln!(script, "#SBATCH {sbatch_args}").unwrap();
     }
 
-    let prefix = if nodes > 1 { "srun --overlap " } else { "" };
+    // Some Slurm clusters have a default that does not play well with simply running
+    // `srun`. For example, they can configure `--ntasks-per-node X` as a default option.
+    // We should make sure that we execute exactly the number of workers that we want, on exactly
+    // the number of nodes that we want. Therefore, we use `--ntasks` and `--nodes`.
+    // The `--overlap` parameter is then used to make sure that nested invocations within the HQ
+    // worker will be able to still consume Slurm resources.
+    let prefix = if nodes > 1 {
+        format!("srun --overlap --ntasks={nodes} --nodes={nodes} ")
+    } else {
+        "".to_string()
+    };
     write!(script, "\n{prefix}{worker_cmd}").unwrap();
     script
 }

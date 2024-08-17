@@ -346,7 +346,7 @@ def test_slurm_multinode_allocation(hq_env: HqEnv):
         with open(sbatch_script_path) as f:
             commands = normalize_output(hq_env, "slurm", extract_script_commands(f.read()))
             assert commands == snapshot(
-                'srun --overlap RUST_LOG=tako=trace,hyperqueue=trace <hq-binary> worker start --idle-timeout "5m"'
+                'srun --overlap --ntasks=2 --nodes=2 RUST_LOG=tako=trace,hyperqueue=trace <hq-binary> worker start --idle-timeout "5m"'
                 ' --manager "<manager>" --server-dir "<server-dir>/001" --on-server-lost "finish-running" --time-limit'
                 ' "1h"'
             )
