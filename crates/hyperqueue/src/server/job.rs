@@ -113,6 +113,11 @@ pub struct JobPart {
     pub job_desc: Arc<JobDescription>,
 }
 
+pub struct JobCompletionCallback {
+    callback: oneshot::Sender<JobId>,
+    wait_for_close: bool,
+}
+
 pub struct Job {
     pub job_id: JobId,
     pub counters: JobTaskCounters,
@@ -131,7 +136,7 @@ pub struct Job {
 
     /// Holds channels that will receive information about the job after the it finishes in any way.
     /// You can subscribe to the completion message with [`Self::subscribe_to_completion`].
-    completion_callbacks: Vec<oneshot::Sender<JobId>>,
+    completion_callbacks: Vec<JobCompletionCallback>,
 }
 
 impl Job {
@@ -207,6 +212,10 @@ impl Job {
         self.tasks.len() as JobTaskCount
     }
 
+    pub fn has_no_active_tasks(&self) -> bool {
+        self.counters.is_terminated(self.n_tasks())
+    }
+
     pub fn is_terminated(&self) -> bool {
         !self.is_open && self.counters.is_terminated(self.n_tasks())
     }
@@ -264,23 +273,38 @@ impl Job {
     }
 
     pub fn check_termination(&mut self, senders: &Senders, now: DateTime<Utc>) {
-        if self.is_terminated() {
-            self.completion_date = Some(now);
-            if self
-                .submit_descs
-                .first()
-                .map(|x| x.0.log.is_some())
-                .unwrap_or(false)
-            {
-                senders
-                    .backend
-                    .send_stream_control(StreamServerControlMessage::UnregisterStream(self.job_id));
-            }
+        if self.has_no_active_tasks() {
+            if self.is_open {
+                let callbacks = std::mem::take(&mut self.completion_callbacks);
+                self.completion_callbacks = callbacks
+                    .into_iter()
+                    .filter_map(|c| {
+                        if !c.wait_for_close {
+                            c.callback.send(self.job_id).ok();
+                            None
+                        } else {
+                            Some(c)
+                        }
+                    })
+                    .collect();
+            } else {
+                self.completion_date = Some(now);
+                if self
+                    .submit_descs
+                    .first()
+                    .map(|x| x.0.log.is_some())
+                    .unwrap_or(false)
+                {
+                    senders.backend.send_stream_control(
+                        StreamServerControlMessage::UnregisterStream(self.job_id),
+                    );
+                }
 
-            for handler in self.completion_callbacks.drain(..) {
-                handler.send(self.job_id).ok();
+                for handler in self.completion_callbacks.drain(..) {
+                    handler.callback.send(self.job_id).ok();
+                }
+                senders.events.on_job_completed(self.job_id);
             }
-            senders.events.on_job_completed(self.job_id);
         }
     }
 
@@ -378,9 +402,12 @@ impl Job {
     /// Subscribes to the completion event of this job.
     /// When the job finishes in any way (completion, failure, cancellation), the channel will
     /// receive a single message.
-    pub fn subscribe_to_completion(&mut self) -> oneshot::Receiver<JobId> {
+    pub fn subscribe_to_completion(&mut self, wait_for_close: bool) -> oneshot::Receiver<JobId> {
         let (tx, rx) = oneshot::channel();
-        self.completion_callbacks.push(tx);
+        self.completion_callbacks.push(JobCompletionCallback {
+            callback: tx,
+            wait_for_close,
+        });
         rx
     }
 }

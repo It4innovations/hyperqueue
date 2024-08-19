@@ -154,7 +154,13 @@ async fn command_job_task_ids(
 
 async fn command_job_wait(gsettings: &GlobalSettings, opts: JobWaitOpts) -> anyhow::Result<()> {
     let mut connection = get_client_session(gsettings.server_directory()).await?;
-    wait_for_jobs(gsettings, &mut connection, opts.selector).await
+    wait_for_jobs(
+        gsettings,
+        &mut connection,
+        opts.selector,
+        !opts.without_close,
+    )
+    .await
 }
 
 async fn command_job_progress(

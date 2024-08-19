@@ -1291,6 +1291,18 @@ def test_job_wait_for_close(hq_env: HqEnv):
     assert r == 0
 
 
+def test_job_wait_for_open_job_without_close(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["job", "open"])
+
+    hq_env.command(["job", "wait", "1", "--without-close"])
+
+    hq_env.start_worker()
+    hq_env.command(["submit", "--job=1", "--", "sleep", "0"])
+
+    hq_env.command(["job", "wait", "1", "--without-close"])
+
+
 def test_invalid_attach(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["submit", "--", "sleep", "0"])
