@@ -893,8 +893,8 @@ def test_job_submit_program_not_found(hq_env: HqEnv):
 
     table = hq_env.command(["task", "list", "1", "-v"], as_table=True)
     assert (
-        'Error: Cannot execute "foo --bar --baz=5": No such file or directory (os error 2)\n'
-        "The program that you have tried to execute (`foo`) was not found." == table.get_column_value("Error")[0]
+            'Error: Cannot execute "foo --bar --baz=5": No such file or directory (os error 2)\n'
+            "The program that you have tried to execute (`foo`) was not found." == table.get_column_value("Error")[0]
     )
 
 
@@ -1289,6 +1289,16 @@ def test_job_wait_for_close(hq_env: HqEnv):
     time.sleep(0.3)
     r = p.poll()
     assert r == 0
+
+
+def test_submit_job_opts_to_open_job(hq_env: HqEnv):
+    hq_env.start_server()
+    hq_env.command(["job", "open"])
+
+    hq_env.command(["submit", "--job=1", "--name=Abc", "--", "hostname"],
+                   expect_fail="Parameter --name is not allowed when submitting to an open job.")
+    hq_env.command(["submit", "--job=1", "--max-fails=12", "--", "hostname"],
+                   expect_fail="Parameter --max-fails is not allowed when submitting to an open job.")
 
 
 def test_job_wait_for_open_job_without_close(hq_env: HqEnv):
