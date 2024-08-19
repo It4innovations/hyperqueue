@@ -43,7 +43,7 @@ pub struct JobCancelOpts {
 
 #[derive(Parser)]
 pub struct JobCloseOpts {
-    /// Select job(s) to cancel
+    /// Select job(s) to close
     #[arg(value_parser = parse_last_all_range)]
     pub selector: IdSelector,
 }
@@ -291,7 +291,7 @@ pub async fn close_job(
     responses.sort_unstable_by_key(|x| x.0);
 
     if responses.is_empty() {
-        log::info!("There is nothing to cancel")
+        log::info!("There is nothing to close")
     }
 
     for (job_id, response) in responses {
