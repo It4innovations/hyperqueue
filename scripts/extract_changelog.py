@@ -45,4 +45,3 @@ use HyperQueue from the command line**.
 - **hyperqueue-{tag}-\\***: Wheel containing the `hyperqueue` package with HyperQueue Python
 bindings.
 """
-    print(output)

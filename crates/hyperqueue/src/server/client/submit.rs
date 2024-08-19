@@ -75,7 +75,7 @@ pub(crate) async fn handle_submit(
     let mut state = state_ref.get_mut();
     let (job_id, new_job) = if let Some(job_id) = message.job_id {
         if let Some(job) = state.get_job(job_id) {
-            if !job.is_open {
+            if !job.is_open() {
                 return ToClientMessage::SubmitResponse(SubmitResponse::JobNotOpened);
             }
             match &mut message.submit_desc.task_desc {
@@ -555,43 +555,3 @@ pub(crate) fn handle_open_job(
     state_ref.get_mut().add_job(job);
     ToClientMessage::OpenJobResponse(OpenJobResponse { job_id })
 }
-
-// /*let job_id = state_ref.get_mut().new_job_id();
-// senders.events.on_job_open(job_id).unwrap();
-//
-// let new_tasks = match submit_job_desc(&mut state_ref.get_mut(), job_id, job_desc) {
-//     Err(error) => {
-//         state_ref.get_mut().revert_to_job_id(job_id);
-//         return ToClientMessage::Error(error.to_string());
-//     }
-//     Ok(new_tasks) => new_tasks,
-// };
-//
-// let (job_detail, log) = {
-//     let state = state_ref.get();
-//     let job = state.get_job(job_id).unwrap();
-//     let job_detail = job.make_job_detail(Some(&TaskSelector {
-//         id_selector: TaskIdSelector::All,
-//         status_selector: TaskStatusSelector::All,
-//     }));
-//     (job_detail, job.job_desc.log.clone())
-// };
-//
-// if let Some(log) = log {
-//     start_log_streaming(senders, job_id, log).await;
-// }
-//
-// match senders
-//     .backend
-//     .send_tako_message(FromGatewayMessage::NewTasks(new_tasks))
-//     .await
-//     .unwrap()
-// {
-//     ToGatewayMessage::NewTasksResponse(_) => { /* Ok */ }
-//     r => panic!("Invalid response: {r:?}"),
-// };
-//
-// ToClientMessage::SubmitResponse(SubmitResponse {
-//     job: job_detail,
-//     server_uid: state_ref.get().server_info().server_uid.clone(),
-// })

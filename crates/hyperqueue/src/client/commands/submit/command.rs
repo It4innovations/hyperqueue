@@ -583,11 +583,12 @@ pub async fn submit_computation(
         None
     };
 
-    let opts = handle_directives(opts, stdin.as_deref())?;
-
-    if opts.directives == DirectivesMode::Stdin && stdin.is_none() {
+    if opts.opts.directives == DirectivesMode::Stdin && stdin.is_none() {
         bail!("You have to use `--stdin` when you specify `--directives=stdin`.");
     }
+
+    let opts = handle_directives(opts, stdin.as_deref())?;
+
     if opts.job.is_some() {
         if opts.conf.job_conf.name.is_some() {
             bail!("Parameter --name is not allowed when submitting to an open job.");
