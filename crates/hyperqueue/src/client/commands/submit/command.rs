@@ -720,6 +720,7 @@ pub(crate) async fn send_submit_request(
                     gsettings,
                     session,
                     IdSelector::Specific(IntArray::from_id(info.id.into())),
+                    true,
                 )
                 .await?;
             } else if progress {

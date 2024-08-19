@@ -301,6 +301,7 @@ pub struct AllocationQueueParams {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WaitForJobsRequest {
     pub selector: IdSelector,
+    pub wait_for_close: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

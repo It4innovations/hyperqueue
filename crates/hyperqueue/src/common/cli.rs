@@ -335,6 +335,10 @@ pub struct JobWaitOpts {
     /// Select job(s) to wait for
     #[arg(value_parser = parse_last_all_range)]
     pub selector: IdSelector,
+
+    /// Wait only for task completion and terminate even job is open
+    #[clap(long, action)]
+    pub without_close: bool,
 }
 
 #[derive(Parser)]

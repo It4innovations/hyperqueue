@@ -25,12 +25,14 @@ pub async fn wait_for_jobs(
     gsettings: &GlobalSettings,
     session: &mut ClientSession,
     selector: IdSelector,
+    wait_for_close: bool,
 ) -> anyhow::Result<()> {
     let start = SystemTime::now();
     let response = rpc_call!(
         session.connection(),
         FromClientMessage::WaitForJobs(WaitForJobsRequest {
             selector: selector.clone(),
+            wait_for_close,
         }),
         ToClientMessage::WaitForJobsResponse(r) => r
     )

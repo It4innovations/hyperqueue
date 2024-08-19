@@ -103,3 +103,6 @@ Closing of already closed job throws an error.
 Leaving open jobs has no overhead, but it does affect the semantics of job completion.
 A job is considered completed when all tasks have been completed and the job is *closed*.
 Therefore, `hq job wait ...` will wait until all tasks of the selected jobs are complete and the jobs are closed.
+
+If you want to wait only for completion of tasks and ignoring if job is open or closed then there
+is `hq job wait --without-close ...`.

@@ -157,7 +157,8 @@ pub async fn client_rpc_loop<
                         autoalloc::handle_autoalloc_message(&server_dir, senders, msg).await
                     }
                     FromClientMessage::WaitForJobs(msg) => {
-                        handle_wait_for_jobs_message(&state_ref, msg.selector).await
+                        handle_wait_for_jobs_message(&state_ref, msg.selector, msg.wait_for_close)
+                            .await
                     }
                     FromClientMessage::OpenJob(job_description) => {
                         handle_open_job(&state_ref, senders, job_description)
@@ -209,6 +210,7 @@ pub async fn client_rpc_loop<
 async fn handle_wait_for_jobs_message(
     state_ref: &StateRef,
     selector: IdSelector,
+    wait_for_close: bool,
 ) -> ToClientMessage {
     let update_counters = |response: &mut WaitForJobsResponse, counters: &JobTaskCounters| {
         if counters.n_canceled_tasks > 0 {
@@ -230,10 +232,10 @@ async fn handle_wait_for_jobs_message(
         for job_id in job_ids {
             match state.get_job_mut(job_id) {
                 Some(job) => {
-                    if job.is_terminated() {
+                    if job.has_no_active_tasks() && !(wait_for_close && job.is_open) {
                         update_counters(&mut response, &job.counters);
                     } else {
-                        let rx = job.subscribe_to_completion();
+                        let rx = job.subscribe_to_completion(wait_for_close);
                         receivers.push(rx);
                     }
                 }
