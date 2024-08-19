@@ -2,7 +2,8 @@
 
 ## New features
 
-* Open jobs. You may dynamically submit into an existing job. See [Open jobs documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/openjobs/)
+* It is now possible to dynamically submit new tasks into an existing job (we call this concept "Open jobs").
+  See [Open jobs documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/openjobs/)
 
 ## Fixes
 
@@ -13,7 +14,9 @@
 
 ## New features
 
-* Server resilience. Server state can be loaded back from a journal when it crashes. This will restore the state of submitted jobs and also autoallocator queues. Find out more [here](https://it4innovations.github.io/hyperqueue/stable/deployment/server/#resuming-stoppedcrashed-server).
+* Server resilience. Server state can be loaded back from a journal when it crashes. This will restore the state of
+  submitted jobs and also autoallocator queues. Find out
+  more [here](https://it4innovations.github.io/hyperqueue/stable/deployment/server/#resuming-stoppedcrashed-server).
 
 * `HQ_NUM_NODES` for multi-node tasks introduced. It contains the number of nodes assigned to task.
   You do not need to manually count lines in `HQ_NODE_FILE` anymore.
@@ -154,7 +157,7 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
 
   ```console
   $ hq job submit-file myfile.toml
-  ``` 
+  ```
 
 * You can now specify (indexed) resource values provided by workers as strings (previously only
   integers were allowed). Notably, automatic detection of Nvidia GPUs specified with string UUIDs
@@ -521,7 +524,7 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   ```bash
   # Print stdout of all tasks of job 1
   $ hq job cat 1 stdout
-  
+
   # Print stderr of tasks 1, 2, 3 of job 5
   $ hq job cat 5 stderr --tasks 1-3
   ```
@@ -568,6 +571,7 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 * You can now generate shell completion using the `hq generate-completion <shell>` command.
 
 ## Changes
+
 ### CLI
 
 * The command line interface for jobs has been changed to be more consistent with the interface for
@@ -576,14 +580,14 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   is `hq submit`, which is now a shortcut for `hq job submit`. Here is a table of changed commands:
 
   | **Previous command** | **New command**    |
-      |------------------|--------------------|
-  | `hq jobs`           | `hq job list`    |
-  | `hq job`            | `hq job info`    |
-  | `hq resubmit`       | `hq job resubmit` |
-  | `hq cancel`         | `hq job cancel`  |
-  | `hq wait`           | `hq job wait`    |
-  | `hq progress`       | `hq job progress` |
-  | `hq submit`         | `hq submit` or `hq job submit` |
+  |----------------------|--------------------|
+  | `hq jobs`            | `hq job list`    |
+  | `hq job`             | `hq job info`    |
+  | `hq resubmit`        | `hq job resubmit` |
+  | `hq cancel`          | `hq job cancel`  |
+  | `hq wait`            | `hq job wait`    |
+  | `hq progress`        | `hq job progress` |
+  | `hq submit`          | `hq submit` or `hq job submit` |
 
 * The `--tasks` flag of the `hq job info <job-id>` command has been removed. If you want to display the
   individual tasks of a job, please use the `hq task list <job-id>` command.

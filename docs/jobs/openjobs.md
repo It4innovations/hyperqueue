@@ -1,7 +1,9 @@
 # Open jobs
 
-By default, a job is a set of tasks that are created atomically during a submit, and no other task can be added to the job.
-We call this job *closed*. In contrast, HQ allows you to create an *open* job that allows new tasks to be submitted as long as it is open.
+By default, a job is a set of tasks that are created atomically during a submit, and no other task can be added to the
+job.
+We call this job *closed*. In contrast, HQ allows you to create an *open* job that allows new tasks to be submitted as
+long as it is open.
 
 ## Opening a job
 
@@ -11,7 +13,7 @@ A job can be opened by the following command:
 $ hq job open
 ```
 
-If openning was successfull:
+If opening was successful, this will be printed:
 
 ```
 Job <ID> is open.
@@ -27,7 +29,9 @@ Note: In the list of jobs, an open job is marked with "*" before the id.
 
 ## Submitting tasks into open jobs
 
-A submit to an open job is the same as a normal submit, except that you must specify the job you are submitting to with the `--job` argument. You may submit multiple times into the same job. Tasks are scheduled to the workers immediately when they are received by the server.
+A submit to an open job is the same as a normal submit, except that you must specify the job you are submitting to with
+the `--job` argument. You may submit multiple times into the same job. Tasks are scheduled to the workers immediately
+when they are received by the server.
 
 ```
 $ hq submit --job <JOB_ID> ... other submit args ...
@@ -37,7 +41,8 @@ $ hq submit --job <JOB_ID> ... other submit args ...
 
 ## Task Ids
 
-All tasks in one job shares the task you space. When you do not specify task ids, HQ automatically assigns a smallest ID that is bigger then any existing task id.
+All tasks in one job share the task ID space. When you do not specify task ids, HQ automatically assigns a smallest ID
+that is bigger then any existing task id.
 
 ```commandline
 $ hq job open
@@ -62,7 +67,8 @@ $ hq submit --job <JOB_ID> --array 0-12 -- hostname
 
 ## Job name and `--max-fails`
 
-Job's name and configuration open `--max-fails` are the property of the job. They can be set when job is opened and they cannot be later changed. Submits options `--name` and `--max-fails` are ignored if you are submitting into an open job.
+Job's name and configuration open `--max-fails` are the property of the job. They can be set when job is opened and they
+cannot be later changed. Submits options `--name` and `--max-fails` are ignored if you are submitting into an open job.
 
 ```commandline
 # Configuring jobs's name and max fails
@@ -74,10 +80,11 @@ $ hq submit --job <JOB_ID> --max-fails=5 ...
 
 ## Submit file into open job
 
-Submitting job definition file into an open job works in the similar way as a normal submit, you just need to add `--job` parameter.
+Submitting job definition file into an open job works in the similar way as a normal submit, you just need to
+add `--job` parameter.
 
 ```commandline
-$ hq job submit-file --job <JOB_ID> job-defition.toml
+$ hq job submit-file --job <JOB_ID> job-definition.toml
 ```
 
 ## Closing job

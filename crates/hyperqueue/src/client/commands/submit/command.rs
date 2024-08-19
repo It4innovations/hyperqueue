@@ -760,8 +760,6 @@ fn get_ids_and_entries(opts: &JobSubmitOpts) -> anyhow::Result<(IntArray, Option
     Ok((ids, entries))
 }
 
-//IntArray::from_range(0, entries.len() as JobTaskCount)
-
 /// Warns the user that an array job might produce too many files.
 fn warn_array_task_count(opts: &JobSubmitOpts, task_count: u32) {
     if task_count < 2 {

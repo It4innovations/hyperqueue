@@ -326,7 +326,7 @@ pub enum JobCommand {
     TaskIds(JobTaskIdsOpts),
     /// Open new job (without attaching any tasks yet)
     Open(SubmitJobConfOpts),
-    /// Close a session job
+    /// Close an open job
     Close(JobCloseOpts),
 }
 
