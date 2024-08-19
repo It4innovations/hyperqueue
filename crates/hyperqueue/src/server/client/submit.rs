@@ -76,7 +76,7 @@ pub(crate) async fn handle_submit(
     let (job_id, new_job) = if let Some(job_id) = message.job_id {
         if let Some(job) = state.get_job(job_id) {
             if !job.is_open {
-                return ToClientMessage::Error(format!("Job {job_id} is not open"));
+                return ToClientMessage::SubmitResponse(SubmitResponse::JobNotOpened);
             }
             match &mut message.submit_desc.task_desc {
                 JobTaskDescription::Array { ids, entries, .. } => {
@@ -93,9 +93,9 @@ pub(crate) async fn handle_submit(
                         for id in ids.iter() {
                             let id = JobTaskId::new(id);
                             if id_set.contains(&id) {
-                                return ToClientMessage::Error(format!(
-                                    "Task {id} already exists in job {job_id}"
-                                ));
+                                return ToClientMessage::SubmitResponse(
+                                    SubmitResponse::TaskIdAlreadyExists(id),
+                                );
                             }
                         }
                     }
@@ -105,15 +105,15 @@ pub(crate) async fn handle_submit(
                     for task in tasks {
                         if id_set.contains(&task.id) {
                             let id = task.id;
-                            return ToClientMessage::Error(format!(
-                                "Task {id} already exists in job {job_id}"
-                            ));
+                            return ToClientMessage::SubmitResponse(
+                                SubmitResponse::TaskIdAlreadyExists(id),
+                            );
                         }
                     }
                 }
             }
         } else {
-            return ToClientMessage::Error(format!("Job {job_id} not found"));
+            return ToClientMessage::SubmitResponse(SubmitResponse::JobNotFound);
         }
         (job_id, false)
     } else {
@@ -181,7 +181,7 @@ pub(crate) async fn handle_submit(
         r => panic!("Invalid response: {r:?}"),
     };
 
-    ToClientMessage::SubmitResponse(SubmitResponse {
+    ToClientMessage::SubmitResponse(SubmitResponse::Ok {
         job: job_detail,
         server_uid: state_ref.get().server_info().server_uid.clone(),
     })
