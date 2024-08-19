@@ -36,7 +36,8 @@ use crate::common::utils::time::parse_human_time;
 use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{
     FromClientMessage, IdSelector, JobDescription, JobSubmitDescription, JobTaskDescription,
-    PinMode, SubmitRequest, TaskDescription, TaskKind, TaskKindProgram, ToClientMessage,
+    PinMode, SubmitRequest, SubmitResponse, TaskDescription, TaskKind, TaskKindProgram,
+    ToClientMessage,
 };
 use crate::{rpc_call, JobId, JobTaskCount, Map};
 
@@ -703,22 +704,33 @@ pub(crate) async fn send_submit_request(
     wait: bool,
     progress: bool,
 ) -> anyhow::Result<()> {
+    let job_id = request.job_id.unwrap_or_else(|| JobId::new(0));
     let message = FromClientMessage::Submit(request);
 
     let response =
         rpc_call!(session.connection(), message, ToClientMessage::SubmitResponse(r) => r).await?;
-    let info = response.job.info.clone();
 
-    gsettings.printer().print_job_submitted(response.job);
-    if wait {
-        wait_for_jobs(
-            gsettings,
-            session,
-            IdSelector::Specific(IntArray::from_id(info.id.into())),
-        )
-        .await?;
-    } else if progress {
-        wait_for_jobs_with_progress(session, &[info]).await?;
+    match response {
+        SubmitResponse::Ok { job, server_uid: _ } => {
+            let info = job.info.clone();
+
+            gsettings.printer().print_job_submitted(job);
+            if wait {
+                wait_for_jobs(
+                    gsettings,
+                    session,
+                    IdSelector::Specific(IntArray::from_id(info.id.into())),
+                )
+                .await?;
+            } else if progress {
+                wait_for_jobs_with_progress(session, &[info]).await?;
+            }
+        }
+        SubmitResponse::JobNotOpened => bail!("Job {job_id} is not opened."),
+        SubmitResponse::JobNotFound => bail!("Job {job_id} not found."),
+        SubmitResponse::TaskIdAlreadyExists(task_id) => {
+            bail!("Task {task_id} already exists in job {job_id}.")
+        }
     }
     Ok(())
 }

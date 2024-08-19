@@ -386,9 +386,12 @@ pub struct StatsResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SubmitResponse {
-    pub job: JobDetail,
-    pub server_uid: String,
+#[allow(clippy::large_enum_variant)]
+pub enum SubmitResponse {
+    Ok { job: JobDetail, server_uid: String },
+    JobNotOpened,
+    JobNotFound,
+    TaskIdAlreadyExists(JobTaskId),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
