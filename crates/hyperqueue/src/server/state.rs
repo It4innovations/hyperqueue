@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use chrono::Utc;
-
 use tako::gateway::{
     CancelTasks, FromGatewayMessage, LostWorkerMessage, NewWorkerMessage, TaskFailedMessage,
     TaskState, TaskUpdate, ToGatewayMessage,
@@ -125,6 +124,7 @@ impl State {
         let job = self.get_job_mut(job_id).unwrap();
         match &submit_desc.task_desc {
             JobTaskDescription::Array { ids, .. } => {
+                job.tasks.reserve(ids.id_count() as usize);
                 ids.iter().enumerate().for_each(|(i, task_id)| {
                     job.tasks.insert(
                         TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
@@ -136,6 +136,7 @@ impl State {
                 })
             }
             JobTaskDescription::Graph { tasks } => {
+                job.tasks.reserve(tasks.len());
                 tasks.iter().enumerate().for_each(|(i, task)| {
                     job.tasks.insert(
                         TakoTaskId::new(base + i as <TaskId as ItemId>::IdType),
