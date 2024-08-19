@@ -10,8 +10,9 @@ use hyperqueue::server::job::JobTaskState;
 use hyperqueue::transfer::messages::{
     ForgetJobRequest, FromClientMessage, IdSelector, JobDescription, JobDetailRequest,
     JobInfoRequest, JobInfoResponse, JobSubmitDescription, JobTaskDescription as HqJobDescription,
-    PinMode, SubmitRequest, TaskDescription as HqTaskDescription, TaskIdSelector, TaskKind,
-    TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
+    PinMode, SubmitRequest, SubmitResponse, TaskDescription as HqTaskDescription, TaskIdSelector,
+    TaskKind, TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies,
+    ToClientMessage,
 };
 use hyperqueue::{rpc_call, tako, JobTaskCount, JobTaskId, Set};
 use pyo3::types::PyTuple;
@@ -92,7 +93,15 @@ pub fn submit_job_impl(py: Python, ctx: ClientContextPtr, job: PyJobDescription)
             rpc_call!(ctx.session.connection(), message, ToClientMessage::SubmitResponse(r) => r)
                 .await
                 .map_py_err()?;
-        Ok(response.job.info.id.as_num())
+        match response {
+            SubmitResponse::Ok { job, .. } => Ok(job.info.id.as_num()),
+            SubmitResponse::JobNotOpened
+            | SubmitResponse::JobNotFound
+            | SubmitResponse::TaskIdAlreadyExists(_) => {
+                // This code is unreachable as long Python cannot submit into open jobs
+                unreachable!()
+            }
+        }
     })
 }
 

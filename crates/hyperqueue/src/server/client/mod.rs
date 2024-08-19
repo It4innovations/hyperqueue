@@ -232,7 +232,7 @@ async fn handle_wait_for_jobs_message(
         for job_id in job_ids {
             match state.get_job_mut(job_id) {
                 Some(job) => {
-                    if job.has_no_active_tasks() && !(wait_for_close && job.is_open) {
+                    if job.has_no_active_tasks() && !(wait_for_close && job.is_open()) {
                         update_counters(&mut response, &job.counters);
                     } else {
                         let rx = job.subscribe_to_completion(wait_for_close);
@@ -424,7 +424,7 @@ async fn handle_job_close(
     let job_ids: Vec<JobId> = match selector {
         IdSelector::All => state
             .jobs()
-            .filter(|job| job.is_open)
+            .filter(|job| job.is_open())
             .map(|job| job.job_id)
             .collect(),
         IdSelector::LastN(n) => state.last_n_ids(*n).collect(),
@@ -436,8 +436,8 @@ async fn handle_job_close(
         .into_iter()
         .map(|job_id| {
             let response = if let Some(job) = state.get_job_mut(job_id) {
-                if job.is_open {
-                    job.is_open = false;
+                if job.is_open() {
+                    job.close();
                     job.check_termination(senders, now);
                     CloseJobResponse::Closed
                 } else {

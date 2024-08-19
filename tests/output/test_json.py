@@ -169,7 +169,6 @@ def test_print_job_detail(hq_env: HqEnv):
     hq_env.start_server()
     hq_env.command(["submit", "echo", "tt"])
     output = parse_json_output(hq_env, ["--output-mode=json", "job", "info", "1"])
-    print(output)
     schema = Schema([ARRAY_JOB_DETAIL_SCHEMA])
     schema.validate(output)
 

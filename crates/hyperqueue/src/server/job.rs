@@ -108,11 +108,6 @@ impl JobTaskCounters {
     }
 }
 
-pub struct JobPart {
-    pub base_task_id: TakoTaskId,
-    pub job_desc: Arc<JobDescription>,
-}
-
 pub struct JobCompletionCallback {
     callback: oneshot::Sender<JobId>,
     wait_for_close: bool,
@@ -126,10 +121,10 @@ pub struct Job {
     pub job_desc: JobDescription,
     pub submit_descs: SmallVec<[(Arc<JobSubmitDescription>, TakoTaskId); 1]>,
 
-    // If True, new tasks may be submitted into this job
+    // If true, new tasks may be submitted into this job
     // If true and all tasks in the job are terminated then the job
     // is in state OPEN not FINISHED.
-    pub is_open: bool,
+    is_open: bool,
 
     pub submission_date: DateTime<Utc>,
     pub completion_date: Option<DateTime<Utc>>,
@@ -152,6 +147,15 @@ impl Job {
             completion_date: None,
             completion_callbacks: Default::default(),
         }
+    }
+
+    #[inline]
+    pub fn is_open(&self) -> bool {
+        self.is_open
+    }
+
+    pub fn close(&mut self) {
+        self.is_open = false;
     }
 
     pub fn make_task_id_set(&self) -> Set<JobTaskId> {

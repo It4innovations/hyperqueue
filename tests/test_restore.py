@@ -253,4 +253,4 @@ def test_restore_open_job(hq_env: HqEnv, tmp_path):
     hq_env.start_server(args=["--journal", journal_path])
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
-    print(table)
+    table.check_row_value("Session", "open")

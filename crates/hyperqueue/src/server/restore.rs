@@ -102,10 +102,6 @@ impl RestorerJob {
     pub fn add_submit(&mut self, submit_desc: JobSubmitDescription) {
         self.submit_descs.push(submit_desc)
     }
-
-    pub fn close(&mut self) {
-        self.is_open = false;
-    }
 }
 
 #[derive(Default)]
@@ -173,7 +169,6 @@ impl StateRestorer {
                         bincode_config().deserialize(&serialized_submit_request)?;
                     let mut job = RestorerJob::new(submit_request.job_desc, false);
                     job.add_submit(submit_request.submit_desc);
-                    job.close();
                     self.add_job(job_id, job);
                 }
                 EventPayload::JobCompleted(job_id) => {
