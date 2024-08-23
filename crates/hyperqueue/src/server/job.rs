@@ -221,7 +221,7 @@ impl Job {
     }
 
     pub fn is_terminated(&self) -> bool {
-        !self.is_open && self.counters.is_terminated(self.n_tasks())
+        !self.is_open && self.has_no_active_tasks()
     }
 
     pub fn get_task_state_mut(

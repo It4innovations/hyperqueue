@@ -22,7 +22,11 @@ pub enum EventPayload {
     ///  Vec<u8> is serialized JobDescription; the main reason is avoiding duplication of JobDescription
     ///  (we serialize it before it is stripped down)
     ///  and a nice side effect is that Events can be deserialized without deserializing a potentially large submit data
-    JobCreated(JobId, Vec<u8>),
+    Submit {
+        job_id: JobId,
+        closed_job: bool,
+        serialized_desc: Vec<u8>,
+    },
     /// All tasks of the job have finished.
     JobCompleted(JobId),
     JobOpen(JobId, JobDescription),

@@ -150,6 +150,10 @@ impl StateRestorer {
         self.max_job_id = self.max_job_id.max(job_id.as_num());
     }
 
+    fn get_job_mut(&mut self, job_id: JobId) -> Option<&mut RestorerJob> {
+        self.jobs.get_mut(&job_id)
+    }
+
     pub fn load_event_file(&mut self, path: &Path) -> crate::Result<()> {
         log::debug!("Loading event file {}", path.display());
         let mut event_reader = EventLogReader::open(path)?;
@@ -162,14 +166,23 @@ impl StateRestorer {
                 }
                 EventPayload::WorkerLost(_, _) => {}
                 EventPayload::WorkerOverviewReceived(_) => {}
-                //EventPayload::JobCreatedShort(job_id, job_info) => {}
-                EventPayload::JobCreated(job_id, serialized_submit_request) => {
-                    log::debug!("Replaying: JobCreated {job_id}");
+                EventPayload::Submit {
+                    job_id,
+                    closed_job,
+                    serialized_desc,
+                } => {
+                    log::debug!("Replaying: JobTasksCreated {job_id}");
                     let submit_request: SubmitRequest =
-                        bincode_config().deserialize(&serialized_submit_request)?;
-                    let mut job = RestorerJob::new(submit_request.job_desc, false);
-                    job.add_submit(submit_request.submit_desc);
-                    self.add_job(job_id, job);
+                        bincode_config().deserialize(&serialized_desc)?;
+                    if closed_job {
+                        let mut job = RestorerJob::new(submit_request.job_desc, false);
+                        job.add_submit(submit_request.submit_desc);
+                        self.add_job(job_id, job);
+                    } else if let Some(job) = self.get_job_mut(job_id) {
+                        job.add_submit(submit_request.submit_desc)
+                    } else {
+                        log::warn!("Ignoring submit attachment to an non-existing job")
+                    }
                 }
                 EventPayload::JobCompleted(job_id) => {
                     log::debug!("Replaying: JobCompleted {job_id}");

@@ -98,13 +98,18 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
             "task": task_id,
             "error": error
         }),
-        EventPayload::JobCreated(job_id, data) => {
+        EventPayload::Submit {
+            job_id,
+            closed_job,
+            serialized_desc,
+        } => {
             let job_desc: JobDescription = bincode_config()
-                .deserialize(&data)
+                .deserialize(&serialized_desc)
                 .expect("Invalid job description data");
             json!({
                 "type": "job-created",
                 "job": job_id,
+                "closed_job": closed_job,
                 "desc": JobInfoFormatter(&job_desc).to_json(),
             })
         }
