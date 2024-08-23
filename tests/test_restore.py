@@ -243,7 +243,7 @@ def test_restore_queues(hq_env: HqEnv, tmp_path):
         assert alloc_list3 == alloc_list4
 
 
-def test_restore_open_job(hq_env: HqEnv, tmp_path):
+def test_restore_open_job_more_jobs(hq_env: HqEnv, tmp_path):
     journal_path = os.path.join(tmp_path, "my.journal")
     hq_env.start_server(args=["--journal", journal_path])
     for _ in range(3):
@@ -254,3 +254,19 @@ def test_restore_open_job(hq_env: HqEnv, tmp_path):
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
     table.check_row_value("Session", "open")
+
+
+def test_restore_open_job_more_submits(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.command(["job", "open"])
+    for _ in range(3):
+        hq_env.command(["job", "submit", "--job=1", "--", "hostname"])
+    hq_env.stop_server()
+    hq_env.start_server(args=["--journal", journal_path])
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Session", "open")
+    table.check_row_value("Tasks", "3; Ids: 0-2")
+    hq_env.start_worker()
+    wait_for_job_state(hq_env, 1, "OPENED")

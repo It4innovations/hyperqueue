@@ -53,7 +53,7 @@ impl JobTimeline {
     pub fn handle_new_events(&mut self, events: &[Event]) {
         for event in events {
             match &event.payload {
-                EventPayload::JobCreated(job_id, job_info) => {
+                EventPayload::Submit(job_id, job_info) => {
                     self.job_timeline.insert(
                         *job_id,
                         DashboardJobInfo {

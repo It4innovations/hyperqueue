@@ -61,10 +61,11 @@ impl EventStreamer {
                 return Ok(());
             }
         }
-        self.send_event(EventPayload::JobCreated(
+        self.send_event(EventPayload::Submit {
             job_id,
-            bincode_config().serialize(submit_request)?,
-        ));
+            closed_job: submit_request.job_id.is_none(),
+            serialized_desc: bincode_config().serialize(submit_request)?,
+        });
         Ok(())
     }
 

@@ -68,7 +68,7 @@ $ hq submit --job <JOB_ID> --array 0-12 -- hostname
 ## Job name and `--max-fails`
 
 Job's name and configuration open `--max-fails` are the property of the job. They can be set when job is opened and they
-cannot be later changed. Submits options `--name` and `--max-fails` cannot be used if you are submitting into an open
+cannot be later changed. Submit options `--name` and `--max-fails` cannot be used if you are submitting into an open
 job.
 
 ```commandline

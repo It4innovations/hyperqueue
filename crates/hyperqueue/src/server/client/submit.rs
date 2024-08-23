@@ -403,6 +403,20 @@ fn build_tasks_graph(
     })
 }
 
+pub(crate) fn handle_open_job(
+    state_ref: &StateRef,
+    senders: &Senders,
+    job_description: JobDescription,
+) -> ToClientMessage {
+    let job_id = state_ref.get_mut().new_job_id();
+    senders
+        .events
+        .on_job_opened(job_id, job_description.clone());
+    let job = Job::new(job_id, job_description, true);
+    state_ref.get_mut().add_job(job);
+    ToClientMessage::OpenJobResponse(OpenJobResponse { job_id })
+}
+
 #[cfg(test)]
 mod tests {
     use crate::server::client::submit::build_tasks_graph;
@@ -540,18 +554,4 @@ mod tests {
             dependencies: dependencies.into_iter().map(|id| id.into()).collect(),
         }
     }
-}
-
-pub(crate) fn handle_open_job(
-    state_ref: &StateRef,
-    senders: &Senders,
-    job_description: JobDescription,
-) -> ToClientMessage {
-    let job_id = state_ref.get_mut().new_job_id();
-    senders
-        .events
-        .on_job_opened(job_id, job_description.clone());
-    let job = Job::new(job_id, job_description, true);
-    state_ref.get_mut().add_job(job);
-    ToClientMessage::OpenJobResponse(OpenJobResponse { job_id })
 }

@@ -336,7 +336,7 @@ pub struct JobWaitOpts {
     #[arg(value_parser = parse_last_all_range)]
     pub selector: IdSelector,
 
-    /// Wait only for task completion and terminate even job is open
+    /// Wait until all tasks are completed, even if the job is still open
     #[clap(long, action)]
     pub without_close: bool,
 }

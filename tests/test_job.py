@@ -1287,8 +1287,7 @@ def test_job_wait_for_close(hq_env: HqEnv):
     assert p.poll() is None
     hq_env.command(["job", "close", "last"])
     wait_for_job_state(hq_env, 1, "FINISHED")
-    time.sleep(0.3)
-    r = p.poll()
+    r = p.wait(5)
     assert r == 0
 
 
@@ -1313,9 +1312,11 @@ def test_job_wait_for_open_job_without_close(hq_env: HqEnv):
     hq_env.command(["job", "wait", "1", "--without-close"])
 
     hq_env.start_worker()
-    hq_env.command(["submit", "--job=1", "--", "sleep", "0"])
-
+    hq_env.command(["submit", "--job=1", "--", "sleep", "2"])
+    t1 = time.time()
     hq_env.command(["job", "wait", "1", "--without-close"])
+    t2 = time.time()
+    assert t2 - t1 > 1.8
 
 
 def test_invalid_attach(hq_env: HqEnv):
