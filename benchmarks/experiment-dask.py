@@ -270,7 +270,7 @@ class DaskVsHqEmpty(TestCase):
 
         def draw(data, **kwargs):
             show_yaxis_label = (
-                data["task-count"].isin(("5 000 tasks", "50 000 tasks")).any()
+                data["task-count"].isin(("5000 tasks", "50 000 tasks")).any()
             )
             ax = sns.barplot(data, x="worker-count", y="duration", hue="environment")
             for axis in ax.containers:

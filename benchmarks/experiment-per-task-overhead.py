@@ -58,6 +58,7 @@ class PerTaskOverhead(TestCase):
         return list(gen_items())
 
     def postprocess(self, workdir: Path, database: Database):
+        import matplotlib
         import seaborn as sns
 
         df = (
@@ -79,8 +80,8 @@ class PerTaskOverhead(TestCase):
                 ax.bar_label(
                     axis,
                     rotation=90,
-                    fmt="%.0f",
-                    padding=5,
+                    fmt=lambda v: format_large_int(int(v)),
+                    padding=-3,
                     label_type="center",
                     color="white",
                 )
@@ -89,6 +90,7 @@ class PerTaskOverhead(TestCase):
                 xlabel="Worker count",
                 ylim=(0, data[key].max() * 1.3),
             )
+            ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, pos: format_large_int(int(v))))
 
         df["task_per_s"] = df["task_count"] / df["duration"]
 
