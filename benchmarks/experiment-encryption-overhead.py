@@ -68,13 +68,18 @@ class EncryptionOverhead(TestCase):
         def draw(data, **kwargs):
             nonlocal ylabel_set
 
-            ax = sns.barplot(data, x="task_count", y="duration", hue="encrypted")
+            data = data.copy()
+            order = sorted(data["task_count"].unique())
+            data["task_count"] = data["task_count"].map(format_large_int)
+            order = [format_large_int(v) for v in order]
+
+            ax = sns.barplot(data, x="task_count", order=order, y="duration", hue="encrypted")
             for axis in ax.containers:
                 ax.bar_label(axis, rotation=90, fmt="%.2f", padding=5)
             ax.set(
                 ylabel="" if ylabel_set else "Duration [s]",
                 xlabel="Task count",
-                ylim=(0, data["duration"].max() * 1.3),
+                ylim=(0, data["duration"].max() * 1.4),
             )
             ylabel_set = True
 

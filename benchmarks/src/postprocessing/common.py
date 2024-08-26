@@ -99,6 +99,8 @@ def pd_print_all():
 
 
 def format_large_int(number: int) -> str:
+    if len(str(number)) == 4:
+        return str(number)
     return f"{number:,}".replace(",", " ")
 
 
