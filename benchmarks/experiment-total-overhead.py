@@ -141,7 +141,7 @@ def render_hq_overhead_ratio(df: pd.DataFrame, path: Path):
         df["task_count"] * np.maximum(df["task_duration"], 0.001)
     ) / (128 * df["worker_count"])
 
-    draw_bar_chart_ratio(df, "HyperQueue makespan vs ideal makespan")
+    draw_bar_chart_ratio(df, "HyperQueue makespan vs ideal makespan", sharey="col")
     render_chart(path)
 
 
@@ -161,14 +161,23 @@ def render_hq_overhead_ratio_vs_manual(df: pd.DataFrame, path: Path):
 
     df["expected_duration"] = expected_durations
 
-    draw_bar_chart_ratio(df, "HyperQueue makespan vs manual process execution")
+    draw_bar_chart_ratio(df, "HyperQueue makespan vs manual process execution", sharey=True)
     render_chart(path)
 
 
-def draw_bar_chart_ratio(df: pd.DataFrame, title: str):
+def draw_bar_chart_ratio(df: pd.DataFrame, title: str, sharey):
     import seaborn as sns
 
+    seen_rows = set()
+
     def draw(data, **kwargs):
+        task_count = data["task_count"].iloc[0]
+        if task_count not in seen_rows:
+            ylabel = "Ratio (vs ideal duration)"
+            seen_rows.add(task_count)
+        else:
+            ylabel = None
+
         data = data.copy()
         data["ratio"] = data["duration"] / data["expected_duration"]
         data = data.rename(
@@ -182,9 +191,9 @@ def draw_bar_chart_ratio(df: pd.DataFrame, title: str):
         for axis in ax.containers:
             ax.bar_label(axis, rotation=90, fmt="%.2f", padding=5)
         ax.set(
-            ylabel="Ratio (vs ideal duration)",
+            ylabel=ylabel,
             xlabel="Worker count",
-            ylim=(0, data["ratio"].max() * 1.3),
+            ylim=(0, data["ratio"].max() * 1.4),
         )
         plt.axhline(y=1, color="red", linestyle="--")
 
@@ -192,7 +201,7 @@ def draw_bar_chart_ratio(df: pd.DataFrame, title: str):
     df["task_count"] = df["task_count"].map(lambda v: f"{format_large_int(v)} tasks")
 
     grid = sns.FacetGrid(
-        df, col="task_duration", row="task_count", sharey=False, margin_titles=True
+        df, col="task_duration", row="task_count", sharey=sharey, margin_titles=True
     )
     grid.map_dataframe(draw)
     grid.add_legend(loc="upper center")

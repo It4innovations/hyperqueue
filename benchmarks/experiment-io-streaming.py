@@ -223,6 +223,8 @@ class IoStreaming(TestCase):
         )
 
         def draw(data, **kwargs):
+            data = data.copy()
+            data["size"] = data["size"].map(format_large_int)
             ax = sns.barplot(data, x="size", y="duration", hue="stream")
             for axis in ax.containers:
                 ax.bar_label(axis, rotation=90, fmt="%.1f", padding=5)
@@ -236,7 +238,7 @@ class IoStreaming(TestCase):
             lambda v: f"{format_large_int(v)} tasks"
         )
         grid = sns.FacetGrid(
-            df, col="task_count", row="disk", sharey="row", margin_titles=True
+            df, col="task_count", row="disk", sharey=True, margin_titles=True
         )
         grid.map_dataframe(draw)
 

@@ -10,13 +10,14 @@ import json
 
 import tqdm
 
-from src.build.hq import Profile
+# from src.build.hq import Profile
+from src.postprocessing.common import format_large_int
 from src.utils import ensure_directory
 from src.benchmark_defs import get_hq_binary
 
-import pandas as pd
+import matplotlib
 import numpy as np
-
+import pandas as pd
 import psutil
 
 
@@ -156,7 +157,7 @@ def create_chart_increase_tasks(df: pd.DataFrame):
     df["utilization"] = df["cpu-usage-user"] + df["cpu-usage-system"]
     df = df[df["worker-count"] == 12]
 
-    ax = sns.scatterplot(df, x="task-count", y=df["utilization"])
+    ax = sns.lineplot(df, x="task-count", marker="o", y=df["utilization"])
     ax.set(
         ylabel="CPU time [s]",
         xlabel="Task count",
@@ -164,17 +165,18 @@ def create_chart_increase_tasks(df: pd.DataFrame):
         xlim=(0, df["task-count"].max() * 1.1),
         title="Server CPU consumption (12 workers, 1 minute span)",
     )
-
-    for x, y in zip(df["task-count"], df["utilization"]):
-        same_count = df[df["task-count"] == x]
-        if y == same_count["utilization"].max():
-            ax.text(x + 2000, y + 0.1, f"{y:.2f}")
+    ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, pos: format_large_int(int(v))))
+                   
+    for x in df["task-count"].unique():
+        y = df[df["task-count"] == x]["utilization"].mean()
+        ax.text(x + 4000, y - 0.15, f"{y:.2f}")
 
     rate = df["utilization"] / df["duration"]
     rate /= df["task-count"] / 1000
     print(rate)
     print(np.mean(rate))
 
+    plt.tight_layout()
     plt.savefig(f"{output_dir}/server-utilization-tasks.png")
     plt.savefig(f"{output_dir}/server-utilization-tasks.pdf")
 
@@ -266,7 +268,7 @@ def run():
 
 
 if __name__ == "__main__":
-    run()
+    # run()
 
     create_chart_increase_tasks(pd.read_csv("outputs/server-cpu-util.csv"))
     create_chart_increase_workers(pd.read_csv("outputs/server-cpu-util.csv"))
