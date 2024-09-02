@@ -3,10 +3,9 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 
 use futures::future::join_all;
-use tempdir::TempDir;
-
 use tako::WorkerId;
 use tako::{Map, Set};
+use tempfile::TempDir;
 
 use crate::common::manager::info::{ManagerInfo, ManagerType};
 use crate::common::rpc::RpcReceiver;
@@ -177,7 +176,7 @@ async fn handle_message(
 }
 
 pub async fn try_submit_allocation(params: AllocationQueueParams) -> anyhow::Result<()> {
-    let tmpdir = TempDir::new("hq")?;
+    let tmpdir = TempDir::with_prefix("hq")?;
     let mut handler = create_allocation_handler(
         &params.manager,
         params.name.clone(),
@@ -877,8 +876,6 @@ mod tests {
     use anyhow::anyhow;
     use derive_builder::Builder;
     use smallvec::smallvec;
-    use tempdir::TempDir;
-
     use tako::gateway::{
         LostWorkerReason, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
     };
@@ -886,6 +883,7 @@ mod tests {
     use tako::resources::{AllocationRequest, TimeRequest, CPU_RESOURCE_NAME};
     use tako::WorkerId;
     use tako::{Map, Set, WrappedRcRefCell};
+    use tempfile::TempDir;
 
     use crate::common::arraydef::IntArray;
     use crate::common::manager::info::{ManagerInfo, ManagerType};
@@ -1255,7 +1253,7 @@ mod tests {
         let mut state = AutoAllocState::new(1);
 
         let make_dir = || {
-            let tempdir = TempDir::new("hq").unwrap();
+            let tempdir = TempDir::with_prefix("hq").unwrap();
             tempdir.into_path()
         };
 
@@ -1605,7 +1603,7 @@ mod tests {
         Handler::new(
             WrappedRcRefCell::wrap(()),
             move |_, _| async move {
-                let tempdir = TempDir::new("hq").unwrap();
+                let tempdir = TempDir::with_prefix("hq").unwrap();
                 let dir = tempdir.into_path();
 
                 Ok(AllocationSubmissionResult::new(
@@ -1625,7 +1623,7 @@ mod tests {
             state,
             move |state, _worker_count| async move {
                 let mut state = state.get_mut();
-                let tempdir = TempDir::new("hq").unwrap();
+                let tempdir = TempDir::with_prefix("hq").unwrap();
                 let dir = tempdir.into_path();
 
                 state.allocation_attempts += 1;

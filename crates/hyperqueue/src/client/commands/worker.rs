@@ -12,7 +12,7 @@ use tako::{Map, Set};
 use clap::Parser;
 use tako::hwstats::GpuFamily;
 use tako::internal::worker::configuration::OverviewConfiguration;
-use tempdir::TempDir;
+use tempfile::TempDir;
 use tokio::time::sleep;
 
 use crate::client::globalsettings::GlobalSettings;
@@ -245,7 +245,7 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
     resources.validate()?;
 
     let (work_dir, log_dir) = {
-        let tmpdir = TempDir::new("hq-worker").unwrap().into_path();
+        let tmpdir = TempDir::with_prefix("hq-worker")?.into_path();
         (
             work_dir.unwrap_or_else(|| tmpdir.join("work")),
             tmpdir.join("logs"),
