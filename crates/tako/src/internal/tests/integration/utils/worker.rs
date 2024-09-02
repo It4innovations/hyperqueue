@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::Duration;
-use tempdir::TempDir;
 
 use crate::internal::common::error::DsError;
 use crate::internal::common::resources::ResourceDescriptor;
@@ -15,6 +14,7 @@ use crate::program::ProgramDefinition;
 use crate::worker::WorkerConfiguration;
 use derive_builder::Builder;
 use orion::auth::SecretKey;
+use tempfile::TempDir;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Notify;
 use tokio::task::LocalSet;
@@ -148,7 +148,7 @@ pub(super) async fn start_worker(
 ) -> anyhow::Result<(WorkerHandle, WorkerContext)> {
     let port = core_ref.get().get_worker_listen_port();
     let (mut configuration, worker_secret_key) = create_worker_configuration(config);
-    let tmpdir = TempDir::new("tako").unwrap();
+    let tmpdir = TempDir::with_prefix("tako")?;
     let workdir = tmpdir.path().to_path_buf().join("work");
     let logdir = tmpdir.path().to_path_buf().join("logs");
 

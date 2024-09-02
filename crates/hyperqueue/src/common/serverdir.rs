@@ -291,16 +291,15 @@ pub fn load_client_access_file<P: AsRef<Path>>(path: P) -> crate::Result<ClientA
 
 #[cfg(test)]
 mod tests {
-    use std::fs::DirEntry;
-    use std::path::PathBuf;
-    use std::sync::Arc;
-    use tempdir::TempDir;
-
     use crate::common::serverdir::{
         create_new_server_dir, load_client_access_file, load_worker_access_file,
         store_access_record, ConnectAccessRecordPart, FullAccessRecord,
     };
     use crate::transfer::auth::generate_key;
+    use std::fs::DirEntry;
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use tempfile::TempDir;
 
     #[test]
     fn test_store_load() {
@@ -317,7 +316,10 @@ mod tests {
             },
             "testHQ".into(),
         );
-        let path = TempDir::new("foo").unwrap().into_path().join("access.json");
+        let path = TempDir::with_prefix("foo")
+            .unwrap()
+            .into_path()
+            .join("access.json");
         store_access_record(&record, path.clone()).unwrap();
         let loaded = load_worker_access_file(&path).unwrap();
         assert_eq!(loaded.version, record.version);
@@ -334,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_server_dir_start_at_one() {
-        let path = TempDir::new("foo").unwrap();
+        let path = TempDir::with_prefix("foo").unwrap();
         create_new_server_dir(path.as_ref()).unwrap();
         let entry = std::fs::read_dir(&path).unwrap().next().unwrap().unwrap();
         assert_eq!(entry.file_name().to_str().unwrap(), "001");
@@ -342,7 +344,7 @@ mod tests {
 
     #[test]
     fn test_server_dir_find_max_id() {
-        let path = TempDir::new("foo").unwrap();
+        let path = TempDir::with_prefix("foo").unwrap();
         std::fs::create_dir_all(PathBuf::from(path.path()).join("001")).unwrap();
         std::fs::create_dir_all(PathBuf::from(path.path()).join("002")).unwrap();
         std::fs::create_dir_all(PathBuf::from(path.path()).join("003")).unwrap();
@@ -360,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_server_dir_find_max_id_without_zero_padding() {
-        let path = TempDir::new("foo").unwrap();
+        let path = TempDir::with_prefix("foo").unwrap();
         std::fs::create_dir_all(PathBuf::from(path.path()).join("1")).unwrap();
         std::fs::create_dir_all(PathBuf::from(path.path()).join("3")).unwrap();
         std::fs::create_dir_all(PathBuf::from(path.path()).join("8")).unwrap();
@@ -372,7 +374,7 @@ mod tests {
 
     #[test]
     fn test_server_dir_find_max_id_no_number() {
-        let path = TempDir::new("foo").unwrap();
+        let path = TempDir::with_prefix("foo").unwrap();
         std::fs::create_dir_all(PathBuf::from(path.path()).join("a")).unwrap();
         std::fs::create_dir_all(PathBuf::from(path.path()).join("b")).unwrap();
         std::fs::create_dir_all(PathBuf::from(path.path()).join("c")).unwrap();

@@ -85,11 +85,11 @@ mod tests {
     use std::fs::{File, OpenOptions};
     use std::io::Write;
     use tako::gateway::LostWorkerReason;
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     #[test]
     fn read_empty_file() {
-        let tmpdir = TempDir::new("hq").unwrap();
+        let tmpdir = TempDir::with_prefix("hq").unwrap();
         let path = tmpdir.path().join("foo");
         File::create(&path).unwrap();
 
@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn read_invalid_header_version() {
-        let tmpdir = TempDir::new("hq").unwrap();
+        let tmpdir = TempDir::with_prefix("hq").unwrap();
         let path = tmpdir.path().join("foo");
         {
             let mut file = File::create(&path).unwrap();
@@ -110,7 +110,7 @@ mod tests {
 
     #[test]
     fn read_no_events() {
-        let tmpdir = TempDir::new("hq").unwrap();
+        let tmpdir = TempDir::with_prefix("hq").unwrap();
         let path = tmpdir.path().join("foo");
         {
             let writer = EventLogWriter::create_or_append(&path, None).unwrap();
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn test_not_fully_written_journal() {
-        let tmpdir = TempDir::new("hq").unwrap();
+        let tmpdir = TempDir::with_prefix("hq").unwrap();
         let path = tmpdir.path().join("foo");
 
         {
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn roundtrip_exhaust_buffer() {
-        let tmpdir = TempDir::new("hq").unwrap();
+        let tmpdir = TempDir::with_prefix("hq").unwrap();
         let path = tmpdir.path().join("foo");
 
         {
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn streaming_read_partial() {
-        let tmpdir = TempDir::new("hq").unwrap();
+        let tmpdir = TempDir::with_prefix("hq").unwrap();
         let path = tmpdir.path().join("foo");
         let mut writer = EventLogWriter::create_or_append(&path, None).unwrap();
 

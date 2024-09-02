@@ -375,7 +375,6 @@ async fn start_server(gsettings: &GlobalSettings, server_cfg: ServerConfig) -> a
 
 #[cfg(test)]
 mod tests {
-    use tempdir::TempDir;
     use tokio::sync::Notify;
 
     use crate::common::serverdir::{
@@ -395,6 +394,7 @@ mod tests {
     use std::future::Future;
     use std::path::Path;
     use std::sync::Arc;
+    use tempfile::TempDir;
 
     pub async fn init_test_server(
         tmp_dir: &Path,
@@ -424,13 +424,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_status_empty_directory() {
-        let tmp_dir = TempDir::new("foo").unwrap();
+        let tmp_dir = TempDir::with_prefix("foo").unwrap();
         assert!(get_server_status(&tmp_dir.into_path()).await.is_err());
     }
 
     #[tokio::test]
     async fn test_status_directory_with_access_file() {
-        let tmp_dir = TempDir::new("foo").unwrap();
+        let tmp_dir = TempDir::with_prefix("foo").unwrap();
         let tmp_path = tmp_dir.into_path();
         let server_dir = ServerDir::open(&tmp_path).unwrap();
         let record = FullAccessRecord::new(
@@ -454,7 +454,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_status_directory_with_symlink() {
-        let tmp_dir = TempDir::new("foo").unwrap().into_path();
+        let tmp_dir = TempDir::with_prefix("foo").unwrap().into_path();
         let actual_dir = tmp_dir.join("server-dir");
         std::fs::create_dir(&actual_dir).unwrap();
         std::os::unix::fs::symlink(&actual_dir, tmp_dir.join(SYMLINK_PATH)).unwrap();
@@ -482,7 +482,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_stop() {
-        let tmp_dir = TempDir::new("foo").unwrap().into_path();
+        let tmp_dir = TempDir::with_prefix("foo").unwrap().into_path();
         let (fut, _) = init_test_server(&tmp_dir).await;
         let (set, handle) = run_concurrent(fut, async {
             let mut session = get_client_session(&tmp_dir).await.unwrap();
@@ -494,7 +494,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_on_end_condition() {
-        let tmp_dir = TempDir::new("foo").unwrap().into_path();
+        let tmp_dir = TempDir::with_prefix("foo").unwrap().into_path();
         let (fut, notify) = init_test_server(&tmp_dir).await;
         notify.notify_one();
         fut.await.unwrap();

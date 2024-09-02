@@ -11,7 +11,7 @@ use futures::future::Either;
 use futures::TryFutureExt;
 use nix::sys::signal;
 use nix::sys::signal::Signal;
-use tempdir::TempDir;
+use tempfile::TempDir;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
@@ -89,7 +89,7 @@ pub(super) fn build_program_task(
         pin_program(&mut program, build_ctx.allocation(), pin_mode, &build_ctx)?;
 
         let task_dir = if task_dir {
-            let task_dir = TempDir::new_in(&build_ctx.worker_configuration().work_dir, "t")
+            let task_dir = TempDir::with_prefix_in("t", &build_ctx.worker_configuration().work_dir)
                 .map_err(|error| {
                     format!(
                         "Cannot create task_dir in worker's workdir at {}: {error:?}",

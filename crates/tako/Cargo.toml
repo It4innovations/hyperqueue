@@ -40,7 +40,7 @@ derive_more = "0.99"
 [dev-dependencies]
 anyhow = { workspace = true }
 env_logger = { workspace = true }
-tempdir = { workspace = true }
+tempfile = { workspace = true }
 derive_builder = "0.11"
 criterion = { version = "0.3", features = ["html_reports"] }
 
