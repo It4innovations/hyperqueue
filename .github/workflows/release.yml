@@ -67,7 +67,7 @@ jobs:
         run: python3 scripts/extract_changelog.py ${{ needs.set-env.outputs.tag }} > generated-changelog.md
 
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
 
       - name: Create release
         uses: ncipollo/release-action@v1
@@ -87,7 +87,7 @@ jobs:
     if: ${{ !fromJSON(needs.set-env.outputs.prerelease) }}
     steps:
       - name: Download archive
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
       - name: Install twine
         run: python -m pip install twine
       - name: Upload wheel
