@@ -46,7 +46,7 @@ jobs:
         run: python3 scripts/extract_changelog.py DEV > generated-changelog.md
 
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
 
       - name: Prepare release name
         run: |
