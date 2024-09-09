@@ -112,6 +112,7 @@ pub(crate) struct StateRestorer {
     truncate_size: Option<u64>,
     queues: Map<QueueId, Box<AllocationQueueParams>>,
     max_queue_id: QueueId,
+    server_uid: String,
 }
 
 impl StateRestorer {
@@ -126,6 +127,10 @@ impl StateRestorer {
     }
     pub fn truncate_size(&self) -> Option<u64> {
         self.truncate_size
+    }
+
+    pub fn take_server_uid(&mut self) -> String {
+        std::mem::take(&mut self.server_uid)
     }
 
     pub fn restore_jobs_and_queues(
@@ -291,7 +296,7 @@ impl StateRestorer {
                 EventPayload::AllocationQueued { .. } => {}
                 EventPayload::AllocationStarted(_, _) => {}
                 EventPayload::AllocationFinished(_, _) => {}
-                EventPayload::ServerStart { .. } => {}
+                EventPayload::ServerStart { server_uid } => self.server_uid = server_uid,
                 EventPayload::ServerStop => { /* Do nothing */ }
                 EventPayload::JobOpen(job_id, job_description) => {
                     let job = RestorerJob::new(job_description, true);
