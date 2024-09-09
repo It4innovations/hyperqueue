@@ -4,6 +4,15 @@
 
 * It is now possible to dynamically submit new tasks into an existing job (we call this concept "Open jobs").
   See [Open jobs documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/openjobs/)
+* Worker streaming. Instead, streaming to server, worker can now write combined io stream files directly.
+  It creates more files than original solution (that was exactly 1 file), but the number of files stays
+  small and independent on the number of executed tasks. The new architecture also parallel write and
+  storing more job streams into one stream handle.
+
+## Removed
+
+* Because worker streaming fully replaces original streaming, original server streaming was removed.
+  For most cases, you can rename `--log` to `--stream` and `hq log` to `hq read`. See the docs for more details.
 
 ## Fixes
 
@@ -580,7 +589,7 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   is `hq submit`, which is now a shortcut for `hq job submit`. Here is a table of changed commands:
 
   | **Previous command** | **New command**    |
-  |----------------------|--------------------|
+                          |----------------------|--------------------|
   | `hq jobs`            | `hq job list`    |
   | `hq job`             | `hq job info`    |
   | `hq resubmit`        | `hq job resubmit` |
