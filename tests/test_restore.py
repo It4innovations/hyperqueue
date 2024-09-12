@@ -1,6 +1,5 @@
 import time
 
-from .utils.wait import wait_until
 from .utils.cmd import python
 from .autoalloc.mock.mock import MockJobManager
 from .autoalloc.mock.slurm import SlurmManager, adapt_slurm

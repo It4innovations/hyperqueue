@@ -1,4 +1,5 @@
 import collections
+import os
 
 from .conftest import HqEnv
 from .utils import wait_for_job_state
@@ -22,10 +23,11 @@ command = ["sleep", "0"]
 def test_job_file_submit_maximal(hq_env: HqEnv, tmp_path):
     hq_env.start_server()
     hq_env.start_workers(3, cpus=4, args=["--resource", "gpus=[0,1]"])
+    os.mkdir("output")
     tmp_path.joinpath("job.toml").write_text(
         """
 name = "test-job"
-stream_log = "output.log"
+stream = "output"
 max_fails = 11
 
 [[task]]

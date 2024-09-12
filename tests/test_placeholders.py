@@ -133,13 +133,13 @@ def test_task_resolve_worker_placeholders(hq_env: HqEnv):
 
 def test_stream_submit_placeholder(hq_env: HqEnv):
     hq_env.start_server()
-    hq_env.command(["submit", "--log", "log-%{JOB_ID}", "--", "bash", "-c", "echo Hello"])
+    os.mkdir("log-1")
+    hq_env.command(["submit", "--stream", "log-%{JOB_ID}", "--", "bash", "-c", "echo Hello"])
     hq_env.start_workers(1)
     wait_for_job_state(hq_env, 1, "FINISHED")
 
-    lines = set(hq_env.command(["log", "log-1", "show"], as_lines=True))
-    assert "0:0> Hello" in lines
-    assert "0: > stream closed" in lines
+    lines = set(hq_env.command(["read", "log-1", "show"], as_lines=True))
+    assert "1.0:0> Hello" in lines
 
 
 def test_server_uid_placeholder(hq_env: HqEnv, tmp_path):
@@ -148,6 +148,8 @@ def test_server_uid_placeholder(hq_env: HqEnv, tmp_path):
 
     server_info = hq_env.command(["server", "--output-mode=json", "info"], as_json=True)
     server_uid = server_info["server_uid"]
+
+    os.mkdir(f"log-{server_uid}-2")
 
     hq_env.command(
         [
@@ -163,7 +165,7 @@ def test_server_uid_placeholder(hq_env: HqEnv, tmp_path):
     hq_env.command(
         [
             "submit",
-            "--log",
+            "--stream",
             "log-%{SERVER_UID}-%{JOB_ID}",
             "--",
             "bash",
@@ -174,7 +176,7 @@ def test_server_uid_placeholder(hq_env: HqEnv, tmp_path):
     wait_for_job_state(hq_env, [1, 2], "FINISHED")
 
     check_file_contents(os.path.join(tmp_path, f"out-{server_uid}-1"), "Hello\n")
-    assert os.path.isfile(os.path.join(tmp_path, f"log-{server_uid}-2"))
+    assert len(os.listdir(os.path.join(tmp_path, f"log-{server_uid}-2"))) == 1
 
     table = hq_env.command(["job", "info", "1"], as_table=True)
     table.check_row_value("Stdout", f"{os.getcwd()}/out-{server_uid}-1")
@@ -213,7 +215,7 @@ def test_unknown_placeholder(hq_env: HqEnv):
     output = hq_env.command(
         [
             "submit",
-            "--log",
+            "--stream",
             "log-%{FOO}",
             "--stdout",
             "dir/%{BAR}/%{BAZ}",
