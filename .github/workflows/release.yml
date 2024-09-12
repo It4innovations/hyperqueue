@@ -21,7 +21,7 @@ jobs:
       - name: Check package versions
         run: python scripts/check_package_versions.py
   set-env:
-    needs: [version-check]
+    needs: [ version-check ]
     runs-on: ubuntu-latest
     outputs:
       sha: ${{ env.SHA }}
@@ -49,14 +49,14 @@ jobs:
           echo "Tag: ${{ env.TAG }}"
           echo "Pre-release: ${{ env.PRERELEASE }}"
   build-artifacts:
-    needs: [set-env]
+    needs: [ set-env ]
     uses: ./.github/workflows/build.yml
     with:
       version: ${{ needs.set-env.outputs.tag }}
       sha: ${{ needs.set-env.outputs.sha }}
   create-release:
     runs-on: ubuntu-latest
-    needs: [set-env, build-artifacts]
+    needs: [ set-env, build-artifacts ]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -67,7 +67,7 @@ jobs:
         run: python3 scripts/extract_changelog.py ${{ needs.set-env.outputs.tag }} > generated-changelog.md
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4.1.7
+        uses: actions/download-artifact@v3
 
       - name: Create release
         uses: ncipollo/release-action@v1
@@ -83,11 +83,11 @@ jobs:
           artifacts: archive-*/**
   upload-python-wheel:
     runs-on: ubuntu-latest
-    needs: [set-env, create-release]
+    needs: [ set-env, create-release ]
     if: ${{ !fromJSON(needs.set-env.outputs.prerelease) }}
     steps:
       - name: Download archive
-        uses: actions/download-artifact@v4.1.7
+        uses: actions/download-artifact@v3
       - name: Install twine
         run: python -m pip install twine
       - name: Upload wheel
