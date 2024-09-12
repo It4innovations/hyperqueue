@@ -100,7 +100,7 @@ def test_stream_overlap(hq_env: HqEnv):
     wait_for_job_state(hq_env, 1, "FINISHED")
     result = hq_env.command(["read", "mylog", "show"], as_lines=True)
 
-    chunks = [set(result[i * 2: i * 2 + 2]) for i in range(3)]
+    chunks = [set(result[i * 2 : i * 2 + 2]) for i in range(3)]
     assert chunks[0] == {"1.1:0> A", "1.2:0> A"}
     assert chunks[1] == {"1.2:0> B", "1.1:0> B"}
 

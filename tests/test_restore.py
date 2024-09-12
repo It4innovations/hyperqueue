@@ -1,5 +1,6 @@
 import time
 
+from .utils.wait import wait_until
 from .utils.cmd import python
 from .autoalloc.mock.mock import MockJobManager
 from .autoalloc.mock.slurm import SlurmManager, adapt_slurm
@@ -270,3 +271,28 @@ def test_restore_open_job_more_submits(hq_env: HqEnv, tmp_path):
     table.check_row_value("Tasks", "3; Ids: 0-2")
     hq_env.start_worker()
     wait_for_job_state(hq_env, 1, "OPENED")
+
+
+def test_restore_streaming(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    stream_path = os.path.join(tmp_path, "stream")
+    os.mkdir(stream_path)
+    hq_env.start_server(args=["--journal", journal_path])
+    hq_env.start_worker()
+    hq_env.command(["job", "open"])
+    hq_env.command(
+        ["job", "submit", "--job=1", "--stream", stream_path, "--", "bash", "-c", "echo $HQ_INSTANCE_ID; sleep 2"]
+    )
+    wait_for_job_state(hq_env, 1, "RUNNING")
+    hq_env.stop_server()
+    hq_env.start_server(args=["--journal", journal_path])
+
+    table = hq_env.command(["job", "info", "1"], as_table=True)
+    table.check_row_value("Stdout", "<Stream>")
+    table.check_row_value("Stderr", "<Stream>")
+    hq_env.start_worker()
+    hq_env.command(["job", "close", "1"])
+    wait_for_job_state(hq_env, 1, "FINISHED")
+    assert int(hq_env.command(["read", stream_path, "cat", "1", "stdout"])) > 0
+    table = hq_env.command(["read", stream_path, "summary"], as_table=True)
+    table.check_row_value("Superseded streams", "1")
