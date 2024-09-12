@@ -804,7 +804,7 @@ fn warn_array_task_count(opts: &JobSubmitOpts, task_count: u32) {
     if task_files > SUBMIT_ARRAY_LIMIT && opts.conf.stream.is_none() {
         log::warn!(
             "The job will create {} files for {}. \
-            Consider using the `--log` option to stream all outputs into a single file",
+            Consider using the `--stream` option to stream all outputs into a single file",
             task_files,
             active_dirs.join(" and ")
         );
