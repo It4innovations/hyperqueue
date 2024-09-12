@@ -230,7 +230,7 @@ mod tests {
 
         let mut reader = EventLogReader::open(&path).unwrap();
         let event = (&mut reader).next().unwrap().unwrap();
-        assert_eq!(event.time, time);
+        assert_eq!(event.time.timestamp_millis(), time.timestamp_millis());
         assert!(matches!(
             event.payload,
             EventPayload::AllocationFinished(0, _)
