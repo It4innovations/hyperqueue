@@ -178,7 +178,7 @@ pub(super) async fn start_worker(
                 &[server_address],
                 configuration,
                 secret_key,
-                Box::new(TestTaskLauncher),
+                |_server_uid, _worker_id| Box::new(TestTaskLauncher),
                 Arc::new(Notify::new()),
             )
             .await;

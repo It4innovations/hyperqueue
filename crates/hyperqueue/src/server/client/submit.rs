@@ -458,7 +458,8 @@ mod tests {
             task(4, desc_a(), vec![]),
         ];
 
-        let msg = build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo")).unwrap();
+        let msg =
+            build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo"), None).unwrap();
 
         check_shared_data(&msg, vec![desc_a(), desc_c(), desc_b()]);
         assert_eq!(
@@ -481,7 +482,8 @@ mod tests {
             task(4, desc(), vec![0]),
         ];
 
-        let msg = build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo")).unwrap();
+        let msg =
+            build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo"), None).unwrap();
         assert_eq!(msg.tasks[0].task_deps, vec![4.into(), 3.into()]);
         assert_eq!(msg.tasks[1].task_deps, vec![2.into()]);
         assert_eq!(msg.tasks[2].task_deps, vec![5.into(), 6.into()]);
@@ -498,7 +500,9 @@ mod tests {
             task(0, desc(), vec![]),
         ];
 
-        assert!(build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo")).is_err());
+        assert!(
+            build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo"), None).is_err()
+        );
     }
 
     #[test]
@@ -506,7 +510,9 @@ mod tests {
         let desc = || task_desc(None, 0, 1);
         let tasks = vec![task(0, desc(), vec![]), task(1, desc(), vec![1])];
 
-        assert!(build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo")).is_err());
+        assert!(
+            build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo"), None).is_err()
+        );
     }
 
     #[test]
@@ -514,7 +520,9 @@ mod tests {
         let desc = || task_desc(None, 0, 1);
         let tasks = vec![task(0, desc(), vec![3]), task(1, desc(), vec![])];
 
-        assert!(build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo")).is_err());
+        assert!(
+            build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo"), None).is_err()
+        );
     }
 
     fn check_shared_data(msg: &NewTasksMessage, expected: Vec<TaskDescription>) {
