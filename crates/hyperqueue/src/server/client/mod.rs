@@ -18,8 +18,8 @@ use crate::server::state::{State, StateRef};
 use crate::transfer::connection::ServerConnection;
 use crate::transfer::messages::{
     CancelJobResponse, CloseJobResponse, FromClientMessage, IdSelector, JobDetail,
-    JobDetailResponse, JobInfoResponse, StopWorkerResponse, TaskSelector,
-    ToClientMessage, WorkerListResponse,
+    JobDetailResponse, JobInfoResponse, StopWorkerResponse, TaskSelector, ToClientMessage,
+    WorkerListResponse,
 };
 use crate::transfer::messages::{ForgetJobResponse, WaitForJobsResponse};
 use crate::{JobId, JobTaskCount, WorkerId};
