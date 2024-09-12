@@ -65,7 +65,7 @@ jobs:
         run: tar -cvf artifacts.tar /tmp/pytest-*
 
       - name: Upload test artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         if: always() && steps.python_test.outcome == 'failure'
         with:
           name: pytest artifacts
