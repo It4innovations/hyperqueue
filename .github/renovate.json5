@@ -7,5 +7,25 @@
   ],
   "schedule": [
     "at 7:00am on monday"
+  ],
+  // These deps require NodeJS 20, which we can't use yet on CI due to old glibc version
+  "ignoreDeps": [
+    "Swatinem/rust-cache",
+    "actions/download-artifact",
+    "actions/upload-artifact"
+  ],
+  // Group Rust updates into a single PR
+  "packageRules": [
+    {
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "Rust non-major dependencies",
+      "groupSlug": "rust-minor-patch"
+    }
   ]
 }
