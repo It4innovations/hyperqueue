@@ -1,0 +1,11 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    // Enable the dependency dashboard issue
+    ":dependencyDashboard",
+  ],
+  "schedule": [
+    "at 7:00am on monday"
+  ]
+}
