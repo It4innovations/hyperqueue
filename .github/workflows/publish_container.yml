@@ -53,7 +53,7 @@ jobs:
         with:
           ref: ${{ needs.set-env.outputs.sha }}
 
-      - uses: docker/setup-buildx-action@v2
+      - uses: docker/setup-buildx-action@v3
       - name: Build container
         uses: docker/build-push-action@v6
         with:
