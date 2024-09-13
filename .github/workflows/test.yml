@@ -23,7 +23,7 @@ jobs:
           override: true
           components: clippy, rustfmt
 
-      - uses: Swatinem/rust-cache@v2.7.0
+      - uses: Swatinem/rust-cache@v2.7.3
 
       - name: Check package versions
         run: python scripts/check_package_versions.py
@@ -111,7 +111,7 @@ jobs:
           toolchain: stable
           override: true
 
-      - uses: Swatinem/rust-cache@v2.7.0
+      - uses: Swatinem/rust-cache@v2.7.3
         with:
           key: ${{ matrix.os }}
 
