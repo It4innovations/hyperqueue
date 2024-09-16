@@ -2,14 +2,13 @@
 
 Job Definition File (JDF) a way how to submit a complex pipeline into a HyperQueue.
 It is a [TOML](https://toml.io/) file that describes tasks of a job.
-JDF provides all functionalities as command line interface of HyperQueue and also adds access to additional features: 
+JDF provides all functionalities as command line interface of HyperQueue and also adds access to additional features:
 
 * *Heterogeneous tasks* -- Job may be composed of different tasks
-* *Dependencies* --  Tasks may have dependencies
+* *Dependencies* -- Tasks may have dependencies
 * *Resource request alternatives* -- Task may have alternative resource requests, e.g.: 4 cpus OR 1 cpus and 1 gpu
 
 Note that these features are also available through Python interface.
-
 
 ## Minimal example
 
@@ -44,7 +43,7 @@ The default are the same as CLI interface.
 ```toml
 
 name = "test-job"
-stream_log = "output.log"  # Stdout/Stderr streaming (see --log)
+stream = "path/to/stream/dir"  # Stdout/Stderr streaming (see --stream)
 max_fails = 11
 
 [[task]]
@@ -57,7 +56,7 @@ crash_limit = 12
 command = ["/bin/bash", "-c", "echo $ABC"]
 
 # Environment variables
-env = {"ABC" = "123", "XYZ" = "aaaa"}
+env = { "ABC" = "123", "XYZ" = "aaaa" }
 
 # Content that will be written on stdin
 stdin = "Hello world!"
@@ -130,7 +129,6 @@ The task's option `deps` defines on which tasks the given task dependents.
 The task is addressed by their IDs.
 
 The following example creates three tasks where the third task depends on the first two tasks.
- 
 
 ```toml
 [[task]]
@@ -174,10 +172,9 @@ and 3 tasks in the second one.
 For a task with resource variants, HyperQueue sets variable `HQ_RESOURCE_VARIANT`
 to an index of chosen variant (counted from 0) when a task is started.
 
-
 ## Non-integer resource amounts
 
 You may specify a resource number as float, e.g. `resources = { "foo" = 1.5 }`.
 It is valid but internally the type if converted to float, that may for some numbers lead to
-a rounding up when number is converted to 4-digit precision of resource amounts. 
+a rounding up when number is converted to 4-digit precision of resource amounts.
 If you want to avoid this, put the number into parentheses, e.g. `resources = { "foo" = "1.5" }`.

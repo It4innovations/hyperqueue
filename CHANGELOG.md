@@ -369,7 +369,7 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
 
 ### Stream log
 
-* Basic export of stream log into JSON (`hq log <log_file> export`)
+* Basic export of stream log into JSON (`hq read <log_file> export`)
 
 ### Server
 
@@ -589,7 +589,7 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   is `hq submit`, which is now a shortcut for `hq job submit`. Here is a table of changed commands:
 
   | **Previous command** | **New command**    |
-                          |----------------------|--------------------|
+  |----------------------|--------------------|
   | `hq jobs`            | `hq job list`    |
   | `hq job`             | `hq job info`    |
   | `hq resubmit`        | `hq job resubmit` |

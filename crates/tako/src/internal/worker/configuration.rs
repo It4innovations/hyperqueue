@@ -28,7 +28,6 @@ pub struct WorkerConfiguration {
     pub hostname: String,
     pub group: String,
     pub work_dir: PathBuf,
-    pub log_dir: PathBuf,
     pub heartbeat_interval: Duration,
     pub overview_configuration: Option<OverviewConfiguration>,
     pub idle_timeout: Option<Duration>,

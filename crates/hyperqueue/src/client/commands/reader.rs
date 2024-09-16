@@ -11,7 +11,7 @@ pub struct ReadOpts {
     path: PathBuf,
 
     /// Filter files for given server instance
-    #[arg(long, value_enum)]
+    #[arg(long)]
     pub server_uid: Option<String>,
 
     /// Operation with log file
@@ -66,16 +66,16 @@ pub enum StreamCommand {
     /// Prints summary of log file
     Summary(SummaryOpts),
 
-    /// Prints content of log ordered by time
+    /// Prints jobs ids in stream
     Jobs,
 
-    /// Prints content of log ordered by time
+    /// Prints content of stream ordered by time
     Show(ShowOpts),
 
     /// Prints a raw content of one channel
     Cat(CatOpts),
 
-    /// Export log into JSON
+    /// Export stream into JSON
     Export(ExportOpts),
 }
 

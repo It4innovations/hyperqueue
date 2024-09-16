@@ -244,12 +244,9 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
     let resources = ResourceDescriptor::new(resources);
     resources.validate()?;
 
-    let (work_dir, log_dir) = {
+    let work_dir = {
         let tmpdir = TempDir::with_prefix("hq-worker")?.into_path();
-        (
-            work_dir.unwrap_or_else(|| tmpdir.join("work")),
-            tmpdir.join("logs"),
-        )
+        work_dir.unwrap_or_else(|| tmpdir.join("work"))
     };
 
     let manager_info = gather_manager_info(manager)?;
@@ -292,7 +289,6 @@ fn gather_configuration(opts: WorkerStartOpts) -> anyhow::Result<WorkerConfigura
         hostname,
         group,
         work_dir,
-        log_dir,
         on_server_lost: on_server_lost.into(),
         heartbeat_interval: heartbeat,
         idle_timeout,
