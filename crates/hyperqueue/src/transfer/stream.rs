@@ -39,13 +39,5 @@ pub struct StreamChunkHeader {
     pub task: JobTaskId,
     pub instance: InstanceId,
     pub channel: ChannelId,
-    pub size: u64,
-}
-
-pub enum StreamerMessage {
-    Write {
-        header: StreamChunkHeader,
-        data: Vec<u8>,
-    },
-    Flush(tokio::sync::oneshot::Sender<()>),
+    pub size: u64, // size == 0 indicates end of the stream
 }

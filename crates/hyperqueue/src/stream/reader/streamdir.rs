@@ -3,7 +3,7 @@ use crate::common::arraydef::IntArray;
 use crate::common::error::HqError;
 use crate::server::event::bincode_config;
 use crate::transfer::stream::{ChannelId, StreamChunkHeader};
-use crate::worker::streamer::{StreamFileHeader, STREAM_FILE_HEADER};
+use crate::worker::streamer::{StreamFileHeader, STREAM_FILE_HEADER, STREAM_FILE_SUFFIX};
 use crate::{JobId, JobTaskId, Set};
 use bincode::Options;
 use chrono::{DateTime, Utc};
@@ -70,9 +70,13 @@ impl TaskInfo {
     }
 }
 
+type StreamIndex = BTreeMap<JobId, BTreeMap<JobTaskId, TaskInfo>>;
+
+/// Reader of a directory with .hts (stream files)
+/// It creates an index over all jobs and tasks in stream
 pub struct StreamDir {
     paths: Vec<PathBuf>,
-    index: BTreeMap<JobId, BTreeMap<JobTaskId, TaskInfo>>,
+    index: StreamIndex,
     cache: LruCache<usize, BufReader<File>>,
 }
 
@@ -102,7 +106,7 @@ impl StreamDir {
             if path
                 .extension()
                 .and_then(|e| e.to_str())
-                .map(|s| s == "hqs")
+                .map(|s| s == STREAM_FILE_SUFFIX)
                 .unwrap_or(false)
             {
                 found = true;
@@ -165,10 +169,8 @@ impl StreamDir {
         }
     }
 
-    fn create_index(
-        paths: &[PathBuf],
-    ) -> crate::Result<BTreeMap<JobId, BTreeMap<JobTaskId, TaskInfo>>> {
-        let mut index: BTreeMap<JobId, BTreeMap<JobTaskId, TaskInfo>> = BTreeMap::new();
+    fn create_index(paths: &[PathBuf]) -> crate::Result<StreamIndex> {
+        let mut index: StreamIndex = BTreeMap::new();
         for (file_idx, path) in paths.iter().enumerate() {
             let mut file = BufReader::new(File::open(path)?);
             let _header = StreamDir::check_header(&mut file)?;
@@ -265,7 +267,7 @@ impl StreamDir {
     }
 
     fn _gather_infos<'a>(
-        index: &'a BTreeMap<JobId, BTreeMap<JobTaskId, TaskInfo>>,
+        index: &'a StreamIndex,
         job_id: JobId,
         tasks: &Option<IntArray>,
     ) -> anyhow::Result<Vec<(JobTaskId, &'a InstanceInfo)>> {

@@ -1,6 +1,6 @@
 use crate::common::error::HqError;
 use crate::server::event::bincode_config;
-use crate::transfer::stream::{ChannelId, StreamChunkHeader, StreamerMessage};
+use crate::transfer::stream::{ChannelId, StreamChunkHeader};
 use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskId, Map};
 use bincode::Options;
@@ -20,6 +20,7 @@ use tokio::task::spawn_local;
 
 const STREAMER_BUFFER_SIZE: usize = 128;
 pub const STREAM_FILE_HEADER: &[u8] = b"hqsf0000";
+pub const STREAM_FILE_SUFFIX: &str = "hqs";
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct StreamFileHeader<'a> {
@@ -27,7 +28,15 @@ pub(crate) struct StreamFileHeader<'a> {
     pub worker_id: WorkerId,
 }
 
-pub struct StreamDescriptor {
+pub(crate) enum StreamerMessage {
+    Write {
+        header: StreamChunkHeader,
+        data: Vec<u8>,
+    },
+    Flush(oneshot::Sender<()>),
+}
+
+pub(crate) struct StreamDescriptor {
     sender: Sender<StreamerMessage>,
 }
 
@@ -166,7 +175,7 @@ async fn stream_writer(
         .map(char::from)
         .collect::<String>();
     let mut path = path.to_path_buf();
-    path.push(format!("{uid}.hqs"));
+    path.push(format!("{uid}.{STREAM_FILE_SUFFIX}"));
     log::debug!("Opening stream file {}", path.display());
     let mut file = BufWriter::new(File::create(path).await?);
     file.write_all(STREAM_FILE_HEADER).await?;

@@ -25,7 +25,7 @@ You can redirect the output of `stdout` and `stderr` to a log file and thus enab
 to a filename where the log will be stored with the `--stream` option:
 
 ```
-$ hq submit --log=<stream-path> --array=1-10_000 ...
+$ hq submit --stream=<stream-path> --array=1-10_000 ...
 ```
 
 Stream path has to be a directory and it the user responsibility to ensure existence of the directory
@@ -77,7 +77,7 @@ HyperQueue lets you inspect the data stored inside the stream file using various
 the following structure:
 
 ```bash
-$ hq log <stream-path> <subcommand> <subcommand-args>
+$ hq read <stream-path> <subcommand> <subcommand-args>
 ```
 
 ### Stream summary
@@ -85,7 +85,7 @@ $ hq log <stream-path> <subcommand> <subcommand-args>
 You can display a summary of a log file using the `summary` subcommand:
 
 ```bash
-$ hq log <stream-path> summary
+$ hq read <stream-path> summary
 ```
 
 ### Stream jobs
@@ -93,7 +93,7 @@ $ hq log <stream-path> summary
 To print all job IDs that streaming in the stream path, you can run the following command:
 
 ```bash
-$ hq log <stream-path> jobs
+$ hq read <stream-path> jobs
 ```
 
 ### Printing stream content

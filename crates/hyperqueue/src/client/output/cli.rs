@@ -307,10 +307,6 @@ impl Output for CliOutput {
                 configuration.work_dir.display().cell(),
             ],
             vec![
-                "Logging directory".cell().bold(true),
-                configuration.log_dir.display().cell(),
-            ],
-            vec![
                 "Heartbeat".cell().bold(true),
                 format_duration(configuration.heartbeat_interval)
                     .to_string()
