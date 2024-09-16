@@ -25,7 +25,7 @@ use crate::server::job::{JobTaskInfo, JobTaskState, StartedTaskData};
 use crate::stream::reader::streamdir::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData, ServerInfo,
-    StatsResponse, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerInfo,
+    TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerInfo,
 };
 use crate::{JobId, JobTaskId};
 
@@ -63,9 +63,6 @@ impl Output for JsonOutput {
             "version": record.version,
         });
         self.print(json);
-    }
-    fn print_server_stats(&self, stats: StatsResponse) {
-        self.print(json!(stats));
     }
 
     fn print_job_submitted(&self, job: JobDetail) {

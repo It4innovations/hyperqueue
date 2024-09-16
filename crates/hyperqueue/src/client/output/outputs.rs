@@ -1,6 +1,5 @@
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, ServerInfo, StatsResponse, WaitForJobsResponse,
-    WorkerInfo,
+    AutoAllocListResponse, JobDetail, JobInfo, ServerInfo, WaitForJobsResponse, WorkerInfo,
 };
 
 use crate::client::job::WorkerMap;
@@ -40,7 +39,6 @@ pub trait Output {
 
     // Server
     fn print_server_description(&self, server_dir: Option<&Path>, record: &ServerInfo);
-    fn print_server_stats(&self, stats: StatsResponse);
 
     // Jobs
     fn print_job_submitted(&self, job: JobDetail);

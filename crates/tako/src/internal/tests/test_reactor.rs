@@ -45,7 +45,6 @@ fn test_worker_add() {
         listen_address: "test1:123".into(),
         hostname: "test1".to_string(),
         work_dir: Default::default(),
-        log_dir: Default::default(),
         heartbeat_interval: Duration::from_millis(1000),
         overview_configuration: Some(OverviewConfiguration {
             send_interval: Duration::from_millis(1000),
@@ -99,7 +98,6 @@ fn test_worker_add() {
         hostname: "test2".to_string(),
         group: "default".to_string(),
         work_dir: Default::default(),
-        log_dir: Default::default(),
         heartbeat_interval: Duration::from_millis(1000),
         overview_configuration: Some(OverviewConfiguration {
             send_interval: Duration::from_millis(1000),

@@ -31,7 +31,6 @@ impl RunningWorker {
 
             let worker_dir = server_dir.join("worker");
             let work_dir = worker_dir.join("workdir");
-            let log_dir = worker_dir.join("logs");
             let mut configuration = WorkerConfiguration {
                 resources: ResourceDescriptor::new(vec![ResourceDescriptorItem {
                     name: CPU_RESOURCE_NAME.to_string(),
@@ -44,7 +43,6 @@ impl RunningWorker {
                 hostname: get_hostname(None),
                 group: "default".to_string(),
                 work_dir,
-                log_dir,
                 heartbeat_interval: Duration::from_secs(10),
                 overview_configuration: None,
                 idle_timeout: None,
