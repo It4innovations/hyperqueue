@@ -58,14 +58,6 @@ fn create_rows(worker_info: &WorkerConfiguration) -> Vec<WorkerConfigDataRow> {
                 .to_string()),
         },
         WorkerConfigDataRow {
-            label: "Log Dir: ",
-            data: worker_info
-                .log_dir
-                .to_str()
-                .unwrap_or(missing_data_str.as_str())
-                .to_string(),
-        },
-        WorkerConfigDataRow {
             label: "Heartbeat Interval: ",
             data: humantime::format_duration(worker_info.heartbeat_interval).to_string(),
         },

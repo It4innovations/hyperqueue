@@ -39,7 +39,6 @@ pub fn create_worker(id: u64) -> Worker {
             hostname: "".to_string(),
             group: "default".to_string(),
             work_dir: Default::default(),
-            log_dir: Default::default(),
             heartbeat_interval: Default::default(),
             overview_configuration: None,
             idle_timeout: None,

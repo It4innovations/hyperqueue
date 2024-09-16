@@ -72,7 +72,6 @@ pub(super) fn create_worker_configuration(
             hostname: "".to_string(),
             group: "".to_string(),
             work_dir: Default::default(),
-            log_dir: Default::default(),
             heartbeat_interval,
             overview_configuration: send_overview_interval.map(|send_interval| {
                 OverviewConfiguration {
@@ -154,8 +153,6 @@ pub(super) async fn start_worker(
 
     configuration.work_dir.clone_from(&workdir);
     std::fs::create_dir_all(&configuration.work_dir).unwrap();
-    configuration.log_dir.clone_from(&logdir);
-    std::fs::create_dir_all(&configuration.log_dir).unwrap();
 
     let server_address: SocketAddr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
 

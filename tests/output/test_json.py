@@ -44,7 +44,6 @@ def test_print_worker_info(hq_env: HqEnv):
                 "hostname": "worker1",
                 "idle_timeout": None,
                 "listen_address": str,
-                "log_dir": str,
                 "resources": {"resources": RESOURCE_DESCRIPTOR_SCHEMA},
                 "time_limit": None,
                 "work_dir": str,

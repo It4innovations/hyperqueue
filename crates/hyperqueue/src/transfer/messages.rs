@@ -331,7 +331,6 @@ pub enum ToClientMessage {
     SubmitResponse(SubmitResponse),
     WorkerListResponse(WorkerListResponse),
     WorkerInfoResponse(Option<WorkerInfo>),
-    StatsResponse(StatsResponse),
     StopWorkerResponse(Vec<(WorkerId, StopWorkerResponse)>),
     CancelJobResponse(Vec<(JobId, CancelJobResponse)>),
     ForgetJobResponse(ForgetJobResponse),
@@ -372,18 +371,6 @@ pub enum StopWorkerResponse {
     AlreadyStopped,
     InvalidWorker,
     Failed(String),
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct StreamStats {
-    pub connections: Vec<String>,
-    pub registrations: Vec<(JobId, PathBuf)>,
-    pub files: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct StatsResponse {
-    pub stream_stats: StreamStats,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

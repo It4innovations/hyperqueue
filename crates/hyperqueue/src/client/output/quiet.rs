@@ -18,8 +18,8 @@ use crate::server::autoalloc::Allocation;
 use crate::server::job::JobTaskInfo;
 use crate::stream::reader::streamdir::Summary;
 use crate::transfer::messages::{
-    AutoAllocListResponse, JobDetail, JobInfo, ServerInfo, StatsResponse, WaitForJobsResponse,
-    WorkerExitInfo, WorkerInfo,
+    AutoAllocListResponse, JobDetail, JobInfo, ServerInfo, WaitForJobsResponse, WorkerExitInfo,
+    WorkerInfo,
 };
 use crate::JobId;
 
@@ -64,7 +64,6 @@ impl Output for Quiet {
             println!("{}", dir.display());
         }
     }
-    fn print_server_stats(&self, _stats: StatsResponse) {}
 
     // Jobs
     fn print_job_submitted(&self, job: JobDetail) {

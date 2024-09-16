@@ -15,8 +15,8 @@ use crate::server::job::{JobTaskCounters, JobTaskInfo, JobTaskState};
 use crate::stream::reader::streamdir::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, JobTaskDescription, PinMode, QueueData, QueueState,
-    ServerInfo, StatsResponse, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse,
-    WorkerExitInfo, WorkerInfo,
+    ServerInfo, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerExitInfo,
+    WorkerInfo,
 };
 use crate::{JobId, JobTaskCount, WorkerId};
 
@@ -391,31 +391,6 @@ impl Output for CliOutput {
                 vec!["Server directory".cell().bold(true), dir.display().cell()],
             )
         }
-        self.print_vertical_table(rows);
-    }
-
-    fn print_server_stats(&self, stats: StatsResponse) {
-        let rows = vec![
-            vec![
-                "Stream connections".cell().bold(true),
-                stats.stream_stats.connections.join("\n").cell(),
-            ],
-            vec![
-                "Stream registrations".cell().bold(true),
-                stats
-                    .stream_stats
-                    .registrations
-                    .iter()
-                    .map(|(job_id, path)| format!("{}: {}", job_id, path.display()))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-                    .cell(),
-            ],
-            vec![
-                "Open files".cell().bold(true),
-                stats.stream_stats.files.join("\n").cell(),
-            ],
-        ];
         self.print_vertical_table(rows);
     }
 
