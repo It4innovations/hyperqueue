@@ -4,14 +4,18 @@
 
 * It is now possible to dynamically submit new tasks into an existing job (we call this concept "Open jobs").
   See [Open jobs documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/openjobs/)
-* Worker streaming. Instead, streaming to server, worker can now write combined io stream files directly.
-  It creates more files than original solution (that was exactly 1 file), but the number of files stays
-  small and independent on the number of executed tasks. The new architecture also parallel write and
-  storing more job streams into one stream handle.
+
+* Worker streaming. Before, you could stream task stderr/stdout to the server over the network using the `--log` parameter of `hq submit`.
+  This approach had various issues and was not scalable. Therefore, we have replaced this functionality with worker streaming,
+  where the streaming of task output to a set of files on disk is performed by workers instead.
+  This new streaming approach creates more files than original solution (where it was always one file per job),
+  but the number of files stays small and independent on the number of executed tasks.
+  The new architecture also allows parallel I/O writing and storing of multiple job streams in one stream handle.
+  You can use worker streaming using the `--stream` parameter of `hq submit`. Check out the documentation for more information.
 
 ## Removed
 
-* Because worker streaming fully replaces original streaming, original server streaming was removed.
+* Because worker streaming fully replaces original streaming, the original server streaming was removed.
   For most cases, you can rename `--log` to `--stream` and `hq log` to `hq read`. See the docs for more details.
 
 ## Fixes
