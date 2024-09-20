@@ -138,7 +138,7 @@ def test_stream_submit_placeholder(hq_env: HqEnv):
     hq_env.start_workers(1)
     wait_for_job_state(hq_env, 1, "FINISHED")
 
-    lines = set(hq_env.command(["read", "log-1", "show"], as_lines=True))
+    lines = set(hq_env.command(["output-log", "log-1", "show"], as_lines=True))
     assert "1.0:0> Hello" in lines
 
 

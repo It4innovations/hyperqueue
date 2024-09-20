@@ -6,7 +6,7 @@ use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Parser)]
-pub struct ReadOpts {
+pub struct OutputLogOpts {
     /// Path of log file
     path: PathBuf,
 
@@ -85,7 +85,7 @@ pub enum Channel {
     Stderr,
 }
 
-pub fn command_reader(gsettings: &GlobalSettings, opts: ReadOpts) -> anyhow::Result<()> {
+pub fn command_reader(gsettings: &GlobalSettings, opts: OutputLogOpts) -> anyhow::Result<()> {
     let mut stream_dir = StreamDir::open(&opts.path, opts.server_uid.as_deref())?;
     match opts.command {
         StreamCommand::Summary(_) => {
