@@ -16,7 +16,7 @@ use crate::client::status::{job_status, Status};
 use crate::common::arraydef::IntArray;
 use crate::server::autoalloc::Allocation;
 use crate::server::job::JobTaskInfo;
-use crate::stream::reader::streamdir::Summary;
+use crate::stream::reader::outputlog::Summary;
 use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, ServerInfo, WaitForJobsResponse, WorkerExitInfo,
     WorkerInfo,

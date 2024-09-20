@@ -4,7 +4,7 @@ use crate::transfer::messages::{
 
 use crate::client::job::WorkerMap;
 use crate::server::autoalloc::Allocation;
-use crate::stream::reader::streamdir::Summary;
+use crate::stream::reader::outputlog::Summary;
 use std::path::Path;
 
 use crate::client::output::common::TaskToPathsMap;

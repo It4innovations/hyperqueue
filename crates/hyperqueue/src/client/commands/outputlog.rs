@@ -1,6 +1,6 @@
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::arraydef::IntArray;
-use crate::stream::reader::streamdir::StreamDir;
+use crate::stream::reader::outputlog::OutputLog;
 use crate::JobId;
 use clap::Parser;
 use std::path::PathBuf;
@@ -86,7 +86,7 @@ pub enum Channel {
 }
 
 pub fn command_reader(gsettings: &GlobalSettings, opts: OutputLogOpts) -> anyhow::Result<()> {
-    let mut stream_dir = StreamDir::open(&opts.path, opts.server_uid.as_deref())?;
+    let mut stream_dir = OutputLog::open(&opts.path, opts.server_uid.as_deref())?;
     match opts.command {
         StreamCommand::Summary(_) => {
             gsettings
