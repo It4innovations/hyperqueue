@@ -4,9 +4,9 @@
 <svg
    version="1.1"
    id="svg6091"
-   width="1092.9414"
-   height="760.05115"
-   viewBox="0 0 1092.9414 760.05115"
+   width="1112.941"
+   height="760.05103"
+   viewBox="0 0 1112.941 760.05103"
    sodipodi:docname="streaming.svg"
    inkscape:version="1.3.2 (1:1.3.2+202311252150+091e20ef0f)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
@@ -46,22 +46,26 @@
      inkscape:deskcolor="#d1d1d1"
      showgrid="false"
      inkscape:zoom="0.61899712"
-     inkscape:cx="533.92817"
+     inkscape:cx="533.12041"
      inkscape:cy="424.07306"
      inkscape:window-width="1920"
      inkscape:window-height="971"
      inkscape:window-x="0"
      inkscape:window-y="80"
      inkscape:window-maximized="1"
-     inkscape:current-layer="g6099">
+     inkscape:current-layer="g6099"
+     inkscape:export-bgcolor="#ffffffff">
     <inkscape:page
        x="0"
        y="0"
        id="page6097"
-       width="1092.9414"
-       height="760.05115"
+       width="1112.941"
+       height="760.05103"
        margin="0"
-       bleed="0" />
+       bleed="0"
+       inkscape:export-filename="streaming.png"
+       inkscape:export-xdpi="96"
+       inkscape:export-ydpi="96" />
   </sodipodi:namedview>
   <g
      id="g6099"
@@ -323,7 +327,7 @@
          x="762.73413"
          y="466.72525">Log file</tspan></text>
     <path
-       d="m 740.87263,534.8948 167.92781,0 c 6.387,0 11.531,5.141 11.531,11.531 v 47.801 c 0,6.387 -5.144,11.531 -11.531,11.531 l -167.92781,0 c -6.391,0 -11.532,-5.144 -11.532,-11.531 v -47.801 c 0,-6.39 5.141,-11.531 11.532,-11.531 z"
+       d="m 740.87263,534.8948 h 167.92781 c 6.387,0 11.531,5.141 11.531,11.531 v 47.801 c 0,6.387 -5.144,11.531 -11.531,11.531 H 740.87263 c -6.391,0 -11.532,-5.144 -11.532,-11.531 v -47.801 c 0,-6.39 5.141,-11.531 11.532,-11.531 z"
        style="fill:#2569a7;fill-opacity:1;fill-rule:nonzero;stroke:none"
        id="path7362"
        sodipodi:nodetypes="sssssssss" />
@@ -622,10 +626,10 @@
        transform="translate(708.83637,104.33628)"><tspan
          x="116.98518"
          y="458.23148"
-         id="tspan4">HQ
+         id="tspan3">HQ
 </tspan><tspan
          x="116.98518"
          y="485.34071"
-         id="tspan5">output log reader</tspan></text>
+         id="tspan6">output log reader</tspan></text>
   </g>
 </svg>
