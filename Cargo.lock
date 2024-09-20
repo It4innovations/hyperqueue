@@ -940,7 +940,7 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyperqueue"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "anyhow",
  "atty",
@@ -1600,7 +1600,7 @@ dependencies = [
 
 [[package]]
 name = "pyhq"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "anyhow",
  "dict_derive",
