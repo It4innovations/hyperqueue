@@ -292,6 +292,6 @@ def test_restore_streaming(hq_env: HqEnv, tmp_path):
     hq_env.start_worker()
     hq_env.command(["job", "close", "1"])
     wait_for_job_state(hq_env, 1, "FINISHED")
-    assert int(hq_env.command(["read", stream_path, "cat", "1", "stdout"])) > 0
-    table = hq_env.command(["read", stream_path, "summary"], as_table=True)
+    assert int(hq_env.command(["output-log", stream_path, "cat", "1", "stdout"])) > 0
+    table = hq_env.command(["output-log", stream_path, "summary"], as_table=True)
     table.check_row_value("Superseded streams", "1")

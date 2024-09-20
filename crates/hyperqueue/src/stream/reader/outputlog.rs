@@ -74,7 +74,7 @@ type StreamIndex = BTreeMap<JobId, BTreeMap<JobTaskId, TaskInfo>>;
 
 /// Reader of a directory with .hts (stream files)
 /// It creates an index over all jobs and tasks in stream
-pub struct StreamDir {
+pub struct OutputLog {
     paths: Vec<PathBuf>,
     index: StreamIndex,
     cache: LruCache<usize, BufReader<File>>,
@@ -94,9 +94,9 @@ pub struct Summary {
     pub superseded_stderr_size: u64,
 }
 
-impl StreamDir {
+impl OutputLog {
     pub fn open(path: &Path, server_uid: Option<&str>) -> crate::Result<Self> {
-        log::debug!("Reading stream dir {}", path.display());
+        log::debug!("Reading output log {}", path.display());
         let mut paths = Vec::new();
         let mut server_uids: Set<String> = Set::new();
         let mut found = false;
@@ -112,7 +112,7 @@ impl StreamDir {
                 found = true;
                 log::debug!("Discovered {}", path.display());
                 let mut file = BufReader::new(File::open(&path)?);
-                let header = match StreamDir::check_header(&mut file) {
+                let header = match OutputLog::check_header(&mut file) {
                     Ok(header) => header,
                     Err(e) => {
                         log::debug!(
@@ -148,7 +148,7 @@ impl StreamDir {
             return Err(HqError::GenericError(msg));
         }
         let index = Self::create_index(&paths)?;
-        Ok(StreamDir {
+        Ok(OutputLog {
             paths,
             index,
             cache: LruCache::new(NonZeroUsize::new(16).unwrap()),
@@ -173,7 +173,7 @@ impl StreamDir {
         let mut index: StreamIndex = BTreeMap::new();
         for (file_idx, path) in paths.iter().enumerate() {
             let mut file = BufReader::new(File::open(path)?);
-            let _header = StreamDir::check_header(&mut file)?;
+            let _header = OutputLog::check_header(&mut file)?;
             while let Some(chunk_header) = Self::read_chunk(&mut file)? {
                 let job = index.entry(chunk_header.job).or_default();
                 let task = job.entry(chunk_header.task).or_default();

@@ -25,14 +25,14 @@ You can redirect the output of `stdout` and `stderr` to a log file and thus enab
 to a filename where the log will be stored with the `--stream` option:
 
 ```
-$ hq submit --stream=<stream-path> --array=1-10_000 ...
+$ hq submit --stream=<output-log-path> --array=1-10_000 ...
 ```
 
-Stream path has to be a directory and it the user responsibility to ensure existence of the directory
+Output log path has to be a directory and it the user responsibility to ensure existence of the directory
 and visibility of each worker.
 
 This command would cause the `stdout` and `stderr` of all `10_000` tasks to be streamed into the server, which will
-write them to files in `<stream-path>`. The streamed data is written in a compact way independently on the number of
+write them to files in `<output-log-path>`. The streamed data is written in a compact way independently on the number of
 tasks. The format also contains additional metadata,
 which allows the resulting file to be filtered/sorted by tasks or channel.
 
@@ -77,7 +77,7 @@ HyperQueue lets you inspect the data stored inside the stream file using various
 the following structure:
 
 ```bash
-$ hq output-log <stream-path> <subcommand> <subcommand-args>
+$ hq output-log <output-log-path> <subcommand> <subcommand-args>
 ```
 
 ### Stream summary
@@ -85,7 +85,7 @@ $ hq output-log <stream-path> <subcommand> <subcommand-args>
 You can display a summary of a log file using the `summary` subcommand:
 
 ```bash
-$ hq output-log <stream-path> summary
+$ hq output-log <output-log-path> summary
 ```
 
 ### Stream jobs
@@ -93,7 +93,7 @@ $ hq output-log <stream-path> summary
 To print all job IDs that streaming in the stream path, you can run the following command:
 
 ```bash
-$ hq output-log <stream-path> jobs
+$ hq output-log <output-log-path> jobs
 ```
 
 ### Printing stream content
@@ -102,7 +102,7 @@ If you want to simply print the (textual) content of the log file, without any a
 `cat` subcommand:
 
 ```bash
-$ hq output-log <stream-path> cat <job-id> <stdout/stderr>
+$ hq output-log <output-log-path> cat <job-id> <stdout/stderr>
 ```
 
 It will print the raw content of either `stdout` or `stderr`, ordered by task id. All outputs will be concatenated one
@@ -145,15 +145,16 @@ hence HyperQueue streaming is able to avoid mixing
 outputs from different executions of the same task, when a task is restarted.
 
 HyperQueue automatically marks all output from previous instance of a task except the last instance as *superseded*.
-You can see statistics about superseded data via `hq output-log <stream-path> summary` command.
+You can see statistics about superseded data via `hq output-log <output-log-path> summary` command.
 In the current version, superseded data is ignored by all other commands.
 
 ## More server instances
 
 HyperQueue supports writing streams from the different server instances into the same directory.
 If you run `hq output-log` commands over such directory then it will detect the situation and prints all server uids
-that writes into the directory. You have to specify the server instance via `hq output-log --server-uid=<SERVER_UID> ...`
-when working with such a stream directory.
+that writes into the directory. You have to specify the server instance
+via `hq output-log --server-uid=<SERVER_UID> ...`
+when working with such a output log directory.
 
 !!! note
 
@@ -162,5 +163,5 @@ when working with such a stream directory.
 
 ## Working with non-shared file system
 
-You do not need to have a shared file system when working with streaming path. It is just your responsibility to
+You do not need to have a shared file system when working with streaming. It is just your responsibility to
 collect all generated files into one directory before using `hq output-log` commands.
