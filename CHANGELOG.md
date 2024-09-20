@@ -1,4 +1,4 @@
-# Dev
+# 0.20.0
 
 ## New features
 
@@ -13,6 +13,10 @@
   The new architecture also allows parallel I/O writing and storing of multiple job streams in one stream handle.
   You can use worker streaming using the `--stream` parameter of `hq submit`. Check out the documentation for more information.
 
+* Optimization of journal size
+
+* Tasks' crash counters are not increased when worker is stopped by `hq worker stop` or by time limit.
+
 ## Removed
 
 * Because worker streaming fully replaces original streaming, the original server streaming was removed.
@@ -22,6 +26,11 @@
 
 * HQ should no longer crash while printing job info when a failed task does not have any workers
   attached (https://github.com/It4innovations/hyperqueue/issues/731).
+
+## Note
+
+* Dashboard still not enabled in this version
+
 
 # 0.19.0
 
