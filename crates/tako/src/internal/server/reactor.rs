@@ -55,7 +55,7 @@ pub(crate) fn on_remove_worker(
                     task.set_fresh_flag(true);
                     ready_to_assign.push(task_id);
                     if task.is_sn_running() {
-                        if task.increment_crash_counter() {
+                        if reason.is_failure() && task.increment_crash_counter() {
                             crashed_tasks.push(task_id);
                         } else {
                             running_tasks.push(task_id);
