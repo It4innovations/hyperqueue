@@ -47,7 +47,7 @@
      showgrid="false"
      inkscape:zoom="0.61899712"
      inkscape:cx="533.92817"
-     inkscape:cy="425.68857"
+     inkscape:cy="424.07306"
      inkscape:window-width="1920"
      inkscape:window-height="971"
      inkscape:window-x="0"
@@ -323,9 +323,10 @@
          x="762.73413"
          y="466.72525">Log file</tspan></text>
     <path
-       d="m 774.51568,534.8948 h 89.93701 c 6.387,0 11.531,5.141 11.531,11.531 v 47.801 c 0,6.387 -5.144,11.531 -11.531,11.531 h -89.93701 c -6.391,0 -11.532,-5.144 -11.532,-11.531 v -47.801 c 0,-6.39 5.141,-11.531 11.532,-11.531 z"
+       d="m 740.87263,534.8948 167.92781,0 c 6.387,0 11.531,5.141 11.531,11.531 v 47.801 c 0,6.387 -5.144,11.531 -11.531,11.531 l -167.92781,0 c -6.391,0 -11.532,-5.144 -11.532,-11.531 v -47.801 c 0,-6.39 5.141,-11.531 11.532,-11.531 z"
        style="fill:#2569a7;fill-opacity:1;fill-rule:nonzero;stroke:none"
-       id="path7362" />
+       id="path7362"
+       sodipodi:nodetypes="sssssssss" />
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:15.6902px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono';text-align:center;writing-mode:lr-tb;text-anchor:middle;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.747153"
@@ -336,7 +337,7 @@
          y="623.62433"
          sodipodi:role="line"
          id="tspan7376"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono';fill:#000000;stroke-width:0.747153">hq read</tspan></text>
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono';fill:#000000;stroke-width:0.747153">hq output-log ...</tspan></text>
     <circle
        id="path7429"
        style="fill:#803300;stroke:#ff9955;stroke-width:0.75"
@@ -614,17 +615,17 @@
          id="tspan2">directory</tspan></text>
     <text
        xml:space="preserve"
-       style="font-variant:normal;font-weight:normal;font-size:21px;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020-Regular;text-align:center;writing-mode:lr-tb;text-anchor:middle;white-space:pre;inline-size:93.9496;display:inline;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       style="font-variant:normal;font-weight:normal;font-size:21px;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020-Regular;text-align:center;writing-mode:lr-tb;text-anchor:middle;white-space:pre;inline-size:199.466;display:inline;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
        id="text4"
        x="116.98518"
        y="458.23148"
-       transform="translate(703.62368,106.38639)"><tspan
+       transform="translate(708.83637,104.33628)"><tspan
          x="116.98518"
          y="458.23148"
-         id="tspan3">HQ
+         id="tspan4">HQ
 </tspan><tspan
          x="116.98518"
          y="485.34071"
-         id="tspan4">Reader</tspan></text>
+         id="tspan5">output log reader</tspan></text>
   </g>
 </svg>

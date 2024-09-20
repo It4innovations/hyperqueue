@@ -1,4 +1,4 @@
-use crate::client::commands::reader::{CatOpts, Channel, ExportOpts, ShowOpts};
+use crate::client::commands::outputlog::{CatOpts, Channel, ExportOpts, ShowOpts};
 use crate::common::arraydef::IntArray;
 use crate::common::error::HqError;
 use crate::server::event::bincode_config;

@@ -77,7 +77,7 @@ HyperQueue lets you inspect the data stored inside the stream file using various
 the following structure:
 
 ```bash
-$ hq read <stream-path> <subcommand> <subcommand-args>
+$ hq output-log <stream-path> <subcommand> <subcommand-args>
 ```
 
 ### Stream summary
@@ -85,7 +85,7 @@ $ hq read <stream-path> <subcommand> <subcommand-args>
 You can display a summary of a log file using the `summary` subcommand:
 
 ```bash
-$ hq read <stream-path> summary
+$ hq output-log <stream-path> summary
 ```
 
 ### Stream jobs
@@ -93,7 +93,7 @@ $ hq read <stream-path> summary
 To print all job IDs that streaming in the stream path, you can run the following command:
 
 ```bash
-$ hq read <stream-path> jobs
+$ hq output-log <stream-path> jobs
 ```
 
 ### Printing stream content
@@ -102,7 +102,7 @@ If you want to simply print the (textual) content of the log file, without any a
 `cat` subcommand:
 
 ```bash
-$ hq read <stream-path> cat <job-id> <stdout/stderr>
+$ hq output-log <stream-path> cat <job-id> <stdout/stderr>
 ```
 
 It will print the raw content of either `stdout` or `stderr`, ordered by task id. All outputs will be concatenated one
@@ -119,7 +119,7 @@ If you want to inspect the contents of the log, along with its inner metadata th
 has produced which part of the data, you can use the `show` subcommand:
 
 ```commandline
-$ hq read <log-file-path> show
+$ hq output-log <log-file-path> show
 ```
 
 The output will have the form `J.T:C> DATA` where `J` is a job id, `T` is a task id and `C` is `0` for `stdout` channel
@@ -132,7 +132,7 @@ You can filter a specific channel with the `--channel=stdout/stderr` flag.
 Log can be exported into JSON by the following command:
 
 ```commandline
-$ hq read <log-file-path> export
+$ hq output-log <log-file-path> export
 ```
 
 This prints the log file into a JSON format on standard output.
@@ -145,14 +145,14 @@ hence HyperQueue streaming is able to avoid mixing
 outputs from different executions of the same task, when a task is restarted.
 
 HyperQueue automatically marks all output from previous instance of a task except the last instance as *superseded*.
-You can see statistics about superseded data via `hq read <stream-path> summary` command.
+You can see statistics about superseded data via `hq output-log <stream-path> summary` command.
 In the current version, superseded data is ignored by all other commands.
 
 ## More server instances
 
 HyperQueue supports writing streams from the different server instances into the same directory.
-If you run `hq read` commands over such directory then it will detect the situation and prints all server uids
-that writes into the directory. You have to specify the server instance via `hq read --server-uid=<SERVER_UID> ...`
+If you run `hq output-log` commands over such directory then it will detect the situation and prints all server uids
+that writes into the directory. You have to specify the server instance via `hq output-log --server-uid=<SERVER_UID> ...`
 when working with such a stream directory.
 
 !!! note
@@ -163,4 +163,4 @@ when working with such a stream directory.
 ## Working with non-shared file system
 
 You do not need to have a shared file system when working with streaming path. It is just your responsibility to
-collect all generated files into one directory before using `hq read` commands.
+collect all generated files into one directory before using `hq output-log` commands.

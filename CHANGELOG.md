@@ -16,7 +16,7 @@
 ## Removed
 
 * Because worker streaming fully replaces original streaming, the original server streaming was removed.
-  For most cases, you can rename `--log` to `--stream` and `hq log` to `hq read`. See the docs for more details.
+  For most cases, you can rename `--log` to `--stream` and `hq log` to `hq output-log`. See the docs for more details.
 
 ## Fixes
 
@@ -373,7 +373,7 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
 
 ### Stream log
 
-* Basic export of stream log into JSON (`hq read <log_file> export`)
+* Basic export of stream log into JSON (`hq output-log <log_file> export`)
 
 ### Server
 

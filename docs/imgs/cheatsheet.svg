@@ -91,7 +91,7 @@
      inkscape:pageshadow="2"
      inkscape:zoom="0.98994949"
      inkscape:cx="307.59145"
-     inkscape:cy="346.9874"
+     inkscape:cy="539.92654"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      inkscape:document-rotation="0"
@@ -850,7 +850,7 @@
        style="color:#000000;font-variation-settings:normal;overflow:visible;vector-effect:none;fill:#4d4d4d;fill-opacity:1;stroke:none;stroke-width:1.02965;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:0.419608;stop-color:#000000"
        id="rect2143-1-3"
        width="64.327179"
-       height="35.142365"
+       height="44.250179"
        x="137.02899"
        y="159.59457"
        ry="0"
@@ -929,8 +929,8 @@
     <rect
        style="color:#000000;font-variation-settings:normal;overflow:visible;vector-effect:none;fill:#2569a7;fill-opacity:1;stroke:none;stroke-width:0.364744px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;stop-color:#000000"
        id="rect19303"
-       width="72.511826"
-       height="15.226913"
+       width="73.895081"
+       height="14.84273"
        x="136.23999"
        y="145.33694"
        ry="3.4104841"
@@ -938,14 +938,14 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:5.81271px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.207596px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       x="141.01562"
+       x="140.00365"
        y="151.76938"
        id="text19307"><tspan
          sodipodi:role="line"
          id="tspan19305"
-         x="141.01562"
+         x="140.00365"
          y="151.76938"
-         style="letter-spacing:-0.015749px;fill:#ffffff;stroke-width:0.207596px">read &lt;path&gt; &lt;command&gt;</tspan></text>
+         style="letter-spacing:-0.015749px;fill:#ffffff;stroke-width:0.207596px">output-log &lt;path&gt; &lt;cmd&gt;</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.14311px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#f9f9f9;fill-opacity:1;stroke:none;stroke-width:0.112254px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -1394,5 +1394,27 @@
          style="stroke-width:0.264583"
          x="12.593796"
          y="71.957138" /></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.81398px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#f2f2f2;fill-opacity:1;stroke:none;stroke-width:0.136213px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="142.05391"
+       y="196.69177"
+       id="text10"><tspan
+         sodipodi:role="line"
+         id="tspan10"
+         x="142.05391"
+         y="196.69177"
+         style="fill:#f2f2f2;stroke-width:0.136213px">jobs</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.14311px;line-height:125%;font-family:Raleway-v4020;-inkscape-font-specification:Raleway-v4020;letter-spacing:0px;word-spacing:0px;fill:#b3b3b3;fill-opacity:1;stroke:none;stroke-width:0.112254px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="141.60265"
+       y="201.21889"
+       id="text12"><tspan
+         sodipodi:role="line"
+         x="141.60265"
+         y="201.21889"
+         style="fill:#b3b3b3;stroke-width:0.112254px"
+         id="tspan12">show job ids</tspan></text>
   </g>
 </svg>
