@@ -1,4 +1,4 @@
-# 0.20.0
+# v0.20.0
 
 ## New features
 
@@ -32,7 +32,7 @@
 * Dashboard still not enabled in this version
 
 
-# 0.19.0
+# v0.19.0
 
 ## New features
 
