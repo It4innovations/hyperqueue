@@ -76,8 +76,6 @@ pub fn build_task_def_from_config(
 ) -> (TaskConfiguration, SharedTaskConfiguration) {
     let TaskConfig {
         id,
-        keep,
-        observe,
         time_limit,
         resources,
         args,
@@ -115,8 +113,6 @@ pub fn build_task_def_from_config(
         n_outputs: 0,
         time_limit,
         priority: 0,
-        keep,
-        observe: observe.unwrap_or(true),
         crash_limit: 5,
     };
     (
@@ -135,11 +131,6 @@ pub fn build_task_def_from_config(
 pub struct TaskConfig {
     #[builder(default)]
     pub id: Option<u64>,
-
-    #[builder(default)]
-    keep: bool,
-    #[builder(default)]
-    observe: Option<bool>,
 
     #[builder(default)]
     time_limit: Option<Duration>,

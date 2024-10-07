@@ -11,8 +11,8 @@ use crate::internal::messages::worker::{StealResponse, StealResponseMsg};
 use crate::internal::scheduler::state::SchedulerState;
 use crate::internal::server::core::Core;
 use crate::internal::server::reactor::{
-    on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker, on_reset_keep_flag,
-    on_set_observe_flag, on_steal_response, on_task_error, on_task_finished, on_task_running,
+    on_cancel_tasks, on_new_tasks, on_new_worker, on_remove_worker, on_steal_response,
+    on_task_error, on_task_finished, on_task_running,
 };
 use crate::internal::server::task::{Task, TaskRuntimeState};
 use crate::internal::server::worker::Worker;
@@ -193,12 +193,10 @@ fn test_assignments_and_finish() {
 
     let t1 = TaskBuilder::new(11).user_priority(12).outputs(1).build();
     let t2 = task(12);
-    let mut t3 = task_with_deps(13, &[&t1, &t2], 1);
-    t3.set_keep_flag(true);
+    let t3 = task_with_deps(13, &[&t1, &t2], 1);
     let t4 = task(14);
     let t5 = task(15);
-    let mut t7 = task_with_deps(17, &[&t4], 1);
-    t7.set_keep_flag(true);
+    let t7 = task_with_deps(17, &[&t4], 1);
 
     let (id1, id2, id3, id5, id7) = (t1.id, t2.id, t3.id, t5.id, t7.id);
 
@@ -265,6 +263,7 @@ fn test_assignments_and_finish() {
     check_worker_tasks_exact(&core, 102, &[]);
 
     comm.check_need_scheduling();
+    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new(15));
     comm.emptiness_check();
 
     assert!(core.find_task(15.into()).is_none());
@@ -285,6 +284,7 @@ fn test_assignments_and_finish() {
     check_worker_tasks_exact(&core, 102, &[]);
 
     comm.check_need_scheduling();
+    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new(12));
     comm.emptiness_check();
 
     assert!(core.find_task(12.into()).is_some());
@@ -307,10 +307,9 @@ fn test_assignments_and_finish() {
         ToWorkerMessage::ComputeTask(ComputeTaskMsg { id: TaskId(13), .. })
     ));
 
+    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new(11));
     comm.emptiness_check();
     core.sanity_check();
-
-    on_set_observe_flag(&mut core, &mut comm, 13.into(), true);
 
     on_task_finished(
         &mut core,
@@ -322,14 +321,9 @@ fn test_assignments_and_finish() {
     comm.check_need_scheduling();
 
     assert_eq!(comm.take_client_task_finished(1), vec![13].to_ids());
-
-    comm.emptiness_check();
-
-    on_reset_keep_flag(&mut core, &mut comm, 13.into());
     comm.emptiness_check();
     core.sanity_check();
 
-    on_reset_keep_flag(&mut core, &mut comm, 17.into());
     comm.emptiness_check();
     core.sanity_check();
 }
@@ -489,6 +483,7 @@ fn finish_task_without_outputs() {
         TaskFinishedMsg { id: 1.into() },
     );
     comm.check_need_scheduling();
+    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new(1));
     comm.emptiness_check();
     core.sanity_check();
 }
@@ -744,7 +739,6 @@ fn test_running_task() {
 
     let mut comm = create_test_comm();
 
-    on_set_observe_flag(&mut core, &mut comm, 1.into(), true);
     comm.emptiness_check();
 
     on_task_running(&mut core, &mut comm, 101.into(), task_running_msg(1));
@@ -752,6 +746,7 @@ fn test_running_task() {
     comm.emptiness_check();
 
     on_task_running(&mut core, &mut comm, 101.into(), task_running_msg(2));
+    assert_eq!(comm.take_client_task_running(1)[0], TaskId::new(2));
     comm.emptiness_check();
 
     assert!(matches!(
@@ -808,6 +803,7 @@ fn test_finished_before_steal_response() {
     );
 
     comm.check_need_scheduling();
+    assert_eq!(comm.take_client_task_finished(1)[0], TaskId::new(1));
     comm.emptiness_check();
 
     assert!(!worker_has_task(&core, 101, 1));
@@ -841,6 +837,7 @@ fn test_running_before_steal_response() {
     let mut comm = create_test_comm();
     on_task_running(&mut core, &mut comm, 101.into(), task_running_msg(1));
     comm.check_need_scheduling();
+    assert_eq!(comm.take_client_task_running(1)[0], TaskId::new(1));
     comm.emptiness_check();
 
     assert!(worker_has_task(&core, 101, 1));

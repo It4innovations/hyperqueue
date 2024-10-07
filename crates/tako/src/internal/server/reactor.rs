@@ -241,9 +241,7 @@ pub(crate) fn on_task_running(
             }
         };
 
-        if task.is_observed() {
-            comm.send_client_task_started(task_id, task.instance_id, worker_ids, context);
-        }
+        comm.send_client_task_started(task_id, task.instance_id, worker_ids, context);
     }
 }
 
@@ -302,10 +300,7 @@ pub(crate) fn on_task_finished(
 
             task.state = TaskRuntimeState::Finished(FinishInfo {});
             comm.ask_for_scheduling();
-
-            if task.is_observed() {
-                comm.send_client_task_finished(task.id);
-            }
+            comm.send_client_task_finished(task.id);
         } else {
             log::debug!("Unknown task finished id={}", msg.id);
             return;
@@ -409,30 +404,6 @@ pub(crate) fn on_steal_response(
     }
 }
 
-#[cfg(test)] // The current version of HQ does not use it, it is now used only in tests
-pub(crate) fn on_reset_keep_flag(core: &mut Core, comm: &mut impl Comm, task_id: TaskId) {
-    let task = core.get_task_mut(task_id);
-    task.set_keep_flag(false);
-    remove_task_if_possible(core, comm, task_id);
-}
-
-pub(crate) fn on_set_observe_flag(
-    core: &mut Core,
-    comm: &mut impl Comm,
-    task_id: TaskId,
-    value: bool,
-) -> bool {
-    if let Some(task) = core.find_task_mut(task_id) {
-        if value && task.is_finished() {
-            comm.send_client_task_finished(task_id);
-        }
-        task.set_observed_flag(value);
-        true
-    } else {
-        false
-    }
-}
-
 fn fail_task_helper(
     core: &mut Core,
     comm: &mut impl Comm,
@@ -529,7 +500,6 @@ pub(crate) fn on_cancel_tasks(
             continue;
         }
 
-        let mut remove = false;
         {
             let (tasks, workers) = core.split_tasks_workers_mut();
             let task = tasks.get_task(task_id);
@@ -564,16 +534,9 @@ pub(crate) fn on_cancel_tasks(
                     running_ids.entry(from_id).or_default().push(task_id);
                 }
                 TaskRuntimeState::Finished(_) => {
-                    if task.is_keeped() {
-                        remove = true;
-                    }
                     already_finished.push(task_id);
                 }
             };
-        }
-        if remove {
-            core.get_task_mut(task_id).set_keep_flag(false);
-            remove_task_if_possible(core, comm, task_id);
         }
     }
 
@@ -609,7 +572,6 @@ fn remove_task_if_possible(core: &mut Core, _comm: &mut impl Comm, task_id: Task
     if !core.get_task(task_id).is_removable() {
         return;
     }
-
     match core.remove_task(task_id) {
         TaskRuntimeState::Finished(_finfo) => { /* Ok */ }
         _ => unreachable!(),

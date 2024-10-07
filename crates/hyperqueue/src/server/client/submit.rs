@@ -307,8 +307,6 @@ fn build_tasks_array(
             resources: task_desc.resources.clone(),
             n_outputs: 0,
             time_limit: task_desc.time_limit,
-            keep: false,
-            observe: true,
             priority: task_desc.priority,
             crash_limit: task_desc.crash_limit,
         }],
@@ -362,8 +360,6 @@ fn build_tasks_graph(
                     n_outputs: 0,
                     time_limit: task.time_limit,
                     priority: task.priority,
-                    keep: false,
-                    observe: true,
                     crash_limit: task.crash_limit,
                 });
                 index

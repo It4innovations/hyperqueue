@@ -27,11 +27,7 @@ async fn test_submit_simple_task_ok() {
         let ids = handler
             .submit(
                 GraphBuilder::default()
-                    .task(
-                        TaskConfigBuilder::default()
-                            .args(simple_args(&["/bin/hostname"]))
-                            .keep(true),
-                    )
+                    .task(TaskConfigBuilder::default().args(simple_args(&["/bin/hostname"])))
                     .simple_task(&["/bin/hostname"])
                     .task(
                         TaskConfigBuilder::default()
@@ -134,8 +130,6 @@ async fn test_cancel_error_task() {
 
         let response = cancel(&mut handle, &[1]).await;
         assert_eq!(response.already_finished, vec![1].to_ids());
-
-        assert!(handle.wait(&[1]).await.get(1).is_invalid());
     })
     .await;
 }

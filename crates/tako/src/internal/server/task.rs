@@ -47,13 +47,10 @@ impl fmt::Debug for TaskRuntimeState {
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct TaskFlags: u32 {
-        const KEEP    = 0b00000001;
-        const OBSERVE = 0b00000010;
-
-        const FRESH   = 0b00000100;
+        const FRESH   = 0b00000001;
 
         // This is utilized inside scheduler, it has no meaning between scheduler calls
-        const TAKE   = 0b00001000;
+        const TAKE   = 0b00000010;
     }
 }
 
@@ -129,14 +126,10 @@ impl Task {
         inputs: ThinVec<TaskInput>,
         configuration: Rc<TaskConfiguration>,
         body: Box<[u8]>,
-        keep: bool,
-        observe: bool,
     ) -> Self {
         log::debug!("New task {} {:?}", id, &configuration.resources);
 
         let mut flags = TaskFlags::empty();
-        flags.set(TaskFlags::KEEP, keep);
-        flags.set(TaskFlags::OBSERVE, observe);
         flags.set(TaskFlags::FRESH, true);
 
         Self {
@@ -212,33 +205,13 @@ impl Task {
     }
 
     #[inline]
-    pub(crate) fn set_keep_flag(&mut self, value: bool) {
-        self.flags.set(TaskFlags::KEEP, value);
-    }
-
-    #[inline]
     pub(crate) fn set_take_flag(&mut self, value: bool) {
         self.flags.set(TaskFlags::TAKE, value);
     }
 
     #[inline]
-    pub(crate) fn set_observed_flag(&mut self, value: bool) {
-        self.flags.set(TaskFlags::OBSERVE, value);
-    }
-
-    #[inline]
     pub(crate) fn set_fresh_flag(&mut self, value: bool) {
         self.flags.set(TaskFlags::FRESH, value);
-    }
-
-    #[inline]
-    pub(crate) fn is_observed(&self) -> bool {
-        self.flags.contains(TaskFlags::OBSERVE)
-    }
-
-    #[inline]
-    pub(crate) fn is_keeped(&self) -> bool {
-        self.flags.contains(TaskFlags::KEEP)
     }
 
     #[inline]
@@ -253,7 +226,7 @@ impl Task {
 
     #[inline]
     pub(crate) fn is_removable(&self) -> bool {
-        self.consumers.is_empty() && !self.is_keeped() && self.is_finished()
+        self.consumers.is_empty() && self.is_finished()
     }
 
     pub(crate) fn collect_consumers(&self, taskmap: &TaskMap) -> Set<TaskId> {
