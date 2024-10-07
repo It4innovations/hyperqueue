@@ -211,13 +211,13 @@ impl OutputLog {
         Ok(index)
     }
 
-    fn check_header(mut file: &mut BufReader<File>) -> anyhow::Result<StreamFileHeader> {
+    fn check_header(file: &mut BufReader<File>) -> anyhow::Result<StreamFileHeader> {
         let mut header = [0u8; STREAM_FILE_HEADER.len()];
         file.read_exact(&mut header)?;
         if header != STREAM_FILE_HEADER {
             anyhow::bail!("Invalid file format");
         }
-        Ok(bincode_config().deserialize_from(&mut file)?)
+        Ok(bincode_config().deserialize_from(file)?)
     }
 
     pub fn summary(&self) -> Summary {
