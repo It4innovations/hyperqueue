@@ -11,7 +11,7 @@ default-members = [
 resolver = "2"
 
 [workspace.package]
-rust-version = "1.76.0"
+rust-version = "1.80.0"
 edition = "2021"
 authors = ["Ada Böhm <ada@kreatrix.org>", "Jakub Beránek <berykubik@gmail.com>"]
 
