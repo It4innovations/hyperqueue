@@ -10,8 +10,8 @@ use tokio::task::{JoinHandle, LocalSet};
 use tokio::time::timeout;
 
 use crate::gateway::{
-    FromGatewayMessage, NewTasksMessage, NewTasksResponse, ObserveTasksMessage,
-    SharedTaskConfiguration, StopWorkerRequest, TaskConfiguration, ToGatewayMessage,
+    FromGatewayMessage, NewTasksMessage, NewTasksResponse, SharedTaskConfiguration,
+    StopWorkerRequest, TaskConfiguration, ToGatewayMessage,
 };
 use crate::internal::common::{Map, Set};
 use crate::internal::server::client::process_client_message;
@@ -205,10 +205,6 @@ impl ServerHandle {
     }
 
     pub async fn wait<T: Into<TaskId> + Copy>(&mut self, tasks: &[T]) -> TaskWaitResultMap {
-        let msg = ObserveTasksMessage {
-            tasks: tasks.iter().map(|&v| v.into()).collect(),
-        };
-        self.send(FromGatewayMessage::ObserveTasks(msg)).await;
         timeout(WAIT_TIMEOUT, wait_for_tasks(self, tasks.to_vec()))
             .await
             .unwrap()

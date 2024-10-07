@@ -3,16 +3,15 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::gateway::{
     CancelTasksResponse, FromGatewayMessage, NewTasksMessage, NewTasksResponse,
-    SharedTaskConfiguration, TaskInfo, TaskState, TaskUpdate, TasksInfoResponse, ToGatewayMessage,
+    SharedTaskConfiguration, TaskInfo, TaskState, TasksInfoResponse, ToGatewayMessage,
 };
+use crate::internal::common::resources::request::ResourceRequestEntry;
 use crate::internal::messages::worker::ToWorkerMessage;
+use crate::internal::scheduler::query::compute_new_worker_query;
 use crate::internal::server::comm::{Comm, CommSender, CommSenderRef};
 use crate::internal::server::core::{Core, CoreRef};
-use crate::internal::server::reactor::{on_cancel_tasks, on_new_tasks, on_set_observe_flag};
+use crate::internal::server::reactor::{on_cancel_tasks, on_new_tasks};
 use crate::internal::server::task::{Task, TaskConfiguration, TaskInput, TaskRuntimeState};
-//use crate::internal::transfer::transport::make_protocol_builder;
-use crate::internal::common::resources::request::ResourceRequestEntry;
-use crate::internal::scheduler::query::compute_new_worker_query;
 use std::rc::Rc;
 use thin_vec::ThinVec;
 
@@ -107,30 +106,6 @@ pub(crate) async fn process_client_message(
     message: FromGatewayMessage,
 ) -> Option<String> {
     match message {
-        FromGatewayMessage::ObserveTasks(msg) => {
-            let mut core = core_ref.get_mut();
-            let mut comm = comm_ref.get_mut();
-            for task_id in msg.tasks {
-                log::debug!("Client start observing task={}", task_id);
-                if !on_set_observe_flag(&mut core, &mut *comm, task_id, true) {
-                    log::debug!(
-                        "Client ask for observing of invalid (old?) task={}",
-                        task_id
-                    );
-                    client_sender
-                        .send(ToGatewayMessage::TaskUpdate(TaskUpdate {
-                            id: task_id,
-                            state: if core.is_used_task_id(task_id) {
-                                TaskState::Finished
-                            } else {
-                                TaskState::Invalid
-                            },
-                        }))
-                        .unwrap();
-                };
-            }
-            None
-        }
         FromGatewayMessage::NewTasks(msg) => handle_new_tasks(
             &mut core_ref.get_mut(),
             &mut comm_ref.get_mut(),
@@ -243,14 +218,12 @@ fn handle_new_tasks(
         .into_iter()
         .map(|c| {
             assert_eq!(c.n_outputs, 0); // TODO: Implementation for more outputs
-            let keep = c.keep;
-            let observe = c.observe;
-            (Rc::new(create_task_configuration(core, c)), keep, observe)
+            Rc::new(create_task_configuration(core, c))
         })
         .collect();
 
     for cfg in &configurations {
-        if let Err(e) = cfg.0.resources.validate() {
+        if let Err(e) = cfg.resources.validate() {
             return Some(format!("Invalid task request {e:?}"));
         }
     }
@@ -264,13 +237,13 @@ fn handle_new_tasks(
         if idx >= configurations.len() {
             return Some(format!("Invalid configuration index {idx}"));
         }
-        let (conf, keep, observe) = &configurations[idx];
+        let conf = &configurations[idx];
         let inputs: ThinVec<_> = task
             .task_deps
             .iter()
             .map(|&task_id| TaskInput::new_task_dependency(task_id))
             .collect();
-        let task = Task::new(task.id, inputs, conf.clone(), task.body, *keep, *observe);
+        let task = Task::new(task.id, inputs, conf.clone(), task.body);
         tasks.push(task);
     }
     if !msg.adjust_instance_id.is_empty() {

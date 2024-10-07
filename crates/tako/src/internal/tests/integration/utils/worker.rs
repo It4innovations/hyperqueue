@@ -91,7 +91,6 @@ pub(super) fn create_worker_configuration(
 /// This data is available for tests
 pub struct WorkerHandle {
     pub workdir: PathBuf,
-    pub logdir: PathBuf,
     pub id: WorkerId,
     control_tx: tokio::sync::mpsc::Sender<WorkerControlMessage>,
 }
@@ -149,7 +148,6 @@ pub(super) async fn start_worker(
     let (mut configuration, worker_secret_key) = create_worker_configuration(config);
     let tmpdir = TempDir::with_prefix("tako")?;
     let workdir = tmpdir.path().to_path_buf().join("work");
-    let logdir = tmpdir.path().to_path_buf().join("logs");
 
     configuration.work_dir.clone_from(&workdir);
     std::fs::create_dir_all(&configuration.work_dir).unwrap();
@@ -218,7 +216,6 @@ pub(super) async fn start_worker(
 
     let handle = WorkerHandle {
         workdir,
-        logdir,
         id: worker_id,
         control_tx,
     };

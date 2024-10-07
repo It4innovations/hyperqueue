@@ -110,8 +110,6 @@ impl TaskBuilder {
                 crash_limit: self.crash_limit,
             }),
             Default::default(),
-            false,
-            false,
         )
     }
 }

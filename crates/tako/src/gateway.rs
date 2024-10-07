@@ -106,12 +106,6 @@ pub struct SharedTaskConfiguration {
     #[serde(default)]
     pub priority: Priority,
 
-    #[serde(default)]
-    pub keep: bool,
-
-    #[serde(default)]
-    pub observe: bool,
-
     pub crash_limit: u32,
 }
 
@@ -134,11 +128,6 @@ pub struct NewTasksMessage {
     pub tasks: Vec<TaskConfiguration>,
     pub shared_data: Vec<SharedTaskConfiguration>,
     pub adjust_instance_id: Map<TaskId, InstanceId>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ObserveTasksMessage {
-    pub tasks: Vec<TaskId>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -190,7 +179,6 @@ pub struct NewWorkerQuery {
 #[serde(tag = "op")]
 pub enum FromGatewayMessage {
     NewTasks(NewTasksMessage),
-    ObserveTasks(ObserveTasksMessage),
     CancelTasks(CancelTasks),
     GetTaskInfo(TaskInfoRequest),
     ServerInfo,
@@ -234,10 +222,6 @@ impl Serialize for TaskState {
     }
 }
 
-/* User can receive this updates when task is registered with "observe flag"
-  Note: Error state is NOT there, it is sent separately as TaskFail,
-  because task fail is received even without "observe" flag.
-*/
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskUpdate {
     pub id: TaskId,

@@ -16,12 +16,10 @@ pub fn submit_example_1(core: &mut Core) {
     */
 
     let t1 = task::task(11);
-    let mut t2 = task::task(12);
-    t2.set_keep_flag(true);
+    let t2 = task::task(12);
     let t3 = task_with_deps(13, &[&t1, &t2], 1);
     let t4 = task_with_deps(14, &[&t2], 1);
-    let mut t5 = task_with_deps(15, &[&t3, &t4], 1);
-    t5.set_keep_flag(true);
+    let t5 = task_with_deps(15, &[&t3, &t4], 1);
     let t6 = task_with_deps(16, &[&t3], 1);
     let t7 = task_with_deps(17, &[&t6], 1);
     submit_test_tasks(core, vec![t1, t2, t3, t4, t5, t6, t7]);

@@ -80,19 +80,12 @@ pub async fn wait_for_task_start<T: Into<TaskId>>(
 #[derive(Debug)]
 pub enum TaskResult {
     Update(TaskState),
-    Fail {
-        cancelled_tasks: Vec<TaskId>,
-        info: TaskFailInfo,
-    },
+    Fail { info: TaskFailInfo },
 }
 
 impl TaskResult {
     pub fn is_finished(&self) -> bool {
         matches!(self, TaskResult::Update(TaskState::Finished))
-    }
-
-    pub fn is_invalid(&self) -> bool {
-        matches!(self, TaskResult::Update(TaskState::Invalid))
     }
 
     pub fn is_failed(&self) -> bool {
@@ -116,10 +109,6 @@ impl TaskWaitResult {
 
     fn is_failed(&self) -> bool {
         self.events.iter().any(|v| v.is_failed())
-    }
-
-    pub fn is_invalid(&self) -> bool {
-        self.events.iter().any(|v| v.is_invalid())
     }
 
     pub fn assert_error_message(&self, needle: &str) {
@@ -188,10 +177,7 @@ pub async fn wait_for_tasks<T: Into<TaskId>>(
                     .tasks
                     .entry(msg.id)
                     .or_default()
-                    .add(TaskResult::Fail {
-                        cancelled_tasks: msg.cancelled_tasks,
-                        info: msg.info,
-                    });
+                    .add(TaskResult::Fail { info: msg.info });
             }
             ToGatewayMessage::Error(msg) => panic!(
                 "Received error message {:?} while waiting for tasks",
