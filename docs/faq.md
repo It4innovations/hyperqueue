@@ -1,4 +1,7 @@
 # FAQ
+Here you can find a list of frequently asked questions about HyperQueue. If you'd like to ask
+about anything related to HyperQueue, feel free to ask on our [discussion forum](https://github.com/It4innovations/hyperqueue/discussions) or on our [Zulip server](https://hyperqueue.zulipchat.com/). 
+
 ## HQ fundamentals
 
 ??? question "How does HQ work?"
@@ -28,6 +31,12 @@
 ??? question "What is a job in HQ?"
 
     Job is a collection of tasks (a task graph). You can display and manage jobs using the CLI.
+
+??? question "What operating systems does HQ support?"
+
+    HyperQueue currently only officially supports Linux (Ubuntu, Debian, CentOS, etc.). It might be possible to
+    compile it for other operating systems, however we do not provide any support nor promise to fix any bugs for other
+    operating systems.
 
 ??? question "How to deploy HQ?"
 
@@ -93,15 +102,11 @@
     those users that have access to that file may submit jobs and connect workers. Users without
     access to the secret file will only see that the service is running.
 
+    Performance should also not be a concern. Our [experiments](https://kobzol.github.io/phd/#pf96) show that the server
+    consumes only ~0.3ms of CPU time every second per a thousand tasks executed.
+
 ## Relation to other task runtimes
 
-??? question "What is the difference between HQ and Snakemake?"
+??? question "How does HQ differ from SnakeMake/Dask/Merlin/...?"
 
-    In cluster mode, Snakemake submits each Snakemake job as one HPC job into SLURM/PBS. If your jobs
-    are too small, you will have to manually aggregate them to avoid exhausting SLURM/PBS resources.
-    Manual job aggregation is often quite arduous and since the aggregation is static, it might also
-    waste resources because of missing load balancing.
-  
-    In the case of HQ, you do not have to aggregate tasks. You can submit millions of small tasks to
-    HQ and it will take care of assigning them dynamically to individual workers (and SLURM/PBS jobs,
-    if [automatic allocation](deployment/allocation.md) is used).
+    You can find a comparison of HQ with similar tools [here](./other-tools.md).
