@@ -85,10 +85,6 @@ struct ServerStartOpts {
     #[arg(long)]
     worker_port: Option<u16>,
 
-    /// The maximum number of events tako server will store in memory
-    #[arg(long, default_value_t = 1000000)]
-    event_store_size: usize,
-
     /// Path to a journal file where events is stored. If the file already exists, the file is used to restore the server state
     #[arg(long)]
     journal: Option<PathBuf>,
@@ -143,7 +139,6 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
         idle_timeout: opts.idle_timeout,
         client_port,
         worker_port,
-        event_buffer_size: opts.event_store_size,
         journal_path: opts.journal,
         worker_secret_key: access_file.as_ref().map(|a| a.worker_key().clone()),
         client_secret_key: access_file.as_ref().map(|a| a.client_key().clone()),
