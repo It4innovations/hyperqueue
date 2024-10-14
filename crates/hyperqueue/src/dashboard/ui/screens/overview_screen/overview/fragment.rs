@@ -1,5 +1,5 @@
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use termion::event::Key;
 
 use tako::WorkerId;
 
@@ -37,12 +37,12 @@ impl ClusterOverviewFragment {
     }
 
     /// Handles key presses for the components of the screen
-    pub fn handle_key(&mut self, key: Key) {
-        match key {
-            Key::Down => {
+    pub fn handle_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Down => {
                 self.worker_util_table.select_next_worker();
             }
-            Key::Up => {
+            KeyCode::Up => {
                 self.worker_util_table.select_previous_worker();
             }
             _ => {}
