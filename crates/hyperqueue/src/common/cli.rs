@@ -7,11 +7,11 @@ use clap_complete::Shell;
 use tako::WorkerId;
 
 use crate::client::commands::autoalloc::AutoAllocOpts;
-use crate::client::commands::event::EventLogOpts;
 use crate::client::commands::job::{
     JobCancelOpts, JobCatOpts, JobCloseOpts, JobForgetOpts, JobInfoOpts, JobListOpts,
     JobTaskIdsOpts,
 };
+use crate::client::commands::journal::JournalOpts;
 use crate::client::commands::outputlog::OutputLogOpts;
 use crate::client::commands::server::ServerOpts;
 use crate::client::commands::submit::command::SubmitJobConfOpts;
@@ -203,8 +203,8 @@ pub enum SubCommand {
     /// Automatic allocation management
     #[command(name = "alloc")]
     AutoAlloc(AutoAllocOpts),
-    /// Event log management
-    EventLog(EventLogOpts),
+    /// Event and journal management
+    Journal(JournalOpts),
     /// Start the HyperQueue CLI dashboard
     #[cfg(feature = "dashboard")]
     Dashboard(DashboardOpts),

@@ -17,7 +17,7 @@ def test_worker_stream_events1(hq_env: HqEnv, tmp_path):
     hq_bin = get_hq_binary()
     out_txt = tmp_path.joinpath("out.txt")
     with open(out_txt, "w") as out:
-        p = subprocess.Popen([hq_bin, "--server-dir", hq_env.server_dir, "event-log", "stream"], stdout=out)
+        p = subprocess.Popen([hq_bin, "--server-dir", hq_env.server_dir, "journal", "stream"], stdout=out)
     time.sleep(0.6)
     hq_env.command(["submit", "--", "hostname"])
     time.sleep(0.6)
@@ -45,7 +45,7 @@ def test_worker_stream_events2(hq_env: HqEnv, tmp_path):
     hq_bin = get_hq_binary()
     out_txt = tmp_path.joinpath("out.txt")
     with open(out_txt, "w") as out:
-        p = subprocess.Popen([hq_bin, "--server-dir", hq_env.server_dir, "event-log", "stream"], stdout=out)
+        p = subprocess.Popen([hq_bin, "--server-dir", hq_env.server_dir, "journal", "stream"], stdout=out)
     time.sleep(0.6)
     hq_env.command(["submit", "--", "hostname"])
     time.sleep(0.6)
@@ -208,7 +208,7 @@ def get_events(hq_env: HqEnv, callback):
     process.wait(timeout=5)
     hq_env.processes.clear()
 
-    output = hq_env.command(["event-log", "export", log_path], ignore_stderr=True)
+    output = hq_env.command(["journal", "export", log_path], ignore_stderr=True)
     events = []
     for line in output.splitlines(keepends=False):
         events.append(json.loads(line))
