@@ -7,7 +7,11 @@ utilization of workers.
     The dashboard is currently in an experimental stage. Some of its features might not work properly,
     and important features might be missing. Please [let us know](https://github.com/It4innovations/hyperqueue/issues)
     if you encounter any issues with it, or if you want us to add new features to it.
- 
+
+!!! error "Dashboard disabled"
+
+    Note that the dashboard has been temporarily disabled in HyperQueue [0.19.0](https://github.com/It4innovations/hyperqueue/releases/tag/v0.19.0) because of internal architectural changes. We plan to re-enable it in the future.
+
 You can start the dashboard using the `hq dashboard` command:
 ```bash
 $ hq dashboard
