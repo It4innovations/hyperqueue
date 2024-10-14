@@ -76,34 +76,48 @@ or using a terminal multiplexer like [tmux](https://en.wikipedia.org/wiki/Tmux).
 
 ## Resuming stopped/crashed server
 
-When a server is started with a journal, it may be resumed even when a server crashed.
-Journal is a file where server writes a serie of events.
-
-You can start the server as follows:
+The server supports resilience, which allows it to restore its state after it is stopped or if it crashes. To enable resilience, you can tell the server to log events into a *journal* file, using the `--journal` flag:
 
 ```bash
 $ hq server start --journal /path/to/journal
 ```
 
-If server is stopped or crashed, and you use the same command to start the server
-and it will continue from the last point:
+If the server is stopped or it crashes, and you use the same command to start the server (using the same journal file path), it will continue from the last point:
 
 ```bash
 $ hq server start --journal /path/to/journal
 ```
 
-!!! warning
-
-    This functionality resumes the state of jobs and auto allocation queues,
-    not worker connections.
-    In the current version, new workers have to be connected to the server
-    when a new server is started.
+This functionality restores the state of jobs and automatic allocation queues.
+However, it does not restore worker connections; in the current version, new workers
+have to be connected to the server after it restarts.
 
 !!! warning
 
-    If the server crashes, last few seconds of progress may be lost. For example
+    If the server crashes, the last few seconds of progress may be lost. For example,
     when a task is finished and the server crashes before the journal is written, then
-    after resumming the server, it will appear as not computed.
+    after resuming the server, the task will be not be computed after a server restart.
+
+### Exporting journal events
+If you'd like to programmatically analyze events that are stored in the journal file, you can
+export them to JSON using the following command:
+
+```bash
+$ hq journal export <journal-path>
+```
+
+The events will be read from the provided journal and printed to `stdout` encoded in JSON, one
+event per line (this corresponds to line-delimited JSON, i.e. [NDJSON](http://ndjson.org/)).
+
+You can also directly stream events in real-time from the server using the following command:
+```bash
+$ hq journal stream
+```
+
+!!! warning
+
+    The JSON format of the journal events and their definition is currently unstable and can change
+    with a new HyperQueue version.
 
 ## Stopping server
 
