@@ -47,8 +47,6 @@ This image shows how HyperQueue can work on a distributed cluster that uses Slur
     - Provided as a single, statically linked binary without any runtime dependencies (apart from `libc`)
     - No admin access to a cluster is needed for its usage
 
-# Getting started
-
 ## Installation
 
 * Download the latest binary distribution from this [link](https://github.com/It4innovations/hyperqueue/releases/latest).
@@ -58,12 +56,14 @@ This image shows how HyperQueue can work on a distributed cluster that uses Slur
   $ tar -xvzf hq-<version>-linux-x64.tar.gz
   ```
 
+* That's it! Just use the unpacked `hq` binary.
+
 > If you want to try the newest features, you can also download a nightly
 > [build](https://github.com/It4innovations/hyperqueue/releases/nightly).
 
 ## Submitting a simple task
 
-* Start a server (e.g. on a login node or in a cluster partition)
+* Start a server (e.g. on a login node, a cluster partition, or simply on your PC)
 
   ```bash
   $ hq server start &
@@ -75,13 +75,13 @@ This image shows how HyperQueue can work on a distributed cluster that uses Slur
   ```
 * Ask for computing resources
 
-    * Start worker manually
+    * Either start a worker manually
 
       ```bash
       $ hq worker start &
       ```
 
-    * Automatic submission of workers into PBS/SLURM
+    * Or configure automatic submission of workers into PBS/SLURM
 
       - PBS:
 
@@ -94,35 +94,11 @@ This image shows how HyperQueue can work on a distributed cluster that uses Slur
         $ hq alloc add slurm --time-limit 1h -- -p <partition>
         ```
 
-    * Manual request in PBS
-
-      - Start worker on the first node of a PBS job
-
-        ```bash
-        $ qsub <your-params-of-qsub> -- hq worker start
-        ```
-      - Start worker on all nodes of a PBS job
-
-        ```bash
-        $ qsub <your-params-of-qsub> -- `which pbsdsh` hq worker start
-        ```
-    * Manual request in SLURM
-
-      - Start worker on the first node of a Slurm job
-
-        ```bash
-        $ sbatch <your-params-of-sbatch> --wrap "hq worker start"
-        ```
-      - Start worker on all nodes of a Slurm job
-
-        ```bash
-        $ sbatch <your-params-of-sbatch> --wrap "srun --overlap hq worker start"
-        ```
-
-* Monitor the state of jobs
+* See the result of the job once it finishes
 
   ```bash
-  $ hq job list --all
+  $ hq job wait last
+  $ hq job cat last stdout
   ```
 
 ## What's next?
