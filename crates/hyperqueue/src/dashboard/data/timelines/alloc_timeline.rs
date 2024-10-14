@@ -102,7 +102,7 @@ impl AllocationTimeline {
                         *id,
                         AllocationQueueInfo {
                             queue_params: *params.clone(),
-                            creation_time: event.time,
+                            creation_time: event.time.into(),
                             removal_time: None,
                             allocations: Default::default(),
                         },
@@ -110,7 +110,7 @@ impl AllocationTimeline {
                 }
                 EventPayload::AllocationQueueRemoved(queue_id) => {
                     let queue_state = self.queue_timelines.get_mut(queue_id).unwrap();
-                    queue_state.removal_time = Some(event.time);
+                    queue_state.removal_time = Some(event.time.into());
                 }
                 EventPayload::AllocationQueued {
                     queue_id,
@@ -121,7 +121,7 @@ impl AllocationTimeline {
                     queue_state.add_queued_allocation(
                         allocation_id.clone(),
                         *worker_count,
-                        event.time,
+                        event.time.into(),
                     );
                 }
                 EventPayload::AllocationStarted(queue_id, allocation_id) => {
@@ -129,7 +129,7 @@ impl AllocationTimeline {
                     queue_state.update_allocation_state(
                         allocation_id,
                         AllocationStatus::Running,
-                        event.time,
+                        event.time.into(),
                     );
                 }
                 EventPayload::AllocationFinished(queue_id, allocation_id) => {
@@ -137,7 +137,7 @@ impl AllocationTimeline {
                     queue_state.update_allocation_state(
                         allocation_id,
                         AllocationStatus::Finished,
-                        event.time,
+                        event.time.into(),
                     );
                 }
                 _ => {}

@@ -27,7 +27,7 @@ pub struct DashboardData {
 
 impl DashboardData {
     pub fn push_new_events(&mut self, mut events: Vec<Event>) {
-        events.sort_unstable_by_key(|e| e.time());
+        events.sort_unstable_by_key(|e| e.time.time());
 
         // Update data views
         self.worker_timeline.handle_new_events(&events);

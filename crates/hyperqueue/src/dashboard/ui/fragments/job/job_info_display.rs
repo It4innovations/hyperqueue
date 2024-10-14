@@ -46,21 +46,21 @@ fn create_rows(params: &DashboardJobInfo) -> Vec<JobInfoDataRow> {
         let end_time: DateTime<Local> = time.into();
         end_time.format("%b %e, %T").to_string().into()
     });
-    let log_path = params
-        .job_info
-        .job_desc
-        .log
-        .as_ref()
-        .map(|log_path| log_path.to_string_lossy().to_string())
-        .unwrap_or_default();
+    // let log_path = params
+    //     .job_info
+    //     .job_desc
+    //     .log
+    //     .as_ref()
+    //     .map(|log_path| log_path.to_string_lossy().to_string())
+    //     .unwrap_or_default();
 
     vec![
         JobInfoDataRow {
             label: "Job Type: ",
-            data: match params.job_info.job_desc.task_desc {
-                JobTaskDescription::Array { .. } => "Array".into(),
-                JobTaskDescription::Graph { .. } => "Graph".into(),
-            },
+            data: todo!(), // match params.job_info.job_desc.task_desc {
+                           //     JobTaskDescription::Array { .. } => "Array".into(),
+                           //     JobTaskDescription::Graph { .. } => "Graph".into(),
+                           // },
         },
         JobInfoDataRow {
             label: "Creation Time: ",
@@ -76,17 +76,17 @@ fn create_rows(params: &DashboardJobInfo) -> Vec<JobInfoDataRow> {
         },
         JobInfoDataRow {
             label: "Log Path: ",
-            data: log_path.into(),
+            data: todo!(), //log_path.into(),
         },
         JobInfoDataRow {
             label: "Max Fails: ",
-            data: params
-                .job_info
-                .job_desc
-                .max_fails
-                .map(|fails| fails.to_string())
-                .unwrap_or_default()
-                .into(),
+            data: todo!(), // params
+                           //     .job_info
+                           //     .job_desc
+                           //     .max_fails
+                           //     .map(|fails| fails.to_string())
+                           //     .unwrap_or_default()
+                           //     .into(),
         },
     ]
 }

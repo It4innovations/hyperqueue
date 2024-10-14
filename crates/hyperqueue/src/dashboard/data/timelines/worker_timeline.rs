@@ -52,7 +52,7 @@ impl WorkerTimeline {
                     self.workers.insert(
                         *id,
                         WorkerRecord {
-                            connection_time: event.time,
+                            connection_time: event.time.into(),
                             worker_config: *info.clone(),
                             worker_overviews: Default::default(),
                             disconnect_info: None,
@@ -61,12 +61,14 @@ impl WorkerTimeline {
                 }
                 EventPayload::WorkerLost(lost_id, reason) => {
                     if let Some(worker) = self.workers.get_mut(lost_id) {
-                        worker.set_loss_details(event.time, reason.clone());
+                        worker.set_loss_details(event.time.into(), reason.clone());
                     }
                 }
                 EventPayload::WorkerOverviewReceived(overview) => {
                     if let Some(worker) = self.workers.get_mut(&overview.id) {
-                        worker.worker_overviews.push(event.time, overview.clone());
+                        worker
+                            .worker_overviews
+                            .push(event.time.into(), overview.clone());
                     }
                 }
                 _ => {}
