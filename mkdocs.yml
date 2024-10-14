@@ -11,39 +11,38 @@ nav:
   - Overview: README.md
   - Installation: installation.md
   - Getting Started:
-    - Quickstart: quickstart.md
-    - Cheatsheet: cheatsheet.md
+      - Quickstart: quickstart.md
+      - Cheatsheet: cheatsheet.md
   - Examples:
-    - examples/README.md
-    - Iterative computation: examples/iterative-computation/README.md
+      - examples/README.md
+      - Iterative computation: examples/iterative-computation/README.md
   - Deployment:
-    - deployment/index.md
-    - Server: deployment/server.md
-    - Workers: deployment/worker.md
-    - Automatic Allocation: deployment/allocation.md
-    - Without Shared Filesystem: deployment/cloud.md
+      - deployment/index.md
+      - Server: deployment/server.md
+      - Workers: deployment/worker.md
+      - Automatic Allocation: deployment/allocation.md
+      - Without Shared Filesystem: deployment/cloud.md
   - Task computation:
-    - Jobs and Tasks: jobs/jobs.md
-    - Task Arrays: jobs/arrays.md
-    - Resources: jobs/resources.md
-    - CPU Resources: jobs/cresources.md
-    - Handling Failure: jobs/failure.md
-    - Output Streaming: jobs/streaming.md
-    - Directives: jobs/directives.md
-    - Job Definition File: jobs/jobfile.md
-    - Open jobs: jobs/openjobs.md
-    - Multinode Tasks: jobs/multinode.md
+      - Jobs and Tasks: jobs/jobs.md
+      - Task Arrays: jobs/arrays.md
+      - Resources: jobs/resources.md
+      - CPU Resources: jobs/cresources.md
+      - Handling Failure: jobs/failure.md
+      - Output Streaming: jobs/streaming.md
+      - Directives: jobs/directives.md
+      - Job Definition File: jobs/jobfile.md
+      - Open jobs: jobs/openjobs.md
+      - Multinode Tasks: jobs/multinode.md
   - CLI:
-    - Shortcuts: cli/shortcuts.md
-    - Dashboard: cli/dashboard.md
-    - Output mode: cli/output-mode.md
+      - Shortcuts: cli/shortcuts.md
+      - Dashboard: cli/dashboard.md
+      - Output mode: cli/output-mode.md
   - Python API:
       - Getting started: python/index.md
       - Client: python/client.md
       - Submitting jobs: python/submit.md
       - Dependencies: python/dependencies.md
       - API reference: python/apidoc/
-  - Events: events.md
   - FAQ: faq.md
   - Comparison With Other Tools: other-tools.md
 
@@ -54,9 +53,9 @@ theme:
     - header.autohide
     - navigation.instant
     - navigation.top
-#    - navigation.sections
-#    - navigation.tabs
-#    - navigation.indexes
+  #    - navigation.sections
+  #    - navigation.tabs
+  #    - navigation.indexes
   icon:
     repo: fontawesome/brands/github
 
