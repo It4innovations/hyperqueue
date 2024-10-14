@@ -7,11 +7,11 @@ use std::io::{BufWriter, Seek, SeekFrom, Write};
 use std::path::Path;
 
 /// Streams monitoring events into a file on disk.
-pub struct EventLogWriter {
+pub struct JournalWriter {
     file: BufWriter<File>,
 }
 
-impl EventLogWriter {
+impl JournalWriter {
     pub fn create_or_append(path: &Path, truncate: Option<u64>) -> anyhow::Result<Self> {
         let mut raw_file = OpenOptions::new()
             .write(true)

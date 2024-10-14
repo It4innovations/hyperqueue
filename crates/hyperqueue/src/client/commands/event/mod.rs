@@ -4,7 +4,7 @@ use crate::client::commands::event::output::format_event;
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::utils::str::pluralize;
 use crate::server::bootstrap::get_client_session;
-use crate::server::event::log::EventLogReader;
+use crate::server::event::log::JournalReader;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use anyhow::anyhow;
 use clap::{Parser, ValueHint};
@@ -68,7 +68,7 @@ async fn stream_json(gsettings: &GlobalSettings) -> anyhow::Result<()> {
 }
 
 fn export_json(opts: ExportOpts) -> anyhow::Result<()> {
-    let mut file = EventLogReader::open(&opts.logfile).map_err(|error| {
+    let mut file = JournalReader::open(&opts.logfile).map_err(|error| {
         anyhow!(
             "Cannot open event log file at `{}`: {error:?}",
             opts.logfile.display()

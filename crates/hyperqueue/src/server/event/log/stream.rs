@@ -1,6 +1,6 @@
 use crate::common::utils::str::pluralize;
-use crate::server::event::log::write::EventLogWriter;
-use crate::server::event::log::EventLogReader;
+use crate::server::event::log::write::JournalWriter;
+use crate::server::event::log::JournalReader;
 use crate::server::event::payload::EventPayload;
 use crate::server::event::Event;
 use std::future::Future;
@@ -26,7 +26,7 @@ fn create_event_stream_queue() -> (EventStreamSender, EventStreamReceiver) {
 /// Returns a future that resolves once the event streaming thread finishes.
 /// The thread will finish if there is some I/O error or if the `receiver` is closed.
 pub fn start_event_streaming(
-    writer: EventLogWriter,
+    writer: JournalWriter,
     log_path: &Path,
 ) -> (EventStreamSender, impl Future<Output = ()>) {
     let (tx, rx) = create_event_stream_queue();
@@ -54,7 +54,7 @@ pub fn start_event_streaming(
 const FLUSH_PERIOD: Duration = Duration::from_secs(30);
 
 async fn streaming_process(
-    mut writer: EventLogWriter,
+    mut writer: JournalWriter,
     mut receiver: EventStreamReceiver,
     log_path: &Path,
 ) -> anyhow::Result<()> {
@@ -83,7 +83,7 @@ async fn streaming_process(
                            And while this read is performed, we cannot allow modification of the file,
                            so the writing to the file has to be paused anyway */
                         writer.flush()?;
-                        let mut reader = EventLogReader::open(log_path)?;
+                        let mut reader = JournalReader::open(log_path)?;
                         for event in &mut reader {
                             tx.send(event?).unwrap()
                         }
