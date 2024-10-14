@@ -2,7 +2,7 @@
 <img src="docs/imgs/hq.png">
 </p>
 
-![Tests](https://github.com/it4innovations/hyperqueue/actions/workflows/test.yml/badge.svg) [![DOI paper](https://img.shields.io/badge/Paper-10.1016/j.softx.2024.101814-blue.svg)](https://doi.org/10.1016/j.softx.2024.101814) [![DOI software](https://zenodo.org/badge/349152473.svg)](https://zenodo.org/badge/latestdoi/349152473)
+![Tests](https://github.com/it4innovations/hyperqueue/actions/workflows/test.yml/badge.svg) [![DOI paper](https://img.shields.io/badge/Paper-10.1016/j.softx.2024.101814-blue.svg)](https://www.sciencedirect.com/science/article/pii/S2352711024001857) [![DOI software](https://zenodo.org/badge/349152473.svg)](https://zenodo.org/badge/latestdoi/349152473)
 
 **HyperQueue** is a tool designed to simplify execution of large workflows (task graphs) on HPC clusters. It allows you to execute a large number of tasks in a simple way, without having to manually submit jobs into batch schedulers like Slurm or PBS. You just specify what you want to compute – HyperQueue will automatically ask for computational resources and dynamically load-balance tasks across all allocated nodes and cores. HyperQueue can also work without Slurm/PBS as a general task executor.
 
