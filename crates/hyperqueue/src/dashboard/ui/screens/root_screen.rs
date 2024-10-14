@@ -5,6 +5,7 @@ use crate::dashboard::ui::screens::job_screen::JobScreen;
 use crate::dashboard::ui::screens::overview_screen::WorkerOverviewScreen;
 use crate::dashboard::ui::terminal::{DashboardFrame, DashboardTerminal};
 use chrono::Local;
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
@@ -12,7 +13,6 @@ use ratatui::widgets::{Block, Borders, Paragraph, Tabs, Wrap};
 use ratatui::Frame;
 use std::ops::ControlFlow;
 use std::time::Duration;
-use termion::event::Key;
 
 const KEY_TIMELINE_SOONER: char = 'o';
 const KEY_TIMELINE_LATER: char = 'p';
@@ -58,30 +58,30 @@ impl RootScreen {
 
     pub fn handle_key(
         &mut self,
-        input: Key,
+        input: KeyEvent,
         data: &mut DashboardData,
     ) -> ControlFlow<anyhow::Result<()>> {
-        if input == Key::Char('q') {
+        if input.code == KeyCode::Char('q') {
             return ControlFlow::Break(Ok(()));
         }
-        match input {
-            Key::Char('j') => {
+        match input.code {
+            KeyCode::Char('j') => {
                 self.current_screen = SelectedScreen::JobOverview;
             }
-            Key::Char('a') => {
+            KeyCode::Char('a') => {
                 self.current_screen = SelectedScreen::AutoAllocator;
             }
-            Key::Char('w') => {
+            KeyCode::Char('w') => {
                 self.current_screen = SelectedScreen::WorkerOverview;
             }
-            Key::Char(c) if c == KEY_TIMELINE_SOONER => data.set_time_range(
+            KeyCode::Char(c) if c == KEY_TIMELINE_SOONER => data.set_time_range(
                 data.current_time_range()
                     .sooner(Duration::from_secs(60 * 5)),
             ),
-            Key::Char(c) if c == KEY_TIMELINE_LATER => {
+            KeyCode::Char(c) if c == KEY_TIMELINE_LATER => {
                 data.set_time_range(data.current_time_range().later(Duration::from_secs(60 * 5)))
             }
-            Key::Char('r') => data.set_live_time_mode(),
+            KeyCode::Char('r') => data.set_live_time_mode(),
 
             _ => {
                 self.get_current_screen_mut().handle_key(input);

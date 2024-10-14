@@ -1,12 +1,11 @@
-use std::default::Default;
-use std::time::SystemTime;
-use termion::event::Key;
-
 use crate::dashboard::ui::styles::{
     style_footer, style_header_text, table_style_deselected, table_style_selected,
 };
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
+use crossterm::event::{KeyCode, KeyEvent};
+use std::default::Default;
+use std::time::SystemTime;
 
 use crate::dashboard::data::timelines::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
@@ -87,13 +86,13 @@ impl JobFragment {
     }
 
     /// Handles key presses for the components of the screen
-    pub fn handle_key(&mut self, key: Key) {
-        match key {
-            Key::Char('1') => {
+    pub fn handle_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Char('1') => {
                 self.component_in_focus = FocusedComponent::JobsTable;
                 self.job_tasks_table.clear_selection();
             }
-            Key::Char('2') => self.component_in_focus = FocusedComponent::JobTasksTable,
+            KeyCode::Char('2') => self.component_in_focus = FocusedComponent::JobTasksTable,
             _ => {}
         }
         match self.component_in_focus {

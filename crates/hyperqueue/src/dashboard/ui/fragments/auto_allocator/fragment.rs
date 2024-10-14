@@ -1,12 +1,11 @@
-use std::default::Default;
-use std::time::SystemTime;
-use termion::event::Key;
-
 use crate::dashboard::ui::styles::{
     style_footer, style_header_text, table_style_deselected, table_style_selected,
 };
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
+use crossterm::event::{KeyCode, KeyEvent};
+use std::default::Default;
+use std::time::SystemTime;
 
 use crate::dashboard::data::timelines::alloc_timeline::AllocationQueueInfo;
 use crate::dashboard::data::DashboardData;
@@ -99,18 +98,18 @@ impl AutoAllocatorFragment {
     }
 
     /// Handles key presses for the components of the screen
-    pub fn handle_key(&mut self, key: Key) {
+    pub fn handle_key(&mut self, key: KeyEvent) {
         match self.component_in_focus {
             FocusedComponent::QueueParamsTable => self.queue_info_table.handle_key(key),
             FocusedComponent::AllocationInfoTable => self.allocations_info_table.handle_key(key),
         };
 
-        match key {
-            Key::Char('1') => {
+        match key.code{
+            KeyCode::Char('1') => {
                 self.component_in_focus = FocusedComponent::QueueParamsTable;
                 self.allocations_info_table.clear_selection();
             }
-            Key::Char('2') => self.component_in_focus = FocusedComponent::AllocationInfoTable,
+            KeyCode::Char('2') => self.component_in_focus = FocusedComponent::AllocationInfoTable,
             _ => {}
         }
     }

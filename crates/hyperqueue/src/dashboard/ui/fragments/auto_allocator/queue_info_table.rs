@@ -3,10 +3,10 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::server::autoalloc::QueueId;
 use chrono::{DateTime, Local};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::Style;
 use ratatui::widgets::{Cell, Row};
-use termion::event::Key;
 
 #[derive(Default)]
 pub struct AllocationQueueInfoTable {
@@ -64,10 +64,10 @@ impl AllocationQueueInfoTable {
         );
     }
 
-    pub fn handle_key(&mut self, key: Key) {
-        match key {
-            Key::Down => self.select_next_queue(),
-            Key::Up => self.select_previous_queue(),
+    pub fn handle_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Down => self.select_next_queue(),
+            KeyCode::Up => self.select_previous_queue(),
             _ => {}
         }
     }

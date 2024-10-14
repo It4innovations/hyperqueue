@@ -5,12 +5,12 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::JobTaskId;
 use chrono::{DateTime, Local};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Cell, Row};
 use std::time::SystemTime;
 use tako::WorkerId;
-use termion::event::Key;
 
 // Task State Strings
 const RUNNING: &str = "RUNNING";
@@ -45,10 +45,10 @@ impl TasksTable {
         selection.map(|row| (row.task_id, row.worker_id))
     }
 
-    pub fn handle_key(&mut self, key: Key) {
-        match key {
-            Key::Down => self.select_next_task(),
-            Key::Up => self.select_previous_task(),
+    pub fn handle_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Down => self.select_next_task(),
+            KeyCode::Up => self.select_previous_task(),
             _ => {}
         }
     }
