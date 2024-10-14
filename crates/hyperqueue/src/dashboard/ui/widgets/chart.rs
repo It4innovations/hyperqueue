@@ -203,8 +203,8 @@ pub fn x_axis_time_chart(range: TimeRange) -> Axis<'static> {
         .style(Style::default().fg(Color::Gray))
         .bounds([get_time_as_secs(range.start), get_time_as_secs(range.end)])
         .labels(vec![
-            format_time_hms(range.start).into(),
-            format_time_hms(range.end).into(),
+            format_time_hms(range.start),
+            format_time_hms(range.end),
         ])
 }
 
@@ -221,9 +221,9 @@ pub fn y_axis_steps(min: f64, max: f64, step_count: u32) -> Axis<'static> {
                 .map(|step| {
                     let value = step as f64 * interval;
                     let value = value.round() as u64;
-                    value.to_string().into()
+                    value.to_string()
                 })
-                .collect(),
+                .collect::<Vec<_>>(),
         )
         .labels_alignment(Alignment::Right)
 }
