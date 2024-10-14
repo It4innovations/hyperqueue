@@ -1,4 +1,4 @@
-use crate::server::event::payload::{EventPayload, JobInfo};
+use crate::server::event::payload::EventPayload;
 use crate::server::event::Event;
 use crate::{JobId, JobTaskId, TakoTaskId, WorkerId};
 use chrono::{DateTime, Utc};
@@ -6,7 +6,7 @@ use std::time::SystemTime;
 use tako::Map;
 
 pub struct DashboardJobInfo {
-    pub job_info: JobInfo,
+    // pub job_info: JobInfo,
     pub job_tasks_info: Map<TakoTaskId, TaskInfo>,
     pub job_creation_time: SystemTime,
 
@@ -53,28 +53,35 @@ impl JobTimeline {
     pub fn handle_new_events(&mut self, events: &[Event]) {
         for event in events {
             match &event.payload {
-                EventPayload::Submit(job_id, job_info) => {
-                    self.job_timeline.insert(
-                        *job_id,
-                        DashboardJobInfo {
-                            job_info: *job_info.clone(),
-                            job_tasks_info: Default::default(),
-                            job_creation_time: event.time,
-                            completion_date: None,
-                        },
-                    );
+                EventPayload::Submit {
+                    job_id,
+                    closed_job,
+                    serialized_desc,
+                } => {
+                    todo!();
+                    // self.job_timeline.insert(
+                    //     *job_id,
+                    //     DashboardJobInfo {
+                    //         job_info: *job_info.clone(),
+                    //         job_tasks_info: Default::default(),
+                    //         job_creation_time: event.time,
+                    //         completion_date: None,
+                    //     },
+                    // );
                 }
 
-                EventPayload::JobCompleted(job_id, completion_date) => {
+                EventPayload::JobCompleted(job_id) => {
                     if let Some(job_info) = self.job_timeline.get_mut(job_id) {
-                        job_info.completion_date = Some(*completion_date)
+                        // job_info.completion_date = Some(*completion_date)
+                        todo!()
                     }
                 }
 
                 EventPayload::TaskStarted {
                     job_id,
                     task_id,
-                    worker_id,
+                    instance_id,
+                    workers,
                 } => {
                     todo!()
                     /*if let Some((_, info)) = self
@@ -102,7 +109,11 @@ impl JobTimeline {
                         &event.time,
                     );*/
                 }
-                EventPayload::TaskFailed { job_id, task_id } => {
+                EventPayload::TaskFailed {
+                    job_id,
+                    task_id,
+                    error,
+                } => {
                     todo!()
                     /*update_task_status(
                         &mut self.job_timeline,
