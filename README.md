@@ -112,7 +112,7 @@ You can find FAQ (frequently asked questions) [here](https://it4innovations.gith
 We are a group of researchers working at [IT4Innovations](https://www.it4i.cz/), the Czech National
 Supercomputing Center. We welcome any outside contributions.
 
-# Publications
+## Publications
 
 - [HyperQueue: Efficient and ergonomic task graphs on HPC clusters](https://www.sciencedirect.com/science/article/pii/S2352711024001857)
   (paper @ SoftwareX journal)
@@ -136,8 +136,11 @@ If you want to cite HyperQueue, you can use the following BibTex entry:
 }
 ```
 
-# Acknowledgement
+## Acknowledgement
 
 * This work was supported by the LIGATE project. This project has received funding from the European High-Performance Computing Joint Undertaking (JU) under grant agreement No 956137. The JU receives support from the European Union’s Horizon 2020 research and innovation programme and Italy, Sweden, Austria, the Czech Republic, Switzerland.
 
 * This work was supported by the Ministry of Education, Youth and Sports of the Czech Republic through the e-INFRA CZ (ID:90140).
+
+## License
+[MIT](LICENSE)
