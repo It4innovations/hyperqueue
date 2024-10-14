@@ -2,8 +2,8 @@ use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::fragments::auto_allocator::fragment::AutoAllocatorFragment;
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::terminal::DashboardFrame;
+use crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
-use termion::event::Key;
 
 #[derive(Default)]
 pub struct AutoAllocScreen {
@@ -19,7 +19,7 @@ impl Screen for AutoAllocScreen {
         self.auto_allocator_fragment.update(data);
     }
 
-    fn handle_key(&mut self, key: Key) {
+    fn handle_key(&mut self, key: KeyEvent) {
         self.auto_allocator_fragment.handle_key(key);
     }
 }

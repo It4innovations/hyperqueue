@@ -1,10 +1,9 @@
+use crossterm::event;
+use crossterm::event::Event::Key;
+use crossterm::event::KeyEventKind;
 use std::io::Write;
 use std::ops::ControlFlow;
 use std::{io, thread};
-
-use termion::input::TermRead;
-use termion::raw::IntoRawMode;
-use termion::screen::ToMainScreen;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Duration;
 
@@ -18,26 +17,34 @@ use crate::server::bootstrap::get_client_session;
 
 /// Starts the dashboard UI with a keyboard listener and tick provider
 pub async fn start_ui_loop(gsettings: &GlobalSettings) -> anyhow::Result<()> {
-    setup_panics();
-
-    let connection = get_client_session(gsettings.server_directory()).await?;
+    // let connection = get_client_session(gsettings.server_directory()).await?;
 
     // TODO: When we start the dashboard and connect to the server, the server may have already forgotten
     // some of its events. Therefore we should bootstrap the state with the most recent overview snapshot.
     let mut dashboard_data = DashboardData::default();
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    start_key_event_listener(tx.clone());
     let mut root_screen = RootScreen::default();
 
-    let ui_ticker = send_event_repeatedly(
-        Duration::from_millis(100),
-        tx.clone(),
-        DashboardEvent::UiTick,
-    );
-    let data_fetch_process = create_data_fetch_process(Duration::from_secs(1), connection, tx);
+    // let ui_ticker = send_event_repeatedly(
+    //     Duration::from_millis(100),
+    //     tx.clone(),
+    //     DashboardEvent::UiTick,
+    // );
+    // let data_fetch_process = create_data_fetch_process(Duration::from_secs(1), connection, tx);
 
     let mut terminal = initialize_terminal()?;
+
+    let res = loop {
+        root_screen.draw(&mut terminal, &dashboard_data);
+        if let Key(key) = event::read()? {
+            if let ControlFlow::Break(res) = root_screen.handle_key(key, &mut dashboard_data) {
+                break res;
+            }
+        }
+    };
+    ratatui::restore();
+    return res;
 
     let event_loop = async {
         while let Some(dashboard_event) = rx.recv().await {
@@ -49,9 +56,7 @@ pub async fn start_ui_loop(gsettings: &GlobalSettings) -> anyhow::Result<()> {
                         return res;
                     }
                 }
-                DashboardEvent::UiTick => {
-                    root_screen.draw(&mut terminal, &dashboard_data);
-                }
+                DashboardEvent::UiTick => {}
                 DashboardEvent::FetchedEvents(events) => {
                     dashboard_data.push_new_events(events);
                 }
@@ -59,34 +64,6 @@ pub async fn start_ui_loop(gsettings: &GlobalSettings) -> anyhow::Result<()> {
         }
         Ok(())
     };
-
-    tokio::select! {
-        _ = ui_ticker => {
-            log::warn!("UI event process has ended");
-            Ok(())
-        }
-        result = data_fetch_process => {
-            log::warn!("Data fetch process has ended");
-            result
-        }
-        result = event_loop => {
-            log::warn!("Dashboard event loop has ended");
-            result
-        }
-    }
-}
-
-/// Handles key press events when the dashboard_ui is active
-fn start_key_event_listener(tx: UnboundedSender<DashboardEvent>) -> thread::JoinHandle<()> {
-    thread::spawn(move || {
-        let stdin = io::stdin();
-        for key in stdin.keys().flatten() {
-            if let Err(err) = tx.send(DashboardEvent::KeyPressEvent(key)) {
-                eprintln!("Error in sending dashboard key: {err}");
-                return;
-            }
-        }
-    })
 }
 
 /// Sends a dashboard event repeatedly, with the specified interval.
@@ -103,19 +80,4 @@ async fn send_event_repeatedly(
         }
         tick_duration.tick().await;
     }
-}
-
-/// Makes sure that panics are actually logged to stdout and not swallowed.
-fn setup_panics() {
-    let default_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        print!("{}", ToMainScreen);
-        io::stdout()
-            .into_raw_mode()
-            .unwrap()
-            .suspend_raw_mode()
-            .unwrap_or_else(|e| log::error!("Could not suspend raw mode: {}", e));
-        io::stdout().flush().unwrap();
-        default_hook(info);
-    }));
 }

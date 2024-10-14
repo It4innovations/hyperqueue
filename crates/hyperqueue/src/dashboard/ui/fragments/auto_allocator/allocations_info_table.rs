@@ -5,11 +5,11 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 use crate::server::autoalloc::AllocationId;
 use chrono::{DateTime, Local};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::Style;
 use ratatui::widgets::{Cell, Row};
 use std::time::SystemTime;
-use termion::event::Key;
 
 #[derive(Default)]
 pub struct AllocationInfoTable {
@@ -88,10 +88,10 @@ impl AllocationInfoTable {
             table_style,
         );
     }
-    pub fn handle_key(&mut self, key: Key) {
-        match key {
-            Key::Down => self.select_next_allocation(),
-            Key::Up => self.select_previous_allocation(),
+    pub fn handle_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Down => self.select_next_allocation(),
+            KeyCode::Up => self.select_previous_allocation(),
             _ => {}
         }
     }

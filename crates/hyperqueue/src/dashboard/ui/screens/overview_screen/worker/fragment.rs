@@ -1,4 +1,4 @@
-use termion::event::Key;
+use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::dashboard::ui::styles::{
     style_footer, style_header_text, table_style_deselected, table_style_selected,
@@ -111,11 +111,11 @@ impl WorkerOverviewFragment {
     }
 
     /// Handles key presses for the components of the screen
-    pub fn handle_key(&mut self, key: Key) {
-        match key {
-            Key::Down => self.worker_tasks_table.select_next_task(),
-            Key::Up => self.worker_tasks_table.select_previous_task(),
-            Key::Backspace => self.worker_tasks_table.clear_selection(),
+    pub fn handle_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Down => self.worker_tasks_table.select_next_task(),
+            KeyCode::Up => self.worker_tasks_table.select_previous_task(),
+            KeyCode::Backspace => self.worker_tasks_table.clear_selection(),
 
             _ => {}
         }

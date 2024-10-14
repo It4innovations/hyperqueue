@@ -6,12 +6,11 @@ use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 
 use crate::JobId;
-use std::time::SystemTime;
-
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::Style;
 use ratatui::widgets::{Cell, Row};
-use termion::event::Key;
+use std::time::SystemTime;
 
 #[derive(Default)]
 pub struct JobsTable {
@@ -39,10 +38,10 @@ impl JobsTable {
         selection.map(|row| row.id)
     }
 
-    pub fn handle_key(&mut self, key: Key) {
-        match key {
-            Key::Down => self.select_next_job(),
-            Key::Up => self.select_previous_job(),
+    pub fn handle_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Down => self.select_next_job(),
+            KeyCode::Up => self.select_previous_job(),
             _ => {}
         }
     }
