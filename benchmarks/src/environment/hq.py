@@ -117,7 +117,7 @@ def assign_workers(workers: List[HqWorkerConfig], nodes: List[str]) -> Dict[str,
 
 def postprocess_events(binary_path: Path, event_log_path: Path, event_log_json_path: Path, workdir: Path):
     with open(event_log_json_path, "w") as f:
-        subprocess.run([str(binary_path), "event-log", "export", str(event_log_path)], stdout=f, check=True)
+        subprocess.run([str(binary_path), "journal", "export", str(event_log_path)], stdout=f, check=True)
     export_hq_events_to_chrome(event_log_json_path, workdir / "events-chrome.json")
 
 
@@ -184,7 +184,7 @@ class HqEnvironment(Environment, EnvStateManager):
             self.postprocessing_fns.append(
                 lambda: postprocess_events(self.binary_path, event_log_path, event_log_json_path, workdir)
             )
-            args += ["--event-log-path", str(event_log_path)]
+            args += ["--journal", str(event_log_path)]
 
         args = StartProcessArgs(
             args=args,

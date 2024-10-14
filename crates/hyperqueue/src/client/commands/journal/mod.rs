@@ -1,6 +1,6 @@
 mod output;
 
-use crate::client::commands::event::output::format_event;
+use crate::client::commands::journal::output::format_event;
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::utils::str::pluralize;
 use crate::server::bootstrap::get_client_session;
@@ -12,37 +12,34 @@ use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-pub struct EventLogOpts {
-    /// Manage event log files.
+pub struct JournalOpts {
+    /// Manage events and journal data.
     #[clap(subcommand)]
-    command: EventCommand,
+    command: JournalCommand,
 }
 
 #[derive(Parser)]
-enum EventCommand {
-    /// Export events from a log file to NDJSON (line-delimited JSON).
+enum JournalCommand {
+    /// Export events from a journal to NDJSON (line-delimited JSON).
     /// Events will be exported to `stdout`, you can redirect it e.g. to a file.
     Export(ExportOpts),
 
-    /// Live stream events from server
+    /// Live stream events from the server.
     Stream,
 }
 
 #[derive(Parser)]
 struct ExportOpts {
-    /// Path to a file containing the event log.
-    /// The file had to be created with `hq server start --event-log-path=<PATH>`.
+    /// Path to a journal.
+    /// It had to be created with `hq server start --journal=<PATH>`.
     #[arg(value_hint = ValueHint::FilePath)]
-    logfile: PathBuf,
+    journal: PathBuf,
 }
 
-pub async fn command_event_log(
-    gsettings: &GlobalSettings,
-    opts: EventLogOpts,
-) -> anyhow::Result<()> {
+pub async fn command_journal(gsettings: &GlobalSettings, opts: JournalOpts) -> anyhow::Result<()> {
     match opts.command {
-        EventCommand::Export(opts) => export_json(opts),
-        EventCommand::Stream => stream_json(gsettings).await,
+        JournalCommand::Export(opts) => export_json(opts),
+        JournalCommand::Stream => stream_json(gsettings).await,
     }
 }
 
@@ -68,10 +65,10 @@ async fn stream_json(gsettings: &GlobalSettings) -> anyhow::Result<()> {
 }
 
 fn export_json(opts: ExportOpts) -> anyhow::Result<()> {
-    let mut file = JournalReader::open(&opts.logfile).map_err(|error| {
+    let mut file = JournalReader::open(&opts.journal).map_err(|error| {
         anyhow!(
             "Cannot open event log file at `{}`: {error:?}",
-            opts.logfile.display()
+            opts.journal.display()
         )
     })?;
 

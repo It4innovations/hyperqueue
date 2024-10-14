@@ -8,12 +8,12 @@ use cli_table::ColorChoice;
 use colored::Colorize;
 
 use hyperqueue::client::commands::autoalloc::command_autoalloc;
-use hyperqueue::client::commands::event::command_event_log;
 use hyperqueue::client::commands::job::{
     cancel_job, close_job, forget_job, output_job_cat, output_job_detail, output_job_list,
     output_job_summary, JobCancelOpts, JobCatOpts, JobCloseOpts, JobForgetOpts, JobInfoOpts,
     JobListOpts, JobTaskIdsOpts,
 };
+use hyperqueue::client::commands::journal::command_journal;
 use hyperqueue::client::commands::outputlog::command_reader;
 use hyperqueue::client::commands::server::command_server;
 use hyperqueue::client::commands::submit::command::{open_job, SubmitJobConfOpts};
@@ -476,7 +476,7 @@ async fn main() -> hyperqueue::Result<()> {
         SubCommand::Dashboard(opts) => command_dashboard_start(&gsettings, opts).await,
         SubCommand::OutputLog(opts) => command_reader(&gsettings, opts),
         SubCommand::AutoAlloc(opts) => command_autoalloc(&gsettings, opts).await,
-        SubCommand::EventLog(opts) => command_event_log(&gsettings, opts).await,
+        SubCommand::Journal(opts) => command_journal(&gsettings, opts).await,
         SubCommand::GenerateCompletion(opts) => generate_completion(opts),
     };
 
