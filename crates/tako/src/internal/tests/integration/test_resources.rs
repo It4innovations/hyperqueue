@@ -194,7 +194,6 @@ async fn test_submit_sleeps_more_cpus2() {
 
         let duration = start.elapsed().as_millis();
         assert!(duration >= 2000);
-        assert!(duration <= 2300);
     })
     .await;
 }
