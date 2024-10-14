@@ -17,7 +17,7 @@ use crate::common::serverdir::{
 use crate::server::autoalloc::{create_autoalloc_service, QueueId};
 use crate::server::backend::Backend;
 use crate::server::event::log::start_event_streaming;
-use crate::server::event::log::EventLogWriter;
+use crate::server::event::log::JournalWriter;
 use crate::server::event::streamer::EventStreamer;
 use crate::server::restore::StateRestorer;
 use crate::server::state::StateRef;
@@ -285,7 +285,7 @@ async fn prepare_event_management(
     truncate_log: Option<u64>,
 ) -> anyhow::Result<(EventStreamer, Pin<Box<dyn Future<Output = ()>>>)> {
     Ok(if let Some(ref log_path) = server_cfg.journal_path {
-        let writer = EventLogWriter::create_or_append(log_path, truncate_log).map_err(|error| {
+        let writer = JournalWriter::create_or_append(log_path, truncate_log).map_err(|error| {
             anyhow!(
                 "Cannot create event log file at `{}`: {error:?}",
                 log_path.display()

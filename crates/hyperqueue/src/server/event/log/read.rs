@@ -13,14 +13,14 @@ use std::path::Path;
 /// EventLogReader is able load a file that was not fully written; in this case `partial_data_error` is set to `true`.
 /// `position` points to the end of correct data; therefore, if the file is truncated to the
 /// `position` length it will contains only valid events and the incomplete event is discarded.
-pub struct EventLogReader {
+pub struct JournalReader {
     source: BufReader<File>,
     position: u64,
     size: u64,
     partial_data_error: bool,
 }
 
-impl EventLogReader {
+impl JournalReader {
     pub fn open(path: &Path) -> anyhow::Result<Self> {
         let raw_file = File::open(path)?;
         let size = raw_file.metadata()?.len();
@@ -53,7 +53,7 @@ impl EventLogReader {
     }
 }
 
-impl Iterator for &mut EventLogReader {
+impl Iterator for &mut JournalReader {
     type Item = Result<Event, bincode::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -78,7 +78,7 @@ impl Iterator for &mut EventLogReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::server::event::log::{EventLogReader, EventLogWriter};
+    use crate::server::event::log::{JournalReader, JournalWriter};
     use crate::server::event::payload::EventPayload;
     use crate::server::event::Event;
     use chrono::Utc;
@@ -93,7 +93,7 @@ mod tests {
         let path = tmpdir.path().join("foo");
         File::create(&path).unwrap();
 
-        assert!(EventLogReader::open(&path).is_err());
+        assert!(JournalReader::open(&path).is_err());
     }
 
     #[test]
@@ -105,7 +105,7 @@ mod tests {
             file.write_all("hqjlxxxx".as_bytes()).unwrap();
             file.flush().unwrap();
         }
-        assert!(EventLogReader::open(&path).is_err());
+        assert!(JournalReader::open(&path).is_err());
     }
 
     #[test]
@@ -113,11 +113,11 @@ mod tests {
         let tmpdir = TempDir::with_prefix("hq").unwrap();
         let path = tmpdir.path().join("foo");
         {
-            let writer = EventLogWriter::create_or_append(&path, None).unwrap();
+            let writer = JournalWriter::create_or_append(&path, None).unwrap();
             writer.finish().unwrap();
         }
 
-        let mut reader = EventLogReader::open(&path).unwrap();
+        let mut reader = JournalReader::open(&path).unwrap();
         assert!((&mut reader).next().is_none());
     }
 
@@ -127,7 +127,7 @@ mod tests {
         let path = tmpdir.path().join("foo");
 
         {
-            let mut writer = EventLogWriter::create_or_append(&path, None).unwrap();
+            let mut writer = JournalWriter::create_or_append(&path, None).unwrap();
             for _id in 0..100 {
                 writer
                     .store(Event {
@@ -151,7 +151,7 @@ mod tests {
 
         let truncate;
         {
-            let mut reader = EventLogReader::open(&path).unwrap();
+            let mut reader = JournalReader::open(&path).unwrap();
             let mut count = 0;
             for item in &mut reader {
                 item.unwrap();
@@ -169,7 +169,7 @@ mod tests {
         }
 
         {
-            let mut reader = EventLogReader::open(&path).unwrap();
+            let mut reader = JournalReader::open(&path).unwrap();
             let mut count = 0;
             for item in &mut reader {
                 item.unwrap();
@@ -186,7 +186,7 @@ mod tests {
         let path = tmpdir.path().join("foo");
 
         {
-            let mut writer = EventLogWriter::create_or_append(&path, None).unwrap();
+            let mut writer = JournalWriter::create_or_append(&path, None).unwrap();
             for _id in 0..100000 {
                 writer
                     .store(Event {
@@ -201,7 +201,7 @@ mod tests {
             writer.finish().unwrap();
         }
 
-        let mut reader = EventLogReader::open(&path).unwrap();
+        let mut reader = JournalReader::open(&path).unwrap();
         for _id in 0..100000 {
             let event = (&mut reader).next().unwrap().unwrap();
             assert!(matches!(
@@ -217,7 +217,7 @@ mod tests {
     fn streaming_read_partial() {
         let tmpdir = TempDir::with_prefix("hq").unwrap();
         let path = tmpdir.path().join("foo");
-        let mut writer = EventLogWriter::create_or_append(&path, None).unwrap();
+        let mut writer = JournalWriter::create_or_append(&path, None).unwrap();
 
         let time = Utc::now();
         writer
@@ -228,7 +228,7 @@ mod tests {
             .unwrap();
         writer.flush().unwrap();
 
-        let mut reader = EventLogReader::open(&path).unwrap();
+        let mut reader = JournalReader::open(&path).unwrap();
         let event = (&mut reader).next().unwrap().unwrap();
         assert_eq!(event.time.timestamp_millis(), time.timestamp_millis());
         assert!(matches!(

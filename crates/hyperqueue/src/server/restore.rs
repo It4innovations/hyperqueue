@@ -1,7 +1,7 @@
 use crate::server::autoalloc::QueueId;
 use crate::server::client::submit_job_desc;
 use crate::server::event::bincode_config;
-use crate::server::event::log::EventLogReader;
+use crate::server::event::log::JournalReader;
 use crate::server::event::payload::EventPayload;
 use crate::server::job::{Job, JobTaskState, StartedTaskData};
 use crate::server::state::State;
@@ -161,7 +161,7 @@ impl StateRestorer {
 
     pub fn load_event_file(&mut self, path: &Path) -> crate::Result<()> {
         log::debug!("Loading event file {}", path.display());
-        let mut event_reader = EventLogReader::open(path)?;
+        let mut event_reader = JournalReader::open(path)?;
         for event in &mut event_reader {
             let event = event?;
             match event.payload {
