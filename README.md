@@ -25,20 +25,26 @@ This image shows how HyperQueue can work on a distributed cluster that uses Slur
 
 ## Features
 
-- **Resource management**
+- **Complex resource management**
     - Load balancing of tasks across all available (HPC) resources
     - Automatic submission of Slurm/PBS jobs on behalf of the user
     - Complex and arbitrary task resource requirements (# of cores, GPUs, memory, FPGAs, ...)
-      - Fractional resources (task needs `0.5` of a GPU)
-      - Resource variants (task needs `1 GPU and 4 CPU cores` or `16 CPU cores`)
+      - Non-fungible resources (tasks are assigned specific resources, e.g. a GPU with ID `1`)
+      - Fractional resources (tasks can require e.g. `0.5` of a GPU)
+      - Resource variants (tasks can require e.g. `1 GPU and 4 CPU cores` OR `16 CPU cores`)
+      - Related resources (tasks can require e.g. `4 CPU cores in the same NUMA node`)
 
-- **Performance**
-    - Scheduler can scale to hundreds of nodes and workers
+- **High performance**
+    - Scales to hundreds of nodes/workers and millions of tasks
     - Overhead per one task is below `0.1ms`
     - Allows streaming of stdout/stderr from tasks to avoid creating many small files on distributed filesystems
 
+- **Simple user interface**
+  - Task graphs can be defined via a CLI, TOML workflow files or a Python API
+  - Cluster utilization can be monitored with a real-time dashboard
+
 - **Easy deployment**
-    - Provided as a single, statically linked binary without any dependencies apart from `libc`
+    - Provided as a single, statically linked binary without any runtime dependencies (apart from `libc`)
     - No admin access to a cluster is needed for its usage
 
 # Getting started
