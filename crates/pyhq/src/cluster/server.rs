@@ -34,7 +34,6 @@ impl RunningServer {
                 idle_timeout: None,
                 client_port: None,
                 worker_port: None,
-                event_buffer_size: 100,
                 journal_path: None,
                 client_secret_key: None,
                 worker_secret_key: None,
