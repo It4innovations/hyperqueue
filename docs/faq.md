@@ -34,7 +34,7 @@ about anything related to HyperQueue, feel free to ask on our [discussion forum]
 
 ??? question "What operating systems does HQ support?"
 
-    HyperQueue currently only officially supports Linux (Ubuntu, Debian, CentOS, etc.). It might be possible to
+    HyperQueue currently only officially supports Linux. It might be possible to
     compile it for other operating systems, however we do not provide any support nor promise to fix any bugs for other
     operating systems.
 
