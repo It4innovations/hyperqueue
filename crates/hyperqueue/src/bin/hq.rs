@@ -4,6 +4,7 @@ use cli_table::ColorChoice;
 use colored::Colorize;
 use hyperqueue::HQ_VERSION;
 use hyperqueue::client::commands::autoalloc::command_autoalloc;
+use hyperqueue::client::commands::data::command_task_data;
 use hyperqueue::client::commands::doc::command_doc;
 use hyperqueue::client::commands::job::{
     JobCancelOpts, JobCatOpts, JobCloseOpts, JobForgetOpts, JobInfoOpts, JobListOpts,
@@ -495,6 +496,7 @@ async fn main() -> hyperqueue::Result<()> {
             TaskCommand::List(opts) => command_task_list(&gsettings, opts).await,
             TaskCommand::Info(opts) => command_task_info(&gsettings, opts).await,
         },
+        SubCommand::TaskData(opts) => command_task_data(&gsettings, opts).await,
         #[cfg(feature = "dashboard")]
         SubCommand::Dashboard(opts) => command_dashboard_start(&gsettings, opts).await,
         SubCommand::OutputLog(opts) => command_reader(&gsettings, opts),
