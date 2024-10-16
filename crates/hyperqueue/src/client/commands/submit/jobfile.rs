@@ -18,7 +18,7 @@ use clap::Parser;
 use smallvec::smallvec;
 use std::path::PathBuf;
 use tako::Map;
-use tako::gateway::{ResourceRequest, ResourceRequestVariants};
+use tako::gateway::{ResourceRequest, ResourceRequestVariants, TaskDataFlags};
 use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
 
 #[derive(Parser)]
@@ -90,10 +90,16 @@ fn build_task(tdef: TaskDef, max_id: &mut JobTaskId) -> TaskWithDependencies {
         *max_id = JobTaskId::new(max_id.as_num() + 1);
         *max_id
     });
+    let mut data_flags = TaskDataFlags::empty();
+    if tdef.keep_outputs {
+        data_flags.insert(TaskDataFlags::KEEP_ALL_OUTPUTS);
+    }
     TaskWithDependencies {
         id,
+        data_flags,
         task_desc: build_task_description(tdef.config),
-        dependencies: tdef.deps,
+        task_deps: tdef.deps,
+        dataobj_deps: tdef.data_deps,
     }
 }
 
@@ -129,17 +135,17 @@ fn build_job_desc_individual_tasks(tasks: Vec<TaskDef>) -> crate::Result<JobTask
     let mut consumers: Map<JobTaskId, Vec<_>> = Map::new();
     for task in tasks {
         let t = build_task(task, &mut max_id);
-        if in_degrees.insert(t.id, t.dependencies.len()).is_some() {
+        if in_degrees.insert(t.id, t.task_deps.len()).is_some() {
             return Err(crate::Error::GenericError(format!(
                 "Task {} is defined multiple times",
                 t.id
             )));
         }
-        let is_empty = t.dependencies.is_empty();
+        let is_empty = t.task_deps.is_empty();
         if is_empty {
             new_tasks.push(t);
         } else {
-            for dep in &t.dependencies {
+            for dep in &t.task_deps {
                 consumers.entry(*dep).or_default().push(t.id);
             }
             unprocessed_tasks.insert(t.id, t);
