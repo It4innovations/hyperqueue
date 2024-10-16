@@ -3,13 +3,17 @@ use std::rc::Rc;
 use std::time::Duration;
 use thin_vec::ThinVec;
 
-use crate::WorkerId;
-use crate::internal::common::Set;
 use crate::internal::common::stablemap::ExtractKey;
+use crate::internal::common::Set;
+use crate::WorkerId;
+
+use crate::gateway::TaskDataFlags;
+use crate::internal::datasrv::dataobj::DataObjectId;
+
 use crate::internal::messages::worker::{ComputeTaskMsg, ToWorkerMessage};
 use crate::internal::server::taskmap::TaskMap;
+use crate::{static_assert_size, TaskId};
 use crate::{InstanceId, Priority};
-use crate::{TaskId, static_assert_size};
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct WaitingInfo {
@@ -60,8 +64,8 @@ pub struct TaskConfiguration {
     pub resources: crate::internal::common::resources::ResourceRequestVariants,
     pub user_priority: Priority,
     pub time_limit: Option<Duration>,
-    pub n_outputs: u32,
     pub crash_limit: u32,
+    pub data_flags: TaskDataFlags,
 }
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
@@ -70,6 +74,7 @@ pub struct Task {
     pub state: TaskRuntimeState,
     consumers: Set<TaskId>,
     pub task_deps: ThinVec<TaskId>,
+    pub dataobj_deps: ThinVec<DataObjectId>,
     pub flags: TaskFlags,
     pub configuration: Rc<TaskConfiguration>,
     pub scheduler_priority: Priority,
@@ -79,7 +84,7 @@ pub struct Task {
 }
 
 // Task is a critical data structure, so we should keep its size in check
-static_assert_size!(Task, 112);
+static_assert_size!(Task, 120);
 
 impl fmt::Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -91,7 +96,8 @@ impl fmt::Debug for Task {
 impl Task {
     pub fn new(
         id: TaskId,
-        dependencies: ThinVec<TaskId>,
+        task_deps: ThinVec<TaskId>,
+        dataobj_deps: ThinVec<DataObjectId>,
         configuration: Rc<TaskConfiguration>,
         body: Box<[u8]>,
     ) -> Self {
@@ -102,7 +108,8 @@ impl Task {
 
         Self {
             id,
-            task_deps: dependencies,
+            task_deps,
+            dataobj_deps,
             flags,
             configuration,
             body,
@@ -229,8 +236,8 @@ impl Task {
             scheduler_priority: self.scheduler_priority,
             resources: self.configuration.resources.clone(),
             time_limit: self.configuration.time_limit,
-            n_outputs: self.configuration.n_outputs,
             node_list,
+            data_flags: self.configuration.data_flags,
             body: self.body.clone(),
         })
     }
