@@ -7,14 +7,14 @@ use crate::client::status::Status;
 use crate::common::arraydef::IntArray;
 use crate::common::manager::info::ManagerType;
 use crate::server::autoalloc::{Allocation, QueueId, QueueInfo};
+use crate::server::event::Event;
 use crate::server::job::{JobTaskCounters, JobTaskInfo, SubmittedJobDescription};
-use crate::{JobId, JobTaskCount, JobTaskId, Map, WorkerId};
+use crate::{JobDataObjectId, JobId, JobTaskCount, JobTaskId, Map, WorkerId};
 use bstr::BString;
 use std::path::PathBuf;
 use std::time::Duration;
-
-use crate::server::event::Event;
-use tako::gateway::{LostWorkerReason, ResourceRequestVariants, WorkerRuntimeInfo};
+use tako::datasrv::DataObjectId;
+use tako::gateway::{LostWorkerReason, ResourceRequestVariants, TaskDataFlags, WorkerRuntimeInfo};
 use tako::program::ProgramDefinition;
 use tako::worker::WorkerConfiguration;
 
@@ -123,7 +123,9 @@ impl TaskDescription {
 pub struct TaskWithDependencies {
     pub id: JobTaskId,
     pub task_desc: TaskDescription,
-    pub dependencies: Vec<JobTaskId>,
+    pub task_deps: Vec<JobTaskId>,
+    pub dataobj_deps: Vec<JobDataObjectId>,
+    pub data_flags: TaskDataFlags,
 }
 
 impl TaskWithDependencies {

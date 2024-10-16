@@ -6,31 +6,20 @@ use std::process::ExitStatus;
 use std::time::Duration;
 
 use bstr::{BStr, BString, ByteSlice};
-use futures::TryFutureExt;
 use futures::future::Either;
+use futures::TryFutureExt;
 use nix::sys::signal;
 use nix::sys::signal::Signal;
 use tempfile::TempDir;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::oneshot::Receiver;
 
-use tako::comm::serialize;
-use tako::launcher::{
-    StopReason, TaskBuildContext, TaskLaunchData, TaskResult, command_from_definitions,
-};
-use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
-use tako::resources::{
-    AMD_GPU_RESOURCE_NAME, Allocation, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
-    NVIDIA_GPU_RESOURCE_NAME, ResourceAllocation,
-};
-use tako::{InstanceId, format_comma_delimited};
-
 use crate::common::env::{
-    HQ_CPUS, HQ_ENTRY, HQ_ERROR_FILENAME, HQ_HOST_FILE, HQ_INSTANCE_ID, HQ_JOB_ID, HQ_NODE_FILE,
-    HQ_NUM_NODES, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR, HQ_TASK_ID,
+    HQ_CPUS, HQ_DATA_ACCESS, HQ_ENTRY, HQ_ERROR_FILENAME, HQ_HOST_FILE, HQ_INSTANCE_ID, HQ_JOB_ID,
+    HQ_NODE_FILE, HQ_NUM_NODES, HQ_PIN, HQ_SUBMIT_DIR, HQ_TASK_DIR, HQ_TASK_ID,
 };
 use crate::common::placeholders::{
-    CompletePlaceholderCtx, ResolvablePaths, fill_placeholders_in_paths,
+    fill_placeholders_in_paths, CompletePlaceholderCtx, ResolvablePaths,
 };
 use crate::common::utils::fs::{bytes_to_path, is_implicit_path, path_has_extension};
 use crate::transfer::messages::{PinMode, TaskKindProgram};
@@ -39,6 +28,17 @@ use crate::worker::start::{RunningTaskContext, SharedTaskDescription};
 use crate::worker::streamer::StreamSender;
 use crate::worker::streamer::StreamerRef;
 use crate::{JobId, JobTaskId};
+use tako::comm::serialize;
+use tako::gateway::TaskDataFlags;
+use tako::launcher::{
+    command_from_definitions, StopReason, TaskBuildContext, TaskLaunchData, TaskResult,
+};
+use tako::program::{FileOnCloseBehavior, ProgramDefinition, StdioDef};
+use tako::resources::{
+    Allocation, ResourceAllocation, AMD_GPU_RESOURCE_NAME, CPU_RESOURCE_ID, CPU_RESOURCE_NAME,
+    NVIDIA_GPU_RESOURCE_NAME,
+};
+use tako::{format_comma_delimited, InstanceId};
 
 const MAX_CUSTOM_ERROR_LENGTH: usize = 2048; // 2KiB
 
@@ -158,6 +158,9 @@ pub(super) fn build_program_task(
             HQ_INSTANCE_ID.into(),
             build_ctx.instance_id().to_string().into(),
         );
+        if let Some(key) = build_ctx.data_access_key() {
+            program.env.insert(HQ_DATA_ACCESS.into(), key);
+        }
 
         let ctx = CompletePlaceholderCtx {
             job_id,
