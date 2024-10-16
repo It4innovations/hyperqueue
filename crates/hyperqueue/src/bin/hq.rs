@@ -9,6 +9,7 @@ use std::panic::PanicHookInfo;
 use hyperqueue::HQ_VERSION;
 use hyperqueue::client::commands::autoalloc::command_autoalloc;
 use hyperqueue::client::commands::doc::command_doc;
+use hyperqueue::client::commands::data::command_task_data;
 use hyperqueue::client::commands::job::{
     JobCancelOpts, JobCatOpts, JobCloseOpts, JobForgetOpts, JobInfoOpts, JobListOpts,
     JobTaskIdsOpts, cancel_job, close_job, forget_job, output_job_cat, output_job_detail,
@@ -126,7 +127,7 @@ async fn command_job_cat(gsettings: &GlobalSettings, opts: JobCatOpts) -> anyhow
         opts.stream,
         opts.print_task_header,
     )
-    .await
+        .await
 }
 
 async fn command_job_cancel(gsettings: &GlobalSettings, opts: JobCancelOpts) -> anyhow::Result<()> {
@@ -160,7 +161,7 @@ async fn command_job_wait(gsettings: &GlobalSettings, opts: JobWaitOpts) -> anyh
         opts.selector,
         !opts.without_close,
     )
-    .await
+        .await
 }
 
 async fn command_job_progress(
@@ -175,7 +176,7 @@ async fn command_job_progress(
         }),
         ToClientMessage::JobInfoResponse(r) => r
     )
-    .await?;
+        .await?;
     wait_for_jobs_with_progress(&mut session, &response.jobs).await
 }
 
@@ -188,7 +189,7 @@ async fn command_task_list(gsettings: &GlobalSettings, opts: TaskListOpts) -> an
         get_task_selector(Some(opts.task_selector)),
         opts.verbosity.into(),
     )
-    .await
+        .await
 }
 
 async fn command_task_info(gsettings: &GlobalSettings, opts: TaskInfoOpts) -> anyhow::Result<()> {
@@ -200,7 +201,7 @@ async fn command_task_info(gsettings: &GlobalSettings, opts: TaskInfoOpts) -> an
         get_task_id_selector(Some(opts.task_selector)),
         opts.verbosity.into(),
     )
-    .await
+        .await
 }
 
 async fn command_worker_start(
@@ -415,72 +416,73 @@ async fn main() -> hyperqueue::Result<()> {
     let result = match top_opts.subcmd {
         SubCommand::Server(opts) => command_server(&gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::Start(opts),
-        }) => command_worker_start(&gsettings, opts).await,
+                               subcmd: WorkerCommand::Start(opts),
+                           }) => command_worker_start(&gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::Stop(opts),
-        }) => command_worker_stop(&gsettings, opts).await,
+                               subcmd: WorkerCommand::Stop(opts),
+                           }) => command_worker_stop(&gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::List(opts),
-        }) => command_worker_list(&gsettings, opts).await,
+                               subcmd: WorkerCommand::List(opts),
+                           }) => command_worker_list(&gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::Info(opts),
-        }) => command_worker_info(&gsettings, opts).await,
+                               subcmd: WorkerCommand::Info(opts),
+                           }) => command_worker_info(&gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::HwDetect(opts),
-        }) => command_worker_hwdetect(&gsettings, opts),
+                               subcmd: WorkerCommand::HwDetect(opts),
+                           }) => command_worker_hwdetect(&gsettings, opts),
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::Address(opts),
-        }) => command_worker_address(&gsettings, opts).await,
+                               subcmd: WorkerCommand::Address(opts),
+                           }) => command_worker_address(&gsettings, opts).await,
         SubCommand::Worker(WorkerOpts {
-            subcmd: WorkerCommand::Wait(opts),
-        }) => command_worker_wait(&gsettings, opts).await,
+                               subcmd: WorkerCommand::Wait(opts),
+                           }) => command_worker_wait(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
-            subcmd: JobCommand::List(opts),
-        }) => command_job_list(&gsettings, opts).await,
+                            subcmd: JobCommand::List(opts),
+                        }) => command_job_list(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
-            subcmd: JobCommand::Summary,
-        }) => command_job_summary(&gsettings).await,
+                            subcmd: JobCommand::Summary,
+                        }) => command_job_summary(&gsettings).await,
         SubCommand::Job(JobOpts {
-            subcmd: JobCommand::Info(opts),
-        }) => command_job_detail(&gsettings, opts).await,
+                            subcmd: JobCommand::Info(opts),
+                        }) => command_job_detail(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
-            subcmd: JobCommand::Cat(opts),
-        }) => command_job_cat(&gsettings, opts).await,
+                            subcmd: JobCommand::Cat(opts),
+                        }) => command_job_cat(&gsettings, opts).await,
         SubCommand::Submit(opts)
         | SubCommand::Job(JobOpts {
-            subcmd: JobCommand::Submit(opts),
-        }) => command_job_submit(&gsettings, OptsWithMatches::new(opts, matches)).await,
+                              subcmd: JobCommand::Submit(opts),
+                          }) => command_job_submit(&gsettings, OptsWithMatches::new(opts, matches)).await,
         SubCommand::Job(JobOpts {
-            subcmd: JobCommand::SubmitFile(opts),
-        }) => command_submit_job_file(&gsettings, opts).await,
+                            subcmd: JobCommand::SubmitFile(opts),
+                        }) => command_submit_job_file(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
-            subcmd: JobCommand::Cancel(opts),
-        }) => command_job_cancel(&gsettings, opts).await,
+                            subcmd: JobCommand::Cancel(opts),
+                        }) => command_job_cancel(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
-            subcmd: JobCommand::Forget(opts),
-        }) => command_job_delete(&gsettings, opts).await,
+                            subcmd: JobCommand::Forget(opts),
+                        }) => command_job_delete(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
-            subcmd: JobCommand::Wait(opts),
-        }) => command_job_wait(&gsettings, opts).await,
+                            subcmd: JobCommand::Wait(opts),
+                        }) => command_job_wait(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
-            subcmd: JobCommand::Progress(opts),
-        }) => command_job_progress(&gsettings, opts).await,
+                            subcmd: JobCommand::Progress(opts),
+                        }) => command_job_progress(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
-            subcmd: JobCommand::TaskIds(opts),
-        }) => command_job_task_ids(&gsettings, opts).await,
+                            subcmd: JobCommand::TaskIds(opts),
+                        }) => command_job_task_ids(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
-            subcmd: JobCommand::Open(opts),
-        }) => command_job_open(&gsettings, opts).await,
+                            subcmd: JobCommand::Open(opts),
+                        }) => command_job_open(&gsettings, opts).await,
         SubCommand::Job(JobOpts {
-            subcmd: JobCommand::Close(opts),
-        }) => command_job_close(&gsettings, opts).await,
+                            subcmd: JobCommand::Close(opts),
+                        }) => command_job_close(&gsettings, opts).await,
         SubCommand::Task(TaskOpts {
-            subcmd: TaskCommand::List(opts),
-        }) => command_task_list(&gsettings, opts).await,
+                             subcmd: TaskCommand::List(opts),
+                         }) => command_task_list(&gsettings, opts).await,
         SubCommand::Task(TaskOpts {
-            subcmd: TaskCommand::Info(opts),
-        }) => command_task_info(&gsettings, opts).await,
+                             subcmd: TaskCommand::Info(opts),
+                         }) => command_task_info(&gsettings, opts).await,
+        SubCommand::TaskData(opts) => command_task_data(&gsettings, opts).await,
         #[cfg(feature = "dashboard")]
         SubCommand::Dashboard(opts) => command_dashboard_start(&gsettings, opts).await,
         SubCommand::OutputLog(opts) => command_reader(&gsettings, opts),
