@@ -1,18 +1,21 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use orion::aead::SecretKey;
-use rand::SeedableRng;
 use rand::prelude::IndexedRandom;
 use rand::rngs::SmallRng;
+use rand::SeedableRng;
 
 use crate::TaskId;
 use crate::WorkerId;
-use crate::internal::common::resources::Allocation;
+
 use crate::internal::common::resources::map::ResourceMap;
+use crate::internal::common::resources::Allocation;
 use crate::internal::common::stablemap::StableMap;
 use crate::internal::common::{Map, Set, WrappedRcRefCell};
+use crate::internal::datasrv::DataNodeRef;
 use crate::internal::messages::common::TaskFailInfo;
 use crate::internal::messages::worker::{
     FromWorkerMessage, NewWorkerMsg, StealResponse, TaskFailedMsg, TaskFinishedMsg,
@@ -20,6 +23,7 @@ use crate::internal::messages::worker::{
 use crate::internal::server::workerload::WorkerResources;
 use crate::internal::worker::comm::WorkerComm;
 use crate::internal::worker::configuration::WorkerConfiguration;
+use crate::internal::worker::localcomm::LocalCommState;
 use crate::internal::worker::resources::allocator::ResourceAllocator;
 use crate::internal::worker::resources::map::ResourceLabelMap;
 use crate::internal::worker::rqueue::ResourceWaitQueue;
@@ -51,6 +55,9 @@ pub struct WorkerState {
 
     pub(crate) reservation: bool, // If true, idle timeout is blocked
     pub(crate) last_task_finish_time: Instant,
+
+    pub(crate) lc_state: RefCell<LocalCommState>,
+    pub(crate) data_node_ref: DataNodeRef,
 
     resource_map: ResourceMap,
     resource_label_map: ResourceLabelMap,
@@ -270,11 +277,10 @@ impl WorkerState {
             &other_worker.address
         );
         assert_ne!(self.worker_id, other_worker.worker_id); // We should not receive message about ourselves
-        assert!(
-            self.worker_addresses
-                .insert(other_worker.worker_id, other_worker.address)
-                .is_none()
-        );
+        assert!(self
+            .worker_addresses
+            .insert(other_worker.worker_id, other_worker.address)
+            .is_none());
 
         let resources = WorkerResources::from_transport(other_worker.resources);
         self.ready_task_queue
@@ -311,6 +317,7 @@ impl WorkerStateRef {
             configuration,
             worker_overview_interval_override: None,
             task_launcher,
+            server_uid,
             tasks: Default::default(),
             ready_task_queue,
             random: SmallRng::from_os_rng(),
@@ -322,7 +329,8 @@ impl WorkerStateRef {
             last_task_finish_time: now,
             reservation: false,
             worker_addresses: Default::default(),
-            server_uid,
+            lc_state: RefCell::new(LocalCommState::new()),
+            data_node_ref: DataNodeRef::new(),
         })
     }
 }
