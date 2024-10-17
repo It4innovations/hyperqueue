@@ -58,7 +58,7 @@ lru = "0.12"
 
 # Dashboard
 ratatui = { version = "0.28", default-features = false, features = ["crossterm"], optional = true }
-crossterm = { version = "0.28", optional = true }
+crossterm = { version = "0.28", features = ["event-stream"], optional = true }
 unicode-width = { version = "0.1.5", optional = true }
 
 # Tako
