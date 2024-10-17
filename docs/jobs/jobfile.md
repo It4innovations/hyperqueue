@@ -47,7 +47,7 @@ stream = "path/to/stream/dir"  # Stdout/Stderr streaming (see --stream)
 max_fails = 11
 
 [[task]]
-stdout = "testout-%{TASK_ID}
+stdout = "testout-%{TASK_ID}"
 stderr = { path = "testerr-%{TASK_ID}", mode = "rm-if-finished" }
 task_dir = true
 time_limit = "1m 10s"
@@ -142,7 +142,7 @@ command = [...]
 [[task]]
 id = 5
 command = [...]
-deps = [1, 3] # <---- Dependancy on tasks 1 and 3
+deps = [1, 3] # <---- Dependency on tasks 1 and 3
 ```
 
 ## Resource variants
