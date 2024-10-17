@@ -1,47 +1,50 @@
-use crate::dashboard::events::DashboardEvent;
-use crate::rpc_call;
-use crate::server::event::{Event, EventId};
-use crate::transfer::connection::{ClientConnection, ClientSession};
+use crate::server::event::Event;
+use crate::transfer::connection::ClientSession;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use std::time::Duration;
-// use tako::gateway::MonitoringEventRequest;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::Sender;
 
 pub async fn create_data_fetch_process(
-    refresh_interval: Duration,
     mut session: ClientSession,
-    sender: UnboundedSender<DashboardEvent>,
+    sender: Sender<Vec<Event>>,
 ) -> anyhow::Result<()> {
-    let mut tick_duration = tokio::time::interval(refresh_interval);
+    session
+        .connection()
+        .send(FromClientMessage::StreamEvents)
+        .await?;
 
-    let mut fetched_until: Option<EventId> = None;
+    const CAPACITY: usize = 1024;
+
+    let mut events = Vec::with_capacity(CAPACITY);
+    let mut tick = tokio::time::interval(Duration::from_secs(1));
+
+    let conn = session.connection();
 
     loop {
-        let events = fetch_events_after(session.connection(), fetched_until).await?;
-        // fetched_until = events
-        //     .iter()
-        //     .map(|event| event.id())
-        //     .max()
-        //     .or(fetched_until);
+        tokio::select! {
+            _ = tick.tick() => {
+                if !events.is_empty() {
+                    sender.send(events).await?;
+                    events = Vec::with_capacity(CAPACITY);
+                }
+            }
+            // Hopefully this is cancellation safe...
+            message = conn.receive() => {
+                let Some(message) = message else { break; };
 
-        sender.send(DashboardEvent::FetchedEvents(events))?;
-        tick_duration.tick().await;
+                let message = message?;
+                let ToClientMessage::Event(event) = message else {
+                    return Err(anyhow::anyhow!(
+                        "Dashboard received unexpected message {message:?}"
+                    ));
+                };
+                events.push(event);
+                if events.len() == CAPACITY {
+                    sender.send(events).await?;
+                    events = Vec::with_capacity(CAPACITY);
+                }
+            }
+        }
     }
-}
-
-/// Gets the events from the server after the event_id specified
-async fn fetch_events_after(
-    connection: &mut ClientConnection,
-    after_id: Option<EventId>,
-) -> crate::Result<Vec<Event>> {
-    // rpc_call!(
-    //     connection,
-    //     FromClientMessage::MonitoringEvents (
-    //         MonitoringEventRequest {
-    //             after_id,
-    //         }),
-    //     ToClientMessage::MonitoringEventsResponse(response) => response
-    // )
-    // .await
-    todo!()
+    Ok(())
 }

@@ -37,14 +37,16 @@ use hyperqueue::client::task::{
     TaskListOpts, TaskOpts,
 };
 use hyperqueue::common::cli::{
-    get_task_id_selector, get_task_selector, ColorPolicy, CommonOpts, GenerateCompletionOpts,
-    HwDetectOpts, JobCommand, JobOpts, JobProgressOpts, JobWaitOpts, OptsWithMatches, RootOptions,
-    SubCommand, WorkerAddressOpts, WorkerCommand, WorkerInfoOpts, WorkerListOpts, WorkerOpts,
-    WorkerStopOpts, WorkerWaitOpts,
+    get_task_id_selector, get_task_selector, ColorPolicy, CommonOpts, DashboardCommand,
+    DashboardOpts, GenerateCompletionOpts, HwDetectOpts, JobCommand, JobOpts, JobProgressOpts,
+    JobWaitOpts, OptsWithMatches, RootOptions, SubCommand, WorkerAddressOpts, WorkerCommand,
+    WorkerInfoOpts, WorkerListOpts, WorkerOpts, WorkerStopOpts, WorkerWaitOpts,
 };
 use hyperqueue::common::setup::setup_logging;
 use hyperqueue::common::utils::fs::absolute_path;
 use hyperqueue::server::bootstrap::get_client_session;
+use hyperqueue::server::event::log::JournalReader;
+use hyperqueue::server::event::Event;
 use hyperqueue::transfer::messages::{
     FromClientMessage, IdSelector, JobInfoRequest, ToClientMessage,
 };
@@ -296,10 +298,21 @@ async fn command_worker_address(
 ///Starts the hq Dashboard
 async fn command_dashboard_start(
     gsettings: &GlobalSettings,
-    _opts: hyperqueue::common::cli::DashboardOpts,
+    opts: hyperqueue::common::cli::DashboardOpts,
 ) -> anyhow::Result<()> {
     use hyperqueue::dashboard::start_ui_loop;
-    start_ui_loop(gsettings).await?;
+
+    match opts.subcmd {
+        DashboardCommand::Replay { journal } => {
+            println!("Loading journal {}", journal.display());
+            let mut journal = JournalReader::open(&journal)?;
+            let events: Vec<Event> = journal.collect::<Result<_, _>>()?;
+            println!("Loaded {} events", events.len());
+
+            start_ui_loop(gsettings, events, false).await?;
+        }
+    }
+
     Ok(())
 }
 
