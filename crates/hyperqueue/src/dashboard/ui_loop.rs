@@ -7,10 +7,11 @@ use std::pin::Pin;
 use tokio::time::Duration;
 
 use crate::client::globalsettings::GlobalSettings;
-use crate::dashboard::data::create_data_fetch_process;
 use crate::dashboard::data::DashboardData;
+use crate::dashboard::data::{create_data_fetch_process, TimeMode, TimeRange};
 use crate::dashboard::ui::screens::root_screen::RootScreen;
 use crate::dashboard::ui::terminal::initialize_terminal;
+use crate::dashboard::DEFAULT_LIVE_DURATION;
 use crate::server::bootstrap::get_client_session;
 use crate::server::event::Event;
 
@@ -20,7 +21,16 @@ pub async fn start_ui_loop(
     events: Vec<Event>,
     stream: bool,
 ) -> anyhow::Result<()> {
-    let mut dashboard_data = DashboardData::default();
+    let time_mode = if stream || events.is_empty() {
+        TimeMode::Live(DEFAULT_LIVE_DURATION)
+    } else {
+        TimeMode::Fixed(TimeRange {
+            start: events[0].time.into(),
+            end: events.last().unwrap().time.into(),
+        })
+    };
+
+    let mut dashboard_data = DashboardData::from_time_mode(time_mode);
     dashboard_data.push_new_events(events);
 
     let mut root_screen = RootScreen::default();
