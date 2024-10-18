@@ -1,4 +1,4 @@
-use crate::dashboard::data::DashboardData;
+use crate::dashboard::data::{DashboardData, TimeRange};
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::screens::autoalloc_screen::AutoAllocScreen;
 use crate::dashboard::ui::screens::cluster_overview::WorkerOverviewScreen;
@@ -17,6 +17,8 @@ use std::ops::ControlFlow;
 
 const KEY_TIMELINE_SOONER: char = 'o';
 const KEY_TIMELINE_LATER: char = 'p';
+const KEY_TIMELINE_ZOOM_IN: char = 'k';
+const KEY_TIMELINE_ZOOM_OUT: char = 'l';
 const KEY_TIMELINE_LIVE: char = 'r';
 
 #[derive(Default)]
@@ -78,16 +80,21 @@ impl RootScreen {
             KeyCode::Char('w') => {
                 self.current_screen = SelectedScreen::WorkerOverview;
             }
-            KeyCode::Char(c) if c == KEY_TIMELINE_SOONER => {
+            KeyCode::Char(KEY_TIMELINE_SOONER) => {
                 data.set_time_range(data.current_time_range().sooner(TIMELINE_MOVE_OFFSET))
             }
-            KeyCode::Char(c) if c == KEY_TIMELINE_LATER => {
+            KeyCode::Char(KEY_TIMELINE_LATER) => {
                 data.set_time_range(data.current_time_range().later(TIMELINE_MOVE_OFFSET))
             }
-            KeyCode::Char(c) if c == KEY_TIMELINE_LIVE && data.stream_enabled() => {
+            KeyCode::Char(KEY_TIMELINE_ZOOM_IN) => {
+                data.set_time_range(zoom_in(data.current_time_range()))
+            }
+            KeyCode::Char(KEY_TIMELINE_ZOOM_OUT) => {
+                data.set_time_range(zoom_out(data.current_time_range()))
+            }
+            KeyCode::Char(KEY_TIMELINE_LIVE) if data.stream_enabled() => {
                 data.set_live_time_mode(DEFAULT_LIVE_DURATION)
             }
-
             _ => {
                 self.get_current_screen_mut().handle_key(input);
             }
@@ -104,6 +111,26 @@ impl RootScreen {
     }
 }
 
+fn zoom_in(range: TimeRange) -> TimeRange {
+    let duration = range.duration();
+    if duration.as_secs() <= 10 {
+        return range;
+    }
+    let start = range.start() + duration / 4;
+    let end = range.end() - duration / 4;
+    TimeRange::new(start, end)
+}
+
+fn zoom_out(range: TimeRange) -> TimeRange {
+    let duration = range.duration();
+    if duration.as_secs() >= 3600 * 24 * 7 {
+        return range;
+    }
+    let start = range.start() - duration / 2;
+    let end = range.end() + duration / 2;
+    TimeRange::new(start, end)
+}
+
 fn get_root_screen_chunks(frame: &DashboardFrame) -> RootChunks {
     let root_screen_chunks = Layout::default()
         .constraints(vec![Constraint::Length(4), Constraint::Fill(1)])
@@ -114,7 +141,7 @@ fn get_root_screen_chunks(frame: &DashboardFrame) -> RootChunks {
     let screen = root_screen_chunks[1];
 
     let top_chunks = Layout::default()
-        .constraints(vec![Constraint::Min(28), Constraint::Min(20)])
+        .constraints(vec![Constraint::Max(40), Constraint::Min(20)])
         .flex(Flex::SpaceBetween)
         .direction(Direction::Horizontal)
         .split(top);
@@ -167,8 +194,8 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame) {
         .split(rect);
 
     let range = data.current_time_range();
-    let start: chrono::DateTime<Local> = range.start.into();
-    let end: chrono::DateTime<Local> = range.end.into();
+    let start: chrono::DateTime<Local> = range.start().into();
+    let end: chrono::DateTime<Local> = range.end().into();
 
     let skip_day = chunks[0].width < 35
         || (start.date_naive() == end.date_naive()
@@ -180,9 +207,10 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame) {
     };
 
     let range = format!(
-        "{} - {}",
+        "{} - {} ({})",
         start.format(date_format),
-        end.format(date_format)
+        end.format(date_format),
+        humantime::format_duration(range.duration())
     );
     let range_paragraph = Paragraph::new(Text::from(range))
         .alignment(Alignment::Right)
@@ -194,7 +222,7 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame) {
         true => "[stream]",
         false => "[replay]",
     };
-    let mut text = format!("{mode}\n<{KEY_TIMELINE_SOONER}> -5m, <{KEY_TIMELINE_LATER}> +5m");
+    let mut text = format!("{mode}\n<{KEY_TIMELINE_SOONER}> -5m, <{KEY_TIMELINE_LATER}> +5m, <{KEY_TIMELINE_ZOOM_IN}> zoom in, <{KEY_TIMELINE_ZOOM_OUT}> zoom out");
     if !data.is_live_time_mode() && data.stream_enabled() {
         write!(text, "\n<{KEY_TIMELINE_LIVE}> live view").unwrap();
     }

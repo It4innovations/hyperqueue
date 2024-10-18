@@ -25,10 +25,7 @@ pub async fn start_ui_loop(
         TimeMode::Live(DEFAULT_LIVE_DURATION)
     } else {
         let end = events.last().unwrap().time.into();
-        TimeMode::Fixed(TimeRange {
-            start: end - Duration::from_secs(60 * 5),
-            end,
-        })
+        TimeMode::Fixed(TimeRange::new(end - Duration::from_secs(60 * 5), end))
     };
 
     let mut dashboard_data = DashboardData::new(time_mode, stream);
