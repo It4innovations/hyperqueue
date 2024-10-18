@@ -62,6 +62,7 @@ impl WorkerCountChart {
 
         let chart = Chart::new(datasets)
             .style(chart_style_deselected())
+            .legend_position(None)
             .block(
                 Block::default()
                     .title(Span::styled(
