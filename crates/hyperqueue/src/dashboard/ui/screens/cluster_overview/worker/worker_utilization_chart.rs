@@ -1,8 +1,9 @@
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::symbols;
 use ratatui::text::Span;
-use ratatui::widgets::{Block, Borders, Chart, Dataset, GraphType, LegendPosition};
+use ratatui::widgets::{
+    Block, Borders, Chart, Dataset, GraphType, LegendPosition,
+};
 
 use tako::hwstats::WorkerHwStateMessage;
 use tako::worker::WorkerOverview;
@@ -40,9 +41,8 @@ impl WorkerUtilizationChart {
         fn create_dataset<'a>(items: &'a [(f64, f64)], name: &'a str, color: Color) -> Dataset<'a> {
             Dataset::default()
                 .name(name)
-                .marker(symbols::Marker::Dot)
+                .graph_type(GraphType::Line)
                 .style(Style::default().fg(color))
-                .graph_type(GraphType::Scatter)
                 .data(items)
         }
 
