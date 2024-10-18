@@ -17,12 +17,25 @@ const RUNNING: &str = "RUNNING";
 const FINISHED: &str = "FINISHED";
 const FAILED: &str = "FAILED";
 
-#[derive(Default)]
 pub struct TasksTable {
     table: StatefulTable<TaskRow>,
+    interactive: bool,
 }
 
 impl TasksTable {
+    pub fn interactive() -> Self {
+        Self {
+            table: Default::default(),
+            interactive: true,
+        }
+    }
+    pub fn non_interactive() -> Self {
+        Self {
+            table: Default::default(),
+            interactive: false,
+        }
+    }
+
     pub fn update(&mut self, tasks_info: Vec<(JobTaskId, &TaskInfo)>) {
         let rows = create_rows(tasks_info);
         self.table.set_items(rows);
@@ -46,10 +59,12 @@ impl TasksTable {
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Down => self.select_next_task(),
-            KeyCode::Up => self.select_previous_task(),
-            _ => {}
+        if self.interactive {
+            match key.code {
+                KeyCode::Down => self.select_next_task(),
+                KeyCode::Up => self.select_previous_task(),
+                _ => {}
+            }
         }
     }
 
@@ -58,41 +73,38 @@ impl TasksTable {
         title: &'static str,
         rect: Rect,
         frame: &mut DashboardFrame,
+        with_worker: bool,
         table_style: Style,
     ) {
+        let mut headers = vec!["Task ID"];
+        if with_worker {
+            headers.push("Worker ID");
+        }
+        headers.extend(["State", "Start", "End", "Makespan"]);
+        let mut column_widths = vec![Constraint::Max(8), Constraint::Max(10)];
+        column_widths.extend(std::iter::repeat(Constraint::Fill(1)).take(headers.len() - 2));
+
         self.table.draw(
             rect,
             frame,
             TableColumnHeaders {
                 title,
-                inline_help: "",
-                table_headers: Some(vec![
-                    "Task ID",
-                    "Worker ID",
-                    "State",
-                    "Start",
-                    "End",
-                    "Makespan",
-                ]),
-                column_widths: vec![
-                    Constraint::Percentage(16),
-                    Constraint::Percentage(16),
-                    Constraint::Percentage(16),
-                    Constraint::Percentage(16),
-                    Constraint::Percentage(16),
-                    Constraint::Percentage(16),
-                ],
+                table_headers: Some(headers),
+                column_widths,
             },
             |task_row| {
-                Row::new(vec![
-                    Cell::from(task_row.task_id.to_string()),
-                    Cell::from(task_row.worker_id.to_string()),
+                let mut cols = vec![Cell::from(task_row.task_id.to_string())];
+                if with_worker {
+                    cols.push(Cell::from(task_row.worker_id.to_string()));
+                }
+                cols.extend([
                     Cell::from(task_row.task_state.as_str())
                         .style(get_task_state_color(&task_row.task_state)),
                     Cell::from(task_row.start_time.as_str()),
                     Cell::from(task_row.end_time.as_str()),
                     Cell::from(task_row.run_time.as_str()),
-                ])
+                ]);
+                Row::new(cols)
             },
             table_style,
         );
@@ -129,7 +141,7 @@ fn create_rows(mut rows: Vec<(JobTaskId, &TaskInfo)>) -> Vec<TaskRow> {
                 .end_time
                 .map(|time| {
                     let end_time: DateTime<Local> = time.into();
-                    end_time.format("%b %e, %T").to_string()
+                    end_time.format("%d.%m. %H:%M:%S").to_string()
                 })
                 .unwrap_or_else(|| "".to_string());
 
@@ -148,7 +160,7 @@ fn create_rows(mut rows: Vec<(JobTaskId, &TaskInfo)>) -> Vec<TaskRow> {
                     DashboardTaskState::Failed => FAILED.to_string(),
                 },
                 run_time: human_duration(chrono::Duration::from_std(run_time).unwrap()),
-                start_time: start_time.format("%b %e, %T").to_string(),
+                start_time: start_time.format("%d.%m. %H:%M:%S").to_string(),
                 end_time,
             }
         })

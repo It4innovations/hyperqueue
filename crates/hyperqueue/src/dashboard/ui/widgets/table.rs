@@ -10,7 +10,6 @@ static HIGHLIGHT: &str = "=> ";
 
 pub struct TableColumnHeaders {
     pub title: &'static str,
-    pub inline_help: &'static str,
     pub table_headers: Option<Vec<&'static str>>,
     pub column_widths: Vec<Constraint>,
 }

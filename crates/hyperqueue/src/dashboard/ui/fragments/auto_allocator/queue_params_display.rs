@@ -29,7 +29,6 @@ impl QueueParamsTable {
             frame,
             TableColumnHeaders {
                 title: "Allocation Queue Params",
-                inline_help: "",
                 table_headers: None,
                 column_widths: vec![Constraint::Percentage(30), Constraint::Percentage(70)],
             },

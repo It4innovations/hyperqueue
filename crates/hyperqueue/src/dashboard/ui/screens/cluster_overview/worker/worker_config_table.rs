@@ -28,7 +28,6 @@ impl WorkerConfigTable {
             frame,
             TableColumnHeaders {
                 title: "Worker Configuration",
-                inline_help: "",
                 table_headers: None,
                 column_widths: vec![Constraint::Percentage(30), Constraint::Percentage(70)],
             },
