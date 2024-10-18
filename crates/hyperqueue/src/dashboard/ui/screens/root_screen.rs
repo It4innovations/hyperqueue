@@ -4,7 +4,7 @@ use crate::dashboard::ui::screens::autoalloc_screen::AutoAllocScreen;
 use crate::dashboard::ui::screens::cluster_overview::WorkerOverviewScreen;
 use crate::dashboard::ui::screens::job_screen::JobScreen;
 use crate::dashboard::ui::terminal::{DashboardFrame, DashboardTerminal};
-use crate::dashboard::{DEFAULT_LIVE_DURATION, TIMELINE_MOVE_OFFSET};
+use crate::dashboard::DEFAULT_LIVE_DURATION;
 use chrono::Local;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Constraint, Direction, Flex, Layout, Rect};
@@ -14,6 +14,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Tabs, Wrap};
 use ratatui::Frame;
 use std::fmt::Write;
 use std::ops::ControlFlow;
+use std::time::Duration;
 
 const KEY_TIMELINE_SOONER: char = 'o';
 const KEY_TIMELINE_LATER: char = 'p';
@@ -81,10 +82,10 @@ impl RootScreen {
                 self.current_screen = SelectedScreen::WorkerOverview;
             }
             KeyCode::Char(KEY_TIMELINE_SOONER) => {
-                data.set_time_range(data.current_time_range().sooner(TIMELINE_MOVE_OFFSET))
+                data.set_time_range(data.current_time_range().sooner(offset_duration(data)))
             }
             KeyCode::Char(KEY_TIMELINE_LATER) => {
-                data.set_time_range(data.current_time_range().later(TIMELINE_MOVE_OFFSET))
+                data.set_time_range(data.current_time_range().later(offset_duration(data)))
             }
             KeyCode::Char(KEY_TIMELINE_ZOOM_IN) => {
                 data.set_time_range(zoom_in(data.current_time_range()))
@@ -222,7 +223,9 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame) {
         true => "[stream]",
         false => "[replay]",
     };
-    let mut text = format!("{mode}\n<{KEY_TIMELINE_SOONER}> -5m, <{KEY_TIMELINE_LATER}> +5m, <{KEY_TIMELINE_ZOOM_IN}> zoom in, <{KEY_TIMELINE_ZOOM_OUT}> zoom out");
+    let mut text = format!("{mode}\n<{KEY_TIMELINE_SOONER}> -{offset}m, <{KEY_TIMELINE_LATER}> +{offset}m, <{KEY_TIMELINE_ZOOM_IN}> zoom in, <{KEY_TIMELINE_ZOOM_OUT}> zoom out",
+                           offset= offset_duration(data).as_secs() / 60
+    );
     if !data.is_live_time_mode() && data.stream_enabled() {
         write!(text, "\n<{KEY_TIMELINE_LIVE}> live view").unwrap();
     }
@@ -231,4 +234,8 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame) {
         .alignment(Alignment::Right)
         .wrap(Wrap { trim: true });
     frame.render_widget(shortcuts_paragraph, chunks[1]);
+}
+
+fn offset_duration(data: &DashboardData) -> Duration {
+    data.current_time_range().duration() / 4
 }
