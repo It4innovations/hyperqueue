@@ -29,7 +29,7 @@ impl<T> TimeBasedVec<T> {
         }
     }
 
-    /// Returns the most recent item that has happened before `time`.
+    /// Returns the most recent item that has happened before or at `time`.
     pub fn get_most_recent_at(&self, time: Time) -> Option<&ItemWithTime<T>> {
         let index = self.items.partition_point(|item| item.time <= time);
         if index == 0 {
@@ -47,15 +47,13 @@ impl<T> TimeBasedVec<T> {
         &self.items[start_index..end_index]
     }
 
-    pub fn last(&self) -> Option<&ItemWithTime<T>> {
-        self.items.last()
-    }
-
-    pub fn into_vec(self) -> Vec<T> {
+    #[cfg(test)]
+    fn into_vec(self) -> Vec<T> {
         self.into()
     }
 }
 
+#[cfg(test)]
 impl<T> From<TimeBasedVec<T>> for Vec<T> {
     fn from(value: TimeBasedVec<T>) -> Self {
         value.items.into_iter().map(|item| item.item).collect()
