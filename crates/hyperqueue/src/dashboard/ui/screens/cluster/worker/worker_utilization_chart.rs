@@ -1,9 +1,7 @@
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Span;
-use ratatui::widgets::{
-    Block, Borders, Chart, Dataset, GraphType, LegendPosition,
-};
+use ratatui::widgets::{Block, Borders, Chart, Dataset, GraphType, LegendPosition};
 
 use tako::hwstats::WorkerHwStateMessage;
 use tako::worker::WorkerOverview;

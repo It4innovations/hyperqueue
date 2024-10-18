@@ -53,7 +53,7 @@ impl DashboardData {
     pub fn query_jobs_created_before(
         &self,
         time: SystemTime,
-    ) -> impl Iterator<Item = (&JobId, &DashboardJobInfo)> + '_ {
+    ) -> impl Iterator<Item = (JobId, &DashboardJobInfo)> + '_ {
         self.job_timeline.get_jobs_created_before(time)
     }
 
