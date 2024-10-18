@@ -297,18 +297,21 @@ async fn command_worker_address(
 ///Starts the hq Dashboard
 async fn command_dashboard_start(
     gsettings: &GlobalSettings,
-    opts: hyperqueue::common::cli::DashboardOpts,
+    opts: DashboardOpts,
 ) -> anyhow::Result<()> {
     use hyperqueue::dashboard::start_ui_loop;
 
-    match opts.subcmd {
-        DashboardCommand::Replay { journal } => {
+    match opts.subcmd.unwrap_or_default() {
+        DashboardCommand::Replay { journal, stream } => {
             println!("Loading journal {}", journal.display());
             let mut journal = JournalReader::open(&journal)?;
             let events: Vec<Event> = journal.collect::<Result<_, _>>()?;
             println!("Loaded {} events", events.len());
 
-            start_ui_loop(gsettings, events, false).await?;
+            start_ui_loop(gsettings, events, stream).await?;
+        }
+        DashboardCommand::Stream => {
+            start_ui_loop(gsettings, vec![], true).await?;
         }
     }
 
