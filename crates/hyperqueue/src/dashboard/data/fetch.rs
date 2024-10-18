@@ -46,5 +46,8 @@ pub async fn create_data_fetch_process(
             }
         }
     }
+    if !events.is_empty() {
+        sender.send(events).await?;
+    }
     Ok(())
 }
