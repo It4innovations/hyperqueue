@@ -113,8 +113,8 @@ impl WorkerTable {
                 inline_help: "",
                 table_headers: Some(vec![
                     "ID",
-                    "Status",
                     "Hostname",
+                    "Status",
                     "Running tasks",
                     "CPU util",
                     "Mem util",
