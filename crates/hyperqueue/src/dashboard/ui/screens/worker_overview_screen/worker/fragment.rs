@@ -8,11 +8,11 @@ use crate::dashboard::ui::widgets::text::draw_text;
 
 use crate::dashboard::data::timelines::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::screens::overview_screen::worker::cpu_util_table::{
+use crate::dashboard::ui::screens::worker_overview_screen::worker::cpu_util_table::{
     get_column_constraints, render_cpu_util_table,
 };
-use crate::dashboard::ui::screens::overview_screen::worker::worker_config_table::WorkerConfigTable;
-use crate::dashboard::ui::screens::overview_screen::worker::worker_utilization_chart::WorkerUtilizationChart;
+use crate::dashboard::ui::screens::worker_overview_screen::worker::worker_config_table::WorkerConfigTable;
+use crate::dashboard::ui::screens::worker_overview_screen::worker::worker_utilization_chart::WorkerUtilizationChart;
 use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 use crate::JobTaskId;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
