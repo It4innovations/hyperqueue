@@ -1,10 +1,10 @@
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::screen::Screen;
-use crate::dashboard::ui::screens::cluster_overview::worker::fragment::WorkerOverviewFragment;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crossterm::event::{KeyCode, KeyEvent};
 use overview::ClusterOverview;
 use ratatui::layout::Rect;
+use worker::WorkerDetail;
 
 pub mod overview;
 pub mod worker;
@@ -12,7 +12,7 @@ pub mod worker;
 #[derive(Default)]
 pub struct WorkerOverviewScreen {
     cluster_overview: ClusterOverview,
-    worker_overview: WorkerOverviewFragment,
+    worker_overview: WorkerDetail,
 
     active_fragment: ScreenState,
 }

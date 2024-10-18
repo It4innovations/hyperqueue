@@ -1,14 +1,14 @@
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::fragments::job::fragment::JobFragment;
 use crate::dashboard::ui::screen::Screen;
-use crate::dashboard::ui::screens::cluster_overview::worker::fragment::WorkerOverviewFragment;
+use crate::dashboard::ui::screens::cluster_overview::worker::WorkerDetail;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::Rect;
 
 pub struct JobScreen {
     job_overview_fragment: JobFragment,
-    task_runner_worker: WorkerOverviewFragment,
+    task_runner_worker: WorkerDetail,
 
     active_fragment: ScreenState,
 }
