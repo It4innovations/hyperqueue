@@ -1,10 +1,9 @@
 use crate::server::autoalloc::{AllocationId, QueueId};
 use crate::server::event::log::{EventStreamMessage, EventStreamSender};
 use crate::server::event::payload::EventPayload;
-use crate::server::event::{bincode_config, Event};
+use crate::server::event::{Event, Serialized};
 use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
 use crate::{JobId, JobTaskId, WorkerId};
-use bincode::Options;
 use chrono::Utc;
 use smallvec::SmallVec;
 use tako::gateway::LostWorkerReason;
@@ -64,7 +63,7 @@ impl EventStreamer {
         self.send_event(EventPayload::Submit {
             job_id,
             closed_job: submit_request.job_id.is_none(),
-            serialized_desc: bincode_config().serialize(submit_request)?,
+            serialized_desc: Serialized::new(submit_request)?,
         });
         Ok(())
     }

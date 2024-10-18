@@ -1,8 +1,7 @@
 use crate::client::output::json::format_datetime;
 use crate::server::event::payload::EventPayload;
-use crate::server::event::{bincode_config, Event};
-use crate::transfer::messages::JobDescription;
-use bincode::Options;
+use crate::server::event::Event;
+use crate::transfer::messages::{JobDescription, SubmitRequest};
 use serde_json::json;
 use tako::worker::WorkerOverview;
 
@@ -103,14 +102,12 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
             closed_job,
             serialized_desc,
         } => {
-            let job_desc: JobDescription = bincode_config()
-                .deserialize(&serialized_desc)
-                .expect("Invalid job description data");
+            let submit: SubmitRequest = serialized_desc.deserialize().expect("Invalid submit data");
             json!({
                 "type": "job-created",
                 "job": job_id,
                 "closed_job": closed_job,
-                "desc": JobInfoFormatter(&job_desc).to_json(),
+                "desc": JobInfoFormatter(&submit.job_desc).to_json(),
             })
         }
         EventPayload::JobCompleted(job_id) => json!({

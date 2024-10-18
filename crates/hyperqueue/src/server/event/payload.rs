@@ -1,6 +1,7 @@
 use crate::server::autoalloc::AllocationId;
 use crate::server::autoalloc::QueueId;
-use crate::transfer::messages::{AllocationQueueParams, JobDescription};
+use crate::server::event::Serialized;
+use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
 use crate::JobId;
 use crate::{JobTaskId, WorkerId};
 use serde::{Deserialize, Serialize};
@@ -19,13 +20,13 @@ pub enum EventPayload {
     WorkerOverviewReceived(WorkerOverview),
     /// A Job was submitted by the user -- full information to reconstruct the job;
     ///  it will be only stored into file, not held in memory
-    ///  Vec<u8> is serialized JobDescription; the main reason is avoiding duplication of JobDescription
+    ///  Vec<u8> is serialized SubmitRequest; the main reason is avoiding duplication of SubmitRequest
     ///  (we serialize it before it is stripped down)
     ///  and a nice side effect is that Events can be deserialized without deserializing a potentially large submit data
     Submit {
         job_id: JobId,
         closed_job: bool,
-        serialized_desc: Vec<u8>,
+        serialized_desc: Serialized<SubmitRequest>,
     },
     /// All tasks of the job have finished.
     JobCompleted(JobId),
@@ -43,7 +44,7 @@ pub enum EventPayload {
         job_id: JobId,
         task_id: JobTaskId,
     },
-    // Task that failed to execute
+    /// Task has failed to execute
     TaskFailed {
         job_id: JobId,
         task_id: JobTaskId,
