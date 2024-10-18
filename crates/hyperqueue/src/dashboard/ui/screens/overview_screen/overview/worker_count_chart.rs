@@ -33,7 +33,7 @@ impl WorkerCountChart {
             .map(|step| range.start + interval * step)
             .map(|time| WorkerCountRecord {
                 time,
-                count: data.workers().get_connected_worker_ids_at(time).count(),
+                count: data.workers().query_connected_worker_ids_at(time).count(),
             })
             .collect();
         self.range = range;

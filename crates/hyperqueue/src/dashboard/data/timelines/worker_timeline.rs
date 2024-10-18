@@ -76,22 +76,22 @@ impl WorkerTimeline {
         }
     }
 
-    pub fn get_worker_config_for(&self, worker_id: WorkerId) -> Option<&WorkerConfiguration> {
+    pub fn query_worker_config_for(&self, worker_id: WorkerId) -> Option<&WorkerConfiguration> {
         self.workers.get(&worker_id).map(|w| &w.worker_config)
     }
 
-    pub fn get_connected_worker_ids_at(
+    pub fn query_connected_worker_ids_at(
         &self,
         time: SystemTime,
     ) -> impl Iterator<Item = WorkerId> + '_ {
-        self.get_known_worker_ids_at(time)
+        self.query_known_worker_ids_at(time)
             .filter_map(|(id, status)| match status {
                 WorkerStatus::Connected => Some(id),
                 WorkerStatus::Disconnected(_) => None,
             })
     }
 
-    pub fn get_known_worker_ids_at(
+    pub fn query_known_worker_ids_at(
         &self,
         time: SystemTime,
     ) -> impl Iterator<Item = (WorkerId, WorkerStatus)> + '_ {
@@ -117,7 +117,7 @@ impl WorkerTimeline {
         })
     }
 
-    pub fn get_worker_overview_at(
+    pub fn query_worker_overview_at(
         &self,
         worker_id: WorkerId,
         time: SystemTime,
@@ -127,7 +127,7 @@ impl WorkerTimeline {
             .and_then(|worker| worker.worker_overviews.get_most_recent_at(time))
     }
 
-    pub fn get_worker_overviews_at(
+    pub fn query_worker_overviews_at(
         &self,
         worker_id: WorkerId,
         range: TimeRange,

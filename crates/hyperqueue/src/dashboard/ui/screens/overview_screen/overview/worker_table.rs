@@ -43,9 +43,9 @@ impl WorkerTable {
 
         let mut rows: Vec<WorkerRow> = data
             .workers()
-            .get_known_worker_ids_at(current_time)
+            .query_known_worker_ids_at(current_time)
             .map(|(worker_id, status)| {
-                let config = data.workers().get_worker_config_for(worker_id);
+                let config = data.workers().query_worker_config_for(worker_id);
                 let hostname = config.map(|config| config.hostname.clone());
 
                 let state = match status {
@@ -53,7 +53,7 @@ impl WorkerTable {
                     WorkerStatus::Connected => {
                         let overview = data
                             .workers()
-                            .get_worker_overview_at(worker_id, current_time)
+                            .query_worker_overview_at(worker_id, current_time)
                             .map(|item| &item.item);
                         let hw_state = overview.and_then(|o| o.hw_state.as_ref());
                         let average_cpu_usage = hw_state.map(get_average_cpu_usage_for_worker);
