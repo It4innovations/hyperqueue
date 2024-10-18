@@ -16,7 +16,7 @@ pub async fn create_data_fetch_process(
     const CAPACITY: usize = 1024;
 
     let mut events = Vec::with_capacity(CAPACITY);
-    let mut tick = tokio::time::interval(Duration::from_secs(1));
+    let mut tick = tokio::time::interval(Duration::from_millis(500));
 
     let conn = session.connection();
 
