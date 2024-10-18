@@ -4,8 +4,8 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use tako::WorkerId;
 
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::screens::overview_screen::overview::worker_count_chart::WorkerCountChart;
-use crate::dashboard::ui::screens::overview_screen::overview::worker_table::WorkerTable;
+use crate::dashboard::ui::screens::worker_overview_screen::overview::worker_count_chart::WorkerCountChart;
+use crate::dashboard::ui::screens::worker_overview_screen::overview::worker_table::WorkerTable;
 use crate::dashboard::ui::styles::style_footer;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
