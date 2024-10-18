@@ -109,7 +109,7 @@ impl WorkerUtilizationChart {
         let time_range = data.current_time_range();
         self.overviews = data
             .workers()
-            .get_worker_overviews_at(worker_id, time_range)
+            .query_worker_overviews_at(worker_id, time_range)
             .unwrap_or(&[])
             .to_vec();
         self.range = time_range;

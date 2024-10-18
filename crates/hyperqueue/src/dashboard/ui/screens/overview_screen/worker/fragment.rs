@@ -87,7 +87,7 @@ impl WorkerOverviewFragment {
 
             if let Some((cpu_util, mem_util)) = data
                 .workers()
-                .get_worker_overview_at(worker_id, data.current_time())
+                .query_worker_overview_at(worker_id, data.current_time())
                 .and_then(|overview| overview.item.hw_state.as_ref())
                 .map(|hw_state| {
                     (
@@ -104,7 +104,7 @@ impl WorkerOverviewFragment {
                 data.query_task_history_for_worker(worker_id).collect();
             self.worker_tasks_table.update(tasks_info);
 
-            if let Some(configuration) = data.workers().get_worker_config_for(worker_id) {
+            if let Some(configuration) = data.workers().query_worker_config_for(worker_id) {
                 self.worker_config_table.update(configuration);
             }
         }
