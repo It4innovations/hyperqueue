@@ -24,9 +24,10 @@ pub async fn start_ui_loop(
     let time_mode = if stream || events.is_empty() {
         TimeMode::Live(DEFAULT_LIVE_DURATION)
     } else {
+        let end = events.last().unwrap().time.into();
         TimeMode::Fixed(TimeRange {
-            start: events[0].time.into(),
-            end: events.last().unwrap().time.into(),
+            start: end - Duration::from_secs(60 * 5),
+            end,
         })
     };
 
