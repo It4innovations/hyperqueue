@@ -1,15 +1,18 @@
 use crate::server::event::payload::EventPayload;
 use crate::server::event::Event;
+use crate::transfer::messages::{JobDescription, JobSubmitDescription};
 use crate::{JobId, JobTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use std::time::SystemTime;
 use tako::Map;
 
 pub struct DashboardJobInfo {
-    job_tasks_info: Map<JobTaskId, TaskInfo>,
+    pub job: JobDescription,
+    pub submit_data: JobSubmitDescription,
     pub job_creation_time: SystemTime,
-
     pub completion_date: Option<DateTime<Utc>>,
+
+    job_tasks_info: Map<JobTaskId, TaskInfo>,
 }
 
 pub struct TaskInfo {
@@ -55,11 +58,16 @@ impl JobTimeline {
                 EventPayload::Submit {
                     job_id,
                     closed_job: _,
-                    serialized_desc: _,
+                    serialized_desc,
                 } => {
+                    let submit = serialized_desc
+                        .deserialize()
+                        .expect("Invalid serialized submit");
                     self.job_timeline.insert(
                         *job_id,
                         DashboardJobInfo {
+                            job: submit.job_desc,
+                            submit_data: submit.submit_desc,
                             job_tasks_info: Default::default(),
                             job_creation_time: event.time.into(),
                             completion_date: None,
@@ -123,9 +131,12 @@ impl JobTimeline {
         job_id: JobId,
         time: SystemTime,
     ) -> impl Iterator<Item = (JobTaskId, &TaskInfo)> + '_ {
-        // Implementation removed as it was wrong
-        todo!();
-        std::iter::empty()
+        self.job_timeline
+            .get(&job_id)
+            .into_iter()
+            .flat_map(|job| job.job_tasks_info.iter())
+            .filter(move |(_, info)| info.start_time < time)
+            .map(|(id, info)| (*id, info))
     }
 
     pub fn get_worker_task_history(
@@ -135,7 +146,7 @@ impl JobTimeline {
     ) -> impl Iterator<Item = (JobTaskId, &TaskInfo)> + '_ {
         self.get_jobs_created_before(at_time)
             .flat_map(|(_, info)| info.job_tasks_info.iter())
-            .filter(move |(id, task_info)| {
+            .filter(move |(_, task_info)| {
                 task_info.worker_id == worker_id && task_info.start_time <= at_time
             })
             .map(|(id, info)| (*id, info))
@@ -148,10 +159,11 @@ impl JobTimeline {
     pub fn get_jobs_created_before(
         &self,
         time: SystemTime,
-    ) -> impl Iterator<Item = (&JobId, &DashboardJobInfo)> + '_ {
+    ) -> impl Iterator<Item = (JobId, &DashboardJobInfo)> + '_ {
         self.job_timeline
             .iter()
             .filter(move |(_, info)| info.job_creation_time <= time)
+            .map(|(id, info)| (*id, info))
     }
 }
 

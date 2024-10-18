@@ -1,8 +1,8 @@
 use crate::dashboard::data::{DashboardData, TimeRange};
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::screens::autoalloc_screen::AutoAllocScreen;
-use crate::dashboard::ui::screens::cluster_overview::WorkerOverviewScreen;
-use crate::dashboard::ui::screens::job_screen::JobScreen;
+use crate::dashboard::ui::screens::cluster::WorkerOverviewScreen;
+use crate::dashboard::ui::screens::jobs::JobScreen;
 use crate::dashboard::ui::terminal::{DashboardFrame, DashboardTerminal};
 use crate::dashboard::DEFAULT_LIVE_DURATION;
 use chrono::Local;
@@ -41,8 +41,8 @@ struct RootChunks {
 
 #[derive(Clone, Copy, Default)]
 enum SelectedScreen {
-    JobOverview,
     #[default]
+    JobOverview,
     WorkerOverview,
     AutoAllocator,
 }

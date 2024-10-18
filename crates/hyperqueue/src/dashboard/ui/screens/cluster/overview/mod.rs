@@ -1,6 +1,6 @@
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::screens::cluster_overview::overview::worker_count_chart::WorkerCountChart;
-use crate::dashboard::ui::screens::cluster_overview::overview::worker_table::WorkerTable;
+use crate::dashboard::ui::screens::cluster::overview::worker_count_chart::WorkerCountChart;
+use crate::dashboard::ui::screens::cluster::overview::worker_table::WorkerTable;
 use crate::dashboard::ui::styles::style_footer;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;

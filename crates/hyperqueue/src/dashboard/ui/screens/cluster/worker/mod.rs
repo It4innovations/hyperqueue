@@ -1,8 +1,8 @@
 use crate::dashboard::data::timelines::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::screens::cluster_overview::worker::cpu_util_table::render_cpu_util_table;
-use crate::dashboard::ui::screens::cluster_overview::worker::worker_config_table::WorkerConfigTable;
-use crate::dashboard::ui::screens::cluster_overview::worker::worker_utilization_chart::WorkerUtilizationChart;
+use crate::dashboard::ui::screens::cluster::worker::cpu_util_table::render_cpu_util_table;
+use crate::dashboard::ui::screens::cluster::worker::worker_config_table::WorkerConfigTable;
+use crate::dashboard::ui::screens::cluster::worker::worker_utilization_chart::WorkerUtilizationChart;
 use crate::dashboard::ui::styles::{
     style_footer, style_header_text, table_style_deselected, table_style_selected,
 };

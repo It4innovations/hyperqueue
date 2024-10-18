@@ -7,10 +7,10 @@ use crate::dashboard::ui::widgets::table::{StatefulTable, TableColumnHeaders};
 
 use crate::JobId;
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::layout::{Constraint, Rect};
+use ratatui::layout::{Alignment, Constraint, Rect};
 use ratatui::style::Style;
+use ratatui::text::Text;
 use ratatui::widgets::{Cell, Row};
-use std::time::SystemTime;
 
 #[derive(Default)]
 pub struct JobsTable {
@@ -19,17 +19,18 @@ pub struct JobsTable {
 
 impl JobsTable {
     pub fn update(&mut self, data: &DashboardData) {
-        let jobs: Vec<(&JobId, &DashboardJobInfo)> =
-            data.query_jobs_created_before(SystemTime::now()).collect();
+        let jobs: Vec<(JobId, &DashboardJobInfo)> = data
+            .query_jobs_created_before(data.current_time())
+            .collect();
         let rows = create_rows(jobs);
         self.table.set_items(rows);
     }
 
-    pub fn select_next_job(&mut self) {
+    fn select_next_job(&mut self) {
         self.table.select_next_wrap();
     }
 
-    pub fn select_previous_job(&mut self) {
+    fn select_previous_job(&mut self) {
         self.table.select_previous_wrap();
     }
 
@@ -57,7 +58,7 @@ impl JobsTable {
             },
             |data| {
                 Row::new(vec![
-                    Cell::from(data.id.to_string()),
+                    Cell::from(Text::from(data.id.to_string()).alignment(Alignment::Right)),
                     Cell::from(data.name.as_str()),
                 ])
             },
@@ -71,12 +72,12 @@ struct JobInfoRow {
     name: String,
 }
 
-fn create_rows(job_infos: Vec<(&JobId, &DashboardJobInfo)>) -> Vec<JobInfoRow> {
+fn create_rows(job_infos: Vec<(JobId, &DashboardJobInfo)>) -> Vec<JobInfoRow> {
     job_infos
         .iter()
         .map(|(job_id, info)| JobInfoRow {
-            id: **job_id,
-            name: todo!(), //info.job_info.job_desc.name.clone(),
+            id: *job_id,
+            name: info.job.name.clone(),
         })
         .collect()
 }
