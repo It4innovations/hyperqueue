@@ -84,7 +84,7 @@ impl RootScreen {
             KeyCode::Char(c) if c == KEY_TIMELINE_LATER => {
                 data.set_time_range(data.current_time_range().later(TIMELINE_MOVE_OFFSET))
             }
-            KeyCode::Char(c) if c == KEY_TIMELINE_LIVE => {
+            KeyCode::Char(c) if c == KEY_TIMELINE_LIVE && data.stream_enabled() => {
                 data.set_live_time_mode(DEFAULT_LIVE_DURATION)
             }
 
@@ -194,7 +194,7 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame) {
         r#"<{KEY_TIMELINE_SOONER}> -5 minutes
 <{KEY_TIMELINE_LATER}> +5 minutes"#
     );
-    if !data.is_live_time_mode() {
+    if !data.is_live_time_mode() && data.stream_enabled() {
         write!(shortcuts, "\n<{KEY_TIMELINE_LIVE}> live view").unwrap();
     }
 

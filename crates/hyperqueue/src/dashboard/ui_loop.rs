@@ -31,7 +31,7 @@ pub async fn start_ui_loop(
         })
     };
 
-    let mut dashboard_data = DashboardData::from_time_mode(time_mode);
+    let mut dashboard_data = DashboardData::new(time_mode, stream);
     dashboard_data.push_new_events(events);
 
     let mut root_screen = RootScreen::default();

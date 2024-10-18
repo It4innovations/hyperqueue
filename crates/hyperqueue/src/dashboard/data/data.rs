@@ -21,15 +21,18 @@ pub struct DashboardData {
     alloc_timeline: AllocationTimeline,
     /// Determines the active time range
     time_mode: TimeMode,
+    /// Is streaming from a live server enabled?
+    stream_enabled: bool,
 }
 
 impl DashboardData {
-    pub fn from_time_mode(time_mode: TimeMode) -> Self {
+    pub fn new(time_mode: TimeMode, stream_enabled: bool) -> Self {
         Self {
             worker_timeline: Default::default(),
             job_timeline: Default::default(),
             alloc_timeline: Default::default(),
             time_mode,
+            stream_enabled,
         }
     }
 
@@ -101,6 +104,10 @@ impl DashboardData {
 
     pub fn set_live_time_mode(&mut self, duration: Duration) {
         self.time_mode = TimeMode::Live(duration);
+    }
+
+    pub fn stream_enabled(&self) -> bool {
+        self.stream_enabled
     }
 
     pub fn is_live_time_mode(&self) -> bool {
