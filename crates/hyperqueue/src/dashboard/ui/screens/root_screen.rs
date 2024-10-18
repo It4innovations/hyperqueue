@@ -4,6 +4,7 @@ use crate::dashboard::ui::screens::autoalloc_screen::AutoAllocScreen;
 use crate::dashboard::ui::screens::job_screen::JobScreen;
 use crate::dashboard::ui::screens::overview_screen::WorkerOverviewScreen;
 use crate::dashboard::ui::terminal::{DashboardFrame, DashboardTerminal};
+use crate::dashboard::DEFAULT_LIVE_DURATION;
 use chrono::Local;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
@@ -81,7 +82,7 @@ impl RootScreen {
             KeyCode::Char(c) if c == KEY_TIMELINE_LATER => {
                 data.set_time_range(data.current_time_range().later(Duration::from_secs(60 * 5)))
             }
-            KeyCode::Char('r') => data.set_live_time_mode(),
+            KeyCode::Char('r') => data.set_live_time_mode(DEFAULT_LIVE_DURATION),
 
             _ => {
                 self.get_current_screen_mut().handle_key(input);
