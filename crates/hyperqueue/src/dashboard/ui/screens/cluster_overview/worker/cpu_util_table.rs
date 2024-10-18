@@ -58,18 +58,12 @@ pub fn render_cpu_util_table(
         .collect();
 
     let avg_cpu = calculate_average(cpu_util_list);
-    let avg_progressbar = render_progress_bar_at(
-        None,
-        avg_cpu / 100.00,
-        CPU_METER_PROGRESSBAR_WIDTH,
-        ProgressPrintStyle::default(),
-    );
 
     let mem_used = mem_util.total - mem_util.free;
     let title = styles::table_title(format!(
-        "Worker Utilization ({} CPUs), Avg CPU = {}, Mem = {:.0}% ({}/{})",
+        "Worker Utilization ({} CPUs), Avg CPU = {:.0}%, Mem = {:.0}% ({}/{})",
         cpu_util_list.len(),
-        avg_progressbar,
+        avg_cpu,
         (mem_used as f64 / mem_util.total as f64) * 100.0,
         human_size(mem_used),
         human_size(mem_util.total)

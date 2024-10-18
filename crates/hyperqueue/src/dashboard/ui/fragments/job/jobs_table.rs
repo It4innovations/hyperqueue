@@ -52,7 +52,6 @@ impl JobsTable {
             frame,
             TableColumnHeaders {
                 title: "Jobs <1>",
-                inline_help: "",
                 table_headers: Some(vec!["Job ID", "Name"]),
                 column_widths: vec![Constraint::Percentage(20), Constraint::Percentage(80)],
             },

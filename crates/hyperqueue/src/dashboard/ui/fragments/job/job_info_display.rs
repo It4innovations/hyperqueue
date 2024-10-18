@@ -31,7 +31,6 @@ impl JobInfoTable {
             frame,
             TableColumnHeaders {
                 title: "Job Details",
-                inline_help: "",
                 table_headers: None,
                 column_widths: vec![Constraint::Percentage(30), Constraint::Percentage(70)],
             },

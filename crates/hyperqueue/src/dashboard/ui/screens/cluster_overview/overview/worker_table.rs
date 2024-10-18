@@ -110,7 +110,6 @@ impl WorkerTable {
             frame,
             TableColumnHeaders {
                 title: "Worker list",
-                inline_help: "",
                 table_headers: Some(vec![
                     "ID",
                     "Hostname",

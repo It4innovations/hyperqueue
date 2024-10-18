@@ -15,11 +15,11 @@ use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 
 use crate::dashboard::ui::fragments::job::job_info_display::JobInfoTable;
 use crate::dashboard::ui::fragments::job::job_tasks_chart::JobTaskChart;
+use crate::server::job::Job;
 use crate::JobTaskId;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use tako::WorkerId;
 
-#[derive(Default)]
 pub struct JobFragment {
     job_task_chart: JobTaskChart,
 
@@ -28,6 +28,18 @@ pub struct JobFragment {
     job_tasks_table: TasksTable,
 
     component_in_focus: FocusedComponent,
+}
+
+impl Default for JobFragment {
+    fn default() -> Self {
+        Self {
+            job_task_chart: Default::default(),
+            jobs_list: Default::default(),
+            job_info_table: Default::default(),
+            job_tasks_table: TasksTable::interactive(),
+            component_in_focus: Default::default(),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -51,8 +63,13 @@ impl JobFragment {
         self.job_task_chart.draw(layout.chart_chunk, frame);
         self.jobs_list
             .draw(layout.job_list_chunk, frame, tasks_table_style);
-        self.job_tasks_table
-            .draw("Tasks <2>", layout.job_tasks_chunk, frame, jobs_table_style);
+        self.job_tasks_table.draw(
+            "Tasks <2>",
+            layout.job_tasks_chunk,
+            frame,
+            true,
+            jobs_table_style,
+        );
 
         draw_text(
             "<\u{21F5}> select, <1> Jobs, <2> Started Tasks, <i> worker details for selected task",

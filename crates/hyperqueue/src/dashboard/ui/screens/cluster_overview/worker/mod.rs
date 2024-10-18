@@ -19,7 +19,6 @@ mod cpu_util_table;
 mod worker_config_table;
 mod worker_utilization_chart;
 
-#[derive(Default)]
 pub struct WorkerDetail {
     /// The worker detail is shown for this worker
     worker_id: Option<WorkerId>,
@@ -28,6 +27,18 @@ pub struct WorkerDetail {
     worker_tasks_table: TasksTable,
 
     utilization: Option<Utilization>,
+}
+
+impl Default for WorkerDetail {
+    fn default() -> Self {
+        Self {
+            worker_id: None,
+            utilization_history: Default::default(),
+            worker_config_table: Default::default(),
+            worker_tasks_table: TasksTable::non_interactive(),
+            utilization: None,
+        }
+    }
 }
 
 struct Utilization {
@@ -75,6 +86,7 @@ impl WorkerDetail {
             "Tasks On Worker",
             layout.tasks,
             frame,
+            false,
             table_style_selected(),
         );
         self.worker_config_table.draw(layout.configuration, frame);
@@ -114,11 +126,8 @@ impl WorkerDetail {
     /// Handles key presses for the components of the screen
     pub fn handle_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Down => self.worker_tasks_table.select_next_task(),
-            KeyCode::Up => self.worker_tasks_table.select_previous_task(),
             KeyCode::Backspace => self.worker_tasks_table.clear_selection(),
-
-            _ => {}
+            _ => self.worker_tasks_table.handle_key(key),
         }
     }
 }
