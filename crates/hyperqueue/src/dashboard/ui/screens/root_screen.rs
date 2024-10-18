@@ -190,15 +190,16 @@ fn render_timeline(data: &DashboardData, rect: Rect, frame: &mut Frame) {
 
     frame.render_widget(range_paragraph, chunks[0]);
 
-    let mut shortcuts = format!(
-        r#"<{KEY_TIMELINE_SOONER}> -5 minutes
-<{KEY_TIMELINE_LATER}> +5 minutes"#
-    );
+    let mode = match data.stream_enabled() {
+        true => "[stream]",
+        false => "[replay]",
+    };
+    let mut text = format!("{mode}\n<{KEY_TIMELINE_SOONER}> -5m, <{KEY_TIMELINE_LATER}> +5m");
     if !data.is_live_time_mode() && data.stream_enabled() {
-        write!(shortcuts, "\n<{KEY_TIMELINE_LIVE}> live view").unwrap();
+        write!(text, "\n<{KEY_TIMELINE_LIVE}> live view").unwrap();
     }
 
-    let shortcuts_paragraph = Paragraph::new(Text::from(shortcuts))
+    let shortcuts_paragraph = Paragraph::new(Text::from(text))
         .alignment(Alignment::Right)
         .wrap(Wrap { trim: true });
     frame.render_widget(shortcuts_paragraph, chunks[1]);
