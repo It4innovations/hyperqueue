@@ -1,8 +1,8 @@
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::screens::autoalloc_screen::AutoAllocScreen;
+use crate::dashboard::ui::screens::cluster_overview::WorkerOverviewScreen;
 use crate::dashboard::ui::screens::job_screen::JobScreen;
-use crate::dashboard::ui::screens::worker_overview_screen::WorkerOverviewScreen;
 use crate::dashboard::ui::terminal::{DashboardFrame, DashboardTerminal};
 use crate::dashboard::{DEFAULT_LIVE_DURATION, TIMELINE_MOVE_OFFSET};
 use chrono::Local;
