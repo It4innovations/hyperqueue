@@ -201,10 +201,13 @@ fn format_time_hms(time: SystemTime) -> String {
 pub fn x_axis_time_chart(range: TimeRange) -> Axis<'static> {
     Axis::default()
         .style(Style::default().fg(Color::Gray))
-        .bounds([get_time_as_secs(range.start), get_time_as_secs(range.end)])
+        .bounds([
+            get_time_as_secs(range.start()),
+            get_time_as_secs(range.end()),
+        ])
         .labels(vec![
-            format_time_hms(range.start),
-            format_time_hms(range.end),
+            format_time_hms(range.start()),
+            format_time_hms(range.end()),
         ])
 }
 

@@ -28,9 +28,9 @@ const TIME_STEPS: u32 = 25;
 impl WorkerCountChart {
     pub fn update(&mut self, data: &DashboardData) {
         let range = data.current_time_range();
-        let interval = range.end.duration_since(range.start).unwrap() / TIME_STEPS;
+        let interval = range.end().duration_since(range.start()).unwrap() / TIME_STEPS;
         self.worker_records = (0..TIME_STEPS)
-            .map(|step| range.start + interval * step)
+            .map(|step| range.start() + interval * step)
             .map(|time| WorkerCountRecord {
                 time,
                 count: data.workers().query_connected_worker_ids_at(time).count(),

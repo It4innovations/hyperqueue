@@ -41,8 +41,8 @@ impl<T> TimeBasedVec<T> {
 
     /// Returns the items that have happened between `start` and `end` (both inclusive).
     pub fn get_time_range(&self, range: TimeRange) -> &[ItemWithTime<T>] {
-        let start_index = self.items.partition_point(|item| item.time < range.start);
-        let end_index = self.items.partition_point(|item| item.time <= range.end);
+        let start_index = self.items.partition_point(|item| item.time < range.start());
+        let end_index = self.items.partition_point(|item| item.time <= range.end());
 
         &self.items[start_index..end_index]
     }

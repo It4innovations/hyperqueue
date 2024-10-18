@@ -15,7 +15,6 @@ use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 
 use crate::dashboard::ui::fragments::job::job_info_display::JobInfoTable;
 use crate::dashboard::ui::fragments::job::job_tasks_chart::JobTaskChart;
-use crate::server::job::Job;
 use crate::JobTaskId;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use tako::WorkerId;
