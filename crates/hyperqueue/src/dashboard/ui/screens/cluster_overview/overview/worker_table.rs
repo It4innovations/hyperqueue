@@ -122,8 +122,8 @@ impl WorkerTable {
                 column_widths: vec![
                     Constraint::Percentage(10),
                     Constraint::Percentage(20),
-                    Constraint::Percentage(20),
-                    Constraint::Percentage(10),
+                    Constraint::Percentage(15),
+                    Constraint::Percentage(15),
                     Constraint::Percentage(20),
                     Constraint::Percentage(20),
                 ],

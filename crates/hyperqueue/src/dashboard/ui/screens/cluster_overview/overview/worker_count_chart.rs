@@ -46,7 +46,7 @@ impl WorkerCountChart {
             .map(|record| record.count)
             .max()
             .unwrap_or(0)
-            .max(8) as f64;
+            .max(4) as f64;
 
         let worker_counts: Vec<(f64, f64)> = self
             .worker_records
@@ -65,7 +65,7 @@ impl WorkerCountChart {
             .block(
                 Block::default()
                     .title(Span::styled(
-                        "Worker Connection History",
+                        "Running worker count",
                         Style::default()
                             .fg(Color::White)
                             .add_modifier(Modifier::BOLD),
@@ -73,7 +73,7 @@ impl WorkerCountChart {
                     .borders(Borders::ALL),
             )
             .x_axis(x_axis_time_chart(self.range))
-            .y_axis(y_axis_steps(0.0, max_workers_in_view, 5));
+            .y_axis(y_axis_steps(0.0, max_workers_in_view, 4));
         frame.render_widget(chart, rect);
     }
 }

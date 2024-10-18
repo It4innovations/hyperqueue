@@ -2,7 +2,7 @@ use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::symbols;
 use ratatui::text::Span;
-use ratatui::widgets::{Block, Borders, Chart, Dataset, GraphType};
+use ratatui::widgets::{Block, Borders, Chart, Dataset, GraphType, LegendPosition};
 
 use tako::hwstats::WorkerHwStateMessage;
 use tako::worker::WorkerOverview;
@@ -89,6 +89,7 @@ impl WorkerUtilizationChart {
 
         let chart = Chart::new(datasets)
             .style(chart_style_deselected())
+            .legend_position(Some(LegendPosition::TopLeft))
             .hidden_legend_constraints((Constraint::Ratio(1, 1), Constraint::Ratio(1, 1)))
             .block(
                 Block::default()

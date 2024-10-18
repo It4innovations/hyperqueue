@@ -1,13 +1,12 @@
 use crate::server::event::payload::EventPayload;
 use crate::server::event::Event;
-use crate::{JobId, JobTaskId, TakoTaskId, WorkerId};
+use crate::{JobId, JobTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use std::time::SystemTime;
 use tako::Map;
 
 pub struct DashboardJobInfo {
-    // pub job_info: JobInfo,
-    pub job_tasks_info: Map<TakoTaskId, TaskInfo>,
+    job_tasks_info: Map<JobTaskId, TaskInfo>,
     pub job_creation_time: SystemTime,
 
     pub completion_date: Option<DateTime<Utc>>,
@@ -55,72 +54,64 @@ impl JobTimeline {
             match &event.payload {
                 EventPayload::Submit {
                     job_id,
-                    closed_job,
-                    serialized_desc,
+                    closed_job: _,
+                    serialized_desc: _,
                 } => {
-                    todo!();
-                    // self.job_timeline.insert(
-                    //     *job_id,
-                    //     DashboardJobInfo {
-                    //         job_info: *job_info.clone(),
-                    //         job_tasks_info: Default::default(),
-                    //         job_creation_time: event.time,
-                    //         completion_date: None,
-                    //     },
-                    // );
+                    self.job_timeline.insert(
+                        *job_id,
+                        DashboardJobInfo {
+                            job_tasks_info: Default::default(),
+                            job_creation_time: event.time.into(),
+                            completion_date: None,
+                        },
+                    );
                 }
 
                 EventPayload::JobCompleted(job_id) => {
                     if let Some(job_info) = self.job_timeline.get_mut(job_id) {
-                        // job_info.completion_date = Some(*completion_date)
-                        todo!()
+                        job_info.completion_date = Some(event.time);
                     }
                 }
 
                 EventPayload::TaskStarted {
                     job_id,
                     task_id,
-                    instance_id,
+                    instance_id: _,
                     workers,
                 } => {
-                    todo!()
-                    /*if let Some((_, info)) = self
-                        .job_timeline
-                        .iter_mut()
-                        .find(|(_, info)| info.job_info.task_ids.contains(task_id))
-                    {
+                    if let Some(info) = self.job_timeline.get_mut(job_id) {
                         info.job_tasks_info.insert(
                             *task_id,
                             TaskInfo {
-                                worker_id: *worker_id,
-                                start_time: event.time,
+                                worker_id: workers[0],
+                                start_time: event.time.into(),
                                 end_time: None,
                                 task_end_state: None,
                             },
                         );
-                    }*/
+                    }
                 }
                 EventPayload::TaskFinished { job_id, task_id } => {
-                    todo!()
-                    /*update_task_status(
+                    update_task_status(
                         &mut self.job_timeline,
-                        task_id,
+                        *job_id,
+                        *task_id,
                         DashboardTaskState::Finished,
-                        &event.time,
-                    );*/
+                        event.time,
+                    );
                 }
                 EventPayload::TaskFailed {
                     job_id,
                     task_id,
-                    error,
+                    error: _,
                 } => {
-                    todo!()
-                    /*update_task_status(
+                    update_task_status(
                         &mut self.job_timeline,
-                        task_id,
+                        *job_id,
+                        *task_id,
                         DashboardTaskState::Failed,
-                        &event.time,
-                    );*/
+                        event.time,
+                    );
                 }
                 _ => {}
             }
@@ -142,18 +133,12 @@ impl JobTimeline {
         worker_id: WorkerId,
         at_time: SystemTime,
     ) -> impl Iterator<Item = (JobTaskId, &TaskInfo)> + '_ {
-        todo!();
-        std::iter::empty()
-        // self.get_jobs_created_before(at_time)
-        //     .flat_map(move |(_, info)| {
-        //         let base_id = info.job_info.base_task_id.as_num();
-        //         info.job_tasks_info.iter().map(move |(task_id, info)| {
-        //             (JobTaskId::new(task_id.as_num() - base_id + 1), info)
-        //         })
-        //     })
-        //     .filter(move |(_, task_info)| {
-        //         task_info.worker_id == worker_id && task_info.start_time <= at_time
-        //     })
+        self.get_jobs_created_before(at_time)
+            .flat_map(|(_, info)| info.job_tasks_info.iter())
+            .filter(move |(id, task_info)| {
+                task_info.worker_id == worker_id && task_info.start_time <= at_time
+            })
+            .map(|(id, info)| (*id, info))
     }
 
     pub fn get_job_info_for_job(&self, job_id: JobId) -> Option<&DashboardJobInfo> {
@@ -172,17 +157,14 @@ impl JobTimeline {
 
 fn update_task_status(
     job_timeline: &mut Map<JobId, DashboardJobInfo>,
-    task_id: &TakoTaskId,
+    job_id: JobId,
+    task_id: JobTaskId,
     task_status: DashboardTaskState,
-    at_time: &SystemTime,
+    at_time: DateTime<Utc>,
 ) {
-    todo!()
-    /*if let Some((_, job_info)) = job_timeline
-        .iter_mut()
-        .find(|(_, info)| info.job_info.task_ids.contains(task_id))
-    {
-        if let Some(task_info) = job_info.job_tasks_info.get_mut(task_id) {
-            task_info.set_end_time_and_status(at_time, task_status);
+    if let Some(job_info) = job_timeline.get_mut(&job_id) {
+        if let Some(task_info) = job_info.job_tasks_info.get_mut(&task_id) {
+            task_info.set_end_time_and_status(&at_time.into(), task_status);
         }
-    };*/
+    }
 }

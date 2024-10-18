@@ -220,7 +220,7 @@ pub fn y_axis_steps(min: f64, max: f64, step_count: u32) -> Axis<'static> {
             (0..=step_count)
                 .map(|step| {
                     let value = step as f64 * interval;
-                    let value = value.round() as u64;
+                    let value = value.ceil() as u64;
                     value.to_string()
                 })
                 .collect::<Vec<_>>(),
