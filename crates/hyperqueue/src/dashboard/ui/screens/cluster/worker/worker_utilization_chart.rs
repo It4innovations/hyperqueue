@@ -1,17 +1,16 @@
-use ratatui::layout::{Constraint, Rect};
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::Span;
-use ratatui::widgets::{Block, Borders, Chart, Dataset, GraphType, LegendPosition};
+use ratatui::layout::Rect;
+use ratatui::style::Color;
 
-use tako::hwstats::WorkerHwStateMessage;
 use tako::worker::WorkerOverview;
 use tako::WorkerId;
 
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::data::{ItemWithTime, TimeRange};
-use crate::dashboard::ui::styles::chart_style_deselected;
 use crate::dashboard::ui::terminal::DashboardFrame;
-use crate::dashboard::ui::widgets::chart::{get_time_as_secs, x_axis_time_chart, y_axis_steps};
+use crate::dashboard::ui::widgets::chart::y_axis_steps;
+use crate::dashboard::ui::widgets::chart::{
+    create_chart, create_dataset, generate_dataset_entries,
+};
 use crate::dashboard::utils::{get_average_cpu_usage_for_worker, get_memory_usage_pct};
 
 #[derive(Default)]
@@ -22,84 +21,50 @@ pub struct WorkerUtilizationChart {
 
 impl WorkerUtilizationChart {
     pub fn draw(&mut self, rect: Rect, frame: &mut DashboardFrame) {
-        fn create_data<F: Fn(&WorkerHwStateMessage) -> f64>(
-            overviews: &[ItemWithTime<WorkerOverview>],
-            get_value: F,
-        ) -> Vec<(f64, f64)> {
-            overviews
-                .iter()
-                .map(|record| {
-                    (
-                        get_time_as_secs(record.time),
-                        record.item.hw_state.as_ref().map(&get_value).unwrap_or(0.0),
-                    )
-                })
-                .collect::<Vec<(f64, f64)>>()
-        }
-        fn create_dataset<'a>(items: &'a [(f64, f64)], name: &'a str, color: Color) -> Dataset<'a> {
-            Dataset::default()
-                .name(name)
-                .graph_type(GraphType::Line)
-                .style(Style::default().fg(color))
-                .data(items)
-        }
-
-        let cpu_usage = create_data(&self.overviews, |state| {
-            get_average_cpu_usage_for_worker(state)
-        });
-        let mem_usage = create_data(&self.overviews, |state| {
-            get_memory_usage_pct(&state.state.memory_usage) as f64
-        });
-
-        let has_gpus = self.overviews.iter().any(|overview| {
+        let cpu_usage = generate_dataset_entries(&self.overviews, |overview| {
             overview
-                .item
                 .hw_state
                 .as_ref()
-                .and_then(|state| {
-                    state
-                        .state
-                        .nvidia_gpus
-                        .as_ref()
-                        .or(state.state.amd_gpus.as_ref())
-                })
-                .map(|stats| !stats.gpus.is_empty())
-                .unwrap_or(false)
-        });
-        let gpu_usage = create_data(&self.overviews, |state| {
-            let gpu_state = state
-                .state
-                .nvidia_gpus
-                .as_ref()
-                .or(state.state.amd_gpus.as_ref());
-            gpu_state
-                .map(|state| state.gpus[0].processor_usage as f64)
+                .map(|s| get_average_cpu_usage_for_worker(s))
                 .unwrap_or(0.0)
         });
+        let mem_usage = generate_dataset_entries(&self.overviews, |overview| {
+            overview
+                .hw_state
+                .as_ref()
+                .map(|s| get_memory_usage_pct(&s.state.memory_usage) as f64)
+                .unwrap_or(0.0)
+        });
+
+        let gpu_usage = generate_dataset_entries(&self.overviews, |overview| {
+            let Some(hw_state) = overview.hw_state.as_ref().map(|s| &s.state) else {
+                return 0.0;
+            };
+            let gpu_usages: Vec<f64> = hw_state
+                .nvidia_gpus
+                .as_ref()
+                .into_iter()
+                .chain(hw_state.amd_gpus.as_ref())
+                .flat_map(|stats| &stats.gpus)
+                .map(|gpu| gpu.processor_usage as f64)
+                .collect();
+            if !gpu_usages.is_empty() {
+                gpu_usages.iter().sum::<f64>() / gpu_usages.len() as f64
+            } else {
+                0.0
+            }
+        });
+        let has_gpus = gpu_usage.iter().any(|(_, usage)| *usage > 0.0);
 
         let mut datasets = vec![
             create_dataset(&cpu_usage, "CPU (avg) (%)", Color::Green),
             create_dataset(&mem_usage, "Mem (%)", Color::Blue),
         ];
         if has_gpus {
-            datasets.push(create_dataset(&gpu_usage, "GPU 0 (%)", Color::Red));
+            datasets.push(create_dataset(&gpu_usage, "GPU (avg) (%)", Color::Red));
         }
 
-        let chart = Chart::new(datasets)
-            .style(chart_style_deselected())
-            .legend_position(Some(LegendPosition::TopLeft))
-            .hidden_legend_constraints((Constraint::Ratio(1, 1), Constraint::Ratio(1, 1)))
-            .block(
-                Block::default()
-                    .title(Span::styled(
-                        "Utilization History",
-                        Style::default()
-                            .fg(Color::White)
-                            .add_modifier(Modifier::BOLD),
-                    ))
-                    .borders(Borders::ALL),
-            )
-            .x_axis(x_axis_time_chart(self.range))
+        let chart = create_chart(datasets, "Utilization History", self.range)
             .y_axis(y_axis_steps(0.0, 100.0, 5));
         frame.render_widget(chart, rect);
     }

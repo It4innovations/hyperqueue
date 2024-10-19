@@ -85,7 +85,7 @@ impl JobOverview {
             self.job_tasks_table.update(task_infos);
             self.job_task_chart.set_job_id(job_id);
         } else {
-            self.job_task_chart.clear_chart();
+            self.job_task_chart.unset_job_id();
         }
         if let Some(job_info) = self
             .job_list
