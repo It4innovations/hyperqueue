@@ -58,13 +58,13 @@ impl JobOverview {
         self.job_info_table.draw(layout.job_info_chunk, frame);
         self.job_task_chart.draw(layout.chart_chunk, frame);
         self.job_list
-            .draw(layout.job_list_chunk, frame, tasks_table_style);
+            .draw(layout.job_list_chunk, frame, jobs_table_style);
         self.job_tasks_table.draw(
             "Tasks <2>",
             layout.job_tasks_chunk,
             frame,
             true,
-            jobs_table_style,
+            tasks_table_style,
         );
 
         draw_text(
