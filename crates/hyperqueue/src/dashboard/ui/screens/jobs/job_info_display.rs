@@ -8,7 +8,7 @@ use chrono::{DateTime, Local};
 use itertools::Itertools;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::text::Text;
-use ratatui::widgets::{Cell, Paragraph, Row};
+use ratatui::widgets::{Cell, Row};
 use std::borrow::Cow;
 use tako::gateway::ResourceRequestVariants;
 
