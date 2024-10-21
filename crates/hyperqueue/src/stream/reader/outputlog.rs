@@ -1,7 +1,8 @@
 use crate::client::commands::outputlog::{CatOpts, Channel, ExportOpts, ShowOpts};
 use crate::common::arraydef::IntArray;
 use crate::common::error::HqError;
-use crate::common::serialization::bincode_config;
+use crate::common::serialization::SerializationConfig;
+use crate::stream::StreamSerializationConfig;
 use crate::transfer::stream::{ChannelId, StreamChunkHeader};
 use crate::worker::streamer::{StreamFileHeader, STREAM_FILE_HEADER, STREAM_FILE_SUFFIX};
 use crate::{JobId, JobTaskId, Set};
@@ -156,7 +157,7 @@ impl OutputLog {
     }
 
     fn read_chunk(file: &mut BufReader<File>) -> crate::Result<Option<StreamChunkHeader>> {
-        match bincode_config().deserialize_from(file) {
+        match StreamSerializationConfig::config().deserialize_from(file) {
             Ok(event) => Ok(Some(event)),
             Err(error) => match error.deref() {
                 bincode::ErrorKind::Io(e)
@@ -217,7 +218,7 @@ impl OutputLog {
         if header != STREAM_FILE_HEADER {
             anyhow::bail!("Invalid file format");
         }
-        Ok(bincode_config().deserialize_from(file)?)
+        Ok(StreamSerializationConfig::config().deserialize_from(file)?)
     }
 
     pub fn summary(&self) -> Summary {
