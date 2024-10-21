@@ -12,12 +12,15 @@ def normalize(version: str) -> str:
 def get_matching_lines(text: str, tag: str):
     lines = list(text.splitlines(keepends=False))
     for index, line in enumerate(lines):
-        if line.startswith("# "):
-            version = normalize(line.lstrip("# "))
+        if line.startswith("## "):
+            version = normalize(line.lstrip("## "))
             if version == tag:
                 for matching_line in lines[index + 1 :]:
-                    if matching_line.startswith("# "):
+                    if matching_line.startswith("## "):
                         return
+                    # Reduce one level of heading indentation
+                    if matching_line.startswith("###"):
+                        matching_line = matching_line[1:]
                     yield matching_line
 
 
