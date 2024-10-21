@@ -196,7 +196,7 @@ impl State {
 
     pub fn new_task_id(&mut self, task_count: JobTaskCount) -> TakoTaskId {
         let id = self.task_id_counter;
-        self.task_id_counter += task_count;
+        self.task_id_counter += task_count as u64;
         id.into()
     }
 
