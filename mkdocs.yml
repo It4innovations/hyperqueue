@@ -43,6 +43,7 @@ nav:
       - Submitting jobs: python/submit.md
       - Dependencies: python/dependencies.md
       - API reference: python/apidoc/
+  - Changelog: changelog.md
   - FAQ: faq.md
   - Comparison With Other Tools: other-tools.md
 
@@ -66,6 +67,8 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
+  - pymdownx.snippets:
+      base_path: .
   - footnotes
   - admonition
 
