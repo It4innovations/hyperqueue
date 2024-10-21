@@ -1,11 +1,13 @@
 use crate::dashboard::data::Time;
+use chrono::{TimeZone, Utc};
+use std::fmt::{Display, Formatter};
 use std::ops::{Add, Sub};
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Copy, Clone, Debug)]
 pub struct TimeRange {
-    pub start: Time,
-    pub end: Time,
+    start: Time,
+    end: Time,
 }
 
 impl TimeRange {
@@ -14,12 +16,43 @@ impl TimeRange {
         Self { start, end }
     }
 
+    pub fn start(&self) -> Time {
+        self.start
+    }
+
+    pub fn end(&self) -> Time {
+        self.end
+    }
+
     pub fn sooner(&self, duration: Duration) -> Self {
         TimeRange::new(self.start.sub(duration), self.end.sub(duration))
     }
 
     pub fn later(&self, duration: Duration) -> Self {
         TimeRange::new(self.start.add(duration), self.end.add(duration))
+    }
+
+    pub fn duration(&self) -> Duration {
+        self.end.duration_since(self.start).unwrap()
+    }
+}
+
+impl Display for TimeRange {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[{:?}, {:?}]",
+            Utc.timestamp_opt(
+                self.start.duration_since(UNIX_EPOCH).unwrap().as_secs() as i64,
+                0
+            )
+            .unwrap(),
+            Utc.timestamp_opt(
+                self.end.duration_since(UNIX_EPOCH).unwrap().as_secs() as i64,
+                0
+            )
+            .unwrap()
+        )
     }
 }
 

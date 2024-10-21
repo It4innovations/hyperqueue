@@ -292,13 +292,30 @@ async fn command_worker_address(
 }
 
 #[cfg(feature = "dashboard")]
-///Starts the hq Dashboard
+/// Starts the hq dashboard
 async fn command_dashboard_start(
     gsettings: &GlobalSettings,
-    _opts: hyperqueue::common::cli::DashboardOpts,
+    opts: hyperqueue::common::cli::DashboardOpts,
 ) -> anyhow::Result<()> {
+    use hyperqueue::common::cli::DashboardCommand;
     use hyperqueue::dashboard::start_ui_loop;
-    start_ui_loop(gsettings).await?;
+    use hyperqueue::server::event::log::JournalReader;
+    use hyperqueue::server::event::Event;
+
+    match opts.subcmd.unwrap_or_default() {
+        DashboardCommand::Replay { journal, stream } => {
+            println!("Loading journal {}", journal.display());
+            let mut journal = JournalReader::open(&journal)?;
+            let events: Vec<Event> = journal.collect::<Result<_, _>>()?;
+            println!("Loaded {} events", events.len());
+
+            start_ui_loop(gsettings, events, stream).await?;
+        }
+        DashboardCommand::Stream => {
+            start_ui_loop(gsettings, vec![], true).await?;
+        }
+    }
+
     Ok(())
 }
 

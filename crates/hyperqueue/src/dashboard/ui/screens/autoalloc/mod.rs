@@ -1,24 +1,27 @@
-use std::default::Default;
-use std::time::SystemTime;
-use termion::event::Key;
-
+use crate::dashboard::data::timelines::alloc_timeline::AllocationQueueInfo;
+use crate::dashboard::data::DashboardData;
+use crate::dashboard::ui::screen::Screen;
+use crate::dashboard::ui::screens::autoalloc::alloc_timeline_chart::AllocationsChart;
+use crate::dashboard::ui::screens::autoalloc::allocations_info_table::AllocationInfoTable;
+use crate::dashboard::ui::screens::autoalloc::queue_info_table::AllocationQueueInfoTable;
+use crate::dashboard::ui::screens::autoalloc::queue_params_display::QueueParamsTable;
 use crate::dashboard::ui::styles::{
     style_footer, style_header_text, table_style_deselected, table_style_selected,
 };
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
-
-use crate::dashboard::data::timelines::alloc_timeline::AllocationQueueInfo;
-use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::fragments::auto_allocator::alloc_timeline_chart::AllocationsChart;
-use crate::dashboard::ui::fragments::auto_allocator::allocations_info_table::AllocationInfoTable;
-use crate::dashboard::ui::fragments::auto_allocator::queue_info_table::AllocationQueueInfoTable;
-use crate::dashboard::ui::fragments::auto_allocator::queue_params_display::QueueParamsTable;
 use crate::server::autoalloc::QueueId;
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use std::time::SystemTime;
+
+mod alloc_timeline_chart;
+mod allocations_info_table;
+mod queue_info_table;
+mod queue_params_display;
 
 #[derive(Default)]
-pub struct AutoAllocatorFragment {
+pub struct AutoAllocScreen {
     queue_info_table: AllocationQueueInfoTable,
     queue_params_table: QueueParamsTable,
     allocations_info_table: AllocationInfoTable,
@@ -34,8 +37,8 @@ enum FocusedComponent {
     AllocationInfoTable,
 }
 
-impl AutoAllocatorFragment {
-    pub fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
+impl Screen for AutoAllocScreen {
+    fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
         let layout = AutoAllocFragmentLayout::new(&in_area);
         draw_text(
             "AutoAlloc Info",
@@ -72,7 +75,7 @@ impl AutoAllocatorFragment {
         );
     }
 
-    pub fn update(&mut self, data: &DashboardData) {
+    fn update(&mut self, data: &DashboardData) {
         let queue_infos: Vec<(&QueueId, &AllocationQueueInfo)> =
             data.query_allocation_queues_at(SystemTime::now()).collect();
         self.queue_info_table.update(queue_infos);
@@ -98,19 +101,18 @@ impl AutoAllocatorFragment {
         }
     }
 
-    /// Handles key presses for the components of the screen
-    pub fn handle_key(&mut self, key: Key) {
+    fn handle_key(&mut self, key: KeyEvent) {
         match self.component_in_focus {
             FocusedComponent::QueueParamsTable => self.queue_info_table.handle_key(key),
             FocusedComponent::AllocationInfoTable => self.allocations_info_table.handle_key(key),
         };
 
-        match key {
-            Key::Char('1') => {
+        match key.code {
+            KeyCode::Char('1') => {
                 self.component_in_focus = FocusedComponent::QueueParamsTable;
                 self.allocations_info_table.clear_selection();
             }
-            Key::Char('2') => self.component_in_focus = FocusedComponent::AllocationInfoTable,
+            KeyCode::Char('2') => self.component_in_focus = FocusedComponent::AllocationInfoTable,
             _ => {}
         }
     }

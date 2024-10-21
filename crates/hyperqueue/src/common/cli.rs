@@ -180,11 +180,6 @@ pub struct RootOptions {
     pub subcmd: SubCommand,
 }
 
-/// HyperQueue Dashboard
-#[allow(clippy::large_enum_variant)]
-#[derive(Parser)]
-pub struct DashboardOpts {}
-
 #[allow(clippy::large_enum_variant)]
 #[derive(Parser)]
 pub enum SubCommand {
@@ -210,6 +205,28 @@ pub enum SubCommand {
     Dashboard(DashboardOpts),
     /// Generate shell completion script
     GenerateCompletion(GenerateCompletionOpts),
+}
+
+/// HyperQueue Dashboard
+#[derive(Parser)]
+pub struct DashboardOpts {
+    #[clap(subcommand)]
+    pub subcmd: Option<DashboardCommand>,
+}
+
+#[derive(Parser, Default)]
+pub enum DashboardCommand {
+    /// Stream events from a server.
+    #[default]
+    Stream,
+    /// Replay events from a recorded journal file.
+    Replay {
+        /// Path to a journal file created via `hq server start --journal=<path>`.
+        journal: PathBuf,
+        /// Also stream new events from a server after replaying events from the journal.
+        #[clap(long)]
+        stream: bool,
+    },
 }
 
 // Worker CLI options

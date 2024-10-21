@@ -1,34 +1,42 @@
-use std::default::Default;
-use std::time::SystemTime;
-use termion::event::Key;
-
-use crate::dashboard::ui::styles::{
-    style_footer, style_header_text, table_style_deselected, table_style_selected,
-};
+use crate::dashboard::ui::styles::{style_footer, table_style_deselected, table_style_selected};
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crate::dashboard::ui::widgets::text::draw_text;
+use crossterm::event::{KeyCode, KeyEvent};
+use std::default::Default;
+use std::time::SystemTime;
 
 use crate::dashboard::data::timelines::job_timeline::TaskInfo;
 use crate::dashboard::data::DashboardData;
 
-use crate::dashboard::ui::fragments::job::jobs_table::JobsTable;
+use crate::dashboard::ui::screens::jobs::jobs_table::JobsTable;
 use crate::dashboard::ui::widgets::tasks_table::TasksTable;
 
-use crate::dashboard::ui::fragments::job::job_info_display::JobInfoTable;
-use crate::dashboard::ui::fragments::job::job_tasks_chart::JobTaskChart;
+use crate::dashboard::ui::screens::jobs::job_info_display::JobInfoTable;
+use crate::dashboard::ui::screens::jobs::job_tasks_chart::JobTaskChart;
 use crate::JobTaskId;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use tako::WorkerId;
 
-#[derive(Default)]
-pub struct JobFragment {
+pub struct JobOverview {
     job_task_chart: JobTaskChart,
 
-    jobs_list: JobsTable,
+    job_list: JobsTable,
     job_info_table: JobInfoTable,
     job_tasks_table: TasksTable,
 
     component_in_focus: FocusedComponent,
+}
+
+impl Default for JobOverview {
+    fn default() -> Self {
+        Self {
+            job_task_chart: Default::default(),
+            job_list: Default::default(),
+            job_info_table: Default::default(),
+            job_tasks_table: TasksTable::interactive(),
+            component_in_focus: Default::default(),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -38,10 +46,9 @@ enum FocusedComponent {
     JobTasksTable,
 }
 
-impl JobFragment {
+impl JobOverview {
     pub fn draw(&mut self, in_area: Rect, frame: &mut DashboardFrame) {
-        let layout = JobFragmentLayout::new(&in_area);
-        draw_text("Job Info", layout.header_chunk, frame, style_header_text());
+        let layout = JobOverviewLayout::new(&in_area);
 
         let (jobs_table_style, tasks_table_style) = match self.component_in_focus {
             FocusedComponent::JobsTable => (table_style_selected(), table_style_deselected()),
@@ -50,13 +57,18 @@ impl JobFragment {
 
         self.job_info_table.draw(layout.job_info_chunk, frame);
         self.job_task_chart.draw(layout.chart_chunk, frame);
-        self.jobs_list
-            .draw(layout.job_list_chunk, frame, tasks_table_style);
-        self.job_tasks_table
-            .draw("Tasks <2>", layout.job_tasks_chunk, frame, jobs_table_style);
+        self.job_list
+            .draw(layout.job_list_chunk, frame, jobs_table_style);
+        self.job_tasks_table.draw(
+            "Tasks <2>",
+            layout.job_tasks_chunk,
+            frame,
+            true,
+            tasks_table_style,
+        );
 
         draw_text(
-            "<\u{21F5}> select, <1> Jobs, <2> Started Tasks, <i> worker details for selected task",
+            "<\u{21F5}> select, <1> Jobs, <2> Tasks, <i> worker details for selected task",
             layout.footer_chunk,
             frame,
             style_footer(),
@@ -64,19 +76,19 @@ impl JobFragment {
     }
 
     pub fn update(&mut self, data: &DashboardData) {
-        self.jobs_list.update(data);
+        self.job_list.update(data);
 
-        if let Some(job_id) = self.jobs_list.get_selected_item() {
+        if let Some(job_id) = self.job_list.get_selected_item() {
             let task_infos: Vec<(JobTaskId, &TaskInfo)> = data
                 .query_task_history_for_job(job_id, SystemTime::now())
                 .collect();
             self.job_tasks_table.update(task_infos);
             self.job_task_chart.set_job_id(job_id);
         } else {
-            self.job_task_chart.clear_chart();
+            self.job_task_chart.unset_job_id();
         }
         if let Some(job_info) = self
-            .jobs_list
+            .job_list
             .get_selected_item()
             .and_then(|job_id| data.query_job_info_for_job(job_id))
         {
@@ -87,17 +99,17 @@ impl JobFragment {
     }
 
     /// Handles key presses for the components of the screen
-    pub fn handle_key(&mut self, key: Key) {
-        match key {
-            Key::Char('1') => {
+    pub fn handle_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Char('1') => {
                 self.component_in_focus = FocusedComponent::JobsTable;
                 self.job_tasks_table.clear_selection();
             }
-            Key::Char('2') => self.component_in_focus = FocusedComponent::JobTasksTable,
+            KeyCode::Char('2') => self.component_in_focus = FocusedComponent::JobTasksTable,
             _ => {}
         }
         match self.component_in_focus {
-            FocusedComponent::JobsTable => self.jobs_list.handle_key(key),
+            FocusedComponent::JobsTable => self.job_list.handle_key(key),
             FocusedComponent::JobTasksTable => self.job_tasks_table.handle_key(key),
         };
     }
@@ -107,16 +119,14 @@ impl JobFragment {
     }
 }
 
-/**
-*  _________________________
-   |--------Header---------|
-   |        Chart          |
-   |-----------------------|
-   |  j_info  |   j_tasks  |
-   |________Footer_________|
- **/
-struct JobFragmentLayout {
-    header_chunk: Rect,
+/// _____________________________
+/// | Job details |  Task chart |
+/// |---------------------------|
+/// |  Job list |  Task list    |
+/// |---------------------------|
+/// |          Footer           |
+/// |---------------------------|
+struct JobOverviewLayout {
     chart_chunk: Rect,
     job_info_chunk: Rect,
     job_list_chunk: Rect,
@@ -124,12 +134,11 @@ struct JobFragmentLayout {
     footer_chunk: Rect,
 }
 
-impl JobFragmentLayout {
+impl JobOverviewLayout {
     fn new(rect: &Rect) -> Self {
-        let job_screen_chunks = ratatui::layout::Layout::default()
+        let job_screen_chunks = Layout::default()
             .constraints(vec![
-                Constraint::Percentage(5),
-                Constraint::Percentage(40),
+                Constraint::Percentage(45),
                 Constraint::Percentage(50),
                 Constraint::Percentage(5),
             ])
@@ -140,21 +149,20 @@ impl JobFragmentLayout {
             .constraints(vec![Constraint::Percentage(35), Constraint::Percentage(65)])
             .direction(Direction::Horizontal)
             .margin(0)
-            .split(job_screen_chunks[1]);
+            .split(job_screen_chunks[0]);
 
         let table_area = Layout::default()
-            .constraints(vec![Constraint::Percentage(20), Constraint::Percentage(80)])
+            .constraints(vec![Constraint::Percentage(30), Constraint::Percentage(80)])
             .direction(Direction::Horizontal)
             .margin(0)
-            .split(job_screen_chunks[2]);
+            .split(job_screen_chunks[1]);
 
         Self {
-            header_chunk: job_screen_chunks[0],
             job_info_chunk: graph_and_details_area[0],
             chart_chunk: graph_and_details_area[1],
             job_list_chunk: table_area[0],
             job_tasks_chunk: table_area[1],
-            footer_chunk: job_screen_chunks[3],
+            footer_chunk: job_screen_chunks[2],
         }
     }
 }

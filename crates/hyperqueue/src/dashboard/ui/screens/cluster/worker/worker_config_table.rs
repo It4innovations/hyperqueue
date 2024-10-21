@@ -12,8 +12,8 @@ pub struct WorkerConfigTable {
 
 #[derive(Default, Debug)]
 struct WorkerConfigDataRow {
-    pub label: &'static str,
-    pub data: String,
+    label: &'static str,
+    data: String,
 }
 
 impl WorkerConfigTable {
@@ -28,7 +28,6 @@ impl WorkerConfigTable {
             frame,
             TableColumnHeaders {
                 title: "Worker Configuration",
-                inline_help: "",
                 table_headers: None,
                 column_widths: vec![Constraint::Percentage(30), Constraint::Percentage(70)],
             },
@@ -42,27 +41,27 @@ fn create_rows(worker_info: &WorkerConfiguration) -> Vec<WorkerConfigDataRow> {
     let missing_data_str = String::new();
     vec![
         WorkerConfigDataRow {
-            label: "Listen Address: ",
+            label: "Listen Address:",
             data: worker_info.listen_address.to_string(),
         },
         WorkerConfigDataRow {
-            label: "Hostname: ",
+            label: "Hostname:",
             data: worker_info.hostname.to_string(),
         },
         WorkerConfigDataRow {
-            label: "Work Dir: ",
-            data: (worker_info
+            label: "Workdir:",
+            data: worker_info
                 .work_dir
                 .to_str()
                 .unwrap_or(missing_data_str.as_str())
-                .to_string()),
+                .to_string(),
         },
         WorkerConfigDataRow {
-            label: "Heartbeat Interval: ",
+            label: "Heartbeat Interval:",
             data: humantime::format_duration(worker_info.heartbeat_interval).to_string(),
         },
         WorkerConfigDataRow {
-            label: "Send Overview Interval: ",
+            label: "Send Overview Interval:",
             data: worker_info
                 .overview_configuration
                 .as_ref()
@@ -72,14 +71,14 @@ fn create_rows(worker_info: &WorkerConfiguration) -> Vec<WorkerConfigDataRow> {
                 .unwrap_or_else(|| missing_data_str.clone()),
         },
         WorkerConfigDataRow {
-            label: "Idle Timeout: ",
+            label: "Idle Timeout:",
             data: worker_info
                 .idle_timeout
                 .map(|interval| humantime::format_duration(interval).to_string())
                 .unwrap_or_else(|| missing_data_str.clone()),
         },
         WorkerConfigDataRow {
-            label: "Time Limit: ",
+            label: "Time Limit:",
             data: worker_info
                 .time_limit
                 .map(|interval| humantime::format_duration(interval).to_string())

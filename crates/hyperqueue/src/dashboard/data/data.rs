@@ -12,8 +12,6 @@ use crate::{JobId, JobTaskId};
 use std::time::{Duration, SystemTime};
 use tako::WorkerId;
 
-const DEFAULT_LIVE_DURATION: Duration = Duration::from_secs(60 * 10);
-
 pub struct DashboardData {
     /// Tracks worker connection and loss events
     worker_timeline: WorkerTimeline,
@@ -23,11 +21,23 @@ pub struct DashboardData {
     alloc_timeline: AllocationTimeline,
     /// Determines the active time range
     time_mode: TimeMode,
+    /// Is streaming from a live server enabled?
+    stream_enabled: bool,
 }
 
 impl DashboardData {
+    pub fn new(time_mode: TimeMode, stream_enabled: bool) -> Self {
+        Self {
+            worker_timeline: Default::default(),
+            job_timeline: Default::default(),
+            alloc_timeline: Default::default(),
+            time_mode,
+            stream_enabled,
+        }
+    }
+
     pub fn push_new_events(&mut self, mut events: Vec<Event>) {
-        events.sort_unstable_by_key(|e| e.time());
+        events.sort_unstable_by_key(|e| e.time);
 
         // Update data views
         self.worker_timeline.handle_new_events(&events);
@@ -43,7 +53,7 @@ impl DashboardData {
     pub fn query_jobs_created_before(
         &self,
         time: SystemTime,
-    ) -> impl Iterator<Item = (&JobId, &DashboardJobInfo)> + '_ {
+    ) -> impl Iterator<Item = (JobId, &DashboardJobInfo)> + '_ {
         self.job_timeline.get_jobs_created_before(time)
     }
 
@@ -92,8 +102,12 @@ impl DashboardData {
         self.time_mode = TimeMode::Fixed(range);
     }
 
-    pub fn set_live_time_mode(&mut self) {
-        self.time_mode = TimeMode::Live(DEFAULT_LIVE_DURATION);
+    pub fn set_live_time_mode(&mut self, duration: Duration) {
+        self.time_mode = TimeMode::Live(duration);
+    }
+
+    pub fn stream_enabled(&self) -> bool {
+        self.stream_enabled
     }
 
     pub fn is_live_time_mode(&self) -> bool {
@@ -110,16 +124,5 @@ impl DashboardData {
 
     pub fn workers(&self) -> &WorkerTimeline {
         &self.worker_timeline
-    }
-}
-
-impl Default for DashboardData {
-    fn default() -> Self {
-        Self {
-            worker_timeline: Default::default(),
-            job_timeline: Default::default(),
-            alloc_timeline: Default::default(),
-            time_mode: TimeMode::Live(DEFAULT_LIVE_DURATION),
-        }
     }
 }

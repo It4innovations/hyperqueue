@@ -21,9 +21,13 @@ pub fn render_cpu_util_table(
     mem_util: &MemoryStats,
     rect: Rect,
     frame: &mut DashboardFrame,
-    constraints: &[Constraint],
     table_style: Style,
 ) {
+    if cpu_util_list.is_empty() {
+        return;
+    }
+    let constraints = get_column_constraints(rect, cpu_util_list.len());
+
     let width = constraints.len();
     let height = (cpu_util_list.len() as f64 / width as f64).ceil() as usize;
 
@@ -54,18 +58,12 @@ pub fn render_cpu_util_table(
         .collect();
 
     let avg_cpu = calculate_average(cpu_util_list);
-    let avg_progressbar = render_progress_bar_at(
-        None,
-        avg_cpu / 100.00,
-        CPU_METER_PROGRESSBAR_WIDTH,
-        ProgressPrintStyle::default(),
-    );
 
     let mem_used = mem_util.total - mem_util.free;
     let title = styles::table_title(format!(
-        "Worker Utilization ({} CPUs), Avg CPU = {}, Mem = {:.0}% ({}/{})",
+        "Worker Utilization ({} CPUs), Avg CPU = {:.0}%, Mem = {:.0}% ({}/{})",
         cpu_util_list.len(),
-        avg_progressbar,
+        avg_cpu,
         (mem_used as f64 / mem_util.total as f64) * 100.0,
         human_size(mem_used),
         human_size(mem_util.total)
@@ -81,7 +79,7 @@ pub fn render_cpu_util_table(
 }
 
 /// Creates the column sizes for the cpu_util_table, each column divides the row equally.
-pub fn get_column_constraints(rect: Rect, num_cpus: usize) -> Vec<Constraint> {
+fn get_column_constraints(rect: Rect, num_cpus: usize) -> Vec<Constraint> {
     let max_columns = (rect.width / CPU_METER_WIDTH as u16) as usize;
     let num_columns = cmp::min(max_columns, num_cpus);
 

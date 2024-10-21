@@ -1,18 +1,18 @@
 use crate::dashboard::data::DashboardData;
 use crate::dashboard::ui::screen::Screen;
-use crate::dashboard::ui::screens::overview_screen::overview::fragment::ClusterOverviewFragment;
-use crate::dashboard::ui::screens::overview_screen::worker::fragment::WorkerOverviewFragment;
 use crate::dashboard::ui::terminal::DashboardFrame;
+use crossterm::event::{KeyCode, KeyEvent};
+use overview::ClusterOverview;
 use ratatui::layout::Rect;
-use termion::event::Key;
+use worker::WorkerDetail;
 
 pub mod overview;
 pub mod worker;
 
 #[derive(Default)]
 pub struct WorkerOverviewScreen {
-    cluster_overview: ClusterOverviewFragment,
-    worker_overview: WorkerOverviewFragment,
+    cluster_overview: ClusterOverview,
+    worker_overview: WorkerDetail,
 
     active_fragment: ScreenState,
 }
@@ -39,20 +39,20 @@ impl Screen for WorkerOverviewScreen {
         }
     }
 
-    fn handle_key(&mut self, key: Key) {
+    fn handle_key(&mut self, key: KeyEvent) {
         match self.active_fragment {
             ScreenState::ClusterOverview => self.cluster_overview.handle_key(key),
             ScreenState::WorkerInfo => self.worker_overview.handle_key(key),
         }
 
-        match key {
-            Key::Char('i') => {
+        match key.code {
+            KeyCode::Char('i') => {
                 if let Some(selected_worker) = self.cluster_overview.get_selected_worker() {
                     self.worker_overview.set_worker_id(selected_worker);
                     self.active_fragment = ScreenState::WorkerInfo;
                 }
             }
-            Key::Backspace => {
+            KeyCode::Backspace => {
                 self.worker_overview.clear_worker_id();
                 self.active_fragment = ScreenState::ClusterOverview
             }

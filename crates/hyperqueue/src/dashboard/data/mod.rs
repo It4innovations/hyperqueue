@@ -13,3 +13,5 @@ mod time_interval;
 pub mod timelines;
 
 type Time = SystemTime;
+
+pub use time_interval::TimeMode;
