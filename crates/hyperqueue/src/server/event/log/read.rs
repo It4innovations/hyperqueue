@@ -1,6 +1,6 @@
-use crate::common::serialization::bincode_config;
+use crate::common::serialization::SerializationConfig;
 use crate::server::event::log::HQ_JOURNAL_HEADER;
-use crate::server::event::Event;
+use crate::server::event::{Event, EventSerializationConfig};
 use crate::HQ_VERSION;
 use anyhow::{anyhow, bail};
 use bincode::Options;
@@ -31,7 +31,7 @@ impl JournalReader {
         if header != HQ_JOURNAL_HEADER {
             bail!("Invalid journal format");
         }
-        let hq_version: String = bincode_config()
+        let hq_version: String = EventSerializationConfig::config()
             .deserialize_from(&mut file)
             .map_err(|error| anyhow!("Cannot load HQ event log file header: {error:?}"))?;
         if hq_version != HQ_VERSION {
@@ -62,7 +62,7 @@ impl Iterator for &mut JournalReader {
         if self.position == self.size {
             return None;
         }
-        match bincode_config().deserialize_from(&mut self.source) {
+        match EventSerializationConfig::config().deserialize_from(&mut self.source) {
             Ok(event) => Some(Ok(event)),
             Err(error) => match error.deref() {
                 bincode::ErrorKind::Io(e)

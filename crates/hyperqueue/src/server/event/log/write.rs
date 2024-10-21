@@ -1,6 +1,6 @@
-use crate::common::serialization::bincode_config;
+use crate::common::serialization::SerializationConfig;
 use crate::server::event::log::HQ_JOURNAL_HEADER;
-use crate::server::event::Event;
+use crate::server::event::{Event, EventSerializationConfig};
 use crate::HQ_VERSION;
 use bincode::Options;
 use std::fs::{File, OpenOptions};
@@ -32,7 +32,7 @@ impl JournalWriter {
 
         if position == 0 && file.stream_position()? == 0 {
             file.write_all(HQ_JOURNAL_HEADER)?;
-            bincode_config().serialize_into(&mut file, HQ_VERSION)?;
+            EventSerializationConfig::config().serialize_into(&mut file, HQ_VERSION)?;
             file.flush()?;
         };
 
@@ -40,7 +40,7 @@ impl JournalWriter {
     }
 
     pub fn store(&mut self, event: Event) -> anyhow::Result<()> {
-        bincode_config().serialize_into(&mut self.file, &event)?;
+        EventSerializationConfig::config().serialize_into(&mut self.file, &event)?;
         Ok(())
     }
 

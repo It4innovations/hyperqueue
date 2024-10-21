@@ -4,11 +4,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 
-#[inline]
-pub fn bincode_config() -> impl Options {
-    bincode::DefaultOptions::new().allow_trailing_bytes()
-}
-
 /// Helper trait to configure serialization options via separate types.
 pub trait SerializationConfig {
     fn config() -> impl Options;

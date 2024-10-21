@@ -1,5 +1,6 @@
 use crate::common::error::HqError;
-use crate::common::serialization::bincode_config;
+use crate::common::serialization::SerializationConfig;
+use crate::stream::StreamSerializationConfig;
 use crate::transfer::stream::{ChannelId, StreamChunkHeader};
 use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskId, Map};
@@ -186,7 +187,7 @@ async fn stream_writer(
             server_uid: Cow::Borrowed(&streamer.server_uid),
             worker_id: streamer.worker_id,
         };
-        bincode_config().serialize_into(&mut buffer, &header)?;
+        StreamSerializationConfig::config().serialize_into(&mut buffer, &header)?;
     };
     file.write_all(&buffer).await?;
     while let Some(message) = receiver.recv().await {
@@ -194,7 +195,7 @@ async fn stream_writer(
             StreamerMessage::Write { header, data } => {
                 log::debug!("Waiting data chunk into stream file");
                 buffer.clear();
-                bincode_config().serialize_into(&mut buffer, &header)?;
+                StreamSerializationConfig::config().serialize_into(&mut buffer, &header)?;
                 file.write_all(&buffer).await?;
                 if !data.is_empty() {
                     file.write_all(&data).await?
