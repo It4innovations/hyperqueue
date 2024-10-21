@@ -29,7 +29,7 @@ impl SerializationConfig for TrailingAllowedConfig {
 #[derive(Serialize, Deserialize)]
 pub struct Serialized<T, C = DefaultConfig> {
     #[serde(with = "serde_bytes")]
-    data: Vec<u8>,
+    data: Box<[u8]>,
     _phantom: PhantomData<(T, C)>,
 }
 
@@ -55,8 +55,11 @@ impl<T, C> Clone for Serialized<T, C> {
 
 impl<T: Serialize + DeserializeOwned, C: SerializationConfig> Serialized<T, C> {
     pub fn new(value: &T) -> bincode::Result<Self> {
+        let result = C::config().serialize(value)?;
+        // Check that we're not reallocating needlessly in `into_boxed_slice`
+        debug_assert_eq!(result.capacity(), result.len());
         Ok(Self {
-            data: C::config().serialize(value)?,
+            data: result.into_boxed_slice(),
             _phantom: Default::default(),
         })
     }
