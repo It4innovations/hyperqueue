@@ -1804,7 +1804,7 @@ mod tests {
     fn attach_job(state: &mut State, job_id: u32, tasks: u32, min_time: TimeRequest) {
         let (job, submit) = create_job(job_id, tasks, min_time);
         state.add_job(job);
-        state.attach_submit(job_id.into(), submit, (job_id * 1_000).into());
+        state.attach_submit(job_id.into(), submit, (job_id as u64 * 1_000).into());
     }
 
     fn create_worker(allocation_id: &str) -> ManagerInfo {
