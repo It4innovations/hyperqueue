@@ -1,22 +1,55 @@
 use bincode::Options;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 
 #[inline]
-pub(crate) fn bincode_config() -> impl Options {
+pub fn bincode_config() -> impl Options {
     bincode::DefaultOptions::new().allow_trailing_bytes()
 }
 
-/// Strongly typed wrapper over <T> serialized with Bincode.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Serialized<T: Serialize + DeserializeOwned> {
-    #[serde(with = "serde_bytes")]
-    data: Vec<u8>,
-    _phantom: PhantomData<T>,
+/// Helper trait to configure serialization options via separate types.
+pub trait SerializationConfig {
+    fn config() -> impl Options;
 }
 
-impl<T: Serialize + DeserializeOwned> Clone for Serialized<T> {
+pub struct DefaultConfig;
+
+impl SerializationConfig for DefaultConfig {
+    fn config() -> impl Options {
+        bincode::DefaultOptions::new()
+    }
+}
+
+pub struct TrailingAllowedConfig;
+
+impl SerializationConfig for TrailingAllowedConfig {
+    fn config() -> impl Options {
+        bincode::DefaultOptions::new().allow_trailing_bytes()
+    }
+}
+
+/// Strongly typed wrapper over `<T>` serialized with Bincode.
+#[derive(Serialize, Deserialize)]
+pub struct Serialized<T, C = DefaultConfig> {
+    #[serde(with = "serde_bytes")]
+    data: Vec<u8>,
+    _phantom: PhantomData<(T, C)>,
+}
+
+impl<T, C> Debug for Serialized<T, C> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Serialized {} ({}) byte(s)",
+            std::any::type_name::<T>(),
+            self.data.len()
+        )
+    }
+}
+
+impl<T, C> Clone for Serialized<T, C> {
     fn clone(&self) -> Self {
         Self {
             data: self.data.clone(),
@@ -25,15 +58,15 @@ impl<T: Serialize + DeserializeOwned> Clone for Serialized<T> {
     }
 }
 
-impl<T: Serialize + DeserializeOwned> Serialized<T> {
+impl<T: Serialize + DeserializeOwned, C: SerializationConfig> Serialized<T, C> {
     pub fn new(value: &T) -> bincode::Result<Self> {
         Ok(Self {
-            data: bincode_config().serialize(value)?,
+            data: C::config().serialize(value)?,
             _phantom: Default::default(),
         })
     }
 
     pub fn deserialize(&self) -> bincode::Result<T> {
-        bincode_config().deserialize(&self.data)
+        C::config().deserialize(&self.data)
     }
 }
