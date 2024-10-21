@@ -1,11 +1,10 @@
-use std::io;
-use std::io::IsTerminal;
-use std::panic::PanicInfo;
-
 use clap::{CommandFactory, FromArgMatches};
 use clap_complete::generate;
 use cli_table::ColorChoice;
 use colored::Colorize;
+use std::io;
+use std::io::IsTerminal;
+use std::panic::PanicHookInfo;
 
 use hyperqueue::client::commands::autoalloc::command_autoalloc;
 use hyperqueue::client::commands::job::{
@@ -351,7 +350,7 @@ fn generate_completion(opts: GenerateCompletionOpts) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn hq_panic_hook(_info: &PanicInfo) {
+fn hq_panic_hook(_info: &PanicHookInfo) {
     let message = format!(
         r#"Oops, HyperQueue has crashed. This is a bug, sorry for that.
 If you would be so kind, please report this issue at the HQ issue tracker: https://github.com/It4innovations/hyperqueue/issues/new?title=HQ%20crashes
@@ -377,7 +376,7 @@ async fn main() -> hyperqueue::Result<()> {
     // Augment panics - first print the error and backtrace like normally,
     // and then print our own custom error message.
     let std_panic = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info: &PanicInfo| {
+    std::panic::set_hook(Box::new(move |info: &PanicHookInfo| {
         std_panic(info);
         hq_panic_hook(info);
     }));
