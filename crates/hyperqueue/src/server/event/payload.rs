@@ -1,6 +1,6 @@
+use crate::common::serialization::Serialized;
 use crate::server::autoalloc::AllocationId;
 use crate::server::autoalloc::QueueId;
-use crate::server::event::Serialized;
 use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
 use crate::JobId;
 use crate::{JobTaskId, WorkerId};

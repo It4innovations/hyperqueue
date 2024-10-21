@@ -10,6 +10,7 @@ pub mod parser;
 pub mod parser2;
 pub mod placeholders;
 pub mod rpc;
+pub mod serialization;
 pub mod serverdir;
 pub mod setup;
 pub mod utils;
