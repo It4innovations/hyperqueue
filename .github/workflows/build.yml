@@ -52,7 +52,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.80.0
+          toolchain: 1.81.0
           override: true
 
       - uses: Swatinem/rust-cache@v2.7.0
@@ -103,7 +103,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.80.0
+          toolchain: 1.81.0
           override: true
 
       - uses: Swatinem/rust-cache@v2.7.0
