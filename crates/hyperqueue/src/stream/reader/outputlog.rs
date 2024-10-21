@@ -1,7 +1,7 @@
 use crate::client::commands::outputlog::{CatOpts, Channel, ExportOpts, ShowOpts};
 use crate::common::arraydef::IntArray;
 use crate::common::error::HqError;
-use crate::server::event::bincode_config;
+use crate::common::serialization::bincode_config;
 use crate::transfer::stream::{ChannelId, StreamChunkHeader};
 use crate::worker::streamer::{StreamFileHeader, STREAM_FILE_HEADER, STREAM_FILE_SUFFIX};
 use crate::{JobId, JobTaskId, Set};

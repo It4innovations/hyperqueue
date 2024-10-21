@@ -1,5 +1,6 @@
+use crate::common::serialization::bincode_config;
 use crate::server::event::log::HQ_JOURNAL_HEADER;
-use crate::server::event::{bincode_config, Event};
+use crate::server::event::Event;
 use crate::HQ_VERSION;
 use anyhow::{anyhow, bail};
 use bincode::Options;

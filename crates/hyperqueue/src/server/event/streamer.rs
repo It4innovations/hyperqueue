@@ -1,7 +1,8 @@
+use crate::common::serialization::Serialized;
 use crate::server::autoalloc::{AllocationId, QueueId};
 use crate::server::event::log::{EventStreamMessage, EventStreamSender};
 use crate::server::event::payload::EventPayload;
-use crate::server::event::{Event, Serialized};
+use crate::server::event::Event;
 use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
 use crate::{JobId, JobTaskId, WorkerId};
 use chrono::Utc;

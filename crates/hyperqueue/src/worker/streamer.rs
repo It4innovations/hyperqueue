@@ -1,5 +1,5 @@
 use crate::common::error::HqError;
-use crate::server::event::bincode_config;
+use crate::common::serialization::bincode_config;
 use crate::transfer::stream::{ChannelId, StreamChunkHeader};
 use crate::WrappedRcRefCell;
 use crate::{JobId, JobTaskId, Map};
