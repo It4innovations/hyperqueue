@@ -1,12 +1,12 @@
-# Dev
+## Dev
 
-## Changes
+### Changes
 
 - `hq event-log` command renamed to `hq journal`
 
-# v0.20.0
+## v0.20.0
 
-## New features
+### New features
 
 * It is now possible to dynamically submit new tasks into an existing job (we call this concept "Open jobs").
   See [Open jobs documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/openjobs/)
@@ -23,23 +23,23 @@
 
 * Tasks' crash counters are not increased when worker is stopped by `hq worker stop` or by time limit.
 
-## Removed
+### Removed
 
 * Because worker streaming fully replaces original streaming, the original server streaming was removed.
   For most cases, you can rename `--log` to `--stream` and `hq log` to `hq output-log`. See the docs for more details.
 
-## Fixes
+### Fixes
 
 * HQ should no longer crash while printing job info when a failed task does not have any workers
   attached (https://github.com/It4innovations/hyperqueue/issues/731).
 
-## Note
+### Note
 
 * Dashboard still not enabled in this version
 
-# v0.19.0
+## v0.19.0
 
-## New features
+### New features
 
 * Server resilience. Server state can be loaded back from a journal when it crashes. This will restore the state of
   submitted jobs and also autoallocator queues. Find out
@@ -48,7 +48,7 @@
 * `HQ_NUM_NODES` for multi-node tasks introduced. It contains the number of nodes assigned to task.
   You do not need to manually count lines in `HQ_NODE_FILE` anymore.
 
-## Changes
+### Changes
 
 * Dashboard is disabled in this version. We expect to reneeble it in 1-2 release cycles
 
@@ -56,15 +56,15 @@
   (e.g. if hostname is "cn690.karolina.it4i.cz", only "cn690" is written into node list)
   You can read ``HQ_HOST_FILE`` if you need to get full hostnames without stripping.
 
-## Fixes
+### Fixes
 
 * Enable passing of empty `stdout`/`stderr` to Python function tasks in the Python
   API (https://github.com/It4innovations/hyperqueue/issues/691).
 * `hq alloc add --name <name>` will now correctly use the passed `<name>` to name allocations submitted to Slurm/PBS.
 
-# v0.18.0
+## v0.18.0
 
-## Breaking change
+### Breaking change
 
 * Mechanism for resubmitting tasks was changed. Command `resubmit` was removed,
   see https://it4innovations.github.io/hyperqueue/latest/jobs/failure/ for replacement.
@@ -72,7 +72,7 @@
 * The output format of the `job info` command with JSON output mode has been changed. Note that
   the JSON output mode is still unstable.
 
-## New features
+### New features
 
 * Combination of --time-request and --nodes is now allowed
 
@@ -83,25 +83,25 @@
 * The CLI dashboard is now enabled by default. You can try it with the `hq dashboard` command. Note that it is still
   very experimental and a lot of useful features are missing.
 
-# v0.17.0
+## v0.17.0
 
-## Breaking change
+### Breaking change
 
-### Memory resource in megabytes
+#### Memory resource in megabytes
 
 * Automatically detected resource "mem" that is the size of RAM of a worker is now using megabytes as a unit.
   i.e. `--resource mem=100` asks now for 100 MiB (previously 100 bytes).
 
-## New features
+### New features
 
-### Non-integer resource requests
+#### Non-integer resource requests
 
 * You may now ask of non-integer amount of a resource. e.g. for 0.5 of GPU.
   This enables resource sharing on the logical level of HyperQueue scheduler and allows to utilize remaining part the
   resource
   by another tasks.
 
-### Job submission
+#### Job submission
 
 * You can now specify `cleanup modes` when passing `stdout`/`stderr` paths to tasks. Cleanup mode decides what should
   happen with the file once the task has finished executing. Currently, a single cleanup mode is implemented, which
@@ -112,26 +112,26 @@
 $ hq submit --stdout=out.txt:rm-if-finished /my-program
 ```
 
-## Fixes
+### Fixes
 
 * Fixed crash when task fails during its initialization
 
-# v0.16.0
+## v0.16.0
 
-## New features
+### New features
 
-### Pregenerating access files
+#### Pregenerating access files
 
 * Via command `hq server generate-access` you can precreate an access file that can be later used for staring server,
   and connecting workers, and clients. This is usefull in cloud environments.
 
-### Job submission
+#### Job submission
 
 * A new command `hq job forget <job-selector>` has been introduced. It can be used to completely forget a job, and thus
   reduce the memory usage of the HQ server. It is useful especially if you submit a large amount of jobs and keep the
   server running for a long time.
 
-### Automatic allocation
+#### Automatic allocation
 
 * Autoalloc can now execute a custom shell command/script on each worker node before the worker starts and after the
   worker stops. You can use this feature e.g. to initialize some data or load software modules for each worker node.
@@ -153,25 +153,25 @@ $ hq submit --stdout=out.txt:rm-if-finished /my-program
   In this case, the allocation will run for one hour, but the HQ worker will be stopped after 58 minutes (unless it is
   stopped sooner because of idle timeout). The worker stop command will thus have at least two minutes to execute.
 
-## Changes
+### Changes
 
-### Access file
+#### Access file
 
 The format of the access file is changed. It is mostly internal change but you can experience parsing error when
 connecting
 an old client/worker to a new server (Connecting a new client/worker to an old server will given you a proper message).
 
-# v0.15.0
+## v0.15.0
 
-## Breaking changes
+### Breaking changes
 
 - **NVIDIA GPUs are now automatically detected under the resource name `gpus/nvidia`, instead of
   just `gpus`!** If you have been using the `gpus` resource name, you should update your scripts.
   See more details below.
 
-## New features
+### New features
 
-### Resource management
+#### Resource management
 
 * You can now specify more resources for one task, e.g.: 1 cpu and 1 gpu OR 4 cpus. The scheduler considers both
   configurations in task planning.
@@ -210,9 +210,9 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
 
 * `hq task info` now shows more information
 
-## Changes
+### Changes
 
-### Job submission
+#### Job submission
 
 * The default path for `stdout` and `stderr` files has been changed
   from `%{SUBMIT_DIR}/job-%{JOB_ID}/%{TASK_ID}.[stdout/stderr]`
@@ -221,40 +221,40 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
   nothing will change for you. Stdout and stderr paths are now also resolved relative to the working
   directory of the given task, not to the submit directory.
 
-# v0.14.0
+## v0.14.0
 
-## New features
+### New features
 
-### CLI
+#### CLI
 
 * [#545](https://github.com/It4innovations/hyperqueue/issues/545) Add a new command `hq job summary`,
   which displays the amount of jobs per each job state.
 
-## Platforms
+### Platforms
 
 * HQ can be now compiled for Raspbery Pi
 
-## Fixes
+### Fixes
 
-### Worker
+#### Worker
 
 * [#539](https://github.com/It4innovations/hyperqueue/issues/539) Fix connection of worker to server
   in the presence of both IPv4 and IPv6 addresses.
 
-### Job submission
+#### Job submission
 
 * [#540](https://github.com/It4innovations/hyperqueue/issues/540) Parse all arguments from shebang
   in a directives file (e.g. `#!/bin/bash -l`).
 
-### Streaming
+#### Streaming
 
 * Fixed a bug in closing streaming when tasks are very short and sychronized.
 
-# v0.13.0
+## v0.13.0
 
-## New features
+### New features
 
-### Resource management
+#### Resource management
 
 * Almost complete rewrite of resource management.
   CPU and other resources were unified: the most visible change is that you can define "cpus" and other resource;
@@ -264,7 +264,7 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
   better behavior on non-heterogeneous clusters;
   better interaction between resources and priorities.
 
-### Automatic allocation
+#### Automatic allocation
 
 * [#467](https://github.com/It4innovations/hyperqueue/issues/467) You can now pause (and resume)
   autoalloc queues using `hq alloc pause` and `hq alloc resume`.
@@ -272,7 +272,7 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
   When an autoalloc queue hits too many submission or worker execution errors, it will now be paused
   instead of removed.
 
-### Tasks
+#### Tasks
 
 * HQ allows to limit how many times a task may be in a running state while worker is lost
   (such a task may be a potential source of worker's crash).
@@ -282,48 +282,48 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
 * Groups of workers are introduced. A multi-node task is now started only on workers from the same group.
   By default, workers are grouped by PBS/Slurm allocations, but it can be configured manually.
 
-## Changes
+### Changes
 
-### Resource management
+#### Resource management
 
 * ``--cpus=no-ht`` is now changed to a flag ``--no-hyper-threading``.
 * Explicit list definition of a resource was changed from ``--resource xxx=list(1,2,3)`` to ``--resource xxx=[1,2,3]``.
   (this is the result of unification of CPUs with other resources).
 * Python API: Attribute `generic` in `ResourceRequest` is renamed to `resources`
 
-### Tasks
+#### Tasks
 
 * [#461](https://github.com/It4innovations/hyperqueue/issues/461) When a task is cancelled, times out
   or its worker is killed, HyperQueue now tries to make sure that both the tasks and any processes that
   it has spawned will be also terminated.
 * [#480](https://github.com/It4innovations/hyperqueue/issues/480) You can now select multiple tasks in `hq task info`.
 
-# v0.12.0
+## v0.12.0
 
-## New features
+### New features
 
-### Automatic allocation
+#### Automatic allocation
 
 * [#457](https://github.com/It4innovations/hyperqueue/pull/457) You can now specify the idle timeout
   for workers started by the automatic allocator using the `--idle-timeout` flag of the `hq alloc add` command.
 
-### Resiliency
+#### Resiliency
 
 * [#449](https://github.com/It4innovations/hyperqueue/pull/449) Tasks that were present during multiple
   crashes of the workers will be canceled.
 
-### CLI
+#### CLI
 
 * [#463](https://github.com/It4innovations/hyperqueue/pull/463) You can now wait until `N` workers
   are connected to the clusters with `hq worker wait N`.
 
-### Python API
+#### Python API
 
 * Resource requests improvements in Python API.
 
-## Changes
+### Changes
 
-### CLI
+#### CLI
 
 * [#477](https://github.com/It4innovations/hyperqueue/pull/477) Requested resources are now shown while
   submitting an `array` and while viewing information about task `TASK_ID` of specified
@@ -336,35 +336,35 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
 * [#455](https://github.com/It4innovations/hyperqueue/pull/445) Improve the quality of error messages
   produced when parsing various CLI parameters, like resources.
 
-### Automatic allocation
+#### Automatic allocation
 
 * [#448](https://github.com/It4innovations/hyperqueue/pull/448) The automatic allocator will now start
   workers in multi-node Slurm allocations using `srun --overlap`. This should avoid taking up Slurm
   task resources by the started workers (if possible). If you run into any issues with using `srun`
   inside HyperQueue tasks, please let us know.
 
-### Jobs
+#### Jobs
 
 * [#483](https://github.com/It4innovations/hyperqueue/pull/483) There is no longer a length limit
   for job names.
 
-## Fixes
+### Fixes
 
-### Job submission
+#### Job submission
 
 * [#450](https://github.com/It4innovations/hyperqueue/pull/450) Attempts to resubmit a job with zero
   tasks will now result in an explicit error, rather than a crash of the client.
 
-### Automatic allocation
+#### Automatic allocation
 
 * [#494](https://github.com/It4innovations/hyperqueue/pull/494) Fixed a specific issue where the
   auto allocator could submit more allocations than intended.
 
-# v0.11.0
+## v0.11.0
 
-## New features
+### New features
 
-### CLI
+#### CLI
 
 * [#464](https://github.com/It4innovations/hyperqueue/pull/464) New command was added that allows users
   to see more detailed info about selected task `TASK_ID` from a concrete job `JOB_ID`.
@@ -375,7 +375,7 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
 * [#423](https://github.com/It4innovations/hyperqueue/pull/423) You can now specify the server
   directory using the `HQ_SERVER_DIR` environment variable.
 
-### Resource management
+#### Resource management
 
 * [#427](https://github.com/It4innovations/hyperqueue/pull/427) A new specifier has been added to
   specify **indexed pool** resources for workers as a set of individual resource indices.
@@ -385,20 +385,20 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
 * [#428](https://github.com/It4innovations/hyperqueue/pull/427) Workers will now attempt to automatically
   detect available GPU resources from the `CUDA_VISIBLE_DEVICES` environment variable.
 
-### Stream log
+#### Stream log
 
 * Basic export of stream log into JSON (`hq output-log <log_file> export`)
 
-### Server
+#### Server
 
 * Improved scheduling of multi-node tasks.
 
 * Server now generates a random unique ID (UID) string every time a new server is started (`hq server start`).
   It can be used as a placeholder `%{SERVER_ID}`.
 
-## Changes
+### Changes
 
-### CLI
+#### CLI
 
 * [#464](https://github.com/It4innovations/hyperqueue/pull/464) More detailed task information (Time, Paths)
   were moved from `hq task list` into `hq task info`.
@@ -420,7 +420,7 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
   submits the job), not on worker nodes as previously. This means that the submitted file has to be
   accessible on the client node.
 
-### Resource management
+#### Resource management
 
 * [#427](https://github.com/It4innovations/hyperqueue/pull/427) (**Backwards incompatible change**)
   The environment variable `HQ_RESOURCE_INDICES_<resource-name>`, which is passed to tasks with
@@ -440,11 +440,11 @@ an old client/worker to a new server (Connecting a new client/worker to an old s
   [generic resource](https://it4innovations.github.io/hyperqueue/stable/jobs/gresources/)
   documentation has been rewritten and improved.
 
-# v0.10.0
+## v0.10.0
 
-## New features
+### New features
 
-### Running tasks
+#### Running tasks
 
 * HQ will now set the OpenMP `OMP_NUM_THREADS` environment variable for each task. The amount of threads
   will be set according to the number of requested cores. For example, this job submission:
@@ -461,34 +461,34 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 
 * Preview version of multi-node tasks. You may submit multi-node task by ``hq submit --nodes=X ...``
 
-### CLI
+#### CLI
 
 * Less verbose log output by default. You can use "--debug" to turn on the old behavior.
 
-## Changes
+### Changes
 
-### Scheduler
+#### Scheduler
 
 * When there is only a few tasks, scheduler tries to fit tasks on fewer workers.
   Goal is to enable earlier stopping of workers because of idle timeout.
 
-### CLI
+#### CLI
 
 * The `--pin` boolean option for submitting jobs has been changed to take a value. You can get the
   original behaviour by specifying `--pin=taskset`.
 
-## Fixes
+### Fixes
 
-### Automatic allocation
+#### Automatic allocation
 
 - PBS/Slurm allocations using multiple workers will now correctly spawn a HyperQueue worker on all
   allocated nodes.
 
-# v0.9.0
+## v0.9.0
 
-## New features
+### New features
 
-### Tasks
+#### Tasks
 
 * Task may be started with a temporary directory that is automatically deleted when the task is finished.
   (flag `--task-dir`).
@@ -496,14 +496,14 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 * Task may provide its own error message by creating a file with name passed by environment variable
   `HQ_ERROR_FILENAME`.
 
-### CLI
+#### CLI
 
 * You can now use the `hq task list <job-selector>` command to display a list of tasks across multiple jobs.
 * Add `--filter` flag to `worker list` to allow filtering workers by their status.
 
-## Changes
+### Changes
 
-### Automatic allocation
+#### Automatic allocation
 
 * Automatic allocation has been rewritten from scratch. It will no longer query PBS/Slurm allocation
   statuses periodically, instead it will try to derive allocation state from workers that connect
@@ -517,17 +517,17 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 * The `--max-kept-directories` parameter for allocation queues has been removed. HyperQueue will now keep
   `20` last allocation directories amongst all allocation queues.
 
-## Fixes
+### Fixes
 
 * HQ will no longer warn that `stdout`/`stderr` path does not contain the `%{TASK_ID}` placeholder
   when submitting array jobs if the placeholder is contained within the working directory path and
   `stdout`/`stderr` contains the `%{CWD}` placeholder.
 
-# v0.8.0
+## v0.8.0
 
-## Fixes
+### Fixes
 
-### Automatic allocation
+#### Automatic allocation
 
 * [Issue #294](https://github.com/It4innovations/hyperqueue/issues/294): The automatic allocator
   leaves behind directories of inactive (failed or finished) allocations on the filesystem. Although
@@ -542,9 +542,9 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   $ hq alloc add pbs --time-limit 1h --max-kept-directories 100
   ```
 
-## New features
+### New features
 
-### Jobs
+#### Jobs
 
 * Added new command for outputting `stdout`/`stderr` of jobs.
 
@@ -582,14 +582,14 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   $ hq submit --stdin bash
   ```
 
-### Worker configuration
+#### Worker configuration
 
 * You can now select what should happen when a worker loses its connection to the server using the
   new `--on-worker-lost` flag available for `worker start` and `hq alloc add` commands. You can find
   more information in
   the [documentation](https://it4innovations.github.io/hyperqueue/stable/deployment/worker/#lost-connection-to-the-server).
 
-### CLI
+#### CLI
 
 * You can now force HyperQueue commands to output machine-readable data using the `--output-mode` flag
   available to all HyperQueue commands. Notably, you can output data of the commands as JSON. You can
@@ -597,9 +597,9 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 
 * You can now generate shell completion using the `hq generate-completion <shell>` command.
 
-## Changes
+### Changes
 
-### CLI
+#### CLI
 
 * The command line interface for jobs has been changed to be more consistent with the interface for
   workers. Commands that have been formerly standalone (like `hq jobs`, `hq resubmit`, `hq wait`) are
@@ -636,7 +636,7 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 * Tables outputted by various informational commands (like `hq job info` or `hq worker list`)
   are now more densely packed and should thus better fit on terminal screens.
 
-## Preview features
+### Preview features
 
 * You can now store HyperQueue events into a log file and later export them to JSON for further
   processing. You can find more information in the
@@ -652,9 +652,9 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   $ hq dashboard
   ```
 
-# v0.7.0
+## v0.7.0
 
-## Fixes
+### Fixes
 
 * Fixes an invalid behavior of the scheduler when resources are defined
 
@@ -663,9 +663,9 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   only for the case when a task has a time request higher than the time limit of the allocation
   queue.
 
-## New features
+### New features
 
-### Automatic allocation
+#### Automatic allocation
 
 * You can now specify CPU and generic resources for workers created by the automatic allocator:
     ```bash
@@ -686,7 +686,7 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 * You can now specify the timelimit of PBS/Slurm allocations using the `HH:MM:SS` format:
   `hq alloc add pbs --time-limit 01:10:30`.
 
-### Resource management
+#### Resource management
 
 * Workers can be now started with the parameter `--cpus="no-ht"`. When detecting CPUs in this mode,
   HyperThreading will be ignored (for each physical core only the first HT virtual core will be chosen).
@@ -694,32 +694,32 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   (including arrangement of IDs into sockets).
   (E.g. ``hq worker start --cpus=[[0, 1], [6, 8]]``)
 
-### CLI
+#### CLI
 
 * Improve error messages printed when an invalid CLI parameter is entered.
 
-## Changes
+### Changes
 
 * The `--time-limit` parameter of `hq alloc add` command is now required.
 * `hq alloc remove` will no longer let you remove an allocation queue that contains running
   allocations by default. If you want to force its removal and cancel the running allocations
   immediately, use the `--force` flag.
 
-# v0.6.1
+## v0.6.1
 
-## Fixes
+### Fixes
 
 * Fixed computation of worker load in scheduler
 * Fixed performance problem when canceling more than 100k tasks
 
-## Changes
+### Changes
 
 * When a job is submitted, it does not show full details in response
   but only a short message. Details can be still shown by `hq job <id>`.
 
-# v0.6.0
+## v0.6.0
 
-## New features
+### New features
 
 * Generic resource management has been added. You can find out more in
   the [documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/gresources/).
@@ -728,7 +728,7 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   `hq submit --from-json`. You can find out more in
   the [documentation](https://it4innovations.github.io/hyperqueue/stable/jobs/arrays/#json-array).
 
-## Changes
+### Changes
 
 * There have been a few slight CLI changes:
   * `hq worker list` no longer has `--offline` and `--online` flags. It will now display only running
@@ -739,9 +739,9 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
   a date.
 * The documentation has been [rewritten](https://it4innovations.github.io/hyperqueue).
 
-# v0.5.0
+## v0.5.0
 
-## New features
+### New features
 
 * Time limit and Time request for tasks (options ``--time-limit`` and ``--time-request``)
 * Time limit for workers
@@ -752,7 +752,7 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 * HyperQueue can be now compiled without `jemalloc` (this enables PowerPC builds).
   To remove dependency on `jemalloc`, build HyperQueue with `--no-default-features`.
 
-## Changes
+### Changes
 
 * `hq submit --wait` and `hq wait` will no longer display a progress bar while waiting for the job(s) to finish.
   The progress bar was moved to `hq submit --progress` and `hq progress`.
@@ -760,9 +760,9 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 * Normalization of stream's end behavior when job is canceled
 * Job id is now represented as u32
 
-# v0.4.0
+## v0.4.0
 
-## New features
+### New features
 
 * Streaming - streaming stdout/stderr of all tasks in a job into one file
   to avoid creating many files.
@@ -775,9 +775,9 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 * Command ``hq worker stop all`` to cancel all workers
 * Command ``hq server info`` to get an information about server
 
-# v0.3.0
+## v0.3.0
 
-## New features
+### New features
 
 * Option for automatic closing workers without tasks (Idle timeout)
 * Submit option ``--max-fails X`` to cancel an job when more than X tasks fails
@@ -788,20 +788,20 @@ would pass `OMP_NUM_THREADS=4` to the executed `<program>`.
 * Added a progressbar in a job array detail.
 * ``hq server start --host=xxx`` allows to specify hostname/address under which the server is visible
 
-# v0.2.1
+## v0.2.1
 
-## New features
+### New features
 
 * Filters for command ``hq jobs <filter>``
   (e.g. ``hq jobs running``)
 
-## Fixes
+### Fixes
 
 * NUMA detection on some architectures
 
-# v0.2.0
+## v0.2.0
 
-## New features
+### New features
 
 * Job arrays
 * Cpu management
