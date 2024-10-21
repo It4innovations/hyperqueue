@@ -1,6 +1,5 @@
 use crate::server::autoalloc::QueueId;
 use crate::server::client::submit_job_desc;
-use crate::server::event::bincode_config;
 use crate::server::event::log::JournalReader;
 use crate::server::event::payload::EventPayload;
 use crate::server::job::{Job, JobTaskState, StartedTaskData};
@@ -10,7 +9,6 @@ use crate::transfer::messages::{
 };
 use crate::worker::start::RunningTaskContext;
 use crate::{JobId, JobTaskId, Map};
-use bincode::Options;
 use std::path::Path;
 use tako::gateway::NewTasksMessage;
 use tako::{ItemId, WorkerId};
@@ -177,8 +175,7 @@ impl StateRestorer {
                     serialized_desc,
                 } => {
                     log::debug!("Replaying: JobTasksCreated {job_id}");
-                    let submit_request: SubmitRequest =
-                        bincode_config().deserialize(&serialized_desc)?;
+                    let submit_request: SubmitRequest = serialized_desc.deserialize()?;
                     if closed_job {
                         let mut job = RestorerJob::new(submit_request.job_desc, false);
                         job.add_submit(submit_request.submit_desc);
