@@ -1,9 +1,15 @@
 use crate::dashboard::data::DashboardData;
-use crate::dashboard::ui::fragments::auto_allocator::fragment::AutoAllocatorFragment;
 use crate::dashboard::ui::screen::Screen;
 use crate::dashboard::ui::terminal::DashboardFrame;
 use crossterm::event::KeyEvent;
+use fragment::AutoAllocatorFragment;
 use ratatui::layout::Rect;
+
+mod alloc_timeline_chart;
+mod allocations_info_table;
+mod fragment;
+mod queue_info_table;
+mod queue_params_display;
 
 #[derive(Default)]
 pub struct AutoAllocScreen {
