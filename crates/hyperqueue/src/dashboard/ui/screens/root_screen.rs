@@ -1,6 +1,6 @@
 use crate::dashboard::data::{DashboardData, TimeRange};
 use crate::dashboard::ui::screen::Screen;
-use crate::dashboard::ui::screens::autoalloc_screen::AutoAllocScreen;
+use crate::dashboard::ui::screens::autoalloc::AutoAllocScreen;
 use crate::dashboard::ui::screens::cluster::WorkerOverviewScreen;
 use crate::dashboard::ui::screens::jobs::JobScreen;
 use crate::dashboard::ui::terminal::{DashboardFrame, DashboardTerminal};
