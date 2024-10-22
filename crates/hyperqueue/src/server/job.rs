@@ -7,7 +7,7 @@ use crate::transfer::messages::{
     TaskStatusSelector,
 };
 use crate::worker::start::RunningTaskContext;
-use crate::{JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
+use crate::{make_tako_id, JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
 use chrono::{DateTime, Utc};
 use smallvec::SmallVec;
 use std::sync::Arc;
@@ -65,7 +65,6 @@ impl JobTaskState {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobTaskInfo {
     pub state: JobTaskState,
-    pub task_id: JobTaskId,
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, Default)]
@@ -115,10 +114,10 @@ pub struct JobCompletionCallback {
 pub struct Job {
     pub job_id: JobId,
     pub counters: JobTaskCounters,
-    pub tasks: Map<TakoTaskId, JobTaskInfo>,
+    pub tasks: Map<JobTaskId, JobTaskInfo>,
 
     pub job_desc: JobDescription,
-    pub submit_descs: SmallVec<[(Arc<JobSubmitDescription>, TakoTaskId); 1]>,
+    pub submit_descs: SmallVec<[Arc<JobSubmitDescription>; 1]>,
 
     // If true, new tasks may be submitted into this job
     // If true and all tasks in the job are terminated then the job
@@ -157,42 +156,43 @@ impl Job {
         self.is_open = false;
     }
 
-    pub fn make_task_id_set(&self) -> Set<JobTaskId> {
-        self.tasks.values().map(|t| t.task_id).collect()
-    }
-
     pub fn max_id(&self) -> Option<JobTaskId> {
-        self.tasks.values().map(|t| t.task_id).max()
+        self.tasks.keys().max().copied()
     }
 
     pub fn make_job_detail(&self, task_selector: Option<&TaskSelector>) -> JobDetail {
-        let mut tasks: Vec<JobTaskInfo> = Vec::new();
-        let mut tasks_not_found: Vec<JobTaskId> = vec![];
-
-        if let Some(selector) = task_selector {
-            filter_tasks(self.tasks.values(), selector, &mut tasks);
-
-            if let TaskIdSelector::Specific(requested_ids) = &selector.id_selector {
-                let task_ids: Set<_> = self
-                    .tasks
-                    .values()
-                    .map(|task| task.task_id.as_num())
-                    .collect();
-                tasks_not_found.extend(
-                    requested_ids
+        let (mut tasks, tasks_not_found) = if let Some(selector) = task_selector {
+            match &selector.id_selector {
+                TaskIdSelector::All => (
+                    self.tasks
                         .iter()
-                        .filter(|id| !task_ids.contains(id))
-                        .map(JobTaskId::new),
-                );
+                        .map(|(task_id, info)| (task_id.clone(), info.clone()))
+                        .collect(),
+                    Vec::new(),
+                ),
+                TaskIdSelector::Specific(ids) => {
+                    let mut not_found = Vec::new();
+                    let mut tasks = Vec::with_capacity(ids.id_count() as usize);
+                    for task_id in ids.iter() {
+                        if let Some(task) = self.tasks.get(&JobTaskId::new(task_id)) {
+                            tasks.push((JobTaskId::new(task_id), task.clone()));
+                        } else {
+                            not_found.push(JobTaskId::new(task_id));
+                        }
+                    }
+                    (tasks, not_found)
+                }
             }
-        }
+        } else {
+            (Vec::new(), Vec::new())
+        };
 
-        tasks.sort_unstable_by_key(|task| task.task_id);
+        tasks.sort_unstable_by_key(|(task_id, _)| *task_id);
 
         JobDetail {
             info: self.make_job_info(),
             job_desc: self.job_desc.clone(),
-            submit_descs: self.submit_descs.iter().map(|x| x.0.clone()).collect(),
+            submit_descs: self.submit_descs.iter().map(|x| x.clone()).collect(),
             tasks,
             tasks_not_found,
             submission_date: self.submission_date,
@@ -223,46 +223,38 @@ impl Job {
         !self.is_open && self.has_no_active_tasks()
     }
 
-    pub fn get_task_state_mut(
-        &mut self,
-        tako_task_id: TakoTaskId,
-    ) -> (JobTaskId, &mut JobTaskState) {
-        let state = self.tasks.get_mut(&tako_task_id).unwrap();
-        (state.task_id, &mut state.state)
-    }
-
-    pub fn iter_task_states(
-        &self,
-    ) -> impl Iterator<Item = (TakoTaskId, JobTaskId, &JobTaskState)> + '_ {
-        self.tasks.iter().map(|(k, v)| (*k, v.task_id, &v.state))
+    pub fn iter_task_states(&self) -> impl Iterator<Item = (JobTaskId, &JobTaskState)> + '_ {
+        self.tasks
+            .iter()
+            .map(|(task_id, task_info)| (*task_id, &task_info.state))
     }
 
     pub fn non_finished_task_ids(&self) -> Vec<TakoTaskId> {
-        let mut result = Vec::new();
-        for (tako_id, _task_id, state) in self.iter_task_states() {
-            match state {
-                JobTaskState::Waiting | JobTaskState::Running { .. } => result.push(tako_id),
+        self.iter_task_states()
+            .filter_map(|(task_id, state)| match state {
+                JobTaskState::Waiting | JobTaskState::Running { .. } => {
+                    Some(make_tako_id(self.job_id, task_id))
+                }
                 JobTaskState::Finished { .. }
                 | JobTaskState::Failed { .. }
-                | JobTaskState::Canceled { .. } => { /* Do nothing */ }
-            }
-        }
-        result
+                | JobTaskState::Canceled { .. } => None,
+            })
+            .collect()
     }
 
     pub fn set_running_state(
         &mut self,
-        tako_task_id: TakoTaskId,
+        task_id: JobTaskId,
         workers: SmallVec<[WorkerId; 1]>,
         context: SerializedTaskContext,
-    ) -> JobTaskId {
-        let (task_id, state) = self.get_task_state_mut(tako_task_id);
+    ) {
+        let task = self.tasks.get_mut(&task_id).unwrap();
 
         let context: RunningTaskContext =
             deserialize(&context).expect("Could not deserialize task context");
 
-        if matches!(state, JobTaskState::Waiting) {
-            *state = JobTaskState::Running {
+        if matches!(task.state, JobTaskState::Waiting) {
+            task.state = JobTaskState::Running {
                 started_data: StartedTaskData {
                     start_date: Utc::now(),
                     context,
@@ -271,8 +263,6 @@ impl Job {
             };
             self.counters.n_running_tasks += 1;
         }
-
-        task_id
     }
 
     pub fn check_termination(&mut self, senders: &Senders, now: DateTime<Utc>) {
@@ -302,45 +292,48 @@ impl Job {
 
     pub fn set_finished_state(
         &mut self,
-        tako_task_id: TakoTaskId,
+        task_id: JobTaskId,
         now: DateTime<Utc>,
         senders: &Senders,
     ) -> JobTaskId {
-        let (task_id, state) = self.get_task_state_mut(tako_task_id);
-        match state {
+        let task = self.tasks.get_mut(&task_id).unwrap();
+        match &task.state {
             JobTaskState::Running { started_data } => {
-                *state = JobTaskState::Finished {
+                task.state = JobTaskState::Finished {
                     started_data: started_data.clone(),
                     end_date: now,
                 };
                 self.counters.n_running_tasks -= 1;
                 self.counters.n_finished_tasks += 1;
             }
-            _ => panic!("Invalid worker state, expected Running, got {state:?}"),
+            _ => panic!(
+                "Invalid worker state, expected Running, got {:?}",
+                task.state
+            ),
         }
         senders.events.on_task_finished(self.job_id, task_id);
         self.check_termination(senders, now);
         task_id
     }
 
-    pub fn set_waiting_state(&mut self, tako_task_id: TakoTaskId) {
-        let (_, state) = self.get_task_state_mut(tako_task_id);
-        assert!(matches!(state, JobTaskState::Running { .. }));
-        *state = JobTaskState::Waiting;
+    pub fn set_waiting_state(&mut self, task_id: JobTaskId) {
+        let task = self.tasks.get_mut(&task_id).unwrap();
+        assert!(matches!(task.state, JobTaskState::Running { .. }));
+        task.state = JobTaskState::Waiting;
         self.counters.n_running_tasks -= 1;
     }
 
     pub fn set_failed_state(
         &mut self,
-        tako_task_id: TakoTaskId,
+        task_id: JobTaskId,
         error: String,
         senders: &Senders,
     ) -> JobTaskId {
-        let (task_id, state) = self.get_task_state_mut(tako_task_id);
+        let task = self.tasks.get_mut(&task_id).unwrap();
         let now = Utc::now();
-        match state {
+        match &task.state {
             JobTaskState::Running { started_data } => {
-                *state = JobTaskState::Failed {
+                task.state = JobTaskState::Failed {
                     error: error.clone(),
                     started_data: Some(started_data.clone()),
                     end_date: now,
@@ -349,13 +342,16 @@ impl Job {
                 self.counters.n_running_tasks -= 1;
             }
             JobTaskState::Waiting => {
-                *state = JobTaskState::Failed {
+                task.state = JobTaskState::Failed {
                     error: error.clone(),
                     started_data: None,
                     end_date: now,
                 }
             }
-            _ => panic!("Invalid task {task_id} state, expected Running or Waiting, got {state:?}"),
+            _ => panic!(
+                "Invalid task {task_id} state, expected Running or Waiting, got {:?}",
+                task.state
+            ),
         }
         self.counters.n_failed_tasks += 1;
 
@@ -364,20 +360,19 @@ impl Job {
         task_id
     }
 
-    pub fn set_cancel_state(&mut self, tako_task_id: TakoTaskId, senders: &Senders) -> JobTaskId {
+    pub fn set_cancel_state(&mut self, task_id: JobTaskId, senders: &Senders) -> JobTaskId {
+        let task = self.tasks.get_mut(&task_id).unwrap();
         let now = Utc::now();
-
-        let (task_id, state) = self.get_task_state_mut(tako_task_id);
-        match state {
+        match &task.state {
             JobTaskState::Running { started_data, .. } => {
-                *state = JobTaskState::Canceled {
+                task.state = JobTaskState::Canceled {
                     started_data: Some(started_data.clone()),
                     cancelled_date: now,
                 };
                 self.counters.n_running_tasks -= 1;
             }
             JobTaskState::Waiting => {
-                *state = JobTaskState::Canceled {
+                task.state = JobTaskState::Canceled {
                     started_data: None,
                     cancelled_date: now,
                 };
@@ -401,34 +396,5 @@ impl Job {
             wait_for_close,
         });
         rx
-    }
-}
-
-/// Applies ID and status filters from `selector` to filter `tasks`.
-fn filter_tasks<'a, T: Iterator<Item = &'a JobTaskInfo>>(
-    tasks: T,
-    selector: &TaskSelector,
-    result: &mut Vec<JobTaskInfo>,
-) {
-    for task in tasks {
-        match &selector.id_selector {
-            TaskIdSelector::Specific(ids) => {
-                if !ids.contains(task.task_id.as_num()) {
-                    continue;
-                }
-            }
-            TaskIdSelector::All => {}
-        }
-
-        match &selector.status_selector {
-            TaskStatusSelector::Specific(states) => {
-                if !states.contains(&get_task_status(&task.state)) {
-                    continue;
-                }
-            }
-            TaskStatusSelector::All => {}
-        }
-
-        result.push(task.clone());
     }
 }
