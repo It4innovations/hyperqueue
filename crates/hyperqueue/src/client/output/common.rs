@@ -42,8 +42,8 @@ pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
 
     job.tasks
         .iter()
-        .map(|task| {
-            let (submit_dir, task_desc) = task_to_desc_map.get(&task.task_id).unwrap();
+        .map(|(task_id, task)| {
+            let (submit_dir, task_desc) = task_to_desc_map.get(task_id).unwrap();
             let paths = match &task_desc.kind {
                 TaskKind::ExternalProgram(TaskKindProgram { program, .. }) => match &task.state {
                     JobTaskState::Canceled {
@@ -58,7 +58,7 @@ pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
                     } => {
                         let ctx = CompletePlaceholderCtx {
                             job_id: job.info.id,
-                            task_id: task.task_id,
+                            task_id: *task_id,
                             instance_id: started_data.context.instance_id,
                             submit_dir,
                             server_uid,
@@ -80,7 +80,7 @@ pub fn resolve_task_paths(job: &JobDetail, server_uid: &str) -> TaskToPathsMap {
                     _ => None,
                 },
             };
-            (task.task_id, paths)
+            (*task_id, paths)
         })
         .collect()
 }

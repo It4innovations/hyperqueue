@@ -115,7 +115,7 @@ pub async fn output_job_task_info(
         Some(job) => {
             gsettings.printer().print_task_info(
                 (*job_id, job.clone()),
-                job.tasks.clone(),
+                &job.tasks,
                 get_worker_map(session).await?,
                 &response.server_uid,
                 verbosity,
@@ -161,7 +161,7 @@ pub async fn output_job_task_ids(
                         .ok_or_else(|| HqError::GenericError("Job Id not found".to_string()))?
                         .tasks
                         .iter()
-                        .map(|info| info.task_id.as_num()),
+                        .map(|(task_id, _)| task_id.as_num()),
                 ),
             ))
         })

@@ -133,7 +133,7 @@ impl Output for JsonOutput {
                                     }
                                 }
                                     ).collect::<Vec<_>>(),
-                                    "tasks": format_tasks(tasks, task_paths)
+                                    "tasks": format_tasks(&tasks, task_paths)
                                 })
             })
             .collect();
@@ -182,7 +182,7 @@ impl Output for JsonOutput {
         let mut json_obj = json!({});
         for (id, job) in jobs {
             let map = resolve_task_paths(&job, server_uid);
-            json_obj[id.to_string()] = format_tasks(job.tasks, map);
+            json_obj[id.to_string()] = format_tasks(&job.tasks, map);
         }
         self.print(json_obj);
     }
@@ -190,7 +190,7 @@ impl Output for JsonOutput {
     fn print_task_info(
         &self,
         job: (JobId, JobDetail),
-        tasks: Vec<JobTaskInfo>,
+        tasks: &[(JobTaskId, JobTaskInfo)],
         _worker_map: WorkerMap,
         server_uid: &str,
         _verbosity: Verbosity,
@@ -306,7 +306,7 @@ fn format_task_description(task_desc: &TaskDescription) -> Value {
     }
 }
 
-fn fill_task_started_data(dict: &mut Value, data: StartedTaskData) {
+fn fill_task_started_data(dict: &mut Value, data: &StartedTaskData) {
     dict["started_at"] = format_datetime(data.start_date);
     if data.worker_ids.len() == 1 {
         dict["worker"] = data.worker_ids[0].as_num().into();
@@ -360,10 +360,10 @@ fn format_job_info(info: &JobInfo) -> Value {
     })
 }
 
-fn format_tasks(tasks: Vec<JobTaskInfo>, map: TaskToPathsMap) -> Value {
+fn format_tasks(tasks: &[(JobTaskId, JobTaskInfo)], map: TaskToPathsMap) -> Value {
     tasks
         .into_iter()
-        .map(|task| {
+        .map(|(task_id, task)| {
             let state = &match task.state {
                 JobTaskState::Waiting => "waiting",
                 JobTaskState::Running { .. } => "running",
@@ -372,12 +372,12 @@ fn format_tasks(tasks: Vec<JobTaskInfo>, map: TaskToPathsMap) -> Value {
                 JobTaskState::Canceled { .. } => "canceled",
             };
             let mut data = json!({
-                "id": task.task_id,
+                "id": *task_id,
                 "state": state,
             });
-            fill_task_paths(&mut data, &map, task.task_id);
+            fill_task_paths(&mut data, &map, *task_id);
 
-            match task.state {
+            match &task.state {
                 JobTaskState::Running { started_data } => {
                     fill_task_started_data(&mut data, started_data);
                 }
@@ -386,7 +386,7 @@ fn format_tasks(tasks: Vec<JobTaskInfo>, map: TaskToPathsMap) -> Value {
                     end_date,
                 } => {
                     fill_task_started_data(&mut data, started_data);
-                    data["finished_at"] = format_datetime(end_date);
+                    data["finished_at"] = format_datetime(*end_date);
                 }
                 JobTaskState::Failed {
                     started_data,
@@ -396,8 +396,8 @@ fn format_tasks(tasks: Vec<JobTaskInfo>, map: TaskToPathsMap) -> Value {
                     if let Some(started_data) = started_data {
                         fill_task_started_data(&mut data, started_data);
                     }
-                    data["finished_at"] = format_datetime(end_date);
-                    data["error"] = error.into();
+                    data["finished_at"] = format_datetime(*end_date);
+                    data["error"] = error.clone().into();
                 }
                 _ => {}
             };

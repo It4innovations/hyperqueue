@@ -25,30 +25,27 @@ use crate::transfer::messages::{
     SubmitResponse, TaskBuildDescription, TaskDescription, TaskIdSelector, TaskKind,
     TaskKindProgram, TaskSelector, TaskStatusSelector, TaskWithDependencies, ToClientMessage,
 };
-use crate::{JobId, JobTaskCount, JobTaskId, Priority, TakoTaskId};
+use crate::{make_tako_id, JobId, JobTaskCount, JobTaskId, Priority, TakoTaskId};
 
 fn create_new_task_message(
     job_id: JobId,
-    tako_base_id: TakoTaskId,
     submit_desc: &mut JobSubmitDescription,
-) -> anyhow::Result<NewTasksMessage> {
+) -> NewTasksMessage {
     match &mut submit_desc.task_desc {
         JobTaskDescription::Array {
             ids,
             entries,
             task_desc,
-        } => Ok(build_tasks_array(
+        } => build_tasks_array(
             job_id,
-            tako_base_id,
             ids,
             std::mem::take(entries),
             task_desc,
             &submit_desc.submit_dir,
             submit_desc.stream_path.as_ref(),
-        )),
+        ),
         JobTaskDescription::Graph { tasks } => build_tasks_graph(
             job_id,
-            tako_base_id,
             tasks,
             &submit_desc.submit_dir,
             submit_desc.stream_path.as_ref(),
@@ -56,15 +53,19 @@ fn create_new_task_message(
     }
 }
 
+fn validate_submit(state: &State, submit_decs: &JobSubmitDescription) -> crate::Result<()> {
+    Ok(())
+}
+
 pub(crate) fn submit_job_desc(
     state: &mut State,
     job_id: JobId,
     mut submit_desc: JobSubmitDescription,
 ) -> crate::Result<NewTasksMessage> {
-    let (job_id, tako_base_id) = prepare_job(job_id, &mut submit_desc, state);
-    let new_tasks = create_new_task_message(job_id, tako_base_id, &mut submit_desc)?;
+    prepare_job(job_id, &mut submit_desc, state);
+    let new_tasks = create_new_task_message(job_id, &mut submit_desc);
     submit_desc.strip_large_data();
-    state.attach_submit(job_id, Arc::new(submit_desc), tako_base_id);
+    state.attach_submit(job_id, Arc::new(submit_desc));
     Ok(new_tasks)
 }
 
@@ -91,10 +92,9 @@ pub(crate) async fn handle_submit(
                             *ids = IntArray::from_id(new_id)
                         }
                     } else {
-                        let id_set = job.make_task_id_set();
                         for id in ids.iter() {
                             let id = JobTaskId::new(id);
-                            if id_set.contains(&id) {
+                            if job.tasks.contains_key(&id) {
                                 return ToClientMessage::SubmitResponse(
                                     SubmitResponse::TaskIdAlreadyExists(id),
                                 );
@@ -103,9 +103,8 @@ pub(crate) async fn handle_submit(
                     }
                 }
                 JobTaskDescription::Graph { tasks } => {
-                    let id_set = job.make_task_id_set();
                     for task in tasks {
-                        if id_set.contains(&task.id) {
+                        if job.tasks.contains_key(&task.id) {
                             let id = task.id;
                             return ToClientMessage::SubmitResponse(
                                 SubmitResponse::TaskIdAlreadyExists(id),
@@ -186,11 +185,7 @@ pub(crate) async fn handle_submit(
 }
 
 /// Prefills placeholders in the submit request and creates job ID
-fn prepare_job(
-    job_id: JobId,
-    submit_desc: &mut JobSubmitDescription,
-    state: &mut State,
-) -> (JobId, TakoTaskId) {
+fn prepare_job(job_id: JobId, submit_desc: &mut JobSubmitDescription, state: &mut State) {
     // Prefill currently known placeholders eagerly
     if let JobTaskDescription::Array {
         ref mut task_desc, ..
@@ -217,9 +212,6 @@ fn prepare_job(
         );
         *path = normalize_path(path.as_path(), &submit_desc.submit_dir);
     }
-
-    let task_count = submit_desc.task_desc.task_count();
-    (job_id, state.new_task_id(task_count))
 }
 
 fn serialize_task_body(
@@ -246,28 +238,23 @@ fn serialize_task_body(
 
 fn build_tasks_array(
     job_id: JobId,
-    tako_base_id: TakoTaskId,
     ids: &IntArray,
     entries: Option<Vec<BString>>,
     task_desc: &TaskDescription,
     submit_dir: &PathBuf,
     stream_path: Option<&PathBuf>,
 ) -> NewTasksMessage {
-    let tako_base_id = tako_base_id.as_num();
-
-    let build_task_conf =
-        |body: Box<[u8]>, tako_id: <TakoTaskId as ItemId>::IdType| TaskConfiguration {
-            id: tako_id.into(),
-            shared_data_index: 0,
-            task_deps: Vec::new(),
-            body,
-        };
+    let build_task_conf = |body: Box<[u8]>, tako_id: TakoTaskId| TaskConfiguration {
+        id: tako_id,
+        shared_data_index: 0,
+        task_deps: Vec::new(),
+        body,
+    };
 
     let tasks = match entries {
         None => ids
             .iter()
-            .zip(tako_base_id..)
-            .map(|(task_id, tako_id)| {
+            .map(|task_id| {
                 build_task_conf(
                     serialize_task_body(
                         job_id,
@@ -277,15 +264,14 @@ fn build_tasks_array(
                         submit_dir,
                         stream_path,
                     ),
-                    tako_id,
+                    make_tako_id(job_id, task_id.into()),
                 )
             })
             .collect(),
         Some(entries) => ids
             .iter()
-            .zip(tako_base_id..)
             .zip(entries)
-            .map(|((task_id, tako_id), entry)| {
+            .map(|(task_id, entry)| {
                 build_task_conf(
                     serialize_task_body(
                         job_id,
@@ -295,7 +281,7 @@ fn build_tasks_array(
                         submit_dir,
                         stream_path,
                     ),
-                    tako_id,
+                    make_tako_id(job_id, task_id.into()),
                 )
             })
             .collect(),
@@ -316,24 +302,10 @@ fn build_tasks_array(
 
 fn build_tasks_graph(
     job_id: JobId,
-    tako_base_id: TakoTaskId,
     tasks: &[TaskWithDependencies],
     submit_dir: &PathBuf,
     stream_path: Option<&PathBuf>,
-) -> anyhow::Result<NewTasksMessage> {
-    let mut job_task_id_to_tako_id: Map<JobTaskId, TaskId> = Map::with_capacity(tasks.len());
-
-    let mut tako_id = tako_base_id.as_num();
-    for task in tasks {
-        if job_task_id_to_tako_id
-            .insert(task.id, tako_id.into())
-            .is_some()
-        {
-            return Err(anyhow::anyhow!("Duplicate task ID {}", task.id));
-        }
-        tako_id += 1;
-    }
-
+) -> NewTasksMessage {
     let mut shared_data = vec![];
     let mut shared_data_map =
         Map::<(Cow<ResourceRequestVariants>, Option<Duration>, Priority), usize>::new();
@@ -378,36 +350,24 @@ fn build_tasks_graph(
         );
         let shared_data_index = allocate_shared_data(&task.task_desc);
 
-        let mut task_deps = Vec::with_capacity(task.dependencies.len());
-        for dependency in &task.dependencies {
-            if *dependency == task.id {
-                return Err(anyhow::anyhow!("Task {} depends on itself", task.id));
-            }
-            match job_task_id_to_tako_id.get(dependency) {
-                Some(id) => task_deps.push(*id),
-                None => {
-                    return Err(anyhow::anyhow!(
-                        "Task {} depends on an unknown task with ID {}",
-                        task.id,
-                        dependency
-                    ));
-                }
-            }
-        }
-
+        let task_deps = task
+            .dependencies
+            .iter()
+            .map(|task_id| make_tako_id(job_id, *task_id))
+            .collect();
         task_configs.push(TaskConfiguration {
-            id: job_task_id_to_tako_id[&task.id],
+            id: make_tako_id(job_id, task.id),
             shared_data_index,
             task_deps,
             body,
         });
     }
 
-    Ok(NewTasksMessage {
+    NewTasksMessage {
         tasks: task_configs,
         shared_data,
         adjust_instance_id: Default::default(),
-    })
+    }
 }
 
 pub(crate) fn handle_open_job(
@@ -454,8 +414,7 @@ mod tests {
             task(4, desc_a(), vec![]),
         ];
 
-        let msg =
-            build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo"), None).unwrap();
+        let msg = build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None).unwrap();
 
         check_shared_data(&msg, vec![desc_a(), desc_c(), desc_b()]);
         assert_eq!(
@@ -478,8 +437,7 @@ mod tests {
             task(4, desc(), vec![0]),
         ];
 
-        let msg =
-            build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo"), None).unwrap();
+        let msg = build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None).unwrap();
         assert_eq!(msg.tasks[0].task_deps, vec![4.into(), 3.into()]);
         assert_eq!(msg.tasks[1].task_deps, vec![2.into()]);
         assert_eq!(msg.tasks[2].task_deps, vec![5.into(), 6.into()]);
@@ -496,9 +454,7 @@ mod tests {
             task(0, desc(), vec![]),
         ];
 
-        assert!(
-            build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo"), None).is_err()
-        );
+        assert!(build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None).is_err());
     }
 
     #[test]
@@ -506,9 +462,7 @@ mod tests {
         let desc = || task_desc(None, 0, 1);
         let tasks = vec![task(0, desc(), vec![]), task(1, desc(), vec![1])];
 
-        assert!(
-            build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo"), None).is_err()
-        );
+        assert!(build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None).is_err());
     }
 
     #[test]
@@ -516,9 +470,7 @@ mod tests {
         let desc = || task_desc(None, 0, 1);
         let tasks = vec![task(0, desc(), vec![3]), task(1, desc(), vec![])];
 
-        assert!(
-            build_tasks_graph(1.into(), 2.into(), &tasks, &PathBuf::from("foo"), None).is_err()
-        );
+        assert!(build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None).is_err());
     }
 
     fn check_shared_data(msg: &NewTasksMessage, expected: Vec<TaskDescription>) {

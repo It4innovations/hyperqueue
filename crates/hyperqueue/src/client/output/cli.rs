@@ -18,7 +18,7 @@ use crate::transfer::messages::{
     ServerInfo, TaskDescription, TaskKind, TaskKindProgram, WaitForJobsResponse, WorkerExitInfo,
     WorkerInfo,
 };
-use crate::{JobId, JobTaskCount, WorkerId};
+use crate::{JobId, JobTaskCount, JobTaskId, WorkerId};
 
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use core::time::Duration;
@@ -178,12 +178,17 @@ impl CliOutput {
         }
     }
 
-    fn print_task_summary(&self, tasks: &[JobTaskInfo], info: &JobInfo, worker_map: &WorkerMap) {
+    fn print_task_summary(
+        &self,
+        tasks: &[(JobTaskId, JobTaskInfo)],
+        info: &JobInfo,
+        worker_map: &WorkerMap,
+    ) {
         const SHOWN_TASKS: usize = 5;
 
         let fail_rows: Vec<_> = tasks
             .iter()
-            .filter_map(|t: &JobTaskInfo| match &t.state {
+            .filter_map(|(task_id, t): &(JobTaskId, JobTaskInfo)| match &t.state {
                 JobTaskState::Failed {
                     started_data,
                     error,
@@ -192,7 +197,7 @@ impl CliOutput {
                     let worker_ids = started_data.as_ref().map(|data| data.worker_ids.as_slice());
 
                     Some(vec![
-                        t.task_id.cell(),
+                        task_id.cell(),
                         format_workers(worker_ids, worker_map).cell(),
                         error.to_owned().cell().foreground_color(Some(Color::Red)),
                     ])
@@ -558,7 +563,7 @@ impl Output for CliOutput {
             ]);
             self.print_vertical_table(rows);
 
-            tasks.sort_unstable_by_key(|t| t.task_id);
+            tasks.sort_unstable_by_key(|t| t.0);
             self.print_task_summary(&tasks, &info, &worker_map);
         }
     }
@@ -624,12 +629,12 @@ impl Output for CliOutput {
 
         for (id, job) in jobs {
             let mut tasks = job.tasks;
-            tasks.sort_unstable_by_key(|t| t.task_id);
+            tasks.sort_unstable_by_key(|t| t.0);
 
             rows.append(
                 &mut tasks
                     .iter()
-                    .map(|task| {
+                    .map(|(task_id, task)| {
                         let (start, end) = get_task_time(&task.state);
                         let mut job_rows = match jobs_len {
                             1 => vec![],
@@ -637,7 +642,7 @@ impl Output for CliOutput {
                         };
 
                         job_rows.append(&mut vec![
-                            task.task_id.cell().justify(Justify::Right),
+                            task_id.cell().justify(Justify::Right),
                             status_to_cell(&get_task_status(&task.state)),
                             format_workers(task.state.get_workers(), &worker_map).cell(),
                             format_task_duration(start, end).cell(),
@@ -686,7 +691,7 @@ impl Output for CliOutput {
     fn print_task_info(
         &self,
         job: (JobId, JobDetail),
-        tasks: Vec<JobTaskInfo>,
+        tasks: &[(JobTaskId, JobTaskInfo)],
         worker_map: WorkerMap,
         server_uid: &str,
         verbosity: Verbosity,
@@ -695,10 +700,9 @@ impl Output for CliOutput {
         let task_to_paths = resolve_task_paths(&job, server_uid);
         let mut is_truncated = false;
 
-        for task in tasks {
+        for (task_id, task) in tasks {
             let (start, end) = get_task_time(&task.state);
-            let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, &task);
-            let task_id = task.task_id;
+            let (cwd, stdout, stderr) = format_task_paths(&task_to_paths, *task_id);
 
             let (task_desc, task_deps) = if let Some(x) =
                 job.submit_descs
@@ -711,7 +715,7 @@ impl Output for CliOutput {
                         } if ids.contains(task_id.as_num()) => Some((task_desc, [].as_slice())),
                         JobTaskDescription::Array { .. } => None,
                         JobTaskDescription::Graph { tasks } => {
-                            tasks.iter().find(|t| t.id == task_id).map(|task_dep| {
+                            tasks.iter().find(|t| t.id == *task_id).map(|task_dep| {
                                 (&task_dep.task_desc, task_dep.dependencies.as_slice())
                             })
                         }
@@ -1151,45 +1155,42 @@ pub fn print_job_output(
     task_header: bool,
     task_paths: TaskToPathsMap,
 ) -> anyhow::Result<()> {
-    let read_stream = |task_info: &JobTaskInfo, output_stream: &OutputStream| {
-        let stdout = std::io::stdout();
-        let mut stdout = stdout.lock();
+    let read_stream =
+        |task_id: JobTaskId, task_info: &JobTaskInfo, output_stream: &OutputStream| {
+            let stdout = std::io::stdout();
+            let mut stdout = stdout.lock();
 
-        let (_, stdout_path, stderr_path) = get_task_paths(&task_paths, task_info);
-        let (opt_path, stream_name) = match output_stream {
-            OutputStream::Stdout => (stdout_path, "stdout"),
-            OutputStream::Stderr => (stderr_path, "stderr"),
+            let (_, stdout_path, stderr_path) = get_task_paths(&task_paths, task_id);
+            let (opt_path, stream_name) = match output_stream {
+                OutputStream::Stdout => (stdout_path, "stdout"),
+                OutputStream::Stderr => (stderr_path, "stderr"),
+            };
+
+            if task_header {
+                writeln!(stdout, "# Job {}, task {}", job_detail.info.id, task_id)
+                    .expect("Could not write output");
+            }
+
+            if let Some(path) = opt_path {
+                match File::open(path) {
+                    Ok(mut file) => {
+                        let copy = std::io::copy(&mut file, &mut stdout);
+                        if let Err(error) = copy {
+                            log::warn!("Could not output contents of `{path}`: {error:?}");
+                        }
+                    }
+                    Err(error) => log::warn!("File `{path}` cannot be opened: {error:?}"),
+                };
+            } else {
+                log::warn!(
+                    "Task {} has no `{stream_name}` stream associated with it",
+                    task_id
+                );
+            }
         };
 
-        if task_header {
-            writeln!(
-                stdout,
-                "# Job {}, task {}",
-                job_detail.info.id, task_info.task_id
-            )
-            .expect("Could not write output");
-        }
-
-        if let Some(path) = opt_path {
-            match File::open(path) {
-                Ok(mut file) => {
-                    let copy = std::io::copy(&mut file, &mut stdout);
-                    if let Err(error) = copy {
-                        log::warn!("Could not output contents of `{path}`: {error:?}");
-                    }
-                }
-                Err(error) => log::warn!("File `{path}` cannot be opened: {error:?}"),
-            };
-        } else {
-            log::warn!(
-                "Task {} has no `{stream_name}` stream associated with it",
-                task_info.task_id
-            );
-        }
-    };
-
-    for task in &job_detail.tasks {
-        read_stream(task, &output_stream);
+    for (task_id, task) in &job_detail.tasks {
+        read_stream(*task_id, task, &output_stream);
     }
 
     Ok(())
@@ -1259,11 +1260,11 @@ fn format_resource_variants(rqv: &ResourceRequestVariants) -> String {
 }
 
 /// Formatting
-pub fn format_job_workers(tasks: &[JobTaskInfo], worker_map: &WorkerMap) -> String {
+pub fn format_job_workers(tasks: &[(JobTaskId, JobTaskInfo)], worker_map: &WorkerMap) -> String {
     // BTreeSet is used to both filter duplicates and keep a stable order
     let worker_set: BTreeSet<_> = tasks
         .iter()
-        .filter_map(|task| task.state.get_workers())
+        .filter_map(|(_, task)| task.state.get_workers())
         .flatten()
         .collect();
     let worker_count = worker_set.len();
@@ -1337,11 +1338,11 @@ fn get_task_time(state: &JobTaskState) -> (Option<DateTime<Utc>>, Option<DateTim
 }
 
 /// Returns Option(working directory, stdout, stderr)
-fn get_task_paths<'a>(
-    task_map: &'a TaskToPathsMap,
-    state: &JobTaskInfo,
-) -> (Option<&'a str>, Option<&'a str>, Option<&'a str>) {
-    match task_map[&state.task_id] {
+fn get_task_paths(
+    task_map: &TaskToPathsMap,
+    task_id: JobTaskId,
+) -> (Option<&str>, Option<&str>, Option<&str>) {
+    match task_map[&task_id] {
         Some(ref paths) => (
             Some(paths.cwd.to_str().unwrap()),
             match &paths.stdout {
@@ -1360,9 +1361,9 @@ fn get_task_paths<'a>(
 /// Returns (working directory, stdout, stderr)
 fn format_task_paths<'a>(
     task_map: &'a TaskToPathsMap,
-    state: &JobTaskInfo,
+    task_id: JobTaskId,
 ) -> (&'a str, &'a str, &'a str) {
-    match task_map[&state.task_id] {
+    match task_map[&task_id] {
         Some(ref paths) => (
             paths.cwd.to_str().unwrap(),
             stdio_to_str(&paths.stdout),

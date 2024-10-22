@@ -11,9 +11,10 @@ use crate::client::output::common::TaskToPathsMap;
 use crate::client::output::Verbosity;
 use crate::common::arraydef::IntArray;
 use crate::server::job::JobTaskInfo;
-use crate::JobId;
+use crate::{JobId, JobTaskId};
 use core::time::Duration;
 use tako::resources::ResourceDescriptor;
+use tako::Map;
 
 pub const MAX_DISPLAYED_WORKERS: usize = 2;
 
@@ -73,7 +74,7 @@ pub trait Output {
     fn print_task_info(
         &self,
         job: (JobId, JobDetail),
-        tasks: Vec<JobTaskInfo>,
+        tasks: &[(JobTaskId, JobTaskInfo)],
         worker_map: WorkerMap,
         server_uid: &str,
         verbosity: Verbosity,

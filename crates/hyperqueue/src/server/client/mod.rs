@@ -22,7 +22,7 @@ use crate::transfer::messages::{
     WorkerListResponse,
 };
 use crate::transfer::messages::{ForgetJobResponse, WaitForJobsResponse};
-use crate::{JobId, JobTaskCount, WorkerId};
+use crate::{unwrap_tako_id, JobId, JobTaskCount, WorkerId};
 
 pub mod autoalloc;
 mod submit;
@@ -440,7 +440,7 @@ async fn handle_job_close(
     ToClientMessage::CloseJobResponse(responses)
 }
 
-async fn cancel_job(state_ref: &StateRef, carrier: &Senders, job_id: JobId) -> CancelJobResponse {
+async fn cancel_job(state_ref: &StateRef, senders: &Senders, job_id: JobId) -> CancelJobResponse {
     let tako_task_ids;
     {
         let n_tasks = match state_ref.get().get_job(job_id) {
@@ -457,7 +457,7 @@ async fn cancel_job(state_ref: &StateRef, carrier: &Senders, job_id: JobId) -> C
         }
     }
 
-    let canceled_tasks = match carrier
+    let canceled_tasks = match senders
         .backend
         .send_tako_message(FromGatewayMessage::CancelTasks(CancelTasks {
             tasks: tako_task_ids,
@@ -476,7 +476,12 @@ async fn cancel_job(state_ref: &StateRef, carrier: &Senders, job_id: JobId) -> C
     if let Some(job) = state.get_job_mut(job_id) {
         let canceled_ids: Vec<_> = canceled_tasks
             .iter()
-            .map(|tako_id| job.set_cancel_state(*tako_id, carrier))
+            .map(|tako_id| {
+                let (j_id, task_id) = unwrap_tako_id(*tako_id);
+                assert_eq!(j_id, job_id);
+                job.set_cancel_state(task_id, senders);
+                task_id
+            })
             .collect();
         let already_finished = job.n_tasks() - canceled_ids.len() as JobTaskCount;
         CancelJobResponse::Canceled(canceled_ids, already_finished)

@@ -8,7 +8,7 @@ use crate::transfer::messages::{
     AllocationQueueParams, JobDescription, JobSubmitDescription, SubmitRequest,
 };
 use crate::worker::start::RunningTaskContext;
-use crate::{JobId, JobTaskId, Map};
+use crate::{make_tako_id, unwrap_tako_id, JobId, JobTaskId, Map};
 use std::path::Path;
 use tako::gateway::NewTasksMessage;
 use tako::{ItemId, WorkerId};
@@ -55,25 +55,22 @@ impl RestorerJob {
             let job = state.get_job_mut(job_id).unwrap();
 
             new_tasks.tasks.retain(|t| {
+                let (_, task_id) = unwrap_tako_id(t.id);
                 self.tasks
-                    .get(&job.get_task_state_mut(t.id).0)
+                    .get(&task_id)
                     .map(|tt| !tt.is_completed())
                     .unwrap_or(true)
             });
 
-            if new_tasks.tasks.is_empty() {
-                continue;
-            }
-
-            for (tako_id, job_task) in job.tasks.iter_mut() {
-                if let Some(task) = self.tasks.get_mut(&job_task.task_id) {
+            for (task_id, job_task) in job.tasks.iter_mut() {
+                if let Some(task) = self.tasks.get_mut(task_id) {
                     match &task.state {
                         JobTaskState::Waiting => continue,
                         JobTaskState::Running { started_data } => {
                             let instance_id = started_data.context.instance_id.as_num() + 1;
                             new_tasks
                                 .adjust_instance_id
-                                .insert(*tako_id, instance_id.into());
+                                .insert(make_tako_id(job_id, *task_id), instance_id.into());
                             continue;
                         }
                         JobTaskState::Finished { .. } => job.counters.n_finished_tasks += 1,
@@ -83,7 +80,9 @@ impl RestorerJob {
                     job_task.state = task.state.clone();
                 }
             }
-            result.push(new_tasks)
+            if !new_tasks.tasks.is_empty() {
+                result.push(new_tasks);
+            }
         }
         Ok(result)
     }
