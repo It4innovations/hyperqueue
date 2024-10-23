@@ -741,6 +741,12 @@ pub(crate) async fn send_submit_request(
         SubmitResponse::TaskIdAlreadyExists(task_id) => {
             bail!("Task {task_id} already exists in job {job_id}.")
         }
+        SubmitResponse::NonUniqueTaskId(task_id) => {
+            bail!("Task {task_id} is defined more than once.")
+        }
+        SubmitResponse::InvalidDependencies(task_id) => {
+            bail!("Invalid dependancy on {task_id}")
+        }
     }
     Ok(())
 }

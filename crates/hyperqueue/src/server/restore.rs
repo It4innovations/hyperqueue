@@ -1,5 +1,6 @@
+use crate::common::error::HqError;
 use crate::server::autoalloc::QueueId;
-use crate::server::client::submit_job_desc;
+use crate::server::client::{submit_job_desc, validate_submit};
 use crate::server::event::log::JournalReader;
 use crate::server::event::payload::EventPayload;
 use crate::server::job::{Job, JobTaskState, StartedTaskData};
@@ -51,7 +52,12 @@ impl RestorerJob {
         state.add_job(job);
         let mut result: Vec<NewTasksMessage> = Vec::new();
         for submit_desc in self.submit_descs {
-            let mut new_tasks = submit_job_desc(state, job_id, submit_desc)?;
+            if let Some(e) = validate_submit(state.get_job(job_id), &submit_desc.task_desc) {
+                return Err(HqError::GenericError(format!(
+                    "Job validation failed {e:?}"
+                )));
+            }
+            let mut new_tasks = submit_job_desc(state, job_id, submit_desc);
             let job = state.get_job_mut(job_id).unwrap();
 
             new_tasks.tasks.retain(|t| {

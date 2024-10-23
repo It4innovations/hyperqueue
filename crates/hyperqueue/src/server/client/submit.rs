@@ -4,8 +4,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bstr::BString;
-use tako::ItemId;
 use tako::Map;
+use tako::{ItemId, Set};
 
 use tako::gateway::{
     FromGatewayMessage, NewTasksMessage, ResourceRequestVariants, SharedTaskConfiguration,
@@ -14,6 +14,7 @@ use tako::gateway::{
 use tako::TaskId;
 
 use crate::common::arraydef::IntArray;
+use crate::common::error::HqError;
 use crate::common::placeholders::{
     fill_placeholders_after_submit, fill_placeholders_log, normalize_path,
 };
@@ -53,20 +54,63 @@ fn create_new_task_message(
     }
 }
 
-fn validate_submit(state: &State, submit_decs: &JobSubmitDescription) -> crate::Result<()> {
-    Ok(())
-}
-
 pub(crate) fn submit_job_desc(
     state: &mut State,
     job_id: JobId,
     mut submit_desc: JobSubmitDescription,
-) -> crate::Result<NewTasksMessage> {
+) -> NewTasksMessage {
     prepare_job(job_id, &mut submit_desc, state);
     let new_tasks = create_new_task_message(job_id, &mut submit_desc);
     submit_desc.strip_large_data();
     state.attach_submit(job_id, Arc::new(submit_desc));
-    Ok(new_tasks)
+    new_tasks
+}
+
+pub(crate) fn validate_submit(
+    job: Option<&Job>,
+    task_desc: &JobTaskDescription,
+) -> Option<SubmitResponse> {
+    match &task_desc {
+        JobTaskDescription::Array { ids, .. } => {
+            if let Some(job) = job {
+                for id in ids.iter() {
+                    let id = JobTaskId::new(id);
+                    if job.tasks.contains_key(&id) {
+                        return Some(SubmitResponse::TaskIdAlreadyExists(id));
+                    }
+                }
+            }
+        }
+        JobTaskDescription::Graph { tasks } => {
+            if let Some(job) = job {
+                for task in tasks {
+                    if job.tasks.contains_key(&task.id) {
+                        let id = task.id;
+                        return Some(SubmitResponse::TaskIdAlreadyExists(id));
+                    }
+                }
+            }
+            let mut task_ids = Set::new();
+            for task in tasks {
+                if !task_ids.insert(task.id) {
+                    return Some(SubmitResponse::NonUniqueTaskId(task.id));
+                }
+            }
+            for task in tasks {
+                for dep_id in &task.dependencies {
+                    if *dep_id == task.id
+                        || (!task_ids.contains(dep_id)
+                            && !job
+                                .map(|job| job.tasks.contains_key(dep_id))
+                                .unwrap_or(false))
+                    {
+                        return Some(SubmitResponse::InvalidDependencies(*dep_id));
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 #[allow(clippy::await_holding_refcell_ref)] // Disable lint as it does not work well with drop
@@ -76,6 +120,13 @@ pub(crate) async fn handle_submit(
     mut message: SubmitRequest,
 ) -> ToClientMessage {
     let mut state = state_ref.get_mut();
+    if let Some(err) = validate_submit(
+        message.job_id.and_then(|job_id| state.get_job(job_id)),
+        &message.submit_desc.task_desc,
+    ) {
+        return ToClientMessage::SubmitResponse(err);
+    }
+
     let (job_id, new_job) = if let Some(job_id) = message.job_id {
         if let Some(job) = state.get_job(job_id) {
             if !job.is_open() {
@@ -91,27 +142,9 @@ pub(crate) async fn handle_submit(
                         } else {
                             *ids = IntArray::from_id(new_id)
                         }
-                    } else {
-                        for id in ids.iter() {
-                            let id = JobTaskId::new(id);
-                            if job.tasks.contains_key(&id) {
-                                return ToClientMessage::SubmitResponse(
-                                    SubmitResponse::TaskIdAlreadyExists(id),
-                                );
-                            }
-                        }
                     }
                 }
-                JobTaskDescription::Graph { tasks } => {
-                    for task in tasks {
-                        if job.tasks.contains_key(&task.id) {
-                            let id = task.id;
-                            return ToClientMessage::SubmitResponse(
-                                SubmitResponse::TaskIdAlreadyExists(id),
-                            );
-                        }
-                    }
-                }
+                JobTaskDescription::Graph { .. } => {}
             }
         } else {
             return ToClientMessage::SubmitResponse(SubmitResponse::JobNotFound);
@@ -147,16 +180,7 @@ pub(crate) async fn handle_submit(
         state.add_job(job);
     }
 
-    let new_tasks = match submit_job_desc(&mut state, job_id, submit_desc) {
-        Err(error) => {
-            if new_job {
-                state.forget_job(job_id);
-                state.revert_to_job_id(job_id);
-            }
-            return ToClientMessage::Error(error.to_string());
-        }
-        Ok(new_tasks) => new_tasks,
-    };
+    let new_tasks = submit_job_desc(&mut state, job_id, submit_desc);
     senders.autoalloc.on_job_created(job_id);
 
     let job_detail = state
@@ -387,6 +411,7 @@ pub(crate) fn handle_open_job(
 #[cfg(test)]
 mod tests {
     use crate::server::client::submit::build_tasks_graph;
+    use crate::server::client::validate_submit;
     use crate::transfer::messages::{
         PinMode, TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
     };
@@ -414,7 +439,7 @@ mod tests {
             task(4, desc_a(), vec![]),
         ];
 
-        let msg = build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None).unwrap();
+        let msg = build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None);
 
         check_shared_data(&msg, vec![desc_a(), desc_c(), desc_b()]);
         assert_eq!(
@@ -437,40 +462,12 @@ mod tests {
             task(4, desc(), vec![0]),
         ];
 
-        let msg = build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None).unwrap();
+        let msg = build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None);
         assert_eq!(msg.tasks[0].task_deps, vec![4.into(), 3.into()]);
         assert_eq!(msg.tasks[1].task_deps, vec![2.into()]);
         assert_eq!(msg.tasks[2].task_deps, vec![5.into(), 6.into()]);
         assert_eq!(msg.tasks[3].task_deps, vec![]);
         assert_eq!(msg.tasks[4].task_deps, vec![2.into()]);
-    }
-
-    #[test]
-    fn test_build_graph_duplicate_id() {
-        let desc = || task_desc(None, 0, 1);
-        let tasks = vec![
-            task(0, desc(), vec![]),
-            task(1, desc(), vec![]),
-            task(0, desc(), vec![]),
-        ];
-
-        assert!(build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None).is_err());
-    }
-
-    #[test]
-    fn test_build_graph_task_depends_on_itself() {
-        let desc = || task_desc(None, 0, 1);
-        let tasks = vec![task(0, desc(), vec![]), task(1, desc(), vec![1])];
-
-        assert!(build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None).is_err());
-    }
-
-    #[test]
-    fn test_build_graph_task_missing_dependency() {
-        let desc = || task_desc(None, 0, 1);
-        let tasks = vec![task(0, desc(), vec![3]), task(1, desc(), vec![])];
-
-        assert!(build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None).is_err());
     }
 
     fn check_shared_data(msg: &NewTasksMessage, expected: Vec<TaskDescription>) {
