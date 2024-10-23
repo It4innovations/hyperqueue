@@ -380,6 +380,8 @@ pub enum SubmitResponse {
     JobNotOpened,
     JobNotFound,
     TaskIdAlreadyExists(JobTaskId),
+    NonUniqueTaskId(JobTaskId),
+    InvalidDependencies(JobTaskId),
 }
 
 #[derive(Serialize, Deserialize, Debug)]

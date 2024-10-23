@@ -30,7 +30,7 @@ mod submit;
 use crate::common::error::HqError;
 use crate::server::client::submit::handle_open_job;
 use crate::server::Senders;
-pub(crate) use submit::submit_job_desc;
+pub(crate) use submit::{submit_job_desc, validate_submit};
 
 pub async fn handle_client_connections(
     state_ref: StateRef,

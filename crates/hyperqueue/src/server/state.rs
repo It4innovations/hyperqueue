@@ -106,23 +106,29 @@ impl State {
                 job.tasks.reserve(ids.id_count() as usize);
                 ids.iter().enumerate().for_each(|(i, task_id)| {
                     let task_id = JobTaskId::new(task_id);
-                    job.tasks.insert(
-                        task_id,
-                        JobTaskInfo {
-                            state: JobTaskState::Waiting,
-                        },
-                    );
+                    assert!(job
+                        .tasks
+                        .insert(
+                            task_id,
+                            JobTaskInfo {
+                                state: JobTaskState::Waiting,
+                            },
+                        )
+                        .is_none());
                 })
             }
             JobTaskDescription::Graph { tasks } => {
                 job.tasks.reserve(tasks.len());
                 tasks.iter().enumerate().for_each(|(i, task)| {
-                    job.tasks.insert(
-                        task.id,
-                        JobTaskInfo {
-                            state: JobTaskState::Waiting,
-                        },
-                    );
+                    assert!(job
+                        .tasks
+                        .insert(
+                            task.id,
+                            JobTaskInfo {
+                                state: JobTaskState::Waiting,
+                            },
+                        )
+                        .is_none());
                 })
             }
         };
