@@ -99,42 +99,6 @@ impl State {
         assert!(self.jobs.insert(job_id, job).is_none());
     }
 
-    pub fn attach_submit(&mut self, job_id: JobId, submit_desc: Arc<JobSubmitDescription>) {
-        let job = self.get_job_mut(job_id).unwrap();
-        match &submit_desc.task_desc {
-            JobTaskDescription::Array { ids, .. } => {
-                job.tasks.reserve(ids.id_count() as usize);
-                ids.iter().enumerate().for_each(|(i, task_id)| {
-                    let task_id = JobTaskId::new(task_id);
-                    assert!(job
-                        .tasks
-                        .insert(
-                            task_id,
-                            JobTaskInfo {
-                                state: JobTaskState::Waiting,
-                            },
-                        )
-                        .is_none());
-                })
-            }
-            JobTaskDescription::Graph { tasks } => {
-                job.tasks.reserve(tasks.len());
-                tasks.iter().enumerate().for_each(|(i, task)| {
-                    assert!(job
-                        .tasks
-                        .insert(
-                            task.id,
-                            JobTaskInfo {
-                                state: JobTaskState::Waiting,
-                            },
-                        )
-                        .is_none());
-                })
-            }
-        };
-        job.submit_descs.push(submit_desc);
-    }
-
     /// Completely forgets this job, in order to reduce memory usage.
     pub(crate) fn forget_job(&mut self, job_id: JobId) -> Option<Job> {
         let job = match self.jobs.remove(&job_id) {
@@ -342,7 +306,7 @@ mod tests {
                 crash_limit: 5,
             },
         };
-        let job = Job::new(
+        let mut job = Job::new(
             job_id,
             JobDescription {
                 name: "".to_string(),
@@ -350,14 +314,11 @@ mod tests {
             },
             false,
         );
+        job.attach_submit(Arc::new(JobSubmitDescription {
+            task_desc,
+            submit_dir: Default::default(),
+            stream_path: None,
+        }));
         state.add_job(job);
-        state.attach_submit(
-            job_id,
-            Arc::new(JobSubmitDescription {
-                task_desc,
-                submit_dir: Default::default(),
-                stream_path: None,
-            }),
-        )
     }
 }
