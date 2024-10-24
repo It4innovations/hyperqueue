@@ -1747,11 +1747,7 @@ mod tests {
         allocations
     }
 
-    fn create_job(
-        job_id: u32,
-        tasks: u32,
-        min_time: TimeRequest,
-    ) -> (Job, Arc<JobSubmitDescription>) {
+    fn create_job(job_id: u32, tasks: u32, min_time: TimeRequest) -> Job {
         let def = ProgramDefinition {
             args: vec![],
             env: Default::default(),
@@ -1769,7 +1765,7 @@ mod tests {
             }],
         });
 
-        let job = Job::new(
+        let mut job = Job::new(
             job_id.into(),
             JobDescription {
                 name: "job".to_string(),
@@ -1777,34 +1773,31 @@ mod tests {
             },
             false,
         );
-        (
-            job,
-            Arc::new(JobSubmitDescription {
-                task_desc: JobTaskDescription::Array {
-                    ids: IntArray::from_range(0, tasks),
-                    entries: None,
-                    task_desc: TaskDescription {
-                        kind: TaskKind::ExternalProgram(TaskKindProgram {
-                            program: def,
-                            pin_mode: PinMode::None,
-                            task_dir: false,
-                        }),
-                        resources,
-                        time_limit: None,
-                        priority: 0,
-                        crash_limit: 5,
-                    },
+        job.attach_submit(Arc::new(JobSubmitDescription {
+            task_desc: JobTaskDescription::Array {
+                ids: IntArray::from_range(0, tasks),
+                entries: None,
+                task_desc: TaskDescription {
+                    kind: TaskKind::ExternalProgram(TaskKindProgram {
+                        program: def,
+                        pin_mode: PinMode::None,
+                        task_dir: false,
+                    }),
+                    resources,
+                    time_limit: None,
+                    priority: 0,
+                    crash_limit: 5,
                 },
-                submit_dir: Default::default(),
-                stream_path: None,
-            }),
-        )
+            },
+            submit_dir: Default::default(),
+            stream_path: None,
+        }));
+        job
     }
 
     fn attach_job(state: &mut State, job_id: u32, tasks: u32, min_time: TimeRequest) {
-        let (job, submit) = create_job(job_id, tasks, min_time);
+        let job = create_job(job_id, tasks, min_time);
         state.add_job(job);
-        state.attach_submit(job_id.into(), submit);
     }
 
     fn create_worker(allocation_id: &str) -> ManagerInfo {

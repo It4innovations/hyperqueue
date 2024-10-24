@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use crate::client::status::get_task_status;
 use crate::server::Senders;
 use crate::transfer::messages::{
-    JobDescription, JobDetail, JobInfo, JobSubmitDescription, TaskIdSelector, TaskSelector,
-    TaskStatusSelector,
+    JobDescription, JobDetail, JobInfo, JobSubmitDescription, JobTaskDescription, TaskIdSelector,
+    TaskSelector, TaskStatusSelector,
 };
 use crate::worker::start::RunningTaskContext;
 use crate::{make_tako_id, JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
@@ -396,5 +396,40 @@ impl Job {
             wait_for_close,
         });
         rx
+    }
+
+    pub fn attach_submit(&mut self, submit_desc: Arc<JobSubmitDescription>) {
+        match &submit_desc.task_desc {
+            JobTaskDescription::Array { ids, .. } => {
+                self.tasks.reserve(ids.id_count() as usize);
+                ids.iter().enumerate().for_each(|(i, task_id)| {
+                    let task_id = JobTaskId::new(task_id);
+                    assert!(self
+                        .tasks
+                        .insert(
+                            task_id,
+                            JobTaskInfo {
+                                state: JobTaskState::Waiting,
+                            },
+                        )
+                        .is_none());
+                })
+            }
+            JobTaskDescription::Graph { tasks } => {
+                self.tasks.reserve(tasks.len());
+                tasks.iter().enumerate().for_each(|(i, task)| {
+                    assert!(self
+                        .tasks
+                        .insert(
+                            task.id,
+                            JobTaskInfo {
+                                state: JobTaskState::Waiting,
+                            },
+                        )
+                        .is_none());
+                })
+            }
+        };
+        self.submit_descs.push(submit_desc);
     }
 }

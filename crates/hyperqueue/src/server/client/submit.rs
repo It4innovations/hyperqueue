@@ -62,7 +62,10 @@ pub(crate) fn submit_job_desc(
     prepare_job(job_id, &mut submit_desc, state);
     let new_tasks = create_new_task_message(job_id, &mut submit_desc);
     submit_desc.strip_large_data();
-    state.attach_submit(job_id, Arc::new(submit_desc));
+    state
+        .get_job_mut(job_id)
+        .unwrap()
+        .attach_submit(Arc::new(submit_desc));
     new_tasks
 }
 
@@ -410,13 +413,17 @@ pub(crate) fn handle_open_job(
 
 #[cfg(test)]
 mod tests {
+    use crate::common::arraydef::IntArray;
     use crate::server::client::submit::build_tasks_graph;
     use crate::server::client::validate_submit;
+    use crate::server::job::Job;
     use crate::transfer::messages::{
-        PinMode, TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
+        JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, SubmitResponse,
+        TaskDescription, TaskKind, TaskKindProgram, TaskWithDependencies,
     };
     use smallvec::smallvec;
     use std::path::PathBuf;
+    use std::sync::Arc;
     use std::time::Duration;
     use tako::gateway::{
         NewTasksMessage, ResourceRequest, ResourceRequestEntry, ResourceRequestVariants,
@@ -449,6 +456,90 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![0, 1, 0, 2, 0]
         );
+    }
+
+    #[test]
+    fn test_validate_submit() {
+        let mut job = Job::new(
+            10.into(),
+            JobDescription {
+                name: "".to_string(),
+                max_fails: None,
+            },
+            true,
+        );
+        job.attach_submit(Arc::new(JobSubmitDescription {
+            task_desc: JobTaskDescription::Array {
+                ids: IntArray::from_range(100, 10),
+                entries: None,
+                task_desc: task_desc(None, 0, 1),
+            },
+            submit_dir: Default::default(),
+            stream_path: None,
+        }));
+
+        let job_task_desc = JobTaskDescription::Array {
+            ids: IntArray::from_range(109, 2),
+            entries: None,
+            task_desc: task_desc(None, 0, 1),
+        };
+        assert!(validate_submit(None, &job_task_desc).is_none());
+        assert!(matches!(
+            validate_submit(Some(&job), &job_task_desc),
+            Some(SubmitResponse::TaskIdAlreadyExists(x)) if x.as_num() == 109
+        ));
+        let job_task_desc = JobTaskDescription::Graph {
+            tasks: vec![TaskWithDependencies {
+                id: 102.into(),
+                task_desc: task_desc(None, 0, 1),
+                dependencies: vec![],
+            }],
+        };
+        assert!(validate_submit(None, &job_task_desc).is_none());
+        assert!(matches!(
+            validate_submit(Some(&job), &job_task_desc),
+            Some(SubmitResponse::TaskIdAlreadyExists(x)) if x.as_num() == 102
+        ));
+        let job_task_desc = JobTaskDescription::Graph {
+            tasks: vec![
+                TaskWithDependencies {
+                    id: 2.into(),
+                    task_desc: task_desc(None, 0, 1),
+                    dependencies: vec![],
+                },
+                TaskWithDependencies {
+                    id: 2.into(),
+                    task_desc: task_desc(None, 0, 1),
+                    dependencies: vec![],
+                },
+            ],
+        };
+        assert!(matches!(
+            validate_submit(None, &job_task_desc),
+            Some(SubmitResponse::NonUniqueTaskId(x)) if x.as_num() == 2
+        ));
+        let job_task_desc = JobTaskDescription::Graph {
+            tasks: vec![TaskWithDependencies {
+                id: 2.into(),
+                task_desc: task_desc(None, 0, 1),
+                dependencies: vec![3.into()],
+            }],
+        };
+        assert!(matches!(
+            validate_submit(None, &job_task_desc),
+            Some(SubmitResponse::InvalidDependencies(x)) if x.as_num() == 3
+        ));
+        let job_task_desc = JobTaskDescription::Graph {
+            tasks: vec![TaskWithDependencies {
+                id: 2.into(),
+                task_desc: task_desc(None, 0, 1),
+                dependencies: vec![2.into()],
+            }],
+        };
+        assert!(matches!(
+            validate_submit(None, &job_task_desc),
+            Some(SubmitResponse::InvalidDependencies(x)) if x.as_num() == 2
+        ));
     }
 
     #[test]
