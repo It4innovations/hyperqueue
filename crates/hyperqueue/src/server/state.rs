@@ -92,7 +92,6 @@ impl State {
     }
 
     pub fn add_job(&mut self, job: Job) {
-        assert!(job.submit_descs.is_empty());
         let job_id = job.job_id;
         assert!(self.jobs.insert(job_id, job).is_none());
     }
