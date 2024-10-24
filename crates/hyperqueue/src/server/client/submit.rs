@@ -412,6 +412,7 @@ pub(crate) fn handle_open_job(
 #[cfg(test)]
 mod tests {
     use crate::common::arraydef::IntArray;
+    use crate::make_tako_id;
     use crate::server::client::submit::build_tasks_graph;
     use crate::server::client::validate_submit;
     use crate::server::job::Job;
@@ -552,11 +553,29 @@ mod tests {
         ];
 
         let msg = build_tasks_graph(1.into(), &tasks, &PathBuf::from("foo"), None);
-        assert_eq!(msg.tasks[0].task_deps, vec![4.into(), 3.into()]);
-        assert_eq!(msg.tasks[1].task_deps, vec![2.into()]);
-        assert_eq!(msg.tasks[2].task_deps, vec![5.into(), 6.into()]);
+        assert_eq!(
+            msg.tasks[0].task_deps,
+            vec![
+                make_tako_id(1.into(), 2.into()),
+                make_tako_id(1.into(), 1.into())
+            ]
+        );
+        assert_eq!(
+            msg.tasks[1].task_deps,
+            vec![make_tako_id(1.into(), 0.into())]
+        );
+        assert_eq!(
+            msg.tasks[2].task_deps,
+            vec![
+                make_tako_id(1.into(), 3.into()),
+                make_tako_id(1.into(), 4.into())
+            ]
+        );
         assert_eq!(msg.tasks[3].task_deps, vec![]);
-        assert_eq!(msg.tasks[4].task_deps, vec![2.into()]);
+        assert_eq!(
+            msg.tasks[4].task_deps,
+            vec![make_tako_id(1.into(), 0.into()),]
+        );
     }
 
     fn check_shared_data(msg: &NewTasksMessage, expected: Vec<TaskDescription>) {
