@@ -1,10 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::client::status::get_task_status;
 use crate::server::Senders;
 use crate::transfer::messages::{
     JobDescription, JobDetail, JobInfo, JobSubmitDescription, JobTaskDescription, TaskIdSelector,
-    TaskSelector, TaskStatusSelector,
+    TaskSelector,
 };
 use crate::worker::start::RunningTaskContext;
 use crate::{make_tako_id, JobId, JobTaskCount, JobTaskId, Map, TakoTaskId, WorkerId};
@@ -13,7 +12,6 @@ use smallvec::SmallVec;
 use std::sync::Arc;
 use tako::comm::deserialize;
 use tako::task::SerializedTaskContext;
-use tako::Set;
 use tokio::sync::oneshot;
 
 /// State of a task that has been started at least once.
@@ -166,7 +164,7 @@ impl Job {
                 TaskIdSelector::All => (
                     self.tasks
                         .iter()
-                        .map(|(task_id, info)| (task_id.clone(), info.clone()))
+                        .map(|(task_id, info)| (*task_id, info.clone()))
                         .collect(),
                     Vec::new(),
                 ),
@@ -192,7 +190,7 @@ impl Job {
         JobDetail {
             info: self.make_job_info(),
             job_desc: self.job_desc.clone(),
-            submit_descs: self.submit_descs.iter().map(|x| x.clone()).collect(),
+            submit_descs: self.submit_descs.iter().cloned().collect(),
             tasks,
             tasks_not_found,
             submission_date: self.submission_date,
@@ -402,7 +400,7 @@ impl Job {
         match &submit_desc.task_desc {
             JobTaskDescription::Array { ids, .. } => {
                 self.tasks.reserve(ids.id_count() as usize);
-                ids.iter().enumerate().for_each(|(i, task_id)| {
+                ids.iter().for_each(|task_id| {
                     let task_id = JobTaskId::new(task_id);
                     assert!(self
                         .tasks
@@ -417,7 +415,7 @@ impl Job {
             }
             JobTaskDescription::Graph { tasks } => {
                 self.tasks.reserve(tasks.len());
-                tasks.iter().enumerate().for_each(|(i, task)| {
+                tasks.iter().for_each(|task| {
                     assert!(self
                         .tasks
                         .insert(

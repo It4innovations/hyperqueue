@@ -1155,42 +1155,41 @@ pub fn print_job_output(
     task_header: bool,
     task_paths: TaskToPathsMap,
 ) -> anyhow::Result<()> {
-    let read_stream =
-        |task_id: JobTaskId, task_info: &JobTaskInfo, output_stream: &OutputStream| {
-            let stdout = std::io::stdout();
-            let mut stdout = stdout.lock();
+    let read_stream = |task_id: JobTaskId, output_stream: &OutputStream| {
+        let stdout = std::io::stdout();
+        let mut stdout = stdout.lock();
 
-            let (_, stdout_path, stderr_path) = get_task_paths(&task_paths, task_id);
-            let (opt_path, stream_name) = match output_stream {
-                OutputStream::Stdout => (stdout_path, "stdout"),
-                OutputStream::Stderr => (stderr_path, "stderr"),
-            };
-
-            if task_header {
-                writeln!(stdout, "# Job {}, task {}", job_detail.info.id, task_id)
-                    .expect("Could not write output");
-            }
-
-            if let Some(path) = opt_path {
-                match File::open(path) {
-                    Ok(mut file) => {
-                        let copy = std::io::copy(&mut file, &mut stdout);
-                        if let Err(error) = copy {
-                            log::warn!("Could not output contents of `{path}`: {error:?}");
-                        }
-                    }
-                    Err(error) => log::warn!("File `{path}` cannot be opened: {error:?}"),
-                };
-            } else {
-                log::warn!(
-                    "Task {} has no `{stream_name}` stream associated with it",
-                    task_id
-                );
-            }
+        let (_, stdout_path, stderr_path) = get_task_paths(&task_paths, task_id);
+        let (opt_path, stream_name) = match output_stream {
+            OutputStream::Stdout => (stdout_path, "stdout"),
+            OutputStream::Stderr => (stderr_path, "stderr"),
         };
 
-    for (task_id, task) in &job_detail.tasks {
-        read_stream(*task_id, task, &output_stream);
+        if task_header {
+            writeln!(stdout, "# Job {}, task {}", job_detail.info.id, task_id)
+                .expect("Could not write output");
+        }
+
+        if let Some(path) = opt_path {
+            match File::open(path) {
+                Ok(mut file) => {
+                    let copy = std::io::copy(&mut file, &mut stdout);
+                    if let Err(error) = copy {
+                        log::warn!("Could not output contents of `{path}`: {error:?}");
+                    }
+                }
+                Err(error) => log::warn!("File `{path}` cannot be opened: {error:?}"),
+            };
+        } else {
+            log::warn!(
+                "Task {} has no `{stream_name}` stream associated with it",
+                task_id
+            );
+        }
+    };
+
+    for (task_id, _task) in &job_detail.tasks {
+        read_stream(*task_id, &output_stream);
     }
 
     Ok(())
@@ -1359,10 +1358,7 @@ fn get_task_paths(
 }
 
 /// Returns (working directory, stdout, stderr)
-fn format_task_paths<'a>(
-    task_map: &'a TaskToPathsMap,
-    task_id: JobTaskId,
-) -> (&'a str, &'a str, &'a str) {
+fn format_task_paths(task_map: &TaskToPathsMap, task_id: JobTaskId) -> (&str, &str, &str) {
     match task_map[&task_id] {
         Some(ref paths) => (
             paths.cwd.to_str().unwrap(),

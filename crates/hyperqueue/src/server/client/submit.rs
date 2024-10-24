@@ -5,16 +5,14 @@ use std::time::Duration;
 
 use bstr::BString;
 use tako::Map;
-use tako::{ItemId, Set};
+use tako::Set;
 
 use tako::gateway::{
     FromGatewayMessage, NewTasksMessage, ResourceRequestVariants, SharedTaskConfiguration,
     TaskConfiguration, ToGatewayMessage,
 };
-use tako::TaskId;
 
 use crate::common::arraydef::IntArray;
-use crate::common::error::HqError;
 use crate::common::placeholders::{
     fill_placeholders_after_submit, fill_placeholders_log, normalize_path,
 };

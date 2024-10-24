@@ -1,23 +1,21 @@
 use std::cmp::min;
-use std::collections::BTreeMap;
-use std::sync::Arc;
 
 use chrono::Utc;
+use tako::define_wrapped_type;
 use tako::gateway::{
     CancelTasks, FromGatewayMessage, LostWorkerMessage, NewWorkerMessage, TaskFailedMessage,
     TaskState, TaskUpdate, ToGatewayMessage,
 };
 use tako::ItemId;
-use tako::{define_wrapped_type, TaskId};
 
 use crate::server::autoalloc::LostWorkerDetails;
-use crate::server::job::{Job, JobTaskInfo, JobTaskState};
+use crate::server::job::Job;
 use crate::server::restore::StateRestorer;
 use crate::server::worker::Worker;
 use crate::server::Senders;
-use crate::transfer::messages::{JobSubmitDescription, JobTaskDescription, ServerInfo};
-use crate::{make_tako_id, unwrap_tako_id, JobTaskId, WrappedRcRefCell};
-use crate::{JobId, JobTaskCount, Map, TakoTaskId, WorkerId};
+use crate::transfer::messages::ServerInfo;
+use crate::{unwrap_tako_id, WrappedRcRefCell};
+use crate::{JobId, Map, TakoTaskId, WorkerId};
 
 pub struct State {
     jobs: Map<JobId, Job>,
@@ -254,71 +252,5 @@ impl StateRef {
             job_id_counter: 1,
             server_info,
         }))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use std::sync::Arc;
-    use tako::program::{ProgramDefinition, StdioDef};
-
-    use crate::common::arraydef::IntArray;
-    use crate::server::job::Job;
-    use crate::server::state::State;
-    use crate::tests::utils::create_hq_state;
-    use crate::transfer::messages::{
-        JobDescription, JobSubmitDescription, JobTaskDescription, PinMode, TaskDescription,
-        TaskKind, TaskKindProgram,
-    };
-    use crate::{unwrap_tako_id, JobId, TakoTaskId};
-
-    fn dummy_program_definition() -> ProgramDefinition {
-        ProgramDefinition {
-            args: vec![],
-            env: Default::default(),
-            stdout: StdioDef::Null,
-            stderr: StdioDef::Null,
-            stdin: vec![],
-            cwd: Default::default(),
-        }
-    }
-
-    fn add_test_job<J: Into<JobId>, T: Into<TakoTaskId>>(
-        state: &mut State,
-        ids: IntArray,
-        job_id: J,
-        base_task_id: T,
-    ) {
-        let job_id: JobId = job_id.into();
-        let task_desc = JobTaskDescription::Array {
-            ids,
-            entries: None,
-            task_desc: TaskDescription {
-                kind: TaskKind::ExternalProgram(TaskKindProgram {
-                    program: dummy_program_definition(),
-                    pin_mode: PinMode::None,
-                    task_dir: false,
-                }),
-                resources: Default::default(),
-                time_limit: None,
-                priority: 0,
-                crash_limit: 5,
-            },
-        };
-        let mut job = Job::new(
-            job_id,
-            JobDescription {
-                name: "".to_string(),
-                max_fails: None,
-            },
-            false,
-        );
-        job.attach_submit(Arc::new(JobSubmitDescription {
-            task_desc,
-            submit_dir: Default::default(),
-            stream_path: None,
-        }));
-        state.add_job(job);
     }
 }
