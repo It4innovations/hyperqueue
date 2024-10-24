@@ -380,6 +380,8 @@ pub enum SubmitResponse {
     JobNotOpened,
     JobNotFound,
     TaskIdAlreadyExists(JobTaskId),
+    NonUniqueTaskId(JobTaskId),
+    InvalidDependencies(JobTaskId),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -421,7 +423,7 @@ pub struct JobDetail {
     pub info: JobInfo,
     pub job_desc: JobDescription,
     pub submit_descs: Vec<Arc<JobSubmitDescription>>,
-    pub tasks: Vec<JobTaskInfo>,
+    pub tasks: Vec<(JobTaskId, JobTaskInfo)>,
     pub tasks_not_found: Vec<JobTaskId>,
 
     // Date when job was submitted

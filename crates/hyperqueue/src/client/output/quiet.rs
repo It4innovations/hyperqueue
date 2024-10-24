@@ -21,7 +21,7 @@ use crate::transfer::messages::{
     AutoAllocListResponse, JobDetail, JobInfo, ServerInfo, WaitForJobsResponse, WorkerExitInfo,
     WorkerInfo,
 };
-use crate::JobId;
+use crate::{JobId, JobTaskId};
 
 #[derive(Default)]
 pub struct Quiet;
@@ -129,7 +129,7 @@ impl Output for Quiet {
     fn print_task_info(
         &self,
         _job: (JobId, JobDetail),
-        _tasks: Vec<JobTaskInfo>,
+        _tasks: &[(JobTaskId, JobTaskInfo)],
         _worker_map: WorkerMap,
         _server_uid: &str,
         _verbosity: Verbosity,

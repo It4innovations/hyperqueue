@@ -146,7 +146,6 @@ assert os.environ['HQ_TASK_ID'] not in ['4', '5', '6', '8']
         ]
     )
     wait_for_job_state(hq_env, 1, "FAILED")
-
     output = hq_env.command(["job", "cat", "--task-status=finished", "1", "stdout", "--print-task-header"])
     assert (
         output

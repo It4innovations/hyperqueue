@@ -42,3 +42,28 @@ pub const HQ_VERSION: &str = {
         None => const_format::concatcp!(env!("CARGO_PKG_VERSION"), "-dev"),
     }
 };
+
+pub fn make_tako_id(job_id: JobId, task_id: JobTaskId) -> TakoTaskId {
+    TakoTaskId::new(((job_id.as_num() as u64) << 32) + task_id.as_num() as u64)
+}
+
+pub fn unwrap_tako_id(tako_task_id: TakoTaskId) -> (JobId, JobTaskId) {
+    let num = tako_task_id.as_num();
+    (
+        JobId::new((num >> 32) as u32),
+        JobTaskId::new((num & 0xffffffff) as u32),
+    )
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{make_tako_id, unwrap_tako_id, JobId, JobTaskId};
+
+    #[test]
+    fn test_make_tako_id() {
+        assert_eq!(
+            unwrap_tako_id(make_tako_id(JobId(123), JobTaskId(5))),
+            (JobId(123), JobTaskId(5))
+        );
+    }
+}
