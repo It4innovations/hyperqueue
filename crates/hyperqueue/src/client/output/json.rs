@@ -362,7 +362,7 @@ fn format_job_info(info: &JobInfo) -> Value {
 
 fn format_tasks(tasks: &[(JobTaskId, JobTaskInfo)], map: TaskToPathsMap) -> Value {
     tasks
-        .into_iter()
+        .iter()
         .map(|(task_id, task)| {
             let state = &match task.state {
                 JobTaskState::Waiting => "waiting",

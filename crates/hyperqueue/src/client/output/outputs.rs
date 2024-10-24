@@ -14,7 +14,6 @@ use crate::server::job::JobTaskInfo;
 use crate::{JobId, JobTaskId};
 use core::time::Duration;
 use tako::resources::ResourceDescriptor;
-use tako::Map;
 
 pub const MAX_DISPLAYED_WORKERS: usize = 2;
 
