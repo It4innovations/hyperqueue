@@ -88,7 +88,7 @@ def record_processes(
         try:
             memory_info = process.memory_info()
             cpu_utilization = process.cpu_percent()
-            cpu_utilization_children = 0
+            cpu_utilization_children = 0.0
 
             # We need to cache the child processes so that `.cpu_percent()` returns the correct
             # results.
