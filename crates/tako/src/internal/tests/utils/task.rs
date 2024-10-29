@@ -3,7 +3,7 @@ use crate::internal::common::resources::{
     NumOfNodes, ResourceAmount, ResourceId, ResourceRequestVariants,
 };
 use crate::internal::messages::worker::TaskRunningMsg;
-use crate::internal::server::task::{Task, TaskConfiguration, TaskInput};
+use crate::internal::server::task::{Task, TaskConfiguration};
 use crate::resources::ResourceRequest;
 use crate::{Priority, TaskId};
 use smallvec::SmallVec;
@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 pub struct TaskBuilder {
     id: TaskId,
-    inputs: Vec<TaskInput>,
+    task_deps: Vec<TaskId>,
     n_outputs: u32,
     finished_resources: Vec<ResourceRequest>,
     resources_builder: ResBuilder,
@@ -23,7 +23,7 @@ impl TaskBuilder {
     pub fn new<T: Into<TaskId>>(id: T) -> TaskBuilder {
         TaskBuilder {
             id: id.into(),
-            inputs: Default::default(),
+            task_deps: Default::default(),
             n_outputs: 0,
             finished_resources: vec![],
             resources_builder: Default::default(),
@@ -38,15 +38,12 @@ impl TaskBuilder {
     }
 
     pub fn simple_deps(mut self, deps: &[&Task]) -> TaskBuilder {
-        self.inputs = deps.iter().map(|&tr| TaskInput::new(tr.id, 0)).collect();
+        self.task_deps = deps.iter().map(|&tr| tr.id).collect();
         self
     }
 
     pub fn task_deps(mut self, deps: &[&Task]) -> TaskBuilder {
-        self.inputs = deps
-            .iter()
-            .map(|&tr| TaskInput::new_task_dependency(tr.id))
-            .collect();
+        self.task_deps = deps.iter().map(|&tr| tr.id).collect();
         self
     }
 
@@ -101,7 +98,7 @@ impl TaskBuilder {
         let resources = ResourceRequestVariants::new(resources);
         Task::new(
             self.id,
-            self.inputs.into_iter().collect(),
+            self.task_deps.into_iter().collect(),
             Rc::new(TaskConfiguration {
                 resources,
                 n_outputs: self.n_outputs,

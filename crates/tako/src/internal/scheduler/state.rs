@@ -99,7 +99,7 @@ impl SchedulerState {
         try_prev_worker: bool, // Enable heuristics that tries to fit tasks on fewer workers
     ) -> Option<WorkerId> {
         // Fast path
-        if try_prev_worker && task.inputs.is_empty() {
+        if try_prev_worker && task.task_deps.is_empty() {
             // Note: We are *not* using "is_capable_to_run" but "have_immediate_resources_for_rq",
             // because we want to enable fast path only if task can be directly executed
             // We want to avoid creation of overloaded
@@ -256,7 +256,7 @@ impl SchedulerState {
                     worker_id
                 );
             }
-            (task.inputs.clone(), assigned_worker)
+            (task.task_deps.clone(), assigned_worker)
         };
 
         let (tasks, workers) = core.split_tasks_workers_mut();
@@ -419,7 +419,7 @@ impl SchedulerState {
                     let task = tasks.get_task_mut(task_id);
                     if task.is_sn_running()
                         || (not_overloaded
-                            && (task.is_fresh() || !task.inputs.is_empty())
+                            && (task.is_fresh() || !task.task_deps.is_empty())
                             && worker.has_time_to_run_for_rqv(&task.configuration.resources, now))
                     {
                         continue;

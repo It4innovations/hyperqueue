@@ -54,38 +54,6 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Clone)]
-#[cfg_attr(test, derive(Eq, PartialEq))]
-pub struct TaskInput {
-    task: TaskId,
-    output_id: u32, // MAX = pure dependency on task, not real output id
-}
-
-impl TaskInput {
-    pub fn new(task: TaskId, output_id: u32) -> Self {
-        TaskInput { task, output_id }
-    }
-
-    pub fn new_task_dependency(task: TaskId) -> Self {
-        TaskInput {
-            task,
-            output_id: u32::MAX,
-        }
-    }
-
-    pub fn task(&self) -> TaskId {
-        self.task
-    }
-
-    pub fn output_id(&self) -> Option<u32> {
-        if self.output_id == u32::MAX {
-            None
-        } else {
-            Some(self.output_id)
-        }
-    }
-}
-
 #[derive(Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct TaskConfiguration {
@@ -101,7 +69,7 @@ pub struct Task {
     pub id: TaskId,
     pub state: TaskRuntimeState,
     consumers: Set<TaskId>,
-    pub inputs: ThinVec<TaskInput>,
+    pub task_deps: ThinVec<TaskId>,
     pub flags: TaskFlags,
     pub configuration: Rc<TaskConfiguration>,
     pub scheduler_priority: Priority,
@@ -123,7 +91,7 @@ impl fmt::Debug for Task {
 impl Task {
     pub fn new(
         id: TaskId,
-        inputs: ThinVec<TaskInput>,
+        dependencies: ThinVec<TaskId>,
         configuration: Rc<TaskConfiguration>,
         body: Box<[u8]>,
     ) -> Self {
@@ -134,7 +102,7 @@ impl Task {
 
         Self {
             id,
-            inputs,
+            task_deps: dependencies,
             flags,
             configuration,
             body,

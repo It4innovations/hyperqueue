@@ -11,6 +11,7 @@ use crate::task::SerializedTaskContext;
 use crate::{InstanceId, Map, Priority, TaskId, WorkerId};
 use smallvec::{smallvec, SmallVec};
 use std::time::Duration;
+use thin_vec::ThinVec;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ResourceRequestEntry {
@@ -116,7 +117,7 @@ pub struct TaskConfiguration {
     /// Index into NewTasksMessage::shared_data that contains the shared data for this task.
     pub shared_data_index: u32,
 
-    pub task_deps: Vec<TaskId>,
+    pub task_deps: ThinVec<TaskId>,
 
     /// Opaque data that is passed by the gateway user to task launchers.
     #[serde(with = "serde_bytes")]

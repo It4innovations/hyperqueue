@@ -363,8 +363,8 @@ impl Core {
     #[cfg(test)]
     pub fn sanity_check(&self) {
         let fw_check = |task: &Task| {
-            for input in &task.inputs {
-                assert!(self.tasks.get_task(input.task()).is_finished());
+            for task_dep in &task.task_deps {
+                assert!(self.tasks.get_task(*task_dep).is_finished());
             }
             for &task_id in task.get_consumers() {
                 assert!(self.tasks.get_task(task_id).is_waiting());
@@ -398,8 +398,8 @@ impl Core {
             match &task.state {
                 TaskRuntimeState::Waiting(winfo) => {
                     let mut count = 0;
-                    for ti in &task.inputs {
-                        if !self.tasks.get_task(ti.task()).is_finished() {
+                    for task_dep in &task.task_deps {
+                        if !self.tasks.get_task(*task_dep).is_finished() {
                             count += 1;
                         }
                     }
@@ -425,8 +425,8 @@ impl Core {
                 }
 
                 TaskRuntimeState::Finished(_) => {
-                    for ti in &task.inputs {
-                        assert!(self.tasks.get_task(ti.task()).is_finished());
+                    for task_dep in &task.task_deps {
+                        assert!(self.tasks.get_task(*task_dep).is_finished());
                     }
                 }
                 TaskRuntimeState::RunningMultiNode(ws) => {
