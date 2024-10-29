@@ -6,6 +6,7 @@ use std::time::Duration;
 use bstr::BString;
 use tako::Map;
 use tako::Set;
+use thin_vec::ThinVec;
 
 use tako::gateway::{
     FromGatewayMessage, NewTasksMessage, ResourceRequestVariants, SharedTaskConfiguration,
@@ -272,7 +273,7 @@ fn build_tasks_array(
     let build_task_conf = |body: Box<[u8]>, tako_id: TakoTaskId| TaskConfiguration {
         id: tako_id,
         shared_data_index: 0,
-        task_deps: Vec::new(),
+        task_deps: ThinVec::new(),
         body,
     };
 

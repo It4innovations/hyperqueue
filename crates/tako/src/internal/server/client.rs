@@ -11,57 +11,8 @@ use crate::internal::scheduler::query::compute_new_worker_query;
 use crate::internal::server::comm::{Comm, CommSender, CommSenderRef};
 use crate::internal::server::core::{Core, CoreRef};
 use crate::internal::server::reactor::{on_cancel_tasks, on_new_tasks};
-use crate::internal::server::task::{Task, TaskConfiguration, TaskInput, TaskRuntimeState};
+use crate::internal::server::task::{Task, TaskConfiguration, TaskRuntimeState};
 use std::rc::Rc;
-use thin_vec::ThinVec;
-
-/*pub(crate) async fn client_connection_handler(
-    core_ref: CoreRef,
-    comm_ref: CommSenderRef,
-    listener: UnixListener,
-    client_sender: UnboundedSender<ToGatewayMessage>,
-    client_receiver: UnboundedReceiver<ToGatewayMessage>,
-) {
-    if let Ok((stream, _)) = listener.accept().await {
-        let framed = make_protocol_builder().new_framed(stream);
-        let (sender, mut receiver) = framed.split();
-        let send_loop = forward_queue_to_sink(client_receiver, sender, |msg| {
-            rmp_serde::to_vec_named(&msg).unwrap().into()
-        });
-        {
-            let core = core_ref.get();
-            let mut comm = comm_ref.get_mut();
-            for worker in core.get_workers() {
-                comm.send_client_worker_new(worker.id, &worker.configuration);
-            }
-        }
-        let receive_loop = async move {
-            while let Some(data) = receiver.next().await {
-                // TODO: Instead of unwrap, send error message to client
-                let data = data.unwrap();
-                let message: Result<FromGatewayMessage, _> = rmp_serde::from_slice(&data);
-                let error = match message {
-                    Ok(message) => {
-                        process_client_message(&core_ref, &comm_ref, &client_sender, message).await
-                    }
-                    Err(error) => Some(format!("Invalid format of message: {}", error)),
-                };
-                if let Some(message) = error {
-                    client_sender
-                        .send(ToGatewayMessage::Error(ErrorResponse { message }))
-                        .unwrap();
-                }
-            }
-        };
-        tokio::select! {
-            r = send_loop => { r.unwrap() },
-            () = receive_loop => {},
-        }
-    } else {
-        panic!("Invalid connection from client");
-    }
-    log::info!("Client connection terminated");
-}*/
 
 fn create_task_configuration(
     core_ref: &mut Core,
@@ -238,12 +189,7 @@ fn handle_new_tasks(
             return Some(format!("Invalid configuration index {idx}"));
         }
         let conf = &configurations[idx];
-        let inputs: ThinVec<_> = task
-            .task_deps
-            .iter()
-            .map(|&task_id| TaskInput::new_task_dependency(task_id))
-            .collect();
-        let task = Task::new(task.id, inputs, conf.clone(), task.body);
+        let task = Task::new(task.id, task.task_deps, conf.clone(), task.body);
         tasks.push(task);
     }
     if !msg.adjust_instance_id.is_empty() {

@@ -167,11 +167,8 @@ pub(crate) fn on_new_tasks(core: &mut Core, comm: &mut impl Comm, new_tasks: Vec
         let mut task = task_map.remove(&task_id).unwrap();
 
         let mut count = 0;
-        for ti in task.inputs.iter() {
-            let input_id = ti.task();
-            let task_dep = task_map
-                .get_mut(&input_id)
-                .unwrap_or_else(|| core.get_task_mut(input_id));
+        for t in task.task_deps.iter() {
+            let task_dep = task_map.get_mut(t).unwrap_or_else(|| core.get_task_mut(*t));
             task_dep.add_consumer(task.id);
             if !task_dep.is_finished() {
                 count += 1
@@ -555,12 +552,7 @@ pub(crate) fn on_cancel_tasks(
 }
 
 fn unregister_as_consumer(core: &mut Core, comm: &mut impl Comm, task_id: TaskId) {
-    let inputs: Vec<TaskId> = core
-        .get_task(task_id)
-        .inputs
-        .iter()
-        .map(|ti| ti.task())
-        .collect();
+    let inputs: Vec<TaskId> = core.get_task(task_id).task_deps.iter().copied().collect();
     for input_id in inputs {
         let input = core.get_task_mut(input_id);
         assert!(input.remove_consumer(task_id));

@@ -5,6 +5,7 @@ use std::time::Duration;
 use crate::internal::common::index::ItemId;
 use derive_builder::Builder;
 use smallvec::smallvec;
+use thin_vec::ThinVec;
 
 use crate::gateway::{
     ResourceRequest, ResourceRequestEntry, ResourceRequestVariants, SharedTaskConfiguration,
@@ -119,7 +120,7 @@ pub fn build_task_def_from_config(
         TaskConfiguration {
             id: TaskId::new(id.unwrap_or(1) as <TaskId as ItemId>::IdType),
             shared_data_index: 0,
-            task_deps: Vec::new(),
+            task_deps: ThinVec::new(),
             body: body.into_boxed_slice(),
         },
         conf,
