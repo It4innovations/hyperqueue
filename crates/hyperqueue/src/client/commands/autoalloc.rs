@@ -442,7 +442,7 @@ async fn resume_queue(mut session: ClientSession, opts: ResumeQueueOpts) -> anyh
     )
     .await?;
 
-    log::info!("Allocation queue {queue_id} successfully paused");
+    log::info!("Allocation queue {queue_id} successfully resumed");
 
     Ok(())
 }
