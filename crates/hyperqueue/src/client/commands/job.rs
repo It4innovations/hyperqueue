@@ -317,11 +317,13 @@ pub async fn forget_job(
 ) -> anyhow::Result<()> {
     let JobForgetOpts { selector, filter } = opts;
 
-    let response = rpc_call!(session.connection(), FromClientMessage::ForgetJob(ForgetJobRequest {
-            selector,
-            filter: filter.into_iter().map(|s| s.into_status()).collect()
-    }), ToClientMessage::ForgetJobResponse(r) => r)
-    .await?;
+    let message = FromClientMessage::ForgetJob(ForgetJobRequest {
+        selector,
+        filter: filter.into_iter().map(|s| s.into_status()).collect(),
+    });
+    let response =
+        rpc_call!(session.connection(), message, ToClientMessage::ForgetJobResponse(r) => r)
+            .await?;
 
     let mut message = format!(
         "{} {} were forgotten",

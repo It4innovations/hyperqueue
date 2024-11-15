@@ -8,7 +8,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, Notify};
 
 use tako::gateway::{CancelTasks, FromGatewayMessage, StopWorkerRequest, ToGatewayMessage};
-use tako::TaskGroup;
+use tako::{Set, TaskGroup};
 
 use crate::client::status::{job_status, Status};
 use crate::common::serverdir::ServerDir;
@@ -181,6 +181,9 @@ pub async fn client_rpc_loop<
                     FromClientMessage::ServerInfo => {
                         ToClientMessage::ServerInfo(state_ref.get().server_info().clone())
                     }
+                    FromClientMessage::PruneJournal => {
+                        handle_prune_journal(&state_ref, senders).await
+                    }
                 };
                 if let Err(error) = tx.send(response).await {
                     log::error!("Cannot reply to client: {error:?}");
@@ -201,6 +204,39 @@ pub async fn client_rpc_loop<
             }
         }
     }
+}
+
+async fn handle_prune_journal(state_ref: &StateRef, senders: &Senders) -> ToClientMessage {
+    log::debug!("Client asked for journal prunning");
+    let (live_jobs, live_workers) = {
+        let state = state_ref.get();
+        let live_jobs: Set<_> = state
+            .jobs()
+            .filter_map(|job| {
+                if job.is_terminated() {
+                    None
+                } else {
+                    Some(job.job_id)
+                }
+            })
+            .collect();
+        let live_workers = state
+            .get_workers()
+            .values()
+            .filter_map(|worker| {
+                if worker.is_running() {
+                    Some(worker.worker_id())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        (live_jobs, live_workers)
+    };
+    if let Some(receiver) = senders.events.prune_journal(live_jobs, live_workers) {
+        let _ = receiver.await;
+    }
+    ToClientMessage::Finished
 }
 
 /// Waits until all jobs matched by the `selector` are finished (either by completing successfully,

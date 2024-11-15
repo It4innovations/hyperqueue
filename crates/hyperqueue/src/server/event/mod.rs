@@ -1,4 +1,4 @@
-pub mod log;
+pub mod journal;
 pub mod payload;
 pub mod streamer;
 

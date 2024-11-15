@@ -1,6 +1,6 @@
 use crate::common::serialization::Serialized;
 use crate::server::autoalloc::{AllocationId, QueueId};
-use crate::server::event::log::{EventStreamMessage, EventStreamSender};
+use crate::server::event::journal::{EventStreamMessage, EventStreamSender};
 use crate::server::event::payload::EventPayload;
 use crate::server::event::Event;
 use crate::transfer::messages::{AllocationQueueParams, JobDescription, SubmitRequest};
@@ -9,8 +9,8 @@ use chrono::Utc;
 use smallvec::SmallVec;
 use tako::gateway::LostWorkerReason;
 use tako::worker::{WorkerConfiguration, WorkerOverview};
-use tako::{InstanceId, WrappedRcRefCell};
-use tokio::sync::mpsc;
+use tako::{InstanceId, Set, WrappedRcRefCell};
+use tokio::sync::{mpsc, oneshot};
 
 struct Inner {
     storage_sender: Option<EventStreamSender>,
@@ -202,5 +202,29 @@ impl EventStreamer {
             .position(|(_, id)| *id == listener_id)
             .unwrap();
         inner.client_listeners.remove(p);
+    }
+
+    pub fn prune_journal(
+        &self,
+        live_jobs: Set<JobId>,
+        live_workers: Set<WorkerId>,
+    ) -> Option<oneshot::Receiver<()>> {
+        let inner = self.inner.get();
+        if let Some(ref streamer) = inner.storage_sender {
+            let (sender, receiver) = oneshot::channel();
+            if streamer
+                .send(EventStreamMessage::PruneJournal {
+                    live_jobs,
+                    live_workers,
+                    callback: sender,
+                })
+                .is_err()
+            {
+                log::error!("Event streaming queue has been closed.");
+            }
+            Some(receiver)
+        } else {
+            None
+        }
     }
 }
