@@ -1,7 +1,7 @@
 use crate::common::error::HqError;
 use crate::server::autoalloc::QueueId;
 use crate::server::client::{submit_job_desc, validate_submit};
-use crate::server::event::log::JournalReader;
+use crate::server::event::journal::JournalReader;
 use crate::server::event::payload::EventPayload;
 use crate::server::job::{Job, JobTaskState, StartedTaskData};
 use crate::server::state::State;

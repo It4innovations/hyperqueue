@@ -3,8 +3,9 @@ mod output;
 use crate::client::commands::journal::output::format_event;
 use crate::client::globalsettings::GlobalSettings;
 use crate::common::utils::str::pluralize;
+use crate::rpc_call;
 use crate::server::bootstrap::get_client_session;
-use crate::server::event::log::JournalReader;
+use crate::server::event::journal::JournalReader;
 use crate::transfer::messages::{FromClientMessage, ToClientMessage};
 use anyhow::anyhow;
 use clap::{Parser, ValueHint};
@@ -26,6 +27,9 @@ enum JournalCommand {
 
     /// Live stream events from the server.
     Stream,
+
+    /// Connect to a server and remove completed tasks and non-active workers from journal
+    Prune,
 }
 
 #[derive(Parser)]
@@ -40,6 +44,7 @@ pub async fn command_journal(gsettings: &GlobalSettings, opts: JournalOpts) -> a
     match opts.command {
         JournalCommand::Export(opts) => export_json(opts),
         JournalCommand::Stream => stream_json(gsettings).await,
+        JournalCommand::Prune => prune_journal(gsettings).await,
     }
 }
 
@@ -95,5 +100,16 @@ The file might have been incomplete."
     log::info!("Outputted {count} {}", pluralize("event", count));
 
     stdout.flush()?;
+    Ok(())
+}
+
+async fn prune_journal(gsettings: &GlobalSettings) -> anyhow::Result<()> {
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    rpc_call!(
+        session.connection(),
+        FromClientMessage::PruneJournal,
+        ToClientMessage::Finished
+    )
+    .await?;
     Ok(())
 }

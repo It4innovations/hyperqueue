@@ -295,3 +295,17 @@ def test_restore_streaming(hq_env: HqEnv, tmp_path):
     assert int(hq_env.command(["output-log", stream_path, "cat", "1", "stdout"])) > 0
     table = hq_env.command(["output-log", stream_path, "summary"], as_table=True)
     table.check_row_value("Superseded streams", "1")
+
+
+def test_prune_journal(hq_env: HqEnv, tmp_path):
+    journal_path = os.path.join(tmp_path, "my.journal")
+    stream_path = os.path.join(tmp_path, "stream")
+    os.mkdir(stream_path)
+    hq_env.start_server(args=["--journal", journal_path])
+
+    hq_env.start_workers(2)
+
+    hq_env.command(["job", "open"])
+    hq_env.command(["job", "submit", "--", "sleep", "0"])
+    hq_env.command(["job", "submit", "--cpus=2", "--", "sleep", "0"])
+    wait_for_job_state(hq_env, 2, "FINISHED")

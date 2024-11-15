@@ -1,16 +1,26 @@
 use crate::common::utils::str::pluralize;
-use crate::server::event::log::write::JournalWriter;
-use crate::server::event::log::JournalReader;
+use crate::server::event::journal::prune::prune_journal;
+use crate::server::event::journal::write::JournalWriter;
+use crate::server::event::journal::JournalReader;
 use crate::server::event::payload::EventPayload;
 use crate::server::event::Event;
+use crate::JobId;
+use std::ffi::OsString;
+use std::fs::{remove_file, rename};
 use std::future::Future;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tako::{Set, WorkerId};
 use tokio::sync::mpsc;
 
 pub enum EventStreamMessage {
     Event(Event),
     RegisterListener(mpsc::UnboundedSender<Event>),
+    PruneJournal {
+        live_jobs: Set<JobId>,
+        live_workers: Set<WorkerId>,
+        callback: tokio::sync::oneshot::Sender<()>,
+    },
 }
 
 pub type EventStreamSender = mpsc::UnboundedSender<EventStreamMessage>;
@@ -56,7 +66,7 @@ const FLUSH_PERIOD: Duration = Duration::from_secs(30);
 async fn streaming_process(
     mut writer: JournalWriter,
     mut receiver: EventStreamReceiver,
-    log_path: &Path,
+    journal_path: &Path,
 ) -> anyhow::Result<()> {
     let mut flush_fut = tokio::time::interval(FLUSH_PERIOD);
     let mut events = 0;
@@ -83,11 +93,28 @@ async fn streaming_process(
                            And while this read is performed, we cannot allow modification of the file,
                            so the writing to the file has to be paused anyway */
                         writer.flush()?;
-                        let mut reader = JournalReader::open(log_path)?;
+                        let mut reader = JournalReader::open(journal_path)?;
                         for event in &mut reader {
                             tx.send(event?).unwrap()
                         }
-                    }
+                    },
+                    Some(EventStreamMessage::PruneJournal { live_jobs, live_workers, callback })  => {
+                        writer.flush()?;
+                        let mut tmp_path: OsString = journal_path.into();
+                        tmp_path.push(".tmp");
+                        let tmp_path: PathBuf = tmp_path.into();
+                        {
+                            let mut reader = JournalReader::open(journal_path)?;
+                            let mut writer = JournalWriter::create_or_append(&tmp_path, None)?;
+                            if let Err(e) = prune_journal(&mut reader, &mut writer, &live_jobs, &live_workers) {
+                                remove_file(&tmp_path)?;
+                                return Err(e.into())
+                            }
+                        }
+                        rename(&tmp_path, &journal_path)?;
+                        writer = JournalWriter::create_or_append(journal_path, None)?;
+                        let _ = callback.send(());
+                    },
                     None => break
                 }
             }

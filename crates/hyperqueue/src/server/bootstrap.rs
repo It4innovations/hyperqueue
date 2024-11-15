@@ -16,8 +16,8 @@ use crate::common::serverdir::{
 };
 use crate::server::autoalloc::{create_autoalloc_service, QueueId};
 use crate::server::backend::Backend;
-use crate::server::event::log::start_event_streaming;
-use crate::server::event::log::JournalWriter;
+use crate::server::event::journal::start_event_streaming;
+use crate::server::event::journal::JournalWriter;
 use crate::server::event::streamer::EventStreamer;
 use crate::server::restore::StateRestorer;
 use crate::server::state::StateRef;
