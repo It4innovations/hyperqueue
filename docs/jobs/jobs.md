@@ -10,6 +10,7 @@ graph). Jobs are units of computation management - you can submit, query or canc
     [Task arrays](arrays.md) to find out how to create jobs with multiple tasks.
 
 ## Identification numbers
+
 Each job is identified by a positive integer that is assigned by the HyperQueue server when the job is submitted. We
 refer to it as `Job id`.
 
@@ -20,6 +21,7 @@ have the same task id.
 In simple jobs, task id is always set to `0`.
 
 ## Submitting jobs
+
 To submit a simple job that will execute some executable with the provided arguments, use the `hq submit` command:
 
 ```bash
@@ -49,6 +51,7 @@ command.
 There are many parameters that you can set for the executed program, they are listed below.
 
 ### Name
+
 Each job has an assigned name. It has only an informative character for the user. By default, the name is derived from
 the job's program name. You can also set the job name explicitly with the `--name` option:
 
@@ -57,6 +60,7 @@ $ hq submit --name=<NAME> ...
 ```
 
 ### Working directory
+
 By default, the working directory of the job will be set to the directory from which the job was submitted. You can
 change this using the `--cwd` option:
 
@@ -73,6 +77,7 @@ $ hq submit --cwd=<path> ...
     You can use [placeholders](#placeholders) in the working directory path.
 
 ### Output
+
 By default, each job will produce two files containing the standard output and standard error output, respectively. The
 default paths of these files are
 
@@ -85,14 +90,14 @@ You can change these paths with the `--stdout` and `--stderr` options. You can a
 files completely by setting the value to `none`:
 
 === "Change output paths"
-    ```bash
-    $ hq submit --stdout=out.txt --stderr=err.txt ...
-    ```
+```bash
+$ hq submit --stdout=out.txt --stderr=err.txt ...
+```
 
 === "Disable `stdout`"
-    ```bash
-    $ hq submit --stdout=none ...
-    ```
+```bash
+$ hq submit --stdout=none ...
+```
 
 !!! warning
 
@@ -101,6 +106,7 @@ files completely by setting the value to `none`:
     [working directory](#working-directory) of the job. If you want to change that, use the `%{CWD}` [placeholder](#placeholders).
 
 ### Environment variables
+
 You can set environment variables which will be passed to the provided command when the job is executed using the
 `--env <KEY>=<VAL>` option. Multiple environment variables can be passed if you repeat the option.
 
@@ -118,37 +124,41 @@ Each executed task will also automatically receive the following environment var
 | `HQ_RESOURCE_...` | A set of variables related to allocated [resources](resources.md) |
 
 ### Time management
-You can specify two time-related parameters when submitting a job. They will be applied to each task of the submitted job.
+
+You can specify two time-related parameters when submitting a job. They will be applied to each task of the submitted
+job.
 
 - **Time Limit** is the maximal running time of a task. If it is reached, the task will be terminated, and it will
   transition into the `Failed` [state](#task-state). This setting has no impact on scheduling.
 
-    This can serve as a sanity check to make sure that some task will not run indefinitely. You can set it with the
-    `--time-limit` option[^2]:
+  This can serve as a sanity check to make sure that some task will not run indefinitely. You can set it with the
+  `--time-limit` option[^2]:
 
     ```bash
     $ hq submit --time-limit=<duration> ...
     ```
 
-    !!! note
-    
+  !!! note
+
         Time limit is counted separately for each task. If you set a time limit of `3 minutes` and create two tasks,
         where each will run for two minutes, the time limit will not be hit.
 
-- **Time Request** is the minimal remaining [lifetime](../deployment/worker.md#time-limit) that a worker must have in order
-  to start executing the task. Workers that do not have enough remaining lifetime will not be considered for running this
+- **Time Request** is the minimal remaining [lifetime](../deployment/worker.md#time-limit) that a worker must have in
+  order
+  to start executing the task. Workers that do not have enough remaining lifetime will not be considered for running
+  this
   task.
 
-     Time requests are only used during scheduling, where the server decides which worker should execute which task.
-     Once a task is scheduled and starts executing on a worker, the time request value will not have any effect.
+  Time requests are only used during scheduling, where the server decides which worker should execute which task.
+  Once a task is scheduled and starts executing on a worker, the time request value will not have any effect.
 
-     You can set the time request using the `--time-request` option[^2]:
+  You can set the time request using the `--time-request` option[^2]:
 
      ```bash
      $ hq submit --time-request=<duration> ...
      ```
 
-    !!! note
+  !!! note
 
         Workers with an unknown remaining lifetime will be able to execute any task, disregarding its time request.
 
@@ -157,7 +167,8 @@ You can specify two time-related parameters when submitting a job. They will be 
 Here is an example situation where time limit and time request can be used:
 
 Let's assume that we have a collection of tasks where the vast majority of tasks usually finish within `10` minutes, but
-some of them run for (at most) `30` minutes. We do not know in advance which tasks will be "slow". In this case we may want
+some of them run for (at most) `30` minutes. We do not know in advance which tasks will be "slow". In this case we may
+want
 to set the *time limit* to `35` minutes to protect us against an error (deadlock, endless loop, etc.).
 
 However, since we know that each task will usually take *at least* `10` minutes to execute, we don't want to start
@@ -165,6 +176,7 @@ executing it on a worker if we know that the worker will definitely terminate in
 cause unnecessary lost computational resources. Therefore, we can set the *time request* to `10` minutes.
 
 ### Priority
+
 You can modify the order in which tasks are executed using **Priority**. Priority can be any 32b *signed* integer. A
 lower number signifies lower priority, e.g. when task `A` with priority `5` and task `B` with priority `3` are scheduled
 to the same worker and only one of them may be executed, then `A` will be executed first.
@@ -178,6 +190,7 @@ $hq submit --priority=<PRIORITY>
 If no priority is specified, then each task will have priority `0`.
 
 ### Placeholders
+
 You can use special variables when setting certain job parameters ([working directory](#working-directory),
 [output](#output) paths, [log](streaming.md#redirecting-output-to-the-log) path). These variables, called
 **Placeholders**, will be replaced by job or task-specific information before the job is executed.
@@ -195,7 +208,8 @@ You can use the following placeholders:
 | `%{CWD}`         | Working directory of the task.              | `stdout`, `stderr`               |
 | `%{SERVER_UID}`  | Unique server ID.                           | `stdout`, `stderr`, `cwd`, `log` |
 
-`SERVER_UID` is a random string that is unique for each new server execution (each `hq server start` gets a separate value).
+`SERVER_UID` is a random string that is unique for each new server execution (each `hq server start` gets a separate
+value).
 
 As an example, if you wanted to include the [Instance ID](failure.md#task-restart) in the `stdout` path (to
 distinguish the individual outputs of restarted tasks), you can use placeholders like this:
@@ -205,6 +219,7 @@ $ hq submit --stdout '%{CWD}/job-%{JOB_ID}/%{TASK_ID}-%{INSTANCE_ID}.stdout' ...
 ```
 
 ## State
+
 At any moment in time, each task and job has a specific *state* that represents what is currently happening to it. You
 can query the state of a job with the following command[^1]:
 
@@ -215,6 +230,7 @@ $ hq job info <job-id>
 [^1]: You can use various [shortcuts](../cli/shortcuts.md#id-selector) to select multiple jobs at once.
 
 ### Task state
+
 Each task starts in the `Waiting` state and can end up in one of the terminal states: `Finished`, `Failed`
 or `Canceled`.
 
@@ -241,6 +257,7 @@ Finished    Failed   Canceled
 If a task is in the `Finished`, `Failed` or `Canceled` state, it is `completed`.
 
 ### Job state
+
 The state of a job is derived from the states of its individual tasks. The state is determined by the first rule that
 matches from the following list of rules:
 
@@ -251,9 +268,10 @@ matches from the following list of rules:
 5. If all tasks are finished and job is open (see [Open Jobs](openjobs.md)), then job state is `Opened`.
 5. Remaining case: all tasks are `Finished` and job is closed, then job state is `Finished`.
 
-
 ## Cancelling jobs
-You can prematurely terminate a submitted job that haven't been completed yet by *cancelling* it using the `hq job cancel`
+
+You can prematurely terminate a submitted job that haven't been completed yet by *cancelling* it using
+the `hq job cancel`
 command[^1]:
 
 ```bash
@@ -263,6 +281,7 @@ $ hq job cancel <job-selector>
 Cancelling a job will cancel all of its tasks that are not yet completed.
 
 ## Forgetting jobs
+
 If you want to completely forget a job, and thus free up its associated memory, you can do that using
 the `hq job forget` command[^1]:
 
@@ -280,7 +299,11 @@ $ hq job forget all --status finished,canceled
 However, only jobs that are completed, i.e. that have been finished successfully, failed or have been canceled, can be
 forgotten. If you want to forget a waiting or a running job, [cancel](#cancelling-jobs) it first.
 
+Note that if you are using a journal, forgetting only free the memory of the server but the tasks remains
+in journal, run `hq journal prune` to remove completed jobs and workers from journal file.
+
 ## Waiting for jobs
+
 There are three ways of waiting until a job completes:
 
 - **Submit and wait** You can use the `--wait` flag when submitting a job. This will cause the submission command to
@@ -290,11 +313,12 @@ There are three ways of waiting until a job completes:
     $ hq submit --wait ...
     ```
 
-    !!! tip
+  !!! tip
 
         This method can be used for benchmarking the job duration.
 
-- **Wait command** There is a separate `hq job wait` command that can be used to wait until an existing job completes[^1]:
+- **Wait command** There is a separate `hq job wait` command that can be used to wait until an existing job
+  completes[^1]:
 
     ```bash
     $ hq job wait <job-selector>
@@ -303,14 +327,14 @@ There are three ways of waiting until a job completes:
 - **Interactive wait** If you want to interactively observe the status of a job (which is useful especially if it
   has [multiple tasks](arrays.md)), you can use the `hq job progress` command:
 
-    === "Submit and observe"
-        ```bash
-        $ hq submit --progress ...
-        ```
-    === "Observe an existing job[^1]"
-        ```bash
-        $ hq job progress <selector>
-        ```
+  === "Submit and observe"
+  ```bash
+  $ hq submit --progress ...
+  ```
+  === "Observe an existing job[^1]"
+  ```bash
+  $ hq job progress <selector>
+  ```
 
 ## Attaching standard input
 
@@ -318,7 +342,7 @@ When ``--stdin`` flag is used, HQ captures standard input and attaches it to eac
 When a task is started then the attached data is written into the standard input of the task.
 
 This can be used to submitting scripts without creating file.
-The following command will capture stdin and executes it in Bash 
+The following command will capture stdin and executes it in Bash
 
 ```bash
 $ hq submit --stdin bash
@@ -334,7 +358,7 @@ when the task is completed (for any reason).
 
 ## Providing own error message
 
-A task may pass its own error message into the HyperQueue. 
+A task may pass its own error message into the HyperQueue.
 HyperQueue provides a filename via environment variable ``HQ_ERROR_FILENAME``,
 if a task creates this file and terminates with a non-zero return code,
 then the content of this file is taken as an error message.
@@ -347,8 +371,10 @@ If the message is longer than 2KiB, then it is truncated to 2KiB.
 If task terminates with zero return code, then the error file is ignored.
 
 ## Automatic file cleanup
+
 If you create a lot of tasks and do not use [output streaming](streaming.md), a lot of `stdout`/`stderr`
-files can be created on the disk. In certain cases, you might not be interested in the contents of these files, especially
+files can be created on the disk. In certain cases, you might not be interested in the contents of these files,
+especially
 if the task has finished successfully, and you instead want to remove them as soon as they are not needed.
 
 For that, you can use a file cleanup mode when specifying `stdout` and/or `stderr` to choose what should happen with
@@ -356,33 +382,36 @@ the file when its task finishes. The mode is specified as a name following a col
 Currently, one cleanup mode is implemented:
 
 - Remove the file if the task has [finished](#task-state) successfully:
+
 ```bash
 $ hq submit --stdout="out.txt:rm-if-finished" /my-program
 ```
+
 The file will not be deleted if the task fails or is cancelled.
 
 !!! Note
-    If you want to use the default `stdout`/`stderr` file path (and you don't want to look it up), you can also specify
-    just the cleanup mode without the file path:
-    ```bash
-    $ hq submit --stdout=":rm-if-finished" /my-program
-    ```
+If you want to use the default `stdout`/`stderr` file path (and you don't want to look it up), you can also specify
+just the cleanup mode without the file path:
+```bash
+$ hq submit --stdout=":rm-if-finished" /my-program
+```
 
 ## Useful job commands
+
 Here is a list of useful job commands:
 
 ### Display job table
 
 === "List queued and running jobs"
-    ```bash
-    $ hq job list
-    ```
+```bash
+$ hq job list
+```
 === "List all jobs"
-    ```bash
-    $ hq job list --all
-    ```
+```bash
+$ hq job list --all
+```
 === "List jobs by status"
-    You can display only jobs having the selected [states](#job-state) by using the `--filter` flag:
+You can display only jobs having the selected [states](#job-state) by using the `--filter` flag:
 
     ```bash
     $ hq job list --filter running,waiting
@@ -397,6 +426,7 @@ Here is a list of useful job commands:
     - `canceled`
 
 ### Display a summary table of all jobs
+
 ```commandline
 $ hq job summary
 ```
@@ -422,7 +452,7 @@ $ hq job cat <job-id> [--tasks <task-selector>] <stdout/stderr>
 ## Crashing limit
 
 When a worker is lost then all running tasks on the worker are suspicious that they may cause the crash of the
-worker. HyperQueue server remembers how many times were a task running while a worker is lost. If the count 
+worker. HyperQueue server remembers how many times were a task running while a worker is lost. If the count
 reaches the limit, then the task is set to the failed state.
 By default, this limit is `5` but it can be changed as follows:
 
