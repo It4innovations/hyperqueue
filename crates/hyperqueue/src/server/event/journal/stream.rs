@@ -112,7 +112,7 @@ async fn streaming_process(
                                 return Err(e.into())
                             }
                         }
-                        rename(&tmp_path, &journal_path)?;
+                        rename(&tmp_path, journal_path)?;
                         writer = JournalWriter::create_or_append(journal_path, None)?;
                         let _ = callback.send(());
                     },

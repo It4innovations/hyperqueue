@@ -1,5 +1,6 @@
 import time
 
+from .test_events import read_events
 from .utils.cmd import python
 from .autoalloc.mock.mock import MockJobManager
 from .autoalloc.mock.slurm import SlurmManager, adapt_slurm
@@ -297,10 +298,22 @@ def test_restore_streaming(hq_env: HqEnv, tmp_path):
     table.check_row_value("Superseded streams", "1")
 
 
-def test_prune_journal(hq_env: HqEnv, tmp_path):
+def test_flush_and_prune_journal(hq_env: HqEnv, tmp_path):
+    def collect_ids():
+        job_ids = set()
+        worker_ids = set()
+        for event in events:
+            event = event["event"]
+            t = event["type"]
+            if "task" in t:
+                job_ids.add(event["job"])
+            if "job" in t:
+                job_ids.add(event.get("job_id") or event["job"])
+            if "worker" in t:
+                worker_ids.add(event.get("id"))
+        return job_ids, worker_ids
+
     journal_path = os.path.join(tmp_path, "my.journal")
-    stream_path = os.path.join(tmp_path, "stream")
-    os.mkdir(stream_path)
     hq_env.start_server(args=["--journal", journal_path])
 
     hq_env.start_workers(2)
@@ -309,3 +322,25 @@ def test_prune_journal(hq_env: HqEnv, tmp_path):
     hq_env.command(["job", "submit", "--", "sleep", "0"])
     hq_env.command(["job", "submit", "--cpus=2", "--", "sleep", "0"])
     wait_for_job_state(hq_env, 2, "FINISHED")
+    hq_env.command(["worker", "stop", "1"])
+
+    hq_env.command(["journal", "flush"])
+
+    size1 = os.stat(journal_path).st_size
+
+    events = read_events(hq_env, journal_path)
+
+    j_ids, w_ids = collect_ids()
+    assert j_ids == {1, 2, 3}
+    assert w_ids == {1, 2}
+
+    hq_env.command(["journal", "prune"])
+
+    size2 = os.stat(journal_path).st_size
+    assert size1 > size2
+
+    events = read_events(hq_env, journal_path)
+
+    j_ids, w_ids = collect_ids()
+    assert j_ids == {1, 3}
+    assert w_ids == {2}

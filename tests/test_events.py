@@ -167,7 +167,8 @@ data = {
         "PCI Bus": "FOOBAR2"
     }
 }
-print(json.dumps(data))""",
+print(json.dumps(data))
+        """,
         ):
             hq_env.start_worker(args=["--overview-interval", "10ms", "--resource", "gpus/amd=[0]"])
             wait_for_worker_state(hq_env, 1, "RUNNING")
@@ -201,14 +202,17 @@ def find_events(events, type: str) -> List:
 
 
 def get_events(hq_env: HqEnv, callback):
-    log_path = "events.log"
-    process = hq_env.start_server(args=["--journal", log_path])
+    journal_path = "events.log"
+    process = hq_env.start_server(args=["--journal", journal_path])
     callback()
     hq_env.command(["server", "stop"])
     process.wait(timeout=5)
     hq_env.processes.clear()
+    return read_events(hq_env, journal_path)
 
-    output = hq_env.command(["journal", "export", log_path], ignore_stderr=True)
+
+def read_events(hq_env: HqEnv, journal_path: str):
+    output = hq_env.command(["journal", "export", journal_path], ignore_stderr=True)
     events = []
     for line in output.splitlines(keepends=False):
         events.append(json.loads(line))
