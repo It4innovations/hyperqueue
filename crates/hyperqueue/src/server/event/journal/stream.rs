@@ -17,10 +17,11 @@ pub enum EventStreamMessage {
     Event(Event),
     RegisterListener(mpsc::UnboundedSender<Event>),
     PruneJournal {
+        callback: tokio::sync::oneshot::Sender<()>,
         live_jobs: Set<JobId>,
         live_workers: Set<WorkerId>,
-        callback: tokio::sync::oneshot::Sender<()>,
     },
+    FlushJournal(tokio::sync::oneshot::Sender<()>),
 }
 
 pub type EventStreamSender = mpsc::UnboundedSender<EventStreamMessage>;
@@ -113,6 +114,10 @@ async fn streaming_process(
                         }
                         rename(&tmp_path, &journal_path)?;
                         writer = JournalWriter::create_or_append(journal_path, None)?;
+                        let _ = callback.send(());
+                    },
+                    Some(EventStreamMessage::FlushJournal(callback))  => {
+                        writer.flush()?;
                         let _ = callback.send(());
                     },
                     None => break
