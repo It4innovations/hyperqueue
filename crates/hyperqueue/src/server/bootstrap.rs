@@ -46,6 +46,7 @@ pub struct ServerConfig {
     pub client_port: Option<u16>,
     pub worker_port: Option<u16>,
     pub journal_path: Option<PathBuf>,
+    pub journal_flush_period: Duration,
     pub worker_secret_key: Option<Arc<SecretKey>>,
     pub client_secret_key: Option<Arc<SecretKey>>,
     pub server_uid: Option<String>,
@@ -292,7 +293,8 @@ async fn prepare_event_management(
             )
         })?;
 
-        let (tx, stream_fut) = start_event_streaming(writer, log_path);
+        let (tx, stream_fut) =
+            start_event_streaming(writer, log_path, server_cfg.journal_flush_period);
         let streamer = EventStreamer::new(Some(tx));
         streamer.on_server_start(server_uid);
         (streamer, Box::pin(stream_fut))

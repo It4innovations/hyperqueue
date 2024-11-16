@@ -89,6 +89,10 @@ struct ServerStartOpts {
     #[arg(long)]
     journal: Option<PathBuf>,
 
+    #[arg(long, value_parser = parse_human_time, default_value = "30s")]
+    /// Configure how often should be the journal written, default: 30s
+    journal_flush_period: Duration,
+
     /// Path to access file that is used for configuration of secret keys and ports
     #[arg(long)]
     access_file: Option<PathBuf>,
@@ -140,6 +144,7 @@ async fn start_server(gsettings: &GlobalSettings, opts: ServerStartOpts) -> anyh
         client_port,
         worker_port,
         journal_path: opts.journal,
+        journal_flush_period: opts.journal_flush_period,
         worker_secret_key: access_file.as_ref().map(|a| a.worker_key().clone()),
         client_secret_key: access_file.as_ref().map(|a| a.client_key().clone()),
         server_uid: access_file.as_ref().map(|a| a.server_uid().to_string()),
