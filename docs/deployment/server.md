@@ -76,13 +76,15 @@ or using a terminal multiplexer like [tmux](https://en.wikipedia.org/wiki/Tmux).
 
 ## Resuming stopped/crashed server
 
-The server supports resilience, which allows it to restore its state after it is stopped or if it crashes. To enable resilience, you can tell the server to log events into a *journal* file, using the `--journal` flag:
+The server supports resilience, which allows it to restore its state after it is stopped or if it crashes. To enable
+resilience, you can tell the server to log events into a *journal* file, using the `--journal` flag:
 
 ```bash
 $ hq server start --journal /path/to/journal
 ```
 
-If the server is stopped or it crashes, and you use the same command to start the server (using the same journal file path), it will continue from the last point:
+If the server is stopped or it crashes, and you use the same command to start the server (using the same journal file
+path), it will continue from the last point:
 
 ```bash
 $ hq server start --journal /path/to/journal
@@ -99,6 +101,7 @@ have to be connected to the server after it restarts.
     after resuming the server, the task will be not be computed after a server restart.
 
 ### Exporting journal events
+
 If you'd like to programmatically analyze events that are stored in the journal file, you can
 export them to JSON using the following command:
 
@@ -110,6 +113,7 @@ The events will be read from the provided journal and printed to `stdout` encode
 event per line (this corresponds to line-delimited JSON, i.e. [NDJSON](http://ndjson.org/)).
 
 You can also directly stream events in real-time from the server using the following command:
+
 ```bash
 $ hq journal stream
 ```
@@ -118,6 +122,16 @@ $ hq journal stream
 
     The JSON format of the journal events and their definition is currently unstable and can change
     with a new HyperQueue version.
+
+### Pruning journal
+
+Command `hq journal prune` removes all completed jobs and disconnected workers from the journal file.
+
+### Flushing journal
+
+Command `hq journal flush` will force the server to flush the journal.
+It is mainly for the testing purpose or if you are going to `hq journal export` on
+a live journal (however, it is usually better to use `hq journal stream`).
 
 ## Stopping server
 
