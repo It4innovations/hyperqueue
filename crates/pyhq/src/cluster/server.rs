@@ -5,6 +5,7 @@ use hyperqueue::server::bootstrap::{initialize_server, ServerConfig};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::JoinHandle;
+use std::time::Duration;
 use tokio::sync::Notify;
 use tokio::task::LocalSet;
 
@@ -38,6 +39,7 @@ impl RunningServer {
                 client_secret_key: None,
                 worker_secret_key: None,
                 server_uid: None,
+                journal_flush_period: Duration::from_secs(30),
             };
 
             let main_future = async move {

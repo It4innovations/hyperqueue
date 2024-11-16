@@ -79,7 +79,7 @@ impl Iterator for &mut JournalReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::server::event::log::{JournalReader, JournalWriter};
+    use crate::server::event::journal::{JournalReader, JournalWriter};
     use crate::server::event::payload::EventPayload;
     use crate::server::event::Event;
     use chrono::Utc;

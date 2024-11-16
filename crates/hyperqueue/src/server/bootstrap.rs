@@ -402,6 +402,7 @@ mod tests {
     use std::future::Future;
     use std::path::Path;
     use std::sync::Arc;
+    use std::time::Duration;
     use tempfile::TempDir;
 
     pub async fn init_test_server(
@@ -419,6 +420,7 @@ mod tests {
             client_port: None,
             worker_port: None,
             journal_path: None,
+            journal_flush_period: Duration::from_secs(30),
             worker_secret_key: None,
             client_secret_key: None,
             server_uid: None,
