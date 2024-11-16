@@ -43,6 +43,7 @@ pub enum FromClientMessage {
     // and client will only receive ToClientMessage::Event
     StreamEvents,
     PruneJournal,
+    FlushJournal,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -342,7 +343,7 @@ pub enum ToClientMessage {
     Error(String),
     ServerInfo(ServerInfo),
     Event(Event),
-    Finished, // Generic response, now used only for Server pruning
+    Finished, // Generic response, now used only for journal pruning/flushing
 }
 
 #[derive(Serialize, Deserialize, Debug)]

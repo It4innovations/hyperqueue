@@ -30,6 +30,9 @@ enum JournalCommand {
 
     /// Connect to a server and remove completed tasks and non-active workers from journal
     Prune,
+
+    /// Connect to a server and forces to flush a journal
+    Flush,
 }
 
 #[derive(Parser)]
@@ -45,6 +48,7 @@ pub async fn command_journal(gsettings: &GlobalSettings, opts: JournalOpts) -> a
         JournalCommand::Export(opts) => export_json(opts),
         JournalCommand::Stream => stream_json(gsettings).await,
         JournalCommand::Prune => prune_journal(gsettings).await,
+        JournalCommand::Flush => flush_journal(gsettings).await,
     }
 }
 
@@ -108,6 +112,17 @@ async fn prune_journal(gsettings: &GlobalSettings) -> anyhow::Result<()> {
     rpc_call!(
         session.connection(),
         FromClientMessage::PruneJournal,
+        ToClientMessage::Finished
+    )
+    .await?;
+    Ok(())
+}
+
+async fn flush_journal(gsettings: &GlobalSettings) -> anyhow::Result<()> {
+    let mut session = get_client_session(gsettings.server_directory()).await?;
+    rpc_call!(
+        session.connection(),
+        FromClientMessage::FlushJournal,
         ToClientMessage::Finished
     )
     .await?;

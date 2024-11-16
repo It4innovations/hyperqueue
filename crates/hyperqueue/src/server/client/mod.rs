@@ -184,6 +184,12 @@ pub async fn client_rpc_loop<
                     FromClientMessage::PruneJournal => {
                         handle_prune_journal(&state_ref, senders).await
                     }
+                    FromClientMessage::FlushJournal => {
+                        if let Some(callback) = senders.events.flush_journal() {
+                            let _ = callback.await;
+                        };
+                        ToClientMessage::Finished
+                    }
                 };
                 if let Err(error) = tx.send(response).await {
                     log::error!("Cannot reply to client: {error:?}");

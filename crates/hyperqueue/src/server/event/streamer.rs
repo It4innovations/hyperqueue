@@ -204,6 +204,22 @@ impl EventStreamer {
         inner.client_listeners.remove(p);
     }
 
+    pub fn flush_journal(&self) -> Option<oneshot::Receiver<()>> {
+        let inner = self.inner.get();
+        if let Some(ref streamer) = inner.storage_sender {
+            let (sender, receiver) = oneshot::channel();
+            if streamer
+                .send(EventStreamMessage::FlushJournal(sender))
+                .is_err()
+            {
+                log::error!("Event streaming queue has been closed.");
+            }
+            Some(receiver)
+        } else {
+            None
+        }
+    }
+
     pub fn prune_journal(
         &self,
         live_jobs: Set<JobId>,
