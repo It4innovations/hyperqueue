@@ -38,11 +38,12 @@ fn create_event_stream_queue() -> (EventStreamSender, EventStreamReceiver) {
 pub fn start_event_streaming(
     writer: JournalWriter,
     log_path: &Path,
+    flush_period: Duration,
 ) -> (EventStreamSender, impl Future<Output = ()>) {
     let (tx, rx) = create_event_stream_queue();
     let log_path = log_path.to_path_buf();
     let handle = std::thread::spawn(move || {
-        let process = streaming_process(writer, rx, &log_path);
+        let process = streaming_process(writer, rx, &log_path, flush_period);
 
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -61,14 +62,13 @@ pub fn start_event_streaming(
     (tx, end_fut)
 }
 
-const FLUSH_PERIOD: Duration = Duration::from_secs(30);
-
 async fn streaming_process(
     mut writer: JournalWriter,
     mut receiver: EventStreamReceiver,
     journal_path: &Path,
+    flush_period: Duration,
 ) -> anyhow::Result<()> {
-    let mut flush_fut = tokio::time::interval(FLUSH_PERIOD);
+    let mut flush_fut = tokio::time::interval(flush_period);
     let mut events = 0;
     loop {
         tokio::select! {
