@@ -101,6 +101,7 @@ async fn streaming_process(
                     },
                     Some(EventStreamMessage::PruneJournal { live_jobs, live_workers, callback })  => {
                         writer.flush()?;
+                        drop(writer);
                         let mut tmp_path: OsString = journal_path.into();
                         tmp_path.push(".tmp");
                         let tmp_path: PathBuf = tmp_path.into();
