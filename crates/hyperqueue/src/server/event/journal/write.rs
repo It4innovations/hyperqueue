@@ -31,12 +31,24 @@ impl JournalWriter {
         let mut file = BufWriter::new(raw_file);
 
         if position == 0 && file.stream_position()? == 0 {
-            file.write_all(HQ_JOURNAL_HEADER)?;
-            EventSerializationConfig::config().serialize_into(&mut file, HQ_VERSION)?;
-            file.flush()?;
+            Self::write_header(&mut file)?;
         };
 
         Ok(Self { file })
+    }
+
+    pub fn create(path: &Path) -> anyhow::Result<Self> {
+        let raw_file = File::create(path)?;
+        let mut file = BufWriter::new(raw_file);
+        Self::write_header(&mut file)?;
+        Ok(Self { file })
+    }
+
+    fn write_header(mut file: &mut BufWriter<File>) -> anyhow::Result<()> {
+        file.write_all(HQ_JOURNAL_HEADER)?;
+        EventSerializationConfig::config().serialize_into(&mut file, HQ_VERSION)?;
+        file.flush()?;
+        Ok(())
     }
 
     pub fn store(&mut self, event: Event) -> anyhow::Result<()> {
