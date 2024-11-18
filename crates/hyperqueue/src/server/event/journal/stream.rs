@@ -106,7 +106,7 @@ async fn streaming_process(
                         let tmp_path: PathBuf = tmp_path.into();
                         {
                             let mut reader = JournalReader::open(journal_path)?;
-                            let mut writer = JournalWriter::create_or_append(&tmp_path, None)?;
+                            let mut writer = JournalWriter::create(&tmp_path)?;
                             if let Err(e) = prune_journal(&mut reader, &mut writer, &live_jobs, &live_workers) {
                                 remove_file(&tmp_path)?;
                                 return Err(e.into())
