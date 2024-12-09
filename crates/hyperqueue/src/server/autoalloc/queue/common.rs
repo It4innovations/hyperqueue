@@ -25,7 +25,8 @@ pub struct ExternalHandler {
 
 impl ExternalHandler {
     pub fn new(server_directory: PathBuf, name: Option<String>) -> anyhow::Result<Self> {
-        let hq_path = std::env::current_exe().context("Cannot get HyperQueue path")?;
+        let hq_path =
+            normalize_exe_path(std::env::current_exe().context("Cannot get HyperQueue path")?);
         Ok(Self {
             server_directory,
             hq_path,
@@ -38,6 +39,21 @@ impl ExternalHandler {
         self.allocation_counter += 1;
         self.allocation_counter
     }
+}
+
+/// For some reason, Linux sometimes thinks that the current executable has been deleted,
+/// and adds a ` (deleted)` suffix to its path.
+/// That is quite annoying, so we get rid of that suffix.
+/// See the following issues for more context:
+/// - https://github.com/It4innovations/hyperqueue/issues/791
+/// - https://github.com/It4innovations/hyperqueue/issues/452
+fn normalize_exe_path(mut path: PathBuf) -> PathBuf {
+    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+        if let Some(name) = name.to_string().strip_suffix(" (deleted)") {
+            path.set_file_name(name);
+        }
+    }
+    path
 }
 
 pub fn create_allocation_dir(
@@ -187,7 +203,8 @@ pub fn wrap_worker_cmd(
 
 #[cfg(test)]
 mod tests {
-    use crate::server::autoalloc::queue::common::wrap_worker_cmd;
+    use crate::server::autoalloc::queue::common::{normalize_exe_path, wrap_worker_cmd};
+    use std::path::PathBuf;
 
     #[test]
     fn wrap_cmd_noop() {
@@ -218,6 +235,14 @@ mod tests {
         assert_eq!(
             wrap_worker_cmd("foo bar".to_string(), Some("init.sh"), Some("unload.sh")),
             "init.sh && foo bar; unload.sh".to_string()
+        );
+    }
+
+    #[test]
+    fn normalize_deleted_path() {
+        assert_eq!(
+            normalize_exe_path(PathBuf::from("/a/b/c/hq (deleted)"),),
+            PathBuf::from("/a/b/c/hq")
         );
     }
 }
