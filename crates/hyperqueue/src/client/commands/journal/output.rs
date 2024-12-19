@@ -145,7 +145,7 @@ fn format_payload(event: EventPayload) -> serde_json::Value {
 // We need a special formatter, since BString cannot be used as a hashmap key for JSON
 struct JobInfoFormatter<'a>(&'a JobDescription);
 
-impl<'a> JobInfoFormatter<'a> {
+impl JobInfoFormatter<'_> {
     fn to_json(&self) -> serde_json::Value {
         // Only format the job name for now
         json!({
