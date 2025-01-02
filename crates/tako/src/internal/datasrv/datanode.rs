@@ -1,7 +1,9 @@
 use super::dataobj::{DataObject, DataObjectId};
 use crate::internal::common::error::DsError;
-use crate::{Map, WrappedRcRefCell};
-use futures::StreamExt;
+use crate::internal::worker::state::WorkerStateRef;
+use crate::{Map, TaskId, WrappedRcRefCell};
+use bytes::{Bytes, BytesMut};
+use futures::{Sink, Stream, StreamExt};
 use hashbrown::hash_map::Entry;
 use std::path::Path;
 use std::rc::Rc;
@@ -13,7 +15,7 @@ pub(crate) struct DataNode {
     store: Map<DataObjectId, Rc<DataObject>>,
 }
 
-pub type DataNodeRef = WrappedRcRefCell<DataNode>;
+pub(crate) type DataNodeRef = WrappedRcRefCell<DataNode>;
 
 impl DataNode {
     pub fn new() -> Self {
@@ -41,6 +43,12 @@ impl DataNode {
     }
 }
 
+impl DataNodeRef {
+    pub fn new() -> Self {
+        DataNodeRef::wrap(DataNode::new())
+    }
+}
+
 fn make_protocol_builder() -> Builder {
     *LengthDelimitedCodec::builder().little_endian()
 }
@@ -49,33 +57,14 @@ fn make_protocol_builder() -> Builder {
 //
 // }
 
-async fn run_datanode_over_unix_socket(
-    listener: UnixListener,
+pub(crate) async fn datanode_connection_handler(
     data_node_ref: DataNodeRef,
+    mut rx: impl Stream<Item = Result<BytesMut, std::io::Error>> + std::marker::Unpin,
+    tx: impl Sink<Bytes>,
+    task_id: TaskId,
 ) -> crate::Result<()> {
-    loop {
-        match listener.accept().await {
-            Ok((stream, addr)) => {
-                log::debug!("New data client connected via unix socket: {addr:?}");
-                let data_node_ref = data_node_ref.clone();
-                tokio::task::spawn_local(async move {
-                    let (tx, mut rx) = make_protocol_builder().new_framed(stream).split();
-                    while let Some(msg) = rx.next().await {
-                        match msg {
-                            Ok(msg) => {
-                                todo!()
-                            }
-                            Err(e) => {
-                                log::error!("Data connection error: {e}");
-                                break;
-                            }
-                        }
-                    }
-                });
-            }
-            Err(e) => {
-                log::debug!("Accepting a new data client via unix socket failed: {e}")
-            }
-        }
+    while let Some(data) = rx.next().await {
+        let data = data?;
     }
+    Ok(())
 }
