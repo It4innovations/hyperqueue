@@ -74,7 +74,7 @@ insta = "1.15.0"
 criterion = { version = "0.3", features = ["html_reports"] }
 
 [features]
-default = ["jemalloc"]
+default = ["jemalloc", "dashboard"]
 # Mode that does not execute tasks, useful for benchmarking HQ overhead
 zero-worker = []
 # Use the jemalloc allocator
