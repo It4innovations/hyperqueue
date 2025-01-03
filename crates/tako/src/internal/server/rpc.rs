@@ -23,7 +23,10 @@ use crate::internal::server::reactor::{
     on_task_running,
 };
 use crate::internal::server::worker::Worker;
-use crate::internal::transfer::auth::{do_authentication, forward_queue_to_sealed_sink, is_encryption_disabled, open_message, serialize};
+use crate::internal::transfer::auth::{
+    do_authentication, forward_queue_to_sealed_sink, is_encryption_disabled, open_message,
+    serialize,
+};
 use crate::internal::transfer::transport::make_protocol_builder;
 use crate::internal::worker::configuration::sync_worker_configuration;
 use crate::WorkerId;
