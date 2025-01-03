@@ -8,16 +8,16 @@ utilization of workers.
     and important features might be missing. Please [let us know](https://github.com/It4innovations/hyperqueue/issues)
     if you encounter any issues with it, or if you want us to add new features to it.
 
-!!! error "Dashboard disabled"
-
-    Note that the dashboard has been temporarily disabled in HyperQueue [0.19.0](https://github.com/It4innovations/hyperqueue/releases/tag/v0.19.0) because of internal architectural changes. We plan to re-enable it in the future.
-
 You can start the dashboard using the `hq dashboard` command:
 ```bash
 $ hq dashboard
 ```
 The dashboard will try to connect to a running HyperQueue server, and display various information. You can navigate
 the dashboard using your keyboard.
+
+!!! note
+
+    You have to enable [journalling](../deployment/server.md#resuming-stoppedcrashed-server) in order to see any data in the dashboard.
 
 Here is an example video that shows how does the dashboard look like:
 ![](../imgs/dashboard.gif)
