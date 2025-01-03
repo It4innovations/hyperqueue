@@ -766,30 +766,25 @@ impl Output for CliOutput {
                             format_workers(task.state.get_workers(), &worker_map).cell(),
                         ],
                         vec![
-                            "Times".cell().bold(true),
-                            multiline_cell(vec![
-                                (
-                                    "Start",
-                                    start
-                                        .map(|x| format_time(x).to_string())
-                                        .unwrap_or_else(|| "".to_string()),
-                                ),
-                                (
-                                    "End",
-                                    end.map(|x| format_time(x).to_string())
-                                        .unwrap_or_else(|| "".to_string()),
-                                ),
-                                ("Makespan", format_task_duration(start, end)),
-                            ]),
+                            "Start".cell().bold(true),
+                            start
+                                .map(|x| format_time(x).to_string())
+                                .unwrap_or_else(|| "".to_string())
+                                .cell(),
                         ],
                         vec![
-                            "Paths".cell().bold(true),
-                            multiline_cell(vec![
-                                ("Workdir", cwd),
-                                ("Stdout", stdout),
-                                ("Stderr", stderr),
-                            ]),
+                            "End".cell().bold(true),
+                            end.map(|x| format_time(x).to_string())
+                                .unwrap_or_else(|| "".to_string())
+                                .cell(),
                         ],
+                        vec![
+                            "Makespan".cell().bold(true),
+                            format_task_duration(start, end).cell(),
+                        ],
+                        vec!["Workdir".cell().bold(true), cwd.cell()],
+                        vec!["Stdout".cell().bold(true), stdout.cell()],
+                        vec!["Stderr".cell().bold(true), stderr.cell()],
                         vec![
                             "Error".cell().bold(true),
                             match (verbosity, &task.state) {
@@ -1006,18 +1001,6 @@ impl AllocationTimes {
     fn get_finished_at(&self) -> Option<SystemTime> {
         self.finished_at
     }
-}
-
-fn multiline_cell<T: AsRef<str>>(rows: Vec<(&'static str, T)>) -> CellStruct {
-    if rows.iter().all(|(_, value)| value.as_ref().is_empty()) {
-        return "".cell();
-    }
-
-    rows.into_iter()
-        .map(|(label, value)| format!("{label}: {}", value.as_ref()))
-        .collect::<Vec<_>>()
-        .join("\n")
-        .cell()
 }
 
 fn stdio_to_str(stdio: &StdioDef) -> &str {

@@ -15,7 +15,6 @@ from hyperqueue.output import StdioDef
 from ..conftest import HqEnv
 from ..utils import wait_for_job_state
 from ..utils.io import check_file_contents
-from ..utils.table import parse_multiline_cell
 from ..utils.wait import wait_for_job_list_count
 from ..utils.cmd import bash
 from . import prepare_job_client
@@ -48,8 +47,7 @@ def test_submit_cwd(hq_env: HqEnv):
     wait_for_job_state(hq_env, submitted_job.id, "FINISHED")
 
     table = hq_env.command(["task", "info", str(submitted_job.id), "0"], as_table=True)
-    cell = table.get_row_value("Paths")
-    assert parse_multiline_cell(cell)["Workdir"] == str(cwd)
+    assert table.get_row_value("Workdir") == str(cwd)
 
 
 def test_submit_env(hq_env: HqEnv):

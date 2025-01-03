@@ -8,7 +8,7 @@ from .conftest import HqEnv
 from .utils import wait_for_job_state
 from .utils.io import check_file_contents
 from .utils.job import default_task_output
-from .utils.table import Table, parse_multiline_cell
+from .utils.table import Table
 
 
 def test_cwd_recursive_placeholder(hq_env: HqEnv):
@@ -77,8 +77,11 @@ def test_job_paths_prefilled_placeholders_unresolvable_cwd(hq_env: HqEnv):
 
 # (cwd, stdout, stderr)
 def get_paths(task_table: Table) -> Tuple[str, str, str]:
-    cell = parse_multiline_cell(task_table.get_row_value("Paths"))
-    return (cell["Workdir"], cell["Stdout"], cell["Stderr"])
+    return (
+        task_table.get_row_value("Workdir"),
+        task_table.get_row_value("Stdout"),
+        task_table.get_row_value("Stderr"),
+    )
 
 
 def test_task_resolve_submit_placeholders(hq_env: HqEnv):
@@ -87,7 +90,7 @@ def test_task_resolve_submit_placeholders(hq_env: HqEnv):
     hq_env.command(["submit", "echo", "test"])
     table = hq_env.command(["task", "info", "1", "0"], as_table=True)
     wait_for_job_state(hq_env, 1, "WAITING")
-    assert table.get_row_value("Paths") == ""
+    assert get_paths(table) == ("", "", "")
 
     hq_env.start_worker()
 
@@ -118,7 +121,7 @@ def test_task_resolve_worker_placeholders(hq_env: HqEnv):
     )
     table = hq_env.command(["task", "info", "1", "0"], as_table=True)
     wait_for_job_state(hq_env, 1, "WAITING")
-    assert table.get_row_value("Paths") == ""
+    assert get_paths(table) == ("", "", "")
 
     hq_env.start_worker()
 
