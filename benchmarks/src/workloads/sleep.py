@@ -26,9 +26,7 @@ class Sleep(Workload, ABC):
 
 class SleepHQ(Sleep):
     def execute(self, env: HqEnvironment) -> WorkloadExecutionResult:
-        return measure_hq_tasks(
-            env, [self.sleep_bin, str(self.sleep_duration)], task_count=self.task_count
-        )
+        return measure_hq_tasks(env, [self.sleep_bin, str(self.sleep_duration)], task_count=self.task_count)
 
 
 class SleepSnake(Sleep):
@@ -49,9 +47,7 @@ class SleepDask(Sleep):
         from distributed import Client
 
         def run(client: Client):
-            tasks = client.map(
-                sleep, [self.sleep_duration] * self.task_count, pure=False
-            )
+            tasks = client.map(sleep, [self.sleep_duration] * self.task_count, pure=False)
             client.gather(tasks)
 
         return measure_dask_tasks(env, run)
@@ -70,10 +66,7 @@ class SleepDaskSpawn(Sleep):
 
                 subprocess.run([self.sleep_bin, str(duration)])
 
-            tasks = [
-                client.submit(sleep, self.sleep_duration, pure=False)
-                for _ in range(self.task_count)
-            ]
+            tasks = [client.submit(sleep, self.sleep_duration, pure=False) for _ in range(self.task_count)]
             client.gather(tasks)
 
         return measure_dask_tasks(env, run)

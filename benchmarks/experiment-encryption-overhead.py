@@ -83,9 +83,7 @@ class EncryptionOverhead(TestCase):
             )
             ylabel_set = True
 
-        df["zero-worker"] = np.where(
-            df["zero-worker"], "Zero worker enabled", "Zero worker disabled"
-        )
+        df["zero-worker"] = np.where(df["zero-worker"], "Zero worker enabled", "Zero worker disabled")
         grid = sns.FacetGrid(
             df,
             col="zero-worker",

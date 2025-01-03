@@ -35,7 +35,7 @@ cli = create_cli()
 class DeviceOnly:
     def get_cpu_per_task(self) -> int:
         return 1
-    
+
     def format(self) -> str:
         return "device-only"
 
@@ -65,6 +65,7 @@ class Variant:
 
 ResourceMode = typing.Union[DeviceOnly]
 
+
 def compute(duration: int, device_ratio: int, jitter: float):
     random.seed(int(os.environ.get("HQ_TASK_ID")))
     if jitter > 0:
@@ -82,8 +83,7 @@ def compute(duration: int, device_ratio: int, jitter: float):
 
 
 class DeviceVariants(Workload):
-    def __init__(self, task_count: int, task_duration: int, gpu_perf_ratio: float,
-                 mode: ResourceMode, jitter: float):
+    def __init__(self, task_count: int, task_duration: int, gpu_perf_ratio: float, mode: ResourceMode, jitter: float):
         self.task_count = task_count
         self.task_duration = task_duration
         self.gpu_perf_ratio = gpu_perf_ratio
@@ -100,7 +100,7 @@ class DeviceVariants(Workload):
             "gpu-perf-ratio": self.gpu_perf_ratio,
             "mode": self.mode.format(),
             "cpu-per-task": self.mode.get_cpu_per_task(),
-            "jitter": str(self.jitter)
+            "jitter": str(self.jitter),
         }
 
     def execute(self, env: HqEnvironment) -> WorkloadExecutionResult:
@@ -117,10 +117,7 @@ class DeviceVariants(Workload):
                     return cpu_request
                 return device_request
             elif isinstance(self.mode, Variant):
-                return [
-                    device_request,
-                    cpu_request
-                ]
+                return [device_request, cpu_request]
             else:
                 assert False
 
@@ -135,8 +132,8 @@ class DeviceVariants(Workload):
                 job.function(
                     compute,
                     args=(self.task_duration, self.gpu_perf_ratio, self.jitter),
-                    resources=get_resources(task_id)
-            )
+                    resources=get_resources(task_id),
+                )
             submitted = client.submit(job)
             client.wait_for_jobs([submitted])
         return create_result(get_last_hq_job_duration(env))
@@ -168,22 +165,29 @@ class AlternativeResources(TestCase):
         jitters = [0]
 
         parameters = [(DeviceOnly(), 1)]
-        parameters += [(CpuFixedRatio(cpu_per_task=cpu_per_task, ratio=cpu_ratio), device_ratio)
-                       for (device_ratio, cpu_ratio) in itertools.product(gpu_perf_ratios, cpu_ratios)]
+        parameters += [
+            (CpuFixedRatio(cpu_per_task=cpu_per_task, ratio=cpu_ratio), device_ratio)
+            for (device_ratio, cpu_ratio) in itertools.product(gpu_perf_ratios, cpu_ratios)
+        ]
         parameters += [(Variant(cpu_per_task=cpu_per_task), ratio) for ratio in gpu_perf_ratios]
 
         def gen_descriptions():
-            for (mode, gpu_perf_ratio) in parameters:
+            for mode, gpu_perf_ratio in parameters:
                 for jitter in jitters:
                     env = HqClusterInfo(
                         cluster=ClusterInfo(node_list=nodes),
                         environment_params=dict(device_per_worker=device_per_worker),
-                        workers=[HqWorkerConfig(
-                            cpus=cpus,
-                            resources=dict(device=HqItemsWorkerResource(items=[f"{i + 1}" for i in range(device_per_worker)]))
-                        ) for _ in range(worker_count)],
+                        workers=[
+                            HqWorkerConfig(
+                                cpus=cpus,
+                                resources=dict(
+                                    device=HqItemsWorkerResource(items=[f"{i + 1}" for i in range(device_per_worker)])
+                                ),
+                            )
+                            for _ in range(worker_count)
+                        ],
                         binary=hq_path,
-                        encryption=True
+                        encryption=True,
                     )
 
                     workload = DeviceVariants(
@@ -191,10 +195,11 @@ class AlternativeResources(TestCase):
                         task_duration=task_duration,
                         gpu_perf_ratio=gpu_perf_ratio,
                         mode=mode,
-                        jitter=jitter
+                        jitter=jitter,
                     )
                     yield BenchmarkDescriptor(
-                        env_descriptor=env, workload=workload,
+                        env_descriptor=env,
+                        workload=workload,
                         repeat_count=repeat_count,
                         timeout=datetime.timedelta(seconds=3600),
                     )
@@ -257,7 +262,6 @@ class AlternativeResources(TestCase):
                 ratio = float(mode.split("-")[2]) * 100
                 return f"{100 - ratio:.0f}% GPU, {ratio:.0f}% CPU"
 
-
         def order_mode(mode: str) -> int:
             if mode == "device-only":
                 return "0"
@@ -269,27 +273,21 @@ class AlternativeResources(TestCase):
         modes = sorted(df["mode"].unique(), key=order_mode)
 
         def draw(data, **kwargs):
-            ax = sns.barplot(data, hue="mode", y="duration",
-                             hue_order=[relabel_mode(m) for m in modes],
-                             gap=0.1)
+            ax = sns.barplot(data, hue="mode", y="duration", hue_order=[relabel_mode(m) for m in modes], gap=0.1)
             ax.set(ylabel="Duration [s]", ylim=(0, data["duration"].max() * 1.2))
             for axis in ax.containers:
-                ax.bar_label(
-                    axis,
-                    fmt="%.0f",
-                    padding=5
-                )
+                ax.bar_label(axis, fmt="%.0f", padding=5)
 
         df["mode"] = df["mode"].map(relabel_mode)
-        grid = sns.FacetGrid(
-            df, col="gpu-ratio", sharey=True
-        )
+        grid = sns.FacetGrid(df, col="gpu-ratio", sharey=True)
         grid.map_dataframe(draw)
 
         grid.add_legend(title="Resource mode")
         grid.set_titles(row_template="{row_name}", col_template="GPU to CPU perf. ratio: {col_name}x")
         grid.figure.subplots_adjust(top=0.8)
-        grid.figure.suptitle(f"Load-balancing effect of resource variants ({task_count} tasks, {device_count} GPUs, {cpu_count} CPUs)")
+        grid.figure.suptitle(
+            f"Load-balancing effect of resource variants ({task_count} tasks, {device_count} GPUs, {cpu_count} CPUs)"
+        )
 
         render_chart(workdir / "alternative-resources")
 

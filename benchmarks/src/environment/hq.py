@@ -111,9 +111,7 @@ class HqClusterInfo(EnvironmentDescriptor):
         return params
 
 
-def postprocess_events(
-    binary_path: Path, event_log_path: Path, event_log_json_path: Path, workdir: Path
-):
+def postprocess_events(binary_path: Path, event_log_path: Path, event_log_json_path: Path, workdir: Path):
     with open(event_log_json_path, "w") as f:
         subprocess.run([str(binary_path), "journal", "export", str(event_log_path)], stdout=f, check=True)
     export_hq_events_to_chrome(event_log_json_path, workdir / "events-chrome.json")
@@ -134,11 +132,7 @@ class HqEnvironment(Environment, EnvStateManager):
         self.nodes = self.info.cluster.node_list.resolve()
         sanity_check_nodes(self.nodes)
 
-        worker_nodes = (
-            self.nodes
-            if isinstance(self.info.cluster.node_list, Local)
-            else self.nodes[1:]
-        )
+        worker_nodes = self.nodes if isinstance(self.info.cluster.node_list, Local) else self.nodes[1:]
         if not worker_nodes and info.autoalloc is None:
             raise Exception("No worker nodes are available")
 
@@ -190,9 +184,7 @@ class HqEnvironment(Environment, EnvStateManager):
             event_log_path = workdir / "events.bin"
             event_log_json_path = workdir / "events.json"
             self.postprocessing_fns.append(
-                lambda: postprocess_events(
-                    self.binary_path, event_log_path, event_log_json_path, workdir
-                )
+                lambda: postprocess_events(self.binary_path, event_log_path, event_log_json_path, workdir)
             )
             args += ["--journal", str(event_log_path)]
 
@@ -275,18 +267,14 @@ class HqEnvironment(Environment, EnvStateManager):
         logging.info("Stopping HQ server and waiting for server and workers to stop")
 
         if self.info.autoalloc is not None and self.info.autoalloc.wait_end is not None:
-            print(
-                f"Sleeping for {self.info.autoalloc.wait_end} to wait for autoalloc queue to flush"
-            )
+            print(f"Sleeping for {self.info.autoalloc.wait_end} to wait for autoalloc queue to flush")
             try:
                 time.sleep(self.info.autoalloc.wait_end.total_seconds())
             except KeyboardInterrupt:
                 print("Interrupting autoalloc sleep")
 
         # Stop the server
-        subprocess.run(
-            [*self._shared_args(), "server", "stop"], env=self._shared_envs()
-        )
+        subprocess.run([*self._shared_args(), "server", "stop"], env=self._shared_envs())
         # Wait for the server and worker to end
         self.cluster.wait_for_process_end(
             lambda p: p.key == "server" or p.key.startswith("worker"),
@@ -302,9 +290,7 @@ class HqEnvironment(Environment, EnvStateManager):
                 traceback.print_exc()
                 print("Postprocessing function failed")
 
-    def submit(
-        self, args: List[str], measured: bool = True
-    ) -> subprocess.CompletedProcess:
+    def submit(self, args: List[str], measured: bool = True) -> subprocess.CompletedProcess:
         args = self._shared_args() + args
 
         if measured:
@@ -313,9 +299,7 @@ class HqEnvironment(Environment, EnvStateManager):
             stderr = Path(f"{path}.err")
 
             logging.debug(f"[HQ] Submitting `{' '.join(args)}`")
-            result = execute_process(
-                args, stdout=stdout, stderr=stderr, env=self._shared_envs()
-            )
+            result = execute_process(args, stdout=stdout, stderr=stderr, env=self._shared_envs())
 
             self.submit_id += 1
         else:
@@ -329,9 +313,7 @@ class HqEnvironment(Environment, EnvStateManager):
 
     def create_client(self, **kwargs) -> Client:
         if "python_env" not in kwargs:
-            kwargs["python_env"] = PythonEnv(
-                prologue=f"source {os.environ['VIRTUAL_ENV']}/bin/activate"
-            )
+            kwargs["python_env"] = PythonEnv(prologue=f"source {os.environ['VIRTUAL_ENV']}/bin/activate")
         return Client(self.server_dir, **kwargs)
 
     def _shared_args(self) -> List[str]:
@@ -367,9 +349,7 @@ class HqEnvironment(Environment, EnvStateManager):
         )
 
 
-def apply_profilers(
-    args: StartProcessArgs, profilers: List[Profiler], output_dir: Path
-):
+def apply_profilers(args: StartProcessArgs, profilers: List[Profiler], output_dir: Path):
     for profiler in profilers:
         profiler.check_availability()
         result = profiler.profile(args.args, output_dir.absolute())

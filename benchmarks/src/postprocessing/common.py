@@ -63,9 +63,7 @@ def get_process_aggregated_stats(report: ClusterReport) -> Dict[Any, ProcessStat
                 if pid in pid_to_key:
                     key = pid_to_key[pid]
                     used_keys.add(key)
-                    process_stats[key]["max_rss"] = max(
-                        process_record.rss, process_stats[key]["max_rss"]
-                    )
+                    process_stats[key]["max_rss"] = max(process_record.rss, process_stats[key]["max_rss"])
                     process_stats[key]["avg_cpu"].append(process_record.cpu)
 
     for worker in process_stats:
@@ -75,10 +73,7 @@ def get_process_aggregated_stats(report: ClusterReport) -> Dict[Any, ProcessStat
     for key in unused_keys:
         del process_stats[key]
 
-    return {
-        k: ProcessStats(max_rss=v["max_rss"], avg_cpu=v["avg_cpu"])
-        for (k, v) in process_stats.items()
-    }
+    return {k: ProcessStats(max_rss=v["max_rss"], avg_cpu=v["avg_cpu"]) for (k, v) in process_stats.items()}
 
 
 def average(data) -> float:
@@ -128,9 +123,7 @@ def analyze_results_utilization(db: Database) -> pd.DataFrame:
 
         for node, records in cluster_report.monitoring.items():
             processes = node.processes
-            worker_processes = tuple(
-                proc.pid for proc in processes if proc.key.startswith("worker")
-            )
+            worker_processes = tuple(proc.pid for proc in processes if proc.key.startswith("worker"))
             if len(worker_processes) > 0:
                 for record in records:
                     avg_node_util = np.mean(record.resources.cpu)
@@ -140,9 +133,7 @@ def analyze_results_utilization(db: Database) -> pd.DataFrame:
                     for pid, process_resources in record.processes.items():
                         pid = int(pid)
                         if pid in worker_processes:
-                            worker_cpu_util += (
-                                process_resources.cpu + process_resources.cpu_children
-                            )
+                            worker_cpu_util += process_resources.cpu + process_resources.cpu_children
                     worker_cpu_utilizations.append(worker_cpu_util)
 
         node_util = np.mean(worker_node_utilizations)
@@ -187,9 +178,7 @@ def analyze_per_worker_utilization(db: Database) -> pd.DataFrame:
 
         for node, records in cluster_report.monitoring.items():
             processes = node.processes
-            worker_processes = tuple(
-                proc.pid for proc in processes if proc.key.startswith("worker")
-            )
+            worker_processes = tuple(proc.pid for proc in processes if proc.key.startswith("worker"))
             if len(worker_processes) > 0:
                 for record in records:
                     avg_node_util = np.mean(record.resources.cpu)

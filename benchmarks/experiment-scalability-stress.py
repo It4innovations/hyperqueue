@@ -33,9 +33,7 @@ cli = create_cli()
 
 
 class StressWorkload(Stress):
-    def __init__(
-        self, task_count: int, cpu_count: int, stress_duration: int, mode: str
-    ):
+    def __init__(self, task_count: int, cpu_count: int, stress_duration: int, mode: str):
         super().__init__(task_count, cpu_count, stress_duration)
         self.mode = mode
 
@@ -147,9 +145,7 @@ class ScalabilityStress(TestCase):
 
         # Fixed task duration, scale task count
         task_counts = [10000, 20000]
-        parameters = list(
-            itertools.product([stress_duration], task_counts, worker_counts)
-        )
+        parameters = list(itertools.product([stress_duration], task_counts, worker_counts))
 
         def gen_items():
             for task_duration, task_count, worker_count in parameters:
@@ -175,14 +171,9 @@ class ScalabilityStress(TestCase):
                 items += [
                     (
                         DaskClusterInfo(
-                            cluster_info=ClusterInfo(
-                                node_list=nodes, monitor_nodes=True
-                            ),
+                            cluster_info=ClusterInfo(node_list=nodes, monitor_nodes=True),
                             environment_params=dict(worker_threads=128, processes=1),
-                            workers=[
-                                create_dask_worker(cores=128, n_processes=1)
-                                for _ in range(worker_count)
-                            ],
+                            workers=[create_dask_worker(cores=128, n_processes=1) for _ in range(worker_count)],
                         ),
                         StressWorkloadDask(
                             task_count=task_count,
@@ -230,9 +221,7 @@ class ScalabilityStress(TestCase):
                 "5-e4-30": "Task duration 5s/30s",
             }[mode]
 
-        util_df["workload-duration-mode"] = util_df["workload-duration-mode"].map(
-            rename_mode
-        )
+        util_df["workload-duration-mode"] = util_df["workload-duration-mode"].map(rename_mode)
         selected_modes = tuple(rename_mode(m) for m in ("direct", "5-e4-30"))
 
         util_df = util_df[util_df["workload-duration-mode"].isin(selected_modes)]
@@ -289,9 +278,7 @@ class ScalabilityStress(TestCase):
         grid.map_dataframe(draw)
         grid.set_titles(col_template="{col_name}", row_template="{row_name}")
         grid.figure.subplots_adjust(top=0.9)
-        grid.figure.suptitle(
-            f"Node CPU utilization ({format_large_int(task_count)} tasks, {worker_count} workers)"
-        )
+        grid.figure.suptitle(f"Node CPU utilization ({format_large_int(task_count)} tasks, {worker_count} workers)")
 
         render_chart(workdir / "scalability-stress-utilization")
 
@@ -398,8 +385,7 @@ def draw_scalability_chart(df: pd.DataFrame, title: str):
                         max_speedup + offset[1],
                         (
                             f"{int(round(max_speedup, 1))}x"
-                            if abs(int(round(max_speedup, 1)) - round(max_speedup, 1))
-                            < 0.01
+                            if abs(int(round(max_speedup, 1)) - round(max_speedup, 1)) < 0.01
                             else f"{max_speedup:.1f}x"
                         ),
                         fontsize="small",
@@ -410,9 +396,7 @@ def draw_scalability_chart(df: pd.DataFrame, title: str):
     df2["kind"] = "speedup"
     df = pd.concat((df, df2))
 
-    grid = sns.FacetGrid(
-        df, col="task_count", row="kind", sharey=False, margin_titles=True
-    )
+    grid = sns.FacetGrid(df, col="task_count", row="kind", sharey=False, margin_titles=True)
     grid.map_dataframe(draw)
     grid.add_legend(title="Speedup")
     grid.set_titles(row_template="", col_template="{col_name}")

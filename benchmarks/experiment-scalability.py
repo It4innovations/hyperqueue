@@ -72,9 +72,7 @@ class Scalability(TestCase):
                 )
                 yield BenchmarkDescriptor(
                     env_descriptor=env,
-                    workload=SleepHQ(
-                        task_count=task_count, sleep_duration=task_duration
-                    ),
+                    workload=SleepHQ(task_count=task_count, sleep_duration=task_duration),
                     repeat_count=repeat_count,
                     timeout=datetime.timedelta(seconds=3600),
                 )
@@ -109,9 +107,7 @@ class Scalability(TestCase):
             lambda row: f"{format_large_int(int(row['task_count']))} tasks",
             axis=1,
         )
-        draw_scalability_chart(
-            fixed_task_duration, title="Strong scalability (task duration 1s)"
-        )
+        draw_scalability_chart(fixed_task_duration, title="Strong scalability (task duration 1s)")
         render_chart(workdir / "scalability-fixed-task-duration")
 
 
@@ -210,8 +206,7 @@ def draw_scalability_chart(df: pd.DataFrame, title: str):
                         max_speedup + offset[1],
                         (
                             f"{int(round(max_speedup, 1))}x"
-                            if abs(int(round(max_speedup, 1)) - round(max_speedup, 1))
-                            < 0.01
+                            if abs(int(round(max_speedup, 1)) - round(max_speedup, 1)) < 0.01
                             else f"{max_speedup:.1f}x"
                         ),
                         fontsize="small",
@@ -222,9 +217,7 @@ def draw_scalability_chart(df: pd.DataFrame, title: str):
     df2["kind"] = "speedup"
     df = pd.concat((df, df2))
 
-    grid = sns.FacetGrid(
-        df, col="task_count", row="kind", sharey=False, margin_titles=True
-    )
+    grid = sns.FacetGrid(df, col="task_count", row="kind", sharey=False, margin_titles=True)
     grid.map_dataframe(draw)
     grid.add_legend(title="Speedup")
     grid.set_titles(row_template="", col_template="{col_name}")

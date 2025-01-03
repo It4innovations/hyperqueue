@@ -61,9 +61,7 @@ def record_resources(options: MonitoringOptions) -> ResourceRecord:
     mem = psutil.virtual_memory().percent
 
     if options.observe_network:
-        connections = sum(
-            1 if c[5] == "ESTABLISHED" else 0 for c in psutil.net_connections()
-        )
+        connections = sum(1 if c[5] == "ESTABLISHED" else 0 for c in psutil.net_connections())
         bytes = psutil.net_io_counters()
         io = psutil.disk_io_counters()
     else:

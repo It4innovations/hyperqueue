@@ -95,12 +95,10 @@ class GenerateData(Workload):
         else:
 
             def get_size() -> int:
-                stdout_size = subprocess.run(
-                    ["du", "-sh", workdir / "job-1"], stdout=subprocess.PIPE
-                ).stdout.decode("utf-8")
-                size = (
-                    stdout_size.splitlines(keepends=False)[0].strip().split()[0].strip()
+                stdout_size = subprocess.run(["du", "-sh", workdir / "job-1"], stdout=subprocess.PIPE).stdout.decode(
+                    "utf-8"
                 )
+                size = stdout_size.splitlines(keepends=False)[0].strip().split()[0].strip()
                 multiplier = size[-1]
                 size = float(size[:-1])
                 if multiplier == "K":
@@ -234,12 +232,8 @@ class IoStreaming(TestCase):
                 ylim=(0, data["duration"].max() * 1.3),
             )
 
-        df["task_count"] = df["task_count"].map(
-            lambda v: f"{format_large_int(v)} tasks"
-        )
-        grid = sns.FacetGrid(
-            df, col="task_count", row="disk", sharey=True, margin_titles=True
-        )
+        df["task_count"] = df["task_count"].map(lambda v: f"{format_large_int(v)} tasks")
+        grid = sns.FacetGrid(df, col="task_count", row="disk", sharey=True, margin_titles=True)
         grid.map_dataframe(draw)
 
         remap_names = {

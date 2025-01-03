@@ -63,13 +63,8 @@ class DaskVsHqSleep(TestCase):
                 dask_envs.append(
                     DaskClusterInfo(
                         cluster_info=ClusterInfo(node_list=nodes),
-                        environment_params=dict(
-                            worker_threads=cores, processes=n_processes
-                        ),
-                        workers=[
-                            create_dask_worker(cores=cores, n_processes=n_processes)
-                            for _ in range(worker_count)
-                        ],
+                        environment_params=dict(worker_threads=cores, processes=n_processes),
+                        workers=[create_dask_worker(cores=cores, n_processes=n_processes) for _ in range(worker_count)],
                     )
                 )
             hq_envs.append(
@@ -94,9 +89,7 @@ class DaskVsHqSleep(TestCase):
             print(
                 f"Sleep duration {sleep_duration}, task_count {task_count}, env {env.__class__.__name__} ({env.parameters()})"
             )
-            workload = workload_cls(
-                task_count=task_count, sleep_duration=sleep_duration
-            )
+            workload = workload_cls(task_count=task_count, sleep_duration=sleep_duration)
             yield BenchmarkDescriptor(
                 env_descriptor=env,
                 workload=workload,
@@ -193,13 +186,9 @@ class DaskVsHqEmpty(TestCase):
                                 workload,
                                 DaskClusterInfo(
                                     cluster_info=ClusterInfo(node_list=nodes),
-                                    environment_params=dict(
-                                        worker_threads=cores, processes=n_processes
-                                    ),
+                                    environment_params=dict(worker_threads=cores, processes=n_processes),
                                     workers=[
-                                        create_dask_worker(
-                                            cores=cores, n_processes=n_processes
-                                        )
+                                        create_dask_worker(cores=cores, n_processes=n_processes)
                                         for _ in range(worker_count)
                                     ],
                                 ),
@@ -212,10 +201,7 @@ class DaskVsHqEmpty(TestCase):
                             HqClusterInfo(
                                 cluster=ClusterInfo(node_list=nodes),
                                 environment_params=dict(worker_threads=cores, zw=False),
-                                workers=[
-                                    HqWorkerConfig(cpus=cores)
-                                    for _ in range(worker_count)
-                                ],
+                                workers=[HqWorkerConfig(cpus=cores) for _ in range(worker_count)],
                                 binary=hq_path,
                                 fast_spawn=True,
                             ),
@@ -227,10 +213,7 @@ class DaskVsHqEmpty(TestCase):
                             HqClusterInfo(
                                 cluster=ClusterInfo(node_list=nodes),
                                 environment_params=dict(worker_threads=cores, zw=True),
-                                workers=[
-                                    HqWorkerConfig(cpus=cores)
-                                    for _ in range(worker_count)
-                                ],
+                                workers=[HqWorkerConfig(cpus=cores) for _ in range(worker_count)],
                                 binary=hq_path_zw,
                             ),
                         )
@@ -269,9 +252,7 @@ class DaskVsHqEmpty(TestCase):
         )
 
         def draw(data, **kwargs):
-            show_yaxis_label = (
-                data["task-count"].isin(("5000 tasks", "50 000 tasks")).any()
-            )
+            show_yaxis_label = data["task-count"].isin(("5000 tasks", "50 000 tasks")).any()
             ax = sns.barplot(data, x="worker-count", y="duration", hue="environment")
             for axis in ax.containers:
                 ax.bar_label(axis, rotation=90, fmt="%.1f", padding=5)

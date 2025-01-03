@@ -43,9 +43,7 @@ class WorkerConfig(Protocol):
     node: Optional[int]
 
 
-def assign_workers(
-    workers: List[WorkerConfig], nodes: List[str]
-) -> Dict[str, List[WorkerConfig]]:
+def assign_workers(workers: List[WorkerConfig], nodes: List[str]) -> Dict[str, List[WorkerConfig]]:
     round_robin_node = 0
     used_round_robin = set()
 
@@ -62,13 +60,9 @@ def assign_workers(
             node = round_robin_node
             round_robin_node = (round_robin_node + 1) % len(nodes)
             if node in used_round_robin:
-                raise Exception(
-                    f"There are more workers ({len(workers)}) than worker nodes ({len(nodes)})"
-                )
+                raise Exception(f"There are more workers ({len(workers)}) than worker nodes ({len(nodes)})")
             used_round_robin.add(node)
         if node >= len(nodes):
-            raise Exception(
-                f"Selected worker node is {node}, but there are only {len(nodes)} worker node(s)"
-            )
+            raise Exception(f"Selected worker node is {node}, but there are only {len(nodes)} worker node(s)")
         node_assignments[nodes[node]].append(worker)
     return dict(node_assignments)

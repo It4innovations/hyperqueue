@@ -40,9 +40,7 @@ class PerTaskOverhead(TestCase):
         worker_counts = [1, 2, 4, 8, 16]
 
         def gen_items():
-            for task_count, worker_count in itertools.product(
-                task_counts, worker_counts
-            ):
+            for task_count, worker_count in itertools.product(task_counts, worker_counts):
                 env = HqClusterInfo(
                     cluster=ClusterInfo(node_list=nodes),
                     environment_params=dict(),
@@ -66,9 +64,7 @@ class PerTaskOverhead(TestCase):
             .extract("index", "duration", "environment")
             .transform("task_count", lambda r: r.workload_params["task_count"])
             .transform("task_duration", lambda r: r.workload_params["duration"])
-            .transform(
-                "worker_count", lambda r: r.environment_params.get("worker_count", 1)
-            )
+            .transform("worker_count", lambda r: r.environment_params.get("worker_count", 1))
             .build()
         )
 
@@ -107,9 +103,7 @@ class PerTaskOverhead(TestCase):
 
         df["task_count"] = df["task_count"].map(format_large_int)
         grid = sns.FacetGrid(df, col="task_count", col_wrap=3, sharey=True)
-        grid.map_dataframe(
-            lambda data, **kwargs: draw(data, "task_per_s", "Task/s", **kwargs)
-        )
+        grid.map_dataframe(lambda data, **kwargs: draw(data, "task_per_s", "Task/s", **kwargs))
         grid.set_titles(col_template="{col_name} tasks")
         grid.figure.subplots_adjust(top=0.9)
         grid.figure.suptitle("Tasks per second with zero worker mode")

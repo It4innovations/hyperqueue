@@ -88,9 +88,7 @@ class TotalOverhead(TestCase):
         worker_counts = [1, 2, 4]
 
         def gen_items():
-            for task_count, duration, worker_count in itertools.product(
-                task_counts, durations, worker_counts
-            ):
+            for task_count, duration, worker_count in itertools.product(task_counts, durations, worker_counts):
                 # HQ
                 env = HqClusterInfo(
                     cluster=ClusterInfo(node_list=nodes),
@@ -110,9 +108,7 @@ class TotalOverhead(TestCase):
                     env = DummyEnvDescriptor()
                     yield BenchmarkDescriptor(
                         env_descriptor=env,
-                        workload=LocalSleepSpawner(
-                            task_count=task_count, sleep_duration=duration
-                        ),
+                        workload=LocalSleepSpawner(task_count=task_count, sleep_duration=duration),
                         repeat_count=repeat_count,
                     )
 
@@ -124,9 +120,7 @@ class TotalOverhead(TestCase):
             .extract("index", "duration", "environment")
             .transform("task_count", lambda r: r.workload_params["task_count"])
             .transform("task_duration", lambda r: r.workload_params["duration"])
-            .transform(
-                "worker_count", lambda r: r.environment_params.get("worker_count", 1)
-            )
+            .transform("worker_count", lambda r: r.environment_params.get("worker_count", 1))
             .build()
         )
 
@@ -137,9 +131,7 @@ class TotalOverhead(TestCase):
 def render_hq_overhead_ratio(df: pd.DataFrame, path: Path):
     df = df[df["environment"] == "hq"].copy()
     # Calculate theoretical ideal makespan
-    df["expected_duration"] = (
-        df["task_count"] * np.maximum(df["task_duration"], 0.001)
-    ) / (128 * df["worker_count"])
+    df["expected_duration"] = (df["task_count"] * np.maximum(df["task_duration"], 0.001)) / (128 * df["worker_count"])
 
     draw_bar_chart_ratio(df, "HyperQueue makespan vs ideal makespan", sharey="col")
     render_chart(path)
@@ -200,9 +192,7 @@ def draw_bar_chart_ratio(df: pd.DataFrame, title: str, sharey):
     df["task_duration"] = df["task_duration"].map(lambda v: f"Task duration {v}s")
     df["task_count"] = df["task_count"].map(lambda v: f"{format_large_int(v)} tasks")
 
-    grid = sns.FacetGrid(
-        df, col="task_duration", row="task_count", sharey=sharey, margin_titles=True
-    )
+    grid = sns.FacetGrid(df, col="task_duration", row="task_count", sharey=sharey, margin_titles=True)
     grid.map_dataframe(draw)
     grid.add_legend(loc="upper center")
     grid.set_titles(col_template="{col_name}", row_template="{row_name}")
@@ -237,9 +227,7 @@ def render_duration_vs_expected_duration(df: pd.DataFrame, path: Path):
             ylim=(0, data["makespan"].max() * 1.3),
         )
 
-    grid = sns.FacetGrid(
-        df, row="worker_count", col="task_count", sharey=False, sharex=False
-    )
+    grid = sns.FacetGrid(df, row="worker_count", col="task_count", sharey=False, sharex=False)
     grid.map_dataframe(draw)
     grid.add_legend(loc="upper center")
     grid.figure.subplots_adjust(top=0.9, right=0.9)
