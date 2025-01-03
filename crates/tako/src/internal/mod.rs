@@ -6,7 +6,7 @@ pub mod server;
 pub(crate) mod transfer;
 pub mod worker;
 
-mod datasrv;
+pub(crate) mod datasrv;
 pub mod tests;
 
 pub use common::utils::has_unique_elements;

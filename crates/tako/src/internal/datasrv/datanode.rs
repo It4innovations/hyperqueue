@@ -49,14 +49,6 @@ impl DataNodeRef {
     }
 }
 
-fn make_protocol_builder() -> Builder {
-    *LengthDelimitedCodec::builder().little_endian()
-}
-
-// async fn process_datanode_message(data_node_ref: DataNodeRef, msg: ToDataNodeMessage, Box<dyn SplitSink>) {
-//
-// }
-
 pub(crate) async fn datanode_connection_handler(
     data_node_ref: DataNodeRef,
     mut rx: impl Stream<Item = Result<BytesMut, std::io::Error>> + std::marker::Unpin,

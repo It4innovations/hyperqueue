@@ -5,7 +5,8 @@ use bstr::{BStr, BString, ByteSlice};
 use futures::StreamExt;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::rc::Rc;
 use tokio::net::{UnixListener, UnixStream};
 use tokio_util::codec::length_delimited::Builder;
@@ -57,12 +58,12 @@ impl LocalCommState {
     }
 }
 
-#[derive(Deserialize)]
-struct IntroMessage {
-    token: BString,
+#[derive(Serialize, Deserialize)]
+pub(crate) struct IntroMessage {
+    pub token: BString,
 }
 
-fn make_protocol_builder() -> Builder {
+pub(crate) fn make_protocol_builder() -> Builder {
     *LengthDelimitedCodec::builder().little_endian()
 }
 

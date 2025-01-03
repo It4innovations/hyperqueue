@@ -1,23 +1,23 @@
 use crate::internal::datasrv::dataobj::DataId;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
-struct DataObject {
-    mime_type: String,
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct DataObject {
+    pub mime_type: String,
     #[serde(with = "serde_bytes")]
-    data: Vec<u8>,
+    pub data: Vec<u8>,
 }
 
-#[derive(Debug, Deserialize)]
-enum ToDataNodeLocalMessage {
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) enum ToDataNodeLocalMessage {
     PutDataObject {
         data_id: DataId,
         data_object: DataObject,
     },
 }
 
-#[derive(Debug, Deserialize)]
-enum FromDataNodeLocalMessage {
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) enum FromDataNodeLocalMessage {
     Uploaded(DataId),
     Error(String),
 }
