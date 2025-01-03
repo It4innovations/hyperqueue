@@ -217,15 +217,14 @@ pub struct DashboardOpts {
 #[derive(Parser, Default)]
 pub enum DashboardCommand {
     /// Stream events from a server.
+    /// Note that this will replay all events from the currently active
+    /// journal file before new events will be streamed.
     #[default]
     Stream,
     /// Replay events from a recorded journal file.
     Replay {
         /// Path to a journal file created via `hq server start --journal=<path>`.
         journal: PathBuf,
-        /// Also stream new events from a server after replaying events from the journal.
-        #[clap(long)]
-        stream: bool,
     },
 }
 
