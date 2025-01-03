@@ -29,16 +29,10 @@ jobs:
         run: python scripts/check_package_versions.py
 
       - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --all --all-targets
+        run: cargo build --workspace --all-targets
 
       - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all
+        run: cargo test --workspace
 
       - name: Setup Python
         uses: actions/setup-python@v2
@@ -72,16 +66,10 @@ jobs:
           path: artifacts.tar
 
       - name: Lint Rust
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all -- -D warnings
+        run: cargo clippy --workspace -- -D warnings
 
       - name: Check Rust formatting
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all -- --check
 
       - name: Lint Python
         run: python -m ruff check
