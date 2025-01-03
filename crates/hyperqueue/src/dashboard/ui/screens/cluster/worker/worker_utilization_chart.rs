@@ -25,7 +25,7 @@ impl WorkerUtilizationChart {
             overview
                 .hw_state
                 .as_ref()
-                .map(|s| get_average_cpu_usage_for_worker(s))
+                .map(get_average_cpu_usage_for_worker)
                 .unwrap_or(0.0)
         });
         let mem_usage = generate_dataset_entries(&self.overviews, |overview| {
