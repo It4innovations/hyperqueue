@@ -299,20 +299,20 @@ async fn command_dashboard_start(
 ) -> anyhow::Result<()> {
     use hyperqueue::common::cli::DashboardCommand;
     use hyperqueue::dashboard::start_ui_loop;
-    use hyperqueue::server::event::log::JournalReader;
+    use hyperqueue::server::event::journal::JournalReader;
     use hyperqueue::server::event::Event;
 
     match opts.subcmd.unwrap_or_default() {
-        DashboardCommand::Replay { journal, stream } => {
+        DashboardCommand::Replay { journal } => {
             println!("Loading journal {}", journal.display());
             let mut journal = JournalReader::open(&journal)?;
             let events: Vec<Event> = journal.collect::<Result<_, _>>()?;
             println!("Loaded {} events", events.len());
 
-            start_ui_loop(gsettings, events, stream).await?;
+            start_ui_loop(gsettings, Some(events)).await?;
         }
         DashboardCommand::Stream => {
-            start_ui_loop(gsettings, vec![], true).await?;
+            start_ui_loop(gsettings, None).await?;
         }
     }
 

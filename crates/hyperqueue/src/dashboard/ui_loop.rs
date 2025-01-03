@@ -4,6 +4,7 @@ use futures::StreamExt;
 use std::future::Future;
 use std::ops::ControlFlow;
 use std::pin::Pin;
+use std::time::SystemTime;
 use tokio::time::Duration;
 
 use crate::client::globalsettings::GlobalSettings;
@@ -18,18 +19,24 @@ use crate::server::event::Event;
 /// Starts the dashboard UI with a keyboard listener and tick provider
 pub async fn start_ui_loop(
     gsettings: &GlobalSettings,
-    events: Vec<Event>,
-    stream: bool,
+    events: Option<Vec<Event>>,
 ) -> anyhow::Result<()> {
-    let time_mode = if stream || events.is_empty() {
-        TimeMode::Live(DEFAULT_LIVE_DURATION)
-    } else {
-        let end = events.last().unwrap().time.into();
-        TimeMode::Fixed(TimeRange::new(end - Duration::from_secs(60 * 5), end))
+    let stream = events.is_none();
+    let time_mode = match &events {
+        Some(events) => {
+            let end = match events.last() {
+                Some(event) => event.time.into(),
+                None => SystemTime::now(),
+            };
+            TimeMode::Fixed(TimeRange::new(end - Duration::from_secs(60 * 5), end))
+        }
+        None => TimeMode::Live(DEFAULT_LIVE_DURATION),
     };
 
     let mut dashboard_data = DashboardData::new(time_mode, stream);
-    dashboard_data.push_new_events(events);
+    if let Some(events) = events {
+        dashboard_data.push_new_events(events);
+    }
 
     let mut root_screen = RootScreen::default();
 
