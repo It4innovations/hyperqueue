@@ -210,7 +210,7 @@ pub fn map_parse_result<O>(
 /// Take a parser and input and return Result with a formatted error.
 pub fn consume_all<'a, O, F>(f: F, input: &'a str) -> anyhow::Result<O>
 where
-    F: FnMut(&'a str) -> NomResult<O>,
+    F: FnMut(&'a str) -> NomResult<'a, O>,
 {
     map_parse_result(all_consuming(f)(input).map(|r| r.1), input)
 }
