@@ -6,6 +6,7 @@
 ### Changes
 
 * `hq event-log` command renamed to `hq journal`
+* `hq dashboard` has been re-enabled by default.
 
 ### New features
 
