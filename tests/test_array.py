@@ -7,7 +7,6 @@ from .conftest import HqEnv
 from .utils import wait_for_job_state
 from .utils.io import check_file_contents
 from .utils.job import default_task_output, list_jobs
-from .utils.table import parse_multiline_cell
 
 
 def test_job_array_submit(hq_env: HqEnv):
@@ -221,8 +220,7 @@ def test_array_times(hq_env: HqEnv):
 
     for i in range(1, 4):
         table = hq_env.command(["task", "info", "1", str(i)], as_table=True)
-        cell = parse_multiline_cell(table.get_row_value("Times"))
-        start = datetime.datetime.strptime(cell["Start"], "%d.%m.%Y %H:%M:%S")
-        end = datetime.datetime.strptime(cell["End"], "%d.%m.%Y %H:%M:%S")
+        start = datetime.datetime.strptime(table.get_row_value("Start"), "%d.%m.%Y %H:%M:%S")
+        end = datetime.datetime.strptime(table.get_row_value("End"), "%d.%m.%Y %H:%M:%S")
         seconds = (end - start).total_seconds()
         assert 0.9 <= seconds <= 1.1

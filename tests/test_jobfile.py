@@ -80,9 +80,8 @@ resources = { "gpus" = 1.1 }
     table.check_row_value("Crash limit", "12")
     table.check_row_value("Task dir", "yes")
     table.check_row_value("Resources", "nodes: 2")
-    paths = table.get_row_value("Paths").split("\n")
-    assert paths[1].endswith("testout-12")
-    assert paths[2].endswith("testerr-12")
+    assert table.get_row_value("Stdout").endswith("testout-12")
+    assert table.get_row_value("Stderr").endswith("testerr-12")
 
     r = hq_env.command(["job", "cat", "1", "stdout", "--tasks", "12"]).strip()
     assert r == "123 aaaa\nHello world!"
@@ -94,10 +93,9 @@ resources = { "gpus" = 1.1 }
     table.check_row_value("Crash limit", "0")
     table.check_row_value("Task dir", "no")
 
-    paths = table.get_row_value("Paths").split("\n")
-    assert paths[0].endswith("test-200")
-    assert paths[1].endswith("/test-200/job-1/200.stdout")
-    assert paths[2].endswith("/test-200/job-1/200.stderr")
+    assert table.get_row_value("Workdir").endswith("test-200")
+    assert table.get_row_value("Stdout").endswith("/test-200/job-1/200.stdout")
+    assert table.get_row_value("Stderr").endswith("/test-200/job-1/200.stderr")
 
     table = hq_env.command(["task", "info", "1", "13"], as_table=True)
     table.check_row_value("Pin", "omp")

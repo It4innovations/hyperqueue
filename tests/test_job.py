@@ -14,7 +14,6 @@ from .utils import wait_for_job_state
 from .utils.cmd import python
 from .utils.io import check_file_contents, read_file
 from .utils.job import default_task_output, list_jobs
-from .utils.table import parse_multiline_cell
 from .utils.wait import wait_for_pid_exit, wait_for_worker_state, wait_until
 
 
@@ -846,7 +845,7 @@ def test_job_completion_time(hq_env: HqEnv):
     assert table.get_row_value("Makespan").startswith("1s")
 
     table = hq_env.command(["task", "info", "1", "0"], as_table=True)
-    parse_multiline_cell(table.get_row_value("Times"))["Makespan"].startswith("1s")
+    table.get_row_value("Makespan").startswith("1s")
 
 
 def test_job_timeout(hq_env: HqEnv):
