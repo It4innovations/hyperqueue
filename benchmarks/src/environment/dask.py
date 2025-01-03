@@ -37,9 +37,7 @@ class DaskWorkerConfig:
     @staticmethod
     def create(count: int, n_processes: int = 1, **kwargs) -> "DaskWorkerConfig":
         assert count % n_processes == 0
-        return DaskWorkerConfig(
-            processes=n_processes, threads_per_process=count // n_processes, **kwargs
-        )
+        return DaskWorkerConfig(processes=n_processes, threads_per_process=count // n_processes, **kwargs)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -83,11 +81,7 @@ class DaskEnvironment(Environment, EnvStateManager):
         self.nodes = self.info.cluster_info.node_list.resolve()
         sanity_check_nodes(self.nodes)
 
-        worker_nodes = (
-            self.nodes
-            if isinstance(self.info.cluster_info.node_list, Local)
-            else self.nodes[1:]
-        )
+        worker_nodes = self.nodes if isinstance(self.info.cluster_info.node_list, Local) else self.nodes[1:]
         if not worker_nodes:
             raise Exception("No worker nodes are available")
 
@@ -119,9 +113,7 @@ class DaskEnvironment(Environment, EnvStateManager):
         time.sleep(1)
         assert len(self.client.scheduler_info()["workers"]) == self.worker_count
 
-        self.cluster.start_monitoring(
-            self.info.cluster_info.node_list.resolve(), observe_processes=True
-        )
+        self.cluster.start_monitoring(self.info.cluster_info.node_list.resolve(), observe_processes=True)
         self.cluster.commit()
         logging.info("Dask cluster started")
 
@@ -143,9 +135,7 @@ class DaskEnvironment(Environment, EnvStateManager):
         )
         self.cluster.start_processes([scheduler])
 
-    def _start_workers(
-        self, worker_assignment: Dict[str, List[DaskWorkerConfig]], server_address: str
-    ):
+    def _start_workers(self, worker_assignment: Dict[str, List[DaskWorkerConfig]], server_address: str):
         worker_processes = []
 
         items = sorted(worker_assignment.items(), key=lambda item: item[0])

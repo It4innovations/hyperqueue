@@ -25,9 +25,7 @@ class TestCase:
 
     def name(self) -> str:
         def camel_to_kebab(s: str) -> str:
-            return "".join(["-" + c.lower() if c.isupper() else c for c in s]).lstrip(
-                "-"
-            )
+            return "".join(["-" + c.lower() if c.isupper() else c for c in s]).lstrip("-")
 
         return camel_to_kebab(self.__class__.__name__)
 
@@ -74,10 +72,7 @@ def run_test_case(
             database = load_or_create_database(workdir)
 
         # Keep only results that we are interested in, there might be some old stale results
-        identifiers = [
-            instance.identifier
-            for instance in create_benchmark_instances(descriptors, workdir=workdir)
-        ]
+        identifiers = [instance.identifier for instance in create_benchmark_instances(descriptors, workdir=workdir)]
         database = database.filter(identifiers)
         case.postprocess(workdir=workdir, database=database)
 
@@ -122,11 +117,7 @@ def register_case(app: Typer):
                 shutil.rmtree(workdir, ignore_errors=True)
 
             if queue is not None or project is not None or init_script is not None:
-                assert (
-                    queue is not None
-                    and project is not None
-                    and init_script is not None
-                )
+                assert queue is not None and project is not None and init_script is not None
                 slurm = SlurmCliOptions(
                     queue=queue,
                     project=project,

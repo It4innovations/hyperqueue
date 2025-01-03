@@ -23,9 +23,7 @@ class Event:
     categories: List[str] = dataclasses.field(default_factory=list)
 
     @staticmethod
-    def duration_begin(
-        name: str, worker: str, resources: List[str], timestamp: datetime.timedelta
-    ) -> "Event":
+    def duration_begin(name: str, worker: str, resources: List[str], timestamp: datetime.timedelta) -> "Event":
         return Event(
             name=name,
             pid=worker,
@@ -35,9 +33,7 @@ class Event:
         )
 
     @staticmethod
-    def duration_end(
-        name: str, worker: str, resources: List[str], timestamp: datetime.timedelta
-    ) -> "Event":
+    def duration_end(name: str, worker: str, resources: List[str], timestamp: datetime.timedelta) -> "Event":
         return Event(
             name=name,
             pid=worker,

@@ -28,12 +28,7 @@ cli = create_cli()
 
 
 class ModelTrainWorkload(Workload):
-    def __init__(
-        self,
-        task_count: int,
-        cpu_count: int,
-        gpu_count: str
-    ):
+    def __init__(self, task_count: int, cpu_count: int, gpu_count: str):
         self.task_count = task_count
         self.cpu_count = cpu_count
         self.gpu_count = gpu_count
@@ -102,12 +97,10 @@ class FractionalResources(TestCase):
                     cluster=ClusterInfo(node_list=nodes),
                     environment_params=dict(),
                     workers=[
-                        HqWorkerConfig(
-                            overview_interval=datetime.timedelta(seconds=1)
-                        ) for _ in range(worker_count)
+                        HqWorkerConfig(overview_interval=datetime.timedelta(seconds=1)) for _ in range(worker_count)
                     ],
                     binary=hq_path,
-                    generate_event_log=True
+                    generate_event_log=True,
                 )
                 yield BenchmarkDescriptor(
                     env_descriptor=env,
@@ -138,7 +131,7 @@ class FractionalResources(TestCase):
         task_count = df["task-count"].iloc[0]
 
         data = None
-        for (_, row) in df.iterrows():
+        for _, row in df.iterrows():
             bench_workdir = Path(row["workdir"])
             timeline = parse_timeline(bench_workdir / "server" / "events.json")
 
@@ -176,11 +169,7 @@ class FractionalResources(TestCase):
                 index += 1
             ax = sns.lineplot(data, x="time", y="gpu-util", color=palette[index])
 
-            ax.set(
-                ylabel="Average GPU utilization (%)",
-                xlabel="Time from start [s]",
-                ylim=(0, 110)
-            )
+            ax.set(ylabel="Average GPU utilization (%)", xlabel="Time from start [s]", ylim=(0, 110))
 
             end = data["makespan"].iloc[0]
 
@@ -201,9 +190,7 @@ class FractionalResources(TestCase):
             )
 
             # Makespan
-            plt.vlines(
-                x=end, ymin=-4, ymax=5, color="black", linewidth=3, clip_on=False
-            )
+            plt.vlines(x=end, ymin=-4, ymax=5, color="black", linewidth=3, clip_on=False)
             ax.text(
                 x=end + 5,
                 y=4,
@@ -224,14 +211,9 @@ class FractionalResources(TestCase):
             height=4,
         )
         grid.map_dataframe(draw)
-        grid.set_titles(
-            col_template="GPU fraction per task: {col_name}",
-            size=12
-        )
+        grid.set_titles(col_template="GPU fraction per task: {col_name}", size=12)
         grid.figure.subplots_adjust(top=0.8)
-        grid.figure.suptitle(
-            f"GPU hardware utilization effect of fractional resources ({task_count} tasks, 2 GPUs)"
-        )
+        grid.figure.suptitle(f"GPU hardware utilization effect of fractional resources ({task_count} tasks, 2 GPUs)")
 
         render_chart(workdir / "fractional-resources")
 
@@ -250,7 +232,7 @@ def parse_timeline(events_path: Path) -> pd.DataFrame:
                 average = np.mean(np.array(usages))
                 data["time"].append(time)
                 data["gpu-util"].append(average)
-                for (i, utilization) in enumerate(usages):
+                for i, utilization in enumerate(usages):
                     data[f"gpu-util-{i}"].append(utilization)
     return pd.DataFrame(data)
 

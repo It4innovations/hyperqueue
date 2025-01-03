@@ -60,12 +60,8 @@ def measure_hq_tasks(
     return create_result(get_last_hq_job_duration(env, expected_task_count=task_count))
 
 
-def get_last_hq_job_duration(
-    env: HqEnvironment, expected_task_count: Optional[int] = None
-) -> float:
-    result = env.submit(
-        ["job", "info", "last", "--output-mode", "json"], measured=False
-    )
+def get_last_hq_job_duration(env: HqEnvironment, expected_task_count: Optional[int] = None) -> float:
+    result = env.submit(["job", "info", "last", "--output-mode", "json"], measured=False)
     metadata = json.loads(result.stdout.decode())[0]
     info = metadata["info"]["task_stats"]
     assert info["canceled"] == 0
@@ -88,9 +84,7 @@ def parse_hq_time(input: str) -> datetime.datetime:
     return datetime.datetime.strptime(input[:26], "%Y-%m-%dT%H:%M:%S.%f")
 
 
-def measure_snake_tasks(
-    env: Environment, command: str, task_count: int, cpus_per_task=1
-) -> WorkloadExecutionResult:
+def measure_snake_tasks(env: Environment, command: str, task_count: int, cpus_per_task=1) -> WorkloadExecutionResult:
     assert isinstance(env, SnakeEnvironment)
 
     args = f"""rule all:
@@ -111,9 +105,7 @@ rule benchmark:
     return create_result(timer.duration())
 
 
-def measure_dask_tasks(
-    env: Environment, submit_fn: Callable[["distributed.Client"], None]
-) -> WorkloadExecutionResult:
+def measure_dask_tasks(env: Environment, submit_fn: Callable[["distributed.Client"], None]) -> WorkloadExecutionResult:
     from ..environment.dask import DaskEnvironment
 
     assert isinstance(env, DaskEnvironment)

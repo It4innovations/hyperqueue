@@ -117,9 +117,7 @@ class Numa(TestCase):
             Strategy.NoNuma,
         ]
         binaries = [
-            Path(
-                "/mnt/proj1/dd-23-154/beranekj/hyperqueue/benchmarks/stream/numa-stress/target/release/numa-stress"
-            ),
+            Path("/mnt/proj1/dd-23-154/beranekj/hyperqueue/benchmarks/stream/numa-stress/target/release/numa-stress"),
             # Path(
             #     "/mnt/proj1/dd-23-154/beranekj/hyperqueue/benchmarks/stream/numa-stress/target/release/numa-stress2"
             # ),
@@ -158,9 +156,7 @@ class Numa(TestCase):
                 env = HqClusterInfo(
                     cluster=ClusterInfo(node_list=nodes),
                     environment_params=dict(),
-                    workers=[
-                        HqWorkerConfig(**worker_args) for _ in range(worker_count)
-                    ],
+                    workers=[HqWorkerConfig(**worker_args) for _ in range(worker_count)],
                     binary=hq_path,
                 )
                 yield BenchmarkDescriptor(
@@ -232,9 +228,7 @@ class Numa(TestCase):
             # row_template="Binary: {row_name}",
         )
         grid.figure.subplots_adjust(top=0.8)
-        grid.figure.suptitle(
-            f"Effect of resource group allocation strategies ({task_count} tasks)"
-        )
+        grid.figure.suptitle(f"Effect of resource group allocation strategies ({task_count} tasks)")
 
         render_chart(workdir / "numa")
 
