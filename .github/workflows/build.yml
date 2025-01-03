@@ -54,12 +54,9 @@ jobs:
           key: x64
 
       - name: Compile
-        uses: actions-rs/cargo@v1
         env:
           HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
-        with:
-          command: build
-          args: --profile dist
+        run: cargo build --profile dist
 
       - name: Compress debuginfo
         run: objcopy --compress-debug-sections=zlib-gnu target/dist/hq
@@ -162,11 +159,9 @@ jobs:
           cat version-expected.txt
           cmp --silent version-expected.txt version.txt
       - name: Compile
-        uses: actions-rs/cargo@v1
         env:
           HQ_BUILD_VERSION: ${{ needs.set-env.outputs.version }}
-        with:
-          command: build
+        run: cargo build
       - name: Test Python wheel
         run: |
           source venv/bin/activate
