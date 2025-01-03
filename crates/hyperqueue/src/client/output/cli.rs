@@ -786,24 +786,6 @@ impl Output for CliOutput {
                         vec!["Stdout".cell().bold(true), stdout.cell()],
                         vec!["Stderr".cell().bold(true), stderr.cell()],
                         vec![
-                            "Error".cell().bold(true),
-                            match (verbosity, &task.state) {
-                                (Verbosity::Normal, JobTaskState::Failed { error, .. }) => {
-                                    let mut error_mut = error.clone();
-                                    if error_mut.len() >= ERROR_TRUNCATE_LENGTH_INFO {
-                                        error_mut.truncate(ERROR_TRUNCATE_LENGTH_INFO);
-                                        error_mut.push_str("...");
-                                        is_truncated = true;
-                                    }
-                                    error_mut.cell().foreground_color(Some(Color::Red))
-                                }
-                                (Verbosity::Verbose, JobTaskState::Failed { error, .. }) => {
-                                    error.to_owned().cell().foreground_color(Some(Color::Red))
-                                }
-                                _ => "".cell(),
-                            },
-                        ],
-                        vec![
                             "Time limit".cell().bold(true),
                             task_desc
                                 .time_limit
@@ -833,6 +815,24 @@ impl Output for CliOutput {
                                 .collect::<Vec<_>>()
                                 .join(",")
                                 .cell(),
+                        ],
+                        vec![
+                            "Error".cell().bold(true),
+                            match (verbosity, &task.state) {
+                                (Verbosity::Normal, JobTaskState::Failed { error, .. }) => {
+                                    let mut error_mut = error.clone();
+                                    if error_mut.len() >= ERROR_TRUNCATE_LENGTH_INFO {
+                                        error_mut.truncate(ERROR_TRUNCATE_LENGTH_INFO);
+                                        error_mut.push_str("...");
+                                        is_truncated = true;
+                                    }
+                                    error_mut.cell().foreground_color(Some(Color::Red))
+                                }
+                                (Verbosity::Verbose, JobTaskState::Failed { error, .. }) => {
+                                    error.to_owned().cell().foreground_color(Some(Color::Red))
+                                }
+                                _ => "".cell(),
+                            },
                         ],
                     ];
                     self.print_vertical_table(rows);
