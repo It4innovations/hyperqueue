@@ -5,7 +5,6 @@ import dataclasses
 import json
 import logging
 import subprocess
-from collections import defaultdict
 from pathlib import Path
 import time
 import traceback

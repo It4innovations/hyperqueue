@@ -16,7 +16,7 @@ import pandas as pd
 from src.workloads.workload import Workload, WorkloadExecutionResult
 from src.environment import Environment
 from src.clusterutils import ClusterInfo
-from src.clusterutils.node_list import Local, get_active_nodes
+from src.clusterutils.node_list import Local
 from src.environment.hq import HqClusterInfo, HqEnvironment, HqWorkerConfig
 from src.analysis.chart import render_chart
 from src.analysis.dataframe import DataFrameExtractor

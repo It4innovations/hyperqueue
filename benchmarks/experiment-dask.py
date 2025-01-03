@@ -6,7 +6,7 @@ from typing import Iterable
 from src.build.hq import Profile
 from src.postprocessing.common import format_large_int
 from src.clusterutils import ClusterInfo
-from src.clusterutils.node_list import Local, get_active_nodes
+from src.clusterutils.node_list import get_active_nodes
 from src.environment.dask import DaskClusterInfo, DaskWorkerConfig
 from src.environment.hq import HqClusterInfo, HqWorkerConfig
 from src.analysis.chart import render_chart
@@ -155,7 +155,7 @@ class DaskVsHqSleep(TestCase):
         grid.add_legend(title="Task runtime")
         grid.set_titles(col_template="{col_name}")
         grid.figure.subplots_adjust(top=0.9)
-        grid.figure.suptitle(f"Scalability of Dask vs HyperQueue (target makespan 30s)")
+        grid.figure.suptitle("Scalability of Dask vs HyperQueue (target makespan 30s)")
 
         render_chart(workdir / "dask-vs-hq-sleep")
 
@@ -306,7 +306,7 @@ class DaskVsHqEmpty(TestCase):
         grid.add_legend(title="Task runtime")
         grid.set_titles(col_template="{col_name}")
         grid.figure.subplots_adjust(top=0.9)
-        grid.figure.suptitle(f"Scalability of Dask vs HyperQueue (empty task)")
+        grid.figure.suptitle("Scalability of Dask vs HyperQueue (empty task)")
 
         render_chart(workdir / "dask-vs-hq-empty")
 

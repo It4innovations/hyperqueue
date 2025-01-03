@@ -1,25 +1,19 @@
 import dataclasses
 import datetime
-import enum
-import glob
 import itertools
 import os
 import random
 import sys
 from pathlib import Path
-from typing import Dict, Any, Iterable, List, Tuple, Union
+from typing import Dict, Any, Iterable, List, Union
 import typing
 
-from matplotlib import pyplot as plt
 import pandas as pd
 
 from src.clusterutils import ClusterInfo
 from hyperqueue.ffi.protocol import ResourceRequest
 import time
 
-from src.postprocessing.common import (
-    analyze_results_utilization,
-)
 from src.analysis.chart import render_chart
 from hyperqueue.job import Job
 from src.analysis.dataframe import DataFrameExtractor
@@ -27,7 +21,7 @@ from src.benchmark.database import Database
 from src.benchmark.identifier import BenchmarkDescriptor
 from src.benchmark_defs import get_hq_binary
 from src.cli import register_case, TestCase, create_cli
-from src.clusterutils.node_list import Local, get_active_nodes
+from src.clusterutils.node_list import get_active_nodes
 from src.environment.hq import HqEnvironment, HqClusterInfo, HqItemsWorkerResource, HqWorkerConfig
 from src.utils import activate_cwd
 from src.workloads import Workload
