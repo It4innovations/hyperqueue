@@ -10,7 +10,7 @@ from src.environment.dask import DaskClusterInfo, DaskWorkerConfig
 from src.workloads.utils import measure_dask_tasks, measure_hq_tasks
 from src.environment import Environment
 from src.workloads.workload import WorkloadExecutionResult
-from src.workloads.stress import Stress, StressHQ
+from src.workloads.stress import Stress
 from src.postprocessing.common import (
     analyze_per_worker_utilization,
     analyze_results_utilization,
@@ -19,7 +19,7 @@ from src.postprocessing.common import (
 from src.build.hq import Profile
 import pandas as pd
 from src.clusterutils import ClusterInfo
-from src.clusterutils.node_list import Local, get_active_nodes
+from src.clusterutils.node_list import get_active_nodes
 from src.environment.hq import HqClusterInfo, HqWorkerConfig
 from src.analysis.chart import render_chart
 from src.analysis.dataframe import DataFrameExtractor

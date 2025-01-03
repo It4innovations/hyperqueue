@@ -9,6 +9,7 @@ from typing import List
 import json
 
 import tqdm
+from benchmarks.src.build.hq import Profile
 
 # from src.build.hq import Profile
 from src.postprocessing.common import format_large_int
@@ -21,9 +22,7 @@ import pandas as pd
 import psutil
 
 
-def spawn_workers(
-    hq_binary: Path, dir: str, worker_count: int
-) -> List[subprocess.Popen]:
+def spawn_workers(hq_binary: Path, dir: str, worker_count: int) -> List[subprocess.Popen]:
     processes = []
     for _ in range(worker_count):
         processes.append(
@@ -133,9 +132,7 @@ def measure_server_util(
                 ]
             )
             duration = time.time() - start
-            print(
-                f"Run took {duration:.3f}s, should have been {total_duration.total_seconds():.3f}s"
-            )
+            print(f"Run took {duration:.3f}s, should have been {total_duration.total_seconds():.3f}s")
             if mem_usage is None:
                 mem_usage = process.memory_info()
             cpu_usages.append(process.cpu_times())
@@ -166,7 +163,7 @@ def create_chart_increase_tasks(df: pd.DataFrame):
         title="Server CPU consumption (12 workers, 1 minute span)",
     )
     ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, pos: format_large_int(int(v))))
-                   
+
     for x in df["task-count"].unique():
         y = df[df["task-count"] == x]["utilization"].mean()
         ax.text(x + 4000, y - 0.15, f"{y:.2f}")
